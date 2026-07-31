@@ -302,6 +302,76 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   }
 }
 
+// Builds the registry URI a warp-monitor pod reads, embedding the commit in the
+// /tree/{commit} form when one is given.
+function registryUriFromCommit(registryCommit: string): string {
+  if (!registryCommit) {
+    return DEFAULT_GITHUB_REGISTRY;
+  }
+  return `${DEFAULT_GITHUB_REGISTRY}/tree/${registryCommit}`;
+}
+
+/**
+ * Deploys the single centralized multi-route warp monitor: one Deployment that
+ * iterates many routes and emits all their metrics into one scraped registry,
+ * instead of a StatefulSet per route. Routes owned by a rebalancer are passed in
+ * `skipSharedBalanceWarpRouteIds` so their shared-balance metrics (already
+ * emitted by the rebalancer) are not double-published.
+ */
+export class CentralizedWarpRouteMonitorHelmManager extends HelmManager {
+  static helmReleaseName = 'hyperlane-warp-monitor-centralized';
+
+  readonly helmChartPath: string = path.join(
+    getInfraPath(),
+    './helm/warp-routes',
+  );
+
+  constructor(
+    readonly runEnv: DeployEnvironment,
+    readonly environmentChainNames: string[],
+    readonly registryCommit: string,
+    readonly skipSharedBalanceWarpRouteIds: string[],
+    readonly imageTag: string,
+    readonly warpRouteIds: string[] = [],
+    readonly concurrency: number = 10,
+    readonly checkFrequency: number = 30000,
+  ) {
+    super();
+  }
+
+  async helmValues() {
+    return {
+      image: {
+        repository: DockerImageRepos.NODE_SERVICES,
+        tag: this.imageTag,
+      },
+      serviceName: NODE_SERVICE_NAMES.WARP_MONITOR,
+      fullnameOverride: this.helmReleaseName,
+      hyperlane: {
+        chains: this.environmentChainNames,
+        registryUri: registryUriFromCommit(this.registryCommit),
+      },
+      centralized: {
+        enabled: true,
+        // Monitor every route in the registry unless an explicit subset is given.
+        warpRouteAll: this.warpRouteIds.length === 0,
+        warpRouteIds: this.warpRouteIds,
+        concurrency: this.concurrency,
+        skipSharedBalanceWarpRouteIds: this.skipSharedBalanceWarpRouteIds,
+        checkFrequency: this.checkFrequency,
+      },
+    };
+  }
+
+  get namespace() {
+    return this.runEnv;
+  }
+
+  get helmReleaseName() {
+    return CentralizedWarpRouteMonitorHelmManager.helmReleaseName;
+  }
+}
+
 export interface WarpMonitorPodInfo {
   helmReleaseName: string;
   warpRouteId: string;

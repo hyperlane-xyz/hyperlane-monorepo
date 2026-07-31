@@ -9,11 +9,18 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
+import { mainnetDockerTags } from '../../config/docker.js';
 import { getWarpCoreConfig } from '../../config/registry.js';
-import { WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX } from '../../src/utils/consts.js';
+import { DeployEnvironment } from '../../src/config/deploy-environment.js';
+import { getDeployedRebalancerWarpRouteIds } from '../../src/rebalancer/helm.js';
+import {
+  REBALANCER_HELM_RELEASE_PREFIX,
+  WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX,
+} from '../../src/utils/consts.js';
 import { validateRegistryCommit } from '../../src/utils/git.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import {
+  CentralizedWarpRouteMonitorHelmManager,
   WarpRouteMonitorHelmManager,
   getDeployedWarpMonitorWarpRouteIds,
 } from '../../src/warp-monitor/helm.js';
@@ -23,11 +30,79 @@ import {
   getAgentConfig,
   getArgs,
   getMultiProtocolProvider,
+  withDryRun,
   withRegistryCommit,
   withWarpRouteId,
   withYes,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
+
+// Deploys the single centralized multi-route monitor. Routes currently owned by
+// a deployed rebalancer are auto-derived from the live cluster and passed as the
+// shared-balance skip list, so their shared-balance metrics are not double-emitted.
+async function deployCentralizedWarpMonitor({
+  environment,
+  warpRouteId,
+  registryCommitArg,
+  skipConfirmation,
+  imageTagArg,
+  dryRun,
+}: {
+  environment: DeployEnvironment;
+  warpRouteId?: string;
+  registryCommitArg?: string;
+  skipConfirmation: boolean;
+  imageTagArg?: string;
+  dryRun: boolean;
+}) {
+  let registryCommit: string;
+  if (registryCommitArg) {
+    registryCommit = registryCommitArg;
+  } else if (skipConfirmation) {
+    registryCommit = 'main';
+  } else {
+    registryCommit = await input({
+      message: 'Enter registry version (commit, branch or tag):',
+      default: 'main',
+    });
+  }
+  await validateRegistryCommit(registryCommit);
+
+  const rebalancerPods = await getDeployedRebalancerWarpRouteIds(
+    environment,
+    REBALANCER_HELM_RELEASE_PREFIX,
+  );
+  const skipSharedBalanceWarpRouteIds = [
+    ...new Set(
+      rebalancerPods
+        .map((p) => p.warpRouteId)
+        .filter((id): id is string => !!id),
+    ),
+  ].sort();
+  rootLogger.info(
+    `Rebalancer-owned routes excluded from shared-balance metrics (${skipSharedBalanceWarpRouteIds.length}):\n${skipSharedBalanceWarpRouteIds.map((id) => `  - ${id}`).join('\n')}`,
+  );
+
+  const agentConfig = getAgentConfig(Contexts.Hyperlane, environment);
+  const imageTag = imageTagArg ?? mainnetDockerTags.warpMonitor;
+  // Empty warpRouteIds => monitor every route in the registry (warpRouteAll).
+  const warpRouteIds = warpRouteId ? [warpRouteId] : [];
+
+  const helmManager = new CentralizedWarpRouteMonitorHelmManager(
+    environment,
+    agentConfig.environmentChainNames,
+    registryCommit,
+    skipSharedBalanceWarpRouteIds,
+    imageTag,
+    warpRouteIds,
+  );
+  rootLogger.info(
+    `Deploying centralized warp monitor (image ${imageTag}, ${warpRouteIds.length === 0 ? 'all routes' : `${warpRouteIds.length} route(s)`})`,
+  );
+  await timedAsync('runHelmCommand(centralized)', () =>
+    helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade, { dryRun }),
+  );
+}
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
@@ -36,12 +111,40 @@ async function main() {
     warpRouteId,
     registryCommit: registryCommitArg,
     yes: skipConfirmation,
-  } = await withYes(withRegistryCommit(withWarpRouteId(getArgs()))).argv;
+    centralized,
+    imageTag: imageTagArg,
+    dryRun,
+  } = await withDryRun(
+    withYes(withRegistryCommit(withWarpRouteId(getArgs())))
+      .boolean('centralized')
+      .describe(
+        'centralized',
+        'Deploy the single centralized multi-route monitor instead of per-route monitors',
+      )
+      .default('centralized', false)
+      .string('imageTag')
+      .describe(
+        'imageTag',
+        'node-services image tag for the centralized monitor (defaults to the pinned mainnet warpMonitor tag)',
+      ),
+  ).argv;
   await timedAsync('assertCorrectKubeContext', () =>
     assertCorrectKubeContext(getEnvironmentConfig(environment)),
   );
 
   const envConfig = getEnvironmentConfig(environment);
+
+  if (centralized) {
+    await deployCentralizedWarpMonitor({
+      environment,
+      warpRouteId,
+      registryCommitArg,
+      skipConfirmation,
+      imageTagArg,
+      dryRun,
+    });
+    return;
+  }
 
   let warpRouteIds: string[];
   if (warpRouteId) {
