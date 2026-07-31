@@ -18,15 +18,18 @@ centralized:
   warpRouteAll: true
   # Explicit route IDs to monitor when warpRouteAll is false.
   warpRouteIds: []
-  # Max routes processed concurrently per cycle.
-  concurrency: 10
+  # Max routes processed concurrently per cycle. Kept low so per-cycle RPC/CPU
+  # load stays flat rather than bursting the whole fleet at once.
+  concurrency: 2
   # Routes whose shared balance metrics are emitted by a rebalancer and must not
   # be double-emitted by this monitor.
   skipSharedBalanceWarpRouteIds: []
   explorerApiUrl: ''
   explorerQueryLimit: 200
   inventoryAddress: ''
-  checkFrequency: 30000
+  # 5 minutes. Warp balances move slowly; sub-minute resolution is unnecessary
+  # and just multiplies RPC load across the whole fleet.
+  checkFrequency: 300000
   # Guaranteed QoS (requests == limits) so the pod is not evicted under node
   # memory pressure. One process covers the whole fleet, so size accordingly.
   resources:

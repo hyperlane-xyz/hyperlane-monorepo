@@ -333,8 +333,8 @@ export class CentralizedWarpRouteMonitorHelmManager extends HelmManager {
     readonly skipSharedBalanceWarpRouteIds: string[],
     readonly imageTag: string,
     readonly warpRouteIds: string[] = [],
-    readonly concurrency: number = 10,
-    readonly checkFrequency: number = 30000,
+    readonly concurrency: number = 2,
+    readonly checkFrequency: number = 300000,
   ) {
     super();
   }
