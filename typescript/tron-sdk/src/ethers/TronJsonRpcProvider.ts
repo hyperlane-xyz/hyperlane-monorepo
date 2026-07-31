@@ -3,11 +3,27 @@ import { TronWeb } from 'tronweb';
 
 import { ensure0x, retryAsync } from '@hyperlane-xyz/utils';
 
-import { triggerTronContractCall } from '../utils/index.js';
+import { buildTronTriggerRequest } from '../utils/index.js';
 import { stripCustomRpcHeaders, toHttpApiUrl } from './urlUtils.js';
 
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_BASE_RETRY_MS = 250;
+
+/** Raw full-node `wallet/triggerconstantcontract` request payload. */
+interface TronConstantCallArgs {
+  owner_address: string;
+  contract_address: string;
+  function_selector: string;
+  data?: string;
+  call_value: number;
+  visible: boolean;
+}
+
+/** Subset of the raw full-node constant-call response we read. */
+interface TronConstantCallResponse {
+  constant_result?: string[];
+  result?: { result?: boolean; message?: string };
+}
 
 /** TronWeb's maximum allowed originEnergyLimit for contract creation. */
 export const MAX_TRON_ORIGIN_ENERGY_LIMIT = 10_000_000;
@@ -67,6 +83,9 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
    * errors like 503s from TronGrid rate limiting.
    */
   async perform(method: string, params: any): Promise<any> {
+    // Route contract reads through the raw constant-call endpoint (see
+    // callContract): some public Tron RPCs (e.g. TronGrid, Alchemy) don't
+    // answer eth_call reliably.
     if (method === 'call' && params.blockTag === 'latest') {
       return this.callContract(params.transaction);
     }
@@ -81,24 +100,31 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
   private async callContract(
     transaction: providers.TransactionRequest,
   ): Promise<string> {
-    const response = await triggerTronContractCall(
-      this.tronWeb,
-      transaction,
-      transaction.from,
-      ({ contractAddress, callValue, input, issuerAddress }) =>
-        retryAsync(
-          () =>
-            this.tronWeb.transactionBuilder.triggerConstantContract(
-              contractAddress,
-              '',
-              { callValue, input },
-              [],
-              issuerAddress,
-            ),
-          this.maxRetries,
-          this.baseRetryMs,
+    const { contractAddress, callValue, input, issuerAddress } =
+      buildTronTriggerRequest(this.tronWeb, transaction, transaction.from);
+    const args: TronConstantCallArgs = {
+      owner_address: issuerAddress,
+      contract_address: contractAddress,
+      function_selector: '',
+      data: input,
+      call_value: callValue,
+      visible: false,
+    };
+    // Post directly to the raw constant-call endpoint instead of TronWeb's
+    // triggerConstantContract wrapper, which throws on a reverted read and
+    // discards constant_result. eth_call returns the reverted/empty data, and
+    // the ISM null-config probe that mirrors eth_call needs that data (0x on an
+    // empty return) so ethers can recognize a missing selector. A genuine
+    // transport failure still rejects and propagates.
+    const response = await retryAsync(
+      () =>
+        this.tronWeb.fullNode.request<TronConstantCallResponse>(
+          'wallet/triggerconstantcontract',
+          args,
+          'post',
         ),
-      'Tron constant call failed',
+      this.maxRetries,
+      this.baseRetryMs,
     );
     return ensure0x(response.constant_result?.[0] ?? '');
   }

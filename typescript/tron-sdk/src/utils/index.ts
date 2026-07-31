@@ -1,4 +1,4 @@
-import { TronWeb, Types } from 'tronweb';
+import { TronWeb } from 'tronweb';
 
 import { assert, isNullish, strip0x } from '@hyperlane-xyz/utils';
 
@@ -166,25 +166,29 @@ export function toTronHex(tronWeb: Readonly<TronWeb>, address: string): string {
 }
 
 /**
- * Builds a Tron contract-trigger request from an ethers transaction and runs it
- * through the provided trigger function (smart-contract write vs constant read),
- * failing loudly when Tron reports the call as unsuccessful.
+ * Fields required to invoke a TronWeb transactionBuilder trigger
+ * (`triggerSmartContract` write or `triggerConstantContract` read).
+ */
+export interface TronTriggerRequest {
+  contractAddress: string;
+  callValue: number;
+  input?: string;
+  issuerAddress: string;
+}
+
+/**
+ * Builds a Tron contract-trigger request from an ethers transaction. Response
+ * handling is left to the caller: writes assert on the build result, reads
+ * return the raw constant-call data so ethers can surface reverts itself.
  *
  * The empty functionSelector tells TronWeb to use the raw ABI-encoded `input`
  * bytes directly instead of encoding named parameters.
  */
-export async function triggerTronContractCall(
+export function buildTronTriggerRequest(
   tronWeb: Readonly<TronWeb>,
   tx: providers.TransactionRequest,
   sender: string | undefined,
-  trigger: (request: {
-    contractAddress: string;
-    callValue: number;
-    input?: string;
-    issuerAddress: string;
-  }) => Promise<Types.TransactionWrapper>,
-  errorContext: string,
-): Promise<Types.TransactionWrapper> {
+): TronTriggerRequest {
   assert(tx.to, 'Transaction must have a destination address');
   const contractAddress = toTronHex(tronWeb, tx.to);
   const issuerAddress = isNullish(sender)
@@ -195,17 +199,7 @@ export async function triggerTronContractCall(
     ? undefined
     : strip0x(utils.hexlify(tx.data));
 
-  const response = await trigger({
-    contractAddress,
-    callValue,
-    input,
-    issuerAddress,
-  });
-  assert(
-    response.result?.result,
-    `${errorContext}: ${response.result?.message}`,
-  );
-  return response;
+  return { contractAddress, callValue, input, issuerAddress };
 }
 
 export async function convertEthersToTronTransaction(
@@ -213,19 +207,18 @@ export async function convertEthersToTronTransaction(
   tx: providers.TransactionRequest,
   sender: string,
 ): Promise<any> {
-  const response = await triggerTronContractCall(
-    tronWeb,
-    tx,
-    sender,
-    ({ contractAddress, callValue, input, issuerAddress }) =>
-      tronWeb.transactionBuilder.triggerSmartContract(
-        contractAddress,
-        '',
-        { callValue, input },
-        [],
-        issuerAddress,
-      ),
-    'triggerSmartContract failed',
+  const { contractAddress, callValue, input, issuerAddress } =
+    buildTronTriggerRequest(tronWeb, tx, sender);
+  const response = await tronWeb.transactionBuilder.triggerSmartContract(
+    contractAddress,
+    '',
+    { callValue, input },
+    [],
+    issuerAddress,
+  );
+  assert(
+    response.result?.result,
+    `triggerSmartContract failed: ${response.result?.message}`,
   );
   return response.transaction;
 }

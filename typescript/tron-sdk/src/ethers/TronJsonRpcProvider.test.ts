@@ -7,34 +7,53 @@ import { TronJsonRpcProvider } from './TronJsonRpcProvider.js';
 
 chai.use(chaiAsPromised);
 
-interface CapturedCall {
-  contractAddress: string;
-  options: { callValue: number; input?: string };
+interface CapturedRequest {
+  url: string;
+  payload: Record<string, unknown>;
+  method?: string;
+}
+
+interface ConstantCallResponse {
+  result: { result: boolean; message?: string };
+  constant_result: string[];
+}
+
+function stubFullNode(
+  provider: TronJsonRpcProvider,
+  response: ConstantCallResponse,
+  captured?: { value?: CapturedRequest },
+): void {
+  const tronWeb = {
+    fullNode: {
+      request: async (
+        url: string,
+        payload: Record<string, unknown>,
+        method?: string,
+      ) => {
+        if (captured) {
+          captured.value = { url, payload, method };
+        }
+        return response;
+      },
+    },
+  } as unknown as TronWeb;
+  (provider as unknown as { tronWeb: TronWeb }).tronWeb = tronWeb;
 }
 
 describe('TronJsonRpcProvider', () => {
-  it('uses triggerConstantContract for latest contract calls', async () => {
+  it('routes contract reads through the raw constant-call endpoint and returns the decoded data', async () => {
     const provider = new TronJsonRpcProvider(
       'https://node.example.com/jsonrpc',
       728126428,
+      1,
+      0,
     );
-    let captured: CapturedCall | undefined;
-    const tronWeb = {
-      transactionBuilder: {
-        triggerConstantContract: async (
-          contractAddress: string,
-          _selector: string,
-          options: { callValue: number; input?: string },
-        ) => {
-          captured = { contractAddress, options };
-          return {
-            result: { result: true },
-            constant_result: ['00ff'],
-          };
-        },
-      },
-    } as unknown as TronWeb;
-    (provider as unknown as { tronWeb: TronWeb }).tronWeb = tronWeb;
+    const captured: { value?: CapturedRequest } = {};
+    stubFullNode(
+      provider,
+      { result: { result: true }, constant_result: ['00ff'] },
+      captured,
+    );
 
     const result = await provider.call({
       to: '0x19335987d77120c462ca7df51cf29f68a38e6d6c',
@@ -42,32 +61,32 @@ describe('TronJsonRpcProvider', () => {
     });
 
     expect(result).to.equal('0x00ff');
-    expect(captured?.contractAddress).to.equal(
+    expect(captured.value?.url).to.equal('wallet/triggerconstantcontract');
+    expect(captured.value?.method).to.equal('post');
+    expect(captured.value?.payload.contract_address).to.equal(
       '4119335987d77120c462ca7df51cf29f68a38e6d6c',
     );
-    expect(captured?.options.input).to.equal('7f5a7c7b');
+    expect(captured.value?.payload.data).to.equal('7f5a7c7b');
   });
 
-  it('rejects when Tron reports the constant call as failed', async () => {
+  it('returns 0x for a reverted/missing-selector constant call without throwing', async () => {
     const provider = new TronJsonRpcProvider(
       'https://node.example.com/jsonrpc',
       728126428,
+      1,
+      0,
     );
-    const tronWeb = {
-      transactionBuilder: {
-        triggerConstantContract: async () => ({
-          result: { result: false, message: 'REVERT opcode executed' },
-        }),
-      },
-    } as unknown as TronWeb;
-    (provider as unknown as { tronWeb: TronWeb }).tronWeb = tronWeb;
+    stubFullNode(provider, {
+      result: { result: false, message: 'REVERT opcode executed' },
+      constant_result: [],
+    });
 
-    await expect(
-      provider.call({
-        to: '0x19335987d77120c462ca7df51cf29f68a38e6d6c',
-        data: '0x7f5a7c7b',
-      }),
-    ).to.be.rejectedWith(/Tron constant call failed: REVERT opcode executed/);
+    const result = await provider.call({
+      to: '0x19335987d77120c462ca7df51cf29f68a38e6d6c',
+      data: '0x7f5a7c7b',
+    });
+
+    expect(result).to.equal('0x');
   });
 });
 
