@@ -1,7 +1,7 @@
-import { BigNumber, providers } from 'ethers';
+import { BigNumber, providers, utils } from 'ethers';
 import { TronWeb } from 'tronweb';
 
-import { ensure0x, retryAsync } from '@hyperlane-xyz/utils';
+import { ensure0x, isNullish, retryAsync } from '@hyperlane-xyz/utils';
 
 import { buildTronTriggerRequest } from '../utils/index.js';
 import { stripCustomRpcHeaders, toHttpApiUrl } from './urlUtils.js';
@@ -27,6 +27,69 @@ interface TronConstantCallResponse {
 
 /** TronWeb's maximum allowed originEnergyLimit for contract creation. */
 export const MAX_TRON_ORIGIN_ENERGY_LIMIT = 10_000_000;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && !isNullish(value);
+}
+
+/** Standard EVM/JSON-RPC "execution reverted" error code. */
+const JSON_RPC_REVERT_CODE = 3;
+
+function nextInChain(node: Record<string, unknown>): unknown {
+  return node.error ?? node.cause;
+}
+
+/**
+ * True for ethers' synthetic top-level CALL_EXCEPTION wrapper. For the `call`
+ * method, @ethersproject/providers `checkError` wraps EVERY failed eth_call —
+ * genuine reverts AND transport failures alike — into a CALL_EXCEPTION carrying
+ * `data: "0x"` and the generic reason "missing revert data in call exception",
+ * nesting the original error under `.error`. Both cases share this wrapper, so
+ * it cannot itself distinguish a revert from a 503 and must be skipped when
+ * classifying; the truth lives in the nested original error.
+ */
+function isSyntheticCallExceptionWrapper(
+  node: Record<string, unknown>,
+): boolean {
+  return (
+    node.code === utils.Logger.errors.CALL_EXCEPTION &&
+    typeof node.message === 'string' &&
+    node.message.includes('missing revert data in call exception')
+  );
+}
+
+/**
+ * True when the error chain positively indicates the VM executed and reverted
+ * (including the reasonless / missing-selector case). A reasonless Tron revert
+ * surfaces as ethers' CALL_EXCEPTION wrapper over a nested SERVER_ERROR whose
+ * message carries "execution reverted" — the SAME code shape as a real 503, so
+ * a transport-code scan alone cannot tell them apart. We therefore detect a
+ * revert positively, skipping the synthetic wrapper, via any of: a revert
+ * message, the JSON-RPC revert code, or non-synthetic hex return data. A revert
+ * is re-thrown so the SDK's missing-selector detection sees the CALL_EXCEPTION
+ * and JSON-RPC-only proxies never touch the native endpoint.
+ */
+function isRevertError(error: unknown): boolean {
+  let current: unknown = error;
+  while (isRecord(current)) {
+    if (!isSyntheticCallExceptionWrapper(current)) {
+      const messages = [current.message, current.reason, current.body].filter(
+        (value): value is string => typeof value === 'string',
+      );
+      if (messages.some((value) => /revert/i.test(value))) {
+        return true;
+      }
+      if (current.code === JSON_RPC_REVERT_CODE) {
+        return true;
+      }
+      if (typeof current.data === 'string' && current.data.startsWith('0x')) {
+        return true;
+      }
+    }
+    current = nextInChain(current);
+  }
+  return false;
+}
 
 /**
  * TronJsonRpcProvider extends ethers JsonRpcProvider for Tron's JSON-RPC API.
@@ -83,18 +146,33 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
    * errors like 503s from TronGrid rate limiting.
    */
   async perform(method: string, params: any): Promise<any> {
-    // Route contract reads through the raw constant-call endpoint (see
-    // callContract): some public Tron RPCs (e.g. TronGrid, Alchemy) don't
-    // answer eth_call reliably.
+    const performWithRetry = () =>
+      retryAsync(
+        () => super.perform(method, params),
+        this.maxRetries,
+        this.baseRetryMs,
+      );
+
+    // Contract reads are eth_call-first: standard JSON-RPC lets ethers surface
+    // reverts as CALL_EXCEPTION (which the SDK's missing-selector detection
+    // recognizes) and keeps JSON-RPC-only proxies working, since a re-thrown
+    // revert never touches the native endpoint. A positively-detected revert is
+    // re-thrown; ANY other failure — a transport error (503/timeout) or a node
+    // that simply doesn't answer eth_call (e.g. -32601) — falls back to the raw
+    // constant-call endpoint (see callContract), as used by public RPCs like
+    // TronGrid and Alchemy.
     if (method === 'call' && params.blockTag === 'latest') {
-      return this.callContract(params.transaction);
+      try {
+        return await performWithRetry();
+      } catch (error: unknown) {
+        if (isRevertError(error)) {
+          throw error;
+        }
+        return this.callContract(params.transaction);
+      }
     }
 
-    return retryAsync(
-      () => super.perform(method, params),
-      this.maxRetries,
-      this.baseRetryMs,
-    );
+    return performWithRetry();
   }
 
   private async callContract(
@@ -112,10 +190,7 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
     };
     // Post directly to the raw constant-call endpoint instead of TronWeb's
     // triggerConstantContract wrapper, which throws on a reverted read and
-    // discards constant_result. eth_call returns the reverted/empty data, and
-    // the ISM null-config probe that mirrors eth_call needs that data (0x on an
-    // empty return) so ethers can recognize a missing selector. A genuine
-    // transport failure still rejects and propagates.
+    // discards constant_result.
     const response = await retryAsync(
       () =>
         this.tronWeb.fullNode.request<TronConstantCallResponse>(
@@ -126,7 +201,20 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
       this.maxRetries,
       this.baseRetryMs,
     );
-    return ensure0x(response.constant_result?.[0] ?? '');
+    // A `constant_result` array means the VM executed — including a revert,
+    // whose return/revert data lands in constant_result[0] (empty -> 0x). This
+    // mirrors eth_call so the SDK's missing-selector probe sees the empty data.
+    if (response.constant_result) {
+      return ensure0x(response.constant_result[0] ?? '');
+    }
+    // No constant_result means the call failed before execution (bad request,
+    // contract not found, disabled API, malformed response). Surface the node's
+    // decoded message rather than masking a real failure as an empty return.
+    const rawMessage = response.result?.message;
+    const message = rawMessage
+      ? this.tronWeb.toUtf8(rawMessage)
+      : 'unknown error';
+    throw new Error(`Tron constant call failed: ${message}`);
   }
 
   /**

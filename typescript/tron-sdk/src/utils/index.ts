@@ -191,8 +191,12 @@ export function buildTronTriggerRequest(
 ): TronTriggerRequest {
   assert(tx.to, 'Transaction must have a destination address');
   const contractAddress = toTronHex(tronWeb, tx.to);
+  // A provider-connected ethers read omits `from`. Defaulting the caller to the
+  // contract itself would run the call with msg.sender == address(this), so
+  // caller-sensitive views return wrong/privileged state. Use the Tron zero
+  // address as the caller instead, mirroring eth_call's default sender.
   const issuerAddress = isNullish(sender)
-    ? contractAddress
+    ? toTronHex(tronWeb, TRON_EMPTY_ADDRESS)
     : toTronHex(tronWeb, sender);
   const callValue = tx.value ? BigNumber.from(tx.value).toNumber() : 0;
   const input = isNullish(tx.data)
