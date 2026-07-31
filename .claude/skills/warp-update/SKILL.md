@@ -348,13 +348,7 @@ This is a HARD gate before any propose call lands on chain, and it implements th
 
 **First decide whether the fork gate can even run.** Per the caveat above (and `/warp-verify-onchain-config`), `/warp-route-check` only consumes a **single flat EVM transactions file**.
 
-- Every pending batch is a single flat EVM tx file → invoke it:
-
-  ```
-  /warp-route-check
-  ```
-
-  passing the warp route ID + that file. It returns PASS / FAIL with a per-chain violation table.
+- Every pending batch is a single flat EVM tx file → invoke `/warp-route-check`, passing the warp route ID + that file. It returns PASS / FAIL with a per-chain violation table.
 
 - Any pending batch is a receipts _directory_, a Safe-object batch, or an SVM batch → **do NOT invoke `/warp-route-check`** (it cannot consume them). That batch is **UNSUPPORTED** by the fork gate — take the UNSUPPORTED path below.
 
