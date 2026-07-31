@@ -74,6 +74,12 @@ export class MultiWarpMonitor {
   // Guards against stacking overlapping background resolution passes: retry runs
   // off the cycle loop, so a slow pass must not be started again before it ends.
   private resolving = false;
+  // Routes whose build promise from a prior pass has not settled yet. `withTimeout`
+  // stops us awaiting a hung build but cannot cancel the underlying registry read,
+  // so a route stays here until its REAL build settles. Retries skip these routes,
+  // preventing a never-settling build from being re-issued every pass (which would
+  // stack one extra in-flight build per retry and exhaust sockets/memory).
+  private readonly resolvingRoutes = new Set<string>();
 
   constructor(config: MultiWarpMonitorConfig, registry: IRegistry) {
     assert(
@@ -105,13 +111,7 @@ export class MultiWarpMonitor {
       this.config.coingeckoApiKey,
     );
 
-    // Routes that resolve up front are monitored immediately. Any that fail to
-    // build (e.g. a transient registry read) stay in `unresolvedRouteIds` and
-    // are retried at the start of every cycle rather than being dropped for the
-    // process lifetime.
-    const routes: RouteRuntime[] = [];
-    const unresolvedRouteIds = [...warpRouteIds];
-    await this.resolvePendingRoutes(ctx, routes, unresolvedRouteIds);
+    const { routes, unresolvedRouteIds } = await this.initializeRoutes(ctx);
 
     logger.info(
       {
@@ -127,13 +127,6 @@ export class MultiWarpMonitor {
       },
       'Starting centralized warp route monitor',
     );
-
-    // Only abort if there is genuinely nothing to monitor and nothing to retry.
-    // If some routes are merely unresolved (e.g. a transient registry read), the
-    // loop keeps retrying them in the background rather than crashing the process.
-    if (routes.length === 0 && unresolvedRouteIds.length === 0) {
-      throw new Error('No warp routes could be resolved for monitoring');
-    }
 
     for (;;) {
       // Retry any routes that never resolved so a transient startup failure does
@@ -152,19 +145,58 @@ export class MultiWarpMonitor {
     }
   }
 
+  // Resolves the configured routes once, up front. Routes that resolve are
+  // monitored immediately; any that fail (e.g. a transient registry read) stay
+  // in `unresolvedRouteIds` and are retried in the background by the cycle loop.
+  // Throws when nothing resolved: a process that monitors zero routes but still
+  // serves /metrics looks healthy to Kubernetes/Prometheus while silently
+  // covering nothing, so we crash (surfacing via CrashLoopBackOff / a restart)
+  // instead of masking a total outage.
+  protected async initializeRoutes(
+    ctx: SharedMonitorContext,
+  ): Promise<{ routes: RouteRuntime[]; unresolvedRouteIds: string[] }> {
+    const routes: RouteRuntime[] = [];
+    const unresolvedRouteIds = [...this.config.warpRouteIds];
+    await this.resolvePendingRoutes(ctx, routes, unresolvedRouteIds);
+
+    if (routes.length === 0) {
+      throw new Error('No warp routes could be resolved for monitoring');
+    }
+
+    return { routes, unresolvedRouteIds };
+  }
+
+  // Builds one route's runtime from the registry. Isolated into its own method
+  // so tests can substitute the registry-backed build with controlled behavior.
+  protected async buildRoute(
+    ctx: SharedMonitorContext,
+    warpRouteId: string,
+  ): Promise<RouteRuntime> {
+    return buildRouteRuntime(ctx, this.registry, {
+      warpRouteId,
+      explorerApiUrl: this.config.explorerApiUrl,
+      explorerQueryLimit: this.config.explorerQueryLimit,
+      inventoryAddress: this.config.inventoryAddress,
+      skipSharedBalanceMetrics:
+        this.config.skipSharedBalanceWarpRouteIds?.has(warpRouteId) ?? false,
+    });
+  }
+
   // Attempts to build a runtime for each unresolved route id, with bounded
   // concurrency and a per-route timeout so one hung registry read cannot stall
-  // the whole pass. Successes are appended to `routes`; failures (including
-  // timeouts) are logged and left in `unresolvedRouteIds` for a later attempt.
-  private async resolvePendingRoutes(
+  // the whole pass. Routes still building from a prior pass are skipped so a
+  // never-settling build is not re-issued. Successes are appended to `routes`;
+  // everything else stays in `unresolvedRouteIds` for a later attempt.
+  protected async resolvePendingRoutes(
     ctx: SharedMonitorContext,
     routes: RouteRuntime[],
     unresolvedRouteIds: string[],
   ): Promise<void> {
     const logger = getLogger();
-    const pending = [...unresolvedRouteIds];
+    const pending = unresolvedRouteIds.filter(
+      (id) => !this.resolvingRoutes.has(id),
+    );
     const resolved: RouteRuntime[] = [];
-    const stillUnresolved: string[] = [];
 
     const concurrency = Math.max(
       1,
@@ -175,17 +207,18 @@ export class MultiWarpMonitor {
     const runNext = async (): Promise<void> => {
       while (index < pending.length) {
         const warpRouteId = pending[index++];
+        this.resolvingRoutes.add(warpRouteId);
+        const build = this.buildRoute(ctx, warpRouteId);
+        // Clear the in-flight flag only when the REAL build settles, even if we
+        // stopped awaiting it on timeout. The catch keeps a late rejection from
+        // surfacing as an unhandled rejection.
+        void build
+          .catch(() => undefined)
+          .finally(() => this.resolvingRoutes.delete(warpRouteId));
+
         try {
           const route = await withTimeout(
-            buildRouteRuntime(ctx, this.registry, {
-              warpRouteId,
-              explorerApiUrl: this.config.explorerApiUrl,
-              explorerQueryLimit: this.config.explorerQueryLimit,
-              inventoryAddress: this.config.inventoryAddress,
-              skipSharedBalanceMetrics:
-                this.config.skipSharedBalanceWarpRouteIds?.has(warpRouteId) ??
-                false,
-            }),
+            build,
             this.routeResolveTimeoutMs,
             `Route resolution for ${warpRouteId}`,
           );
@@ -195,9 +228,8 @@ export class MultiWarpMonitor {
             error instanceof Error ? error.message : String(error);
           logger.error(
             { warpRouteId, error: message },
-            'Failed to build route runtime, will retry next cycle',
+            'Failed to build route runtime, will retry once its build settles',
           );
-          stillUnresolved.push(warpRouteId);
         }
       }
     };
@@ -211,8 +243,14 @@ export class MultiWarpMonitor {
     for (const route of resolved) {
       routes.push(route);
     }
+    // Anything not resolved this pass stays queued: genuine build failures plus
+    // routes skipped because a prior build is still in flight.
+    const resolvedIds = new Set(resolved.map((route) => route.warpRouteId));
+    const nextUnresolved = unresolvedRouteIds.filter(
+      (id) => !resolvedIds.has(id),
+    );
     unresolvedRouteIds.length = 0;
-    unresolvedRouteIds.push(...stillUnresolved);
+    unresolvedRouteIds.push(...nextUnresolved);
   }
 
   private async runCycle(
