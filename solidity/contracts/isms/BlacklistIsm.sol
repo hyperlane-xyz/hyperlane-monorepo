@@ -20,9 +20,9 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
  * authenticating ISM such as a multisig ISM. Never route a domain directly to
  * this ISM via `DomainRoutingIsm` — that removes all authentication for the
  * affected messages.
- * @dev Append-only: entries are permanent and cannot be removed. Enroll it
- * behind an aggregation/routing ISM you control so the module can be swapped if
- * recovery is needed.
+ * @dev Append-only: entries are permanent and cannot be removed. Wrap it in an
+ * `AggregationIsm` you control (which a `DomainRoutingIsm` may in turn route to)
+ * so the module can be swapped if recovery is needed.
  */
 contract BlacklistIsm is IInterchainSecurityModule, Ownable, PackageVersioned {
     using Message for bytes;
