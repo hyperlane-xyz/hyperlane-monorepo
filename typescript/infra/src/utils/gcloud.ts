@@ -254,8 +254,24 @@ export async function createServiceAccountIfNotExists(
 ) {
   let serviceAccountInfo = await getServiceAccountInfo(serviceAccountName);
   if (!serviceAccountInfo) {
-    serviceAccountInfo = await createServiceAccount(serviceAccountName);
-    logger.debug(`Created new service account with name ${serviceAccountName}`);
+    try {
+      serviceAccountInfo = await createServiceAccount(serviceAccountName);
+      logger.debug(
+        `Created new service account with name ${serviceAccountName}`,
+      );
+    } catch (error) {
+      // This service account is shared across every validator index for the
+      // chain (see ValidatorAgentGcpUser), so concurrent buildConfig() calls
+      // race the list-then-create above. Re-check real state rather than
+      // pattern-match the error text — only recover if it genuinely exists now.
+      serviceAccountInfo = await getServiceAccountInfo(serviceAccountName);
+      if (!serviceAccountInfo) {
+        throw error;
+      }
+      logger.debug(
+        `Service account with name ${serviceAccountName} already exists`,
+      );
+    }
   } else {
     logger.debug(
       `Service account with name ${serviceAccountName} already exists`,
@@ -328,15 +344,27 @@ export async function createKmsKeyRingIfNotExists(
   keyRingId: string,
 ): Promise<string> {
   const resourceName = `projects/${project}/locations/${location}/keyRings/${keyRingId}`;
-  const matches = await execCmdAndParseJson(
-    `gcloud kms keyrings list --project=${project} --location=${location} --filter="name=${resourceName}" --format=json`,
-  );
-  if (matches.length === 0) {
+  const listCmd = `gcloud kms keyrings list --project=${project} --location=${location} --filter="name=${resourceName}" --format=json`;
+  const matches = await execCmdAndParseJson(listCmd);
+  if (matches.length > 0) {
+    logger.debug(`KMS key ring ${resourceName} already exists`);
+    return resourceName;
+  }
+
+  try {
     await execCmd(
       `gcloud kms keyrings create ${keyRingId} --project=${project} --location=${location}`,
     );
     logger.debug(`Created new KMS key ring ${resourceName}`);
-  } else {
+  } catch (error) {
+    // The keyring is shared across every validator index (see
+    // AgentGcpKmsKey), so concurrent createIfNotExists() calls race the
+    // list-then-create above. Re-check real state rather than pattern-match
+    // the error text — only swallow the error if the ring genuinely exists now.
+    const matchesNow = await execCmdAndParseJson(listCmd);
+    if (matchesNow.length === 0) {
+      throw error;
+    }
     logger.debug(`KMS key ring ${resourceName} already exists`);
   }
   return resourceName;

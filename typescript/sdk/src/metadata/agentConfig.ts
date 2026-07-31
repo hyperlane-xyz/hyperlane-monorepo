@@ -683,16 +683,22 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
           .min(1)
           .optional()
           .describe('The folder to use, defaults to the root of the bucket'),
-        service_account_key: z
+        serviceAccountKey: z
           .string()
           .min(1)
           .optional()
           .describe('The path to GCS service account key file'),
-        user_secrets: z
+        userSecrets: z
           .string()
           .min(1)
           .optional()
           .describe('The path to GCS user secret file'),
+        useApplicationDefault: z
+          .boolean()
+          .optional()
+          .describe(
+            'Use ambient Application Default Credentials (e.g. GKE Workload Identity) instead of a key file or user secrets',
+          ),
       })
       .describe('A checkpoint syncer that uses Google Cloud Storage'),
   ]),

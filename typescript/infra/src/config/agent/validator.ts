@@ -104,10 +104,10 @@ export type GcsCheckpointSyncerConfig = {
   type: typeof CheckpointSyncerType.Gcs;
   bucket: string;
   folder?: string;
-  service_account_key?: string;
-  user_secrets?: string;
+  serviceAccountKey?: string;
+  userSecrets?: string;
   // Ambient credentials (GKE Workload Identity) instead of a key file/secret.
-  use_application_default?: boolean;
+  useApplicationDefault?: boolean;
 };
 
 export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
@@ -188,7 +188,7 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
         type: CheckpointSyncerType.Gcs,
         bucket: bucketName,
         folder: this.chainName,
-        use_application_default: true,
+        useApplicationDefault: true,
       };
 
       // Mirrors the AWS path below — EVM-like chains only.
