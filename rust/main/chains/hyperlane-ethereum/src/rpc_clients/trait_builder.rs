@@ -192,10 +192,14 @@ pub trait BuildableWithProvider {
                 node: Some(NodeInfo {
                     host: url_to_host_info(&url),
                 }),
-                // steal the chain info from the middleware conf
+                // steal the chain info and rpc role from the middleware conf
                 chain: middleware_metrics
                     .as_ref()
                     .and_then(|(_, v)| v.chain.clone()),
+                rpc_role: middleware_metrics
+                    .as_ref()
+                    .map(|(_, v)| v.rpc_role)
+                    .unwrap_or_default(),
             },
         )
     }

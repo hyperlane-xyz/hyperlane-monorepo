@@ -5,7 +5,7 @@ import {
   type RpcProvider,
 } from 'starknet';
 
-import { ContractType } from '@hyperlane-xyz/starknet-core';
+import { ContractType } from '@hyperlane-xyz/starknet-core/runtime';
 import {
   ZERO_ADDRESS_HEX_32,
   assert,

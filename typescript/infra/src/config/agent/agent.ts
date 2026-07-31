@@ -68,9 +68,10 @@ interface HelmHyperlaneValues {
 // This is at `.hyperlane.chains` in the values file.
 export interface HelmAgentChainOverride extends DeepPartial<AgentChainMetadata> {
   name: AgentChainMetadata['name'];
-  // Validator only: public registry RPC URLs to append after the private ones (from
-  // GCP Secret Manager) when building CUSTOMQUORUMRPCURLS. Not part of AgentChainMetadata
-  // itself — consumed only by the external-secret Helm template.
+  // Validator only: additional public registry RPC URLs used to build
+  // CUSTOMADDITIONALQUORUMRPCURLS. No private RPCs are merged in here — rpcUrls
+  // already votes in the same quorum group, so this is public-only. Not part of
+  // AgentChainMetadata itself — consumed only by the external-secret Helm template.
   publicRpcUrls?: string[];
 }
 

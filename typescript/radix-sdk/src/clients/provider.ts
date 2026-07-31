@@ -170,6 +170,10 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     });
   }
 
+  async getTokenMetadata(resource: string) {
+    return this.base.getMetadata({ resource });
+  }
+
   async estimateTransactionFee(
     req: AltVM.ReqEstimateTransactionFee<RadixSDKTransaction>,
   ): Promise<AltVM.ResEstimateTransactionFee> {

@@ -13,7 +13,7 @@
  *   pnpm tsx scripts/rpc/mock-disagree-rpc.ts --rpc https://ethereum.publicnode.com --port 8899
  *   pnpm tsx scripts/rpc/mock-disagree-rpc.ts --rpc <url> --port 8900 --seed my-fixed-seed
  *
- * Then point one of your quorumRpcUrls entries at http://127.0.0.1:<port>.
+ * Then point one of your additionalQuorumRpcUrls entries at http://127.0.0.1:<port>.
  *
  * IMPORTANT: if running multiple instances to simulate multiple disagreeing
  * providers, let each pick its own random seed (default) or pass distinct
