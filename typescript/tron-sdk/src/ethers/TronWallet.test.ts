@@ -1,6 +1,6 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { BigNumber, utils } from 'ethers';
+import { BigNumber, constants, utils } from 'ethers';
 import { TronWeb } from 'tronweb';
 
 import { strip0x } from '@hyperlane-xyz/utils';
@@ -11,15 +11,21 @@ chai.use(chaiAsPromised);
 
 const TXID = '42'.repeat(32);
 const ADDRESS = 'TQn9Y2khEsLJW1ChVWFMSMeRDow5KcbLSE';
+const BLOCK_HASH = 'ab'.repeat(32);
+// Tron surfaces the deployed contract address as a `41`-prefixed hex string.
+const DEPLOYED_TRON_HEX = '4119335987d77120c462ca7df51cf29f68a38e6d6c';
+const DEPLOYED_EVM = '0x19335987d77120c462ca7dF51cf29f68A38E6D6C';
 
 type UnconfirmedInfo = Awaited<
   ReturnType<TronWeb['trx']['getUnconfirmedTransactionInfo']>
 >;
 type CurrentBlock = Awaited<ReturnType<TronWeb['trx']['getCurrentBlock']>>;
+type BlockByNumber = Awaited<ReturnType<TronWeb['trx']['getBlockByNumber']>>;
 
 type TrxDouble = {
   getUnconfirmedTransactionInfo: TronWeb['trx']['getUnconfirmedTransactionInfo'];
   getCurrentBlock?: TronWeb['trx']['getCurrentBlock'];
+  getBlockByNumber?: TronWeb['trx']['getBlockByNumber'];
 };
 
 function makeBuilder(
@@ -40,6 +46,9 @@ function injectTrx(builder: TronTransactionBuilder, trx: TrxDouble): void {
   (builder as unknown as { trx: TrxDouble }).trx = trx;
 }
 
+const blockByNumber = async (): Promise<BlockByNumber> =>
+  ({ blockID: BLOCK_HASH }) as unknown as BlockByNumber;
+
 function buildResponse(builder: TronTransactionBuilder) {
   return builder.getTransactionResponse(
     {
@@ -47,6 +56,20 @@ function buildResponse(builder: TronTransactionBuilder) {
       gasLimit: BigNumber.from(10),
       gasPrice: BigNumber.from(1),
       to: '0x496ba8ba0871a037ec1617f002f0a4afe5c2bae1',
+    },
+    { txID: TXID } as unknown as TronTransaction,
+  );
+}
+
+// A deployment response carries no `to`; the receipt's contractAddress must be
+// derived from the Tron transaction info instead.
+function buildDeploymentResponse(builder: TronTransactionBuilder) {
+  return builder.getTransactionResponse(
+    {
+      chainId: 728126428,
+      gasLimit: BigNumber.from(10),
+      gasPrice: BigNumber.from(1),
+      data: '0x60016002',
     },
     { txID: TXID } as unknown as TronTransaction,
   );
@@ -73,12 +96,13 @@ describe('TronTransactionBuilder', () => {
             },
           ],
         }) as unknown as UnconfirmedInfo,
+      getBlockByNumber: blockByNumber,
     });
 
     const receipt = await buildResponse(builder).wait(1);
 
     expect(receipt.transactionHash).to.equal(`0x${TXID}`);
-    expect(receipt.blockHash).to.equal(`0x${'0'.repeat(64)}`);
+    expect(receipt.blockHash).to.equal(`0x${BLOCK_HASH}`);
     expect(receipt.status).to.equal(1);
     expect(receipt.logs[0].address).to.equal(
       '0x496bA8BA0871A037eC1617f002F0A4AfE5C2bae1',
@@ -88,7 +112,7 @@ describe('TronTransactionBuilder', () => {
 
   it('returns once the requested confirmation depth is reached', async () => {
     // Short timeout so a broken actualConfirmations computation fails fast
-    // instead of polling until the production timeout.
+    // instead of polling until the caller's (here unbounded) production wait.
     const builder = makeBuilder(200, 5);
     injectTrx(builder, {
       getUnconfirmedTransactionInfo: async () =>
@@ -102,6 +126,7 @@ describe('TronTransactionBuilder', () => {
         ({
           block_header: { raw_data: { number: 101 } },
         }) as unknown as CurrentBlock,
+      getBlockByNumber: blockByNumber,
     });
 
     const receipt = await buildResponse(builder).wait(2);
@@ -110,6 +135,126 @@ describe('TronTransactionBuilder', () => {
     // Without the `+ 1` this would be 1 (< 2) and the poll would time out.
     expect(receipt.confirmations).to.equal(2);
     expect(receipt.blockNumber).to.equal(100);
+  });
+
+  it('wait(0) returns null without blocking for a still-pending tx', async () => {
+    // Unbounded builder: proves the wait(0) probe returns immediately rather
+    // than entering (and hanging in) the confirmation poll loop.
+    const builder = makeBuilder();
+    let lookups = 0;
+    injectTrx(builder, {
+      getUnconfirmedTransactionInfo: async () => {
+        lookups += 1;
+        return {} as unknown as UnconfirmedInfo;
+      },
+    });
+
+    const receipt = await buildResponse(builder).wait(0);
+
+    expect(receipt).to.equal(null);
+    expect(lookups).to.equal(1);
+  });
+
+  it('wait(0) returns the receipt for an already-mined tx', async () => {
+    const builder = makeBuilder();
+    injectTrx(builder, {
+      getUnconfirmedTransactionInfo: async () =>
+        ({
+          id: TXID,
+          blockNumber: 123,
+          receipt: { result: 'SUCCESS', energy_usage_total: 7 },
+          log: [],
+        }) as unknown as UnconfirmedInfo,
+      getBlockByNumber: blockByNumber,
+    });
+
+    const receipt = await buildResponse(builder).wait(0);
+
+    expect(receipt).to.not.equal(null);
+    expect(receipt?.blockNumber).to.equal(123);
+    expect(receipt?.blockHash).to.equal(`0x${BLOCK_HASH}`);
+    expect(receipt?.confirmations).to.equal(1);
+  });
+
+  it('wait(0) rejects with the revert reason for a mined-but-reverted tx', async () => {
+    const builder = makeBuilder();
+    const revertReason = 'insufficient allowance';
+    const encodedRevert =
+      '08c379a0' +
+      strip0x(utils.defaultAbiCoder.encode(['string'], [revertReason]));
+    injectTrx(builder, {
+      getUnconfirmedTransactionInfo: async () =>
+        ({
+          id: TXID,
+          blockNumber: 123,
+          receipt: { result: 'REVERT' },
+          contractResult: [encodedRevert],
+        }) as unknown as UnconfirmedInfo,
+    });
+
+    // Mined-but-reverted must surface as a failure even on the wait(0) probe,
+    // matching ethers' status-0 CALL_EXCEPTION rather than a status-1 receipt.
+    await expect(buildResponse(builder).wait(0)).to.be.rejectedWith(
+      new RegExp(
+        `Tron Transaction Failed: ${revertReason} \\(txid: ${TXID}\\)`,
+      ),
+    );
+  });
+
+  it('does not finalize a failed receipt before the requested depth', async () => {
+    const builder = makeBuilder(200, 5);
+    const revertReason = 'insufficient allowance';
+    const encodedRevert =
+      '08c379a0' +
+      strip0x(utils.defaultAbiCoder.encode(['string'], [revertReason]));
+    let blockChecks = 0;
+    injectTrx(builder, {
+      getUnconfirmedTransactionInfo: async () =>
+        ({
+          id: TXID,
+          blockNumber: 100,
+          receipt: { result: 'REVERT' },
+          contractResult: [encodedRevert],
+        }) as unknown as UnconfirmedInfo,
+      // First poll yields depth 1 (< 2) so the failure must NOT be finalized;
+      // the second poll reaches depth 2 and only then may reject.
+      getCurrentBlock: async () => {
+        blockChecks += 1;
+        const number = blockChecks < 2 ? 100 : 101;
+        return {
+          block_header: { raw_data: { number } },
+        } as unknown as CurrentBlock;
+      },
+    });
+
+    await expect(buildResponse(builder).wait(2)).to.be.rejectedWith(
+      new RegExp(
+        `Tron Transaction Failed: ${revertReason} \\(txid: ${TXID}\\)`,
+      ),
+    );
+    // Proves the reorgable failure was not finalized at the first confirmation.
+    expect(blockChecks).to.be.greaterThan(1);
+  });
+
+  it('populates the deployed contract address and block hash for a deployment', async () => {
+    const builder = makeBuilder();
+    injectTrx(builder, {
+      getUnconfirmedTransactionInfo: async () =>
+        ({
+          id: TXID,
+          blockNumber: 123,
+          contract_address: DEPLOYED_TRON_HEX,
+          receipt: { result: 'SUCCESS', energy_usage_total: 7 },
+          log: [],
+        }) as unknown as UnconfirmedInfo,
+      getBlockByNumber: blockByNumber,
+    });
+
+    const receipt = await buildDeploymentResponse(builder).wait(1);
+
+    expect(receipt.contractAddress).to.equal(DEPLOYED_EVM);
+    expect(receipt.contractAddress).to.not.equal(constants.AddressZero);
+    expect(receipt.blockHash).to.equal(`0x${BLOCK_HASH}`);
   });
 
   it('rejects with the revert reason when the receipt reports a failure', async () => {

@@ -19,13 +19,6 @@ import { TransactionRequest } from '@ethersproject/providers';
 import { assertTronReceiptSuccess, toTronHex } from '../utils/index.js';
 import { stripCustomRpcHeaders, toHttpApiUrl } from './urlUtils.js';
 
-/**
- * Max time to wait for a broadcast Tron transaction to be mined before failing.
- * Bounds the confirmation poll so a dropped/never-mined tx rejects loudly
- * instead of hanging forever.
- */
-const TX_CONFIRMATION_TIMEOUT_MS = 90_000;
-
 /** Interval between confirmation polls while waiting for a receipt. */
 const TX_CONFIRMATION_POLL_MS = 1_000;
 
@@ -175,7 +168,7 @@ export class TronWallet extends Wallet {
 export class TronTransactionBuilder extends TronWeb {
   private tronAddress: string;
   private tronAddressHex: string;
-  private confirmationTimeoutMs: number;
+  private confirmationTimeoutMs?: number;
   private confirmationPollMs: number;
 
   constructor(
@@ -183,7 +176,7 @@ export class TronTransactionBuilder extends TronWeb {
     tronAddress: string,
     _jsonRpcUrl?: string,
     headers?: Record<string, string>,
-    confirmationTimeoutMs: number = TX_CONFIRMATION_TIMEOUT_MS,
+    confirmationTimeoutMs?: number,
     confirmationPollMs: number = TX_CONFIRMATION_POLL_MS,
   ) {
     // Strip custom_rpc_header from the URL and merge with any provided headers
@@ -226,9 +219,22 @@ export class TronTransactionBuilder extends TronWeb {
       value: BigNumber.from(evmTx.value ?? 0),
       chainId: evmTx.chainId!,
       tronTransaction: tronTx,
-      wait: async (confirmations?: number) => {
+      wait: async (
+        confirmations?: number,
+      ): Promise<providers.TransactionReceipt> => {
         const hash = txHash ? ensure0x(txHash) : originalTxHash;
-        return this.waitForTransactionReceipt(hash, confirmations, evmTx);
+        const receipt = await this.waitForTransactionReceipt(
+          hash,
+          confirmations,
+          evmTx,
+        );
+        // CAST: ethers v5 types `TransactionResponse.wait` as returning a
+        // non-null `TransactionReceipt`, yet its own runtime resolves `null`
+        // from `wait(0)` for a still-pending tx (see MultiProvider.handleTx,
+        // which branches on that null). `waitForTransactionReceipt` mirrors
+        // that contract, so the null escapes here exactly as ethers' own
+        // `wait` does; the declared ethers type cannot be widened.
+        return receipt as providers.TransactionReceipt;
       },
     };
   }
@@ -237,17 +243,39 @@ export class TronTransactionBuilder extends TronWeb {
     txHash: string,
     confirmations = 1,
     evmTx: TransactionRequest,
-  ): Promise<providers.TransactionReceipt> {
+  ): Promise<providers.TransactionReceipt | null> {
     const txid = strip0x(txHash);
-    const deadline = Date.now() + this.confirmationTimeoutMs;
-    while (Date.now() < deadline) {
+
+    // ethers v5 `waitForTransaction(hash, 0)` resolves immediately: the receipt
+    // if the tx is already mined, otherwise `null` for a still-pending tx.
+    // MultiProvider.handleTx relies on this non-blocking probe before deciding
+    // whether to wait for inclusion, so `wait(0)` must not enter the poll loop.
+    if (confirmations < 1) {
       const info = await retryAsync(
         () => this.trx.getUnconfirmedTransactionInfo(txid),
         5,
         500,
       );
       if (info?.id && info.blockNumber) {
+        // A mined tx must surface its on-chain failure even on the wait(0)
+        // probe, matching ethers, whose wait(0) throws CALL_EXCEPTION on a
+        // status-0 receipt (only a still-pending tx resolves null).
         assertTronReceiptSuccess(info, this, txid);
+        return this.buildReceipt(info, 1, evmTx);
+      }
+      return null;
+    }
+
+    const deadline = isNullish(this.confirmationTimeoutMs)
+      ? undefined
+      : Date.now() + this.confirmationTimeoutMs;
+    while (isNullish(deadline) || Date.now() < deadline) {
+      const info = await retryAsync(
+        () => this.trx.getUnconfirmedTransactionInfo(txid),
+        5,
+        500,
+      );
+      if (info?.id && info.blockNumber) {
         const currentBlock =
           confirmations > 1
             ? await retryAsync(() => this.trx.getCurrentBlock(), 5, 500)
@@ -257,7 +285,11 @@ export class TronTransactionBuilder extends TronWeb {
           info.blockNumber +
           1;
         if (actualConfirmations >= confirmations) {
-          return this.toEthersReceipt(info, actualConfirmations, evmTx);
+          // Only finalize success/failure once the requested depth is reached,
+          // so a reorgable on-chain failure is not rejected prematurely at a
+          // single confirmation when the caller asked for more.
+          assertTronReceiptSuccess(info, this, txid);
+          return this.buildReceipt(info, actualConfirmations, evmTx);
         }
       }
       await sleep(this.confirmationPollMs);
@@ -267,27 +299,46 @@ export class TronTransactionBuilder extends TronWeb {
     );
   }
 
+  /** Convert a Tron `41`-prefixed (or bare) hex address to a checksummed EVM address. */
+  private tronHexToEvmAddress(address: string): string {
+    const stripped =
+      address.startsWith('41') && address.length === 42
+        ? address.slice(2)
+        : address;
+    return ethers.utils.getAddress(ensure0x(stripped));
+  }
+
+  private async buildReceipt(
+    info: Types.TransactionInfo,
+    confirmations: number,
+    evmTx: TransactionRequest,
+  ): Promise<providers.TransactionReceipt> {
+    const block = await retryAsync(
+      () => this.trx.getBlockByNumber(info.blockNumber),
+      5,
+      500,
+    );
+    return this.toEthersReceipt(
+      info,
+      confirmations,
+      evmTx,
+      ensure0x(block.blockID),
+    );
+  }
+
   private toEthersReceipt(
     info: Types.TransactionInfo,
     confirmations: number,
     evmTx: TransactionRequest,
+    blockHash: string,
   ): providers.TransactionReceipt {
     const transactionHash = ensure0x(info.id);
-    // Tron transaction info omits blockHash. Avoid another rate-limited RPC;
-    // Hyperlane receipt consumers only require logs and blockNumber.
-    const blockHash = `0x${'0'.repeat(64)}`;
     const logs = (info.log ?? []).map((log, logIndex) => ({
       blockNumber: info.blockNumber,
       blockHash,
       transactionIndex: 0,
       removed: false,
-      address: ethers.utils.getAddress(
-        ensure0x(
-          log.address.startsWith('41') && log.address.length === 42
-            ? log.address.slice(2)
-            : log.address,
-        ),
-      ),
+      address: this.tronHexToEvmAddress(log.address),
       data: ensure0x(log.data ?? ''),
       topics: (log.topics ?? []).map((topic) => ensure0x(topic)),
       transactionHash,
@@ -300,7 +351,11 @@ export class TronTransactionBuilder extends TronWeb {
       from: ethers.utils.getAddress(
         ensure0x(this.tronAddressHex.slice(2)).toLowerCase(),
       ),
-      contractAddress: ethers.constants.AddressZero,
+      // Tron surfaces the created contract address only for deployments; a
+      // contract call leaves it empty, matching ethers' null contractAddress.
+      contractAddress: info.contract_address
+        ? this.tronHexToEvmAddress(info.contract_address)
+        : ethers.constants.AddressZero,
       transactionIndex: 0,
       gasUsed,
       logsBloom: `0x${'0'.repeat(512)}`,
