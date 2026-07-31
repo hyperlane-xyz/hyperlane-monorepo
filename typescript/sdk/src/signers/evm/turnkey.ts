@@ -247,7 +247,7 @@ export class TurnkeyEvmSigner extends ethers.Signer {
 
     // Turnkey returns r/s as bare hex and v as a recovery id ("00"/"01"). Re-add
     // the 0x prefix and lift the recovery id into ethers' 27/28 v space: ethers
-    // v5 `joinSignature` mis-maps a bare 0/1 to the wrong recoveryParam.
+    // v5 `joinSignature` misinterprets a bare 0/1 as the wrong recoveryParam.
     const rHex = normalizeSignatureComponent('r', r);
     const sHex = normalizeSignatureComponent('s', s);
 
