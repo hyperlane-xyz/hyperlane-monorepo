@@ -147,9 +147,11 @@ export function buildInstructionsFromPrintable(
  * Account PUBKEY identity is also checked for every account that indexes
  * into the wire's static key list — the common case for warp
  * owner/config-update instructions, which carry no ALT; a genuinely
- * ALT-loaded account's pubkey cannot be verified offline (its address lives
- * on-chain, not in the wire), which is exactly why `buildInstructionsFromPrintable`
- * takes it from the writer's expanded instructions rather than the wire. Every
+ * ALT-loaded account's pubkey is NOT verified here (its address lives
+ * on-chain, not in the wire) — this leaves a residual tamper vector for
+ * ALT-loaded, same-role accounts that is documented at the identity check
+ * below and deferred to the part-2 propose-script hardening pass (which will
+ * resolve ALTs on-chain via the caller's RPC). Every
  * account's role is also checked against the wire (via
  * `Message(V0).isAccountSigner`/`isAccountWritable`), but only in the
  * direction that matters: the receipt may not CLAIM a stronger role
@@ -257,8 +259,17 @@ export function validateInstructionsAgainstWire(
       }
 
       // Pubkey identity is only resolvable offline for static keys; an
-      // ALT-loaded index's address lives on-chain and cannot be verified
-      // here (role/writability above is the full check available for those).
+      // ALT-loaded index's address lives on-chain, so its identity is NOT
+      // verified here — only role/writability above is. Residual tamper vector:
+      // a tampered receipt can swap an ALT-loaded, same-role account (e.g. a
+      // non-signer router/mailbox/config PDA) for any other key of that role,
+      // and it will pass this check (assertAuthorizedByVault won't catch it
+      // either — it only inspects signer authorities). Closing this fully means
+      // fetching each `message.addressTableLookups[i].accountKey` on-chain via
+      // the caller's RPC and resolving writable/readonly indexes to compare
+      // identity; that on-chain resolution is deferred to the propose-script
+      // hardening pass (part 2). Do NOT treat ALT receipts as fully identity-
+      // validated until then.
       if (keyIndex < message.staticAccountKeys.length) {
         const wireAddress = message.staticAccountKeys[keyIndex].toBase58();
         if (wireAddress !== receiptAccount.address) {
