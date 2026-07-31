@@ -172,52 +172,44 @@ export class TurnkeyEvmSigner extends ethers.Signer {
   }
 
   /**
-   * EIP-712 typed-data signing per the ethers v5 Signer interface. Computes
-   * the typed-data hash via `_TypedDataEncoder.hash()`, then delegates to
-   * `signRawHash()` which signs via Turnkey's `signRawPayload` with
-   * HASH_FUNCTION_NO_OP. Returns the canonical joined ECDSA signature;
-   * downstream consumers like Safe Transaction Service expect this exact
-   * shape for typed-data sender signatures.
+   * EIP-712 typed-data signing per the ethers v5 Signer interface.
+   *
+   * Submits the full typed-data payload to Turnkey using
+   * `PAYLOAD_ENCODING_EIP712` (rather than hashing locally and submitting an
+   * opaque digest) so Turnkey policies can inspect the domain and message
+   * fields — e.g. a Safe proposal's `to`/`value`/`data`/`operation`/`nonce` —
+   * before authorizing the signature. Returns the canonical joined ECDSA
+   * signature that downstream consumers like Safe Transaction Service expect
+   * for typed-data sender signatures.
    */
   async _signTypedData(
     domain: ethers.TypedDataDomain,
     types: Record<string, Array<ethers.TypedDataField>>,
     value: Record<string, unknown>,
   ): Promise<string> {
-    const hash = ethers.utils._TypedDataEncoder.hash(domain, types, value);
-    return this.signRawHash(hash);
-  }
-
-  /**
-   * Sign a pre-computed 32-byte hash directly via Turnkey's `signRawPayload`
-   * API. No EIP-191 prefix is applied and no additional hashing happens — the
-   * caller is responsible for producing the hash they want signed.
-   *
-   * Motivating use case: Safe Transaction Service requires an EIP-712
-   * typed-data signature from the proposer. Given the `safeTxHash`
-   * (which is already the final EIP-712 hash), this method returns the
-   * canonical `0x{r}{s}{v}` ECDSA signature (v = 27/28) accepted by the API.
-   *
-   * @param hash hex-encoded 32-byte hash, with or without the `0x` prefix.
-   */
-  async signRawHash(hash: string): Promise<string> {
-    logger.debug('Signing raw hash with Turnkey');
+    logger.debug('Signing typed data with Turnkey');
 
     try {
-      const payload = hash.startsWith('0x') ? hash.slice(2) : hash;
+      // Produce the standard EIP-712 JSON payload (types incl. EIP712Domain,
+      // primaryType, domain, message) that Turnkey decodes for policy checks.
+      const payload = ethers.utils._TypedDataEncoder.getPayload(
+        domain,
+        types,
+        value,
+      );
 
       const { activity, r, s, v } = await this.manager
         .getClient()
         .signRawPayload({
           signWith: this.address,
-          payload,
-          encoding: 'PAYLOAD_ENCODING_HEXADECIMAL',
+          payload: JSON.stringify(payload),
+          encoding: 'PAYLOAD_ENCODING_EIP712',
           hashFunction: 'HASH_FUNCTION_NO_OP',
         });
 
-      return this.assembleSignature(activity, r, s, v, 'Raw hash signing');
+      return this.assembleSignature(activity, r, s, v, 'Typed-data signing');
     } catch (error) {
-      logTurnkeyError('Failed to sign raw hash with Turnkey', error);
+      logTurnkeyError('Failed to sign typed data with Turnkey', error);
       throw error;
     }
   }
