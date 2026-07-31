@@ -344,6 +344,7 @@ This is a HARD gate before any propose call lands on chain, and it implements th
 
 - **Deployer-executed batches** (`jsonRpc` — a new ISM/hook/fee contract/router the deployer signed directly in Step 6) are already on-chain: live-check them now per the contract's **Mode A** (`hyperlane warp check` against the registry with the target config).
 - **Multisig / file batches** are pending, so validate them **Mode B** on a fork: `hyperlane warp fork` every chain, replay the warp apply receipts under impersonated owners (including the multisig), self-relay any cross-chain ICA messages, and run `hyperlane warp check` on the fork against the target deploy.yaml. The real-chain confirmation for these is the registry PR CI in Step 11 (greens after the signers execute).
+  - **Fail-closed caveat:** per `/warp-verify-onchain-config`, `/warp-route-check` today only consumes a **single flat EVM transactions file** — it cannot ingest a receipts directory, a Safe-object batch, or any SVM batch. If the batch to verify is any of those, the fork gate **cannot run**: do NOT report it fork-verified; surface it for manual verification and rely on the post-execution registry-PR CI. Only a single-file EVM batch is fork-authoritative until the part-2 warp-route-check rework.
 
 Invoke:
 
@@ -402,6 +403,10 @@ git checkout -b update/<token>-<chains>-<ticket-id>
 # `git add -A` here — unrelated FS writes from the HTTP registry's writeMode
 # could carry API-keyed RPC overrides that would leak on commit.
 git add deployments/warp_routes/<TOKEN>/<chains>-deploy.yaml
+# If `warp apply` deployed new contracts (new ISM / hook / fee contract / router),
+# it also wrote their addresses into the config.yaml — stage that too, or the PR
+# ships a deploy.yaml referencing addresses the config.yaml doesn't record:
+git add deployments/warp_routes/<TOKEN>/<chains>-config.yaml   # when it changed
 git add .changeset/<slug>.md
 git status   # Verify nothing else is staged
 

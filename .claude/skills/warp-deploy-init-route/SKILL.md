@@ -84,6 +84,8 @@ Parse the ticket description to extract the following. **Read every value from t
 | **Yield route type**             | If the ticket mentions yield/ERC4626/vault, determine the yield subtype (see below)                                                                                                                                                                                |
 | **Daily Rate Limit**             | Optional amount (e.g. `200,000,000`) — present in the structured `Daily Rate Limit` row on newer tickets. If present, the route adds a rate-limited hook on the synthetic chain (see Step 4).                                                                      |
 
+**Validate an explicit Warp route ID immediately** — fail fast, here, before any registry/filesystem work. If the ticket gave one, it must be `<TOKEN>/<suffix>`: exactly one `/`, each part matching `^[A-Za-z0-9._-]+$`, with no `..`, no whitespace, and no shell metacharacters (``; | & $ ` > < ( ) * ? \``). Halt with a clear error otherwise — the id later becomes a registry filename and a `--warp-route-id` argument, so a hostile value is a path-traversal / command-injection vector. (The resolved id — explicit or the Step 7a-derived chains-alphabetical one — is re-validated in Step 7a before use.)
+
 **Yield routes**: if the ticket mentions "yield", "ERC4626", "vault", "rebasing", "Aave", or the token is a known yield-bearing token (sUSDS, sDAI, etc.), it is a yield route. There are two subtypes:
 
 | Ticket language                           | Collateral type         | Synthetic type    | Behavior                                                                      |

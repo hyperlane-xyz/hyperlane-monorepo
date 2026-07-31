@@ -42,6 +42,8 @@ The `warp apply` emitted a Safe TX Builder batch / Squads instructions / a `file
 
 Mode B's fork check is your suggestion made routine: you get the "config == expected" answer immediately by simulating the multisig, and the CI catches any divergence between the proposed batch and what the signers actually executed.
 
+**Current implementation limitation — fail closed, don't over-claim.** `/warp-route-check` today ingests a **single flat EVM transactions file** (it parses a top-level array of `{chainId, to, …}` and decodes EVM calldata). It does **not** yet accept a receipts _directory_, Safe-TX-Builder object receipts (`{version, chainId, transactions: […]}`), SVM receipt arrays (base58 tx blobs), or distinguish already-executed `jsonRpc` batches from pending governance batches. So the Mode-B fork gate is authoritative **only** for a single-file EVM batch. For a receipts directory, a Safe-object batch, or any SVM batch, the fork gate **cannot run** — do NOT report those as fork-verified; fail closed (surface the batch for manual verification and rely on the post-execution registry-PR CI in step 2). Reconciling `/warp-route-check` to the receipts-directory format is tracked as part-2 work.
+
 ## Picking the mode per batch
 
 A single run can produce BOTH kinds of batch — e.g. a `warp apply` that deploys a new contract deployer-signed (Mode A) AND emits a Safe batch for an ownership change (Mode B). Verify each batch by how it executes: live-check the deployer-executed parts now, fork-check + CI the multisig parts.

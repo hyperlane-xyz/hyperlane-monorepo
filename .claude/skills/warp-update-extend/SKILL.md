@@ -396,6 +396,8 @@ Stop the background task noted in 9a per `/stop-http-registry`. Always stop it, 
 
 The customer tx files are **pending multisig execution** (the customer signs later), so validate them up front per the `/warp-verify-onchain-config` contract's **Mode B** before handing them off. Invoke `/warp-route-check` with the warp route ID + the receipts directory: it forks each chain, impersonates the customer's Safe / ICA owners, replays the batch calldata from those addresses, self-relays ICA messages, and runs `hyperlane warp check` on the fork against the target deploy.yaml.
 
+**Fail-closed caveat:** per `/warp-verify-onchain-config`, `/warp-route-check` today only consumes a **single flat EVM transactions file** — not a receipts directory, a Safe-object batch, or an SVM batch. An extension whose customer files are a directory / Safe-object / SVM batch **cannot** be fork-verified by the current implementation: do NOT report it fork-verified — surface the files for manual verification and rely on the post-execution registry-PR CI, until the part-2 warp-route-check rework. Only a single-file EVM batch is fork-authoritative today.
+
 - **PASS** → proceed to Step 10 and ship the files.
 - **FAIL** → do NOT ship: the batch would leave the route misconfigured once signed. Surface the violations, fix the deploy.yaml / strategy, and re-run Step 9.
 
@@ -460,12 +462,14 @@ If it wasn't updated (e.g., due to registry write failures), manually add the ne
 
 ### 11b: Commit and Open PR
 
-First write the changeset per `/add-registry-changeset` — bump `minor` (a new chain is added to the published route), summary in past tense (e.g. "extended `<WARP_ROUTE_ID>` to `<new-chain>`"). A registry PR without a changeset is blocked by the merge bot. Then commit the config + changeset together (scope `git add` to these paths only — never `git add .` in the registry checkout):
+First write the changeset per `/add-registry-changeset` — bump `minor` (a new chain is added to the published route), summary in past tense (e.g. "extended `<WARP_ROUTE_ID>` to `<new-chain>`"). A registry PR without a changeset is blocked by the merge bot. Then commit the changed files + changeset together. **Scope `git add` to the exact changed files — never the whole `deployments/warp_routes/<TOKEN>/` directory (it can pull in other routes' files or API-keyed writeMode RPC artifacts) and never `git add .`:**
 
 ```bash
 cd $REGISTRY_PATH
 git checkout -b feat/extend-<TOKEN>-<new-chain>
-git add deployments/warp_routes/<TOKEN>/ .changeset/<changeset-file>
+# exact files only: the route's deploy.yaml + config.yaml (config.yaml gained the new chain's addresses)
+git add deployments/warp_routes/<TOKEN>/<chains>-deploy.yaml deployments/warp_routes/<TOKEN>/<chains>-config.yaml .changeset/<changeset-file>
+git status   # confirm nothing unexpected is staged
 git commit -m "feat: extend <WARP_ROUTE_ID> to <new-chain>"
 git push -u origin HEAD
 
