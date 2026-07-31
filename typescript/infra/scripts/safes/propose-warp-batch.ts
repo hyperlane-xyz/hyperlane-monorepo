@@ -1,10 +1,8 @@
 import Safe from '@safe-global/protocol-kit';
-import { MetaTransactionData } from '@safe-global/types-kit';
 import chalk from 'chalk';
 import * as fs from 'fs';
 import * as path from 'path';
 import yargs from 'yargs';
-import { z } from 'zod';
 
 import {
   ChainName,
@@ -15,7 +13,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
-import { getSafesByGovernanceForChain } from '../../config/environments/mainnet3/governance/utils.js';
 import { DeployEnvironment } from '../../src/config/deploy-environment.js';
 import { GovernanceType } from '../../src/governanceTypes.js';
 import { TurnkeyRole } from '../../src/roles.js';
@@ -26,38 +23,22 @@ import {
   retrySafeApi,
 } from '../../src/utils/safe.js';
 import { createTurnkeySigner } from '../../src/utils/turnkey.js';
+import {
+  ProposalResultStatus,
+  computeExitCode,
+  logCounts,
+  summarizeResults,
+} from '../../src/utils/warp-propose-result.js';
+import {
+  ParsedReceipt,
+  checkSignerOwnsSafe,
+  createNonceAllocator,
+  parseReceiptFile,
+  toMetaTransactionData,
+} from '../../src/utils/warp-propose-safe.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 const ENVIRONMENT: DeployEnvironment = 'mainnet3';
-
-enum ProposalResultStatus {
-  Proposed = 'proposed',
-  Skipped = 'skipped',
-  Failed = 'failed',
-}
-
-const ReceiptTxSchema = z
-  .object({
-    to: z.string(),
-    value: z.union([z.string(), z.number()]).optional(),
-    data: z.string().optional(),
-    operation: z.number().optional(),
-  })
-  .passthrough();
-
-const ReceiptFileSchema = z.object({
-  version: z.string(),
-  chainId: z.string(),
-  meta: z.record(z.unknown()).optional(),
-  transactions: z.array(ReceiptTxSchema).min(1),
-});
-
-type ReceiptFile = z.infer<typeof ReceiptFileSchema>;
-
-// Filename pattern produced by `hyperlane warp apply`'s `writeCombinedBundles`:
-// `combined-chainId<chainId>-safe<addr_first_8>-<timestamp>-receipts.json`
-const RECEIPT_FILENAME_RE =
-  /^combined-chainId(\d+)-safe([0-9a-fA-F]{8})-\d+-receipts\.json$/;
 
 type FileResult = {
   file: string;
@@ -70,94 +51,37 @@ type FileResult = {
   reason?: string;
 };
 
-type ParsedReceipt = {
-  chain: ChainName;
-  safeAddress: Address;
-  governanceType: GovernanceType;
-  receipt: ReceiptFile;
-};
-
-function parseReceiptFile(
-  filePath: string,
-  multiProvider: MultiProvider,
-): ParsedReceipt | { error: string } {
-  const filename = path.basename(filePath);
-  const match = filename.match(RECEIPT_FILENAME_RE);
-  if (!match) {
-    return {
-      error: `Filename does not match combined-chainId<id>-safe<addr8>-<ts>-receipts.json`,
-    };
-  }
-  const chainIdStr = match[1];
-  const safeAddr8 = match[2];
-
-  let chain: ChainName;
-  try {
-    chain = multiProvider.getChainName(chainIdStr);
-  } catch (error) {
-    return { error: `Unknown chainId ${chainIdStr}: ${error}` };
-  }
-
-  const govMatch = getSafesByGovernanceForChain(chain).find(
-    (entry) =>
-      entry.safe.toLowerCase().slice(2, 10) === safeAddr8.toLowerCase(),
+async function isAlreadyQueued(
+  safeService: Awaited<ReturnType<typeof getSafeService>>,
+  safeAddress: Address,
+  safeTxHash: string,
+): Promise<boolean> {
+  const pending = await retrySafeApi(() =>
+    safeService.getPendingTransactions(safeAddress),
   );
-  if (!govMatch) {
-    return {
-      error: `No governance safe matches ${chain} / safe${safeAddr8}`,
-    };
-  }
-
-  let raw: unknown;
-  try {
-    raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  } catch (error) {
-    return { error: `Failed to read/parse JSON: ${error}` };
-  }
-
-  const parsed = ReceiptFileSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { error: `Schema validation failed: ${parsed.error.message}` };
-  }
-
-  if (parsed.data.chainId !== chainIdStr) {
-    return {
-      error: `Filename chainId ${chainIdStr} does not match file's chainId ${parsed.data.chainId}`,
-    };
-  }
-
-  return {
-    chain,
-    safeAddress: govMatch.safe,
-    governanceType: govMatch.governanceType,
-    receipt: parsed.data,
-  };
+  const wanted = safeTxHash.toLowerCase();
+  return pending.results.some((tx) => tx.safeTxHash.toLowerCase() === wanted);
 }
 
-function toMetaTransactionData(
-  tx: z.infer<typeof ReceiptTxSchema>,
-): MetaTransactionData {
-  return {
-    to: tx.to,
-    value: tx.value !== undefined ? tx.value.toString() : '0',
-    data: tx.data ?? '0x',
-    ...(tx.operation !== undefined ? { operation: tx.operation } : {}),
-  };
-}
+type ProposeOutcome =
+  | { status: typeof ProposalResultStatus.Proposed; safeTxHash: string }
+  | { status: typeof ProposalResultStatus.DryRun; safeTxHash: string }
+  | { status: typeof ProposalResultStatus.Skipped; reason: string };
 
 async function proposeFile({
   parsed,
   multiProvider,
   turnkeySigner,
+  allocateNonce,
   dryRun,
 }: {
   parsed: ParsedReceipt;
   multiProvider: MultiProvider;
   turnkeySigner: TurnkeyEvmSigner;
+  allocateNonce: ReturnType<typeof createNonceAllocator>;
   dryRun: boolean;
-}): Promise<{ safeTxHash: string; txCount: number }> {
-  const { chain, safeAddress, receipt } = parsed;
-  const txCount = receipt.transactions.length;
+}): Promise<ProposeOutcome> {
+  const { chain, safeAddress, governanceType, receipt } = parsed;
 
   const safeService = getSafeService(chain, multiProvider);
   const { version } = await retrySafeApi(() => safeService.getServiceInfo());
@@ -174,17 +98,42 @@ async function proposeFile({
     getSafe(chain, multiProvider, safeAddress, turnkeySigner.address),
   );
 
+  const owners = await retrySafeApi(() => safeSdk.getOwners());
+  const ownership = checkSignerOwnsSafe(
+    owners,
+    turnkeySigner.address,
+    governanceType,
+  );
+  if (!ownership.owned) {
+    return { status: ProposalResultStatus.Skipped, reason: ownership.reason };
+  }
+
+  const nonce = await allocateNonce(safeAddress, safeService);
   const txData = receipt.transactions.map(toMetaTransactionData);
-  const safeTransaction = await createSafeTransaction(safeSdk, txData, true);
+  const safeTransaction = await createSafeTransaction(
+    safeSdk,
+    txData,
+    true,
+    nonce,
+  );
   const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
 
   if (dryRun) {
     rootLogger.info(
       chalk.gray(
-        `[dry-run] Would propose ${txCount} tx(s) on ${chain} safe ${safeAddress} (safeTxHash=${safeTxHash})`,
+        `[dry-run] Would propose ${txData.length} tx(s) on ${chain} safe ${safeAddress} at nonce ${nonce} (safeTxHash=${safeTxHash})`,
       ),
     );
-    return { safeTxHash, txCount };
+    return { status: ProposalResultStatus.DryRun, safeTxHash };
+  }
+
+  if (await isAlreadyQueued(safeService, safeAddress, safeTxHash)) {
+    rootLogger.info(
+      chalk.gray(
+        `Proposal ${safeTxHash} already queued on ${chain} safe ${safeAddress}; skipping duplicate POST`,
+      ),
+    );
+    return { status: ProposalResultStatus.Proposed, safeTxHash };
   }
 
   await proposeSafeTransaction(
@@ -196,7 +145,7 @@ async function proposeFile({
     turnkeySigner,
   );
 
-  return { safeTxHash, txCount };
+  return { status: ProposalResultStatus.Proposed, safeTxHash };
 }
 
 function logResult(result: FileResult): void {
@@ -206,6 +155,7 @@ function logResult(result: FileResult): void {
   }${tag} txs=${result.txCount ?? '?'} hash=${result.safeTxHash ?? '?'}`;
   switch (result.status) {
     case ProposalResultStatus.Proposed:
+    case ProposalResultStatus.DryRun:
       rootLogger.info(chalk.green(`[${result.status}] ${base}`));
       return;
     case ProposalResultStatus.Skipped:
@@ -223,36 +173,12 @@ function logResult(result: FileResult): void {
   }
 }
 
-function logSummary(results: FileResult[]): void {
-  const byStatus = new Map<ProposalResultStatus, FileResult[]>();
-  for (const status of Object.values(ProposalResultStatus)) {
-    byStatus.set(status, []);
-  }
-  for (const r of results) {
-    byStatus.get(r.status)?.push(r);
-  }
-
-  rootLogger.info(chalk.bold('\n=== Summary ==='));
-  for (const status of Object.values(ProposalResultStatus)) {
-    const bucket = byStatus.get(status) ?? [];
-    rootLogger.info(chalk.bold(`${status}: ${bucket.length}`));
-    for (const r of bucket) {
-      const reason = r.reason ? ` (${r.reason})` : '';
-      rootLogger.info(
-        `  - ${r.file} chain=${r.chain ?? '?'} safe=${
-          r.safeAddress ?? '?'
-        } txs=${r.txCount ?? '?'} hash=${r.safeTxHash ?? '?'}${reason}`,
-      );
-    }
-  }
-}
-
 async function main(): Promise<void> {
   const argv = await yargs(process.argv.slice(2))
     .option('directory', {
       type: 'string',
       describe:
-        'Directory containing combined-chainId<id>-safe<addr8>-<ts>-receipts.json files',
+        'Directory containing combined-chainId<id>-safe<addr>-<ts>-receipts.json files',
       demandOption: true,
       alias: 'd',
     })
@@ -301,6 +227,7 @@ async function main(): Promise<void> {
   );
   rootLogger.info(`Using Turnkey signer ${signer.address}`);
 
+  const allocateNonce = createNonceAllocator();
   const results: FileResult[] = [];
 
   for (const file of files) {
@@ -333,11 +260,13 @@ async function main(): Promise<void> {
       continue;
     }
 
+    const txCount = parsed.receipt.transactions.length;
     try {
-      const { safeTxHash, txCount } = await proposeFile({
+      const outcome = await proposeFile({
         parsed,
         multiProvider,
         turnkeySigner: signer,
+        allocateNonce,
         dryRun,
       });
       const result: FileResult = {
@@ -346,8 +275,15 @@ async function main(): Promise<void> {
         safeAddress: parsed.safeAddress,
         governanceType: parsed.governanceType,
         txCount,
-        safeTxHash,
-        status: ProposalResultStatus.Proposed,
+        safeTxHash:
+          outcome.status === ProposalResultStatus.Skipped
+            ? undefined
+            : outcome.safeTxHash,
+        status: outcome.status,
+        reason:
+          outcome.status === ProposalResultStatus.Skipped
+            ? outcome.reason
+            : undefined,
       };
       results.push(result);
       logResult(result);
@@ -357,7 +293,7 @@ async function main(): Promise<void> {
         chain: parsed.chain,
         safeAddress: parsed.safeAddress,
         governanceType: parsed.governanceType,
-        txCount: parsed.receipt.transactions.length,
+        txCount,
         status: ProposalResultStatus.Failed,
         reason: error instanceof Error ? error.message : String(error),
       };
@@ -366,15 +302,9 @@ async function main(): Promise<void> {
     }
   }
 
-  logSummary(results);
-
-  const total = results.length;
-  const failed = results.filter(
-    (r) => r.status === ProposalResultStatus.Failed,
-  ).length;
-  if (total > 0 && failed === total) {
-    process.exit(1);
-  }
+  const counts = summarizeResults(results.map((r) => r.status));
+  logCounts(counts);
+  process.exit(computeExitCode(counts));
 }
 
 main().catch((error) => {
