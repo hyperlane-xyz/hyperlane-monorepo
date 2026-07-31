@@ -6,7 +6,7 @@ import {
   summarizeResults,
 } from '../src/utils/warp-propose-result.js';
 
-const { Proposed, DryRun, Skipped, Failed } = ProposalResultStatus;
+const { Proposed, DryRun, Skipped, Unsupported, Failed } = ProposalResultStatus;
 
 type Case = {
   name: string;
@@ -55,24 +55,36 @@ const cases: Case[] = [
     statuses: [Proposed, Failed],
     expectedExit: 1,
   },
+  {
+    name: 'proposed + unsupported-governance exits 1 (undone work must not report ok)',
+    statuses: [Proposed, Unsupported],
+    expectedExit: 1,
+  },
+  {
+    name: 'unsupported + out-of-scope skip exits 1',
+    statuses: [Unsupported, Skipped],
+    expectedExit: 1,
+  },
 ];
 
 describe('warp-propose-result', () => {
   describe('summarizeResults', () => {
-    it('classifies proposed/dry-run/failed as eligible and skipped as not', () => {
+    it('classifies proposed/dry-run/failed/unsupported as eligible and skipped as not', () => {
       const counts = summarizeResults([
         Proposed,
         DryRun,
         Failed,
+        Unsupported,
         Skipped,
         Skipped,
       ]);
       expect(counts).to.deep.equal({
-        candidate: 5,
-        eligible: 3,
+        candidate: 6,
+        eligible: 4,
         proposed: 1,
         dryRun: 1,
         failed: 1,
+        unsupported: 1,
         skipped: 2,
       });
     });

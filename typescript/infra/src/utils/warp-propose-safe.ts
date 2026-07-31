@@ -169,30 +169,104 @@ export interface NonceService {
 }
 
 /**
- * Lazily resolve a queue-aware base nonce per safe (Safe tx service's next
- * nonce = highest pending + 1), then hand out sequential nonces so multiple
+ * Lazily resolve a queue-aware base nonce per (chain, safe) (Safe tx service's
+ * next nonce = highest pending + 1), then hand out sequential nonces so multiple
  * bundles for one safe in a single run do not collide at a single nonce.
+ *
+ * Keyed by `${chain}:${safeAddress}` — Regular governance reuses one Safe
+ * address across chains (e.g. arbitrum/bsc share an address), and each chain's
+ * Safe has its own independent queue, so keying by address alone would let the
+ * second chain reuse the first chain's base nonce without querying its service.
  */
 export function createNonceAllocator() {
   const bases = new Map<string, number>();
   const offsets = new Map<string, number>();
 
-  return async function nextNonce(
-    safeAddress: Address,
-    safeService: NonceService,
-  ): Promise<number> {
-    if (!bases.has(safeAddress)) {
+  return async function nextNonce({
+    chain,
+    safeAddress,
+    safeService,
+  }: {
+    chain: ChainName;
+    safeAddress: Address;
+    safeService: NonceService;
+  }): Promise<number> {
+    const key = `${chain}:${safeAddress}`;
+    if (!bases.has(key)) {
       const raw = await retrySafeApi(() =>
         safeService.getNextNonce(safeAddress),
       );
-      bases.set(safeAddress, parseInt(raw, 10));
-      offsets.set(safeAddress, 0);
+      bases.set(key, parseInt(raw, 10));
+      offsets.set(key, 0);
     }
-    const base = bases.get(safeAddress) ?? 0;
-    const offset = offsets.get(safeAddress) ?? 0;
-    offsets.set(safeAddress, offset + 1);
+    const base = bases.get(key) ?? 0;
+    const offset = offsets.get(key) ?? 0;
+    offsets.set(key, offset + 1);
     return base + offset;
   };
+}
+
+/**
+ * The nonce-independent identity of a Safe proposal: the executed call's
+ * to/value/data/operation, normalized for comparison. Two proposals sharing
+ * this payload are the same governance action even at different nonces.
+ */
+export type ProposalPayload = {
+  to: string;
+  value: string;
+  data: string;
+  operation: number;
+};
+
+/** Minimal shape of a queued Safe proposal needed to match it by payload. */
+export interface PendingProposal {
+  to: string;
+  value?: string | number | null;
+  data?: string | null;
+  operation?: number | null;
+  safeTxHash: string;
+}
+
+export function normalizeProposalPayload(input: {
+  to: string;
+  value?: string | number | null;
+  data?: string | null;
+  operation?: number | null;
+}): ProposalPayload {
+  return {
+    to: input.to.toLowerCase(),
+    value: (input.value ?? '0').toString(),
+    data: (input.data ?? '0x').toLowerCase(),
+    operation: input.operation ?? 0,
+  };
+}
+
+export function proposalPayloadsEqual(
+  a: ProposalPayload,
+  b: ProposalPayload,
+): boolean {
+  return (
+    a.to === b.to &&
+    a.value === b.value &&
+    a.data === b.data &&
+    a.operation === b.operation
+  );
+}
+
+/**
+ * Find a queued proposal whose executed-call payload matches `desired`,
+ * ignoring nonce. Used to make reruns idempotent: a first run's proposal is
+ * still pending when a rerun executes, and because the queue advanced a freshly
+ * allocated nonce would produce a different safeTxHash — so the rerun must
+ * match on the payload, not the hash, to avoid posting a duplicate proposal.
+ */
+export function findMatchingPendingProposal(
+  desired: ProposalPayload,
+  pending: PendingProposal[],
+): PendingProposal | undefined {
+  return pending.find((p) =>
+    proposalPayloadsEqual(desired, normalizeProposalPayload(p)),
+  );
 }
 
 /**

@@ -1,5 +1,4 @@
 import {
-  Connection,
   PublicKey,
   TransactionInstruction,
   TransactionMessage,
@@ -19,7 +18,7 @@ import {
   MultiProtocolProvider,
   SvmMultiProtocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
-import { assert, rootLogger, sleep } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { getSquadsKeys, squadsConfigs } from '../config/squads.js';
 
@@ -813,47 +812,25 @@ export async function submitProposalToSquads(
   }
 }
 
-const SLOT_ADVANCE_POLL_MS = 500;
-const SLOT_ADVANCE_TIMEOUT_MS = 30_000;
-
 /**
- * Block until the cluster's confirmed slot advances past the slot observed on
- * entry. Used to honor a source transaction's `waitForSlotAdvance` barrier so
- * dependent steps (e.g. a program extend then upgrade) land in distinct slots.
- */
-async function waitForSlotAdvance(svmProvider: Connection): Promise<void> {
-  const startSlot = await svmProvider.getSlot('confirmed');
-  const deadline = Date.now() + SLOT_ADVANCE_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    await sleep(SLOT_ADVANCE_POLL_MS);
-    const slot = await svmProvider.getSlot('confirmed');
-    if (slot > startSlot) {
-      rootLogger.debug(chalk.gray(`Slot advanced ${startSlot} -> ${slot}`));
-      return;
-    }
-  }
-  throw new Error(`Timed out waiting for slot to advance past ${startSlot}`);
-}
-
-/**
- * A single ordered vault transaction to propose. `waitForSlotAdvance` marks a
- * barrier: the next proposal is not created until the cluster slot advances.
- * There is no compute-units field: the vault transaction's compute budget is
- * set by the executor at vaultTransactionExecute time, not by the proposer.
+ * A single vault transaction to propose. Ordered creation preserves the
+ * source-tx boundary, but the proposer neither sets nor enforces execution-time
+ * ordering: the external executor sets slot ordering and the vault
+ * transaction's compute budget at vaultTransactionExecute time. Receipts that
+ * need execution-time ordering are rejected before reaching this path.
  */
 export type OrderedVaultProposal = {
   instructions: TransactionInstruction[];
-  waitForSlotAdvance?: boolean;
 };
 
 /**
  * Submit a receipt's source transactions as separate, ordered Squads
  * proposals — one vault transaction per source tx rather than a single
- * flattened vault transaction. This keeps dependent multi-step receipts (a
- * program extend, upgrade, then config) in distinct vault transactions so each
- * executes in its own slot, and honors each source tx's `waitForSlotAdvance`
- * barrier between proposals. The vault transaction's compute budget is set by
- * the executor at vaultTransactionExecute time, not carried by the proposer.
+ * flattened vault transaction. This keeps each step in its own vault
+ * transaction. Ordering and the vault transaction's compute budget are the
+ * external executor's responsibility at vaultTransactionExecute time; receipts
+ * that depend on execution-time ordering are rejected upstream rather than
+ * proposed here.
  */
 export async function submitReceiptTxsToSquads(
   chain: ChainName,
@@ -863,7 +840,6 @@ export async function submitReceiptTxsToSquads(
   memoBase?: string,
 ): Promise<{ transactionIndexes: bigint[] }> {
   rootLogger.info(chalk.cyan('\n=== Submitting receipt to Squads ==='));
-  const svmProvider = mpp.getSolanaWeb3Provider(chain);
   const transactionIndexes: bigint[] = [];
 
   try {
@@ -879,11 +855,6 @@ export async function submitReceiptTxsToSquads(
         memo,
       );
       transactionIndexes.push(transactionIndex);
-
-      const isLast = index === proposals.length - 1;
-      if (proposal.waitForSlotAdvance && !isLast) {
-        await waitForSlotAdvance(svmProvider);
-      }
     }
     rootLogger.info(
       chalk.green(

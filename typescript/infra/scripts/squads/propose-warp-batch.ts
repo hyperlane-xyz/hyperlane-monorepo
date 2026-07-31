@@ -23,6 +23,7 @@ import {
 import {
   ParsedReceipt,
   assertAuthorizedByVault,
+  assertSimpleReceipt,
   parseReceiptFile,
   planReceiptProposals,
 } from '../../src/utils/warp-propose-squads.js';
@@ -57,6 +58,17 @@ async function proposeFile({
   const { chain, txs } = parsed;
 
   const { vault, multisigPda } = getSquadsKeys(chain);
+
+  // Fail closed on receipts the automated path cannot faithfully propose:
+  // execution-time slot ordering (waitForSlotAdvance), a non-default compute
+  // budget, or ALT compression. The proposer cannot reproduce any of these at
+  // execution time, so such receipts are marked Failed (surfaced for manual
+  // ordered execution) rather than partially / incorrectly proposed.
+  const complexity = assertSimpleReceipt(txs);
+  if (!complexity.ok) {
+    throw new Error(complexity.reason);
+  }
+
   const plans = planReceiptProposals(txs);
 
   // Fail closed if any instruction authority is not this chain's configured
@@ -102,6 +114,7 @@ function logResult(result: FileResult): void {
         ),
       );
       return;
+    case ProposalResultStatus.Unsupported:
     case ProposalResultStatus.Failed:
       rootLogger.error(
         chalk.red(`[${result.status}] ${base} reason=${result.reason ?? ''}`),

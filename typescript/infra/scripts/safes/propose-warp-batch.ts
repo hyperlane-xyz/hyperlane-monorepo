@@ -33,6 +33,8 @@ import {
   ParsedReceipt,
   checkSignerOwnsSafe,
   createNonceAllocator,
+  findMatchingPendingProposal,
+  normalizeProposalPayload,
   parseReceiptFile,
   toMetaTransactionData,
 } from '../../src/utils/warp-propose-safe.js';
@@ -51,22 +53,10 @@ type FileResult = {
   reason?: string;
 };
 
-async function isAlreadyQueued(
-  safeService: Awaited<ReturnType<typeof getSafeService>>,
-  safeAddress: Address,
-  safeTxHash: string,
-): Promise<boolean> {
-  const pending = await retrySafeApi(() =>
-    safeService.getPendingTransactions(safeAddress),
-  );
-  const wanted = safeTxHash.toLowerCase();
-  return pending.results.some((tx) => tx.safeTxHash.toLowerCase() === wanted);
-}
-
 type ProposeOutcome =
   | { status: typeof ProposalResultStatus.Proposed; safeTxHash: string }
   | { status: typeof ProposalResultStatus.DryRun; safeTxHash: string }
-  | { status: typeof ProposalResultStatus.Skipped; reason: string };
+  | { status: typeof ProposalResultStatus.Unsupported; reason: string };
 
 async function proposeFile({
   parsed,
@@ -105,11 +95,45 @@ async function proposeFile({
     governanceType,
   );
   if (!ownership.owned) {
-    return { status: ProposalResultStatus.Skipped, reason: ownership.reason };
+    return {
+      status: ProposalResultStatus.Unsupported,
+      reason: ownership.reason,
+    };
   }
 
-  const nonce = await allocateNonce(safeAddress, safeService);
   const txData = receipt.transactions.map(toMetaTransactionData);
+
+  // The executed-call payload (to/value/data/operation) is deterministic and
+  // independent of nonce, so build once with a placeholder nonce to derive it.
+  const probeTransaction = await createSafeTransaction(
+    safeSdk,
+    txData,
+    true,
+    0,
+  );
+  const desiredPayload = normalizeProposalPayload(probeTransaction.data);
+
+  // Idempotent rerun: if this exact payload is already queued — possibly at a
+  // different nonce from a prior run — record it and post nothing. This must
+  // run BEFORE allocating a nonce; allocating first advances past the pending
+  // proposal, yielding a fresh hash that would re-post a duplicate.
+  const pending = await retrySafeApi(() =>
+    safeService.getPendingTransactions(safeAddress),
+  );
+  const match = findMatchingPendingProposal(desiredPayload, pending.results);
+  if (match) {
+    rootLogger.info(
+      chalk.gray(
+        `Payload already queued on ${chain} safe ${safeAddress} (safeTxHash=${match.safeTxHash}); skipping duplicate POST`,
+      ),
+    );
+    return {
+      status: ProposalResultStatus.Proposed,
+      safeTxHash: match.safeTxHash,
+    };
+  }
+
+  const nonce = await allocateNonce({ chain, safeAddress, safeService });
   const safeTransaction = await createSafeTransaction(
     safeSdk,
     txData,
@@ -125,15 +149,6 @@ async function proposeFile({
       ),
     );
     return { status: ProposalResultStatus.DryRun, safeTxHash };
-  }
-
-  if (await isAlreadyQueued(safeService, safeAddress, safeTxHash)) {
-    rootLogger.info(
-      chalk.gray(
-        `Proposal ${safeTxHash} already queued on ${chain} safe ${safeAddress}; skipping duplicate POST`,
-      ),
-    );
-    return { status: ProposalResultStatus.Proposed, safeTxHash };
   }
 
   await proposeSafeTransaction(
@@ -165,6 +180,7 @@ function logResult(result: FileResult): void {
         ),
       );
       return;
+    case ProposalResultStatus.Unsupported:
     case ProposalResultStatus.Failed:
       rootLogger.error(
         chalk.red(`[${result.status}] ${base} reason=${result.reason ?? ''}`),
@@ -269,22 +285,26 @@ async function main(): Promise<void> {
         allocateNonce,
         dryRun,
       });
-      const result: FileResult = {
-        file,
-        chain: parsed.chain,
-        safeAddress: parsed.safeAddress,
-        governanceType: parsed.governanceType,
-        txCount,
-        safeTxHash:
-          outcome.status === ProposalResultStatus.Skipped
-            ? undefined
-            : outcome.safeTxHash,
-        status: outcome.status,
-        reason:
-          outcome.status === ProposalResultStatus.Skipped
-            ? outcome.reason
-            : undefined,
-      };
+      const result: FileResult =
+        outcome.status === ProposalResultStatus.Unsupported
+          ? {
+              file,
+              chain: parsed.chain,
+              safeAddress: parsed.safeAddress,
+              governanceType: parsed.governanceType,
+              txCount,
+              status: outcome.status,
+              reason: outcome.reason,
+            }
+          : {
+              file,
+              chain: parsed.chain,
+              safeAddress: parsed.safeAddress,
+              governanceType: parsed.governanceType,
+              txCount,
+              status: outcome.status,
+              safeTxHash: outcome.safeTxHash,
+            };
       results.push(result);
       logResult(result);
     } catch (error) {

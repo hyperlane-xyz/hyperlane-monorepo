@@ -15,19 +15,26 @@ import { ProtocolType, eqAddressSol } from '@hyperlane-xyz/utils';
 // default file-submitter naming: `<chain>-file-<timestamp>-receipts.json`.
 export const RECEIPT_FILENAME_RE = /^([a-z0-9_-]+)-file-\d+-receipts\.json$/i;
 
+// Mirrors svm-sdk's DEFAULT_COMPUTE_UNITS (typescript/svm-sdk/src/constants.ts).
+// Warp config-update writers tag every transaction with this budget; a receipt
+// tx carrying any other explicit budget (e.g. a program upgrade's
+// MAX_COMPUTE_UNITS) cannot be honored — the Squads executor sets the vault
+// transaction's compute budget itself at vaultTransactionExecute time — so we
+// reject it rather than silently drop the budget. Kept as a local literal to
+// avoid an infra→svm-sdk dependency edge.
+const DEFAULT_SVM_COMPUTE_UNITS = 400_000;
+
 // Shape produced by SvmSigner.transactionToPrintableJson in svm-sdk. Beyond the
 // canonical wire bytes (`transaction_base58`) we read `waitForSlotAdvance` (the
-// ordering barrier for dependent multi-tx receipts such as program deploys).
-// The producer's serialized instructions do NOT include a compute-budget
-// instruction (the CU limit lives in a separate field that only materializes as
-// a ComputeBudget instruction on the live-send path), so the compute budget for
-// a Squads vault transaction is the executor's responsibility at
-// vaultTransactionExecute time, not the proposer's. Passthrough keeps any
-// additional writer fields.
+// execution-ordering barrier for dependent multi-tx receipts such as program
+// deploys) and `computeUnits` — both are read only to DETECT receipts the
+// automated path cannot faithfully propose (see `assertSimpleReceipt`), never
+// carried into the proposal. Passthrough keeps any additional writer fields.
 export const PrintableSvmTransactionSchema = z
   .object({
     transaction_base58: z.string(),
     waitForSlotAdvance: z.boolean().optional(),
+    computeUnits: z.number().optional(),
   })
   .passthrough();
 
@@ -43,15 +50,14 @@ export type ParsedReceipt = {
 };
 
 /**
- * A single source transaction rehydrated into instructions, retaining the
- * ordering barrier needed to submit it as its own ordered Squads proposal.
- * Compute units are not carried as a field: the rehydrated instructions contain
- * no compute-budget instruction, so the CU limit for the vault transaction is
- * set by the executor at vaultTransactionExecute time, not the proposer.
+ * A single source transaction rehydrated into its own Squads vault-transaction
+ * proposal. Only the simple case reaches this point: receipts needing
+ * execution-time ordering, a non-default compute budget, or address-lookup-table
+ * compression are rejected upstream by `assertSimpleReceipt`, since the proposer
+ * cannot faithfully reproduce any of those at execution time.
  */
 export type ReceiptProposalPlan = {
   instructions: TransactionInstruction[];
-  waitForSlotAdvance: boolean;
 };
 
 export function parseFilename(
@@ -127,19 +133,76 @@ export function parseReceiptFile(
 }
 
 /**
+ * Detect whether a serialized v0 transaction is compressed with address-lookup
+ * tables. Such a transaction cannot be rehydrated here (the ALT contents live
+ * on-chain and are not carried in the receipt), so it must be rejected rather
+ * than fed to `rehydrateInstructions`, whose ALT-less `decompile` would throw.
+ */
+export function hasAddressTableLookups(transactionBase58: string): boolean {
+  const bytes = bs58.decode(transactionBase58);
+  const versioned = VersionedTransaction.deserialize(bytes);
+  const { message } = versioned;
+  return (
+    'addressTableLookups' in message && message.addressTableLookups.length > 0
+  );
+}
+
+/**
+ * The automated Squads path only proposes simple receipts: one vault
+ * transaction per source tx, executed by an external signer that sets its own
+ * compute budget and slot ordering. It fundamentally cannot enforce
+ * execution-time slot ordering, carry a non-default compute budget, or
+ * rehydrate an ALT-compressed transaction. Fail closed (returning a reason)
+ * when a receipt needs any of those, so it is surfaced for manual ordered
+ * execution instead of being partially / incorrectly proposed.
+ */
+export function assertSimpleReceipt(
+  txs: z.infer<typeof ReceiptFileSchema>,
+): { ok: true } | { ok: false; reason: string } {
+  for (const [index, tx] of txs.entries()) {
+    const position = `transaction ${index + 1}/${txs.length}`;
+
+    if (tx.waitForSlotAdvance === true) {
+      return {
+        ok: false,
+        reason: `${position} requires execution-time slot-advance ordering (waitForSlotAdvance), which the proposer cannot enforce; propose and execute this receipt manually in order`,
+      };
+    }
+
+    if (
+      tx.computeUnits !== undefined &&
+      tx.computeUnits !== DEFAULT_SVM_COMPUTE_UNITS
+    ) {
+      return {
+        ok: false,
+        reason: `${position} carries a non-default compute budget (${tx.computeUnits}); the Squads executor sets the compute budget at execution time, so propose and execute this receipt manually`,
+      };
+    }
+
+    if (hasAddressTableLookups(tx.transaction_base58)) {
+      return {
+        ok: false,
+        reason: `${position} is address-lookup-table compressed and cannot be rehydrated from the receipt; propose and execute this receipt manually`,
+      };
+    }
+  }
+  return { ok: true };
+}
+
+/**
  * Turn a parsed receipt's source transactions into an ordered list of proposal
  * plans, one per source tx. Preserving the source-tx boundary (instead of
  * flattening every instruction into a single vault transaction) keeps each
- * dependent step — e.g. a program extend, upgrade, then config — in its own
- * Squads vault transaction so the loader is not handed several slots' worth of
- * work in one atomic execution.
+ * step in its own Squads vault transaction. Callers MUST gate this behind
+ * `assertSimpleReceipt`: a barrier / non-default-compute / ALT receipt is
+ * rejected there, so every plan produced here is a simple, self-contained
+ * vault transaction.
  */
 export function planReceiptProposals(
   txs: z.infer<typeof ReceiptFileSchema>,
 ): ReceiptProposalPlan[] {
   return txs.map((tx) => ({
     instructions: rehydrateInstructions(tx.transaction_base58),
-    waitForSlotAdvance: tx.waitForSlotAdvance ?? false,
   }));
 }
 

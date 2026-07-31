@@ -4,8 +4,11 @@ import { GovernanceType } from '../src/governanceTypes.js';
 import {
   GovernanceSafeEntry,
   NonceService,
+  PendingProposal,
   checkSignerOwnsSafe,
   createNonceAllocator,
+  findMatchingPendingProposal,
+  normalizeProposalPayload,
   parseFilename,
   resolveGovernanceSafe,
   toMetaTransactionData,
@@ -120,13 +123,31 @@ describe('warp-propose-safe', () => {
       };
     }
 
-    it('bases on getNextNonce once per safe and increments per call', async () => {
+    it('bases on getNextNonce once per (chain, safe) and increments per call', async () => {
       const allocate = createNonceAllocator();
       const service = stubService('5');
 
-      expect(await allocate(SAFE_A, service)).to.equal(5);
-      expect(await allocate(SAFE_A, service)).to.equal(6);
-      expect(await allocate(SAFE_A, service)).to.equal(7);
+      expect(
+        await allocate({
+          chain: 'ethereum',
+          safeAddress: SAFE_A,
+          safeService: service,
+        }),
+      ).to.equal(5);
+      expect(
+        await allocate({
+          chain: 'ethereum',
+          safeAddress: SAFE_A,
+          safeService: service,
+        }),
+      ).to.equal(6);
+      expect(
+        await allocate({
+          chain: 'ethereum',
+          safeAddress: SAFE_A,
+          safeService: service,
+        }),
+      ).to.equal(7);
       // Base nonce fetched exactly once; later nonces come from the local offset.
       expect(service.calls).to.equal(1);
     });
@@ -136,12 +157,131 @@ describe('warp-propose-safe', () => {
       const serviceA = stubService('10');
       const serviceB = stubService('20');
 
-      expect(await allocate(SAFE_A, serviceA)).to.equal(10);
-      expect(await allocate(SAFE_B, serviceB)).to.equal(20);
-      expect(await allocate(SAFE_A, serviceA)).to.equal(11);
-      expect(await allocate(SAFE_B, serviceB)).to.equal(21);
+      expect(
+        await allocate({
+          chain: 'ethereum',
+          safeAddress: SAFE_A,
+          safeService: serviceA,
+        }),
+      ).to.equal(10);
+      expect(
+        await allocate({
+          chain: 'ethereum',
+          safeAddress: SAFE_B,
+          safeService: serviceB,
+        }),
+      ).to.equal(20);
+      expect(
+        await allocate({
+          chain: 'ethereum',
+          safeAddress: SAFE_A,
+          safeService: serviceA,
+        }),
+      ).to.equal(11);
+      expect(
+        await allocate({
+          chain: 'ethereum',
+          safeAddress: SAFE_B,
+          safeService: serviceB,
+        }),
+      ).to.equal(21);
       expect(serviceA.calls).to.equal(1);
       expect(serviceB.calls).to.equal(1);
+    });
+
+    it('tracks a separate base per chain for the SAME safe address (Regular gov reuses addresses)', async () => {
+      const allocate = createNonceAllocator();
+      // Regular governance uses one Safe address (SAFE_A) on both arbitrum and
+      // bsc, but each chain's Safe has an independent queue.
+      const arbitrumService = stubService('3');
+      const bscService = stubService('99');
+
+      expect(
+        await allocate({
+          chain: 'arbitrum',
+          safeAddress: SAFE_A,
+          safeService: arbitrumService,
+        }),
+      ).to.equal(3);
+      // The 2nd chain must query its OWN service (base 99), not reuse arbitrum's
+      // base — keying by address alone would return 4 here.
+      expect(
+        await allocate({
+          chain: 'bsc',
+          safeAddress: SAFE_A,
+          safeService: bscService,
+        }),
+      ).to.equal(99);
+      expect(
+        await allocate({
+          chain: 'arbitrum',
+          safeAddress: SAFE_A,
+          safeService: arbitrumService,
+        }),
+      ).to.equal(4);
+      expect(
+        await allocate({
+          chain: 'bsc',
+          safeAddress: SAFE_A,
+          safeService: bscService,
+        }),
+      ).to.equal(100);
+      expect(arbitrumService.calls).to.equal(1);
+      expect(bscService.calls).to.equal(1);
+    });
+  });
+
+  describe('findMatchingPendingProposal', () => {
+    const MULTISEND = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D';
+
+    it('normalizes value/data defaults and lowercases addresses', () => {
+      const payload = normalizeProposalPayload({ to: MULTISEND, operation: 1 });
+      expect(payload).to.deep.equal({
+        to: MULTISEND.toLowerCase(),
+        value: '0',
+        data: '0x',
+        operation: 1,
+      });
+    });
+
+    it('matches a queued proposal by payload regardless of nonce/hash (idempotent rerun)', () => {
+      const desired = normalizeProposalPayload({
+        to: MULTISEND,
+        value: '0',
+        data: '0xdeadbeef',
+        operation: 1,
+      });
+
+      // Run 1: nothing queued → no match → the run proposes (say, at nonce 5).
+      expect(findMatchingPendingProposal(desired, [])).to.be.undefined;
+
+      // Run 2: run 1's proposal is still pending. The queue advanced, so a fresh
+      // nonce would hash differently — but the executed-call payload is
+      // identical (note the uppercase hex), so the rerun must detect it and post
+      // nothing.
+      const pendingAfterRun1: PendingProposal[] = [
+        {
+          to: MULTISEND,
+          value: '0',
+          data: '0xDEADBEEF',
+          operation: 1,
+          safeTxHash: '0xhash-run1',
+        },
+      ];
+      const match = findMatchingPendingProposal(desired, pendingAfterRun1);
+      expect(match?.safeTxHash).to.equal('0xhash-run1');
+    });
+
+    it('does not match a queued proposal with a different payload', () => {
+      const desired = normalizeProposalPayload({
+        to: MULTISEND,
+        data: '0xaaaa',
+        operation: 1,
+      });
+      const pending: PendingProposal[] = [
+        { to: MULTISEND, data: '0xbbbb', operation: 1, safeTxHash: '0xother' },
+      ];
+      expect(findMatchingPendingProposal(desired, pending)).to.be.undefined;
     });
   });
 
