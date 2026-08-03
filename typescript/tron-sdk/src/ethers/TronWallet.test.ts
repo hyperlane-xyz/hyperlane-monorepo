@@ -1,7 +1,6 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { BigNumber, constants, utils } from 'ethers';
-import { TronWeb } from 'tronweb';
 
 import { strip0x } from '@hyperlane-xyz/utils';
 
@@ -16,16 +15,32 @@ const BLOCK_HASH = 'ab'.repeat(32);
 const DEPLOYED_TRON_HEX = '4119335987d77120c462ca7df51cf29f68a38e6d6c';
 const DEPLOYED_EVM = '0x19335987d77120c462ca7dF51cf29f68A38E6D6C';
 
-type UnconfirmedInfo = Awaited<
-  ReturnType<TronWeb['trx']['getUnconfirmedTransactionInfo']>
->;
-type CurrentBlock = Awaited<ReturnType<TronWeb['trx']['getCurrentBlock']>>;
-type BlockByNumber = Awaited<ReturnType<TronWeb['trx']['getBlockByNumber']>>;
+// Narrow shapes covering exactly the fields TronTransactionBuilder reads from
+// each `trx` response, so the doubles below need no cast.
+interface UnconfirmedTxLog {
+  address: string;
+  topics: string[];
+  data?: string;
+}
+interface UnconfirmedTxInfo {
+  id?: string;
+  blockNumber?: number;
+  contract_address?: string;
+  receipt?: { result?: string; energy_usage_total?: number };
+  log?: UnconfirmedTxLog[];
+  contractResult?: string[];
+}
+interface CurrentBlockInfo {
+  block_header: { raw_data: { number: number } };
+}
+interface BlockInfo {
+  blockID: string;
+}
 
 type TrxDouble = {
-  getUnconfirmedTransactionInfo: TronWeb['trx']['getUnconfirmedTransactionInfo'];
-  getCurrentBlock?: TronWeb['trx']['getCurrentBlock'];
-  getBlockByNumber?: TronWeb['trx']['getBlockByNumber'];
+  getUnconfirmedTransactionInfo: () => Promise<UnconfirmedTxInfo>;
+  getCurrentBlock?: () => Promise<CurrentBlockInfo>;
+  getBlockByNumber?: () => Promise<BlockInfo>;
 };
 
 function makeBuilder(
@@ -43,11 +58,18 @@ function makeBuilder(
 }
 
 function injectTrx(builder: TronTransactionBuilder, trx: TrxDouble): void {
+  // CAST: overwrite the builder's private `trx` field with a minimal double.
   (builder as unknown as { trx: TrxDouble }).trx = trx;
 }
 
-const blockByNumber = async (): Promise<BlockByNumber> =>
-  ({ blockID: BLOCK_HASH }) as unknown as BlockByNumber;
+const blockByNumber = async (): Promise<BlockInfo> => ({ blockID: BLOCK_HASH });
+
+// getTransactionResponse only reads `txID` off the Tron transaction; a full
+// TronWeb transaction-union member is impractical to construct here.
+function makeTronTx(txID: string): TronTransaction {
+  // CAST: minimal stand-in for the TronTransaction union.
+  return { txID } as unknown as TronTransaction;
+}
 
 function buildResponse(builder: TronTransactionBuilder) {
   return builder.getTransactionResponse(
@@ -57,7 +79,7 @@ function buildResponse(builder: TronTransactionBuilder) {
       gasPrice: BigNumber.from(1),
       to: '0x496ba8ba0871a037ec1617f002f0a4afe5c2bae1',
     },
-    { txID: TXID } as unknown as TronTransaction,
+    makeTronTx(TXID),
   );
 }
 
@@ -71,7 +93,7 @@ function buildDeploymentResponse(builder: TronTransactionBuilder) {
       gasPrice: BigNumber.from(1),
       data: '0x60016002',
     },
-    { txID: TXID } as unknown as TronTransaction,
+    makeTronTx(TXID),
   );
 }
 
@@ -79,23 +101,22 @@ describe('TronTransactionBuilder', () => {
   it('confirms transactions through the Tron HTTP API', async () => {
     const builder = makeBuilder();
     injectTrx(builder, {
-      getUnconfirmedTransactionInfo: async () =>
-        ({
-          id: TXID,
-          blockNumber: 123,
-          receipt: { result: 'SUCCESS', energy_usage_total: 7 },
-          log: [
-            {
-              address: '496ba8ba0871a037ec1617f002f0a4afe5c2bae1',
-              topics: ['8c5be1e5'],
-              data: '01',
-            },
-            {
-              address: '19335987d77120c462ca7df51cf29f68a38e6d6c',
-              topics: ['788dbc1b'],
-            },
-          ],
-        }) as unknown as UnconfirmedInfo,
+      getUnconfirmedTransactionInfo: async () => ({
+        id: TXID,
+        blockNumber: 123,
+        receipt: { result: 'SUCCESS', energy_usage_total: 7 },
+        log: [
+          {
+            address: '496ba8ba0871a037ec1617f002f0a4afe5c2bae1',
+            topics: ['8c5be1e5'],
+            data: '01',
+          },
+          {
+            address: '19335987d77120c462ca7df51cf29f68a38e6d6c',
+            topics: ['788dbc1b'],
+          },
+        ],
+      }),
       getBlockByNumber: blockByNumber,
     });
 
@@ -115,17 +136,15 @@ describe('TronTransactionBuilder', () => {
     // instead of polling until the caller's (here unbounded) production wait.
     const builder = makeBuilder(200, 5);
     injectTrx(builder, {
-      getUnconfirmedTransactionInfo: async () =>
-        ({
-          id: TXID,
-          blockNumber: 100,
-          receipt: { result: 'SUCCESS', energy_usage_total: 7 },
-          log: [],
-        }) as unknown as UnconfirmedInfo,
-      getCurrentBlock: async () =>
-        ({
-          block_header: { raw_data: { number: 101 } },
-        }) as unknown as CurrentBlock,
+      getUnconfirmedTransactionInfo: async () => ({
+        id: TXID,
+        blockNumber: 100,
+        receipt: { result: 'SUCCESS', energy_usage_total: 7 },
+        log: [],
+      }),
+      getCurrentBlock: async () => ({
+        block_header: { raw_data: { number: 101 } },
+      }),
       getBlockByNumber: blockByNumber,
     });
 
@@ -145,7 +164,7 @@ describe('TronTransactionBuilder', () => {
     injectTrx(builder, {
       getUnconfirmedTransactionInfo: async () => {
         lookups += 1;
-        return {} as unknown as UnconfirmedInfo;
+        return {};
       },
     });
 
@@ -158,13 +177,12 @@ describe('TronTransactionBuilder', () => {
   it('wait(0) returns the receipt for an already-mined tx', async () => {
     const builder = makeBuilder();
     injectTrx(builder, {
-      getUnconfirmedTransactionInfo: async () =>
-        ({
-          id: TXID,
-          blockNumber: 123,
-          receipt: { result: 'SUCCESS', energy_usage_total: 7 },
-          log: [],
-        }) as unknown as UnconfirmedInfo,
+      getUnconfirmedTransactionInfo: async () => ({
+        id: TXID,
+        blockNumber: 123,
+        receipt: { result: 'SUCCESS', energy_usage_total: 7 },
+        log: [],
+      }),
       getBlockByNumber: blockByNumber,
     });
 
@@ -183,13 +201,12 @@ describe('TronTransactionBuilder', () => {
       '08c379a0' +
       strip0x(utils.defaultAbiCoder.encode(['string'], [revertReason]));
     injectTrx(builder, {
-      getUnconfirmedTransactionInfo: async () =>
-        ({
-          id: TXID,
-          blockNumber: 123,
-          receipt: { result: 'REVERT' },
-          contractResult: [encodedRevert],
-        }) as unknown as UnconfirmedInfo,
+      getUnconfirmedTransactionInfo: async () => ({
+        id: TXID,
+        blockNumber: 123,
+        receipt: { result: 'REVERT' },
+        contractResult: [encodedRevert],
+      }),
     });
 
     // Mined-but-reverted must surface as a failure even on the wait(0) probe,
@@ -209,13 +226,12 @@ describe('TronTransactionBuilder', () => {
       strip0x(utils.defaultAbiCoder.encode(['string'], [revertReason]));
     let blockChecks = 0;
     injectTrx(builder, {
-      getUnconfirmedTransactionInfo: async () =>
-        ({
-          id: TXID,
-          blockNumber: 100,
-          receipt: { result: 'REVERT' },
-          contractResult: [encodedRevert],
-        }) as unknown as UnconfirmedInfo,
+      getUnconfirmedTransactionInfo: async () => ({
+        id: TXID,
+        blockNumber: 100,
+        receipt: { result: 'REVERT' },
+        contractResult: [encodedRevert],
+      }),
       // First poll yields depth 1 (< 2) so the failure must NOT be finalized;
       // the second poll reaches depth 2 and only then may reject.
       getCurrentBlock: async () => {
@@ -223,7 +239,7 @@ describe('TronTransactionBuilder', () => {
         const number = blockChecks < 2 ? 100 : 101;
         return {
           block_header: { raw_data: { number } },
-        } as unknown as CurrentBlock;
+        };
       },
     });
 
@@ -239,14 +255,13 @@ describe('TronTransactionBuilder', () => {
   it('populates the deployed contract address and block hash for a deployment', async () => {
     const builder = makeBuilder();
     injectTrx(builder, {
-      getUnconfirmedTransactionInfo: async () =>
-        ({
-          id: TXID,
-          blockNumber: 123,
-          contract_address: DEPLOYED_TRON_HEX,
-          receipt: { result: 'SUCCESS', energy_usage_total: 7 },
-          log: [],
-        }) as unknown as UnconfirmedInfo,
+      getUnconfirmedTransactionInfo: async () => ({
+        id: TXID,
+        blockNumber: 123,
+        contract_address: DEPLOYED_TRON_HEX,
+        receipt: { result: 'SUCCESS', energy_usage_total: 7 },
+        log: [],
+      }),
       getBlockByNumber: blockByNumber,
     });
 
@@ -264,13 +279,12 @@ describe('TronTransactionBuilder', () => {
       '08c379a0' +
       strip0x(utils.defaultAbiCoder.encode(['string'], [revertReason]));
     injectTrx(builder, {
-      getUnconfirmedTransactionInfo: async () =>
-        ({
-          id: TXID,
-          blockNumber: 123,
-          receipt: { result: 'REVERT' },
-          contractResult: [encodedRevert],
-        }) as unknown as UnconfirmedInfo,
+      getUnconfirmedTransactionInfo: async () => ({
+        id: TXID,
+        blockNumber: 123,
+        receipt: { result: 'REVERT' },
+        contractResult: [encodedRevert],
+      }),
     });
 
     await expect(buildResponse(builder).wait(1)).to.be.rejectedWith(
@@ -285,8 +299,7 @@ describe('TronTransactionBuilder', () => {
     const builder = makeBuilder(timeoutMs, 5);
     injectTrx(builder, {
       // Never surfaces an `id`, so the poll never confirms and must time out.
-      getUnconfirmedTransactionInfo: async () =>
-        ({}) as unknown as UnconfirmedInfo,
+      getUnconfirmedTransactionInfo: async () => ({}),
     });
 
     await expect(buildResponse(builder).wait(1)).to.be.rejectedWith(

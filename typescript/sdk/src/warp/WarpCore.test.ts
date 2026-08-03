@@ -83,6 +83,19 @@ class TestWarpCore extends WarpCore {
   }
 }
 
+// The sinon stubs below expose only the adapter methods each test exercises;
+// these helpers localize the unavoidable cast from a partial double to the full
+// adapter interface.
+function asHypAdapter(stub: object): IHypTokenAdapter<unknown> {
+  // CAST: partial test double stands in for the full adapter interface.
+  return stub as unknown as IHypTokenAdapter<unknown>;
+}
+
+function asTokenAdapter(stub: object): ITokenAdapter<unknown> {
+  // CAST: partial test double stands in for the full adapter interface.
+  return stub as unknown as ITokenAdapter<unknown>;
+}
+
 describe('WarpCore', () => {
   const multiProvider = MultiProtocolProvider.createTestMultiProtocolProvider();
   let warpCore: WarpCore;
@@ -859,26 +872,32 @@ describe('WarpCore', () => {
 
     warpCore.tokens.forEach((t) => {
       sinon.stub(t, 'getBalance').resolves(t.amount(MOCK_BALANCE));
-      sinon.stub(t, 'getHypAdapter').returns({
-        quoteTransferRemoteGas,
-        isApproveRequired: () => Promise.resolve(false),
-        populateTransferRemoteTx: () => Promise.resolve({}),
-        getMinimumTransferAmount: () => Promise.resolve(minimumTransferAmount),
-        getBalance: () => Promise.resolve(MOCK_BALANCE),
-        getBridgedSupply: () => Promise.resolve(MOCK_BALANCE),
-        getMintLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
-        getMintMaxLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
-        isRevokeApprovalRequired: () => Promise.resolve(false),
-      } as unknown as IHypTokenAdapter<unknown>);
+      sinon.stub(t, 'getHypAdapter').returns(
+        asHypAdapter({
+          quoteTransferRemoteGas,
+          isApproveRequired: () => Promise.resolve(false),
+          populateTransferRemoteTx: () => Promise.resolve({}),
+          getMinimumTransferAmount: () =>
+            Promise.resolve(minimumTransferAmount),
+          getBalance: () => Promise.resolve(MOCK_BALANCE),
+          getBridgedSupply: () => Promise.resolve(MOCK_BALANCE),
+          getMintLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
+          getMintMaxLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
+          isRevokeApprovalRequired: () => Promise.resolve(false),
+        }),
+      );
       // validateOriginCollateral reads the burn limit via getAdapter (not the
       // Hyp adapter). Keep it well above the transfer so the xERC20 origin path
       // passes and execution reaches validateTokenBalances.
-      sinon.stub(t, 'getAdapter').returns({
-        getBurnLimit: () => Promise.resolve(BIG_TRANSFER_AMOUNT),
-        getMinimumTransferAmount: () => Promise.resolve(minimumTransferAmount),
-        getBalance: () => Promise.resolve(MOCK_BALANCE),
-        isApproveRequired: () => Promise.resolve(false),
-      } as unknown as ITokenAdapter<unknown>);
+      sinon.stub(t, 'getAdapter').returns(
+        asTokenAdapter({
+          getBurnLimit: () => Promise.resolve(BIG_TRANSFER_AMOUNT),
+          getMinimumTransferAmount: () =>
+            Promise.resolve(minimumTransferAmount),
+          getBalance: () => Promise.resolve(MOCK_BALANCE),
+          isApproveRequired: () => Promise.resolve(false),
+        }),
+      );
     });
 
     const result = await warpCore.validateTransfer({
@@ -925,10 +944,12 @@ describe('WarpCore', () => {
 
       const getMintLimit = sinon.stub().resolves(80n);
       const getMintMaxLimit = sinon.stub().resolves(100n);
-      sinon.stub(destinationToken, 'getAdapter').returns({
-        getMintLimit,
-        getMintMaxLimit,
-      } as unknown as ITokenAdapter<unknown>);
+      sinon.stub(destinationToken, 'getAdapter').returns(
+        asTokenAdapter({
+          getMintLimit,
+          getMintMaxLimit,
+        }),
+      );
 
       const tronWarpCore = new TestWarpCore(multiProvider, [
         originToken,
@@ -1096,10 +1117,12 @@ describe('WarpCore', () => {
 
       const getMintLimit = sinon.stub().resolves(c.mintLimit);
       const getMintMaxLimit = sinon.stub().resolves(c.bufferCap ?? 0n);
-      sinon.stub(destinationToken, 'getAdapter').returns({
-        getMintLimit,
-        getMintMaxLimit,
-      } as unknown as ITokenAdapter<unknown>);
+      sinon.stub(destinationToken, 'getAdapter').returns(
+        asTokenAdapter({
+          getMintLimit,
+          getMintMaxLimit,
+        }),
+      );
 
       const tronWarpCore = new TestWarpCore(multiProvider, [
         originToken,
@@ -1142,9 +1165,11 @@ describe('WarpCore', () => {
       });
 
       const getBurnLimit = sinon.stub().resolves(burnLimit);
-      sinon.stub(originToken, 'getAdapter').returns({
-        getBurnLimit,
-      } as unknown as ITokenAdapter<unknown>);
+      sinon.stub(originToken, 'getAdapter').returns(
+        asTokenAdapter({
+          getBurnLimit,
+        }),
+      );
 
       // Token fee is charged in the origin token (same asset being burned), so it
       // must count toward the burn debit.
@@ -1152,9 +1177,11 @@ describe('WarpCore', () => {
         igpQuote: { amount: 0n },
         tokenFeeQuote: { amount: tokenFee, addressOrDenom: MOCK_ADDRESS },
       });
-      sinon.stub(originToken, 'getHypAdapter').returns({
-        quoteTransferRemoteGas,
-      } as unknown as IHypTokenAdapter<unknown>);
+      sinon.stub(originToken, 'getHypAdapter').returns(
+        asHypAdapter({
+          quoteTransferRemoteGas,
+        }),
+      );
 
       const tronWarpCore = new TestWarpCore(multiProvider, [originToken]);
 

@@ -26,6 +26,19 @@ interface ConstantCallResponse {
   constant_result?: string[];
 }
 
+/** Minimal TronWeb surface the provider invokes on the injected instance. */
+interface TronWebStub {
+  address: { toHex: (address: string) => string };
+  toUtf8: (hex: string) => string;
+  fullNode: {
+    request: (
+      url: string,
+      payload: Record<string, unknown>,
+      method?: string,
+    ) => Promise<ConstantCallResponse>;
+  };
+}
+
 // Shared real TronWeb for the pure helpers (address/utf8 conversion) that the
 // provider invokes on the injected instance; only fullNode.request is stubbed.
 const realTronWeb = new TronWeb({ fullHost: 'https://api.trongrid.io' });
@@ -48,7 +61,7 @@ function stubFullNode(
   response: ConstantCallResponse,
   captured?: { value?: CapturedRequest; calls: number },
 ): void {
-  const tronWeb = {
+  const tronWeb: TronWebStub = {
     address: { toHex: (a: string) => realTronWeb.address.toHex(a) },
     toUtf8: (hex: string) => realTronWeb.toUtf8(hex),
     fullNode: {
@@ -64,14 +77,16 @@ function stubFullNode(
         return response;
       },
     },
-  } as unknown as TronWeb;
-  (provider as unknown as { tronWeb: TronWeb }).tronWeb = tronWeb;
+  };
+  // CAST: inject the minimal fullNode double into the provider's private
+  // `tronWeb` field.
+  (provider as unknown as { tronWeb: TronWebStub }).tronWeb = tronWeb;
 }
 
 type SendImpl = (method: string, params: unknown[]) => Promise<unknown>;
 
 function stubSend(provider: TronJsonRpcProvider, impl: SendImpl): void {
-  (provider as unknown as { send: SendImpl }).send = impl;
+  provider.send = impl;
 }
 
 // Raw node/transport error as it leaves ethers' `send`, BEFORE `checkError`
