@@ -75,6 +75,7 @@ cosmrs = { version = "0.21.0", default-features = false, features = [
   "grpc",
 ] }
 cosmwasm-std = "*"
+crc32c = "0.6.8"
 crunchy = "0.2"
 ctrlc = "3.2"
 curve25519-dalek = { version = "~3.2", features = ["serde"] }

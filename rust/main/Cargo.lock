@@ -6479,6 +6479,7 @@ version = "2.3.0"
 dependencies = [
  "abigen",
  "async-trait",
+ "crc32c",
  "dashmap",
  "derive-new",
  "ethers",

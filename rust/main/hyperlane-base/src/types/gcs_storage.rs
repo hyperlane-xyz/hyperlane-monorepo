@@ -189,7 +189,11 @@ impl CheckpointSyncer for GcsStorageClient {
     /// Read the highest index of this Syncer
     #[instrument(skip(self))]
     async fn latest_index(&self) -> Result<Option<u32>> {
-        match self.inner.get_object(&self.bucket, LATEST_INDEX_KEY).await {
+        match self
+            .inner
+            .get_object(&self.bucket, self.object_path(LATEST_INDEX_KEY))
+            .await
+        {
             Ok(data) => Ok(Some(serde_json::from_slice(data.as_ref())?)),
             Err(e) => match e {
                 // never written before to this bucket
@@ -206,7 +210,8 @@ impl CheckpointSyncer for GcsStorageClient {
     #[instrument(skip(self, index))]
     async fn write_latest_index(&self, index: u32) -> Result<()> {
         let data = serde_json::to_vec(&index)?;
-        self.upload_and_log(LATEST_INDEX_KEY, data).await
+        self.upload_and_log(&self.object_path(LATEST_INDEX_KEY), data)
+            .await
     }
 
     /// Attempt to fetch the signed (checkpoint, messageId) tuple at this index
@@ -214,7 +219,10 @@ impl CheckpointSyncer for GcsStorageClient {
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
         match self
             .inner
-            .get_object(&self.bucket, GcsStorageClient::get_checkpoint_key(index))
+            .get_object(
+                &self.bucket,
+                self.object_path(&GcsStorageClient::get_checkpoint_key(index)),
+            )
             .await
         {
             Ok(data) => Ok(Some(serde_json::from_slice(data.as_ref())?)),
@@ -270,21 +278,25 @@ impl CheckpointSyncer for GcsStorageClient {
     /// Write the reorg status to this syncer
     #[instrument(skip(self, reorg_event))]
     async fn write_reorg_status(&self, reorg_event: &ReorgEvent) -> Result<()> {
-        let object_name = REORG_FLAG_KEY;
+        let object_name = self.object_path(REORG_FLAG_KEY);
         let data = serde_json::to_string_pretty(reorg_event)?.into_bytes();
-        self.upload_and_log(object_name, data).await
+        self.upload_and_log(&object_name, data).await
     }
 
     #[instrument(skip(self, log))]
     async fn write_reorg_rpc_responses(&self, log: String) -> Result<()> {
-        let object_name = REORG_RPC_RESPONSES_KEY;
-        self.upload_and_log(object_name, log.into_bytes()).await
+        let object_name = self.object_path(REORG_RPC_RESPONSES_KEY);
+        self.upload_and_log(&object_name, log.into_bytes()).await
     }
 
     /// Read the reorg status from this syncer
     #[instrument(skip(self))]
     async fn reorg_status(&self) -> Result<ReorgEventResponse> {
-        let object = match self.inner.get_object(&self.bucket, REORG_FLAG_KEY).await {
+        let object = match self
+            .inner
+            .get_object(&self.bucket, self.object_path(REORG_FLAG_KEY))
+            .await
+        {
             Ok(data) => data,
             Err(err) => match err {
                 ObjectError::Failure(Error::HttpStatus(HttpStatusError(StatusCode::NOT_FOUND))) => {
@@ -313,6 +325,48 @@ impl CheckpointSyncer for GcsStorageClient {
             }
         }
     }
+}
+
+#[tokio::test]
+async fn object_path_prefixes_every_key_with_the_folder() {
+    let client = GcsStorageClientBuilder::new(AuthFlow::NoAuth)
+        .build("test-bucket", Some("sepolia".to_string()))
+        .await
+        .unwrap();
+
+    // Every syncer key must be scoped under the folder — otherwise validators
+    // sharing a bucket across chains via folder prefixes silently collide,
+    // and a write under the folder is unreadable by a read that isn't scoped.
+    assert_eq!(
+        client.object_path(LATEST_INDEX_KEY),
+        "sepolia/gcsLatestIndexKey"
+    );
+    assert_eq!(
+        client.object_path(&GcsStorageClient::get_checkpoint_key(5)),
+        "sepolia/checkpoint_5_with_id.json"
+    );
+    assert_eq!(
+        client.object_path(REORG_FLAG_KEY),
+        "sepolia/gcsReorgFlagKey"
+    );
+    assert_eq!(
+        client.announcement_location(),
+        "gs://test-bucket/sepolia/gcsAnnouncementKey"
+    );
+}
+
+#[tokio::test]
+async fn object_path_is_unprefixed_without_a_folder() {
+    let client = GcsStorageClientBuilder::new(AuthFlow::NoAuth)
+        .build("test-bucket", None)
+        .await
+        .unwrap();
+
+    assert_eq!(client.object_path(LATEST_INDEX_KEY), LATEST_INDEX_KEY);
+    assert_eq!(
+        client.announcement_location(),
+        "gs://test-bucket/gcsAnnouncementKey"
+    );
 }
 
 #[tokio::test]

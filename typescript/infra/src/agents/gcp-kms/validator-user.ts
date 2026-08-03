@@ -52,6 +52,7 @@ export class ValidatorAgentGcpUser {
   async createServiceAccountIfNotExists(): Promise<string> {
     const email = await createServiceAccountIfNotExists(
       this.serviceAccountName,
+      this.project,
     );
     this.serviceAccountEmail = email;
     return email;

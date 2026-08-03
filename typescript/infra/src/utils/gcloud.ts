@@ -251,11 +251,18 @@ export async function disableGCPSecretVersion(secretName: string) {
 // Returns the email of the service account
 export async function createServiceAccountIfNotExists(
   serviceAccountName: string,
+  project: string = GCP_PROJECT_ID,
 ) {
-  let serviceAccountInfo = await getServiceAccountInfo(serviceAccountName);
+  let serviceAccountInfo = await getServiceAccountInfo(
+    serviceAccountName,
+    project,
+  );
   if (!serviceAccountInfo) {
     try {
-      serviceAccountInfo = await createServiceAccount(serviceAccountName);
+      serviceAccountInfo = await createServiceAccount(
+        serviceAccountName,
+        project,
+      );
       logger.debug(
         `Created new service account with name ${serviceAccountName}`,
       );
@@ -264,7 +271,10 @@ export async function createServiceAccountIfNotExists(
       // chain (see ValidatorAgentGcpUser), so concurrent buildConfig() calls
       // race the list-then-create above. Re-check real state rather than
       // pattern-match the error text — only recover if it genuinely exists now.
-      serviceAccountInfo = await getServiceAccountInfo(serviceAccountName);
+      serviceAccountInfo = await getServiceAccountInfo(
+        serviceAccountName,
+        project,
+      );
       if (!serviceAccountInfo) {
         throw error;
       }
@@ -387,15 +397,27 @@ export async function createKmsSignerKeyIfNotExists(
   keyId: string,
 ): Promise<string> {
   const resourceName = `projects/${project}/locations/${location}/keyRings/${keyRingId}/cryptoKeys/${keyId}`;
-  const matches = await execCmdAndParseJson(
-    `gcloud kms keys list --project=${project} --location=${location} --keyring=${keyRingId} --filter="name=${resourceName}" --format=json`,
-  );
-  if (matches.length === 0) {
+  const listCmd = `gcloud kms keys list --project=${project} --location=${location} --keyring=${keyRingId} --filter="name=${resourceName}" --format=json`;
+  const matches = await execCmdAndParseJson(listCmd);
+  if (matches.length > 0) {
+    logger.debug(`KMS signing key ${resourceName} already exists`);
+    return resourceName;
+  }
+
+  try {
     await execCmd(
       `gcloud kms keys create ${keyId} --project=${project} --location=${location} --keyring=${keyRingId} --purpose=asymmetric-signing --default-algorithm=ec-sign-secp256k1-sha256 --protection-level=hsm`,
     );
     logger.debug(`Created new KMS signing key ${resourceName}`);
-  } else {
+  } catch (error) {
+    // This key is shared across every chain that validator index signs for
+    // (see AgentGcpKmsKey), so concurrent createIfNotExists() calls race the
+    // list-then-create above. Re-check real state rather than pattern-match
+    // the error text — only swallow the error if the key genuinely exists now.
+    const matchesNow = await execCmdAndParseJson(listCmd);
+    if (matchesNow.length === 0) {
+      throw error;
+    }
     logger.debug(`KMS signing key ${resourceName} already exists`);
   }
   return resourceName;
@@ -456,15 +478,28 @@ export async function createGcsBucketIfNotExists(
   location: string,
   bucketName: string,
 ) {
-  const matches = await execCmdAndParseJson(
-    `gcloud storage buckets list --project=${project} --filter="name=${bucketName}" --format=json`,
-  );
-  if (matches.length === 0) {
+  const listCmd = `gcloud storage buckets list --project=${project} --filter="name=${bucketName}" --format=json`;
+  const matches = await execCmdAndParseJson(listCmd);
+  if (matches.length > 0) {
+    logger.debug(`GCS bucket ${bucketName} already exists`);
+    return;
+  }
+
+  try {
     await execCmd(
       `gcloud storage buckets create gs://${bucketName} --project=${project} --location=${location} --uniform-bucket-level-access`,
     );
     logger.debug(`Created new GCS bucket ${bucketName}`);
-  } else {
+  } catch (error) {
+    // This bucket is shared across every chain that validator index writes
+    // checkpoints for (see #configForValidator), so concurrent
+    // createIfNotExists() calls race the list-then-create above. Re-check
+    // real state rather than pattern-match the error text — only swallow the
+    // error if the bucket genuinely exists now.
+    const matchesNow = await execCmdAndParseJson(listCmd);
+    if (matchesNow.length === 0) {
+      throw error;
+    }
     logger.debug(`GCS bucket ${bucketName} already exists`);
   }
 }
@@ -567,17 +602,23 @@ async function getIamMemberPolicyBindings(memberEmail: string) {
   return bindings;
 }
 
-async function createServiceAccount(serviceAccountName: string) {
+async function createServiceAccount(
+  serviceAccountName: string,
+  project: string,
+) {
   return execCmdAndParseJson(
-    `gcloud iam service-accounts create ${serviceAccountName} --display-name="${serviceAccountName}" --format json`,
+    `gcloud iam service-accounts create ${serviceAccountName} --project=${project} --display-name="${serviceAccountName}" --format json`,
   );
 }
 
-async function getServiceAccountInfo(serviceAccountName: string) {
+async function getServiceAccountInfo(
+  serviceAccountName: string,
+  project: string,
+) {
   // By filtering, we get an array with one element upon a match and an empty
   // array if there is not a match, which is desirable because it never errors.
   const matches = await execCmdAndParseJson(
-    `gcloud iam service-accounts list --format json --filter displayName="${serviceAccountName}"`,
+    `gcloud iam service-accounts list --project=${project} --format json --filter displayName="${serviceAccountName}"`,
   );
   if (matches.length === 0) {
     logger.debug(`No service account found with name ${serviceAccountName}`);

@@ -16,7 +16,7 @@ use ethers::{
 use ethers_signers::Signer;
 use google_cloud_kms_v1::{
     client::KeyManagementService,
-    model::{Digest, PublicKey},
+    model::{Digest, ProtectionLevel, PublicKey},
 };
 use k256::{
     ecdsa::{RecoveryId, Signature as KSig, VerifyingKey},
@@ -63,6 +63,19 @@ pub enum GcpSignerError {
     /// either recovery id - the signature is unusable.
     #[error("KMS signature does not recover to the expected public key")]
     BadSignature,
+    /// KMS signed with a different CryptoKeyVersion than the one requested -
+    /// possible proxy/routing bug or resource drift. Fail closed.
+    #[error("KMS signed with unexpected key version: requested {requested}, got {got}")]
+    UnexpectedKeyVersion { requested: String, got: String },
+    /// KMS signed with a protection level other than HSM - the HSM guarantee
+    /// this signer relies on may not hold. Fail closed.
+    #[error("KMS signed with unexpected protection level: {0:?}")]
+    UnexpectedProtectionLevel(ProtectionLevel),
+    /// A CRC32C integrity check against a KMS request/response failed -
+    /// possible data corruption in transit. Fail closed rather than sign or
+    /// trust a payload that didn't round-trip intact.
+    #[error("KMS integrity check failed: {0}")]
+    IntegrityCheckFailed(&'static str),
     /// Error encoding an EIP-712 typed-data payload
     #[error("error encoding eip712 struct: {0:?}")]
     Eip712Error(String),
@@ -84,6 +97,26 @@ impl GcpSigner {
             .set_name(&key_version_name)
             .send()
             .await?;
+
+        if response.name != key_version_name {
+            return Err(GcpSignerError::UnexpectedKeyVersion {
+                requested: key_version_name,
+                got: response.name,
+            });
+        }
+        if response.protection_level != ProtectionLevel::Hsm {
+            return Err(GcpSignerError::UnexpectedProtectionLevel(
+                response.protection_level.clone(),
+            ));
+        }
+        if let Some(expected) = response.pem_crc32c {
+            if crc32c::crc32c(response.pem.as_bytes()) as i64 != expected {
+                return Err(GcpSignerError::IntegrityCheckFailed(
+                    "public key PEM CRC32C mismatch",
+                ));
+            }
+        }
+
         let pubkey = decode_pubkey(response)?;
         let address = verifying_key_to_address(&pubkey);
 
@@ -109,13 +142,41 @@ impl GcpSigner {
     /// recovery id by trial recovery against this signer's known public key.
     #[instrument(err, skip(self, digest), fields(digest = %hex::encode(digest)))]
     async fn sign_digest(&self, digest: [u8; 32]) -> Result<(KSig, RecoveryId), GcpSignerError> {
+        let digest_crc32c = crc32c::crc32c(&digest);
         let response = self
             .client
             .asymmetric_sign()
             .set_name(&self.key_version_name)
             .set_digest(Digest::new().set_sha256(digest.to_vec()))
+            .set_digest_crc32c(digest_crc32c as i64)
             .send()
             .await?;
+
+        // Fail closed on integrity/identity metadata KMS returns alongside the
+        // signature — a drifted or wrong-protection-level same-name key, or a
+        // corrupted request/response, must not silently produce a signature
+        // this signer treats as trustworthy.
+        if response.name != self.key_version_name {
+            return Err(GcpSignerError::UnexpectedKeyVersion {
+                requested: self.key_version_name.clone(),
+                got: response.name,
+            });
+        }
+        if !response.verified_digest_crc32c {
+            return Err(GcpSignerError::IntegrityCheckFailed(
+                "KMS did not verify the digest CRC32C",
+            ));
+        }
+        if response.protection_level != ProtectionLevel::Hsm {
+            return Err(GcpSignerError::UnexpectedProtectionLevel(
+                response.protection_level.clone(),
+            ));
+        }
+        if response.signature_crc32c != Some(crc32c::crc32c(&response.signature) as i64) {
+            return Err(GcpSignerError::IntegrityCheckFailed(
+                "signature CRC32C mismatch",
+            ));
+        }
 
         let sig = KSig::from_der(&response.signature)?;
         let sig = sig.normalize_s().unwrap_or(sig);
