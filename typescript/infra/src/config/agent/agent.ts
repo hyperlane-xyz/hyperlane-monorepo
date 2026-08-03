@@ -4,6 +4,7 @@ import {
   AgentSealevelTransactionSubmitter,
   AgentSealevelUrReveal,
   AgentSignerAwsKey,
+  AgentSignerGcpKey,
   AgentSignerKeyType,
   ChainMap,
   ChainName,
@@ -149,10 +150,7 @@ export type RadixKeyConfig = {
 };
 // Cloud KMS-backed key. `keyVersionName` is the full CryptoKeyVersion resource
 // name (GetPublicKey/AsymmetricSign require the version, not just the key).
-export type GcpKeyConfig = {
-  type: AgentSignerKeyType.Gcp;
-  keyVersionName: string;
-};
+export type GcpKeyConfig = Required<AgentSignerGcpKey>;
 export type KeyConfig =
   | AwsKeyConfig
   | GcpKeyConfig

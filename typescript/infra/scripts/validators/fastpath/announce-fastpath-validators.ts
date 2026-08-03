@@ -79,29 +79,39 @@ async function main() {
       Object.entries(agentConfig.validators.chains)
         .filter(([c]) => evmChains.includes(c))
         .map(async ([c, chainConfig]) => {
-          for (const v of chainConfig.validators) {
-            const contracts = core.getContracts(c);
+          const contracts = core.getContracts(c);
+
+          for (const [idx, v] of chainConfig.validators.entries()) {
             const validatorConfig = {
               localDomain: multiProvider.getDomainId(c),
               address: v.address,
               mailbox: contracts.mailbox.address,
             };
-            if (v.checkpointSyncer.type === CheckpointSyncerType.S3) {
-              const infraValidator = new InfraS3Validator(
-                validatorConfig,
-                v.checkpointSyncer,
-              );
+
+            // createChainValidatorBaseConfigs always materializes an S3
+            // checkpointSyncer here regardless of context — the real
+            // deployed validator only switches to GCS at deploy time inside
+            // ValidatorConfigHelper#configForValidator, which this static
+            // config lookup never runs. So checkpointSyncer.type is never
+            // actually Gcs here; derive the GCS bucket/folder directly from
+            // agentConfig.gcp instead, mirroring #configForValidator's naming.
+            if (agentConfig.gcp) {
+              const bucketName = `${Contexts.FastPath}-${environment}-validator-${idx}`;
+              const infraValidator = new InfraGcsValidator(validatorConfig, {
+                bucket: bucketName,
+                folder: c,
+                caching: true,
+              });
               pending.push({
                 chain: c,
                 storageLocation: infraValidator.storageLocation(),
                 announcement: await infraValidator.getSignedAnnouncement(),
               });
-            } else if (v.checkpointSyncer.type === CheckpointSyncerType.Gcs) {
-              const infraValidator = new InfraGcsValidator(validatorConfig, {
-                bucket: v.checkpointSyncer.bucket,
-                folder: v.checkpointSyncer.folder,
-                caching: true,
-              });
+            } else if (v.checkpointSyncer.type === CheckpointSyncerType.S3) {
+              const infraValidator = new InfraS3Validator(
+                validatorConfig,
+                v.checkpointSyncer,
+              );
               pending.push({
                 chain: c,
                 storageLocation: infraValidator.storageLocation(),

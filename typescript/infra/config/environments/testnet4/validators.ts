@@ -42,10 +42,13 @@ export const validatorChainConfig = (
         'basesepolia',
       ),
     },
-    // Hyperlane-context validator here is still 1-of-3 in the on-chain default
-    // multisig ISM (threshold 2) — do not deploy this reduced config for this
-    // chain's Hyperlane context until the ISM threshold is separately lowered
-    // to 1-of-1, or message delivery breaks.
+    // Hyperlane-context reduced to 1-of-1 here, matching defaultMultisigConfigs
+    // (typescript/sdk/src/consts/multisigIsm.ts), which now points at the new
+    // GCP validator address instead of the old 3-of-3 AWS set. The on-chain
+    // ISM itself (still the old 3-address, threshold-2 set until updated) must
+    // be rotated to match right after this PR merges, or message delivery
+    // breaks in the gap — this agent config and the on-chain ISM must move
+    // together, not just this side.
     fuji: {
       interval: 5,
       reorgPeriod: getReorgPeriod('fuji'),
@@ -60,10 +63,13 @@ export const validatorChainConfig = (
         'fuji',
       ),
     },
-    // Hyperlane-context validator here is still 1-of-3 in the on-chain default
-    // multisig ISM (threshold 2) — do not deploy this reduced config for this
-    // chain's Hyperlane context until the ISM threshold is separately lowered
-    // to 1-of-1, or message delivery breaks.
+    // Hyperlane-context reduced to 1-of-1 here, matching defaultMultisigConfigs
+    // (typescript/sdk/src/consts/multisigIsm.ts), which now points at the new
+    // GCP validator address instead of the old 3-of-3 AWS set. The on-chain
+    // ISM itself (still the old 3-address, threshold-2 set until updated) must
+    // be rotated to match right after this PR merges, or message delivery
+    // breaks in the gap — this agent config and the on-chain ISM must move
+    // together, not just this side.
     bsctestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('bsctestnet'),
@@ -79,10 +85,13 @@ export const validatorChainConfig = (
       ),
     },
 
-    // Hyperlane-context validator here is still 1-of-3 in the on-chain default
-    // multisig ISM (threshold 2) — do not deploy this reduced config for this
-    // chain's Hyperlane context until the ISM threshold is separately lowered
-    // to 1-of-1, or message delivery breaks.
+    // Hyperlane-context reduced to 1-of-1 here, matching defaultMultisigConfigs
+    // (typescript/sdk/src/consts/multisigIsm.ts), which now points at the new
+    // GCP validator address instead of the old 3-of-3 AWS set. The on-chain
+    // ISM itself (still the old 3-address, threshold-2 set until updated) must
+    // be rotated to match right after this PR merges, or message delivery
+    // breaks in the gap — this agent config and the on-chain ISM must move
+    // together, not just this side.
     sepolia: {
       interval: 5,
       reorgPeriod: getReorgPeriod('sepolia'),

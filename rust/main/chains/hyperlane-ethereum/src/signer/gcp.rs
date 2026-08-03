@@ -16,7 +16,7 @@ use ethers::{
 use ethers_signers::Signer;
 use google_cloud_kms_v1::{
     client::KeyManagementService,
-    model::{Digest, ProtectionLevel, PublicKey},
+    model::{crypto_key_version::CryptoKeyVersionAlgorithm, Digest, ProtectionLevel, PublicKey},
 };
 use k256::{
     ecdsa::{RecoveryId, Signature as KSig, VerifyingKey},
@@ -72,6 +72,11 @@ pub enum GcpSignerError {
     /// this signer relies on may not hold. Fail closed.
     #[error("KMS signed with unexpected protection level: {0:?}")]
     UnexpectedProtectionLevel(ProtectionLevel),
+    /// The key version's algorithm isn't the secp256k1/SHA-256 this signer
+    /// assumes - a drifted or misconfigured key could otherwise produce
+    /// signatures this signer misinterprets. Fail closed.
+    #[error("KMS key version has unexpected algorithm: {0:?}")]
+    UnexpectedAlgorithm(CryptoKeyVersionAlgorithm),
     /// A CRC32C integrity check against a KMS request/response failed -
     /// possible data corruption in transit. Fail closed rather than sign or
     /// trust a payload that didn't round-trip intact.
@@ -110,10 +115,21 @@ impl GcpSigner {
                 response.protection_level.clone(),
             ));
         }
-        if let Some(expected) = response.pem_crc32c {
-            if crc32c::crc32c(response.pem.as_bytes()) as i64 != expected {
+        if response.algorithm != CryptoKeyVersionAlgorithm::EcSignSecp256K1Sha256 {
+            return Err(GcpSignerError::UnexpectedAlgorithm(
+                response.algorithm.clone(),
+            ));
+        }
+        match response.pem_crc32c {
+            Some(expected) if crc32c::crc32c(response.pem.as_bytes()) as i64 == expected => {}
+            Some(_) => {
                 return Err(GcpSignerError::IntegrityCheckFailed(
                     "public key PEM CRC32C mismatch",
+                ));
+            }
+            None => {
+                return Err(GcpSignerError::IntegrityCheckFailed(
+                    "public key PEM response missing CRC32C integrity field",
                 ));
             }
         }
@@ -220,8 +236,14 @@ impl Signer for GcpSigner {
 
     #[instrument(err)]
     async fn sign_transaction(&self, tx: &TypedTransaction) -> Result<EthSig, Self::Error> {
+        // For typed transactions (EIP-1559/2930), chain_id is part of the
+        // RLP payload the hash covers - resolve it onto a clone before
+        // hashing so a tx with no chain_id set signs a hash consistent with
+        // the chain_id we then EIP-155-encode into `v`.
         let chain_id = tx.chain_id().map(|id| id.as_u64()).unwrap_or(self.chain_id);
-        let sighash = tx.sighash();
+        let mut resolved_tx = tx.clone();
+        resolved_tx.set_chain_id(chain_id);
+        let sighash = resolved_tx.sighash();
         self.sign_digest_with_eip155(sighash, chain_id).await
     }
 

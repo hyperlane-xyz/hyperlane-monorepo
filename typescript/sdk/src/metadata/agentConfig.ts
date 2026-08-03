@@ -94,6 +94,16 @@ const AgentSignerAwsKeySchema = z
   .describe(
     'An AWS signer. Note that AWS credentials must be inserted into the env separately.',
   );
+const AgentSignerGcpKeySchema = z
+  .object({
+    type: z.literal(AgentSignerKeyType.Gcp).optional(),
+    keyVersionName: z
+      .string()
+      .describe('The full GCP KMS CryptoKeyVersion resource name'),
+  })
+  .describe(
+    'A GCP Cloud KMS signer. Note that GCP credentials (e.g. Workload Identity) must be available in the env separately.',
+  );
 const AgentSignerCosmosKeySchema = z
   .object({
     type: z.literal(AgentSignerKeyType.Cosmos),
@@ -117,12 +127,14 @@ const AgentSignerNodeSchema = z
 const AgentSignerSchema = z.union([
   AgentSignerHexKeySchema,
   AgentSignerAwsKeySchema,
+  AgentSignerGcpKeySchema,
   AgentSignerCosmosKeySchema,
   AgentSignerNodeSchema,
   AgentSignerRadixKeySchema,
 ]);
 
 export type AgentSignerHexKey = z.infer<typeof AgentSignerHexKeySchema>;
+export type AgentSignerGcpKey = z.infer<typeof AgentSignerGcpKeySchema>;
 export type AgentSignerAwsKey = z.infer<typeof AgentSignerAwsKeySchema>;
 export type AgentSignerCosmosKey = z.infer<typeof AgentSignerNodeSchema>;
 export type AgentSignerNode = z.infer<typeof AgentSignerNodeSchema>;
