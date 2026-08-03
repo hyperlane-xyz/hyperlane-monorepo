@@ -96,7 +96,12 @@ const AgentSignerAwsKeySchema = z
   );
 const AgentSignerGcpKeySchema = z
   .object({
-    type: z.literal(AgentSignerKeyType.Gcp).optional(),
+    // Required, unlike Hex/Aws's optional `type` - those stay optional only
+    // for backward compat with configs written before those had a
+    // discriminant; Gcp has no such pre-discriminant format to preserve, and
+    // an optional type here would let `signerType` resolve to `undefined`,
+    // silently skipping the protocol-signer refinement below.
+    type: z.literal(AgentSignerKeyType.Gcp),
     keyVersionName: z
       .string()
       .describe('The full GCP KMS CryptoKeyVersion resource name'),
@@ -304,8 +309,9 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
         if (
           ![
             AgentSignerKeyType.Hex,
-            signerType === AgentSignerKeyType.Aws,
-            signerType === AgentSignerKeyType.Node,
+            AgentSignerKeyType.Aws,
+            AgentSignerKeyType.Node,
+            AgentSignerKeyType.Gcp,
           ].includes(signerType)
         ) {
           return false;

@@ -91,8 +91,7 @@ export class AgentGcpKmsKey extends CloudAgentKey {
   }
 
   get address(): string {
-    this.requireFetched();
-    return (this.remoteKey as FetchedKey).address;
+    return this.requireFetched().address;
   }
 
   get privateKey(): string {
@@ -176,10 +175,11 @@ export class AgentGcpKmsKey extends CloudAgentKey {
     return getEthereumAddress(pemToDer(pem));
   }
 
-  private requireFetched() {
+  private requireFetched(): FetchedKey {
     if (!this.remoteKey.fetched) {
       this.logger.debug('Key has not been fetched yet');
       throw new Error(`Key not fetched: ${this.identifier}`);
     }
+    return this.remoteKey;
   }
 }

@@ -16,7 +16,10 @@ use ethers::{
 use ethers_signers::Signer;
 use google_cloud_kms_v1::{
     client::KeyManagementService,
-    model::{crypto_key_version::CryptoKeyVersionAlgorithm, Digest, ProtectionLevel, PublicKey},
+    model::{
+        crypto_key_version::CryptoKeyVersionAlgorithm, AsymmetricSignResponse, Digest,
+        ProtectionLevel, PublicKey,
+    },
 };
 use k256::{
     ecdsa::{RecoveryId, Signature as KSig, VerifyingKey},
@@ -87,6 +90,35 @@ pub enum GcpSignerError {
     Eip712Error(String),
 }
 
+/// GCP's KMS API docs call out CRC32C mismatches and unverified digest/data
+/// checksums as possible in-transit corruption, and specifically recommend
+/// discarding the response and performing a limited number of retries for
+/// exactly these integrity failures - not for other errors (wrong key
+/// version, wrong protection level/algorithm, a real KMS/network error),
+/// which aren't transient in the same way and should propagate immediately.
+const MAX_INTEGRITY_RETRIES: u32 = 3;
+
+async fn retry_on_integrity_failure<T, Fut>(mut f: impl FnMut() -> Fut) -> Result<T, GcpSignerError>
+where
+    Fut: std::future::Future<Output = Result<T, GcpSignerError>>,
+{
+    let mut attempt = 0;
+    loop {
+        match f().await {
+            Err(GcpSignerError::IntegrityCheckFailed(msg))
+                if attempt + 1 < MAX_INTEGRITY_RETRIES =>
+            {
+                attempt += 1;
+                debug!(
+                    attempt,
+                    "Retrying KMS call after integrity check failure: {msg}"
+                );
+            }
+            result => return result,
+        }
+    }
+}
+
 impl GcpSigner {
     /// Instantiate a new signer from an existing KMS client and crypto key
     /// version resource name.
@@ -98,41 +130,10 @@ impl GcpSigner {
         client: KeyManagementService,
         key_version_name: String,
     ) -> Result<Self, GcpSignerError> {
-        let response = client
-            .get_public_key()
-            .set_name(&key_version_name)
-            .send()
-            .await?;
-
-        if response.name != key_version_name {
-            return Err(GcpSignerError::UnexpectedKeyVersion(
-                key_version_name,
-                response.name,
-            ));
-        }
-        if response.protection_level != ProtectionLevel::Hsm {
-            return Err(GcpSignerError::UnexpectedProtectionLevel(
-                response.protection_level.clone(),
-            ));
-        }
-        if response.algorithm != CryptoKeyVersionAlgorithm::EcSignSecp256K1Sha256 {
-            return Err(GcpSignerError::UnexpectedAlgorithm(
-                response.algorithm.clone(),
-            ));
-        }
-        match response.pem_crc32c {
-            Some(expected) if crc32c::crc32c(response.pem.as_bytes()) as i64 == expected => {}
-            Some(_) => {
-                return Err(GcpSignerError::IntegrityCheckFailed(
-                    "public key PEM CRC32C mismatch",
-                ));
-            }
-            None => {
-                return Err(GcpSignerError::IntegrityCheckFailed(
-                    "public key PEM response missing CRC32C integrity field",
-                ));
-            }
-        }
+        let response = retry_on_integrity_failure(|| {
+            fetch_and_validate_public_key(&client, &key_version_name)
+        })
+        .await?;
 
         let pubkey = decode_pubkey(response)?;
         let address = verifying_key_to_address(&pubkey);
@@ -159,6 +160,21 @@ impl GcpSigner {
     /// recovery id by trial recovery against this signer's known public key.
     #[instrument(err, skip(self, digest), fields(digest = %hex::encode(digest)))]
     async fn sign_digest(&self, digest: [u8; 32]) -> Result<(KSig, RecoveryId), GcpSignerError> {
+        let response = retry_on_integrity_failure(|| self.asymmetric_sign_once(digest)).await?;
+
+        let sig = KSig::from_der(&response.signature)?;
+        let sig = sig.normalize_s().unwrap_or(sig);
+
+        let recovery_id = RecoveryId::trial_recovery_from_prehash(&self.pubkey, &digest, &sig)
+            .map_err(|_| GcpSignerError::BadSignature)?;
+
+        Ok((sig, recovery_id))
+    }
+
+    async fn asymmetric_sign_once(
+        &self,
+        digest: [u8; 32],
+    ) -> Result<AsymmetricSignResponse, GcpSignerError> {
         let digest_crc32c = crc32c::crc32c(&digest);
         let response = self
             .client
@@ -195,13 +211,7 @@ impl GcpSigner {
             ));
         }
 
-        let sig = KSig::from_der(&response.signature)?;
-        let sig = sig.normalize_s().unwrap_or(sig);
-
-        let recovery_id = RecoveryId::trial_recovery_from_prehash(&self.pubkey, &digest, &sig)
-            .map_err(|_| GcpSignerError::BadSignature)?;
-
-        Ok((sig, recovery_id))
+        Ok(response)
     }
 
     /// Sign a digest and add the recovery-id-derived `v`, EIP-155-encoded for `chain_id`.
@@ -214,6 +224,16 @@ impl GcpSigner {
         let mut sig = ksig_to_ethsig(&sig, recovery_id);
         apply_eip155(&mut sig, chain_id);
         Ok(sig)
+    }
+
+    /// Sign a 32-byte prehash, returning a raw `(r, s, v = 27/28)` signature
+    /// with no EIP-155 encoding. For non-EVM chains (e.g. Tron) that sign
+    /// their own transaction formats directly rather than going through
+    /// `ethers_signers::Signer`, but still want this signer's KMS
+    /// integrity/HSM guarantees and its address to be Ethereum-style.
+    pub async fn sign_hash(&self, hash: H256) -> Result<EthSig, GcpSignerError> {
+        let (sig, recovery_id) = self.sign_digest(hash.into()).await?;
+        Ok(ksig_to_ethsig(&sig, recovery_id))
     }
 }
 
@@ -236,15 +256,31 @@ impl Signer for GcpSigner {
 
     #[instrument(err)]
     async fn sign_transaction(&self, tx: &TypedTransaction) -> Result<EthSig, Self::Error> {
-        // For typed transactions (EIP-1559/2930), chain_id is part of the
-        // RLP payload the hash covers - resolve it onto a clone before
-        // hashing so a tx with no chain_id set signs a hash consistent with
-        // the chain_id we then EIP-155-encode into `v`.
+        // Chain_id is part of the RLP payload the hash covers for every tx
+        // type - resolve it onto a clone before hashing so a tx with no
+        // chain_id set signs a hash consistent with the chain_id used below.
         let chain_id = tx.chain_id().map(|id| id.as_u64()).unwrap_or(self.chain_id);
         let mut resolved_tx = tx.clone();
         resolved_tx.set_chain_id(chain_id);
         let sighash = resolved_tx.sighash();
-        self.sign_digest_with_eip155(sighash, chain_id).await
+
+        let (sig, recovery_id) = self.sign_digest(sighash.into()).await?;
+        let mut sig = ksig_to_ethsig(&sig, recovery_id);
+        // Only `TypedTransaction::Legacy::rlp_signed` appends `v` as-is,
+        // expecting EIP-155 encoding. `Eip2930`/`Eip1559`'s `rlp_signed` call
+        // `normalize_v(v, chain_id)`, which passes `v` through unchanged only
+        // when `v <= 1` - anything else is assumed to be EIP-155-encoded for
+        // that tx's own `chain_id` field, which may differ from what we used
+        // here if the caller's copy of `tx` has its chain_id set differently
+        // (or not at all) after we sign. Leaving `v` as raw recovery parity
+        // for typed transactions is correct regardless of that chain_id.
+        match resolved_tx {
+            TypedTransaction::Legacy(_) => apply_eip155(&mut sig, chain_id),
+            TypedTransaction::Eip2930(_) | TypedTransaction::Eip1559(_) => {
+                sig.v = u64::from(recovery_id.to_byte());
+            }
+        }
+        Ok(sig)
     }
 
     async fn sign_typed_data<T: Eip712 + Send + Sync>(
@@ -305,6 +341,49 @@ fn verifying_key_to_address(key: &VerifyingKey) -> Address {
 fn decode_pubkey(resp: PublicKey) -> Result<VerifyingKey, GcpSignerError> {
     let key = VerifyingKey::from_public_key_pem(&resp.pem)?;
     Ok(key)
+}
+
+async fn fetch_and_validate_public_key(
+    client: &KeyManagementService,
+    key_version_name: &str,
+) -> Result<PublicKey, GcpSignerError> {
+    let response = client
+        .get_public_key()
+        .set_name(key_version_name)
+        .send()
+        .await?;
+
+    if response.name != key_version_name {
+        return Err(GcpSignerError::UnexpectedKeyVersion(
+            key_version_name.to_owned(),
+            response.name,
+        ));
+    }
+    if response.protection_level != ProtectionLevel::Hsm {
+        return Err(GcpSignerError::UnexpectedProtectionLevel(
+            response.protection_level.clone(),
+        ));
+    }
+    if response.algorithm != CryptoKeyVersionAlgorithm::EcSignSecp256K1Sha256 {
+        return Err(GcpSignerError::UnexpectedAlgorithm(
+            response.algorithm.clone(),
+        ));
+    }
+    match response.pem_crc32c {
+        Some(expected) if crc32c::crc32c(response.pem.as_bytes()) as i64 == expected => {}
+        Some(_) => {
+            return Err(GcpSignerError::IntegrityCheckFailed(
+                "public key PEM CRC32C mismatch",
+            ));
+        }
+        None => {
+            return Err(GcpSignerError::IntegrityCheckFailed(
+                "public key PEM response missing CRC32C integrity field",
+            ));
+        }
+    }
+
+    Ok(response)
 }
 
 #[cfg(test)]

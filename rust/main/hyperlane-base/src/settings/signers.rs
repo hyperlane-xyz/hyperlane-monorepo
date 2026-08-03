@@ -219,6 +219,9 @@ impl BuildableWithSignerConf for hyperlane_tron::TronSigner {
             SignerConf::Aws { id, region } => Ok(hyperlane_tron::TronSigner::Aws(
                 build_aws_signer(id, region).await?,
             )),
+            SignerConf::Gcp { key_version_name } => Ok(hyperlane_tron::TronSigner::Gcp(
+                build_gcp_signer(key_version_name).await?,
+            )),
             _ => bail!(format!("{conf:?} key is not supported by tron")),
         }
     }

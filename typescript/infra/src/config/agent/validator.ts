@@ -6,7 +6,7 @@ import {
   ChainName,
   S3Config,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, isEVMLike } from '@hyperlane-xyz/utils';
+import { isEVMLike } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../../config/registry.js';
 import { ValidatorAgentAwsUser } from '../../agents/aws/validator-user.js';
@@ -191,13 +191,8 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
         useApplicationDefault: true,
       };
 
-      // Mirrors the AWS path below — EVM-like chains only. Excludes Tron:
-      // hyperlane_tron::TronSigner::build() only handles HexKey/Aws and bails
-      // on SignerConf::Gcp, so a GCP-configured Tron validator would crash at
-      // chain-signer construction. Falls through to the protocol-specific
-      // default chain signer below instead, same as any other non-EVM-like
-      // chain.
-      if (isEVMLike(protocol) && protocol !== ProtocolType.Tron) {
+      // Mirrors the AWS path below — EVM-like chains only.
+      if (isEVMLike(protocol)) {
         chainSigner = validator;
       }
     } else if (cfg.checkpointSyncer.type == CheckpointSyncerType.S3) {

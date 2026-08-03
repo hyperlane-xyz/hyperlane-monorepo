@@ -12,6 +12,7 @@ use ethers::core::k256::{
 };
 
 use hyperlane_core::H256;
+use hyperlane_ethereum::{GcpSigner, GcpSignerError};
 
 /// Tron signer types — mirrors `hyperlane_ethereum::Signers`
 #[derive(Debug, Clone)]
@@ -20,6 +21,8 @@ pub enum TronSigners {
     Local(LocalWallet),
     /// A signer using a key stored in AWS KMS
     Aws(AwsSigner),
+    /// A signer using a key stored in GCP Cloud KMS
+    Gcp(GcpSigner),
 }
 
 /// Error types for TronSigners
@@ -28,6 +31,9 @@ pub enum TronSignersError {
     /// AWS Signer Error
     #[error("{0}")]
     AwsSignerError(Box<AwsSignerError>),
+    /// GCP Signer Error
+    #[error("{0}")]
+    GcpSignerError(Box<GcpSignerError>),
     /// Wallet Signer Error
     #[error("{0}")]
     WalletError(#[from] WalletError),
@@ -39,6 +45,12 @@ pub enum TronSignersError {
 impl From<AwsSignerError> for TronSignersError {
     fn from(e: AwsSignerError) -> Self {
         TronSignersError::AwsSignerError(Box::new(e))
+    }
+}
+
+impl From<GcpSignerError> for TronSignersError {
+    fn from(e: GcpSignerError) -> Self {
+        TronSignersError::GcpSignerError(Box::new(e))
     }
 }
 
@@ -60,13 +72,14 @@ impl TronSigners {
         match self {
             TronSigners::Local(wallet) => wallet.address(),
             TronSigners::Aws(signer) => signer.address(),
+            TronSigners::Gcp(signer) => signer.address(),
         }
     }
 
     /// Sign a pre-hashed digest. Returns an ethers `Signature` with `v = 27 + recovery_id`.
     ///
     /// For local wallets this is synchronous internally.
-    /// For AWS KMS this performs an async signing call + trial recovery.
+    /// For AWS/GCP KMS this performs an async signing call + trial recovery.
     pub async fn sign_hash(&self, hash: H256) -> Result<Signature, TronSignersError> {
         match self {
             TronSigners::Local(wallet) => Ok(wallet.sign_hash(hash.into())),
@@ -87,6 +100,10 @@ impl TronSigners {
 
                 Ok(Signature { r, s, v })
             }
+            // GcpSigner::sign_hash already does its own KMS-side trial
+            // recovery and returns a ready-made (r, s, v = 27/28) signature -
+            // no re-derivation needed here, unlike the Aws branch above.
+            TronSigners::Gcp(signer) => Ok(signer.sign_hash(hash.into()).await?),
         }
     }
 }

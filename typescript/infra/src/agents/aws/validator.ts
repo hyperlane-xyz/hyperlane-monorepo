@@ -110,6 +110,15 @@ export async function compareValidatorCheckpoints(
   const latestCheckpointIndex = await target.getLatestCheckpointIndex();
   const otherLatestCheckpointIndex = await other.getLatestCheckpointIndex();
 
+  // Both backends return -1 (not throw) when no latest-index object exists.
+  // The old InfraS3Validator.compare() explicitly failed on a missing latest
+  // checkpoint rather than treating an empty store as "0 checkpoints" -
+  // preserve that here, or an empty/misconfigured store on either side
+  // silently prints a clean comparison table instead of failing the check.
+  if (latestCheckpointIndex === -1 || otherLatestCheckpointIndex === -1) {
+    throw new Error('Failed to get latest checkpoints');
+  }
+
   let checkpointIndex = latestCheckpointIndex;
   let otherCheckpointIndex = otherLatestCheckpointIndex;
 

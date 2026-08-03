@@ -292,11 +292,26 @@ impl CheckpointSyncer for GcsStorageClient {
     /// Read the reorg status from this syncer
     #[instrument(skip(self))]
     async fn reorg_status(&self) -> Result<ReorgEventResponse> {
-        let object = match self
-            .inner
-            .get_object(&self.bucket, self.object_path(REORG_FLAG_KEY))
+        // A validator run before folder-scoping existed (or one running an
+        // older binary against this same bucket) would have written its
+        // reorg flag at the bucket root regardless of `folder`. Check there
+        // too and treat it as authoritative if present — silently only
+        // checking the folder-scoped path could let a legacy root-level
+        // reorg flag go unseen and signing resume through an unresolved reorg.
+        if self.folder.is_some() {
+            let root_status = self.fetch_reorg_status_at(REORG_FLAG_KEY).await?;
+            if root_status.exists {
+                return Ok(root_status);
+            }
+        }
+        self.fetch_reorg_status_at(&self.object_path(REORG_FLAG_KEY))
             .await
-        {
+    }
+}
+
+impl GcsStorageClient {
+    async fn fetch_reorg_status_at(&self, key: &str) -> Result<ReorgEventResponse> {
+        let object = match self.inner.get_object(&self.bucket, key).await {
             Ok(data) => data,
             Err(err) => match err {
                 ObjectError::Failure(Error::HttpStatus(HttpStatusError(StatusCode::NOT_FOUND))) => {

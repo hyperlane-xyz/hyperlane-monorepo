@@ -15,6 +15,14 @@ interface IamCondition {
   expression: string;
 }
 
+// Shape of an entry in a `gcloud ... get-iam-policy --format=json` response's
+// `bindings` array — narrows the `any` that `execCmdAndParseJson` returns.
+interface IamPolicyBinding {
+  role: string;
+  members?: string[];
+  condition?: IamCondition;
+}
+
 const logger = rootLogger.child({ module: 'infra:utils:gcloud' });
 
 // Allows secrets to be overridden via environment variables to avoid
@@ -451,7 +459,7 @@ export async function grantKmsKeySignerRoleIfNotExists(
     `gcloud kms keys get-iam-policy ${keyId} --project=${project} --location=${location} --keyring=${keyRingId} --format=json`,
   );
   const hasRole = (policy.bindings || []).some(
-    (binding: any) =>
+    (binding: IamPolicyBinding) =>
       binding.role === role && binding.members?.includes(member),
   );
   if (hasRole) {
@@ -512,7 +520,7 @@ export async function grantPublicReadOnBucketIfNotExists(bucketName: string) {
     `gcloud storage buckets get-iam-policy gs://${bucketName} --format=json`,
   );
   const hasRole = (policy.bindings || []).some(
-    (binding: any) =>
+    (binding: IamPolicyBinding) =>
       binding.role === role && binding.members?.includes('allUsers'),
   );
   if (hasRole) {
@@ -544,7 +552,7 @@ export async function bindWorkloadIdentityUserIfNotExists(
         `gcloud iam service-accounts get-iam-policy ${serviceAccountEmail} --project=${project} --format=json`,
       );
       const hasRole = (policy.bindings || []).some(
-        (binding: any) =>
+        (binding: IamPolicyBinding) =>
           binding.role === role && binding.members?.includes(member),
       );
       if (hasRole) {
@@ -615,10 +623,19 @@ async function getServiceAccountInfo(
   serviceAccountName: string,
   project: string,
 ) {
+  // Filter by email, not displayName - displayName is mutable and not
+  // guaranteed unique, so a filter on it could match a different service
+  // account than the one `serviceAccountName` was created as, and callers
+  // then grant that account KMS signer / bucket-admin access. The account ID
+  // (and therefore its email) is fixed at creation time (see
+  // createServiceAccount, which passes serviceAccountName as the account ID),
+  // so deriving the same email here is the exact, unambiguous match.
+  //
   // By filtering, we get an array with one element upon a match and an empty
   // array if there is not a match, which is desirable because it never errors.
+  const email = `${serviceAccountName}@${project}.iam.gserviceaccount.com`;
   const matches = await execCmdAndParseJson(
-    `gcloud iam service-accounts list --project=${project} --format json --filter displayName="${serviceAccountName}"`,
+    `gcloud iam service-accounts list --project=${project} --format json --filter email="${email}"`,
   );
   if (matches.length === 0) {
     logger.debug(`No service account found with name ${serviceAccountName}`);
