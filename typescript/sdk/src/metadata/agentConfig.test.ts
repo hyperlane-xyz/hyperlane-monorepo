@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { z } from 'zod';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -215,6 +216,18 @@ describe('ValidatorAgentConfigSchema S3 compatibility', () => {
         'test-secret-key',
       );
     }
+  });
+
+  it('preserves object composition APIs', () => {
+    const ExtendedValidatorAgentConfigSchema =
+      ValidatorAgentConfigSchema.extend({ label: z.string() });
+
+    expect(
+      ExtendedValidatorAgentConfigSchema.safeParse({
+        ...configWithCredentials({}),
+        label: 'validator',
+      }).success,
+    ).to.be.true;
   });
 
   it('rejects accessKeyId without secretAccessKey', () => {
