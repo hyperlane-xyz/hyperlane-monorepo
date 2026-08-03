@@ -29,11 +29,11 @@ type DeploymentChain = (typeof deploymentChains)[number];
 const syntheticChain: DeploymentChain = 'subtensor';
 
 // getUSDCRebalancingBridgesConfigFor intersects with the CCTP V1 route chains,
-// which excludes subtensor (domain 964) and solanamainnet (domain 1399811149).
-// On-chain, each collateral leg also allows rebalancing to those two domains via
-// its own bridge, so hardcode them to accept the deployed state.
-const SUBTENSOR_DOMAIN = '964';
-const SOLANA_DOMAIN = '1399811149';
+// which excludes subtensor and solanamainnet. On-chain, each collateral leg also
+// allows rebalancing to those two chains via its own bridge, so hardcode them to
+// accept the deployed state.
+const SUBTENSOR_CHAIN = 'subtensor';
+const SOLANA_CHAIN = 'solanamainnet';
 const onchainRebalancingBridgeByChain: Record<string, string> = {
   arbitrum: '0x8a82186ea618b91d13a2041fb7ac31bf01c02ad2',
   base: '0x5c4afb7e23b1dc1b409dc1702f89c64527b25975',
@@ -101,8 +101,8 @@ export const getSubtensorUSDCWarpConfig = async (
         const onchainBridge = onchainRebalancingBridgeByChain[currentChain];
         const mergedBridges = onchainBridge
           ? mergeAllowedBridges(allowedRebalancingBridges, {
-              [SUBTENSOR_DOMAIN]: [{ bridge: onchainBridge }],
-              [SOLANA_DOMAIN]: [{ bridge: onchainBridge }],
+              [SUBTENSOR_CHAIN]: [{ bridge: onchainBridge }],
+              [SOLANA_CHAIN]: [{ bridge: onchainBridge }],
             })
           : allowedRebalancingBridges;
 
