@@ -12,6 +12,11 @@ import {
   IProviderMethods,
   ProviderMethod,
 } from './ProviderMethods.js';
+import {
+  getMultiAddressLogs,
+  isMultiAddressFilter,
+  normalizeMultiAddress,
+} from './logFilters.js';
 import { HyperlaneLogFilter, RpcConfigWithConnectionInfo } from './types.js';
 
 const NUM_LOG_BLOCK_RANGES_TO_QUERY = 10;
@@ -67,20 +72,7 @@ export class HyperlaneJsonRpcProvider
     if (!isMultiAddressFilter(resolvedFilter)) {
       return super.getLogs(resolvedFilter);
     }
-
-    await this.getNetwork();
-    const { address, ...filterWithoutAddress } = resolvedFilter;
-    const normalizedFilter = await this._getFilter(filterWithoutAddress);
-    const normalizedAddresses = normalizeMultiAddress(address);
-    const logs = await this.perform(ProviderMethod.GetLogs, {
-      filter: { ...normalizedFilter, address: normalizedAddresses },
-    });
-    logs.forEach((log: providers.Log) => {
-      if (log.removed == null) log.removed = false;
-    });
-    return providers.Formatter.arrayOf(
-      this.formatter.filterLog.bind(this.formatter),
-    )(logs);
+    return getMultiAddressLogs(this, resolvedFilter);
   }
 
   async perform(method: string, params: any, reqId?: number): Promise<any> {
@@ -218,24 +210,4 @@ export class HyperlaneJsonRpcProvider
   getBaseUrl(): string {
     return this.connection.url;
   }
-}
-
-function isMultiAddressFilter(
-  filter: HyperlaneLogFilter,
-): filter is Extract<HyperlaneLogFilter, { address: readonly string[] }> {
-  return Array.isArray(filter.address);
-}
-
-function normalizeMultiAddress(addresses: readonly unknown[]): string[] {
-  if (addresses.length === 0) {
-    throw new Error('Multi-address log filters require at least one address');
-  }
-
-  const normalizedAddresses = addresses.map((address) => {
-    if (typeof address !== 'string') {
-      throw new Error('Multi-address log filters require valid addresses');
-    }
-    return utils.getAddress(address);
-  });
-  return [...new Set(normalizedAddresses)];
 }
