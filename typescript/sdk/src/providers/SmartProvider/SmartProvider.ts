@@ -22,6 +22,7 @@ import { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
 import { IProviderMethods, ProviderMethod } from './ProviderMethods.js';
 import {
   ChainMetadataWithRpcConnectionInfo,
+  HyperlaneLogFilter,
   ProviderPerformResult,
   ProviderStatus,
   ProviderTimeoutResult,
@@ -361,11 +362,20 @@ export class HyperlaneSmartProvider
     const allProviders = [...this.explorerProviders, ...this.rpcProviders];
     if (!allProviders.length) throw new Error('No providers available');
 
-    const supportedProviders = allProviders.filter((p) =>
-      p.supportedMethods.includes(method as ProviderMethod),
+    const isMultiAddressGetLogs =
+      method === ProviderMethod.GetLogs &&
+      Array.isArray(params?.filter?.address);
+    const supportedProviders = allProviders.filter(
+      (provider) =>
+        provider.supportedMethods.includes(method as ProviderMethod) &&
+        (!isMultiAddressGetLogs || !this.isExplorerProvider(provider)),
     );
     if (!supportedProviders.length)
-      throw new Error(`No providers available for method ${method}`);
+      throw new Error(
+        isMultiAddressGetLogs
+          ? 'No RPC providers available for multi-address getLogs'
+          : `No providers available for method ${method}`,
+      );
 
     this.requestCount += 1;
     const reqId = this.requestCount;
@@ -385,6 +395,34 @@ export class HyperlaneSmartProvider
       this.options?.maxRetries || DEFAULT_MAX_RETRIES,
       this.options?.baseRetryDelayMs || DEFAULT_BASE_RETRY_DELAY_MS,
     );
+  }
+
+  override async getLogs(
+    filter: HyperlaneLogFilter | Promise<HyperlaneLogFilter>,
+  ): Promise<providers.Log[]> {
+    const resolvedFilter = await filter;
+    if (!isMultiAddressFilter(resolvedFilter)) {
+      return super.getLogs(resolvedFilter);
+    }
+    if (resolvedFilter.address.length === 0) {
+      throw new Error('Multi-address log filters require at least one address');
+    }
+
+    await this.getNetwork();
+    const { address, ...filterWithoutAddress } = resolvedFilter;
+    const normalizedFilter = await this._getFilter(filterWithoutAddress);
+    const normalizedAddresses = [
+      ...new Set(address.map((value: string) => utils.getAddress(value))),
+    ];
+    const logs = await this.perform(ProviderMethod.GetLogs, {
+      filter: { ...normalizedFilter, address: normalizedAddresses },
+    });
+    logs.forEach((log: providers.Log) => {
+      if (log.removed == null) log.removed = false;
+    });
+    return providers.Formatter.arrayOf(
+      this.formatter.filterLog.bind(this.formatter),
+    )(logs);
   }
 
   /**
@@ -744,6 +782,12 @@ export class HyperlaneSmartProvider
       };
     }
   }
+}
+
+function isMultiAddressFilter(
+  filter: HyperlaneLogFilter,
+): filter is Extract<HyperlaneLogFilter, { address: readonly string[] }> {
+  return Array.isArray(filter.address);
 }
 
 function chainMetadataToProviderNetwork(
