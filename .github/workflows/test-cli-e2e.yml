@@ -116,6 +116,8 @@ jobs:
           - warp-check-4
           - warp-check-5
           - warp-check-ica
+          # fork
+          - warp-fork
           # other
           - warp-init
           - warp-quote
