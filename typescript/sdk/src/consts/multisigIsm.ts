@@ -737,13 +737,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   hyperevm: {
-    threshold: 3,
+    threshold: 2,
     validators: [
       {
         address: '0x01be14a9eceeca36c9c1d46c056ca8c87f77c26f',
         alias: AW_VALIDATOR_ALIAS,
       },
-      DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
       {
         address: '0x04d949c615c9976f89595ddcb9008c92f8ba7278',
