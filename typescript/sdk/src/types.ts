@@ -22,6 +22,9 @@ export type ChainNameOrId = ChainName | Domain;
 
 export type Connection = ethers.providers.Provider | ethers.Signer;
 
+/** Default RateLimited refill window (1 day, in seconds), applied when a config omits `duration`. */
+export const RATE_LIMIT_DEFAULT_DURATION_SECONDS = 86_400n;
+
 export const OwnableSchema = z.object({
   owner: ZHash,
   ownerOverrides: z.record(ZHash).optional(),
