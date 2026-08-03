@@ -1,6 +1,11 @@
-import { providers, utils } from 'ethers';
+import { providers } from 'ethers';
 
-import { assert, isNullish } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  isNullish,
+  isValidAddressEvm,
+  normalizeAddressEvm,
+} from '@hyperlane-xyz/utils';
 
 import { ProviderMethod } from './ProviderMethods.js';
 import { HyperlaneLogFilter } from './types.js';
@@ -27,7 +32,9 @@ export function normalizeMultiAddress(addresses: readonly unknown[]): string[] {
       typeof address === 'string',
       'Multi-address log filters require valid addresses',
     );
-    return utils.getAddress(address);
+    const normalizedAddress = normalizeAddressEvm(address);
+    assert(isValidAddressEvm(normalizedAddress), 'invalid address');
+    return normalizedAddress;
   });
   return [...new Set(normalizedAddresses)];
 }
