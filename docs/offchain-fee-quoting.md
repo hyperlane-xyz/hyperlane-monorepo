@@ -1,5 +1,8 @@
 # Real-Time Warp Route Fees via Offchain Quoting
 
+For the signed marginal-curve extension and its economic risk analysis, see
+[Signed Piecewise Warp Fee Curves](./offchain-piecewise-fee-curve.md).
+
 ## Context
 
 Current warp route fees use onchain-configured models (Linear, Progressive, Regressive) and StorageGasOracle for IGP. These can't react to real-time market conditions. This leads to overpaying or failed relaying.
@@ -35,7 +38,8 @@ struct SignedQuote {
 **Quote data formats** (`bytes`, contract-specific encoding):
 
 - **IGP**: `abi.encodePacked(uint128 tokenExchangeRate, uint128 gasPrice)` — two uint128 values. Fee = `gasLimit * gasPrice * tokenExchangeRate / 1e10`.
-- **Warp fee**: `abi.encodePacked(uint256 maxFee, uint256 halfAmount)` — linear fee params. Fee = `min(maxFee, amount * maxFee / (2 * halfAmount))`. Same formula as `LinearFee`.
+- **Linear Warp fee**: `abi.encodePacked(uint256 maxFee, uint256 halfAmount)` — linear fee params. Fee = `min(maxFee, amount * maxFee / (2 * halfAmount))`. Same formula as `LinearFee`.
+- **Piecewise Warp fee**: `abi.encode(uint128[] breakpoints, uint32[] marginalBpsX1e4)` — marginal amount bands with four decimal places of bps precision.
 
 **Transient vs standing**:
 
@@ -73,6 +77,15 @@ Fee quote data (64 bytes packed):
 [0:32]   Maximum fee (uint256)
 [32:64]  Half amount — transfer size at which fee = maxFee/2 (uint256)
 ```
+
+Piecewise fee quote data is standard ABI encoding rather than packed bytes:
+
+```solidity
+abi.encode(uint128[] breakpoints, uint32[] marginalBpsX1e4)
+```
+
+The number of rates is one greater than the number of breakpoints. The final
+rate is open-ended. `1 bp == 10_000` encoded rate units.
 
 Each concrete contract decodes context to extract mapping keys for standing quotes. Wildcards use `type(T).max`.
 
