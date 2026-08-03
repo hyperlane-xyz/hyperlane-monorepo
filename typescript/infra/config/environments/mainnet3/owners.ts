@@ -1,5 +1,5 @@
 import { ChainMap, OwnableConfig } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ethereumChainNames } from './chains.js';
 import { awIcasLegacy } from './governance/ica/_awLegacy.js';
@@ -19,6 +19,17 @@ export const timelocks: ChainMap<Address> = {
 
 export const icaOwnerChain = 'ethereum';
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+
+// Haggis GCP deployer key (Secret Manager: mainnet3-haggis-deployer-key). Used to
+// own staging warp-route deployments so test changes are easy to make. Keyed by
+// protocol: the secp256k1 secret backs the EVM/TVM address, and its ed25519
+// pubkey backs the SVM address.
+export const haggisDeployerKeyByProtocol: Partial<
+  Record<ProtocolType, Address>
+> = {
+  [ProtocolType.Ethereum]: '0x22EA0e66c9aFe2879135f4d16B5627454C53877e',
+  [ProtocolType.Sealevel]: 'DSdGzZZ8G9LcVJFpBwFgBVcY5nMM8g3DMRqzW7WwpDvR',
+};
 
 // Celestia multisig that owns the eden core deployment.
 // IGP/oracle ownership stays with the deployer.

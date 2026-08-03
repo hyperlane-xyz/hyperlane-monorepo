@@ -1,12 +1,15 @@
 import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
-import { Address, assert } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { getWarpFeeOwner } from '../../governance/utils.js';
-import { chainOwners } from '../../owners.js';
-import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
+import { chainOwners, haggisDeployerKeyByProtocol } from '../../owners.js';
+import {
+  SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
+  WARP_QUOTE_SIGNER,
+} from '../consts.js';
 
 import { getFixedRoutingFeeConfig } from './utils.js';
 
@@ -21,12 +24,15 @@ import { getFixedRoutingFeeConfig } from './utils.js';
  * Fee: 10 bps withdrawal fee. Charged on the EVM + tron lanes via a RoutingFee
  * whose per-destination contracts are OffchainQuotedLinearFee on EVM origins and
  * a plain LinearFee on tron (tron's fee contract charges the flat fee directly,
- * without an offchain quote — same as the eni/USDT route). The SVM (solana) leg
- * carries no tokenFee, matching the existing SVM-inclusive FPWR routes.
+ * without an offchain quote — the offchain quote-verification path is only wired
+ * for EVM origins, same as the eni/USDT route). The SVM (solana) leg carries no
+ * on-chain tokenFee: no registry route expresses an SVM-leg fee in its deploy
+ * config, and the withdrawal fee on solana-origin transfers is enforced via
+ * standing SVM quotes post-deploy, not through this getter.
  *
  * Env-dynamic: the shared builder is parameterised on ownership, fee owners and
  * quote signers so the production (AW FPWR) and staging (Haggis deployer) getters
- * only differ in those inputs — see getWBTCSTAGEWarpConfig.ts.
+ * only differ in those inputs.
  */
 export const evmDeploymentChains = ['ethereum', 'bsc'] as const;
 export const tvmDeploymentChains = ['tron'] as const;
@@ -70,6 +76,27 @@ const productionOwnersByChain: Record<DeploymentChain, string> = {
   bsc: awIcas.bsc, // AW ICA
   tron: awIcas.tron, // AW ICA
   solanamainnet: chainOwners.solanamainnet.owner, // AW Squads
+};
+
+// Staging: every contract (router + fee) is owned by the Haggis GCP deployer key
+// so test changes are easy to make. The same secp256k1 secret backs the
+// EVM/TVM address and its ed25519 pubkey backs the SVM address.
+const STAGING_EVM_DEPLOYER = haggisDeployerKeyByProtocol[ProtocolType.Ethereum];
+const STAGING_SVM_DEPLOYER = haggisDeployerKeyByProtocol[ProtocolType.Sealevel];
+assert(STAGING_EVM_DEPLOYER, 'Missing Haggis EVM deployer key');
+assert(STAGING_SVM_DEPLOYER, 'Missing Haggis SVM deployer key');
+
+const stagingOwnersByChain: Record<DeploymentChain, string> = {
+  ethereum: STAGING_EVM_DEPLOYER,
+  bsc: STAGING_EVM_DEPLOYER,
+  tron: STAGING_EVM_DEPLOYER,
+  solanamainnet: STAGING_SVM_DEPLOYER,
+};
+
+const stagingFeeOwnersByChain: Record<FeeChain, string> = {
+  ethereum: STAGING_EVM_DEPLOYER,
+  bsc: STAGING_EVM_DEPLOYER,
+  tron: STAGING_EVM_DEPLOYER,
 };
 
 export interface WBTCWarpConfigOptions {
@@ -164,8 +191,17 @@ export const getWBTCWarpConfig = async (
       bsc: getWarpFeeOwner('bsc'),
       tron: getWarpFeeOwner('tron'),
     },
-    quoteSigners: [
-      '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
-      '0x22EA0e66c9aFe2879135f4d16B5627454C53877e',
-    ],
+    quoteSigners: [WARP_QUOTE_SIGNER],
+  });
+
+// Staging (AW-737): every contract owned by the Haggis GCP deployer key. The
+// deployer key is additionally authorised as a quote signer so fees can be
+// re-quoted in staging without a production signer.
+export const getWBTCSTAGEWarpConfig = async (
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+): Promise<ChainMap<HypTokenRouterConfig>> =>
+  buildWBTCWarpConfig(routerConfig, {
+    ownersByChain: stagingOwnersByChain,
+    feeOwnersByChain: stagingFeeOwnersByChain,
+    quoteSigners: [WARP_QUOTE_SIGNER, STAGING_EVM_DEPLOYER],
   });

@@ -44,8 +44,10 @@ import {
   getEclipseUSDTWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getEclipseUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
-import { getWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getWBTCWarpConfig.js';
-import { getWBTCSTAGEWarpConfig } from './environments/mainnet3/warp/configGetters/getWBTCSTAGEWarpConfig.js';
+import {
+  getWBTCSTAGEWarpConfig,
+  getWBTCWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getWBTCWarpConfig.js';
 import {
   getEclipseUSDCSTAGEWarpConfig,
   getUSDCSTAGEEclipseFileSubmitterStrategyConfig,
