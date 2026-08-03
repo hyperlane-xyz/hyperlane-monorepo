@@ -24,6 +24,10 @@
     "./testing": {
       "types": "./dist/testing/index.d.ts",
       "default": "./dist/testing/index.js"
+    },
+    "./fork": {
+      "types": "./dist/fork/index.d.ts",
+      "default": "./dist/fork/index.js"
     }
   },
   "scripts": {
@@ -41,6 +45,7 @@
     "test:unit": "mocha --require tsx --timeout 10000 'src/**/*.unit-test.ts'"
   },
   "dependencies": {
+    "@hyperlane-xyz/forking-sdk": "workspace:*",
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
     "@noble/curves": "^1.9.0",
@@ -68,5 +73,13 @@
     "testcontainers": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "testcontainers": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "testcontainers": {
+      "optional": true
+    }
   }
 }

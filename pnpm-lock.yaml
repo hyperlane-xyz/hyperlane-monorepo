@@ -2448,6 +2448,9 @@ importers:
 
   typescript/svm-sdk:
     dependencies:
+      '@hyperlane-xyz/forking-sdk':
+        specifier: workspace:*
+        version: link:../forking-sdk
       '@hyperlane-xyz/provider-sdk':
         specifier: workspace:*
         version: link:../provider-sdk
