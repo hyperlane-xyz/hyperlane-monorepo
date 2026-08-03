@@ -102,13 +102,13 @@ async fn retry_on_integrity_failure<T, Fut>(mut f: impl FnMut() -> Fut) -> Resul
 where
     Fut: std::future::Future<Output = Result<T, GcpSignerError>>,
 {
-    let mut attempt = 0;
+    let mut attempt = 0u32;
     loop {
         match f().await {
             Err(GcpSignerError::IntegrityCheckFailed(msg))
-                if attempt + 1 < MAX_INTEGRITY_RETRIES =>
+                if attempt.saturating_add(1) < MAX_INTEGRITY_RETRIES =>
             {
-                attempt += 1;
+                attempt = attempt.saturating_add(1);
                 debug!(
                     attempt,
                     "Retrying KMS call after integrity check failure: {msg}"
@@ -388,6 +388,8 @@ async fn fetch_and_validate_public_key(
 
 #[cfg(test)]
 mod tests {
+    use std::cell::Cell;
+
     use ethers::signers::{LocalWallet, Signer as _};
     use k256::ecdsa::{signature::hazmat::PrehashSigner, DerSignature, SigningKey};
 
@@ -463,5 +465,73 @@ mod tests {
             .recover(ethers::types::H256::from(digest))
             .expect("a valid (r, s, v) signature must recover to some address");
         assert_eq!(recovered, address);
+    }
+
+    /// A call that succeeds on the first attempt must not be retried at all.
+    #[tokio::test]
+    async fn retry_on_integrity_failure_does_not_retry_a_successful_call() {
+        let calls = Cell::new(0u32);
+        let result: Result<u32, GcpSignerError> = retry_on_integrity_failure(|| {
+            calls.set(calls.get() + 1);
+            async { Ok(42) }
+        })
+        .await;
+        assert_eq!(result.expect("must succeed"), 42);
+        assert_eq!(calls.get(), 1);
+    }
+
+    /// A call that fails with a transient integrity error and then succeeds must be retried
+    /// until it succeeds, without exhausting the retry budget.
+    #[tokio::test]
+    async fn retry_on_integrity_failure_retries_transient_failures_until_success() {
+        let calls = Cell::new(0u32);
+        let result: Result<u32, GcpSignerError> = retry_on_integrity_failure(|| {
+            let attempt = calls.get();
+            calls.set(attempt + 1);
+            async move {
+                if attempt < 2 {
+                    Err(GcpSignerError::IntegrityCheckFailed("crc32c mismatch"))
+                } else {
+                    Ok(99)
+                }
+            }
+        })
+        .await;
+        assert_eq!(result.expect("must eventually succeed"), 99);
+        assert_eq!(calls.get(), 3);
+    }
+
+    /// A call that always fails with an integrity error must be attempted exactly
+    /// `MAX_INTEGRITY_RETRIES` times, then propagate the failure - not retried forever.
+    #[tokio::test]
+    async fn retry_on_integrity_failure_gives_up_after_max_attempts() {
+        let calls = Cell::new(0u32);
+        let result: Result<u32, GcpSignerError> = retry_on_integrity_failure(|| {
+            calls.set(calls.get() + 1);
+            async { Err(GcpSignerError::IntegrityCheckFailed("crc32c mismatch")) }
+        })
+        .await;
+        assert!(matches!(
+            result,
+            Err(GcpSignerError::IntegrityCheckFailed(_))
+        ));
+        assert_eq!(calls.get(), MAX_INTEGRITY_RETRIES);
+    }
+
+    /// A non-integrity error must propagate immediately, without being retried.
+    #[tokio::test]
+    async fn retry_on_integrity_failure_does_not_retry_other_errors() {
+        let calls = Cell::new(0u32);
+        let result: Result<u32, GcpSignerError> = retry_on_integrity_failure(|| {
+            calls.set(calls.get() + 1);
+            async {
+                Err(GcpSignerError::Eip712Error(
+                    "not an integrity error".to_string(),
+                ))
+            }
+        })
+        .await;
+        assert!(matches!(result, Err(GcpSignerError::Eip712Error(_))));
+        assert_eq!(calls.get(), 1);
     }
 }
