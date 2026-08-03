@@ -545,6 +545,11 @@ function pickLeaf(
       // Top-level leaf — return as-is. Extra BaseFeeConfig fields don't hurt
       // since the consumer only reads `type`, `params`, `quoteSigners`.
       return { leaf: config, effectiveTargetRouter: undefined };
+    case FeeType.offchainQuotedPiecewiseLinear:
+      throw new NoQuoteAvailableError(
+        NoQuoteAvailableReason.NotUpgraded,
+        'OffchainQuotedPiecewiseLinearFee is not supported on Sealevel',
+      );
     case FeeType.routing: {
       const child = config.routes[destinationDomain];
       if (!child) {

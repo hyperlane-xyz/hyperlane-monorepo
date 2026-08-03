@@ -1,6 +1,11 @@
 import { expect } from 'chai';
 import { pino } from 'pino';
-import { type Address, type Hex, verifyTypedData } from 'viem';
+import {
+  type Address,
+  type Hex,
+  decodeAbiParameters,
+  verifyTypedData,
+} from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
 import {
@@ -259,6 +264,38 @@ describe('QuoteService', () => {
         signature,
       });
       expect(valid).to.be.true;
+    });
+
+    it('encodes the zero placeholder as a valid piecewise curve', async () => {
+      const service = createTestService({
+        derivedConfig: {
+          ...mockDerivedConfig,
+          tokenFee: {
+            ...mockDerivedConfig.tokenFee,
+            type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+            maxBands: 4,
+          },
+        },
+      });
+      const res = await service.getQuote(
+        'ethereum',
+        FeeQuotingCommand.TransferRemote,
+        ROUTER,
+        DESTINATION,
+        SALT,
+        RECIPIENT,
+      );
+      const feeQuote = res.quotes.find(
+        (quote) => quote.quoter.toLowerCase() === FEE_CONTRACT.toLowerCase(),
+      );
+      expect(feeQuote).to.exist;
+
+      const [breakpoints, marginalBpsX1e4] = decodeAbiParameters(
+        [{ type: 'uint128[]' }, { type: 'uint32[]' }],
+        feeQuote!.quote.data,
+      );
+      expect(breakpoints).to.deep.equal([]);
+      expect(marginalBpsX1e4).to.deep.equal([0]);
     });
   });
 
