@@ -712,6 +712,9 @@ importers:
       '@hyperlane-xyz/deploy-sdk':
         specifier: workspace:*
         version: link:../deploy-sdk
+      '@hyperlane-xyz/forking-sdk':
+        specifier: workspace:*
+        version: link:../forking-sdk
       '@hyperlane-xyz/http-registry-server':
         specifier: workspace:*
         version: link:../http-registry-server
