@@ -3,11 +3,7 @@ import { stringify as yamlStringify } from 'yaml';
 import { type CommandModule } from 'yargs';
 
 import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
-import {
-  type RawForkedChainConfigByChain,
-  RawForkedChainConfigByChainSchema,
-  checkWarpRouteDeployConfig,
-} from '@hyperlane-xyz/sdk';
+import { checkWarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 import {
   assert,
   difference,
@@ -36,7 +32,11 @@ import {
 } from '../deploy/warp.js';
 import { runWarpRouteBalances } from '../balances/warp.js';
 import { runWarpRouteFees } from '../fees/warp.js';
-import { runForkCommand } from '../fork/fork.js';
+import {
+  type ForkConfigByChain,
+  ForkConfigByChainSchema,
+  runForkCommand,
+} from '../fork/fork.js';
 import {
   errorRed,
   log,
@@ -863,9 +863,9 @@ const fork: CommandModuleWithContext<
     kill,
     forkConfig: forkConfigPath,
   }) => {
-    let forkConfig: RawForkedChainConfigByChain;
+    let forkConfig: ForkConfigByChain;
     if (forkConfigPath) {
-      forkConfig = RawForkedChainConfigByChainSchema.parse(
+      forkConfig = ForkConfigByChainSchema.parse(
         readYamlOrJson(forkConfigPath),
       );
     } else {

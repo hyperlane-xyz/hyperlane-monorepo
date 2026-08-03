@@ -1,10 +1,9 @@
-import {
-  type RawForkedChainConfigByChain,
-  RawForkedChainConfigByChainSchema,
-} from '@hyperlane-xyz/sdk';
-
 import { type CommandModuleWithContext } from '../context/types.js';
-import { runForkCommand } from '../fork/fork.js';
+import {
+  type ForkConfigByChain,
+  ForkConfigByChainSchema,
+  runForkCommand,
+} from '../fork/fork.js';
 import { readYamlOrJson } from '../utils/files.js';
 
 import { forkCommandOptions } from './options.js';
@@ -19,9 +18,9 @@ export const forkCommand: CommandModuleWithContext<{
   describe: 'Fork a Hyperlane chain on a compatible Anvil/Hardhat node',
   builder: forkCommandOptions,
   handler: async ({ context, port, kill, forkConfig: forkConfigPath }) => {
-    let forkConfig: RawForkedChainConfigByChain;
+    let forkConfig: ForkConfigByChain;
     if (forkConfigPath) {
-      forkConfig = RawForkedChainConfigByChainSchema.parse(
+      forkConfig = ForkConfigByChainSchema.parse(
         readYamlOrJson(forkConfigPath),
       );
     } else {
