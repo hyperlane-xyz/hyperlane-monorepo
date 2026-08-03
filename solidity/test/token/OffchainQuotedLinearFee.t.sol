@@ -770,6 +770,200 @@ contract OffchainQuotedLinearFeeTest is Test {
             _computeFee(IMMUTABLE_MAX_FEE, IMMUTABLE_HALF_AMOUNT, AMOUNT)
         );
     }
+
+    // ============ Quote Enumeration ============
+
+    function test_getQuotesForDomain_emptyWhenNoStandingQuotes() public view {
+        assertEq(quotedFee.quoteDomains().length, 0);
+        assertEq(quotedFee.getQuotesForDomain(DEST).length, 0);
+    }
+
+    function test_getQuotesForDomain_returnsStoredEntriesForDomain() public {
+        bytes32 recipientA = bytes32(uint256(0xA));
+        bytes32 recipientB = bytes32(uint256(0xB));
+        _submitStanding(
+            DEST,
+            recipientA,
+            WILDCARD_AMOUNT,
+            MAX_FEE,
+            HALF_AMOUNT,
+            1,
+            1001
+        );
+        _submitStanding(
+            DEST,
+            recipientB,
+            WILDCARD_AMOUNT,
+            MAX_FEE * 2,
+            HALF_AMOUNT,
+            1,
+            1001
+        );
+
+        uint32[] memory domains = quotedFee.quoteDomains();
+        assertEq(domains.length, 1);
+        assertEq(domains[0], DEST);
+
+        OffchainQuotedLinearFee.QuoteEntry[] memory entries = quotedFee
+            .getQuotesForDomain(DEST);
+        assertEq(entries.length, 2);
+        // Order is unspecified; assert by recipient, not index.
+        OffchainQuotedLinearFee.StoredQuote memory a = _findQuote(
+            entries,
+            recipientA
+        );
+        assertEq(a.maxFee, MAX_FEE);
+        assertEq(a.halfAmount, HALF_AMOUNT);
+        assertEq(a.issuedAt, 1);
+        assertEq(a.expiry, 1001);
+        OffchainQuotedLinearFee.StoredQuote memory b = _findQuote(
+            entries,
+            recipientB
+        );
+        assertEq(b.maxFee, MAX_FEE * 2);
+    }
+
+    function test_getQuotesForDomain_separatesByDomain() public {
+        uint32 destB = DEST + 1;
+        _submitStanding(
+            DEST,
+            RECIPIENT,
+            WILDCARD_AMOUNT,
+            MAX_FEE,
+            HALF_AMOUNT,
+            1,
+            1001
+        );
+        _submitStanding(
+            destB,
+            RECIPIENT,
+            WILDCARD_AMOUNT,
+            MAX_FEE,
+            HALF_AMOUNT,
+            1,
+            1001
+        );
+
+        uint32[] memory domains = quotedFee.quoteDomains();
+        assertEq(domains.length, 2);
+        // Order is unspecified; assert membership, not index.
+        assertTrue(_containsDomain(domains, DEST));
+        assertTrue(_containsDomain(domains, destB));
+
+        assertEq(quotedFee.getQuotesForDomain(DEST).length, 1);
+        assertEq(quotedFee.getQuotesForDomain(destB).length, 1);
+        // A domain with no quotes returns an empty array.
+        assertEq(quotedFee.getQuotesForDomain(DEST + 99).length, 0);
+    }
+
+    function test_getQuotesForDomain_overwriteDoesNotDuplicate() public {
+        _submitStanding(
+            DEST,
+            RECIPIENT,
+            WILDCARD_AMOUNT,
+            MAX_FEE,
+            HALF_AMOUNT,
+            1,
+            1001
+        );
+        // A newer issuedAt overwrites the entry in place.
+        _submitStanding(
+            DEST,
+            RECIPIENT,
+            WILDCARD_AMOUNT,
+            MAX_FEE * 3,
+            HALF_AMOUNT,
+            2,
+            1001
+        );
+
+        assertEq(quotedFee.quoteDomains().length, 1);
+        OffchainQuotedLinearFee.QuoteEntry[] memory entries = quotedFee
+            .getQuotesForDomain(DEST);
+        assertEq(entries.length, 1);
+        assertEq(entries[0].quote.maxFee, MAX_FEE * 3);
+        assertEq(entries[0].quote.issuedAt, 2);
+    }
+
+    function test_getQuotesForDomain_excludesTransientQuotes() public {
+        // Transient quotes never touch the mapping, so they are not enumerated.
+        _submitTransient(DEST, RECIPIENT, AMOUNT, MAX_FEE, HALF_AMOUNT);
+
+        assertEq(quotedFee.quoteDomains().length, 0);
+        assertEq(quotedFee.getQuotesForDomain(DEST).length, 0);
+    }
+
+    function test_getQuotesForDomain_includesWildcardRecipient() public {
+        bytes32 wildcardRecipient = bytes32(type(uint256).max);
+        _submitStanding(
+            DEST,
+            wildcardRecipient,
+            WILDCARD_AMOUNT,
+            MAX_FEE,
+            HALF_AMOUNT,
+            1,
+            1001
+        );
+
+        OffchainQuotedLinearFee.QuoteEntry[] memory entries = quotedFee
+            .getQuotesForDomain(DEST);
+        assertEq(entries.length, 1);
+        assertEq(entries[0].recipient, wildcardRecipient);
+    }
+
+    function test_getQuotesForDomain_wildcardDestinationEnumeratedUnderItsOwnKey()
+        public
+    {
+        uint32 wildcardDest = type(uint32).max;
+        // A recipient-only quote applies to every destination and is stored
+        // under the WILDCARD_DEST key, not under any specific destination.
+        _submitStanding(
+            wildcardDest,
+            RECIPIENT,
+            WILDCARD_AMOUNT,
+            MAX_FEE,
+            HALF_AMOUNT,
+            1,
+            1001
+        );
+
+        // Not surfaced under a specific destination key...
+        assertEq(quotedFee.getQuotesForDomain(DEST).length, 0);
+
+        // ...but enumerable under the WILDCARD_DEST key.
+        OffchainQuotedLinearFee.QuoteEntry[] memory entries = quotedFee
+            .getQuotesForDomain(wildcardDest);
+        assertEq(entries.length, 1);
+        assertEq(entries[0].recipient, RECIPIENT);
+
+        uint32[] memory domains = quotedFee.quoteDomains();
+        assertEq(domains.length, 1);
+        assertEq(domains[0], wildcardDest);
+    }
+
+    function _findQuote(
+        OffchainQuotedLinearFee.QuoteEntry[] memory entries,
+        bytes32 recipient
+    ) internal pure returns (OffchainQuotedLinearFee.StoredQuote memory) {
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].recipient == recipient) {
+                return entries[i].quote;
+            }
+        }
+        revert("recipient not found");
+    }
+
+    function _containsDomain(
+        uint32[] memory domains,
+        uint32 domain
+    ) internal pure returns (bool) {
+        for (uint256 i = 0; i < domains.length; i++) {
+            if (domains[i] == domain) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
 
 // ============ FeeQuoteContext / FeeQuoteData Codec Tests ============
