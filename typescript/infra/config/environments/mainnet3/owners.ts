@@ -22,13 +22,15 @@ export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
 // Haggis GCP deployer key (Secret Manager: mainnet3-haggis-deployer-key). Used to
 // own staging warp-route deployments so test changes are easy to make. Keyed by
-// protocol: the secp256k1 secret backs the EVM/TVM address, and its ed25519
-// pubkey backs the SVM address.
+// protocol: the one secp256k1 secret backs the EVM address and — as the same
+// H160 in tron base58check (0x41-prefixed) — the TVM/Tron address, while its
+// ed25519 pubkey backs the SVM address.
 export const haggisDeployerKeyByProtocol: Partial<
   Record<ProtocolType, Address>
 > = {
   [ProtocolType.Ethereum]: '0x22EA0e66c9aFe2879135f4d16B5627454C53877e',
   [ProtocolType.Sealevel]: 'DSdGzZZ8G9LcVJFpBwFgBVcY5nMM8g3DMRqzW7WwpDvR',
+  [ProtocolType.Tron]: 'TD9pN6TpVb1hXx6KYDDjmyfFgPVbej4Tdm',
 };
 
 // Celestia multisig that owns the eden core deployment.

@@ -81,23 +81,23 @@ const productionOwnersByChain: Record<DeploymentChain, string> = {
 // Staging: every contract (router + fee) is owned by the Haggis GCP deployer key
 // so test changes are easy to make. The same secp256k1 secret backs the
 // EVM/TVM address and its ed25519 pubkey backs the SVM address.
-const STAGING_EVM_DEPLOYER = haggisDeployerKeyByProtocol[ProtocolType.Ethereum];
-const STAGING_SVM_DEPLOYER = haggisDeployerKeyByProtocol[ProtocolType.Sealevel];
-assert(STAGING_EVM_DEPLOYER, 'Missing Haggis EVM deployer key');
-assert(STAGING_SVM_DEPLOYER, 'Missing Haggis SVM deployer key');
+const HAGGIS_EVM_DEPLOYER = haggisDeployerKeyByProtocol[ProtocolType.Ethereum];
+const HAGGIS_SVM_DEPLOYER = haggisDeployerKeyByProtocol[ProtocolType.Sealevel];
+assert(HAGGIS_EVM_DEPLOYER, 'Missing Haggis EVM deployer key');
+assert(HAGGIS_SVM_DEPLOYER, 'Missing Haggis SVM deployer key');
 
 const stagingOwnersByChain: Record<DeploymentChain, string> = {
-  ethereum: STAGING_EVM_DEPLOYER,
-  bsc: STAGING_EVM_DEPLOYER,
-  tron: STAGING_EVM_DEPLOYER,
-  solanamainnet: STAGING_SVM_DEPLOYER,
+  ethereum: HAGGIS_EVM_DEPLOYER,
+  bsc: HAGGIS_EVM_DEPLOYER,
+  tron: HAGGIS_EVM_DEPLOYER,
+  solanamainnet: HAGGIS_SVM_DEPLOYER,
 };
 
 const stagingFeeOwnersByChain: Record<FeeChain, string> = {
-  ethereum: STAGING_EVM_DEPLOYER,
-  bsc: STAGING_EVM_DEPLOYER,
-  tron: STAGING_EVM_DEPLOYER,
-  solanamainnet: STAGING_SVM_DEPLOYER,
+  ethereum: HAGGIS_EVM_DEPLOYER,
+  bsc: HAGGIS_EVM_DEPLOYER,
+  tron: HAGGIS_EVM_DEPLOYER,
+  solanamainnet: HAGGIS_SVM_DEPLOYER,
 };
 
 export interface WBTCWarpConfigOptions {
@@ -105,6 +105,9 @@ export interface WBTCWarpConfigOptions {
   // Fee owner per fee chain (production: dedicated warp-fee Safe/ICA on EVM/TVM,
   // AW Squads on solana; staging: deployer)
   feeOwnersByChain: Record<FeeChain, string>;
+  // Optional per-chain RoutingFee beneficiary (who receives the collected fee).
+  // Defaults to the fee owner on-chain when omitted.
+  feeBeneficiariesByChain?: Partial<Record<FeeChain, string>>;
   // EIP-712 / secp256k1 quote signers for the OffchainQuotedLinearFee legs. A
   // single H160 signer is valid across EVM, tron and solana origins.
   quoteSigners: string[];
@@ -118,6 +121,7 @@ const buildFeeConfig = (
   chain: FeeChain,
   feeOwner: Address,
   quoteSigners: string[],
+  beneficiary?: Address,
 ) =>
   getFixedRoutingFeeConfig(
     feeOwner,
@@ -125,6 +129,7 @@ const buildFeeConfig = (
     WARP_FEE_BPS,
     undefined,
     quoteSigners,
+    beneficiary,
   );
 
 export const buildWBTCWarpConfig = async (
@@ -134,6 +139,7 @@ export const buildWBTCWarpConfig = async (
   const {
     ownersByChain,
     feeOwnersByChain,
+    feeBeneficiariesByChain,
     quoteSigners,
     tokenMetadata = WBTC_TOKEN_METADATA,
     programIds,
@@ -152,7 +158,12 @@ export const buildWBTCWarpConfig = async (
       owner: ownersByChain[chain],
       decimals: WBTC_DECIMALS,
       ...tokenMetadata,
-      tokenFee: buildFeeConfig(chain, feeOwner, quoteSigners),
+      tokenFee: buildFeeConfig(
+        chain,
+        feeOwner,
+        quoteSigners,
+        feeBeneficiariesByChain?.[chain],
+      ),
     };
 
     // SVM leg additionally carries the IGP hook + handler gas, and the built
@@ -180,7 +191,8 @@ export const buildWBTCWarpConfig = async (
 // Production: AW FPWR ownership; fee owners are the dedicated warp-fee governance
 // accounts (getWarpFeeOwner) on EVM/TVM, matching the other First Party HWRs.
 // Solana has no dedicated warp-fee account, so its fee owner is the AW Squads
-// route owner.
+// route owner, while its fee beneficiary (who receives collected fees) is pinned
+// to the Haggis solana deployer key.
 export const getWBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> =>
@@ -191,6 +203,9 @@ export const getWBTCWarpConfig = async (
       bsc: getWarpFeeOwner('bsc'),
       tron: getWarpFeeOwner('tron'),
       solanamainnet: chainOwners.solanamainnet.owner,
+    },
+    feeBeneficiariesByChain: {
+      solanamainnet: HAGGIS_SVM_DEPLOYER,
     },
     quoteSigners: [WARP_QUOTE_SIGNER],
   });
@@ -204,5 +219,5 @@ export const getWBTCSTAGEWarpConfig = async (
   buildWBTCWarpConfig(routerConfig, {
     ownersByChain: stagingOwnersByChain,
     feeOwnersByChain: stagingFeeOwnersByChain,
-    quoteSigners: [WARP_QUOTE_SIGNER, STAGING_EVM_DEPLOYER],
+    quoteSigners: [WARP_QUOTE_SIGNER, HAGGIS_EVM_DEPLOYER],
   });
