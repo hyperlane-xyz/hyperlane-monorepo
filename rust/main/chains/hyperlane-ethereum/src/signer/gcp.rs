@@ -65,8 +65,9 @@ pub enum GcpSignerError {
     BadSignature,
     /// KMS signed with a different CryptoKeyVersion than the one requested -
     /// possible proxy/routing bug or resource drift. Fail closed.
-    #[error("KMS signed with unexpected key version: requested {requested}, got {got}")]
-    UnexpectedKeyVersion { requested: String, got: String },
+    /// Tuple fields are (requested, got).
+    #[error("KMS signed with unexpected key version: requested {0}, got {1}")]
+    UnexpectedKeyVersion(String, String),
     /// KMS signed with a protection level other than HSM - the HSM guarantee
     /// this signer relies on may not hold. Fail closed.
     #[error("KMS signed with unexpected protection level: {0:?}")]
@@ -99,10 +100,10 @@ impl GcpSigner {
             .await?;
 
         if response.name != key_version_name {
-            return Err(GcpSignerError::UnexpectedKeyVersion {
-                requested: key_version_name,
-                got: response.name,
-            });
+            return Err(GcpSignerError::UnexpectedKeyVersion(
+                key_version_name,
+                response.name,
+            ));
         }
         if response.protection_level != ProtectionLevel::Hsm {
             return Err(GcpSignerError::UnexpectedProtectionLevel(
@@ -157,10 +158,10 @@ impl GcpSigner {
         // corrupted request/response, must not silently produce a signature
         // this signer treats as trustworthy.
         if response.name != self.key_version_name {
-            return Err(GcpSignerError::UnexpectedKeyVersion {
-                requested: self.key_version_name.clone(),
-                got: response.name,
-            });
+            return Err(GcpSignerError::UnexpectedKeyVersion(
+                self.key_version_name.clone(),
+                response.name,
+            ));
         }
         if !response.verified_digest_crc32c {
             return Err(GcpSignerError::IntegrityCheckFailed(
