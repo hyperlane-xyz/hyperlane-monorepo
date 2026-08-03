@@ -117,6 +117,16 @@ contract CrossCollateralRouter is
             if (_crossCollateralRouters[_domains[i]].remove(_routers[i])) {
                 if (_crossCollateralRouters[_domains[i]].length() == 0) {
                     _crossCollateralDomains.remove(uint256(_domains[i]));
+                    // Last cross-collateral route for this domain is gone; if no
+                    // route remains at all, clear its rebalance config so a
+                    // removed route cannot retain rebalance authority.
+                    if (
+                        !_MovableCollateralRouter_hasRebalanceRoutes(
+                            _domains[i]
+                        )
+                    ) {
+                        _clearRebalanceState(_domains[i]);
+                    }
                 }
                 emit CrossCollateralRouterUnenrolled(_domains[i], _routers[i]);
             }
@@ -252,6 +262,15 @@ contract CrossCollateralRouter is
                 _crossCollateralRouters[domain].length() > 0,
             "CCR: domain has no routers"
         );
+    }
+
+    /// @dev A domain also has rebalance routes if it has cross-collateral routers.
+    function _MovableCollateralRouter_hasRebalanceRoutes(
+        uint32 domain
+    ) internal view override returns (bool) {
+        return
+            super._MovableCollateralRouter_hasRebalanceRoutes(domain) ||
+            _crossCollateralRouters[domain].length() > 0;
     }
 
     // ============ Internal Helpers ============

@@ -20,11 +20,11 @@ ignored_warnings_from = ['lib', 'test', 'contracts/test']
 # overrides entry in rootHardhatConfig.cts; keep the two in sync.
 [[profile.default.additional_compiler_profiles]]
 name = "size-optimized"
-optimizer_runs = 5_800
+optimizer_runs = 3_599
 
 [[profile.default.compilation_restrictions]]
 paths = "contracts/token/CrossCollateralRouter.sol"
-optimizer_runs = 5_800
+optimizer_runs = 3_599
 
 [profile.ci]
 verbosity = 4

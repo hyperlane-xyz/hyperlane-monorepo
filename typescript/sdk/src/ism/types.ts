@@ -35,6 +35,7 @@ import {
   OwnableConfig,
   OwnableSchema,
   PausableSchema,
+  RATE_LIMIT_DEFAULT_DURATION_SECONDS,
 } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
 
@@ -350,9 +351,10 @@ export const RateLimitedIsmConfigSchema = z
       .regex(/^\d+$/, 'maxCapacity must be a base-10 integer string'),
     /**
      * Refill window in seconds — must match the on-chain immutable
-     * `DURATION`. Provide explicitly per deployment.
+     * `DURATION`. Defaults to 1 day (86400s) when omitted, matching the
+     * previous hard-coded on-chain window.
      */
-    duration: ZBigNumberish,
+    duration: ZBigNumberish.default(RATE_LIMIT_DEFAULT_DURATION_SECONDS),
     recipient: ZHash.optional(),
     owner: ZHash.optional(),
   })
