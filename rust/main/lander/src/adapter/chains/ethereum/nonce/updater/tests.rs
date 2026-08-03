@@ -84,20 +84,47 @@ async fn test_update_boundaries_immediately_provider_error() {
 }
 
 #[tokio::test]
-async fn test_update_boundaries_immediately_none_next_nonce() {
+async fn test_update_boundaries_immediately_none_next_nonce_from_genesis() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
     let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
-    // next_nonce = 0, so finalized_nonce = None, should not update
+    // next_nonce = 0 with no prior persisted state — must remain at genesis.
     let updater = make_updater(Some(U256::zero()), false, state.clone(), address);
 
     updater.update_boundaries_immediately().await.unwrap();
 
-    // Should not set finalized nonce
     let finalized = state.get_finalized_nonce_test().await.unwrap();
+    let upper = state.get_upper_nonce_test().await.unwrap();
     assert_eq!(finalized, None);
+    assert_eq!(upper, U256::zero());
+}
+
+#[tokio::test]
+async fn test_update_boundaries_immediately_resets_stale_state_on_chain_wipe() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+
+    // Simulate stale state from a previous chain era: finalized=7, upper=10.
+    state
+        .set_finalized_nonce_test(&U256::from(7))
+        .await
+        .unwrap();
+    state.set_upper_nonce_test(&U256::from(10)).await.unwrap();
+
+    // Chain has been wiped — the provider now reports next_nonce=0 on the
+    // finalized block. The updater must clear the stale boundary state
+    // rather than silently returning.
+    let updater = make_updater(Some(U256::zero()), false, state.clone(), address);
+    updater.update_boundaries_immediately().await.unwrap();
+
+    let finalized = state.get_finalized_nonce_test().await.unwrap();
+    let upper = state.get_upper_nonce_test().await.unwrap();
+    assert_eq!(finalized, None, "stale finalized nonce must be cleared");
+    assert_eq!(upper, U256::zero(), "stale upper nonce must reset to 0");
 }
 
 #[tokio::test]
