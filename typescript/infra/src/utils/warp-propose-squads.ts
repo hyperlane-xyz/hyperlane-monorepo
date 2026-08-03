@@ -1,5 +1,8 @@
 import { AccountRole, isSignerRole, isWritableRole } from '@solana/kit';
 import {
+  AddressLookupTableAccount,
+  Connection,
+  MessageV0,
   PublicKey,
   TransactionInstruction,
   VersionedTransaction,
@@ -108,12 +111,11 @@ function isAccountRole(role: number): role is AccountRole {
 /**
  * Rebuilds legacy `TransactionInstruction[]` from a receipt's expanded
  * `instructions[]` (produced by SvmSigner.transactionToPrintableJson in
- * svm-sdk). This is the ALT-safe rehydration path: account pubkeys are taken
- * directly from the writer's expanded list instead of being resolved from
- * the wire's address-lookup-table indexes, which cannot be done offline for
- * ALT-loaded accounts. Callers MUST first validate the receipt against the
- * wire with `validateInstructionsAgainstWire`, which cross-checks every
- * account it can (identity for static keys, role/writability for all).
+ * svm-sdk). Account pubkeys are taken directly from the writer's expanded
+ * list. Callers MUST first validate the receipt against the wire with
+ * `validateInstructionsAgainstWire`, which cross-checks every account's
+ * identity and role/writability against the wire, resolving ALT-loaded
+ * accounts via caller-supplied `AddressLookupTableAccount`s.
  */
 export function buildInstructionsFromPrintable(
   printableIxs: readonly PrintableSvmInstruction[],
@@ -140,32 +142,64 @@ export function buildInstructionsFromPrintable(
 }
 
 /**
+ * Deserializes a receipt's wire payload and resolves every address-lookup
+ * table it references via RPC, returning the resolved
+ * `AddressLookupTableAccount[]` needed to fully expand its account keys (see
+ * `validateInstructionsAgainstWire`). Returns an empty array for a wire with
+ * no ALT lookups. Fails closed: a table that cannot be fetched (e.g. it was
+ * closed/deactivated) throws rather than silently proceeding without it.
+ */
+export async function resolveWireAddressLookupTables(
+  transactionBase58: string,
+  connection: Pick<Connection, 'getAddressLookupTable'>,
+): Promise<AddressLookupTableAccount[]> {
+  const bytes = bs58.decode(transactionBase58);
+  const { message } = VersionedTransaction.deserialize(bytes);
+  if (!(message instanceof MessageV0)) {
+    throw new Error('Expected a v0 transaction message');
+  }
+
+  return Promise.all(
+    message.addressTableLookups.map(async (lookup) => {
+      const { value } = await connection.getAddressLookupTable(
+        lookup.accountKey,
+      );
+      if (!value) {
+        throw new Error(
+          `Address lookup table ${lookup.accountKey.toBase58()} referenced by the receipt wire could not be fetched`,
+        );
+      }
+      return value;
+    }),
+  );
+}
+
+/**
  * Validates a receipt's expanded `instructions[]` against the canonical wire
  * payload (`transaction_base58`) before rehydrating from it. Instruction
  * count/order, `programAddress`, `data`, and per-instruction account count
- * are all resolvable from the wire without ALT lookups and are checked here.
- * Account PUBKEY identity is also checked for every account that indexes
- * into the wire's static key list — the common case for warp
- * owner/config-update instructions, which carry no ALT; a genuinely
- * ALT-loaded account's pubkey is NOT verified here (its address lives
- * on-chain, not in the wire) — this leaves a residual tamper vector for
- * ALT-loaded, same-role accounts that is documented at the identity check
- * below and deferred to the part-2 propose-script hardening pass (which will
- * resolve ALTs on-chain via the caller's RPC). Every
- * account's role is also checked against the wire (via
- * `Message(V0).isAccountSigner`/`isAccountWritable`), but only in the
- * direction that matters: the receipt may not CLAIM a stronger role
- * (signer/writable) than the wire grants — see the inline comment below for
- * why the reverse (wire stronger than receipt) is expected and tolerated.
- * Throws a specific error (instruction/account index + reason) on any
- * mismatch.
+ * are all resolvable from the wire and are checked here. Every account's
+ * PUBKEY identity and role (via `MessageAccountKeys.get` and
+ * `Message(V0).isAccountSigner`/`isAccountWritable`) are checked against the
+ * wire, using the caller-resolved `addressLookupTableAccounts` (see
+ * `resolveWireAddressLookupTables`) to fully expand ALT-loaded account keys —
+ * identity is verified for every account, static or ALT-loaded alike. Role
+ * is checked only in the direction that matters: the receipt may not CLAIM a
+ * stronger role (signer/writable) than the wire grants — see the inline
+ * comment below for why the reverse (wire stronger than receipt) is expected
+ * and tolerated. Throws a specific error (instruction/account index +
+ * reason) on any mismatch.
  */
 export function validateInstructionsAgainstWire(
   printableIxs: readonly PrintableSvmInstruction[],
   transactionBase58: string,
+  addressLookupTableAccounts: AddressLookupTableAccount[],
 ): void {
   const bytes = bs58.decode(transactionBase58);
   const { message } = VersionedTransaction.deserialize(bytes);
+  if (!(message instanceof MessageV0)) {
+    throw new Error('Expected a v0 transaction message');
+  }
 
   if (message.compiledInstructions.length !== printableIxs.length) {
     throw new Error(
@@ -173,16 +207,7 @@ export function validateInstructionsAgainstWire(
     );
   }
 
-  // Total accounts the wire message resolves to offline: static keys plus
-  // every ALT-loaded index declared in addressTableLookups (whose pubkeys are
-  // not resolvable offline, but whose count and writable/readonly split are).
-  const totalAccountKeys =
-    message.staticAccountKeys.length +
-    message.addressTableLookups.reduce(
-      (sum, lookup) =>
-        sum + lookup.writableIndexes.length + lookup.readonlyIndexes.length,
-      0,
-    );
+  const accountKeys = message.getAccountKeys({ addressLookupTableAccounts });
 
   printableIxs.forEach((printableIx, index) => {
     const compiled = message.compiledInstructions[index];
@@ -218,7 +243,8 @@ export function validateInstructionsAgainstWire(
     }
 
     compiled.accountKeyIndexes.forEach((keyIndex, accountIndex) => {
-      if (keyIndex >= totalAccountKeys) {
+      const wireKey = accountKeys.get(keyIndex);
+      if (!wireKey) {
         throw new Error(
           `Receipt instructions do not match wire payload: instruction ${index} account ${accountIndex} key index ${keyIndex} is out of range of the wire's resolved account keys`,
         );
@@ -258,25 +284,11 @@ export function validateInstructionsAgainstWire(
         );
       }
 
-      // Pubkey identity is only resolvable offline for static keys; an
-      // ALT-loaded index's address lives on-chain, so its identity is NOT
-      // verified here — only role/writability above is. Residual tamper vector:
-      // a tampered receipt can swap an ALT-loaded, same-role account (e.g. a
-      // non-signer router/mailbox/config PDA) for any other key of that role,
-      // and it will pass this check (assertAuthorizedByVault won't catch it
-      // either — it only inspects signer authorities). Closing this fully means
-      // fetching each `message.addressTableLookups[i].accountKey` on-chain via
-      // the caller's RPC and resolving writable/readonly indexes to compare
-      // identity; that on-chain resolution is deferred to the propose-script
-      // hardening pass (part 2). Do NOT treat ALT receipts as fully identity-
-      // validated until then.
-      if (keyIndex < message.staticAccountKeys.length) {
-        const wireAddress = message.staticAccountKeys[keyIndex].toBase58();
-        if (wireAddress !== receiptAccount.address) {
-          throw new Error(
-            `Receipt instructions do not match wire payload: instruction ${index} account ${accountIndex} address mismatch (wire=${wireAddress}, receipt=${receiptAccount.address})`,
-          );
-        }
+      const wireAddress = wireKey.toBase58();
+      if (wireAddress !== receiptAccount.address) {
+        throw new Error(
+          `Receipt instructions do not match wire payload: instruction ${index} account ${accountIndex} address mismatch (wire=${wireAddress}, receipt=${receiptAccount.address})`,
+        );
       }
     });
   });
@@ -357,17 +369,30 @@ export function assertSimpleReceipt(
  * flattening every instruction into a single vault transaction) keeps each
  * step in its own Squads vault transaction. Each source tx's expanded
  * `instructions[]` is validated against its wire payload
- * (`validateInstructionsAgainstWire`) before being rehydrated
+ * (`validateInstructionsAgainstWire`, using `altAccountsPerTx[i]` to resolve
+ * that tx's ALT-loaded accounts) before being rehydrated
  * (`buildInstructionsFromPrintable`), and its `computeUnits` (if any) is
  * carried through for the executor to apply at execution time. Callers MUST
  * gate this behind `assertSimpleReceipt`: a slot-advance-barrier receipt is
- * rejected there, since only that case cannot be faithfully proposed.
+ * rejected there, since only that case cannot be faithfully proposed. Callers
+ * MUST resolve `altAccountsPerTx` on-chain (see `resolveWireAddressLookupTables`)
+ * before calling this — this function stays synchronous and pure.
  */
 export function planReceiptProposals(
   txs: z.infer<typeof ReceiptFileSchema>,
+  altAccountsPerTx: AddressLookupTableAccount[][],
 ): ReceiptProposalPlan[] {
-  return txs.map((tx) => {
-    validateInstructionsAgainstWire(tx.instructions, tx.transaction_base58);
+  if (altAccountsPerTx.length !== txs.length) {
+    throw new Error(
+      `altAccountsPerTx length ${altAccountsPerTx.length} does not match txs length ${txs.length}`,
+    );
+  }
+  return txs.map((tx, index) => {
+    validateInstructionsAgainstWire(
+      tx.instructions,
+      tx.transaction_base58,
+      altAccountsPerTx[index],
+    );
     return {
       instructions: buildInstructionsFromPrintable(tx.instructions),
       computeUnits: tx.computeUnits,

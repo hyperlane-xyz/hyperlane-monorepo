@@ -26,6 +26,7 @@ import {
   assertSimpleReceipt,
   parseReceiptFile,
   planReceiptProposals,
+  resolveWireAddressLookupTables,
 } from '../../src/utils/warp-propose-squads.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -66,13 +67,20 @@ async function proposeFile({
   // incorrectly proposed. A non-default compute budget is carried through
   // and surfaced for the executor to set at vaultTransactionExecute; an
   // ALT-compressed receipt is rehydrated from its expanded instructions and
-  // validated against the wire (see planReceiptProposals).
+  // its loaded account identities are verified against the wire using
+  // on-chain-resolved lookup tables (see planReceiptProposals).
   const complexity = assertSimpleReceipt(txs);
   if (!complexity.ok) {
     throw new Error(complexity.reason);
   }
 
-  const plans = planReceiptProposals(txs);
+  const connection = mpp.getSolanaWeb3Provider(chain);
+  const altAccountsPerTx = await Promise.all(
+    txs.map((tx) =>
+      resolveWireAddressLookupTables(tx.transaction_base58, connection),
+    ),
+  );
+  const plans = planReceiptProposals(txs, altAccountsPerTx);
 
   // Fail closed if any instruction authority is not this chain's configured
   // Squads vault: a route governed by a different vault (e.g. an AbacusWorks
