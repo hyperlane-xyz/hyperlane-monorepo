@@ -7,6 +7,7 @@ import {
   CrossCollateralRoutingFeeConfigSchema,
   CrossCollateralRoutingFeeInputConfigSchema,
   LinearFeeInputConfigSchema,
+  OffchainQuotedPiecewiseLinearFeeInputConfigSchema,
   RoutingFeeInputConfigSchema,
   TokenFeeType,
 } from './types.js';
@@ -122,6 +123,38 @@ describe('LinearFeeInputConfigSchema', () => {
       expect(result.data.bps).to.exist;
       expect(result.data.bps).to.be.a('number');
     }
+  });
+});
+
+describe('OffchainQuotedPiecewiseLinearFeeInputConfigSchema', () => {
+  const config = {
+    type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+    owner: SOME_ADDRESS,
+    bps: 3,
+  } as const;
+
+  it('accepts a bounded maximum band count', () => {
+    expect(
+      OffchainQuotedPiecewiseLinearFeeInputConfigSchema.safeParse({
+        ...config,
+        maxBands: 4,
+      }).success,
+    ).to.equal(true);
+  });
+
+  it('rejects maximum band counts outside the contract bounds', () => {
+    expect(
+      OffchainQuotedPiecewiseLinearFeeInputConfigSchema.safeParse({
+        ...config,
+        maxBands: 0,
+      }).success,
+    ).to.equal(false);
+    expect(
+      OffchainQuotedPiecewiseLinearFeeInputConfigSchema.safeParse({
+        ...config,
+        maxBands: 257,
+      }).success,
+    ).to.equal(false);
   });
 });
 

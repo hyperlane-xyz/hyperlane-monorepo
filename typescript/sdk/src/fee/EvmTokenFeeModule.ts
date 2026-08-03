@@ -3,6 +3,7 @@ import { constants } from 'ethers';
 import {
   CrossCollateralRoutingFee__factory,
   OffchainQuotedLinearFee__factory,
+  OffchainQuotedPiecewiseLinearFee__factory,
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -80,6 +81,8 @@ function getDeployedFeeAddress(
       return contracts.CrossCollateralRoutingFee.address;
     case TokenFeeType.OffchainQuotedLinearFee:
       return contracts.OffchainQuotedLinearFee.address;
+    case TokenFeeType.OffchainQuotedPiecewiseLinearFee:
+      return contracts.OffchainQuotedPiecewiseLinearFee.address;
   }
 }
 
@@ -227,7 +230,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   }
 
   // Processes the Input config to the Final config
-  // For LinearFee/OffchainQuotedLinearFee, it converts the bps to maxFee and halfAmount
+  // For LinearFee and offchain-quoted fees, convert bps to maxFee and halfAmount.
   public static async expandConfig(params: {
     config: ResolvedTokenFeeConfigInput;
     multiProvider: MultiProvider;
@@ -237,7 +240,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     let intermediaryConfig: TokenFeeConfig;
     if (
       config.type === TokenFeeType.LinearFee ||
-      config.type === TokenFeeType.OffchainQuotedLinearFee
+      config.type === TokenFeeType.OffchainQuotedLinearFee ||
+      config.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee
     ) {
       const { token } = config;
 
@@ -283,9 +287,20 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         );
       }
 
-      if (config.type === TokenFeeType.OffchainQuotedLinearFee) {
+      if (config.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee) {
         intermediaryConfig = {
-          type: TokenFeeType.OffchainQuotedLinearFee,
+          type: config.type,
+          token,
+          owner: config.owner,
+          bps,
+          maxFee,
+          halfAmount,
+          quoteSigners: config.quoteSigners,
+          maxBands: config.maxBands,
+        };
+      } else if (config.type === TokenFeeType.OffchainQuotedLinearFee) {
+        intermediaryConfig = {
+          type: config.type,
           token,
           owner: config.owner,
           bps,
@@ -427,7 +442,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     if (actualConfig.type !== targetConfig.type) return true;
 
     const mutableFields: Record<string, true> = { owner: true };
-    if (targetConfig.type === TokenFeeType.OffchainQuotedLinearFee) {
+    if (
+      targetConfig.type === TokenFeeType.OffchainQuotedLinearFee ||
+      targetConfig.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee
+    ) {
       mutableFields.quoteSigners = true;
     }
     if (
@@ -511,15 +529,18 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       return [];
     }
 
-    // OffchainQuotedLinearFee: signers are mutable (fee params handled by shouldRedeploy)
+    // Offchain-quoted fee signers are mutable; immutable params redeploy above.
     if (
-      normalizedTargetConfig.type === TokenFeeType.OffchainQuotedLinearFee &&
-      normalizedActualConfig.type === TokenFeeType.OffchainQuotedLinearFee
+      (normalizedTargetConfig.type === TokenFeeType.OffchainQuotedLinearFee ||
+        normalizedTargetConfig.type ===
+          TokenFeeType.OffchainQuotedPiecewiseLinearFee) &&
+      normalizedActualConfig.type === normalizedTargetConfig.type
     ) {
       return [
         ...this.createQuoteSignerUpdateTxs(
           normalizedActualConfig.quoteSigners,
           normalizedTargetConfig.quoteSigners,
+          normalizedTargetConfig.type,
         ),
         ...this.createOwnershipUpdateTxs(
           normalizedActualConfig,
@@ -866,9 +887,15 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   private createQuoteSignerUpdateTxs(
     actualSigners: string[] | undefined,
     targetSigners: string[] | undefined,
+    feeType:
+      | typeof TokenFeeType.OffchainQuotedLinearFee
+      | typeof TokenFeeType.OffchainQuotedPiecewiseLinearFee,
   ): AnnotatedEV5Transaction[] {
     const txs: AnnotatedEV5Transaction[] = [];
-    const iface = OffchainQuotedLinearFee__factory.createInterface();
+    const iface =
+      feeType === TokenFeeType.OffchainQuotedPiecewiseLinearFee
+        ? OffchainQuotedPiecewiseLinearFee__factory.createInterface()
+        : OffchainQuotedLinearFee__factory.createInterface();
     const contractAddress = this.args.addresses.deployedFee;
 
     const actualSet = new Set(

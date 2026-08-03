@@ -26,6 +26,7 @@ import {
   DEFAULT_ROUTER_KEY,
   LinearFeeConfig,
   OffchainQuotedLinearFeeConfig,
+  OffchainQuotedPiecewiseLinearFeeConfig,
   ResolvedCrossCollateralRoutingFeeConfigInput,
   ResolvedTokenFeeConfigInput,
   RoutingFeeConfig,
@@ -1208,6 +1209,72 @@ describe('EvmTokenFeeModule', () => {
       );
       expect(onchainConfig.quoteSigners).to.have.lengthOf(1);
       expect(onchainConfig.quoteSigners).to.include(signer.address);
+    });
+  });
+
+  describe('OffchainQuotedPiecewiseLinearFee', () => {
+    let piecewiseConfig: OffchainQuotedPiecewiseLinearFeeConfig;
+
+    before(() => {
+      piecewiseConfig = TokenFeeConfigSchema.parse({
+        type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+        owner: signer.address,
+        token: token.address,
+        maxFee: MAX_FEE,
+        halfAmount: HALF_AMOUNT,
+        bps: BPS,
+        maxBands: 4,
+        quoteSigners: [signer.address],
+      }) as OffchainQuotedPiecewiseLinearFeeConfig;
+    });
+
+    it('should create and read the piecewise fee', async () => {
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: piecewiseConfig,
+      });
+
+      expect(normalizeConfig(await module.read())).to.deep.equal(
+        normalizeConfig(piecewiseConfig),
+      );
+    });
+
+    it('should update signers without redeploying', async () => {
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: piecewiseConfig,
+      });
+      const [, otherSigner] = await hre.ethers.getSigners();
+      const updatedConfig = {
+        ...piecewiseConfig,
+        quoteSigners: [signer.address, otherSigner.address],
+      };
+
+      await expectTxsAndUpdate(module, updatedConfig, 1);
+      const onchainConfig = await module.read();
+      assert(
+        onchainConfig.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+        `Must be ${TokenFeeType.OffchainQuotedPiecewiseLinearFee}`,
+      );
+      expect(onchainConfig.quoteSigners).to.include(otherSigner.address);
+    });
+
+    it('should redeploy when maxBands changes', async () => {
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: piecewiseConfig,
+      });
+
+      await expectTxsAndUpdate(module, { ...piecewiseConfig, maxBands: 8 }, 0);
+      const onchainConfig = await module.read();
+      assert(
+        onchainConfig.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+        `Must be ${TokenFeeType.OffchainQuotedPiecewiseLinearFee}`,
+      );
+      expect(onchainConfig.maxBands).to.equal(8);
     });
   });
 });
