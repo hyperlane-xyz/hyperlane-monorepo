@@ -715,6 +715,13 @@ contract OffchainQuotedLinearFeeTest is Test {
             _computeFee(firstMaxFee, HALF_AMOUNT, AMOUNT)
         );
 
+        // Advance time so the newer quote's issuedAt is not future-dated.
+        // Use `now_ + 1` directly rather than re-reading block.timestamp into a
+        // local — under FOUNDRY_PROFILE=coverage --ir-minimum the optimizer can
+        // reorder a `block.timestamp` read above the preceding `vm.warp(...)`.
+        uint48 later = now_ + 1;
+        vm.warp(later);
+
         // Submit newer standing quote (higher issuedAt) with different params
         _submitStanding(
             DEST,
@@ -722,8 +729,8 @@ contract OffchainQuotedLinearFeeTest is Test {
             WILDCARD_AMOUNT,
             secondMaxFee,
             secondHalfAmount,
-            now_ + 1,
-            now_ + 7200
+            later,
+            later + 7200
         );
 
         // New params are used
