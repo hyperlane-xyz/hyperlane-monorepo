@@ -11,9 +11,12 @@ import {
 } from '@hyperlane-xyz/forking-sdk';
 import { assert, isNullish, pollAsync, rootLogger } from '@hyperlane-xyz/utils';
 
-import { type PrintableSvmTransaction } from '../clients/signer.js';
 import { type SolanaRpcClient, createRpc } from '../rpc.js';
 
+import {
+  type SvmForkConfig,
+  type SvmForkTransaction,
+} from './svm-fork-config.js';
 import {
   SurfpoolDatasourceMode,
   type SurfpoolAirdrops,
@@ -27,10 +30,6 @@ const RPC_COMMITMENT: Commitment = 'confirmed';
 const SLOT_ADVANCE_POLL_MS = 500;
 const SLOT_ADVANCE_MAX_ATTEMPTS = 60;
 
-export interface SvmForkConfig {
-  transactions: PrintableSvmTransaction[];
-}
-
 export interface SvmForkManagerConfig {
   chainName: string;
   /** Upstream (mainnet) RPC URL to fork from. */
@@ -39,6 +38,8 @@ export interface SvmForkManagerConfig {
   rpcPort: number;
   wsPort?: number;
   airdrops?: SurfpoolAirdrops;
+  /** Tear the fork node down after replaying the fork config. */
+  killAfterApply?: boolean;
   image?: string;
   binaryPath?: string;
   keepRunning?: boolean;
@@ -82,6 +83,10 @@ export class SvmForkManager implements IForkManager<SvmForkConfig> {
     for (const transaction of config.transactions) {
       await this.submitTransaction(rpc, transaction);
     }
+
+    if (this.config.killAfterApply) {
+      this.kill();
+    }
   }
 
   getForkedChainMetadata(): ForkedChainMetadata {
@@ -100,7 +105,7 @@ export class SvmForkManager implements IForkManager<SvmForkConfig> {
 
   private async submitTransaction(
     rpc: SolanaRpcClient,
-    transaction: PrintableSvmTransaction,
+    transaction: SvmForkTransaction,
   ): Promise<void> {
     const wireBytes = base58Encoder.encode(transaction.transaction_base58);
     const decoded = transactionDecoder.decode(wireBytes);

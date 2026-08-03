@@ -2481,6 +2481,9 @@ importers:
       compare-versions:
         specifier: 'catalog:'
         version: 6.1.1
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
     devDependencies:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
