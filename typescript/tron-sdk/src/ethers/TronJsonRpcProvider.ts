@@ -35,6 +35,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /** Standard EVM/JSON-RPC "execution reverted" error code. */
 const JSON_RPC_REVERT_CODE = 3;
 
+/**
+ * Shapes native constant-call reverts as ethers CALL_EXCEPTION errors so the
+ * SDK's missing-selector detection (see @hyperlane-xyz/sdk contract utils)
+ * recognizes them exactly as it would an eth_call revert.
+ */
+const callExceptionLogger = new utils.Logger('tron-sdk');
+
 function nextInChain(node: Record<string, unknown>): unknown {
   return node.error ?? node.cause;
 }
@@ -201,16 +208,39 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
       this.maxRetries,
       this.baseRetryMs,
     );
-    // A `constant_result` array means the VM executed — including a revert,
-    // whose return/revert data lands in constant_result[0] (empty -> 0x). This
-    // mirrors eth_call so the SDK's missing-selector probe sees the empty data.
-    if (response.constant_result) {
-      return ensure0x(response.constant_result[0] ?? '');
+    const { result, constant_result } = response;
+
+    // SUCCESS: the VM executed successfully; its return data lands in
+    // constant_result[0] (empty -> 0x). Only a successful execution returns
+    // data — a revert must not reach ABI decoding as if it were return data.
+    if (result?.result === true) {
+      return ensure0x(constant_result?.[0] ?? '');
     }
-    // No constant_result means the call failed before execution (bad request,
-    // contract not found, disabled API, malformed response). Surface the node's
-    // decoded message rather than masking a real failure as an empty return.
-    const rawMessage = response.result?.message;
+
+    // EXECUTED-REVERT: a `constant_result` on a non-success means the VM ran and
+    // reverted; its revert bytes land in constant_result[0] (empty -> 0x for a
+    // reasonless revert). Surface it as a CALL_EXCEPTION carrying that data so
+    // the SDK's missing-selector detection recognizes a reasonless (0x) revert
+    // as a missing selector, while a revert WITH data propagates as a real
+    // revert — mirroring what ethers' eth_call would surface.
+    if (constant_result) {
+      const data = ensure0x(constant_result[0] ?? '');
+      const rawMessage = result?.message;
+      const reason = rawMessage
+        ? this.tronWeb.toUtf8(rawMessage)
+        : 'execution reverted';
+      throw callExceptionLogger.makeError(
+        `Tron constant call reverted: ${reason}`,
+        utils.Logger.errors.CALL_EXCEPTION,
+        { data },
+      );
+    }
+
+    // PRE-EXECUTION FAILURE: no constant_result means the call failed before
+    // execution (bad request, contract not found, disabled API, malformed
+    // response). Surface the node's decoded message rather than masking a real
+    // failure as an empty return.
+    const rawMessage = result?.message;
     const message = rawMessage
       ? this.tronWeb.toUtf8(rawMessage)
       : 'unknown error';

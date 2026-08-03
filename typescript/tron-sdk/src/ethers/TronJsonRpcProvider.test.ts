@@ -115,6 +115,17 @@ function throwingSend(error: Error): SendImpl {
   };
 }
 
+async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
+  let thrown: unknown;
+  try {
+    await promise;
+  } catch (error: unknown) {
+    thrown = error;
+  }
+  expect(thrown, 'expected the call to reject').to.exist;
+  return thrown;
+}
+
 describe('TronJsonRpcProvider', () => {
   describe('perform (eth_call-first with native fallback)', () => {
     it('returns the eth_call result without touching the native endpoint', async () => {
@@ -132,17 +143,6 @@ describe('TronJsonRpcProvider', () => {
       expect(result).to.equal('0x1234');
       expect(captured.calls).to.equal(0);
     });
-
-    async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
-      let thrown: unknown;
-      try {
-        await promise;
-      } catch (error: unknown) {
-        thrown = error;
-      }
-      expect(thrown, 'expected the call to reject').to.exist;
-      return thrown;
-    }
 
     it('rethrows a reverting read (revert message) without touching native', async () => {
       const provider = makeProvider();
@@ -263,28 +263,65 @@ describe('TronJsonRpcProvider', () => {
       expect(captured.value?.payload.data).to.equal('7f5a7c7b');
     });
 
-    it('returns 0x for a reverted execution (empty constant_result) without throwing', async () => {
+    it('throws a CALL_EXCEPTION with 0x data for a reasonless revert (empty constant_result)', async () => {
       const provider = fallbackProvider();
       stubFullNode(provider, {
-        result: { result: false, message: 'REVERT opcode executed' },
+        result: {
+          result: false,
+          message: realTronWeb.fromUtf8('REVERT opcode executed'),
+        },
         constant_result: [],
       });
 
-      const result = await provider.call({ to: CONTRACT, data: SELECTOR });
+      const thrown = await rejectionOf(
+        provider.call({ to: CONTRACT, data: SELECTOR }),
+      );
 
-      expect(result).to.equal('0x');
+      expect(thrown).to.have.property(
+        'code',
+        utils.Logger.errors.CALL_EXCEPTION,
+      );
+      expect(thrown).to.have.property('data', '0x');
     });
 
-    it('returns 0x for a reverted execution with an empty-string constant_result', async () => {
+    it('throws a CALL_EXCEPTION with 0x data for a reasonless revert (empty-string constant_result)', async () => {
       const provider = fallbackProvider();
       stubFullNode(provider, {
         result: { result: false },
         constant_result: [''],
       });
 
-      const result = await provider.call({ to: CONTRACT, data: SELECTOR });
+      const thrown = await rejectionOf(
+        provider.call({ to: CONTRACT, data: SELECTOR }),
+      );
 
-      expect(result).to.equal('0x');
+      expect(thrown).to.have.property(
+        'code',
+        utils.Logger.errors.CALL_EXCEPTION,
+      );
+      expect(thrown).to.have.property('data', '0x');
+    });
+
+    it('throws a CALL_EXCEPTION carrying the revert data for a revert with data', async () => {
+      const provider = fallbackProvider();
+      // ABI-encoded Error(string) revert payload.
+      const REVERT_DATA =
+        '08c379a00000000000000000000000000000000000000000000000000000000000000020';
+      stubFullNode(provider, {
+        result: { result: false },
+        constant_result: [REVERT_DATA],
+      });
+
+      const thrown = await rejectionOf(
+        provider.call({ to: CONTRACT, data: SELECTOR }),
+      );
+
+      expect(thrown).to.have.property(
+        'code',
+        utils.Logger.errors.CALL_EXCEPTION,
+      );
+      // Non-empty revert data must NOT be recognized as a missing selector.
+      expect(thrown).to.have.property('data', `0x${REVERT_DATA}`);
     });
 
     it('throws the decoded message on a pre-execution failure (no constant_result)', async () => {
