@@ -21,14 +21,14 @@ import { getFixedRoutingFeeConfig } from './utils.js';
  * - TVM:  tron
  * - SVM:  solanamainnet
  *
- * Fee: 10 bps withdrawal fee. Charged on the EVM + tron lanes via a RoutingFee
- * whose per-destination contracts are OffchainQuotedLinearFee on EVM origins and
- * a plain LinearFee on tron (tron's fee contract charges the flat fee directly,
- * without an offchain quote — the offchain quote-verification path is only wired
- * for EVM origins, same as the eni/USDT route). The SVM (solana) leg carries no
- * on-chain tokenFee: no registry route expresses an SVM-leg fee in its deploy
- * config, and the withdrawal fee on solana-origin transfers is enforced via
- * standing SVM quotes post-deploy, not through this getter.
+ * Fee: 10 bps withdrawal fee on EVERY leg. Charged via a per-chain RoutingFee
+ * whose per-destination contracts are OffchainQuotedLinearFee on all origins —
+ * ethereum, bsc, tron AND solana. OffchainQuotedLinearFee is supported on
+ * Ethereum, Tron and Sealevel, and a single secp256k1/H160 quote signer
+ * authorises quotes across all three VMs (viem address == recovered H160). This
+ * getter only deploys the fee contracts + quote-signer whitelist; the standing
+ * withdrawal-fee quotes themselves are submitted post-deploy via
+ * `hyperlane warp quote create` (no live quoting service required).
  *
  * Env-dynamic: the shared builder is parameterised on ownership, fee owners and
  * quote signers so the production (AW FPWR) and staging (Haggis deployer) getters
@@ -38,15 +38,15 @@ export const evmDeploymentChains = ['ethereum', 'bsc'] as const;
 export const tvmDeploymentChains = ['tron'] as const;
 export const svmDeploymentChains = ['solanamainnet'] as const;
 
-// Chains that participate in the withdrawal fee (both charge it and are charged
-// as destinations). SVM is intentionally excluded.
-export const feeChains = ['ethereum', 'bsc', 'tron'] as const;
-
 export const deploymentChains = [
   ...evmDeploymentChains,
   ...tvmDeploymentChains,
   ...svmDeploymentChains,
 ] as const;
+
+// Every chain both charges the withdrawal fee (as origin) and is charged as a
+// destination — including solana.
+export const feeChains = deploymentChains;
 
 export type DeploymentChain = (typeof deploymentChains)[number];
 export type FeeChain = (typeof feeChains)[number];
@@ -97,13 +97,16 @@ const stagingFeeOwnersByChain: Record<FeeChain, string> = {
   ethereum: STAGING_EVM_DEPLOYER,
   bsc: STAGING_EVM_DEPLOYER,
   tron: STAGING_EVM_DEPLOYER,
+  solanamainnet: STAGING_SVM_DEPLOYER,
 };
 
 export interface WBTCWarpConfigOptions {
   ownersByChain: Record<DeploymentChain, string>;
-  // Fee owner per fee chain (production: dedicated warp-fee Safe/ICA; staging: deployer)
+  // Fee owner per fee chain (production: dedicated warp-fee Safe/ICA on EVM/TVM,
+  // AW Squads on solana; staging: deployer)
   feeOwnersByChain: Record<FeeChain, string>;
-  // EIP-712 quote signers for the OffchainQuotedLinearFee on EVM origins
+  // EIP-712 / secp256k1 quote signers for the OffchainQuotedLinearFee legs. A
+  // single H160 signer is valid across EVM, tron and solana origins.
   quoteSigners: string[];
   tokenMetadata?: { name: string; symbol: string };
   // SVM foreignDeployment program ids. Undefined until the SVM programs are built
@@ -121,8 +124,7 @@ const buildFeeConfig = (
     feeChains.filter((c) => c !== chain),
     WARP_FEE_BPS,
     undefined,
-    // tron's fee contract charges the flat fee directly, without an offchain quote
-    chain === 'tron' ? undefined : quoteSigners,
+    quoteSigners,
   );
 
 export const buildWBTCWarpConfig = async (
@@ -139,48 +141,46 @@ export const buildWBTCWarpConfig = async (
 
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
 
-  // EVM + tron collateral legs (with withdrawal fee)
-  for (const chain of feeChains) {
+  for (const chain of deploymentChains) {
     const feeOwner = feeOwnersByChain[chain];
     assert(feeOwner, `Missing fee owner for chain ${chain}`);
 
-    configs.push([
-      chain,
-      {
-        type: TokenType.collateral,
-        token: WBTC_COLLATERAL[chain],
-        mailbox: routerConfig[chain].mailbox,
-        owner: ownersByChain[chain],
-        decimals: WBTC_DECIMALS,
-        ...tokenMetadata,
-        tokenFee: buildFeeConfig(chain, feeOwner, quoteSigners),
-      },
-    ]);
-  }
-
-  // SVM collateral leg (no tokenFee)
-  configs.push([
-    'solanamainnet',
-    {
+    const base: HypTokenRouterConfig = {
       type: TokenType.collateral,
-      token: WBTC_COLLATERAL.solanamainnet,
-      mailbox: routerConfig.solanamainnet.mailbox,
-      owner: ownersByChain.solanamainnet,
-      hook: SOLANA_IGP_ADDRESS,
-      gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
+      token: WBTC_COLLATERAL[chain],
+      mailbox: routerConfig[chain].mailbox,
+      owner: ownersByChain[chain],
       decimals: WBTC_DECIMALS,
       ...tokenMetadata,
-      ...(programIds?.solanamainnet && {
-        foreignDeployment: programIds.solanamainnet,
-      }),
-    },
-  ]);
+      tokenFee: buildFeeConfig(chain, feeOwner, quoteSigners),
+    };
+
+    // SVM leg additionally carries the IGP hook + handler gas, and the built
+    // program id once available.
+    if (chain === 'solanamainnet') {
+      configs.push([
+        chain,
+        {
+          ...base,
+          hook: SOLANA_IGP_ADDRESS,
+          gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
+          ...(programIds?.solanamainnet && {
+            foreignDeployment: programIds.solanamainnet,
+          }),
+        },
+      ]);
+    } else {
+      configs.push([chain, base]);
+    }
+  }
 
   return Object.fromEntries(configs);
 };
 
 // Production: AW FPWR ownership; fee owners are the dedicated warp-fee governance
-// accounts (getWarpFeeOwner), matching the other First Party HWRs.
+// accounts (getWarpFeeOwner) on EVM/TVM, matching the other First Party HWRs.
+// Solana has no dedicated warp-fee account, so its fee owner is the AW Squads
+// route owner.
 export const getWBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> =>
@@ -190,6 +190,7 @@ export const getWBTCWarpConfig = async (
       ethereum: getWarpFeeOwner('ethereum'),
       bsc: getWarpFeeOwner('bsc'),
       tron: getWarpFeeOwner('tron'),
+      solanamainnet: chainOwners.solanamainnet.owner,
     },
     quoteSigners: [WARP_QUOTE_SIGNER],
   });
