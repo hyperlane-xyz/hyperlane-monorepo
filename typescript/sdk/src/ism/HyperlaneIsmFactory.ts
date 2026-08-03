@@ -559,7 +559,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
         break;
       default:
-        throw new Error('Unsupported multisig ISM type');
+        throw new Error(`Unsupported multisig ISM type: ${config.type}`);
     }
 
     return IMultisigIsm__factory.connect(address, signer);
