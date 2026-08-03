@@ -12,7 +12,12 @@ import {
   IProviderMethods,
   ProviderMethod,
 } from './ProviderMethods.js';
-import { RpcConfigWithConnectionInfo } from './types.js';
+import {
+  getMultiAddressLogs,
+  isMultiAddressFilter,
+  normalizeMultiAddress,
+} from './logFilters.js';
+import { HyperlaneLogFilter, RpcConfigWithConnectionInfo } from './types.js';
 
 const NUM_LOG_BLOCK_RANGES_TO_QUERY = 10;
 const NUM_PARALLEL_LOG_QUERIES = 5;
@@ -40,7 +45,34 @@ export class HyperlaneJsonRpcProvider
     if (method === ProviderMethod.MaxPriorityFeePerGas) {
       return ['eth_maxPriorityFeePerGas', []];
     }
+    if (
+      method === ProviderMethod.GetLogs &&
+      Array.isArray(params?.filter?.address)
+    ) {
+      const normalizedAddresses = normalizeMultiAddress(
+        params.filter.address,
+      ).map((address) => address.toLowerCase());
+      return [
+        'eth_getLogs',
+        [
+          {
+            ...params.filter,
+            address: normalizedAddresses,
+          },
+        ],
+      ];
+    }
     return super.prepareRequest(method, params);
+  }
+
+  override async getLogs(
+    filter: HyperlaneLogFilter | Promise<HyperlaneLogFilter>,
+  ): Promise<providers.Log[]> {
+    const resolvedFilter = await filter;
+    if (!isMultiAddressFilter(resolvedFilter)) {
+      return super.getLogs(resolvedFilter);
+    }
+    return getMultiAddressLogs(this, resolvedFilter);
   }
 
   async perform(method: string, params: any, reqId?: number): Promise<any> {
@@ -82,11 +114,12 @@ export class HyperlaneJsonRpcProvider
     return result;
   }
 
-  async performGetLogs(params: { filter: providers.Filter }): Promise<any> {
+  async performGetLogs(params: { filter: HyperlaneLogFilter }): Promise<any> {
     const superPerform = () => super.perform(ProviderMethod.GetLogs, params);
 
     const paginationOptions = this.rpcConfig.pagination;
-    if (!paginationOptions || !params.filter) return superPerform();
+    if (!paginationOptions || !params.filter || 'blockHash' in params.filter)
+      return superPerform();
 
     const { fromBlock, toBlock, address, topics } = params.filter;
     const { maxBlockRange, minBlockNumber, maxBlockAge } = paginationOptions;

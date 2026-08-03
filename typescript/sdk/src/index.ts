@@ -587,6 +587,7 @@ export {
 } from './providers/SmartProvider/ProviderMethods.js';
 export { HyperlaneSmartProvider } from './providers/SmartProvider/SmartProvider.js';
 export {
+  HyperlaneLogFilter,
   ProviderRetryOptions,
   SmartProviderOptions,
 } from './providers/SmartProvider/types.js';

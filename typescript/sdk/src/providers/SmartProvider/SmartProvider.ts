@@ -20,8 +20,10 @@ import {
 import { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
 import { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
 import { IProviderMethods, ProviderMethod } from './ProviderMethods.js';
+import { getMultiAddressLogs, isMultiAddressFilter } from './logFilters.js';
 import {
   ChainMetadataWithRpcConnectionInfo,
+  HyperlaneLogFilter,
   ProviderPerformResult,
   ProviderStatus,
   ProviderTimeoutResult,
@@ -361,11 +363,20 @@ export class HyperlaneSmartProvider
     const allProviders = [...this.explorerProviders, ...this.rpcProviders];
     if (!allProviders.length) throw new Error('No providers available');
 
-    const supportedProviders = allProviders.filter((p) =>
-      p.supportedMethods.includes(method as ProviderMethod),
+    const isMultiAddressGetLogs =
+      method === ProviderMethod.GetLogs &&
+      Array.isArray(params?.filter?.address);
+    const supportedProviders = allProviders.filter(
+      (provider) =>
+        provider.supportedMethods.includes(method as ProviderMethod) &&
+        (!isMultiAddressGetLogs || !this.isExplorerProvider(provider)),
     );
     if (!supportedProviders.length)
-      throw new Error(`No providers available for method ${method}`);
+      throw new Error(
+        isMultiAddressGetLogs
+          ? 'No RPC providers available for multi-address getLogs'
+          : `No providers available for method ${method}`,
+      );
 
     this.requestCount += 1;
     const reqId = this.requestCount;
@@ -385,6 +396,16 @@ export class HyperlaneSmartProvider
       this.options?.maxRetries || DEFAULT_MAX_RETRIES,
       this.options?.baseRetryDelayMs || DEFAULT_BASE_RETRY_DELAY_MS,
     );
+  }
+
+  override async getLogs(
+    filter: HyperlaneLogFilter | Promise<HyperlaneLogFilter>,
+  ): Promise<providers.Log[]> {
+    const resolvedFilter = await filter;
+    if (!isMultiAddressFilter(resolvedFilter)) {
+      return super.getLogs(resolvedFilter);
+    }
+    return getMultiAddressLogs(this, resolvedFilter);
   }
 
   /**
