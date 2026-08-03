@@ -15,7 +15,8 @@
  * - RPC_URL_<CHAIN>: Override RPC URL for a specific chain (e.g., RPC_URL_ETHEREUM, RPC_URL_ARBITRUM)
  * - EXPLORER_API_URL: Hyperlane explorer GraphQL endpoint for pending transfer liabilities (optional)
  * - EXPLORER_QUERY_LIMIT: Max pending transfer rows fetched per cycle (default: 200)
- * - INVENTORY_ADDRESS: Address whose per-node inventory balances should be tracked (optional)
+ * - INVENTORY_ADDRESS: Default Ethereum address whose per-node inventory balances should be tracked (optional)
+ * - INVENTORY_ADDRESS_<PROTOCOL>: Protocol-specific inventory address (e.g. INVENTORY_ADDRESS_ETHEREUM, INVENTORY_ADDRESS_SEALEVEL) (optional)
  *
  * Usage:
  *   node dist/service.js
@@ -112,7 +113,6 @@ async function main(): Promise<void> {
   }
 }
 
-// Run the service
 main().catch((error) => {
   rootLogger.error({ error }, 'Fatal error');
   process.exit(1);
