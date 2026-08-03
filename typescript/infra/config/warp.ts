@@ -44,6 +44,8 @@ import {
   getEclipseUSDTWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getEclipseUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
+import { getWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getWBTCWarpConfig.js';
+import { getWBTCSTAGEWarpConfig } from './environments/mainnet3/warp/configGetters/getWBTCSTAGEWarpConfig.js';
 import {
   getEclipseUSDCSTAGEWarpConfig,
   getUSDCSTAGEEclipseFileSubmitterStrategyConfig,
@@ -127,6 +129,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.ETHSTAGEStage]: getETHStageWarpConfig,
   [WarpRouteIds.EclipseUSDT]: getEclipseUSDTWarpConfig,
   [WarpRouteIds.EclipseEthereumWBTC]: getEclipseEthereumWBTCWarpConfig,
+  [WarpRouteIds.WBTC]: getWBTCWarpConfig,
+  [WarpRouteIds.WBTCSTAGE]: getWBTCSTAGEWarpConfig,
   [WarpRouteIds.BaseEthereumREZ]: getREZBaseEthereumWarpConfig,
   [WarpRouteIds.BaseEthereumREZSTAGING]: getRezStagingWarpConfig,
   [WarpRouteIds.CarrChainCARR]: getCarrChainCARRWarpConfig,
