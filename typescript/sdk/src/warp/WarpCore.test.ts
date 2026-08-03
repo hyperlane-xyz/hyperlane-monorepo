@@ -841,6 +841,57 @@ describe('WarpCore', () => {
     });
   });
 
+  it('Quotes the interchain transfer fee once during an xERC20 validateTransfer', async () => {
+    // A single shared quote stub across every token adapter. Asserting it fires
+    // exactly once proves validateTransfer hoists the interchain fee quote and
+    // reuses it across the origin burn-limit and token-balance checks instead
+    // of quoting twice.
+    // Quote the IGP fee in the origin xERC20 asset (via its addressOrDenom) so
+    // the interchain-fee balance check reuses the sender balance rather than
+    // looking up a native token that isn't part of the stubbed token set.
+    const quoteTransferRemoteGas = sinon.stub().resolves({
+      igpQuote: {
+        amount: MOCK_INTERCHAIN_QUOTE.amount,
+        addressOrDenom: evmHypXERC20.addressOrDenom,
+      },
+    });
+    const minimumTransferAmount = 10n;
+
+    warpCore.tokens.forEach((t) => {
+      sinon.stub(t, 'getBalance').resolves(t.amount(MOCK_BALANCE));
+      sinon.stub(t, 'getHypAdapter').returns({
+        quoteTransferRemoteGas,
+        isApproveRequired: () => Promise.resolve(false),
+        populateTransferRemoteTx: () => Promise.resolve({}),
+        getMinimumTransferAmount: () => Promise.resolve(minimumTransferAmount),
+        getBalance: () => Promise.resolve(MOCK_BALANCE),
+        getBridgedSupply: () => Promise.resolve(MOCK_BALANCE),
+        getMintLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
+        getMintMaxLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
+        isRevokeApprovalRequired: () => Promise.resolve(false),
+      } as unknown as IHypTokenAdapter<unknown>);
+      // validateOriginCollateral reads the burn limit via getAdapter (not the
+      // Hyp adapter). Keep it well above the transfer so the xERC20 origin path
+      // passes and execution reaches validateTokenBalances.
+      sinon.stub(t, 'getAdapter').returns({
+        getBurnLimit: () => Promise.resolve(BIG_TRANSFER_AMOUNT),
+        getMinimumTransferAmount: () => Promise.resolve(minimumTransferAmount),
+        getBalance: () => Promise.resolve(MOCK_BALANCE),
+        isApproveRequired: () => Promise.resolve(false),
+      } as unknown as ITokenAdapter<unknown>);
+    });
+
+    const result = await warpCore.validateTransfer({
+      originTokenAmount: evmHypXERC20.amount(TRANSFER_AMOUNT),
+      destination: test1.name,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
+    });
+
+    expect(result).to.be.null;
+    sinon.assert.calledOnce(quoteTransferRemoteGas);
+  });
+
   it('Validates Tron destination rate limits', async () => {
     const standards = [
       TokenStandard.TronHypXERC20,

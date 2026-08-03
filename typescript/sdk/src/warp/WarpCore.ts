@@ -71,6 +71,11 @@ export interface WarpCoreOptions {
   routeBlacklist?: RouteBlacklist;
 }
 
+export interface InterchainTransferFeeQuote {
+  igpQuote: TokenAmount<IToken>;
+  tokenFeeQuote?: TokenAmount<IToken>;
+}
+
 const DESTINATION_COLLATERAL_EXEMPT_TOKEN_TYPES = new Set<TokenType>([
   TokenType.collateralCctp,
   TokenType.collateralOft,
@@ -178,10 +183,7 @@ export class WarpCore {
     sender?: Address;
     recipient: Address;
     destinationToken?: IToken;
-  }): Promise<{
-    igpQuote: TokenAmount<IToken>;
-    tokenFeeQuote?: TokenAmount<IToken>;
-  }> {
+  }): Promise<InterchainTransferFeeQuote> {
     this.logger.debug(`Fetching interchain transfer quote to ${destination}`);
     const { amount, token: originToken } = originTokenAmount;
     const originName = originToken.chainName;
@@ -1325,12 +1327,24 @@ export class WarpCore {
     );
     if (destinationCollateralError) return destinationCollateralError;
 
+    // Quote the interchain transfer fee once and reuse it across the origin
+    // burn-limit and token-balance checks so both use identical values and we
+    // avoid a redundant remote quote.
+    const interchainFee = await this.getInterchainTransferFee({
+      originTokenAmount,
+      destination,
+      sender,
+      recipient,
+      destinationToken: resolvedDestinationToken,
+    });
+
     const originCollateralError = await this.validateOriginCollateral(
       originTokenAmount,
       destination,
       recipient,
       sender,
       resolvedDestinationToken,
+      interchainFee,
     );
     if (originCollateralError) return originCollateralError;
 
@@ -1342,6 +1356,7 @@ export class WarpCore {
       senderPubKey,
       attestation,
       resolvedDestinationToken,
+      interchainFee,
     );
     if (balancesError) return balancesError;
 
@@ -1467,6 +1482,7 @@ export class WarpCore {
     senderPubKey?: HexString,
     attestation?: PredicateAttestation,
     destinationToken?: IToken,
+    interchainFee?: InterchainTransferFeeQuote,
   ): Promise<Record<string, string> | null> {
     const { token: originToken, amount } = originTokenAmount;
 
@@ -1483,13 +1499,14 @@ export class WarpCore {
     // Slightly redundant with Check 5 but gives more specific error messages
 
     const { igpQuote: interchainQuote, tokenFeeQuote } =
-      await this.getInterchainTransferFee({
+      interchainFee ??
+      (await this.getInterchainTransferFee({
         originTokenAmount,
         destination,
         sender,
         recipient,
         destinationToken,
-      });
+      }));
     // Get balance of the IGP fee token, which may be different from the transfer token
     const interchainQuoteTokenBalance = originToken.isFungibleWith(
       interchainQuote.token,
@@ -1679,6 +1696,7 @@ export class WarpCore {
     recipient: Address,
     sender?: Address,
     destinationToken?: IToken,
+    interchainFee?: InterchainTransferFeeQuote,
   ): Promise<Record<string, string> | null> {
     const { token: originToken, amount } = originTokenAmount;
     const adapter = originToken.getAdapter(this.multiProvider);
@@ -1688,13 +1706,15 @@ export class WarpCore {
       // the same asset being burned (token-denominated hook fee). The IGP /
       // native gas fee is paid separately and does not count toward the burn
       // limit, so only add fees fungible with the origin token.
-      const { tokenFeeQuote } = await this.getInterchainTransferFee({
-        originTokenAmount,
-        destination,
-        sender,
-        recipient,
-        destinationToken,
-      });
+      const { tokenFeeQuote } =
+        interchainFee ??
+        (await this.getInterchainTransferFee({
+          originTokenAmount,
+          destination,
+          sender,
+          recipient,
+          destinationToken,
+        }));
       const originTokenFee =
         tokenFeeQuote && originToken.isFungibleWith(tokenFeeQuote.token)
           ? tokenFeeQuote.amount
