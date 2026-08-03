@@ -121,6 +121,45 @@ impl ValidatorSubmitter {
         };
 
         loop {
+            // Cheap, base-hook-only (private RPC) tip check. `latest_checkpoint()` may be
+            // quorum-verified (fanning out to public RPCs, see
+            // `ValidatorMultiRpcQuorumMerkleTreeHook`); only call it when this indicates
+            // there's actually a new leaf to catch up to, so idle chains stop polling public
+            // RPCs once caught up instead of doing so every `interval` regardless of message
+            // throughput.
+            let observed_count = call_and_retry_indefinitely(|| {
+                let merkle_tree_hook = self.merkle_tree_hook.clone();
+                let reorg_period = self.reorg_period.clone();
+                Box::pin(async move { merkle_tree_hook.count(&reorg_period).await })
+            })
+            .await;
+
+            if (observed_count as usize) <= tree.count() {
+                // Nothing new since we last caught up: `tree` already reflects the fully
+                // processed state, so report it directly instead of running an unnecessary
+                // quorum-verified round.
+                let observed_checkpoint = CheckpointAtBlock {
+                    checkpoint: self.checkpoint(&tree),
+                    block_height: None,
+                };
+                self.metrics
+                    .set_latest_checkpoint_observed(&observed_checkpoint);
+                if should_log_checkpoint_info() {
+                    info!(
+                        latest_checkpoint = ?observed_checkpoint,
+                        tree_count = tree.count(),
+                        "Latest checkpoint (no new messages)"
+                    );
+                }
+                self.metrics
+                    .latest_checkpoint_processed
+                    .set(observed_checkpoint.index as i64);
+                self.metrics.reached_initial_consistency.set(1);
+
+                sleep(self.interval).await;
+                continue;
+            }
+
             // Lag by reorg period because this is our correctness checkpoint.
             let latest_checkpoint = call_and_retry_indefinitely(|| {
                 let merkle_tree_hook = self.merkle_tree_hook.clone();

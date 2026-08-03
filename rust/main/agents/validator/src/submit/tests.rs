@@ -1,4 +1,11 @@
-use std::{fmt::Debug, sync::Arc, time::Duration};
+use std::{
+    fmt::Debug,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use eyre::Result;
@@ -270,6 +277,141 @@ async fn all_existing_chunks_skip_inter_chunk_throttle() {
         "all-existing chunks must not wait for the inter-chunk throttle"
     );
     task.await.unwrap();
+}
+
+/// Regression test for the public-RPC load fix: `checkpoint_submitter` must not call the
+/// (potentially quorum-verified, public-RPC-fanning) `latest_checkpoint()` when the cheap,
+/// base-hook-only `count()` shows nothing new since `tree` was last caught up.
+#[tokio::test(start_paused = true)]
+async fn checkpoint_submitter_skips_latest_checkpoint_without_new_messages() {
+    let mut tree = IncrementalMerkle::default();
+    tree.ingest(H256::from_low_u64_be(1));
+    tree.ingest(H256::from_low_u64_be(2));
+    tree.ingest(H256::from_low_u64_be(3));
+    let tree_count = tree.count() as u32;
+
+    let count_calls = Arc::new(AtomicBool::new(false));
+    let count_calls_clone = count_calls.clone();
+
+    let mut mock_merkle_tree_hook = MockMerkleTreeHook::new();
+    mock_merkle_tree_hook
+        .expect_address()
+        .returning(|| H256::from_low_u64_be(0));
+    let dummy_domain = dummy_domain(0, "dummy_domain");
+    mock_merkle_tree_hook
+        .expect_domain()
+        .return_const(dummy_domain);
+    mock_merkle_tree_hook.expect_count().returning(move |_| {
+        count_calls_clone.store(true, Ordering::SeqCst);
+        Ok(tree_count)
+    });
+    mock_merkle_tree_hook.expect_latest_checkpoint().never();
+
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let submitter = ValidatorSubmitter::new(
+        Duration::from_secs(1),
+        ReorgPeriod::from_blocks(1),
+        Arc::new(mock_merkle_tree_hook),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(MockCheckpointSyncer::new()),
+        Arc::new(MockDb::new()),
+        dummy_metrics(),
+        1,
+        Arc::new(MockReorgReporter::new()),
+    );
+
+    let task = tokio::spawn(async move {
+        submitter.checkpoint_submitter(tree).await;
+    });
+
+    for _ in 0..5 {
+        tokio::task::yield_now().await;
+        tokio::time::advance(Duration::from_secs(1)).await;
+    }
+    tokio::task::yield_now().await;
+    task.abort();
+    let _ = task.await;
+
+    assert!(
+        count_calls.load(Ordering::SeqCst),
+        "the loop should still poll count() via the private base_hook"
+    );
+    // `expect_latest_checkpoint().never()` above is the real assertion: a panic there would
+    // have failed this test already if it were called.
+}
+
+/// Counterpart to the above: once the cheap `count()` shows a new leaf, `latest_checkpoint()`
+/// (the quorum-verified, public-RPC-fanning read) must still be called to determine what to
+/// sign.
+#[tokio::test(start_paused = true)]
+async fn checkpoint_submitter_fetches_latest_checkpoint_when_new_message_arrives() {
+    let mut tree = IncrementalMerkle::default();
+    tree.ingest(H256::from_low_u64_be(1));
+    tree.ingest(H256::from_low_u64_be(2));
+    let unchanged_tree = tree.clone();
+
+    let latest_checkpoint_called = Arc::new(AtomicBool::new(false));
+    let latest_checkpoint_called_clone = latest_checkpoint_called.clone();
+
+    let mut mock_merkle_tree_hook = MockMerkleTreeHook::new();
+    mock_merkle_tree_hook
+        .expect_address()
+        .returning(|| H256::from_low_u64_be(0));
+    let dummy_domain = dummy_domain(0, "dummy_domain");
+    mock_merkle_tree_hook
+        .expect_domain()
+        .return_const(dummy_domain.clone());
+    // One more leaf is available on-chain than what's locally ingested.
+    let observed_count = unchanged_tree.count() as u32 + 1;
+    mock_merkle_tree_hook
+        .expect_count()
+        .returning(move |_| Ok(observed_count));
+    mock_merkle_tree_hook
+        .expect_latest_checkpoint()
+        .returning(move |_| {
+            latest_checkpoint_called_clone.store(true, Ordering::SeqCst);
+            // Reports the checkpoint as already matching the current tree, so the
+            // submitter has nothing further to ingest/sign in this test.
+            Ok(CheckpointAtBlock {
+                checkpoint: Checkpoint {
+                    root: unchanged_tree.root(),
+                    index: unchanged_tree.index(),
+                    merkle_tree_hook_address: H256::from_low_u64_be(0),
+                    mailbox_domain: dummy_domain.id(),
+                },
+                block_height: Some(1),
+            })
+        });
+
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let submitter = ValidatorSubmitter::new(
+        Duration::from_secs(1),
+        ReorgPeriod::from_blocks(1),
+        Arc::new(mock_merkle_tree_hook),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(MockCheckpointSyncer::new()),
+        Arc::new(MockDb::new()),
+        dummy_metrics(),
+        1,
+        Arc::new(MockReorgReporter::new()),
+    );
+
+    let task = tokio::spawn(async move {
+        submitter.checkpoint_submitter(tree).await;
+    });
+
+    tokio::task::yield_now().await;
+    tokio::time::advance(Duration::from_secs(1)).await;
+    tokio::task::yield_now().await;
+    task.abort();
+    let _ = task.await;
+
+    assert!(
+        latest_checkpoint_called.load(Ordering::SeqCst),
+        "latest_checkpoint() should be called once count() indicates a new leaf"
+    );
 }
 
 fn reorg_event_is_correct(
