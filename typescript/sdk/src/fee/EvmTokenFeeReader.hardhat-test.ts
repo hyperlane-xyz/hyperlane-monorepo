@@ -214,6 +214,41 @@ describe('EvmTokenFeeReader', () => {
     });
   });
 
+  describe('OffchainQuotedPiecewiseLinearFee', () => {
+    it('should round-trip the piecewise fee deployment config', async () => {
+      const config = TokenFeeConfigSchema.parse({
+        type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+        maxFee: MAX_FEE,
+        halfAmount: HALF_AMOUNT,
+        bps: BPS,
+        maxBands: 4,
+        token: token.address,
+        owner: signer.address,
+        quoteSigners: [signer.address],
+      });
+      const deployer = new EvmTokenFeeDeployer(
+        multiProvider,
+        TestChainName.test2,
+      );
+      const deployedContracts = await deployer.deploy({
+        [TestChainName.test2]: config,
+      });
+      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+      const contract =
+        deployedContracts[TestChainName.test2][
+          TokenFeeType.OffchainQuotedPiecewiseLinearFee
+        ];
+
+      const onchainConfig = await reader.deriveTokenFeeConfig({
+        address: contract.address,
+      });
+
+      expect(normalizeConfig(onchainConfig)).to.deep.equal(
+        normalizeConfig(config),
+      );
+    });
+  });
+
   describe('RoutingFee', () => {
     it('should be able to derive a routing fee config and its sub fees', async () => {
       const routingFeeConfig: TokenFeeConfig = {

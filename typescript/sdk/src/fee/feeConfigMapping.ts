@@ -38,6 +38,16 @@ export function tokenFeeInputToFeeConfig(
         quoteSigners: input.quoteSigners ?? [],
       };
 
+    case TokenFeeType.OffchainQuotedPiecewiseLinearFee:
+      return {
+        type: input.type,
+        owner: input.owner,
+        beneficiary,
+        params: toFeeParams(input),
+        quoteSigners: input.quoteSigners ?? [],
+        maxBands: input.maxBands,
+      };
+
     case TokenFeeType.RoutingFee:
       return {
         type: input.type,
@@ -88,6 +98,14 @@ function toFeeStrategy(input: TokenFeeConfigInput): FeeStrategy {
         type: input.type,
         params: toFeeParams(input),
         quoteSigners: input.quoteSigners ?? [],
+      };
+
+    case TokenFeeType.OffchainQuotedPiecewiseLinearFee:
+      return {
+        type: input.type,
+        params: toFeeParams(input),
+        quoteSigners: input.quoteSigners ?? [],
+        maxBands: input.maxBands,
       };
 
     default: {

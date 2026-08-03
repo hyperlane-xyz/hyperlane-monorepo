@@ -7,7 +7,7 @@ import {
   ERC20Test__factory,
   LinearFee__factory,
   OffchainQuotedLinearFee__factory,
-  ProgressiveFee__factory,
+  OffchainQuotedPiecewiseLinearFee__factory,
 } from '@hyperlane-xyz/core';
 import { addressToBytes32, randomInt } from '@hyperlane-xyz/utils';
 
@@ -363,6 +363,40 @@ describe('EvmTokenFeeDeployer', () => {
     expect(signers).to.include(otherSigner.address);
   });
 
+  it('should deploy OffchainQuotedPiecewiseLinearFee with correct parameters', async () => {
+    const [, otherSigner] = await hre.ethers.getSigners();
+    const config = TokenFeeConfigSchema.parse({
+      type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+      token: token.address,
+      owner: signer.address,
+      maxFee: MAX_FEE,
+      halfAmount: HALF_AMOUNT,
+      bps: BPS,
+      maxBands: 4,
+      quoteSigners: [signer.address, otherSigner.address],
+    });
+
+    const deployedContracts = await deployer.deploy({
+      [TestChainName.test2]: config,
+    });
+    const deployed =
+      deployedContracts[TestChainName.test2][
+        TokenFeeType.OffchainQuotedPiecewiseLinearFee
+      ];
+    const fee = OffchainQuotedPiecewiseLinearFee__factory.connect(
+      deployed.address,
+      signer,
+    );
+
+    expect(await fee.owner()).to.equal(signer.address);
+    expect(await fee.token()).to.equal(token.address);
+    expect(await fee.maxBands()).to.equal(4);
+    expect(await fee.quoteSigners()).to.have.members([
+      signer.address,
+      otherSigner.address,
+    ]);
+  });
+
   it('should deploy CrossCollateralRoutingFee with router-keyed fee contracts', async () => {
     const routerKey = hre.ethers.utils.hexZeroPad(signer.address, 32);
     const config = CrossCollateralRoutingFeeConfigSchema.parse({
@@ -379,11 +413,14 @@ describe('EvmTokenFeeDeployer', () => {
             bps: BPS,
           },
           [routerKey]: {
-            type: TokenFeeType.ProgressiveFee,
+            type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
             token: token.address,
             owner: signer.address,
             maxFee: MAX_FEE,
             halfAmount: HALF_AMOUNT,
+            bps: BPS,
+            maxBands: 4,
+            quoteSigners: [signer.address],
           },
         },
       },
@@ -411,7 +448,7 @@ describe('EvmTokenFeeDeployer', () => {
       defaultFeeAddress,
       signer,
     );
-    const routerFeeContract = ProgressiveFee__factory.connect(
+    const routerFeeContract = OffchainQuotedPiecewiseLinearFee__factory.connect(
       routerFeeAddress,
       signer,
     );
@@ -422,5 +459,6 @@ describe('EvmTokenFeeDeployer', () => {
     expect(await defaultFeeContract.token()).to.equal(token.address);
     expect(await routerFeeContract.owner()).to.equal(config.owner);
     expect(await routerFeeContract.token()).to.equal(token.address);
+    expect(await routerFeeContract.maxBands()).to.equal(4);
   });
 });

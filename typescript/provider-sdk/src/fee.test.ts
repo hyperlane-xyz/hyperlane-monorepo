@@ -698,6 +698,46 @@ describe('fee type support', () => {
         },
         redeploy: false,
       },
+      {
+        name: 'redeploys offchainQuotedPiecewiseLinear when maxBands changes',
+        actual: {
+          type: FeeType.offchainQuotedPiecewiseLinear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: rawParams('1000', '500'),
+          quoteSigners: ['0xsigner1'],
+          maxBands: 4,
+        },
+        expected: {
+          type: FeeType.offchainQuotedPiecewiseLinear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: rawParams('1000', '500'),
+          quoteSigners: ['0xsigner1'],
+          maxBands: 8,
+        },
+        redeploy: true,
+      },
+      {
+        name: 'does not redeploy offchainQuotedPiecewiseLinear when only quoteSigners change',
+        actual: {
+          type: FeeType.offchainQuotedPiecewiseLinear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: rawParams('1000', '500'),
+          quoteSigners: ['0xsigner1'],
+          maxBands: 4,
+        },
+        expected: {
+          type: FeeType.offchainQuotedPiecewiseLinear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: rawParams('1000', '500'),
+          quoteSigners: ['0xsigner1', '0xsigner2'],
+          maxBands: 4,
+        },
+        redeploy: false,
+      },
     ];
 
     for (const { name, actual, expected, redeploy } of cases) {

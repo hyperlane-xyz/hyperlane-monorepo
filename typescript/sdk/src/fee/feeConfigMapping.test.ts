@@ -103,6 +103,25 @@ describe('tokenFeeInputToFeeConfig', () => {
     }
   });
 
+  it('maps OffchainQuotedPiecewiseLinearFee with its maximum band count', () => {
+    const input: TokenFeeConfigInput = {
+      type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+      owner: OWNER,
+      bps: 3,
+      maxBands: 4,
+      quoteSigners: [SIGNER_A],
+    };
+
+    expect(tokenFeeInputToFeeConfig(input)).to.deep.equal({
+      type: FeeType.offchainQuotedPiecewiseLinear,
+      owner: OWNER,
+      beneficiary: OWNER,
+      params: { type: FeeParamsType.bps, bps: 3 },
+      quoteSigners: [SIGNER_A],
+      maxBands: 4,
+    });
+  });
+
   it('maps RoutingFee over per-destination leaf strategies', () => {
     const input: TokenFeeConfigInput = {
       type: TokenFeeType.RoutingFee,

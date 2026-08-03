@@ -23,6 +23,7 @@ export enum OnchainTokenFeeType {
   RoutingFee = 4,
   CrossCollateralRoutingFee = 5,
   OffchainQuotedLinearFee = 6,
+  OffchainQuotedPiecewiseLinearFee = 7,
 }
 
 export const TokenFeeType = {
@@ -32,6 +33,7 @@ export const TokenFeeType = {
   RoutingFee: 'RoutingFee',
   CrossCollateralRoutingFee: 'CrossCollateralRoutingFee',
   OffchainQuotedLinearFee: 'OffchainQuotedLinearFee',
+  OffchainQuotedPiecewiseLinearFee: 'OffchainQuotedPiecewiseLinearFee',
 } as const;
 
 export type TokenFeeType = (typeof TokenFeeType)[keyof typeof TokenFeeType];
@@ -55,6 +57,8 @@ export const onChainTypeToTokenFeeTypeMap: Record<
     TokenFeeType.CrossCollateralRoutingFee,
   [OnchainTokenFeeType.OffchainQuotedLinearFee]:
     TokenFeeType.OffchainQuotedLinearFee,
+  [OnchainTokenFeeType.OffchainQuotedPiecewiseLinearFee]:
+    TokenFeeType.OffchainQuotedPiecewiseLinearFee,
 };
 
 // keccak256("RoutingFee.DEFAULT_ROUTER") — same wildcard slot as provider-sdk's
@@ -211,6 +215,67 @@ export type OffchainQuotedLinearFeeInputConfig = z.infer<
   typeof OffchainQuotedLinearFeeInputConfigSchema
 >;
 
+export const OffchainQuotedPiecewiseLinearFeeConfigSchema =
+  BpsConfigSchema.merge(QuoteSignersSchema).extend({
+    type: z.literal(TokenFeeType.OffchainQuotedPiecewiseLinearFee),
+    maxBands: z.number().int().min(1).max(256),
+  });
+export type OffchainQuotedPiecewiseLinearFeeConfig = z.infer<
+  typeof OffchainQuotedPiecewiseLinearFeeConfigSchema
+>;
+
+export const OffchainQuotedPiecewiseLinearFeeInputConfigSchema =
+  BaseFeeConfigInputSchema.merge(QuoteSignersSchema)
+    .extend({
+      type: z.literal(TokenFeeType.OffchainQuotedPiecewiseLinearFee),
+      maxBands: z.number().int().min(1).max(256),
+      bps: ZBps.optional(),
+      ...FeeParametersSchema.partial().shape,
+    })
+    .superRefine((v, ctx) => {
+      const hasBps = v.bps !== undefined;
+      const hasFeeParams = v.maxFee !== undefined && v.halfAmount !== undefined;
+
+      if (!hasBps && !hasFeeParams) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['bps'],
+          message: 'Provide bps or both maxFee and halfAmount',
+        });
+      }
+
+      if (hasBps && v.bps! <= 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['bps'],
+          message: 'bps must be > 0',
+        });
+      }
+
+      if (hasBps && !isBpsPrecisionValid(v.bps!)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['bps'],
+          message: `bps must have at most ${MAX_BPS_DECIMALS} decimal places`,
+        });
+      }
+
+      if (v.halfAmount === 0n) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['halfAmount'],
+          message: 'halfAmount must be > 0',
+        });
+      }
+    })
+    .transform((v) => ({
+      ...v,
+      bps: v.bps ?? convertToBps(v.maxFee!, v.halfAmount!),
+    }));
+export type OffchainQuotedPiecewiseLinearFeeInputConfig = z.infer<
+  typeof OffchainQuotedPiecewiseLinearFeeInputConfigSchema
+>;
+
 export const ProgressiveFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
   type: z.literal(TokenFeeType.ProgressiveFee),
 });
@@ -321,6 +386,7 @@ export type CrossCollateralRoutingFeeInputConfig = z.infer<
 export const TokenFeeConfigSchema = z.discriminatedUnion('type', [
   LinearFeeConfigSchema,
   OffchainQuotedLinearFeeConfigSchema,
+  OffchainQuotedPiecewiseLinearFeeConfigSchema,
   ProgressiveFeeConfigSchema,
   RegressiveFeeConfigSchema,
   RoutingFeeConfigSchema,
@@ -331,6 +397,7 @@ export type TokenFeeConfig = z.infer<typeof TokenFeeConfigSchema>;
 export const TokenFeeConfigInputSchema = z.union([
   LinearFeeInputConfigSchema,
   OffchainQuotedLinearFeeInputConfigSchema,
+  OffchainQuotedPiecewiseLinearFeeInputConfigSchema,
   ProgressiveFeeInputConfigSchema,
   RegressiveFeeInputConfigSchema,
   RoutingFeeInputConfigSchema,
@@ -364,9 +431,15 @@ export type ResolvedOffchainQuotedLinearFeeConfigInput =
     token: string;
   };
 
+export type ResolvedOffchainQuotedPiecewiseLinearFeeConfigInput =
+  OffchainQuotedPiecewiseLinearFeeInputConfig & {
+    token: string;
+  };
+
 export type ResolvedTokenFeeConfigInput =
   | ResolvedLinearFeeConfigInput
   | ResolvedOffchainQuotedLinearFeeConfigInput
+  | ResolvedOffchainQuotedPiecewiseLinearFeeConfigInput
   | ResolvedProgressiveFeeConfigInput
   | ResolvedRegressiveFeeConfigInput
   | ResolvedRoutingFeeConfigInput

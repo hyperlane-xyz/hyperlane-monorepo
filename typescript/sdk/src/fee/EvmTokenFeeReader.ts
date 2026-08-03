@@ -5,6 +5,7 @@ import {
   CrossCollateralRoutingFee__factory,
   LinearFee__factory,
   OffchainQuotedLinearFee__factory,
+  OffchainQuotedPiecewiseLinearFee__factory,
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -97,6 +98,10 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       case OnchainTokenFeeType.OffchainQuotedLinearFee:
         derivedConfig = await this.deriveOffchainQuotedLinearFeeConfig(address);
         break;
+      case OnchainTokenFeeType.OffchainQuotedPiecewiseLinearFee:
+        derivedConfig =
+          await this.deriveOffchainQuotedPiecewiseLinearFeeConfig(address);
+        break;
       case OnchainTokenFeeType.CrossCollateralRoutingFee:
         derivedConfig = await this.deriveCrossCollateralRoutingFeeConfig({
           address,
@@ -158,6 +163,39 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       type: TokenFeeType.OffchainQuotedLinearFee,
       maxFee: maxFeeBn,
       halfAmount: halfAmountBn,
+      address,
+      bps,
+      token,
+      owner,
+      quoteSigners: [...quoteSigners],
+    };
+  }
+
+  private async deriveOffchainQuotedPiecewiseLinearFeeConfig(
+    address: Address,
+  ): Promise<DerivedTokenFeeConfig> {
+    const tokenFee = OffchainQuotedPiecewiseLinearFee__factory.connect(
+      address,
+      this.provider,
+    );
+    const [token, owner, maxFee, halfAmount, maxBands, quoteSigners] =
+      await Promise.all([
+        tokenFee.token(),
+        tokenFee.owner(),
+        tokenFee.maxFee(),
+        tokenFee.halfAmount(),
+        tokenFee.maxBands(),
+        tokenFee.quoteSigners(),
+      ]);
+    const maxFeeBn = BigInt(maxFee.toString());
+    const halfAmountBn = BigInt(halfAmount.toString());
+    const bps = convertToBps(maxFeeBn, halfAmountBn);
+
+    return {
+      type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+      maxFee: maxFeeBn,
+      halfAmount: halfAmountBn,
+      maxBands,
       address,
       bps,
       token,

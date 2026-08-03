@@ -109,6 +109,11 @@ export class SvmFeeArtifactManager implements IRawFeeArtifactManager {
           signer,
           this.salt,
         ),
+      [FeeType.offchainQuotedPiecewiseLinear]: () => {
+        throw new Error(
+          'OffchainQuotedPiecewiseLinearFee is not supported on Sealevel',
+        );
+      },
       [FeeType.routing]: () =>
         new SvmRoutingFeeWriter(
           { program },
@@ -149,6 +154,11 @@ export class SvmFeeArtifactManager implements IRawFeeArtifactManager {
         new SvmProgressiveFeeReader(this.rpc, this.salt),
       [FeeType.offchainQuotedLinear]: () =>
         new SvmOffchainQuotedLinearFeeReader(this.rpc, this.salt),
+      [FeeType.offchainQuotedPiecewiseLinear]: () => {
+        throw new Error(
+          'OffchainQuotedPiecewiseLinearFee is not supported on Sealevel',
+        );
+      },
       [FeeType.routing]: () =>
         new SvmRoutingFeeReader(this.rpc, context, this.salt),
       [FeeType.crossCollateralRouting]: () =>
