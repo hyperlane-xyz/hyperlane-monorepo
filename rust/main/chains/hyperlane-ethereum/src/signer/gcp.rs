@@ -214,18 +214,6 @@ impl GcpSigner {
         Ok(response)
     }
 
-    /// Sign a digest and add the recovery-id-derived `v`, EIP-155-encoded for `chain_id`.
-    async fn sign_digest_with_eip155(
-        &self,
-        digest: H256,
-        chain_id: u64,
-    ) -> Result<EthSig, GcpSignerError> {
-        let (sig, recovery_id) = self.sign_digest(digest.into()).await?;
-        let mut sig = ksig_to_ethsig(&sig, recovery_id);
-        apply_eip155(&mut sig, chain_id);
-        Ok(sig)
-    }
-
     /// Sign a 32-byte prehash, returning a raw `(r, s, v = 27/28)` signature
     /// with no EIP-155 encoding. For non-EVM chains (e.g. Tron) that sign
     /// their own transaction formats directly rather than going through
@@ -250,8 +238,9 @@ impl Signer for GcpSigner {
         let message_hash = hash_message(message);
         trace!(?message_hash, ?message);
 
-        self.sign_digest_with_eip155(message_hash, self.chain_id)
-            .await
+        // EIP-191 personal-message signing, not a transaction - EIP-155 doesn't apply here.
+        // Return the canonical v = 27/28 recovery value, not an EIP-155-offset one.
+        self.sign_hash(message_hash).await
     }
 
     #[instrument(err)]
@@ -464,6 +453,42 @@ mod tests {
         let recovered = eth_sig
             .recover(ethers::types::H256::from(digest))
             .expect("a valid (r, s, v) signature must recover to some address");
+        assert_eq!(recovered, address);
+    }
+
+    /// `sign_message` (EIP-191 personal-message signing, e.g. Hyperlane checkpoint/announcement
+    /// signing) must return the canonical v = 27/28 recovery value, not an EIP-155-offset one -
+    /// this exercises the exact digest-to-signature path `sign_message` now uses (hash via
+    /// `hash_message`, then `ksig_to_ethsig` with no `apply_eip155`), without needing a live KMS
+    /// client.
+    #[test]
+    fn sign_message_path_produces_canonical_recovery_value() {
+        let signing_key = fixed_signing_key();
+        let verifying_key = *signing_key.verifying_key();
+        let address = verifying_key_to_address(&verifying_key);
+
+        let message = b"gcp signer personal-sign fixture";
+        let message_hash = hash_message(message);
+        let digest: [u8; 32] = message_hash.into();
+
+        let der_sig: DerSignature = signing_key
+            .sign_prehash(&digest)
+            .expect("signing a valid prehash must succeed");
+        let sig = KSig::from_der(der_sig.to_bytes().as_ref()).expect("valid DER signature");
+        let sig = sig.normalize_s().unwrap_or(sig);
+        let recovery_id = RecoveryId::trial_recovery_from_prehash(&verifying_key, &digest, &sig)
+            .expect("a signature produced by this key must recover under one of the two ids");
+
+        let eth_sig = ksig_to_ethsig(&sig, recovery_id);
+        assert!(
+            eth_sig.v == 27 || eth_sig.v == 28,
+            "expected canonical recovery value 27/28, got {}",
+            eth_sig.v
+        );
+
+        let recovered = eth_sig
+            .recover(message.to_vec())
+            .expect("a valid canonical (r, s, v) signature must recover the message signer");
         assert_eq!(recovered, address);
     }
 
