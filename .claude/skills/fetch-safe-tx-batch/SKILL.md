@@ -98,7 +98,9 @@ Tell the user:
 > - `<output_dir>/transactions.json` — combined chain-tagged batch (the file to pass to `/warp-route-check`)
 > - `<output_dir>/decoded/<chainId>-<safeTxHash>.decoded.json` — per-source-batch decoded copy (debugging / per-batch inspection)
 >
-> Run `/warp-route-check` next, passing `<output_dir>/transactions.json` as the `transactions-file` input. It will fork every touched chain, impersonate the safe(s) recorded in `safeAddress`, replay the inner txs, self-relay any cross-chain ICA messages, and verify the resulting state against the target registry config.
+> Run `/warp-route-check` next, passing `<output_dir>/transactions.json` as the `transactions-file` input. It will fork every touched chain, impersonate each target's **current on-chain `owner()`**, replay the inner txs from that owner, self-relay any cross-chain ICA messages, and verify the resulting state against the target registry config.
+
+**Caveat — sender vs. on-chain owner.** `/warp-route-check` replays from each target's queried `owner()`, **not** from the `safeAddress` recorded here. That is correct only when the recorded Safe IS the current on-chain owner of every target. When they differ — a direct Safe call whose target owner is a different address, or an ICA `callRemote` whose origin owner differs — the replay runs under the wrong sender and the result is not a faithful verification. Grouping/replaying by the recorded sender is a `/warp-route-check` change tracked as part-2; until then, do NOT treat this handoff as a verification gate for batches where the recorded Safe is not the target's current owner (fall back to the post-execution registry-PR CI).
 
 End the message there. This skill does NOT run forks, replay txs, or call `warp check` — those are `/warp-route-check`'s responsibilities.
 
