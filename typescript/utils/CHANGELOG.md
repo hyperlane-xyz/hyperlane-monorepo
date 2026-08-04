@@ -1,5 +1,7 @@
 # @hyperlane-xyz/utils
 
+## 40.0.0
+
 ## 39.1.0
 
 ### Minor Changes

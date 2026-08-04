@@ -7,7 +7,9 @@ import {
   CCIPIsm,
   CCIPIsm__factory,
   DefaultFallbackRoutingIsm,
-  DefaultFallbackRoutingIsm__factory,
+  AtomicInitDefaultFallbackRoutingIsm__factory,
+  AtomicInitDomainRoutingIsm__factory,
+  AtomicInitIncrementalDomainRoutingIsm__factory,
   DomainRoutingIsm,
   DomainRoutingIsm__factory,
   IAggregationIsm,
@@ -54,7 +56,6 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
-import { isInitialized } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -397,7 +398,12 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         contract = await this.deployer.deployContract(
           destination,
           IsmType.RATE_LIMITED,
-          [mailbox, rateLimitedConfig.maxCapacity, rateLimitedConfig.recipient],
+          [
+            mailbox,
+            rateLimitedConfig.maxCapacity,
+            rateLimitedConfig.duration,
+            rateLimitedConfig.recipient,
+          ],
         );
         if (rateLimitedConfig.owner) {
           const signer = this.multiProvider.getSigner(destination);
@@ -739,48 +745,12 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         logger.debug('Deploying fallback routing ISM ...');
         routingIsm = await this.multiProvider.handleDeploy(
           destination,
-          new DefaultFallbackRoutingIsm__factory(),
-          [mailbox],
-          await getZKSyncArtifactByContractName(config.type),
+          new AtomicInitDefaultFallbackRoutingIsm__factory(),
+          [mailbox, config.owner, safeConfigDomains, submoduleAddresses],
+          await getZKSyncArtifactByContractName(
+            'AtomicInitDefaultFallbackRoutingIsm',
+          ),
         );
-        // TODO: Should verify contract here
-        if (
-          !(await isInitialized(
-            this.multiProvider.getProvider(destination),
-            routingIsm.address,
-          ))
-        ) {
-          logger.debug('Initialising fallback routing ISM ...');
-          receipt = await this.multiProvider.handleTx(
-            destination,
-            routingIsm['initialize(address,uint32[],address[])'](
-              config.owner,
-              safeConfigDomains,
-              submoduleAddresses,
-              overrides,
-            ),
-          );
-        } else {
-          // Already initialized by the time we got here — either a resumed
-          // deploy, or someone else won the race on this ISM's permissionless
-          // one-time initialize(). Refuse to proceed silently if it's the
-          // latter: a hijacked owner here would otherwise be treated as a
-          // successful deploy.
-          const existingOwner = await routingIsm.owner();
-          assert(
-            eqAddress(existingOwner, config.owner),
-            `Fallback routing ISM at ${routingIsm.address} on ${destination} was front-run: address ${existingOwner} initialized it before this deploy could, and now owns it instead of the expected owner ${config.owner} — refusing to proceed`,
-          );
-          await assertSubmodulesMatchExpected(
-            routingIsm,
-            safeConfigDomains,
-            submoduleAddresses,
-            destination,
-          );
-          logger.debug(
-            `Skipping initialization of fallback routing ISM at ${routingIsm.address} — already initialized with the expected owner and submodules`,
-          );
-        }
       } else {
         // deploying new domain routing ISM
         const owner = config.owner;
@@ -794,47 +764,20 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             this.deployer,
             'HyperlaneDeployer must be set to deploy routing ISM',
           );
+          const contractName =
+            config.type === IsmType.INCREMENTAL_ROUTING
+              ? 'AtomicInitIncrementalDomainRoutingIsm'
+              : 'AtomicInitDomainRoutingIsm';
           const factory =
             config.type === IsmType.INCREMENTAL_ROUTING
-              ? new IncrementalDomainRoutingIsm__factory()
-              : new DomainRoutingIsm__factory();
-          const routingIsm = await this.deployer?.deployContractFromFactory(
+              ? new AtomicInitIncrementalDomainRoutingIsm__factory()
+              : new AtomicInitDomainRoutingIsm__factory();
+          const routingIsm = await this.deployer.deployContractFromFactory(
             destination,
             factory,
-            config.type,
-            [],
+            contractName,
+            [owner, safeConfigDomains, submoduleAddresses],
           );
-          // ZkSync uses deterministic addresses, so a re-run after a
-          // mid-deploy crash can land on an already-initialized contract.
-          if (
-            !(await isInitialized(
-              this.multiProvider.getProvider(destination),
-              routingIsm.address,
-            ))
-          ) {
-            await routingIsm['initialize(address,uint32[],address[])'](
-              owner,
-              safeConfigDomains,
-              submoduleAddresses,
-              overrides,
-            );
-          } else {
-            // Already initialized — either a resumed deploy landing on the
-            // same deterministic address, or someone else won the race on
-            // this ISM's permissionless one-time initialize(). Refuse to
-            // proceed silently if it's the latter.
-            const existingOwner = await routingIsm.owner();
-            assert(
-              eqAddress(existingOwner, owner),
-              `Routing ISM at ${routingIsm.address} on ${destination} was front-run: address ${existingOwner} initialized it before this deploy could, and now owns it instead of the expected owner ${owner} — refusing to proceed`,
-            );
-            await assertSubmodulesMatchExpected(
-              routingIsm,
-              safeConfigDomains,
-              submoduleAddresses,
-              destination,
-            );
-          }
           return routingIsm;
         }
 

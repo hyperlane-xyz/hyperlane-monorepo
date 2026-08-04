@@ -1,9 +1,18 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import { randomAddress } from '../test/testUtils.js';
 
-import { HookConfigSchema, HookType, IgpSchema } from './types.js';
+import { RATE_LIMIT_DEFAULT_DURATION_SECONDS } from '../types.js';
+
+import {
+  HookConfigSchema,
+  HookType,
+  IgpSchema,
+  RateLimitedHookSchema,
+} from './types.js';
 
 const SOME_ADDRESS = ethers.Wallet.createRandom().address;
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -194,5 +203,31 @@ describe('IgpSchema tokenOracleConfig key validation', () => {
       },
     };
     expect(HookConfigSchema.safeParse(config).success).to.be.false;
+  });
+});
+
+describe('RateLimitedHookSchema duration default', () => {
+  const baseConfig = {
+    type: HookType.RATE_LIMITED,
+    owner: SOME_ADDRESS,
+    maxCapacity: '86400',
+  };
+
+  it('defaults duration to 1 day (86400s) when omitted', () => {
+    const result = RateLimitedHookSchema.safeParse(baseConfig);
+
+    assert(result.success, 'expected RateLimitedHookSchema parse to succeed');
+    expect(result.data.duration).to.equal(RATE_LIMIT_DEFAULT_DURATION_SECONDS);
+  });
+
+  it('honors an explicitly provided duration', () => {
+    const result = RateLimitedHookSchema.safeParse({
+      ...baseConfig,
+      maxCapacity: '172800',
+      duration: 172800n,
+    });
+
+    assert(result.success, 'expected RateLimitedHookSchema parse to succeed');
+    expect(result.data.duration).to.equal(172800n);
   });
 });
