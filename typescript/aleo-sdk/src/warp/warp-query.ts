@@ -164,6 +164,21 @@ export async function getArc20TokenMetadata(
 }
 
 /**
+ * Thrown when token_registry.aleo has no `registered_tokens` entry for a
+ * tokenId — i.e. the token was never registered (legacy v1 synthetics). This
+ * is the ONLY registry-read failure that resolveTokenMetadata tolerates; any
+ * other error (RPC/transport, plaintext decode) must propagate.
+ */
+export class TokenRegistryEntryNotFoundError extends Error {
+  constructor(tokenId: string) {
+    super(
+      `Expected token metadata to be registered in token_registry.aleo but none found for tokenId: ${tokenId}`,
+    );
+    this.name = 'TokenRegistryEntryNotFoundError';
+  }
+}
+
+/**
  * Query token metadata from token_registry.aleo
  */
 export async function getTokenMetadata(
@@ -183,10 +198,9 @@ export async function getTokenMetadata(
         'registered_tokens',
         tokenId,
       );
-      assert(
-        value,
-        `Expected token metadata to be registered in token_registry.aleo but none found for tokenId: ${tokenId}`,
-      );
+      if (isNullish(value) || value === '') {
+        throw new TokenRegistryEntryNotFoundError(tokenId);
+      }
       return value;
     },
     RETRY_ATTEMPTS,
@@ -552,19 +566,32 @@ async function resolveTokenMetadata(
   tokenId: string,
   localDecimals: number | undefined,
 ): Promise<{ name: string; symbol: string; decimals: number }> {
-  const registryMetadata = await (
-    isV2WarpToken(programId)
-      ? getArc20ProgramId(aleoClient, programId).then((arc20ProgramId) =>
-          getArc20TokenMetadata(aleoClient, arc20ProgramId),
-        )
-      : getTokenMetadata(aleoClient, tokenId)
-  ).catch((error: unknown) => {
+  // v2 ARC-20 tokens carry authoritative name/symbol/decimals in their token
+  // program; any failure reading it is a real error and must propagate.
+  if (isV2WarpToken(programId)) {
+    const arc20ProgramId = await getArc20ProgramId(aleoClient, programId);
+    return getArc20TokenMetadata(aleoClient, arc20ProgramId);
+  }
+
+  // v1 tokens read name/symbol/decimals from token_registry.aleo. Legacy
+  // synthetics were never registered there, so a genuine registry miss is
+  // non-fatal (decimals are also in app_metadata.local_decimals; name/symbol
+  // aren't compared by check-warp-deploy). Any OTHER failure — RPC/transport,
+  // plaintext decode — is a real error and must propagate.
+  let registryMetadata:
+    | { name: string; symbol: string; decimals: number }
+    | undefined;
+  try {
+    registryMetadata = await getTokenMetadata(aleoClient, tokenId);
+  } catch (error: unknown) {
+    if (!(error instanceof TokenRegistryEntryNotFoundError)) {
+      throw error;
+    }
     logger.warn(
       { programId, tokenId, err: error },
-      'Failed to read token name/symbol/decimals from token registry; falling back to app_metadata',
+      'token_registry.aleo has no entry for this v1 token; falling back to app_metadata.local_decimals for decimals and empty name/symbol',
     );
-    return undefined;
-  });
+  }
 
   const decimals = registryMetadata?.decimals ?? localDecimals;
   assert(
