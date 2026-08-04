@@ -53,7 +53,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   checkWarpDeploy: 'main',
   validatorMonitor: '2c47a33-20260724-134609',
   // standalone services
-  keyFunder: '5af351e-20260728-162402',
+  keyFunder: 'b0c3c5d-20260804-175736',
   warpMonitor: '744b3bb-20260521-215958',
   rebalancer: 'da26d9a-20260703-122943',
   feeQuoting: '12d899d-20260325-184337',
