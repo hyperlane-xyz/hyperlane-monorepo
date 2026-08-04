@@ -2,14 +2,20 @@ import { AleoNetworkClient } from '@provablehq/sdk/testnet.js';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 
-import { isArc20ProgramId, isV2WarpToken } from '../utils/helper.js';
+import {
+  isArc20ProgramId,
+  isV2WarpToken,
+  stringToU128,
+} from '../utils/helper.js';
 
 import {
+  TokenRegistryEntryNotFoundError,
   getArc20TokenMetadata,
   localRemoteDecimalsToScale,
   nativeScaleExponentToMultiplier,
   parseAleoUint,
   parseViewFunctionOutputs,
+  resolveTokenMetadata,
 } from './warp-query.js';
 
 chai.use(chaiAsPromised);
@@ -145,5 +151,107 @@ describe('getArc20TokenMetadata', () => {
     const aleoClient = new AleoNetworkClient('http://localhost:3030');
     await expect(getArc20TokenMetadata(aleoClient, 'test_arc20_usdc.aleo')).to
       .be.rejected;
+  });
+});
+
+describe('resolveTokenMetadata', () => {
+  const V1_PROGRAM_ID = 'hyp_warp_token_usad.aleo';
+  const V2_PROGRAM_ID = 'hyp_warp_token_usdc_v2.aleo';
+  const TOKEN_ID = '123field';
+
+  // A token_registry.aleo `registered_tokens` TokenMetadata value only needs the
+  // name/symbol/decimals fields that getTokenMetadata actually reads.
+  function registeredTokenPlaintext(
+    name: string,
+    symbol: string,
+    decimals: number,
+  ): string {
+    return `{\n  name: ${stringToU128(name)}u128,\n  symbol: ${stringToU128(symbol)}u128,\n  decimals: ${decimals}u8\n}`;
+  }
+
+  function clientWithMappingValue(value: string): AleoNetworkClient {
+    const client = new AleoNetworkClient('http://localhost:3030');
+    client.getProgramMappingValue = async () => value;
+    return client;
+  }
+
+  it('falls back to local_decimals with empty name/symbol on a genuine v1 registry miss', async () => {
+    // An empty mapping value is a registry miss; getTokenMetadata throws the
+    // non-recoverable sentinel, which resolveTokenMetadata tolerates.
+    const aleoClient = clientWithMappingValue('');
+
+    const metadata = await resolveTokenMetadata(
+      aleoClient,
+      V1_PROGRAM_ID,
+      TOKEN_ID,
+      9,
+    );
+
+    expect(metadata).to.deep.equal({ name: '', symbol: '', decimals: 9 });
+  });
+
+  it('prefers registry metadata over local_decimals when the v1 entry exists', async () => {
+    const aleoClient = clientWithMappingValue(
+      registeredTokenPlaintext('MYTKN', 'MYT', 8),
+    );
+
+    const metadata = await resolveTokenMetadata(
+      aleoClient,
+      V1_PROGRAM_ID,
+      TOKEN_ID,
+      9,
+    );
+
+    expect(metadata).to.deep.equal({
+      name: 'MYTKN',
+      symbol: 'MYT',
+      decimals: 8,
+    });
+  });
+
+  it('throws when the v1 entry is missing and local_decimals is also unavailable', async () => {
+    const aleoClient = clientWithMappingValue('');
+
+    await expect(
+      resolveTokenMetadata(aleoClient, V1_PROGRAM_ID, TOKEN_ID, undefined),
+    ).to.be.rejectedWith(/Unable to resolve decimals/);
+  });
+
+  it('propagates non-sentinel v1 read failures (transport) instead of masking them', async () => {
+    const aleoClient = new AleoNetworkClient('http://localhost:3030');
+    // Non-recoverable so the retry loop short-circuits; the point under test is
+    // that a non-sentinel error is not swallowed by resolveTokenMetadata.
+    aleoClient.getProgramMappingValue = async () => {
+      throw Object.assign(new Error('RPC transport error'), {
+        isRecoverable: false,
+      });
+    };
+
+    const result = resolveTokenMetadata(aleoClient, V1_PROGRAM_ID, TOKEN_ID, 9);
+    await expect(result).to.be.rejectedWith('RPC transport error');
+    // The sentinel is the only tolerated failure; a transport error is not it.
+    await result.catch((err) => {
+      expect(err).to.not.be.instanceOf(TokenRegistryEntryNotFoundError);
+    });
+  });
+
+  it('propagates v1 decode failures (unparseable registry value) instead of masking them', async () => {
+    const aleoClient = clientWithMappingValue('not-a-valid-plaintext');
+
+    await expect(resolveTokenMetadata(aleoClient, V1_PROGRAM_ID, TOKEN_ID, 9))
+      .to.be.rejected;
+  });
+
+  it('propagates v2 ARC-20 read failures instead of falling back', async () => {
+    const aleoClient = new AleoNetworkClient('http://localhost:3030');
+    // No arc20 import present, so getArc20ProgramId cannot resolve the token
+    // program and throws — v2 has no fallback path.
+    aleoClient.getProgramImportNames = async () => [
+      'credits.aleo',
+      'mailbox.aleo',
+    ];
+
+    await expect(resolveTokenMetadata(aleoClient, V2_PROGRAM_ID, TOKEN_ID, 6))
+      .to.be.rejected;
   });
 });

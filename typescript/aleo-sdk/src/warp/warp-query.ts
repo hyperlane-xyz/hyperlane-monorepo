@@ -70,6 +70,12 @@ export function nativeScaleExponentToMultiplier(
  * other error (RPC/transport, plaintext decode) must propagate.
  */
 export class TokenRegistryEntryNotFoundError extends Error {
+  // A genuine registry miss is a permanent condition, not a transient read
+  // failure, so retryAsync must fail fast instead of exhausting its backoff
+  // budget. Transient RPC/transport errors surface as plain errors (without
+  // this flag) and stay recoverable.
+  readonly isRecoverable = false;
+
   constructor(tokenId: string) {
     super(
       `Expected token metadata to be registered in token_registry.aleo but none found for tokenId: ${tokenId}`,
@@ -89,8 +95,9 @@ export async function getTokenMetadata(
   symbol: string;
   decimals: number;
 }> {
-  // Wrap the read + assert together so a mapping that hasn't finalized/indexed
-  // yet (e.g. immediately after registration) is retried, not treated as absent.
+  // Retry transient read failures (RPC/transport). A genuine miss throws the
+  // non-recoverable TokenRegistryEntryNotFoundError, which short-circuits the
+  // retry loop rather than exhausting its exponential backoff.
   const mappingValue = await retryAsync(
     async () => {
       const value = await aleoClient.getProgramMappingValue(
@@ -407,7 +414,7 @@ export async function getNativeWarpTokenConfig(
  * and name/symbol are not compared by check-warp-deploy, so a registry miss is non-fatal: fall
  * back to local_decimals for decimals and empty strings for name/symbol.
  */
-async function resolveTokenMetadata(
+export async function resolveTokenMetadata(
   aleoClient: AnyAleoNetworkClient,
   programId: string,
   tokenId: string,
