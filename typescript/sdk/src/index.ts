@@ -588,6 +588,7 @@ export {
 } from './providers/SmartProvider/ProviderMethods.js';
 export { HyperlaneSmartProvider } from './providers/SmartProvider/SmartProvider.js';
 export {
+  HyperlaneLogFilter,
   ProviderRetryOptions,
   SmartProviderOptions,
 } from './providers/SmartProvider/types.js';
@@ -845,7 +846,12 @@ export {
   TokenFactories,
 } from './token/contracts.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
-export { EvmWarpModule, type WarpUpdateResult } from './token/EvmWarpModule.js';
+export {
+  EvmWarpModule,
+  MAX_LEGACY_BRIDGE_APPROVAL_VERSION,
+  bridgeApprovalGrantsMaxAllowance,
+  type WarpUpdateResult,
+} from './token/EvmWarpModule.js';
 export { EvmWarpRouteReader } from './token/EvmWarpRouteReader.js';
 export {
   WARP_ROUTE_CHECK_SCALE_TYPE,

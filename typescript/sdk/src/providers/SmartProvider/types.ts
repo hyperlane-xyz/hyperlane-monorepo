@@ -1,10 +1,27 @@
-import type { utils } from 'ethers';
+import type { providers, utils } from 'ethers';
 
 import { ChainMetadata, RpcUrl } from '../../metadata/chainMetadataTypes.js';
 
 export type RpcConfigWithConnectionInfo = RpcUrl & {
   connection?: utils.ConnectionInfo;
 };
+
+type HyperlaneFilterByBlockHash = {
+  address?: string;
+  blockHash: string;
+  topics?: providers.Filter['topics'];
+};
+
+type MultiAddressLogFilter =
+  | (Omit<providers.Filter, 'address'> & { address: readonly string[] })
+  | (Omit<HyperlaneFilterByBlockHash, 'address'> & {
+      address: readonly string[];
+    });
+
+export type HyperlaneLogFilter =
+  | providers.Filter
+  | HyperlaneFilterByBlockHash
+  | MultiAddressLogFilter;
 
 export interface ChainMetadataWithRpcConnectionInfo extends Omit<
   ChainMetadata,

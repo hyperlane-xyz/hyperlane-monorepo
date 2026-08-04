@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { errors as EthersError, providers } from 'ethers';
+import { errors as EthersError, providers, utils } from 'ethers';
 import sinon from 'sinon';
 
 import {
@@ -7,7 +7,7 @@ import {
   IProviderMethods,
   ProviderMethod,
 } from './ProviderMethods.js';
-import type { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
+import { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
 import type { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
 import {
   BlockchainError,
@@ -304,6 +304,213 @@ describe('SmartProvider', () => {
       // Actual connection (used for requests) has real value - last duplicate wins
       const actualConnection = provider.rpcProviders[0].connection;
       expect(actualConnection.headers?.['Authorization']).to.equal('second');
+    });
+  });
+
+  describe('multi-address getLogs', () => {
+    const addresses = [
+      '0x0000000000000000000000000000000000000001',
+      '0x0000000000000000000000000000000000000002',
+    ];
+    const rawLog = {
+      address: addresses[1],
+      blockHash: `0x${'1'.repeat(64)}`,
+      blockNumber: '0x2',
+      data: '0x',
+      logIndex: '0x0',
+      topics: [`0x${'2'.repeat(64)}`],
+      transactionHash: `0x${'3'.repeat(64)}`,
+      transactionIndex: '0x0',
+    };
+
+    afterEach(() => sinon.restore());
+
+    it('preserves retry, fallback, and formatted log behavior', async () => {
+      const filters: providers.Filter[] = [];
+      sinon
+        .stub(providers.JsonRpcProvider.prototype, 'perform')
+        .callsFake(async function (
+          this: providers.JsonRpcProvider,
+          method: string,
+          params: { filter?: providers.Filter },
+        ) {
+          if (method !== ProviderMethod.GetLogs) {
+            throw new Error(`Unexpected method ${method}`);
+          }
+          if (!params.filter) throw new Error('Missing log filter');
+          filters.push(params.filter);
+          if (this.connection.url === 'http://provider1') {
+            throw new ProviderError('server error', EthersError.SERVER_ERROR);
+          }
+          return [rawLog];
+        });
+      const smartProvider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: 'http://provider1' }, { http: 'http://provider2' }],
+        [],
+        { fallbackStaggerMs: 5 },
+      );
+
+      const logs = await smartProvider.getLogs({ address: addresses });
+
+      expect(filters).to.have.length(2);
+      expect(filters.map((filter) => filter.address)).to.deep.equal([
+        addresses,
+        addresses,
+      ]);
+      expect(logs).to.deep.equal([
+        {
+          ...rawLog,
+          address: utils.getAddress(rawLog.address),
+          blockNumber: 2,
+          logIndex: 0,
+          removed: false,
+          transactionIndex: 0,
+        },
+      ]);
+    });
+
+    it('deterministically excludes explorer providers', async () => {
+      const explorerPerform = sinon.stub(
+        HyperlaneEtherscanProvider.prototype,
+        'perform',
+      );
+      sinon
+        .stub(providers.JsonRpcProvider.prototype, 'perform')
+        .withArgs(ProviderMethod.GetLogs)
+        .resolves([]);
+      const smartProvider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: 'http://provider' }],
+        [
+          {
+            name: 'test explorer',
+            url: 'https://explorer.test',
+            apiUrl: 'https://explorer.test/api',
+          },
+        ],
+      );
+
+      await smartProvider.getLogs({ address: addresses });
+
+      expect(explorerPerform.called).to.be.false;
+    });
+
+    it('falls back from a slow primary without changing the filter', async () => {
+      const requests: Array<{ url: string; filter: providers.Filter }> = [];
+      sinon
+        .stub(providers.JsonRpcProvider.prototype, 'perform')
+        .callsFake(async function (
+          this: providers.JsonRpcProvider,
+          method: string,
+          params: { filter: providers.Filter },
+        ) {
+          if (method !== ProviderMethod.GetLogs) {
+            throw new Error(`Unexpected method ${method}`);
+          }
+          requests.push({ url: this.connection.url, filter: params.filter });
+          if (this.connection.url === 'http://provider1') {
+            await new Promise((resolve) => setTimeout(resolve, 20));
+          }
+          return [];
+        });
+      const smartProvider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: 'http://provider1' }, { http: 'http://provider2' }],
+        [],
+        { fallbackStaggerMs: 1 },
+      );
+
+      await smartProvider.getLogs({ address: addresses });
+
+      expect(requests.map(({ url }) => url)).to.deep.equal([
+        'http://provider1',
+        'http://provider2',
+      ]);
+      expect(requests.map(({ filter }) => filter.address)).to.deep.equal([
+        addresses,
+        addresses,
+      ]);
+    });
+
+    it('retries the identical filter after a recoverable provider failure', async () => {
+      const filters: providers.Filter[] = [];
+      sinon
+        .stub(providers.JsonRpcProvider.prototype, 'perform')
+        .callsFake(
+          async (method: string, params: { filter: providers.Filter }) => {
+            if (method !== ProviderMethod.GetLogs) {
+              throw new Error(`Unexpected method ${method}`);
+            }
+            filters.push(params.filter);
+            if (filters.length === 1) {
+              throw new ProviderError('server error', EthersError.SERVER_ERROR);
+            }
+            return [];
+          },
+        );
+      const smartProvider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: 'http://provider' }],
+        [],
+        { maxRetries: 2, baseRetryDelayMs: 1 },
+      );
+
+      await smartProvider.getLogs({ address: addresses });
+
+      expect(filters).to.have.length(2);
+      expect(filters.map((filter) => filter.address)).to.deep.equal([
+        addresses,
+        addresses,
+      ]);
+    });
+
+    it('fails closed when only explorer providers are configured', async () => {
+      const smartProvider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [],
+        [
+          {
+            name: 'test explorer',
+            url: 'https://explorer.test',
+            apiUrl: 'https://explorer.test/api',
+          },
+        ],
+      );
+
+      try {
+        await smartProvider.getLogs({ address: addresses });
+        expect.fail('Expected multi-address explorer request to fail');
+      } catch (error) {
+        if (!(error instanceof Error)) throw error;
+        expect(error.message).to.equal(
+          'No RPC providers available for multi-address getLogs',
+        );
+      }
+    });
+
+    it('rejects direct multi-address explorer requests', async () => {
+      const explorerProvider = new HyperlaneEtherscanProvider(
+        {
+          name: 'test explorer',
+          url: 'https://explorer.test',
+          apiUrl: 'https://explorer.test/api',
+          apiKey: 'test-key',
+        },
+        { chainId: 1, name: 'test' },
+      );
+
+      try {
+        await explorerProvider.perform(ProviderMethod.GetLogs, {
+          filter: { address: addresses },
+        });
+        expect.fail('Expected multi-address explorer request to fail');
+      } catch (error) {
+        if (!(error instanceof Error)) throw error;
+        expect(error.message).to.equal(
+          'Multi-address getLogs is not supported by explorer providers',
+        );
+      }
     });
   });
 
