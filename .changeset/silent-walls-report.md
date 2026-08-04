@@ -10,3 +10,4 @@ Added SDK support for the Blacklist ISM:
 - Updates that drop a currently blacklisted message ID redeploy a fresh ISM, since on-chain entries are append-only and cannot be removed.
 - Blacklisted message IDs are validated as 32-byte hex strings and normalized to lowercase at config parse time.
 - The relayer now treats the blacklist ISM as a null-metadata ISM when building message metadata.
+- `moduleCanCertainlyVerify` reports that a Blacklist ISM cannot certainly verify a message whose ID is in the blacklisted set.

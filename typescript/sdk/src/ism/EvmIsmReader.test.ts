@@ -50,6 +50,16 @@ import {
   TestIsmConfig,
 } from './types.js';
 
+// Build a typed partial double for a typechain factory's `connect` return.
+// The provided members are type-checked against the real contract `T` (so a
+// misspelled/removed method is a compile error); only the final widening —
+// which sinon's `.returns` requires — is cast.
+function contractDouble<T>(members: Partial<T>): T {
+  // CAST: sinon's `.returns` needs the exact contract type; `members` is a
+  // partial test double whose keys are validated against `T` above.
+  return members as T;
+}
+
 describe('EvmIsmReader', () => {
   let evmIsmReader: EvmIsmReader;
   let multiProvider: MultiProvider;
@@ -150,6 +160,7 @@ describe('EvmIsmReader', () => {
       ccipOrigin: sandbox.stub().rejects(missingSelectorError()),
       VERIFIED_MASK_INDEX: sandbox.stub().rejects(missingSelectorError()),
       recipient: sandbox.stub().rejects(missingSelectorError()),
+      blacklistedIds: sandbox.stub().rejects(missingSelectorError()),
     };
     sandbox
       .stub(TestIsm__factory, 'connect')
@@ -169,6 +180,9 @@ describe('EvmIsmReader', () => {
     sandbox
       .stub(RateLimitedIsm__factory, 'connect')
       .returns(mockContract as unknown as RateLimitedIsm);
+    sandbox
+      .stub(BlacklistIsm__factory, 'connect')
+      .returns(mockContract as unknown as BlacklistIsm);
     sandbox
       .stub(IInterchainSecurityModule__factory, 'connect')
       .returns(mockContract as unknown as IInterchainSecurityModule);
@@ -201,28 +215,38 @@ describe('EvmIsmReader', () => {
       values: sandbox.stub().resolves(mockBlacklistedIds),
       owner: sandbox.stub().resolves(mockOwner),
     };
-    sandbox.stub(TrustedRelayerIsm__factory, 'connect').returns({
-      trustedRelayer: sandbox.stub().rejects(missingSelectorError()),
-    } as unknown as TrustedRelayerIsm);
-    sandbox.stub(PausableIsm__factory, 'connect').returns({
-      paused: sandbox.stub().rejects(missingSelectorError()),
-      owner: sandbox.stub().resolves(mockOwner),
-    } as unknown as PausableIsm);
-    sandbox.stub(CCIPIsm__factory, 'connect').returns({
-      ccipOrigin: sandbox.stub().rejects(missingSelectorError()),
-    } as unknown as CCIPIsm);
-    sandbox.stub(OPStackIsm__factory, 'connect').returns({
-      VERIFIED_MASK_INDEX: sandbox.stub().rejects(missingSelectorError()),
-    } as unknown as OPStackIsm);
-    sandbox.stub(RateLimitedIsm__factory, 'connect').returns({
-      recipient: sandbox.stub().rejects(missingSelectorError()),
-    } as unknown as RateLimitedIsm);
+    sandbox.stub(TrustedRelayerIsm__factory, 'connect').returns(
+      contractDouble<TrustedRelayerIsm>({
+        trustedRelayer: sandbox.stub().rejects(missingSelectorError()),
+      }),
+    );
+    sandbox.stub(PausableIsm__factory, 'connect').returns(
+      contractDouble<PausableIsm>({
+        paused: sandbox.stub().rejects(missingSelectorError()),
+        owner: sandbox.stub().resolves(mockOwner),
+      }),
+    );
+    sandbox.stub(CCIPIsm__factory, 'connect').returns(
+      contractDouble<CCIPIsm>({
+        ccipOrigin: sandbox.stub().rejects(missingSelectorError()),
+      }),
+    );
+    sandbox.stub(OPStackIsm__factory, 'connect').returns(
+      contractDouble<OPStackIsm>({
+        VERIFIED_MASK_INDEX: sandbox.stub().rejects(missingSelectorError()),
+      }),
+    );
+    sandbox.stub(RateLimitedIsm__factory, 'connect').returns(
+      contractDouble<RateLimitedIsm>({
+        recipient: sandbox.stub().rejects(missingSelectorError()),
+      }),
+    );
     sandbox
       .stub(BlacklistIsm__factory, 'connect')
-      .returns(mockContract as unknown as BlacklistIsm);
+      .returns(contractDouble<BlacklistIsm>(mockContract));
     sandbox
       .stub(IInterchainSecurityModule__factory, 'connect')
-      .returns(mockContract as unknown as IInterchainSecurityModule);
+      .returns(contractDouble<IInterchainSecurityModule>(mockContract));
 
     const expectedConfig: WithAddress<BlacklistIsmConfig> = {
       address: mockAddress,
@@ -236,6 +260,57 @@ describe('EvmIsmReader', () => {
 
     const config = await evmIsmReader.deriveNullConfig(mockAddress);
     expect(config).to.deep.equal(ismConfig);
+  });
+
+  it('should not classify transient blacklist probe failures as test ISM', async () => {
+    const mockAddress = randomAddress();
+    const transientError = networkError();
+
+    sandbox.stub(TrustedRelayerIsm__factory, 'connect').returns(
+      contractDouble<TrustedRelayerIsm>({
+        trustedRelayer: sandbox.stub().rejects(missingSelectorError()),
+      }),
+    );
+    sandbox.stub(PausableIsm__factory, 'connect').returns(
+      contractDouble<PausableIsm>({
+        paused: sandbox.stub().rejects(missingSelectorError()),
+        owner: sandbox.stub().rejects(missingSelectorError()),
+      }),
+    );
+    sandbox.stub(CCIPIsm__factory, 'connect').returns(
+      contractDouble<CCIPIsm>({
+        ccipOrigin: sandbox.stub().rejects(missingSelectorError()),
+      }),
+    );
+    sandbox.stub(OPStackIsm__factory, 'connect').returns(
+      contractDouble<OPStackIsm>({
+        VERIFIED_MASK_INDEX: sandbox.stub().rejects(missingSelectorError()),
+      }),
+    );
+    sandbox.stub(RateLimitedIsm__factory, 'connect').returns(
+      contractDouble<RateLimitedIsm>({
+        recipient: sandbox.stub().rejects(missingSelectorError()),
+      }),
+    );
+    sandbox.stub(BlacklistIsm__factory, 'connect').returns(
+      contractDouble<BlacklistIsm>({
+        blacklistedIds: sandbox.stub().rejects(transientError),
+      }),
+    );
+    sandbox.stub(IInterchainSecurityModule__factory, 'connect').returns(
+      contractDouble<IInterchainSecurityModule>({
+        moduleType: sandbox.stub().resolves(ModuleType.NULL),
+      }),
+    );
+
+    let thrown: unknown;
+    try {
+      await evmIsmReader.deriveNullConfig(mockAddress);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).to.equal(transientError);
   });
 
   it('should not classify transient pausable probe failures as test ISM', async () => {

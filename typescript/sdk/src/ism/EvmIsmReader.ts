@@ -690,7 +690,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         owner,
         blacklistedIds: await blacklistIsm.values(),
       };
-    } catch {
+    } catch (error) {
+      throwIfNotMissingSelector(error);
       this.logger.debug(
         'Error accessing "blacklistedIds" property, implying this is not a Blacklist ISM.',
         address,
