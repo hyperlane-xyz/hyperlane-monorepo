@@ -363,6 +363,98 @@ async fn checkpoint_submitter_skips_latest_checkpoint_without_new_messages() {
     // assertion: a panic there would have failed this test already if it were called.
 }
 
+/// Regression test for a race where `count()` returns the local count, but a leaf lands
+/// before `base_hook.latest_checkpoint()` resolves. The ahead checkpoint must be
+/// quorum-verified before it can drive signing.
+#[tokio::test(start_paused = true)]
+async fn checkpoint_submitter_quorum_verifies_base_checkpoint_ahead_of_observed_count() {
+    let mut tree = IncrementalMerkle::default();
+    tree.ingest(H256::from_low_u64_be(1));
+    tree.ingest(H256::from_low_u64_be(2));
+    let tree_count = tree.count() as u32;
+
+    let mut ahead_tree = tree.clone();
+    ahead_tree.ingest(H256::from_low_u64_be(3));
+
+    let dummy_domain = dummy_domain(0, "dummy_domain");
+
+    let quorum_latest_checkpoint_called = Arc::new(AtomicBool::new(false));
+    let quorum_latest_checkpoint_called_clone = quorum_latest_checkpoint_called.clone();
+
+    let mut mock_quorum_merkle_tree_hook = MockMerkleTreeHook::new();
+    mock_quorum_merkle_tree_hook
+        .expect_address()
+        .returning(|| H256::from_low_u64_be(0));
+    mock_quorum_merkle_tree_hook
+        .expect_domain()
+        .return_const(dummy_domain.clone());
+    let local_checkpoint = CheckpointAtBlock {
+        checkpoint: Checkpoint {
+            root: tree.root(),
+            index: tree.index(),
+            merkle_tree_hook_address: H256::from_low_u64_be(0),
+            mailbox_domain: dummy_domain.id(),
+        },
+        block_height: Some(1),
+    };
+    mock_quorum_merkle_tree_hook
+        .expect_latest_checkpoint()
+        .once()
+        .returning(move |_| {
+            quorum_latest_checkpoint_called_clone.store(true, Ordering::SeqCst);
+            Ok(local_checkpoint.clone())
+        });
+
+    let mut mock_base_merkle_tree_hook = MockMerkleTreeHook::new();
+    mock_base_merkle_tree_hook
+        .expect_count()
+        .once()
+        .returning(move |_| Ok(tree_count));
+    let base_ahead_checkpoint = CheckpointAtBlock {
+        checkpoint: Checkpoint {
+            root: ahead_tree.root(),
+            index: ahead_tree.index(),
+            merkle_tree_hook_address: H256::from_low_u64_be(0),
+            mailbox_domain: dummy_domain.id(),
+        },
+        block_height: Some(2),
+    };
+    mock_base_merkle_tree_hook
+        .expect_latest_checkpoint()
+        .once()
+        .returning(move |_| Ok(base_ahead_checkpoint.clone()));
+
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let submitter = ValidatorSubmitter::new(
+        Duration::from_secs(1),
+        ReorgPeriod::from_blocks(1),
+        Arc::new(mock_quorum_merkle_tree_hook),
+        Arc::new(mock_base_merkle_tree_hook),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(MockCheckpointSyncer::new()),
+        Arc::new(MockDb::new()),
+        dummy_metrics(),
+        1,
+        Arc::new(MockReorgReporter::new()),
+    );
+
+    let task = tokio::spawn(async move {
+        submitter.checkpoint_submitter(tree).await;
+    });
+
+    for _ in 0..5 {
+        tokio::task::yield_now().await;
+    }
+    task.abort();
+    let _ = task.await;
+
+    assert!(
+        quorum_latest_checkpoint_called.load(Ordering::SeqCst),
+        "base checkpoint ahead of observed count must be quorum-verified"
+    );
+}
+
 /// Regression test for same-index reorg detection: an unchanged count with a changed root
 /// must still go through the normal reorg reporting/panic path.
 #[tokio::test(start_paused = true)]
@@ -415,7 +507,7 @@ async fn checkpoint_submitter_detects_reorg_when_count_is_unchanged() {
     mock_base_merkle_tree_hook
         .expect_latest_checkpoint()
         .once()
-        .returning(move |_| Ok(onchain_checkpoint));
+        .return_once(move |_| Ok(onchain_checkpoint));
 
     let unix_timestamp = chrono::Utc::now().timestamp() as u64;
     let mut mock_checkpoint_syncer = MockCheckpointSyncer::new();

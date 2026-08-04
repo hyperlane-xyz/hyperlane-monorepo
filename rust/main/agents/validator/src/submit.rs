@@ -138,8 +138,9 @@ impl ValidatorSubmitter {
             if (observed_count as usize) <= tree.count() {
                 // Count alone cannot prove the root is unchanged: a reorg may replace a
                 // leaf while leaving the count the same. Compare against the base hook
-                // checkpoint first, and only run the quorum-verified read when the base
-                // hook reports an equal-index root conflict.
+                // checkpoint first. Use the base-only fast path only when it exactly
+                // matches the local tree; otherwise verify the checkpoint through the
+                // quorum hook before signing or reporting a reorg.
                 let base_checkpoint = call_and_retry_indefinitely(|| {
                     let merkle_tree_hook = self.base_merkle_tree_hook.clone();
                     let reorg_period = self.reorg_period.clone();
@@ -157,9 +158,11 @@ impl ValidatorSubmitter {
                     continue;
                 }
 
-                let correctness_checkpoint = if base_checkpoint.index == tree.index()
-                    && base_checkpoint.root != tree.root()
-                {
+                let base_checkpoint_matches_tree =
+                    base_checkpoint.index == tree.index() && base_checkpoint.root == tree.root();
+                let correctness_checkpoint = if base_checkpoint_matches_tree {
+                    base_checkpoint
+                } else {
                     call_and_retry_indefinitely(|| {
                         let merkle_tree_hook = self.merkle_tree_hook.clone();
                         let reorg_period = self.reorg_period.clone();
@@ -168,8 +171,6 @@ impl ValidatorSubmitter {
                         )
                     })
                     .await
-                } else {
-                    base_checkpoint
                 };
 
                 if tree_exceeds_checkpoint(&correctness_checkpoint, &tree) {
