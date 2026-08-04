@@ -93,8 +93,14 @@ Get the RPC URL from the local registry: `cat $REGISTRY_PATH/chains/<chain>/meta
 
 For chains where the owner is a Squads multisig:
 
-- Phase A: surface this as a **`Squads validation TODO — Phase 2`** warning row for now. EVM routes that touch SVM via Squads owners still proceed (the EVM-side validation passes); the SVM-side Squads validation requires per-protocol skill work that lands in Phase 2.
-- For Phase 2 (future): use the SVM SDK to read the multisig PDA on Solana and confirm the Squads V4 layout. If invalid, reject.
+Automated SVM Squads validation (reading the multisig PDA + confirming the Squads V4 layout) is Phase-2 work and does not exist yet. Until it lands, the skill **must not silently clear an SVM Squads owner as if it were validated** — an unvalidated owner is exactly how a route ends up routed to the wrong signer. Apply the same production/non-prod split as the EOA policy (3d), using the ticket-label check:
+
+| Mode           | SVM Squads owner (validation not yet automated)                                                                                                                                                                                                                                                                                                       |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **production** | Do **not** auto-clear. Emit a blocking `❌ Squads — UNVALIDATED` row and require an explicit `[CONFIRM: SVM Squads owner <address> on <chain> manually verified as the intended Squads V4 multisig]` gate. Only a confirmed row (marked `⚠️ Squads — manually confirmed`) clears; without confirmation the flow halts and does not proceed to deploy. |
+| **non-prod**   | Classify as `⚠️ NON-PROD Squads (unvalidated)` and continue, consistent with the non-prod EOA policy.                                                                                                                                                                                                                                                 |
+
+- For Phase 2 (future): use the SVM SDK to read the multisig PDA on Solana and confirm the Squads V4 layout automatically. If invalid, reject. That replaces the manual-confirmation gate above.
 
 ### 3d. Reject if EOA (including EIP-7702 delegations), with ticket-labeled non-prod exceptions
 
