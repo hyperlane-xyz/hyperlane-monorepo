@@ -48,37 +48,52 @@ export interface SvmForkManagerConfig {
 const base58Encoder = getBase58Encoder();
 const transactionDecoder = getTransactionDecoder();
 
+class RunningSvmFork {
+  constructor(
+    readonly node: SurfpoolNode,
+    readonly rpc: SolanaRpcClient,
+    readonly rpcUrl: string,
+  ) {}
+}
+
+async function startSvmFork(
+  config: SvmForkManagerConfig,
+): Promise<RunningSvmFork> {
+  const node = await runSurfpoolNode({
+    datasource: {
+      mode: SurfpoolDatasourceMode.Fork,
+      rpcUrl: config.upstreamRpcUrl,
+    },
+    rpcPort: config.rpcPort,
+    wsPort: config.wsPort,
+    airdrops: config.airdrops,
+    skipSignatureVerification: true,
+    skipBlockhashCheck: true,
+    image: config.image,
+    binaryPath: config.binaryPath,
+    keepRunning: config.keepRunning,
+  });
+
+  return new RunningSvmFork(node, createRpc(node.rpcUrl), node.rpcUrl);
+}
+
 export class SvmForkManager implements IForkManager<SvmForkConfig> {
-  private node?: SurfpoolNode;
-  private rpc?: SolanaRpcClient;
-  private rpcUrl?: string;
+  private running?: RunningSvmFork;
 
   constructor(private readonly config: SvmForkManagerConfig) {}
 
-  async start(): Promise<void> {
-    const node = await runSurfpoolNode({
-      datasource: {
-        mode: SurfpoolDatasourceMode.Fork,
-        rpcUrl: this.config.upstreamRpcUrl,
-      },
-      rpcPort: this.config.rpcPort,
-      wsPort: this.config.wsPort,
-      airdrops: this.config.airdrops,
-      skipSignatureVerification: true,
-      skipBlockhashCheck: true,
-      image: this.config.image,
-      binaryPath: this.config.binaryPath,
-      keepRunning: this.config.keepRunning,
-    });
+  private get requireRunning(): RunningSvmFork {
+    const running = this.running;
+    assert(running, `Fork not started for chain ${this.config.chainName}`);
+    return running;
+  }
 
-    this.node = node;
-    this.rpcUrl = node.rpcUrl;
-    this.rpc = createRpc(node.rpcUrl);
+  async start(): Promise<void> {
+    this.running = await startSvmFork(this.config);
   }
 
   async applyForkConfig(config: SvmForkConfig): Promise<void> {
-    const rpc = this.rpc;
-    assert(rpc, `Fork not started for chain ${this.config.chainName}`);
+    const { rpc } = this.requireRunning;
 
     for (const transaction of config.transactions) {
       await this.submitTransaction(rpc, transaction);
@@ -90,17 +105,14 @@ export class SvmForkManager implements IForkManager<SvmForkConfig> {
   }
 
   getForkedChainMetadata(): ForkedChainMetadata {
-    const rpcUrl = this.rpcUrl;
-    assert(rpcUrl, `Fork not started for chain ${this.config.chainName}`);
-
     return {
-      rpcUrls: [{ http: rpcUrl }],
+      rpcUrls: [{ http: this.requireRunning.rpcUrl }],
       blocks: { confirmations: 1 },
     };
   }
 
   kill(): void {
-    this.node?.kill();
+    this.running?.node.kill();
   }
 
   private async submitTransaction(
