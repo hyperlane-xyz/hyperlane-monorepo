@@ -1,5 +1,7 @@
 # @hyperlane-xyz/starknet-core
 
+## 40.0.0
+
 ## 39.1.0
 
 ### Minor Changes
