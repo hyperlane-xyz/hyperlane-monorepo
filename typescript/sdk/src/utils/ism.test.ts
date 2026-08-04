@@ -241,6 +241,14 @@ describe('hybrid hook/ISM tree helpers', () => {
       ).to.throw("'hook' must be unset");
     });
 
+    it('rejects a config that also sets a predicateWrapper', () => {
+      expect(() =>
+        assertHybridIsmDeployConstraints('test1', tree, {
+          predicateWrapper: { predicateRegistry: WARP_ROUTER, policyId: '1' },
+        }),
+      ).to.throw('both must own');
+    });
+
     it('rejects more than one hybrid node in the tree', () => {
       const twoHybrids = aggregationOf(netFlowNode, delayedNode);
       expect(() =>

@@ -64,6 +64,7 @@ import { getEvmHookUpdateTransactions } from '../hook/updates.js';
 import { stripPredicateSubHook } from '../hook/utils.js';
 import { DerivedHookConfig, OnchainHookType } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
+import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { PredicateWrapperDeployer } from '../predicate/PredicateDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -72,7 +73,12 @@ import { ChainName, ChainNameOrId } from '../types.js';
 import { scalesEqual } from '../utils/decimals.js';
 import { IsmType } from '../ism/types.js';
 import {
+  assertNoPredicateWrapperWithHybridIsm,
+  collectHybridIsmNodes,
+  completeHybridIsmNodes,
   extractIsmAndHookFactoryAddresses,
+  isHybridHookConfig,
+  ismTreeContainsHybridHookIsm,
   ismTreeContainsRateLimited,
   setRateLimitedIsmRecipient,
 } from '../utils/ism.js';
@@ -149,6 +155,13 @@ export type WarpUpdateResult = {
   txs: AnnotatedEV5Transaction[];
   feeTxs: AnnotatedEV5Transaction[];
   ownershipTxs: AnnotatedEV5Transaction[];
+  /**
+   * Address of the ISM tree the returned transactions install, when the update
+   * touched the ISM. Callers that must wire something to the post-update ISM
+   * (e.g. cross-chain enrollment of a hybrid hook/ISM) need this because the
+   * tree may have been freshly deployed while these transactions were built.
+   */
+  deployedIsm?: Address;
 };
 
 export class EvmWarpModule extends HyperlaneModule<
@@ -282,12 +295,19 @@ export class EvmWarpModule extends HyperlaneModule<
       expectedConfig,
     );
 
+    // The ISM step may deploy a fresh tree; its address is threaded into the
+    // hook step so a hybrid hook/ISM can be wired to the instance that is
+    // actually being installed rather than a stale on-chain read.
+    const { txs: ismTxs, deployedIsm: expectedDeployedIsm } =
+      await this.deployOrUpdateIsmWithAddress(actualConfig, expectedConfig);
+
     transactions.push(
       ...upgradeTxs,
-      ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
+      ...ismTxs,
       ...(await this.createHookAndPredicateUpdateTxs(
         actualConfig,
         expectedConfig,
+        expectedDeployedIsm,
       )),
       ...this.createFeeHookUpdateTxs(actualConfig, expectedConfig),
       ...this.createUnenrollRemoteRoutersUpdateTxs(
@@ -344,7 +364,12 @@ export class EvmWarpModule extends HyperlaneModule<
       ),
     ];
 
-    return { txs: transactions, feeTxs, ownershipTxs };
+    return {
+      txs: transactions,
+      feeTxs,
+      ownershipTxs,
+      deployedIsm: expectedDeployedIsm,
+    };
   }
 
   /**
@@ -1370,9 +1395,27 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
+    const { txs } = await this.deployOrUpdateIsmWithAddress(
+      actualConfig,
+      expectedConfig,
+    );
+    return txs;
+  }
+
+  /**
+   * Same as `createIsmUpdateTxs`, additionally returning the ISM address that
+   * the resulting transactions install. Callers that must wire something to
+   * the post-update ISM (e.g. a hybrid hook/ISM installed as the router's
+   * hook) need the address of the tree being installed, which may be freshly
+   * deployed and therefore absent from `actualConfig`.
+   */
+  private async deployOrUpdateIsmWithAddress(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): Promise<{ txs: AnnotatedEV5Transaction[]; deployedIsm?: Address }> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
     if (!expectedConfig.interchainSecurityModule) {
-      return [];
+      return { txs: [] };
     }
 
     const actualDeployedIsm = derivedIsmAddress(actualConfig);
@@ -1404,7 +1447,7 @@ export class EvmWarpModule extends HyperlaneModule<
       });
     }
 
-    return updateTransactions;
+    return { txs: updateTransactions, deployedIsm: expectedDeployedIsm };
   }
 
   async createHookUpdateTxs(
@@ -1421,9 +1464,55 @@ export class EvmWarpModule extends HyperlaneModule<
   async createHookAndPredicateUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
+    expectedDeployedIsm?: Address,
   ): Promise<AnnotatedEV5Transaction[]> {
     let hookTransactions: AnnotatedEV5Transaction[] = [];
     let newHookAddress: Address | undefined;
+
+    // Hybrid hook/ISMs are a single contract installed as BOTH the router's
+    // hook and its ISM, deployed through the ISM surface. Gate on the ISM tree
+    // rather than on the hook's shape: a config that installs a hybrid ISM but
+    // points the hook elsewhere leaves the instance unable to preverify
+    // anything, so every delivery from this chain reverts permanently while
+    // `warp check` still converges. That must fail loudly here.
+    const expectedIsmConfig = expectedConfig.interchainSecurityModule;
+    if (
+      typeof expectedIsmConfig === 'object' &&
+      ismTreeContainsHybridHookIsm(expectedIsmConfig)
+    ) {
+      // The hybrid must BE the router's hook, so it cannot coexist with a
+      // predicate wrapper (which installs its own aggregation in that slot).
+      // Rejected loudly here rather than silently dropping either one.
+      assertNoPredicateWrapperWithHybridIsm(this.chainName, expectedConfig);
+
+      const hybridAddress = await this.resolveHybridIsmAddress(
+        expectedDeployedIsm ?? derivedIsmAddress(actualConfig),
+      );
+
+      // Accept only a hook that resolves to this very instance: the hybrid's
+      // own config object (what expandWarpDeployConfig fills in), its address,
+      // or an unset hook (wired automatically, mirroring the deploy path).
+      const expectedHook = expectedConfig.hook;
+      const hookResolvesToHybrid =
+        isNullish(expectedHook) ||
+        (typeof expectedHook === 'string' &&
+          (isZeroishAddress(expectedHook) ||
+            eqAddress(expectedHook, hybridAddress))) ||
+        // TODO(tighten hybrid hook identity): isHybridHookConfig only compares
+        // the type string, so a NET_FLOW-typed hook object is accepted while
+        // the ISM tree's DELAYED_FLOW instance is what actually gets wired.
+        // That cannot strand transfers (the wiring is always the ISM tree's
+        // own instance) and `warp check` surfaces it as a hook-type mismatch,
+        // but the node's `type` — or its `address` when present — should be
+        // compared against the resolved instance.
+        (typeof expectedHook === 'object' && isHybridHookConfig(expectedHook));
+      assert(
+        hookResolvesToHybrid,
+        `A hybrid hook/ISM is configured in the ISM tree on ${this.chainName}, but 'hook' is set to something else. The same instance (${hybridAddress}) must be the router's hook — it is the only caller that preverifies inbound messages, so any other hook makes every delivery revert. Unset 'hook' or point it at ${hybridAddress}.`,
+      );
+
+      return this.createHybridHookUpdateTxs(actualConfig, hybridAddress);
+    }
 
     // Explicit type annotation narrows away the undefined that TypeScript infers
     // from the RouterConfig & DerivedMailboxClientConfig intersection.
@@ -1557,6 +1646,61 @@ export class EvmWarpModule extends HyperlaneModule<
         : hookTransactions;
 
     return [...effectiveHookTransactions, ...predicateTransactions];
+  }
+
+  /**
+   * Resolves the single hybrid hook/ISM instance inside the ISM tree at
+   * `ismAddress` (the tree the current update installs, which may have just
+   * been deployed).
+   */
+  private async resolveHybridIsmAddress(ismAddress: Address): Promise<Address> {
+    assert(
+      !isZeroishAddress(ismAddress),
+      `Hybrid hook/ISM configured on ${this.chainName} but no ISM is installed on the router — the hybrid instance is deployed through the ISM config`,
+    );
+
+    const derivedIsm = await new EvmIsmReader(
+      this.multiProvider,
+      this.chainName,
+    ).deriveIsmConfig(ismAddress);
+    const hybridNodes = collectHybridIsmNodes(derivedIsm);
+    assert(
+      hybridNodes.length === 1,
+      `Expected exactly one hybrid hook/ISM in the ISM tree at ${ismAddress} on ${this.chainName}, found ${hybridNodes.length} — only one instance can serve as the router's hook`,
+    );
+    const hybridNode = hybridNodes[0];
+    assert(
+      'address' in hybridNode && typeof hybridNode.address === 'string',
+      `Derived hybrid hook/ISM node on ${this.chainName} is missing its address`,
+    );
+    return hybridNode.address;
+  }
+
+  /**
+   * Wires the hybrid hook/ISM instance as the router's hook. Emits nothing
+   * when it is already the current hook, so a converged route produces zero
+   * transactions.
+   */
+  private createHybridHookUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    hybridAddress: Address,
+  ): AnnotatedEV5Transaction[] {
+    const actualHookAddress = derivedHookAddress(actualConfig);
+    if (actualHookAddress && eqAddress(actualHookAddress, hybridAddress)) {
+      return [];
+    }
+
+    return [
+      {
+        chainId: this.chainId,
+        annotation: `Setting hybrid hook/ISM ${hybridAddress} as the hook for Warp Route`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: MailboxClient__factory.createInterface().encodeFunctionData(
+          'setHook',
+          [hybridAddress],
+        ),
+      },
+    ];
   }
 
   /**
@@ -2067,10 +2211,7 @@ export class EvmWarpModule extends HyperlaneModule<
     // Primary default: the warp-route owner (matches deploy path in token/deploy.ts).
     // Fallback: the current on-chain ISM owner (same-type, same-owner in-place update).
     let expectedIsm = expectedConfig.interchainSecurityModule;
-    if (
-      typeof expectedIsm === 'object' &&
-      ismTreeContainsRateLimited(expectedIsm)
-    ) {
+    if (typeof expectedIsm === 'object') {
       const actualIsm = actualConfig.interchainSecurityModule;
       const onChainOwner =
         typeof actualIsm === 'object' && 'owner' in actualIsm
@@ -2079,11 +2220,28 @@ export class EvmWarpModule extends HyperlaneModule<
       const defaultOwner =
         expectedConfig.owner ??
         (typeof onChainOwner === 'string' ? onChainOwner : undefined);
-      expectedIsm = setRateLimitedIsmRecipient(
-        expectedIsm,
-        this.args.addresses.deployedTokenRoute,
-        defaultOwner,
-      );
+
+      if (ismTreeContainsRateLimited(expectedIsm)) {
+        expectedIsm = setRateLimitedIsmRecipient(
+          expectedIsm,
+          this.args.addresses.deployedTokenRoute,
+          defaultOwner,
+        );
+      }
+
+      // Hybrid hook/ISMs need the paired warp router, which in warp-route
+      // context is always this token — configs routinely omit it (it is only
+      // required for standalone ISM deploys). `remoteIsms` is deliberately
+      // left untouched: cross-chain enrollment needs every chain's instance
+      // address and is therefore reconciled by a separate pass.
+      if (ismTreeContainsHybridHookIsm(expectedIsm) && defaultOwner) {
+        expectedIsm = completeHybridIsmNodes(
+          expectedIsm,
+          this.args.addresses.deployedTokenRoute,
+          undefined,
+          defaultOwner,
+        );
+      }
     }
 
     const ismModule = new EvmIsmModule(

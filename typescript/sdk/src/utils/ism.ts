@@ -1,7 +1,7 @@
 import { Address, WithAddress, assert, pick } from '@hyperlane-xyz/utils';
 
 import { multisigIsmVerifyCosts } from '../consts/multisigIsmVerifyCosts.js';
-import { HookConfig } from '../hook/types.js';
+import { HookConfig, HookType } from '../hook/types.js';
 import {
   DelayedFlowRouterHookIsmConfig,
   IsmConfig,
@@ -135,6 +135,20 @@ export function collectHybridIsmNodes(ism: IsmConfig): HybridHookIsmConfig[] {
   return collectHybridIsmNodesFromUnknown(ism);
 }
 
+/**
+ * True if a hook config object is the hook-side view of a warp-route hybrid
+ * hook/ISM. Those contracts are deployed through the ISM config surface and
+ * merely referenced as the router's hook, so hook deployment paths must skip
+ * them.
+ */
+export function isHybridHookConfig(hook: HookConfig): boolean {
+  if (typeof hook !== 'object' || hook === null) return false;
+  return (
+    hook.type === HookType.NET_FLOW_RATE_LIMITED ||
+    hook.type === HookType.DELAYED_FLOW_ROUTER
+  );
+}
+
 function isHybridIsmNode(node: unknown): node is HybridHookIsmConfig {
   if (typeof node !== 'object' || node === null || !('type' in node)) {
     return false;
@@ -220,6 +234,41 @@ function mapHybridIsmNodes(
 }
 
 /**
+ * Rejects combining a predicate wrapper with a hybrid hook/ISM.
+ *
+ * Both want to own the router's hook slot: the hybrid instance must BE the
+ * hook (shared bucket state with its ISM role), while the predicate wrapper
+ * installs `aggregation([wrapper, previousHook])`. Nesting the hybrid inside
+ * that aggregation is mechanically possible — StaticAggregationHook forwards
+ * each child its own `quoteDispatch` amount, which is what the hybrid's nested
+ * `_Router_dispatch` needs — but only on the native-fee path: when the
+ * dispatch metadata names a non-zero `feeToken`, the aggregation passes
+ * `value: 0` to every child, starving the hybrid's nested dispatch. Until that
+ * path is verified at the contract level, the combination is rejected rather
+ * than silently producing a route whose policy hook or flow limiter is
+ * missing from the dispatch path.
+ *
+ * TODO(hybrid+predicate composition verified): allow composing the two by
+ * threading the hybrid address into PredicateWrapperDeployer.deployAndConfigure
+ * as `existingHookOverride`.
+ *
+ * TODO(hybrid predicate guard on the deployer): a direct
+ * `HypERC20Deployer.deploy(configMap, deferredIsms)` caller bypasses this
+ * check — `deployPredicateWrappers` runs before `setDeferredIsms` and would
+ * overwrite the hook. No in-repo caller does this today (executeWarpDeploy
+ * asserts first), so the guard belongs in the deployer itself.
+ */
+export function assertNoPredicateWrapperWithHybridIsm(
+  chain: string,
+  config: { predicateWrapper?: unknown },
+): void {
+  assert(
+    !config.predicateWrapper,
+    `Hybrid hook/ISM and predicateWrapper are both configured on ${chain}, but both must own the router's hook. Remove one — composing them is not supported yet.`,
+  );
+}
+
+/**
  * Fail-fast constraints for warp deploy configs whose ISM tree contains a
  * hybrid hook/ISM node, checked before any on-chain work: the deploy
  * machinery wires the single hybrid instance as the token's hook, so the
@@ -229,8 +278,13 @@ function mapHybridIsmNodes(
 export function assertHybridIsmDeployConstraints(
   chain: string,
   ism: IsmConfig,
-  config: { hook?: HookConfig; foreignDeployment?: string },
+  config: {
+    hook?: HookConfig;
+    foreignDeployment?: string;
+    predicateWrapper?: unknown;
+  },
 ): void {
+  assertNoPredicateWrapperWithHybridIsm(chain, config);
   assert(
     !config.foreignDeployment,
     `Hybrid hook/ISM configured on ${chain} but it is a foreignDeployment — the hook cannot be wired post-deploy`,
