@@ -24,91 +24,106 @@ import { logGray } from '../logger.js';
 
 const LOCAL_HOST = 'http://127.0.0.1';
 
-export class EvmForkManager implements IForkManager<ForkedChainConfig> {
-  private readonly endpoint: string;
-  private provider?: JsonRpcProvider;
-  private killAnvilProcess?: (isPanicking: boolean) => Promise<void>;
+export interface EvmForkManagerConfig {
+  chainName: ChainName;
+  chainId: string | number;
+  upstreamRpcUrl: string;
+  port: number;
+  kill: boolean;
+}
 
+class RunningEvmFork {
   constructor(
-    private readonly args: {
-      chainName: ChainName;
-      chainId: string | number;
-      upstreamRpcUrl: string;
-      port: number;
-      kill: boolean;
-    },
-  ) {
-    this.endpoint = `${LOCAL_HOST}:${args.port}`;
+    readonly provider: JsonRpcProvider,
+    readonly endpoint: string,
+    readonly kill: (isPanicking: boolean) => Promise<void>,
+  ) {}
+}
+
+async function startEvmFork(
+  config: EvmForkManagerConfig,
+): Promise<RunningEvmFork> {
+  const endpoint = `${LOCAL_HOST}:${config.port}`;
+  let killOnError: ((isPanicking: boolean) => Promise<void>) | undefined;
+  try {
+    logGray(
+      `Starting Anvil node for chain ${config.chainName} at port ${config.port}`,
+    );
+    const anvilProcess = execa`anvil --port ${config.port} --chain-id ${config.chainId} --fork-url ${config.upstreamRpcUrl} --disable-block-gas-limit`;
+
+    const kill = async (isPanicking: boolean): Promise<void> => {
+      anvilProcess.kill(isPanicking ? 'SIGTERM' : 'SIGINT');
+    };
+    killOnError = kill;
+
+    const provider = new JsonRpcProvider(endpoint);
+    await waitUntilReady(() => provider.getNetwork(), {
+      attempts: 10,
+      baseRetryMs: 500,
+    });
+
+    logGray(
+      `Successfully started Anvil node for chain ${config.chainName} at ${endpoint}`,
+    );
+
+    process.once('exit', () => void kill(false));
+
+    return new RunningEvmFork(provider, endpoint, kill);
+  } catch (error) {
+    // Kill any running anvil process otherwise the process will keep running
+    // in the background.
+    if (killOnError) {
+      await killOnError(true);
+    }
+
+    throw error;
+  }
+}
+
+export class EvmForkManager implements IForkManager<ForkedChainConfig> {
+  private running?: RunningEvmFork;
+
+  constructor(private readonly config: EvmForkManagerConfig) {}
+
+  private get requireRunning(): RunningEvmFork {
+    const running = this.running;
+    assert(running, `Fork not started for chain ${this.config.chainName}`);
+    return running;
   }
 
   async start(): Promise<void> {
-    try {
-      logGray(
-        `Starting Anvil node for chain ${this.args.chainName} at port ${this.args.port}`,
-      );
-      const anvilProcess = execa`anvil --port ${this.args.port} --chain-id ${this.args.chainId} --fork-url ${this.args.upstreamRpcUrl} --disable-block-gas-limit`;
-
-      const provider = new JsonRpcProvider(this.endpoint);
-      this.provider = provider;
-      await waitUntilReady(() => provider.getNetwork(), {
-        attempts: 10,
-        baseRetryMs: 500,
-      });
-
-      logGray(
-        `Successfully started Anvil node for chain ${this.args.chainName} at ${this.endpoint}`,
-      );
-
-      this.killAnvilProcess = async (isPanicking: boolean) => {
-        anvilProcess.kill(isPanicking ? 'SIGTERM' : 'SIGINT');
-      };
-      process.once(
-        'exit',
-        () => this.killAnvilProcess && this.killAnvilProcess(false),
-      );
-    } catch (error) {
-      // Kill any running anvil process otherwise the process will keep running
-      // in the background.
-      if (this.killAnvilProcess) {
-        await this.killAnvilProcess(true);
-      }
-
-      throw error;
-    }
+    this.running = await startEvmFork(this.config);
   }
 
   async applyForkConfig(config: ForkedChainConfig): Promise<void> {
-    const provider = this.provider;
-    assert(provider, `Fork not started for chain ${this.args.chainName}`);
+    const { provider, kill } = this.requireRunning;
 
     await handleImpersonations(
       provider,
-      this.args.chainName,
+      this.config.chainName,
       config.impersonateAccounts,
     );
 
     await handleTransactions(
       provider,
-      this.args.chainName,
+      this.config.chainName,
       config.transactions,
     );
 
-    if (this.args.kill && this.killAnvilProcess) {
-      await this.killAnvilProcess(false);
+    if (this.config.kill) {
+      await kill(false);
     }
   }
 
   getForkedChainMetadata(): ForkedChainMetadata {
     return {
-      rpcUrls: [{ http: this.endpoint }],
+      rpcUrls: [{ http: this.requireRunning.endpoint }],
       blocks: { confirmations: 1 },
     };
   }
 
   kill(): void {
-    if (this.killAnvilProcess) {
-      void this.killAnvilProcess(false);
-    }
+    void this.running?.kill(false);
   }
 }
 
