@@ -91,6 +91,7 @@ jobs:
           # ICA
           - ica-deploy
           # Warp Apply Commands
+          - warp-apply-delayed-flow
           - warp-apply-hook-updates
           - warp-apply-ism-updates
           - warp-apply-ownership-updates
