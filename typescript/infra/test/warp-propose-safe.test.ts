@@ -1,18 +1,34 @@
 import { expect } from 'chai';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
+import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import { Address } from '@hyperlane-xyz/utils';
+
+import {
+  getSafeChains,
+  getSafesByGovernanceForChain,
+} from '../config/environments/mainnet3/governance/utils.js';
 import { GovernanceType } from '../src/governanceTypes.js';
 import {
+  FileErrorKind,
   GovernanceSafeEntry,
   NonceService,
+  ParsedReceipt,
   PendingProposal,
   checkSignerOwnsSafe,
   createNonceAllocator,
+  decideFileDisposition,
   findMatchingPendingProposal,
   normalizeProposalPayload,
   parseFilename,
+  parseReceiptFile,
   resolveGovernanceSafe,
+  safeQueueKey,
   toMetaTransactionData,
 } from '../src/utils/warp-propose-safe.js';
+import { ProposalResultStatus } from '../src/utils/warp-propose-result.js';
 
 const SAFE_A = '0x3965ac0F1c777Cd3aA0F9c07D07Ce367Fd8f4c6f';
 const SAFE_B = '0x3965ac9999999999999999999999999999999999';
@@ -24,6 +40,23 @@ const SIGNER = '0xa7EC0000000000000000000000000000000000d9';
 function producerFilename(chainId: string, safeAddress: string): string {
   const safeSegment = safeAddress ? `-safe${safeAddress.slice(0, 8)}` : '';
   return `combined-chainId${chainId}${safeSegment}-1700000000000-receipts.json`;
+}
+
+// A minimal `parseReceiptFile` collaborator resolving every chainId to
+// `chain`, or throwing if `chain` is undefined (simulating an unrecognized
+// chainId). `parseReceiptFile` only calls `getChainName`, so this is typed
+// as exactly that slice of `MultiProvider` — no mock cast needed.
+function fakeMultiProvider(
+  chain: ChainName | undefined,
+): Pick<MultiProvider, 'getChainName'> {
+  return {
+    getChainName: () => {
+      if (chain === undefined) {
+        throw new Error('Unknown chain');
+      }
+      return chain;
+    },
+  };
 }
 
 describe('warp-propose-safe', () => {
@@ -39,17 +72,260 @@ describe('warp-propose-safe', () => {
       expect(parsed.safePrefix).to.equal(SAFE_A.slice(0, 8));
     });
 
-    it('rejects the legacy 8-bare-hex form (no 0x)', () => {
+    it('rejects the legacy 8-bare-hex form (no 0x) as excluded', () => {
       const filename =
         'combined-chainId1-safe3965ac0F-1700000000000-receipts.json';
       const parsed = parseFilename(filename);
       expect('error' in parsed).to.be.true;
+      if (!('error' in parsed)) {
+        return;
+      }
+      expect(parsed.kind).to.equal(FileErrorKind.Excluded);
     });
 
-    it('rejects a filename with no safe segment', () => {
+    it('rejects a filename with no safe segment as excluded', () => {
       const filename = 'combined-chainId1-1700000000000-receipts.json';
       const parsed = parseFilename(filename);
       expect('error' in parsed).to.be.true;
+      if (!('error' in parsed)) {
+        return;
+      }
+      expect(parsed.kind).to.equal(FileErrorKind.Excluded);
+    });
+  });
+
+  describe('parseReceiptFile', () => {
+    // Real production governance data, derived at test time rather than
+    // hardcoded, so the fixture tracks config changes instead of drifting.
+    let chain: ChainName;
+    let safeAddress: Address;
+    let tmpDir: string;
+
+    before(() => {
+      const [firstChain] = getSafeChains();
+      expect(firstChain, 'expected at least one governed chain').to.exist;
+      chain = firstChain;
+      const [firstEntry] = getSafesByGovernanceForChain(chain);
+      expect(firstEntry, `expected a governance safe on ${chain}`).to.exist;
+      safeAddress = firstEntry.safe;
+    });
+
+    beforeEach(() => {
+      tmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'warp-propose-safe-test-'),
+      );
+    });
+
+    afterEach(() => {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    function writeReceipt(filename: string, body: unknown): string {
+      const filePath = path.join(tmpDir, filename);
+      fs.writeFileSync(
+        filePath,
+        typeof body === 'string' ? body : JSON.stringify(body),
+      );
+      return filePath;
+    }
+
+    it('classifies a foreign filename as excluded', () => {
+      const filePath = path.join(tmpDir, 'not-a-receipt.json');
+      const parsed = parseReceiptFile(filePath, fakeMultiProvider(chain));
+      expect('error' in parsed).to.be.true;
+      if (!('error' in parsed)) {
+        return;
+      }
+      expect(parsed.kind).to.equal(FileErrorKind.Excluded);
+    });
+
+    it('classifies an unknown chainId as invalid', () => {
+      const filename = producerFilename('999999', safeAddress);
+      const filePath = path.join(tmpDir, filename);
+      const parsed = parseReceiptFile(filePath, fakeMultiProvider(undefined));
+      expect('error' in parsed).to.be.true;
+      if (!('error' in parsed)) {
+        return;
+      }
+      expect(parsed.kind).to.equal(FileErrorKind.Invalid);
+    });
+
+    it('classifies an unresolvable safe prefix as invalid', () => {
+      // A chain name that appears in no governance safe map guarantees
+      // `resolveGovernanceSafe` finds zero matches, regardless of prefix.
+      const filename = producerFilename('1', safeAddress);
+      const filePath = path.join(tmpDir, filename);
+      const parsed = parseReceiptFile(
+        filePath,
+        fakeMultiProvider('nonexistent-test-chain-xyz'),
+      );
+      expect('error' in parsed).to.be.true;
+      if (!('error' in parsed)) {
+        return;
+      }
+      expect(parsed.kind).to.equal(FileErrorKind.Invalid);
+    });
+
+    it('classifies malformed JSON as invalid', () => {
+      const filename = producerFilename('1', safeAddress);
+      const filePath = writeReceipt(filename, '{not valid json');
+      const parsed = parseReceiptFile(filePath, fakeMultiProvider(chain));
+      expect('error' in parsed).to.be.true;
+      if (!('error' in parsed)) {
+        return;
+      }
+      expect(parsed.kind).to.equal(FileErrorKind.Invalid);
+    });
+
+    it('classifies a schema-invalid body as invalid', () => {
+      const filename = producerFilename('1', safeAddress);
+      // `transactions` requires min(1); an empty array fails the schema.
+      const filePath = writeReceipt(filename, {
+        version: '1',
+        chainId: '1',
+        transactions: [],
+      });
+      const parsed = parseReceiptFile(filePath, fakeMultiProvider(chain));
+      expect('error' in parsed).to.be.true;
+      if (!('error' in parsed)) {
+        return;
+      }
+      expect(parsed.kind).to.equal(FileErrorKind.Invalid);
+    });
+
+    it('classifies a filename/body chainId mismatch as invalid', () => {
+      const filename = producerFilename('1', safeAddress);
+      const filePath = writeReceipt(filename, {
+        version: '1',
+        chainId: '2',
+        transactions: [{ to: SAFE_C }],
+      });
+      const parsed = parseReceiptFile(filePath, fakeMultiProvider(chain));
+      expect('error' in parsed).to.be.true;
+      if (!('error' in parsed)) {
+        return;
+      }
+      expect(parsed.kind).to.equal(FileErrorKind.Invalid);
+    });
+
+    it('parses a well-formed receipt into a ParsedReceipt', () => {
+      const filename = producerFilename('1', safeAddress);
+      const filePath = writeReceipt(filename, {
+        version: '1',
+        chainId: '1',
+        transactions: [{ to: SAFE_C }],
+      });
+      const parsed = parseReceiptFile(filePath, fakeMultiProvider(chain));
+      expect('error' in parsed).to.be.false;
+      if ('error' in parsed) {
+        return;
+      }
+      expect(parsed.chain).to.equal(chain);
+      expect(parsed.safeAddress).to.equal(safeAddress);
+      expect(parsed.receipt.transactions).to.have.length(1);
+    });
+  });
+
+  describe('decideFileDisposition', () => {
+    function makeParsedReceipt(
+      forChain: ChainName,
+      forSafeAddress: Address,
+    ): ParsedReceipt {
+      return {
+        chain: forChain,
+        safeAddress: forSafeAddress,
+        governanceType: GovernanceType.Regular,
+        receipt: {
+          version: '1',
+          chainId: '1',
+          transactions: [{ to: SAFE_C }],
+        },
+      };
+    }
+
+    it('skips an excluded file (foreign filename)', () => {
+      const disposition = decideFileDisposition({
+        parsed: { error: 'foreign filename', kind: FileErrorKind.Excluded },
+        chainFilter: undefined,
+        poisonedSafes: new Set(),
+      });
+      expect(disposition.action).to.equal('skip');
+      if (disposition.action !== 'skip') {
+        return;
+      }
+      expect(disposition.status).to.equal(ProposalResultStatus.Skipped);
+    });
+
+    it('fails an invalid file (e.g. schema-failed / unknown-chain)', () => {
+      const disposition = decideFileDisposition({
+        parsed: {
+          error: 'schema validation failed',
+          kind: FileErrorKind.Invalid,
+        },
+        chainFilter: undefined,
+        poisonedSafes: new Set(),
+      });
+      expect(disposition.action).to.equal('fail');
+      if (disposition.action !== 'fail') {
+        return;
+      }
+      expect(disposition.status).to.equal(ProposalResultStatus.Invalid);
+    });
+
+    it('proposes a parsed file with no filter and no poisoning', () => {
+      const disposition = decideFileDisposition({
+        parsed: makeParsedReceipt('ethereum', SAFE_A),
+        chainFilter: undefined,
+        poisonedSafes: new Set(),
+      });
+      expect(disposition.action).to.equal('propose');
+    });
+
+    it('skips a file excluded by --chain-filter', () => {
+      const disposition = decideFileDisposition({
+        parsed: makeParsedReceipt('ethereum', SAFE_A),
+        chainFilter: new Set(['arbitrum']),
+        poisonedSafes: new Set(),
+      });
+      expect(disposition.action).to.equal('skip');
+    });
+
+    it('regression: a second file for the SAME poisoned (chain, safe) fails instead of proposing', () => {
+      // Simulates the first file for this (chain, safe) having thrown after
+      // nonce allocation in a prior loop iteration (see propose-warp-batch.ts).
+      const poisonedSafes = new Set<string>([safeQueueKey('ethereum', SAFE_A)]);
+      const disposition = decideFileDisposition({
+        parsed: makeParsedReceipt('ethereum', SAFE_A),
+        chainFilter: undefined,
+        poisonedSafes,
+      });
+      expect(disposition.action).to.equal('fail');
+      if (disposition.action !== 'fail') {
+        return;
+      }
+      expect(disposition.status).to.equal(ProposalResultStatus.Failed);
+    });
+
+    it('does not let a poisoned Safe A block an independent Safe B', () => {
+      const poisonedSafes = new Set<string>([safeQueueKey('ethereum', SAFE_A)]);
+      const disposition = decideFileDisposition({
+        parsed: makeParsedReceipt('ethereum', SAFE_B),
+        chainFilter: undefined,
+        poisonedSafes,
+      });
+      expect(disposition.action).to.equal('propose');
+    });
+
+    it('does not let a poisoned Safe on one chain block the SAME safe address on another chain', () => {
+      // Regular governance reuses one Safe address across chains; poisoning
+      // must be scoped per chain, not per address.
+      const poisonedSafes = new Set<string>([safeQueueKey('ethereum', SAFE_A)]);
+      const disposition = decideFileDisposition({
+        parsed: makeParsedReceipt('arbitrum', SAFE_A),
+        chainFilter: undefined,
+        poisonedSafes,
+      });
+      expect(disposition.action).to.equal('propose');
     });
   });
 
