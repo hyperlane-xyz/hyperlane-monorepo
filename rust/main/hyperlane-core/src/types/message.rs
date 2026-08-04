@@ -170,19 +170,32 @@ impl HyperlaneMessage {
 #[cfg(test)]
 mod tests {
     use super::{HyperlaneMessage, RawHyperlaneMessage, HYPERLANE_MESSAGE_PREFIX_LEN};
-    use crate::Decode;
+    use crate::{Decode, H256};
+
+    fn sample_message() -> HyperlaneMessage {
+        HyperlaneMessage {
+            version: 3,
+            nonce: 42,
+            origin: 1,
+            sender: H256::repeat_byte(0x11),
+            destination: 2,
+            recipient: H256::repeat_byte(0x22),
+            body: b"payload".to_vec(),
+        }
+    }
 
     fn valid_message_bytes() -> RawHyperlaneMessage {
-        RawHyperlaneMessage::from(&HyperlaneMessage::default())
+        RawHyperlaneMessage::from(&sample_message())
     }
 
     #[test]
     fn read_from_valid_input_unchanged() {
+        let expected = sample_message();
         let bytes = valid_message_bytes();
-        assert!(bytes.len() >= HYPERLANE_MESSAGE_PREFIX_LEN);
+        assert!(bytes.len() > HYPERLANE_MESSAGE_PREFIX_LEN);
 
         let decoded = HyperlaneMessage::read_from(&mut bytes.as_slice()).expect("valid message");
-        assert_eq!(decoded, HyperlaneMessage::default());
+        assert_eq!(decoded, expected);
         assert_eq!(HyperlaneMessage::from(bytes), decoded);
     }
 
