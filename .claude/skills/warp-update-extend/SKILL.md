@@ -435,15 +435,17 @@ Show the user the full path of each output file and clarify which ones go to the
 Show the user:
 
 1. **New contracts deployed** (from the `warp apply` output):
-   | Chain | Contract Type | Address |
-   | ----- | ------------- | ------- |
+
+   | Chain         | Contract Type  | Address |
+   | ------------- | -------------- | ------- |
    | `<new-chain>` | `HypSynthetic` | `0x...` |
 
 2. **Transaction files for customer** (in receipts-dir):
-   | File | Chain(s) | Action Required |
-   | ---- | -------- | --------------- |
-   | `ethereum-txs.json` | ethereum + ICA chains | Import to Safe UI and sign |
-   | `solanamainnet-txs.json` | solanamainnet | Execute using Solana tooling |
+
+   | File                     | Chain(s)              | Action Required              |
+   | ------------------------ | --------------------- | ---------------------------- |
+   | `ethereum-txs.json`      | ethereum + ICA chains | Import to Safe UI and sign   |
+   | `solanamainnet-txs.json` | solanamainnet         | Execute using Solana tooling |
 
 3. **What the customer transactions do:**
    - `enrollRemoteRouter` on existing chain contracts to recognize the new chain

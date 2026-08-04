@@ -76,23 +76,19 @@ export function getCore(): ChainMap<CoreConfig> {
 
     const routingIsm: RoutingIsmConfig = {
       type: IsmType.ROUTING,
-      domains: objMap(
-        originMultisigs,
-        (_, multisig): AggregationIsmConfig => ({
-          type: IsmType.AGGREGATION,
-          modules: [messageIdIsm(multisig), merkleRoot(multisig)],
-          threshold: 1,
-        }),
-      ),
+      domains: objMap(originMultisigs, (_, multisig): AggregationIsmConfig => ({
+        type: IsmType.AGGREGATION,
+        modules: [messageIdIsm(multisig), merkleRoot(multisig)],
+        threshold: 1,
+      })),
       ...owner,
     };
 
     // No static aggregation ISM support on zkSync
     const defaultZkSyncIsm = (): RoutingIsmConfig => ({
       type: IsmType.ROUTING,
-      domains: objMap(
-        originMultisigs,
-        (_, multisig): MultisigIsmConfig => messageIdIsm(multisig),
+      domains: objMap(originMultisigs, (_, multisig): MultisigIsmConfig =>
+        messageIdIsm(multisig),
       ),
       ...owner,
     });
