@@ -48,7 +48,12 @@ import {
   RateLimitedIsmConfig,
 } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import {
+  AnnotatedEV5Transaction,
+  TypedAnnotatedTransaction,
+} from '../providers/ProviderType.js';
+import { randomAddress } from '../test/testUtils.js';
+import { ChainMap } from '../types.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { TokenType } from './config.js';
@@ -1125,6 +1130,123 @@ describe('TokenDeployer', async () => {
         deployedContracts,
       );
       expect(Object.keys(secondEnrollTxs)).to.have.length(0);
+    });
+
+    it('reconciles delayedFlowRouterHookIsm enrollment drift', async () => {
+      // Owner is the deployer so the drift can be introduced directly and the
+      // corrective transactions can be submitted from this test.
+      const owner = signer.address;
+
+      const warpDeployConfig: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: {
+          ...config[chain],
+          type: TokenType.synthetic,
+          owner,
+          interchainSecurityModule: delayedFlowTree(owner),
+        },
+        [remoteChain]: {
+          ...config[remoteChain],
+          type: TokenType.synthetic,
+          owner,
+          interchainSecurityModule: delayedFlowTree(owner),
+        },
+      };
+
+      const contracts = await ismDeployer.deploy(
+        objMap(warpDeployConfig, (_, c) => ({
+          ...c,
+          interchainSecurityModule: undefined,
+        })),
+        {
+          [chain]: delayedFlowTree(owner),
+          [remoteChain]: delayedFlowTree(owner),
+        },
+      );
+      const deployedContracts = objMap(
+        contracts,
+        (_, c) => c.synthetic.address,
+      );
+
+      const submit = async (txs: ChainMap<TypedAnnotatedTransaction[]>) => {
+        for (const [txChain, chainTxs] of Object.entries(txs)) {
+          for (const rawTx of chainTxs) {
+            const tx = rawTx as AnnotatedEV5Transaction;
+            assert(
+              typeof tx.to === 'string' && typeof tx.data === 'string',
+              `Expected an EVM transaction for ${txChain}`,
+            );
+            await multiProvider.sendTransaction(txChain, {
+              to: tx.to,
+              data: tx.data,
+              value: tx.value,
+            });
+          }
+        }
+      };
+
+      await submit(
+        await enrollCrossChainRouters(
+          {
+            multiProvider,
+            altVmSigners: {},
+            registryAddresses,
+            warpDeployConfig,
+          },
+          deployedContracts,
+        ),
+      );
+
+      const localProvider = multiProvider.getProvider(chain);
+      const localDfrAddress = await MailboxClient__factory.connect(
+        deployedContracts[chain],
+        localProvider,
+      ).hook();
+      const localDfr = DelayedFlowRouterHookIsm__factory.connect(
+        localDfrAddress,
+        multiProvider.getSigner(chain),
+      );
+      const remoteDomain = multiProvider.getDomainId(remoteChain);
+
+      // Introduce drift: point the local instance at a bogus counterpart.
+      const bogusRouter = addressToBytes32(randomAddress()).toLowerCase();
+      await multiProvider.handleTx(
+        chain,
+        localDfr.enrollRemoteRouter(remoteDomain, bogusRouter),
+      );
+      expect(await localDfr.routers(remoteDomain)).to.equal(bogusRouter);
+
+      // Re-running enrollment must emit corrective transactions...
+      const driftTxs = await enrollCrossChainRouters(
+        {
+          multiProvider,
+          altVmSigners: {},
+          registryAddresses,
+          warpDeployConfig,
+        },
+        deployedContracts,
+      );
+      expect(Object.keys(driftTxs)).to.include(chain);
+      await submit(driftTxs);
+
+      // ...restoring the real counterpart, and then converging again.
+      const remoteDfrAddress = await MailboxClient__factory.connect(
+        deployedContracts[remoteChain],
+        multiProvider.getProvider(remoteChain),
+      ).hook();
+      expect(await localDfr.routers(remoteDomain)).to.equal(
+        addressToBytes32(remoteDfrAddress).toLowerCase(),
+      );
+
+      const convergedTxs = await enrollCrossChainRouters(
+        {
+          multiProvider,
+          altVmSigners: {},
+          registryAddresses,
+          warpDeployConfig,
+        },
+        deployedContracts,
+      );
+      expect(Object.keys(convergedTxs)).to.have.length(0);
     });
   });
 

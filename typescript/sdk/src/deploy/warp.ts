@@ -60,6 +60,7 @@ import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { HookConfig } from '../hook/types.js';
 import { hookTreeContainsRateLimited } from '../hook/utils.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
+import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import {
   DelayedFlowRouterHookIsmConfig,
@@ -68,7 +69,10 @@ import {
 } from '../ism/types.js';
 import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
+import {
+  AnnotatedEV5Transaction,
+  TypedAnnotatedTransaction,
+} from '../providers/ProviderType.js';
 import {
   DestinationGas,
   RemoteRouters,
@@ -82,7 +86,7 @@ import {
   HypTokenRouterConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from '../token/types.js';
-import { ChainMap } from '../types.js';
+import { ChainMap, ChainName } from '../types.js';
 import {
   assertHybridIsmDeployConstraints,
   collectHybridIsmNodes,
@@ -850,10 +854,38 @@ async function createWarpHook({
   }
 }
 
-type DelayedFlowEnrollmentTarget = {
+export type DelayedFlowEnrollmentTarget = {
   ismAddress: Address;
   userNode: DelayedFlowRouterHookIsmConfig;
 };
+
+/**
+ * Resolves the DelayedFlowRouterHookIsm instance nested inside a deployed ISM
+ * tree (typically an aggregation, since the contract must be composed under an
+ * authenticating ISM).
+ */
+async function resolveDelayedFlowIsmInTree(
+  multiProvider: MultiProvider,
+  chain: ChainName,
+  ismTreeAddress: Address,
+): Promise<Address> {
+  const derived = await new EvmIsmReader(multiProvider, chain).deriveIsmConfig(
+    ismTreeAddress,
+  );
+  const delayedNodes = collectHybridIsmNodes(derived).filter(
+    (node) => node.type === IsmType.DELAYED_FLOW_ROUTER,
+  );
+  assert(
+    delayedNodes.length === 1,
+    `Expected exactly one DELAYED_FLOW_ROUTER instance in the ISM tree at ${ismTreeAddress} on ${chain}, found ${delayedNodes.length}`,
+  );
+  const node = delayedNodes[0];
+  assert(
+    'address' in node && typeof node.address === 'string',
+    `Derived DELAYED_FLOW_ROUTER node on ${chain} is missing its address`,
+  );
+  return node.address;
+}
 
 /**
  * Locates each chain's deployed DelayedFlowRouterHookIsm (wired as the
@@ -861,11 +893,18 @@ type DelayedFlowEnrollmentTarget = {
  * enrollment pass can pair the instances DFR↔DFR. Chains are paired iff their
  * deploy config's ISM tree contains a DELAYED_FLOW_ROUTER node — the user
  * never hand-writes `remoteIsms`.
+ *
+ * `knownIsmTreeAddresses` lets callers supply the ISM tree that is being
+ * installed but is not yet the router's on-chain hook (e.g. `warp apply`,
+ * where the tree is deployed while transactions are still being built); the
+ * hybrid instance is resolved from inside that tree. Chains absent from the
+ * map fall back to reading the router's current hook.
  */
-async function deriveDelayedFlowEnrollmentTargets(
+export async function deriveDelayedFlowEnrollmentTargets(
   multiProvider: MultiProvider,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   deployedContracts: ChainMap<Address>,
+  knownIsmTreeAddresses: ChainMap<Address> = {},
 ): Promise<ChainMap<DelayedFlowEnrollmentTarget>> {
   const targets: ChainMap<DelayedFlowEnrollmentTarget> = {};
   for (const [chain, config] of Object.entries(warpDeployConfig)) {
@@ -891,22 +930,82 @@ async function deriveDelayedFlowEnrollmentTargets(
     const tokenAddress = deployedContracts[chain];
     assert(tokenAddress, `No deployed token found for ${chain}`);
     const provider = multiProvider.getProvider(chain);
-    const hookAddress = await MailboxClient__factory.connect(
-      tokenAddress,
-      provider,
-    ).hook();
+    const ismAddress = knownIsmTreeAddresses[chain]
+      ? await resolveDelayedFlowIsmInTree(
+          multiProvider,
+          chain,
+          knownIsmTreeAddresses[chain],
+        )
+      : await MailboxClient__factory.connect(tokenAddress, provider).hook();
     const onChainWarpRouter = await DelayedFlowRouterHookIsm__factory.connect(
-      hookAddress,
+      ismAddress,
       provider,
     ).warpRouter();
     assert(
       eqAddress(onChainWarpRouter, tokenAddress),
-      `Hook ${hookAddress} on ${chain} is not the token's DelayedFlowRouterHookIsm (warpRouter mismatch)`,
+      `Contract ${ismAddress} on ${chain} is not the token's DelayedFlowRouterHookIsm (warpRouter mismatch)`,
     );
 
-    targets[chain] = { ismAddress: hookAddress, userNode: delayedNodes[0] };
+    targets[chain] = { ismAddress, userNode: delayedNodes[0] };
   }
   return targets;
+}
+
+/**
+ * Builds the enrollment transactions for one chain's
+ * DelayedFlowRouterHookIsm: enrolls every other chain's instance as a remote
+ * counterpart and transfers ownership to the configured owner LAST (the
+ * enrollment calls are owner-gated). Converges to zero transactions once the
+ * on-chain state already matches.
+ *
+ * Shared by the deploy flow (deployer-owned instances) and `warp apply`
+ * (instances that may be owned by a Safe/ICA — the returned transactions carry
+ * no signing assumptions and ride whichever submitter the caller uses).
+ */
+export async function buildDelayedFlowEnrollmentTxs({
+  chain,
+  multiProvider,
+  registryAddresses,
+  warpRouter,
+  target,
+  allTargets,
+}: {
+  chain: ChainName;
+  multiProvider: MultiProvider;
+  registryAddresses: ChainMap<ChainAddresses>;
+  warpRouter: Address;
+  target: DelayedFlowEnrollmentTarget;
+  allTargets: ChainMap<DelayedFlowEnrollmentTarget>;
+}): Promise<AnnotatedEV5Transaction[]> {
+  const { ismAddress, userNode } = target;
+  const remoteIsms = Object.fromEntries(
+    Object.entries(allTargets)
+      .filter(([otherChain]) => otherChain !== chain)
+      .map(([otherChain, otherTarget]) => [
+        otherChain,
+        addressToBytes32(otherTarget.ismAddress).toLowerCase(),
+      ]),
+  );
+
+  const delayedFlowIsmModule = new EvmIsmModule(multiProvider, {
+    chain,
+    config: userNode,
+    addresses: {
+      ...extractIsmAndHookFactoryAddresses(registryAddresses[chain]),
+      mailbox: registryAddresses[chain].mailbox,
+      deployedIsm: ismAddress,
+    },
+  });
+
+  return delayedFlowIsmModule.update({
+    type: IsmType.DELAYED_FLOW_ROUTER,
+    warpRouter,
+    thresholdBps: userNode.thresholdBps,
+    maxDelay: userNode.maxDelay,
+    duration: userNode.duration,
+    owner: userNode.owner,
+    remoteIsms,
+  });
 }
 
 export async function enrollCrossChainRouters(
@@ -1079,41 +1178,19 @@ export async function enrollCrossChainRouters(
 
           const delayedFlowTarget = delayedFlowTargets[currentChain];
           if (delayedFlowTarget) {
-            const { ismAddress, userNode } = delayedFlowTarget;
-            const remoteIsms = Object.fromEntries(
-              Object.entries(delayedFlowTargets)
-                .filter(([chain]) => chain !== currentChain)
-                .map(([chain, target]) => [
-                  chain,
-                  addressToBytes32(target.ismAddress).toLowerCase(),
-                ]),
-            );
-
-            const delayedFlowIsmModule = new EvmIsmModule(multiProvider, {
-              chain: currentChain,
-              config: userNode,
-              addresses: {
-                ...extractIsmAndHookFactoryAddresses(
-                  registryAddresses[currentChain],
-                ),
-                mailbox: registryAddresses[currentChain].mailbox,
-                deployedIsm: ismAddress,
-              },
-            });
             // Deploy left the instance owned by the deployer with no
-            // enrollments; this update enrolls the remote counterparts and
-            // transfers ownership to the configured owner LAST (enrollment is
-            // owner-gated).
-            const delayedFlowTxs = await delayedFlowIsmModule.update({
-              type: IsmType.DELAYED_FLOW_ROUTER,
-              warpRouter: deployedContracts[currentChain],
-              thresholdBps: userNode.thresholdBps,
-              maxDelay: userNode.maxDelay,
-              duration: userNode.duration,
-              owner: userNode.owner,
-              remoteIsms,
-            });
-            transactions.push(...delayedFlowTxs);
+            // enrollments; this enrolls the remote counterparts and transfers
+            // ownership to the configured owner LAST.
+            transactions.push(
+              ...(await buildDelayedFlowEnrollmentTxs({
+                chain: currentChain,
+                multiProvider,
+                registryAddresses,
+                warpRouter: deployedContracts[currentChain],
+                target: delayedFlowTarget,
+                allTargets: delayedFlowTargets,
+              })),
+            );
           }
 
           break;

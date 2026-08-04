@@ -232,7 +232,10 @@ export * as verificationUtils from './deploy/verify/utils.js';
 export { ExplorerLicenseType } from './block-explorer/etherscan.js';
 export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
 export {
+  buildDelayedFlowEnrollmentTxs,
   buildFeeReadContextFromWarpDeployConfig,
+  type DelayedFlowEnrollmentTarget,
+  deriveDelayedFlowEnrollmentTargets,
   executeWarpDeploy,
   enrollCrossChainRouters,
   validateWarpConfigForAltVM,
