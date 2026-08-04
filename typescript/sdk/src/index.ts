@@ -223,6 +223,29 @@ export {
 export { ContractVerifier } from './deploy/verify/ContractVerifier.js';
 export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier.js';
 export {
+  BytecodeValidity,
+  compareBytecode,
+  readOnchainPackageVersion,
+  resolveImplementation,
+  scanAddressesBytecode,
+} from './deploy/verify/bytecodeComparator.js';
+export type { BytecodeComparison } from './deploy/verify/bytecodeComparator.js';
+export {
+  EIP1967_IMPLEMENTATION_SLOT,
+  computeMaskedRuntimeHash,
+  flattenImmutableReferences,
+  flattenLinkReferences,
+  generateManifestFromBuildInfoDir,
+  maskRanges,
+  stripMetadata,
+} from './deploy/verify/bytecodeManifest.js';
+export type {
+  ByteRange,
+  BytecodeManifest,
+  BytecodeManifestSet,
+  ContractBytecodeEntry,
+} from './deploy/verify/bytecodeManifest.js';
+export {
   BuildArtifact,
   CompilerOptions,
   ContractVerificationInput,
@@ -983,6 +1006,14 @@ export {
   CONFIGURATION_CHANGED_EVENT_SELECTOR,
   XERC20_VS_ABI,
 } from './token/xerc20-abi.js';
+export {
+  bytecodeComparisonsToViolations,
+  checkWarpRouteBytecode,
+} from './token/warpBytecodeCheck.js';
+export type {
+  BytecodeMismatchViolation,
+  WarpBytecodeComparison,
+} from './token/warpBytecodeCheck.js';
 export {
   PredicateApiClient,
   PredicateAttestation,
