@@ -226,12 +226,33 @@ export class TurnkeyEvmSigner extends ethers.Signer {
     logger.debug('Signing typed data with Turnkey');
 
     try {
-      // Produce the standard EIP-712 JSON payload (types incl. EIP712Domain,
-      // primaryType, domain, message) that Turnkey decodes for policy checks.
-      const payload = ethers.utils._TypedDataEncoder.getPayload(
+      // Resolve ENS names in address-typed fields via the provider, mirroring
+      // ethers v5's own Wallet._signTypedData, before encoding the payload.
+      const populated = await ethers.utils._TypedDataEncoder.resolveNames(
         domain,
         types,
         value,
+        (name: string) => {
+          if (this.provider == null) {
+            return Promise.reject(
+              new Error(`Cannot resolve ENS name "${name}" without a provider`),
+            );
+          }
+          return this.provider.resolveName(name).then((address) => {
+            if (address == null) {
+              throw new Error(`Unconfigured ENS name "${name}"`);
+            }
+            return address;
+          });
+        },
+      );
+
+      // Produce the standard EIP-712 JSON payload (types incl. EIP712Domain,
+      // primaryType, domain, message) that Turnkey decodes for policy checks.
+      const payload = ethers.utils._TypedDataEncoder.getPayload(
+        populated.domain,
+        types,
+        populated.value,
       );
 
       const { activity, r, s, v } = await this.manager

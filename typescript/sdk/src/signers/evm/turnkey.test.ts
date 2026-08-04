@@ -71,6 +71,8 @@ describe('TurnkeyEvmSigner._signTypedData', () => {
   beforeEach(() => {
     signRawPayload = sinon.stub();
     const fakeClient = { signRawPayload };
+    // CAST: test double — TurnkeyServerClient is a large generated client;
+    // the signer only calls signRawPayload, which this stub provides.
     sinon
       .stub(TurnkeyClientManager.prototype, 'getClient')
       .returns(fakeClient as unknown as TurnkeyServerClient);
@@ -164,6 +166,88 @@ describe('TurnkeyEvmSigner._signTypedData', () => {
         'Missing signature components from Turnkey',
       );
     }
+  });
+});
+
+describe('TurnkeyEvmSigner._signTypedData ENS resolution', () => {
+  const ENS_TYPES = {
+    SafeTx: [
+      { name: 'to', type: 'address' },
+      { name: 'value', type: 'uint256' },
+    ],
+  };
+  const ENS_NAME = 'alice.eth';
+  const RESOLVED_ADDRESS = '0x000000000000000000000000000000000000dEaD';
+
+  let signRawPayload: sinon.SinonStub;
+
+  beforeEach(() => {
+    signRawPayload = sinon.stub();
+    const fakeClient = { signRawPayload };
+    // CAST: test double — TurnkeyServerClient is a large generated client;
+    // the signer only calls signRawPayload, which this stub provides.
+    sinon
+      .stub(TurnkeyClientManager.prototype, 'getClient')
+      .returns(fakeClient as unknown as TurnkeyServerClient);
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  function fakeProvider(
+    resolveName: sinon.SinonStub,
+  ): ethers.providers.Provider {
+    // CAST: test double — ethers.providers.Provider is a large abstract
+    // class; the signer only calls resolveName during ENS resolution.
+    return { resolveName } as unknown as ethers.providers.Provider;
+  }
+
+  it('resolves an ENS name in an address field before encoding', async () => {
+    const wallet = ethers.Wallet.createRandom();
+    const resolvedValue = { to: RESOLVED_ADDRESS, value: '0' };
+    const realSignature = await wallet._signTypedData(
+      DOMAIN,
+      ENS_TYPES,
+      resolvedValue,
+    );
+    signRawPayload.resolves(toTurnkeyRawResult(realSignature));
+
+    const resolveName = sinon.stub().resolves(RESOLVED_ADDRESS);
+    const signer = new TurnkeyEvmSigner(
+      configFor(wallet.address),
+      fakeProvider(resolveName),
+    );
+
+    await signer._signTypedData(DOMAIN, ENS_TYPES, {
+      to: ENS_NAME,
+      value: '0',
+    });
+
+    expect(resolveName.calledOnceWith(ENS_NAME)).to.be.true;
+    const payload = JSON.parse(signRawPayload.getCall(0).args[0].payload);
+    expect(payload.message.to).to.equal(RESOLVED_ADDRESS.toLowerCase());
+    expect(payload.message.to).to.not.equal(ENS_NAME);
+  });
+
+  it('rejects an ENS name when no provider is configured', async () => {
+    const wallet = ethers.Wallet.createRandom();
+    const signer = new TurnkeyEvmSigner(configFor(wallet.address));
+
+    let error: unknown;
+    try {
+      await signer._signTypedData(DOMAIN, ENS_TYPES, {
+        to: ENS_NAME,
+        value: '0',
+      });
+    } catch (e) {
+      error = e;
+    }
+    expect(error).to.be.instanceOf(Error);
+    if (error instanceof Error) {
+      expect(error.message).to.include('without a provider');
+    }
+    expect(signRawPayload.called).to.be.false;
   });
 });
 
