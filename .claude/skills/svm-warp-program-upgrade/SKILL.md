@@ -7,7 +7,7 @@ description: Upgrade a deployed Sealevel (SVM) warp-route token or IGP program t
 
 Upgrade a deployed Sealevel warp-route token program (collateral/synthetic/native/cross-collateral) or IGP program to a newer on-chain `contractVersion` — most commonly to move an existing route onto a fee-enabled program build.
 
-There is **no standalone `warp upgrade` CLI command.** The upgrade runs automatically as part of `hyperlane warp apply`: when the expected `contractVersion` in the compiled program config differs from the on-chain version AND program bytes are supplied, the SVM token module calls `prepareProgramUpgrade` (`typescript/svm-sdk/src/deploy/program-upgrade.ts`) before its config-update step.
+The upgrade runs as part of `hyperlane warp apply`: when the expected `contractVersion` in the compiled program config differs from the on-chain version AND program bytes are supplied, the SVM token module calls `prepareProgramUpgrade` (`typescript/svm-sdk/src/deploy/program-upgrade.ts`) before its config-update step.
 
 ## When to Use
 
@@ -44,14 +44,24 @@ If any of these is missing, ask before proceeding.
 
 ## Execution Flow
 
-### Step 1 — Read current on-chain version
+### Step 1 — Start the HTTP registry
 
-Read the deployed program's config to capture the current `contractVersion` and confirm it is older than the target. Use `hyperlane warp read` (or `warp check`) against the route so you can show the user current vs expected version and the upgrade authority.
+The upgrade needs private RPC overrides for the Sealevel chain, and the read/apply below target it. Start it per `/start-http-registry` **with `--writeMode`** (the upgrade persists on-chain), _before_ the read so every command hits the same registry. Note the port + task ID.
+
+### Step 2 — Read current version and upgrade authority
+
+Read the deployed program's config to capture the current `contractVersion` and confirm it is older than the target, so you can show the user current vs expected version.
 
 ```bash
 cd <MONOREPO_ROOT>/typescript/cli && pnpm hyperlane warp read \
   --registry http://localhost:<port> \
   -w <WARP_ROUTE_ID>
+```
+
+Use the Solana CLI to read the program's upgrade authority — whether it's immutable and who can sign the upgrade:
+
+```bash
+solana program show <PROGRAM_ID>   # "Authority" field; "none" = immutable
 ```
 
 Confirm:
@@ -60,47 +70,25 @@ Confirm:
 - the program has an upgrade authority (not immutable)
 - who the upgrade authority is (submitter vs external owner)
 
-### Step 2 — Start the HTTP registry
+### Step 3 — Run the upgrade
 
-The upgrade needs private RPC overrides for the Sealevel chain.
-
-```bash
-cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
-```
-
-Run in background; wait for `Listening on http://localhost:<port>`; note port + task ID. (`/start-http-registry` skill.)
-
-### Step 3 — Dry-run / preview
-
-Preview the apply so the user sees exactly which programs will be extended + upgraded and the version transitions, before spending SOL on buffer writes.
+Apply writes the new program bytes to a buffer account (spending SOL) while it builds the transactions, so running it is itself the spending action — confirm the version transition from Step 2 with the user first.
 
 ```bash
-cd <MONOREPO_ROOT>/typescript/cli && pnpm hyperlane warp apply \
+cd <MONOREPO_ROOT>/typescript/cli && pnpm --silent hyperlane warp apply \
   --registry http://localhost:<port> \
-  --key.sealevel $<SEALEVEL_KEY_VAR> \
-  -w <WARP_ROUTE_ID> \
-  --dry-run
-```
-
-Look for the annotations `Extend <label>: +N bytes` and `Upgrade <label>: <old> → <new>`. Show these to the user. If no upgrade annotation appears, the version already matches or no program bytes were supplied — stop and report that.
-
-### Step 4 — Run the upgrade
-
-Re-run without `--dry-run`. If the upgrade authority differs from the submitter key, supply a strategy with a `file` submitter for the Sealevel chain so the authority (extend + upgrade) transactions are written out for the owner to sign.
-
-```bash
-cd <MONOREPO_ROOT>/typescript/cli && pnpm hyperlane warp apply \
-  --registry http://localhost:<port> \
-  --key.sealevel $<SEALEVEL_KEY_VAR> \
+  --key.sealevel "$SEALEVEL_KEY_VAR" \
   [--strategy ~/.hyperlane/strategies/<owner>-strategy.yaml]  # if authority != submitter
   --receipts-dir /tmp/<route>-svm-upgrade-txs \
   -w <WARP_ROUTE_ID> \
   --yes
 ```
 
-Buffer create/write is executed immediately by the submitter key. The extend + upgrade either execute (authority == submitter) or land in the receipts dir for the owner to sign.
+If the upgrade authority differs from the submitter key, supply a strategy with a `file` submitter for the Sealevel chain so the authority (extend + upgrade) transactions are written out for the owner to sign.
 
-### Step 5 — Verify
+The run annotates `Extend <label>: +N bytes` and `Upgrade <label>: <old> → <new>` — show these to the user. If no upgrade annotation appears, the version already matches or no program bytes were supplied — stop and report that. Buffer create/write is executed immediately by the submitter key; the extend + upgrade either execute (authority == submitter) or land in the receipts dir for the owner to sign.
+
+### Step 4 — Verify
 
 Re-read the program and confirm on-chain `contractVersion` now equals the target. If the authority txs were written to a file, the version will only change **after** the owner executes them — say so explicitly.
 
@@ -109,13 +97,13 @@ cd <MONOREPO_ROOT>/typescript/cli && pnpm hyperlane warp read \
   --registry http://localhost:<port> -w <WARP_ROUTE_ID>
 ```
 
-### Step 6 — Recreate ALTs
+### Step 5 — Recreate ALTs
 
 A program upgrade can change the account set for transfers. After any successful upgrade, **recreate the SVM Address Lookup Tables** for the route — run `/svm-warp-alt-manage` (`hyperlane warp alt create`). Then `hyperlane warp alt check` to confirm no drift.
 
-### Step 7 — Stop the HTTP registry
+### Step 6 — Stop the HTTP registry
 
-Kill the background task from Step 2, even on failure.
+Stop it per `/stop-http-registry`, even on failure.
 
 ## Caveats
 
@@ -124,4 +112,4 @@ Kill the background task from Step 2, even on failure.
 - **Two-key reality.** The submitter/payer key pays for and writes the buffer; the **upgrade authority** must sign the extend + upgrade. These are frequently different (owner = Squads multisig). Plan for a `file` submitter and owner execution.
 - **Version bump alone is inert.** If the config carries a new `contractVersion` but no program bytes, `prepareProgramUpgrade` never runs a binary upgrade — only the config-update path. Ensure the program build/bytes are wired in.
 - **Extend sizing is exact**, computed from the new binary vs current program-data capacity; it is not a fixed 10 KiB. If the binary shrank or fits, no extend instruction is emitted.
-- **Always follow with ALT recreation** (Step 6) — stale ALTs after an account-layout change cause transfer failures.
+- **Always follow with ALT recreation** (Step 5) — stale ALTs after an account-layout change cause transfer failures.
