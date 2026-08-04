@@ -87,7 +87,10 @@ class StarknetMailboxReader implements ArtifactReader<
 class StarknetMailboxWriter
   extends StarknetMailboxReader
   implements
-    ArtifactWriter<RawMailboxArtifactConfigs['mailbox'], DeployedMailboxAddress>
+    ArtifactWriter<
+      RawMailboxArtifactConfigs['mailbox'],
+      DeployedMailboxAddress
+    >
 {
   constructor(
     provider: StarknetProvider,

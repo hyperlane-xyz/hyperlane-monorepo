@@ -223,17 +223,15 @@ export async function getLogsFromEtherscanLikeExplorerAPI(
   const rawLogs: RawEtherscanGetEventLogsResponse[] =
     await handleEtherscanResponse(response);
 
-  return rawLogs.map(
-    (rawLogs): GetEventLogsResponse => ({
-      address: rawLogs.address,
-      blockNumber: Number(rawLogs.blockNumber),
-      data: rawLogs.data,
-      logIndex: Number(rawLogs.logIndex),
-      topics: rawLogs.topics,
-      transactionHash: rawLogs.transactionHash,
-      transactionIndex: Number(rawLogs.transactionIndex),
-    }),
-  );
+  return rawLogs.map((rawLogs): GetEventLogsResponse => ({
+    address: rawLogs.address,
+    blockNumber: Number(rawLogs.blockNumber),
+    data: rawLogs.data,
+    logIndex: Number(rawLogs.logIndex),
+    topics: rawLogs.topics,
+    transactionHash: rawLogs.transactionHash,
+    transactionIndex: Number(rawLogs.transactionIndex),
+  }));
 }
 
 interface GetContractVerificationStatus extends BaseEtherscanLikeAPIParams<

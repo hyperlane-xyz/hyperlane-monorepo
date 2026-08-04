@@ -3,7 +3,9 @@ minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - '@hyperlane-xyz/*'
   - '@provablehq/*'
+  - '@oxfmt/*'
   - '@oxlint/*'
+  - oxfmt
   - oxlint
 
 packages:
@@ -128,7 +130,7 @@ catalog:
   oxlint-tsgolint: ^7.0.2001
 
   # Formatting
-  oxfmt: ^0.42.0
+  oxfmt: ^0.62.0
   prettier: ^3.9.6
   prettier-plugin-solidity: ^1.4.2
 

@@ -56,7 +56,10 @@ export class SvmValidatorAnnounceReader implements ArtifactReader<
 export class SvmValidatorAnnounceWriter
   extends SvmValidatorAnnounceReader
   implements
-    ArtifactWriter<RawValidatorAnnounceConfig, DeployedValidatorAnnounceAddress>
+    ArtifactWriter<
+      RawValidatorAnnounceConfig,
+      DeployedValidatorAnnounceAddress
+    >
 {
   constructor(
     private readonly config: SvmValidatorAnnounceConfig,

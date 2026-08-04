@@ -272,7 +272,10 @@ export async function buildCrossCollateralRouterUnenrollTxs(
 export class SvmCrossCollateralTokenWriter
   extends SvmCrossCollateralTokenReader
   implements
-    ArtifactWriter<RawCrossCollateralWarpArtifactConfig, SvmDeployedWarpAddress>
+    ArtifactWriter<
+      RawCrossCollateralWarpArtifactConfig,
+      SvmDeployedWarpAddress
+    >
 {
   constructor(
     private readonly config: SvmWarpTokenConfig,
