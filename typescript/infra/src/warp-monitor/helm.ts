@@ -369,27 +369,26 @@ export class CentralizedWarpRouteMonitorHelmManager extends HelmManager {
 }
 
 // Reads the route whitelist (WARP_ROUTE_IDS env) off the currently-deployed
-// centralized monitor pod. This is the durable, self-perpetuating source for a
-// redeploy: it survives after the per-route StatefulSets are decommissioned,
-// unlike a source derived from those pods. Returns [] when no centralized
-// monitor is deployed yet, or when it was deployed in warpRouteAll mode (no
-// explicit id list to read).
+// centralized monitor Deployment. The Deployment is the durable source for a
+// redeploy: its pod template retains WARP_ROUTE_IDS even when the pod is
+// deleted, crashlooping, or scaled to zero, so a redeploy can recover the
+// singleton exactly when no pod is running. It survives after the per-route
+// StatefulSets are decommissioned, unlike a source derived from those pods.
+// Returns [] when no centralized monitor is deployed yet, or when it was
+// deployed in warpRouteAll mode (no explicit id list to read).
 export async function getDeployedCentralizedWarpMonitorWarpRouteIds(
   namespace: string,
 ): Promise<string[]> {
-  const podsResult = await execCmdAndParseJson(
-    `kubectl get pods -n ${namespace} -o json`,
+  const releaseName = CentralizedWarpRouteMonitorHelmManager.helmReleaseName;
+  const deploymentsResult = await execCmdAndParseJson(
+    `kubectl get deployment -n ${namespace} -l app.kubernetes.io/instance=${releaseName} -o json`,
   );
 
-  const releaseName = CentralizedWarpRouteMonitorHelmManager.helmReleaseName;
   const ids = new Set<string>();
 
-  for (const pod of podsResult.items || []) {
-    const instance = pod.metadata?.labels?.['app.kubernetes.io/instance'];
-    if (instance !== releaseName) {
-      continue;
-    }
-    for (const container of pod.spec?.containers || []) {
+  for (const deployment of deploymentsResult.items || []) {
+    const containers = deployment.spec?.template?.spec?.containers || [];
+    for (const container of containers) {
       const env = (container.env || []).find(
         (e: { name: string; value?: string }) => e.name === 'WARP_ROUTE_IDS',
       );
