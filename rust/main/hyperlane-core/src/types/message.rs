@@ -169,7 +169,46 @@ impl HyperlaneMessage {
 
 #[cfg(test)]
 mod tests {
-    use super::HyperlaneMessage;
+    use super::{HyperlaneMessage, RawHyperlaneMessage, HYPERLANE_MESSAGE_PREFIX_LEN};
+    use crate::Decode;
+
+    fn valid_message_bytes() -> RawHyperlaneMessage {
+        RawHyperlaneMessage::from(&HyperlaneMessage::default())
+    }
+
+    #[test]
+    fn read_from_valid_input_unchanged() {
+        let bytes = valid_message_bytes();
+        assert!(bytes.len() >= HYPERLANE_MESSAGE_PREFIX_LEN);
+
+        let decoded = HyperlaneMessage::read_from(&mut bytes.as_slice()).expect("valid message");
+        assert_eq!(decoded, HyperlaneMessage::default());
+        assert_eq!(HyperlaneMessage::from(bytes), decoded);
+    }
+
+    #[test]
+    fn read_from_empty_input_returns_err() {
+        let mut empty: &[u8] = &[];
+        assert!(HyperlaneMessage::read_from(&mut empty).is_err());
+    }
+
+    #[test]
+    fn read_from_truncated_input_returns_err() {
+        let bytes = valid_message_bytes();
+        for len in [1usize, 40, HYPERLANE_MESSAGE_PREFIX_LEN - 1] {
+            let mut truncated = &bytes[..len];
+            assert!(
+                HyperlaneMessage::read_from(&mut truncated).is_err(),
+                "expected Err for truncated len={len}"
+            );
+        }
+    }
+
+    #[test]
+    fn read_from_malformed_short_input_returns_err() {
+        let mut malformed: &[u8] = &[0u8; 50];
+        assert!(HyperlaneMessage::read_from(&mut malformed).is_err());
+    }
 
     #[ignore]
     #[test]
