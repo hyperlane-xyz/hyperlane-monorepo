@@ -1,5 +1,3 @@
-import { BHP256, BHP1024, Plaintext, U128 } from '@provablehq/sdk/mainnet.js';
-
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   assert,
@@ -9,10 +7,12 @@ import {
   toHexString,
 } from '@hyperlane-xyz/utils';
 
-import { type AleoProgram, programRegistry } from '../artifacts.js';
 import { type AnyAleoNetworkClient } from '../clients/base.js';
+import { ALEO_NULL_ADDRESS } from '../constants.js';
+import { ALEO_PROGRAMS, type AleoProgram } from '../programs.js';
 
 import { AleoNetworkId, AleoTokenType } from './types.js';
+import type { AleoSdk } from './provable.js';
 
 const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');
 
@@ -31,9 +31,7 @@ export const RETRY_DELAY_MS = 100;
 export const SUFFIX_LENGTH_LONG = 6;
 export const SUFFIX_LENGTH_SHORT = 3;
 
-export const ALEO_NULL_ADDRESS =
-  'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc';
-export const ALEO_NATIVE_DENOM = 'credits';
+export { ALEO_NATIVE_DENOM, ALEO_NULL_ADDRESS } from '../constants.js';
 
 export function formatAddress(address: string): string {
   return isZeroishAddress(address) ? '' : address;
@@ -54,12 +52,15 @@ export function programIdToPlaintext(programId: string): string {
   return arrayToPlaintext(fillArray(bytes, 128, `0u8`));
 }
 
-export function getAddressFromProgramId(programId: string): string {
-  return Plaintext.fromString(programId).toString();
+export function getAddressFromProgramId(
+  sdk: AleoSdk,
+  programId: string,
+): string {
+  return sdk.Plaintext.fromString(programId).toString();
 }
 
-export function toAleoAddress(programId: string): string {
-  return `${programId}/${getAddressFromProgramId(programId)}`;
+export function toAleoAddress(sdk: AleoSdk, programId: string): string {
+  return `${programId}/${getAddressFromProgramId(sdk, programId)}`;
 }
 
 export function fromAleoAddress(aleoAddress: string): {
@@ -97,7 +98,7 @@ export function getProgramSuffix(address: string): string {
     suffix = suffix.replaceAll(prefix, '');
   }
 
-  for (const key of Object.keys(programRegistry)) {
+  for (const key of ALEO_PROGRAMS) {
     suffix = suffix.replaceAll(key, '');
   }
 
@@ -177,7 +178,16 @@ export function bytes32ToU128String(input: string): string {
   const lowBytes = Uint8Array.from(bytes.subarray(0, 16));
   const highBytes = Uint8Array.from(bytes.subarray(16, 32));
 
-  return `[${U128.fromBytesLe(lowBytes).toString()},${U128.fromBytesLe(highBytes).toString()}]`;
+  return `[${bytesLeToU128String(lowBytes)},${bytesLeToU128String(highBytes)}]`;
+}
+
+export function bytesLeToU128String(bytes: Uint8Array): string {
+  assert(bytes.length <= 16, `bytesLeToU128String: expected at most 16 bytes`);
+  let value = 0n;
+  for (let i = bytes.length - 1; i >= 0; i--) {
+    value = (value << 8n) | BigInt(bytes[i]);
+  }
+  return `${value}u128`;
 }
 
 // Inverse of bytes32ToU128String: parses "[lowU128u128, highU128u128]" from dispatch_id_events
@@ -219,10 +229,16 @@ export function u128PairToBytes32(u128PairStr: string): string {
   return toHexString(Buffer.from(bytes));
 }
 
-export function getBalanceKey(address: string, denom: string): string {
-  return new BHP256()
+export function getBalanceKey(
+  sdk: AleoSdk,
+  address: string,
+  denom: string,
+): string {
+  return new sdk.BHP256()
     .hash(
-      Plaintext.fromString(`{account:${address},token_id:${denom}}`).toBitsLe(),
+      sdk.Plaintext.fromString(
+        `{account:${address},token_id:${denom}}`,
+      ).toBitsLe(),
     )
     .toString();
 }
@@ -257,6 +273,7 @@ function programIdToBitsLe(programId: string): boolean[] {
 //   BHP1024(programId_bits | false | mappingName_bits | false | plaintextKey_bits)
 // key must be a valid Aleo plaintext string, e.g. "0u32".
 export function toKeyId(
+  sdk: AleoSdk,
   programId: string,
   mappingName: string,
   key: string,
@@ -266,9 +283,9 @@ export function toKeyId(
     false,
     ...identifierToBitsLe(mappingName),
     false,
-    ...Plaintext.fromString(key).toBitsLe(),
+    ...sdk.Plaintext.fromString(key).toBitsLe(),
   ];
-  return new BHP1024().hash(bits).toString();
+  return new sdk.BHP1024().hash(bits).toString();
 }
 
 /**

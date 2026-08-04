@@ -1,4 +1,3 @@
-import { U128 } from '@provablehq/sdk/mainnet.js';
 import { BigNumber } from 'bignumber.js';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
@@ -14,6 +13,7 @@ import {
   ALEO_NULL_ADDRESS,
   U128ToString,
   arrayToPlaintext,
+  bytesLeToU128String,
   bytes32ToU128String,
   u128PairToBytes32,
   fillArray,
@@ -28,6 +28,7 @@ import {
   isV2WarpToken,
   toAleoAddress,
 } from '../utils/helper.js';
+import type { AleoSdk } from '../utils/provable.js';
 import { AleoTokenType, type AleoTransaction } from '../utils/types.js';
 import {
   callViewFunction,
@@ -35,7 +36,7 @@ import {
   getArc20TokenMetadata,
   getRemoteRouters,
   parseAleoUint,
-} from '../warp/warp-query.js';
+} from '../warp/provider-query.js';
 
 import { AleoBase } from './base.js';
 
@@ -75,17 +76,21 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     return hasSigner;
   }
 
-  static async connect(metadata: ChainMetadataForAltVM): Promise<AleoProvider> {
+  static async connect(
+    metadata: ChainMetadataForAltVM,
+    sdk: AleoSdk,
+  ): Promise<AleoProvider> {
     const rpcUrls = (metadata.rpcUrls ?? []).map((rpc) => rpc.http);
-    return new AleoProvider(rpcUrls, metadata.chainId, metadata);
+    return new AleoProvider(rpcUrls, metadata.chainId, metadata, sdk);
   }
 
   constructor(
     rpcUrls: string[],
     chainId: string | number,
     chainMetadata: ChainMetadataForAltVM,
+    sdk: AleoSdk,
   ) {
-    super(rpcUrls, chainId);
+    super(rpcUrls, chainId, sdk);
     this.chainMetadata = chainMetadata;
   }
 
@@ -141,7 +146,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       const result = await this.queryMappingValue(
         'token_registry.aleo',
         'authorized_balances',
-        getBalanceKey(aleoAddress, req.denom),
+        getBalanceKey(this.sdk, aleoAddress, req.denom),
       );
 
       if (!result) {
@@ -318,7 +323,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       mailboxProgramId,
       `could not find mailbox program id on token ${req.tokenAddress}`,
     );
-    token.mailboxAddress = toAleoAddress(mailboxProgramId);
+    token.mailboxAddress = toAleoAddress(this.sdk, mailboxProgramId);
 
     const tokenMetadata = await this.queryMappingValue(
       programId,
@@ -377,6 +382,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqGetRemoteRouters,
   ): Promise<AltVM.ResGetRemoteRouters> {
     const remoteRouters = await getRemoteRouters(
+      this.sdk,
       this.aleoClient,
       req.tokenAddress,
     );
@@ -407,7 +413,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     switch (metadata['token_type']) {
       case AleoTokenType.NATIVE: {
         return this.getBalance({
-          address: getAddressFromProgramId(programId),
+          address: getAddressFromProgramId(this.sdk, programId),
           denom: '',
         });
       }
@@ -419,7 +425,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       }
       case AleoTokenType.COLLATERAL: {
         return this.getBalance({
-          address: getAddressFromProgramId(programId),
+          address: getAddressFromProgramId(this.sdk, programId),
           denom: arc20ProgramId ?? metadata['token_id'],
         });
       }
@@ -567,9 +573,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         64,
         0,
       );
-      gasLimit = U128.fromBytesLe(Uint8Array.from(metadataBytes.slice(0, 16)))
-        .toString()
-        .replace('u128', '');
+      gasLimit = bytesLeToU128String(
+        Uint8Array.from(metadataBytes.slice(0, 16)),
+      ).replace('u128', '');
     }
 
     const { mailboxAddress } = await this.getToken({
@@ -669,9 +675,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         64,
         0,
       );
-      gasLimit = U128.fromBytesLe(Uint8Array.from(metadataBytes.slice(0, 16)))
-        .toString()
-        .replace('u128', '');
+      gasLimit = bytesLeToU128String(
+        Uint8Array.from(metadataBytes.slice(0, 16)),
+      ).replace('u128', '');
     }
 
     const mailbox = await this.getMailbox({
@@ -709,9 +715,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         64,
         0,
       );
-      const gasLimit = U128.fromBytesLe(
+      const gasLimit = bytesLeToU128String(
         Uint8Array.from(metadataBytes.slice(0, 16)),
-      ).toString();
+      );
 
       const hookMetadata = `{gas_limit:${gasLimit},extra_data:[${metadataBytes.map((b) => `${b}u8`).join(',')}]}`;
 

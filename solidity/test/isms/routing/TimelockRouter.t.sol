@@ -83,6 +83,21 @@ contract TimelockRouterTest is Test {
         );
     }
 
+    function test_hooks_returnsConfiguredHook() public {
+        // Routing is destination-agnostic: always returns the configured hook.
+        assertEq(
+            address(originRouter.hooks(DESTINATION_DOMAIN)),
+            address(originRouter.hook())
+        );
+
+        TestPostDispatchHook customHook = new TestPostDispatchHook();
+        originRouter.setHook(address(customHook));
+        assertEq(
+            address(originRouter.hooks(DESTINATION_DOMAIN)),
+            address(customHook)
+        );
+    }
+
     function test_supportsMetadata() public {
         assertTrue(originRouter.supportsMetadata(metadata));
         assertTrue(originRouter.supportsMetadata(bytes("")));

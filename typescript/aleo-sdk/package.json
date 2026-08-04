@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/aleo-sdk",
-  "version": "38.0.0",
+  "version": "40.0.0",
   "description": "Hyperlane TypeScript SDK for the Aleo Hyperlane SDK module",
   "keywords": [
     "aleo",
@@ -24,6 +24,18 @@
     "./runtime": {
       "types": "./dist/runtime.d.ts",
       "default": "./dist/runtime.js"
+    },
+    "./runtime/mainnet": {
+      "types": "./dist/runtime/mainnet.d.ts",
+      "default": "./dist/runtime/mainnet.js"
+    },
+    "./runtime/testnet": {
+      "types": "./dist/runtime/testnet.d.ts",
+      "default": "./dist/runtime/testnet.js"
+    },
+    "./constants": {
+      "types": "./dist/constants.d.ts",
+      "default": "./dist/constants.js"
     },
     "./testing": {
       "types": "./dist/testing/index.d.ts",

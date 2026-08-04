@@ -55,8 +55,15 @@ pub struct ValidatorSettings {
     pub interval: Duration,
     /// A list of RPCs that the validator uses
     pub rpcs: Vec<RpcConfig>,
+    /// Additional RPCs that vote together with `rpcs` (2/3 majority, combined) on the
+    /// merkle tree hook's safety-critical reads. Empty disables quorum verification
+    /// entirely. Intended for *additional* public RPCs only — `rpcs` already votes in the
+    /// same group, so there's no need to duplicate its (typically private) entries here.
+    pub additional_quorum_rpcs: Vec<RpcConfig>,
     /// If the validator oped into public RPCs
     pub allow_public_rpcs: bool,
+    /// Test-only: skips on-chain self-announce. Never use in production.
+    pub skip_announce: bool,
     /// Max sign concurrency
     pub max_sign_concurrency: usize,
 }
@@ -93,6 +100,12 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         let allow_public_rpcs = p
             .chain(&mut err)
             .get_opt_key("allowPublicRpcs")
+            .parse_bool()
+            .unwrap_or(false);
+
+        let skip_announce = p
+            .chain(&mut err)
+            .get_opt_key("skipAnnounce")
             .parse_bool()
             .unwrap_or(false);
 
@@ -217,6 +230,13 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             &mut err,
         ));
 
+        let additional_quorum_rpcs = get_rpc_urls(
+            &chain,
+            "additionalQuorumRpcUrls",
+            "customAdditionalQuorumRpcUrls",
+            &mut err,
+        );
+
         cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer]);
 
         let mut base: Settings = base;
@@ -240,7 +260,9 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             reorg_period,
             interval,
             rpcs,
+            additional_quorum_rpcs,
             allow_public_rpcs,
+            skip_announce,
             max_sign_concurrency,
         })
     }
@@ -294,6 +316,8 @@ fn get_rpc_urls(
         .end()
         .map(|urls| {
             urls.split(',')
+                .map(str::trim)
+                .filter(|url| !url.is_empty())
                 .map(|url| RpcConfig {
                     url: url.to_owned(),
                     public: false,
@@ -479,5 +503,70 @@ mod test {
         assert!(!parsed[0].public);
         assert_eq!(parsed[1].url, "http://my-rpc-url-4.com");
         assert!(!parsed[1].public);
+    }
+
+    #[test]
+    fn test_get_rpc_urls_additional_quorum_keys() {
+        let rpcs = r#"
+            {
+                "additionalquorumrpcurls": [
+                    {
+                        "http": "http://quorum-a.example",
+                        "public": true
+                    }
+                ],
+                "customadditionalquorumrpcurls": "http://quorum-b.example,http://quorum-c.example"
+            }
+        "#;
+        let rpcs = serde_json::from_str(rpcs).unwrap();
+        let mut err = ConfigParsingError::default();
+        let value_parser = ValueParser::new(ConfigPath::default(), &rpcs);
+        let parsed = get_rpc_urls(
+            &value_parser,
+            "additionalQuorumRpcUrls",
+            "customAdditionalQuorumRpcUrls",
+            &mut err,
+        );
+
+        // customAdditionalQuorumRpcUrls overrides additionalQuorumRpcUrls, same as
+        // customRpcUrls does for rpcUrls.
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[0].url, "http://quorum-b.example");
+        assert!(!parsed[0].public);
+        assert_eq!(parsed[1].url, "http://quorum-c.example");
+        assert!(!parsed[1].public);
+    }
+
+    /// Regression test: an empty `customAdditionalQuorumRpcUrls` override (e.g. an env
+    /// var explicitly set to `""` to disable the additional quorum pool) must produce
+    /// zero entries, not a single bogus empty-string `RpcConfig` that would later fail
+    /// `Url::parse` and crash validator startup instead of just disabling the feature.
+    #[test]
+    fn test_get_rpc_urls_empty_override_disables_pool() {
+        let rpcs = r#"
+            {
+                "additionalquorumrpcurls": [
+                    {
+                        "http": "http://quorum-a.example",
+                        "public": true
+                    }
+                ],
+                "customadditionalquorumrpcurls": ""
+            }
+        "#;
+        let rpcs = serde_json::from_str(rpcs).unwrap();
+        let mut err = ConfigParsingError::default();
+        let value_parser = ValueParser::new(ConfigPath::default(), &rpcs);
+        let parsed = get_rpc_urls(
+            &value_parser,
+            "additionalQuorumRpcUrls",
+            "customAdditionalQuorumRpcUrls",
+            &mut err,
+        );
+
+        assert!(
+            parsed.is_empty(),
+            "an empty override string must disable the pool entirely, got {parsed:?}"
+        );
     }
 }

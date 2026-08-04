@@ -165,7 +165,10 @@ describe('EvmQuoteReader (hardhat)', () => {
       new EvmPrivateKeyQuoteSigner(quoteSignerWallet.privateKey),
       owner,
     );
-    const issuedAt = (await nowSec()) + 2;
+    // issuedAt lands on the submit block's timestamp (hardhat mines at
+    // latest + 1); a standing quote must not be future-dated or the on-chain
+    // quoter rejects it with InvalidQuote().
+    const issuedAt = (await nowSec()) + 1;
     const expiry = issuedAt + 7200;
     await writer.submitQuote({
       scope: {

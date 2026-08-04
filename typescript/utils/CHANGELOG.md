@@ -1,5 +1,19 @@
 # @hyperlane-xyz/utils
 
+## 40.0.0
+
+## 39.1.0
+
+### Minor Changes
+
+- 4976bb1: Renamed the validator quorum RPC verification config fields to make clear they only add to, rather than replace, a chain's `rpcUrls`. `AgentChainMetadataSchema`'s `quorumRpcUrls` and `customQuorumRpcUrls` are now `additionalQuorumRpcUrls` and `customAdditionalQuorumRpcUrls`. `ValidatorMetadata.quorum_rpcs` is now `additional_quorum_rpcs`. This is a breaking rename with no backwards-compatible alias, since these fields shipped very recently and have no known external consumers yet.
+
+## 39.0.0
+
+### Patch Changes
+
+- 735793b: Added validator quorum RPC verification support. `AgentChainMetadataSchema` gained an optional `quorumRpcUrls` array (mirroring `rpcUrls`) alongside the existing `customQuorumRpcUrls` override, so a chain's statically configured quorum pool can be expressed in typed config rather than only via the comma-separated override string. `ValidatorMetadata.rpcs` was widened to `Array<string | ValidatorMetadataRpcEntry>` to cover both the historical (pre-agents-v1.6.0) flat hash-string wire shape and the current `{ url_hash, host_hash }` object shape, since metadata blobs are unversioned and a rolling validator fleet can publish either. A new `validatorMetadataRpcUrlHash` helper narrows an `rpcs` entry to its URL hash regardless of which shape it was serialized in. `ValidatorMetadata` also gained an optional `quorum_rpcs` field, reported separately from `rpcs`.
+
 ## 38.0.0
 
 ## 37.0.0

@@ -112,6 +112,11 @@ export class HyperlaneEtherscanProvider
 
   // Overriding to allow more than one topic value
   async performGetLogs(params: { filter: providers.Filter }): Promise<any> {
+    if (Array.isArray(params.filter.address)) {
+      throw new Error(
+        'Multi-address getLogs is not supported by explorer providers',
+      );
+    }
     const args: Record<string, any> = { action: 'getLogs' };
     if (params.filter.fromBlock)
       args.fromBlock = checkLogTag(params.filter.fromBlock);

@@ -87,6 +87,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     boba: true,
     botanix: true,
     bsc: true,
+    bsquared: true,
     carrchain: true,
     celestia: true,
     celo: true,
@@ -131,7 +132,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     morph: true,
     nesa: true,
     nexus: true,
-    nibiru: false, // disabled — sole RPC (evm-rpc.nibiru.fi) down, removed from agent ops (AW-721)
+    nibiru: true,
     noble: true,
     oortmainnet: true,
     optimism: true,
@@ -188,6 +189,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     boba: true,
     botanix: true,
     bsc: true,
+    bsquared: true,
     carrchain: true,
     celestia: true,
     celo: true,
@@ -232,7 +234,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     morph: true,
     nesa: true,
     nexus: true,
-    nibiru: false, // disabled — sole RPC (evm-rpc.nibiru.fi) down, removed from agent ops (AW-721)
+    nibiru: true,
     noble: true,
     oortmainnet: true,
     optimism: true,
@@ -289,6 +291,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     boba: true,
     botanix: true,
     bsc: true,
+    bsquared: true,
     carrchain: true,
     celestia: true,
     celo: true,
@@ -333,7 +336,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     morph: true,
     nesa: true,
     nexus: true,
-    nibiru: false, // disabled — sole RPC (evm-rpc.nibiru.fi) down, removed from agent ops (AW-721)
+    nibiru: true,
     noble: true,
     oortmainnet: true,
     optimism: true,
@@ -658,45 +661,57 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
 };
 
 // Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
+// Sized from 30-day observed usage: steady-state CPU ~0.7-1.3 cores, memory
+// working set ~11-12G. Restart/cold-start catch-up bursts (cursor re-sync +
+// backlog drain) reach ~6 cores; these are absorbed by burst since there is no
+// CPU limit. Request covers the burst peak with headroom; memory covers the
+// working set with ~30% headroom.
 const relayerResources = {
   requests: {
-    cpu: '14000m',
-    memory: '24G',
+    cpu: '8000m',
+    memory: '16G',
   },
 };
 
-// Sized from 30-day observed usage: CPU p50 ~0.08 / p99 ~0.24 cores (rare
-// transient spikes to ~5.7, absorbed by burst since there is no CPU limit),
-// memory peak ~2.4Gi. Request covers the memory peak and ~2x the CPU p99.
+// Sized from 30-day observed usage: CPU p50 ~0.08 / p99 ~0.24 cores, memory
+// peak ~2.4Gi. Steady-state is tiny, but restart/cold-start catch-up bursts
+// (cursor re-sync + backlog drain) reach ~6 cores just like the main relayer;
+// with no CPU limit these are absorbed by burst. The prior 500m request made
+// those bursts read as ~12x request and constantly tripped the ratio-based
+// >75% CPU alert. Request raised to 2 cores to give burst headroom and cut
+// that alert noise; memory covers the peak with headroom.
 const fastPathRelayerResources = {
   requests: {
-    cpu: '500m',
+    cpu: '2000m',
     memory: '3G',
   },
 };
 
-// Validator resource tiers. Sized from 30-day observed peaks
+// Validator resource tiers. Sized from 30-day observed usage
 // (https://abacusworks.grafana.net/d/FSR9YWr7k). Memory must clear each tier's
-// peak to avoid OOM; CPU is compressible. The default (light) covers the ~90
-// low-traffic validators; heavier chains are overridden below, keyed by chain
-// name (applies across the hyperlane, RC, and fastpath validator contexts).
+// peak to avoid OOM, so memory stays tiered. CPU is compressible and there is
+// no CPU limit, so requests are sized to p95 steady-state (all validators sit
+// <0.2 cores at p95; busiest is aleo ~0.17) rather than to the rare
+// checkpoint-signing bursts, which burst absorbs. The default (light) covers
+// the ~90 low-traffic validators; heavier chains are overridden below, keyed by
+// chain name (applies across the hyperlane, RC, and fastpath validator contexts).
 const validatorResources = {
   requests: {
-    cpu: '100m',
+    cpu: '50m',
     memory: '256Mi',
   },
 };
 
 const heavyValidatorResources = {
   requests: {
-    cpu: '1000m',
+    cpu: '300m',
     memory: '1G',
   },
 };
 
 const mediumValidatorResources = {
   requests: {
-    cpu: '500m',
+    cpu: '150m',
     memory: '512Mi',
   },
 };
@@ -867,6 +882,9 @@ const hyperlane: RootAgentConfig = {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.validator,
     },
+    // Quorum verification via additionalQuorumRpcUrls (ValidatorMultiRpcQuorumMerkleTreeHook)
+    // is opt-in per chain (quorumVerificationEnabled) and no chain has enabled it
+    // yet, so rpcUrls itself must stay on Quorum consensus for now.
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -922,6 +940,9 @@ const releaseCandidate: RootAgentConfig = {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.validatorRC,
     },
+    // Quorum verification via additionalQuorumRpcUrls (ValidatorMultiRpcQuorumMerkleTreeHook)
+    // is opt-in per chain (quorumVerificationEnabled) and no chain has enabled it
+    // yet, so rpcUrls itself must stay on Quorum consensus for now.
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,
@@ -1045,7 +1066,9 @@ const fastPath: RootAgentConfig = {
     cache: {
       enabled: true,
     },
-    interval: 1,
+    // Halve steady-state index polling RPCs while keeping fastpath detection
+    // within one additional second (0.5s average).
+    interval: 2,
     resources: fastPathRelayerResources,
   },
   validators: {

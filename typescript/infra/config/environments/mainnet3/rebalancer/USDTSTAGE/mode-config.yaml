@@ -1,6 +1,7 @@
 warpRouteId: USDTSTAGE/mode
 
-inventorySigner: "0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5"
+inventorySigners:
+    ethereum: "0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5"
 
 externalBridges:
     lifi:

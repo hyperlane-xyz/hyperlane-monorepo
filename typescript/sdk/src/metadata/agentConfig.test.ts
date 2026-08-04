@@ -5,7 +5,11 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
-import { RelayerAgentConfigSchema, buildAgentConfig } from './agentConfig.js';
+import {
+  AgentChainMetadataSchema,
+  RelayerAgentConfigSchema,
+  buildAgentConfig,
+} from './agentConfig.js';
 
 describe('RelayerAgentConfigSchema feeToken gate', () => {
   const FEE_TOKEN = '0x0000000000000000000000000000000000000005';
@@ -90,6 +94,68 @@ describe('RelayerAgentConfigSchema feeToken gate', () => {
       }),
     );
     expect(result.success).to.be.true;
+  });
+});
+
+describe('AgentChainMetadataSchema additionalQuorumRpcUrls', () => {
+  const baseChainMetadata = {
+    name: 'legacy',
+    domainId: 1000,
+    chainId: 1000,
+    protocol: ProtocolType.Ethereum,
+    rpcUrls: [{ http: 'http://localhost:8545' }],
+    mailbox: '0x0000000000000000000000000000000000000001',
+    interchainGasPaymaster: '0x0000000000000000000000000000000000000002',
+    validatorAnnounce: '0x0000000000000000000000000000000000000003',
+    merkleTreeHook: '0x0000000000000000000000000000000000000004',
+  };
+
+  it('parses and preserves a configured additionalQuorumRpcUrls array', () => {
+    const additionalQuorumRpcUrls = [
+      { http: 'http://quorum-a.example' },
+      { http: 'http://quorum-b.example' },
+    ];
+    const result = AgentChainMetadataSchema.safeParse({
+      ...baseChainMetadata,
+      additionalQuorumRpcUrls,
+    });
+    expect(result.success).to.be.true;
+    if (result.success) {
+      expect(result.data.additionalQuorumRpcUrls).to.deep.equal(
+        additionalQuorumRpcUrls,
+      );
+    }
+  });
+
+  it('leaves additionalQuorumRpcUrls unset when not configured', () => {
+    const result = AgentChainMetadataSchema.safeParse(baseChainMetadata);
+    expect(result.success).to.be.true;
+    if (result.success) {
+      expect(result.data.additionalQuorumRpcUrls).to.be.undefined;
+    }
+  });
+
+  it('parses and preserves a configured customAdditionalQuorumRpcUrls override string', () => {
+    const customAdditionalQuorumRpcUrls =
+      'http://quorum-a.example,http://quorum-b.example';
+    const result = AgentChainMetadataSchema.safeParse({
+      ...baseChainMetadata,
+      customAdditionalQuorumRpcUrls,
+    });
+    expect(result.success).to.be.true;
+    if (result.success) {
+      expect(result.data.customAdditionalQuorumRpcUrls).to.equal(
+        customAdditionalQuorumRpcUrls,
+      );
+    }
+  });
+
+  it('leaves customAdditionalQuorumRpcUrls unset when not configured', () => {
+    const result = AgentChainMetadataSchema.safeParse(baseChainMetadata);
+    expect(result.success).to.be.true;
+    if (result.success) {
+      expect(result.data.customAdditionalQuorumRpcUrls).to.be.undefined;
+    }
   });
 });
 

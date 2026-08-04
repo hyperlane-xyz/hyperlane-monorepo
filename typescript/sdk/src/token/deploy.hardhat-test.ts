@@ -693,6 +693,7 @@ describe('TokenDeployer', async () => {
         [chain]: {
           type: IsmType.RATE_LIMITED,
           maxCapacity: '86400',
+          duration: 86400n,
           owner: warpOwner,
         },
       };
@@ -751,6 +752,7 @@ describe('TokenDeployer', async () => {
           {
             type: IsmType.RATE_LIMITED,
             maxCapacity: '1000000000000000000',
+            duration: 86400n,
             owner: warpOwner,
           },
         ],
