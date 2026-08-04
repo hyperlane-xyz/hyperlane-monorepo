@@ -463,8 +463,8 @@ export const RoutingIsmConfigSchema: z.ZodType<
   z.discriminatedUnion('type', [
     z.object({
       type: z.literal(IsmType.AMOUNT_ROUTING),
-      lowerIsm: IsmConfigSchema,
-      upperIsm: IsmConfigSchema,
+      lowerIsm: BaseIsmConfigSchema,
+      upperIsm: BaseIsmConfigSchema,
       threshold: z.number(),
     }),
     OwnableSchema.extend({
@@ -473,7 +473,7 @@ export const RoutingIsmConfigSchema: z.ZodType<
         IsmType.FALLBACK_ROUTING,
         IsmType.INCREMENTAL_ROUTING,
       ]),
-      domains: z.record(IsmConfigSchema),
+      domains: z.record(BaseIsmConfigSchema),
     }),
     InterchainAccountRouterIsmSchema,
   ]),
@@ -490,7 +490,7 @@ export const AggregationIsmConfigSchema: z.ZodType<
         z.literal(IsmType.AGGREGATION),
         z.literal(IsmType.STORAGE_AGGREGATION),
       ]),
-      modules: z.array(IsmConfigSchema),
+      modules: z.array(BaseIsmConfigSchema),
       threshold: z.number(),
     }),
   )
@@ -900,7 +900,7 @@ export function normalizeUnknownIsmTypes<T>(config: T): T {
   return normalized as T;
 }
 
-export const IsmConfigSchema: z.ZodType<IsmConfig, z.ZodTypeDef, unknown> =
+const BaseIsmConfigSchema: z.ZodType<IsmConfig, z.ZodTypeDef, unknown> =
   z.union([
     ZHash,
     TestIsmConfigSchema,
@@ -921,6 +921,88 @@ export const IsmConfigSchema: z.ZodType<IsmConfig, z.ZodTypeDef, unknown> =
     InterchainAccountRouterIsmSchema,
     UnknownIsmConfigSchema,
   ]);
+
+/**
+ * Validates that every blacklist ISM in the tree sits in a mandatory position:
+ * a member of an aggregation whose threshold equals its module count, so the
+ * blacklist verdict can never be outvoted. A blacklist ISM cannot be used
+ * standalone, as a routing target, or under a non-exhaustive aggregation.
+ */
+function validateBlacklistComposition(
+  node: IsmConfig,
+  path: (string | number)[],
+  mandatoryPosition: boolean,
+  underAggregation: boolean,
+  ctx: z.RefinementCtx,
+): void {
+  if (typeof node === 'string') {
+    return;
+  }
+
+  switch (node.type) {
+    case IsmType.BLACKLIST:
+      if (!(mandatoryPosition && underAggregation)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'A blacklist ISM must be a member of an aggregation whose threshold equals its module count; it cannot be used standalone, as a routing target, or under a non-exhaustive aggregation.',
+          path,
+        });
+      }
+      break;
+    case IsmType.AGGREGATION:
+    case IsmType.STORAGE_AGGREGATION: {
+      const childMandatory =
+        mandatoryPosition && node.threshold === node.modules.length;
+      node.modules.forEach((subIsm, i) =>
+        validateBlacklistComposition(
+          subIsm,
+          [...path, 'modules', i],
+          childMandatory,
+          true,
+          ctx,
+        ),
+      );
+      break;
+    }
+    case IsmType.ROUTING:
+    case IsmType.FALLBACK_ROUTING:
+    case IsmType.INCREMENTAL_ROUTING:
+      for (const [chain, domainIsm] of Object.entries(node.domains)) {
+        validateBlacklistComposition(
+          domainIsm,
+          [...path, 'domains', chain],
+          true,
+          false,
+          ctx,
+        );
+      }
+      break;
+    case IsmType.AMOUNT_ROUTING:
+      validateBlacklistComposition(
+        node.lowerIsm,
+        [...path, 'lowerIsm'],
+        true,
+        false,
+        ctx,
+      );
+      validateBlacklistComposition(
+        node.upperIsm,
+        [...path, 'upperIsm'],
+        true,
+        false,
+        ctx,
+      );
+      break;
+    default:
+      break;
+  }
+}
+
+export const IsmConfigSchema: z.ZodType<IsmConfig, z.ZodTypeDef, unknown> =
+  BaseIsmConfigSchema.superRefine((data, ctx) =>
+    validateBlacklistComposition(data, [], true, false, ctx),
+  );
 
 /**
  * Forward-compatible ISM config schema that normalizes unknown ISM types.
