@@ -21,11 +21,6 @@
     "threshold": 1,
     "validators": ["0x3c659e0fe8d01b80d7828b421630085777346e7c"]
   },
-  "berabartio": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 1,
-    "validators": ["0x3c659e0fe8d01b80d7828b421630085777346e7c"]
-  },
   "bsctestnet": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
