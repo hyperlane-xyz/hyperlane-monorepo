@@ -112,18 +112,19 @@ curl -s "https://api.coingecko.com/api/v3/simple/price?ids=<id1>,<id2>&vs_curren
 ```
 
 Common native token CoinGecko IDs:
-| Chain | CoinGecko ID |
-|---|---|
-| ethereum | `ethereum` |
-| arbitrum | `ethereum` |
-| base | `ethereum` |
-| optimism | `ethereum` |
-| polygon | `polygon-ecosystem-token` |
-| bsc | `binancecoin` |
-| avalanche | `avalanche-2` |
-| solana | `solana` |
-| celo | `celo` |
-| gnosis | `xdai` |
+
+| Chain     | CoinGecko ID              |
+| --------- | ------------------------- |
+| ethereum  | `ethereum`                |
+| arbitrum  | `ethereum`                |
+| base      | `ethereum`                |
+| optimism  | `ethereum`                |
+| polygon   | `polygon-ecosystem-token` |
+| bsc       | `binancecoin`             |
+| avalanche | `avalanche-2`             |
+| solana    | `solana`                  |
+| celo      | `celo`                    |
+| gnosis    | `xdai`                    |
 
 If CoinGecko fails, fall back to 0 USD — still fund based on the gas price calculation, just omit the USD column.
 

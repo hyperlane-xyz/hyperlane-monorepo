@@ -71,7 +71,10 @@ export class AleoValidatorAnnounceReader implements ArtifactReader<
 export class AleoValidatorAnnounceWriter
   extends AleoValidatorAnnounceReader
   implements
-    ArtifactWriter<RawValidatorAnnounceConfig, DeployedValidatorAnnounceAddress>
+    ArtifactWriter<
+      RawValidatorAnnounceConfig,
+      DeployedValidatorAnnounceAddress
+    >
 {
   constructor(
     private readonly config: AleoArtifactNetworkConfig,
