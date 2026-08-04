@@ -65,6 +65,66 @@ describe('KeyFunder', () => {
     );
   });
 
+  it('scales the funding amount by the chain native token decimals', async () => {
+    const logger = {
+      child: () => logger,
+      debug: () => undefined,
+      error: () => undefined,
+      info: () => undefined,
+      warn: () => undefined,
+    } as unknown as Logger;
+
+    const multiProvider = sinon.createStubInstance(MultiProvider);
+    // Recipient key is empty, so it needs to be topped up to its desired balance.
+    multiProvider.getProvider.returns({
+      getBalance: async () => BigNumber.from(0),
+    } as never);
+    // Funder holds 2747 TRX (6 decimals). Under the 18-decimal bug this would
+    // have been read as 2747e-12 TRX and falsely flagged as insufficient.
+    multiProvider.getSigner.returns({
+      getBalance: async () => BigNumber.from('2747000000'),
+    } as never);
+    multiProvider.getSignerAddress.resolves(
+      '0x3333333333333333333333333333333333333333',
+    );
+    multiProvider.getChainMetadata.returns({
+      nativeToken: { name: 'TRON', symbol: 'TRX', decimals: 6 },
+    } as never);
+    const sendTransaction = sinon.stub().resolves({ transactionHash: '0xabc' });
+    multiProvider.sendTransaction = sendTransaction as never;
+    multiProvider.tryGetExplorerTxUrl.returns(undefined as never);
+
+    const keyFunder = new KeyFunder(
+      multiProvider,
+      { version: '1', roles: {}, chains: {} },
+      { logger },
+    );
+
+    await (
+      keyFunder as unknown as {
+        fundKey: (
+          chain: string,
+          key: {
+            address: string;
+            role: string;
+            desiredBalance: string;
+          },
+        ) => Promise<void>;
+      }
+    ).fundKey('tron', {
+      address: '0x1111111111111111111111111111111111111111',
+      role: 'relayer',
+      desiredBalance: '1000',
+    });
+
+    // 1000 TRX at 6 decimals = 1_000_000_000 sun.
+    sinon.assert.calledOnce(sendTransaction);
+    const [, tx] = sendTransaction.firstCall.args;
+    expect((tx as { value: BigNumber }).value.toString()).to.equal(
+      '1000000000',
+    );
+  });
+
   it('should continue funding when recordFunderBalance fails', async () => {
     const chainWarnSpy = sinon.spy();
     const chainInfoSpy = sinon.spy();
