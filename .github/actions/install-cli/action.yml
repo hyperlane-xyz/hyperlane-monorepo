@@ -13,7 +13,6 @@ inputs:
     description: 'Turbo filter to scope the build'
     required: false
     default: '@hyperlane-xyz/cli...'
-
 runs:
   using: 'composite'
   steps:
@@ -34,7 +33,7 @@ runs:
 
     - name: Setup pnpm (no-cache path)
       if: inputs.no-cache != 'false'
-      uses: pnpm/action-setup@v4
+      uses: pnpm/action-setup@v6
 
     - name: pnpm-install-build-without-cache
       if: inputs.no-cache != 'false'

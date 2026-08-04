@@ -66,7 +66,7 @@ jobs:
             }
 
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.pr-sha.outputs.head_sha }}
           fetch-depth: 0
@@ -121,7 +121,7 @@ jobs:
             }
 
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.pr-sha.outputs.head_sha }}
           fetch-depth: 0
@@ -178,7 +178,7 @@ jobs:
             }
 
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.pr-sha.outputs.head_sha }}
           fetch-depth: 0
@@ -260,7 +260,7 @@ jobs:
             }
 
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.pr-sha.outputs.head_sha || github.sha }}
           fetch-depth: 0

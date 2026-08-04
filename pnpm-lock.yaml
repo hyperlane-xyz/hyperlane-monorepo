@@ -308,6 +308,7 @@ catalogs:
       version: 3.5.4
 
 overrides:
+  '@provablehq/wasm': 0.11.3
   '@types/react': 18.3.27
   '@types/react-dom': 18.3.7
   async: ^2.6.4
@@ -6285,8 +6286,8 @@ packages:
   '@provablehq/sdk@0.11.3':
     resolution: {integrity: sha512-3vxTFXqiQHm9PHlceANvrAcoS1NhyJEe/RRREgdW+6zVmMg5+i5AA2q4XzgUVDJ8Pdhu7VpdUtunKzEejQ/BcQ==}
 
-  '@provablehq/wasm@0.11.6':
-    resolution: {integrity: sha512-tH+mikobxxi2JsB3M6YzhZBFcFjitFGedJ+vT8CjTKUQw0L2PLZgsZkJJcq8Rvzf8cCo1BqZgV/xK1fBXaO4qg==}
+  '@provablehq/wasm@0.11.3':
+    resolution: {integrity: sha512-/ZJZXHK7Rvsv4AsgFgqKe6/6EYvenpJ38UlxigwtAwyhNwtx5wzQMMrkJkf2+WpcCoo3VlWeLWFW3Nw1hfjrog==}
 
   '@radix-ui/number@1.0.1':
     resolution: {integrity: sha512-T5gIdVO2mmPW3NNhjNgEP3cqMXjXL9UbO0BzWcXfvdBs+BohbQxvd/K5hSVKmn9/lbTdsQVKbUcP5WLCwvUbBg==}
@@ -21613,7 +21614,7 @@ snapshots:
 
   '@provablehq/sdk@0.11.3':
     dependencies:
-      '@provablehq/wasm': 0.11.6
+      '@provablehq/wasm': 0.11.3
       '@scure/base': 2.2.0
       '@serenity-kit/noble-sodium': 0.2.3
       comlink: 4.4.2
@@ -21621,7 +21622,7 @@ snapshots:
       mime: 4.1.0
       xmlhttprequest-ssl: 4.0.0
 
-  '@provablehq/wasm@0.11.6': {}
+  '@provablehq/wasm@0.11.3': {}
 
   '@radix-ui/number@1.0.1':
     dependencies:

@@ -5,12 +5,11 @@ inputs:
   build-filter:
     description: 'Optional turbo filter to scope the build (e.g. @hyperlane-xyz/cli...)'
     required: false
-
 runs:
   using: 'composite'
   steps:
     - name: Setup Node
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@v7
       with:
         node-version-file: .nvmrc
 
@@ -22,7 +21,7 @@ runs:
       uses: ./.github/actions/pnpm-cache
 
     - name: Cache Hardhat compilers
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: ~/.cache/hardhat-nodejs/compilers-v2
         key: hardhat-compilers-${{ runner.os }}

@@ -183,6 +183,8 @@ catalog:
   '@prisma/client': 7.8.0
   prisma: 7.8.0
 overrides:
+  # 0.11.6 requires 18 consensus heights; current Aleo E2E networks provide 17.
+  '@provablehq/wasm': 0.11.3
   '@types/react': 18.3.27
   '@types/react-dom': 18.3.7
   async: ^2.6.4
