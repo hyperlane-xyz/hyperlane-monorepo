@@ -25,6 +25,7 @@ import {
 } from '../../src/config/chain.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
+import { partitionRequestedChains } from './get-owner-ica-chains.js';
 import {
   getArgs as getEnvArgs,
   withChains,
@@ -120,18 +121,35 @@ async function main() {
   }
 
   const requestedChains = chains?.length ? chains : config.supportedChainNames;
-  const getOwnerIcaChains = requestedChains.filter(
-    (chain) => isEthereumProtocolChain(chain) && !chainsToSkip.includes(chain),
-  );
-  const droppedChains = requestedChains.filter(
-    (chain) => !isEthereumProtocolChain(chain) || chainsToSkip.includes(chain),
-  );
+  const {
+    icaChains: getOwnerIcaChains,
+    droppedChains,
+    explicitlyDroppedChains,
+  } = partitionRequestedChains({
+    requestedChains,
+    // Chains the caller named explicitly via --chains (vs. the default full set).
+    explicitlyRequested: chains?.length ? new Set(chains) : undefined,
+    isEvmChain: isEthereumProtocolChain,
+    skipList: chainsToSkip,
+  });
 
   let hadFailure = false;
   const results: Record<string, { ICA: Address; Deployed?: string }> = {};
 
   for (const chain of droppedChains) {
     results[chain] = { ICA: 'DROPPED (non-EVM or in chainsToSkip)' };
+  }
+
+  // A chain dropped from the *default* full set (non-EVM chains that simply have
+  // no ICA) is expected and benign. But a chain the caller named explicitly via
+  // --chains and that we then dropped produces no ICA for a chain they wanted,
+  // so exiting 0 would let a caller treat an owner/deploy step as complete when
+  // it silently did nothing for that chain. Fail the run in that case.
+  for (const chain of explicitlyDroppedChains) {
+    rootLogger.error(
+      `Chain ${chain} was explicitly requested via --chains but is non-EVM or in the skip list; no ICA can be produced for it. Failing the run so this is not treated as a completed step.`,
+    );
+    hadFailure = true;
   }
 
   const { fulfilled, rejected } = await mapAllSettled(
