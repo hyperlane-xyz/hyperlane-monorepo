@@ -33,9 +33,11 @@ import {
   ParsedReceipt,
   checkSignerOwnsSafe,
   createNonceAllocator,
+  decideFileDisposition,
   findMatchingPendingProposal,
   normalizeProposalPayload,
   parseReceiptFile,
+  safeQueueKey,
   toMetaTransactionData,
 } from '../../src/utils/warp-propose-safe.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -180,6 +182,7 @@ function logResult(result: FileResult): void {
         ),
       );
       return;
+    case ProposalResultStatus.Invalid:
     case ProposalResultStatus.Unsupported:
     case ProposalResultStatus.Failed:
       rootLogger.error(
@@ -244,37 +247,51 @@ async function main(): Promise<void> {
   rootLogger.info(`Using Turnkey signer ${signer.address}`);
 
   const allocateNonce = createNonceAllocator();
+  // Safes with a bundle that threw in this run. A failure after nonce
+  // allocation (see `createNonceAllocator`) would leave a gap if a later
+  // file for the same Safe were proposed on top of it, so every later file
+  // for the Safe fails closed here rather than being proposed — see
+  // `decideFileDisposition`.
+  const poisonedSafes = new Set<string>();
   const results: FileResult[] = [];
 
   for (const file of files) {
     const filePath = path.join(directory, file);
     const parsed = parseReceiptFile(filePath, multiProvider);
+    const disposition = decideFileDisposition({
+      parsed,
+      chainFilter,
+      poisonedSafes,
+    });
 
-    if ('error' in parsed) {
-      const result: FileResult = {
-        file,
-        status: ProposalResultStatus.Skipped,
-        reason: parsed.error,
-      };
+    if (disposition.action === 'skip' || disposition.action === 'fail') {
+      const result: FileResult =
+        'error' in parsed
+          ? {
+              file,
+              status: disposition.status,
+              reason: disposition.reason,
+            }
+          : {
+              file,
+              chain: parsed.chain,
+              safeAddress: parsed.safeAddress,
+              governanceType: parsed.governanceType,
+              txCount: parsed.receipt.transactions.length,
+              status: disposition.status,
+              reason: disposition.reason,
+            };
       results.push(result);
       logResult(result);
       continue;
     }
 
-    if (chainFilter && !chainFilter.has(parsed.chain)) {
-      const result: FileResult = {
-        file,
-        chain: parsed.chain,
-        safeAddress: parsed.safeAddress,
-        governanceType: parsed.governanceType,
-        txCount: parsed.receipt.transactions.length,
-        status: ProposalResultStatus.Skipped,
-        reason: `Chain ${parsed.chain} not in --chain-filter`,
-      };
-      results.push(result);
-      logResult(result);
-      continue;
-    }
+    // `disposition.action === 'propose'` only when `parseReceiptFile`
+    // succeeded (see `decideFileDisposition`).
+    assert(
+      !('error' in parsed),
+      `Invariant violated: decideFileDisposition returned 'propose' for unparsed file ${file}`,
+    );
 
     const txCount = parsed.receipt.transactions.length;
     try {
@@ -308,6 +325,7 @@ async function main(): Promise<void> {
       results.push(result);
       logResult(result);
     } catch (error) {
+      poisonedSafes.add(safeQueueKey(parsed.chain, parsed.safeAddress));
       const result: FileResult = {
         file,
         chain: parsed.chain,
