@@ -39,8 +39,10 @@ function makeBurnCircleMessageV1(
   mintRecipient: Uint8Array,
   amount: Uint8Array,
   sender: Uint8Array = Buffer.alloc(32, 0x00),
+  nonce = 0,
 ): string {
   const buf = Buffer.alloc(248);
+  buf.writeBigUInt64BE(BigInt(nonce), 12);
   mintRecipient.forEach((b, i) => (buf[116 + 36 + i] = b)); // 152
   amount.forEach((b, i) => (buf[116 + 68 + i] = b)); // 184
   sender.forEach((b, i) => (buf[116 + 100 + i] = b)); // 216
@@ -56,11 +58,16 @@ function makeGmpCircleMessageV1(messageId: string): string {
   return ethers.utils.hexlify(buf);
 }
 
-/** Build a Hyperlane TokenMessage body: recipient(32) + amount(32). */
-function makeTokenBody(recipient: Uint8Array, amount: Uint8Array): Uint8Array {
-  const buf = Buffer.alloc(64);
+/** Build a Hyperlane TokenMessage body: recipient(32) + amount(32) + optional V1 nonce(8). */
+function makeTokenBody(
+  recipient: Uint8Array,
+  amount: Uint8Array,
+  nonce?: number,
+): Uint8Array {
+  const buf = Buffer.alloc(nonce === undefined ? 64 : 72);
   recipient.forEach((b, i) => (buf[i] = b));
   amount.forEach((b, i) => (buf[32 + i] = b));
+  if (nonce !== undefined) buf.writeBigUInt64BE(BigInt(nonce), 64);
   return buf;
 }
 
@@ -268,6 +275,31 @@ describe('findMatchingCircleMessage', () => {
           ethers.utils.hexlify(SENDER_B),
         ),
       ).to.equal(msgB);
+    });
+
+    it('disambiguates otherwise-identical V1 burns by TokenMessage nonce', () => {
+      const firstSibling = makeBurnCircleMessageV1(
+        RECIPIENT_A,
+        AMOUNT_A,
+        SENDER_A,
+        486337,
+      );
+      const target = makeBurnCircleMessageV1(
+        RECIPIENT_A,
+        AMOUNT_A,
+        SENDER_A,
+        486338,
+      );
+      const targetBody = makeTokenBody(RECIPIENT_A, AMOUNT_A, 486338);
+
+      expect(
+        findMatchingCircleMessage(
+          [firstSibling, target],
+          targetBody,
+          MESSAGE_ID_A,
+          ethers.utils.hexlify(SENDER_A),
+        ),
+      ).to.equal(target);
     });
 
     it('matches a V1 GMP message (148 bytes) by messageId', () => {
