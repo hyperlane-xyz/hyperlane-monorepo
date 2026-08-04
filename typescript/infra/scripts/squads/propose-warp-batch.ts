@@ -12,7 +12,10 @@ import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../../src/config/deploy-environment.js';
 import { getSquadsKeys, squadsConfigs } from '../../src/config/squads.js';
-import { submitReceiptTxsToSquads } from '../../src/utils/squads.js';
+import {
+  readAttachedTransactionIndexes,
+  submitReceiptTxsToSquads,
+} from '../../src/utils/squads.js';
 import { getTurnkeySealevelDeployerSigner } from '../../src/utils/turnkey.js';
 import {
   ProposalResultStatus,
@@ -39,10 +42,15 @@ type FileResult = {
   txCount?: number;
   status: ProposalResultStatus;
   reason?: string;
+  transactionIndexes?: bigint[];
 };
 
 type ProposeOutcome =
-  | { status: typeof ProposalResultStatus.Proposed; txCount: number }
+  | {
+      status: typeof ProposalResultStatus.Proposed;
+      txCount: number;
+      transactionIndexes: bigint[];
+    }
   | { status: typeof ProposalResultStatus.DryRun; txCount: number };
 
 async function proposeFile({
@@ -104,19 +112,32 @@ async function proposeFile({
   }
 
   const memoBase = `Hyperlane warp apply batch (${proposalCount} tx) for ${chain}`;
-  await submitReceiptTxsToSquads(chain, plans, mpp, signerAdapter, memoBase);
+  const { transactionIndexes } = await submitReceiptTxsToSquads(
+    chain,
+    plans,
+    mpp,
+    signerAdapter,
+    memoBase,
+  );
 
-  return { status: ProposalResultStatus.Proposed, txCount: proposalCount };
+  return {
+    status: ProposalResultStatus.Proposed,
+    txCount: proposalCount,
+    transactionIndexes,
+  };
 }
 
 function logResult(result: FileResult): void {
   const base = `${result.file} → chain=${result.chain ?? '?'} multisig=${
     result.multisigPda ?? '?'
   } txs=${result.txCount ?? '?'}`;
+  const indexesNote = result.transactionIndexes?.length
+    ? ` proposalIndexes=[${result.transactionIndexes.join(', ')}]`
+    : '';
   switch (result.status) {
     case ProposalResultStatus.Proposed:
     case ProposalResultStatus.DryRun:
-      rootLogger.info(chalk.green(`[${result.status}] ${base}`));
+      rootLogger.info(chalk.green(`[${result.status}] ${base}${indexesNote}`));
       return;
     case ProposalResultStatus.Skipped:
       rootLogger.warn(
@@ -126,11 +147,21 @@ function logResult(result: FileResult): void {
       );
       return;
     case ProposalResultStatus.Unsupported:
-    case ProposalResultStatus.Failed:
       rootLogger.error(
         chalk.red(`[${result.status}] ${base} reason=${result.reason ?? ''}`),
       );
       return;
+    case ProposalResultStatus.Failed: {
+      const landedNote = result.transactionIndexes?.length
+        ? ` — already landed on-chain${indexesNote}; a rerun would duplicate them, execute or cancel these first.`
+        : '';
+      rootLogger.error(
+        chalk.red(
+          `[${result.status}] ${base} reason=${result.reason ?? ''}${landedNote}`,
+        ),
+      );
+      return;
+    }
   }
 }
 
@@ -241,10 +272,18 @@ async function main(): Promise<void> {
         multisigPda: squadsConfigs[parsed.chain]?.multisigPda,
         txCount: outcome.txCount,
         status: outcome.status,
+        transactionIndexes:
+          outcome.status === ProposalResultStatus.Proposed
+            ? outcome.transactionIndexes
+            : undefined,
       };
       results.push(result);
       logResult(result);
     } catch (error) {
+      // A create-succeeded/approve-failed (or mid-batch) failure still
+      // attaches the already-landed proposal indexes to the thrown error
+      // (see submitReceiptTxsToSquads) — surface them so a rerun doesn't
+      // duplicate proposals that already exist on-chain.
       const result: FileResult = {
         file,
         chain: parsed.chain,
@@ -252,6 +291,7 @@ async function main(): Promise<void> {
         txCount: parsed.txs.length,
         status: ProposalResultStatus.Failed,
         reason: error instanceof Error ? error.message : String(error),
+        transactionIndexes: readAttachedTransactionIndexes(error),
       };
       results.push(result);
       logResult(result);
