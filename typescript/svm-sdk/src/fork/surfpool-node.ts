@@ -261,7 +261,9 @@ export async function runSurfpoolNode(
           'Upgrade it: curl -sSfL https://run.surfpool.run/ | bash.',
   );
 
-  logger.info(`Using local surfpool binary: ${match.path} (v${match.version})`);
+  logger.debug(
+    `Using local surfpool binary: ${match.path} (v${match.version})`,
+  );
   const node = await startLocalSurfpool(config, match.path);
   await waitForSolanaRpcReady(node.rpcUrl);
   return node;

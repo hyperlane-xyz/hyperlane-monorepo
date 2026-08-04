@@ -46,9 +46,6 @@ async function startEvmFork(
   const endpoint = `${LOCAL_HOST}:${config.port}`;
   let killOnError: ((isPanicking: boolean) => Promise<void>) | undefined;
   try {
-    logGray(
-      `Starting Anvil node for chain ${config.chainName} at port ${config.port}`,
-    );
     const anvilProcess = execa`anvil --port ${config.port} --chain-id ${config.chainId} --fork-url ${config.upstreamRpcUrl} --disable-block-gas-limit`;
 
     const kill = async (isPanicking: boolean): Promise<void> => {
@@ -61,10 +58,6 @@ async function startEvmFork(
       attempts: 10,
       baseRetryMs: 500,
     });
-
-    logGray(
-      `Successfully started Anvil node for chain ${config.chainName} at ${endpoint}`,
-    );
 
     process.once('exit', () => void kill(false));
 

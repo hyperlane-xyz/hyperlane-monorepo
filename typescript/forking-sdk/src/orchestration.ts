@@ -1,4 +1,4 @@
-import { isNullish } from '@hyperlane-xyz/utils';
+import { isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { allocateSequentialPorts } from './helpers.js';
 import { ForkManagerRegistry } from './registry.js';
@@ -8,6 +8,8 @@ import {
   ForkedChainMetadata,
   IForkManager,
 } from './types.js';
+
+const logger = rootLogger.child({ module: 'fork-orchestration' });
 
 export const DEFAULT_FORK_BASE_PORT = 8545;
 
@@ -38,13 +40,19 @@ export async function buildForkedChainMetadata(args: {
       port: ports[i],
     });
 
+    logger.info(`Starting fork node for chain ${chain.chainName}`);
     await manager.start();
+
+    const chainMetadata = manager.getForkedChainMetadata();
+    logger.info(
+      `Fork node ready for chain ${chain.chainName} at ${chainMetadata.rpcUrls[0].http}`,
+    );
 
     if (!isNullish(chain.forkConfig)) {
       await manager.applyForkConfig(chain.forkConfig);
     }
 
-    metadata[chain.chainName] = manager.getForkedChainMetadata();
+    metadata[chain.chainName] = chainMetadata;
     managers[chain.chainName] = manager;
   }
 
