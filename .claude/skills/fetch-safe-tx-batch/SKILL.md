@@ -33,15 +33,37 @@ Solana / Squads and other non-EVM legs cannot be EVM-forked — verify those sep
 
 The Safe Transaction Service returns the batch as a single `MultiSend` (`multiSend(bytes)`, selector `0x8d80ff0a`). Decode it into the inner txs the Safe executes (`to`, `value`, `data`). Note the **308 redirect** (`-L`) and the **v2** endpoint.
 
-For each `(chainId, safeAddress, safeTxHash)` triple in `safe_txs`:
+First set up **one** clean working directory for this invocation. Never reuse a directory that already holds decoded files from a previous run — Step 2 merges by an explicit manifest, but a stale `*.decoded.json` left in the directory is still a corruption hazard, so fail closed if the target isn't clean:
+
+```bash
+WORK=${output_dir:-~/.hyperlane/safe-batches/$(date +%s)}
+mkdir -p "$WORK/decoded"
+if compgen -G "$WORK/decoded/*.decoded.json" > /dev/null; then
+  echo "ERROR: $WORK/decoded already contains decoded files from a previous run;" >&2
+  echo "use a fresh output_dir (or clear it) so stale batches are not merged." >&2
+  exit 1
+fi
+: > "$WORK/manifest"   # exact list of files decoded in THIS invocation
+```
+
+Then, for each `(chainId, safeAddress, safeTxHash)` triple in `safe_txs`:
 
 ```bash
 SAFE_TX_HASH=0x....              # from the Safe / Heimdall link
 CHAIN_ID=1                        # the executing chain
-WORK=${output_dir:-~/.hyperlane/safe-batches/$(date +%s)}
-mkdir -p "$WORK/decoded"
 
-curl -sL "https://safe-transaction-mainnet.safe.global/api/v2/multisig-transactions/${SAFE_TX_HASH}/" \
+# Resolve the Safe Transaction Service base URL for THIS chain from the local
+# Hyperlane registry — the same source the infra Safe scripts use
+# (chains/<chain>/metadata.yaml -> gnosisSafeTransactionServiceUrl). Never
+# hardcode a host or assume mainnet.
+META=$(grep -rlE "^chainId:[[:space:]]*${CHAIN_ID}[[:space:]]*$" "$REGISTRY_PATH/chains/"*/metadata.yaml | head -1)
+[ -n "$META" ] || { echo "ERROR: no registry chain with chainId ${CHAIN_ID}." >&2; exit 1; }
+BASE=$(grep -m1 "^gnosisSafeTransactionServiceUrl:" "$META" | sed 's/^[^:]*:[[:space:]]*//; s/[[:space:]]*$//; s#/*$##')
+[ -n "$BASE" ] || { echo "ERROR: chainId ${CHAIN_ID} has no gnosisSafeTransactionServiceUrl in the registry." >&2; exit 1; }
+# Match the SDK's normalizeSafeTxServiceUrl: append /api unless already present.
+case "$BASE" in */api) TX_SERVICE="$BASE";; *) TX_SERVICE="$BASE/api";; esac
+
+curl -sL "${TX_SERVICE}/v2/multisig-transactions/${SAFE_TX_HASH}/" \
   -o "$WORK/decoded/${CHAIN_ID}-${SAFE_TX_HASH}.json"
 
 python3 - "$WORK" "$CHAIN_ID" "$SAFE_TX_HASH" << 'EOF'
@@ -57,18 +79,31 @@ while i < len(b):
     op = b[i]; i += 1; to = '0x' + b[i:i+20].hex(); i += 20
     val = int.from_bytes(b[i:i+32], 'big'); i += 32
     dl = int.from_bytes(b[i:i+32], 'big'); i += 32
+    # Preserve the MultiSend operation (0 = CALL, 1 = DELEGATECALL). The fork
+    # replay in /warp-route-check executes inner txs as plain CALLs, so a
+    # delegatecall would be silently misrepresented — fail closed instead of
+    # downgrading it. Warp-management batches are all CALLs; a delegatecall
+    # here needs manual handling.
+    if op != 0:
+        sys.exit(f"inner tx {len(out)} of {chain_id}-{safe_tx} is a delegatecall "
+                 f"(operation={op}); the fork replay only supports CALL — handle "
+                 "this batch manually")
     out.append({
         'chainId': chain_id,
         'safeAddress': d['safe'],
         'safeTxHash': safe_tx,
         'to': to,
         'value': str(val),
+        'operation': op,
         'data': '0x' + b[i:i+dl].hex(),
     })
     i += dl
 json.dump(out, open(f"{W}/decoded/{chain_id}-{safe_tx}.decoded.json", 'w'), indent=2)
 print(f"chainId={chain_id} safe={d['safe']} innerTxs={len(out)}")
 EOF
+
+# Record this file so Step 2 merges only what THIS invocation produced.
+echo "$WORK/decoded/${CHAIN_ID}-${SAFE_TX_HASH}.decoded.json" >> "$WORK/manifest"
 ```
 
 The executing **safe address** is each batch's `defaultSender` — `/warp-route-check` impersonates it on the fork. The inner txs typically split into:
@@ -78,10 +113,10 @@ The executing **safe address** is each batch's `defaultSender` — `/warp-route-
 
 ### Step 2 — Combine decoded inner txs into one chain-tagged transactions file
 
-Concatenate every `*.decoded.json` into a single array and write to `<output_dir>/transactions.json`:
+Concatenate only the files decoded in **this** invocation (from the manifest — not a wildcard over the directory, which could pull in stale batches) into a single array and write to `<output_dir>/transactions.json`:
 
 ```bash
-jq -s 'add' "$WORK/decoded/"*.decoded.json > "$WORK/transactions.json"
+jq -s 'add' $(cat "$WORK/manifest") > "$WORK/transactions.json"
 echo "total inner txs: $(jq 'length' $WORK/transactions.json)"
 echo "unique chainIds: $(jq -r '[.[].chainId] | unique | join(",")' $WORK/transactions.json)"
 echo "unique safe senders: $(jq -r '[.[].safeAddress] | unique | join(",")' $WORK/transactions.json)"
