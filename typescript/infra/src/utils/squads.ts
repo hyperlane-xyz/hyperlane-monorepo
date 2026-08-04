@@ -732,41 +732,42 @@ export async function buildSquadsProposalCancellation(
  * @param mpp - Multi-protocol provider
  * @param signerAdapter - Pre-configured SVM signer adapter for signing and submitting transactions
  */
-export async function submitProposalToSquads(
+async function createAndApproveSquadsProposal(
   chain: ChainName,
   vaultInstructions: TransactionInstruction[],
   mpp: MultiProtocolProvider,
   signerAdapter: SvmMultiProtocolSignerAdapter,
   memo?: string,
-): Promise<void> {
-  rootLogger.info(chalk.cyan('\n=== Submitting to Squads ==='));
+): Promise<bigint> {
+  // Get creator public key from adapter
+  const creatorPublicKey = signerAdapter.publicKey();
 
-  try {
-    // Get creator public key from adapter
-    const creatorPublicKey = signerAdapter.publicKey();
-
-    // Build Squads proposal instructions
-    const { instructions: proposalInstructions, transactionIndex } =
-      await buildSquadsVaultTransactionProposal(
-        chain,
-        mpp,
-        vaultInstructions,
-        creatorPublicKey,
-        memo,
-      );
-
-    // Build, sign, send, and confirm transaction using the adapter
-    rootLogger.info(
-      chalk.gray(
-        'Submitting proposal creation transaction with automatic confirmation...',
-      ),
+  // Build Squads proposal instructions
+  const { instructions: proposalInstructions, transactionIndex } =
+    await buildSquadsVaultTransactionProposal(
+      chain,
+      mpp,
+      vaultInstructions,
+      creatorPublicKey,
+      memo,
     );
-    const createSignature =
-      await signerAdapter.buildAndSendTransaction(proposalInstructions);
 
-    rootLogger.info(chalk.green(`Proposal created: ${createSignature}`));
-    rootLogger.info(chalk.gray(`   Transaction index: ${transactionIndex}`));
+  // Build, sign, send, and confirm transaction using the adapter
+  rootLogger.info(
+    chalk.gray(
+      'Submitting proposal creation transaction with automatic confirmation...',
+    ),
+  );
+  const createSignature =
+    await signerAdapter.buildAndSendTransaction(proposalInstructions);
 
+  rootLogger.info(chalk.green(`Proposal created: ${createSignature}`));
+  rootLogger.info(chalk.gray(`   Transaction index: ${transactionIndex}`));
+
+  // The vault tx + proposal are now confirmed on-chain at `transactionIndex`.
+  // Any failure from here on must surface `transactionIndex` to the caller
+  // (see `readCreatedTransactionIndex`) so a rerun doesn't re-create it.
+  try {
     // Approve the proposal as the proposer
     rootLogger.info(chalk.gray('Approving proposal as proposer...'));
     const { multisigPda, programId } = getSquadsKeys(chain);
@@ -781,6 +782,61 @@ export async function submitProposalToSquads(
       approveIx,
     ]);
     rootLogger.info(chalk.green(`Proposal approved: ${approveSignature}`));
+
+    return transactionIndex;
+  } catch (error) {
+    const wrapped = error instanceof Error ? error : new Error(String(error));
+    throw Object.assign(wrapped, { createdTransactionIndex: transactionIndex });
+  }
+}
+
+/**
+ * Read a `createdTransactionIndex` attached to an error thrown after a
+ * Squads proposal was confirmed on-chain but a later step (e.g. approval)
+ * failed. See `createAndApproveSquadsProposal`.
+ */
+export function readCreatedTransactionIndex(e: unknown): bigint | undefined {
+  if (typeof e === 'object' && e !== null && 'createdTransactionIndex' in e) {
+    const value = e.createdTransactionIndex;
+    return typeof value === 'bigint' ? value : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Read the `transactionIndexes` attached to an error thrown by
+ * `submitReceiptTxsToSquads` on partial failure — the indexes of the ordered
+ * proposals that already landed on-chain before the failure.
+ */
+export function readAttachedTransactionIndexes(
+  e: unknown,
+): bigint[] | undefined {
+  if (typeof e === 'object' && e !== null && 'transactionIndexes' in e) {
+    const value = e.transactionIndexes;
+    if (Array.isArray(value) && value.every((v) => typeof v === 'bigint')) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+export async function submitProposalToSquads(
+  chain: ChainName,
+  vaultInstructions: TransactionInstruction[],
+  mpp: MultiProtocolProvider,
+  signerAdapter: SvmMultiProtocolSignerAdapter,
+  memo?: string,
+): Promise<void> {
+  rootLogger.info(chalk.cyan('\n=== Submitting to Squads ==='));
+
+  try {
+    await createAndApproveSquadsProposal(
+      chain,
+      vaultInstructions,
+      mpp,
+      signerAdapter,
+      memo,
+    );
     rootLogger.info(
       chalk.green(
         'Proposal created and approved by proposer. Other multisig members can now approve.',
@@ -791,6 +847,99 @@ export async function submitProposalToSquads(
       chalk.red(`Failed to submit proposal to Squads: ${error}`),
     );
     throw error;
+  }
+}
+
+/**
+ * A single vault transaction to propose. Ordered creation preserves the
+ * source-tx boundary, but the proposer neither sets nor enforces
+ * execution-time ordering: the external executor sets slot ordering at
+ * vaultTransactionExecute time. Receipts that need execution-time ordering
+ * are rejected before reaching this path. `computeUnits`, when present, is
+ * the compute-unit limit the source transaction required; it is carried
+ * through and surfaced (see `submitReceiptTxsToSquads`) for the executor to
+ * set at `vaultTransactionExecute` — the proposer cannot set it itself, since
+ * the compute budget applies to the OUTER execution transaction the executor
+ * builds, not the vault transaction created here.
+ */
+export type OrderedVaultProposal = {
+  instructions: TransactionInstruction[];
+  computeUnits?: number;
+};
+
+/**
+ * Submit a receipt's source transactions as separate, ordered Squads
+ * proposals — one vault transaction per source tx rather than a single
+ * flattened vault transaction. This keeps each step in its own vault
+ * transaction. Ordering is the external executor's responsibility at
+ * vaultTransactionExecute time; receipts that depend on execution-time
+ * ordering are rejected upstream rather than proposed here. When a proposal
+ * carries a `computeUnits` requirement, it is logged so the executor knows to
+ * set that compute-unit limit when executing the corresponding vault
+ * transaction.
+ */
+export async function submitReceiptTxsToSquads(
+  chain: ChainName,
+  proposals: OrderedVaultProposal[],
+  mpp: MultiProtocolProvider,
+  signerAdapter: SvmMultiProtocolSignerAdapter,
+  memoBase?: string,
+): Promise<{ transactionIndexes: bigint[] }> {
+  rootLogger.info(chalk.cyan('\n=== Submitting receipt to Squads ==='));
+  const transactionIndexes: bigint[] = [];
+
+  try {
+    for (const [index, proposal] of proposals.entries()) {
+      const memo = memoBase
+        ? `${memoBase} (${index + 1}/${proposals.length})`
+        : undefined;
+      const transactionIndex = await createAndApproveSquadsProposal(
+        chain,
+        proposal.instructions,
+        mpp,
+        signerAdapter,
+        memo,
+      );
+      transactionIndexes.push(transactionIndex);
+      if (proposal.computeUnits != null) {
+        rootLogger.info(
+          chalk.yellow(
+            `  Vault tx index ${transactionIndex} requires compute-unit-limit ${proposal.computeUnits} at vaultTransactionExecute — executor must set it.`,
+          ),
+        );
+      }
+    }
+    rootLogger.info(
+      chalk.green(
+        `Created and approved ${transactionIndexes.length} ordered proposal(s). Other multisig members can now approve.`,
+      ),
+    );
+    return { transactionIndexes };
+  } catch (error) {
+    // Surface which ordered proposals already landed on-chain: a mid-loop
+    // failure leaves the earlier vault transactions created, and a blind rerun
+    // would duplicate them. A failure between creation and approval (see
+    // `createAndApproveSquadsProposal`) still lands a created vault tx, so its
+    // index is absorbed here too. Report the indexes and attach them to the
+    // thrown error so the caller can skip/execute those before retrying.
+    const createdIndex = readCreatedTransactionIndex(error);
+    if (createdIndex !== undefined) {
+      transactionIndexes.push(createdIndex);
+    }
+    const createdCount = transactionIndexes.length;
+    const landed = createdCount
+      ? ` ${createdCount} proposal(s) already created (vault transaction index(es): ${transactionIndexes.join(
+          ', ',
+        )}); a rerun would duplicate them — execute or cancel these first.`
+      : '';
+    rootLogger.error(
+      chalk.red(`Failed to submit receipt to Squads: ${error}.${landed}`),
+    );
+    const wrapped =
+      error instanceof Error
+        ? error
+        : new Error(`Failed to submit receipt to Squads: ${error}`);
+    throw Object.assign(wrapped, { transactionIndexes });
   }
 }
 

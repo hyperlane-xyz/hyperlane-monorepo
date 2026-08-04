@@ -12,6 +12,8 @@ const CIRCLE_HEADER_LENGTHS = [
   CIRCLE_HEADER_LENGTH_V1,
   CIRCLE_HEADER_LENGTH_V2,
 ];
+const CIRCLE_V1_NONCE_OFFSET = 12;
+const CIRCLE_V1_NONCE_LENGTH = 8;
 
 // BurnMessage body field offsets, relative to the end of the Circle header:
 // version(4) burnToken(32) mintRecipient(32) amount(32) messageSender(32) ...
@@ -40,6 +42,7 @@ const CIRCLE_GMP_MSG_LENGTHS = CIRCLE_HEADER_LENGTHS.map(
 const TOKEN_MSG_RECIPIENT_OFFSET = 0;
 const TOKEN_MSG_AMOUNT_OFFSET = 32;
 const TOKEN_MSG_MIN_LENGTH = 64;
+const TOKEN_MSG_METADATA_OFFSET = 64;
 
 /**
  * Given a list of raw Circle message hex strings from a transaction receipt,
@@ -48,6 +51,8 @@ const TOKEN_MSG_MIN_LENGTH = 64;
  * Strategy 1 — token transfer (depositForBurn path):
  *   Matches by (messageSender, amount, mintRecipient) from the Hyperlane message
  *   against BurnMessage fields, mirroring TokenBridgeCctp._validateTokenMessage.
+ *   Legacy V1 token messages include the Circle uint64 nonce as the first 8
+ *   metadata bytes; when present, it also disambiguates otherwise-identical burns.
  *   Tries both the CCTP V1 (116B) and V2 (148B) header lengths, so a V1 burn
  *   message (≥ 248 bytes) matches under V1 and a V2 burn (≥ 280) under V2.
  *
@@ -76,6 +81,13 @@ export function findMatchingCircleMessage(
       TOKEN_MSG_AMOUNT_OFFSET,
       TOKEN_MSG_AMOUNT_OFFSET + 32,
     );
+    const hlV1Nonce =
+      hyperlaneBody.length >= TOKEN_MSG_METADATA_OFFSET + CIRCLE_V1_NONCE_LENGTH
+        ? hyperlaneBody.slice(
+            TOKEN_MSG_METADATA_OFFSET,
+            TOKEN_MSG_METADATA_OFFSET + CIRCLE_V1_NONCE_LENGTH,
+          )
+        : undefined;
     const hlSenderBytes = ethers.utils.arrayify(hyperlaneSender);
 
     for (const msg of circleMessages) {
@@ -96,11 +108,18 @@ export function findMatchingCircleMessage(
           header + BURN_MSG_SENDER_OFFSET,
           header + BURN_MSG_SENDER_OFFSET + 32,
         );
+        const circleV1Nonce = bytes.slice(
+          CIRCLE_V1_NONCE_OFFSET,
+          CIRCLE_V1_NONCE_OFFSET + CIRCLE_V1_NONCE_LENGTH,
+        );
 
         if (
           Buffer.from(circleSender).equals(Buffer.from(hlSenderBytes)) &&
           Buffer.from(mintRecipient).equals(Buffer.from(hlRecipient)) &&
-          Buffer.from(amount).equals(Buffer.from(hlAmount))
+          Buffer.from(amount).equals(Buffer.from(hlAmount)) &&
+          (header !== CIRCLE_HEADER_LENGTH_V1 ||
+            hlV1Nonce === undefined ||
+            Buffer.from(circleV1Nonce).equals(Buffer.from(hlV1Nonce)))
         ) {
           return msg;
         }

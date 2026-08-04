@@ -43,6 +43,7 @@
     "@cosmjs/amino": "catalog:",
     "@eth-optimism/sdk": "catalog:",
     "@ethersproject/abi": "*",
+    "@ethersproject/abstract-signer": "*",
     "@ethersproject/experimental": "^5.7.0",
     "@ethersproject/hardware-wallets": "^5.7.0",
     "@ethersproject/providers": "*",

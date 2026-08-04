@@ -21,7 +21,13 @@ If Linear ticket URL(s) are provided, fetch each ticket to extract the warp rout
 
 ## Step 1: Confirm the warp route ID(s)
 
-Show the user the warp route IDs you'll add and ask them to confirm before proceeding.
+Show the user the warp route IDs you'll add, then end your message with this marker (this MUST be the very last thing in your message):
+
+```test
+[CONFIRM: Add warp route IDs <ids> to Nexus whitelist]
+```
+
+> **Note:** `[CONFIRM: ...]` is a Haggis-specific harness primitive — Haggis renders it as an inline approve/reject button. In other Claude Code contexts it is just text.
 
 ---
 
@@ -68,6 +74,21 @@ export const warpRouteWhitelist: Array<string> | null = [
   'USDC/mainnet-cctp-v2-fast',
 ];
 ```
+
+---
+
+## Step 3b: Verify the edit compiles
+
+Before committing, run the repo's TypeScript type-check to catch any syntax slip (trailing comma, mis-quoted string, etc.) that would ship a broken Nexus build:
+
+```bash
+cd "$REPO_PATH"
+pnpm typecheck
+```
+
+(The `typecheck` script is defined in `package.json` as `tsc`.)
+
+If `pnpm typecheck` reports any error from `src/consts/warpRouteWhitelist.ts`, **stop** — surface the error, do not commit. The most common cause is a stray comma or a non-string array entry; re-read the file, fix, and re-run until clean.
 
 ---
 

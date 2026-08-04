@@ -65,6 +65,10 @@ function createSafeMultiSend({
     }: SafeTransactionInput) => {
       const safeTransaction = {
         data: {
+          to: safeAddress,
+          value: '0',
+          data: '0x',
+          operation: 0,
           nonce: options?.nonce,
         },
       } as SafeTransaction;
@@ -81,7 +85,8 @@ function createSafeMultiSend({
       };
       return `hash-${transaction.data.nonce}`;
     },
-    signTypedData: async () => ({ data: '0xsig' }),
+    getContractVersion: () => '1.3.0',
+    getChainId: async () => 1n,
   } as unknown as Safe.default;
 
   const safeService = {
@@ -97,6 +102,7 @@ function createSafeMultiSend({
   const multiProvider = {
     getSigner: () => ({
       getAddress: async () => signerAddress,
+      _signTypedData: async () => `0x${'11'.repeat(65)}`,
     }),
   } as unknown as MultiProvider;
   const safeMultiSendConstructor =
