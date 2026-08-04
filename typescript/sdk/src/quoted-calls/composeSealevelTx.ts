@@ -52,10 +52,8 @@ export async function composeSealevelTx(args: {
     return versionedTx;
   }
 
-  // @ts-expect-error Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
   const tx = new Transaction({
     feePayer: args.feePayer,
-    blockhash: recentBlockhash,
     recentBlockhash,
   });
   for (const ix of args.instructions) tx.add(ix);

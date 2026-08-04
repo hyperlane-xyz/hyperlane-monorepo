@@ -152,7 +152,7 @@ describe('WarpTokenWriter', () => {
         MockRawWarpWriter
       >(),
       supportsHookUpdates: Sinon.stub<[], boolean>().returns(true),
-    } as MockArtifactManager;
+    };
 
     // Create minimal mock signer
     mockSigner = {
@@ -168,7 +168,7 @@ describe('WarpTokenWriter', () => {
       }),
       getChainName: Sinon.stub().returns(TEST_CHAIN),
       getDomainId: Sinon.stub().returns(TEST_DOMAIN_ID),
-    } as MockChainLookup;
+    };
 
     // Create mock ISM and Hook writers FIRST
     mockIsmWriter = {
@@ -178,7 +178,7 @@ describe('WarpTokenWriter', () => {
       >(),
       update: Sinon.stub<[DeployedIsmArtifact], Promise<AnnotatedTx[]>>(),
       read: Sinon.stub(),
-    } as MockIsmWriter;
+    };
 
     mockHookWriter = {
       create: Sinon.stub<
@@ -187,7 +187,7 @@ describe('WarpTokenWriter', () => {
       >(),
       update: Sinon.stub<[DeployedHookArtifact], Promise<AnnotatedTx[]>>(),
       read: Sinon.stub(),
-    } as MockHookWriter;
+    };
 
     // Create writer instance - manually to bypass protocol provider
     writer = Object.create(WarpTokenWriter.prototype);

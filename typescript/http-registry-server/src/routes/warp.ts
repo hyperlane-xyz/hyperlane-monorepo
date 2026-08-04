@@ -55,7 +55,7 @@ export function createWarpRouter(
     '/deploy/*id',
     joinPathSegments,
     validateRequestParam('id', z.string()),
-    async (req: Request, res: Response) => {
+    async (req: Request<{ id: string }>, res: Response) => {
       const warpRoute = await warpService.getWarpDeployConfig(req.params.id);
       res.json(warpRoute);
     },
@@ -89,7 +89,7 @@ export function createWarpRouter(
     '/core/*id',
     joinPathSegments,
     validateRequestParam('id', z.string()),
-    async (req: Request, res: Response) => {
+    async (req: Request<{ id: string }>, res: Response) => {
       const warpRoute = await warpService.getWarpCoreConfig(req.params.id);
       res.json(warpRoute);
     },

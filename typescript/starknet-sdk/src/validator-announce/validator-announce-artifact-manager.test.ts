@@ -76,20 +76,19 @@ describe('StarknetValidatorAnnounceArtifactManager', () => {
     const provider = Reflect.get(manager, 'provider') as {
       getRawProvider: () => { getStorageAt: () => Promise<string> };
     };
-    provider.getRawProvider = () =>
-      ({
-        getStorageAt: async () => {
-          const error = new Error('method not found');
-          Reflect.set(error, 'code', -32601);
-          throw error;
-        },
-      }) as { getStorageAt: () => Promise<string> };
+    provider.getRawProvider = () => ({
+      getStorageAt: async () => {
+        const error = new Error('method not found');
+        Reflect.set(error, 'code', -32601);
+        throw error;
+      },
+    });
 
     const artifact = await manager.readValidatorAnnounce('0xabc');
 
     expect(artifact.config.mailboxAddress).to.equal('');
-    expect(
-      Reflect.get(artifact.config as object, '__mailboxAddressUnknown'),
-    ).to.equal(true);
+    expect(Reflect.get(artifact.config, '__mailboxAddressUnknown')).to.equal(
+      true,
+    );
   });
 });

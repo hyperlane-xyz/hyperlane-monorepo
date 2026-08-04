@@ -83,10 +83,8 @@ export class SealevelHelloWorldAdapter
     const connection = this.getProvider();
     const recentBlockhash = (await connection.getLatestBlockhash('finalized'))
       .blockhash;
-    // @ts-ignore Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
     const transaction = new Transaction({
       feePayer: senderPubKey,
-      blockhash: recentBlockhash,
       recentBlockhash,
     }).add(txInstruction);
     transaction.partialSign(randomWallet);

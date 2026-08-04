@@ -8,7 +8,7 @@
 # Runtime env:
 #   SERVICE_NAME - One of: rebalancer, warp-monitor, ccip-server, keyfunder, relayer, fee-quoting
 
-ARG NODE_VERSION=24
+ARG NODE_VERSION=26
 FROM node:${NODE_VERSION}-slim AS builder
 
 WORKDIR /hyperlane-monorepo

@@ -1,3 +1,5 @@
 # Isolates this example from the parent monorepo workspace.
 # Without this, pnpm resolves deps from the monorepo root instead of locally.
 packages: []
+allowBuilds:
+  esbuild: true

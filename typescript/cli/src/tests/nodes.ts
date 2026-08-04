@@ -1,9 +1,16 @@
-import { GenericContainer, Wait } from 'testcontainers';
+import {
+  GenericContainer,
+  type StartedTestContainer,
+  Wait,
+} from 'testcontainers';
 
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import { retryAsync } from '@hyperlane-xyz/utils';
 
-export async function runEvmNode({ rpcPort, chainId }: TestChainMetadata) {
+export async function runEvmNode({
+  rpcPort,
+  chainId,
+}: TestChainMetadata): Promise<StartedTestContainer> {
   // Retry container start to handle transient Docker registry 503 errors in CI
   const container = await retryAsync(
     () =>
