@@ -273,17 +273,10 @@ export abstract class HelmManager<T = HelmValues> {
     releaseName: string,
     namespace: string,
   ): Promise<boolean> {
-    try {
-      await execCmd(
-        `helm status ${releaseName} --namespace ${namespace}`,
-        {},
-        false,
-        false,
-      );
-      return true;
-    } catch {
-      return false;
-    }
+    const releases = await execCmdAndParseJson(
+      `helm list --namespace ${namespace} --filter '^${releaseName}$' --output json`,
+    );
+    return releases.length > 0;
   }
 
   async getExistingK8sSecrets(): Promise<string[]> {

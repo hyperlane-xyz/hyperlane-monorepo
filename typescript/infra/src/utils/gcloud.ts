@@ -24,6 +24,28 @@ interface IamPolicyBinding {
 }
 
 const logger = rootLogger.child({ module: 'infra:utils:gcloud' });
+const kmsIamGrantQueues = new Map<string, Promise<void>>();
+
+async function withKmsIamGrantQueue<T>(
+  queueKey: string,
+  task: () => Promise<T>,
+): Promise<T> {
+  const previous = kmsIamGrantQueues.get(queueKey) ?? Promise.resolve();
+  const run = previous.then(task, task);
+  const queued = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  kmsIamGrantQueues.set(queueKey, queued);
+
+  try {
+    return await run;
+  } finally {
+    if (kmsIamGrantQueues.get(queueKey) === queued) {
+      kmsIamGrantQueues.delete(queueKey);
+    }
+  }
+}
 
 // Allows secrets to be overridden via environment variables to avoid
 // gcloud calls. This is particularly useful for running commands in k8s,
@@ -455,30 +477,36 @@ export async function grantKmsKeySignerRoleIfNotExists(
 ) {
   const member = `serviceAccount:${serviceAccountEmail}`;
   const role = 'roles/cloudkms.signerVerifier';
-  const policy = await execCmdAndParseJson(
-    `gcloud kms keys get-iam-policy ${keyId} --project=${project} --location=${location} --keyring=${keyRingId} --format=json`,
+  const queueKey = `${project}/${location}/${keyRingId}/${keyId}`;
+
+  await withKmsIamGrantQueue(queueKey, () =>
+    retryAsync(
+      async () => {
+        const policy = await execCmdAndParseJson(
+          `gcloud kms keys get-iam-policy ${keyId} --project=${project} --location=${location} --keyring=${keyRingId} --format=json`,
+        );
+        const hasRole = (policy.bindings || []).some(
+          (binding: IamPolicyBinding) =>
+            binding.role === role && binding.members?.includes(member),
+        );
+        if (hasRole) {
+          logger.debug(
+            `Service account ${serviceAccountEmail} already has ${role} on key ${keyId}`,
+          );
+          return;
+        }
+
+        await execCmd(
+          `gcloud kms keys add-iam-policy-binding ${keyId} --project=${project} --location=${location} --keyring=${keyRingId} --member="${member}" --role="${role}"`,
+        );
+        logger.debug(
+          `Granted ${role} to ${serviceAccountEmail} on key ${keyId}`,
+        );
+      },
+      6,
+      3000,
+    ),
   );
-  const hasRole = (policy.bindings || []).some(
-    (binding: IamPolicyBinding) =>
-      binding.role === role && binding.members?.includes(member),
-  );
-  if (hasRole) {
-    logger.debug(
-      `Service account ${serviceAccountEmail} already has ${role} on key ${keyId}`,
-    );
-    return;
-  }
-  // A just-created service account can take a few seconds to propagate to
-  // other GCP APIs — retry rather than fail outright on "does not exist".
-  await retryAsync(
-    () =>
-      execCmd(
-        `gcloud kms keys add-iam-policy-binding ${keyId} --project=${project} --location=${location} --keyring=${keyRingId} --member="${member}" --role="${role}"`,
-      ),
-    6,
-    3000,
-  );
-  logger.debug(`Granted ${role} to ${serviceAccountEmail} on key ${keyId}`);
 }
 
 export async function createGcsBucketIfNotExists(
