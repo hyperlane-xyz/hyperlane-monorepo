@@ -1,11 +1,11 @@
 // eslint-disable-next-line import/no-nodejs-modules
 import { type ChildProcess, execSync, spawn } from 'child_process';
 // eslint-disable-next-line import/no-nodejs-modules
-import * as fs from 'fs';
+import { existsSync } from 'node:fs';
 // eslint-disable-next-line import/no-nodejs-modules
-import * as os from 'os';
+import { homedir } from 'node:os';
 // eslint-disable-next-line import/no-nodejs-modules
-import * as path from 'path';
+import { join } from 'node:path';
 
 import { waitUntilReady } from '@hyperlane-xyz/forking-sdk';
 import {
@@ -72,22 +72,22 @@ export interface SurfpoolNode {
 }
 
 const SURFPOOL_BINARY_PATHS = [
-  path.join(os.homedir(), '.cargo/bin'),
+  join(homedir(), '.cargo/bin'),
   '/opt/homebrew/bin',
   '/usr/local/bin',
 ];
 
 function findSurfpool(): string | null {
   for (const basePath of SURFPOOL_BINARY_PATHS) {
-    const binaryPath = path.join(basePath, 'surfpool');
-    if (fs.existsSync(binaryPath)) {
+    const binaryPath = join(basePath, 'surfpool');
+    if (existsSync(binaryPath)) {
       return binaryPath;
     }
   }
 
   try {
     const result = execSync('which surfpool', { encoding: 'utf-8' }).trim();
-    if (result && fs.existsSync(result)) {
+    if (result && existsSync(result)) {
       return result;
     }
   } catch (error) {
