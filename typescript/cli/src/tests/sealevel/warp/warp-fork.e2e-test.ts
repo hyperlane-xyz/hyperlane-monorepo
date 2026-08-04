@@ -229,7 +229,11 @@ describe('hyperlane warp fork CLI e2e tests (Sealevel)', function () {
     });
 
     // Emit the governance transactions to a file instead of submitting them.
+    // The file submitter APPENDS to an existing file, so reset it first — a
+    // stale file from a previous run would replay txs invoking programs that no
+    // longer exist on this run's fork upstream (InvalidProgramForExecution).
     const txFile = `${TEMP_PATH}/svm-fork-replay-txs.yaml`;
+    writeYamlOrJson(txFile, []);
     const strategyPath = `${TEMP_PATH}/svm-fork-file-strategy.yaml`;
     writeYamlOrJson(strategyPath, {
       [CHAIN_NAME]: {
