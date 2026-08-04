@@ -1,5 +1,6 @@
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
+import type { ChainMetadata } from '@hyperlane-xyz/sdk';
 import type { Logger } from 'pino';
 import sinon from 'sinon';
 
@@ -66,6 +67,8 @@ describe('KeyFunder', () => {
   });
 
   it('scales the funding amount by the chain native token decimals', async () => {
+    // CAST: minimal pino Logger double; the funder only calls child() and the
+    // level methods, so a full Logger is unnecessary here.
     const logger = {
       child: () => logger,
       debug: () => undefined,
@@ -75,54 +78,54 @@ describe('KeyFunder', () => {
     } as unknown as Logger;
 
     const multiProvider = sinon.createStubInstance(MultiProvider);
-    // Recipient key is empty, so it needs to be topped up to its desired balance.
-    multiProvider.getProvider.returns({
-      getBalance: async () => BigNumber.from(0),
-    } as never);
-    // Funder holds 2747 TRX (6 decimals). Under the 18-decimal bug this would
-    // have been read as 2747e-12 TRX and falsely flagged as insufficient.
-    multiProvider.getSigner.returns({
-      getBalance: async () => BigNumber.from('2747000000'),
-    } as never);
+
+    // Recipient key is empty, so it must be topped up to its desired balance.
+    const provider = sinon.createStubInstance(ethers.providers.JsonRpcProvider);
+    provider.getBalance.resolves(BigNumber.from(0));
+    multiProvider.getProvider.returns(provider);
+
+    // Funder holds 2747 TRX (6 decimals). Under the old 18-decimal bug this
+    // would have been read as 2747e-12 TRX and falsely flagged as insufficient.
+    const signer = sinon.createStubInstance(ethers.Wallet);
+    signer.getAddress.resolves('0x3333333333333333333333333333333333333333');
+    signer.getBalance.resolves(BigNumber.from('2747000000'));
+    multiProvider.getSigner.returns(signer);
     multiProvider.getSignerAddress.resolves(
       '0x3333333333333333333333333333333333333333',
     );
+
+    // CAST: getNativeDecimals only reads nativeToken.decimals; the rest of
+    // ChainMetadata is irrelevant to this test.
     multiProvider.getChainMetadata.returns({
       nativeToken: { name: 'TRON', symbol: 'TRX', decimals: 6 },
-    } as never);
-    const sendTransaction = sinon.stub().resolves({ transactionHash: '0xabc' });
-    multiProvider.sendTransaction = sendTransaction as never;
-    multiProvider.tryGetExplorerTxUrl.returns(undefined as never);
+    } as unknown as ChainMetadata);
+    const sendTransaction = sinon.stub<
+      Parameters<MultiProvider['sendTransaction']>,
+      ReturnType<MultiProvider['sendTransaction']>
+    >();
+    // CAST: fundKey only reads transactionHash off the receipt.
+    sendTransaction.resolves({
+      transactionHash: '0xabc',
+    } as unknown as ethers.ContractReceipt);
+    multiProvider.sendTransaction = sendTransaction;
+    multiProvider.tryGetExplorerTxUrl.returns(null);
 
-    const keyFunder = new KeyFunder(
-      multiProvider,
-      { version: '1', roles: {}, chains: {} },
-      { logger },
-    );
+    const config: KeyFunderConfig = {
+      version: '1',
+      roles: {
+        relayer: { address: '0x1111111111111111111111111111111111111111' },
+      },
+      chains: { tron: { balances: { relayer: '1000' } } },
+    };
 
-    await (
-      keyFunder as unknown as {
-        fundKey: (
-          chain: string,
-          key: {
-            address: string;
-            role: string;
-            desiredBalance: string;
-          },
-        ) => Promise<void>;
-      }
-    ).fundKey('tron', {
-      address: '0x1111111111111111111111111111111111111111',
-      role: 'relayer',
-      desiredBalance: '1000',
-    });
+    const keyFunder = new KeyFunder(multiProvider, config, { logger });
+
+    await keyFunder.fundChain('tron');
 
     // 1000 TRX at 6 decimals = 1_000_000_000 sun.
     sinon.assert.calledOnce(sendTransaction);
-    const [, tx] = sendTransaction.firstCall.args;
-    expect((tx as { value: BigNumber }).value.toString()).to.equal(
-      '1000000000',
-    );
+    const tx = await Promise.resolve(sendTransaction.firstCall.args[1]);
+    expect(tx.value?.toString()).to.equal('1000000000');
   });
 
   it('should continue funding when recordFunderBalance fails', async () => {
