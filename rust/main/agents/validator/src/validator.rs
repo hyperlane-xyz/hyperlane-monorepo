@@ -401,6 +401,7 @@ pub struct Validator {
     merkle_tree_hook_sync: Arc<SequencedDataContractSync<MerkleTreeInsertion>>,
     mailbox: Arc<dyn Mailbox>,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
+    base_merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     validator_announce: Arc<dyn ValidatorAnnounce>,
     signer: SingletonSignerHandle,
     raw_signer: Signers,
@@ -562,7 +563,12 @@ impl BaseAgent for Validator {
 
         let mailbox = origin_chain_conf.build_mailbox(&metrics).await?;
 
-        let merkle_tree_hook = if Self::validator_uses_split_quorum_hook(
+        let base_merkle_tree_hook: Arc<dyn MerkleTreeHook> = settings
+            .build_merkle_tree_hook(&settings.origin_chain, &metrics)
+            .await?
+            .into();
+
+        let merkle_tree_hook: Arc<dyn MerkleTreeHook> = if Self::validator_uses_split_quorum_hook(
             &origin_chain_conf,
             &additional_quorum_rpc_urls,
         ) {
@@ -582,12 +588,14 @@ impl BaseAgent for Validator {
             Self::warn_if_quorum_pool_undersized(&combined_urls);
             Self::warn_if_duplicate_hosts(&combined_urls);
             Self::build_validator_quorum_merkle_tree_hook(
+                base_merkle_tree_hook.clone(),
                 &origin_chain_conf,
                 &primary_rpc_urls,
                 &additional_quorum_rpc_urls,
                 &metrics,
             )
             .await?
+            .into()
         } else {
             if !additional_quorum_rpc_urls.is_empty() {
                 warn!(
@@ -595,9 +603,7 @@ impl BaseAgent for Validator {
                     "additionalQuorumRpcUrls is set but ignored: quorum verification is only supported for Ethereum chains"
                 );
             }
-            settings
-                .build_merkle_tree_hook(&settings.origin_chain, &metrics)
-                .await?
+            base_merkle_tree_hook.clone()
         };
 
         let validator_announce = settings
@@ -623,7 +629,8 @@ impl BaseAgent for Validator {
             core,
             db: msg_db,
             mailbox: mailbox.into(),
-            merkle_tree_hook: merkle_tree_hook.into(),
+            merkle_tree_hook,
+            base_merkle_tree_hook,
             merkle_tree_hook_sync,
             validator_announce: validator_announce.into(),
             signer,
@@ -848,12 +855,12 @@ impl Validator {
     }
 
     async fn build_validator_quorum_merkle_tree_hook(
+        base_hook: Arc<dyn MerkleTreeHook>,
         origin_chain_conf: &ChainConf,
         primary_rpc_urls: &[Url],
         additional_quorum_rpc_urls: &[Url],
         metrics: &CoreMetrics,
     ) -> ChainResult<Box<dyn MerkleTreeHook>> {
-        let base_hook = origin_chain_conf.build_merkle_tree_hook(metrics).await?;
         let mut quorum_hooks = Self::build_validator_ethereum_per_url_hooks(
             origin_chain_conf,
             "rpcUrls",
@@ -873,7 +880,7 @@ impl Validator {
             .await?,
         );
         Ok(Box::new(ValidatorMultiRpcQuorumMerkleTreeHook {
-            base_hook: base_hook.into(),
+            base_hook,
             quorum_hooks,
         }) as Box<dyn MerkleTreeHook>)
     }
@@ -995,6 +1002,7 @@ impl Validator {
             self.interval,
             self.reorg_period.clone(),
             self.merkle_tree_hook.clone(),
+            self.base_merkle_tree_hook.clone(),
             self.signer.clone(),
             self.raw_signer.clone(),
             self.checkpoint_syncer.clone(),

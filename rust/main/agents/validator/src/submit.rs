@@ -32,6 +32,7 @@ pub(crate) struct ValidatorSubmitter {
     singleton_signer: SingletonSignerHandle,
     signer: Signers,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
+    base_merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
     db: Arc<dyn HyperlaneDb>,
     metrics: ValidatorSubmitterMetrics,
@@ -45,6 +46,7 @@ impl ValidatorSubmitter {
         interval: Duration,
         reorg_period: ReorgPeriod,
         merkle_tree_hook: Arc<dyn MerkleTreeHook>,
+        base_merkle_tree_hook: Arc<dyn MerkleTreeHook>,
         singleton_signer: SingletonSignerHandle,
         signer: Signers,
         checkpoint_syncer: Arc<dyn CheckpointSyncer>,
@@ -57,6 +59,7 @@ impl ValidatorSubmitter {
             reorg_period,
             interval,
             merkle_tree_hook,
+            base_merkle_tree_hook,
             singleton_signer,
             signer,
             checkpoint_syncer,
@@ -121,39 +124,55 @@ impl ValidatorSubmitter {
         };
 
         loop {
-            // Cheap, base-hook-only (private RPC) tip check. `latest_checkpoint()` may be
-            // quorum-verified (fanning out to public RPCs, see
+            // Cheap, base-hook-only (private RPC) tip check. The quorum-verified
+            // `merkle_tree_hook.latest_checkpoint()` may fan out to public RPCs (see
             // `ValidatorMultiRpcQuorumMerkleTreeHook`); only call it when this indicates
-            // there's actually a new leaf to catch up to, so idle chains stop polling public
-            // RPCs once caught up instead of doing so every `interval` regardless of message
-            // throughput.
+            // there's actually a new leaf to catch up to.
             let observed_count = call_and_retry_indefinitely(|| {
-                let merkle_tree_hook = self.merkle_tree_hook.clone();
+                let merkle_tree_hook = self.base_merkle_tree_hook.clone();
                 let reorg_period = self.reorg_period.clone();
                 Box::pin(async move { merkle_tree_hook.count(&reorg_period).await })
             })
             .await;
 
             if (observed_count as usize) <= tree.count() {
-                // Nothing new since we last caught up: `tree` already reflects the fully
-                // processed state, so report it directly instead of running an unnecessary
-                // quorum-verified round.
-                let observed_checkpoint = CheckpointAtBlock {
-                    checkpoint: self.checkpoint(&tree),
-                    block_height: None,
-                };
+                // Count alone cannot prove the root is unchanged: a reorg may replace a
+                // leaf while leaving the count the same. Compare against the base hook
+                // checkpoint so same-index root mismatches still hit the reorg path below
+                // without running an unnecessary quorum-verified round.
+                let latest_checkpoint = call_and_retry_indefinitely(|| {
+                    let merkle_tree_hook = self.base_merkle_tree_hook.clone();
+                    let reorg_period = self.reorg_period.clone();
+                    Box::pin(async move { merkle_tree_hook.latest_checkpoint(&reorg_period).await })
+                })
+                .await;
+
                 self.metrics
-                    .set_latest_checkpoint_observed(&observed_checkpoint);
+                    .set_latest_checkpoint_observed(&latest_checkpoint);
                 if should_log_checkpoint_info() {
                     info!(
-                        latest_checkpoint = ?observed_checkpoint,
+                        ?latest_checkpoint,
                         tree_count = tree.count(),
                         "Latest checkpoint (no new messages)"
                     );
                 }
+
+                if tree_exceeds_checkpoint(&latest_checkpoint, &tree) {
+                    debug!(
+                        ?latest_checkpoint,
+                        tree_count = tree.count(),
+                        "Latest checkpoint is behind tree, sleeping briefly"
+                    );
+                    sleep(self.interval).await;
+                    continue;
+                }
+
+                self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &latest_checkpoint)
+                    .await;
+
                 self.metrics
                     .latest_checkpoint_processed
-                    .set(observed_checkpoint.index as i64);
+                    .set(latest_checkpoint.index as i64);
                 self.metrics.reached_initial_consistency.set(1);
 
                 sleep(self.interval).await;

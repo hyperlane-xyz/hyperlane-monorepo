@@ -127,6 +127,7 @@ async fn single_checkpoint_chunk_has_no_throttle_tail() {
         Duration::from_secs(1),
         ReorgPeriod::from_blocks(1),
         Arc::new(MockMerkleTreeHook::new()),
+        Arc::new(MockMerkleTreeHook::new()),
         dummy_singleton_handle(),
         signer,
         Arc::new(checkpoint_syncer),
@@ -183,6 +184,7 @@ async fn two_written_chunks_have_one_inter_chunk_throttle() {
     let submitter = ValidatorSubmitter::new(
         Duration::from_secs(1),
         ReorgPeriod::from_blocks(1),
+        Arc::new(MockMerkleTreeHook::new()),
         Arc::new(MockMerkleTreeHook::new()),
         dummy_singleton_handle(),
         signer,
@@ -256,6 +258,7 @@ async fn all_existing_chunks_skip_inter_chunk_throttle() {
         Duration::from_secs(1),
         ReorgPeriod::from_blocks(1),
         Arc::new(MockMerkleTreeHook::new()),
+        Arc::new(MockMerkleTreeHook::new()),
         dummy_singleton_handle(),
         signer,
         Arc::new(checkpoint_syncer),
@@ -280,8 +283,8 @@ async fn all_existing_chunks_skip_inter_chunk_throttle() {
 }
 
 /// Regression test for the public-RPC load fix: `checkpoint_submitter` must not call the
-/// (potentially quorum-verified, public-RPC-fanning) `latest_checkpoint()` when the cheap,
-/// base-hook-only `count()` shows nothing new since `tree` was last caught up.
+/// quorum-verified, public-RPC-fanning `latest_checkpoint()` when the cheap, base-hook-only
+/// `count()` shows nothing new since `tree` was last caught up.
 #[tokio::test(start_paused = true)]
 async fn checkpoint_submitter_skips_latest_checkpoint_without_new_messages() {
     let mut tree = IncrementalMerkle::default();
@@ -293,25 +296,44 @@ async fn checkpoint_submitter_skips_latest_checkpoint_without_new_messages() {
     let count_calls = Arc::new(AtomicBool::new(false));
     let count_calls_clone = count_calls.clone();
 
-    let mut mock_merkle_tree_hook = MockMerkleTreeHook::new();
-    mock_merkle_tree_hook
+    let mut mock_quorum_merkle_tree_hook = MockMerkleTreeHook::new();
+    mock_quorum_merkle_tree_hook
         .expect_address()
         .returning(|| H256::from_low_u64_be(0));
     let dummy_domain = dummy_domain(0, "dummy_domain");
-    mock_merkle_tree_hook
+    mock_quorum_merkle_tree_hook
         .expect_domain()
-        .return_const(dummy_domain);
-    mock_merkle_tree_hook.expect_count().returning(move |_| {
-        count_calls_clone.store(true, Ordering::SeqCst);
-        Ok(tree_count)
-    });
-    mock_merkle_tree_hook.expect_latest_checkpoint().never();
+        .return_const(dummy_domain.clone());
+    mock_quorum_merkle_tree_hook
+        .expect_latest_checkpoint()
+        .never();
+
+    let mut mock_base_merkle_tree_hook = MockMerkleTreeHook::new();
+    mock_base_merkle_tree_hook
+        .expect_count()
+        .returning(move |_| {
+            count_calls_clone.store(true, Ordering::SeqCst);
+            Ok(tree_count)
+        });
+    let expected_checkpoint = CheckpointAtBlock {
+        checkpoint: Checkpoint {
+            root: tree.root(),
+            index: tree.index(),
+            merkle_tree_hook_address: H256::from_low_u64_be(0),
+            mailbox_domain: dummy_domain.id(),
+        },
+        block_height: Some(1),
+    };
+    mock_base_merkle_tree_hook
+        .expect_latest_checkpoint()
+        .returning(move |_| Ok(expected_checkpoint.clone()));
 
     let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
     let submitter = ValidatorSubmitter::new(
         Duration::from_secs(1),
         ReorgPeriod::from_blocks(1),
-        Arc::new(mock_merkle_tree_hook),
+        Arc::new(mock_quorum_merkle_tree_hook),
+        Arc::new(mock_base_merkle_tree_hook),
         dummy_singleton_handle(),
         signer,
         Arc::new(MockCheckpointSyncer::new()),
@@ -337,8 +359,113 @@ async fn checkpoint_submitter_skips_latest_checkpoint_without_new_messages() {
         count_calls.load(Ordering::SeqCst),
         "the loop should still poll count() via the private base_hook"
     );
-    // `expect_latest_checkpoint().never()` above is the real assertion: a panic there would
-    // have failed this test already if it were called.
+    // `mock_quorum_merkle_tree_hook.expect_latest_checkpoint().never()` above is the real
+    // assertion: a panic there would have failed this test already if it were called.
+}
+
+/// Regression test for same-index reorg detection: an unchanged count with a changed root
+/// must still go through the normal reorg reporting/panic path.
+#[tokio::test(start_paused = true)]
+async fn checkpoint_submitter_detects_reorg_when_count_is_unchanged() {
+    let expected_reorg_period = 12;
+
+    let mut local_tree = IncrementalMerkle::default();
+    local_tree.ingest(H256::from_low_u64_be(1));
+    local_tree.ingest(H256::from_low_u64_be(2));
+    local_tree.ingest(H256::from_low_u64_be(3));
+
+    let mut onchain_tree = IncrementalMerkle::default();
+    onchain_tree.ingest(H256::from_low_u64_be(1));
+    onchain_tree.ingest(H256::from_low_u64_be(2));
+    onchain_tree.ingest(H256::from_low_u64_be(4));
+
+    assert_eq!(local_tree.count(), onchain_tree.count());
+    assert_ne!(local_tree.root(), onchain_tree.root());
+
+    let dummy_domain = dummy_domain(0, "dummy_domain");
+
+    let mut mock_quorum_merkle_tree_hook = MockMerkleTreeHook::new();
+    mock_quorum_merkle_tree_hook
+        .expect_address()
+        .returning(|| H256::from_low_u64_be(0));
+    mock_quorum_merkle_tree_hook
+        .expect_domain()
+        .return_const(dummy_domain.clone());
+    mock_quorum_merkle_tree_hook
+        .expect_latest_checkpoint()
+        .never();
+
+    let mut mock_base_merkle_tree_hook = MockMerkleTreeHook::new();
+    let observed_count = local_tree.count() as u32;
+    mock_base_merkle_tree_hook
+        .expect_count()
+        .once()
+        .returning(move |_| Ok(observed_count));
+    let onchain_checkpoint = CheckpointAtBlock {
+        checkpoint: Checkpoint {
+            root: onchain_tree.root(),
+            index: onchain_tree.index(),
+            merkle_tree_hook_address: H256::from_low_u64_be(0),
+            mailbox_domain: dummy_domain.id(),
+        },
+        block_height: Some(42),
+    };
+    mock_base_merkle_tree_hook
+        .expect_latest_checkpoint()
+        .once()
+        .returning(move |_| Ok(onchain_checkpoint));
+
+    let unix_timestamp = chrono::Utc::now().timestamp() as u64;
+    let mut mock_checkpoint_syncer = MockCheckpointSyncer::new();
+    let expected_local_tree = local_tree.clone();
+    let expected_onchain_tree = onchain_tree.clone();
+    mock_checkpoint_syncer
+        .expect_write_reorg_status()
+        .once()
+        .returning(move |reorg_event| {
+            reorg_event_is_correct(
+                reorg_event,
+                &expected_local_tree,
+                &expected_onchain_tree,
+                unix_timestamp,
+                ReorgPeriod::from_blocks(expected_reorg_period),
+            );
+            Ok(())
+        });
+
+    let mut mock_reorg_reporter = MockReorgReporter::new();
+    mock_reorg_reporter
+        .expect_report_at_block()
+        .with(mockall::predicate::eq(42))
+        .once()
+        .return_once(|_| {});
+
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let submitter = ValidatorSubmitter::new(
+        Duration::from_secs(1),
+        ReorgPeriod::from_blocks(expected_reorg_period),
+        Arc::new(mock_quorum_merkle_tree_hook),
+        Arc::new(mock_base_merkle_tree_hook),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(mock_checkpoint_syncer),
+        Arc::new(MockDb::new()),
+        dummy_metrics(),
+        1,
+        Arc::new(mock_reorg_reporter),
+    );
+
+    let task = tokio::spawn(async move {
+        submitter.checkpoint_submitter(local_tree).await;
+    });
+    tokio::task::yield_now().await;
+
+    assert!(
+        task.is_finished(),
+        "unchanged-count root mismatch should panic in the first loop"
+    );
+    let result = task.await;
+    assert!(result.unwrap_err().is_panic());
 }
 
 /// Counterpart to the above: once the cheap `count()` shows a new leaf, `latest_checkpoint()`
@@ -354,20 +481,21 @@ async fn checkpoint_submitter_fetches_latest_checkpoint_when_new_message_arrives
     let latest_checkpoint_called = Arc::new(AtomicBool::new(false));
     let latest_checkpoint_called_clone = latest_checkpoint_called.clone();
 
-    let mut mock_merkle_tree_hook = MockMerkleTreeHook::new();
-    mock_merkle_tree_hook
+    let mut mock_quorum_merkle_tree_hook = MockMerkleTreeHook::new();
+    mock_quorum_merkle_tree_hook
         .expect_address()
         .returning(|| H256::from_low_u64_be(0));
     let dummy_domain = dummy_domain(0, "dummy_domain");
-    mock_merkle_tree_hook
+    mock_quorum_merkle_tree_hook
         .expect_domain()
         .return_const(dummy_domain.clone());
     // One more leaf is available on-chain than what's locally ingested.
     let observed_count = unchanged_tree.count() as u32 + 1;
-    mock_merkle_tree_hook
+    let mut mock_base_merkle_tree_hook = MockMerkleTreeHook::new();
+    mock_base_merkle_tree_hook
         .expect_count()
         .returning(move |_| Ok(observed_count));
-    mock_merkle_tree_hook
+    mock_quorum_merkle_tree_hook
         .expect_latest_checkpoint()
         .returning(move |_| {
             latest_checkpoint_called_clone.store(true, Ordering::SeqCst);
@@ -388,7 +516,8 @@ async fn checkpoint_submitter_fetches_latest_checkpoint_when_new_message_arrives
     let submitter = ValidatorSubmitter::new(
         Duration::from_secs(1),
         ReorgPeriod::from_blocks(1),
-        Arc::new(mock_merkle_tree_hook),
+        Arc::new(mock_quorum_merkle_tree_hook),
+        Arc::new(mock_base_merkle_tree_hook),
         dummy_singleton_handle(),
         signer,
         Arc::new(MockCheckpointSyncer::new()),
@@ -529,6 +658,7 @@ async fn reorg_is_detected_and_persisted_to_checkpoint_storage() {
         Duration::from_secs(1),
         ReorgPeriod::from_blocks(expected_reorg_period),
         Arc::new(mock_merkle_tree_hook),
+        Arc::new(MockMerkleTreeHook::new()),
         dummy_singleton_handle(),
         signer,
         Arc::new(mock_checkpoint_syncer),
@@ -647,6 +777,7 @@ async fn sign_and_submit_checkpoint_same_signature() {
         Duration::from_secs(1),
         ReorgPeriod::from_blocks(expected_reorg_period),
         Arc::new(mock_merkle_tree_hook),
+        Arc::new(MockMerkleTreeHook::new()),
         dummy_singleton_handle(),
         signer,
         Arc::new(mock_checkpoint_syncer),
@@ -766,6 +897,7 @@ async fn sign_and_submit_checkpoint_different_signature() {
         Duration::from_secs(1),
         ReorgPeriod::from_blocks(expected_reorg_period),
         Arc::new(mock_merkle_tree_hook),
+        Arc::new(MockMerkleTreeHook::new()),
         dummy_singleton_handle(),
         signer,
         Arc::new(mock_checkpoint_syncer),
