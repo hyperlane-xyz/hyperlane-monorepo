@@ -297,7 +297,7 @@ async function main() {
       helmManager.runPreflightChecks(multiProtocolProvider, skipConfirmation),
     );
     await timedAsync(`runHelmCommand(${warpRouteId})`, () =>
-      helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade),
+      helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade, { dryRun }),
     );
   };
 

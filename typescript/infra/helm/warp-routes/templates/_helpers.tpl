@@ -125,9 +125,11 @@ BestEffort per-route pods.
   {{- if .Values.centralized.warpRouteAll }}
   - name: WARP_ROUTE_ALL
     value: "true"
-  {{- else }}
+  {{- else if .Values.centralized.warpRouteIds }}
   - name: WARP_ROUTE_IDS
     value: {{ join "," .Values.centralized.warpRouteIds | quote }}
+  {{- else }}
+  {{- fail "centralized.warpRouteIds must be non-empty when centralized.warpRouteAll is false" }}
   {{- end }}
   - name: WARP_MONITOR_CONCURRENCY
     value: {{ .Values.centralized.concurrency | quote }}

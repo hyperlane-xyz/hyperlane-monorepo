@@ -41,13 +41,26 @@ const ataPayerAlertThreshold: ChainMap<number> = {
 // i.e. 15% higher than the alert threshold.
 const minAtaPayerBalanceFactor: number = 1.15;
 
+// Shared by both the per-route and centralized managers, which render the same
+// chart.
+const WARP_ROUTES_HELM_CHART_PATH: string = path.join(
+  getInfraPath(),
+  './helm/warp-routes',
+);
+
+// Builds the registry URI a warp-monitor pod reads, embedding the commit in the
+// /tree/{commit} form when one is given.
+export function registryUriFromCommit(registryCommit: string): string {
+  if (!registryCommit) {
+    return DEFAULT_GITHUB_REGISTRY;
+  }
+  return `${DEFAULT_GITHUB_REGISTRY}/tree/${registryCommit}`;
+}
+
 export class WarpRouteMonitorHelmManager extends HelmManager {
   static helmReleasePrefix: string = 'hyperlane-warp-route';
 
-  readonly helmChartPath: string = path.join(
-    getInfraPath(),
-    './helm/warp-routes',
-  );
+  readonly helmChartPath: string = WARP_ROUTES_HELM_CHART_PATH;
 
   constructor(
     readonly warpRouteId: string,
@@ -59,12 +72,7 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   }
 
   private get registryUri(): string {
-    // If no commit specified, use the default registry URL without /tree/ suffix
-    if (!this.registryCommit) {
-      return DEFAULT_GITHUB_REGISTRY;
-    }
-    // Build registry URI with commit embedded in /tree/{commit} format
-    return `${DEFAULT_GITHUB_REGISTRY}/tree/${this.registryCommit}`;
+    return registryUriFromCommit(this.registryCommit);
   }
 
   async runPreflightChecks(
@@ -302,15 +310,6 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   }
 }
 
-// Builds the registry URI a warp-monitor pod reads, embedding the commit in the
-// /tree/{commit} form when one is given.
-function registryUriFromCommit(registryCommit: string): string {
-  if (!registryCommit) {
-    return DEFAULT_GITHUB_REGISTRY;
-  }
-  return `${DEFAULT_GITHUB_REGISTRY}/tree/${registryCommit}`;
-}
-
 /**
  * Deploys the single centralized multi-route warp monitor: one Deployment that
  * iterates many routes and emits all their metrics into one scraped registry,
@@ -321,10 +320,7 @@ function registryUriFromCommit(registryCommit: string): string {
 export class CentralizedWarpRouteMonitorHelmManager extends HelmManager {
   static helmReleaseName = 'hyperlane-warp-monitor-centralized';
 
-  readonly helmChartPath: string = path.join(
-    getInfraPath(),
-    './helm/warp-routes',
-  );
+  readonly helmChartPath: string = WARP_ROUTES_HELM_CHART_PATH;
 
   constructor(
     readonly runEnv: DeployEnvironment,
