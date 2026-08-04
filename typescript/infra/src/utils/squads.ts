@@ -764,22 +764,60 @@ async function createAndApproveSquadsProposal(
   rootLogger.info(chalk.green(`Proposal created: ${createSignature}`));
   rootLogger.info(chalk.gray(`   Transaction index: ${transactionIndex}`));
 
-  // Approve the proposal as the proposer
-  rootLogger.info(chalk.gray('Approving proposal as proposer...'));
-  const { multisigPda, programId } = getSquadsKeys(chain);
-  const approveIx = instructions.proposalApprove({
-    multisigPda,
-    transactionIndex,
-    member: creatorPublicKey,
-    programId,
-  });
+  // The vault tx + proposal are now confirmed on-chain at `transactionIndex`.
+  // Any failure from here on must surface `transactionIndex` to the caller
+  // (see `readCreatedTransactionIndex`) so a rerun doesn't re-create it.
+  try {
+    // Approve the proposal as the proposer
+    rootLogger.info(chalk.gray('Approving proposal as proposer...'));
+    const { multisigPda, programId } = getSquadsKeys(chain);
+    const approveIx = instructions.proposalApprove({
+      multisigPda,
+      transactionIndex,
+      member: creatorPublicKey,
+      programId,
+    });
 
-  const approveSignature = await signerAdapter.buildAndSendTransaction([
-    approveIx,
-  ]);
-  rootLogger.info(chalk.green(`Proposal approved: ${approveSignature}`));
+    const approveSignature = await signerAdapter.buildAndSendTransaction([
+      approveIx,
+    ]);
+    rootLogger.info(chalk.green(`Proposal approved: ${approveSignature}`));
 
-  return transactionIndex;
+    return transactionIndex;
+  } catch (error) {
+    const wrapped = error instanceof Error ? error : new Error(String(error));
+    throw Object.assign(wrapped, { createdTransactionIndex: transactionIndex });
+  }
+}
+
+/**
+ * Read a `createdTransactionIndex` attached to an error thrown after a
+ * Squads proposal was confirmed on-chain but a later step (e.g. approval)
+ * failed. See `createAndApproveSquadsProposal`.
+ */
+export function readCreatedTransactionIndex(e: unknown): bigint | undefined {
+  if (typeof e === 'object' && e !== null && 'createdTransactionIndex' in e) {
+    const value = e.createdTransactionIndex;
+    return typeof value === 'bigint' ? value : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Read the `transactionIndexes` attached to an error thrown by
+ * `submitReceiptTxsToSquads` on partial failure — the indexes of the ordered
+ * proposals that already landed on-chain before the failure.
+ */
+export function readAttachedTransactionIndexes(
+  e: unknown,
+): bigint[] | undefined {
+  if (typeof e === 'object' && e !== null && 'transactionIndexes' in e) {
+    const value = e.transactionIndexes;
+    if (Array.isArray(value) && value.every((v) => typeof v === 'bigint')) {
+      return value;
+    }
+  }
+  return undefined;
 }
 
 export async function submitProposalToSquads(
@@ -880,8 +918,14 @@ export async function submitReceiptTxsToSquads(
   } catch (error) {
     // Surface which ordered proposals already landed on-chain: a mid-loop
     // failure leaves the earlier vault transactions created, and a blind rerun
-    // would duplicate them. Report the indexes and attach them to the thrown
-    // error so the caller can skip/execute those before retrying.
+    // would duplicate them. A failure between creation and approval (see
+    // `createAndApproveSquadsProposal`) still lands a created vault tx, so its
+    // index is absorbed here too. Report the indexes and attach them to the
+    // thrown error so the caller can skip/execute those before retrying.
+    const createdIndex = readCreatedTransactionIndex(error);
+    if (createdIndex !== undefined) {
+      transactionIndexes.push(createdIndex);
+    }
     const createdCount = transactionIndexes.length;
     const landed = createdCount
       ? ` ${createdCount} proposal(s) already created (vault transaction index(es): ${transactionIndexes.join(
