@@ -243,7 +243,8 @@ impl FuelProvider {
                 // 76-byte Fuel prefix + ≥77-byte Hyperlane message; guard before drain/parse.
                 const FUEL_DISPATCH_PREFIX_LEN: usize = 76;
                 const HYPERLANE_MESSAGE_PREFIX_LEN: usize = 77;
-                if receipt_log_data.len() < FUEL_DISPATCH_PREFIX_LEN + HYPERLANE_MESSAGE_PREFIX_LEN {
+                if receipt_log_data.len() < FUEL_DISPATCH_PREFIX_LEN + HYPERLANE_MESSAGE_PREFIX_LEN
+                {
                     return None;
                 }
                 receipt_log_data.drain(0..FUEL_DISPATCH_PREFIX_LEN);
