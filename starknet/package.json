@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/starknet-core",
-  "version": "39.0.0",
+  "version": "39.1.0",
   "description": "Core cairo contracts for Hyperlane",
   "keywords": [
     "Cairo",
@@ -19,6 +19,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "default": "./dist/runtime.js"
     }
   },
   "scripts": {

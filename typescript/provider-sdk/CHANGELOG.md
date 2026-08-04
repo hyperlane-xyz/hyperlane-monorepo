@@ -1,5 +1,12 @@
 # @hyperlane-xyz/provider-sdk
 
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [4976bb1]
+  - @hyperlane-xyz/utils@39.1.0
+
 ## 8.0.0
 
 ### Major Changes

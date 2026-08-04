@@ -133,7 +133,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       allowedRebalancingBridges: mergeAllowedBridges(
         cctpRebalancingConfigByChain.arbitrum.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.arbitrum?.allowedRebalancingBridges,
-        { [String(getDomainId('citrea'))]: [{ bridge: tbda.arbitrum }] },
+        { citrea: [{ bridge: tbda.arbitrum }] },
       ),
       crossCollateralRouters,
     },
@@ -147,7 +147,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       allowedRebalancingBridges: mergeAllowedBridges(
         cctpRebalancingConfigByChain.base.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.base?.allowedRebalancingBridges,
-        { [String(getDomainId('citrea'))]: [{ bridge: tbda.base }] },
+        { citrea: [{ bridge: tbda.base }] },
       ),
       crossCollateralRouters,
     },
@@ -168,10 +168,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       owner: DEPLOYER_EVM,
       allowedRebalancers: ALLOWED_REBALANCERS,
       allowedRebalancingBridges: Object.fromEntries(
-        EVM_CHAINS.map((dest) => [
-          String(getDomainId(dest)),
-          [{ bridge: tbda.citrea }],
-        ]),
+        EVM_CHAINS.map((dest) => [dest, [{ bridge: tbda.citrea }]]),
       ),
       crossCollateralRouters,
     },
@@ -185,7 +182,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       allowedRebalancingBridges: mergeAllowedBridges(
         cctpRebalancingConfigByChain.ethereum.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.ethereum?.allowedRebalancingBridges,
-        { [String(getDomainId('citrea'))]: [{ bridge: tbda.ethereum }] },
+        { citrea: [{ bridge: tbda.ethereum }] },
       ),
       crossCollateralRouters,
     },
@@ -207,7 +204,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       allowedRebalancingBridges: mergeAllowedBridges(
         cctpRebalancingConfigByChain.polygon.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.polygon?.allowedRebalancingBridges,
-        { [String(getDomainId('citrea'))]: [{ bridge: tbda.polygon }] },
+        { citrea: [{ bridge: tbda.polygon }] },
       ),
       crossCollateralRouters,
     },

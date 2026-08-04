@@ -10,12 +10,7 @@ import {
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
-import {
-  ContractType,
-  getCompiledClassHash,
-  getCompiledContract,
-  getContractArtifact,
-} from '@hyperlane-xyz/starknet-core';
+import { ContractType } from '@hyperlane-xyz/starknet-core/runtime';
 import { assert } from '@hyperlane-xyz/utils';
 
 import {
@@ -145,6 +140,8 @@ export class StarknetSigner
     contractAddress: string;
     receipt: GetTransactionReceiptResponse;
   }> {
+    const { getCompiledClassHash, getCompiledContract, getContractArtifact } =
+      await import('@hyperlane-xyz/starknet-core');
     const compiledContract = getCompiledContract(
       params.contractName,
       params.contractType,
