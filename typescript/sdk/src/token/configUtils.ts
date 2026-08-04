@@ -48,6 +48,7 @@ import {
   HypTokenConfig,
   HypTokenRouterConfig,
   HypTokenRouterVirtualConfig,
+  MovableTokenConfig,
   OwnerStatus,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
@@ -177,6 +178,72 @@ export function filterWarpCoreConfigMapByChains<T extends WarpCoreConfig>(
   return objFilter(configMap, (_, config): config is T =>
     warpCoreConfigMatchesChains(config, chains),
   );
+}
+
+type AllowedRebalancingBridges = NonNullable<
+  MovableTokenConfig['allowedRebalancingBridges']
+>;
+type RebalancingBridge = AllowedRebalancingBridges[string][number];
+
+function mergeApprovedTokens(
+  a: RebalancingBridge['approvedTokens'],
+  b: RebalancingBridge['approvedTokens'],
+): RebalancingBridge['approvedTokens'] {
+  if (!a && !b) {
+    return undefined;
+  }
+  const byNormalized = new Map<string, string>();
+  for (const token of [...(a ?? []), ...(b ?? [])]) {
+    const key = token.toLowerCase();
+    if (!byNormalized.has(key)) {
+      byNormalized.set(key, token);
+    }
+  }
+  return Array.from(byNormalized.values());
+}
+
+/**
+ * Canonicalizes `allowedRebalancingBridges` keys to domain ids, mirroring
+ * remoteRouters/destinationGas, so a name-keyed source config does not read as
+ * drift against the domain-id-keyed on-chain state.
+ *
+ * A source config may key the same destination by both chain name and domain
+ * id; both canonicalize to one key. Bridges are merged by bridge identity —
+ * unioning approvedTokens — so a bridge listed under both keys does not expand
+ * to a duplicate that reads as permanent drift against the deduplicated
+ * on-chain state. Keys the resolver does not recognize are kept as-is rather
+ * than erroring the whole route check.
+ */
+export function canonicalizeAllowedRebalancingBridges(
+  allowedRebalancingBridges: AllowedRebalancingBridges,
+  resolveDomainId: (domainOrChain: string) => number | undefined,
+): AllowedRebalancingBridges {
+  const canonicalized: AllowedRebalancingBridges = {};
+  for (const [domainOrChain, bridges] of Object.entries(
+    allowedRebalancingBridges,
+  )) {
+    const canonicalKey =
+      resolveDomainId(domainOrChain)?.toString() ?? domainOrChain;
+    const byBridge = new Map<string, RebalancingBridge>();
+    for (const bridge of [...(canonicalized[canonicalKey] ?? []), ...bridges]) {
+      const bridgeKey = bridge.bridge.toLowerCase();
+      const existing = byBridge.get(bridgeKey);
+      if (!existing) {
+        byBridge.set(bridgeKey, bridge);
+        continue;
+      }
+      const approvedTokens = mergeApprovedTokens(
+        existing.approvedTokens,
+        bridge.approvedTokens,
+      );
+      byBridge.set(bridgeKey, {
+        ...existing,
+        ...(approvedTokens ? { approvedTokens } : {}),
+      });
+    }
+    canonicalized[canonicalKey] = Array.from(byBridge.values());
+  }
+  return canonicalized;
 }
 
 /**
@@ -314,6 +381,23 @@ export async function expandWarpDeployConfig(params: {
       );
 
       chainConfig.destinationGas = formattedDestinationGas;
+
+      // allowedRebalancingBridges keys accept either a chain name or a domain
+      // id (RemoteRouterDomainOrChainNameSchema). The on-chain reader emits
+      // domain-id keys, so canonicalize to domain ids here — as we do for
+      // remoteRouters/destinationGas — so a name-keyed source config does not
+      // read as drift against on-chain state.
+      if (
+        isMovableCollateralTokenConfig(chainConfig) &&
+        chainConfig.allowedRebalancingBridges
+      ) {
+        chainConfig.allowedRebalancingBridges =
+          canonicalizeAllowedRebalancingBridges(
+            chainConfig.allowedRebalancingBridges,
+            (domainOrChain) =>
+              multiProvider.tryGetDomainId(domainOrChain) ?? undefined,
+          );
+      }
 
       const protocol = multiProvider.getProtocol(chain);
       const isEVMChain = isEVMLike(protocol);

@@ -13,12 +13,17 @@ import {
   ProtocolAgnositicGasOracleConfigSchema,
   ProtocolAgnositicGasOracleConfigWithTypicalCostSchema,
 } from '../gas/oracle/types.js';
-import { ZChainName, ZHash } from '../metadata/customZodTypes.js';
+import {
+  ZBigNumberish,
+  ZChainName,
+  ZHash,
+} from '../metadata/customZodTypes.js';
 import {
   ChainMap,
   OwnableConfig,
   OwnableSchema,
   PausableSchema,
+  RATE_LIMIT_DEFAULT_DURATION_SECONDS,
 } from '../types.js';
 
 // As found in IPostDispatchHook.sol
@@ -202,24 +207,27 @@ export const OpStackHookSchema = OwnableSchema.extend({
   destinationChain: z.string(),
 });
 
-export const ArbL2ToL1HookSchema: z.ZodSchema<ArbL2ToL1HookConfig> = z.lazy(
-  () =>
-    z.object({
-      type: z.literal(HookType.ARB_L2_TO_L1),
-      arbSys: z
-        .string()
-        .describe(
-          'precompile for sending messages to L1, interface here: https://github.com/OffchainLabs/nitro-contracts/blob/90037b996509312ef1addb3f9352457b8a99d6a6/src/precompiles/ArbSys.sol#L12',
-        ),
-      bridge: z
-        .string()
-        .optional()
-        .describe(
-          'address of the bridge contract on L1, optional only needed for non @arbitrum/sdk chains',
-        ),
-      destinationChain: z.string(),
-      childHook: HookConfigSchema,
-    }),
+export const ArbL2ToL1HookSchema: z.ZodType<
+  ArbL2ToL1HookConfig,
+  z.ZodTypeDef,
+  unknown
+> = z.lazy(() =>
+  z.object({
+    type: z.literal(HookType.ARB_L2_TO_L1),
+    arbSys: z
+      .string()
+      .describe(
+        'precompile for sending messages to L1, interface here: https://github.com/OffchainLabs/nitro-contracts/blob/90037b996509312ef1addb3f9352457b8a99d6a6/src/precompiles/ArbSys.sol#L12',
+      ),
+    bridge: z
+      .string()
+      .optional()
+      .describe(
+        'address of the bridge contract on L1, optional only needed for non @arbitrum/sdk chains',
+      ),
+    destinationChain: z.string(),
+    childHook: HookConfigSchema,
+  }),
 );
 
 export const IgpSchema = OwnableSchema.extend({
@@ -245,40 +253,52 @@ export const IgpSchema = OwnableSchema.extend({
     .optional(),
 });
 
-export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig> =
-  z.lazy(() =>
-    OwnableSchema.extend({
-      type: z.literal(HookType.ROUTING),
-      domains: z.record(HookConfigSchema),
-    }),
-  );
+export const DomainRoutingHookConfigSchema: z.ZodType<
+  DomainRoutingHookConfig,
+  z.ZodTypeDef,
+  unknown
+> = z.lazy(() =>
+  OwnableSchema.extend({
+    type: z.literal(HookType.ROUTING),
+    domains: z.record(HookConfigSchema),
+  }),
+);
 
-export const FallbackRoutingHookConfigSchema: z.ZodSchema<FallbackRoutingHookConfig> =
-  z.lazy(() =>
-    OwnableSchema.extend({
-      type: z.literal(HookType.FALLBACK_ROUTING),
-      domains: z.record(HookConfigSchema),
-      fallback: HookConfigSchema,
-    }),
-  );
+export const FallbackRoutingHookConfigSchema: z.ZodType<
+  FallbackRoutingHookConfig,
+  z.ZodTypeDef,
+  unknown
+> = z.lazy(() =>
+  OwnableSchema.extend({
+    type: z.literal(HookType.FALLBACK_ROUTING),
+    domains: z.record(HookConfigSchema),
+    fallback: HookConfigSchema,
+  }),
+);
 
-export const AmountRoutingHookConfigSchema: z.ZodSchema<AmountRoutingHookConfig> =
-  z.lazy(() =>
-    z.object({
-      type: z.literal(HookType.AMOUNT_ROUTING),
-      threshold: z.number(),
-      lowerHook: HookConfigSchema,
-      upperHook: HookConfigSchema,
-    }),
-  );
+export const AmountRoutingHookConfigSchema: z.ZodType<
+  AmountRoutingHookConfig,
+  z.ZodTypeDef,
+  unknown
+> = z.lazy(() =>
+  z.object({
+    type: z.literal(HookType.AMOUNT_ROUTING),
+    threshold: z.number(),
+    lowerHook: HookConfigSchema,
+    upperHook: HookConfigSchema,
+  }),
+);
 
-export const AggregationHookConfigSchema: z.ZodSchema<AggregationHookConfig> =
-  z.lazy(() =>
-    z.object({
-      type: z.literal(HookType.AGGREGATION),
-      hooks: z.array(HookConfigSchema),
-    }),
-  );
+export const AggregationHookConfigSchema: z.ZodType<
+  AggregationHookConfig,
+  z.ZodTypeDef,
+  unknown
+> = z.lazy(() =>
+  z.object({
+    type: z.literal(HookType.AGGREGATION),
+    hooks: z.array(HookConfigSchema),
+  }),
+);
 
 export const CCIPHookSchema = z.object({
   type: z.literal(HookType.CCIP),
@@ -303,17 +323,28 @@ export const RateLimitedHookSchema = OwnableSchema.extend({
   maxCapacity: z
     .string()
     .regex(/^\d+$/, 'maxCapacity must be a base-10 integer string'),
+  /**
+   * Refill window in seconds — must match the on-chain immutable
+   * `DURATION`. Defaults to 1 day (86400s) when omitted, matching the
+   * previous hard-coded on-chain window.
+   */
+  duration: ZBigNumberish.default(RATE_LIMIT_DEFAULT_DURATION_SECONDS),
 })
-  .refine((val) => BigInt(val.maxCapacity) >= 86400n, {
-    message: 'maxCapacity must be at least 86400',
+  .refine((val) => val.duration > 0n, {
+    message: 'duration must be greater than 0',
+    path: ['duration'],
+  })
+  .refine((val) => BigInt(val.maxCapacity) >= val.duration, {
+    message: 'maxCapacity must be at least duration',
     path: ['maxCapacity'],
   })
   .transform((val) => {
     const capacity = BigInt(val.maxCapacity);
-    if (capacity % 86400n !== 0n) {
-      const rounded = ((capacity / 86400n) * 86400n).toString();
+    const duration = val.duration;
+    if (capacity % duration !== 0n) {
+      const rounded = ((capacity / duration) * duration).toString();
       rootLogger.warn(
-        `RateLimitedHook maxCapacity ${val.maxCapacity} is not divisible by 86400; rounding down to ${rounded}`,
+        `RateLimitedHook maxCapacity ${val.maxCapacity} is not divisible by duration ${val.duration}; rounding down to ${rounded}`,
       );
       return { ...val, maxCapacity: rounded };
     }

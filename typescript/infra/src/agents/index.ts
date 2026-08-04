@@ -418,6 +418,17 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
       ...originChain.index,
       interval: cfg.interval,
     };
+    // Additional public RPCs for CUSTOMADDITIONALQUORUMRPCURLS. rpcUrls already
+    // votes in the same quorum group (see external-secret.yaml), so no private
+    // batch is merged in here. Gated on explicit per-chain opt-in:
+    // external-secret.yaml emits CUSTOMADDITIONALQUORUMRPCURLS whenever
+    // publicRpcUrls is non-empty, so leaving this unset keeps quorum verification
+    // off until a chain deliberately enables it.
+    if (this.config.quorumVerificationEnabled) {
+      originChain.publicRpcUrls = getChain(cfg.originChainName).rpcUrls.map(
+        (rpc) => rpc.http,
+      );
+    }
 
     helmValues.hyperlane.validator = {
       enabled: true,

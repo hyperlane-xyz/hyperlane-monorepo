@@ -48,13 +48,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     basesepolia: true,
     bsctestnet: true,
     celestiatestnet: false,
-    celosepolia: true,
-    cotitestnet: true,
+    celosepolia: false, // disabled — deprecated dead testnet, no traffic (2026-07)
+    cotitestnet: false, // disabled — deprecated dead testnet, no traffic (2026-07)
     eclipsetestnet: false,
     fuji: true,
     hyperliquidevmtestnet: true,
     kyvetestnet: false,
-    modetestnet: true,
+    modetestnet: false, // disabled — deprecated dead testnet, no traffic (2026-07)
     optimismsepolia: true,
     paradexsepolia: false, // disabled — Paradex Sepolia testnet reset; sole RPC 503, block sync frozen at 921055 (~27d)
     polygonamoy: true,
@@ -74,13 +74,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     basesepolia: true,
     bsctestnet: true,
     celestiatestnet: false,
-    celosepolia: true,
-    cotitestnet: true,
+    celosepolia: false, // disabled — deprecated dead testnet, no traffic (2026-07)
+    cotitestnet: false, // disabled — deprecated dead testnet, no traffic (2026-07)
     eclipsetestnet: false,
     fuji: true,
     hyperliquidevmtestnet: true,
     kyvetestnet: false,
-    modetestnet: true,
+    modetestnet: false, // disabled — deprecated dead testnet, no traffic (2026-07)
     optimismsepolia: true,
     paradexsepolia: false, // disabled — Paradex Sepolia testnet reset; sole RPC 503, block sync frozen at 921055 (~27d)
     polygonamoy: true,
@@ -100,13 +100,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     basesepolia: true,
     bsctestnet: true,
     celestiatestnet: false,
-    celosepolia: true,
-    cotitestnet: true,
+    celosepolia: false, // disabled — deprecated dead testnet, no traffic (2026-07)
+    cotitestnet: false, // disabled — deprecated dead testnet, no traffic (2026-07)
     eclipsetestnet: false,
     fuji: true,
     hyperliquidevmtestnet: true,
     kyvetestnet: false,
-    modetestnet: true,
+    modetestnet: false, // disabled — deprecated dead testnet, no traffic (2026-07)
     optimismsepolia: true,
     paradexsepolia: false, // disabled — Paradex Sepolia testnet reset; sole RPC 503, block sync frozen at 921055 (~27d)
     polygonamoy: true,
@@ -475,7 +475,9 @@ const fastPath: RootAgentConfig = {
     cache: {
       enabled: true,
     },
-    interval: 1,
+    // Halve steady-state index polling RPCs while keeping fastpath detection
+    // within one additional second (0.5s average).
+    interval: 2,
     resources: relayerResources,
   },
 };

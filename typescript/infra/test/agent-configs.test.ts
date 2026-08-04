@@ -3,9 +3,16 @@ import { expect } from 'chai';
 import { AgentConfig } from '@hyperlane-xyz/sdk';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
-import { hyperlaneContextAgentChainConfig as mainnet3AgentChainConfig } from '../config/environments/mainnet3/agent.js';
+import { Contexts } from '../config/contexts.js';
+import {
+  agents as mainnet3Agents,
+  hyperlaneContextAgentChainConfig as mainnet3AgentChainConfig,
+} from '../config/environments/mainnet3/agent.js';
 import { mainnet3SupportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
-import { hyperlaneContextAgentChainConfig as testnet4AgentChainConfig } from '../config/environments/testnet4/agent.js';
+import {
+  agents as testnet4Agents,
+  hyperlaneContextAgentChainConfig as testnet4AgentChainConfig,
+} from '../config/environments/testnet4/agent.js';
 import { testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
 import { getAgentConfigJsonPath } from '../scripts/agent-utils.js';
 import {
@@ -34,6 +41,24 @@ const environmentChainConfigs = {
 };
 
 describe('Agent configs', () => {
+  it('polls fastpath relayer indexes every two seconds', () => {
+    expect(
+      mainnet3Agents[Contexts.FastPath].relayer?.interval,
+      'mainnet3 fastpath interval',
+    ).to.equal(2);
+    expect(
+      testnet4Agents[Contexts.FastPath].relayer?.interval,
+      'testnet4 fastpath interval',
+    ).to.equal(2);
+  });
+
+  it('uses an RPC-compatible B² index chunk', () => {
+    expect(
+      environmentChainConfigs.mainnet3.agentJsonConfig.chains.bsquared.index
+        ?.chunk,
+    ).to.equal(999);
+  });
+
   Object.entries(environmentChainConfigs).forEach(([environment, config]) => {
     describe(`Environment: ${environment}`, () => {
       // eslint-disable-next-line jest/expect-expect -- ensureAgentChainConfigIncludesAllChainNames throws on failure

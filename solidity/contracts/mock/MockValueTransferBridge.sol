@@ -40,8 +40,12 @@ contract MockValueTransferBridge is Router, ITokenBridge {
             abi.encode(_recipient, _amountOut)
         );
 
+        // Quote the full collateral this bridge pulls in `transferRemote`.
+        // MovableCollateralRouter.rebalance grants an exact per-call allowance
+        // equal to the collateral quote, so the quote must cover the amount
+        // transferFrom'd or the transfer reverts with insufficient allowance.
         Quote[] memory quotes = new Quote[](2);
-        quotes[0] = Quote(collateral, 1);
+        quotes[0] = Quote(collateral, _amountOut);
         quotes[1] = Quote(address(0), dispatchFee);
         return quotes;
     }

@@ -1,6 +1,7 @@
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import { ValidatorBaseChainConfigMap } from '../../../src/config/agent/validator.js';
+import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
 import { Contexts } from '../../contexts.js';
 import { getReorgPeriod } from '../../registry.js';
 import { validatorBaseConfigsFn } from '../utils.js';
@@ -8,7 +9,9 @@ import { validatorBaseConfigsFn } from '../utils.js';
 import { environment } from './chains.js';
 
 const DEFAULT_VALIDATOR_INTERVAL = 5;
-const FASTPATH_VALIDATOR_INTERVAL = 1;
+// Preserve about one-second average checkpoint polling delay while halving
+// steady-state polling relative to the original 1-second cadence.
+const FASTPATH_VALIDATOR_INTERVAL = 2;
 const FASTPATH_VALIDATOR_REORG_PERIOD = 1;
 // bsc (PoSA) and polygon (PoS) have a history of multi-block reorgs, so they
 // use a small non-zero reorg period instead of 1 even on the fast path.
@@ -55,7 +58,7 @@ export const validatorChainConfig = (
   context: Contexts,
 ): ValidatorBaseChainConfigMap => {
   const validatorsConfig = validatorBaseConfigsFn(environment, context);
-  return {
+  const configs: ValidatorBaseChainConfigMap = {
     celo: {
       interval: 5,
       reorgPeriod: getReorgPeriod('celo'),
@@ -557,6 +560,16 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0xfdf3b0dfd4b822d10cacb15c8ae945ea269e7534'],
         },
         'vana',
+      ),
+    },
+    bsquared: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('bsquared'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xcadc90933c9fbe843358a4e70e46ad2db78e28aa'],
+        },
+        'bsquared',
       ),
     },
     lumiaprism: {
@@ -1145,4 +1158,16 @@ export const validatorChainConfig = (
       ),
     },
   };
+
+  // Opt-in quorum RPC verification (ValidatorMultiRpcQuorumMerkleTreeHook) for
+  // every EVM chain's Hyperlane and FastPath validators. ReleaseCandidate/Neutron
+  // validator sets are unaffected.
+  if (context !== Contexts.Hyperlane && context !== Contexts.FastPath) {
+    return configs;
+  }
+  return objMap(configs, (chain, config) =>
+    isEthereumProtocolChain(chain)
+      ? { ...config, quorumVerificationEnabled: true }
+      : config,
+  );
 };

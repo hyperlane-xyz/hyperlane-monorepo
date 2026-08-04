@@ -151,9 +151,59 @@ export async function createRawBytecodeDeploymentTransaction(
   );
 }
 
-/** Convert ethers 0x address to Tron 41-prefixed hex */
-export function toTronHex(address: string): string {
-  return '41' + strip0x(address).toLowerCase();
+/**
+ * Convert an address to Tron's 41-prefixed hex form.
+ *
+ * Accepts ethers 0x-hex, base58 (`T…`) or already-41-prefixed hex. Base58 is
+ * resolved through TronWeb so the checksum is validated rather than assumed.
+ */
+export function toTronHex(tronWeb: Readonly<TronWeb>, address: string): string {
+  if (address.startsWith('T')) {
+    return tronWeb.address.toHex(address);
+  }
+  const hex = strip0x(address).toLowerCase();
+  return hex.startsWith('41') && hex.length === 42 ? hex : `41${hex}`;
+}
+
+/**
+ * Fields required to invoke a TronWeb transactionBuilder trigger
+ * (`triggerSmartContract` write or `triggerConstantContract` read).
+ */
+export interface TronTriggerRequest {
+  contractAddress: string;
+  callValue: number;
+  input?: string;
+  issuerAddress: string;
+}
+
+/**
+ * Builds a Tron contract-trigger request from an ethers transaction. Response
+ * handling is left to the caller: writes assert on the build result, reads
+ * return the raw constant-call data so ethers can surface reverts itself.
+ *
+ * The empty functionSelector tells TronWeb to use the raw ABI-encoded `input`
+ * bytes directly instead of encoding named parameters.
+ */
+export function buildTronTriggerRequest(
+  tronWeb: Readonly<TronWeb>,
+  tx: providers.TransactionRequest,
+  sender: string | undefined,
+): TronTriggerRequest {
+  assert(tx.to, 'Transaction must have a destination address');
+  const contractAddress = toTronHex(tronWeb, tx.to);
+  // A provider-connected ethers read omits `from`. Defaulting the caller to the
+  // contract itself would run the call with msg.sender == address(this), so
+  // caller-sensitive views return wrong/privileged state. Use the Tron zero
+  // address as the caller instead, mirroring eth_call's default sender.
+  const issuerAddress = isNullish(sender)
+    ? toTronHex(tronWeb, TRON_EMPTY_ADDRESS)
+    : toTronHex(tronWeb, sender);
+  const callValue = tx.value ? BigNumber.from(tx.value).toNumber() : 0;
+  const input = isNullish(tx.data)
+    ? undefined
+    : strip0x(utils.hexlify(tx.data));
+
+  return { contractAddress, callValue, input, issuerAddress };
 }
 
 export async function convertEthersToTronTransaction(
@@ -161,24 +211,18 @@ export async function convertEthersToTronTransaction(
   tx: providers.TransactionRequest,
   sender: string,
 ): Promise<any> {
-  assert(tx.to, 'Transaction must have a destination address');
-  // Contract call - use 'input' option for raw ABI-encoded calldata
-  const tronHexTo = toTronHex(tx.to);
-  const callValue = tx.value ? BigNumber.from(tx.value).toNumber() : 0;
-
-  const result = await tronWeb.transactionBuilder.triggerSmartContract(
-    tronHexTo,
-    '', // Empty functionSelector since we pass raw encoded data via input
-    {
-      callValue,
-      input: tx.data ? strip0x(tx.data.toString()) : undefined,
-    },
+  const { contractAddress, callValue, input, issuerAddress } =
+    buildTronTriggerRequest(tronWeb, tx, sender);
+  const response = await tronWeb.transactionBuilder.triggerSmartContract(
+    contractAddress,
+    '',
+    { callValue, input },
     [],
-    sender,
+    issuerAddress,
   );
   assert(
-    result.result?.result,
-    `triggerSmartContract failed: ${result.result?.message}`,
+    response.result?.result,
+    `triggerSmartContract failed: ${response.result?.message}`,
   );
-  return result.transaction;
+  return response.transaction;
 }

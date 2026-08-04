@@ -184,6 +184,15 @@
         "0x0d4c1394a255568ec0ecd11795b28d1bda183ca4"
       ]
     },
+    "bsquared": {
+      "type": "messageIdMultisigIsm",
+      "threshold": 2,
+      "validators": [
+        "0xcadc90933c9fbe843358a4e70e46ad2db78e28aa",
+        "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
+        "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
+      ]
+    },
     "celo": {
       "type": "messageIdMultisigIsm",
       "threshold": 4,

@@ -1,6 +1,7 @@
 warpRouteId: ETH/viction
 
-inventorySigner: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
+inventorySigners:
+  ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
 
 externalBridges:
   lifi:

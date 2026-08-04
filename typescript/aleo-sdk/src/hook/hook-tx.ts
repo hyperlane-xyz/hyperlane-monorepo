@@ -1,4 +1,5 @@
-import { fromAleoAddress, getAddressFromProgramId } from '../utils/helper.js';
+import { getAddressFromProgramId } from '../utils/helper.crypto.js';
+import { fromAleoAddress } from '../utils/helper.js';
 import { type AleoTransaction } from '../utils/types.js';
 
 /**

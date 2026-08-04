@@ -1,5 +1,72 @@
 # @hyperlane-xyz/tron-sdk
 
+## 24.1.0
+
+### Minor Changes
+
+- 4acd9a6: Extended `WarpCore` rate-limit validation to cover Tron xERC20 warp-route standards (`TronHypVSXERC20`, `TronHypVSXERC20Lockbox` and `TronHypCollateralFiat`) by matching against the shared `XERC20_STANDARDS` set instead of enumerating EVM standards inline. The destination mint-limit check now compares capacity in message space using each router's `scale` (mirroring `isDestinationCollateralSufficient`) rather than converting decimals only, and the origin burn-limit check now accounts for the origin-token-denominated fees included in the on-chain burn debit.
+
+  Hardened the Tron SDK ethers adapters. Native contract reads and the ethers-to-Tron transaction conversion now share a single `buildTronTriggerRequest` helper for request construction, fixing calldata serialization so `BytesLike` inputs are hex-encoded rather than stringified. Contract reads are now `eth_call`-first (keeping JSON-RPC-only endpoints working and surfacing reverts as `CALL_EXCEPTION` for missing-selector detection), falling back to the raw `wallet/triggerconstantcontract` full-node endpoint only when `eth_call` is unanswered; that raw path returns data only for a successful execution, and for an executed revert throws a `CALL_EXCEPTION` carrying the revert data (`0x` for a reasonless revert) so missing-selector detection still recognizes empty reverts while reverts with data propagate as genuine reverts, mirroring `eth_call`. Provider reads that omit `from` now execute with the Tron zero address as caller instead of the contract itself. Receipt confirmation now follows ethers semantics: `wait(0)` performs a single non-blocking probe (returning the receipt if the tx is already mined, otherwise `null` for a still-pending tx) so `MultiProvider.handleTx` can gate on inclusion, and `wait(n)` polls until the requested confirmation depth is reached before finalizing success or failure, so a reorgable on-chain failure is not rejected prematurely at a single confirmation. The confirmation poll is unbounded by default, leaving preemption to the caller, with an optional injectable timeout retained for bounding. The synthesized ethers `TransactionReceipt` now carries the deployed contract address (for deployments) and the real block hash fetched from the mined block.
+
+### Patch Changes
+
+- 745fb77: The Tron test runtime was pinned to TRE 2.0.0 and now uses its HTTP health check with an explicit Tron HD path.
+- Updated dependencies [745fb77]
+- Updated dependencies [745fb77]
+- Updated dependencies [469da6d]
+- Updated dependencies [74f3760]
+- Updated dependencies [abeeb52]
+- Updated dependencies [8944dd2]
+- Updated dependencies [eb9c37c]
+- Updated dependencies [3a74600]
+- Updated dependencies [57b1e14]
+- Updated dependencies [f3a6a4e]
+- Updated dependencies [d6e923f]
+- Updated dependencies [4c4f3f9]
+- Updated dependencies [4c4f3f9]
+- Updated dependencies [5830b8e]
+- Updated dependencies [d3bbedf]
+- Updated dependencies [e5908e9]
+- Updated dependencies [8944dd2]
+- Updated dependencies [89e6a8e]
+- Updated dependencies [c2301b2]
+- Updated dependencies [de37b68]
+- Updated dependencies [c0ca851]
+  - @hyperlane-xyz/core@12.0.0
+  - @hyperlane-xyz/utils@40.0.0
+  - @hyperlane-xyz/provider-sdk@8.0.2
+
+## 24.0.1
+
+### Patch Changes
+
+- Updated dependencies [4976bb1]
+  - @hyperlane-xyz/utils@39.1.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@8.0.1
+
+## 24.0.0
+
+### Major Changes
+
+- 4ef1fde: - `getMinGasForWarpDeploy` now lives on `IProvider` (per-chain) instead of the stateless `ProtocolProvider`. It is `async` and returns a FINAL native-denom amount rather than a mix of gas units and native amounts. It composes the base router deploy cost with additive deltas for detected features (cross-collateral extras, fee program deploy, custom ISM / hook / IGP deploy) driven by the warp config shape, and for gas-metered protocols multiplies gas units by the chain gas price.
+  - `ChainMetadataForAltVM` gained an optional `gasPrice` field.
+  - `ProviderBuilderFn` now takes a full `ChainMetadata` instead of `(rpcUrls, network)`.
+  - The AltVM `IProvider.connect` and `ISigner.connectWithSigner` static factories now take `ChainMetadataForAltVM` as their first argument, replacing the previous `(rpcUrls, chainId, extraParams)` shape and the metadata-through-`extraParams` indirection.
+  - The CLI warp-deploy preflight now sizes AltVM native-balance requirements from the composed per-chain deploy cost, so feature-heavy deploys are no longer silently under-funded, and chains without a gas price are no longer skipped for the warp-deploy path.
+  - The AltVM warp-deploy base gas costs were calibrated from measured deploys (Sealevel from mainnet; Starknet, Aleo, and Radix from devnet base-router floors with safety margin), replacing the previous catastrophically-low placeholder constants that let preflight pass under-funded accounts.
+  - The Starknet test fixture native token was corrected from ETH to STRK to match the production registry and the token the devnet actually charges fees in.
+
+### Patch Changes
+
+- 6f61265: The Tron test runtime was pinned to TRE 2.0.0 and now uses its HTTP health check with an explicit Tron HD path.
+- 1a31d04: Fixed a bug where a Tron transaction that broadcast successfully but reverted on-chain was silently treated as a success by the ethers-compatible `TronWallet`. The `wait` returned by `getTransactionResponse` delegated to ethers' stock `waitForTransaction`, which resolves the receipt without the status-0 revert throw ethers only injects for EVM. It now fetches the transaction's execution info from the full node via `getUnconfirmedTransactionInfo` (available immediately after mining, unlike `getTransactionInfo`, which queries the lagging solidity node and returns `{}` until the block solidifies) and throws a descriptive `Tron Transaction Failed` error on a reverted or failed transaction, matching EVM's `CALL_EXCEPTION` behavior; when the info is not yet populated it falls back to the JSON-RPC receipt status. The revert-detection logic was extracted into a shared `assertTronReceiptSuccess` helper reused by both `TronWallet` and the AltVM `TronProvider.waitForTransaction` path, and now flags both the top-level `result` (`FAILED`) and any non-`SUCCESS` nested `receipt.result` contractResult value (`REVERT`, `OUT_OF_ENERGY`, ...) as failures, while treating the absent nested result of a plain transfer as success.
+- Updated dependencies [4ef1fde]
+- Updated dependencies [735793b]
+  - @hyperlane-xyz/provider-sdk@8.0.0
+  - @hyperlane-xyz/utils@39.0.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 23.1.4
 
 ### Patch Changes

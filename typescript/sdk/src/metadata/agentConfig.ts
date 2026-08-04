@@ -11,7 +11,10 @@ import { ProtocolType, isEmptyAddress } from '@hyperlane-xyz/utils';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 
-import { ChainMetadataSchemaObject } from './chainMetadataTypes.js';
+import {
+  ChainMetadataSchemaObject,
+  RpcUrlSchema,
+} from './chainMetadataTypes.js';
 import { ZHash, ZNzUint, ZUWei, ZUint } from './customZodTypes.js';
 import {
   HyperlaneDeploymentArtifacts,
@@ -230,6 +233,18 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
       .optional()
       .describe(
         'Specify a comma separated list of custom RPC URLs to use for this chain. If not specified, the default RPC urls will be used.',
+      ),
+    additionalQuorumRpcUrls: z
+      .array(RpcUrlSchema)
+      .optional()
+      .describe(
+        'Validator only: statically configured, *additional* RPC URLs that vote together with rpcUrls (2/3 majority, combined) on safety-critical merkle tree hook reads. Overridden entirely by customAdditionalQuorumRpcUrls when set, same as rpcUrls/customRpcUrls. See customAdditionalQuorumRpcUrls for the full quorum semantics.',
+      ),
+    customAdditionalQuorumRpcUrls: z
+      .string()
+      .optional()
+      .describe(
+        'Validator only: comma separated list of *additional* RPC URLs that vote together with rpcUrls (2/3 majority, combined) on safety-critical merkle tree hook reads. Empty disables quorum verification. Intended for additional public RPCs only -- rpcUrls already votes in the same group, so there is no need to duplicate its (typically private) entries here.',
       ),
     rpcConsensusType: z
       .nativeEnum(RpcConsensusType)

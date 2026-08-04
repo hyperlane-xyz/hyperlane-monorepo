@@ -2,9 +2,14 @@ import { WalletDecryptPermission } from '@provablehq/aleo-wallet-standard';
 import React, { useContext, useEffect, useState } from 'react';
 
 import { Modal } from '../../layout/Modal.js';
+import { widgetLogger } from '../../logger.js';
 
 import { AleoPopupContext } from './contexts.js';
 import { getAdapter, getAleoNetwork } from './utils.js';
+
+const logger = widgetLogger.child({
+  module: 'widgets/walletIntegrations/aleo/AleoProviders',
+});
 
 export const AleoPopupProvider = ({
   children,
@@ -18,19 +23,29 @@ export const AleoPopupProvider = ({
   } | null>(null);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const adapterInstance = getAdapter();
-      setWalletDetails({
-        name: adapterInstance.name,
-        icon: adapterInstance.icon,
+    if (!showPopUp || typeof window === 'undefined') return;
+
+    let cancelled = false;
+    void getAdapter()
+      .then((adapterInstance) => {
+        if (cancelled) return;
+        setWalletDetails({
+          name: adapterInstance.name,
+          icon: adapterInstance.icon,
+        });
+      })
+      .catch((error: unknown) => {
+        logger.error('Failed to load Shield wallet adapter', { error });
       });
-    }
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [showPopUp]);
 
   const handleWalletClick = async () => {
     setShowPopUp(false);
 
-    const adapter = getAdapter();
+    const adapter = await getAdapter();
 
     // Check if wallet is installed by checking if the provider is available
     if (!adapter.readyState || adapter.readyState === 'NotDetected') {

@@ -23,6 +23,7 @@ contract RateLimitedHookTest is Test {
     uint32 constant ORIGIN = 11;
     uint32 constant DESTINATION = 12;
     uint256 constant MAX_CAPACITY = 1 ether;
+    uint256 constant DURATION = 1 days;
     uint256 constant ONE_PERCENT = 0.01 ether;
     uint8 internal constant DECIMALS = 18;
     uint256 internal constant SCALE = 1;
@@ -62,6 +63,7 @@ contract RateLimitedHookTest is Test {
         rateLimitedHook = new RateLimitedHook(
             address(localMailbox),
             MAX_CAPACITY,
+            DURATION,
             address(warpRouteLocal)
         );
 
@@ -91,7 +93,12 @@ contract RateLimitedHookTest is Test {
 
     function testRateLimitedHook_revertsIfInvalidSender() external {
         vm.expectRevert("InvalidSender");
-        new RateLimitedHook(address(localMailbox), MAX_CAPACITY, address(0));
+        new RateLimitedHook(
+            address(localMailbox),
+            MAX_CAPACITY,
+            DURATION,
+            address(0)
+        );
     }
 
     // fuzz for other functions/invocations by any non-mailbox address
@@ -139,7 +146,8 @@ contract RateLimitedHookTest is Test {
         uint128 _amount,
         uint128 _time
     ) external {
-        // Warp to a random time, get it's filled level, and try to transfer more than the target max
+        // Warp forward from deploy time; refill math underflows on warp-back.
+        vm.assume(_time >= block.timestamp);
         vm.warp(_time);
         uint256 filledLevelBefore = rateLimitedHook.calculateCurrentLevel();
         vm.assume(_amount > filledLevelBefore);
@@ -157,7 +165,8 @@ contract RateLimitedHookTest is Test {
         uint128 _amount,
         uint128 _time
     ) external {
-        // Warp to a random time, get it's filled level, and try to transfer less than the target max
+        // Warp forward from deploy time; refill math underflows on warp-back.
+        vm.assume(_time >= block.timestamp);
         vm.warp(_time);
         uint256 filledLevelBefore = rateLimitedHook.calculateCurrentLevel();
         vm.assume(_amount <= filledLevelBefore);
@@ -170,6 +179,56 @@ contract RateLimitedHookTest is Test {
         );
         uint256 limitAfter = rateLimitedHook.calculateCurrentLevel();
         assertApproxEqRel(limitAfter, filledLevelBefore - _amount, ONE_PERCENT);
+    }
+
+    // The tests above all run against the default 1-day window; this wires a
+    // fresh route to a hook with a non-default window and asserts the refill
+    // tracks that window instead of the old hardcoded `1 days`.
+    function testRateLimitedHook_customDuration_refillsOverWindow() external {
+        uint256 customDuration = 1 hours;
+
+        HypERC20Collateral customRoute = new HypERC20Collateral(
+            address(token),
+            SCALE,
+            SCALE,
+            address(localMailbox)
+        );
+        RateLimitedHook customHook = new RateLimitedHook(
+            address(localMailbox),
+            MAX_CAPACITY,
+            customDuration,
+            address(customRoute)
+        );
+        customRoute.initialize(address(customHook), address(0), address(this));
+        customRoute.enrollRemoteRouter(
+            DESTINATION,
+            address(warpRouteRemote).addressToBytes32()
+        );
+
+        assertEq(customHook.DURATION(), customDuration);
+
+        // Drain the whole current level through a transfer.
+        uint256 level = customHook.calculateCurrentLevel();
+        token.mint(level);
+        token.approve(address(customRoute), level);
+        customRoute.transferRemote{value: 1}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            level
+        );
+        assertEq(customHook.calculateCurrentLevel(), 0);
+
+        // Half the custom window → ~half the capacity refilled.
+        vm.warp(block.timestamp + customDuration / 2);
+        assertApproxEqRel(
+            customHook.calculateCurrentLevel(),
+            level / 2,
+            ONE_PERCENT
+        );
+
+        // A full window past the last update → back to max capacity.
+        vm.warp(block.timestamp + customDuration);
+        assertEq(customHook.calculateCurrentLevel(), customHook.maxCapacity());
     }
 
     function testRateLimitedHook_preventsDuplicateMessageFromValidating(

@@ -52,10 +52,10 @@
           "http": "https://arb1.arbitrum.io/rpc"
         },
         {
-          "http": "https://arbitrum.rpc.subquery.network/public"
+          "http": "https://arbitrum.drpc.org"
         },
         {
-          "http": "https://arbitrum.drpc.org"
+          "http": "https://arbitrum-one-rpc.publicnode.com"
         }
       ],
       "staticAggregationHookFactory": "0x47113936706B3FfF21a14807A93cc3ab8C76bff8",
@@ -229,7 +229,10 @@
           "http": "https://1rpc.io/base"
         },
         {
-          "http": "https://base.llamarpc.com"
+          "http": "https://base.gateway.tenderly.co"
+        },
+        {
+          "http": "https://base-rpc.publicnode.com"
         }
       ],
       "staticAggregationHookFactory": "0x4f0547800Db0a2427F7367960dc331f8Cbe2e270",
@@ -308,7 +311,7 @@
           "http": "https://rpc.blast.io"
         },
         {
-          "http": "https://rpc.ankr.com/blast"
+          "http": "https://blast-rpc.publicnode.com"
         }
       ],
       "staticAggregationHookFactory": "0x2214711817f49665240f68efED0De888838BB375",
@@ -440,19 +443,13 @@
       "proxyAdmin": "0x65993Af9D0D3a64ec77590db7ba362D6eB78eF70",
       "rpcUrls": [
         {
-          "http": "https://bsc.blockrazor.xyz"
-        },
-        {
-          "http": "https://bsc-pokt.nodies.app"
-        },
-        {
           "http": "https://bsc.drpc.org"
         },
         {
-          "http": "https://bnb.rpc.subquery.network/public"
+          "http": "https://bsc-rpc.publicnode.com"
         },
         {
-          "http": "https://binance.llamarpc.com"
+          "http": "https://bsc.rpc.blxrbdn.com"
         }
       ],
       "staticAggregationHookFactory": "0x73AC2db1efB07A3432a2A1128e40a63DA149351f",
@@ -1418,13 +1415,10 @@
           "http": "https://polygon-bor.publicnode.com"
         },
         {
-          "http": "https://polygon-rpc.com"
-        },
-        {
           "http": "https://polygon.drpc.org"
         },
         {
-          "http": "https://polygon-pokt.nodies.app"
+          "http": "https://polygon.gateway.tenderly.co"
         }
       ],
       "staticAggregationHookFactory": "0xF30E3d79F8B9520Fc53454cf43bB2D90Cd65e066",
@@ -1684,7 +1678,7 @@
           "http": "https://viction.drpc.org"
         },
         {
-          "http": "https://viction.blockpi.network/v1/rpc/public"
+          "http": "https://88.rpc.thirdweb.com"
         }
       ],
       "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
@@ -5719,7 +5713,7 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://rpc.adichain"
+          "http": "https://rpc.adifoundation.ai"
         }
       ],
       "technicalStack": "other",
@@ -6686,10 +6680,10 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://rpc.chain.robinhood.com"
+          "http": "https://rpc.mainnet.chain.robinhood.com"
         }
       ],
-      "technicalStack": "other",
+      "technicalStack": "arbitrumnitro",
       "aggregationHook": "0xb1502A527eFB688708a24c390Cd9AD274F35B917",
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
@@ -6716,7 +6710,7 @@
       "testRecipient": "0xc261Bd2BD995d3D0026e918cBFD44b0Cc5416a57",
       "validatorAnnounce": "0x2D374F85AE2B80147CffEb34d294ce02d1afd4D8",
       "index": {
-        "from": 25286519
+        "from": 47247
       }
     },
     "tea": {
@@ -6850,6 +6844,86 @@
       "validatorAnnounce": "0xEa2Bcee14eA30bbBe3018E5E7829F963230F71C3",
       "index": {
         "from": 773
+      }
+    },
+    "bsquared": {
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      },
+      "blockExplorers": [
+        {
+          "apiUrl": "https://explorer.bsquared.network/api",
+          "family": "etherscan",
+          "name": "B² Network Explorer",
+          "url": "https://explorer.bsquared.network"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 3,
+        "reorgPeriod": 5
+      },
+      "chainId": 223,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "B² Network",
+      "domainId": 223,
+      "gasCurrencyCoinGeckoId": "bitcoin",
+      "gnosisSafeTransactionServiceUrl": "https://safe-gateway.bsquared.network/txs/",
+      "name": "bsquared",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Bitcoin",
+        "symbol": "BTC"
+      },
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "https://rpc.bsquared.network"
+        },
+        {
+          "http": "https://rpc.ankr.com/b2"
+        },
+        {
+          "http": "https://mainnet.b2-rpc.com"
+        },
+        {
+          "http": "https://b2-mainnet.alt.technology"
+        }
+      ],
+      "technicalStack": "other",
+      "aggregationHook": "0xd7983c064Eb12C568c5e135F8f0fDB4fC9F7d524",
+      "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
+      "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
+      "fallbackRoutingHook": "0x60bB6D060393D3C206719A7bD61844cC82891cfB",
+      "interchainAccountRouter": "0x9f4012ba9368FBb95F56c2Fc2D956df803D8779e",
+      "interchainGasPaymaster": "0x70EbA87Cd15616f32C736B3f3BdCfaeD0713a82B",
+      "interchainSecurityModule": "0x26e1ef6253349BFd6FB9C5ebec7F34F093E8D3Db",
+      "mailbox": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
+      "merkleTreeHook": "0xbb0AE51BCa526cF313b6a95BfaB020794af6C394",
+      "pausableHook": "0x83475ca5bEB2Eaa59A2FF48a0544ebaa4a32c2de",
+      "pausableIsm": "0x0D3bD9F1bcDA82bD1682b2C895a907d7aaE45849",
+      "protocolFee": "0xbB88a31E4b709b645c06825c0E0b5CAC906d97DE",
+      "proxyAdmin": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
+      "staticAggregationHookFactory": "0xE047cb95FB3b7117989e911c6afb34771183fC35",
+      "staticAggregationIsm": "0x7dBb82188F553161d4B4ac3a2362Bff3a57e21D2",
+      "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
+      "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
+      "staticMessageIdMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
+      "storageGasOracle": "0x451dF8AB0936D85526D816f0b4dCaDD934A034A4",
+      "testRecipient": "0x0F9d4704E1Fb25e416042524e594F1cEac6fF597",
+      "timelockController": "0x0000000000000000000000000000000000000000",
+      "validatorAnnounce": "0x25EAC2007b0D40E3f0AF112FD346412321038719",
+      "index": {
+        "from": 9687363,
+        "chunk": 999
       }
     }
   },
