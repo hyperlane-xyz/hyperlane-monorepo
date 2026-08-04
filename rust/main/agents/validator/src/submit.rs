@@ -138,28 +138,18 @@ impl ValidatorSubmitter {
             if (observed_count as usize) <= tree.count() {
                 // Count alone cannot prove the root is unchanged: a reorg may replace a
                 // leaf while leaving the count the same. Compare against the base hook
-                // checkpoint so same-index root mismatches still hit the reorg path below
-                // without running an unnecessary quorum-verified round.
-                let latest_checkpoint = call_and_retry_indefinitely(|| {
+                // checkpoint first, and only run the quorum-verified read when the base
+                // hook reports an equal-index root conflict.
+                let base_checkpoint = call_and_retry_indefinitely(|| {
                     let merkle_tree_hook = self.base_merkle_tree_hook.clone();
                     let reorg_period = self.reorg_period.clone();
                     Box::pin(async move { merkle_tree_hook.latest_checkpoint(&reorg_period).await })
                 })
                 .await;
 
-                self.metrics
-                    .set_latest_checkpoint_observed(&latest_checkpoint);
-                if should_log_checkpoint_info() {
-                    info!(
-                        ?latest_checkpoint,
-                        tree_count = tree.count(),
-                        "Latest checkpoint (no new messages)"
-                    );
-                }
-
-                if tree_exceeds_checkpoint(&latest_checkpoint, &tree) {
+                if tree_exceeds_checkpoint(&base_checkpoint, &tree) {
                     debug!(
-                        ?latest_checkpoint,
+                        ?base_checkpoint,
                         tree_count = tree.count(),
                         "Latest checkpoint is behind tree, sleeping briefly"
                     );
@@ -167,12 +157,50 @@ impl ValidatorSubmitter {
                     continue;
                 }
 
-                self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &latest_checkpoint)
-                    .await;
+                let correctness_checkpoint = if base_checkpoint.index == tree.index()
+                    && base_checkpoint.root != tree.root()
+                {
+                    call_and_retry_indefinitely(|| {
+                        let merkle_tree_hook = self.merkle_tree_hook.clone();
+                        let reorg_period = self.reorg_period.clone();
+                        Box::pin(
+                            async move { merkle_tree_hook.latest_checkpoint(&reorg_period).await },
+                        )
+                    })
+                    .await
+                } else {
+                    base_checkpoint
+                };
+
+                if tree_exceeds_checkpoint(&correctness_checkpoint, &tree) {
+                    debug!(
+                        ?correctness_checkpoint,
+                        tree_count = tree.count(),
+                        "Latest checkpoint is behind tree, sleeping briefly"
+                    );
+                    sleep(self.interval).await;
+                    continue;
+                }
+
+                self.metrics
+                    .set_latest_checkpoint_observed(&correctness_checkpoint);
+                if should_log_checkpoint_info() {
+                    info!(
+                        ?correctness_checkpoint,
+                        tree_count = tree.count(),
+                        "Latest checkpoint (no new messages)"
+                    );
+                }
+
+                self.submit_checkpoints_until_correctness_checkpoint(
+                    &mut tree,
+                    &correctness_checkpoint,
+                )
+                .await;
 
                 self.metrics
                     .latest_checkpoint_processed
-                    .set(latest_checkpoint.index as i64);
+                    .set(correctness_checkpoint.index as i64);
                 self.metrics.reached_initial_consistency.set(1);
 
                 sleep(self.interval).await;

@@ -391,9 +391,6 @@ async fn checkpoint_submitter_detects_reorg_when_count_is_unchanged() {
     mock_quorum_merkle_tree_hook
         .expect_domain()
         .return_const(dummy_domain.clone());
-    mock_quorum_merkle_tree_hook
-        .expect_latest_checkpoint()
-        .never();
 
     let mut mock_base_merkle_tree_hook = MockMerkleTreeHook::new();
     let observed_count = local_tree.count() as u32;
@@ -410,6 +407,11 @@ async fn checkpoint_submitter_detects_reorg_when_count_is_unchanged() {
         },
         block_height: Some(42),
     };
+    let quorum_checkpoint = onchain_checkpoint.clone();
+    mock_quorum_merkle_tree_hook
+        .expect_latest_checkpoint()
+        .once()
+        .returning(move |_| Ok(quorum_checkpoint.clone()));
     mock_base_merkle_tree_hook
         .expect_latest_checkpoint()
         .once()
