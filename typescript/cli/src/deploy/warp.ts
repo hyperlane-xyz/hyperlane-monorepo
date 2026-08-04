@@ -50,6 +50,8 @@ import {
   WarpRouteDeployConfigSchema,
   TOKEN_CROSS_COLLATERAL_STANDARDS,
   altVmChainLookup,
+  buildDelayedFlowEnrollmentTxs,
+  deriveDelayedFlowEnrollmentTargets,
   enrollCrossChainRouters,
   executeWarpDeploy,
   expandWarpDeployConfig,
@@ -793,6 +795,10 @@ async function updateExistingWarpRoute(
   const updateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
   const feeUpdateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
   const ownershipTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
+  // ISM trees installed by the per-chain pass below; a hybrid hook/ISM may be
+  // deployed while those transactions are built, so its address is not yet
+  // readable from the router. Feeds the cross-chain enrollment pass.
+  const updatedIsmTreeAddresses: ChainMap<Address> = {};
 
   // Get all deployed router addresses
   const deployedRoutersAddresses =
@@ -838,11 +844,14 @@ async function updateExistingWarpRoute(
               ccipContractCache,
               contractVerifier,
             );
-            const { txs, feeTxs, ownershipTxs } =
+            const { txs, feeTxs, ownershipTxs, deployedIsm } =
               await evmERC20WarpModule.updateSplit(configWithMailbox);
             updateTransactions[chain] = txs;
             feeUpdateTransactions[chain] = feeTxs;
             ownershipTransactions[chain] = ownershipTxs;
+            if (deployedIsm) {
+              updatedIsmTreeAddresses[chain] = deployedIsm;
+            }
             break;
           }
           default: {
@@ -875,6 +884,39 @@ async function updateExistingWarpRoute(
       });
     }),
   );
+
+  // Cross-chain pass: DelayedFlowRouterHookIsm instances must be mutually
+  // enrolled, which the per-chain pass above cannot do because chain A's
+  // enrollment needs chain B's instance address. Runs after every chain has
+  // resolved (or deployed) its ISM tree, so the full pairing is known.
+  // The resulting transactions target the DFR, whose owner may be a Safe/ICA
+  // on an existing route — they are appended to the chain's main bucket and
+  // ride whichever submitter the strategy configures for it.
+  const delayedFlowTargets = await deriveDelayedFlowEnrollmentTargets(
+    multiProvider,
+    expandedWarpDeployConfig,
+    deployedRoutersAddresses,
+    updatedIsmTreeAddresses,
+  );
+  for (const [chain, target] of Object.entries(delayedFlowTargets)) {
+    const enrollmentTxs = await buildDelayedFlowEnrollmentTxs({
+      chain,
+      multiProvider,
+      registryAddresses,
+      warpRouter: deployedRoutersAddresses[chain],
+      target,
+      allTargets: delayedFlowTargets,
+    });
+    if (enrollmentTxs.length === 0) continue;
+    logBlue(
+      `Enrolling ${chain} DelayedFlowRouterHookIsm with its remote counterparts`,
+    );
+    updateTransactions[chain] = [
+      ...(updateTransactions[chain] ?? []),
+      ...enrollmentTxs,
+    ];
+  }
+
   return {
     txs: updateTransactions,
     feeTxs: feeUpdateTransactions,
