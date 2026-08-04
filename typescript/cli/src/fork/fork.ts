@@ -6,21 +6,16 @@ import {
   buildForkedChainMetadata,
 } from '@hyperlane-xyz/forking-sdk';
 import { HttpServer } from '@hyperlane-xyz/http-registry-server';
-import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { type ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { MergedRegistry, PartialRegistry } from '@hyperlane-xyz/registry';
-import {
-  type ChainName,
-  RawForkedChainConfigByChainSchema,
-  forkedChainConfigByChainFromRaw,
-} from '@hyperlane-xyz/sdk';
-import { assert, isEVMLike, isNullish, objMap } from '@hyperlane-xyz/utils';
+import { type ChainName } from '@hyperlane-xyz/sdk';
+import { assert, isEVMLike, isNullish } from '@hyperlane-xyz/utils';
 
 import { type CommandContext } from '../context/types.js';
 import { logRed } from '../logger.js';
 import { readYamlOrJson } from '../utils/files.js';
 
-import { createEvmForkManagerFactory } from './EvmForkManager.js';
-import { createSvmForkManagerFactory } from './svm.js';
+import { type ForkConfigParser, loadForkManager } from './loadForkManager.js';
 
 /** Protocol-neutral per-chain fork-config envelope; slices are parsed per protocol. */
 export const ForkConfigByChainSchema = z.record(z.unknown());
@@ -42,23 +37,19 @@ export async function runForkCommand({
   const { registry, multiProvider } = context;
 
   const forkManagers = new ForkManagerRegistry();
-  forkManagers.registerProtocol(
-    ProtocolType.Ethereum,
-    createEvmForkManagerFactory(multiProvider, kill),
-  );
+  const parsers = new Map<ProtocolType, ForkConfigParser>();
 
   const requestedProtocols = new Set(
     [...chainsToFork].map((chain) => multiProvider.getProtocol(chain)),
   );
-
-  const svmFork = requestedProtocols.has(ProtocolType.Sealevel)
-    ? await import('@hyperlane-xyz/sealevel-sdk/fork')
-    : undefined;
-  if (svmFork) {
-    forkManagers.registerProtocol(
-      ProtocolType.Sealevel,
-      createSvmForkManagerFactory(svmFork, kill),
-    );
+  for (const protocol of requestedProtocols) {
+    await loadForkManager(protocol, {
+      registry: forkManagers,
+      parsers,
+      multiProvider,
+      kill,
+      fileReader: readYamlOrJson,
+    });
   }
 
   const targetChains: ChainName[] = [];
@@ -77,31 +68,23 @@ export async function runForkCommand({
     targetChains.push(chain);
   }
 
-  const evmRaw: Record<string, unknown> = {};
-  const svmRaw: Record<string, unknown> = {};
+  const rawByProtocol = new Map<ProtocolType, Record<string, unknown>>();
   for (const chain of targetChains) {
     const slice = forkConfig[chain];
     if (isNullish(slice)) {
       continue;
     }
-    if (multiProvider.getProtocol(chain) === ProtocolType.Sealevel) {
-      svmRaw[chain] = slice;
-    } else {
-      evmRaw[chain] = slice;
-    }
+    const protocol = multiProvider.getProtocol(chain);
+    const bucket = rawByProtocol.get(protocol) ?? {};
+    bucket[chain] = slice;
+    rawByProtocol.set(protocol, bucket);
   }
 
-  const evmParsed = forkedChainConfigByChainFromRaw(
-    RawForkedChainConfigByChainSchema.parse(evmRaw),
-    readYamlOrJson,
-  );
-
-  let svmParsed: Record<string, unknown> = {};
-  if (svmFork) {
-    const parseSvm = svmFork.parseSvmForkConfig;
-    svmParsed = objMap(svmRaw, (_chain, slice) =>
-      parseSvm(slice, readYamlOrJson),
-    );
+  const parsedByChain: Record<string, unknown> = {};
+  for (const [protocol, rawSubset] of rawByProtocol) {
+    const parser = parsers.get(protocol);
+    assert(parser, `No fork-config parser registered for protocol ${protocol}`);
+    Object.assign(parsedByChain, parser(rawSubset));
   }
 
   const chains: ForkChainInput[] = targetChains.map((chainName) => {
@@ -111,7 +94,7 @@ export async function runForkCommand({
       chainName,
       protocol: multiProvider.getProtocol(chainName),
       upstreamRpcUrl: rpcUrl.http,
-      forkConfig: evmParsed[chainName] ?? svmParsed[chainName],
+      forkConfig: parsedByChain[chainName],
     };
   });
 
