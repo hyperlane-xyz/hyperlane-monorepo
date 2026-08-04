@@ -159,6 +159,11 @@ describe('resolveTokenMetadata', () => {
   const V2_PROGRAM_ID = 'hyp_warp_token_usdc_v2.aleo';
   const TOKEN_ID = '123field';
 
+  // Keep the bounded-retry behaviour under test but collapse the exponential
+  // backoff to zero so miss/exhaustion paths don't take ~51s in the suite.
+  const RETRY_ATTEMPTS = 3;
+  const RETRY_DELAY_MS = 0;
+
   // A token_registry.aleo `registered_tokens` TokenMetadata value only needs the
   // name/symbol/decimals fields that getTokenMetadata actually reads.
   function registeredTokenPlaintext(
@@ -175,9 +180,10 @@ describe('resolveTokenMetadata', () => {
     return client;
   }
 
-  it('falls back to local_decimals with empty name/symbol on a genuine v1 registry miss', async () => {
-    // An empty mapping value is a registry miss; getTokenMetadata throws the
-    // non-recoverable sentinel, which resolveTokenMetadata tolerates.
+  it('falls back to local_decimals with empty name/symbol when a v1 miss persists across retries', async () => {
+    // An empty mapping value that survives the bounded retries is a genuine
+    // registry miss; getTokenMetadata rethrows the sentinel, which
+    // resolveTokenMetadata tolerates.
     const aleoClient = clientWithMappingValue('');
 
     const metadata = await resolveTokenMetadata(
@@ -185,9 +191,39 @@ describe('resolveTokenMetadata', () => {
       V1_PROGRAM_ID,
       TOKEN_ID,
       9,
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
     );
 
     expect(metadata).to.deep.equal({ name: '', symbol: '', decimals: 9 });
+  });
+
+  it('retries a transient empty mapping and prefers registry metadata once it appears', async () => {
+    // A just-registered mapping can read empty before it finalizes/indexes.
+    // The bounded retry must ride that out and use the authoritative metadata
+    // rather than immediately taking the empty-name/symbol legacy fallback.
+    let call = 0;
+    const aleoClient = new AleoNetworkClient('http://localhost:3030');
+    aleoClient.getProgramMappingValue = async () => {
+      call += 1;
+      return call === 1 ? '' : registeredTokenPlaintext('LATE', 'LATE', 7);
+    };
+
+    const metadata = await resolveTokenMetadata(
+      aleoClient,
+      V1_PROGRAM_ID,
+      TOKEN_ID,
+      9,
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
+    );
+
+    expect(call).to.be.greaterThan(1);
+    expect(metadata).to.deep.equal({
+      name: 'LATE',
+      symbol: 'LATE',
+      decimals: 7,
+    });
   });
 
   it('prefers registry metadata over local_decimals when the v1 entry exists', async () => {
@@ -200,6 +236,8 @@ describe('resolveTokenMetadata', () => {
       V1_PROGRAM_ID,
       TOKEN_ID,
       9,
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
     );
 
     expect(metadata).to.deep.equal({
@@ -213,21 +251,33 @@ describe('resolveTokenMetadata', () => {
     const aleoClient = clientWithMappingValue('');
 
     await expect(
-      resolveTokenMetadata(aleoClient, V1_PROGRAM_ID, TOKEN_ID, undefined),
+      resolveTokenMetadata(
+        aleoClient,
+        V1_PROGRAM_ID,
+        TOKEN_ID,
+        undefined,
+        RETRY_ATTEMPTS,
+        RETRY_DELAY_MS,
+      ),
     ).to.be.rejectedWith(/Unable to resolve decimals/);
   });
 
   it('propagates non-sentinel v1 read failures (transport) instead of masking them', async () => {
     const aleoClient = new AleoNetworkClient('http://localhost:3030');
-    // Non-recoverable so the retry loop short-circuits; the point under test is
-    // that a non-sentinel error is not swallowed by resolveTokenMetadata.
+    // A transport error is retried (recoverable) then propagates; the point
+    // under test is that it is not swallowed by resolveTokenMetadata as a miss.
     aleoClient.getProgramMappingValue = async () => {
-      throw Object.assign(new Error('RPC transport error'), {
-        isRecoverable: false,
-      });
+      throw new Error('RPC transport error');
     };
 
-    const result = resolveTokenMetadata(aleoClient, V1_PROGRAM_ID, TOKEN_ID, 9);
+    const result = resolveTokenMetadata(
+      aleoClient,
+      V1_PROGRAM_ID,
+      TOKEN_ID,
+      9,
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
+    );
     await expect(result).to.be.rejectedWith('RPC transport error');
     // The sentinel is the only tolerated failure; a transport error is not it.
     await result.catch((err) => {
@@ -238,8 +288,16 @@ describe('resolveTokenMetadata', () => {
   it('propagates v1 decode failures (unparseable registry value) instead of masking them', async () => {
     const aleoClient = clientWithMappingValue('not-a-valid-plaintext');
 
-    await expect(resolveTokenMetadata(aleoClient, V1_PROGRAM_ID, TOKEN_ID, 9))
-      .to.be.rejected;
+    await expect(
+      resolveTokenMetadata(
+        aleoClient,
+        V1_PROGRAM_ID,
+        TOKEN_ID,
+        9,
+        RETRY_ATTEMPTS,
+        RETRY_DELAY_MS,
+      ),
+    ).to.be.rejected;
   });
 
   it('propagates v2 ARC-20 read failures instead of falling back', async () => {
@@ -251,7 +309,15 @@ describe('resolveTokenMetadata', () => {
       'mailbox.aleo',
     ];
 
-    await expect(resolveTokenMetadata(aleoClient, V2_PROGRAM_ID, TOKEN_ID, 6))
-      .to.be.rejected;
+    await expect(
+      resolveTokenMetadata(
+        aleoClient,
+        V2_PROGRAM_ID,
+        TOKEN_ID,
+        6,
+        RETRY_ATTEMPTS,
+        RETRY_DELAY_MS,
+      ),
+    ).to.be.rejected;
   });
 });

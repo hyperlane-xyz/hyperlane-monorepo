@@ -64,18 +64,15 @@ export function nativeScaleExponentToMultiplier(
 }
 
 /**
- * Thrown when token_registry.aleo has no `registered_tokens` entry for a
- * tokenId — i.e. the token was never registered (legacy v1 synthetics). This
- * is the ONLY registry-read failure that resolveTokenMetadata tolerates; any
- * other error (RPC/transport, plaintext decode) must propagate.
+ * Thrown when a `registered_tokens` read for a tokenId yields no value — either
+ * the token was never registered (legacy v1 synthetics) or it was just
+ * registered and has not finalized/indexed yet. Both cases look identical at
+ * read time, so this stays recoverable: retryAsync retries it, and only after
+ * the retries are exhausted does resolveTokenMetadata treat it as a genuine
+ * miss and fall back. Any other error (RPC/transport, plaintext decode) is a
+ * distinct failure that must propagate.
  */
 export class TokenRegistryEntryNotFoundError extends Error {
-  // A genuine registry miss is a permanent condition, not a transient read
-  // failure, so retryAsync must fail fast instead of exhausting its backoff
-  // budget. Transient RPC/transport errors surface as plain errors (without
-  // this flag) and stay recoverable.
-  readonly isRecoverable = false;
-
   constructor(tokenId: string) {
     super(
       `Expected token metadata to be registered in token_registry.aleo but none found for tokenId: ${tokenId}`,
@@ -90,14 +87,18 @@ export class TokenRegistryEntryNotFoundError extends Error {
 export async function getTokenMetadata(
   aleoClient: AnyAleoNetworkClient,
   tokenId: string,
+  retryAttempts: number = RETRY_ATTEMPTS,
+  retryDelayMs: number = RETRY_DELAY_MS,
 ): Promise<{
   name: string;
   symbol: string;
   decimals: number;
 }> {
-  // Retry transient read failures (RPC/transport). A genuine miss throws the
-  // non-recoverable TokenRegistryEntryNotFoundError, which short-circuits the
-  // retry loop rather than exhausting its exponential backoff.
+  // An empty read may be a genuine legacy miss or a just-registered mapping
+  // that has not finalized/indexed yet, so retry the bounded budget before
+  // giving up. After exhaustion retryAsync rethrows TokenRegistryEntryNotFound-
+  // Error, which resolveTokenMetadata catches to fall back; transient RPC/
+  // transport errors surface as plain (recoverable) errors and are retried too.
   const mappingValue = await retryAsync(
     async () => {
       const value = await aleoClient.getProgramMappingValue(
@@ -110,8 +111,8 @@ export async function getTokenMetadata(
       }
       return value;
     },
-    RETRY_ATTEMPTS,
-    RETRY_DELAY_MS,
+    retryAttempts,
+    retryDelayMs,
   );
 
   const tokenMetadata = Plaintext.fromString(mappingValue).toObject();
@@ -410,15 +411,18 @@ export async function getNativeWarpTokenConfig(
  *
  * name/symbol/decimals live in the ARC-20 token program (v2) or token_registry.aleo (v1).
  * v1 tokens that were never registered in token_registry.aleo (e.g. legacy synthetics) make
- * that lookup throw, but decimals are also carried authoritatively in app_metadata.local_decimals
- * and name/symbol are not compared by check-warp-deploy, so a registry miss is non-fatal: fall
- * back to local_decimals for decimals and empty strings for name/symbol.
+ * that lookup throw after its bounded retries are exhausted, but decimals are also carried
+ * authoritatively in app_metadata.local_decimals and name/symbol are not compared by
+ * check-warp-deploy, so a registry miss is non-fatal: fall back to local_decimals for decimals
+ * and empty strings for name/symbol.
  */
 export async function resolveTokenMetadata(
   aleoClient: AnyAleoNetworkClient,
   programId: string,
   tokenId: string,
   localDecimals: number | undefined,
+  retryAttempts: number = RETRY_ATTEMPTS,
+  retryDelayMs: number = RETRY_DELAY_MS,
 ): Promise<{ name: string; symbol: string; decimals: number }> {
   // v2 ARC-20 tokens carry authoritative name/symbol/decimals in their token
   // program; any failure reading it is a real error and must propagate.
@@ -431,15 +435,21 @@ export async function resolveTokenMetadata(
   }
 
   // v1 tokens read name/symbol/decimals from token_registry.aleo. Legacy
-  // synthetics were never registered there, so a genuine registry miss is
-  // non-fatal (decimals are also in app_metadata.local_decimals; name/symbol
-  // aren't compared by check-warp-deploy). Any OTHER failure — RPC/transport,
-  // plaintext decode — is a real error and must propagate.
+  // synthetics were never registered there, so a registry miss that persists
+  // across the bounded retries is non-fatal (decimals are also in
+  // app_metadata.local_decimals; name/symbol aren't compared by
+  // check-warp-deploy). Any OTHER failure — RPC/transport, plaintext decode —
+  // is a real error and must propagate.
   let registryMetadata:
     | { name: string; symbol: string; decimals: number }
     | undefined;
   try {
-    registryMetadata = await getTokenMetadata(aleoClient, tokenId);
+    registryMetadata = await getTokenMetadata(
+      aleoClient,
+      tokenId,
+      retryAttempts,
+      retryDelayMs,
+    );
   } catch (error: unknown) {
     if (!(error instanceof TokenRegistryEntryNotFoundError)) {
       throw error;
