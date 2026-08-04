@@ -86,6 +86,11 @@ const HAGGIS_SVM_DEPLOYER = haggisDeployerKeyByProtocol[ProtocolType.Sealevel];
 assert(HAGGIS_EVM_DEPLOYER, 'Missing Haggis EVM deployer key');
 assert(HAGGIS_SVM_DEPLOYER, 'Missing Haggis SVM deployer key');
 
+// AW (team) SVM deployer key, Turnkey-backed (== awSvmSigners[0], labelled
+// "AW SVM Deployer" in heimdall). This is the party that receives collected
+// WBTC withdrawal fees on solana, on both production and staging.
+const AW_SVM_DEPLOYER = 'A8goWfZ7a6smK9pdDgoDWyAq9p7jtvyERJN6VLd8zrx2';
+
 const stagingOwnersByChain: Record<DeploymentChain, string> = {
   ethereum: HAGGIS_EVM_DEPLOYER,
   bsc: HAGGIS_EVM_DEPLOYER,
@@ -192,7 +197,7 @@ export const buildWBTCWarpConfig = async (
 // accounts (getWarpFeeOwner) on EVM/TVM, matching the other First Party HWRs.
 // Solana has no dedicated warp-fee account, so its fee owner is the AW Squads
 // route owner, while its fee beneficiary (who receives collected fees) is pinned
-// to the Haggis solana deployer key.
+// to the AW SVM deployer key.
 export const getWBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> =>
@@ -205,19 +210,23 @@ export const getWBTCWarpConfig = async (
       solanamainnet: chainOwners.solanamainnet.owner,
     },
     feeBeneficiariesByChain: {
-      solanamainnet: HAGGIS_SVM_DEPLOYER,
+      solanamainnet: AW_SVM_DEPLOYER,
     },
     quoteSigners: [WARP_QUOTE_SIGNER],
   });
 
 // Staging (AW-737): every contract owned by the Haggis GCP deployer key. The
 // deployer key is additionally authorised as a quote signer so fees can be
-// re-quoted in staging without a production signer.
+// re-quoted in staging without a production signer. The solana fee beneficiary
+// matches production (the AW SVM deployer key).
 export const getWBTCSTAGEWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> =>
   buildWBTCWarpConfig(routerConfig, {
     ownersByChain: stagingOwnersByChain,
     feeOwnersByChain: stagingFeeOwnersByChain,
+    feeBeneficiariesByChain: {
+      solanamainnet: AW_SVM_DEPLOYER,
+    },
     quoteSigners: [WARP_QUOTE_SIGNER, HAGGIS_EVM_DEPLOYER],
   });
