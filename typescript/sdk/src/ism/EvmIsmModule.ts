@@ -41,12 +41,12 @@ import { normalizeConfig } from '../utils/ism.js';
 import { EvmIsmReader } from './EvmIsmReader.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
+  BaseIsmConfigSchema,
   BlacklistIsmConfig,
   DeployedIsm,
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
   IsmConfig,
-  IsmConfigSchema,
   IsmType,
   MUTABLE_ISM_TYPE,
   OffchainLookupIsmConfig,
@@ -108,7 +108,7 @@ export class EvmIsmModule extends HyperlaneModule<
     protected readonly ccipContractCache?: CCIPContractCache,
     protected readonly contractVerifier?: ContractVerifier,
   ) {
-    params.config = IsmConfigSchema.parse(params.config);
+    params.config = BaseIsmConfigSchema.parse(params.config);
     super(params);
 
     this.reader = new EvmIsmReader(multiProvider, params.chain);
@@ -137,7 +137,7 @@ export class EvmIsmModule extends HyperlaneModule<
   public async update(
     targetConfig: IsmConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
-    targetConfig = IsmConfigSchema.parse(targetConfig);
+    targetConfig = BaseIsmConfigSchema.parse(targetConfig);
 
     // Nothing to do if its the default ism
     if (typeof targetConfig === 'string' && isZeroishAddress(targetConfig)) {
@@ -589,7 +589,7 @@ export class EvmIsmModule extends HyperlaneModule<
   }: {
     config: IsmConfig;
   }): Promise<DeployedIsm> {
-    config = IsmConfigSchema.parse(config);
+    config = BaseIsmConfigSchema.parse(config);
 
     return this.ismFactory.deploy({
       destination: this.chain,

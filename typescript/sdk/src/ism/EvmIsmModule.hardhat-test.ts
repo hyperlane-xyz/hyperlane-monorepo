@@ -6,6 +6,7 @@ import hre from 'hardhat';
 import {
   BlacklistIsm__factory,
   RateLimitedIsm__factory,
+  StaticAggregationIsm__factory,
 } from '@hyperlane-xyz/core';
 
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
@@ -31,6 +32,7 @@ import {
   DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
+  ModuleType,
   MultisigIsmConfig,
   RateLimitedIsmConfig,
   RoutingIsmConfig,
@@ -734,6 +736,56 @@ describe('EvmIsmModule', async () => {
       );
       expect(await blacklistIsm.blacklistedIds(idToKeep)).to.be.true;
       expect(await blacklistIsm.blacklistedIds(idToDrop)).to.be.false;
+    });
+
+    it('updates a blacklist submodule in-place under an exhaustive aggregation', async () => {
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+      const existingIds = [randomBytes32()];
+      const blacklistSubmodule: BlacklistIsmConfig = {
+        type: IsmType.BLACKLIST,
+        owner: signerAddress,
+        blacklistedIds: [...existingIds],
+      };
+
+      // threshold === modules.length: the blacklist sits in a mandatory
+      // (exhaustive-aggregation) position, so the composition invariant holds
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [randomMultisigIsmConfig(3, 5), blacklistSubmodule],
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(config);
+
+      const newId = randomBytes32();
+      // mutate in-place so testConfig (same reference) stays in sync for afterEach
+      blacklistSubmodule.blacklistedIds = [...existingIds, newId];
+
+      // 1 tx blacklisting only the new ID on the submodule; aggregation stays put
+      await expectTxsAndUpdate(ism, config, 1);
+
+      // same aggregation address — container updated in place, no redeploy
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+
+      const provider = multiProvider.getProvider(chain);
+      const [moduleAddresses] = await StaticAggregationIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        provider,
+      ).modulesAndThreshold(hre.ethers.constants.AddressZero);
+
+      let blacklistFound = false;
+      for (const moduleAddress of moduleAddresses) {
+        const blacklistIsm = BlacklistIsm__factory.connect(
+          moduleAddress,
+          provider,
+        );
+        if ((await blacklistIsm.moduleType()) === ModuleType.NULL) {
+          expect(await blacklistIsm.blacklistedIds(newId)).to.be.true;
+          blacklistFound = true;
+        }
+      }
+      expect(blacklistFound).to.be.true;
     });
   });
 });
