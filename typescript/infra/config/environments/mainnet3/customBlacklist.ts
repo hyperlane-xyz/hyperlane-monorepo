@@ -368,13 +368,6 @@ export const blacklistedMessageIds = [
   // krown -> base
   '0xc1f409b71e923793532c9677367e0ce087f472a5ccc7b96076727df854ad80de',
 
-  // USDC CCTP V1 ethereum->base multi-burn message [2026-08-04]
-  // Genuine multi-MessageSent victim (origin tx 0xfdc6fad3... bundled 3 MessageSent events);
-  // matcher fix (#9178) fetched its attestation, but the CCTP nonce (486337) was already
-  // consumed on Base and funds already minted to the recipient, so process() reverts
-  // "Invalid nonce". Terminal double-delivery; denylisted to stop endless prepare-queue retries.
-  '0xa20611ce9869d3b730bc96adeb692044c4a264e808611b29e4bc27da3ea4d919',
-
   // Renzo ezETH rate-sync (recipient 0xc5f67ff7...) stuck messages to Linea [2026-07-15]
   // Permissionless app; recipient.handle() reverts with empty 0x on stale/superseded price updates
   // (working-as-designed rejection). Denylisted by message ID to stop endless prepare-queue retries;
