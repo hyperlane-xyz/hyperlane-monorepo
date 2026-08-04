@@ -89,6 +89,8 @@ pnpm tsx scripts/keys/get-owner-ica.ts \
 
 Pass chains as **space-separated** values (NOT comma-separated — the script uses `[array]` type and rejects comma-separated input). You can pass all chains in one command. Each command prints the new ICA address on completion. Collect all new addresses before proceeding.
 
+**Signer disclosure — `--deploy` does NOT use the per-ticket selected key.** `get-owner-ica.ts --deploy` takes no key argument; it calls `config.getMultiProvider()` and signs the ICA-deployment tx with the environment's shared `Role.Deployer`, not the protocol key from `~/.hyperlane/key-contexts/<ticket-id>.yaml` that the rest of this skill uses. ICAs are permissionless (anyone can deploy one, and the derived address is independent of who deploys), so this is safe — but surface it at the `[CONFIRM:]` gate: state that the ICA deployment is signed by the shared mainnet3 deployer, not the selected key, and confirm that is acceptable before running `--deploy`. (Wiring the selected key into `get-owner-ica.ts --deploy` is tracked as follow-up code work.)
+
 **`get-owner-ica.ts` is EVM/Tron-only** — it filters to Ethereum-protocol chains and silently drops Sealevel/Cosmos/Starknet/etc. with no warning row. Only pass EVM (or Tron) chains whose owner is an ICA; a non-EVM chain's owner comes from its native construct (Squads, etc.) per the ticket/artifact, not from this script. If you pass a non-EVM chain and get no address back, that is the silent drop — resolve that chain's owner another way rather than proceeding with a missing owner.
 
 **These new ICAs are route-specific and should NOT be added to `aw.ts` or `warpFees.ts`** — they only belong in the deploy.yaml for this route.

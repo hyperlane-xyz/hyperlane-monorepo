@@ -140,6 +140,8 @@ pnpm tsx scripts/keys/get-owner-ica.ts \
 
 This prints the ICA address. Use it as the `owner` for the new chain in deploy.yaml.
 
+**Signer disclosure — `--deploy` does NOT use the per-ticket selected key.** `get-owner-ica.ts --deploy` takes no key argument; it signs the ICA-deployment tx with the environment's shared `Role.Deployer` (via `config.getMultiProvider()`), not the protocol key this skill otherwise uses. ICAs are permissionless and the derived address is independent of who deploys, so this is safe — but disclose it at the `[CONFIRM:]` gate (the ICA deployment is signed by the shared mainnet3 deployer, not the selected key) and confirm before running `--deploy`. (Wiring the selected key is tracked as follow-up code work.)
+
 **Tron ICA deployment caveat**: On Tron, `get-owner-ica.ts` may fail with `invalid BytesLike value` — see Tron-specific notes at the bottom.
 
 **Tron TRX funding**: The deployer key needs ≥ **1000 TRX** before any Tron transaction — see Tron-specific notes.
