@@ -74,41 +74,84 @@ function getWarpLegs(input: WarpBytecodeInput): WarpLeg[] {
   });
 }
 
-const EXPECTED_BY_STANDARD: Partial<Record<TokenStandard, string>> = {
-  [TokenStandard.EvmHypCollateral]: 'HypERC20Collateral',
-  [TokenStandard.EvmHypNative]: 'HypNative',
-  [TokenStandard.EvmHypSynthetic]: 'HypERC20',
-  [TokenStandard.EvmHypCollateralFiat]: 'HypFiatToken',
-  [TokenStandard.EvmHypOwnerCollateral]: 'HypERC4626OwnerCollateral',
-  [TokenStandard.EvmHypRebaseCollateral]: 'HypERC4626Collateral',
-  [TokenStandard.EvmHypSyntheticRebase]: 'HypERC20',
-  [TokenStandard.EvmHypCrossCollateralRouter]: 'CrossCollateralRouter',
-  [TokenStandard.EvmHypXERC20]: 'HypXERC20',
-  [TokenStandard.EvmHypXERC20Lockbox]: 'HypXERC20Lockbox',
-  [TokenStandard.EvmHypVSXERC20]: 'HypXERC20',
-  [TokenStandard.EvmHypVSXERC20Lockbox]: 'HypXERC20Lockbox',
+const COMPATIBLE_CONTRACTS_BY_STANDARD: Partial<
+  Record<TokenStandard, ReadonlyArray<string>>
+> = {
+  [TokenStandard.EvmHypCollateral]: ['HypERC20Collateral'],
+  [TokenStandard.EvmHypNative]: ['HypNative'],
+  [TokenStandard.EvmHypSynthetic]: ['HypERC20'],
+  [TokenStandard.EvmHypSyntheticRebase]: ['HypERC20'],
+  [TokenStandard.EvmHypCollateralFiat]: ['HypFiatToken'],
+  [TokenStandard.EvmHypOwnerCollateral]: ['HypERC4626OwnerCollateral'],
+  [TokenStandard.EvmHypRebaseCollateral]: ['HypERC4626Collateral'],
+  [TokenStandard.EvmHypCrossCollateralRouter]: ['CrossCollateralRouter'],
+  [TokenStandard.EvmHypXERC20]: ['HypXERC20'],
+  [TokenStandard.EvmHypXERC20Lockbox]: ['HypXERC20Lockbox'],
+  [TokenStandard.EvmHypVSXERC20]: ['HypXERC20'],
+  [TokenStandard.EvmHypVSXERC20Lockbox]: ['HypXERC20Lockbox'],
 };
 
 // Minimal deploy-type fallback. Prefer standards when present because they are
 // closer to the runtime adapter semantics.
-const EXPECTED_BY_TYPE: Partial<Record<TokenType, string>> = {
-  [TokenType.collateral]: 'HypERC20Collateral',
-  [TokenType.native]: 'HypNative',
-  [TokenType.nativeScaled]: 'HypNative',
-  [TokenType.synthetic]: 'HypERC20',
-  [TokenType.syntheticRebase]: 'HypERC20',
-  [TokenType.collateralFiat]: 'HypFiatToken',
-  [TokenType.crossCollateral]: 'CrossCollateralRouter',
-  [TokenType.XERC20]: 'HypXERC20',
-  [TokenType.XERC20Lockbox]: 'HypXERC20Lockbox',
+const COMPATIBLE_CONTRACTS_BY_TYPE: Partial<
+  Record<TokenType, ReadonlyArray<string>>
+> = {
+  [TokenType.collateral]: ['HypERC20Collateral'],
+  [TokenType.native]: ['HypNative'],
+  [TokenType.nativeScaled]: ['HypNative'],
+  [TokenType.synthetic]: ['HypERC20'],
+  [TokenType.syntheticRebase]: ['HypERC20'],
+  [TokenType.collateralFiat]: ['HypFiatToken'],
+  [TokenType.crossCollateral]: ['CrossCollateralRouter'],
+  [TokenType.XERC20]: ['HypXERC20'],
+  [TokenType.XERC20Lockbox]: ['HypXERC20Lockbox'],
 };
 
-function expectedContractName(leg: WarpLeg): string | undefined {
+function compatibleContractNames(
+  leg: WarpLeg,
+): ReadonlyArray<string> | undefined {
   if (leg.standard) {
-    const byStandard = EXPECTED_BY_STANDARD[leg.standard];
+    const byStandard = COMPATIBLE_CONTRACTS_BY_STANDARD[leg.standard];
     if (byStandard) return byStandard;
   }
-  return leg.tokenType ? EXPECTED_BY_TYPE[leg.tokenType] : undefined;
+  return leg.tokenType
+    ? COMPATIBLE_CONTRACTS_BY_TYPE[leg.tokenType]
+    : undefined;
+}
+
+function expectedContractName(leg: WarpLeg): string | undefined {
+  return compatibleContractNames(leg)?.[0];
+}
+
+function roleLabel(leg: WarpLeg): string | undefined {
+  return leg.standard ?? leg.tokenType;
+}
+
+function applyRoleFamily(
+  comparison: BytecodeComparison,
+  leg: WarpLeg,
+): BytecodeComparison {
+  const family = compatibleContractNames(leg);
+  const label = roleLabel(leg);
+  if (!family) {
+    return {
+      ...comparison,
+      note: comparison.note ?? 'no role family to assert',
+    };
+  }
+  if (
+    comparison.validity !== BytecodeValidity.Match ||
+    !comparison.matchedContractName ||
+    family.includes(comparison.matchedContractName)
+  ) {
+    return comparison;
+  }
+  assert(label, 'Missing warp leg role label');
+  return {
+    ...comparison,
+    validity: BytecodeValidity.Mismatch,
+    note: `matched ${comparison.matchedContractName} which is not a valid contract for ${label}`,
+  };
 }
 
 export async function checkWarpRouteBytecode(
@@ -124,30 +167,16 @@ export async function checkWarpRouteBytecode(
 
     assert(leg.addressOrDenom, `Missing router address for ${leg.chainName}`);
 
-    // Reverse-lookup (match against ANY known contract of the on-chain version)
-    // is the validity trigger: a Mismatch then means the deployed bytecode does
-    // not correspond to any version-controlled Hyperlane contract. The expected
-    // name from the token standard is only advisory — the standard->name map
-    // drifts across releases, so using it as the hard trigger produces false
-    // violations when a route uses a validly-deployed but differently-named
-    // contract (e.g. HypFiatToken, HypERC4626OwnerCollateral).
     const expected = expectedContractName(leg);
     const comparison = await compareBytecode(
       multiProvider.getProvider(leg.chainName),
       leg.addressOrDenom,
       manifestSet,
     );
-    const typeMismatchNote =
-      comparison.validity === BytecodeValidity.Match &&
-      expected &&
-      comparison.matchedContractName &&
-      comparison.matchedContractName !== expected
-        ? `on-chain contract ${comparison.matchedContractName} differs from expected ${expected} for standard`
-        : undefined;
+    const roleCheckedComparison = applyRoleFamily(comparison, leg);
     comparisons.push({
-      ...comparison,
+      ...roleCheckedComparison,
       expectedContractName: expected,
-      note: comparison.note ?? typeMismatchNote,
       chain: leg.chainName,
       label: `${leg.chainName}:${leg.addressOrDenom}`,
       warpRouteId: opts?.warpRouteId,
@@ -161,7 +190,11 @@ export function bytecodeComparisonsToViolations(
   warpRouteId: string,
 ): BytecodeMismatchViolation[] {
   return comparisons
-    .filter((comparison) => comparison.validity === BytecodeValidity.Mismatch)
+    .filter(
+      (comparison) =>
+        comparison.validity === BytecodeValidity.Mismatch ||
+        comparison.validity === BytecodeValidity.NoCode,
+    )
     .map((comparison) => ({
       module: 'warp',
       warp_route_id: warpRouteId,
@@ -171,9 +204,17 @@ export function bytecodeComparisonsToViolations(
         comparison.matchedContractName ??
         comparison.address,
       type: 'BytecodeMismatch',
-      sub_type: comparison.validity,
-      actual: comparison.onchainMaskedHash ?? comparison.note ?? '',
+      sub_type:
+        comparison.validity === BytecodeValidity.NoCode
+          ? 'NoCode'
+          : comparison.validity,
+      actual:
+        comparison.validity === BytecodeValidity.NoCode
+          ? 'no deployed code at router address'
+          : (comparison.onchainMaskedHash ?? comparison.note ?? ''),
       expected:
-        comparison.expectedHash ?? comparison.expectedContractName ?? '',
+        comparison.validity === BytecodeValidity.NoCode
+          ? 'expected deployed code at router address'
+          : (comparison.expectedHash ?? comparison.expectedContractName ?? ''),
     }));
 }

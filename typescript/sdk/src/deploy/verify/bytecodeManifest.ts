@@ -53,6 +53,24 @@ interface BuildInfo {
   };
 }
 
+export interface SolcBuildArtifact {
+  input: {
+    language: string;
+    sources: Record<string, unknown>;
+    settings: Record<string, unknown>;
+  };
+  solcLongVersion: string;
+}
+
+interface SolcOutput {
+  errors?: {
+    severity?: string;
+    formattedMessage?: string;
+    message?: string;
+  }[];
+  contracts?: Record<string, Record<string, BuildInfoContractOutput>>;
+}
+
 interface ManifestCandidate {
   entry: ContractBytecodeEntry;
   contractCount: number;
@@ -177,57 +195,10 @@ function addCandidate(
   }
 }
 
-export function generateManifestFromBuildInfoDir(
-  buildInfoDir: string,
+function manifestFromCandidates(
+  candidates: Record<string, ManifestCandidate>,
   packageVersion: string,
 ): BytecodeManifest {
-  const candidates: Record<string, ManifestCandidate> = {};
-  const files = fs
-    .readdirSync(buildInfoDir)
-    .filter((file) => file.endsWith('.json'))
-    .sort();
-
-  for (const file of files) {
-    const filePath = path.join(buildInfoDir, file);
-    const buildInfo = readBuildInfo(filePath);
-    const contractCount = countContracts(buildInfo);
-    const contracts = buildInfo.output?.contracts;
-    if (!contracts) continue;
-
-    for (const [sourcePath, sourceContracts] of Object.entries(contracts)) {
-      for (const [contractName, contract] of Object.entries(sourceContracts)) {
-        const deployedBytecode = contract.evm?.deployedBytecode;
-        const object = deployedBytecode?.object;
-        if (!object || object === '0x') continue;
-
-        const immutableRanges = flattenImmutableReferences(
-          deployedBytecode.immutableReferences,
-        );
-        const linkRanges = flattenLinkReferences(
-          deployedBytecode.linkReferences,
-        );
-        const entry: ContractBytecodeEntry = {
-          contractName,
-          sourcePath,
-          packageVersion,
-          immutableRanges,
-          linkRanges,
-          maskedRuntimeHash: computeMaskedRuntimeHash(
-            object,
-            immutableRanges,
-            linkRanges,
-          ),
-        };
-
-        addCandidate(candidates, {
-          entry,
-          contractCount,
-          buildInfoFile: filePath,
-        });
-      }
-    }
-  }
-
   const byName = Object.fromEntries(
     Object.entries(candidates).map(([contractName, candidate]) => [
       contractName,
@@ -245,4 +216,121 @@ export function generateManifestFromBuildInfoDir(
     byName,
     byHash,
   };
+}
+
+function addContractsToCandidates(params: {
+  candidates: Record<string, ManifestCandidate>;
+  contracts: Record<string, Record<string, BuildInfoContractOutput>>;
+  packageVersion: string;
+  contractCount: number;
+  buildInfoFile: string;
+}): void {
+  for (const [sourcePath, sourceContracts] of Object.entries(
+    params.contracts,
+  )) {
+    for (const [contractName, contract] of Object.entries(sourceContracts)) {
+      const deployedBytecode = contract.evm?.deployedBytecode;
+      const object = deployedBytecode?.object;
+      if (!object || object === '0x' || object === '') continue;
+
+      const immutableRanges = flattenImmutableReferences(
+        deployedBytecode.immutableReferences,
+      );
+      const linkRanges = flattenLinkReferences(deployedBytecode.linkReferences);
+      const entry: ContractBytecodeEntry = {
+        contractName,
+        sourcePath,
+        packageVersion: params.packageVersion,
+        immutableRanges,
+        linkRanges,
+        maskedRuntimeHash: computeMaskedRuntimeHash(
+          object,
+          immutableRanges,
+          linkRanges,
+        ),
+      };
+
+      addCandidate(params.candidates, {
+        entry,
+        contractCount: params.contractCount,
+        buildInfoFile: params.buildInfoFile,
+      });
+    }
+  }
+}
+
+export function generateManifestFromBuildInfoDir(
+  buildInfoDir: string,
+  packageVersion: string,
+): BytecodeManifest {
+  const candidates: Record<string, ManifestCandidate> = {};
+  const files = fs
+    .readdirSync(buildInfoDir)
+    .filter((file) => file.endsWith('.json'))
+    .sort();
+
+  for (const file of files) {
+    const filePath = path.join(buildInfoDir, file);
+    const buildInfo = readBuildInfo(filePath);
+    const contractCount = countContracts(buildInfo);
+    const contracts = buildInfo.output?.contracts;
+    if (!contracts) continue;
+
+    addContractsToCandidates({
+      candidates,
+      contracts,
+      packageVersion,
+      contractCount,
+      buildInfoFile: filePath,
+    });
+  }
+
+  return manifestFromCandidates(candidates, packageVersion);
+}
+
+export function generateManifestFromBuildArtifact(
+  artifact: SolcBuildArtifact,
+  packageVersion: string,
+  compile: (stdJsonInput: string) => string,
+): BytecodeManifest {
+  const input = JSON.parse(
+    JSON.stringify(artifact.input),
+  ) as SolcBuildArtifact['input'];
+  input.settings = {
+    ...input.settings,
+    outputSelection: {
+      '*': {
+        '*': [
+          'evm.deployedBytecode.object',
+          'evm.deployedBytecode.immutableReferences',
+          'evm.deployedBytecode.linkReferences',
+        ],
+      },
+    },
+  };
+
+  const output = JSON.parse(compile(JSON.stringify(input))) as SolcOutput;
+  const errors = output.errors?.filter((error) => error.severity === 'error');
+  assert(
+    !errors || errors.length === 0,
+    (errors ?? [])
+      .map((error) => error.formattedMessage ?? error.message ?? 'solc error')
+      .join('\n'),
+  );
+
+  const candidates: Record<string, ManifestCandidate> = {};
+  const contracts = output.contracts ?? {};
+  const contractCount = Object.values(contracts).reduce(
+    (sum, sourceContracts) => sum + Object.keys(sourceContracts).length,
+    0,
+  );
+  addContractsToCandidates({
+    candidates,
+    contracts,
+    packageVersion,
+    contractCount,
+    buildInfoFile: `buildArtifact:${artifact.solcLongVersion}`,
+  });
+
+  return manifestFromCandidates(candidates, packageVersion);
 }

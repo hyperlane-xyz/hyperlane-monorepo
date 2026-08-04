@@ -229,12 +229,16 @@ export {
   resolveImplementation,
   scanAddressesBytecode,
 } from './deploy/verify/bytecodeComparator.js';
-export type { BytecodeComparison } from './deploy/verify/bytecodeComparator.js';
+export type {
+  BytecodeComparison,
+  PackageVersionRead,
+} from './deploy/verify/bytecodeComparator.js';
 export {
   EIP1967_IMPLEMENTATION_SLOT,
   computeMaskedRuntimeHash,
   flattenImmutableReferences,
   flattenLinkReferences,
+  generateManifestFromBuildArtifact,
   generateManifestFromBuildInfoDir,
   maskRanges,
   stripMetadata,
@@ -244,6 +248,7 @@ export type {
   BytecodeManifest,
   BytecodeManifestSet,
   ContractBytecodeEntry,
+  SolcBuildArtifact,
 } from './deploy/verify/bytecodeManifest.js';
 export {
   BuildArtifact,
