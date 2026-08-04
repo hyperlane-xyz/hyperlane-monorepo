@@ -368,6 +368,46 @@ export class CentralizedWarpRouteMonitorHelmManager extends HelmManager {
   }
 }
 
+// Reads the route whitelist (WARP_ROUTE_IDS env) off the currently-deployed
+// centralized monitor pod. This is the durable, self-perpetuating source for a
+// redeploy: it survives after the per-route StatefulSets are decommissioned,
+// unlike a source derived from those pods. Returns [] when no centralized
+// monitor is deployed yet, or when it was deployed in warpRouteAll mode (no
+// explicit id list to read).
+export async function getDeployedCentralizedWarpMonitorWarpRouteIds(
+  namespace: string,
+): Promise<string[]> {
+  const podsResult = await execCmdAndParseJson(
+    `kubectl get pods -n ${namespace} -o json`,
+  );
+
+  const releaseName = CentralizedWarpRouteMonitorHelmManager.helmReleaseName;
+  const ids = new Set<string>();
+
+  for (const pod of podsResult.items || []) {
+    const instance = pod.metadata?.labels?.['app.kubernetes.io/instance'];
+    if (instance !== releaseName) {
+      continue;
+    }
+    for (const container of pod.spec?.containers || []) {
+      const env = (container.env || []).find(
+        (e: { name: string; value?: string }) => e.name === 'WARP_ROUTE_IDS',
+      );
+      if (!env?.value) {
+        continue;
+      }
+      for (const id of env.value.split(',')) {
+        const trimmed = id.trim();
+        if (trimmed) {
+          ids.add(trimmed);
+        }
+      }
+    }
+  }
+
+  return [...ids].sort();
+}
+
 export interface WarpMonitorPodInfo {
   helmReleaseName: string;
   warpRouteId: string;

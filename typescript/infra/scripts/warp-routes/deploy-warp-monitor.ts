@@ -22,6 +22,7 @@ import { HelmCommand } from '../../src/utils/helm.js';
 import {
   CentralizedWarpRouteMonitorHelmManager,
   WarpRouteMonitorHelmManager,
+  getDeployedCentralizedWarpMonitorWarpRouteIds,
   getDeployedWarpMonitorWarpRouteIds,
 } from '../../src/warp-monitor/helm.js';
 import {
@@ -44,8 +45,9 @@ function dedupeAndSortWarpRouteIds(
 }
 
 // Deploys the single centralized multi-route monitor. Routes currently owned by
-// a deployed rebalancer are auto-derived from the live cluster and passed as the
-// shared-balance skip list, so their shared-balance metrics are not double-emitted.
+// a deployed rebalancer are auto-derived from the live cluster: they are both
+// monitored and passed as the shared-balance skip list, so their shared-balance
+// metrics are not double-emitted while the rest of their coverage is kept.
 async function deployCentralizedWarpMonitor({
   environment,
   warpRouteId,
@@ -78,43 +80,69 @@ async function deployCentralizedWarpMonitor({
     environment,
     REBALANCER_HELM_RELEASE_PREFIX,
   );
-  const skipSharedBalanceWarpRouteIds = dedupeAndSortWarpRouteIds(
+  const rebalancerWarpRouteIds = dedupeAndSortWarpRouteIds(
     rebalancerPods.map((p) => p.warpRouteId),
   );
+  // Rebalancers already emit shared-balance metrics for these routes, so the
+  // monitor must not double-emit them — but it still monitors everything else
+  // (pending transfers, projected deficit, inventory) for them.
+  const skipSharedBalanceWarpRouteIds = rebalancerWarpRouteIds;
   rootLogger.info(
-    `Rebalancer-owned routes excluded from shared-balance metrics (${skipSharedBalanceWarpRouteIds.length}):\n${skipSharedBalanceWarpRouteIds.map((id) => `  - ${id}`).join('\n')}`,
+    `Rebalancer-owned routes (${rebalancerWarpRouteIds.length}) — monitored, but shared-balance metrics suppressed:\n${rebalancerWarpRouteIds.map((id) => `  - ${id}`).join('\n')}`,
   );
 
   const agentConfig = getAgentConfig(Contexts.Hyperlane, environment);
   const imageTag = imageTagArg ?? mainnetDockerTags.warpMonitor;
 
-  // Whitelist the centralized monitor to exactly the routes that currently have
-  // dedicated per-route monitors (an explicit --warp-route-id overrides). This
-  // keeps its scope identical to the per-route fleet — mainnet-only — rather
-  // than every route in the registry, so it never pages on testnet/staging
-  // routes that were never monitored.
-  let warpRouteIds: string[];
+  // Build the monitored whitelist. An explicit --warp-route-id overrides all
+  // discovery. Otherwise derive from a durable source: the centralized
+  // monitor's own currently-deployed route list, falling back to the per-route
+  // monitor pods only for the initial bootstrap (before this monitor exists, or
+  // once the per-route StatefulSets have been decommissioned, that pod source
+  // is empty). Rebalancer-owned routes are unioned in so they keep full
+  // (non-shared-balance) monitoring coverage. Every id is then validated
+  // against the registry so an unknown or orphaned id never silently deploys.
+  // This keeps scope to the mainnet fleet rather than every registry route, so
+  // it never pages on testnet/staging routes that were never monitored.
+  let candidateWarpRouteIds: string[];
   if (warpRouteId) {
-    warpRouteIds = [warpRouteId];
+    candidateWarpRouteIds = [warpRouteId];
   } else {
-    const deployedMonitors = await getDeployedWarpMonitorWarpRouteIds(
-      environment,
-      WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX,
-    );
-    const { validIds, orphanedIds } = filterOrphanedWarpRouteIds(
-      dedupeAndSortWarpRouteIds(deployedMonitors.map((p) => p.warpRouteId)),
-    );
-    if (orphanedIds.length > 0) {
-      rootLogger.warn(
-        `Excluding ${orphanedIds.length} orphaned route(s) no longer in registry:\n${orphanedIds.map((id) => `  - ${id}`).join('\n')}`,
+    const deployedCentralized =
+      await getDeployedCentralizedWarpMonitorWarpRouteIds(environment);
+    let baseIds: string[];
+    if (deployedCentralized.length > 0) {
+      baseIds = deployedCentralized;
+      rootLogger.info(
+        `Whitelist base: current centralized monitor (${deployedCentralized.length} route(s))`,
+      );
+    } else {
+      const deployedMonitors = await getDeployedWarpMonitorWarpRouteIds(
+        environment,
+        WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX,
+      );
+      baseIds = deployedMonitors.map((p) => p.warpRouteId);
+      rootLogger.info(
+        `Whitelist base: per-route monitor pods bootstrap (${dedupeAndSortWarpRouteIds(baseIds).length} route(s))`,
       );
     }
-    warpRouteIds = validIds;
+    candidateWarpRouteIds = [...baseIds, ...rebalancerWarpRouteIds];
+  }
+
+  const { validIds: warpRouteIds, orphanedIds } = filterOrphanedWarpRouteIds(
+    dedupeAndSortWarpRouteIds(candidateWarpRouteIds),
+  );
+  if (orphanedIds.length > 0) {
+    rootLogger.warn(
+      `Excluding ${orphanedIds.length} route(s) not in the selected registry:\n${orphanedIds.map((id) => `  - ${id}`).join('\n')}`,
+    );
   }
 
   if (warpRouteIds.length === 0) {
     rootLogger.error(
-      'No warp routes to monitor: no dedicated per-route monitors found and no --warp-route-id provided.',
+      warpRouteId
+        ? `Warp route "${warpRouteId}" not found in registry. Verify the warp route ID is correct.`
+        : 'No warp routes to monitor: found no current centralized monitor, no per-route monitors, and no --warp-route-id provided.',
     );
     process.exit(1);
   }
