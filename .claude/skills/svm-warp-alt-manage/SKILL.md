@@ -32,7 +32,7 @@ All commands run from `typescript/cli` and require `--warp-route-id`. `--chain` 
 ### create — build + persist ALTs
 
 ```bash
-cd <MONOREPO_ROOT>/typescript/cli && pnpm hyperlane warp alt create \
+cd <MONOREPO_ROOT>/typescript/cli && pnpm --silent hyperlane warp alt create \
   --registry http://localhost:<port> \
   --key.sealevel "$SEALEVEL_KEY_VAR" \
   -w <WARP_ROUTE_ID> \

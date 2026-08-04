@@ -75,7 +75,7 @@ Confirm:
 Apply writes the new program bytes to a buffer account (spending SOL) while it builds the transactions, so running it is itself the spending action — confirm the version transition from Step 2 with the user first.
 
 ```bash
-cd <MONOREPO_ROOT>/typescript/cli && pnpm hyperlane warp apply \
+cd <MONOREPO_ROOT>/typescript/cli && pnpm --silent hyperlane warp apply \
   --registry http://localhost:<port> \
   --key.sealevel "$SEALEVEL_KEY_VAR" \
   [--strategy ~/.hyperlane/strategies/<owner>-strategy.yaml]  # if authority != submitter

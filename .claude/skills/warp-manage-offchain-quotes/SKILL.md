@@ -32,10 +32,10 @@ Run from `typescript/cli`. Both require `--warp-route-id`.
 ### create — submit a standing quote
 
 ```bash
-cd <MONOREPO_ROOT>/typescript/cli && pnpm hyperlane warp quote create \
+cd <MONOREPO_ROOT>/typescript/cli && pnpm --silent hyperlane warp quote create \
   --registry http://localhost:<port> \
   --key.<protocol> "$SUBMITTER_KEY_VAR" \
-  --quote-signer-key $HYP_QUOTE_SIGNER_KEY \
+  --quote-signer-key "$HYP_QUOTE_SIGNER_KEY" \
   -w <WARP_ROUTE_ID> \
   --chain <origin-chain> \
   --destination <remote-chain> \
