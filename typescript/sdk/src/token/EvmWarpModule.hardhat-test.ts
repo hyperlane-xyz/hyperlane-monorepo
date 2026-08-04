@@ -66,7 +66,10 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { DEFAULT_ROUTER_KEY } from '../fee/types.js';
-import { EvmWarpModule } from './EvmWarpModule.js';
+import {
+  EvmWarpModule,
+  MAX_LEGACY_BRIDGE_APPROVAL_VERSION,
+} from './EvmWarpModule.js';
 import {
   EverclearTokenBridgeTokenType,
   MovableTokenType,
@@ -1636,10 +1639,16 @@ describe('EvmWarpModule', async () => {
           // Plant a legacy allowance so a stray revoke would be visible.
           await plantLegacyAllowance(router, allowedBridge);
 
-          // No version spoof and no contractVersion bump: actual == expected, so
+          // Keep the fixture on a legacy version. With no contractVersion bump,
           // update() generates no upgrade tx and the revoke gate stays closed.
+          const versionStub = sinon
+            .stub(evmERC20WarpModule.reader, 'fetchPackageVersion')
+            .resolves(MAX_LEGACY_BRIDGE_APPROVAL_VERSION);
+
           const txs = await evmERC20WarpModule.update(config);
           await sendTxs(txs);
+
+          versionStub.restore();
 
           // The legacy allowance is untouched (revoke must run only post-upgrade).
           expect(
