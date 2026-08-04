@@ -182,7 +182,7 @@ describe('EvmIsmReader', () => {
       .returns(mockContract as unknown as RateLimitedIsm);
     sandbox
       .stub(BlacklistIsm__factory, 'connect')
-      .returns(mockContract as unknown as BlacklistIsm);
+      .returns(contractDouble<BlacklistIsm>(mockContract));
     sandbox
       .stub(IInterchainSecurityModule__factory, 'connect')
       .returns(mockContract as unknown as IInterchainSecurityModule);
