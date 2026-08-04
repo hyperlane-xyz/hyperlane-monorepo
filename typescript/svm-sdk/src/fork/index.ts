@@ -1,5 +1,5 @@
 export {
-  SURFPOOL_IMAGE,
+  SURFPOOL_MIN_VERSION,
   SolanaCluster,
   SurfpoolDatasourceMode,
   runSurfpoolNode,
@@ -9,6 +9,7 @@ export type {
   SurfpoolDatasource,
   SurfpoolNode,
   SurfpoolNodeConfig,
+  SurfpoolNodeRunner,
 } from './surfpool-node.js';
 export { SvmForkManager, createSvmForkManager } from './svm-fork-manager.js';
 export type { SvmForkManagerConfig } from './svm-fork-manager.js';

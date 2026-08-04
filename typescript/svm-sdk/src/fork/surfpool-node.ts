@@ -1,5 +1,10 @@
 // eslint-disable-next-line import/no-nodejs-modules
-import { type ChildProcess, execSync, spawn } from 'child_process';
+import {
+  type ChildProcess,
+  execFileSync,
+  execSync,
+  spawn,
+} from 'child_process';
 // eslint-disable-next-line import/no-nodejs-modules
 import { existsSync } from 'node:fs';
 // eslint-disable-next-line import/no-nodejs-modules
@@ -8,26 +13,15 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import { waitUntilReady } from '@hyperlane-xyz/forking-sdk';
-import {
-  assert,
-  isNullish,
-  retryAsync,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
-import {
-  GenericContainer,
-  type StartedTestContainer,
-  Wait,
-} from 'testcontainers';
+import { assert, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { createRpc } from '../rpc.js';
 
 const logger = rootLogger.child({ module: 'surfpool-node' });
 
-export const SURFPOOL_IMAGE = 'surfpool/surfpool:1.5.0';
-
-const DOCKER_INTERNAL_HOST = 'host.docker.internal';
-const LOOPBACK_HOSTNAMES = new Set(['127.0.0.1', 'localhost', '0.0.0.0']);
+// Minimum acceptable local `surfpool` version; aligned with the docker image
+// `surfpool/surfpool:1.5.0` used by the container runner in test infra.
+export const SURFPOOL_MIN_VERSION = '1.5.0';
 
 export const SurfpoolDatasourceMode = {
   Fork: 'fork',
@@ -71,33 +65,82 @@ export interface SurfpoolNode {
   kill(): void;
 }
 
+export type SurfpoolNodeRunner = (
+  config: SurfpoolNodeConfig,
+) => Promise<SurfpoolNode>;
+
 const SURFPOOL_BINARY_PATHS = [
   join(homedir(), '.cargo/bin'),
   '/opt/homebrew/bin',
   '/usr/local/bin',
 ];
 
-function findSurfpool(): string | null {
+function parseVersion(
+  version: string,
+): { major: number; minor: number; patch: number } | null {
+  const match = version.match(/(\d+)\.(\d+)\.(\d+)/);
+  if (!match) return null;
+  return {
+    major: parseInt(match[1], 10),
+    minor: parseInt(match[2], 10),
+    patch: parseInt(match[3], 10),
+  };
+}
+
+function meetsMinVersion(
+  version: { major: number; minor: number; patch: number },
+  min: { major: number; minor: number; patch: number },
+): boolean {
+  if (version.major !== min.major) return version.major > min.major;
+  if (version.minor !== min.minor) return version.minor > min.minor;
+  return version.patch >= min.patch;
+}
+
+function getSurfpoolVersion(binaryPath: string): string | null {
+  try {
+    const output = execFileSync(binaryPath, ['--version'], {
+      encoding: 'utf-8',
+    });
+    const match = output.match(/surfpool\s+(\d+\.\d+\.\d+)/);
+    return match ? match[1] : null;
+  } catch (error) {
+    logger.debug(
+      { err: error },
+      `failed to get surfpool version at ${binaryPath}`,
+    );
+    return null;
+  }
+}
+
+function findSurfpoolCandidates(): Array<{ path: string; version: string }> {
+  const candidates: Array<{ path: string; version: string }> = [];
+
   for (const basePath of SURFPOOL_BINARY_PATHS) {
     const binaryPath = join(basePath, 'surfpool');
     if (existsSync(binaryPath)) {
-      return binaryPath;
+      const version = getSurfpoolVersion(binaryPath);
+      if (version) {
+        candidates.push({ path: binaryPath, version });
+      }
     }
   }
 
   try {
     const result = execSync('which surfpool', { encoding: 'utf-8' }).trim();
     if (result && existsSync(result)) {
-      return result;
+      const version = getSurfpoolVersion(result);
+      if (version && !candidates.some((c) => c.path === result)) {
+        candidates.push({ path: result, version });
+      }
     }
   } catch (error) {
     logger.debug({ err: error }, 'surfpool not found in PATH');
   }
 
-  return null;
+  return candidates;
 }
 
-function buildSurfpoolArgs(
+export function buildSurfpoolArgs(
   config: SurfpoolNodeConfig,
   datasource: SurfpoolDatasource,
   bindHost: string,
@@ -142,22 +185,15 @@ function buildSurfpoolArgs(
   return args;
 }
 
-// A datasource pointing at the host loopback is unreachable from inside a
-// container; rewrite it so the containerized node can reach the host service.
-function rewriteDatasourceForDocker(
-  datasource: SurfpoolDatasource,
-): SurfpoolDatasource {
-  if (datasource.mode !== SurfpoolDatasourceMode.Fork) {
-    return datasource;
-  }
-
-  const url = new URL(datasource.rpcUrl);
-  if (!LOOPBACK_HOSTNAMES.has(url.hostname)) {
-    return datasource;
-  }
-
-  url.hostname = DOCKER_INTERNAL_HOST;
-  return { mode: SurfpoolDatasourceMode.Fork, rpcUrl: url.toString() };
+export async function waitForSolanaRpcReady(rpcUrl: string): Promise<void> {
+  const rpc = createRpc(rpcUrl);
+  await waitUntilReady(
+    async () => {
+      const health = await rpc.getHealth().send();
+      assert(health === 'ok', `surfpool RPC not healthy: ${health}`);
+    },
+    { attempts: 60, baseRetryMs: 1000 },
+  );
 }
 
 async function startLocalSurfpool(
@@ -189,80 +225,44 @@ async function startLocalSurfpool(
   };
 }
 
-async function startDockerSurfpool(
-  config: SurfpoolNodeConfig,
-): Promise<SurfpoolNode> {
-  const image = config.image ?? SURFPOOL_IMAGE;
-  const datasource = rewriteDatasourceForDocker(config.datasource);
-  const command = buildSurfpoolArgs(config, datasource, '0.0.0.0');
-
-  const exposedPorts = [config.rpcPort];
-  if (!isNullish(config.wsPort)) {
-    exposedPorts.push(config.wsPort);
-  }
-
-  const builder = new GenericContainer(image)
-    .withEntrypoint(['surfpool'])
-    .withCommand(command)
-    .withExposedPorts(...exposedPorts)
-    .withExtraHosts([{ host: DOCKER_INTERNAL_HOST, ipAddress: 'host-gateway' }])
-    .withWaitStrategy(Wait.forListeningPorts())
-    .withStartupTimeout(120_000);
-
-  const container: StartedTestContainer = await retryAsync(
-    () => builder.start(),
-    3,
-    5000,
-  );
-
-  const rpcUrl = `http://${container.getHost()}:${container.getMappedPort(config.rpcPort)}`;
-
-  return {
-    rpcUrl,
-    kill() {
-      if (config.keepRunning) {
-        return;
-      }
-      void container.stop().catch((error) => {
-        logger.debug({ err: error }, 'surfpool container stop failed');
-      });
-    },
-  };
-}
-
-async function waitForSolanaRpcReady(rpcUrl: string): Promise<void> {
-  const rpc = createRpc(rpcUrl);
-  await waitUntilReady(
-    async () => {
-      const health = await rpc.getHealth().send();
-      assert(health === 'ok', `surfpool RPC not healthy: ${health}`);
-    },
-    { attempts: 60, baseRetryMs: 1000 },
-  );
-}
-
 /**
- * Starts a surfpool node and waits for its RPC to be ready. Prefers a local
- * `surfpool` binary if present on PATH, otherwise falls back to a Docker image
- * via testcontainers.
+ * Starts a surfpool node from a locally-installed `surfpool` binary (version
+ * {@link SURFPOOL_MIN_VERSION} or newer) and waits for its RPC to be ready.
+ * Throws with install guidance if no compatible binary is found.
  */
 export async function runSurfpoolNode(
   config: SurfpoolNodeConfig,
 ): Promise<SurfpoolNode> {
-  const localBinary = config.binaryPath ?? findSurfpool();
+  const min = parseVersion(SURFPOOL_MIN_VERSION);
+  assert(min, `Invalid SURFPOOL_MIN_VERSION: ${SURFPOOL_MIN_VERSION}`);
 
-  let node: SurfpoolNode;
-  if (localBinary) {
-    logger.info(`Using local surfpool binary: ${localBinary}`);
-    node = await startLocalSurfpool(config, localBinary);
-  } else {
-    logger.info(
-      `Using Docker image for surfpool: ${config.image ?? SURFPOOL_IMAGE}`,
-    );
-    node = await startDockerSurfpool(config);
-  }
+  const candidates = config.binaryPath
+    ? [
+        {
+          path: config.binaryPath,
+          version: getSurfpoolVersion(config.binaryPath) ?? 'unknown',
+        },
+      ]
+    : findSurfpoolCandidates();
 
+  const match = candidates.find((candidate) => {
+    const parsed = parseVersion(candidate.version);
+    return parsed !== null && meetsMinVersion(parsed, min);
+  });
+
+  assert(
+    match,
+    candidates.length === 0
+      ? `surfpool ${SURFPOOL_MIN_VERSION}+ is required but no surfpool binary was found on PATH. ` +
+          'Install it: curl -sSfL https://run.surfpool.run/ | bash ' +
+          '(or download from https://github.com/txtx/surfpool/releases).'
+      : `surfpool ${SURFPOOL_MIN_VERSION}+ is required but only found version(s) ` +
+          `${candidates.map((c) => c.version).join(', ')}. ` +
+          'Upgrade it: curl -sSfL https://run.surfpool.run/ | bash.',
+  );
+
+  logger.info(`Using local surfpool binary: ${match.path} (v${match.version})`);
+  const node = await startLocalSurfpool(config, match.path);
   await waitForSolanaRpcReady(node.rpcUrl);
-
   return node;
 }

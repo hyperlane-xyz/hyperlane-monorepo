@@ -573,6 +573,14 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
+      - name: Install surfpool
+        if: matrix.test == 'warp-fork'
+        run: |
+          curl -sSfL https://run.surfpool.run/ | bash
+          SURFPOOL_BIN="$(command -v surfpool || find "$HOME" -type f -perm -u+x -name surfpool 2>/dev/null | head -1)"
+          echo "Installed surfpool at: $SURFPOOL_BIN"
+          dirname "$SURFPOOL_BIN" >> "$GITHUB_PATH"
+          "$SURFPOOL_BIN" --version
       - name: CLI sealevel e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:sealevel:e2e
         env:

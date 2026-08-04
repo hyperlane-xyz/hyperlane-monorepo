@@ -21,6 +21,7 @@ import {
   SurfpoolDatasourceMode,
   type SurfpoolAirdrops,
   type SurfpoolNode,
+  type SurfpoolNodeRunner,
   runSurfpoolNode,
 } from './surfpool-node.js';
 
@@ -43,6 +44,8 @@ export interface SvmForkManagerConfig {
   image?: string;
   binaryPath?: string;
   keepRunning?: boolean;
+  /** Node runner; defaults to the local-binary {@link runSurfpoolNode}. */
+  runNode?: SurfpoolNodeRunner;
 }
 
 const base58Encoder = getBase58Encoder();
@@ -59,7 +62,8 @@ class RunningSvmFork {
 async function startSvmFork(
   config: SvmForkManagerConfig,
 ): Promise<RunningSvmFork> {
-  const node = await runSurfpoolNode({
+  const runNode: SurfpoolNodeRunner = config.runNode ?? runSurfpoolNode;
+  const node = await runNode({
     datasource: {
       mode: SurfpoolDatasourceMode.Fork,
       rpcUrl: config.upstreamRpcUrl,

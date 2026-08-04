@@ -17,6 +17,7 @@ import { fetchMultisigIsmAccessControl } from '../ism/ism-query.js';
 import { type SolanaRpcClient, createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 import { TEST_PROGRAM_IDS, airdropSol } from '../testing/setup.js';
+import { runSurfpoolContainer } from '../testing/surfpool-container.js';
 
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
@@ -99,6 +100,7 @@ describe('SvmForkManager fork replay e2e', function () {
       chainName: 'sealeveltest',
       upstreamRpcUrl: TEST_SVM_CHAIN_METADATA.rpcUrl,
       rpcPort: FORK_RPC_PORT,
+      runNode: runSurfpoolContainer,
     });
     await manager.start();
 

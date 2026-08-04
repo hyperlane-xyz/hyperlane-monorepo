@@ -6,9 +6,9 @@ import { assert, pollAsync } from '@hyperlane-xyz/utils';
 import {
   SurfpoolDatasourceMode,
   type SurfpoolNode,
-  runSurfpoolNode,
 } from '../fork/surfpool-node.js';
 import { createRpc } from '../rpc.js';
+import { runSurfpoolContainer } from '../testing/surfpool-container.js';
 
 const OFFLINE_RPC_PORT = 8899;
 
@@ -22,7 +22,7 @@ describe('surfpool offline node e2e', function () {
   });
 
   it('boots an offline surfpool node and serves a healthy Solana RPC', async () => {
-    node = await runSurfpoolNode({
+    node = await runSurfpoolContainer({
       datasource: { mode: SurfpoolDatasourceMode.Offline },
       rpcPort: OFFLINE_RPC_PORT,
     });
