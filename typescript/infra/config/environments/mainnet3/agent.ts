@@ -457,6 +457,10 @@ const contextBase = {
   aws: {
     region: 'us-east-1',
   },
+  gcp: {
+    project: 'abacus-labs-dev',
+    location: 'us-east1',
+  },
   sealevel: {
     priorityFeeOracleConfigGetter: sealevelPriorityFeeOracleConfigGetter,
     transactionSubmitterConfigGetter: sealevelTransactionSubmitterConfigGetter,

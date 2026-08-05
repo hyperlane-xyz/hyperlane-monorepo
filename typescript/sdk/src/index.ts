@@ -427,6 +427,7 @@ export {
   AgentSealevelUrReveal,
   AgentSigner,
   AgentSignerAwsKey,
+  AgentSignerGcpKey,
   AgentSignerHexKey,
   AgentSignerKeyType,
   AgentSignerNode,

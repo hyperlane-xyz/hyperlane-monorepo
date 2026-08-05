@@ -10,7 +10,13 @@ import { isEVMLike } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../../config/registry.js';
 import { ValidatorAgentAwsUser } from '../../agents/aws/validator-user.js';
+import { AgentGcpKmsKey } from '../../agents/gcp-kms/kms-key.js';
+import { ValidatorAgentGcpUser } from '../../agents/gcp-kms/validator-user.js';
 import { Role } from '../../roles.js';
+import {
+  createGcsBucketIfNotExists,
+  grantPublicReadOnBucketIfNotExists,
+} from '../../utils/gcloud.js';
 import { HelmStatefulSetValues } from '../infrastructure.js';
 
 import {
@@ -98,8 +104,10 @@ export type GcsCheckpointSyncerConfig = {
   type: typeof CheckpointSyncerType.Gcs;
   bucket: string;
   folder?: string;
-  service_account_key?: string;
-  user_secrets?: string;
+  serviceAccountKey?: string;
+  userSecrets?: string;
+  // Ambient credentials (GKE Workload Identity) instead of a key file/secret.
+  useApplicationDefault?: boolean;
 };
 
 export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
@@ -149,8 +157,45 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
 
     let validator: KeyConfig = { type: AgentSignerKeyType.Hex };
     let chainSigner: KeyConfig | undefined = undefined;
+    let checkpointSyncer: CheckpointSyncerConfig = cfg.checkpointSyncer;
 
-    if (cfg.checkpointSyncer.type == CheckpointSyncerType.S3) {
+    if (this.gcp) {
+      // Key/bucket are per validator index, shared across chains via a folder
+      // prefix (see AgentGcpKmsKey); the GSA granted access to them is scoped
+      // per release/chain instead (see ValidatorAgentGcpUser).
+      const bucketName = `${this.context}-${this.runEnv}-validator-${idx}`;
+      await createGcsBucketIfNotExists(
+        this.gcp.project,
+        this.gcp.location,
+        bucketName,
+      );
+      await grantPublicReadOnBucketIfNotExists(bucketName);
+
+      const gcpKey = new AgentGcpKmsKey(this, this.role, idx);
+      await gcpKey.createIfNotExists();
+
+      const gcpUser = new ValidatorAgentGcpUser(
+        this.runEnv,
+        this.context,
+        this.chainName,
+        this.gcp.project,
+      );
+      await gcpUser.createServiceAccountIfNotExists();
+      await gcpUser.grantAccessForIndex(gcpKey, bucketName);
+
+      validator = gcpKey.keyConfig;
+      checkpointSyncer = {
+        type: CheckpointSyncerType.Gcs,
+        bucket: bucketName,
+        folder: this.chainName,
+        useApplicationDefault: true,
+      };
+
+      // Mirrors the AWS path below — EVM-like chains only.
+      if (isEVMLike(protocol)) {
+        chainSigner = validator;
+      }
+    } else if (cfg.checkpointSyncer.type == CheckpointSyncerType.S3) {
       const awsUser = new ValidatorAgentAwsUser(
         this.runEnv,
         this.context,
@@ -176,13 +221,13 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
       );
     }
 
-    // If the chainSigner isn't set to the AWS-based key above, then set the default.
+    // If the chainSigner isn't set to the AWS/GCP-based key above, then set the default.
     if (chainSigner === undefined) {
       chainSigner = defaultChainSignerKeyConfig(this.chainName);
     }
 
     return {
-      checkpointSyncer: cfg.checkpointSyncer,
+      checkpointSyncer,
       validator,
       chainSigner,
     };
