@@ -607,16 +607,11 @@ pnpm --silent -C typescript/cli hyperlane warp deploy \
 - RPC errors → check the chain's RPC URL in the registry
 - Key not set → confirm the env variable is exported in the shell
 
-### 8c: Multi-RPC failure modes (and the mandatory cleanup gate)
+### 8c: Chain-metadata cushions (apply BEFORE 8b) and orphaned contracts
 
-Two deploy failures come from read-after-write lag across a chain's load-balanced private RPCs, NOT from a real problem — recognize them so you don't chase a phantom or re-fund unnecessarily:
+Two deploy failures — stale-gas OOG on a proxy `initialize`, and a confirmation-timeout on a tx that actually landed — are false positives caused by local chain metadata tuned for reads rather than for a run that lands transactions. Both are preventable up front. **Apply the cushions per `/warp-chain-metadata-cushions` before running 8b**, and honor that skill's mandatory cleanup gate (restore the values, verify `git -C $HYPERLANE_REGISTRY diff` is clean) once the deploy finishes — green or failed.
 
-- **Stale-gas OOG on the proxy `initialize`.** A fresh impl deploys, then `initialize` is gas-estimated against an RPC replica that hasn't indexed the new contract yet → it returns an EOA-sized (~25k) estimate and the tx runs out of gas. Signature: OOG on `initialize` right after a successful impl deploy, on opstack / multi-RPC chains (base, optimism). Fix: pin the affected chain to a single RPC in the local registry metadata for the duration of the deploy.
-- **Confirmation-timeout on a tx that actually landed.** `Timeout (Xms) waiting for N block confirmations for tx 0x…` where the tx already succeeded on-chain (check the receipt: `status: 1`). Root cause: the CLI's confirmation budget is `confirmations × estimateBlockTime × 2`, as low as ~6s on chains whose registry `estimateBlockTime` is 3s (bsc, tron). Fix: raise `estimateBlockTime` in the local registry metadata for those chains (e.g. eth 13→45, bsc/tron 3→30). This survives the GCP RPC-override merge, unlike re-pinning RPCs — do NOT re-pin RPCs for this one.
-
-**Prevent, don't just react.** A mid-deploy abort burns gas and forces a fresh re-run, so apply these cushions up front rather than waiting for the signature: before deploying, pin a single premium RPC per chain on opstack / multi-RPC chains (base, optimism), and raise `estimateBlockTime` on short-block / confirmation-timeout-prone chains (ethereum, bsc, tron) so the `confirmations × estimateBlockTime × 2` budget isn't razor-thin. These are the same edits described above and fall under the same cleanup gate.
-
-**Cleanup gate (mandatory).** Any single-RPC pin or `estimateBlockTime` bump above is a LOCAL registry edit. After a green deploy, **restore the original values and confirm `git -C $HYPERLANE_REGISTRY diff` is clean** before moving on — a left-behind override silently drifts the local registry from canonical for every later run.
+A mid-deploy abort burns gas and forces a fresh re-run, so do not wait for the failure signature to appear before cushioning.
 
 **Orphaned contracts on a failed deploy.** The `<chains>-config.yaml` is written only on FULL success, so a mid-deploy failure leaves the already-deployed contracts orphaned on chain (and the deployer nonce advanced). A clean re-run picks fresh addresses — do NOT try to salvage partial addresses; fix the cause, re-run, and note the burnt gas.
 

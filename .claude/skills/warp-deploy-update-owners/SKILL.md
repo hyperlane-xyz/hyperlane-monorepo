@@ -131,6 +131,8 @@ Write the updated deploy.yaml back to the registry path. Show the user the diff 
 
 First, start the HTTP registry per `/start-http-registry` **with `--writeMode`** (warp apply persists newly-deployed contract addresses back through the server). Note the port (typically `3333`) and the background task ID — needed to stop the server after this step.
 
+Apply the chain-metadata cushions per `/warp-chain-metadata-cushions` before running the apply, and honor its cleanup gate afterwards. The deploy's cushions were restored by its own cleanup gate, so they are not still in place here — and a confirmation-timeout mid-apply leaves ownership transferred on some chains and not others.
+
 Assemble the warp apply command. Use only the HTTP registry — started with `--writeMode` so it handles both private RPC reads and writes. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the canonical key-value expansion legend in `/warp-key-value-expansion`). Supply **one `--key.<protocol>` for every protocol in the route** — don't assume ethereum, and don't drop one: a missing protocol key silently leaves that protocol's ownership transfers unsigned (e.g. omitting `--key.tron` leaves the Tron router + fee contracts still owned by the deployer while the run reports success).
 
 ```bash

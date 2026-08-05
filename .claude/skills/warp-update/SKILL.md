@@ -316,7 +316,7 @@ After approval, run it. Show the full output.
 - Deployer key not funded → re-run Step 5
 - Strategy chain not in deploy.yaml → verify all chains in the strategy match the deploy.yaml
 - ICA owner mismatch → re-run `/warp-update-resolve-artifacts` and confirm the resolved owners match what the deploy.yaml expects
-- Stale-gas OOG on `initialize`, or a confirmation-timeout on a tx that already landed (`status: 1`) → multi-RPC read-after-write / short-confirmation-budget artifacts, not real failures. Apply the same cushions a deploy uses: pin a single premium RPC for opstack/multi-RPC chains, and/or raise `estimateBlockTime` in the local registry metadata for short-block chains (ethereum, bsc, tron) so the `confirmations × estimateBlockTime × 2` budget isn't razor-thin — then restore per the cleanup gate. Full mechanism in `/warp-deploy-init-route` §8c.
+- Stale-gas OOG on `initialize`, or a confirmation-timeout on a tx that already landed (`status: 1`) → multi-RPC read-after-write / short-confirmation-budget artifacts, not real failures. Apply the cushions per `/warp-chain-metadata-cushions` up front, and restore per its cleanup gate.
 
 ---
 

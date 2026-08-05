@@ -529,7 +529,7 @@ Show the user the PR URL.
 - The `file` submitter for Sealevel chains writes raw transactions — the customer executes these with their Solana CLI or tooling.
 - After this skill, run `/warp-deploy-register-route` once the registry PR is merged to update warpIds.ts and agent config.
 - **`warp apply` re-runs corrupt deploy.yaml owners (bug, fixed in monorepo):** `runWarpRouteApply` previously set ALL chain owners to the deployer in `intermediateOwnerConfig` and wrote that back to the registry — meaning a second run would generate `transferOwnership(deployer)` for every existing chain. The fix scopes this override to new chains only. If working with an older CLI, always check for unexpected `transferOwnership` calls after running (see Step 9c).
-- **Multi-RPC failure modes on the new-chain deploy:** a stale-gas OOG on `initialize`, or a confirmation-timeout on a tx that already landed (`status: 1`), are read-after-write / short-confirmation-budget artifacts, not real failures. Apply the same cushions a fresh deploy uses — pin a single premium RPC for opstack/multi-RPC chains, and/or raise `estimateBlockTime` in the local registry metadata for short-block chains (ethereum, bsc, tron), then restore per the cleanup gate. Full mechanism in `/warp-deploy-init-route` §8c.
+- **Multi-RPC failure modes on the new-chain deploy:** a stale-gas OOG on `initialize`, or a confirmation-timeout on a tx that already landed (`status: 1`), are read-after-write / short-confirmation-budget artifacts, not real failures. Apply the cushions per `/warp-chain-metadata-cushions` up front, and restore per its cleanup gate.
 
 ### Tron-specific notes
 
