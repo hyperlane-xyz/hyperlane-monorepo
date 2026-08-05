@@ -12,6 +12,7 @@ async-trait.workspace = true
 axum.workspace = true
 aws-config.workspace = true
 aws-sdk-s3.workspace = true
+aws-smithy-http-client = { version = "1", default-features = false, features = ["hyper-014"] }
 bs58.workspace = true
 color-eyre = { workspace = true, optional = true }
 config.workspace = true
@@ -68,6 +69,8 @@ hyperlane-starknet = { path = "../chains/hyperlane-starknet" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 hyperlane-radix = { path = "../chains/hyperlane-radix" }
 hyperlane-tron = { path = "../chains/hyperlane-tron" }
+hyper.workspace = true
+hyper-rustls.workspace = true
 
 # dependency version is determined by etheres
 rusoto_core = "*"
@@ -75,9 +78,7 @@ rusoto_kms = "*"
 rusoto_sts = "*"
 
 [dev-dependencies]
-aws-smithy-http-client = { version = "1", default-features = false, features = ["hyper-014"] }
 color-eyre.workspace = true
-hyper = "0.14"
 reqwest.workspace = true
 tempfile.workspace = true
 tracing-test.workspace = true

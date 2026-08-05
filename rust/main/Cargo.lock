@@ -6095,6 +6095,7 @@ dependencies = [
  "futures",
  "futures-util",
  "hyper 0.14.30",
+ "hyper-rustls 0.24.2",
  "hyperlane-aleo",
  "hyperlane-core",
  "hyperlane-cosmos",

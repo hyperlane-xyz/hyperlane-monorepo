@@ -641,6 +641,48 @@ export const ScraperAgentConfigSchema = AgentConfigSchema.extend({
 
 export type ScraperConfig = z.infer<typeof ScraperAgentConfigSchema>;
 
+const S3CheckpointSyncerSchema = z
+  .object({
+    type: z.literal('s3'),
+    bucket: z.string().min(1),
+    region: z.string().min(1),
+    folder: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'The folder/key-prefix to use, defaults to the root of the bucket',
+      ),
+    endpoint: z
+      .string()
+      .url()
+      .optional()
+      .describe('The endpoint for an S3-compatible object store'),
+    forcePathStyle: z
+      .boolean()
+      .optional()
+      .describe('Whether to force path-style bucket addressing'),
+  })
+  .and(
+    z.union([
+      z.object({
+        accessKeyId: z
+          .string()
+          .min(1)
+          .describe('An access key scoped to this S3 checkpoint syncer'),
+        secretAccessKey: z
+          .string()
+          .min(1)
+          .describe('A secret key scoped to this S3 checkpoint syncer'),
+      }),
+      z.object({
+        accessKeyId: z.never().optional(),
+        secretAccessKey: z.never().optional(),
+      }),
+    ]),
+  )
+  .describe('A checkpoint syncer that uses S3');
+
 export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
   db: z
     .string()
@@ -652,27 +694,14 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
     .min(1)
     .describe('Name of the chain to validate messages on'),
   validator: AgentSignerSchema.describe('The validator attestation signer'),
-  checkpointSyncer: z.discriminatedUnion('type', [
+  checkpointSyncer: z.union([
     z
       .object({
         type: z.literal('localStorage'),
         path: z.string().min(1).describe('Path to the local storage location'),
       })
       .describe('A local checkpoint syncer'),
-    z
-      .object({
-        type: z.literal('s3'),
-        bucket: z.string().min(1),
-        region: z.string().min(1),
-        folder: z
-          .string()
-          .min(1)
-          .optional()
-          .describe(
-            'The folder/key-prefix to use, defaults to the root of the bucket',
-          ),
-      })
-      .describe('A checkpoint syncer that uses S3'),
+    S3CheckpointSyncerSchema,
     z
       .object({
         type: z.literal('gcs'),

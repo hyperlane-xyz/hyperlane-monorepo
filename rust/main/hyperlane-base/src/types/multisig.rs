@@ -516,7 +516,13 @@ mod test {
         let syncers = validators
             .iter()
             .map(|(address, (bucket, region))| {
-                let syncer = S3Storage::new(bucket.clone(), None, region.clone(), None);
+                let syncer = S3Storage::new(
+                    bucket.clone(),
+                    None,
+                    region.clone(),
+                    Default::default(),
+                    None,
+                );
                 (
                     H160::from_str(address).unwrap(),
                     Arc::new(syncer) as Arc<dyn CheckpointSyncer>,

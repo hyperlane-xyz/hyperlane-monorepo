@@ -5,13 +5,14 @@ use core::str::FromStr;
 use eyre::{eyre, Report, Result};
 use prometheus::IntGauge;
 use tracing::error;
+use url::Url;
 use ya_gcp::{AuthFlow, ServiceAccountAuth};
 
 use hyperlane_core::{ChainCommunicationError, ReorgEventResponse};
 
 use crate::{
-    CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, S3Storage, GCS_SERVICE_ACCOUNT_KEY,
-    GCS_USER_SECRET,
+    CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, S3ClientConfig, S3Credentials,
+    S3Storage, GCS_SERVICE_ACCOUNT_KEY, GCS_USER_SECRET,
 };
 
 /// Checkpoint Syncer types
@@ -30,6 +31,14 @@ pub enum CheckpointSyncerConf {
         folder: Option<String>,
         /// S3 Region
         region: Region,
+        /// Optional endpoint for an S3-compatible object store
+        endpoint: Option<String>,
+        /// Whether to force path-style bucket addressing
+        force_path_style: Option<bool>,
+        /// Optional credentials scoped to this S3 client
+        credentials: Option<S3Credentials>,
+        /// Whether the endpoint came from an untrusted validator announcement
+        endpoint_is_announced: bool,
     },
     /// A checkpoint syncer on Google Cloud Storage
     Gcs {
@@ -63,23 +72,79 @@ impl FromStr for CheckpointSyncerConf {
     type Err = Report;
 
     fn from_str(s: &str) -> Result<Self> {
-        let [prefix, suffix]: [&str; 2] =
-            s.split("://").collect::<Vec<_>>().try_into().map_err(|_| {
-                eyre!("Error parsing storage location; could not split prefix and suffix ({s})")
-            })?;
+        let (prefix, suffix) = s.split_once("://").ok_or_else(|| {
+            eyre!("Error parsing storage location; could not split prefix and suffix ({s})")
+        })?;
 
         match prefix {
-            "s3" => {
-                let url_components = suffix.split('/').collect::<Vec<&str>>();
-                let (bucket, region, folder): (&str, &str, Option<String>) = match url_components.len() {
-                    2 => Ok((url_components[0], url_components[1], None)),
-                    3 .. => Ok((url_components[0], url_components[1], Some(url_components[2..].join("/")))),
-                    _ => Err(eyre!("Error parsing storage location; could not split bucket, region and folder ({suffix})"))
-                }?;
+            "s3" | "s3+custom" => {
+                let (path, query) = if prefix == "s3+custom" {
+                    let (path, query) = suffix.split_once('?').ok_or_else(|| {
+                        eyre!("Custom S3 storage location is missing endpoint parameters ({s})")
+                    })?;
+                    (path, Some(query))
+                } else {
+                    // Legacy S3 announcements allowed arbitrary raw folder strings,
+                    // including `?`, so only the versioned scheme has query semantics.
+                    (suffix, None)
+                };
+                let url_components = path.split('/').collect::<Vec<&str>>();
+                let (bucket, region, mut folder): (&str, &str, Option<String>) =
+                    match url_components.len() {
+                        2 => Ok((url_components[0], url_components[1], None)),
+                        3.. => Ok((
+                            url_components[0],
+                            url_components[1],
+                            Some(url_components[2..].join("/")),
+                        )),
+                        _ => Err(eyre!(
+                            "Error parsing storage location; could not split bucket, region and folder ({path})"
+                        )),
+                    }?;
+                if prefix == "s3+custom" {
+                    folder = folder
+                        .map(|folder| {
+                            url::form_urlencoded::parse(format!("folder={folder}").as_bytes())
+                                .next()
+                                .map(|(_, value)| value.into_owned())
+                                .ok_or_else(|| {
+                                    eyre!("Invalid encoded folder in S3 storage location ({s})")
+                                })
+                        })
+                        .transpose()?;
+                }
+                let mut endpoint = None;
+                let mut force_path_style = None;
+                if let Some(query) = query {
+                    for (key, value) in url::form_urlencoded::parse(query.as_bytes()) {
+                        match key.as_ref() {
+                            "endpoint" if endpoint.is_none() => {
+                                validate_announced_s3_endpoint(&value)?;
+                                endpoint = Some(value.into_owned());
+                            }
+                            "forcePathStyle" if force_path_style.is_none() => {
+                                force_path_style = Some(value.parse().map_err(|_| {
+                                    eyre!(
+                                        "Invalid forcePathStyle value in S3 storage location ({s})"
+                                    )
+                                })?);
+                            }
+                            _ => {
+                                return Err(eyre!(
+                                "Unknown or duplicate S3 storage location parameter `{key}` ({s})"
+                            ))
+                            }
+                        }
+                    }
+                }
                 Ok(CheckpointSyncerConf::S3 {
                     bucket: bucket.into(),
                     folder,
                     region: aws_config::Region::new(region.to_owned()),
+                    endpoint,
+                    force_path_style,
+                    credentials: None,
+                    endpoint_is_announced: prefix == "s3+custom",
                 })
             }
             "file" => Ok(CheckpointSyncerConf::LocalStorage {
@@ -94,7 +159,9 @@ impl FromStr for CheckpointSyncerConf {
                 let (bucket, folder): (&str, Option<String>) = match url_components.len() {
                     2 => Ok((url_components[0], None)),
                     3 => Ok((url_components[0], Some(url_components[1].to_owned()))),
-                    _ => Err(eyre!("Error parsing storage location; could not split bucket and folder ({suffix})"))
+                    _ => Err(eyre!(
+                        "Error parsing storage location; could not split bucket and folder ({suffix})"
+                    )),
                 }?;
                 match folder {
                     None => Ok(CheckpointSyncerConf::Gcs {
@@ -114,6 +181,56 @@ impl FromStr for CheckpointSyncerConf {
             _ => Err(eyre!("Unknown storage location prefix `{prefix}`")),
         }
     }
+}
+
+fn validate_announced_s3_endpoint(endpoint: &str) -> Result<()> {
+    let url = Url::parse(endpoint)
+        .map_err(|err| eyre!("Invalid announced S3 endpoint `{endpoint}`: {err}"))?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err(eyre!(
+            "Announced S3 endpoint must use http or https ({endpoint})"
+        ));
+    }
+    if !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+        || url.path() != "/"
+    {
+        return Err(eyre!(
+            "Announced S3 endpoint must not contain credentials, a path, query, or fragment ({endpoint})"
+        ));
+    }
+
+    match url.host() {
+        Some(url::Host::Domain(host)) => {
+            let host = host.trim_end_matches('.').to_ascii_lowercase();
+            if !host.contains('.')
+                || host == "localhost"
+                || host.ends_with(".localhost")
+                || host.ends_with(".local")
+                || host.ends_with(".internal")
+            {
+                return Err(eyre!(
+                    "Announced S3 endpoint must not target a local hostname ({endpoint})"
+                ));
+            }
+        }
+        Some(url::Host::Ipv4(address)) if crate::is_public_ip(address.into()) => {}
+        Some(url::Host::Ipv6(address)) if crate::is_public_ip(address.into()) => {}
+        Some(url::Host::Ipv4(_) | url::Host::Ipv6(_)) => {
+            return Err(eyre!(
+                "Announced S3 endpoint must not target a local or private IP address ({endpoint})"
+            ))
+        }
+        None => {
+            return Err(eyre!(
+                "Announced S3 endpoint is missing a host ({endpoint})"
+            ))
+        }
+    }
+
+    Ok(())
 }
 
 impl CheckpointSyncerConf {
@@ -153,10 +270,20 @@ impl CheckpointSyncerConf {
                 bucket,
                 folder,
                 region,
+                endpoint,
+                force_path_style,
+                credentials,
+                endpoint_is_announced,
             } => Box::new(S3Storage::new(
                 bucket.clone(),
                 folder.clone(),
                 region.clone(),
+                S3ClientConfig {
+                    endpoint: endpoint.clone(),
+                    force_path_style: *force_path_style,
+                    credentials: credentials.clone(),
+                    endpoint_is_announced: *endpoint_is_announced,
+                },
                 latest_index_gauge,
             )),
             CheckpointSyncerConf::Gcs {
@@ -292,12 +419,81 @@ mod test {
                 bucket,
                 folder,
                 region,
+                endpoint,
+                force_path_style,
+                credentials,
+                endpoint_is_announced,
             } => {
                 assert_eq!(bucket, "my-bucket");
                 assert_eq!(folder.as_deref(), Some("folder"));
                 assert_eq!(region.as_ref(), "eu-central-2");
+                assert_eq!(endpoint, None);
+                assert_eq!(force_path_style, None);
+                assert!(credentials.is_none());
+                assert!(!endpoint_is_announced);
             }
             _ => panic!("Expected S3 checkpoint syncer"),
         }
+    }
+
+    #[test]
+    fn test_parse_s3_storage_location_with_custom_endpoint() {
+        use super::*;
+
+        let conf = CheckpointSyncerConf::from_str(
+            "s3+custom://my-bucket/nyc3/folder?endpoint=http%3A%2F%2Fs3.example.com%3A9000&forcePathStyle=true",
+        )
+        .unwrap();
+        match conf {
+            CheckpointSyncerConf::S3 {
+                bucket,
+                folder,
+                region,
+                endpoint,
+                force_path_style,
+                credentials,
+                endpoint_is_announced,
+            } => {
+                assert_eq!(bucket, "my-bucket");
+                assert_eq!(folder.as_deref(), Some("folder"));
+                assert_eq!(region.as_ref(), "nyc3");
+                assert_eq!(endpoint.as_deref(), Some("http://s3.example.com:9000"));
+                assert_eq!(force_path_style, Some(true));
+                assert!(credentials.is_none());
+                assert!(endpoint_is_announced);
+            }
+            _ => panic!("Expected S3 checkpoint syncer"),
+        }
+    }
+
+    #[test]
+    fn test_rejects_private_announced_s3_endpoint() {
+        use super::*;
+
+        let err = CheckpointSyncerConf::from_str(
+            "s3+custom://my-bucket/us-east-1?endpoint=http%3A%2F%2F127.0.0.1%3A9000",
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("local or private IP"));
+    }
+
+    #[test]
+    fn test_legacy_s3_folder_preserves_question_mark() {
+        use super::*;
+
+        let conf =
+            CheckpointSyncerConf::from_str("s3://my-bucket/us-east-1/releases?candidate").unwrap();
+        let CheckpointSyncerConf::S3 {
+            folder,
+            endpoint,
+            endpoint_is_announced,
+            ..
+        } = conf
+        else {
+            panic!("Expected S3 checkpoint syncer");
+        };
+        assert_eq!(folder.as_deref(), Some("releases?candidate"));
+        assert!(endpoint.is_none());
+        assert!(!endpoint_is_announced);
     }
 }

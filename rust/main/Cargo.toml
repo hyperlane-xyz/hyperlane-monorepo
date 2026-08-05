@@ -100,6 +100,7 @@ hex-literal = "0.4.1"
 http = "1.2.0"
 http-body-util = "0.1"
 hyper = "0.14"
+hyper-rustls = { version = "0.24", features = ["http2"] }
 hyper-tls = "0.5.0"
 hyperlane-cosmwasm-interface = "=0.0.6-rc6"
 ibc-proto = "0.51.1"
@@ -310,4 +311,3 @@ version = "=0.12.1"
 branch = "hyperlane"
 git = "https://github.com/hyperlane-xyz/parity-common.git"
 version = "=0.5.2"
-

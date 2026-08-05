@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { z } from 'zod';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -8,6 +9,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   AgentChainMetadataSchema,
   RelayerAgentConfigSchema,
+  ValidatorAgentConfigSchema,
   buildAgentConfig,
 } from './agentConfig.js';
 
@@ -156,6 +158,92 @@ describe('AgentChainMetadataSchema additionalQuorumRpcUrls', () => {
     if (result.success) {
       expect(result.data.customAdditionalQuorumRpcUrls).to.be.undefined;
     }
+  });
+});
+
+describe('ValidatorAgentConfigSchema S3 compatibility', () => {
+  function configWithCredentials(credentials: {
+    accessKeyId?: string;
+    secretAccessKey?: string;
+  }) {
+    return {
+      chains: {
+        legacy: {
+          name: 'legacy',
+          domainId: 1000,
+          chainId: 1000,
+          protocol: ProtocolType.Ethereum,
+          rpcUrls: [{ http: 'http://localhost:8545' }],
+          mailbox: '0x0000000000000000000000000000000000000001',
+          interchainGasPaymaster: '0x0000000000000000000000000000000000000002',
+          validatorAnnounce: '0x0000000000000000000000000000000000000003',
+          merkleTreeHook: '0x0000000000000000000000000000000000000004',
+        },
+      },
+      originChainName: 'legacy',
+      validator: {
+        key: `0x${'00'.repeat(32)}`,
+      },
+      checkpointSyncer: {
+        type: 's3',
+        bucket: 'test-bucket',
+        region: 'us-east-1',
+        endpoint: 'http://127.0.0.1:9000',
+        forcePathStyle: true,
+        ...credentials,
+      },
+    };
+  }
+
+  it('preserves endpoint, path-style, and credential options', () => {
+    const result = ValidatorAgentConfigSchema.safeParse(
+      configWithCredentials({
+        accessKeyId: 'test-access-key',
+        secretAccessKey: 'test-secret-key',
+      }),
+    );
+
+    expect(result.success).to.be.true;
+    if (result.success && result.data.checkpointSyncer.type === 's3') {
+      expect(result.data.checkpointSyncer.endpoint).to.equal(
+        'http://127.0.0.1:9000',
+      );
+      expect(result.data.checkpointSyncer.forcePathStyle).to.be.true;
+      expect(result.data.checkpointSyncer.accessKeyId).to.equal(
+        'test-access-key',
+      );
+      expect(result.data.checkpointSyncer.secretAccessKey).to.equal(
+        'test-secret-key',
+      );
+    }
+  });
+
+  it('preserves object composition APIs', () => {
+    const ExtendedValidatorAgentConfigSchema =
+      ValidatorAgentConfigSchema.extend({ label: z.string() });
+
+    expect(
+      ExtendedValidatorAgentConfigSchema.safeParse({
+        ...configWithCredentials({}),
+        label: 'validator',
+      }).success,
+    ).to.be.true;
+  });
+
+  it('rejects accessKeyId without secretAccessKey', () => {
+    expect(
+      ValidatorAgentConfigSchema.safeParse(
+        configWithCredentials({ accessKeyId: 'test-access-key' }),
+      ).success,
+    ).to.be.false;
+  });
+
+  it('rejects secretAccessKey without accessKeyId', () => {
+    expect(
+      ValidatorAgentConfigSchema.safeParse(
+        configWithCredentials({ secretAccessKey: 'test-secret-key' }),
+      ).success,
+    ).to.be.false;
   });
 });
 
