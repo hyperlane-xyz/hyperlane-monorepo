@@ -17,7 +17,7 @@ For a brand-new warp route deployment use `/warp-deploy-init-route`. For adding 
 
 ## Run Log (mandatory)
 
-Open-or-create the run log at entry, then maintain it, per `/warp-run-log` (never assume a previous step created it) — that skill owns the storage contract (Linear-document-by-title primary, single-writer discipline, local-file fallback), the machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-update` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
+Open-or-create the run log at entry, then maintain it, per `/warp-run-log` (never assume a previous step created it) — that skill owns the storage contract, the machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-update` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
 
 **Log at least:** (a) skill entry with the ticket ID + warp route ID + the change types detected, (b) every `[CONFIRM:]` gate — before and after the response, (c) the surgical deploy.yaml edits made, (d) the `warp apply` run (any newly deployed contract addresses + tx/receipt refs), (e) the fork-simulate-verify verdict from `/warp-route-check`, (f) the propose handoff (batch → signer per `/warp-update-propose`), (g) the registry PR URL, (h) skill exit (success or bail-out). Log smooth steps too — success data grounds the retrospective as much as failure data.
 

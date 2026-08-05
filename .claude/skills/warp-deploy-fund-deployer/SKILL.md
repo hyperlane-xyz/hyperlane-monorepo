@@ -9,7 +9,7 @@ You are checking whether a deployer wallet has sufficient funds (gas + collatera
 
 ## Run Log (mandatory)
 
-Open-or-create the run log at entry, then maintain it, per `/warp-run-log` (never assume a previous step created it) — that skill owns the storage contract (Linear-document-by-title primary, single-writer discipline, local-file fallback), the `chain | protocol | shape | floor | actual | verdict` machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-deploy-fund-deployer` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
+Open-or-create the run log at entry, then maintain it, per `/warp-run-log` (never assume a previous step created it) — that skill owns the storage contract, the `chain | protocol | shape | floor | actual | verdict` machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-deploy-fund-deployer` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
 
 **Log at least:** (a) skill entry with the ticket ID + deployer address, (b) every `[CONFIRM:]` gate — before showing it to the user AND after their response, (c) every balance-check result per chain (expected floor vs actual balance, in native token units + USD), (d) every funding-command execution (amount, tx hash, wall-clock), (e) skill exit (success or bail-out). Once the deploy runs and the actual on-chain consumption is known, append a post-hoc row per chain so the next floor revision can compare floor to reality. Log smooth steps too — success data grounds the retrospective as much as failure data.
 

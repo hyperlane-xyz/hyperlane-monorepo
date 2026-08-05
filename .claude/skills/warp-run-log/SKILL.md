@@ -1,6 +1,6 @@
 ---
 name: warp-run-log
-description: Maintain the durable, per-ticket run log that warp deploy/update skills append to at every milestone — a Linear-document-by-title primary with single-writer discipline and a local-file fallback, a machine-parseable per-chain row plus prose entry shape, and a surface-the-URL-as-proof hard gate. Referenced by any warp deploy/update skill that must leave a retrospective trail across worker restarts.
+description: Maintain the durable, per-ticket run log that warp deploy/update skills append to at every milestone — a Linear-document-by-title primary with single-writer discipline, the agent's own durable store as second target and a local-file last resort, a machine-parseable per-chain row plus prose entry shape, and a surface-the-URL-as-proof hard gate. Referenced by any warp deploy/update skill that must leave a retrospective trail across worker restarts.
 ---
 
 # Warp Run Log
@@ -37,7 +37,9 @@ Every milestone must append an entry to a durable, per-ticket run log — durabl
 
 **Single-writer discipline.** Because the append is read-modify-write, two writers appending concurrently silently drop the earlier writer's entry (last-write-wins). Only one process may append to a given run log at any moment: if a subagent needs to record something, either it returns the entry to the parent to append serially, or the parent completes its append before spawning the subagent. Do NOT fan out logging to parallel workers against the same document.
 
-**Fallback — local file.** Only when Linear document tools are unavailable in the current agent context: write to `~/.hyperlane/run-logs/<ticket-id>.md` (create the file on the first entry). Flag the fallback explicitly in the first entry, and note that this file may not survive session-restore; copy it to durable storage (paste into the Linear ticket, upload as an attachment, etc.) at each significant milestone so the retrospective still has data if the worker resets.
+**Second target — the agent's own durable store.** When Linear document tooling isn't available, use whatever append-capable storage this agent has that lives OUTSIDE the worker's filesystem — a persisted document store, notes store, or artifact store — keyed by the ticket ID. Prefer one that appends in place over one that snapshots a whole file per write. Such stores are often scoped to the current conversation or thread: that survives a worker restart or a fresh worker resuming the same thread, but not a move to a new one, so pick the broadest scope offered. The identifier or URL still has to be surfaced per the hard gate above.
+
+**Last resort — local file.** Only when neither of the above exists: write to `~/.hyperlane/run-logs/<ticket-id>.md` (create the file on the first entry). Flag the fallback explicitly in the first entry, and note that this file will not survive the worker being replaced; copy it into durable storage at each significant milestone so the retrospective still has data if the worker resets.
 
 ## Entry shape
 
