@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/cli",
-  "version": "39.1.0",
+  "version": "40.0.0",
   "description": "A command-line utility for common Hyperlane operations",
   "keywords": [
     "CLI",
@@ -26,6 +26,7 @@
   "scripts": {
     "hyperlane": "node ./dist/cli.js",
     "build": "pnpm version:update && NODE_OPTIONS='--max-old-space-size=4096' tsc",
+    "check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --noEmit",
     "bundle": "rm -rf ./bundle && ncc build ./dist/cli.js -o bundle && node ../../scripts/ncc.post-bundle.mjs",
     "dev": "pnpm version:update && tsc --watch",
     "clean": "rm -rf ./dist && rm -rf ./bundle",

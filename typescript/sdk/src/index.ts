@@ -1138,6 +1138,7 @@ export { tokenFeeInputToFeeConfig } from './fee/feeConfigMapping.js';
 export {
   TurnkeyClientManager,
   TurnkeyConfig,
+  TurnkeyConfigSchema,
 } from './signers/turnkeyClient.js';
 export { TurnkeyEvmSigner } from './signers/evm/turnkey.js';
 export { TurnkeySealevelSigner } from './signers/svm/turnkey.js';

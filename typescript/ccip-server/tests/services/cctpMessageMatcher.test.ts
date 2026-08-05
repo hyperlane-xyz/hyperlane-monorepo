@@ -33,11 +33,41 @@ function makeGmpCircleMessage(messageId: string): string {
   return ethers.utils.hexlify(buf);
 }
 
-/** Build a Hyperlane TokenMessage body: recipient(32) + amount(32). */
-function makeTokenBody(recipient: Uint8Array, amount: Uint8Array): Uint8Array {
-  const buf = Buffer.alloc(64);
+/** Build a minimal CctpMessageV1 + BurnMessageV1 Circle message (248 bytes).
+ *  V1 header is 116 bytes, so the burn body offsets are 116 + {36,68,100}. */
+function makeBurnCircleMessageV1(
+  mintRecipient: Uint8Array,
+  amount: Uint8Array,
+  sender: Uint8Array = Buffer.alloc(32, 0x00),
+  nonce = 0,
+): string {
+  const buf = Buffer.alloc(248);
+  buf.writeBigUInt64BE(BigInt(nonce), 12);
+  mintRecipient.forEach((b, i) => (buf[116 + 36 + i] = b)); // 152
+  amount.forEach((b, i) => (buf[116 + 68 + i] = b)); // 184
+  sender.forEach((b, i) => (buf[116 + 100 + i] = b)); // 216
+  return ethers.utils.hexlify(buf);
+}
+
+/** Build a CctpMessageV1 GMP Circle message (exactly 148 bytes).
+ *  Body = messageId at bytes [116, 148). */
+function makeGmpCircleMessageV1(messageId: string): string {
+  const buf = Buffer.alloc(148);
+  const idBytes = ethers.utils.arrayify(messageId);
+  idBytes.forEach((b, i) => (buf[116 + i] = b));
+  return ethers.utils.hexlify(buf);
+}
+
+/** Build a Hyperlane TokenMessage body: recipient(32) + amount(32) + optional V1 nonce(8). */
+function makeTokenBody(
+  recipient: Uint8Array,
+  amount: Uint8Array,
+  nonce?: number,
+): Uint8Array {
+  const buf = Buffer.alloc(nonce === undefined ? 64 : 72);
   recipient.forEach((b, i) => (buf[i] = b));
   amount.forEach((b, i) => (buf[32 + i] = b));
+  if (nonce !== undefined) buf.writeBigUInt64BE(BigInt(nonce), 64);
   return buf;
 }
 
@@ -212,6 +242,100 @@ describe('findMatchingCircleMessage', () => {
           senderA,
         ),
       ).to.equal(ethers.utils.hexlify(burnA));
+    });
+  });
+
+  // Regression coverage for the CCTP V1 multi-MessageSent bug: a V1 tx with
+  // more than one burn (116B header, 248B total) previously matched neither
+  // strategy and returned null, wedging the CCIP-read ISM permanently.
+  describe('CCTP V1 (116-byte header) messages', () => {
+    it('matches the correct V1 burn message among multiple in one tx', () => {
+      const msgA = makeBurnCircleMessageV1(RECIPIENT_A, AMOUNT_A, SENDER_A);
+      const msgB = makeBurnCircleMessageV1(RECIPIENT_B, AMOUNT_B, SENDER_B);
+      const bodyB = makeTokenBody(RECIPIENT_B, AMOUNT_B);
+      expect(
+        findMatchingCircleMessage(
+          [msgA, msgB],
+          bodyB,
+          MESSAGE_ID_B,
+          ethers.utils.hexlify(SENDER_B),
+        ),
+      ).to.equal(msgB);
+    });
+
+    it('disambiguates V1 burns by sender when recipient and amount match', () => {
+      const msgA = makeBurnCircleMessageV1(RECIPIENT_A, AMOUNT_A, SENDER_A);
+      const msgB = makeBurnCircleMessageV1(RECIPIENT_A, AMOUNT_A, SENDER_B);
+      const body = makeTokenBody(RECIPIENT_A, AMOUNT_A);
+      expect(
+        findMatchingCircleMessage(
+          [msgA, msgB],
+          body,
+          MESSAGE_ID_A,
+          ethers.utils.hexlify(SENDER_B),
+        ),
+      ).to.equal(msgB);
+    });
+
+    it('disambiguates otherwise-identical V1 burns by TokenMessage nonce', () => {
+      const firstSibling = makeBurnCircleMessageV1(
+        RECIPIENT_A,
+        AMOUNT_A,
+        SENDER_A,
+        486337,
+      );
+      const target = makeBurnCircleMessageV1(
+        RECIPIENT_A,
+        AMOUNT_A,
+        SENDER_A,
+        486338,
+      );
+      const targetBody = makeTokenBody(RECIPIENT_A, AMOUNT_A, 486338);
+
+      expect(
+        findMatchingCircleMessage(
+          [firstSibling, target],
+          targetBody,
+          MESSAGE_ID_A,
+          ethers.utils.hexlify(SENDER_A),
+        ),
+      ).to.equal(target);
+    });
+
+    it('matches a V1 GMP message (148 bytes) by messageId', () => {
+      const msgA = makeGmpCircleMessageV1(MESSAGE_ID_A);
+      const msgB = makeGmpCircleMessageV1(MESSAGE_ID_B);
+      expect(
+        findMatchingCircleMessage(
+          [msgA, msgB],
+          new Uint8Array(0),
+          MESSAGE_ID_A,
+          SENDER_ZERO_HEX,
+        ),
+      ).to.equal(msgA);
+    });
+
+    it('matches the right burn when V1 and V2 burns share a tx', () => {
+      const v1 = makeBurnCircleMessageV1(RECIPIENT_A, AMOUNT_A, SENDER_A);
+      const v2 = makeBurnCircleMessage(RECIPIENT_B, AMOUNT_B, SENDER_B);
+      const bodyV1 = makeTokenBody(RECIPIENT_A, AMOUNT_A);
+      expect(
+        findMatchingCircleMessage(
+          [v1, v2],
+          bodyV1,
+          MESSAGE_ID_A,
+          ethers.utils.hexlify(SENDER_A),
+        ),
+      ).to.equal(v1);
+      const bodyV2 = makeTokenBody(RECIPIENT_B, AMOUNT_B);
+      expect(
+        findMatchingCircleMessage(
+          [v1, v2],
+          bodyV2,
+          MESSAGE_ID_B,
+          ethers.utils.hexlify(SENDER_B),
+        ),
+      ).to.equal(v2);
     });
   });
 
