@@ -162,8 +162,9 @@ async function main() {
           const latestCheckpoint =
             await validatorInstance.getLatestCheckpointIndex();
           const bucket = validatorInstance.getLatestCheckpointUrl();
+          const ready = latestCheckpoint >= 0;
 
-          if (readyFilter === false) {
+          if (readyFilter !== undefined && readyFilter !== ready) {
             continue;
           }
 
@@ -176,7 +177,7 @@ async function main() {
             alias,
             default: alias ? '✅' : '',
             latest: latestCheckpoint,
-            ready: true,
+            ready,
             bucket,
           };
         } catch (error) {
