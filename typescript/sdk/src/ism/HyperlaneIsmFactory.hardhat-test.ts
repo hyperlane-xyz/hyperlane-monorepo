@@ -2,10 +2,14 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import hre from 'hardhat';
+import sinon from 'sinon';
 
 import {
+  BlacklistIsm,
+  BlacklistIsm__factory,
   DomainRoutingIsm,
   DomainRoutingIsm__factory,
+  TestLegacyBlacklistIsm__factory,
   TrustedRelayerIsm,
 } from '@hyperlane-xyz/core';
 import { Address, WithAddress, randomInt } from '@hyperlane-xyz/utils';
@@ -16,6 +20,9 @@ import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
+import { contractDouble } from '../test/contractDouble.js';
+import { networkError } from '../test/errors.js';
 import {
   randomAddress,
   randomDeployableIsmConfig,
@@ -179,6 +186,26 @@ describe('HyperlaneIsmFactory', async () => {
       );
     }
 
+    // Deploys the contract directly rather than through the factory, so
+    // moduleMatchesConfig can be pointed at the blacklist itself instead of at
+    // an aggregation that would answer from the whole sub-module walk.
+    async function deployBlacklistIsm(
+      owner: Address,
+      blacklistedIds: string[],
+    ): Promise<Address> {
+      const blacklistIsm = await new BlacklistIsm__factory(
+        multiProvider.getSigner(chain),
+      ).deploy(owner);
+      await blacklistIsm.deployTransaction.wait();
+      if (blacklistedIds.length > 0) {
+        await multiProvider.handleTx(
+          chain,
+          blacklistIsm.blacklist(blacklistedIds),
+        );
+      }
+      return blacklistIsm.address;
+    }
+
     it('matches when config ids are permuted, case-shifted or duplicated', async () => {
       const firstId = randomBytes32();
       const secondId = randomBytes32();
@@ -281,6 +308,127 @@ describe('HyperlaneIsmFactory', async () => {
       expect(matches).to.be.false;
     });
 
+    it('does not match when the config ids are unknown', async () => {
+      const owner = await multiProvider.getSignerAddress(chain);
+      const blacklistAddress = await deployBlacklistIsm(owner, [
+        randomBytes32(),
+      ]);
+
+      const matches = await matchesConfig(blacklistAddress, {
+        type: IsmType.BLACKLIST,
+        owner,
+      });
+
+      expect(matches).to.be.false;
+    });
+
+    describe('deployments that predate on-chain enumeration', () => {
+      let sandbox: sinon.SinonSandbox;
+
+      beforeEach(() => {
+        sandbox = sinon.createSandbox();
+        // The test chain metadata declares an Etherscan explorer with a
+        // placeholder API key, which would send the log reader to the live
+        // Etherscan API before falling back to the RPC.
+        sandbox.stub(multiProvider, 'tryGetEvmExplorerMetadata').returns(null);
+      });
+
+      afterEach(() => {
+        sandbox.restore();
+      });
+
+      async function deployLegacyIsm(
+        owner: Address,
+        blacklistedIds: string[],
+      ): Promise<Address> {
+        const legacyIsm = await new TestLegacyBlacklistIsm__factory(
+          multiProvider.getSigner(chain),
+        ).deploy(owner);
+        await legacyIsm.deployTransaction.wait();
+        await multiProvider.handleTx(
+          chain,
+          legacyIsm.blacklist(blacklistedIds),
+        );
+        return legacyIsm.address;
+      }
+
+      it('matches when the replayed ids equal the config', async () => {
+        const owner = await multiProvider.getSignerAddress(chain);
+        const blacklistedId = randomBytes32();
+        const legacyAddress = await deployLegacyIsm(owner, [blacklistedId]);
+
+        const matches = await matchesConfig(legacyAddress, {
+          type: IsmType.BLACKLIST,
+          owner,
+          blacklistedIds: [blacklistedId],
+        });
+
+        expect(matches).to.be.true;
+      });
+
+      it('does not match when the replayed ids differ from the config', async () => {
+        const owner = await multiProvider.getSignerAddress(chain);
+        const legacyAddress = await deployLegacyIsm(owner, [randomBytes32()]);
+
+        const matches = await matchesConfig(legacyAddress, {
+          type: IsmType.BLACKLIST,
+          owner,
+          blacklistedIds: [randomBytes32()],
+        });
+
+        expect(matches).to.be.false;
+      });
+
+      it('does not match when the ids cannot be replayed', async () => {
+        const owner = await multiProvider.getSignerAddress(chain);
+        const blacklistedId = randomBytes32();
+        const legacyAddress = await deployLegacyIsm(owner, [blacklistedId]);
+        sandbox
+          .stub(EvmEventLogsReader.prototype, 'getLogsByTopic')
+          .rejects(networkError());
+
+        const matches = await matchesConfig(legacyAddress, {
+          type: IsmType.BLACKLIST,
+          owner,
+          blacklistedIds: [blacklistedId],
+        });
+
+        expect(matches).to.be.false;
+      });
+    });
+
+    it('propagates transient failures of the enumeration probe', async () => {
+      const owner = await multiProvider.getSignerAddress(chain);
+      const blacklistedId = randomBytes32();
+      const blacklistAddress = await deployBlacklistIsm(owner, [blacklistedId]);
+
+      const sandbox = sinon.createSandbox();
+      const transientError = networkError();
+      // `moduleType()` still resolves through the real contract; only the
+      // Blacklist ABI is doubled so `values()` fails transiently.
+      sandbox.stub(BlacklistIsm__factory, 'connect').returns(
+        contractDouble<BlacklistIsm>({
+          owner: sandbox.stub().resolves(owner),
+          values: sandbox.stub().rejects(transientError),
+        }),
+      );
+
+      let thrown: unknown;
+      try {
+        await matchesConfig(blacklistAddress, {
+          type: IsmType.BLACKLIST,
+          owner,
+          blacklistedIds: [blacklistedId],
+        });
+      } catch (error) {
+        thrown = error;
+      } finally {
+        sandbox.restore();
+      }
+
+      expect(thrown).to.equal(transientError);
+    });
+
     it('rejects a standalone blacklist deploy at the public boundary', async () => {
       const owner = await multiProvider.getSignerAddress(chain);
 
@@ -296,6 +444,17 @@ describe('HyperlaneIsmFactory', async () => {
       ).to.be.rejectedWith(
         'A blacklist ISM must be a member of an aggregation whose threshold equals its module count',
       );
+    });
+
+    it('refuses to deploy without an explicit blacklistedIds list', async () => {
+      const owner = await multiProvider.getSignerAddress(chain);
+
+      await expect(
+        ismFactory.deploy({
+          destination: chain,
+          config: aggregationOf({ type: IsmType.BLACKLIST, owner }),
+        }),
+      ).to.be.rejectedWith('without an explicit blacklistedIds list');
     });
   });
 

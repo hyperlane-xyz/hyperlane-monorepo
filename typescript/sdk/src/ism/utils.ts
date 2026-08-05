@@ -1,4 +1,5 @@
 import { ethers, utils } from 'ethers';
+import { getAbiItem, parseEventLogs, toEventSelector } from 'viem';
 
 import {
   AbstractStorageMultisigIsm__factory,
@@ -33,7 +34,10 @@ import { HyperlaneContracts } from '../contracts/types.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
+import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
+import { ChainName, ChainNameOrId } from '../types.js';
+import { throwIfNotMissingSelector } from '../utils/contract.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import {
@@ -49,6 +53,88 @@ import {
 } from './types.js';
 
 const logger = rootLogger.child({ module: 'IsmUtils' });
+
+const MESSAGE_BLACKLISTED_EVENT_SELECTOR = toEventSelector(
+  getAbiItem({
+    abi: BlacklistIsm__factory.abi,
+    name: 'MessageBlacklisted',
+  }),
+);
+
+// Etherscan-like explorers cap `logs/getLogs` at this many records and report a
+// capped page with a success status, so a response of exactly this size cannot
+// be distinguished from a truncated one.
+const EXPLORER_LOGS_PAGE_SIZE = 1000;
+
+/**
+ * Reads the blacklisted message IDs of a Blacklist ISM.
+ *
+ * Deployments that predate on-chain enumeration expose no `values()`; for those
+ * the set is replayed from `MessageBlacklisted` logs, which is exact because
+ * entries are append-only. Those deployments also emit on re-adds, hence the
+ * de-duplication.
+ *
+ * Returns undefined when the set cannot be established, never a partial list: a
+ * truncated set would be diffed as "these IDs are missing on-chain" and could be
+ * written back as the complete set. Errors that are not a missing `values()`
+ * selector propagate, so a transient RPC failure is never read as a legacy
+ * deployment.
+ */
+export async function readBlacklistedIds(
+  chain: ChainNameOrId,
+  address: Address,
+  multiProvider: MultiProvider,
+  eventLogsReader?: EvmEventLogsReader,
+): Promise<string[] | undefined> {
+  const blacklistIsm = BlacklistIsm__factory.connect(
+    address,
+    multiProvider.getProvider(chain),
+  );
+
+  try {
+    return [...(await blacklistIsm.values())];
+  } catch (error) {
+    throwIfNotMissingSelector(error);
+    logger.debug(
+      { chain, address },
+      'Error accessing "values" property, implying this is a Blacklist ISM that predates on-chain enumeration.',
+    );
+  }
+
+  const logsReader =
+    eventLogsReader ?? EvmEventLogsReader.fromConfig({ chain }, multiProvider);
+
+  try {
+    const logs = await logsReader.getLogsByTopic({
+      contractAddress: address,
+      eventTopic: MESSAGE_BLACKLISTED_EVENT_SELECTOR,
+    });
+
+    if (logs.length >= EXPLORER_LOGS_PAGE_SIZE) {
+      logger.warn(
+        { chain, address, logCount: logs.length },
+        'Blacklist ISM log replay filled an explorer page and cannot be proven complete; reporting the set as unknown.',
+      );
+      return undefined;
+    }
+
+    const events = parseEventLogs({
+      abi: BlacklistIsm__factory.abi,
+      eventName: 'MessageBlacklisted',
+      logs: logs.map(viemLogFromGetEventLogsResponse),
+    });
+
+    return [
+      ...new Set(events.map((event) => event.args.messageId.toLowerCase())),
+    ].sort();
+  } catch (error) {
+    logger.warn(
+      { chain, address, error },
+      'Failed to rebuild the blacklisted ID set from logs; reporting it as unknown.',
+    );
+    return undefined;
+  }
+}
 
 // Determines the domains to enroll and unenroll to update the current ISM config
 // to match the target ISM config.
@@ -229,6 +315,9 @@ export async function moduleCanCertainlyVerify(
         // BlacklistIsm.verify returns false for a blacklisted message ID, so
         // this helper can only guarantee verification when the sample message
         // is not itself blacklisted.
+        if (destModule.blacklistedIds === undefined) {
+          return false;
+        }
         const sampleId = messageId(message).toLowerCase();
         return !destModule.blacklistedIds.some(
           (id) => id.toLowerCase() === sampleId,
@@ -514,11 +603,26 @@ export async function moduleMatchesConfig(
         moduleAddress,
         provider,
       );
-      const [owner, onChainIds] = await Promise.all([
-        blacklistIsm.owner(),
-        blacklistIsm.values(),
-      ]);
+      const owner = await blacklistIsm.owner();
       matches &&= eqAddress(owner, config.owner);
+
+      // An unspecified target set cannot be proven equal to what is on-chain.
+      if (config.blacklistedIds === undefined) {
+        return false;
+      }
+
+      // Same enumeration the reader uses, so a deployment that reads back as
+      // matching here also converges to zero transactions in EvmIsmModule.
+      const onChainIds = await readBlacklistedIds(
+        chain,
+        moduleAddress,
+        multiProvider,
+      );
+      // A set that cannot be established cannot be proven equal either.
+      if (onChainIds === undefined) {
+        return false;
+      }
+
       // Entries are append-only on-chain, so any on-chain ID missing from the
       // config makes the config unreachable: require exact set equality.
       const normalizeIds = (ids: readonly string[]) =>

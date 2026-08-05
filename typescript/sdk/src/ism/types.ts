@@ -357,7 +357,10 @@ export const TrustedRelayerIsmConfigSchema = z.object({
 
 export const BlacklistIsmConfigSchema = OwnableSchema.extend({
   type: z.literal(IsmType.BLACKLIST),
-  blacklistedIds: z.array(ZBytes32String),
+  // Absent when the deployed ISM predates `values()` and its entries could not
+  // be recovered from event logs; an absent set is never equivalent to an empty
+  // one.
+  blacklistedIds: z.array(ZBytes32String).optional(),
 });
 
 export const RateLimitedIsmConfigSchema = z

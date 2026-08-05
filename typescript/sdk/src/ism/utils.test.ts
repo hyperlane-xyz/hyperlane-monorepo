@@ -100,5 +100,21 @@ describe('ism utils', () => {
 
       expect(result).to.be.true;
     });
+
+    it('returns false when the blacklisted ids are unknown', async () => {
+      const config: BlacklistIsmConfig = {
+        type: IsmType.BLACKLIST,
+        owner: randomAddress(),
+      };
+
+      const result = await moduleCanCertainlyVerify(
+        config,
+        multiProvider,
+        origin,
+        destination,
+      );
+
+      expect(result).to.be.false;
+    });
   });
 });

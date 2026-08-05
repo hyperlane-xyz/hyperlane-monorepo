@@ -7,6 +7,7 @@ import { RATE_LIMIT_DEFAULT_DURATION_SECONDS } from '../types.js';
 
 import {
   AggregationIsmConfigSchema,
+  BlacklistIsmConfigSchema,
   type CompositeIsmConfig,
   CompositeIsmConfigSchema,
   IsmConfigSchema,
@@ -489,6 +490,12 @@ describe('BlacklistIsmConfigSchema composition', () => {
     owner: SOME_ADDRESS,
     blacklistedIds: [],
   };
+  // Mirrors what the reader derives for a deployment whose entries could not
+  // be read back: a blacklist ISM with an unknown ID set.
+  const unenumerableBlacklist = {
+    type: IsmType.BLACKLIST,
+    owner: SOME_ADDRESS,
+  };
   const messageIdMultisig = {
     type: IsmType.MESSAGE_ID_MULTISIG,
     validators: [SOME_ADDRESS],
@@ -743,6 +750,25 @@ describe('BlacklistIsmConfigSchema composition', () => {
           threshold: 1,
         },
       ],
+    };
+
+    const result = IsmConfigSchema.safeParse(config);
+
+    expect(result.success).to.be.true;
+  });
+
+  it('parses a blacklist whose blacklisted ids are unknown', () => {
+    const parsed = BlacklistIsmConfigSchema.parse(unenumerableBlacklist);
+
+    expect(parsed.blacklistedIds).to.be.undefined;
+    expect('blacklistedIds' in parsed).to.be.false;
+  });
+
+  it('accepts a blacklist without blacklisted ids in an exhaustive aggregation', () => {
+    const config = {
+      type: IsmType.AGGREGATION,
+      modules: [messageIdMultisig, unenumerableBlacklist],
+      threshold: 2,
     };
 
     const result = IsmConfigSchema.safeParse(config);
