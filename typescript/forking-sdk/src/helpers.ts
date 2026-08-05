@@ -1,4 +1,4 @@
-import { assert, retryAsync } from '@hyperlane-xyz/utils';
+import { assert, sleep } from '@hyperlane-xyz/utils';
 
 const MAX_PORT = 65535;
 
@@ -29,11 +29,29 @@ export function allocateSequentialPorts(
 }
 
 /**
- * Polls a readiness probe until it resolves or the attempts are exhausted.
+ * Polls a readiness probe on a fixed interval until it resolves or the attempts
+ * are exhausted, rethrowing the last error. Total wait is bounded by
+ * `attempts * baseRetryMs`.
  */
 export async function waitUntilReady(
   probe: () => Promise<unknown>,
   opts?: { attempts?: number; baseRetryMs?: number },
 ): Promise<void> {
-  await retryAsync(probe, opts?.attempts ?? 10, opts?.baseRetryMs ?? 500);
+  const attempts = Math.max(1, opts?.attempts ?? 10);
+  const baseRetryMs = opts?.baseRetryMs ?? 500;
+
+  let lastError: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      await probe();
+      return;
+    } catch (error: unknown) {
+      lastError = error;
+      if (i < attempts - 1) {
+        await sleep(baseRetryMs);
+      }
+    }
+  }
+
+  throw lastError;
 }

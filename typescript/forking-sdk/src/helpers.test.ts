@@ -62,4 +62,32 @@ describe('waitUntilReady', () => {
     expect(threw).to.equal(true);
     expect(calls).to.equal(3);
   });
+
+  it('waits a bounded, linear time rather than backing off exponentially', async () => {
+    const attempts = 10;
+    const baseRetryMs = 2;
+    let calls = 0;
+    let threw = false;
+
+    const start = Date.now();
+    try {
+      await waitUntilReady(
+        () => {
+          calls++;
+          return Promise.reject(new Error('never ready'));
+        },
+        { attempts, baseRetryMs },
+      );
+    } catch (error: unknown) {
+      threw = true;
+      expect(error).to.be.instanceOf(Error);
+    }
+    const elapsed = Date.now() - start;
+
+    expect(threw).to.equal(true);
+    expect(calls).to.equal(attempts);
+    // Linear timing is ~(attempts - 1) * baseRetryMs (~18ms); exponential backoff
+    // would be baseRetryMs * (2 ** attempts - 1) (~2s). Well under that bound.
+    expect(elapsed).to.be.lessThan(300);
+  });
 });
