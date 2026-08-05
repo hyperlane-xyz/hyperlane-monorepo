@@ -17,7 +17,7 @@ Delivery, balances, funding, and the run log are owned by other skills — this 
 ## Inputs
 
 - **Warp route ID** — required.
-- **Deployer key(s) per protocol** (`--key.<protocol>`) — auto-loaded from the key-context artifact like the rest of the deploy chain; see `/warp-key-value-expansion`. Every directed send needs the key for **both** the origin and the destination protocol — see below.
+- **Deployer key(s) per protocol** (`--key.<protocol>`) — auto-loaded from the key-context artifact like the rest of the deploy chain; see `/warp-key-value-expansion`. The origin's key is always needed; the destination's is conditional — see below.
 - **Collateral balances** on each collateral leg's deployer address, enough to seed the mesh.
 
 ## Command
