@@ -32,7 +32,7 @@ The gate is **per-chain**, not per-run. If a prior session already left `ethereu
 
 ## Run Log (mandatory)
 
-Maintain the durable, per-ticket run log per `/warp-run-log` — that skill owns the storage contract (Linear-document-by-title primary, single-writer discipline, local-file fallback), the `chain | protocol | shape | floor | actual | verdict` machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-deploy-init-route` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
+Open-or-create the run log at entry, then maintain it, per `/warp-run-log` (never assume a previous step created it) — that skill owns the storage contract (Linear-document-by-title primary, single-writer discipline, local-file fallback), the `chain | protocol | shape | floor | actual | verdict` machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-deploy-init-route` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
 
 **Log at least:** (a) skill entry with the ticket ID, (b) every `[CONFIRM:]` gate — before showing it to the user AND after their response, (c) every command execution, with expected vs actual (gas amounts, tx hashes, deployed addresses, wall-clock times), (d) skill exit (success or bail-out). If any number, timing, or output diverges from what this skill's text predicts, log it — the diff is the input to the next skill revision. Log smooth steps too — success data grounds the retrospective as much as failure data.
 

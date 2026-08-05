@@ -12,7 +12,7 @@ Delivery, balances, funding, and the run log are owned by other skills — this 
 - `/warp-balances` — router collateral / synthetic supply, and per-address balances (fee-accrual + live-balance checks).
 - `/warp-deploy-fund-deployer` — funds/top-ups the deployer via the fundkey script; the single owner of the funding contract.
 - `/start-http-registry` + `/stop-http-registry` — private-RPC registry for reliable delivery (start without `--writeMode`; sends don't write the registry).
-- `/warp-run-log` — durable per-run log.
+- `/warp-run-log` — durable per-run log. Open-or-create it at entry; never assume the deploy created it. Friction notes go straight in, not a side file.
 
 ## Inputs
 

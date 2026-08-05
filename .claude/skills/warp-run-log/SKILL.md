@@ -18,6 +18,12 @@ Warp deploy/update runs are long, multi-milestone, and frequently interrupted (w
 - **Milestone list** — the specific events this skill must log (the caller supplies its own "log at least" list; see each consumer).
 - **Ticket ID** — the per-ticket key; it names the document.
 
+## Entry check — the calling skill's first action
+
+Open-or-create the log before the skill's first real step. Never assume an earlier step created it — a chain can be entered part-way, or with earlier steps skipped. Idempotent: on a resumed run it finds the existing document and appends.
+
+**Any per-run notes are the run log** — friction notes, scratch, debugging jottings. Write them into the primary as you go; never a side file to promote later.
+
 ## The storage contract
 
 Every milestone must append an entry to a durable, per-ticket run log — durable meaning it survives a worker restart / session restore. The worker's local filesystem (`~/.hyperlane/`) does NOT qualify on its own: it is ephemeral and vanishes on restore, which is the exact event the log exists to survive.
