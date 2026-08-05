@@ -604,7 +604,7 @@ export class EvmIsmModule extends HyperlaneModule<
   }): Promise<DeployedIsm> {
     config = BaseIsmConfigSchema.parse(config);
 
-    return this.ismFactory.deploy({
+    return this.ismFactory.deployInternal({
       destination: this.chain,
       config,
       mailbox: this.mailbox,

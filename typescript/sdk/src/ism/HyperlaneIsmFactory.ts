@@ -74,6 +74,7 @@ import {
   DerivedPausableIsmConfigSchema,
   DomainRoutingIsmConfig,
   IsmConfig,
+  IsmConfigSchema,
   IsmType,
   MultisigIsmConfig,
   RoutingIsmConfig,
@@ -266,6 +267,25 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   }
 
   async deploy<C extends IsmConfig>(params: {
+    destination: ChainName;
+    config: C;
+    origin?: ChainName;
+    mailbox?: Address;
+    existingIsmAddress?: Address;
+  }): Promise<DeployedIsm> {
+    // Validate the full ISM tree at the public deployment boundary; recursion
+    // and pre-validated callers use deployInternal (structural only).
+    IsmConfigSchema.parse(params.config);
+    return this.deployInternal(params);
+  }
+
+  /**
+   * @internal Structural deploy primitive for recursion and pre-validated
+   * callers. Assumes the whole ISM tree has already been validated via
+   * IsmConfigSchema (e.g. by the public deploy() or EvmIsmModule.create/update).
+   * Do not call directly from application code.
+   */
+  async deployInternal<C extends IsmConfig>(params: {
     destination: ChainName;
     config: C;
     origin?: ChainName;
@@ -631,7 +651,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
     const addresses: Address[] = [];
     for (const module of [lowerIsm, upperIsm]) {
-      const submodule = await this.deploy({
+      const submodule = await this.deployInternal({
         destination: params.destination,
         config: module,
         origin: params.origin,
@@ -719,7 +739,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         logger.debug(
           `Reconfiguring preexisting routing ISM at for origin ${origin}...`,
         );
-        const ism = await this.deploy({
+        const ism = await this.deployInternal({
           destination,
           config: config.domains[origin],
           origin,
@@ -750,7 +770,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     } else {
       const isms: ChainMap<Address> = {};
       for (const origin of Object.keys(config.domains)) {
-        const ism = await this.deploy({
+        const ism = await this.deployInternal({
           destination,
           config: config.domains[origin],
           origin,
@@ -922,7 +942,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
     const addresses: Address[] = [];
     for (const module of config.modules) {
-      const submodule = await this.deploy({
+      const submodule = await this.deployInternal({
         destination,
         config: module,
         origin,
