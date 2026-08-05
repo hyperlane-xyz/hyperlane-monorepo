@@ -25,6 +25,7 @@ interface IamPolicyBinding {
 
 const logger = rootLogger.child({ module: 'infra:utils:gcloud' });
 const kmsIamGrantQueues = new Map<string, Promise<void>>();
+const gcsBucketMutationQueues = new Map<string, Promise<void>>();
 
 async function withKmsIamGrantQueue<T>(
   queueKey: string,
@@ -43,6 +44,27 @@ async function withKmsIamGrantQueue<T>(
   } finally {
     if (kmsIamGrantQueues.get(queueKey) === queued) {
       kmsIamGrantQueues.delete(queueKey);
+    }
+  }
+}
+
+async function withGcsBucketMutationQueue<T>(
+  bucketName: string,
+  task: () => Promise<T>,
+): Promise<T> {
+  const previous = gcsBucketMutationQueues.get(bucketName) ?? Promise.resolve();
+  const run = previous.then(task, task);
+  const queued = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  gcsBucketMutationQueues.set(bucketName, queued);
+
+  try {
+    return await run;
+  } finally {
+    if (gcsBucketMutationQueues.get(bucketName) === queued) {
+      gcsBucketMutationQueues.delete(bucketName);
     }
   }
 }
@@ -353,34 +375,36 @@ export async function grantServiceAccountStorageRoleIfNotExists(
   bucketName: string,
   role: string,
 ) {
-  const bucketUri = `gs://${bucketName}`;
-  const existingPolicies = await execCmdAndParseJson(
-    `gcloud storage buckets get-iam-policy ${bucketUri} --format="json"`,
-  );
-  const existingBindings = existingPolicies.bindings || [];
-  const hasRole = existingBindings.some(
-    (binding: any) =>
-      binding.role === role &&
-      binding.members &&
-      binding.members.includes(`serviceAccount:${serviceAccountEmail}`),
-  );
-  if (hasRole) {
-    logger.debug(
-      `Service account ${serviceAccountEmail} already has role ${role} on bucket ${bucketName}`,
+  return withGcsBucketMutationQueue(bucketName, async () => {
+    const bucketUri = `gs://${bucketName}`;
+    const existingPolicies = await execCmdAndParseJson(
+      `gcloud storage buckets get-iam-policy ${bucketUri} --format="json"`,
     );
-    return;
-  }
-  // A just-created service account can take a few seconds to propagate to
-  // other GCP APIs (Storage's IAM binding endpoint here) — retry rather than
-  // fail outright on "does not exist" for a service account we just created.
-  await retryAsync(
-    () =>
-      execCmd(
-        `gcloud storage buckets add-iam-policy-binding ${bucketUri} --member="serviceAccount:${serviceAccountEmail}" --role="${role}"`,
-      ),
-    6,
-    3000,
-  );
+    const existingBindings = existingPolicies.bindings || [];
+    const hasRole = existingBindings.some(
+      (binding: any) =>
+        binding.role === role &&
+        binding.members &&
+        binding.members.includes(`serviceAccount:${serviceAccountEmail}`),
+    );
+    if (hasRole) {
+      logger.debug(
+        `Service account ${serviceAccountEmail} already has role ${role} on bucket ${bucketName}`,
+      );
+      return;
+    }
+    // A just-created service account can take a few seconds to propagate to
+    // other GCP APIs (Storage's IAM binding endpoint here) — retry rather than
+    // fail outright on "does not exist" for a service account we just created.
+    await retryAsync(
+      () =>
+        execCmd(
+          `gcloud storage buckets add-iam-policy-binding ${bucketUri} --member="serviceAccount:${serviceAccountEmail}" --role="${role}"`,
+        ),
+      6,
+      3000,
+    );
+  });
 }
 
 // == Cloud KMS + GCS + Workload Identity (validator provisioning) ==
@@ -514,51 +538,55 @@ export async function createGcsBucketIfNotExists(
   location: string,
   bucketName: string,
 ) {
-  const listCmd = `gcloud storage buckets list --project=${project} --filter="name=${bucketName}" --format=json`;
-  const matches = await execCmdAndParseJson(listCmd);
-  if (matches.length > 0) {
-    logger.debug(`GCS bucket ${bucketName} already exists`);
-    return;
-  }
-
-  try {
-    await execCmd(
-      `gcloud storage buckets create gs://${bucketName} --project=${project} --location=${location} --uniform-bucket-level-access`,
-    );
-    logger.debug(`Created new GCS bucket ${bucketName}`);
-  } catch (error) {
-    // This bucket is shared across every chain that validator index writes
-    // checkpoints for (see #configForValidator), so concurrent
-    // createIfNotExists() calls race the list-then-create above. Re-check
-    // real state rather than pattern-match the error text — only swallow the
-    // error if the bucket genuinely exists now.
-    const matchesNow = await execCmdAndParseJson(listCmd);
-    if (matchesNow.length === 0) {
-      throw error;
+  return withGcsBucketMutationQueue(bucketName, async () => {
+    const listCmd = `gcloud storage buckets list --project=${project} --filter="name=${bucketName}" --format=json`;
+    const matches = await execCmdAndParseJson(listCmd);
+    if (matches.length > 0) {
+      logger.debug(`GCS bucket ${bucketName} already exists`);
+      return;
     }
-    logger.debug(`GCS bucket ${bucketName} already exists`);
-  }
+
+    try {
+      await execCmd(
+        `gcloud storage buckets create gs://${bucketName} --project=${project} --location=${location} --uniform-bucket-level-access`,
+      );
+      logger.debug(`Created new GCS bucket ${bucketName}`);
+    } catch (error) {
+      // This bucket is shared across every chain that validator index writes
+      // checkpoints for (see #configForValidator), so concurrent
+      // createIfNotExists() calls race the list-then-create above. Re-check
+      // real state rather than pattern-match the error text — only swallow the
+      // error if the bucket genuinely exists now.
+      const matchesNow = await execCmdAndParseJson(listCmd);
+      if (matchesNow.length === 0) {
+        throw error;
+      }
+      logger.debug(`GCS bucket ${bucketName} already exists`);
+    }
+  });
 }
 
 // Public, unauthenticated read — relayers with no relationship to this
 // project still need to fetch checkpoints.
 export async function grantPublicReadOnBucketIfNotExists(bucketName: string) {
-  const role = 'roles/storage.objectViewer';
-  const policy = await execCmdAndParseJson(
-    `gcloud storage buckets get-iam-policy gs://${bucketName} --format=json`,
-  );
-  const hasRole = (policy.bindings || []).some(
-    (binding: IamPolicyBinding) =>
-      binding.role === role && binding.members?.includes('allUsers'),
-  );
-  if (hasRole) {
-    logger.debug(`Bucket ${bucketName} is already publicly readable`);
-    return;
-  }
-  await execCmd(
-    `gcloud storage buckets add-iam-policy-binding gs://${bucketName} --member=allUsers --role="${role}"`,
-  );
-  logger.debug(`Granted public read on bucket ${bucketName}`);
+  return withGcsBucketMutationQueue(bucketName, async () => {
+    const role = 'roles/storage.objectViewer';
+    const policy = await execCmdAndParseJson(
+      `gcloud storage buckets get-iam-policy gs://${bucketName} --format=json`,
+    );
+    const hasRole = (policy.bindings || []).some(
+      (binding: IamPolicyBinding) =>
+        binding.role === role && binding.members?.includes('allUsers'),
+    );
+    if (hasRole) {
+      logger.debug(`Bucket ${bucketName} is already publicly readable`);
+      return;
+    }
+    await execCmd(
+      `gcloud storage buckets add-iam-policy-binding gs://${bucketName} --member=allUsers --role="${role}"`,
+    );
+    logger.debug(`Granted public read on bucket ${bucketName}`);
+  });
 }
 
 // Lets a pod running as this KSA impersonate the GSA via Workload Identity —

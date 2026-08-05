@@ -7,7 +7,8 @@ import chalk from 'chalk';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { getArgs, withChains } from '../agent-utils.js';
+import { Contexts } from '../../config/contexts.js';
+import { getArgs, withChains, withContext } from '../agent-utils.js';
 
 const METRICS_PORT = 9090;
 const PORT_FORWARD_READY_REGEX = /Forwarding from/;
@@ -37,6 +38,7 @@ type PodsResponse = {
 
 type SyncProgressArgs = {
   environment: string;
+  context: Contexts;
   chains?: string[];
   namespace?: string;
   localPortStart: number;
@@ -128,14 +130,23 @@ function runKubectl(args: readonly string[]): string {
   return result.stdout.toString();
 }
 
+function isContext(value: unknown): value is Contexts {
+  return (
+    typeof value === 'string' &&
+    Object.values(Contexts).some((context) => context === value)
+  );
+}
+
 function parseArgs(argv: {
   environment?: unknown;
+  context?: unknown;
   chains?: unknown;
   namespace?: unknown;
   localPortStart?: unknown;
 }): SyncProgressArgs {
-  const { environment, chains, namespace, localPortStart } = argv;
+  const { environment, context, chains, namespace, localPortStart } = argv;
   assert(typeof environment === 'string', 'environment must be a string');
+  assert(isContext(context), 'context must be a valid context');
   assert(
     chains === undefined ||
       (Array.isArray(chains) &&
@@ -151,7 +162,7 @@ function parseArgs(argv: {
     'local-port-start must be a number',
   );
 
-  return { environment, chains, namespace, localPortStart };
+  return { environment, context, chains, namespace, localPortStart };
 }
 
 function parseLabels(rawLabels: string | undefined): Record<string, string> {
@@ -399,7 +410,7 @@ function printRows(rows: ProgressRow[]) {
 }
 
 async function main() {
-  const rawArgv = await withChains(getArgs())
+  const rawArgv = await withChains(withContext(getArgs()))
     .describe('namespace', 'Kubernetes namespace')
     .string('namespace')
     .describe(
@@ -410,13 +421,28 @@ async function main() {
     .default('local-port-start', 19090).argv;
   const argv = parseArgs(rawArgv);
 
-  const { environment, chains, namespace: namespaceArg, localPortStart } = argv;
+  const {
+    environment,
+    context,
+    chains,
+    namespace: namespaceArg,
+    localPortStart,
+  } = argv;
   const namespace = namespaceArg ?? `validator-${environment}`;
   const config = loadRustConfig(environment);
   const configuredChains = Object.keys(config.chains);
   const chainFilter = new Set(chains ?? configuredChains);
 
-  const podsJson = runKubectl(['get', 'pods', '-n', namespace, '-o', 'json']);
+  const podsJson = runKubectl([
+    'get',
+    'pods',
+    '-n',
+    namespace,
+    '--selector',
+    `hyperlane/context=${context},app.kubernetes.io/component=validator`,
+    '-o',
+    'json',
+  ]);
   const pods = parsePodsResponse(podsJson).items ?? [];
   const validatorPods = pods
     .map((pod) => pod.metadata?.name)

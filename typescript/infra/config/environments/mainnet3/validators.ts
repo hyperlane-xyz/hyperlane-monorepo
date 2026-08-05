@@ -7,6 +7,7 @@ import { getReorgPeriod } from '../../registry.js';
 import { validatorBaseConfigsFn } from '../utils.js';
 
 import { environment } from './chains.js';
+import { AW_FASTPATH_VALIDATOR } from './fastpath/validators.js';
 
 const DEFAULT_VALIDATOR_INTERVAL = 5;
 // Preserve about one-second average checkpoint polling delay while halving
@@ -16,8 +17,6 @@ const FASTPATH_VALIDATOR_REORG_PERIOD = 1;
 // bsc (PoSA) and polygon (PoS) have a history of multi-block reorgs, so they
 // use a small non-zero reorg period instead of 1 even on the fast path.
 const FASTPATH_REORG_PRONE_REORG_PERIOD = 3;
-const FASTPATH_VALIDATOR_ADDRESS = '0xa9c4c16a4e2cf4628e1bb045cfee9de2f1c3c24a';
-
 export const fastPathReorgPeriodOverrides: Record<string, number> = {
   arbitrum: FASTPATH_VALIDATOR_REORG_PERIOD,
   base: FASTPATH_VALIDATOR_REORG_PERIOD,
@@ -83,7 +82,7 @@ export const validatorChainConfig = (
             '0x0580884289890805802012b9872afa5ae41a5fa6',
           ],
           [Contexts.Neutron]: [],
-          [Contexts.FastPath]: [FASTPATH_VALIDATOR_ADDRESS],
+          [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
         'ethereum',
       ),
@@ -140,7 +139,7 @@ export const validatorChainConfig = (
             '0xf0a990959f833ccde624c8bcd4c7669286a57a0f',
           ],
           [Contexts.Neutron]: [],
-          [Contexts.FastPath]: [FASTPATH_VALIDATOR_ADDRESS],
+          [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
         'polygon',
       ),
@@ -155,7 +154,7 @@ export const validatorChainConfig = (
             '0x911dfcc19dd5b723e84be452f6af52adef020bc8',
           ],
           [Contexts.Neutron]: [],
-          [Contexts.FastPath]: [FASTPATH_VALIDATOR_ADDRESS],
+          [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
         'bsc',
       ),
@@ -170,7 +169,7 @@ export const validatorChainConfig = (
             '0xb4c18167c163391facb345bb069d12d0430a6a89',
           ],
           [Contexts.Neutron]: [],
-          [Contexts.FastPath]: [FASTPATH_VALIDATOR_ADDRESS],
+          [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
         'arbitrum',
       ),
@@ -213,7 +212,7 @@ export const validatorChainConfig = (
             '0xa8363570749080c7faa1de714e0782ff444af4cc',
           ],
           [Contexts.Neutron]: [],
-          [Contexts.FastPath]: [FASTPATH_VALIDATOR_ADDRESS],
+          [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
         'base',
       ),
@@ -801,7 +800,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: ['0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b'],
-          [Contexts.FastPath]: [FASTPATH_VALIDATOR_ADDRESS],
+          [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
         'katana',
       ),
@@ -1012,7 +1011,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: ['0xe175e8db1d04fb525879ce9f088a215d3e3fe3f0'],
-          [Contexts.FastPath]: [FASTPATH_VALIDATOR_ADDRESS],
+          [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
         'citrea',
       ),

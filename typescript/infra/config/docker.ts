@@ -42,12 +42,12 @@ interface MainnetDockerTags extends BaseDockerTags {
 
 export const mainnetDockerTags: MainnetDockerTags = {
   // rust agents
-  relayer: 'cce81aa-20260803-124711',
-  relayerRC: 'cce81aa-20260803-124711',
-  relayerFastPath: 'cce81aa-20260803-124711',
-  validator: 'cce81aa-20260803-124711',
-  validatorRC: 'cce81aa-20260803-124711',
-  validatorFastPath: 'cce81aa-20260803-124711',
+  relayer: '14646bd-20260805-072134',
+  relayerRC: '14646bd-20260805-072134',
+  relayerFastPath: '14646bd-20260805-072134',
+  validator: '14646bd-20260805-072134',
+  validatorRC: '14646bd-20260805-072134',
+  validatorFastPath: '14646bd-20260805-072134',
   scraper: 'c1678d0-20260728-164228',
   // monorepo services
   checkWarpDeploy: 'main',
