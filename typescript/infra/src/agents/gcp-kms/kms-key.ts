@@ -34,6 +34,8 @@ type RemoteKey = UnfetchedKey | FetchedKey;
 // implemented (see `update()` below).
 const PRIMARY_KEY_VERSION = '1';
 
+const createIfNotExistsPromises = new Map<string, Promise<void>>();
+
 function pemToDer(pem: string): Buffer {
   const base64 = pem
     .replace(/-----BEGIN PUBLIC KEY-----/, '')
@@ -109,19 +111,37 @@ export class AgentGcpKmsKey extends CloudAgentKey {
   }
 
   async createIfNotExists() {
+    const existing = createIfNotExistsPromises.get(this.keyResourceName);
+    if (existing) {
+      await existing;
+      await this.fetch();
+      return;
+    }
+
+    const promise = this.createAndFetch();
+    createIfNotExistsPromises.set(this.keyResourceName, promise);
+    await promise;
+  }
+
+  private async createAndFetch() {
     this.logger.debug('Checking if key ring/key exist and creating if not');
-    await createKmsKeyRingIfNotExists(
-      this.project,
-      this.location,
-      this.keyRingId,
-    );
-    await createKmsSignerKeyIfNotExists(
-      this.project,
-      this.location,
-      this.keyRingId,
-      this.keyId,
-    );
-    await this.fetch();
+    try {
+      await createKmsKeyRingIfNotExists(
+        this.project,
+        this.location,
+        this.keyRingId,
+      );
+      await createKmsSignerKeyIfNotExists(
+        this.project,
+        this.location,
+        this.keyRingId,
+        this.keyId,
+      );
+      await this.fetch();
+    } catch (error) {
+      createIfNotExistsPromises.delete(this.keyResourceName);
+      throw error;
+    }
   }
 
   async exists(): Promise<boolean> {
