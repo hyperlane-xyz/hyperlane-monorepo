@@ -29,6 +29,7 @@ type SyncProgressArgs = {
   chains?: string[];
   namespace?: string;
   localPortStart: number;
+  ready?: boolean;
 };
 
 type MetricSample = {
@@ -57,6 +58,7 @@ type ProgressRow = {
   reachedInitialConsistency?: boolean;
   criticalError?: boolean;
   ready: boolean;
+  error?: string;
 };
 
 function rustConfigPath(environment: string): string {
@@ -106,8 +108,10 @@ function parseArgs(argv: {
   chains?: unknown;
   namespace?: unknown;
   localPortStart?: unknown;
+  ready?: unknown;
 }): SyncProgressArgs {
-  const { environment, context, chains, namespace, localPortStart } = argv;
+  const { environment, context, chains, namespace, localPortStart, ready } =
+    argv;
   assert(typeof environment === 'string', 'environment must be a string');
   assert(isContext(context), 'context must be a valid context');
   assert(
@@ -124,8 +128,12 @@ function parseArgs(argv: {
     typeof localPortStart === 'number',
     'local-port-start must be a number',
   );
+  assert(
+    ready === undefined || typeof ready === 'boolean',
+    'ready must be a boolean',
+  );
 
-  return { environment, context, chains, namespace, localPortStart };
+  return { environment, context, chains, namespace, localPortStart, ready };
 }
 
 function parseLabels(rawLabels: string | undefined): Record<string, string> {
@@ -368,6 +376,7 @@ function printRows(rows: ProgressRow[]) {
       backfillDone: formatBool(row.backfillComplete),
       critical: formatBool(row.criticalError),
       ready: row.ready ? 'yes' : 'no',
+      error: row.error ?? '',
     })),
   );
 }
@@ -381,7 +390,9 @@ async function main() {
       'First local port used for metrics port-forwarding',
     )
     .number('local-port-start')
-    .default('local-port-start', 19090).argv;
+    .default('local-port-start', 19090)
+    .describe('ready', 'Filter by ready status; use --ready or --ready=false')
+    .boolean('ready').argv;
   const argv = parseArgs(rawArgv);
 
   const {
@@ -390,6 +401,7 @@ async function main() {
     chains,
     namespace: namespaceArg,
     localPortStart,
+    ready: readyFilter,
   } = argv;
   const namespace = namespaceArg ?? `validator-${environment}`;
   const config = loadRustConfig(environment);
@@ -431,11 +443,23 @@ async function main() {
         namespace,
         localPortStart + idx,
       );
-      rows.push(buildRow(pod.chain, pod.name, metrics, config));
+      const row = buildRow(pod.chain, pod.name, metrics, config);
+      if (readyFilter === undefined || row.ready === readyFilter) {
+        rows.push(row);
+      }
     } catch (error) {
       console.warn(
         chalk.yellow(`[${pod.chain}] Failed to read metrics: ${error}`),
       );
+      if (readyFilter === false) {
+        rows.push({
+          chain: pod.chain,
+          pod: pod.name,
+          indexFromBlock: config.chains[pod.chain]?.index?.from ?? 1,
+          ready: false,
+          error: String(error),
+        });
+      }
     }
   }
 

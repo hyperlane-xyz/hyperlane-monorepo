@@ -7,6 +7,7 @@ import { environment } from './chains.js';
 
 const AW_VALIDATOR = '0x3c659e0fe8d01b80d7828b421630085777346e7c';
 const AW_RC_VALIDATOR = '0x3588e77a3a9bcaa92b2d9c6cd525697c6fdb2c76';
+const AW_FASTPAH_VALIDATOR = '0x4b54641256233487c17ba76fba57a78b013dc5db';
 const FASTPATH_VALIDATOR_REORG_PERIOD = 1;
 
 export const fastPathReorgPeriodOverrides: Record<string, number> = {
@@ -28,7 +29,7 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
-          [Contexts.FastPath]: [AW_VALIDATOR],
+          [Contexts.FastPath]: [AW_FASTPAH_VALIDATOR],
         },
         'arbitrumsepolia',
       ),
@@ -41,7 +42,7 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
-          [Contexts.FastPath]: [AW_VALIDATOR],
+          [Contexts.FastPath]: [AW_FASTPAH_VALIDATOR],
         },
         'basesepolia',
       ),
@@ -78,7 +79,7 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
-          [Contexts.FastPath]: [AW_VALIDATOR],
+          [Contexts.FastPath]: [AW_FASTPAH_VALIDATOR],
         },
         'sepolia',
       ),

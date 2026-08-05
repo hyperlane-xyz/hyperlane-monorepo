@@ -1,5 +1,11 @@
 {
+  "arbitrumsepolia": {
+    "validators": ["0x4b54641256233487c17ba76fba57a78b013dc5db"]
+  },
+  "basesepolia": {
+    "validators": ["0x4b54641256233487c17ba76fba57a78b013dc5db"]
+  },
   "sepolia": {
-    "validators": []
+    "validators": ["0x4b54641256233487c17ba76fba57a78b013dc5db"]
   }
 }
