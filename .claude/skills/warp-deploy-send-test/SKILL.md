@@ -17,7 +17,7 @@ Delivery, balances, funding, and the run log are owned by other skills — this 
 ## Inputs
 
 - **Warp route ID** — required.
-- **Deployer key(s) per protocol** (`--key.<protocol>`) — the sender. Auto-loaded from the key-context artifact like the rest of the deploy chain; see `/warp-key-value-expansion`.
+- **Deployer key(s) per protocol** (`--key.<protocol>`) — auto-loaded from the key-context artifact like the rest of the deploy chain; see `/warp-key-value-expansion`. Every directed send needs the key for **both** the origin and the destination protocol — see below.
 - **Collateral balances** on each collateral leg's deployer address, enough to seed the mesh.
 
 ## Command
@@ -36,13 +36,34 @@ Delivery, balances, funding, and the run log are owned by other skills — this 
 | `--quick`                                | dispatch without waiting for delivery                                        |
 | `--source-token` / `--destination-token` | pick a specific leaf on CrossCollateralRouter routes                         |
 
+### Pass BOTH the origin and the destination key — always
+
+`warp send` preflights signers on **both ends** of the leg, not just the sender. Invoked with only `--key.<origin>`, it drops into an interactive "enter private key for `<destination>`" prompt; headless that force-closes and the command exits 1 (`Error: User force closed the prompt with 13 null`) before anything dispatches. This is not conditional — it is the default invocation shape for every directed send:
+
+```bash
+hyperlane warp send -w <ID> --registry http://localhost:<port> \
+  --origin <A> --destination <B> --amount <n> \
+  --key.<origin-protocol> "$KEY" --key.<destination-protocol> "$KEY"
+```
+
+One key per **protocol**, not per chain — a single EVM secret covers every EVM chain plus tron (the CLI keys tron separately but the same secp256k1 secret derives it), so an all-EVM leg still needs the flag named twice only when origin and destination protocols differ. When they are the same protocol, one `--key.<protocol>` satisfies both ends.
+
 ## Test shape
 
 ### Enrollment coverage (why the mesh)
 
 A `warp send A→B` exercises only **A's outbound enrollment** — it proves A's router has B enrolled, and says nothing about B's router. A leg that peers enrolled inbound but whose own enrollment tx failed still accepts `*→X` sends yet reverts on every `X→*` send — a silently one-way-dead leg. So **every chain must appear as an origin at least once**; a chain never used as `--origin` has its outbound enrollment unverified. The full mesh below satisfies this; the bare minimum is one originating send per chain. To check enrollment directly instead of by sending, read that chain's **own** router state (`remoteRouters` via `hyperlane warp read`) — never infer X's enrollment from a peer that lists X. The authoritative enrollment check is the `hyperlane warp check` in `/warp-verify-onchain-config` (it reads each chain's own state), not an ad-hoc send.
 
-Pick the shape from the route's collateral topology:
+### Determine the route topology FIRST
+
+Before picking a test shape or a seeding strategy, read the route config and classify the topology explicitly — do not infer it from the chain count or from the route's name. Read each chain's `type` from the deploy config (or `hyperlane warp read`) and count the synthetic legs:
+
+| Synthetic legs | Topology                 | Seeding                                                                  |
+| -------------- | ------------------------ | ------------------------------------------------------------------------ |
+| ≥ 1            | **Has a synthetic hub**  | Phase 1 mints supply into the synthetic; destinations self-seed from it  |
+| 0              | **Pure collateral mesh** | No hub to mint from — destination pools must be pre-seeded (see Phase 1) |
+
+State the classification and seeding plan before the first send. Sending into an empty pool is not fatal — `handle()` reverts, the message stays pending, and the relayer delivers it once the pool is funded. Cost is retry gas and a leg that looks stuck but is only waiting on liquidity.
 
 ### Simple route (one collateral + one synthetic)
 
@@ -58,7 +79,11 @@ hyperlane warp send -w <ID> --registry http://localhost:<port> \
 
 A single round trip leaves most legs untested. Exercise every collateral leg as both source and destination, in three phases. Sizes are illustrative — size to the deployer's real balances, keeping a reserve on each collateral chain so Phase 2 has a funded source.
 
-**Phase 1 — seed (collateral → synthetic/hub).** From each collateral chain, send into the synthetic (or a chosen hub) leg. This locks collateral in each router and mints the synthetic, so destinations have collateral to release in Phase 2.
+**Phase 1 — seed.** Branch on the topology classified above.
+
+_With a synthetic hub:_ from each collateral chain, send into the synthetic (or chosen hub) leg. Locks collateral in each router and mints the synthetic, so destinations have collateral to release in Phase 2.
+
+_Pure collateral mesh:_ nothing to mint from, and `send A→B` releases from B's own balance. Seed via a **liquidity pivot**: transfer tokens directly into one router (plain ERC20/SPL transfer to the router address, not a `warp send`), then route the mesh through that pool so each remaining pool self-seeds from the collateral locked by its inbound dispatch. Size to the largest single leg plus fee headroom; recovered in Phase 3.
 
 **Phase 2 — collateral ↔ collateral.** A small cycle where each chain is a source and a destination once (e.g. `A→B`, `B→C`, `C→D`, `D→A`). This is the first exercise of cross-VM _destinations_.
 
@@ -88,14 +113,15 @@ For a route with an `OffchainQuotedLinearFee` where no offchain quote is set on-
 
 ## Flow
 
-1. Confirm the route is deployed and the deployer holds collateral on each collateral leg. Determine the test shape from the topology.
+1. Confirm the route is deployed and the deployer holds collateral on each collateral leg. Classify the topology (synthetic hub vs pure collateral mesh) and derive the test shape + seeding plan from it.
 2. If the deploy already left a private-RPC registry running, reuse it; otherwise start one per `/start-http-registry` (no `--writeMode`). Note the port + task ID. Right after a deploy the registry may not have refreshed its in-memory cache — the first `warp send` can 404 `route not found`; wait ~5s before the first send, and if it still 404s verify the config is served (`curl http://localhost:<port>/deployments/warp_routes/<TOKEN>/<chains>-config.yaml`), sleep 5s, and retry once.
 3. Budget interchain gas per origin/destination; top up via `/warp-deploy-fund-deployer` where short.
-4. Run Phase 1; validate leg 1 (and the first cross-VM origin) before the rest.
-5. Run Phase 2; validate the first cross-VM destination before the rest.
-6. Run Phase 3, draining from live balances until every router is ~0.
-7. Verify fee accrual to the beneficiary (fee routes).
-8. Stop the registry per `/stop-http-registry`, even on failure.
+4. Apply the chain-metadata cushions per `/warp-chain-metadata-cushions` before the first send. The confirmation-timeout there aborts an EVM send **after the ERC20 approval is mined but before the `transferRemote`** — leaving a dangling allowance and no dispatch. Honor that skill's cleanup gate when the test ends, green or failed.
+5. Run Phase 1; validate leg 1 (and the first cross-VM origin) before the rest.
+6. Run Phase 2; validate the first cross-VM destination before the rest.
+7. Run Phase 3, draining from live balances until every router is ~0.
+8. Verify fee accrual to the beneficiary (fee routes).
+9. Stop the registry per `/stop-http-registry`, even on failure.
 
 Log each leg (message ID, amount, delivery time), each gas top-up, and the final drained state to the run log per `/warp-run-log`.
 
