@@ -5,6 +5,7 @@ import { validatorBaseConfigsFn } from '../utils.js';
 
 import { environment } from './chains.js';
 
+const AW_VALIDATOR = '0x3c659e0fe8d01b80d7828b421630085777346e7c';
 const FASTPATH_VALIDATOR_REORG_PERIOD = 1;
 
 export const fastPathReorgPeriodOverrides: Record<string, number> = {
@@ -23,7 +24,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('arbitrumsepolia'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
@@ -35,7 +36,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('basesepolia'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
@@ -47,7 +48,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('fuji'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [
             '0xfc419f9ba3c56c55e28844ade491d428f5a77d55',
           ],
@@ -61,7 +62,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('bsctestnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [
             '0x6353c7402626054c824bd0eca721f82b725e2b4d',
           ],
@@ -75,7 +76,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('sepolia'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [
             '0x49f253c0dab33be1573d6c2769b3d9e584d91f82',
           ],
@@ -89,7 +90,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('optimismsepolia'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
@@ -101,7 +102,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('polygonamoy'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
@@ -113,7 +114,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('solanatestnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
@@ -125,7 +126,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('solanadevnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
@@ -137,7 +138,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('sonicsvmtestnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
@@ -149,7 +150,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('hyperliquidevmtestnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
@@ -161,7 +162,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('paradexsepolia'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
@@ -173,7 +174,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('starknetsepolia'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
@@ -185,7 +186,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('somniatestnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'somniatestnet',
       ),
@@ -195,7 +196,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('cotitestnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'cotitestnet',
       ),
@@ -205,7 +206,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('kyvetestnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'kyvetestnet',
       ),
@@ -215,7 +216,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('modetestnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'modetestnet',
       ),
@@ -225,7 +226,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('celestiatestnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'celestiatestnet',
       ),
@@ -235,7 +236,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('celosepolia'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'celosepolia',
       ),
@@ -245,7 +246,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('radixtestnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'radixtestnet',
       ),
@@ -255,7 +256,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('aleotestnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'aleotestnet',
       ),
@@ -265,7 +266,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('tronshasta'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'tronshasta',
       ),
@@ -275,7 +276,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('seismictestnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x3c659e0fe8d01b80d7828b421630085777346e7c'],
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'seismictestnet',
       ),
