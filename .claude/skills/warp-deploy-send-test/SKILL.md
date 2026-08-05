@@ -43,7 +43,7 @@ The origin always needs a signer. The **destination** additionally needs one whe
 - **no explicit `--recipient`** — the CLI defaults the recipient to the destination signer's address, so it must resolve a destination signer to know where to send; or
 - **`--relay`** is set — self-relay submits the delivery tx on the destination chain.
 
-Supply `--recipient` and the destination key is not consulted. Omit it and, headless, the missing destination key drops into an interactive "enter private key" prompt that force-closes: `Error: User force closed the prompt with 13 null`, exit 1, nothing dispatched. Non-EVM destinations require `--recipient` regardless, so they are never destination-signer-preflighted.
+Supply `--recipient` **without** `--relay` and the destination key is not consulted — the two conditions are independent, so `--relay` still demands it even with an explicit recipient. Omit both and, headless, the missing destination key drops into an interactive "enter private key" prompt that force-closes: `Error: User force closed the prompt with 13 null`, exit 1, nothing dispatched. The prompt has no `--yes` guard, so non-interactive runs cannot skip past it. Non-EVM destinations require `--recipient` regardless and are never destination-signer-preflighted.
 
 Keys are per **protocol**, not per chain — one EVM secret covers every EVM chain, and tron takes its own flag though the same secp256k1 secret derives it. On a cross-protocol leg, name each side's key explicitly rather than reusing one placeholder, or the two flags can be pointed at the wrong secret:
 

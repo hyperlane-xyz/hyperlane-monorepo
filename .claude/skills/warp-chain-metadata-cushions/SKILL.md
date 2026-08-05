@@ -13,17 +13,17 @@ Apply the cushions **before** the first transaction-landing command, not after t
 
 **Signature:** `Timeout (Xms) waiting for N block confirmations for tx 0x…`, where the transaction already succeeded on chain (check the receipt: `status: 1`).
 
-**Root cause:** the CLI's confirmation budget is `confirmations × estimateBlockTime × 2` seconds. On a chain whose registry `estimateBlockTime` is 3s that budget is as low as ~6s; on ethereum at the default 13s with `confirmations: 2` it is 52s. A block window slower than nominal, or ordinary receipt latency at the RPC provider, blows the budget while the transaction is perfectly fine. The CLI gives up client-side and aborts the run.
+**Root cause:** the confirmation budget is `max(confirmations × estimateBlockTime × 2, 30s)` — see `MultiProvider` in `typescript/sdk`, where `estimateBlockTime` is registry seconds and the floor is a 30s minimum. On ethereum at the default `estimateBlockTime: 13` with `confirmations: 2`, that is 52s. Short-block chains do **not** get a proportionally tiny budget: at `estimateBlockTime: 3` the computed value is 12s, so the 30s floor applies instead. A block window slower than nominal, or ordinary receipt latency at the RPC provider, blows the budget while the transaction is perfectly fine, and the CLI gives up client-side and aborts the run.
 
 **Fix:** raise `estimateBlockTime` for the affected chains in the **local** registry metadata before running. This survives the GCP RPC-override merge, unlike re-pinning RPCs — do **not** re-pin RPCs for this failure mode.
 
-| Chain      | Default | Cushion | Resulting budget (at `confirmations: 2`) |
-| ---------- | ------- | ------- | ---------------------------------------- |
-| `ethereum` | 13      | **60**  | 240s                                     |
-| `bsc`      | 3       | **30**  | 120s                                     |
-| `tron`     | 3       | **30**  | 120s                                     |
+| Chain      | Default | Budget at default | Cushion | Budget after |
+| ---------- | ------- | ----------------- | ------- | ------------ |
+| `ethereum` | 13      | 52s               | **60**  | 240s         |
+| `bsc`      | 3       | 30s (floored)     | **30**  | 120s         |
+| `tron`     | 3       | 30s (floored)     | **30**  | 120s         |
 
-Ethereum needs the largest cushion: mainnet under load routinely exceeds the smaller values, and the abort lands mid-sequence. Treat the table as a floor — raise further on a chain that still times out rather than retrying into the same budget. Any short-block or confirmation-timeout-prone chain not listed takes the same treatment.
+Budgets assume `confirmations: 2` — read the chain's actual value, since it scales the result linearly. Ethereum needs the largest cushion: mainnet under load routinely exceeds the smaller values, and the abort lands mid-sequence. Treat the table as a floor — raise further on a chain that still times out rather than retrying into the same budget. Any short-block or confirmation-timeout-prone chain not listed takes the same treatment.
 
 ## Failure mode 2 — stale-gas OOG from a lagging RPC replica
 
