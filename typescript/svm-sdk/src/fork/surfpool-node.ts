@@ -212,17 +212,18 @@ async function startLocalSurfpool(
 
   const rpcUrl = `http://127.0.0.1:${config.rpcPort}`;
 
-  return {
-    rpcUrl,
-    kill() {
-      if (config.keepRunning) {
-        return;
-      }
-      if (isNullish(proc.exitCode)) {
-        proc.kill('SIGTERM');
-      }
-    },
+  const kill = (): void => {
+    if (config.keepRunning) {
+      return;
+    }
+    if (isNullish(proc.exitCode)) {
+      proc.kill('SIGTERM');
+    }
   };
+
+  process.once('exit', kill);
+
+  return { rpcUrl, kill };
 }
 
 /**
@@ -265,6 +266,11 @@ export async function runSurfpoolNode(
     `Using local surfpool binary: ${match.path} (v${match.version})`,
   );
   const node = await startLocalSurfpool(config, match.path);
-  await waitForSolanaRpcReady(node.rpcUrl);
+  try {
+    await waitForSolanaRpcReady(node.rpcUrl);
+  } catch (error: unknown) {
+    node.kill();
+    throw error;
+  }
   return node;
 }
