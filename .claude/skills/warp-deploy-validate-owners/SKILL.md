@@ -7,6 +7,12 @@ description: Ownership-validation preflight for a warp route. For each chain in 
 
 You are running the ownership-validation preflight for a warp route. For each chain in the route, you confirm that the configured owner is a valid multisig (ICA, Safe, Squads, or other) that exists on chain. EOAs are rejected outright.
 
+## Run Log (mandatory)
+
+Open-or-create the run log at entry, then maintain it, per `/warp-run-log` (never assume a previous step created it). Use `warp-deploy-validate-owners` as the skill name in each entry; don't report complete until the URL is surfaced.
+
+**Log at least:** skill entry (ticket ID), the resolved deploy mode, per-chain owner type + verdict, any ICA deployed (address + tx), skill exit.
+
 ## Input
 
 The user provides:
