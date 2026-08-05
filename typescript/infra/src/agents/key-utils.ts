@@ -32,6 +32,7 @@ import {
 
 import { AgentAwsKey } from './aws/key.js';
 import { AgentGCPKey } from './gcp.js';
+import { AgentGcpKmsKey } from './gcp-kms/kms-key.js';
 import { CloudAgentKey } from './keys.js';
 
 export type LocalRoleAddresses = Record<
@@ -365,15 +366,18 @@ export function getValidatorKeysForChain(
   chainSigner: CloudAgentKey;
 } {
   logger.debug(`Retrieving validator keys for ${chainName}`);
-  const validator = agentConfig.aws
-    ? new AgentAwsKey(agentConfig, Role.Validator, chainName, index)
-    : new AgentGCPKey(
-        agentConfig.runEnv,
-        agentConfig.context,
-        Role.Validator,
-        chainName,
-        index,
-      );
+  // GCP-KMS key is per index, not per chain (see AgentGcpKmsKey).
+  const validator = agentConfig.gcp
+    ? new AgentGcpKmsKey(agentConfig, Role.Validator, index)
+    : agentConfig.aws
+      ? new AgentAwsKey(agentConfig, Role.Validator, chainName, index)
+      : new AgentGCPKey(
+          agentConfig.runEnv,
+          agentConfig.context,
+          Role.Validator,
+          chainName,
+          index,
+        );
 
   // If the chain is Ethereum-based, we can just use the validator key (even if it's AWS-based)
   // as the chain signer. Otherwise, we need to use a GCP key.

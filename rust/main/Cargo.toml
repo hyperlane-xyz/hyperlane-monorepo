@@ -75,6 +75,7 @@ cosmrs = { version = "0.21.0", default-features = false, features = [
   "grpc",
 ] }
 cosmwasm-std = "*"
+crc32c = "0.6.8"
 crunchy = "0.2"
 ctrlc = "3.2"
 curve25519-dalek = { version = "~3.2", features = ["serde"] }
@@ -95,6 +96,7 @@ generic-array = { version = "0.14", features = ["serde", "more_lengths"] }
 bech32 = "0.11.0"
 elliptic-curve = "0.13.8"
 getrandom = { version = "0.2", features = ["js"] }
+google-cloud-kms-v1 = "1.12.0"
 hex = "0.4.3"
 hex-literal = "0.4.1"
 http = "1.2.0"

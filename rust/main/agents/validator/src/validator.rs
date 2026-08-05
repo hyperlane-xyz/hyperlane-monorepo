@@ -30,8 +30,8 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::{call_and_retry_indefinitely, RPC_RETRY_SLEEP_DURATION},
-    Announcement, ChainCommunicationError, ChainResult, CheckpointAtBlock, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt,
+    Announcement, ChainCommunicationError, ChainResult, Checkpoint, CheckpointAtBlock,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt,
     IncrementalMerkleAtBlock, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
     ValidatorAnnounce, H256, U256,
 };
@@ -59,12 +59,17 @@ const QUORUM_RPC_CALL_TIMEOUT: Duration = Duration::from_secs(20);
 const MIN_RECOMMENDED_QUORUM_RPCS: usize = 3;
 
 /// `count()`/domain/address come from `base_hook` (the normal `rpcUrls` connection, using
-/// whatever consensus mode it's configured with). `tree()`/`latest_checkpoint()`/
-/// `latest_checkpoint_at_block()` require BOTH: a 2/3 majority across `quorum_hooks` (one
-/// entry per `rpcUrls` URL plus one per `additionalQuorumRpcUrls` URL, independent of each
+/// whatever consensus mode it's configured with). `tree()`/`tree_at_block()` — the actual
+/// merkle tree root reads — require BOTH: a 2/3 majority across `quorum_hooks` (one entry
+/// per `rpcUrls` URL plus one per `additionalQuorumRpcUrls` URL, independent of each
 /// other), AND that majority-agreed value to match what `base_hook` independently
 /// returns. An attacker needs to compromise both the merged vote and `rpcUrls`' own
 /// consensus at once to force a wrong value through.
+///
+/// `latest_checkpoint()`/`latest_checkpoint_at_block()` never independently call
+/// `quorum_hooks`: they derive the `Checkpoint` locally (root/index from the tree,
+/// address/domain already known) from a `tree()`/`tree_at_block()` read, so the
+/// public-RPC-inclusive `quorum_hooks` pool is only ever exercised for root reads.
 #[derive(Debug)]
 struct ValidatorMultiRpcQuorumMerkleTreeHook {
     base_hook: Arc<dyn MerkleTreeHook>,
@@ -254,34 +259,76 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
             "{context}: merged quorum consensus disagrees with rpcUrls consensus"
         )))
     }
+
+    /// Fans a height-pinned tree read out to `quorum_hooks`, requiring both a 2/3 majority
+    /// and `base_hook` agreement. Shared by `tree()` (once it resolves a target height) and
+    /// `latest_checkpoint_at_block()`, so there's a single place that ever calls
+    /// `quorum_hooks` for a pinned-height root read.
+    async fn tree_at_block_via_quorum(&self, height: u64) -> ChainResult<IncrementalMerkleAtBlock> {
+        let results = join_all(
+            self.quorum_hooks
+                .iter()
+                .cloned()
+                .map(|(label, hook)| async move {
+                    (
+                        label,
+                        Self::with_call_timeout(hook.tree_at_block(height)).await,
+                    )
+                }),
+        )
+        .await;
+        let quorum_result = self.select_quorum_result(
+            results,
+            |a, b| a.tree == b.tree,
+            "Failed to reach quorum for merkle tree",
+        )?;
+        let base_result = self.base_hook.tree_at_block(height).await?;
+        Self::require_base_hook_agreement(
+            &quorum_result,
+            &base_result,
+            |a, b| a.tree == b.tree,
+            "Failed to reach quorum for merkle tree",
+        )?;
+        Ok(quorum_result)
+    }
+
+    /// Derives a `Checkpoint` purely locally from an already quorum-verified tree read —
+    /// root/index come from the tree, `merkle_tree_hook_address`/`mailbox_domain` are known
+    /// without any RPC call. This is why `latest_checkpoint`/`latest_checkpoint_at_block`
+    /// never independently fan out to `quorum_hooks`.
+    ///
+    /// Errors (rather than panicking via `IncrementalMerkle::index()`) on an empty tree, to
+    /// match the on-chain `latestCheckpoint()` contract call this replaces: it computes
+    /// `count() - 1` under Solidity's checked arithmetic, which reverts (surfaced as a
+    /// `ChainResult::Err`, not a panic) when the tree is empty.
+    fn checkpoint_from_tree(
+        tree: IncrementalMerkleAtBlock,
+        merkle_tree_hook_address: H256,
+        mailbox_domain: u32,
+    ) -> ChainResult<CheckpointAtBlock> {
+        if tree.tree.count() == 0 {
+            return Err(ChainCommunicationError::from_other_str(
+                "cannot derive latest_checkpoint: merkle tree is empty",
+            ));
+        }
+        let checkpoint = Checkpoint {
+            merkle_tree_hook_address,
+            mailbox_domain,
+            root: tree.tree.root(),
+            index: tree.tree.index(),
+        };
+        Ok(CheckpointAtBlock {
+            checkpoint,
+            block_height: tree.block_height,
+        })
+    }
 }
 
 #[async_trait]
 impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
     async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
         if let Some(height) = self.resolve_quorum_target_height(reorg_period).await? {
-            let results = join_all(self.quorum_hooks.iter().cloned().map(
-                |(label, hook)| async move {
-                    (
-                        label,
-                        Self::with_call_timeout(hook.tree_at_block(height)).await,
-                    )
-                },
-            ))
-            .await;
-            let quorum_result = self.select_quorum_result(
-                results,
-                |a, b| a.tree == b.tree,
-                "Failed to reach quorum for merkle tree",
-            )?;
-            let base_result = self.base_hook.tree_at_block(height).await?;
-            Self::require_base_hook_agreement(
-                &quorum_result,
-                &base_result,
-                |a, b| a.tree == b.tree,
-                "Failed to reach quorum for merkle tree",
-            )?;
-            return Ok(quorum_result);
+            return self.tree_at_block_via_quorum(height).await;
         }
 
         let results = join_all(self.quorum_hooks.iter().cloned().map(|(label, hook)| {
@@ -317,61 +364,13 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
         &self,
         reorg_period: &ReorgPeriod,
     ) -> ChainResult<CheckpointAtBlock> {
-        if let Some(height) = self.resolve_quorum_target_height(reorg_period).await? {
-            return self.latest_checkpoint_at_block(height).await;
-        }
-
-        let results = join_all(self.quorum_hooks.iter().cloned().map(|(label, hook)| {
-            let reorg_period = reorg_period.clone();
-            async move {
-                (
-                    label,
-                    Self::with_call_timeout(hook.latest_checkpoint(&reorg_period)).await,
-                )
-            }
-        }))
-        .await;
-        let quorum_result = self.select_quorum_result(
-            results,
-            |a, b| a.checkpoint == b.checkpoint && a.block_height == b.block_height,
-            "Failed to reach quorum for latest_checkpoint",
-        )?;
-        let base_result = self.base_hook.latest_checkpoint(reorg_period).await?;
-        Self::require_base_hook_agreement(
-            &quorum_result,
-            &base_result,
-            |a, b| a.checkpoint == b.checkpoint,
-            "Failed to reach quorum for latest_checkpoint",
-        )?;
-        Ok(quorum_result)
+        let tree = self.tree(reorg_period).await?;
+        Self::checkpoint_from_tree(tree, self.address(), self.domain().id())
     }
 
     async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
-        let results = join_all(
-            self.quorum_hooks
-                .iter()
-                .cloned()
-                .map(|(label, hook)| async move {
-                    (
-                        label,
-                        Self::with_call_timeout(hook.latest_checkpoint_at_block(height)).await,
-                    )
-                }),
-        )
-        .await;
-        let quorum_result = self.select_quorum_result(
-            results,
-            |a, b| a.checkpoint == b.checkpoint && a.block_height == b.block_height,
-            "Failed to reach quorum for latest_checkpoint_at_block",
-        )?;
-        let base_result = self.base_hook.latest_checkpoint_at_block(height).await?;
-        Self::require_base_hook_agreement(
-            &quorum_result,
-            &base_result,
-            |a, b| a.checkpoint == b.checkpoint,
-            "Failed to reach quorum for latest_checkpoint_at_block",
-        )?;
-        Ok(quorum_result)
+        let tree = self.tree_at_block_via_quorum(height).await?;
+        Self::checkpoint_from_tree(tree, self.address(), self.domain().id())
     }
 }
 
@@ -402,6 +401,7 @@ pub struct Validator {
     merkle_tree_hook_sync: Arc<SequencedDataContractSync<MerkleTreeInsertion>>,
     mailbox: Arc<dyn Mailbox>,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
+    base_merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     validator_announce: Arc<dyn ValidatorAnnounce>,
     signer: SingletonSignerHandle,
     raw_signer: Signers,
@@ -563,7 +563,12 @@ impl BaseAgent for Validator {
 
         let mailbox = origin_chain_conf.build_mailbox(&metrics).await?;
 
-        let merkle_tree_hook = if Self::validator_uses_split_quorum_hook(
+        let base_merkle_tree_hook: Arc<dyn MerkleTreeHook> = settings
+            .build_merkle_tree_hook(&settings.origin_chain, &metrics)
+            .await?
+            .into();
+
+        let merkle_tree_hook: Arc<dyn MerkleTreeHook> = if Self::validator_uses_split_quorum_hook(
             &origin_chain_conf,
             &additional_quorum_rpc_urls,
         ) {
@@ -583,12 +588,14 @@ impl BaseAgent for Validator {
             Self::warn_if_quorum_pool_undersized(&combined_urls);
             Self::warn_if_duplicate_hosts(&combined_urls);
             Self::build_validator_quorum_merkle_tree_hook(
+                base_merkle_tree_hook.clone(),
                 &origin_chain_conf,
                 &primary_rpc_urls,
                 &additional_quorum_rpc_urls,
                 &metrics,
             )
             .await?
+            .into()
         } else {
             if !additional_quorum_rpc_urls.is_empty() {
                 warn!(
@@ -596,9 +603,7 @@ impl BaseAgent for Validator {
                     "additionalQuorumRpcUrls is set but ignored: quorum verification is only supported for Ethereum chains"
                 );
             }
-            settings
-                .build_merkle_tree_hook(&settings.origin_chain, &metrics)
-                .await?
+            base_merkle_tree_hook.clone()
         };
 
         let validator_announce = settings
@@ -624,7 +629,8 @@ impl BaseAgent for Validator {
             core,
             db: msg_db,
             mailbox: mailbox.into(),
-            merkle_tree_hook: merkle_tree_hook.into(),
+            merkle_tree_hook,
+            base_merkle_tree_hook,
             merkle_tree_hook_sync,
             validator_announce: validator_announce.into(),
             signer,
@@ -849,12 +855,12 @@ impl Validator {
     }
 
     async fn build_validator_quorum_merkle_tree_hook(
+        base_hook: Arc<dyn MerkleTreeHook>,
         origin_chain_conf: &ChainConf,
         primary_rpc_urls: &[Url],
         additional_quorum_rpc_urls: &[Url],
         metrics: &CoreMetrics,
     ) -> ChainResult<Box<dyn MerkleTreeHook>> {
-        let base_hook = origin_chain_conf.build_merkle_tree_hook(metrics).await?;
         let mut quorum_hooks = Self::build_validator_ethereum_per_url_hooks(
             origin_chain_conf,
             "rpcUrls",
@@ -874,7 +880,7 @@ impl Validator {
             .await?,
         );
         Ok(Box::new(ValidatorMultiRpcQuorumMerkleTreeHook {
-            base_hook: base_hook.into(),
+            base_hook,
             quorum_hooks,
         }) as Box<dyn MerkleTreeHook>)
     }
@@ -996,6 +1002,7 @@ impl Validator {
             self.interval,
             self.reorg_period.clone(),
             self.merkle_tree_hook.clone(),
+            self.base_merkle_tree_hook.clone(),
             self.signer.clone(),
             self.raw_signer.clone(),
             self.checkpoint_syncer.clone(),
@@ -2088,71 +2095,142 @@ mod tests {
         assert!(hook.tree(&ReorgPeriod::None).await.is_ok());
     }
 
-    fn dummy_checkpoint_at_block(
-        mailbox_domain: u32,
-        root: u64,
-        index: u32,
-        height: u64,
-    ) -> CheckpointAtBlock {
-        CheckpointAtBlock {
-            checkpoint: hyperlane_core::Checkpoint {
-                merkle_tree_hook_address: H256::from_low_u64_be(11),
-                mailbox_domain,
-                root: H256::from_low_u64_be(root),
-                index,
-            },
-            block_height: Some(height),
+    /// Builds an `IncrementalMerkle` with `count` leaves, giving a concrete root/index to
+    /// assert quorum agreement/disagreement against.
+    fn tree_with_count(count: u32) -> hyperlane_core::accumulator::incremental::IncrementalMerkle {
+        let mut tree = hyperlane_core::accumulator::incremental::IncrementalMerkle::default();
+        for i in 0..count {
+            tree.ingest(H256::from_low_u64_be(i as u64 + 1));
         }
+        tree
     }
 
-    /// Also proves `latest_checkpoint()` correctly resolves a height (via `base_hook`) and
-    /// delegates to `latest_checkpoint_at_block()`.
+    /// Regression test: the on-chain `latestCheckpoint()` call this replaces reverts
+    /// (`count() - 1` underflow under Solidity's checked arithmetic) rather than succeeding
+    /// on an empty tree. `checkpoint_from_tree` must surface that as a `ChainResult::Err`,
+    /// not panic via `IncrementalMerkle::index()`'s internal assert.
+    #[test]
+    fn checkpoint_from_tree_errors_on_empty_tree_instead_of_panicking() {
+        let empty_tree = IncrementalMerkleAtBlock {
+            tree: tree_with_count(0),
+            block_height: Some(10),
+        };
+
+        let result = ValidatorMultiRpcQuorumMerkleTreeHook::checkpoint_from_tree(
+            empty_tree,
+            H256::from_low_u64_be(11),
+            1337,
+        );
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn checkpoint_from_tree_derives_checkpoint_from_nonempty_tree() {
+        let tree = tree_with_count(5);
+        let expected_root = tree.root();
+
+        let result = ValidatorMultiRpcQuorumMerkleTreeHook::checkpoint_from_tree(
+            IncrementalMerkleAtBlock {
+                tree,
+                block_height: Some(10),
+            },
+            H256::from_low_u64_be(11),
+            1337,
+        )
+        .unwrap();
+
+        assert_eq!(result.checkpoint.index, 4);
+        assert_eq!(result.checkpoint.root, expected_root);
+        assert_eq!(
+            result.checkpoint.merkle_tree_hook_address,
+            H256::from_low_u64_be(11)
+        );
+        assert_eq!(result.checkpoint.mailbox_domain, 1337);
+        assert_eq!(result.block_height, Some(10));
+    }
+
+    /// `latest_checkpoint`/`latest_checkpoint_at_block` must never independently call
+    /// `quorum_hooks`/`base_hook`'s `latest_checkpoint*` methods (asserted via `.never()`
+    /// below): the checkpoint is derived locally from a quorum-verified `tree` read, so the
+    /// public-RPC-inclusive `quorum_hooks` pool is only ever exercised for root reads. Also
+    /// proves `latest_checkpoint()` correctly resolves a height (via `base_hook`) and
+    /// delegates to the same quorum machinery as `tree()`.
     #[tokio::test]
     async fn validator_multi_rpc_quorum_merkle_tree_hook_uses_quorum_for_latest_checkpoint() {
         let mailbox_domain = dummy_domain(1337, "test-domain").id();
-        let agreed_checkpoint = dummy_checkpoint_at_block(mailbox_domain, 22, 7, 99);
-        let divergent_checkpoint = dummy_checkpoint_at_block(mailbox_domain, 23, 8, 99);
+        let agreed_tree = tree_with_count(8);
+        let divergent_tree = tree_with_count(9);
 
         let mut base_hook = MockMerkleTreeHook::new();
         base_hook.expect_count().never();
         base_hook.expect_tree().never();
-        base_hook.expect_tree_at_block().never();
+        base_hook.expect_latest_checkpoint_at_block().never();
         mock_height_resolution(&mut base_hook, mailbox_domain, 99);
         base_hook
-            .expect_latest_checkpoint_at_block()
+            .expect_address()
+            .return_const(H256::from_low_u64_be(11));
+        base_hook
+            .expect_domain()
+            .return_const(dummy_domain(1337, "test-domain"));
+        base_hook
+            .expect_tree_at_block()
             .once()
             .with(mockall::predicate::eq(99))
             .return_once({
-                let agreed_checkpoint = agreed_checkpoint.clone();
-                move |_| Ok(agreed_checkpoint)
+                let tree = agreed_tree.clone();
+                move |_| {
+                    Ok(IncrementalMerkleAtBlock {
+                        tree,
+                        block_height: Some(99),
+                    })
+                }
             });
 
         let mut quorum_a = MockMerkleTreeHook::new();
         quorum_a.expect_latest_checkpoint().never();
+        quorum_a.expect_latest_checkpoint_at_block().never();
         quorum_a
-            .expect_latest_checkpoint_at_block()
+            .expect_tree_at_block()
             .once()
             .with(mockall::predicate::eq(99))
             .return_once({
-                let agreed_checkpoint = agreed_checkpoint.clone();
-                move |_| Ok(agreed_checkpoint)
+                let tree = agreed_tree.clone();
+                move |_| {
+                    Ok(IncrementalMerkleAtBlock {
+                        tree,
+                        block_height: Some(99),
+                    })
+                }
             });
 
         let mut quorum_b = MockMerkleTreeHook::new();
         quorum_b.expect_latest_checkpoint().never();
+        quorum_b.expect_latest_checkpoint_at_block().never();
         quorum_b
-            .expect_latest_checkpoint_at_block()
+            .expect_tree_at_block()
             .once()
             .with(mockall::predicate::eq(99))
-            .return_once(move |_| Ok(agreed_checkpoint));
+            .return_once(move |_| {
+                Ok(IncrementalMerkleAtBlock {
+                    tree: agreed_tree,
+                    block_height: Some(99),
+                })
+            });
 
         let mut quorum_c = MockMerkleTreeHook::new();
         quorum_c.expect_latest_checkpoint().never();
+        quorum_c.expect_latest_checkpoint_at_block().never();
         quorum_c
-            .expect_latest_checkpoint_at_block()
+            .expect_tree_at_block()
             .once()
             .with(mockall::predicate::eq(99))
-            .return_once(move |_| Ok(divergent_checkpoint));
+            .return_once(move |_| {
+                Ok(IncrementalMerkleAtBlock {
+                    tree: divergent_tree,
+                    block_height: Some(99),
+                })
+            });
 
         let hook = ValidatorMultiRpcQuorumMerkleTreeHook {
             base_hook: Arc::new(base_hook),
@@ -2173,41 +2251,47 @@ mod tests {
         );
     }
 
+    /// Same guarantee as above (quorum only ever exercised via `tree_at_block`), for the
+    /// explicit-height entry point.
     #[tokio::test]
     async fn validator_multi_rpc_quorum_merkle_tree_hook_latest_checkpoint_at_block_uses_quorum() {
+        let agreed_tree = tree_with_count(9);
+        let divergent_tree = tree_with_count(10);
+
         let mut base_hook = MockMerkleTreeHook::new();
         base_hook.expect_count().never();
         base_hook.expect_latest_checkpoint().never();
+        base_hook.expect_latest_checkpoint_at_block().never();
         base_hook
-            .expect_latest_checkpoint_at_block()
+            .expect_address()
+            .return_const(H256::from_low_u64_be(11));
+        base_hook
+            .expect_domain()
+            .return_const(dummy_domain(1337, "test-domain"));
+        base_hook
+            .expect_tree_at_block()
             .once()
             .with(mockall::predicate::eq(42))
-            .return_once(|height| {
-                Ok(CheckpointAtBlock {
-                    checkpoint: hyperlane_core::Checkpoint {
-                        merkle_tree_hook_address: H256::from_low_u64_be(11),
-                        mailbox_domain: 1337,
-                        root: H256::from_low_u64_be(33),
-                        index: 9,
-                    },
-                    block_height: Some(height),
-                })
+            .return_once({
+                let tree = agreed_tree.clone();
+                move |height| {
+                    Ok(IncrementalMerkleAtBlock {
+                        tree,
+                        block_height: Some(height),
+                    })
+                }
             });
 
-        let make_hook = |root: u64, index: u64| {
+        let make_hook = |tree: hyperlane_core::accumulator::incremental::IncrementalMerkle| {
             let mut hook = MockMerkleTreeHook::new();
             hook.expect_latest_checkpoint().never();
-            hook.expect_latest_checkpoint_at_block()
+            hook.expect_latest_checkpoint_at_block().never();
+            hook.expect_tree_at_block()
                 .once()
                 .with(mockall::predicate::eq(42))
                 .return_once(move |height| {
-                    Ok(CheckpointAtBlock {
-                        checkpoint: hyperlane_core::Checkpoint {
-                            merkle_tree_hook_address: H256::from_low_u64_be(11),
-                            mailbox_domain: 1337,
-                            root: H256::from_low_u64_be(root),
-                            index: index as u32,
-                        },
+                    Ok(IncrementalMerkleAtBlock {
+                        tree,
                         block_height: Some(height),
                     })
                 });
@@ -2217,9 +2301,9 @@ mod tests {
         let hook = ValidatorMultiRpcQuorumMerkleTreeHook {
             base_hook: Arc::new(base_hook),
             quorum_hooks: vec![
-                quorum_rpc("rpc-a", make_hook(33, 9)),
-                quorum_rpc("rpc-b", make_hook(33, 9)),
-                quorum_rpc("rpc-c", make_hook(44, 10)),
+                quorum_rpc("rpc-a", make_hook(agreed_tree.clone())),
+                quorum_rpc("rpc-b", make_hook(agreed_tree)),
+                quorum_rpc("rpc-c", make_hook(divergent_tree)),
             ],
         };
 
@@ -2229,7 +2313,7 @@ mod tests {
                 .unwrap()
                 .checkpoint
                 .index,
-            9
+            8
         );
     }
 

@@ -346,20 +346,6 @@ where
         )
         .await
     }
-
-    #[instrument(err, skip(self))]
-    async fn get_storage_at(&self, address: H256, location: H256) -> ChainResult<H256> {
-        let storage = self
-            .provider
-            .get_storage_at(
-                ethers_core_types::H160::from(address),
-                location.into(),
-                None,
-            )
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
-        Ok(storage.into())
-    }
 }
 
 #[async_trait]

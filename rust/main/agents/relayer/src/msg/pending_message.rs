@@ -750,16 +750,11 @@ impl PendingMessage {
         if let Ok(Some(status)) = origin_db.retrieve_status_by_message_id(&message.id()) {
             // This event is used for E2E tests to ensure message statuses
             // are being properly loaded from the db
-            tracing::event!(
-                if cfg!(feature = "test-utils") {
-                    Level::DEBUG
-                } else {
-                    Level::TRACE
-                },
-                ?status,
-                id=?message.id(),
-                RETRIEVED_MESSAGE_LOG,
-            );
+            if cfg!(feature = "test-utils") {
+                tracing::event!(Level::DEBUG, ?status, id=?message.id(), RETRIEVED_MESSAGE_LOG);
+            } else {
+                tracing::event!(Level::TRACE, ?status, id=?message.id(), RETRIEVED_MESSAGE_LOG);
+            }
             return status;
         }
 
