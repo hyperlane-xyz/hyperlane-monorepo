@@ -6,6 +6,7 @@ import { validatorBaseConfigsFn } from '../utils.js';
 import { environment } from './chains.js';
 
 const AW_VALIDATOR = '0x3c659e0fe8d01b80d7828b421630085777346e7c';
+const AW_RC_VALIDATOR = '0x3588e77a3a9bcaa92b2d9c6cd525697c6fdb2c76';
 const FASTPATH_VALIDATOR_REORG_PERIOD = 1;
 
 export const fastPathReorgPeriodOverrides: Record<string, number> = {
@@ -49,9 +50,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0xfc419f9ba3c56c55e28844ade491d428f5a77d55',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
         },
         'fuji',
@@ -63,9 +62,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0x6353c7402626054c824bd0eca721f82b725e2b4d',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
         },
         'bsctestnet',
@@ -77,9 +74,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0x49f253c0dab33be1573d6c2769b3d9e584d91f82',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
         },
         'sepolia',

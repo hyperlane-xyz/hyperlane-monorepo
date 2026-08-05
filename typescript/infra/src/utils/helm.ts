@@ -200,7 +200,7 @@ export abstract class HelmManager<T = HelmValues> {
 
     if (action == HelmCommand.Remove) {
       if (dryRun) cmd.push('--dry-run');
-      cmd.push(this.helmReleaseName, this.namespace);
+      cmd.push(this.helmReleaseName, '--namespace', this.namespace);
       await execCmd(cmd, {}, false, true);
       return;
     }
