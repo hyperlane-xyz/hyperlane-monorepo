@@ -110,7 +110,7 @@ the signed rates need a buffer for the remaining window.
 Existing callers continue to use `quoteTransferRemote` and
 `transferRemote`/`transferRemoteTo`. No caller ABI changes. A standing curve is
 resolved onchain; IGP remains a separate quote. `QuotedCalls` can atomically
-install a transaction-scoped curve override before transferring.
+install a transaction-scoped linear override before transferring.
 
 ### API-driven aggregators
 
@@ -145,7 +145,19 @@ The signed context remains packed as:
 [36:68]  amount (uint256)
 ```
 
-Curve data uses standard ABI encoding:
+Quote data is selected by lifetime. A transient quote reuses the exact packed
+wire format from `OffchainQuotedLinearFee`:
+
+```solidity
+abi.encodePacked(uint256 maxFee, uint256 halfAmount)
+```
+
+Because a transient RFQ can bind the requested amount in its context, it does
+not need to carry a reusable multi-band curve. Reusing the linear payload keeps
+the existing Moonpay signer and `QuotedCalls` integration compatible: only the
+EIP-712 `verifyingContract` changes to the new piecewise leaf.
+
+A standing quote uses standard ABI encoding for the reusable curve:
 
 ```solidity
 abi.encode(uint128[] breakpoints, uint32[] marginalBpsX1e4)
@@ -170,9 +182,10 @@ Resolution is unchanged:
 4. Wildcard destination and exact recipient.
 5. Immutable `LinearFee` fallback.
 
-Standing curves require wildcard amount. Transient curves may bind an exact
-amount or use the wildcard. Removing a signer does not invalidate an already
-stored standing curve.
+Standing curves require wildcard amount. Transient linear quotes may bind an
+exact amount or use the wildcard. The payload formats are deliberately distinct
+and a quote encoded for one mode is rejected in the other mode. Removing a
+signer does not invalidate an already stored standing curve.
 
 ## Rollout stages
 
@@ -182,7 +195,7 @@ stored standing curve.
 - Configure a 3 bps linear fallback.
 - Publish `[100,000, 250,000]` with `[1, 4, 12]` bps for every discovered
   destination and target-router slot.
-- Verify direct, target-router, transient, expiry, and fallback paths.
+- Verify direct, target-router, linear transient, expiry, and fallback paths.
 
 The example is a staging test, not a production recommendation. The 3 bps
 fallback preserves current configuration but may be less protective than the

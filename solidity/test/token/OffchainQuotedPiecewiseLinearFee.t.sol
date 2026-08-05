@@ -15,6 +15,7 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
     address internal constant FEE_TOKEN = address(0xFEE);
     uint32 internal constant DESTINATION = 42;
     bytes32 internal constant RECIPIENT = bytes32(uint256(0xBEEF));
+    uint32 internal constant WILDCARD_DESTINATION = type(uint32).max;
     bytes32 internal constant WILDCARD_RECIPIENT = bytes32(type(uint256).max);
     uint256 internal constant WILDCARD_AMOUNT = type(uint256).max;
 
@@ -96,14 +97,34 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
         return abi.encodePacked(destination, recipient, amount);
     }
 
-    function _data(
+    function _curveData(
         uint128[] memory breakpoints,
         uint32[] memory rates
     ) internal pure returns (bytes memory) {
         return abi.encode(breakpoints, rates);
     }
 
-    function _submit(
+    function _submitData(
+        OffchainQuotedPiecewiseLinearFee fee,
+        uint32 destination,
+        bytes32 recipient,
+        uint256 amount,
+        bytes memory data,
+        uint48 issuedAt,
+        uint48 expiry
+    ) internal {
+        SignedQuote memory signedQuote = SignedQuote({
+            context: _context(destination, recipient, amount),
+            data: data,
+            issuedAt: issuedAt,
+            expiry: expiry,
+            salt: bytes32(0),
+            submitter: address(0)
+        });
+        fee.submitQuote(signedQuote, _signQuote(fee, signedQuote));
+    }
+
+    function _submitCurve(
         OffchainQuotedPiecewiseLinearFee fee,
         uint32 destination,
         bytes32 recipient,
@@ -113,15 +134,35 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
         uint48 issuedAt,
         uint48 expiry
     ) internal {
-        SignedQuote memory signedQuote = SignedQuote({
-            context: _context(destination, recipient, amount),
-            data: _data(breakpoints, rates),
-            issuedAt: issuedAt,
-            expiry: expiry,
-            salt: bytes32(0),
-            submitter: address(0)
-        });
-        fee.submitQuote(signedQuote, _signQuote(fee, signedQuote));
+        _submitData(
+            fee,
+            destination,
+            recipient,
+            amount,
+            _curveData(breakpoints, rates),
+            issuedAt,
+            expiry
+        );
+    }
+
+    function _submitLinearTransient(
+        OffchainQuotedPiecewiseLinearFee fee,
+        uint32 destination,
+        bytes32 recipient,
+        uint256 amount,
+        uint256 maxFee,
+        uint256 halfAmount
+    ) internal {
+        uint48 now_ = uint48(block.timestamp);
+        _submitData(
+            fee,
+            destination,
+            recipient,
+            amount,
+            abi.encodePacked(maxFee, halfAmount),
+            now_,
+            now_
+        );
     }
 
     function _submitStanding(
@@ -131,7 +172,7 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
         uint32[] memory rates
     ) internal {
         uint48 now_ = uint48(block.timestamp);
-        _submit(
+        _submitCurve(
             quotedFee,
             destination,
             recipient,
@@ -297,7 +338,7 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
         }
 
         uint48 now_ = uint48(block.timestamp);
-        _submit(
+        _submitCurve(
             maxFeeContract,
             DESTINATION,
             RECIPIENT,
@@ -359,18 +400,17 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
         );
     }
 
-    function test_transientExactAndWildcardAmount() public {
+    function test_transientLinearExactAndWildcardAmount() public {
         (uint128[] memory breakpoints, uint32[] memory rates) = _exampleCurve();
-        uint48 now_ = uint48(block.timestamp);
-        _submit(
+        _submitStanding(DESTINATION, RECIPIENT, breakpoints, rates);
+
+        _submitLinearTransient(
             quotedFee,
             DESTINATION,
             RECIPIENT,
             300_000 ether,
-            breakpoints,
-            rates,
-            now_,
-            now_
+            260 ether,
+            300_000 ether
         );
 
         assertEq(
@@ -379,49 +419,107 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
         );
         assertEq(
             _quote(quotedFee, DESTINATION, RECIPIENT, 200_000 ether),
-            _fallbackFee(200_000 ether)
+            50 ether
         );
 
-        _submit(
+        _submitLinearTransient(
             quotedFee,
             DESTINATION,
             RECIPIENT,
             WILDCARD_AMOUNT,
-            breakpoints,
-            rates,
-            now_,
-            now_
+            100 ether,
+            100_000 ether
         );
         assertEq(
             _quote(quotedFee, DESTINATION, RECIPIENT, 200_000 ether),
-            50 ether
+            100 ether
         );
     }
 
-    function test_standingAndTransientCurvesAgree() public {
-        (uint128[] memory breakpoints, uint32[] memory rates) = _exampleCurve();
+    function test_transientLinearOverridesStandingCurve() public {
+        uint128[] memory breakpoints = new uint128[](0);
+        uint32[] memory rates = new uint32[](1);
+        rates[0] = 10_000;
         _submitStanding(DESTINATION, RECIPIENT, breakpoints, rates);
-        uint256 standingFee = _quote(
-            quotedFee,
-            DESTINATION,
-            RECIPIENT,
-            300_000 ether
+        assertEq(
+            _quote(quotedFee, DESTINATION, RECIPIENT, 1 ether),
+            0.0001 ether
         );
 
-        uint48 now_ = uint48(block.timestamp);
-        _submit(
+        _submitLinearTransient(
             quotedFee,
             DESTINATION,
             RECIPIENT,
+            1 ether,
+            0.0004 ether,
+            1 ether
+        );
+        assertEq(
+            _quote(quotedFee, DESTINATION, RECIPIENT, 1 ether),
+            0.0002 ether
+        );
+    }
+
+    function test_transientLinearSupportsContextWildcards() public {
+        _submitLinearTransient(
+            quotedFee,
+            WILDCARD_DESTINATION,
+            WILDCARD_RECIPIENT,
             WILDCARD_AMOUNT,
+            2 ether,
+            1 ether
+        );
+
+        assertEq(
+            _quote(
+                quotedFee,
+                DESTINATION + 1,
+                bytes32(uint256(0xCAFE)),
+                1 ether
+            ),
+            1 ether
+        );
+    }
+
+    function test_transientLinearSupportsZeroFee() public {
+        _submitLinearTransient(
+            quotedFee,
+            DESTINATION,
+            RECIPIENT,
+            1 ether,
+            0,
+            1
+        );
+        assertEq(_quote(quotedFee, DESTINATION, RECIPIENT, 1 ether), 0);
+    }
+
+    function test_rejectsCurveDataForTransientQuote() public {
+        (uint128[] memory breakpoints, uint32[] memory rates) = _exampleCurve();
+        uint48 now_ = uint48(block.timestamp);
+        vm.expectRevert();
+        _submitCurve(
+            quotedFee,
+            DESTINATION,
+            RECIPIENT,
+            1 ether,
             breakpoints,
             rates,
             now_,
             now_
         );
-        assertEq(
-            _quote(quotedFee, DESTINATION, RECIPIENT, 300_000 ether),
-            standingFee
+    }
+
+    function test_rejectsLinearDataForStandingQuote() public {
+        uint48 now_ = uint48(block.timestamp);
+        vm.expectRevert();
+        _submitData(
+            quotedFee,
+            DESTINATION,
+            RECIPIENT,
+            WILDCARD_AMOUNT,
+            abi.encodePacked(uint256(1 ether), uint256(1 ether)),
+            now_,
+            now_ + 1 days
         );
     }
 
@@ -432,7 +530,7 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
         uint32[] memory rates = new uint32[](1);
         uint48 now_ = uint48(block.timestamp);
         vm.expectRevert(OffchainQuotedPiecewiseLinearFee.InvalidCurve.selector);
-        _submit(
+        _submitCurve(
             quotedFee,
             DESTINATION,
             RECIPIENT,
@@ -491,7 +589,7 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
     ) internal {
         uint48 now_ = uint48(block.timestamp);
         vm.expectRevert(OffchainQuotedPiecewiseLinearFee.InvalidCurve.selector);
-        _submit(
+        _submitCurve(
             quotedFee,
             DESTINATION,
             RECIPIENT,
@@ -508,7 +606,7 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
         uint32[] memory rates = new uint32[](1);
         uint48 future = uint48(block.timestamp) + 1;
         vm.expectRevert(AbstractOffchainQuoter.InvalidQuote.selector);
-        _submit(
+        _submitCurve(
             quotedFee,
             DESTINATION,
             RECIPIENT,
@@ -530,7 +628,7 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
         twoBps[0] = 20_000;
         uint48 now_ = uint48(block.timestamp);
         vm.expectRevert(AbstractOffchainQuoter.StaleQuote.selector);
-        _submit(
+        _submitCurve(
             quotedFee,
             DESTINATION,
             RECIPIENT,
@@ -543,7 +641,7 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
 
         vm.warp(block.timestamp + 1);
         uint48 later = uint48(block.timestamp);
-        _submit(
+        _submitCurve(
             quotedFee,
             DESTINATION,
             RECIPIENT,
@@ -582,16 +680,13 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
             assertEq(entries[0].quote.marginalBpsX1e4[i], rates[i]);
         }
 
-        uint48 now_ = uint48(block.timestamp);
-        _submit(
+        _submitLinearTransient(
             quotedFee,
             DESTINATION + 1,
             RECIPIENT,
             WILDCARD_AMOUNT,
-            breakpoints,
-            rates,
-            now_,
-            now_
+            1 ether,
+            1 ether
         );
         assertEq(quotedFee.quoteDomains().length, 1);
     }

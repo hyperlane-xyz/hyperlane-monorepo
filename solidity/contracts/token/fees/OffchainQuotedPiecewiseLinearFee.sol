@@ -21,7 +21,7 @@ import {SignedQuote} from "../../interfaces/IOffchainQuoter.sol";
 import {TransientStorage} from "../../libs/TransientStorage.sol";
 import {Quote} from "../../interfaces/ITokenBridge.sol";
 import {FeeType} from "./BaseFee.sol";
-import {FeeQuoteContext} from "./OffchainQuotedLinearFee.sol";
+import {FeeQuoteContext, FeeQuoteData} from "./OffchainQuotedLinearFee.sol";
 import {LinearFee} from "./LinearFee.sol";
 
 /**
@@ -51,15 +51,22 @@ library PiecewiseFeeQuoteData {
 
 /**
  * @title OffchainQuotedPiecewiseLinearFee
- * @notice Signed marginal fee curves with an immutable LinearFee fallback.
+ * @notice Signed marginal standing curves with linear transient quotes and an
+ *         immutable LinearFee fallback.
  * @dev Resolution cascade:
  *      transient -> (destination, recipient) -> (destination, *) ->
  *      (*, recipient) -> immutable LinearFee fallback.
+ *
+ *      Transient quote data reuses OffchainQuotedLinearFee's packed
+ *      abi.encodePacked(uint256 maxFee, uint256 halfAmount) format. Standing
+ *      quote data uses PiecewiseFeeQuoteData.
  *
  *      Curve submission is O(number of bands): it validates the curve and
  *      precomputes cumulative weighted fees. Transfer quoting uses eight
  *      unrolled binary-lifting probes and never loops over active bands.
  */
+// Domain keys are enumerated explicitly through _domainIds.
+// solhint-disable-next-line hyperlane/enumerable-domain-mapping
 contract OffchainQuotedPiecewiseLinearFee is AbstractOffchainQuoter, LinearFee {
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.UintSet;
@@ -83,14 +90,10 @@ contract OffchainQuotedPiecewiseLinearFee is AbstractOffchainQuoter, LinearFee {
         keccak256("OffchainQuotedPiecewiseLinearFee.recipient");
     bytes32 private constant TRANSIENT_AMOUNT_SLOT =
         keccak256("OffchainQuotedPiecewiseLinearFee.amount");
-    bytes32 private constant TRANSIENT_BAND_COUNT_SLOT =
-        keccak256("OffchainQuotedPiecewiseLinearFee.bandCount");
-    bytes32 private constant TRANSIENT_BREAKPOINT_BASE_SLOT =
-        keccak256("OffchainQuotedPiecewiseLinearFee.breakpoints");
-    bytes32 private constant TRANSIENT_RATE_BASE_SLOT =
-        keccak256("OffchainQuotedPiecewiseLinearFee.rates");
-    bytes32 private constant TRANSIENT_PREFIX_BASE_SLOT =
-        keccak256("OffchainQuotedPiecewiseLinearFee.prefixWeighted");
+    bytes32 private constant TRANSIENT_MAX_FEE_SLOT =
+        keccak256("OffchainQuotedPiecewiseLinearFee.maxFee");
+    bytes32 private constant TRANSIENT_HALF_AMOUNT_SLOT =
+        keccak256("OffchainQuotedPiecewiseLinearFee.halfAmount");
 
     // ============ Structs ============
 
@@ -168,7 +171,14 @@ contract OffchainQuotedPiecewiseLinearFee is AbstractOffchainQuoter, LinearFee {
         uint256 _amount
     ) external view override returns (Quote[] memory) {
         if (_matchesTransient(_destination, _recipient, _amount)) {
-            return _singleQuote(_computeTransientFee(_amount));
+            return
+                _singleQuote(
+                    _computeLinearFee(
+                        TRANSIENT_MAX_FEE_SLOT.loadUint256(),
+                        TRANSIENT_HALF_AMOUNT_SLOT.loadUint256(),
+                        _amount
+                    )
+                );
         }
 
         (bool found, uint256 fee) = _resolveStored(
@@ -243,34 +253,14 @@ contract OffchainQuotedPiecewiseLinearFee is AbstractOffchainQuoter, LinearFee {
             bytes32 recipient,
             uint256 amount
         ) = FeeQuoteContext.decode(sq.context);
-        (
-            uint128[] memory breakpoints,
-            uint32[] memory marginalBpsX1e4
-        ) = PiecewiseFeeQuoteData.decode(sq.data);
-        uint256[] memory prefixWeighted = _validateAndBuildPrefixes(
-            breakpoints,
-            marginalBpsX1e4
-        );
+        (uint256 maxFee_, uint256 halfAmount_) = FeeQuoteData.decode(sq.data);
 
         TRANSIENT_QUOTED_SLOT.set();
         TRANSIENT_DESTINATION_SLOT.store(destination);
         TRANSIENT_RECIPIENT_SLOT.store(recipient);
         TRANSIENT_AMOUNT_SLOT.store(amount);
-        TRANSIENT_BAND_COUNT_SLOT.store(marginalBpsX1e4.length);
-
-        for (uint256 i = 0; i < marginalBpsX1e4.length; ++i) {
-            _transientSlot(TRANSIENT_RATE_BASE_SLOT, i).store(
-                marginalBpsX1e4[i]
-            );
-            _transientSlot(TRANSIENT_PREFIX_BASE_SLOT, i).store(
-                prefixWeighted[i]
-            );
-            if (i < breakpoints.length) {
-                _transientSlot(TRANSIENT_BREAKPOINT_BASE_SLOT, i).store(
-                    breakpoints[i]
-                );
-            }
-        }
+        TRANSIENT_MAX_FEE_SLOT.store(maxFee_);
+        TRANSIENT_HALF_AMOUNT_SLOT.store(halfAmount_);
     }
 
     function _storeStanding(
@@ -416,48 +406,6 @@ contract OffchainQuotedPiecewiseLinearFee is AbstractOffchainQuoter, LinearFee {
         return band;
     }
 
-    function _computeTransientFee(
-        uint256 amount
-    ) private view returns (uint256) {
-        uint256 bandCount = TRANSIENT_BAND_COUNT_SLOT.loadUint256();
-        uint256 band;
-        band = _advanceTransient(amount, bandCount, band, 128);
-        band = _advanceTransient(amount, bandCount, band, 64);
-        band = _advanceTransient(amount, bandCount, band, 32);
-        band = _advanceTransient(amount, bandCount, band, 16);
-        band = _advanceTransient(amount, bandCount, band, 8);
-        band = _advanceTransient(amount, bandCount, band, 4);
-        band = _advanceTransient(amount, bandCount, band, 2);
-        band = _advanceTransient(amount, bandCount, band, 1);
-
-        uint256 start = band == 0
-            ? 0
-            : _transientSlot(TRANSIENT_BREAKPOINT_BASE_SLOT, band - 1)
-                .loadUint256();
-        return
-            _computeMarginalFee(
-                _transientSlot(TRANSIENT_PREFIX_BASE_SLOT, band).loadUint256(),
-                amount - start,
-                _transientSlot(TRANSIENT_RATE_BASE_SLOT, band).loadUint32()
-            );
-    }
-
-    function _advanceTransient(
-        uint256 amount,
-        uint256 bandCount,
-        uint256 band,
-        uint256 step
-    ) private view returns (uint256) {
-        uint256 candidate = band + step;
-        if (
-            candidate < bandCount &&
-            amount >
-            _transientSlot(TRANSIENT_BREAKPOINT_BASE_SLOT, candidate - 1)
-                .loadUint256()
-        ) return candidate;
-        return band;
-    }
-
     function _computeMarginalFee(
         uint256 prefixWeighted,
         uint256 amountInBand,
@@ -480,13 +428,6 @@ contract OffchainQuotedPiecewiseLinearFee is AbstractOffchainQuoter, LinearFee {
             marginalQuotient +
             (prefixRemainder + marginalRemainder) /
             BPS_DENOMINATOR;
-    }
-
-    function _transientSlot(
-        bytes32 base,
-        uint256 index
-    ) private pure returns (bytes32) {
-        return keccak256(abi.encode(base, index));
     }
 
     function _singleQuote(
