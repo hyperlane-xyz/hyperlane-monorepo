@@ -4,6 +4,7 @@ import {
   type Address,
   type Hex,
   decodeAbiParameters,
+  encodePacked,
   verifyTypedData,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -266,8 +267,38 @@ describe('QuoteService', () => {
       expect(valid).to.be.true;
     });
 
-    it('encodes the zero placeholder as a valid piecewise curve', async () => {
+    it('encodes the transient piecewise placeholder as linear fee data', async () => {
       const service = createTestService({
+        derivedConfig: {
+          ...mockDerivedConfig,
+          tokenFee: {
+            ...mockDerivedConfig.tokenFee,
+            type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+            maxBands: 4,
+          },
+        },
+      });
+      const res = await service.getQuote(
+        'ethereum',
+        FeeQuotingCommand.TransferRemote,
+        ROUTER,
+        DESTINATION,
+        SALT,
+        RECIPIENT,
+      );
+      const feeQuote = res.quotes.find(
+        (quote) => quote.quoter.toLowerCase() === FEE_CONTRACT.toLowerCase(),
+      );
+      expect(feeQuote).to.exist;
+
+      expect(feeQuote!.quote.data).to.equal(
+        encodePacked(['uint256', 'uint256'], [0n, 1n]),
+      );
+    });
+
+    it('encodes the standing piecewise placeholder as a valid curve', async () => {
+      const service = createTestService({
+        quoteMode: 'standing',
         derivedConfig: {
           ...mockDerivedConfig,
           tokenFee: {

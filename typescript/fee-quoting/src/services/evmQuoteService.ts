@@ -373,7 +373,8 @@ export class EvmQuoteService implements IProtocolQuoteService {
       [destination, recipient, BigInt(2) ** BigInt(256) - BigInt(1)],
     );
     const data =
-      feeQuoter.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee
+      feeQuoter.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee &&
+      binding.kind === QuoteMode.STANDING
         ? encodeAbiParameters(
             [{ type: 'uint128[]' }, { type: 'uint32[]' }],
             [[], [0]],
