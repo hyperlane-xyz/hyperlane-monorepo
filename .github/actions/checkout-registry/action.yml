@@ -8,13 +8,21 @@ runs:
   steps:
     - name: Read .registryrc if registry_version not provided
       shell: bash
+      env:
+        INPUT_REGISTRY_VERSION: ${{ inputs.registry_version }}
       run: |
-        if [ -z "${{ inputs.registry_version }}" ]; then
+        if [ -z "$INPUT_REGISTRY_VERSION" ]; then
           REGISTRY_VERSION=$(cat .registryrc)
-          echo "REGISTRY_VERSION=$REGISTRY_VERSION" >> $GITHUB_ENV
         else
-          echo "REGISTRY_VERSION=${{ inputs.registry_version }}" >> $GITHUB_ENV
+          REGISTRY_VERSION="$INPUT_REGISTRY_VERSION"
         fi
+        case "$REGISTRY_VERSION" in
+          *$'\n'*|*$'\r'*)
+            echo "registry_version must be a single line" >&2
+            exit 1
+            ;;
+        esac
+        echo "REGISTRY_VERSION=$REGISTRY_VERSION" >> $GITHUB_ENV
 
     - name: Checkout hyperlane-registry
       uses: actions/checkout@v6
