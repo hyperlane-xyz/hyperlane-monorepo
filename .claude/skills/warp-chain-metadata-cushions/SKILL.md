@@ -1,6 +1,6 @@
 ---
 name: warp-chain-metadata-cushions
-description: Canonical local chain-metadata cushions applied before any warp command that lands transactions — raising `estimateBlockTime` so the CLI's confirmation budget isn't razor-thin, and pinning a single RPC on multi-RPC chains so gas estimates aren't read from a lagging replica — plus the mandatory restore-and-verify cleanup gate. Referenced by every warp deploy/update skill that submits transactions.
+description: Canonical local chain-metadata cushions applied before any warp command that lands transactions — raising `estimateBlockTime` so the CLI's confirmation budget isn't razor-thin — plus the mandatory restore-and-verify cleanup gate, and why a local single-RPC pin does NOT mitigate stale-gas OOG against the HTTP registry. Referenced by every warp deploy/update skill that submits transactions.
 ---
 
 # Warp Chain-Metadata Cushions
@@ -31,13 +31,19 @@ Ethereum needs the largest cushion: mainnet under load routinely exceeds the sma
 
 **Root cause:** read-after-write lag across a chain's load-balanced private RPCs. The implementation deploys, then `initialize` is gas-estimated against a replica that hasn't indexed the new contract yet, so the estimate comes back EOA-sized (~25k) and the transaction runs out of gas.
 
-**Fix:** pin the affected chain to a single RPC in the local registry metadata for the duration of the run. Applies to commands that deploy contracts; a route with no opstack / multi-RPC chains needs no pin.
+**This is NOT a false positive.** Unlike failure mode 1, the transaction genuinely reverted on chain: the deploy is incomplete, contracts from the same run may be orphaned, and the deployer nonce has advanced. It needs retry and reconciliation of what actually landed — never restore cushions and report the run complete on the strength of the tx having been "sent".
+
+**A local single-RPC pin does not fix it.** Editing `rpcUrls` in the filesystem registry has no effect on what the CLI actually uses: `/start-http-registry` outside CI resolves metadata through the environment registry, which merges GCP secret metadata **after** the filesystem layer, so the secret `rpcUrls` replace the pinned list wholesale. (`estimateBlockTime` survives precisely because the secret layer carries no value for it — which is why failure mode 1's cushion works and this one's does not.)
+
+If a run needs a single RPC, it needs an override with final precedence over the secret layer, or per-chain pin support in the registry server — neither exists today, so treat this as unmitigated. **Never claim the pin is in place without proving it:** read the served metadata for the chain from the running HTTP registry and confirm the RPC list is exactly the intended one. If it isn't, the pin didn't take; say so and proceed knowing the failure mode is live rather than assuming protection you don't have.
 
 ## Verify, don't assume a previous step applied them
 
 Every skill that lands transactions applies this itself — **never assume an earlier step in the chain did it**. A chain can be entered part-way (a route deployed in an earlier session, a send test run standalone, an update against an existing route), the local registry can have been reset or re-cloned between steps, and a prior step's cleanup gate may have already restored the defaults by design.
 
-The operation is idempotent: read the current local `estimateBlockTime` for each chain in the route, and only raise a value that is below the cushion. A value already at or above it is left alone — never lower it. When the cushions were already in place on entry, note that and leave the restore to whoever applied them; when this skill applied them, its own cleanup gate is yours to honor.
+The operation is idempotent: read the current local `estimateBlockTime` for each chain in the route, and only raise a value that is below the cushion. A value already at or above it is left alone — never lower it.
+
+**Record the pre-edit value in the run log before editing, and treat an unexplained cushion as orphaned.** A run that dies between editing and cleanup leaves a raised value with no owner; if later runs defer to "whoever applied it", the edit is inherited forever and the local registry drifts from canonical permanently. So: if the run log records who raised it and that run is still live, leave it. Otherwise it is orphaned — take ownership, restore it to the canonical value at your own cleanup gate, and note the adoption.
 
 ## Cleanup gate (mandatory)
 
@@ -47,8 +53,8 @@ Every cushion above is a **local registry edit**. After the run completes — gr
 git -C $HYPERLANE_REGISTRY diff
 ```
 
-A left-behind `estimateBlockTime` bump or single-RPC pin silently drifts the local registry from canonical for every later run, and can be committed by accident into a registry PR. The gate is not satisfied by intent to restore — verify the diff is clean, and if a warp-route config file is legitimately modified, confirm the metadata files specifically are not.
+A left-behind `estimateBlockTime` bump silently drifts the local registry from canonical for every later run, and can be committed by accident into a registry PR. The gate is not satisfied by intent to restore — verify the diff is clean, and if a warp-route config file is legitimately modified, confirm the metadata files specifically are not.
 
 ## Consumers
 
-`/warp-deploy-init-route` (the deploy), `/warp-deploy-send-test` (the sends — the same confirmation-timeout aborts a send after the ERC20 approval is mined but before the `transferRemote`, leaving a dangling allowance and no dispatch), `/warp-update`, `/warp-update-extend` — every skill that submits transactions through the CLI.
+`/warp-deploy-init-route` (the deploy), `/warp-deploy-send-test` (the sends — the same confirmation-timeout aborts a send after the ERC20 approval is mined but before the `transferRemote`, leaving a dangling allowance and no dispatch), `/warp-deploy-update-owners` (the ownership-transfer `warp apply`), `/warp-update`, `/warp-update-extend` — every skill that submits transactions through the CLI.

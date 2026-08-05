@@ -316,7 +316,8 @@ After approval, run it. Show the full output.
 - Deployer key not funded → re-run Step 5
 - Strategy chain not in deploy.yaml → verify all chains in the strategy match the deploy.yaml
 - ICA owner mismatch → re-run `/warp-update-resolve-artifacts` and confirm the resolved owners match what the deploy.yaml expects
-- Stale-gas OOG on `initialize`, or a confirmation-timeout on a tx that already landed (`status: 1`) → multi-RPC read-after-write / short-confirmation-budget artifacts, not real failures. Apply the cushions per `/warp-chain-metadata-cushions` up front, and restore per its cleanup gate.
+- Confirmation-timeout on a tx that already landed (`status: 1`) → an observation artifact, not a real failure. Apply the cushions per `/warp-chain-metadata-cushions` up front, and restore per its cleanup gate.
+- Stale-gas OOG on `initialize` → a genuine revert from a multi-RPC read-after-write lag. The apply is incomplete; retry and reconcile what landed rather than treating it as a false positive.
 
 ---
 

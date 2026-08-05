@@ -1,6 +1,6 @@
 ---
 name: warp-run-log
-description: Maintain the durable, per-ticket run log that warp deploy/update skills append to at every milestone — a Linear-document-by-title primary with single-writer discipline, the agent's own durable store as second target and a local-file last resort, a machine-parseable per-chain row plus prose entry shape, and a surface-the-URL-as-proof hard gate. Referenced by any warp deploy/update skill that must leave a retrospective trail across worker restarts.
+description: Maintain the durable, per-run log that warp deploy/update skills append to at every milestone — a Linear-document-by-title primary with single-writer discipline, the agent's own durable store as second target and a local-file last resort, a machine-parseable per-chain row plus prose entry shape, and a surface-the-URL-as-proof hard gate. Referenced by any warp deploy/update skill that must leave a retrospective trail across worker restarts.
 ---
 
 # Warp Run Log
@@ -16,7 +16,7 @@ Warp deploy/update runs are long, multi-milestone, and frequently interrupted (w
 
 - **Calling skill name** — used verbatim in each prose entry's header (e.g. `warp-deploy-init-route`).
 - **Milestone list** — the specific events this skill must log (the caller supplies its own "log at least" list; see each consumer).
-- **Ticket ID** — the per-ticket key; it names the document.
+- **Run key** — names the document. The ticket ID when the run has a ticket; otherwise the primary warp route ID. Skills that accept route-only invocations (send-test, nexus, validate-owners with explicit owners) use the route ID and are still bound by the same contract — a run without a ticket is not a run without a log. Whichever is used, it must be deterministic so a resumed run resolves the same document.
 
 ## Entry check — the calling skill's first action
 
@@ -26,9 +26,9 @@ Open-or-create the log before the skill's first real step. Never assume an earli
 
 ## The storage contract
 
-Every milestone must append an entry to a durable, per-ticket run log — durable meaning it survives a worker restart / session restore. The worker's local filesystem (`~/.hyperlane/`) does NOT qualify on its own: it is ephemeral and vanishes on restore, which is the exact event the log exists to survive.
+Every milestone must append an entry to a durable, per-run log — durable meaning it survives a worker restart / session restore. The worker's local filesystem (`~/.hyperlane/`) does NOT qualify on its own: it is ephemeral and vanishes on restore, which is the exact event the log exists to survive.
 
-**Primary target — Linear document.** One document per ticket, titled exactly `<ticket-id> — run log`. Use whatever Linear tooling the current agent has (MCP integration, CLI script, direct API call, etc.) to:
+**Primary target — Linear document.** One document per run, titled exactly `<run-key> — run log`. Use whatever Linear tooling the current agent has (MCP integration, CLI script, direct API call, etc.) to:
 
 - **Locate the document by exact title match.** Linear documents are not natively attachable to an issue in a way most list APIs filter on, so the title string IS the identity contract — treat it as canonical and do not fuzzy-match (two tickets must never collide).
 - **If no document with that title exists, create one** with the exact title above.
@@ -37,9 +37,9 @@ Every milestone must append an entry to a durable, per-ticket run log — durabl
 
 **Single-writer discipline.** Because the append is read-modify-write, two writers appending concurrently silently drop the earlier writer's entry (last-write-wins). Only one process may append to a given run log at any moment: if a subagent needs to record something, either it returns the entry to the parent to append serially, or the parent completes its append before spawning the subagent. Do NOT fan out logging to parallel workers against the same document.
 
-**Second target — the agent's own durable store.** When Linear document tooling isn't available, use whatever append-capable storage this agent has that lives OUTSIDE the worker's filesystem — a persisted document store, notes store, or artifact store — keyed by the ticket ID. Prefer one that appends in place over one that snapshots a whole file per write. Such stores are often scoped to the current conversation or thread: that survives a worker restart or a fresh worker resuming the same thread, but not a move to a new one, so pick the broadest scope offered. The identifier or URL still has to be surfaced per the hard gate above.
+**Second target — the agent's own durable store.** When Linear document tooling isn't available, use whatever append-capable storage this agent has that lives OUTSIDE the worker's filesystem — a persisted document store, notes store, or artifact store — keyed by the run key. Prefer one that appends in place over one that snapshots a whole file per write. Such stores are often scoped to the current conversation or thread: that survives a worker restart or a fresh worker resuming the same thread, but not a move to a new one, so pick the broadest scope offered. The identifier or URL still has to be surfaced per the hard gate above.
 
-**Last resort — local file.** Only when neither of the above exists: write to `~/.hyperlane/run-logs/<ticket-id>.md` (create the file on the first entry). Flag the fallback explicitly in the first entry, and note that this file will not survive the worker being replaced; copy it into durable storage at each significant milestone so the retrospective still has data if the worker resets.
+**Last resort — local file.** Only when neither of the above exists: write to `~/.hyperlane/run-logs/<run-key>.md` (create the file on the first entry). Flag the fallback explicitly in the first entry, and note that this file will not survive the worker being replaced; copy it into durable storage at each significant milestone so the retrospective still has data if the worker resets.
 
 ## Entry shape
 
@@ -74,4 +74,4 @@ Do not skip entries when things go smoothly; success data grounds the retrospect
 
 ## Consumers
 
-`/warp-deploy-fund-deployer`, `/warp-deploy-init-route`, `/warp-deploy-update-owners`, `/warp-deploy-register-route`, `/warp-update`, `/warp-update-extend`. Each keeps its own "Log at least" milestone list and passes its skill name into the prose header above.
+`/warp-deploy-select-keys`, `/warp-deploy-validate-owners`, `/warp-deploy-fund-deployer`, `/warp-deploy-init-route`, `/warp-deploy-send-test`, `/warp-deploy-update-owners`, `/warp-deploy-register-route`, `/warp-deploy-nexus`, `/warp-update`, `/warp-update-resolve-artifacts`, `/warp-update-extend`, `/warp-update-propose`. Each keeps its own "Log at least" milestone list and passes its skill name into the prose header above.

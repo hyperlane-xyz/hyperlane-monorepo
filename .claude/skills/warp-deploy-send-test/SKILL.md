@@ -12,7 +12,7 @@ Delivery, balances, funding, and the run log are owned by other skills — this 
 - `/warp-balances` — router collateral / synthetic supply, and per-address balances (fee-accrual + live-balance checks).
 - `/warp-deploy-fund-deployer` — funds/top-ups the deployer via the fundkey script; the single owner of the funding contract.
 - `/start-http-registry` + `/stop-http-registry` — private-RPC registry for reliable delivery (start without `--writeMode`; sends don't write the registry).
-- `/warp-run-log` — durable per-run log. Open-or-create it at entry; never assume the deploy created it. Friction notes go straight in, not a side file.
+- `/warp-run-log` — durable per-run log. Open-or-create it at entry; never assume the deploy created it. Key it by the ticket ID when there is one, otherwise the warp route ID — a standalone send test still keeps a log. Friction notes go straight in, not a side file.
 
 ## Inputs
 
@@ -36,17 +36,22 @@ Delivery, balances, funding, and the run log are owned by other skills — this 
 | `--quick`                                | dispatch without waiting for delivery                                        |
 | `--source-token` / `--destination-token` | pick a specific leaf on CrossCollateralRouter routes                         |
 
-### Pass BOTH the origin and the destination key — always
+### When the destination key is required
 
-`warp send` preflights signers on **both ends** of the leg, not just the sender. Invoked with only `--key.<origin>`, it drops into an interactive "enter private key for `<destination>`" prompt; headless that force-closes and the command exits 1 (`Error: User force closed the prompt with 13 null`) before anything dispatches. This is not conditional — it is the default invocation shape for every directed send:
+The origin always needs a signer. The **destination** additionally needs one when either holds (`resolveWarpSendChains` in `typescript/cli/src/context/strategies/chain/chainResolver.ts`):
+
+- **no explicit `--recipient`** — the CLI defaults the recipient to the destination signer's address, so it must resolve a destination signer to know where to send; or
+- **`--relay`** is set — self-relay submits the delivery tx on the destination chain.
+
+Supply `--recipient` and the destination key is not consulted. Omit it and, headless, the missing destination key drops into an interactive "enter private key" prompt that force-closes: `Error: User force closed the prompt with 13 null`, exit 1, nothing dispatched. Non-EVM destinations require `--recipient` regardless, so they are never destination-signer-preflighted.
+
+Keys are per **protocol**, not per chain — one EVM secret covers every EVM chain, and tron takes its own flag though the same secp256k1 secret derives it. On a cross-protocol leg, name each side's key explicitly rather than reusing one placeholder, or the two flags can be pointed at the wrong secret:
 
 ```bash
 hyperlane warp send -w <ID> --registry http://localhost:<port> \
   --origin <A> --destination <B> --amount <n> \
-  --key.<origin-protocol> "$KEY" --key.<destination-protocol> "$KEY"
+  --key.<origin-protocol> "$ORIGIN_KEY" --key.<destination-protocol> "$DESTINATION_KEY"
 ```
-
-One key per **protocol**, not per chain — a single EVM secret covers every EVM chain plus tron (the CLI keys tron separately but the same secp256k1 secret derives it), so an all-EVM leg still needs the flag named twice only when origin and destination protocols differ. When they are the same protocol, one `--key.<protocol>` satisfies both ends.
 
 ## Test shape
 
@@ -83,7 +88,16 @@ A single round trip leaves most legs untested. Exercise every collateral leg as 
 
 _With a synthetic hub:_ from each collateral chain, send into the synthetic (or chosen hub) leg. Locks collateral in each router and mints the synthetic, so destinations have collateral to release in Phase 2.
 
-_Pure collateral mesh:_ nothing to mint from, and `send A→B` releases from B's own balance. Seed via a **liquidity pivot**: transfer tokens directly into one router (plain ERC20/SPL transfer to the router address, not a `warp send`), then route the mesh through that pool so each remaining pool self-seeds from the collateral locked by its inbound dispatch. Size to the largest single leg plus fee headroom; recovered in Phase 3.
+_Pure collateral mesh:_ nothing to mint from, and `send A→B` releases from **B's** pool. Seed via a **liquidity pivot**: fund one chain's pool directly, then make it the destination of a send from every other chain — each such send locks collateral on its origin, so the origins fund themselves one at a time.
+
+The direct seed must target the chain's actual collateral account, which is protocol-specific:
+
+| Protocol   | Where collateral lives                                                                                                   |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------ |
+| EVM / Tron | the router contract itself — a plain ERC20 transfer to the router address                                                |
+| Sealevel   | the router's derived **escrow** account, NOT the program ID or its ATA (`deriveEscrowAccount` in `SealevelTokenAdapter`) |
+
+Pick an EVM chain as the pivot when the route has one — it is the cheapest to fund and verify. Then walk deliberately: with pivot `P` seeded, run `A→P`, `B→P`, `C→P` (each funds its own origin), and only then run legs between the now-funded chains. **Do not assume an arbitrary cycle works** — `A→B` followed by `B→C` fails at the second hop if `C` was never funded, and `A→B` drains `B` in the process. Size the seed to cover **one release per origin** — the pivot pays out on every `X→P` — so `(chains − 1) × leg amount` plus fee headroom, not a single leg's worth. It is recovered in Phase 3.
 
 **Phase 2 — collateral ↔ collateral.** A small cycle where each chain is a source and a destination once (e.g. `A→B`, `B→C`, `C→D`, `D→A`). This is the first exercise of cross-VM _destinations_.
 
