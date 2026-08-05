@@ -38,9 +38,10 @@ don't hold the authority's key.
 
 ## Prerequisites
 
-- **surfpool** available: either the `surfpool` binary on `PATH`, or Docker (the
-  `warp fork` SVM path pulls `surfpool/surfpool:1.5.0` automatically via
-  testcontainers — Docker must be running). No manual install needed if Docker is up.
+- **surfpool** installed: the CLI `warp fork` SVM path runs a locally-installed
+  `surfpool` binary (`>= 1.5.0`) on `PATH` — there is **no Docker fallback** (install
+  with `curl -sSfL https://run.surfpool.run/ | bash`). If it's missing, `warp fork`
+  aborts before replaying anything with a "surfpool 1.5.0+ is required" error.
 - Monorepo root: `MONOREPO_ROOT=$(git rev-parse --show-toplevel)`. Prefix CLI
   commands with `cd $MONOREPO_ROOT &&`.
 - A local HTTP registry serving the **target** (PR) config (use
@@ -121,15 +122,13 @@ the replayed txs produce exactly the target config.
 
 ### Step 5 — Cleanup (mandatory)
 
-Stop the background `warp fork` process (`KillShell` with its ID). It sends `SIGINT`
-to surfpool and lets testcontainers reap the surfpool container — don't leave it
-running.
+Stop the background `warp fork` process (`KillShell` with its ID). It terminates the
+local `surfpool` process (SIGTERM) — don't leave it running.
 
 ### Step 6 — Report
 
 - PASS/FAIL with the concrete config deltas (owner/ISM/router/gas/fee) vs the target
   config.
-- Whether replay ran against a local `surfpool` binary or the docker image.
 - Anything not covered.
 
 ## Gotchas (learned)
