@@ -5,7 +5,6 @@ import { fileURLToPath } from 'url';
 
 import chalk from 'chalk';
 
-import type { ChainName } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { getArgs, withChains } from '../agent-utils.js';
@@ -34,6 +33,13 @@ type Pod = {
 
 type PodsResponse = {
   items?: Pod[];
+};
+
+type SyncProgressArgs = {
+  environment: string;
+  chains?: string[];
+  namespace?: string;
+  localPortStart: number;
 };
 
 type MetricSample = {
@@ -79,16 +85,73 @@ function rustConfigPath(environment: string): string {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isPod(value: unknown): value is Pod {
+  if (!isRecord(value)) return false;
+
+  const { metadata, status } = value;
+  return (
+    (metadata === undefined ||
+      (isRecord(metadata) &&
+        (metadata.name === undefined || typeof metadata.name === 'string'))) &&
+    (status === undefined ||
+      (isRecord(status) &&
+        (status.phase === undefined || typeof status.phase === 'string')))
+  );
+}
+
+function parsePodsResponse(text: string): PodsResponse {
+  const parsed: unknown = JSON.parse(text);
+  assert(isRecord(parsed), 'kubectl pods response must be a JSON object');
+
+  const { items } = parsed;
+  assert(
+    items === undefined || (Array.isArray(items) && items.every(isPod)),
+    'kubectl pods response items must be pods',
+  );
+
+  return { items };
+}
+
 function loadRustConfig(environment: string): RustConfig {
   return JSON.parse(readFileSync(rustConfigPath(environment), 'utf-8'));
 }
 
-function runKubectl(args: string[]): string {
+function runKubectl(args: readonly string[]): string {
   const result = spawnSync('kubectl', args);
   if (result.status !== 0) {
     throw new Error(result.stderr.toString() || result.stdout.toString());
   }
   return result.stdout.toString();
+}
+
+function parseArgs(argv: {
+  environment?: unknown;
+  chains?: unknown;
+  namespace?: unknown;
+  localPortStart?: unknown;
+}): SyncProgressArgs {
+  const { environment, chains, namespace, localPortStart } = argv;
+  assert(typeof environment === 'string', 'environment must be a string');
+  assert(
+    chains === undefined ||
+      (Array.isArray(chains) &&
+        chains.every((chain) => typeof chain === 'string')),
+    'chains must be an array of strings',
+  );
+  assert(
+    namespace === undefined || typeof namespace === 'string',
+    'namespace must be a string',
+  );
+  assert(
+    typeof localPortStart === 'number',
+    'local-port-start must be a number',
+  );
+
+  return { environment, chains, namespace, localPortStart };
 }
 
 function parseLabels(rawLabels: string | undefined): Record<string, string> {
@@ -336,7 +399,7 @@ function printRows(rows: ProgressRow[]) {
 }
 
 async function main() {
-  const argv = await withChains(getArgs())
+  const rawArgv = await withChains(getArgs())
     .describe('namespace', 'Kubernetes namespace')
     .string('namespace')
     .describe(
@@ -345,17 +408,16 @@ async function main() {
     )
     .number('local-port-start')
     .default('local-port-start', 19090).argv;
+  const argv = parseArgs(rawArgv);
 
   const { environment, chains, namespace: namespaceArg, localPortStart } = argv;
   const namespace = namespaceArg ?? `validator-${environment}`;
   const config = loadRustConfig(environment);
   const configuredChains = Object.keys(config.chains);
-  const chainFilter = new Set(
-    (chains as ChainName[] | undefined) ?? configuredChains,
-  );
+  const chainFilter = new Set(chains ?? configuredChains);
 
   const podsJson = runKubectl(['get', 'pods', '-n', namespace, '-o', 'json']);
-  const pods = (JSON.parse(podsJson) as PodsResponse).items ?? [];
+  const pods = parsePodsResponse(podsJson).items ?? [];
   const validatorPods = pods
     .map((pod) => pod.metadata?.name)
     .filter((name): name is string => !!name)

@@ -274,7 +274,7 @@ export abstract class HelmManager<T = HelmValues> {
     namespace: string,
   ): Promise<boolean> {
     const releases = await execCmdAndParseJson(
-      `helm list --namespace ${namespace} --filter '^${releaseName}$' --output json`,
+      `helm list --namespace ${namespace} --deployed --failed --pending --uninstalling --filter '^${releaseName}$' --output json`,
     );
     return releases.length > 0;
   }
