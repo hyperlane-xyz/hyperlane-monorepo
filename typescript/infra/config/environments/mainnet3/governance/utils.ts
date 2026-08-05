@@ -188,6 +188,14 @@ export function getSafesByGovernanceForChain(
 }
 
 /**
+ * Turnkey "EVM Warp Fees Owner" key. Warp routes whose EVM fee contracts have
+ * been rotated to Turnkey treasury custody use this as the fee owner instead of
+ * the per-chain WarpFees Safe/ICA returned by getWarpFeeOwner.
+ */
+export const WARP_FEES_TURNKEY_OWNER: Address =
+  '0xe95C605096A1AD38BaC3E5210e145952Cbdc6998';
+
+/**
  * Get the owner address for warp fee contracts on a given chain.
  * - Ethereum: Uses Safe from warpFeesSafes
  * - Other chains: Uses ICA from warpFeesIcas
