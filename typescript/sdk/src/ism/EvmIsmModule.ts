@@ -47,6 +47,7 @@ import {
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
   IsmConfig,
+  IsmConfigSchema,
   IsmType,
   MUTABLE_ISM_TYPE,
   OffchainLookupIsmConfig,
@@ -137,16 +138,26 @@ export class EvmIsmModule extends HyperlaneModule<
   public async update(
     targetConfig: IsmConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
-    targetConfig = BaseIsmConfigSchema.parse(targetConfig);
+    const parsedTargetConfig = IsmConfigSchema.parse(targetConfig);
+    return this.updateInternal(parsedTargetConfig);
+  }
+
+  private async updateInternal(
+    targetConfig: IsmConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    const parsedTargetConfig = BaseIsmConfigSchema.parse(targetConfig);
 
     // Nothing to do if its the default ism
-    if (typeof targetConfig === 'string' && isZeroishAddress(targetConfig)) {
+    if (
+      typeof parsedTargetConfig === 'string' &&
+      isZeroishAddress(parsedTargetConfig)
+    ) {
       return [];
     }
 
     // We need to normalize the current and target configs to compare.
     const normalizedTargetConfig: DerivedIsmConfig = normalizeConfig(
-      await this.reader.deriveIsmConfig(targetConfig),
+      await this.reader.deriveIsmConfig(parsedTargetConfig),
     );
     const normalizedCurrentConfig: DerivedIsmConfig | string = normalizeConfig(
       await this.read(),
@@ -382,6 +393,8 @@ export class EvmIsmModule extends HyperlaneModule<
     ccipContractCache?: CCIPContractCache;
     contractVerifier?: ContractVerifier;
   }): Promise<EvmIsmModule> {
+    const parsedConfig = IsmConfigSchema.parse(config);
+
     const module = new EvmIsmModule(
       multiProvider,
       {
@@ -391,13 +404,13 @@ export class EvmIsmModule extends HyperlaneModule<
           deployedIsm: ethers.constants.AddressZero,
         },
         chain,
-        config,
+        config: parsedConfig,
       },
       ccipContractCache,
       contractVerifier,
     );
 
-    const deployedIsm = await module.deploy({ config });
+    const deployedIsm = await module.deploy({ config: parsedConfig });
     module.args.addresses.deployedIsm = deployedIsm.address;
 
     return module;
@@ -630,7 +643,7 @@ export class EvmIsmModule extends HyperlaneModule<
         this.ccipContractCache,
         this.contractVerifier,
       );
-      allUpdateTxs.push(...(await subModule.update(targetConfig)));
+      allUpdateTxs.push(...(await subModule.updateInternal(targetConfig)));
       if (!eqAddress(origAddress, subModule.serialize().deployedIsm)) {
         return null;
       }
