@@ -23,19 +23,6 @@ type RustConfig = {
   chains: Record<string, ChainConfig>;
 };
 
-type Pod = {
-  metadata?: {
-    name?: string;
-  };
-  status?: {
-    phase?: string;
-  };
-};
-
-type PodsResponse = {
-  items?: Pod[];
-};
-
 type SyncProgressArgs = {
   environment: string;
   context: Contexts;
@@ -87,47 +74,23 @@ function rustConfigPath(environment: string): string {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function isPod(value: unknown): value is Pod {
-  if (!isRecord(value)) return false;
-
-  const { metadata, status } = value;
-  return (
-    (metadata === undefined ||
-      (isRecord(metadata) &&
-        (metadata.name === undefined || typeof metadata.name === 'string'))) &&
-    (status === undefined ||
-      (isRecord(status) &&
-        (status.phase === undefined || typeof status.phase === 'string')))
-  );
-}
-
-function parsePodsResponse(text: string): PodsResponse {
-  const parsed: unknown = JSON.parse(text);
-  assert(isRecord(parsed), 'kubectl pods response must be a JSON object');
-
-  const { items } = parsed;
-  assert(
-    items === undefined || (Array.isArray(items) && items.every(isPod)),
-    'kubectl pods response items must be pods',
-  );
-
-  return { items };
-}
-
 function loadRustConfig(environment: string): RustConfig {
   return JSON.parse(readFileSync(rustConfigPath(environment), 'utf-8'));
 }
 
 function runKubectl(args: readonly string[]): string {
-  const result = spawnSync('kubectl', args);
-  if (result.status !== 0) {
-    throw new Error(result.stderr.toString() || result.stdout.toString());
+  const result = spawnSync('kubectl', args, {
+    encoding: 'utf-8',
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  if (result.status !== 0 || result.error) {
+    throw new Error(result.stderr || result.error?.message || result.stdout);
   }
-  return result.stdout.toString();
+  return result.stdout;
+}
+
+function parsePodNames(text: string): string[] {
+  return text.split('\n').filter(Boolean);
 }
 
 function isContext(value: unknown): value is Contexts {
@@ -433,20 +396,19 @@ async function main() {
   const configuredChains = Object.keys(config.chains);
   const chainFilter = new Set(chains ?? configuredChains);
 
-  const podsJson = runKubectl([
-    'get',
-    'pods',
-    '-n',
-    namespace,
-    '--selector',
-    `hyperlane/context=${context},app.kubernetes.io/component=validator`,
-    '-o',
-    'json',
-  ]);
-  const pods = parsePodsResponse(podsJson).items ?? [];
-  const validatorPods = pods
-    .map((pod) => pod.metadata?.name)
-    .filter((name): name is string => !!name)
+  const podNames = parsePodNames(
+    runKubectl([
+      'get',
+      'pods',
+      '-n',
+      namespace,
+      '--selector',
+      `hyperlane/context=${context},app.kubernetes.io/component=validator`,
+      '-o',
+      'jsonpath={range .items[*]}{.metadata.name}{"\\n"}{end}',
+    ]),
+  );
+  const validatorPods = podNames
     .map((name) => ({ name, chain: chainFromPod(name, configuredChains) }))
     .filter(
       (pod): pod is { name: string; chain: string } =>
@@ -480,9 +442,7 @@ async function main() {
   printRows(rows);
 }
 
-main()
-  .then(console.log)
-  .catch((err) => {
-    console.error('Error checking validator sync progress:', err);
-    process.exit(1);
-  });
+main().catch((err) => {
+  console.error('Error checking validator sync progress:', err);
+  process.exit(1);
+});

@@ -26,6 +26,7 @@ interface IamPolicyBinding {
 const logger = rootLogger.child({ module: 'infra:utils:gcloud' });
 const kmsIamGrantQueues = new Map<string, Promise<void>>();
 const gcsBucketMutationQueues = new Map<string, Promise<void>>();
+let serviceAccountCreateQueue: Promise<void> = Promise.resolve();
 
 async function withKmsIamGrantQueue<T>(
   queueKey: string,
@@ -67,6 +68,18 @@ async function withGcsBucketMutationQueue<T>(
       gcsBucketMutationQueues.delete(bucketName);
     }
   }
+}
+
+async function withServiceAccountCreateQueue<T>(
+  task: () => Promise<T>,
+): Promise<T> {
+  const previous = serviceAccountCreateQueue;
+  const run = previous.then(task, task);
+  serviceAccountCreateQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
 }
 
 // Allows secrets to be overridden via environment variables to avoid
@@ -305,41 +318,44 @@ export async function createServiceAccountIfNotExists(
   serviceAccountName: string,
   project: string = GCP_PROJECT_ID,
 ) {
-  let serviceAccountInfo = await getServiceAccountInfo(
-    serviceAccountName,
-    project,
-  );
-  if (!serviceAccountInfo) {
-    try {
-      serviceAccountInfo = await createServiceAccount(
-        serviceAccountName,
-        project,
-      );
-      logger.debug(
-        `Created new service account with name ${serviceAccountName}`,
-      );
-    } catch (error) {
-      // This service account is shared across every validator index for the
-      // chain (see ValidatorAgentGcpUser), so concurrent buildConfig() calls
-      // race the list-then-create above. Re-check real state rather than
-      // pattern-match the error text — only recover if it genuinely exists now.
-      serviceAccountInfo = await getServiceAccountInfo(
-        serviceAccountName,
-        project,
-      );
-      if (!serviceAccountInfo) {
-        throw error;
+  return withServiceAccountCreateQueue(async () => {
+    let serviceAccountInfo = await getServiceAccountInfo(
+      serviceAccountName,
+      project,
+    );
+    if (!serviceAccountInfo) {
+      try {
+        serviceAccountInfo = await retryAsync(
+          () => createServiceAccount(serviceAccountName, project),
+          3,
+          60_000,
+        );
+        logger.debug(
+          `Created new service account with name ${serviceAccountName}`,
+        );
+      } catch (error) {
+        // This service account is shared across every validator index for the
+        // chain (see ValidatorAgentGcpUser), so concurrent buildConfig() calls
+        // race the list-then-create above. Re-check real state rather than
+        // pattern-match the error text — only recover if it genuinely exists now.
+        serviceAccountInfo = await getServiceAccountInfo(
+          serviceAccountName,
+          project,
+        );
+        if (!serviceAccountInfo) {
+          throw error;
+        }
+        logger.debug(
+          `Service account with name ${serviceAccountName} already exists`,
+        );
       }
+    } else {
       logger.debug(
         `Service account with name ${serviceAccountName} already exists`,
       );
     }
-  } else {
-    logger.debug(
-      `Service account with name ${serviceAccountName} already exists`,
-    );
-  }
-  return serviceAccountInfo.email;
+    return serviceAccountInfo.email;
+  });
 }
 
 export async function grantServiceAccountRoleIfNotExists(
