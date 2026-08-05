@@ -4,6 +4,7 @@ import { allocateSequentialPorts } from './helpers.js';
 import { ForkManagerRegistry } from './registry.js';
 import {
   ChainMap,
+  ChainName,
   ForkChainInput,
   ForkedChainMetadata,
   IForkManager,
@@ -31,29 +32,49 @@ export async function buildForkedChainMetadata(args: {
 
   const metadata: ChainMap<ForkedChainMetadata> = {};
   const managers: ChainMap<IForkManager<unknown>> = {};
+  const started: Array<{
+    chainName: ChainName;
+    manager: IForkManager<unknown>;
+  }> = [];
 
-  for (const [i, chain] of chains.entries()) {
-    const factory = forkManagers.getForkManagerFactory(chain.protocol);
-    const manager = factory({
-      chainName: chain.chainName,
-      upstreamRpcUrl: chain.upstreamRpcUrl,
-      port: ports[i],
-    });
+  try {
+    for (const [i, chain] of chains.entries()) {
+      const factory = forkManagers.getForkManagerFactory(chain.protocol);
+      const manager = factory({
+        chainName: chain.chainName,
+        upstreamRpcUrl: chain.upstreamRpcUrl,
+        port: ports[i],
+      });
+      started.push({ chainName: chain.chainName, manager });
 
-    logger.info(`Starting fork node for chain ${chain.chainName}`);
-    await manager.start();
+      logger.info(`Starting fork node for chain ${chain.chainName}`);
+      await manager.start();
 
-    const chainMetadata = manager.getForkedChainMetadata();
-    logger.info(
-      `Fork node ready for chain ${chain.chainName} at ${chainMetadata.rpcUrls[0].http}`,
-    );
+      const chainMetadata = manager.getForkedChainMetadata();
+      logger.info(
+        `Fork node ready for chain ${chain.chainName} at ${chainMetadata.rpcUrls[0].http}`,
+      );
 
-    if (!isNullish(chain.forkConfig)) {
-      await manager.applyForkConfig(chain.forkConfig);
+      if (!isNullish(chain.forkConfig)) {
+        await manager.applyForkConfig(chain.forkConfig);
+      }
+
+      metadata[chain.chainName] = chainMetadata;
+      managers[chain.chainName] = manager;
+    }
+  } catch (error: unknown) {
+    for (const { chainName, manager } of started) {
+      try {
+        manager.kill();
+      } catch (killError: unknown) {
+        logger.warn(
+          { err: killError, chainName },
+          'Failed to kill fork node during cleanup',
+        );
+      }
     }
 
-    metadata[chain.chainName] = chainMetadata;
-    managers[chain.chainName] = manager;
+    throw error;
   }
 
   return { metadata, managers };

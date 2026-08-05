@@ -15,11 +15,17 @@ class FakeForkManager implements IForkManager<unknown> {
   startCalls = 0;
   appliedConfigs: unknown[] = [];
   killed = false;
+  failStart = false;
 
   constructor(readonly ctx: ForkManagerContext) {}
 
   start(): Promise<void> {
     this.startCalls++;
+    if (this.failStart) {
+      return Promise.reject(
+        new Error(`start failed for ${this.ctx.chainName}`),
+      );
+    }
     return Promise.resolve();
   }
 
@@ -139,5 +145,37 @@ describe('buildForkedChainMetadata', () => {
       { http: 'http://127.0.0.1:9002' },
     ]);
     expect(managers.beta).to.equal(created[1]);
+  });
+
+  it('kills previously-started managers when a later manager fails to start', async () => {
+    const created: FakeForkManager[] = [];
+    const registry = new ForkManagerRegistry();
+    const factory = (ctx: ForkManagerContext) => {
+      const manager = new FakeForkManager(ctx);
+      if (ctx.chainName === 'beta') {
+        manager.failStart = true;
+      }
+      created.push(manager);
+      return manager;
+    };
+    registry.registerProtocol(ProtocolType.Ethereum, factory);
+
+    let threw = false;
+    try {
+      await buildForkedChainMetadata({
+        chains,
+        forkManagers: registry,
+        basePort: 9000,
+      });
+    } catch (error: unknown) {
+      threw = true;
+      expect(error).to.be.instanceOf(Error);
+    }
+
+    expect(threw).to.equal(true);
+    // gamma is never created: the loop throws while starting beta.
+    expect(created.length).to.equal(2);
+    // alpha (already started) is torn down during cleanup.
+    expect(created[0].killed).to.equal(true);
   });
 });
