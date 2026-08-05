@@ -94,44 +94,47 @@ async function deployCentralizedWarpMonitor({
   const agentConfig = getAgentConfig(Contexts.Hyperlane, environment);
   const imageTag = imageTagArg ?? mainnetDockerTags.warpMonitor;
 
-  // Build the monitored whitelist. An explicit --warp-route-id overrides all
-  // discovery. Otherwise derive from a durable source: the centralized
-  // monitor's own currently-deployed route list, falling back to the per-route
-  // monitor pods only for the initial bootstrap (before this monitor exists, or
-  // once the per-route StatefulSets have been decommissioned, that pod source
-  // is empty). Rebalancer-owned routes are unioned in so they keep full
-  // (non-shared-balance) monitoring coverage. Every id is then validated
-  // against the registry so an unknown or orphaned id never silently deploys.
-  // This keeps scope to the mainnet fleet rather than every registry route, so
-  // it never pages on testnet/staging routes that were never monitored.
-  let candidateWarpRouteIds: string[];
-  if (warpRouteId) {
-    candidateWarpRouteIds = [warpRouteId];
-  } else {
-    const deployedCentralized =
-      await getDeployedCentralizedWarpMonitorWarpRouteIds(environment);
-    let baseIds: string[];
-    if (deployedCentralized.length > 0) {
-      baseIds = deployedCentralized;
-      rootLogger.info(
-        `Whitelist base: current centralized monitor (${deployedCentralized.length} route(s))`,
-      );
-    } else {
-      const deployedMonitors = await getDeployedWarpMonitorWarpRouteIds(
-        environment,
-        WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX,
-      );
-      baseIds = deployedMonitors.map((p) => p.warpRouteId);
-      rootLogger.info(
-        `Whitelist base: per-route monitor pods bootstrap (${dedupeAndSortWarpRouteIds(baseIds).length} route(s))`,
-      );
-    }
-    candidateWarpRouteIds = [...baseIds, ...rebalancerWarpRouteIds];
-  }
+  // Build the monitored whitelist as the UNION of every source so the singleton
+  // is always extended, never replaced or frozen: the centralized monitor's own
+  // currently-deployed route list (its durable Deployment whitelist), the
+  // currently-deployed per-route monitors (so a route added via the per-route
+  // flow gets folded in), an explicit --warp-route-id when provided (added on
+  // top, not substituted), and rebalancer-owned routes (kept for full
+  // non-shared-balance coverage). Every id is then validated against the
+  // registry so an unknown or orphaned id never silently deploys, and stale
+  // entries are dropped. This keeps scope to the mainnet fleet rather than
+  // every registry route, so it never pages on testnet/staging routes that were
+  // never monitored.
+  const deployedCentralized =
+    await getDeployedCentralizedWarpMonitorWarpRouteIds(environment);
+  const deployedMonitors = await getDeployedWarpMonitorWarpRouteIds(
+    environment,
+    WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX,
+  );
+  const deployedPerRouteIds = deployedMonitors
+    .map((p) => p.warpRouteId)
+    .filter((id): id is string => !!id);
+  const candidateWarpRouteIds = [
+    ...deployedCentralized,
+    ...deployedPerRouteIds,
+    ...(warpRouteId ? [warpRouteId] : []),
+    ...rebalancerWarpRouteIds,
+  ];
+  rootLogger.info(
+    `Whitelist union — centralized: ${deployedCentralized.length}, per-route: ${dedupeAndSortWarpRouteIds(deployedPerRouteIds).length}, explicit: ${warpRouteId ? 1 : 0}, rebalancer: ${rebalancerWarpRouteIds.length}`,
+  );
 
   const { validIds: warpRouteIds, orphanedIds } = filterOrphanedWarpRouteIds(
     dedupeAndSortWarpRouteIds(candidateWarpRouteIds),
   );
+  // Guard against a typo'd --warp-route-id: an explicit id that fails registry
+  // validation is a user error, not a stale entry to silently drop.
+  if (warpRouteId && orphanedIds.includes(warpRouteId)) {
+    rootLogger.error(
+      `Warp route "${warpRouteId}" not found in registry. Verify the warp route ID is correct.`,
+    );
+    process.exit(1);
+  }
   if (orphanedIds.length > 0) {
     rootLogger.warn(
       `Excluding ${orphanedIds.length} route(s) not in the selected registry:\n${orphanedIds.map((id) => `  - ${id}`).join('\n')}`,
@@ -140,9 +143,7 @@ async function deployCentralizedWarpMonitor({
 
   if (warpRouteIds.length === 0) {
     rootLogger.error(
-      warpRouteId
-        ? `Warp route "${warpRouteId}" not found in registry. Verify the warp route ID is correct.`
-        : 'No warp routes to monitor: found no current centralized monitor, no per-route monitors, and no --warp-route-id provided.',
+      'No warp routes to monitor: found no current centralized monitor, no per-route monitors, no rebalancer routes, and no --warp-route-id provided.',
     );
     process.exit(1);
   }
