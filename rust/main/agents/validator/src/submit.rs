@@ -32,6 +32,7 @@ pub(crate) struct ValidatorSubmitter {
     singleton_signer: SingletonSignerHandle,
     signer: Signers,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
+    base_merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
     db: Arc<dyn HyperlaneDb>,
     metrics: ValidatorSubmitterMetrics,
@@ -45,6 +46,7 @@ impl ValidatorSubmitter {
         interval: Duration,
         reorg_period: ReorgPeriod,
         merkle_tree_hook: Arc<dyn MerkleTreeHook>,
+        base_merkle_tree_hook: Arc<dyn MerkleTreeHook>,
         singleton_signer: SingletonSignerHandle,
         signer: Signers,
         checkpoint_syncer: Arc<dyn CheckpointSyncer>,
@@ -57,6 +59,7 @@ impl ValidatorSubmitter {
             reorg_period,
             interval,
             merkle_tree_hook,
+            base_merkle_tree_hook,
             singleton_signer,
             signer,
             checkpoint_syncer,
@@ -121,6 +124,90 @@ impl ValidatorSubmitter {
         };
 
         loop {
+            // Cheap, base-hook-only (private RPC) tip check. The quorum-verified
+            // `merkle_tree_hook.latest_checkpoint()` may fan out to public RPCs (see
+            // `ValidatorMultiRpcQuorumMerkleTreeHook`); only call it when this indicates
+            // there's actually a new leaf to catch up to.
+            let observed_count = call_and_retry_indefinitely(|| {
+                let merkle_tree_hook = self.base_merkle_tree_hook.clone();
+                let reorg_period = self.reorg_period.clone();
+                Box::pin(async move { merkle_tree_hook.count(&reorg_period).await })
+            })
+            .await;
+
+            if (observed_count as usize) <= tree.count() {
+                // Count alone cannot prove the root is unchanged: a reorg may replace a
+                // leaf while leaving the count the same. Compare against the base hook
+                // checkpoint first. Use the base-only fast path only when it exactly
+                // matches the local tree; otherwise verify the checkpoint through the
+                // quorum hook before signing or reporting a reorg.
+                let base_checkpoint = call_and_retry_indefinitely(|| {
+                    let merkle_tree_hook = self.base_merkle_tree_hook.clone();
+                    let reorg_period = self.reorg_period.clone();
+                    Box::pin(async move { merkle_tree_hook.latest_checkpoint(&reorg_period).await })
+                })
+                .await;
+
+                if tree_exceeds_checkpoint(&base_checkpoint, &tree) {
+                    debug!(
+                        ?base_checkpoint,
+                        tree_count = tree.count(),
+                        "Latest checkpoint is behind tree, sleeping briefly"
+                    );
+                    sleep(self.interval).await;
+                    continue;
+                }
+
+                let base_checkpoint_matches_tree =
+                    base_checkpoint.index == tree.index() && base_checkpoint.root == tree.root();
+                let correctness_checkpoint = if base_checkpoint_matches_tree {
+                    base_checkpoint
+                } else {
+                    call_and_retry_indefinitely(|| {
+                        let merkle_tree_hook = self.merkle_tree_hook.clone();
+                        let reorg_period = self.reorg_period.clone();
+                        Box::pin(
+                            async move { merkle_tree_hook.latest_checkpoint(&reorg_period).await },
+                        )
+                    })
+                    .await
+                };
+
+                if tree_exceeds_checkpoint(&correctness_checkpoint, &tree) {
+                    debug!(
+                        ?correctness_checkpoint,
+                        tree_count = tree.count(),
+                        "Latest checkpoint is behind tree, sleeping briefly"
+                    );
+                    sleep(self.interval).await;
+                    continue;
+                }
+
+                self.metrics
+                    .set_latest_checkpoint_observed(&correctness_checkpoint);
+                if should_log_checkpoint_info() {
+                    info!(
+                        ?correctness_checkpoint,
+                        tree_count = tree.count(),
+                        "Latest checkpoint (no new messages)"
+                    );
+                }
+
+                self.submit_checkpoints_until_correctness_checkpoint(
+                    &mut tree,
+                    &correctness_checkpoint,
+                )
+                .await;
+
+                self.metrics
+                    .latest_checkpoint_processed
+                    .set(correctness_checkpoint.index as i64);
+                self.metrics.reached_initial_consistency.set(1);
+
+                sleep(self.interval).await;
+                continue;
+            }
+
             // Lag by reorg period because this is our correctness checkpoint.
             let latest_checkpoint = call_and_retry_indefinitely(|| {
                 let merkle_tree_hook = self.merkle_tree_hook.clone();
