@@ -11,11 +11,10 @@ You are running the ownership-validation preflight for a warp route. For each ch
 
 The user provides:
 
-- **Linear ticket URL or ID** (required, e.g. `AW-652`) — the structured `Multisig for Ownership` table in the ticket is the source of truth for owner addresses + types.
+- **Linear ticket URL or ID** (e.g. `AW-652`) — when one exists, its structured `Multisig for Ownership` table is the source of truth for owner addresses + types, **or**
+- **Explicit per-chain owner addresses + types**, supplied directly.
 
-If the ticket is not provided, ask for it.
-
-If the user provides explicit per-chain owner addresses (overriding the ticket), use those.
+Not every deployment has a ticket behind it. Ask for one only if neither source is present — and if the user supplies owners directly, take those and skip the ticket-derived steps (1, 3f) rather than blocking. If both are given, the explicit addresses win.
 
 ### Key Context (Prerequisite)
 
@@ -112,6 +111,8 @@ Run the code probe from `/classify-onchain-owner` on the owner address (or the p
 - Ticket description explicitly marks the route as staging / test / non-production (e.g. "staging test", "haggis test run", "not for production") → **non-prod mode**
 - Otherwise → **production mode**
 
+With no ticket, there is no label to parse: default to **production mode** unless the user states the route is non-prod. The strict default is deliberate — an unlabelled route hard-rejects EOAs rather than waving them through.
+
 Then apply the EOA policy per mode:
 
 | Mode           | EOA owner detection outcome                                                                             |
@@ -148,6 +149,20 @@ For every chain, also confirm the address format matches the protocol:
 - **Cosmos**: bech32 with chain-specific prefix
 
 A format mismatch is a stop condition — surface to the user.
+
+### 3f. Cross-check an existing deploy.yaml against the ticket
+
+**Only when both a ticket and a pre-existing deploy.yaml are in play.** Skip entirely if the owners came from the user directly, or if no `deployments/warp_routes/<TOKEN>/<...>-deploy.yaml` exists yet — in that case init-route generates the file from the same source this skill validated, so there is nothing to diverge.
+
+When the config was authored ahead of time, the owners are already baked into it and the checks above only prove those baked owners are valid on chain — not that they are the _intended_ ones. Assert per chain:
+
+```
+deploy.yaml[chain].owner == ticket Multisig table[chain]
+```
+
+Cover every owner field the config carries, not just the top-level router owner — sub-configs (`tokenFee.owner`, `tokenFee.feeContracts.<chain>.owner`, `proxyAdmin.owner`) each carry their own and each can drift independently.
+
+A mismatch is a **stop condition**. Report the chain, the field, both addresses, and which side you believe is stale — do not silently prefer either. Without this, a config authored with the wrong owner passes on-chain validation cleanly and deploys to the wrong controller.
 
 ---
 
