@@ -228,5 +228,5 @@ Production configuration is proposed only after BSC staging shows:
 - Direct and `QuotedCalls` paths work for USDC and USDT target slots.
 - Expired curves reliably resolve to fallback.
 - No unhandled quote or transfer reverts during a seven-day soak.
-- Nam and the route operator approve the production fallback, curve parameters,
-  publisher cadence, monitoring, and canary origin.
+- The product owner and route operator approve the production fallback, curve
+  parameters, publisher cadence, monitoring, and canary origin.
