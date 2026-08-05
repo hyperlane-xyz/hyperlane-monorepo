@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import { constants } from 'ethers';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import {
   DEFAULT_ROUTER_KEY,
   ResolvedCrossCollateralRoutingFeeConfigInput,
@@ -27,6 +29,7 @@ import {
 import { TokenStandard } from './TokenStandard.js';
 import {
   HypTokenConfig,
+  HypTokenRouterConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from './types.js';
 
@@ -523,38 +526,96 @@ describe('configUtils', () => {
       });
     });
 
-    it('ignores nested sub-fee owner drift while preserving the top-level owner', () => {
+    it('ignores nested LinearFee sub-fee owner drift while preserving the top-level owner', () => {
       const OTHER_OWNER = '0x1111111111111111111111111111111111111111';
 
-      const build = (subOwner: string) =>
-        transformConfigToCheck({
-          type: TokenType.collateral,
+      const build = (subOwner: string): HypTokenRouterConfig => {
+        const tokenFee: ResolvedRoutingFeeConfigInput = {
+          type: TokenFeeType.RoutingFee,
+          owner: ADDRESS,
           token: ADDRESS,
-          tokenFee: {
-            type: TokenFeeType.RoutingFee,
-            owner: ADDRESS,
-            token: ADDRESS,
-            feeContracts: {
-              ethereum: {
-                type: TokenFeeType.OffchainQuotedLinearFee,
-                owner: subOwner,
-                token: ADDRESS,
-                bps: 100n,
-                quoteSigners: [ADDRESS],
-              },
+          feeContracts: {
+            ethereum: {
+              type: TokenFeeType.LinearFee,
+              owner: subOwner,
+              token: ADDRESS,
+              bps: 100,
             },
           },
-        } as any);
+        };
+        return transformConfigToCheck({
+          type: TokenType.collateral,
+          token: ADDRESS,
+          mailbox: ADDRESS,
+          owner: ADDRESS,
+          tokenFee,
+        });
+      };
 
-      // Two configs that differ ONLY in the nested sub-fee owner normalize equal.
+      // Two configs that differ ONLY in the nested LinearFee owner normalize equal.
       expect(build(ADDRESS)).to.eql(build(OTHER_OWNER));
 
+      const { tokenFee } = build(OTHER_OWNER);
+      assert(
+        tokenFee?.type === TokenFeeType.RoutingFee,
+        'expected a RoutingFee tokenFee',
+      );
       // Top-level RoutingFee owner is still surfaced (not collapsed).
-      expect((build(OTHER_OWNER).tokenFee as any).owner).to.equal(ADDRESS);
-      // Nested quoteSigners are still surfaced (checked independently of owner).
-      expect(
-        (build(OTHER_OWNER).tokenFee as any).feeContracts.ethereum.quoteSigners,
-      ).to.eql([ADDRESS]);
+      expect(tokenFee.owner).to.equal(ADDRESS);
+
+      const nested = tokenFee.feeContracts.ethereum;
+      assert(
+        nested.type === TokenFeeType.LinearFee,
+        'expected a LinearFee nested fee',
+      );
+      // Nested LinearFee owner is collapsed to the sentinel: drift is ignored.
+      expect(nested.owner).to.equal(constants.AddressZero);
+    });
+
+    it('detects OffchainQuotedLinearFee sub-fee owner drift', () => {
+      const OTHER_OWNER = '0x1111111111111111111111111111111111111111';
+
+      const build = (subOwner: string): HypTokenRouterConfig => {
+        const tokenFee: ResolvedRoutingFeeConfigInput = {
+          type: TokenFeeType.RoutingFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          feeContracts: {
+            ethereum: {
+              type: TokenFeeType.OffchainQuotedLinearFee,
+              owner: subOwner,
+              token: ADDRESS,
+              bps: 100,
+              quoteSigners: [ADDRESS],
+            },
+          },
+        };
+        return transformConfigToCheck({
+          type: TokenType.collateral,
+          token: ADDRESS,
+          mailbox: ADDRESS,
+          owner: ADDRESS,
+          tokenFee,
+        });
+      };
+
+      // OQLF owner controls quote signers, so owner-only drift must NOT normalize equal.
+      expect(build(ADDRESS)).to.not.eql(build(OTHER_OWNER));
+
+      const { tokenFee } = build(OTHER_OWNER);
+      assert(
+        tokenFee?.type === TokenFeeType.RoutingFee,
+        'expected a RoutingFee tokenFee',
+      );
+      const nested = tokenFee.feeContracts.ethereum;
+      assert(
+        nested.type === TokenFeeType.OffchainQuotedLinearFee,
+        'expected an OffchainQuotedLinearFee nested fee',
+      );
+      // Real OQLF owner is preserved (not collapsed to the sentinel).
+      expect(nested.owner).to.equal(OTHER_OWNER);
+      // Nested quoteSigners are still surfaced.
+      expect(nested.quoteSigners).to.eql([ADDRESS]);
     });
   });
 

@@ -712,12 +712,16 @@ const FIELDS_TO_IGNORE = new Set<keyof HypTokenRouterConfig>([
   'name',
 ]);
 
-// Sub-fee (nested) owners are intentionally excluded from the warp check. The
-// top-level RoutingFee owner is the only meaningful authority: it controls
-// pricing via setFeeContract and can claim accrued fees, and OffchainQuoted
-// quote-signer sets are checked directly. Collapsing every nested owner to a
-// fixed sentinel on both sides of the diff makes sub-fee owner drift invisible
-// while the top-level owner, fee params, and quoteSigners still diff normally.
+// Nested LinearFee sub-fee owners are intentionally excluded from the warp
+// check. A LinearFee owner's only lever is setFee (bps), and bps is compared
+// directly, so its owner carries no additional security-relevant authority.
+// Collapsing nested LinearFee owners to a fixed sentinel on both sides of the
+// diff makes that owner drift invisible while the top-level RoutingFee owner
+// (which controls setFeeContract routing and claim) still diffs normally.
+//
+// OffchainQuotedLinearFee owners are NOT collapsed: that owner additionally
+// controls addQuoteSigner/removeQuoteSigner, a live pricing authority, so its
+// drift must remain visible and is always compared against the real owner.
 const IGNORED_SUB_FEE_OWNER = constants.AddressZero;
 
 function normalizeCrossCollateralFeeContractsForCheck(
@@ -774,9 +778,11 @@ function normalizeTokenFeeForCheck(
   }
 
   if (feeConfig.type === TokenFeeType.OffchainQuotedLinearFee) {
+    // OQLF owner controls quote-signer management, so compare the real owner
+    // even when nested rather than collapsing to the sentinel.
     return {
       type: feeConfig.type,
-      owner,
+      owner: feeConfig.owner,
       bps: feeConfig.bps,
       ...tokenConfig,
       quoteSigners: feeConfig.quoteSigners,
