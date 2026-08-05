@@ -61,14 +61,19 @@ A `warp send A→B` exercises only **A's outbound enrollment** — it proves A's
 
 ### Determine the route topology FIRST
 
-Before picking a test shape or a seeding strategy, read the route config and classify the topology explicitly — do not infer it from the chain count or from the route's name. Read each chain's `type` from the deploy config (or `hyperlane warp read`) and count the synthetic legs:
+Before picking a test shape or a seeding strategy, read each chain's `type` from the deploy config (or `hyperlane warp read`) and classify it explicitly — do not infer from the chain count or the route's name. The question that matters is **what the destination does on delivery**: mint, or release from a pre-funded pool.
 
-| Synthetic legs | Topology                 | Seeding                                                                  |
-| -------------- | ------------------------ | ------------------------------------------------------------------------ |
-| ≥ 1            | **Has a synthetic hub**  | Phase 1 mints supply into the synthetic; destinations self-seed from it  |
-| 0              | **Pure collateral mesh** | No hub to mint from — destination pools must be pre-seeded (see Phase 1) |
+| Destination `type`                                          | On delivery                         | Needs pre-seeding? |
+| ----------------------------------------------------------- | ----------------------------------- | ------------------ |
+| `collateral`, `native`, `nativeScaled`, `crossCollateral`   | releases from the router's own pool | **Yes**            |
+| `synthetic*`, `XERC20`, `XERC20Lockbox`, `collateralFiat`   | mints to the recipient              | No                 |
+| `collateralVault`, `collateralCctp`, other wrapped variants | varies — check the contract         | Determine first    |
 
-State the classification and seeding plan before the first send. Sending into an empty pool is not fatal — `handle()` reverts, the message stays pending, and the relayer delivers it once the pool is funded. Cost is retry gas and a leg that looks stuck but is only waiting on liquidity.
+"Collateral" in the config name does not imply a pooled balance: `HypFiatToken` and `HypXERC20Lockbox` mint on delivery and burn on send, and `HypERC4626Collateral` forwards deposits into a vault. Only the first row needs the pivot below.
+
+A route with at least one minting leg has a hub to seed from. A route where **every** leg is in the first row has none, and is the case Phase 1's pivot exists for.
+
+State the classification and seeding plan before the first send. Sending into an empty pool is not fatal — the outbound lock succeeds and only the destination's `handle()` reverts, so the message stays pending and the relayer delivers it once the pool is funded. Cost is retry gas and a leg that looks stuck but is only waiting on liquidity.
 
 ### Simple route (one collateral + one synthetic)
 
@@ -97,9 +102,11 @@ The direct seed must target the chain's actual collateral account, which is prot
 | EVM / Tron | the router contract itself — a plain ERC20 transfer to the router address                                                |
 | Sealevel   | the router's derived **escrow** account, NOT the program ID or its ATA (`deriveEscrowAccount` in `SealevelTokenAdapter`) |
 
-Pick an EVM chain as the pivot when the route has one — it is the cheapest to fund and verify. Then walk deliberately: with pivot `P` seeded, run `A→P`, `B→P`, `C→P` (each funds its own origin), and only then run legs between the now-funded chains. **Do not assume an arbitrary cycle works** — `A→B` followed by `B→C` fails at the second hop if `C` was never funded, and `A→B` drains `B` in the process. Size the seed to cover **one release per origin** — the pivot pays out on every `X→P` — so `(chains − 1) × leg amount` plus fee headroom, not a single leg's worth. It is recovered in Phase 3.
+Pick an EVM chain as the pivot when the route has one — it is the cheapest to fund and verify. Then walk deliberately: with pivot `P` seeded, run `A→P`, `B→P`, `C→P` (each funds its own origin), and only then run legs between the now-funded chains. **Do not assume an arbitrary cycle works** — in `A→B` then `B→C`, the second hop's outbound lock on `B` succeeds and only `C`'s delivery reverts, so that leg hangs pending until `C` is funded; `A→B` has drained `B` in the meantime.
 
-**Phase 2 — collateral ↔ collateral.** A small cycle where each chain is a source and a destination once (e.g. `A→B`, `B→C`, `C→D`, `D→A`). This is the first exercise of cross-VM _destinations_.
+Size the seed to cover **one release per origin** — the pivot pays out on every `X→P` — so `(chains − 1) × leg amount`. No fee headroom is needed on the pivot: the fee is charged additively to the _sender_ on top of the transferred amount and routed to the beneficiary separately, so the destination pool is depleted by exactly the leg amount. The seed is recovered in Phase 3.
+
+**Phase 2 — collateral ↔ collateral.** A small cycle where each chain is a source and a destination once (e.g. `A→B`, `B→C`, `C→D`, `D→A`). This is the first exercise of cross-VM _destinations_. On a pure-collateral mesh, remember the Phase-1 walk left the **pivot drained** — every other chain holds one leg's worth and the pivot holds what's left of the seed. Order the cycle so the pivot is refunded before it is used as a destination, or seed it above the `(chains − 1) × leg` minimum.
 
 **Phase 3 — unwind.** Drain every router back toward zero, opposite direction (synthetic → each collateral, and reverse any Phase-2 residue). **Compute each drain amount from the live on-chain balance at send time** (`/warp-balances`), not a nominal running total — on a fee-enabled route the fee is minted in-kind to the beneficiary, so the deployer's spendable balance is less than the nominal (see Fees below).
 
