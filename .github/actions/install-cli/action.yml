@@ -39,10 +39,12 @@ runs:
     - name: pnpm-install-build-without-cache
       if: inputs.no-cache != 'false'
       shell: bash
+      env:
+        BUILD_FILTER: ${{ inputs.build-filter }}
       run: |
         pnpm install --frozen-lockfile
-        if [ -n "${{ inputs.build-filter }}" ]; then
-          pnpm exec turbo run build --filter='${{ inputs.build-filter }}'
+        if [ -n "$BUILD_FILTER" ]; then
+          pnpm exec turbo run build --filter="$BUILD_FILTER"
         else
           pnpm run build
         fi
