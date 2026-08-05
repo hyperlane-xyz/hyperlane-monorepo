@@ -21,9 +21,9 @@ use tracing::{instrument, warn};
 
 use hyperlane_core::{
     rpc_clients::call_and_retry_indefinitely, BatchItem, BatchResult, ChainCommunicationError,
-    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProtocolError, HyperlaneProvider, Indexed, Indexer, LogMeta,
-    Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod, SequenceAwareIndexer,
+    ChainResult, ContractLocator, Decode, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError, HyperlaneProvider, Indexed, Indexer,
+    LogMeta, Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod, SequenceAwareIndexer,
     TxCostEstimate, TxOutcome, H160, H256, H512, U256,
 };
 
@@ -202,13 +202,13 @@ where
             .query_with_meta()
             .await?
             .into_iter()
-            .map(|(event, meta)| {
-                (
-                    HyperlaneMessage::from(event.message.to_vec()).into(),
+            .map(|(event, meta)| -> ChainResult<_> {
+                Ok((
+                    HyperlaneMessage::read_from(&mut event.message.as_ref())?.into(),
                     meta.into(),
-                )
+                ))
             })
-            .collect();
+            .collect::<ChainResult<Vec<_>>>()?;
 
         events.sort_by(|a, b| a.0.inner().nonce.cmp(&b.0.inner().nonce));
         Ok(events)
@@ -234,13 +234,13 @@ where
         .await;
         let logs = raw_logs_and_meta
             .into_iter()
-            .map(|(log, log_meta)| {
-                (
-                    HyperlaneMessage::from(log.message.to_vec()).into(),
+            .map(|(log, log_meta)| -> ChainResult<_> {
+                Ok((
+                    HyperlaneMessage::read_from(&mut log.message.as_ref())?.into(),
                     log_meta,
-                )
+                ))
             })
-            .collect();
+            .collect::<ChainResult<Vec<_>>>()?;
         Ok(logs)
     }
 
@@ -303,8 +303,13 @@ where
 
         let messages = raw_dispatch_logs
             .into_iter()
-            .map(|(log, meta)| (HyperlaneMessage::from(log.message.to_vec()).into(), meta))
-            .collect();
+            .map(|(log, meta)| -> ChainResult<_> {
+                Ok((
+                    HyperlaneMessage::read_from(&mut log.message.as_ref())?.into(),
+                    meta,
+                ))
+            })
+            .collect::<ChainResult<Vec<_>>>()?;
 
         Ok((messages, is_cctp_v2))
     }
