@@ -223,7 +223,7 @@ where
                 let provider = &self.inner.providers[priority.index];
                 let fut = Self::provider_request(provider, method, &params);
                 let (provider_host, resp) = fut.await;
-                self.handle_stalled_provider(priority, provider).await;
+                let _ = self.handle_stalled_provider(priority, provider).await;
                 if resp.is_err() {
                     self.handle_failed_provider(priority).await;
                 }
@@ -285,7 +285,7 @@ where
                 let provider = &self.inner.providers[priority.index];
                 let fut = Self::provider_request(provider, method, &params);
                 let (provider_host, resp) = fut.await;
-                self.handle_stalled_provider(&priority, provider).await;
+                let _ = self.handle_stalled_provider(&priority, provider).await;
                 if resp.is_err() {
                     self.handle_failed_provider(&priority).await;
                 }

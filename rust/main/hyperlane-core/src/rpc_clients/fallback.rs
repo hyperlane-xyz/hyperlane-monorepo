@@ -166,23 +166,32 @@ where
         (*read_lock).clone()
     }
 
-    /// De-prioritize a provider that has either timed out or returned a bad response
-    pub async fn handle_stalled_provider(&self, priority: &PrioritizedProviderInner, provider: &T) {
+    /// De-prioritize a provider that has either timed out or returned a bad response.
+    /// Returns an error if the block height probe itself times out.
+    pub async fn handle_stalled_provider(
+        &self,
+        priority: &PrioritizedProviderInner,
+        provider: &T,
+    ) -> ChainResult<()> {
         let now = Instant::now();
         if now
             .duration_since(priority.last_block_height.1)
             .le(&self.max_block_time)
         {
             // Do nothing, it's too early to tell if the provider has stalled
-            return;
+            return Ok(());
         }
 
         let block_getter: B = provider.clone().into();
         let current_block_height =
-            tokio::time::timeout(self.call_timeout, block_getter.get_block_number())
-                .await
-                .unwrap_or(Ok(priority.last_block_height.0))
-                .unwrap_or(priority.last_block_height.0);
+            match tokio::time::timeout(self.call_timeout, block_getter.get_block_number()).await {
+                Ok(result) => result.unwrap_or(priority.last_block_height.0),
+                Err(_) => {
+                    return Err(crate::ChainCommunicationError::from_other_str(
+                        "fallback provider call timed out",
+                    ))
+                }
+            };
         if current_block_height <= priority.last_block_height.0 {
             let new_priority = priority.reset_failed_count();
 
@@ -198,6 +207,7 @@ where
             self.update_last_seen_block(priority.index, current_block_height)
                 .await;
         }
+        Ok(())
     }
 
     /// De-prioritize a provider that has returned a bad response
@@ -239,15 +249,18 @@ where
             let priorities_snapshot = self.take_priorities_snapshot().await;
             for (idx, priority) in priorities_snapshot.iter().enumerate() {
                 let provider = &self.inner.providers[priority.index];
-                let resp = match tokio::time::timeout(self.call_timeout, f(provider.clone())).await
-                {
-                    Ok(resp) => {
-                        // Only check for a stalled block height on a provider that actually
-                        // responded. A provider that just timed out shouldn't be hit with
-                        // another unbounded call from handle_stalled_provider.
-                        self.handle_stalled_provider(priority, provider).await;
-                        resp
+                let resp = match tokio::time::timeout(self.call_timeout, async {
+                    let resp = f(provider.clone()).await;
+                    if resp.is_ok() {
+                        // A probe timeout is treated the same as a request timeout,
+                        // not silently ignored.
+                        self.handle_stalled_provider(priority, provider).await?;
                     }
+                    resp
+                })
+                .await
+                {
+                    Ok(resp) => resp,
                     Err(_) => Err(crate::ChainCommunicationError::from_other_str(
                         "fallback provider call timed out",
                     )),
@@ -518,32 +531,47 @@ pub mod test {
 
     #[tokio::test]
     async fn test_call_timeout_unblocks_stalled_block_height_check() {
-        // Provider responds fine to the main call, but hangs on the
-        // get_block_number() call that handle_stalled_provider makes
-        // afterwards to check for a stalled block height.
+        // Provider1 responds fine to the main call but hangs on the
+        // get_block_number() probe. The combined timeout should fail the
+        // whole attempt over to provider2, not return provider1's response.
         let provider1 = ProviderMock::new(Some(Duration::from_secs(5)));
+        let provider2 = ProviderMock::new(None);
 
         let fallback_provider: FallbackProvider<ProviderMock, ProviderMock> =
             FallbackProvider::builder()
-                .add_providers(vec![provider1])
+                .add_providers(vec![provider1, provider2])
                 .with_call_timeout(Duration::from_millis(50))
                 // Zero so handle_stalled_provider doesn't skip the block height
                 // check as "too early to tell".
                 .with_max_block_time(Duration::ZERO)
                 .build();
 
-        let call = fallback_provider.call(|_provider: ProviderMock| {
-            let future = async move { Ok(100) };
+        let call = fallback_provider.call(|provider: ProviderMock| {
+            let future = async move {
+                provider.push("call", true);
+                Ok(100)
+            };
             Box::pin(future)
         });
 
-        // If the get_block_number() check inside handle_stalled_provider isn't
-        // bounded, this outer timeout is what catches the hang.
+        // If the combined timeout doesn't kick in, this outer timeout catches the hang.
         let result = tokio::time::timeout(Duration::from_secs(2), call).await;
-        assert!(
-            result.is_ok(),
-            "call() hung past the configured timeout while checking for a stalled provider"
-        );
+        assert!(result.is_ok(), "call() hung past the configured timeout");
         assert_eq!(result.unwrap().unwrap(), 100);
+
+        let priorities = fallback_provider.inner.priorities.read().await;
+        let failed_counts: Vec<_> = priorities.iter().map(|p| p.last_failed_count).collect();
+        assert_eq!(
+            failed_counts[0], 1,
+            "provider1's attempt should count as a failure"
+        );
+
+        // Confirms the fallback actually reached provider2, not just that the
+        // call didn't hang.
+        let call_counts: Vec<_> = priorities
+            .iter()
+            .map(|p| fallback_provider.inner.providers[p.index].requests().len())
+            .collect();
+        assert_eq!(call_counts[1], 1, "provider2 should have been tried");
     }
 }
