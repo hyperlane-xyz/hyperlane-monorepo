@@ -651,4 +651,102 @@ describe('BlacklistIsmConfigSchema composition', () => {
 
     expect(result.success).to.be.true;
   });
+
+  it('rejects a blacklist behind a routing domain under a non-exhaustive aggregation', () => {
+    const config = {
+      type: IsmType.AGGREGATION,
+      threshold: 1,
+      modules: [
+        messageIdMultisig,
+        {
+          type: IsmType.ROUTING,
+          owner: SOME_ADDRESS,
+          domains: {
+            ethereum: {
+              type: IsmType.AGGREGATION,
+              modules: [messageIdMultisig, blacklist],
+              threshold: 2,
+            },
+          },
+        },
+      ],
+    };
+
+    const result = IsmConfigSchema.safeParse(config);
+
+    expect(result.success).to.be.false;
+  });
+
+  it('rejects a blacklist behind an amount routing target under a non-exhaustive aggregation', () => {
+    const config = {
+      type: IsmType.AGGREGATION,
+      threshold: 1,
+      modules: [
+        messageIdMultisig,
+        {
+          type: IsmType.AMOUNT_ROUTING,
+          lowerIsm: {
+            type: IsmType.AGGREGATION,
+            modules: [messageIdMultisig, blacklist],
+            threshold: 2,
+          },
+          upperIsm: messageIdMultisig,
+          threshold: 1,
+        },
+      ],
+    };
+
+    const result = IsmConfigSchema.safeParse(config);
+
+    expect(result.success).to.be.false;
+  });
+
+  it('accepts a blacklist behind a routing domain under an exhaustive aggregation', () => {
+    const config = {
+      type: IsmType.AGGREGATION,
+      threshold: 2,
+      modules: [
+        messageIdMultisig,
+        {
+          type: IsmType.ROUTING,
+          owner: SOME_ADDRESS,
+          domains: {
+            ethereum: {
+              type: IsmType.AGGREGATION,
+              modules: [messageIdMultisig, blacklist],
+              threshold: 2,
+            },
+          },
+        },
+      ],
+    };
+
+    const result = IsmConfigSchema.safeParse(config);
+
+    expect(result.success).to.be.true;
+  });
+
+  it('accepts a blacklist behind an amount routing target under an exhaustive aggregation', () => {
+    const config = {
+      type: IsmType.AGGREGATION,
+      threshold: 2,
+      modules: [
+        messageIdMultisig,
+        {
+          type: IsmType.AMOUNT_ROUTING,
+          lowerIsm: {
+            type: IsmType.AGGREGATION,
+            modules: [messageIdMultisig, blacklist],
+            threshold: 2,
+          },
+          upperIsm: messageIdMultisig,
+          threshold: 1,
+        },
+      ],
+    };
+
+    const result = IsmConfigSchema.safeParse(config);
+
+    expect(result.success).to.be.true;
+  });
 });

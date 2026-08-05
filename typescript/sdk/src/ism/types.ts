@@ -972,7 +972,7 @@ function validateBlacklistComposition(
         validateBlacklistComposition(
           domainIsm,
           [...path, 'domains', chain],
-          true,
+          mandatoryPosition,
           false,
           ctx,
         );
@@ -982,14 +982,14 @@ function validateBlacklistComposition(
       validateBlacklistComposition(
         node.lowerIsm,
         [...path, 'lowerIsm'],
-        true,
+        mandatoryPosition,
         false,
         ctx,
       );
       validateBlacklistComposition(
         node.upperIsm,
         [...path, 'upperIsm'],
-        true,
+        mandatoryPosition,
         false,
         ctx,
       );
