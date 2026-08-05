@@ -297,7 +297,7 @@ jobs:
           echo "### Beta Release Published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** \`${{ steps.version.outputs.snapshot }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**NPM Tag:** \`${{ inputs.snapshot_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**NPM Tag:** \`${SNAPSHOT_TAG}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Install with:" >> $GITHUB_STEP_SUMMARY
