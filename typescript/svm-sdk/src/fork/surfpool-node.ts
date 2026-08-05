@@ -201,6 +201,9 @@ async function startLocalSurfpool(
   binaryPath: string,
 ): Promise<SurfpoolNode> {
   const args = buildSurfpoolArgs(config, config.datasource, '127.0.0.1');
+  // Suppress surfpool's log output — we don't consume it (readiness is RPC-health
+  // polled) and its default ./.surfpool/logs dir would clutter the working dir.
+  args.push('--log-level', 'none');
   const proc: ChildProcess = spawn(binaryPath, args, {
     stdio: ['ignore', 'ignore', 'ignore'],
     detached: false,
