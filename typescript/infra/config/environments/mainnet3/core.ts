@@ -28,7 +28,7 @@ import { legacyIgpChains } from '../../../src/config/chain.js';
 import { getEdenCoreConfig } from './eden.js';
 import { getTronCoreConfig } from './tron.js';
 import { getIgp } from './igp.js';
-import { DEPLOYER, ethereumChainOwners } from './owners.js';
+import { PAUSER, ethereumChainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
 // There are no static ISMs or hooks for zkSync, this means
@@ -113,7 +113,7 @@ export function getCore(): ChainMap<CoreConfig> {
     const pausableIsm: PausableIsmConfig = {
       type: IsmType.PAUSABLE,
       paused: false,
-      owner: DEPLOYER, // keep pausable hot
+      owner: PAUSER, // dedicated Turnkey pauser (pause solo, unpause gated)
     };
 
     // No static aggregation ISM support on zkSync
@@ -134,7 +134,7 @@ export function getCore(): ChainMap<CoreConfig> {
     const pausableHook: PausableHookConfig = {
       type: HookType.PAUSABLE,
       paused: false,
-      owner: DEPLOYER, // keep pausable hot
+      owner: PAUSER, // dedicated Turnkey pauser (pause solo, unpause gated)
     };
 
     // No static aggregation hook support on zkSync

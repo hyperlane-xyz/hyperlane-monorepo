@@ -20,6 +20,11 @@ export const timelocks: ChainMap<Address> = {
 export const icaOwnerChain = 'ethereum';
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
+// Dedicated Turnkey pauser wallet account. Owns PausableIsm / PausableHook so
+// services can pause() autonomously while unpause() requires a rootuser-tagged
+// human approval (enforced by Turnkey policy in the private-agents repo).
+export const PAUSER = '0x60Cc386C85717CB51C2827A75e14826883dF5da4';
+
 // Celestia multisig that owns the eden core deployment.
 // IGP/oracle ownership stays with the deployer.
 export const EDEN_CORE_OWNER = '0x260eDfa1d9f7Ec832E079f90c043360d394d2ce4';
