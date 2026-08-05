@@ -178,10 +178,11 @@ where
         }
 
         let block_getter: B = provider.clone().into();
-        let current_block_height = block_getter
-            .get_block_number()
-            .await
-            .unwrap_or(priority.last_block_height.0);
+        let current_block_height =
+            tokio::time::timeout(self.call_timeout, block_getter.get_block_number())
+                .await
+                .unwrap_or(Ok(priority.last_block_height.0))
+                .unwrap_or(priority.last_block_height.0);
         if current_block_height <= priority.last_block_height.0 {
             let new_priority = priority.reset_failed_count();
 
@@ -428,7 +429,10 @@ pub mod test {
     #[async_trait::async_trait]
     impl BlockNumberGetter for ProviderMock {
         async fn get_block_number(&self) -> ChainResult<u64> {
-            return Ok(100);
+            if let Some(sleep) = self.request_sleep {
+                tokio::time::sleep(sleep).await;
+            }
+            Ok(100)
         }
     }
 
@@ -510,5 +514,36 @@ pub mod test {
             .map(|p| p.last_failed_count)
             .collect();
         assert_eq!(failed_counts[0], 1);
+    }
+
+    #[tokio::test]
+    async fn test_call_timeout_unblocks_stalled_block_height_check() {
+        // Provider responds fine to the main call, but hangs on the
+        // get_block_number() call that handle_stalled_provider makes
+        // afterwards to check for a stalled block height.
+        let provider1 = ProviderMock::new(Some(Duration::from_secs(5)));
+
+        let fallback_provider: FallbackProvider<ProviderMock, ProviderMock> =
+            FallbackProvider::builder()
+                .add_providers(vec![provider1])
+                .with_call_timeout(Duration::from_millis(50))
+                // Zero so handle_stalled_provider doesn't skip the block height
+                // check as "too early to tell".
+                .with_max_block_time(Duration::ZERO)
+                .build();
+
+        let call = fallback_provider.call(|_provider: ProviderMock| {
+            let future = async move { Ok(100) };
+            Box::pin(future)
+        });
+
+        // If the get_block_number() check inside handle_stalled_provider isn't
+        // bounded, this outer timeout is what catches the hang.
+        let result = tokio::time::timeout(Duration::from_secs(2), call).await;
+        assert!(
+            result.is_ok(),
+            "call() hung past the configured timeout while checking for a stalled provider"
+        );
+        assert_eq!(result.unwrap().unwrap(), 100);
     }
 }
