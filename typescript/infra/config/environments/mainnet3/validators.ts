@@ -10,6 +10,7 @@ import { environment } from './chains.js';
 import { AW_FASTPATH_VALIDATOR } from './fastpath/validators.js';
 
 const AW_VALIDATOR = '0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03';
+const AW_RC_VALIDATOR = '0xf2028e9b93249c4a4310aeefae5c60d4915725af';
 const DEFAULT_VALIDATOR_INTERVAL = 5;
 // Preserve about one-second average checkpoint polling delay while halving
 // steady-state polling relative to the original 1-second cadence.
@@ -65,9 +66,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0xb51768c1388e976486a43dbbbbf9ce04cf45e990',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
         },
         'celo',
@@ -79,9 +78,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0x0580884289890805802012b9872afa5ae41a5fa6',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
           [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
@@ -94,9 +91,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0x2c7cf6d1796e37676ba95f056ff21bf536c6c2d3',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
         },
         'avalanche',
@@ -108,9 +103,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0x385a2452930a0681d3ea4e40fb7722095142afcc',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
         },
         'worldchain',
@@ -122,9 +115,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0xa68e98cb98190485847581c8004b40ee81cbc723',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
         },
         'xlayer',
@@ -136,9 +127,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0xf0a990959f833ccde624c8bcd4c7669286a57a0f',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
           [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
@@ -151,9 +140,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0x911dfcc19dd5b723e84be452f6af52adef020bc8',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
           [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
@@ -166,9 +153,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0xb4c18167c163391facb345bb069d12d0430a6a89',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
           [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
@@ -181,9 +166,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0x7e4391786e0b5b0cbaada12d32c931e46e44f104',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
         },
         'optimism',
@@ -195,9 +178,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0xd5122daa0c3dfc94a825ae928f3ea138cdb6a2e1',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
         },
         'gnosis',
@@ -209,9 +190,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0xa8363570749080c7faa1de714e0782ff444af4cc',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
           [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
@@ -236,9 +215,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0x8c772b730c8deb333dded14cb462e577a06283da',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
         },
         'fraxtal',
@@ -250,9 +227,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0xad4886b6f5f5088c7ae53b69d1ff5cfc2a17bec4',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
         },
         'linea',
@@ -276,9 +251,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0x846e48a7e85e5403cc690a347e1ad3c3dca11b6e',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
         },
         'sei',
@@ -336,9 +309,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0xe858971cd865b11d3e8fb6b6af72db0d85881baf',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
         },
         'viction',
@@ -350,9 +321,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0x5b32f226e472da6ca19abfe1a29d5d28102a2d1a',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
         },
         'blast',
@@ -364,9 +333,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0x2f04ed30b1c27ef8e9e6acd360728d9bd5c3a9e2',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
           [Contexts.Neutron]: [],
         },
         'mode',
@@ -708,9 +675,7 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [
-            '0x95b460edc770f53981c9aa82aa2a297af619cabf',
-          ],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
         },
         'hyperevm',
       ),

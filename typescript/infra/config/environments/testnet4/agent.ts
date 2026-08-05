@@ -461,11 +461,11 @@ const fastPath: RootAgentConfig = {
   ...contextBase,
   context: Contexts.FastPath,
   contextChainNames: {
-    [Role.Validator]: [],
+    [Role.Validator]: ['arbitrumsepolia', 'basesepolia', 'sepolia'],
     [Role.Relayer]: ['arbitrumsepolia', 'basesepolia', 'sepolia'],
     [Role.Scraper]: [],
   },
-  rolesWithKeys: [Role.Relayer],
+  rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
@@ -483,6 +483,15 @@ const fastPath: RootAgentConfig = {
     // within one additional second (0.5s average).
     interval: 2,
     resources: relayerResources,
+  },
+  validators: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo: DockerImageRepos.AGENT,
+      tag: testnetDockerTags.validatorFastPath,
+    },
+    chains: validatorChainConfig(Contexts.FastPath),
+    resources: validatorResources,
   },
 };
 
