@@ -4,9 +4,11 @@ import {
   ChainSubmissionStrategy,
   HypTokenRouterConfig,
   MovableTokenConfig,
+  SubmitterMetadata,
   TokenFeeConfigInput,
   TokenFeeType,
   TokenType,
+  TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -19,6 +21,7 @@ import {
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { getRegistry } from '../../../../registry.js';
+import { warpFeesSafes } from '../../governance/safe/warpFees.js';
 import { usdcTokenAddresses } from '../cctp.js';
 import { usdtTokenAddresses } from '../tokens.js';
 import { WarpRouteIds } from '../warpIds.js';
@@ -446,4 +449,41 @@ export function getImpersonatedAccountStrategyConfig(
       { submitter: { type: 'impersonatedAccount', userAddress, chain } },
     ]),
   ) as unknown as ChainSubmissionStrategy;
+}
+
+/**
+ * Builds the WarpFees governance submitter for a warp route fee contract on
+ * `chain`. Fee contracts (e.g. OffchainQuotedLinearFee) are owned by the
+ * WarpFees governance safe on `originChain`; remote chains are reached via that
+ * safe's interchain account. This is used as the `feeSubmitter` in strategy
+ * configs so that owner-gated `setFeeContract` repoints route to the WarpFees
+ * owner rather than the router (AbacusWorks) owner.
+ */
+export function getWarpFeeSubmitter(
+  chain: string,
+  originChain: string,
+  originInterchainAccountRouter: string,
+): SubmitterMetadata {
+  const feeSafeAddress = warpFeesSafes[originChain];
+  assert(feeSafeAddress, `Missing WarpFees governance safe for ${originChain}`);
+
+  const originFeeSafeSubmitter = {
+    type: TxSubmitterType.GNOSIS_TX_BUILDER as const,
+    chain: originChain,
+    safeAddress: feeSafeAddress,
+    version: '1',
+  };
+
+  if (chain === originChain) {
+    return originFeeSafeSubmitter;
+  }
+
+  return {
+    type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
+    chain: originChain,
+    destinationChain: chain,
+    owner: feeSafeAddress,
+    originInterchainAccountRouter,
+    internalSubmitter: originFeeSafeSubmitter,
+  };
 }

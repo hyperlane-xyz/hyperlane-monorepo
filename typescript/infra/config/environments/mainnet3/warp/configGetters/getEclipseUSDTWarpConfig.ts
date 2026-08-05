@@ -1,21 +1,33 @@
-import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
-import { assert, objFilter } from '@hyperlane-xyz/utils';
+import {
+  ChainMap,
+  ChainSubmissionStrategy,
+  HypTokenRouterConfig,
+  SubmissionStrategy,
+  SubmitterMetadata,
+  TokenType,
+  TxSubmitterType,
+} from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { getChainAddresses } from '../../../../registry.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awProxyAdmins } from '../../governance/proxy-admin/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { getWarpFeeOwner } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
-import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
+import {
+  QUOTE_SIGNER,
+  SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
+} from '../consts.js';
 import { usdtTokenAddresses } from '../tokens.js';
 import { WarpRouteIds } from '../warpIds.js';
 import {
   getFixedRoutingFeeConfig,
   getRebalancingBridgesConfigFor,
   getRebalancingUSDTConfigForChain,
+  getWarpFeeSubmitter,
   scaleDownConfig,
 } from './utils.js';
-import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 
 const contractVersion = '11.1.0';
 
@@ -128,11 +140,14 @@ export interface EclipseUSDTWarpConfigOptions {
     solanamainnet: string;
   };
   proxyAdmins: ChainMap<{ address?: string; owner: string }>;
+  /** When set, fee contracts use OffchainQuotedLinearFee with these signers */
+  quoteSigners?: string[];
 }
 
 const getBaseEvmConfig = (
   chain: DeploymentChain,
   proxyAdmins: ChainMap<{ address?: string; owner: string }>,
+  quoteSigners?: string[],
 ) => {
   const proxyAdmin = proxyAdmins[chain];
   assert(proxyAdmin, `Missing proxyAdmin for chain ${chain}`);
@@ -141,6 +156,8 @@ const getBaseEvmConfig = (
   const destinations = evmDeploymentChains.filter((c) => c !== chain);
   const destinationFeeBps = feeBps[chain];
   assert(destinationFeeBps, `Missing destination fee bps for ${chain}`);
+  // Tron OQLF quote signing is not wired up; keep tron source legs on LinearFee.
+  const chainQuoteSigners = chain === 'tron' ? undefined : quoteSigners;
   return {
     ...chainTokenMetadata[chain],
     proxyAdmin,
@@ -150,6 +167,8 @@ const getBaseEvmConfig = (
       getWarpFeeOwner(chain),
       destinations,
       destinationFeeBps,
+      undefined,
+      chainQuoteSigners,
     ),
     ...scaleDownConfig(decimals, MESSAGE_DECIMALS),
   };
@@ -159,7 +178,7 @@ export const buildEclipseUSDTWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   options: EclipseUSDTWarpConfigOptions,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const { ownersByChain, programIds, proxyAdmins } = options;
+  const { ownersByChain, programIds, proxyAdmins, quoteSigners } = options;
 
   const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
     rebalanceableCollateralChains,
@@ -180,7 +199,7 @@ export const buildEclipseUSDTWarpConfig = async (
     );
     configs.push([
       chain,
-      { ...baseConfig, ...getBaseEvmConfig(chain, proxyAdmins) },
+      { ...baseConfig, ...getBaseEvmConfig(chain, proxyAdmins, quoteSigners) },
     ]);
   }
 
@@ -192,7 +211,7 @@ export const buildEclipseUSDTWarpConfig = async (
     configs.push([
       chain,
       {
-        ...getBaseEvmConfig(chain, proxyAdmins),
+        ...getBaseEvmConfig(chain, proxyAdmins, quoteSigners),
         type: TokenType.collateral,
         token: usdtToken,
         owner: ownersByChain[chain],
@@ -241,13 +260,78 @@ export const getEclipseUSDTWarpConfig = async (
     ownersByChain: productionOwnersByChain,
     programIds: PRODUCTION_PROGRAM_IDS,
     proxyAdmins: awProxyAdmins,
+    quoteSigners: [QUOTE_SIGNER],
   });
 
 // Strategies
-export const getEclipseUSDTGnosisSafeBuilderStrategyConfig =
-  getGnosisSafeBuilderStrategyConfigGenerator(
-    objFilter(
-      productionOwnersByChain,
-      (chain, _v): _v is string => chain === 'ethereum',
-    ),
+const ORIGIN_CHAIN = 'ethereum';
+
+export const getEclipseUSDTStrategyConfig = (): ChainSubmissionStrategy => {
+  const safeAddress = awSafes[ORIGIN_CHAIN];
+  const originSafeSubmitter = {
+    type: TxSubmitterType.GNOSIS_TX_BUILDER as const,
+    chain: ORIGIN_CHAIN,
+    safeAddress,
+    version: '1',
+  };
+
+  const chainAddress = getChainAddresses();
+  const originInterchainAccountRouter =
+    chainAddress[ORIGIN_CHAIN].interchainAccountRouter;
+  assert(
+    originInterchainAccountRouter,
+    `Could not fetch originInterchainAccountRouter for ${ORIGIN_CHAIN}`,
   );
+
+  const icaChains = evmDeploymentChains.filter((c) => c !== ORIGIN_CHAIN);
+  const icaStrategies: [
+    string,
+    SubmissionStrategy & { feeSubmitter: SubmitterMetadata },
+  ][] = icaChains.map((chain) => [
+    chain,
+    {
+      submitter: {
+        type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
+        chain: ORIGIN_CHAIN,
+        destinationChain: chain,
+        owner: safeAddress,
+        originInterchainAccountRouter,
+        internalSubmitter: originSafeSubmitter,
+      },
+      feeSubmitter: getWarpFeeSubmitter(
+        chain,
+        ORIGIN_CHAIN,
+        originInterchainAccountRouter,
+      ),
+    },
+  ]);
+
+  const svmFileStrategies: [
+    string,
+    { submitter: { type: 'file'; filepath: string } },
+  ][] = nonEvmDeploymentChains.map((chain) => [
+    chain,
+    {
+      submitter: {
+        type: 'file' as const,
+        filepath: `/tmp/eclipse-usdt-${chain}.json`,
+      },
+    },
+  ]);
+
+  return Object.fromEntries([
+    [
+      ORIGIN_CHAIN,
+      {
+        submitter: originSafeSubmitter,
+        feeSubmitter: getWarpFeeSubmitter(
+          ORIGIN_CHAIN,
+          ORIGIN_CHAIN,
+          originInterchainAccountRouter,
+        ),
+      },
+    ],
+    ...icaStrategies,
+    ...svmFileStrategies,
+  ]);
+};

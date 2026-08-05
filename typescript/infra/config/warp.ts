@@ -40,7 +40,7 @@ import {
 import { getCarrChainCARRWarpConfig } from './environments/mainnet3/warp/configGetters/getCarrchainCARRWarpConfig.js';
 import { getEclipseEthereumESWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumESWarpConfig.js';
 import {
-  getEclipseUSDTGnosisSafeBuilderStrategyConfig,
+  getEclipseUSDTStrategyConfig,
   getEclipseUSDTWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getEclipseUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
@@ -183,7 +183,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
     getRezStagingGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.BsquaredUBTC]: getUbtcGnosisSafeBuilderStrategyConfigGenerator,
   [WarpRouteIds.EclipseUSDC]: getEclipseUSDCStrategyConfig,
-  [WarpRouteIds.EclipseUSDT]: getEclipseUSDTGnosisSafeBuilderStrategyConfig,
+  [WarpRouteIds.EclipseUSDT]: getEclipseUSDTStrategyConfig,
   [WarpRouteIds.IgraUSDC]: getIgraUSDCStrategyConfig,
   [WarpRouteIds.EclipseUSDCSTAGE]:
     getUSDCSTAGEEclipseFileSubmitterStrategyConfig,

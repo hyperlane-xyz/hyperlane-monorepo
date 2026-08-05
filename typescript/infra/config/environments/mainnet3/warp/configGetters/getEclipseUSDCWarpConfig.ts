@@ -3,6 +3,7 @@ import {
   ChainSubmissionStrategy,
   HypTokenRouterConfig,
   SubmissionStrategy,
+  SubmitterMetadata,
   TokenType,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
@@ -15,7 +16,10 @@ import { awSafes } from '../../governance/safe/aw.js';
 import { getWarpFeeOwner } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
 import { usdcTokenAddresses } from '../cctp.js';
-import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
+import {
+  QUOTE_SIGNER,
+  SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
+} from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
 
 import {
@@ -24,6 +28,7 @@ import {
   getFixedRoutingFeeConfig,
   getRebalancingUSDCConfigForChain,
   getUSDCRebalancingBridgesConfigFor,
+  getWarpFeeSubmitter,
   scaleDownConfig,
 } from './utils.js';
 
@@ -376,6 +381,7 @@ export const getEclipseUSDCWarpConfig = async (
       name: 'USD Coin',
       symbol: 'USDC',
     },
+    quoteSigners: [QUOTE_SIGNER],
   });
 
 // Strategies
@@ -405,21 +411,27 @@ export const getEclipseUSDCStrategyConfig = (): ChainSubmissionStrategy => {
   );
 
   const icaChains = evmDeploymentChains.filter((c) => c !== ORIGIN_CHAIN);
-  const icaStrategies: [string, SubmissionStrategy][] = icaChains.map(
-    (chain) => [
-      chain,
-      {
-        submitter: {
-          type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
-          chain: ORIGIN_CHAIN,
-          destinationChain: chain,
-          owner: safeAddress,
-          originInterchainAccountRouter,
-          internalSubmitter: originSafeSubmitter,
-        },
+  const icaStrategies: [
+    string,
+    SubmissionStrategy & { feeSubmitter: SubmitterMetadata },
+  ][] = icaChains.map((chain) => [
+    chain,
+    {
+      submitter: {
+        type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
+        chain: ORIGIN_CHAIN,
+        destinationChain: chain,
+        owner: safeAddress,
+        originInterchainAccountRouter,
+        internalSubmitter: originSafeSubmitter,
       },
-    ],
-  );
+      feeSubmitter: getWarpFeeSubmitter(
+        chain,
+        ORIGIN_CHAIN,
+        originInterchainAccountRouter,
+      ),
+    },
+  ]);
 
   const svmFileStrategies: [
     string,
@@ -435,7 +447,17 @@ export const getEclipseUSDCStrategyConfig = (): ChainSubmissionStrategy => {
   ]);
 
   return Object.fromEntries([
-    [ORIGIN_CHAIN, { submitter: originSafeSubmitter }],
+    [
+      ORIGIN_CHAIN,
+      {
+        submitter: originSafeSubmitter,
+        feeSubmitter: getWarpFeeSubmitter(
+          ORIGIN_CHAIN,
+          ORIGIN_CHAIN,
+          originInterchainAccountRouter,
+        ),
+      },
+    ],
     ...icaStrategies,
     ...svmFileStrategies,
   ]);
