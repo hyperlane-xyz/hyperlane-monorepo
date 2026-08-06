@@ -316,10 +316,11 @@ async fn test_tron_error_bandwidth_error() {
     assert!(result.is_err());
 
     let err = result.unwrap_err();
-    // BANDWITH_ERROR is also mapped to TxGasCapReached
+    // BANDWITH_ERROR is retryable: it can result from transient funding or
+    // simulation conditions that resolve on later submission attempts.
     assert!(
-        matches!(err, LanderError::TxGasCapReached),
-        "Expected TxGasCapReached for BANDWITH_ERROR, got: {:?}",
+        matches!(err, LanderError::TxSubmissionError(_)),
+        "Expected TxSubmissionError for BANDWITH_ERROR, got: {:?}",
         err
     );
 }
