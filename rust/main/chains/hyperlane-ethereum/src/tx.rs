@@ -134,6 +134,10 @@ where
     // either use the pre-estimated gas limit or estimate it
     let mut estimated_gas_limit: U256 = match tx.tx.gas() {
         Some(&estimate) => estimate.into(),
+        // Seismic zeroes `from` on unsigned eth_estimateGas, so msg.sender-gated
+        // calls (e.g. a TrustedRelayerIsm) would estimate against sender 0x0.
+        // Use a signed estimate so the node recovers the relayer's address.
+        None if domain.is_seismic_stack() => seismic_estimate_gas(&tx.tx, provider.clone()).await?,
         None => tx.estimate_gas().await?.into(),
     };
 
@@ -369,6 +373,54 @@ where
         .await?;
     tracing::debug!(?result, ?tx, "Successfully fetched zkSync fee estimate");
     Ok(result)
+}
+
+/// Gas cap used when signing the throwaway tx handed to `eth_estimateGas` on
+/// Seismic. Mirrors seismic-viem's DEFAULT_SIGNED_ESTIMATE_GAS_LIMIT.
+const SEISMIC_SIGNED_ESTIMATE_GAS_CAP: u32 = 30_000_000;
+
+/// Estimate gas on a Seismic chain via a signed `eth_estimateGas`.
+///
+/// Seismic zeroes the `from` field on unsigned `eth_call`/`eth_estimateGas` (to
+/// protect access-controlled shielded state), so msg.sender-gated calls
+/// estimate as if sent from `0x0`. Instead, Seismic's `eth_estimateGas` accepts
+/// a *signed* transaction and recovers `msg.sender` from the signature. We sign
+/// the call's transaction (via the middleware stack's signer, exposed by
+/// `Middleware::sign_raw_transaction`) and submit the raw bytes.
+///
+/// NOTE: not yet exercised end-to-end — no current Seismic chain uses a
+/// msg.sender-gated ISM (the multisig default ISM estimates fine unsigned). This
+/// path is needed only if a TrustedRelayerIsm is deployed on a Seismic chain,
+/// and should be validated against one before relying on it (in particular the
+/// nonce/fee fields the node expects on the signed estimate tx).
+async fn seismic_estimate_gas<M>(tx: &TypedTransaction, provider: Arc<M>) -> ChainResult<U256>
+where
+    M: Middleware + 'static,
+{
+    let mut tx = tx.clone();
+    // Ensure `from` is set so the node recovers the right sender.
+    if tx.from().is_none() {
+        if let Some(sender) = provider.default_sender() {
+            tx.set_from(sender);
+        }
+    }
+    // Cap the gas so the signed tx serializes with a sane estimation ceiling
+    // (the real submission sets the actual gas limit downstream).
+    tx.set_gas(EthersU256::from(SEISMIC_SIGNED_ESTIMATE_GAS_CAP));
+
+    // Sign through the middleware stack (requires the `sign_raw_transaction`
+    // passthrough added to hyperlane-xyz/ethers-rs).
+    let signed = provider
+        .sign_raw_transaction(&tx)
+        .await
+        .map_err(ChainCommunicationError::from_other)?;
+
+    let gas: EthersU256 = provider
+        .provider()
+        .request("eth_estimateGas", [signed])
+        .await
+        .map_err(ChainCommunicationError::from_other)?;
+    Ok(gas.into())
 }
 
 // From
