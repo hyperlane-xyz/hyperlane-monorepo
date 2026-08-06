@@ -1,8 +1,9 @@
 /**
- * Builds a typed partial double for a typechain factory's `connect` return.
- * The provided members are type-checked against the real contract `T` (so a
- * misspelled/removed method is a compile error); only the final widening —
- * which sinon's `.returns` requires — is cast.
+ * Builds a typed partial double of `T`, most often a typechain factory's
+ * `connect` return but equally a `Response` or any other shape a stub has to
+ * satisfy. The provided members are type-checked against the real `T` (so a
+ * misspelled or removed member is a compile error); only the final widening —
+ * which sinon's `.returns`/`.resolves` requires — is cast.
  */
 export function contractDouble<T>(members: Partial<T>): T {
   // CAST: sinon's `.returns` needs the exact contract type; `members` is a
