@@ -30,10 +30,6 @@ export interface MetaswapsSDKConfig {
   relayApiUrl?: string;
 
   logger?: Logger;
-
-  // How many seconds in the future to set the UniversalRouter deadline.
-  // Default: 300 (5 minutes)
-  deadlineSeconds?: number;
 }
 
 export interface SwapHandle {

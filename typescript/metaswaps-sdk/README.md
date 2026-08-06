@@ -50,11 +50,19 @@ const quote = await sdk.quote({
   amount: '1000000000', // 1000 USDC (6 decimals)
   sender: '0xYourAddress',
   slippageBps: 50, // 0.5%
+  usePermit2: false, // optional; false/omitted uses classic ERC20 approval
 });
 
 const best = quote.routes[0];
 console.log('Output:', best.output, 'Min output:', best.outputMin);
-console.log('Steps:', best.steps.map((s) => s.type).join(' → '));
+console.log('Execution:', best.executionKind);
+console.log('Steps:', best.steps.map((s) => s.type).join(' -> '));
+```
+
+Bridge routes include the intermediate bridge asset. For example, a Base USDC to Arbitrum USDT route may be:
+
+```text
+USDC on Base -> Hyperlane bridge -> USDC on Arbitrum -> USDT on Arbitrum
 ```
 
 ### Execute a swap — frontend (wagmi / viem)
@@ -122,6 +130,12 @@ const handle = await sdk.swap(quote, {
 });
 ```
 
+### Approvals
+
+`swap()` uses the routing engine's `route.approval` field when present. Classic ERC20 approval is the default path. Set `usePermit2: true` on `quote()` only when the caller wants Permit2 approval semantics and the wallet UX is prepared for the ERC20-to-Permit2 approval plus Permit2 allowance.
+
+The SDK execution adapter is currently EVM-only. It parses chain-agnostic route responses, but Solana/non-EVM transaction execution requires a VM-specific wallet adapter.
+
 ---
 
 ## Tracking swap status
@@ -187,9 +201,9 @@ const sdk = new MetaswapsSDK({
   // Default: 'https://offchain-lookup.services.hyperlane.xyz/callCommitments'
   ccsUrl: 'https://offchain-lookup.services.hyperlane.xyz/callCommitments',
 
-  // Hyperlane Explorer API base URL (used for message status polling)
-  // Default: 'https://explorer.hyperlane.xyz/api'
-  explorerApiUrl: 'https://explorer.hyperlane.xyz/api',
+  // Hyperlane Explorer GraphQL endpoint (used for message status polling)
+  // Default: 'https://explorer4.hasura.app/v1/graphql'
+  explorerApiUrl: 'https://explorer4.hasura.app/v1/graphql',
 
   // Status polling interval in milliseconds
   // Default: 5000
@@ -201,9 +215,9 @@ const sdk = new MetaswapsSDK({
     8453: 'https://your-base-rpc-provider.example.com',
   },
 
-  // How far in the future to set the UniversalRouter deadline (seconds)
-  // Default: 300
-  deadlineSeconds: 300,
+  // Relay API base URL for fast CCTP processing
+  // Default: 'https://relay-api.hyperlane.xyz'
+  relayApiUrl: 'https://relay-api.hyperlane.xyz',
 });
 ```
 
@@ -241,6 +255,7 @@ const quote = await client.quote({
   dstToken: '0x4200000000000000000000000000000000000006',
   amount: '1000000000',
   sender: '0xYourAddress',
+  usePermit2: false,
 });
 ```
 
@@ -253,9 +268,12 @@ All API response shapes are exported as Zod schemas, useful for runtime validati
 ```ts
 import {
   QuoteResponseSchema,
+  QuoteRejectionSchema,
   ChainDiscoverySchema,
   TokenDiscoverySchema,
   RouteResponseSchema,
+  RouteApprovalSchema,
+  RouteTxSchema,
 } from '@hyperlane-xyz/metaswaps-sdk';
 
 // Validate an arbitrary API response
@@ -271,6 +289,12 @@ import type {
   QuoteStep,
   QuoteSwapStep,
   QuoteBridgeStep,
+  QuoteRejection,
+  RouteApproval,
+  RouteTx,
+  ChainRouteTx,
+  EvmRouteTx,
+  SdkRouteTx,
   ChainDiscovery,
   TokenDiscovery,
   CallCommitment,

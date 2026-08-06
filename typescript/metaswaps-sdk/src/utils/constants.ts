@@ -33,9 +33,6 @@ export const DEFAULT_RELAY_API_URL = 'https://relay-api.hyperlane.xyz';
 
 export const DEFAULT_POLLING_INTERVAL_MS = 5_000;
 
-// How far ahead (seconds) the UniversalRouter deadline is set from now.
-export const DEFAULT_DEADLINE_SECONDS = 300;
-
 // ── RPC defaults from @hyperlane-xyz/registry ────────────────────────────────
 
 // chainId → canonical chain name (used for relay API payloads).
