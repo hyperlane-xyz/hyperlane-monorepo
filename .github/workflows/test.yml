@@ -231,7 +231,7 @@ jobs:
           has_cosmos=$(echo "$CHANGED_FILES" | grep -qE '^typescript/(cosmos-sdk|cosmos-types)/' && echo true || echo false)
           has_starknet=$(echo "$CHANGED_FILES" | grep -qE '^(typescript/(starknet-sdk|provider-sdk|utils)/|starknet/)' && echo true || echo false)
           has_tron=$(echo "$CHANGED_FILES" | grep -qE '^typescript/tron-sdk/' && echo true || echo false)
-          has_svm=$(echo "$CHANGED_FILES" | grep -qE '^(rust/sealevel/|typescript/svm-sdk/)' && echo true || echo false)
+          has_svm=$(echo "$CHANGED_FILES" | grep -qE '^(rust/sealevel/|typescript/(svm-sdk|forking-sdk)/)' && echo true || echo false)
 
           # Package-specific changes (run only their targeted CLI e2e tests)
           has_relayer=$(echo "$CHANGED_FILES" | grep -qE '^typescript/relayer/' && echo true || echo false)
@@ -240,7 +240,7 @@ jobs:
           # Core CLI deps that trigger the smoke/full CLI e2e suite
           # Peripheral deps (relayer, rebalancer, metrics, http-registry-server) have
           # their own unit tests; merge queue runs full suite
-          CLI_DEPS='^(typescript/(cli|sdk|utils|deploy-sdk|provider-sdk)/|solidity/|starknet/)'
+          CLI_DEPS='^(typescript/(cli|sdk|utils|deploy-sdk|provider-sdk|forking-sdk)/|solidity/|starknet/)'
           has_cli_changes=$(echo "$CHANGED_FILES" | grep -qE "$CLI_DEPS" && echo true || echo false)
 
           echo "has_cli_changes=$has_cli_changes" >> $GITHUB_OUTPUT
