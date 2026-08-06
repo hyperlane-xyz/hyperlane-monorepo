@@ -164,7 +164,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     tea: true,
     tron: true,
     unichain: true,
-    vana: true,
+    vana: false, // disabled — Vana paid chain deprecation (ENG-4333)
     viction: true,
     worldchain: true,
     xlayer: true,
@@ -266,7 +266,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     tea: true,
     tron: true,
     unichain: true,
-    vana: true,
+    vana: false, // disabled — Vana paid chain deprecation (ENG-4333)
     viction: true,
     worldchain: true,
     xlayer: true,
@@ -368,7 +368,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     tea: true,
     tron: true,
     unichain: true,
-    vana: true,
+    vana: false, // disabled — Vana paid chain deprecation (ENG-4333)
     // Note: default rpc.viction.xyz endpoint can't be used for scraping (returns 429s).
     viction: true,
     worldchain: true,
