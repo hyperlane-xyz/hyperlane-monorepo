@@ -20,9 +20,12 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { MetaswapsSDK } from '../sdk.js';
 import { checkMessageDelivery, SwapStatus } from '../swap/tracker.js';
-import type { QuoteResponse } from '../client/schemas.js';
+import { QuoteResponseSchema } from '../client/schemas.js';
 
 const sdk = new MetaswapsSDK({
+  routingUrl: process.env.ROUTING_URL,
+  ccsUrl: process.env.CCS_URL,
+  explorerApiUrl: process.env.EXPLORER_API_URL,
   relayApiUrl: process.env.RELAY_API_URL,
 });
 
@@ -60,9 +63,15 @@ server.tool(
         'EVM chain ID to filter by (e.g. 8453 for Base). Mapped to the "chain" field internally.',
       ),
     search: z.string().optional().describe('Search by token symbol or name'),
+    userAddress: z
+      .string()
+      .optional()
+      .describe(
+        'Optional wallet address. Requires chainId and includes nonzero user wallet tokens.',
+      ),
   },
-  async ({ chainId, search }) => {
-    const result = await sdk.tokens({ chain: chainId, search });
+  async ({ chainId, search, userAddress }) => {
+    const result = await sdk.tokens({ chain: chainId, search, userAddress });
     return {
       content: [
         { type: 'text' as const, text: JSON.stringify(result, null, 2) },
@@ -97,6 +106,12 @@ server.tool(
       .number()
       .optional()
       .describe('Slippage tolerance in basis points. Default: 50 (0.5%)'),
+    usePermit2: z
+      .boolean()
+      .optional()
+      .describe(
+        'Use Permit2 approval semantics. Defaults to false for classic ERC20 approval.',
+      ),
   },
   async (params) => {
     const quote = await sdk.quote({
@@ -108,6 +123,7 @@ server.tool(
       sender: params.sender as `0x${string}`,
       recipient: (params.recipient ?? params.sender) as `0x${string}`,
       slippageBps: params.slippageBps ?? 50,
+      usePermit2: params.usePermit2 ?? false,
     });
     return {
       content: [
@@ -141,7 +157,7 @@ server.tool(
       };
     }
 
-    const quote: QuoteResponse = JSON.parse(quoteJson);
+    const quote = QuoteResponseSchema.parse(JSON.parse(quoteJson));
     if (!quote.routes?.length) {
       return {
         content: [

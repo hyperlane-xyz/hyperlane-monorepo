@@ -261,6 +261,68 @@ const quote = await client.quote({
 
 ---
 
+## MCP Server
+
+The package includes a stdio MCP server for agents:
+
+```bash
+pnpm -C typescript/metaswaps-sdk mcp
+```
+
+For quote-only tools, no private key is required. For `metaswaps_swap`, set `HYP_KEY` to the source-chain EVM private key.
+
+Example MCP config:
+
+```json
+{
+  "mcpServers": {
+    "metaswaps": {
+      "command": "pnpm",
+      "args": [
+        "-C",
+        "/Users/hyperlane/work/hyperlane-monorepo/typescript/metaswaps-sdk",
+        "mcp"
+      ],
+      "env": {
+        "HYP_KEY": "0x...",
+        "ROUTING_URL": "https://router.services.hyperlane.xyz",
+        "CCS_URL": "https://offchain-lookup.services.hyperlane.xyz/callCommitments",
+        "EXPLORER_API_URL": "https://explorer4.hasura.app/v1/graphql",
+        "RELAY_API_URL": "https://relay-api.hyperlane.xyz"
+      }
+    }
+  }
+}
+```
+
+Tools:
+
+| Tool                       | Purpose                                                     |
+| -------------------------- | ----------------------------------------------------------- |
+| `metaswaps_chains`         | List supported chains                                       |
+| `metaswaps_tokens`         | List/search tokens, optionally with `chainId`/`userAddress` |
+| `metaswaps_quote`          | Quote a route; `usePermit2` defaults to `false`             |
+| `metaswaps_swap`           | Execute the best route from a quote using `HYP_KEY`         |
+| `metaswaps_check_delivery` | Check Hyperlane message delivery by message ID              |
+
+Minimal quote tool input:
+
+```json
+{
+  "srcChain": 8453,
+  "dstChain": 42161,
+  "srcToken": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "dstToken": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+  "amount": "10000",
+  "sender": "0xYourAddress",
+  "recipient": "0xYourAddress",
+  "slippageBps": 50,
+  "usePermit2": false
+}
+```
+
+---
+
 ## Zod schemas
 
 All API response shapes are exported as Zod schemas, useful for runtime validation or building on top of the SDK:
