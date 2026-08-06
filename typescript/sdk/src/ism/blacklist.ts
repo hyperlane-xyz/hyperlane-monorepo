@@ -4,10 +4,7 @@ import { BlacklistIsm__factory } from '@hyperlane-xyz/core';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
-import {
-  EvmEventLogsReader,
-  EvmEventLogsSource,
-} from '../rpc/evm/EvmEventLogsReader.js';
+import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
 import { ChainNameOrId } from '../types.js';
 import { throwIfNotMissingSelector } from '../utils/contract.js';
@@ -20,11 +17,6 @@ const MESSAGE_BLACKLISTED_EVENT_SELECTOR = toEventSelector(
     name: 'MessageBlacklisted',
   }),
 );
-
-// Etherscan-like explorers cap `logs/getLogs` at this many records and report a
-// capped page with a success status, so a response of exactly this size cannot
-// be distinguished from a truncated one.
-const EXPLORER_LOGS_PAGE_SIZE = 1000;
 
 /**
  * Reads the blacklisted message IDs of a Blacklist ISM.
@@ -40,23 +32,25 @@ const EXPLORER_LOGS_PAGE_SIZE = 1000;
  * selector propagate, so a transient RPC failure is never read as a legacy
  * deployment.
  *
- * Two limitations of the replay are known and accepted:
+ * Result size does not constrain the replay. The explorer source walks pages
+ * until one comes back short and throws when it cannot establish that, and the
+ * RPC source chunks the whole block range; an explorer that cannot prove
+ * completeness falls back to the RPC rather than capping the set. The explorer
+ * source treats a short page as proof it has reached the end, so that guarantee
+ * holds for explorers that honour the requested page size — one that silently
+ * serves a smaller page would look complete on its first response.
  *
- * - The explorer path trusts the explorer's indexer. A set read within the
- *   indexing window can omit an ID that is already on-chain and still look
- *   complete. Append-only entries do not make this harmless: an in-place update
- *   computed from a stale set only re-adds an ID that is already set, but a
- *   redeploy — which this design deliberately takes for deployments that predate
- *   on-chain enumeration — seeds the replacement from the target config, so an
- *   ID missing from a stale set that was persisted into a registry is dropped
- *   permanently. This is a property of the shared `EvmEventLogsReader`
- *   explorer-primary strategy rather than of blacklist enumeration:
- *   `EvmTimelockReader` reads through the same path with the same exposure,
- *   which is why it is recorded here instead of worked around locally.
- * - The page-cap guard below applies only to the explorer source, whose response
- *   is capped at a page and reported as a success. The RPC source walks the
- *   whole block range in chunks and has no such cap, so a complete set of 1000
- *   or more entries read over RPC is returned rather than rejected.
+ * The replay's other limitation is that the explorer path
+ * trusts the explorer's indexer. A set read within the indexing window can omit an ID that
+ * is already on-chain and still look complete. Append-only entries do not make
+ * this harmless: an in-place update computed from a stale set only re-adds an ID
+ * that is already set, but a redeploy — which this design deliberately takes for
+ * deployments that predate on-chain enumeration — seeds the replacement from the
+ * target config, so an ID missing from a stale set that was persisted into a
+ * registry is dropped permanently. This is a property of the shared
+ * `EvmEventLogsReader` explorer-primary strategy rather than of blacklist
+ * enumeration: `EvmTimelockReader` reads through the same path with the same
+ * exposure, which is why it is recorded here instead of worked around locally.
  */
 export async function readBlacklistedIds(
   chain: ChainNameOrId,
@@ -83,21 +77,10 @@ export async function readBlacklistedIds(
     eventLogsReader ?? EvmEventLogsReader.fromConfig({ chain }, multiProvider);
 
   try {
-    const { logs, source } = await logsReader.getLogsByTopicWithSource({
+    const logs = await logsReader.getLogsByTopic({
       contractAddress: address,
       eventTopic: MESSAGE_BLACKLISTED_EVENT_SELECTOR,
     });
-
-    if (
-      source === EvmEventLogsSource.Explorer &&
-      logs.length >= EXPLORER_LOGS_PAGE_SIZE
-    ) {
-      logger.warn(
-        { chain, address, logCount: logs.length },
-        'Blacklist ISM log replay filled an explorer page and cannot be proven complete; reporting the set as unknown.',
-      );
-      return undefined;
-    }
 
     const events = parseEventLogs({
       abi: BlacklistIsm__factory.abi,

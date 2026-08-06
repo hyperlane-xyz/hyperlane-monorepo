@@ -441,7 +441,7 @@ describe('HyperlaneIsmFactory', async () => {
         const blacklistedId = randomBytes32();
         const legacyAddress = await deployLegacyIsm(owner, [blacklistedId]);
         sandbox
-          .stub(EvmEventLogsReader.prototype, 'getLogsByTopicWithSource')
+          .stub(EvmEventLogsReader.prototype, 'getLogsByTopic')
           .rejects(networkError());
 
         const matches = await matchesConfig(legacyAddress, {
