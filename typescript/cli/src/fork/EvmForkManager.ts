@@ -18,11 +18,20 @@ import {
   type RevertAssertion,
   TransactionDataType,
 } from '@hyperlane-xyz/sdk';
-import { type Address, assert, deepEquals } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  assert,
+  deepEquals,
+  timeout,
+} from '@hyperlane-xyz/utils';
 
 import { logGray } from '../logger.js';
 
 const LOCAL_HOST = 'http://127.0.0.1';
+
+// Per-probe RPC timeout so a single hung request fails fast and the bounded
+// readiness loop can continue.
+const RPC_PROBE_TIMEOUT_MS = 5000;
 
 export interface EvmForkManagerConfig {
   chainName: ChainName;
@@ -54,10 +63,24 @@ async function startEvmFork(
     killOnError = kill;
 
     const provider = new JsonRpcProvider(endpoint);
-    await waitUntilReady(() => provider.getNetwork(), {
-      attempts: 10,
-      baseRetryMs: 500,
+    const readiness = waitUntilReady(
+      () =>
+        timeout(
+          provider.getNetwork(),
+          RPC_PROBE_TIMEOUT_MS,
+          'anvil readiness probe timed out',
+        ),
+      { attempts: 10, baseRetryMs: 500 },
+    );
+    // Reject if anvil exits before its RPC is ready (e.g. the port is already
+    // occupied) so we never treat another process's RPC as our fork.
+    const exited = anvilProcess.then(() => {
+      throw new Error('anvil exited before its RPC was ready');
     });
+    // A later exit (e.g. on kill once readiness has won) must not surface as an
+    // unhandled rejection after the race settles.
+    exited.catch(() => {});
+    await Promise.race([readiness, exited]);
 
     process.once('exit', () => void kill(false));
 

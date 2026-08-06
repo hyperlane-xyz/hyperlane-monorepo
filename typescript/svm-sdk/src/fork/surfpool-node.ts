@@ -23,6 +23,17 @@ const logger = rootLogger.child({ module: 'surfpool-node' });
 // `surfpool/surfpool:1.5.0` used by the container runner in test infra.
 export const SURFPOOL_MIN_VERSION = '1.5.0';
 
+// Env var surfpool reads for its fork datasource. Passing the (possibly
+// credential-bearing) upstream URL this way keeps it out of the process argv.
+export const SURFPOOL_DATASOURCE_RPC_URL_ENV = 'SURFPOOL_DATASOURCE_RPC_URL';
+
+// Per-probe RPC timeout so a single hung request fails fast and the bounded
+// readiness loop can continue.
+const RPC_PROBE_TIMEOUT_MS = 5000;
+
+// Cap on the retained tail of surfpool stderr, surfaced in exit errors.
+const STDERR_TAIL_MAX = 8192;
+
 export const SurfpoolDatasourceMode = {
   Fork: 'fork',
   Network: 'network',
@@ -160,13 +171,13 @@ export function buildSurfpoolArgs(
     args.push('--ws-port', String(config.wsPort));
   }
 
-  if (datasource.mode === SurfpoolDatasourceMode.Fork) {
-    args.push('--rpc-url', datasource.rpcUrl);
-  } else if (datasource.mode === SurfpoolDatasourceMode.Network) {
+  if (datasource.mode === SurfpoolDatasourceMode.Network) {
     args.push('--network', datasource.network);
-  } else {
+  } else if (datasource.mode === SurfpoolDatasourceMode.Offline) {
     args.push('--offline');
   }
+  // Fork mode: the datasource URL is passed via the SURFPOOL_DATASOURCE_RPC_URL
+  // env (see buildSurfpoolDatasourceEnv) rather than argv.
 
   if (config.skipSignatureVerification) {
     args.push('--skip-signature-verification');
@@ -185,11 +196,26 @@ export function buildSurfpoolArgs(
   return args;
 }
 
+/**
+ * Spawn env carrying surfpool's fork datasource URL. Empty for network/offline
+ * datasources, which take no credentials and are expressed via argv flags.
+ */
+export function buildSurfpoolDatasourceEnv(
+  datasource: SurfpoolDatasource,
+): Record<string, string> {
+  if (datasource.mode !== SurfpoolDatasourceMode.Fork) {
+    return {};
+  }
+  return { [SURFPOOL_DATASOURCE_RPC_URL_ENV]: datasource.rpcUrl };
+}
+
 export async function waitForSolanaRpcReady(rpcUrl: string): Promise<void> {
   const rpc = createRpc(rpcUrl);
   await waitUntilReady(
     async () => {
-      const health = await rpc.getHealth().send();
+      const health = await rpc
+        .getHealth()
+        .send({ abortSignal: AbortSignal.timeout(RPC_PROBE_TIMEOUT_MS) });
       assert(health === 'ok', `surfpool RPC not healthy: ${health}`);
     },
     { attempts: 60, baseRetryMs: 1000 },
@@ -199,14 +225,22 @@ export async function waitForSolanaRpcReady(rpcUrl: string): Promise<void> {
 async function startLocalSurfpool(
   config: SurfpoolNodeConfig,
   binaryPath: string,
-): Promise<SurfpoolNode> {
+): Promise<{ node: SurfpoolNode; waitForReady: () => Promise<void> }> {
   const args = buildSurfpoolArgs(config, config.datasource, '127.0.0.1');
-  // Suppress surfpool's log output — we don't consume it (readiness is RPC-health
-  // polled) and its default ./.surfpool/logs dir would clutter the working dir.
+  // Suppress surfpool's own logs (its default ./.surfpool/logs dir would clutter
+  // the working dir); startup/bind failures still surface on stderr, drained below.
   args.push('--log-level', 'none');
   const proc: ChildProcess = spawn(binaryPath, args, {
-    stdio: ['ignore', 'ignore', 'ignore'],
+    stdio: ['ignore', 'ignore', 'pipe'],
     detached: false,
+    env: { ...process.env, ...buildSurfpoolDatasourceEnv(config.datasource) },
+  });
+
+  // Drain stderr into a bounded tail; reading it also keeps the pipe from
+  // filling and blocking the child.
+  let stderrTail = '';
+  proc.stderr?.on('data', (chunk: Buffer) => {
+    stderrTail = (stderrTail + chunk.toString()).slice(-STDERR_TAIL_MAX);
   });
 
   proc.on('error', (error) => {
@@ -226,7 +260,27 @@ async function startLocalSurfpool(
 
   process.once('exit', kill);
 
-  return { rpcUrl, kill };
+  // Reject if the process exits before its RPC is ready (e.g. the port is
+  // already occupied) so we never treat another process's RPC as our fork.
+  const waitForReady = async (): Promise<void> => {
+    const exited = new Promise<never>((_, reject) => {
+      proc.once('exit', (code, signal) => {
+        const detail = stderrTail.trim();
+        reject(
+          new Error(
+            `surfpool exited before its RPC was ready (code=${code}, signal=${signal})` +
+              (detail ? `: ${detail}` : ''),
+          ),
+        );
+      });
+    });
+    // A later exit (e.g. on kill once readiness has won) must not surface as an
+    // unhandled rejection after the race settles.
+    exited.catch(() => {});
+    await Promise.race([waitForSolanaRpcReady(rpcUrl), exited]);
+  };
+
+  return { node: { rpcUrl, kill }, waitForReady };
 }
 
 /**
@@ -268,9 +322,9 @@ export async function runSurfpoolNode(
   logger.debug(
     `Using local surfpool binary: ${match.path} (v${match.version})`,
   );
-  const node = await startLocalSurfpool(config, match.path);
+  const { node, waitForReady } = await startLocalSurfpool(config, match.path);
   try {
-    await waitForSolanaRpcReady(node.rpcUrl);
+    await waitForReady();
   } catch (error: unknown) {
     node.kill();
     throw error;

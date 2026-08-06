@@ -11,6 +11,7 @@ import {
   type SurfpoolNode,
   type SurfpoolNodeConfig,
   buildSurfpoolArgs,
+  buildSurfpoolDatasourceEnv,
   waitForSolanaRpcReady,
 } from '../fork/surfpool-node.js';
 
@@ -50,6 +51,7 @@ export async function runSurfpoolContainer(
   const image = config.image ?? SURFPOOL_IMAGE;
   const datasource = rewriteDatasourceForDocker(config.datasource);
   const command = buildSurfpoolArgs(config, datasource, '0.0.0.0');
+  const datasourceEnv = buildSurfpoolDatasourceEnv(datasource);
 
   const exposedPorts = [config.rpcPort];
   if (!isNullish(config.wsPort)) {
@@ -59,6 +61,7 @@ export async function runSurfpoolContainer(
   const builder = new GenericContainer(image)
     .withEntrypoint(['surfpool'])
     .withCommand(command)
+    .withEnvironment(datasourceEnv)
     .withExposedPorts(...exposedPorts)
     .withExtraHosts([{ host: DOCKER_INTERNAL_HOST, ipAddress: 'host-gateway' }])
     .withWaitStrategy(Wait.forListeningPorts())
