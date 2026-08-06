@@ -35,7 +35,6 @@ export const deploymentChains = [
   'soneium',
   'mode',
   'fraxtal',
-  'superseed',
   'lisk',
   'metal',
   'bob',
@@ -47,6 +46,12 @@ export const deploymentChains = [
   'tea',
 ] as const;
 const supportedCCIPChains = ['base', 'mode', 'optimism'];
+
+// Router implementation version to upgrade to. Deployed staging routers are on
+// core 6.1.0, which predates FungibleTokenRouter fee support; setting this makes
+// `warp apply` upgrade the proxy impl to the current @hyperlane-xyz/core release
+// (via ProxyAdmin.upgrade) so setFeeRecipient/feeRecipient exist for the OQLF fee.
+const contractVersion = '12.0.0';
 const xERC20LockboxChains: oUSDTTokenChainName[] = ['celo', 'ethereum'];
 
 type oUSDTTokenChainName = (typeof deploymentChains)[number];
@@ -103,7 +108,6 @@ const productionBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   soneium: lowerBufferCap,
   mode: lowerBufferCap,
   fraxtal: lowerBufferCap,
-  superseed: lowerBufferCap,
   lisk: lowerBufferCap,
   metal: lowerBufferCap,
   bob: lowerBufferCap,
@@ -126,7 +130,6 @@ const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   soneium: lowerRateLimitPerSecond,
   mode: lowerRateLimitPerSecond,
   fraxtal: lowerRateLimitPerSecond,
-  superseed: lowerRateLimitPerSecond,
   lisk: lowerRateLimitPerSecond,
   metal: lowerRateLimitPerSecond,
   bob: lowerRateLimitPerSecond,
@@ -274,7 +277,6 @@ const productionXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   soneium: productionXERC20TokenAddress,
   mode: productionXERC20TokenAddress,
   fraxtal: productionXERC20TokenAddress,
-  superseed: productionXERC20TokenAddress,
   lisk: productionXERC20TokenAddress,
   metal: productionXERC20TokenAddress,
   bob: productionXERC20TokenAddress,
@@ -323,7 +325,6 @@ const stagingXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   soneium: stagingXERC20TokenAddress,
   mode: stagingXERC20TokenAddress,
   fraxtal: stagingXERC20TokenAddress,
-  superseed: stagingXERC20TokenAddress,
   lisk: stagingXERC20TokenAddress,
   metal: stagingXERC20TokenAddress,
   bob: stagingXERC20TokenAddress,
@@ -478,6 +479,7 @@ function generateoUSDTTokenConfig(
       {
         ...routerConfig[chain],
         owner: ownerByChain[chain],
+        contractVersion,
         type: xERC20LockboxChains.includes(chain)
           ? TokenType.XERC20Lockbox
           : TokenType.XERC20,
