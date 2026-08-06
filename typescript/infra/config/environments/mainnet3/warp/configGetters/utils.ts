@@ -350,6 +350,8 @@ export function scaleDownConfig(
  * @param bps - The fee in basis points to apply for feeDestinations
  * @param feeParams - Optional pre-deployed fee parameters per chain
  * @param quoteSigners - If provided, uses OffchainQuotedLinearFee instead of LinearFee
+ * @param beneficiary - Optional beneficiary for the RoutingFee wrapper (defaults to
+ *   owner on-chain). Only the RoutingFee carries a beneficiary; nested leaf fees do not.
  */
 export function getFixedRoutingFeeConfig(
   owner: Address,
@@ -357,6 +359,7 @@ export function getFixedRoutingFeeConfig(
   bps: number | Record<ChainName, number>,
   feeParams?: Record<string, { maxFee: string; halfAmount: string }>,
   quoteSigners?: Address[],
+  beneficiary?: Address,
 ): TokenFeeConfigInput {
   const feeContracts: Record<ChainName, TokenFeeConfigInput> = {};
 
@@ -397,6 +400,7 @@ export function getFixedRoutingFeeConfig(
   return {
     type: TokenFeeType.RoutingFee,
     owner,
+    ...(beneficiary && { beneficiary }),
     feeContracts,
   };
 }

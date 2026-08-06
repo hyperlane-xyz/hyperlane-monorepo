@@ -2,6 +2,7 @@ import { ChainMap, HypTokenRouterConfig } from '@hyperlane-xyz/sdk';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { DEPLOYER } from '../../owners.js';
+import { WARP_QUOTE_SIGNER } from '../consts.js';
 
 import {
   DeploymentChain,
@@ -95,13 +96,6 @@ const stagingOwnersByChain: Record<DeploymentChain, string> = {
   katana: DEPLOYER,
 };
 
-// EIP-712 quote signer for this route's OffchainQuotedLinearFee. Matches the
-// address of the hyperlane-mainnet3-key-quotesigner GCP secret. Hardcoded (the
-// config only needs the public address) so config load doesn't require GCP
-// secret access — otherwise check-warp-deploy aborts loading this route
-// in-cluster where the pod has no GCP identity.
-const QUOTE_SIGNER = '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d';
-
 export const getEclipseUSDCSTAGEWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
@@ -110,7 +104,7 @@ export const getEclipseUSDCSTAGEWarpConfig = async (
     programIds: STAGING_PROGRAM_IDS,
     tokenMetadata: STAGING_TOKEN_METADATA,
     proxyAdmins: stagingProxyAdmins,
-    quoteSigners: [QUOTE_SIGNER],
+    quoteSigners: [WARP_QUOTE_SIGNER],
   });
 };
 
