@@ -32,6 +32,7 @@ import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { createRpc } from '../rpc.js';
 import { SvmWarpArtifactManager } from '../warp/warp-artifact-manager.js';
+import { SvmImpersonatingSigner } from './impersonating-signer.js';
 import { SvmProvider, WARP_DEPLOY_BASE_LAMPORTS } from './provider.js';
 import { SvmSigner } from './signer.js';
 
@@ -45,6 +46,16 @@ export class SvmProtocolProvider implements ProtocolProvider {
     config: SignerConfig,
   ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
     return SvmSigner.connectWithSigner(chainMetadata, config.privateKey);
+  }
+
+  async createImpersonatingSigner(
+    chainMetadata: ChainMetadataForAltVM,
+    config: SignerConfig,
+  ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
+    return SvmImpersonatingSigner.connectWithSigner(
+      chainMetadata,
+      config.privateKey,
+    );
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(

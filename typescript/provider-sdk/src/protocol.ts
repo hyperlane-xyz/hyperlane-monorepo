@@ -33,6 +33,21 @@ export interface ProtocolProvider {
     config: SignerConfig,
   ): Promise<ISigner<AnnotatedTx, TxReceipt>>;
 
+  /**
+   * Creates a signer that signs only with the held key and leaves the
+   * remaining required signatures empty, then submits — for applying
+   * governance transactions against a fork running with signature
+   * verification disabled, when the real authority key is not held.
+   *
+   * Optional: only protocols with fork tooling implement it. Callers must
+   * check for its presence and error clearly when a protocol does not
+   * support impersonated submission.
+   */
+  createImpersonatingSigner?(
+    chainMetadata: ChainMetadataForAltVM,
+    config: SignerConfig,
+  ): Promise<ISigner<AnnotatedTx, TxReceipt>>;
+
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
     chainMetadata: ChainMetadataForAltVM,
     config: TConfig,
