@@ -9,18 +9,18 @@ import {
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName } from '../types.js';
 
-const COINGECKO_API_BASE = 'https://api.coingecko.com/api/v3';
+const COINGECKO_PUBLIC_API_BASE = 'https://api.coingecko.com/api/v3';
+const COINGECKO_PRO_API_BASE = 'https://pro-api.coingecko.com/api/v3';
 
-// Demo (free-tier) keys authenticate against the public host via this header.
-// Sending the key as a query param, or under the pro header, leaves the request
-// unauthenticated (rate limited as anonymous) or rejected (401).
-const COINGECKO_DEMO_API_KEY_HEADER = 'x-cg-demo-api-key';
+// The configured key is a paid (pro) key, which must be sent as this header
+// against the pro host. Sending it as a query param returns 401, and sending it
+// to the public host returns HTTP 400 (error 10010, "use the pro host").
+const COINGECKO_PRO_API_KEY_HEADER = 'x-cg-pro-api-key';
 
-// The demo (free) tier caps /simple/price at 4 ids per call; a larger list is
-// rejected with HTTP 400 (error 10010, "use the Pro API"), which would drop the
-// whole batch. Chunk id lists to this limit so one query still covers several
-// tokens instead of one request per token.
-const COINGECKO_MAX_IDS_PER_REQUEST = 4;
+// CoinGecko caps the number of ids per /simple/price call; batch large id lists
+// into chunks so one query covers many tokens instead of one request per token.
+// The pro tier comfortably accepts this many ids per call.
+const COINGECKO_MAX_IDS_PER_REQUEST = 100;
 
 export interface TokenPriceGetter {
   getTokenPrice(chain: ChainName): Promise<number>;
@@ -218,12 +218,18 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     return this.cache.fetch(id);
   }
 
+  // A pro key is only honored against the dedicated pro host; the public host
+  // rejects it. Fall back to the public host only when no key is configured.
+  private get apiBaseUrl(): string {
+    return this.apiKey ? COINGECKO_PRO_API_BASE : COINGECKO_PUBLIC_API_BASE;
+  }
+
   private get priceApiUrl(): string {
-    return `${COINGECKO_API_BASE}/simple/price`;
+    return `${this.apiBaseUrl}/simple/price`;
   }
 
   private get coinApiUrl(): string {
-    return `${COINGECKO_API_BASE}/coins`;
+    return `${this.apiBaseUrl}/coins`;
   }
 
   public async fetchPriceDataByContractAddress(
@@ -261,11 +267,11 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
 
   private async get(endpoint: string): Promise<any> {
     const url = new URL(endpoint);
-    // Send the key as a header, not a query param: it authenticates the demo
-    // tier correctly and keeps the secret out of the URL (which is logged on
-    // error below).
+    // Send the key as a header, not a query param: the query-param form returns
+    // 401, and the header also keeps the secret out of the URL (which is logged
+    // on error below).
     const headers: Record<string, string> = this.apiKey
-      ? { [COINGECKO_DEMO_API_KEY_HEADER]: this.apiKey }
+      ? { [COINGECKO_PRO_API_KEY_HEADER]: this.apiKey }
       : {};
 
     const resp = await fetch(url, { headers });
