@@ -50,6 +50,12 @@ import {
 import type { WarpMonitorConfig } from './types.js';
 import { getLogger, setLoggerBindings } from './utils.js';
 
+// Prices are refreshed once per cycle by prefetchPrices, so cache entries must
+// stay fresh for at least a full cycle (which can span several minutes across
+// the whole fleet) to keep every per-token lookup a cache hit. One hour is
+// comfortably longer than any cycle while still bounding staleness.
+const PRICE_CACHE_EXPIRY_SECONDS = 60 * 60;
+
 type RouterCollateralSnapshot = {
   nodeId: string;
   routerCollateralBaseUnits: bigint;
@@ -71,6 +77,11 @@ export type SharedMonitorContext = {
   multiProtocolProvider: MultiProtocolProvider;
   chainMetadata: ChainMap<ChainMetadata>;
   priceGetter: TokenPriceGetter;
+  // Warms the shared price cache for the given routes in a single batched pass
+  // so per-token price lookups are served from cache instead of each issuing
+  // its own CoinGecko request (which, at fleet scale from one pod, gets rate
+  // limited). Call once per cycle before iterating tokens.
+  prefetchPrices: (routes: RouteRuntime[]) => Promise<void>;
 };
 
 /**
@@ -141,15 +152,28 @@ export async function buildSharedContext(
   const tokenPriceGetter = new CoinGeckoTokenPriceGetter({
     chainMetadata,
     apiKey: coingeckoApiKey,
+    // Prices are refreshed once per cycle by prefetchPrices; keep cache entries
+    // fresh long enough that every per-token lookup within a (potentially
+    // multi-minute) cycle is served from cache rather than triggering its own
+    // request.
+    expirySeconds: PRICE_CACHE_EXPIRY_SECONDS,
   });
 
-  // Wrap CoinGeckoTokenPriceGetter to match TokenPriceGetter interface
+  // Per-token lookups read only from the cache (warmed by prefetchPrices); a
+  // miss returns undefined rather than issuing a request, so a single pod cannot
+  // burst one CoinGecko call per token and get rate limited.
   const priceGetter: TokenPriceGetter = {
     tryGetTokenPrice: async (token: Token) =>
-      tryGetTokenPrice(token, tokenPriceGetter),
+      getCachedTokenPrice(token, tokenPriceGetter),
   };
 
-  return { multiProtocolProvider, chainMetadata, priceGetter };
+  const prefetchPrices = async (routes: RouteRuntime[]): Promise<void> => {
+    const ids = collectCoinGeckoIds(routes);
+    if (ids.length === 0) return;
+    await tokenPriceGetter.prefetchTokenPrices(ids);
+  };
+
+  return { multiProtocolProvider, chainMetadata, priceGetter, prefetchPrices };
 }
 
 /**
@@ -651,12 +675,15 @@ function formatTokenAmount(token: Token, amount: bigint): number {
   return token.amount(amount).getDecimalFormattedAmount();
 }
 
-// Tries to get the price of a token from CoinGecko. Returns undefined if there's no
-// CoinGecko ID for the token.
-async function tryGetTokenPrice(
+// Reads a token's USD price from the shared cache warmed by prefetchPrices.
+// Returns undefined when the token has no CoinGecko ID or no price was cached
+// (e.g. CoinGecko does not recognize the id). Never issues a request itself, so
+// value metrics for a missing token are simply skipped rather than fanning out
+// one CoinGecko call per token.
+function getCachedTokenPrice(
   token: Token,
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
-): Promise<number | undefined> {
+): number | undefined {
   const logger = getLogger();
   // We only get a price if the token defines a CoinGecko ID.
   // This way we can ignore values of certain types of collateralized warp routes,
@@ -671,9 +698,19 @@ async function tryGetTokenPrice(
     return undefined;
   }
 
-  const prices = await tokenPriceGetter.getTokenPriceByIds([coinGeckoId]);
-  if (!prices) return undefined;
-  return prices[0];
+  return tokenPriceGetter.getCachedTokenPrice(coinGeckoId);
+}
+
+// Distinct CoinGecko IDs across all tokens of the given routes, used to warm the
+// price cache in one batched pass per cycle.
+export function collectCoinGeckoIds(routes: RouteRuntime[]): string[] {
+  const ids = new Set<string>();
+  for (const route of routes) {
+    for (const token of route.warpCore.tokens) {
+      if (token.coinGeckoId) ids.add(token.coinGeckoId);
+    }
+  }
+  return [...ids];
 }
 
 export class WarpMonitor {
@@ -733,6 +770,7 @@ export class WarpMonitor {
     for (;;) {
       await tryFn(
         async () => {
+          await ctx.prefetchPrices([route]);
           await runRouteCycle(ctx, route);
         },
         'Updating warp route metrics',

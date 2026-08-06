@@ -257,6 +257,20 @@ export class MultiWarpMonitor {
     ctx: SharedMonitorContext,
     routes: RouteRuntime[],
   ): Promise<void> {
+    // Warm the price cache for every route in one batched pass so the per-token
+    // lookups below are cache hits. Isolated so a CoinGecko hiccup degrades only
+    // value metrics for this cycle rather than failing the whole cycle; the
+    // balance metrics (chain reads) are unaffected.
+    try {
+      await ctx.prefetchPrices(routes);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      getLogger().error(
+        { error: message },
+        'Failed to prefetch token prices; value metrics may be incomplete this cycle',
+      );
+    }
+
     const concurrency = Math.max(
       1,
       Math.min(this.config.concurrency, routes.length),
