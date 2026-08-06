@@ -16,9 +16,11 @@ const COINGECKO_API_BASE = 'https://api.coingecko.com/api/v3';
 // unauthenticated (rate limited as anonymous) or rejected (401).
 const COINGECKO_DEMO_API_KEY_HEADER = 'x-cg-demo-api-key';
 
-// CoinGecko caps the number of ids per /simple/price call; batch large id lists
-// into chunks so one query covers many tokens instead of one request per token.
-const COINGECKO_MAX_IDS_PER_REQUEST = 100;
+// The demo (free) tier caps /simple/price at 4 ids per call; a larger list is
+// rejected with HTTP 400 (error 10010, "use the Pro API"), which would drop the
+// whole batch. Chunk id lists to this limit so one query still covers several
+// tokens instead of one request per token.
+const COINGECKO_MAX_IDS_PER_REQUEST = 4;
 
 export interface TokenPriceGetter {
   getTokenPrice(chain: ChainName): Promise<number>;

@@ -121,5 +121,27 @@ describe('TokenPriceGetter', () => {
         undefined,
       );
     });
+
+    it('chunks id lists to the demo-tier per-call limit', async () => {
+      // The demo tier rejects >4 ids per /simple/price call, so a longer list
+      // must be split rather than sent (and 400-rejected) as one batch.
+      fetchStub = sinon
+        .stub(globalThis, 'fetch')
+        .callsFake(
+          async () => new Response(JSON.stringify({}), { status: 200 }),
+        );
+
+      await tokenPriceGetter.prefetchTokenPrices([
+        'a',
+        'b',
+        'c',
+        'd',
+        'e',
+        'f',
+      ]);
+
+      // 6 ids at a 4-per-call cap => 2 requests.
+      expect(fetchStub.callCount).to.equal(2);
+    });
   });
 });
