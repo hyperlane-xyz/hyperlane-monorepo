@@ -75,6 +75,7 @@ import { HypERC20Deployer, HypERC721Deployer } from '../token/deploy.js';
 import {
   HypTokenRouterConfig,
   WarpRouteDeployConfigMailboxRequired,
+  isCrossCollateralTokenConfig,
 } from '../token/types.js';
 import { ChainMap } from '../types.js';
 import {
@@ -132,10 +133,7 @@ export function buildFeeReadContextFromWarpDeployConfig(
     ]);
   }
 
-  if (
-    config.type === TokenType.crossCollateral &&
-    config.crossCollateralRouters
-  ) {
+  if (isCrossCollateralTokenConfig(config) && config.crossCollateralRouters) {
     for (const [chainNameOrId, routers] of Object.entries(
       config.crossCollateralRouters,
     )) {

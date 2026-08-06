@@ -40,7 +40,7 @@ import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { TokenMetadataMap } from './TokenMetadataMap.js';
-import { gasOverhead } from './config.js';
+import { TokenType, gasOverhead } from './config.js';
 import { deriveTokenMetadata } from './tokenMetadataUtils.js';
 import {
   ContractVerificationStatus,
@@ -53,6 +53,7 @@ import {
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   isCollateralTokenConfig,
+  isCrossCollateralSyntheticTokenConfig,
   isCrossCollateralTokenConfig,
   isDepositAddressTokenConfig,
   isMovableCollateralTokenConfig,
@@ -558,14 +559,15 @@ function getFeeTokenAddress(
 
   if (
     isCollateralTokenConfig(tokenConfig) ||
-    isCrossCollateralTokenConfig(tokenConfig)
+    tokenConfig.type === TokenType.crossCollateral
   ) {
     return tokenConfig.token;
   }
 
   if (
     isSyntheticTokenConfig(tokenConfig) ||
-    isSyntheticRebaseTokenConfig(tokenConfig)
+    isSyntheticRebaseTokenConfig(tokenConfig) ||
+    isCrossCollateralSyntheticTokenConfig(tokenConfig)
   ) {
     return routerAddress;
   }

@@ -18,7 +18,6 @@ import {
   isDepositAddressTokenConfig,
   isEverclearCollateralTokenConfig,
   isEverclearEthBridgeTokenConfig,
-  isCrossCollateralTokenConfig,
   isNativeTokenConfig,
   isTokenMetadata,
   isXERC20TokenConfig,
@@ -80,7 +79,7 @@ export async function deriveTokenMetadata(
 
     if (
       isCollateralTokenConfig(config) ||
-      isCrossCollateralTokenConfig(config) ||
+      config.type === TokenType.crossCollateral ||
       isXERC20TokenConfig(config) ||
       isCctpTokenConfig(config) ||
       isDepositAddressTokenConfig(config) ||

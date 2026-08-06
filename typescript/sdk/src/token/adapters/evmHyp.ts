@@ -13,7 +13,10 @@ export function createEvmHypAdapter(
     hypNative: TokenStandard.EvmHypNative,
     hypCollateral: [TokenStandard.EvmHypCollateral],
     hypOwnerCollateral: TokenStandard.EvmHypOwnerCollateral,
-    hypCrossCollateralRouter: TokenStandard.EvmHypCrossCollateralRouter,
+    hypCrossCollateralRouter: [
+      TokenStandard.EvmHypCrossCollateralRouter,
+      TokenStandard.EvmHypCrossCollateralSynthetic,
+    ],
     hypRebaseCollateral: TokenStandard.EvmHypRebaseCollateral,
     hypCollateralFiat: TokenStandard.EvmHypCollateralFiat,
     hypSynthetic: TokenStandard.EvmHypSynthetic,

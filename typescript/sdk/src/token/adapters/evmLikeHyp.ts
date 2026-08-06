@@ -27,7 +27,7 @@ export function createEvmLikeHypAdapter(
     hypNative: TokenStandard;
     hypCollateral: readonly TokenStandard[];
     hypOwnerCollateral: TokenStandard | undefined;
-    hypCrossCollateralRouter: TokenStandard;
+    hypCrossCollateralRouter: readonly TokenStandard[];
     hypRebaseCollateral: TokenStandard;
     hypCollateralFiat: TokenStandard;
     hypSynthetic: TokenStandard;
@@ -69,7 +69,11 @@ export function createEvmLikeHypAdapter(
     });
   }
 
-  if (standard === standards.hypCrossCollateralRouter) {
+  if (
+    standards.hypCrossCollateralRouter.some(
+      (candidate) => candidate === standard,
+    )
+  ) {
     return new EvmHypCrossCollateralAdapter(chainName, multiProvider, {
       token: addressOrDenom,
     });
