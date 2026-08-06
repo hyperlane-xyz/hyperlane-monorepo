@@ -9,12 +9,12 @@ import {
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName } from '../types.js';
 
-const COINGECKO_PUBLIC_API_BASE = 'https://api.coingecko.com/api/v3';
+const COINGECKO_API_BASE = 'https://api.coingecko.com/api/v3';
 
-// CoinGecko routes authenticated (pro/demo) keys through a dedicated host; a key
-// sent to the public host is ignored and the request is rate limited as if
-// anonymous.
-const COINGECKO_PRO_API_BASE = 'https://pro-api.coingecko.com/api/v3';
+// Demo (free-tier) keys authenticate against the public host via this header.
+// Sending the key as a query param, or under the pro header, leaves the request
+// unauthenticated (rate limited as anonymous) or rejected (401).
+const COINGECKO_DEMO_API_KEY_HEADER = 'x-cg-demo-api-key';
 
 // CoinGecko caps the number of ids per /simple/price call; batch large id lists
 // into chunks so one query covers many tokens instead of one request per token.
@@ -216,18 +216,12 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     return this.cache.fetch(id);
   }
 
-  // CoinGecko authenticated keys must be sent to the dedicated pro host; the
-  // public host ignores the key and rate limits the caller as anonymous.
-  private get apiBaseUrl(): string {
-    return this.apiKey ? COINGECKO_PRO_API_BASE : COINGECKO_PUBLIC_API_BASE;
-  }
-
   private get priceApiUrl(): string {
-    return `${this.apiBaseUrl}/simple/price`;
+    return `${COINGECKO_API_BASE}/simple/price`;
   }
 
   private get coinApiUrl(): string {
-    return `${this.apiBaseUrl}/coins`;
+    return `${COINGECKO_API_BASE}/coins`;
   }
 
   public async fetchPriceDataByContractAddress(
@@ -265,11 +259,14 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
 
   private async get(endpoint: string): Promise<any> {
     const url = new URL(endpoint);
-    if (this.apiKey) {
-      url.searchParams.append('x-cg-pro-api-key', this.apiKey);
-    }
+    // Send the key as a header, not a query param: it authenticates the demo
+    // tier correctly and keeps the secret out of the URL (which is logged on
+    // error below).
+    const headers: Record<string, string> = this.apiKey
+      ? { [COINGECKO_DEMO_API_KEY_HEADER]: this.apiKey }
+      : {};
 
-    const resp = await fetch(url);
+    const resp = await fetch(url, { headers });
     let idPrices: any = {};
     let jsonError: unknown;
     try {
