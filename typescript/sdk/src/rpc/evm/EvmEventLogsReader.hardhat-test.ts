@@ -20,7 +20,6 @@ import { randomAddress, randomInt } from '../../test/testUtils.js';
 import {
   EvmEtherscanLikeEventLogsReader,
   EvmEventLogsReader,
-  EvmEventLogsSource,
   EvmRpcEventLogsReader,
 } from './EvmEventLogsReader.js';
 
@@ -404,12 +403,10 @@ describe('EvmEventLogsReader', () => {
         multiProvider,
       );
 
-      // Manually add a fallback so we can verify it's not called. Its source
-      // differs from the primary's so the reported source identifies which
-      // strategy actually served the logs.
-      const fallback = new EvmEtherscanLikeEventLogsReader(
+      // Manually add a fallback so we can verify it's not called
+      const fallback = new EvmRpcEventLogsReader(
         TestChainName.test1,
-        { apiUrl: 'https://example.com/api' },
+        {},
         multiProvider,
       );
       reader['fallbackLogReaderStrategy'] = fallback;
@@ -425,7 +422,7 @@ describe('EvmEventLogsReader', () => {
         return originalGetLogs(opts);
       };
 
-      const { logs, source } = await reader.getLogsByTopicWithSource({
+      const logs = await reader.getLogsByTopic({
         eventTopic: transferTopic,
         contractAddress: testContract.address,
         fromBlock: deploymentBlockNumber,
@@ -435,7 +432,6 @@ describe('EvmEventLogsReader', () => {
       expect(logs.length).to.be.greaterThan(0);
       expect(callCount).to.equal(2);
       expect(fallbackSpy.callCount).to.equal(0);
-      expect(source).to.equal(EvmEventLogsSource.Rpc);
     });
 
     it('should fall back after all retries exhausted', async () => {
@@ -446,11 +442,8 @@ describe('EvmEventLogsReader', () => {
         multiProvider,
       );
 
-      // Make primary strategy always fail. Its source differs from the
-      // fallback's so the reported source identifies which strategy actually
-      // served the logs.
+      // Make primary strategy always fail
       reader['logReaderStrategy'] = {
-        source: EvmEventLogsSource.Explorer,
         getContractDeploymentBlockNumber: async () => deploymentBlockNumber,
         getContractLogs: async () => {
           throw new Error('permanent failure');
@@ -466,7 +459,7 @@ describe('EvmEventLogsReader', () => {
       reader['fallbackLogReaderStrategy'] = fallback;
       const fallbackSpy = sinon.spy(fallback, 'getContractLogs');
 
-      const { logs, source } = await reader.getLogsByTopicWithSource({
+      const logs = await reader.getLogsByTopic({
         eventTopic: transferTopic,
         contractAddress: testContract.address,
         fromBlock: deploymentBlockNumber,
@@ -474,7 +467,6 @@ describe('EvmEventLogsReader', () => {
 
       expect(logs.length).to.be.greaterThan(0);
       expect(fallbackSpy.callCount).to.equal(1);
-      expect(source).to.equal(EvmEventLogsSource.Rpc);
     });
   });
 
