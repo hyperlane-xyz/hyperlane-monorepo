@@ -50,6 +50,15 @@ describe('ethersV5 submitter props schemas', () => {
       expect(result.success).to.be.true;
     });
 
+    it('should parse props without a userAddress (AltVM impersonation)', () => {
+      const validProps: EV5ImpersonatedAccountTxSubmitterProps = {
+        chain: CHAIN_MOCK,
+      };
+      const result =
+        EV5ImpersonatedAccountTxSubmitterPropsSchema.safeParse(validProps);
+      expect(result.success).to.be.true;
+    });
+
     it('should fail parsing invalid props', () => {
       const invalidProps: EV5ImpersonatedAccountTxSubmitterProps = {
         chain: CHAIN_MOCK,

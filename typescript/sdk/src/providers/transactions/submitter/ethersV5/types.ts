@@ -49,7 +49,10 @@ export const isJsonRpcSubmitterConfig = isCompliant(
 
 export const EV5ImpersonatedAccountTxSubmitterPropsSchema =
   EV5JsonRpcTxSubmitterPropsSchema.extend({
-    userAddress: ZHash,
+    // Optional so AltVM protocols can reuse the impersonatedAccount strategy
+    // key without an EVM address: their impersonating signer partially signs
+    // and does not target a single account. EVM asserts its presence at submit.
+    userAddress: ZHash.optional(),
   });
 
 export type EV5ImpersonatedAccountTxSubmitterProps = z.infer<

@@ -1,7 +1,7 @@
 import { TransactionReceipt } from '@ethersproject/providers';
 import { Logger } from 'pino';
 
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   impersonateAccount,
@@ -32,16 +32,21 @@ export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
   public async submit(
     ...txs: AnnotatedEV5Transaction[]
   ): Promise<TransactionReceipt[]> {
+    const { userAddress } = this.props;
+    assert(
+      userAddress,
+      `userAddress is required to impersonate an account on chain ${this.props.chain}`,
+    );
     // It is assumed that this Submitter will be used by setting the registry url to the anvil endpoint
     const anvilEndpoint = this.multiProvider.getChainMetadata(this.props.chain)
       ?.rpcUrls[0].http;
     const impersonatedAccount = await impersonateAccount(
-      this.props.userAddress,
+      userAddress,
       anvilEndpoint,
     );
     this.multiProvider.setSharedSigner(impersonatedAccount);
     const transactionReceipts = await super.submit(...txs);
-    await stopImpersonatingAccount(this.props.userAddress, anvilEndpoint);
+    await stopImpersonatingAccount(userAddress, anvilEndpoint);
     return transactionReceipts;
   }
 }
