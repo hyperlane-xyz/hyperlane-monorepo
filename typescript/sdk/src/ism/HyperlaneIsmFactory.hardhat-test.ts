@@ -9,6 +9,8 @@ import {
   BlacklistIsm__factory,
   DomainRoutingIsm,
   DomainRoutingIsm__factory,
+  PausableIsm__factory,
+  TestIsm__factory,
   TestLegacyBlacklistIsm__factory,
   TrustedRelayerIsm,
 } from '@hyperlane-xyz/core';
@@ -148,6 +150,61 @@ describe('HyperlaneIsmFactory', async () => {
       ismFactory.getContracts(chain),
     );
     expect(matches).to.be.true;
+  });
+
+  describe('test ism', () => {
+    it('matches a real test ISM', async () => {
+      const testIsm = await new TestIsm__factory(
+        multiProvider.getSigner(chain),
+      ).deploy();
+      await testIsm.deployTransaction.wait();
+
+      const matches = await moduleMatchesConfig(
+        chain,
+        testIsm.address,
+        { type: IsmType.TEST_ISM },
+        ismFactory.multiProvider,
+        ismFactory.getContracts(chain),
+      );
+
+      expect(matches).to.be.true;
+    });
+
+    it('does not match another NULL ISM', async () => {
+      const owner = await multiProvider.getSignerAddress(chain);
+      const pausable = await new PausableIsm__factory(
+        multiProvider.getSigner(chain),
+      ).deploy(owner);
+      await pausable.deployTransaction.wait();
+
+      const matches = await moduleMatchesConfig(
+        chain,
+        pausable.address,
+        { type: IsmType.TEST_ISM },
+        ismFactory.multiProvider,
+        ismFactory.getContracts(chain),
+      );
+
+      expect(matches).to.be.false;
+    });
+
+    it('does not match a blacklist ISM that predates on-chain enumeration', async () => {
+      const owner = await multiProvider.getSignerAddress(chain);
+      const legacyIsm = await new TestLegacyBlacklistIsm__factory(
+        multiProvider.getSigner(chain),
+      ).deploy(owner);
+      await legacyIsm.deployTransaction.wait();
+
+      const matches = await moduleMatchesConfig(
+        chain,
+        legacyIsm.address,
+        { type: IsmType.TEST_ISM },
+        ismFactory.multiProvider,
+        ismFactory.getContracts(chain),
+      );
+
+      expect(matches).to.be.false;
+    });
   });
 
   describe('blacklist ism', () => {
@@ -384,7 +441,7 @@ describe('HyperlaneIsmFactory', async () => {
         const blacklistedId = randomBytes32();
         const legacyAddress = await deployLegacyIsm(owner, [blacklistedId]);
         sandbox
-          .stub(EvmEventLogsReader.prototype, 'getLogsByTopic')
+          .stub(EvmEventLogsReader.prototype, 'getLogsByTopicWithSource')
           .rejects(networkError());
 
         const matches = await matchesConfig(legacyAddress, {
@@ -405,9 +462,11 @@ describe('HyperlaneIsmFactory', async () => {
       const sandbox = sinon.createSandbox();
       const transientError = networkError();
       // `moduleType()` still resolves through the real contract; only the
-      // Blacklist ABI is doubled so `values()` fails transiently.
+      // Blacklist ABI is doubled, so detection succeeds and the enumeration
+      // that follows it fails transiently.
       sandbox.stub(BlacklistIsm__factory, 'connect').returns(
         contractDouble<BlacklistIsm>({
+          blacklistedIds: sandbox.stub().resolves(false),
           owner: sandbox.stub().resolves(owner),
           values: sandbox.stub().rejects(transientError),
         }),
@@ -427,6 +486,25 @@ describe('HyperlaneIsmFactory', async () => {
       }
 
       expect(thrown).to.equal(transientError);
+    });
+
+    it('does not match a NULL ISM that is not a blacklist', async () => {
+      const owner = await multiProvider.getSignerAddress(chain);
+      // Also Ownable, also NULL moduleType, and no `values()` — so without a
+      // detection probe the log replay finds nothing and reports an empty
+      // blacklist owned by the configured owner.
+      const pausable = await new PausableIsm__factory(
+        multiProvider.getSigner(chain),
+      ).deploy(owner);
+      await pausable.deployTransaction.wait();
+
+      const matches = await matchesConfig(pausable.address, {
+        type: IsmType.BLACKLIST,
+        owner,
+        blacklistedIds: [],
+      });
+
+      expect(matches).to.be.false;
     });
 
     it('rejects a standalone blacklist deploy at the public boundary', async () => {

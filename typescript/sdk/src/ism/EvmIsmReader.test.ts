@@ -32,11 +32,14 @@ import {
   TrustedRelayerIsm,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
-import { WithAddress } from '@hyperlane-xyz/utils';
+import { WithAddress, assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
+import {
+  EvmEventLogsReader,
+  EvmEventLogsSource,
+} from '../rpc/evm/EvmEventLogsReader.js';
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
 import { contractDouble } from '../test/contractDouble.js';
 import { missingSelectorError, networkError } from '../test/errors.js';
@@ -74,6 +77,17 @@ function messageBlacklistedLog(
       '0x9fc76417374aa880d4449a1f7f31ec597f00b1f6f3dd2d66f4c9c6c445836d8b',
     transactionIndex: 0,
   };
+}
+
+// As many logs as an Etherscan-like explorer returns in a single page.
+function fullLogPage(): GetEventLogsResponse[] {
+  return Array.from({ length: 1000 }, (_, index) =>
+    messageBlacklistedLog(
+      `0x${index.toString(16).padStart(64, '0')}`,
+      100 + index,
+      0,
+    ),
+  );
 }
 
 // Stubs every NULL-type probe that `deriveNullConfig` attempts before the
@@ -331,13 +345,16 @@ describe('EvmIsmReader', () => {
     );
     // The legacy contract emits on every entry, including re-adds, so the same
     // ID can appear more than once.
-    const getLogsByTopic = sandbox
-      .stub(EvmEventLogsReader.prototype, 'getLogsByTopic')
-      .resolves([
-        messageBlacklistedLog(firstId, 100, 0),
-        messageBlacklistedLog(secondId, 120, 1),
-        messageBlacklistedLog(firstId, 140, 0),
-      ]);
+    const getLogsByTopicWithSource = sandbox
+      .stub(EvmEventLogsReader.prototype, 'getLogsByTopicWithSource')
+      .resolves({
+        logs: [
+          messageBlacklistedLog(firstId, 100, 0),
+          messageBlacklistedLog(secondId, 120, 1),
+          messageBlacklistedLog(firstId, 140, 0),
+        ],
+        source: EvmEventLogsSource.Explorer,
+      });
 
     const config = await evmIsmReader.deriveNullConfig(
       LEGACY_BLACKLIST_ADDRESS,
@@ -350,8 +367,8 @@ describe('EvmIsmReader', () => {
       blacklistedIds: [secondId, firstId],
     };
     expect(config).to.deep.equal(expectedConfig);
-    expect(getLogsByTopic.calledOnce).to.be.true;
-    expect(getLogsByTopic.firstCall.args[0]).to.deep.equal({
+    expect(getLogsByTopicWithSource.calledOnce).to.be.true;
+    expect(getLogsByTopicWithSource.firstCall.args[0]).to.deep.equal({
       contractAddress: LEGACY_BLACKLIST_ADDRESS,
       eventTopic: MESSAGE_BLACKLISTED_TOPIC,
     });
@@ -368,7 +385,9 @@ describe('EvmIsmReader', () => {
         values: sandbox.stub().rejects(missingSelectorError()),
       }),
     );
-    sandbox.stub(EvmEventLogsReader.prototype, 'getLogsByTopic').resolves([]);
+    sandbox
+      .stub(EvmEventLogsReader.prototype, 'getLogsByTopicWithSource')
+      .resolves({ logs: [], source: EvmEventLogsSource.Explorer });
 
     const config = await evmIsmReader.deriveNullConfig(
       LEGACY_BLACKLIST_ADDRESS,
@@ -395,7 +414,7 @@ describe('EvmIsmReader', () => {
       }),
     );
     sandbox
-      .stub(EvmEventLogsReader.prototype, 'getLogsByTopic')
+      .stub(EvmEventLogsReader.prototype, 'getLogsByTopicWithSource')
       .rejects(networkError());
 
     const config = await evmIsmReader.deriveNullConfig(
@@ -423,16 +442,9 @@ describe('EvmIsmReader', () => {
     );
     // Etherscan-like explorers return a capped page with a success status, so a
     // full page is indistinguishable from a truncated one.
-    const fullPage = Array.from({ length: 1000 }, (_, index) =>
-      messageBlacklistedLog(
-        `0x${index.toString(16).padStart(64, '0')}`,
-        100 + index,
-        0,
-      ),
-    );
     sandbox
-      .stub(EvmEventLogsReader.prototype, 'getLogsByTopic')
-      .resolves(fullPage);
+      .stub(EvmEventLogsReader.prototype, 'getLogsByTopicWithSource')
+      .resolves({ logs: fullLogPage(), source: EvmEventLogsSource.Explorer });
 
     const config = await evmIsmReader.deriveNullConfig(
       LEGACY_BLACKLIST_ADDRESS,
@@ -444,6 +456,35 @@ describe('EvmIsmReader', () => {
       owner: mockOwner,
     });
     expect('blacklistedIds' in config).to.be.false;
+  });
+
+  it('should keep a full page of legacy blacklist logs read over RPC', async () => {
+    const mockOwner = randomAddress();
+
+    stubProbesBeforeBlacklist(sandbox);
+    sandbox.stub(BlacklistIsm__factory, 'connect').returns(
+      contractDouble<BlacklistIsm>({
+        blacklistedIds: sandbox.stub().resolves(false),
+        owner: sandbox.stub().resolves(mockOwner),
+        values: sandbox.stub().rejects(missingSelectorError()),
+      }),
+    );
+    // The RPC source walks the whole range in chunks, so the same volume that
+    // an explorer cannot prove complete is complete here.
+    const logs = fullLogPage();
+    sandbox
+      .stub(EvmEventLogsReader.prototype, 'getLogsByTopicWithSource')
+      .resolves({ logs, source: EvmEventLogsSource.Rpc });
+
+    const config = await evmIsmReader.deriveNullConfig(
+      LEGACY_BLACKLIST_ADDRESS,
+    );
+
+    assert(
+      config.type === IsmType.BLACKLIST,
+      'expected a blacklist ISM config',
+    );
+    expect(config.blacklistedIds).to.have.lengthOf(logs.length);
   });
 
   it('should omit blacklistedIds when the legacy blacklist address is not a contract', async () => {
@@ -458,7 +499,7 @@ describe('EvmIsmReader', () => {
       }),
     );
     sandbox
-      .stub(EvmEventLogsReader.prototype, 'getLogsByTopic')
+      .stub(EvmEventLogsReader.prototype, 'getLogsByTopicWithSource')
       .rejects(
         new Error(
           `Address "${LEGACY_BLACKLIST_ADDRESS}" on chain "test1" is not a contract`,
@@ -490,9 +531,9 @@ describe('EvmIsmReader', () => {
         values: sandbox.stub().resolves([onChainId]),
       }),
     );
-    const getLogsByTopic = sandbox.stub(
+    const getLogsByTopicWithSource = sandbox.stub(
       EvmEventLogsReader.prototype,
-      'getLogsByTopic',
+      'getLogsByTopicWithSource',
     );
 
     const config = await evmIsmReader.deriveNullConfig(
@@ -506,7 +547,7 @@ describe('EvmIsmReader', () => {
       blacklistedIds: [onChainId],
     };
     expect(config).to.deep.equal(expectedConfig);
-    expect(getLogsByTopic.notCalled).to.be.true;
+    expect(getLogsByTopicWithSource.notCalled).to.be.true;
   });
 
   it('should not classify transient blacklist owner failures as test ISM', async () => {
@@ -541,9 +582,9 @@ describe('EvmIsmReader', () => {
         values: sandbox.stub().rejects(transientError),
       }),
     );
-    const getLogsByTopic = sandbox.stub(
+    const getLogsByTopicWithSource = sandbox.stub(
       EvmEventLogsReader.prototype,
-      'getLogsByTopic',
+      'getLogsByTopicWithSource',
     );
 
     let thrown: unknown;
@@ -554,7 +595,7 @@ describe('EvmIsmReader', () => {
     }
 
     expect(thrown).to.equal(transientError);
-    expect(getLogsByTopic.notCalled).to.be.true;
+    expect(getLogsByTopicWithSource.notCalled).to.be.true;
   });
 
   it('should not classify transient blacklist probe failures as test ISM', async () => {

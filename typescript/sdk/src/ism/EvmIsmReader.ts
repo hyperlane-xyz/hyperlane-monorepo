@@ -59,7 +59,7 @@ import {
   OffchainLookupIsmConfig,
   RoutingIsmConfig,
 } from './types.js';
-import { readBlacklistedIds } from './utils.js';
+import { readBlacklistedIds } from './blacklist.js';
 
 const INCREMENTAL_REVERT_STRING =
   'IncrementalDomainRoutingIsm: removal not supported';

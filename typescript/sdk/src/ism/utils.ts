@@ -1,5 +1,4 @@
 import { ethers, utils } from 'ethers';
-import { getAbiItem, parseEventLogs, toEventSelector } from 'viem';
 
 import {
   AbstractStorageMultisigIsm__factory,
@@ -34,12 +33,12 @@ import { HyperlaneContracts } from '../contracts/types.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
-import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
-import { ChainName, ChainNameOrId } from '../types.js';
+import { ChainName } from '../types.js';
 import { throwIfNotMissingSelector } from '../utils/contract.js';
 import { normalizeConfig } from '../utils/ism.js';
 
+import { EvmIsmReader } from './EvmIsmReader.js';
+import { readBlacklistedIds } from './blacklist.js';
 import {
   DomainRoutingIsmConfig,
   InterchainAccountRouterIsm,
@@ -53,88 +52,6 @@ import {
 } from './types.js';
 
 const logger = rootLogger.child({ module: 'IsmUtils' });
-
-const MESSAGE_BLACKLISTED_EVENT_SELECTOR = toEventSelector(
-  getAbiItem({
-    abi: BlacklistIsm__factory.abi,
-    name: 'MessageBlacklisted',
-  }),
-);
-
-// Etherscan-like explorers cap `logs/getLogs` at this many records and report a
-// capped page with a success status, so a response of exactly this size cannot
-// be distinguished from a truncated one.
-const EXPLORER_LOGS_PAGE_SIZE = 1000;
-
-/**
- * Reads the blacklisted message IDs of a Blacklist ISM.
- *
- * Deployments that predate on-chain enumeration expose no `values()`; for those
- * the set is replayed from `MessageBlacklisted` logs, which is exact because
- * entries are append-only. Those deployments also emit on re-adds, hence the
- * de-duplication.
- *
- * Returns undefined when the set cannot be established, never a partial list: a
- * truncated set would be diffed as "these IDs are missing on-chain" and could be
- * written back as the complete set. Errors that are not a missing `values()`
- * selector propagate, so a transient RPC failure is never read as a legacy
- * deployment.
- */
-export async function readBlacklistedIds(
-  chain: ChainNameOrId,
-  address: Address,
-  multiProvider: MultiProvider,
-  eventLogsReader?: EvmEventLogsReader,
-): Promise<string[] | undefined> {
-  const blacklistIsm = BlacklistIsm__factory.connect(
-    address,
-    multiProvider.getProvider(chain),
-  );
-
-  try {
-    return [...(await blacklistIsm.values())];
-  } catch (error) {
-    throwIfNotMissingSelector(error);
-    logger.debug(
-      { chain, address },
-      'Error accessing "values" property, implying this is a Blacklist ISM that predates on-chain enumeration.',
-    );
-  }
-
-  const logsReader =
-    eventLogsReader ?? EvmEventLogsReader.fromConfig({ chain }, multiProvider);
-
-  try {
-    const logs = await logsReader.getLogsByTopic({
-      contractAddress: address,
-      eventTopic: MESSAGE_BLACKLISTED_EVENT_SELECTOR,
-    });
-
-    if (logs.length >= EXPLORER_LOGS_PAGE_SIZE) {
-      logger.warn(
-        { chain, address, logCount: logs.length },
-        'Blacklist ISM log replay filled an explorer page and cannot be proven complete; reporting the set as unknown.',
-      );
-      return undefined;
-    }
-
-    const events = parseEventLogs({
-      abi: BlacklistIsm__factory.abi,
-      eventName: 'MessageBlacklisted',
-      logs: logs.map(viemLogFromGetEventLogsResponse),
-    });
-
-    return [
-      ...new Set(events.map((event) => event.args.messageId.toLowerCase())),
-    ].sort();
-  } catch (error) {
-    logger.warn(
-      { chain, address, error },
-      'Failed to rebuild the blacklisted ID set from logs; reporting it as unknown.',
-    );
-    return undefined;
-  }
-}
 
 // Determines the domains to enroll and unenroll to update the current ISM config
 // to match the target ISM config.
@@ -521,8 +438,15 @@ export async function moduleMatchesConfig(
       break;
     }
     case IsmType.TEST_ISM: {
-      // This is just a TestISM
-      matches = true;
+      // A NULL module type alone does not make this a Test ISM; every other
+      // NULL ISM shares it. Defer to the reader, which reaches TEST_ISM only
+      // after every distinguishing selector has missed, so the checker and the
+      // reader classify a given address the same way.
+      const derived = await new EvmIsmReader(
+        multiProvider,
+        chain,
+      ).deriveNullConfig(moduleAddress);
+      matches &&= derived.type === IsmType.TEST_ISM;
       break;
     }
     case IsmType.TRUSTED_RELAYER: {
@@ -603,7 +527,19 @@ export async function moduleMatchesConfig(
         moduleAddress,
         provider,
       );
-      const owner = await blacklistIsm.owner();
+
+      // Detection before enumeration, the same order the reader uses. Without
+      // it any Ownable NULL-type ISM whose owner happens to match would report
+      // as an empty blacklist, since a missing `values()` selector falls
+      // through to a log replay that finds nothing.
+      let owner: Address;
+      try {
+        await blacklistIsm.blacklistedIds(ethers.constants.HashZero);
+        owner = await blacklistIsm.owner();
+      } catch (error) {
+        throwIfNotMissingSelector(error);
+        return false;
+      }
       matches &&= eqAddress(owner, config.owner);
 
       // An unspecified target set cannot be proven equal to what is on-chain.
