@@ -35,6 +35,7 @@ import {
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   ContractVerifier,
+  ExplorerFamily,
   ExplorerLicenseType,
   HyperlaneContractsMap,
   RouterConfig,
@@ -775,6 +776,16 @@ describe('EvmWarpRouteReader', async () => {
       .stub(multiProvider, 'isLocalRpc')
       .returns(false);
 
+    // Stub tryGetEvmExplorerMetadata so the verifier path runs (the local test
+    // chain has no Etherscan-compatible explorer, which would otherwise cause
+    // the status to be reported as Skipped).
+    const tryGetEvmExplorerMetadataStub = sinon
+      .stub(multiProvider, 'tryGetEvmExplorerMetadata')
+      .returns({
+        apiUrl: 'https://example.com/api',
+        family: ExplorerFamily.Etherscan,
+      });
+
     // Stub getContractVerificationStatus
     const getContractVerificationStatus = sinon
       .stub(contractVerifier, 'getContractVerificationStatus')
@@ -794,10 +805,11 @@ describe('EvmWarpRouteReader', async () => {
 
     // Restore stub
     getContractVerificationStatus.restore();
+    tryGetEvmExplorerMetadataStub.restore();
     isLocalRpcStub.restore();
   });
 
-  it('should return the ownerStatus virtual config for the proxy, implementation, and proxy admin, if they are different', async () => {
+  it('should return the ownerStatus virtual config for the proxy and proxy admin (never the implementation) owners, if they are different', async () => {
     const provider = multiProvider.getProvider(chain);
     const otherChain = TestChainName.test3;
     const config: WarpRouteDeployConfigMailboxRequired = {
@@ -822,7 +834,10 @@ describe('EvmWarpRouteReader', async () => {
       .stub(multiProvider, 'isLocalRpc')
       .returns(false);
 
-    // Derive config and transfer the proxy, implementation, and proxyAdmin over
+    // Transfer the proxyAdmin owner to the router and the implementation owner
+    // to the mailbox, so all three owners are distinct. The implementation
+    // owner (mailbox) must NOT appear in the result: getOwnerStatus recurses
+    // into the proxyAdmin owner but deliberately not the implementation owner.
     const warpRouteAddress = warpRoute[chain].collateral.address;
     const proxyAdminAddress = await proxyAdmin(provider, warpRouteAddress);
     await new ProxyAdmin__factory()
@@ -847,7 +862,6 @@ describe('EvmWarpRouteReader', async () => {
     expect(derivedConfig.ownerStatus).to.deep.equal({
       [signer.address]: OwnerStatus.Active,
       [warpRouteAddress]: OwnerStatus.Active,
-      [mailbox.address]: OwnerStatus.Active,
     });
 
     // Restore stub

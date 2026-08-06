@@ -102,8 +102,6 @@ async function deriveWarpRouteConfigs(
   addresses: ChainMap<string>,
   warpCoreConfig?: WarpCoreConfig,
 ): Promise<DerivedWarpRouteDeployConfig> {
-  const { multiProvider } = context;
-
   validateCompatibility(
     context.multiProvider,
     context.supportedProtocols,
@@ -112,30 +110,42 @@ async function deriveWarpRouteConfigs(
 
   // Get XERC20 limits if warpCoreConfig is available
   if (warpCoreConfig) {
-    await logXERC20Limits(warpCoreConfig, multiProvider);
+    await logXERC20Limits(warpCoreConfig, context.multiProvider);
   }
 
-  // Derive and return warp route config
   return promiseObjAll(
-    objMap(addresses, async (chain, address) => {
-      const protocol = context.multiProvider.getProtocol(chain);
-      switch (protocol) {
-        case ProtocolType.Tron:
-        case ProtocolType.Ethereum: {
-          return new EvmWarpRouteReader(
-            multiProvider,
-            chain,
-          ).deriveWarpRouteConfig(address);
-        }
-        default: {
-          const chainLookup = altVmChainLookup(multiProvider);
-          const chainMetadata = chainLookup.getChainMetadata(chain);
-          const reader = createWarpTokenReader(chainMetadata, chainLookup);
-          return reader.deriveWarpConfig(address);
-        }
-      }
-    }),
+    objMap(addresses, (chain, address) =>
+      deriveWarpRouteConfigForChain(context, chain, address),
+    ),
   );
+}
+
+/**
+ * Derive the on-chain warp router config for a single chain. EVM and Tron go
+ * through `EvmWarpRouteReader`; alt-VMs go through the deploy-sdk
+ * `createWarpTokenReader`. Used by per-chain CLI handlers that don't need to
+ * derive every chain in the warp route.
+ */
+export async function deriveWarpRouteConfigForChain(
+  context: CommandContext,
+  chain: ChainName,
+  routerAddress: string,
+) {
+  const { multiProvider } = context;
+  const protocol = multiProvider.getProtocol(chain);
+  switch (protocol) {
+    case ProtocolType.Tron:
+    case ProtocolType.Ethereum:
+      return new EvmWarpRouteReader(multiProvider, chain).deriveWarpRouteConfig(
+        routerAddress,
+      );
+    default: {
+      const chainLookup = altVmChainLookup(multiProvider);
+      const chainMetadata = chainLookup.getChainMetadata(chain);
+      const reader = createWarpTokenReader(chainMetadata, chainLookup);
+      return reader.deriveWarpConfig(routerAddress);
+    }
+  }
 }
 
 // Validate that all chains are EVM or AltVM compatible

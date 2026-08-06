@@ -35,9 +35,11 @@ runs:
 
     - name: Build
       shell: bash
+      env:
+        BUILD_FILTER: ${{ inputs.build-filter }}
       run: |
-        if [ -n "${{ inputs.build-filter }}" ]; then
-          pnpm exec turbo run build --filter='${{ inputs.build-filter }}'
+        if [ -n "$BUILD_FILTER" ]; then
+          pnpm exec turbo run build --filter="$BUILD_FILTER"
         else
           pnpm run build
         fi

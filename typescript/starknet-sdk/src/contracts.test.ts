@@ -1,10 +1,13 @@
 import { expect } from 'chai';
-import { CallData } from 'starknet';
+import { CallData, hash } from 'starknet';
 
+import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
 import {
   ContractType,
-  getCompiledContract,
-} from '@hyperlane-xyz/starknet-core';
+  getContractAbi,
+  getContractClassHash,
+  getRuntimeContractNames,
+} from '@hyperlane-xyz/starknet-core/runtime';
 import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
 import {
@@ -66,7 +69,7 @@ describe('starknet-sdk contracts helpers', () => {
   });
 
   it('compiles calldata when populateTransaction helper is unavailable', async () => {
-    const { abi } = getCompiledContract(
+    const abi = getContractAbi(
       StarknetContractName.HYP_ERC20,
       ContractType.TOKEN,
     );
@@ -83,6 +86,32 @@ describe('starknet-sdk contracts helpers', () => {
     );
     expect(tx.entrypoint).to.equal('owner');
     expect(tx.calldata).to.deep.equal(new CallData(abi).compile('owner', []));
+  });
+
+  it('publishes runtime data matching deployment artifacts in every group', function () {
+    this.timeout(120_000);
+
+    for (const contractType of Object.values(ContractType)) {
+      const contractNames = getRuntimeContractNames(contractType);
+      expect(contractNames).not.to.be.empty;
+
+      for (const name of contractNames) {
+        const compiledContract = getCompiledContract(name, contractType);
+
+        expect(getContractAbi(name, contractType)).to.deep.equal(
+          compiledContract.abi,
+        );
+        expect(getContractClassHash(name, contractType)).to.equal(
+          hash.computeContractClassHash(compiledContract),
+        );
+      }
+    }
+  });
+
+  it('throws when runtime data does not own the requested contract', () => {
+    for (const name of ['missing-contract', 'toString']) {
+      expect(() => getContractAbi(name)).to.throw('CONTRACT_NOT_FOUND');
+    }
   });
 
   it('throws when coercing bigint values above the safe integer range', () => {

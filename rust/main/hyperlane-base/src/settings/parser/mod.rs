@@ -171,6 +171,32 @@ fn parse_chain(
         .and_then(parse_signer)
         .end();
 
+    let identity = chain
+        .chain(&mut err)
+        .get_opt_key("identity")
+        .and_then(parse_signer)
+        .end();
+
+    // Fail fast: 'identity' is Sealevel-only.  Catching this here avoids
+    // silent acceptance on EVM/Cosmos chains that would only fail hours later
+    // when build_mailbox is first called.  If the protocol is unrecognised we
+    // skip the check and let other validations surface the protocol error.
+    if identity.is_some() {
+        if let Some(protocol) = try_get_protocol(&chain) {
+            if protocol != HyperlaneDomainProtocol::Sealevel {
+                err.push(
+                    chain.cwp.clone(),
+                    eyre!(
+                        "'identity' is only supported for Sealevel chains, \
+                         but chain '{}' uses protocol '{:?}'",
+                        name,
+                        protocol
+                    ),
+                );
+            }
+        }
+    }
+
     // measured in seconds (with fractions)
     let estimated_block_time = chain
         .chain(&mut err)
@@ -217,6 +243,22 @@ fn parse_chain(
                 })
                 .unwrap_or_default()
         });
+    // Defaults to 5s; overridable via `index.interval` (seconds).
+    let interval_secs = chain
+        .chain(&mut err)
+        .get_opt_key("index")
+        .get_opt_key("interval")
+        .parse_u64()
+        .end();
+    if interval_secs == Some(0) {
+        err.push(
+            chain.cwp.clone(),
+            eyre!("`index.interval` must be greater than zero, or omitted for the 5s default"),
+        );
+    }
+    let idle_sleep_duration = interval_secs
+        .map(Duration::from_secs)
+        .unwrap_or(Duration::from_secs(5));
 
     let mailbox = chain
         .chain(&mut err)
@@ -348,6 +390,7 @@ fn parse_chain(
     err.into_result(ChainConf {
         domain,
         signer,
+        identity,
         submitter,
         estimated_block_time,
         reorg_period,
@@ -363,6 +406,8 @@ fn parse_chain(
             from,
             chunk_size,
             mode,
+            idle_sleep_duration,
+            configured_interval: interval_secs.map(Duration::from_secs),
         },
         confirmations,
         chain_id,
@@ -461,6 +506,15 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 .to_owned();
             err.into_result(SignerConf::Aws { id, region })
         }};
+        (gcp) => {{
+            let key_version_name = signer
+                .chain(&mut err)
+                .get_key("keyVersionName")
+                .parse_string()
+                .unwrap_or("")
+                .to_owned();
+            err.into_result(SignerConf::Gcp { key_version_name })
+        }};
         (cosmosKey) => {{
             let key = signer
                 .chain(&mut err)
@@ -527,6 +581,7 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
     match signer_type {
         Some("hexKey") => parse_signer!(hexKey),
         Some("aws") => parse_signer!(aws),
+        Some("gcp") => parse_signer!(gcp),
         Some("cosmosKey") => parse_signer!(cosmosKey),
         Some("starkKey") => parse_signer!(starkKey),
         Some("radixKey") => parse_signer!(radixKey),

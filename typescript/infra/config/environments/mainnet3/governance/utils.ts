@@ -13,9 +13,19 @@ import { irregularSafes } from './safe/irregular.js';
 import { ousdtSafes } from './safe/ousdt.js';
 import { regularSafes } from './safe/regular.js';
 import { warpFeesSafes } from './safe/warpFees.js';
-import { awSigners, awThreshold } from './signers/aw.js';
+import {
+  awSigners,
+  awSvmSigners,
+  awSvmThreshold,
+  awThreshold,
+} from './signers/aw.js';
 import { irregularSigners, irregularThreshold } from './signers/irregular.js';
-import { regularSigners, regularThreshold } from './signers/regular.js';
+import {
+  regularSigners,
+  regularSvmSigners,
+  regularSvmThreshold,
+  regularThreshold,
+} from './signers/regular.js';
 import { warpFeesSigners, warpFeesThreshold } from './signers/warpFees.js';
 import { awTimelocks } from './timelock/aw.js';
 import { regularTimelocks } from './timelock/regular.js';
@@ -120,6 +130,33 @@ export function getGovernanceSigners(governanceType: GovernanceType): {
   }
 }
 
+/**
+ * SVM signer sets for governance types whose Squads vaults are managed via
+ * this repo. Only Regular and AbacusWorks currently have SVM signer sets
+ * configured (see governance/signers/*.ts).
+ */
+export function getGovernanceSvmSigners(governanceType: GovernanceType): {
+  signers: Address[];
+  threshold: number;
+} {
+  switch (governanceType) {
+    case GovernanceType.Regular:
+      return {
+        signers: regularSvmSigners,
+        threshold: regularSvmThreshold,
+      };
+    case GovernanceType.AbacusWorks:
+      return {
+        signers: awSvmSigners,
+        threshold: awSvmThreshold,
+      };
+    default:
+      throw new Error(
+        `Unsupported governance type for SVM signers: ${governanceType}`,
+      );
+  }
+}
+
 export function getSafeChains(): Set<ChainName> {
   return new Set([
     ...Object.keys(getGovernanceSafes(GovernanceType.AbacusWorks)),
@@ -135,6 +172,28 @@ export function getAllSafesForChain(chain: ChainName): string[] {
     .map((governanceType) => getGovernanceSafes(governanceType)[chain])
     .filter((safe) => safe !== undefined);
 }
+
+export function getSafesByGovernanceForChain(
+  chain: ChainName,
+): Array<{ governanceType: GovernanceType; safe: Address }> {
+  return Object.values(GovernanceType)
+    .map((governanceType) => ({
+      governanceType,
+      safe: getGovernanceSafes(governanceType)[chain],
+    }))
+    .filter(
+      (entry): entry is { governanceType: GovernanceType; safe: Address } =>
+        entry.safe !== undefined,
+    );
+}
+
+/**
+ * Turnkey "EVM Warp Fees Owner" key. Warp routes whose EVM fee contracts have
+ * been rotated to Turnkey treasury custody use this as the fee owner instead of
+ * the per-chain WarpFees Safe/ICA returned by getWarpFeeOwner.
+ */
+export const WARP_FEES_TURNKEY_OWNER: Address =
+  '0xe95C605096A1AD38BaC3E5210e145952Cbdc6998';
 
 /**
  * Get the owner address for warp fee contracts on a given chain.

@@ -10,6 +10,8 @@ import {Router} from "../../client/Router.sol";
 import {Quotes} from "./Quotes.sol";
 
 struct MovableCollateralRouterStorage {
+    // TODO: replace the single recipient override with a per-domain recipient
+    // set when routes need multiple allowed same-chain rebalance recipients.
     mapping(uint32 routerDomain => bytes32 recipient) recipient;
     mapping(uint32 routerDomain => EnumerableSet.AddressSet bridges) bridges;
     EnumerableSet.AddressSet rebalancers;
@@ -22,6 +24,11 @@ abstract contract MovableCollateralRouter is TokenRouter {
 
     MovableCollateralRouterStorage internal allowed;
 
+    /// @dev For a move driven by `AtomicLocalRebalancingBridge`, `recipient` is
+    /// this router's configured recipient rather than the address the bridge
+    /// funds, and `amount` is the source outflow rather than the (decimal-
+    /// converted) amount delivered. Off-chain consumers should read the bridge's
+    /// `LocalRebalanceExecuted` event for that flow instead.
     event CollateralMoved(
         uint32 indexed domain,
         bytes32 recipient,
@@ -30,10 +37,7 @@ abstract contract MovableCollateralRouter is TokenRouter {
     );
 
     modifier onlyRebalancer() {
-        require(
-            allowed.rebalancers.contains(_msgSender()),
-            "MCR: Only Rebalancer"
-        );
+        require(isAllowedRebalancer(_msgSender()), "MCR: Only Rebalancer");
         _;
     }
 
@@ -46,6 +50,13 @@ abstract contract MovableCollateralRouter is TokenRouter {
     /// @notice Set of addresses that are allowed to rebalance.
     function allowedRebalancers() external view returns (address[] memory) {
         return allowed.rebalancers.values();
+    }
+
+    /// @notice Returns whether an address is allowed to rebalance.
+    function isAllowedRebalancer(
+        address rebalancer
+    ) public view returns (bool) {
+        return allowed.rebalancers.contains(rebalancer);
     }
 
     /// @notice Mapping of domain to allowed rebalance recipient.
@@ -62,7 +73,10 @@ abstract contract MovableCollateralRouter is TokenRouter {
         return allowed.bridges[domain].values();
     }
 
-    function setRecipient(uint32 domain, bytes32 recipient) external onlyOwner {
+    function setRecipient(
+        uint32 domain,
+        bytes32 recipient
+    ) external virtual onlyOwner {
         // constrain to a subset of Router.domains()
         _mustHaveRemoteRouter(domain);
         allowed.recipient[domain] = recipient;
@@ -72,7 +86,10 @@ abstract contract MovableCollateralRouter is TokenRouter {
         delete allowed.recipient[domain];
     }
 
-    function addBridge(uint32 domain, ITokenBridge bridge) external onlyOwner {
+    function addBridge(
+        uint32 domain,
+        ITokenBridge bridge
+    ) external virtual onlyOwner {
         // constrain to a subset of Router.domains()
         _mustHaveRemoteRouter(domain);
         _addBridge(domain, bridge);
@@ -97,16 +114,18 @@ abstract contract MovableCollateralRouter is TokenRouter {
     }
 
     /**
-     * @notice Approves the token for the bridge.
-     * @param token The token to approve.
-     * @param bridge The bridge to approve the token for.
-     * @dev We need this to support bridges that charge fees in ERC20 tokens.
+     * @notice Clears legacy standing token approval for a bridge.
+     * @custom:deprecated Despite the name this revokes rather than approves.
+     *      `rebalance` grants exact per-call approval from the bridge quote;
+     *      the selector is retained so existing upgrade / governance tooling
+     *      stays compatible and can clear old max allowances.
      */
     function approveTokenForBridge(
         IERC20 token,
         ITokenBridge bridge
     ) external onlyOwner {
-        token.safeApprove(address(bridge), type(uint256).max);
+        // Revokes the allowance; it does not approve.
+        token.forceApprove(address(bridge), 0);
     }
 
     function addRebalancer(address rebalancer) external onlyOwner {
@@ -138,9 +157,11 @@ abstract contract MovableCollateralRouter is TokenRouter {
             collateralAmount
         );
 
+        address collateralToken = token();
+
         // charge the rebalancer any bridging fees denominated in the collateral
         // token to avoid undercollateralization
-        uint256 collateralFees = quotes.extract(token());
+        uint256 collateralFees = quotes.extract(collateralToken);
         if (collateralFees > collateralAmount) {
             _transferFromSender(collateralFees - collateralAmount);
         }
@@ -153,11 +174,26 @@ abstract contract MovableCollateralRouter is TokenRouter {
             revert("Rebalance native fee exceeds balance");
         }
 
+        // Grant only the route collateral amount for this transfer. Expected
+        // bridges consume the full quoted collateral allowance.
+        if (collateralToken != address(0)) {
+            IERC20(collateralToken).forceApprove(
+                address(bridge),
+                collateralFees
+            );
+        }
+
         bridge.transferRemote{value: nativeFees}(
             domain,
             recipient,
             collateralAmount
         );
+
+        // Revoke any allowance the bridge did not consume.
+        if (collateralToken != address(0)) {
+            IERC20(collateralToken).forceApprove(address(bridge), 0);
+        }
+
         emit CollateralMoved(domain, recipient, collateralAmount, msg.sender);
     }
 
@@ -189,8 +225,26 @@ abstract contract MovableCollateralRouter is TokenRouter {
 
     /// @dev Constrains keys of rebalance mappings to Router.domains()
     function _unenrollRemoteRouter(uint32 domain) internal override {
+        Router._unenrollRemoteRouter(domain);
+        if (!_MovableCollateralRouter_hasRebalanceRoutes(domain)) {
+            _clearRebalanceState(domain);
+        }
+    }
+
+    /// @dev Whether `domain` still has any route that can drive a rebalance.
+    /// Base tracks only classic remote routers; `CrossCollateralRouter` also
+    /// considers its cross-collateral routes.
+    function _MovableCollateralRouter_hasRebalanceRoutes(
+        uint32 domain
+    ) internal view virtual returns (bool) {
+        return routers(domain) != bytes32(0);
+    }
+
+    /// @dev Clears the rebalance config (recipient + allowed bridges) for a
+    /// domain that no longer has any route, so a removed route cannot retain
+    /// rebalance authority.
+    function _clearRebalanceState(uint32 domain) internal {
         delete allowed.recipient[domain];
         _clear(allowed.bridges[domain]._inner);
-        Router._unenrollRemoteRouter(domain);
     }
 }

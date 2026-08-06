@@ -35,8 +35,9 @@ contract RateLimitedIsm is
     constructor(
         address _mailbox,
         uint256 _maxCapacity,
+        uint256 _duration,
         address _recipient
-    ) MailboxClient(_mailbox) RateLimited(_maxCapacity) {
+    ) MailboxClient(_mailbox) RateLimited(_maxCapacity, _duration) {
         recipient = _recipient;
     }
 

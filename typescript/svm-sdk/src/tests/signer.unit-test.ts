@@ -18,6 +18,9 @@ import sinon from 'sinon';
 
 chai.use(chaiAsPromised);
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
+
 import { SvmSigner } from '../clients/signer.js';
 import type { SvmRpc, SvmTransaction } from '../types.js';
 
@@ -104,9 +107,17 @@ function createMockRpc(config: MockRpcConfig = {}): SvmRpc {
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
 
+const TEST_CHAIN_METADATA: ChainMetadataForAltVM = {
+  name: 'solanamainnet',
+  protocol: ProtocolType.Sealevel,
+  chainId: 1399811149,
+  domainId: 1399811149,
+  rpcUrls: [{ http: 'http://localhost:8899' }],
+};
+
 async function createTestSigner(rpc: SvmRpc): Promise<SvmSigner> {
   const signer = await SvmSigner.connectWithSigner(
-    ['http://localhost:8899'],
+    TEST_CHAIN_METADATA,
     TEST_PRIVATE_KEY,
   );
   signer['rpc'] = rpc;
@@ -857,6 +868,51 @@ describe('SvmSigner', () => {
       expect(feePayerFromMessageBase58(json.message_base58)).to.equal(
         signerAddress,
       );
+    });
+  });
+
+  describe('transactionToPrintableJson — waitForSlotAdvance hint', () => {
+    it('carries the sequencing hint into the exported JSON', async () => {
+      const rpc = createMockRpc();
+      const signer = await createTestSigner(rpc);
+
+      const tx: SvmTransaction = {
+        instructions: [
+          {
+            programAddress: PROGRAM_ADDRESS,
+            accounts: [
+              { address: TOKEN_PDA_ADDRESS, role: AccountRole.WRITABLE },
+            ],
+            data: new Uint8Array([0]),
+          },
+        ],
+        waitForSlotAdvance: true,
+      };
+
+      const json = await signer.transactionToPrintableJson(tx);
+
+      expect(json.waitForSlotAdvance).to.equal(true);
+    });
+
+    it('leaves the hint unset when the transaction omits it', async () => {
+      const rpc = createMockRpc();
+      const signer = await createTestSigner(rpc);
+
+      const tx: SvmTransaction = {
+        instructions: [
+          {
+            programAddress: PROGRAM_ADDRESS,
+            accounts: [
+              { address: TOKEN_PDA_ADDRESS, role: AccountRole.WRITABLE },
+            ],
+            data: new Uint8Array([0]),
+          },
+        ],
+      };
+
+      const json = await signer.transactionToPrintableJson(tx);
+
+      expect(json.waitForSlotAdvance).to.be.undefined;
     });
   });
 });

@@ -1,15 +1,12 @@
 import {
   getDeployWithMaxDataLenInstruction,
   getInitializeBufferInstruction,
-  getUpgradeInstruction,
   getWriteInstruction,
 } from '@solana-program/loader-v3';
 import { getCreateAccountInstruction } from '@solana-program/system';
 import {
   generateKeyPairSigner,
-  getAddressCodec,
   getAddressDecoder,
-  getProgramDerivedAddress,
   type Address,
   type Instruction,
   type TransactionSigner,
@@ -18,11 +15,12 @@ import {
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { LOADER_V3_PROGRAM_ADDRESS } from '../constants.js';
+import { getUpgradeInstruction } from '../instructions/loader.js';
+import { deriveProgramDataAddress } from '../pda.js';
 import { DEFAULT_WRITE_CHUNK_SIZE } from '../tx.js';
 import type { SvmReceipt, SvmRpc } from '../types.js';
 
 const logger = rootLogger.child({ module: 'ProgramDeployer' });
-const ADDRESS_CODEC = getAddressCodec();
 const BUFFER_METADATA_SIZE = 37;
 const PROGRAM_ACCOUNT_SIZE = 36;
 
@@ -72,6 +70,8 @@ export interface UpgradeProgramPlanArgs {
   programAddress: Address;
   newProgramBytes: Uint8Array;
   getMinimumBalanceForRentExemption: (size: number) => Promise<bigint>;
+  /** On-chain upgrade authority. Defaults to authority.address. */
+  upgradeAuthority?: Address;
   writeChunkSize?: number;
   bufferSigner?: TransactionSigner;
 }
@@ -219,17 +219,18 @@ export async function createUpgradeProgramPlan(
     });
   }
 
+  const finalizeAuthority = args.upgradeAuthority ?? args.authority.address;
   stages.push({
     label: 'upgrade-program',
     kind: DeployStageKind.Finalize,
     instructions: [
-      getUpgradeInstruction({
-        programDataAccount: programDataAddress,
-        programAccount: args.programAddress,
-        bufferAccount: bufferSigner.address,
-        spillAccount: args.payer.address,
-        authority: args.authority,
-      }),
+      getUpgradeInstruction(
+        programDataAddress,
+        args.programAddress,
+        bufferSigner.address,
+        args.payer.address,
+        finalizeAuthority,
+      ),
     ],
   });
 
@@ -321,25 +322,18 @@ export async function executeDeployPlan(
   return receipts;
 }
 
-export async function deriveProgramDataAddress(
-  programAddress: Address,
-): Promise<Address> {
-  const pda = await getProgramDerivedAddress({
-    programAddress: LOADER_V3_PROGRAM_ADDRESS,
-    seeds: [ADDRESS_CODEC.encode(programAddress)],
-  });
-  return pda[0];
-}
-
 /**
- * Reads the BPF loader upgradeable ProgramData account to return the current
- * upgrade authority, or null if the program is immutable or not found.
- *
- * ProgramData binary layout:
+ * Size of the ProgramData account header:
  *   [0-3]  u32 discriminant (= 3)
  *   [4-11] u64 slot
  *   [12]   u8  option tag (0 = None, 1 = Some)
  *   [13-44] [u8; 32] upgrade authority pubkey (only when tag = 1)
+ */
+export const PROGRAM_DATA_HEADER_SIZE = 45;
+
+/**
+ * Reads the BPF loader upgradeable ProgramData account to return the current
+ * upgrade authority, or null if the program is immutable or not found.
  */
 export async function getProgramUpgradeAuthority(
   rpc: SvmRpc,
@@ -350,9 +344,9 @@ export async function getProgramUpgradeAuthority(
     .getAccountInfo(programDataAddress, { encoding: 'base64' })
     .send();
   if (!account.value) return null;
-  const data = Buffer.from(account.value.data[0] as string, 'base64');
-  if (data.length < 45) return null;
+  const data = Buffer.from(account.value.data[0], 'base64');
+  if (data.length < PROGRAM_DATA_HEADER_SIZE) return null;
   const hasAuthority = data[12] === 1;
   if (!hasAuthority) return null;
-  return getAddressDecoder().decode(data.slice(13, 45));
+  return getAddressDecoder().decode(data.slice(13, PROGRAM_DATA_HEADER_SIZE));
 }

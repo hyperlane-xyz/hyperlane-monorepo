@@ -14,17 +14,25 @@ import {
   testXERC20,
   testXERC20Lockbox,
 } from '../consts/testChains.js';
+import { Address } from '@hyperlane-xyz/utils';
+
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ProviderType } from '../providers/ProviderType.js';
+import { IToken } from '../token/IToken.js';
 import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
 import { TokenStandard } from '../token/TokenStandard.js';
-import { InterchainGasQuote } from '../token/adapters/ITokenAdapter.js';
+import {
+  IHypTokenAdapter,
+  ITokenAdapter,
+  InterchainGasQuote,
+} from '../token/adapters/ITokenAdapter.js';
 import { TokenType } from '../token/config.js';
 import { ChainName } from '../types.js';
 
 import { encodeAbiParameters, zeroAddress } from 'viem';
 
+import { EvmQuotedTransferProvider } from '../quoted-calls/EvmQuotedTransferProvider.js';
 import type {
   QuotedCallsParams,
   SubmitQuoteCommand,
@@ -43,6 +51,50 @@ const MOCK_BALANCE = BigInt('10000000000000000000'); // 10 units @ 18 decimals
 const MEDIUM_MOCK_BALANCE = BigInt('50000000000000000000'); // 50 units at @ 18 decimals
 const MOCK_ADDRESS = '0x0000000000000000000000000000000000000001';
 const MOCK_ADDRESS_2 = '0x0000000000000000000000000000000000000002';
+
+// Exposes the protected validation methods so tests can drive them directly.
+class TestWarpCore extends WarpCore {
+  runValidateDestinationRateLimit(
+    originTokenAmount: TokenAmount<IToken>,
+    destination: ChainName,
+    destinationToken?: IToken,
+  ): Promise<Record<string, string> | null> {
+    return this.validateDestinationRateLimit(
+      originTokenAmount,
+      destination,
+      destinationToken,
+    );
+  }
+
+  runValidateOriginCollateral(
+    originTokenAmount: TokenAmount<IToken>,
+    destination: ChainName,
+    recipient: Address,
+    sender?: Address,
+    destinationToken?: IToken,
+  ): Promise<Record<string, string> | null> {
+    return this.validateOriginCollateral(
+      originTokenAmount,
+      destination,
+      recipient,
+      sender,
+      destinationToken,
+    );
+  }
+}
+
+// The sinon stubs below expose only the adapter methods each test exercises;
+// these helpers localize the unavoidable cast from a partial double to the full
+// adapter interface.
+function asHypAdapter(stub: object): IHypTokenAdapter<unknown> {
+  // CAST: partial test double stands in for the full adapter interface.
+  return stub as unknown as IHypTokenAdapter<unknown>;
+}
+
+function asTokenAdapter(stub: object): ITokenAdapter<unknown> {
+  // CAST: partial test double stands in for the full adapter interface.
+  return stub as unknown as ITokenAdapter<unknown>;
+}
 
 describe('WarpCore', () => {
   const multiProvider = MultiProtocolProvider.createTestMultiProtocolProvider();
@@ -802,6 +854,363 @@ describe('WarpCore', () => {
     });
   });
 
+  it('Quotes the interchain transfer fee once during an xERC20 validateTransfer', async () => {
+    // A single shared quote stub across every token adapter. Asserting it fires
+    // exactly once proves validateTransfer hoists the interchain fee quote and
+    // reuses it across the origin burn-limit and token-balance checks instead
+    // of quoting twice.
+    // Quote the IGP fee in the origin xERC20 asset (via its addressOrDenom) so
+    // the interchain-fee balance check reuses the sender balance rather than
+    // looking up a native token that isn't part of the stubbed token set.
+    const quoteTransferRemoteGas = sinon.stub().resolves({
+      igpQuote: {
+        amount: MOCK_INTERCHAIN_QUOTE.amount,
+        addressOrDenom: evmHypXERC20.addressOrDenom,
+      },
+    });
+    const minimumTransferAmount = 10n;
+
+    warpCore.tokens.forEach((t) => {
+      sinon.stub(t, 'getBalance').resolves(t.amount(MOCK_BALANCE));
+      sinon.stub(t, 'getHypAdapter').returns(
+        asHypAdapter({
+          quoteTransferRemoteGas,
+          isApproveRequired: () => Promise.resolve(false),
+          populateTransferRemoteTx: () => Promise.resolve({}),
+          getMinimumTransferAmount: () =>
+            Promise.resolve(minimumTransferAmount),
+          getBalance: () => Promise.resolve(MOCK_BALANCE),
+          getBridgedSupply: () => Promise.resolve(MOCK_BALANCE),
+          getMintLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
+          getMintMaxLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
+          isRevokeApprovalRequired: () => Promise.resolve(false),
+        }),
+      );
+      // validateOriginCollateral reads the burn limit via getAdapter (not the
+      // Hyp adapter). Keep it well above the transfer so the xERC20 origin path
+      // passes and execution reaches validateTokenBalances.
+      sinon.stub(t, 'getAdapter').returns(
+        asTokenAdapter({
+          getBurnLimit: () => Promise.resolve(BIG_TRANSFER_AMOUNT),
+          getMinimumTransferAmount: () =>
+            Promise.resolve(minimumTransferAmount),
+          getBalance: () => Promise.resolve(MOCK_BALANCE),
+          isApproveRequired: () => Promise.resolve(false),
+        }),
+      );
+    });
+
+    const result = await warpCore.validateTransfer({
+      originTokenAmount: evmHypXERC20.amount(TRANSFER_AMOUNT),
+      destination: test1.name,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
+    });
+
+    expect(result).to.be.null;
+    sinon.assert.calledOnce(quoteTransferRemoteGas);
+  });
+
+  it('Validates Tron destination rate limits', async () => {
+    const standards = [
+      TokenStandard.TronHypXERC20,
+      TokenStandard.TronHypXERC20Lockbox,
+      TokenStandard.TronHypVSXERC20,
+      TokenStandard.TronHypVSXERC20Lockbox,
+      TokenStandard.TronHypCollateralFiat,
+    ];
+
+    for (const standard of standards) {
+      const originToken = new Token({
+        chainName: test1.name,
+        standard: TokenStandard.EvmHypNative,
+        addressOrDenom: MOCK_ADDRESS,
+        decimals: 18,
+        symbol: 'TEST',
+        name: 'Test Token',
+        connections: [],
+      });
+      const destinationToken = new Token({
+        chainName: test2.name,
+        standard,
+        addressOrDenom: MOCK_ADDRESS_2,
+        collateralAddressOrDenom: MOCK_ADDRESS_2,
+        decimals: 18,
+        symbol: 'TEST',
+        name: 'Test Token',
+        connections: [],
+      });
+      originToken.addConnection({ token: destinationToken });
+
+      const getMintLimit = sinon.stub().resolves(80n);
+      const getMintMaxLimit = sinon.stub().resolves(100n);
+      sinon.stub(destinationToken, 'getAdapter').returns(
+        asTokenAdapter({
+          getMintLimit,
+          getMintMaxLimit,
+        }),
+      );
+
+      const tronWarpCore = new TestWarpCore(multiProvider, [
+        originToken,
+        destinationToken,
+      ]);
+      const isVSXERC20 =
+        standard === TokenStandard.TronHypVSXERC20 ||
+        standard === TokenStandard.TronHypVSXERC20Lockbox;
+      const expectedLimit = isVSXERC20 ? 50n : 80n;
+
+      expect(
+        await tronWarpCore.runValidateDestinationRateLimit(
+          originToken.amount(expectedLimit),
+          test2.name,
+        ),
+      ).to.be.null;
+      expect(
+        await tronWarpCore.runValidateDestinationRateLimit(
+          originToken.amount(expectedLimit + 1n),
+          test2.name,
+        ),
+      ).to.deep.equal({ amount: 'Rate limit exceeded on destination' });
+      sinon.assert.calledTwice(getMintLimit);
+      if (isVSXERC20) sinon.assert.calledTwice(getMintMaxLimit);
+      else sinon.assert.notCalled(getMintMaxLimit);
+    }
+  });
+
+  it('Validates scaled destination rate limits in message space', async () => {
+    // decimals are equal on both sides so decimal-only conversion is a no-op;
+    // this isolates the scale term and proves the check compares message amounts
+    // (amount * originScale vs mintLimit * destScale) rather than raw local units.
+    interface ScaleCase {
+      name: string;
+      originStandard: TokenStandard;
+      destStandard: TokenStandard;
+      originScale: number;
+      destScale: number;
+      mintLimit: bigint;
+      // Present only for VS routes, where the effective limit is clamped to
+      // bufferCap / 2 before the comparison.
+      bufferCap?: bigint;
+      amount: bigint;
+      expectSufficient: boolean;
+    }
+
+    const cases: ScaleCase[] = [
+      // xERC20 origin→dest: effective limit 80, origin scale 4 → dest scale 1.
+      // decimal-only would compare 80 >= 30 and wrongly approve; message space
+      // compares 30*4=120 vs 80*1=80 and correctly rejects.
+      {
+        name: 'xERC20 origin→dest rejects amount decimal-only would approve',
+        originStandard: TokenStandard.TronHypXERC20,
+        destStandard: TokenStandard.TronHypXERC20,
+        originScale: 4,
+        destScale: 1,
+        mintLimit: 80n,
+        amount: 30n,
+        expectSufficient: false,
+      },
+      {
+        name: 'xERC20 origin→dest allows scaled within-limit amount',
+        originStandard: TokenStandard.TronHypXERC20,
+        destStandard: TokenStandard.TronHypXERC20,
+        originScale: 4,
+        destScale: 1,
+        mintLimit: 80n,
+        amount: 20n,
+        expectSufficient: true,
+      },
+      // Reverse direction: origin scale 1 → dest scale 4, available in message
+      // space is 80*4=320. decimal-only would compare 80 >= 200 and wrongly
+      // reject; message space allows 200*1=200 <= 320.
+      {
+        name: 'xERC20 dest→origin allows amount decimal-only would reject',
+        originStandard: TokenStandard.TronHypXERC20,
+        destStandard: TokenStandard.TronHypXERC20,
+        originScale: 1,
+        destScale: 4,
+        mintLimit: 80n,
+        amount: 200n,
+        expectSufficient: true,
+      },
+      {
+        name: 'xERC20 dest→origin rejects true over-limit amount',
+        originStandard: TokenStandard.TronHypXERC20,
+        destStandard: TokenStandard.TronHypXERC20,
+        originScale: 1,
+        destScale: 4,
+        mintLimit: 80n,
+        amount: 400n,
+        expectSufficient: false,
+      },
+      // VS routes clamp the mint limit to bufferCap / 2 (=80) before comparing.
+      {
+        name: 'VS xERC20 origin→dest rejects amount decimal-only would approve',
+        originStandard: TokenStandard.TronHypVSXERC20,
+        destStandard: TokenStandard.TronHypVSXERC20,
+        originScale: 4,
+        destScale: 1,
+        mintLimit: 200n,
+        bufferCap: 160n,
+        amount: 30n,
+        expectSufficient: false,
+      },
+      {
+        name: 'VS xERC20 origin→dest allows scaled within-limit amount',
+        originStandard: TokenStandard.TronHypVSXERC20,
+        destStandard: TokenStandard.TronHypVSXERC20,
+        originScale: 4,
+        destScale: 1,
+        mintLimit: 200n,
+        bufferCap: 160n,
+        amount: 20n,
+        expectSufficient: true,
+      },
+      {
+        name: 'VS xERC20 dest→origin allows amount decimal-only would reject',
+        originStandard: TokenStandard.TronHypVSXERC20,
+        destStandard: TokenStandard.TronHypVSXERC20,
+        originScale: 1,
+        destScale: 4,
+        mintLimit: 200n,
+        bufferCap: 160n,
+        amount: 200n,
+        expectSufficient: true,
+      },
+      {
+        name: 'VS xERC20 dest→origin rejects true over-limit amount',
+        originStandard: TokenStandard.TronHypVSXERC20,
+        destStandard: TokenStandard.TronHypVSXERC20,
+        originScale: 1,
+        destScale: 4,
+        mintLimit: 200n,
+        bufferCap: 160n,
+        amount: 400n,
+        expectSufficient: false,
+      },
+    ];
+
+    for (const c of cases) {
+      const originToken = new Token({
+        chainName: test1.name,
+        standard: c.originStandard,
+        addressOrDenom: MOCK_ADDRESS,
+        collateralAddressOrDenom: MOCK_ADDRESS,
+        decimals: 18,
+        scale: c.originScale,
+        symbol: 'TEST',
+        name: 'Test Token',
+        connections: [],
+      });
+      const destinationToken = new Token({
+        chainName: test2.name,
+        standard: c.destStandard,
+        addressOrDenom: MOCK_ADDRESS_2,
+        collateralAddressOrDenom: MOCK_ADDRESS_2,
+        decimals: 18,
+        scale: c.destScale,
+        symbol: 'TEST',
+        name: 'Test Token',
+        connections: [],
+      });
+      originToken.addConnection({ token: destinationToken });
+
+      const getMintLimit = sinon.stub().resolves(c.mintLimit);
+      const getMintMaxLimit = sinon.stub().resolves(c.bufferCap ?? 0n);
+      sinon.stub(destinationToken, 'getAdapter').returns(
+        asTokenAdapter({
+          getMintLimit,
+          getMintMaxLimit,
+        }),
+      );
+
+      const tronWarpCore = new TestWarpCore(multiProvider, [
+        originToken,
+        destinationToken,
+      ]);
+      const result = await tronWarpCore.runValidateDestinationRateLimit(
+        originToken.amount(c.amount),
+        test2.name,
+      );
+      if (c.expectSufficient) {
+        expect(result, c.name).to.be.null;
+      } else {
+        expect(result, c.name).to.deep.equal({
+          amount: 'Rate limit exceeded on destination',
+        });
+      }
+    }
+  });
+
+  it('Validates Tron xERC20 origin burn limits including token fee', async () => {
+    const standards = [
+      TokenStandard.TronHypXERC20,
+      TokenStandard.TronHypXERC20Lockbox,
+      TokenStandard.TronHypVSXERC20,
+      TokenStandard.TronHypVSXERC20Lockbox,
+    ];
+    const burnLimit = 40n;
+    const tokenFee = 5n;
+
+    for (const standard of standards) {
+      const originToken = new Token({
+        chainName: test1.name,
+        standard,
+        addressOrDenom: MOCK_ADDRESS,
+        collateralAddressOrDenom: MOCK_ADDRESS,
+        decimals: 18,
+        symbol: 'TEST',
+        name: 'Test Token',
+        connections: [],
+      });
+
+      const getBurnLimit = sinon.stub().resolves(burnLimit);
+      sinon.stub(originToken, 'getAdapter').returns(
+        asTokenAdapter({
+          getBurnLimit,
+        }),
+      );
+
+      // Token fee is charged in the origin token (same asset being burned), so it
+      // must count toward the burn debit.
+      const quoteTransferRemoteGas = sinon.stub().resolves({
+        igpQuote: { amount: 0n },
+        tokenFeeQuote: { amount: tokenFee, addressOrDenom: MOCK_ADDRESS },
+      });
+      sinon.stub(originToken, 'getHypAdapter').returns(
+        asHypAdapter({
+          quoteTransferRemoteGas,
+        }),
+      );
+
+      const tronWarpCore = new TestWarpCore(multiProvider, [originToken]);
+
+      // amount + tokenFee == burnLimit → within limit.
+      expect(
+        await tronWarpCore.runValidateOriginCollateral(
+          originToken.amount(burnLimit - tokenFee),
+          test2.name,
+          MOCK_ADDRESS,
+        ),
+        standard,
+      ).to.be.null;
+
+      // amount alone is within the burn limit, but amount + tokenFee exceeds it.
+      // Without fee-inclusive accounting this would wrongly pass.
+      expect(
+        await tronWarpCore.runValidateOriginCollateral(
+          originToken.amount(burnLimit - tokenFee + 1n),
+          test2.name,
+          MOCK_ADDRESS,
+        ),
+        standard,
+      ).to.deep.equal({ amount: 'Insufficient burn limit on origin' });
+
+      sinon.assert.calledTwice(getBurnLimit);
+      sinon.assert.calledTwice(quoteTransferRemoteGas);
+    }
+  });
+
   it('Validates destination token routing', async () => {
     const balanceStubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getBalance').resolves({ amount: MOCK_BALANCE } as any),
@@ -1512,24 +1921,23 @@ describe('WarpCore', () => {
       } as any);
 
     try {
-      const quotedCalls: QuotedCallsParams = {
+      const quotedTransfer = new EvmQuotedTransferProvider({
         address: MOCK_QUOTED_CALLS_ADDRESS,
         quotes: [MOCK_SUBMIT_QUOTE],
         clientSalt: MOCK_CLIENT_SALT,
         tokenPullMode: TokenPullMode.TransferFrom,
-      };
+      });
 
       const result = await warpCore.getQuotedTransferFee({
+        quotedTransfer,
         originTokenAmount: evmHypSynthetic.amount(TRANSFER_AMOUNT),
         destination: test2.name,
         sender: MOCK_ADDRESS,
         recipient: MOCK_ADDRESS,
-        quotedCalls,
       });
 
       expect(result.igpQuote.amount).to.equal(500n);
       expect(result.tokenFeeQuote?.amount).to.equal(150n); // (TRANSFER_AMOUNT+100+50) - TRANSFER_AMOUNT
-      expect(result.feeQuotes).to.have.length(2);
     } finally {
       providerStub.restore();
     }
@@ -1555,7 +1963,10 @@ describe('WarpCore', () => {
       sinon.stub(t, 'getAdapter').returns({
         isApproveRequired: () => Promise.resolve(true),
         populateApproveTx: () =>
-          Promise.resolve({ to: MOCK_QUOTED_CALLS_ADDRESS, data: '0x' }),
+          Promise.resolve({
+            to: MOCK_QUOTED_CALLS_ADDRESS,
+            data: '0x',
+          }),
         isRevokeApprovalRequired: () => Promise.resolve(false),
       } as any),
     );
@@ -1585,48 +1996,6 @@ describe('WarpCore', () => {
       providerStub.restore();
       adapterStubs.forEach((s) => s.restore());
     }
-  });
-
-  it('Skips quoteExecute when feeQuotes are pre-provided', async () => {
-    const precomputedFeeQuotes = [
-      [] as Array<{ token: `0x${string}`; amount: bigint }>,
-      [
-        { token: zeroAddress as `0x${string}`, amount: 500n },
-        {
-          token: evmHypSynthetic.addressOrDenom as `0x${string}`,
-          amount: TRANSFER_AMOUNT + 100n,
-        },
-      ],
-    ];
-
-    const adapterStubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getAdapter').returns({
-        isApproveRequired: () => Promise.resolve(false),
-        isRevokeApprovalRequired: () => Promise.resolve(false),
-      } as any),
-    );
-
-    const quotedCalls: QuotedCallsParams = {
-      address: MOCK_QUOTED_CALLS_ADDRESS,
-      quotes: [MOCK_SUBMIT_QUOTE],
-      clientSalt: MOCK_CLIENT_SALT,
-      tokenPullMode: TokenPullMode.TransferFrom,
-      feeQuotes: precomputedFeeQuotes,
-    };
-
-    const result = await warpCore.getTransferRemoteTxs({
-      originTokenAmount: evmHypSynthetic.amount(TRANSFER_AMOUNT),
-      destination: test2.name,
-      sender: MOCK_ADDRESS,
-      recipient: MOCK_ADDRESS,
-      quotedCalls,
-    });
-
-    // No approval needed, just Transfer
-    expect(result.length).to.equal(1);
-    expect(result[0].category).to.equal(WarpTxCategory.Transfer);
-
-    adapterStubs.forEach((s) => s.restore());
   });
 
   it('Routes ERC4626 collateral tokens through getBridgedSupply in getTokenCollateral', async () => {

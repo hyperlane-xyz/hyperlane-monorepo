@@ -31,6 +31,7 @@ pub fn dummy_chain_conf(domain: &HyperlaneDomain) -> ChainConf {
     ChainConf {
         domain: domain.clone(),
         signer: Default::default(),
+        identity: None,
         submitter: Default::default(),
         estimated_block_time: Duration::from_secs_f64(1.1),
         reorg_period: Default::default(),

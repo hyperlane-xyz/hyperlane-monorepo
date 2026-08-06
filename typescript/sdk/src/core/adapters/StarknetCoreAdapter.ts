@@ -5,7 +5,7 @@ import {
   events as eventsUtils,
 } from 'starknet';
 
-import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
+import { getContractAbi } from '@hyperlane-xyz/starknet-core/runtime';
 import { Address, HexString, pollAsync } from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
@@ -57,7 +57,7 @@ export class StarknetCoreAdapter
           }) || [];
 
         if (emittedEvents.length === 0) return;
-        const mailboxAbi = getCompiledContract('mailbox').abi;
+        const mailboxAbi = getContractAbi('mailbox');
         parsedEvents = eventsUtils.parseEvents(
           emittedEvents,
           eventsUtils.getAbiEvents(mailboxAbi),

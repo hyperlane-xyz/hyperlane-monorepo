@@ -8,6 +8,7 @@ import {
   getProposalPda,
   getTransactionPda,
   instructions,
+  types,
 } from '@sqds/multisig';
 import chalk from 'chalk';
 import { Argv } from 'yargs';
@@ -17,7 +18,7 @@ import {
   MultiProtocolProvider,
   SvmMultiProtocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { getSquadsKeys, squadsConfigs } from '../config/squads.js';
 
@@ -445,7 +446,7 @@ export function decodePermissions(mask: number): string {
 /**
  * Get the next available transaction index from the multisig
  */
-async function getNextSquadsTransactionIndex(
+export async function getNextSquadsTransactionIndex(
   chain: ChainName,
   mpp: MultiProtocolProvider,
 ): Promise<bigint> {
@@ -731,6 +732,94 @@ export async function buildSquadsProposalCancellation(
  * @param mpp - Multi-protocol provider
  * @param signerAdapter - Pre-configured SVM signer adapter for signing and submitting transactions
  */
+async function createAndApproveSquadsProposal(
+  chain: ChainName,
+  vaultInstructions: TransactionInstruction[],
+  mpp: MultiProtocolProvider,
+  signerAdapter: SvmMultiProtocolSignerAdapter,
+  memo?: string,
+): Promise<bigint> {
+  // Get creator public key from adapter
+  const creatorPublicKey = signerAdapter.publicKey();
+
+  // Build Squads proposal instructions
+  const { instructions: proposalInstructions, transactionIndex } =
+    await buildSquadsVaultTransactionProposal(
+      chain,
+      mpp,
+      vaultInstructions,
+      creatorPublicKey,
+      memo,
+    );
+
+  // Build, sign, send, and confirm transaction using the adapter
+  rootLogger.info(
+    chalk.gray(
+      'Submitting proposal creation transaction with automatic confirmation...',
+    ),
+  );
+  const createSignature =
+    await signerAdapter.buildAndSendTransaction(proposalInstructions);
+
+  rootLogger.info(chalk.green(`Proposal created: ${createSignature}`));
+  rootLogger.info(chalk.gray(`   Transaction index: ${transactionIndex}`));
+
+  // The vault tx + proposal are now confirmed on-chain at `transactionIndex`.
+  // Any failure from here on must surface `transactionIndex` to the caller
+  // (see `readCreatedTransactionIndex`) so a rerun doesn't re-create it.
+  try {
+    // Approve the proposal as the proposer
+    rootLogger.info(chalk.gray('Approving proposal as proposer...'));
+    const { multisigPda, programId } = getSquadsKeys(chain);
+    const approveIx = instructions.proposalApprove({
+      multisigPda,
+      transactionIndex,
+      member: creatorPublicKey,
+      programId,
+    });
+
+    const approveSignature = await signerAdapter.buildAndSendTransaction([
+      approveIx,
+    ]);
+    rootLogger.info(chalk.green(`Proposal approved: ${approveSignature}`));
+
+    return transactionIndex;
+  } catch (error) {
+    const wrapped = error instanceof Error ? error : new Error(String(error));
+    throw Object.assign(wrapped, { createdTransactionIndex: transactionIndex });
+  }
+}
+
+/**
+ * Read a `createdTransactionIndex` attached to an error thrown after a
+ * Squads proposal was confirmed on-chain but a later step (e.g. approval)
+ * failed. See `createAndApproveSquadsProposal`.
+ */
+export function readCreatedTransactionIndex(e: unknown): bigint | undefined {
+  if (typeof e === 'object' && e !== null && 'createdTransactionIndex' in e) {
+    const value = e.createdTransactionIndex;
+    return typeof value === 'bigint' ? value : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Read the `transactionIndexes` attached to an error thrown by
+ * `submitReceiptTxsToSquads` on partial failure — the indexes of the ordered
+ * proposals that already landed on-chain before the failure.
+ */
+export function readAttachedTransactionIndexes(
+  e: unknown,
+): bigint[] | undefined {
+  if (typeof e === 'object' && e !== null && 'transactionIndexes' in e) {
+    const value = e.transactionIndexes;
+    if (Array.isArray(value) && value.every((v) => typeof v === 'bigint')) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 export async function submitProposalToSquads(
   chain: ChainName,
   vaultInstructions: TransactionInstruction[],
@@ -741,32 +830,335 @@ export async function submitProposalToSquads(
   rootLogger.info(chalk.cyan('\n=== Submitting to Squads ==='));
 
   try {
-    // Get creator public key from adapter
+    await createAndApproveSquadsProposal(
+      chain,
+      vaultInstructions,
+      mpp,
+      signerAdapter,
+      memo,
+    );
+    rootLogger.info(
+      chalk.green(
+        'Proposal created and approved by proposer. Other multisig members can now approve.',
+      ),
+    );
+  } catch (error) {
+    rootLogger.error(
+      chalk.red(`Failed to submit proposal to Squads: ${error}`),
+    );
+    throw error;
+  }
+}
+
+/**
+ * A single vault transaction to propose. Ordered creation preserves the
+ * source-tx boundary, but the proposer neither sets nor enforces
+ * execution-time ordering: the external executor sets slot ordering at
+ * vaultTransactionExecute time. Receipts that need execution-time ordering
+ * are rejected before reaching this path. `computeUnits`, when present, is
+ * the compute-unit limit the source transaction required; it is carried
+ * through and surfaced (see `submitReceiptTxsToSquads`) for the executor to
+ * set at `vaultTransactionExecute` — the proposer cannot set it itself, since
+ * the compute budget applies to the OUTER execution transaction the executor
+ * builds, not the vault transaction created here.
+ */
+export type OrderedVaultProposal = {
+  instructions: TransactionInstruction[];
+  computeUnits?: number;
+};
+
+/**
+ * Submit a receipt's source transactions as separate, ordered Squads
+ * proposals — one vault transaction per source tx rather than a single
+ * flattened vault transaction. This keeps each step in its own vault
+ * transaction. Ordering is the external executor's responsibility at
+ * vaultTransactionExecute time; receipts that depend on execution-time
+ * ordering are rejected upstream rather than proposed here. When a proposal
+ * carries a `computeUnits` requirement, it is logged so the executor knows to
+ * set that compute-unit limit when executing the corresponding vault
+ * transaction.
+ */
+export async function submitReceiptTxsToSquads(
+  chain: ChainName,
+  proposals: OrderedVaultProposal[],
+  mpp: MultiProtocolProvider,
+  signerAdapter: SvmMultiProtocolSignerAdapter,
+  memoBase?: string,
+): Promise<{ transactionIndexes: bigint[] }> {
+  rootLogger.info(chalk.cyan('\n=== Submitting receipt to Squads ==='));
+  const transactionIndexes: bigint[] = [];
+
+  try {
+    for (const [index, proposal] of proposals.entries()) {
+      const memo = memoBase
+        ? `${memoBase} (${index + 1}/${proposals.length})`
+        : undefined;
+      const transactionIndex = await createAndApproveSquadsProposal(
+        chain,
+        proposal.instructions,
+        mpp,
+        signerAdapter,
+        memo,
+      );
+      transactionIndexes.push(transactionIndex);
+      if (proposal.computeUnits != null) {
+        rootLogger.info(
+          chalk.yellow(
+            `  Vault tx index ${transactionIndex} requires compute-unit-limit ${proposal.computeUnits} at vaultTransactionExecute — executor must set it.`,
+          ),
+        );
+      }
+    }
+    rootLogger.info(
+      chalk.green(
+        `Created and approved ${transactionIndexes.length} ordered proposal(s). Other multisig members can now approve.`,
+      ),
+    );
+    return { transactionIndexes };
+  } catch (error) {
+    // Surface which ordered proposals already landed on-chain: a mid-loop
+    // failure leaves the earlier vault transactions created, and a blind rerun
+    // would duplicate them. A failure between creation and approval (see
+    // `createAndApproveSquadsProposal`) still lands a created vault tx, so its
+    // index is absorbed here too. Report the indexes and attach them to the
+    // thrown error so the caller can skip/execute those before retrying.
+    const createdIndex = readCreatedTransactionIndex(error);
+    if (createdIndex !== undefined) {
+      transactionIndexes.push(createdIndex);
+    }
+    const createdCount = transactionIndexes.length;
+    const landed = createdCount
+      ? ` ${createdCount} proposal(s) already created (vault transaction index(es): ${transactionIndexes.join(
+          ', ',
+        )}); a rerun would duplicate them — execute or cancel these first.`
+      : '';
+    rootLogger.error(
+      chalk.red(`Failed to submit receipt to Squads: ${error}.${landed}`),
+    );
+    const wrapped =
+      error instanceof Error
+        ? error
+        : new Error(`Failed to submit receipt to Squads: ${error}`);
+    throw Object.assign(wrapped, { transactionIndexes });
+  }
+}
+
+// ============================================================================
+// Squads Member/Threshold (ConfigTransaction) Helpers
+// ============================================================================
+
+export type AnnotatedConfigAction = {
+  action: types.ConfigAction;
+  description: string;
+};
+
+export function getMemberChanges(
+  currentMembers: PublicKey[],
+  expectedMembers: PublicKey[],
+): {
+  membersToRemove: PublicKey[];
+  membersToAdd: PublicKey[];
+} {
+  const membersToRemove = currentMembers.filter(
+    (member) => !expectedMembers.some((expected) => expected.equals(member)),
+  );
+  const membersToAdd = expectedMembers.filter(
+    (expected) => !currentMembers.some((member) => member.equals(expected)),
+  );
+
+  return { membersToRemove, membersToAdd };
+}
+
+function assertValidExpectedMembers(expectedMembers: PublicKey[]): void {
+  const seenMembers = new Set<string>();
+  for (const member of expectedMembers) {
+    const base58 = member.toBase58();
+    assert(!seenMembers.has(base58), `Duplicate Squad member ${base58}`);
+    seenMembers.add(base58);
+  }
+}
+
+/**
+ * Diffs the current Squad members/threshold against the expected set and
+ * returns the ConfigActions needed to reconcile them. Unlike Safe (which
+ * stores owners in an on-chain linked list requiring careful prevOwner
+ * bookkeeping), Squads bundles arbitrary member/threshold changes into a
+ * single ConfigTransaction applied atomically on execution, so no
+ * swap/ordering logic is required.
+ */
+export async function updateSquadsMembers({
+  chain,
+  mpp,
+  members,
+  threshold,
+  proposer,
+}: {
+  chain: ChainName;
+  mpp: MultiProtocolProvider;
+  members?: PublicKey[];
+  threshold?: number;
+  proposer?: PublicKey;
+}): Promise<AnnotatedConfigAction[]> {
+  const { svmProvider, multisigPda } = await getSquadAndProvider(chain, mpp);
+  const multisig = await accounts.Multisig.fromAccountAddress(
+    // @ts-ignore - SDK types are slightly incompatible but work at runtime
+    svmProvider,
+    multisigPda,
+  );
+
+  const currentThreshold = multisig.threshold;
+  const newThreshold = threshold ?? currentThreshold;
+  const currentMembers = multisig.members.map((member) => member.key);
+  const expectedMembers = members ?? currentMembers;
+
+  const { membersToRemove, membersToAdd } = getMemberChanges(
+    currentMembers,
+    expectedMembers,
+  );
+
+  rootLogger.info(
+    chalk.magentaBright(
+      'Members to remove:',
+      membersToRemove.map((member) => member.toBase58()),
+    ),
+  );
+  rootLogger.info(
+    chalk.magentaBright(
+      'Members to add:',
+      membersToAdd.map((member) => member.toBase58()),
+    ),
+  );
+
+  assert(expectedMembers.length >= 1, 'Squad must have at least one member');
+  assertValidExpectedMembers(expectedMembers);
+  assert(
+    newThreshold >= 1,
+    `Squad threshold ${newThreshold} must be at least 1`,
+  );
+  assert(
+    newThreshold <= expectedMembers.length,
+    `Squad threshold ${newThreshold} exceeds member count ${expectedMembers.length}`,
+  );
+  assert(
+    !proposer || expectedMembers.some((member) => member.equals(proposer)),
+    `Proposer ${proposer?.toBase58()} must remain a Squad member`,
+  );
+
+  const changes: AnnotatedConfigAction[] = [];
+
+  for (const member of membersToRemove) {
+    changes.push({
+      action: { __kind: 'RemoveMember', oldMember: member },
+      description: `Remove squad member ${member.toBase58()}`,
+    });
+  }
+
+  for (const member of membersToAdd) {
+    changes.push({
+      action: {
+        __kind: 'AddMember',
+        newMember: {
+          key: member,
+          permissions: { mask: SquadsPermission.ALL_PERMISSIONS },
+        },
+      },
+      description: `Add squad member ${member.toBase58()} with ${decodePermissions(
+        SquadsPermission.ALL_PERMISSIONS,
+      )} permissions`,
+    });
+  }
+
+  if (currentThreshold !== newThreshold) {
+    changes.push({
+      action: { __kind: 'ChangeThreshold', newThreshold },
+      description: `Change squad threshold to ${newThreshold}`,
+    });
+  }
+
+  return changes;
+}
+
+/**
+ * Build config transaction proposal instructions (create + propose in one
+ * transaction), mirroring buildSquadsVaultTransactionProposal but for
+ * member/threshold (ConfigAction) changes instead of vault instructions.
+ */
+export async function buildSquadsConfigTransactionProposal(
+  chain: ChainName,
+  mpp: MultiProtocolProvider,
+  actions: types.ConfigAction[],
+  creator: PublicKey,
+  memo?: string,
+): Promise<{
+  instructions: TransactionInstruction[];
+  transactionIndex: bigint;
+}> {
+  const { multisigPda, programId } = await getSquadAndProvider(chain, mpp);
+  const transactionIndex = await getNextSquadsTransactionIndex(chain, mpp);
+
+  const configTxIx = instructions.configTransactionCreate({
+    multisigPda,
+    transactionIndex,
+    creator,
+    rentPayer: creator,
+    actions,
+    memo: memo || 'Hyperlane Squads Signer Update',
+    programId,
+  });
+
+  const proposalIx = createProposalInstruction(
+    multisigPda,
+    transactionIndex,
+    creator,
+    programId,
+  );
+
+  return {
+    instructions: [configTxIx, proposalIx],
+    transactionIndex,
+  };
+}
+
+/**
+ * Submit a member/threshold update to Squads: creates the ConfigTransaction
+ * + proposal, then approves as the proposer. Mirrors submitProposalToSquads.
+ */
+export async function submitConfigProposalToSquads(
+  chain: ChainName,
+  actions: types.ConfigAction[],
+  mpp: MultiProtocolProvider,
+  signerAdapter: SvmMultiProtocolSignerAdapter,
+  memo?: string,
+): Promise<void> {
+  rootLogger.info(
+    chalk.cyan('\n=== Submitting Config Transaction to Squads ==='),
+  );
+
+  try {
     const creatorPublicKey = signerAdapter.publicKey();
 
-    // Build Squads proposal instructions
     const { instructions: proposalInstructions, transactionIndex } =
-      await buildSquadsVaultTransactionProposal(
+      await buildSquadsConfigTransactionProposal(
         chain,
         mpp,
-        vaultInstructions,
+        actions,
         creatorPublicKey,
         memo,
       );
 
-    // Build, sign, send, and confirm transaction using the adapter
     rootLogger.info(
       chalk.gray(
-        'Submitting proposal creation transaction with automatic confirmation...',
+        'Submitting config transaction creation with automatic confirmation...',
       ),
     );
     const createSignature =
       await signerAdapter.buildAndSendTransaction(proposalInstructions);
 
-    rootLogger.info(chalk.green(`Proposal created: ${createSignature}`));
+    rootLogger.info(
+      chalk.green(`Config transaction created: ${createSignature}`),
+    );
     rootLogger.info(chalk.gray(`   Transaction index: ${transactionIndex}`));
 
-    // Approve the proposal as the proposer
     rootLogger.info(chalk.gray('Approving proposal as proposer...'));
     const { multisigPda, programId } = getSquadsKeys(chain);
     const approveIx = instructions.proposalApprove({
@@ -782,12 +1174,12 @@ export async function submitProposalToSquads(
     rootLogger.info(chalk.green(`Proposal approved: ${approveSignature}`));
     rootLogger.info(
       chalk.green(
-        'Proposal created and approved by proposer. Other multisig members can now approve.',
+        'Config transaction proposal created and approved by proposer. Other multisig members can now approve.',
       ),
     );
   } catch (error) {
     rootLogger.error(
-      chalk.red(`Failed to submit proposal to Squads: ${error}`),
+      chalk.red(`Failed to submit config proposal to Squads: ${error}`),
     );
     throw error;
   }

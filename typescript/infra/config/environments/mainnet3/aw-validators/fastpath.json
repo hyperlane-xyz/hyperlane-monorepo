@@ -1,5 +1,23 @@
 {
+  "arbitrum": {
+    "validators": ["0xee56ba244c9e9bbead3a30c3d51a93d8da4ad7f3"]
+  },
+  "base": {
+    "validators": ["0xee56ba244c9e9bbead3a30c3d51a93d8da4ad7f3"]
+  },
+  "bsc": {
+    "validators": ["0xee56ba244c9e9bbead3a30c3d51a93d8da4ad7f3"]
+  },
+  "citrea": {
+    "validators": ["0xee56ba244c9e9bbead3a30c3d51a93d8da4ad7f3"]
+  },
   "ethereum": {
-    "validators": []
+    "validators": ["0xee56ba244c9e9bbead3a30c3d51a93d8da4ad7f3"]
+  },
+  "katana": {
+    "validators": ["0xee56ba244c9e9bbead3a30c3d51a93d8da4ad7f3"]
+  },
+  "polygon": {
+    "validators": ["0xee56ba244c9e9bbead3a30c3d51a93d8da4ad7f3"]
   }
 }

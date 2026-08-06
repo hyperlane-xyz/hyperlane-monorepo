@@ -42,6 +42,7 @@ mod tests {
         ChainConf {
             domain,
             signer,
+            identity: None,
             submitter: SubmitterType::Lander,
             estimated_block_time: Duration::from_secs(1),
             reorg_period: ReorgPeriod::None,
@@ -50,6 +51,7 @@ mod tests {
             metrics_conf: PrometheusMiddlewareConf {
                 contracts: HashMap::new(),
                 chain: None,
+                rpc_role: Default::default(),
             },
             index: IndexSettings::default(),
             confirmations: Default::default(),

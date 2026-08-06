@@ -79,12 +79,14 @@ pub(crate) struct ForwardBackwardSequenceAwareSyncCursor<T> {
     forward: ForwardSequenceAwareSyncCursor<T>,
     backward: BackwardSequenceAwareSyncCursor<T>,
     last_direction: SyncDirection,
+    idle_sleep_duration: Duration,
 }
 
 impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
     ForwardBackwardSequenceAwareSyncCursor<T>
 {
     /// Construct a new contract sync helper.
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         domain: &HyperlaneDomain,
         metrics: Arc<CursorMetrics>,
@@ -93,6 +95,7 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
         chunk_size: u32,
         lowest_block_height_or_sequence: i64,
         mode: IndexMode,
+        idle_sleep_duration: Duration,
     ) -> Result<Self> {
         let (sequence_count, tip) = latest_sequence_querier
             .latest_sequence_count_and_tip()
@@ -129,6 +132,7 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
             forward: forward_cursor,
             backward: backward_cursor,
             last_direction: SyncDirection::Forward,
+            idle_sleep_duration,
         })
     }
 }
@@ -150,8 +154,7 @@ impl<T: Send + Sync + Clone + Debug + 'static + Indexable> ContractSyncCursor<T>
             self.last_direction = SyncDirection::Backward;
             return Ok((CursorAction::Query(backward_range), eta));
         }
-        // TODO: Define the sleep time from interval flag
-        return Ok((CursorAction::Sleep(Duration::from_secs(5)), eta));
+        return Ok((CursorAction::Sleep(self.idle_sleep_duration), eta));
     }
 
     fn latest_queried_block(&self) -> u32 {
@@ -172,7 +175,7 @@ impl<T: Send + Sync + Clone + Debug + 'static + Indexable> ContractSyncCursor<T>
 
 #[cfg(test)]
 mod tests {
-    use std::{fmt::Debug, ops::RangeInclusive, sync::Arc};
+    use std::{fmt::Debug, ops::RangeInclusive, sync::Arc, time::Duration};
 
     use hyperlane_core::{
         ChainResult, HyperlaneDomain, HyperlaneLogStore, HyperlaneSequenceAwareIndexerStoreReader,
@@ -293,6 +296,7 @@ mod tests {
             chunk_size,
             lowest_block_height_or_sequence,
             mode,
+            Duration::from_secs(5),
         )
         .await
         .expect("Failed to instantiate ForwardBackwardSequenceAwareSyncCursor");

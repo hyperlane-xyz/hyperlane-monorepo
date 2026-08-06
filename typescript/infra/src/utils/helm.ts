@@ -161,6 +161,14 @@ export function removeHelmRelease(releaseName: string, namespace: string) {
   return execCmd(`helm uninstall ${releaseName} --namespace ${namespace}`);
 }
 
+function isHelmReleaseNotFoundError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.message.includes('release: not found') ||
+      error.message.includes('Release not loaded'))
+  );
+}
+
 export type HelmValues = Record<string, any>;
 
 export interface PreflightDiff {
@@ -200,8 +208,18 @@ export abstract class HelmManager<T = HelmValues> {
 
     if (action == HelmCommand.Remove) {
       if (dryRun) cmd.push('--dry-run');
-      cmd.push(this.helmReleaseName, this.namespace);
-      await execCmd(cmd, {}, false, true);
+      cmd.push(this.helmReleaseName, '--namespace', this.namespace);
+      try {
+        await execCmd(cmd, {}, true, true);
+      } catch (error) {
+        if (isHelmReleaseNotFoundError(error)) {
+          rootLogger.warn(
+            `Helm release ${this.helmReleaseName} not found in ${this.namespace}; skipping uninstall`,
+          );
+          return;
+        }
+        throw error;
+      }
       return;
     }
 
@@ -273,17 +291,10 @@ export abstract class HelmManager<T = HelmValues> {
     releaseName: string,
     namespace: string,
   ): Promise<boolean> {
-    try {
-      await execCmd(
-        `helm status ${releaseName} --namespace ${namespace}`,
-        {},
-        false,
-        false,
-      );
-      return true;
-    } catch {
-      return false;
-    }
+    const releases = await execCmdAndParseJson(
+      `helm list --namespace ${namespace} --deployed --failed --pending --uninstalling --filter '^${releaseName}$' --output json`,
+    );
+    return releases.length > 0;
   }
 
   async getExistingK8sSecrets(): Promise<string[]> {
@@ -453,7 +464,7 @@ export function getHelmReleaseName(id: string, prefix: string): string {
   let name = `${prefix}-${id.toLowerCase().replaceAll('/', '-')}`;
 
   // 52 because the max label length is 63, and there is an auto appended 11 char
-  // suffix, e.g. `controller-revision-hash=hyperlane-warp-route-tia-mantapacific-neutron-566dc75599`
+  // suffix, e.g. `controller-revision-hash=hyperlane-warp-route-tia-eclipsemainnet-566dc75599`
   const maxChars = 52;
 
   // Max out length, and it can't end with a dash.

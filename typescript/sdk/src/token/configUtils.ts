@@ -48,6 +48,7 @@ import {
   HypTokenConfig,
   HypTokenRouterConfig,
   HypTokenRouterVirtualConfig,
+  MovableTokenConfig,
   OwnerStatus,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
@@ -177,6 +178,72 @@ export function filterWarpCoreConfigMapByChains<T extends WarpCoreConfig>(
   return objFilter(configMap, (_, config): config is T =>
     warpCoreConfigMatchesChains(config, chains),
   );
+}
+
+type AllowedRebalancingBridges = NonNullable<
+  MovableTokenConfig['allowedRebalancingBridges']
+>;
+type RebalancingBridge = AllowedRebalancingBridges[string][number];
+
+function mergeApprovedTokens(
+  a: RebalancingBridge['approvedTokens'],
+  b: RebalancingBridge['approvedTokens'],
+): RebalancingBridge['approvedTokens'] {
+  if (!a && !b) {
+    return undefined;
+  }
+  const byNormalized = new Map<string, string>();
+  for (const token of [...(a ?? []), ...(b ?? [])]) {
+    const key = token.toLowerCase();
+    if (!byNormalized.has(key)) {
+      byNormalized.set(key, token);
+    }
+  }
+  return Array.from(byNormalized.values());
+}
+
+/**
+ * Canonicalizes `allowedRebalancingBridges` keys to domain ids, mirroring
+ * remoteRouters/destinationGas, so a name-keyed source config does not read as
+ * drift against the domain-id-keyed on-chain state.
+ *
+ * A source config may key the same destination by both chain name and domain
+ * id; both canonicalize to one key. Bridges are merged by bridge identity —
+ * unioning approvedTokens — so a bridge listed under both keys does not expand
+ * to a duplicate that reads as permanent drift against the deduplicated
+ * on-chain state. Keys the resolver does not recognize are kept as-is rather
+ * than erroring the whole route check.
+ */
+export function canonicalizeAllowedRebalancingBridges(
+  allowedRebalancingBridges: AllowedRebalancingBridges,
+  resolveDomainId: (domainOrChain: string) => number | undefined,
+): AllowedRebalancingBridges {
+  const canonicalized: AllowedRebalancingBridges = {};
+  for (const [domainOrChain, bridges] of Object.entries(
+    allowedRebalancingBridges,
+  )) {
+    const canonicalKey =
+      resolveDomainId(domainOrChain)?.toString() ?? domainOrChain;
+    const byBridge = new Map<string, RebalancingBridge>();
+    for (const bridge of [...(canonicalized[canonicalKey] ?? []), ...bridges]) {
+      const bridgeKey = bridge.bridge.toLowerCase();
+      const existing = byBridge.get(bridgeKey);
+      if (!existing) {
+        byBridge.set(bridgeKey, bridge);
+        continue;
+      }
+      const approvedTokens = mergeApprovedTokens(
+        existing.approvedTokens,
+        bridge.approvedTokens,
+      );
+      byBridge.set(bridgeKey, {
+        ...existing,
+        ...(approvedTokens ? { approvedTokens } : {}),
+      });
+    }
+    canonicalized[canonicalKey] = Array.from(byBridge.values());
+  }
+  return canonicalized;
 }
 
 /**
@@ -315,6 +382,23 @@ export async function expandWarpDeployConfig(params: {
 
       chainConfig.destinationGas = formattedDestinationGas;
 
+      // allowedRebalancingBridges keys accept either a chain name or a domain
+      // id (RemoteRouterDomainOrChainNameSchema). The on-chain reader emits
+      // domain-id keys, so canonicalize to domain ids here — as we do for
+      // remoteRouters/destinationGas — so a name-keyed source config does not
+      // read as drift against on-chain state.
+      if (
+        isMovableCollateralTokenConfig(chainConfig) &&
+        chainConfig.allowedRebalancingBridges
+      ) {
+        chainConfig.allowedRebalancingBridges =
+          canonicalizeAllowedRebalancingBridges(
+            chainConfig.allowedRebalancingBridges,
+            (domainOrChain) =>
+              multiProvider.tryGetDomainId(domainOrChain) ?? undefined,
+          );
+      }
+
       const protocol = multiProvider.getProtocol(chain);
       const isEVMChain = isEVMLike(protocol);
 
@@ -343,10 +427,13 @@ export async function expandWarpDeployConfig(params: {
 
       if (isEVMChain && expandedOnChainWarpConfig?.[chain]?.ownerStatus) {
         // For 'active' or 'gnosis-safe', we set their actual state as the control because they are both acceptable.
-        // For other cases, we expect 'active'
+        // For other cases, we expect 'active'. Accepting an Inactive owner (e.g.
+        // a nonce-less governance ICA on Tron/AltVM) is a governance decision
+        // handled by the caller via `acceptedInactiveOwners` in
+        // `checkWarpRouteDeployConfig`, not here.
         chainConfig.ownerStatus = objMap(
           expandedOnChainWarpConfig[chain].ownerStatus ?? {},
-          (_, status) => {
+          (_ownerAddress, status) => {
             switch (status) {
               // Skipped for local e2e testing
               case OwnerStatus.Skipped:
@@ -625,36 +712,50 @@ const FIELDS_TO_IGNORE = new Set<keyof HypTokenRouterConfig>([
   'name',
 ]);
 
+// Nested LinearFee sub-fee owners are intentionally excluded from the warp
+// check. A LinearFee owner's only lever is setFee (bps), and bps is compared
+// directly, so its owner carries no additional security-relevant authority.
+// Collapsing nested LinearFee owners to a fixed sentinel on both sides of the
+// diff makes that owner drift invisible while the top-level RoutingFee owner
+// (which controls setFeeContract routing and claim) still diffs normally.
+//
+// OffchainQuotedLinearFee owners are NOT collapsed: that owner additionally
+// controls addQuoteSigner/removeQuoteSigner, a live pricing authority, so its
+// drift must remain visible and is always compared against the real owner.
+const IGNORED_SUB_FEE_OWNER = constants.AddressZero;
+
 function normalizeCrossCollateralFeeContractsForCheck(
   destinationConfig: Record<string, TokenFeeConfigInput>,
 ) {
   return Object.fromEntries(
     Object.entries(destinationConfig).map(([router, nestedFee]) => [
       router,
-      normalizeTokenFeeForCheck(nestedFee),
+      normalizeTokenFeeForCheck(nestedFee, true),
     ]),
   );
 }
 
 function normalizeTokenFeeForCheck(
   feeConfig: TokenFeeConfigInput | undefined,
+  isNested = false,
 ): TokenFeeConfigInput | undefined {
   if (!feeConfig) return feeConfig;
 
   const tokenConfig =
     'token' in feeConfig && feeConfig.token ? { token: feeConfig.token } : {};
+  const owner = isNested ? IGNORED_SUB_FEE_OWNER : feeConfig.owner;
 
   if (feeConfig.type === TokenFeeType.RoutingFee) {
     const normalizedFeeContracts = Object.fromEntries(
       Object.entries(feeConfig.feeContracts).map(([chain, nestedFee]) => [
         chain,
-        normalizeTokenFeeForCheck(nestedFee),
+        normalizeTokenFeeForCheck(nestedFee, true),
       ]),
     );
 
     return {
       type: TokenFeeType.RoutingFee,
-      owner: feeConfig.owner,
+      owner,
       ...tokenConfig,
       feeContracts: normalizedFeeContracts,
     };
@@ -671,12 +772,14 @@ function normalizeTokenFeeForCheck(
     );
     return {
       type: TokenFeeType.CrossCollateralRoutingFee,
-      owner: feeConfig.owner,
+      owner,
       feeContracts: normalizedFeeContracts,
     };
   }
 
   if (feeConfig.type === TokenFeeType.OffchainQuotedLinearFee) {
+    // OQLF owner controls quote-signer management, so compare the real owner
+    // even when nested rather than collapsing to the sentinel.
     return {
       type: feeConfig.type,
       owner: feeConfig.owner,
@@ -689,7 +792,7 @@ function normalizeTokenFeeForCheck(
   if (feeConfig.type === TokenFeeType.LinearFee) {
     return {
       type: feeConfig.type,
-      owner: feeConfig.owner,
+      owner,
       bps: feeConfig.bps,
       ...tokenConfig,
     };

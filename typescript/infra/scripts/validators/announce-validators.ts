@@ -3,7 +3,11 @@ import { ethers } from 'ethers';
 import { readFileSync } from 'fs';
 import * as path from 'path';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  ChainTechnicalStack,
+  GcpValidator,
+} from '@hyperlane-xyz/sdk';
 import { addBufferToGasLimit, assert } from '@hyperlane-xyz/utils';
 
 import { getChains } from '../../config/registry.js';
@@ -16,6 +20,8 @@ import {
   withContext,
 } from '../agent-utils.js';
 import { getHyperlaneCore } from '../core-utils.js';
+
+const SEISMIC_VALIDATOR_ANNOUNCE_GAS_LIMIT = ethers.BigNumber.from(500_000);
 
 function getArgs() {
   return withContext(getRootArgs())
@@ -52,6 +58,12 @@ async function main() {
         storageLocation: validator.storageLocation(),
         announcement: await validator.getSignedAnnouncement(),
       });
+    } else if (location.startsWith('gs://')) {
+      const validator = await GcpValidator.fromStorageLocation(location);
+      announcements.push({
+        storageLocation: validator.storageLocation(),
+        announcement: await validator.getSignedAnnouncement(),
+      });
     } else if (location.startsWith('file://')) {
       const announcementFilepath = path.join(
         location.substring(7),
@@ -80,26 +92,69 @@ async function main() {
           return isEthereumProtocolChain(validatorChain);
         })
         .map(async ([validatorChain, validatorChainConfig]) => {
-          for (const validatorBaseConfig of validatorChainConfig.validators) {
-            if (
+          const contracts = core.getContracts(validatorChain);
+          const localDomain = multiProvider.getDomainId(validatorChain);
+
+          for (const [
+            idx,
+            validatorBaseConfig,
+          ] of validatorChainConfig.validators.entries()) {
+            const validatorConfig = {
+              localDomain,
+              address: validatorBaseConfig.address,
+              mailbox: contracts.mailbox.address,
+            };
+
+            // createChainValidatorBaseConfigs always materializes an S3
+            // checkpointSyncer here regardless of context — the real
+            // deployed validator only switches to GCS at deploy time inside
+            // ValidatorConfigHelper#configForValidator, which this static
+            // config lookup never runs. So checkpointSyncer.type is never
+            // actually Gcs here; derive the GCS bucket/folder directly from
+            // agentConfig.gcp instead, mirroring #configForValidator's naming.
+            if (agentConfig.gcp) {
+              const bucketName = `${context}-${environment}-validator-${idx}`;
+              const validator = new GcpValidator(validatorConfig, {
+                bucket: bucketName,
+                folder: validatorChain,
+                caching: true,
+              });
+              const storageLocation = validator.storageLocation();
+              try {
+                announcements.push({
+                  storageLocation,
+                  announcement: await validator.getSignedAnnouncement(),
+                });
+                chains.push(validatorChain);
+              } catch (error) {
+                console.warn(
+                  chalk.yellow(
+                    `[${validatorChain}] No announcement at ${storageLocation}: ${error}`,
+                  ),
+                );
+              }
+            } else if (
               validatorBaseConfig.checkpointSyncer.type ==
               CheckpointSyncerType.S3
             ) {
-              const contracts = core.getContracts(validatorChain);
-              const localDomain = multiProvider.getDomainId(validatorChain);
               const validator = new InfraS3Validator(
-                {
-                  localDomain,
-                  address: validatorBaseConfig.address,
-                  mailbox: contracts.mailbox.address,
-                },
+                validatorConfig,
                 validatorBaseConfig.checkpointSyncer,
               );
-              announcements.push({
-                storageLocation: validator.storageLocation(),
-                announcement: await validator.getSignedAnnouncement(),
-              });
-              chains.push(validatorChain);
+              const storageLocation = validator.storageLocation();
+              try {
+                announcements.push({
+                  storageLocation,
+                  announcement: await validator.getSignedAnnouncement(),
+                });
+                chains.push(validatorChain);
+              } catch (error) {
+                console.warn(
+                  chalk.yellow(
+                    `[${validatorChain}] No announcement at ${storageLocation}: ${error}`,
+                  ),
+                );
+              }
             }
           }
         }),
@@ -136,14 +191,40 @@ async function main() {
             `[${chain}] Announcing ${address} checkpoints at ${location}`,
           ),
         );
-        const estimatedGas = await validatorAnnounce.estimateGas.announce(
-          address,
-          location,
-          signature,
-        );
-        await validatorAnnounce.announce(address, location, signature, {
-          gasLimit: addBufferToGasLimit(estimatedGas),
-          ...multiProvider.getTransactionOverrides(chain),
+        const populatedTx =
+          await validatorAnnounce.populateTransaction.announce(
+            address,
+            location,
+            signature,
+          );
+        const txReq = await multiProvider.prepareTx(chain, populatedTx);
+        let gasLimit: ethers.BigNumber;
+        try {
+          gasLimit = addBufferToGasLimit(
+            await multiProvider.getSigner(chain).estimateGas({
+              ...txReq,
+              gasLimit: undefined,
+              gasPrice: undefined,
+              maxPriorityFeePerGas: undefined,
+              maxFeePerGas: undefined,
+            }),
+          );
+        } catch (error) {
+          const metadata = multiProvider.getChainMetadata(chain);
+          if (metadata.technicalStack !== ChainTechnicalStack.Seismic) {
+            throw error;
+          }
+          console.warn(
+            chalk.yellow(
+              `[${chain}] Gas estimation failed on Seismic, using ${SEISMIC_VALIDATOR_ANNOUNCE_GAS_LIMIT.toString()} gas`,
+            ),
+          );
+          gasLimit = SEISMIC_VALIDATOR_ANNOUNCE_GAS_LIMIT;
+        }
+        await multiProvider.sendTransaction(chain, {
+          ...populatedTx,
+          gasLimit,
+          annotation: `[${chain}] Announcing validator ${address}`,
         });
       } else {
         console.log(

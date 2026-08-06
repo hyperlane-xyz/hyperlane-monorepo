@@ -1,3 +1,4 @@
+import type { TActivity } from '@turnkey/sdk-server';
 import { ethers } from 'ethers';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -10,6 +11,42 @@ import {
 } from '../turnkeyClient.js';
 
 const logger = rootLogger.child({ module: 'sdk:turnkey-evm' });
+
+/**
+ * Turnkey's `signRawPayload` returns r/s as bare 32-byte hex (no `0x` prefix).
+ * Validate the component is exactly 32 bytes (64 hex chars) after stripping any
+ * prefix and return it `0x`-prefixed for ethers.
+ */
+export function normalizeSignatureComponent(
+  label: string,
+  value: string,
+): string {
+  const stripped =
+    value.startsWith('0x') || value.startsWith('0X') ? value.slice(2) : value;
+  if (!/^[0-9a-fA-F]{64}$/.test(stripped)) {
+    throw new Error(`Invalid ${label} value from Turnkey`);
+  }
+  return `0x${stripped}`;
+}
+
+/**
+ * Lift Turnkey's recovery id into ethers' v space. Turnkey returns v as a hex
+ * recovery id ("00"/"01"); ethers v5 `joinSignature` expects 27/28, and
+ * misinterprets a bare 0/1. Values already in 27/28 form ("1b"/"1c") pass through
+ * unchanged. A non-hex/garbage v throws.
+ */
+export function normalizeRecoveryV(v: string): number {
+  const parsedV = parseInt(v, 16);
+  if (isNaN(parsedV)) {
+    throw new Error(`Invalid v value from Turnkey: ${v}`);
+  }
+  // Only a real recovery id is valid: 0/1 (Turnkey's form) → 27/28 (ethers'
+  // form), or an already-lifted 27/28. Reject anything else — a bad value
+  // would silently yield an unrecoverable signature rather than fail loudly.
+  if (parsedV === 0 || parsedV === 1) return parsedV + 27;
+  if (parsedV === 27 || parsedV === 28) return parsedV;
+  throw new Error(`Unsupported recovery id from Turnkey: ${v}`);
+}
 
 /**
  * Turnkey signer for EVM transactions
@@ -154,7 +191,6 @@ export class TurnkeyEvmSigner extends ethers.Signer {
           : message;
       const messageHash = ethers.utils.hashMessage(messageBytes);
 
-      // Sign raw payload using Turnkey
       const { activity, r, s, v } = await this.manager
         .getClient()
         .signRawPayload({
@@ -164,29 +200,102 @@ export class TurnkeyEvmSigner extends ethers.Signer {
           hashFunction: 'HASH_FUNCTION_NO_OP',
         });
 
-      validateTurnkeyActivityCompleted(activity, 'Message signing');
-
-      // Validate signature components
-      if (!r || !s || !v) {
-        throw new Error('Missing signature components from Turnkey');
-      }
-
-      const hexPattern = /^0x[0-9a-fA-F]+$/;
-      if (!hexPattern.test(r) || !hexPattern.test(s)) {
-        throw new Error('Invalid signature format from Turnkey');
-      }
-
-      const vNum = parseInt(v, 16);
-      if (isNaN(vNum)) {
-        throw new Error(`Invalid v value from Turnkey: ${v}`);
-      }
-
-      // Reconstruct the signature from r, s, v
-      return ethers.utils.joinSignature({ r, s, v: vNum });
+      return this.assembleSignature(activity, r, s, v, 'Message signing');
     } catch (error) {
       logTurnkeyError('Failed to sign message with Turnkey', error);
       throw error;
     }
+  }
+
+  /**
+   * EIP-712 typed-data signing per the ethers v5 Signer interface.
+   *
+   * Submits the full typed-data payload to Turnkey using
+   * `PAYLOAD_ENCODING_EIP712` (rather than hashing locally and submitting an
+   * opaque digest) so Turnkey policies can inspect the domain and message
+   * fields — e.g. a Safe proposal's `to`/`value`/`data`/`operation`/`nonce` —
+   * before authorizing the signature. Returns the canonical joined ECDSA
+   * signature that downstream consumers like Safe Transaction Service expect
+   * for typed-data sender signatures.
+   */
+  async _signTypedData(
+    domain: ethers.TypedDataDomain,
+    types: Record<string, Array<ethers.TypedDataField>>,
+    value: Record<string, unknown>,
+  ): Promise<string> {
+    logger.debug('Signing typed data with Turnkey');
+
+    try {
+      // Resolve ENS names in address-typed fields via the provider, mirroring
+      // ethers v5's own Wallet._signTypedData, before encoding the payload.
+      const populated = await ethers.utils._TypedDataEncoder.resolveNames(
+        domain,
+        types,
+        value,
+        (name: string) => {
+          if (this.provider == null) {
+            return Promise.reject(
+              new Error(`Cannot resolve ENS name "${name}" without a provider`),
+            );
+          }
+          return this.provider.resolveName(name).then((address) => {
+            if (address == null) {
+              throw new Error(`Unconfigured ENS name "${name}"`);
+            }
+            return address;
+          });
+        },
+      );
+
+      // Produce the standard EIP-712 JSON payload (types incl. EIP712Domain,
+      // primaryType, domain, message) that Turnkey decodes for policy checks.
+      const payload = ethers.utils._TypedDataEncoder.getPayload(
+        populated.domain,
+        types,
+        populated.value,
+      );
+
+      const { activity, r, s, v } = await this.manager
+        .getClient()
+        .signRawPayload({
+          signWith: this.address,
+          payload: JSON.stringify(payload),
+          encoding: 'PAYLOAD_ENCODING_EIP712',
+          hashFunction: 'HASH_FUNCTION_NO_OP',
+        });
+
+      return this.assembleSignature(activity, r, s, v, 'Typed-data signing');
+    } catch (error) {
+      logTurnkeyError('Failed to sign typed data with Turnkey', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Validate the Turnkey activity completed, ensure r/s/v are well-formed,
+   * and join them into ethers' canonical `0x{r}{s}{v}` ECDSA signature.
+   */
+  private assembleSignature(
+    activity: TActivity,
+    r: string | undefined,
+    s: string | undefined,
+    v: string | undefined,
+    operationType: string,
+  ): string {
+    validateTurnkeyActivityCompleted(activity, operationType);
+
+    if (!r || !s || !v) {
+      throw new Error('Missing signature components from Turnkey');
+    }
+
+    // Turnkey returns r/s as bare hex and v as a recovery id ("00"/"01"). Re-add
+    // the 0x prefix and lift the recovery id into ethers' 27/28 v space: ethers
+    // v5 `joinSignature` misinterprets a bare 0/1 as the wrong recoveryParam.
+    const rHex = normalizeSignatureComponent('r', r);
+    const sHex = normalizeSignatureComponent('s', s);
+    const recoveryV = normalizeRecoveryV(v);
+
+    return ethers.utils.joinSignature({ r: rHex, s: sHex, v: recoveryV });
   }
 
   /**

@@ -240,7 +240,12 @@ export function isValidAddress(address: Address, protocol?: ProtocolType) {
 export function normalizeAddressEvm(address: Address) {
   if (isZeroishAddress(address)) return address;
   try {
-    return ethersUtils.getAddress(address);
+    // Lowercase first so getAddress always recomputes the EIP-55 checksum
+    // instead of verifying the caller-supplied casing. A correctly-shaped
+    // address with a bad mixed-case checksum is then canonicalized rather than
+    // throwing (which otherwise surfaces deep inside ethers, e.g. mid ICA
+    // submission after deploys have already run).
+    return ethersUtils.getAddress(address.toLowerCase());
   } catch {
     return address;
   }

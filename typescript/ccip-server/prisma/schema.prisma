@@ -21,3 +21,14 @@ model Commitment {
   originDomain Int
   createdAt    DateTime @default(now())
 }
+
+model Calldata {
+  commitment         String   @id
+  originDomain       Int
+  data               String
+  salt               String
+  relayers           Json
+  destinationAccount String
+  revealAccounts     Json?
+  createdAt          DateTime @default(now())
+}

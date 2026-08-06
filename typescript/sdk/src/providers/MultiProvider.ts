@@ -122,7 +122,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   tryGetProvider(chainNameOrId: ChainNameOrId): Provider | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
-    const { name, chainId, rpcUrls, protocol, technicalStack } = metadata;
+    const { name, rpcUrls, protocol, technicalStack } = metadata;
 
     if (this.providers[name]) return this.providers[name];
 
@@ -137,14 +137,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       }
     } else if (rpcUrls.length) {
       if (technicalStack === ChainTechnicalStack.ZkSync) {
-        this.providers[name] = defaultZKProviderBuilder(rpcUrls, chainId);
+        this.providers[name] = defaultZKProviderBuilder(metadata);
       } else if (protocol === ProtocolType.Tron) {
-        this.providers[name] = defaultTronEthersProviderBuilder(
-          rpcUrls,
-          chainId,
-        );
+        this.providers[name] = defaultTronEthersProviderBuilder(metadata);
       } else {
-        this.providers[name] = this.providerBuilder(rpcUrls, chainId);
+        this.providers[name] = this.providerBuilder(metadata);
       }
     } else {
       return null;
@@ -395,7 +392,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   getTransactionOverrides(
     chainNameOrId: ChainNameOrId,
   ): Partial<providers.TransactionRequest> {
-    return this.getChainMetadata(chainNameOrId)?.transactionOverrides ?? {};
+    const { deploymentGasLimitFallback: _, ...overrides } =
+      this.getChainMetadata(chainNameOrId)?.transactionOverrides ?? {};
+    return overrides;
   }
 
   /**
@@ -437,10 +436,28 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       const contractFactory = resolved.connect(signer);
 
       const deployTx = contractFactory.getDeployTransaction(...params);
-      estimatedGas = await signer.estimateGas(deployTx);
+      const rawOverrides =
+        this.getChainMetadata(chainNameOrId)?.transactionOverrides ?? {};
+      let deployGasLimit: BigNumber;
+      try {
+        deployGasLimit = addBufferToGasLimit(
+          await signer.estimateGas(deployTx),
+        );
+      } catch (e) {
+        // Some chains have broken eth_estimateGas (e.g. ignoring `from`).
+        // Fall back to a deployment-specific override, then the general override.
+        const fallback =
+          rawOverrides.deploymentGasLimitFallback ?? overrides.gasLimit;
+        if (fallback != null) {
+          deployGasLimit = BigNumber.from(fallback);
+        } else {
+          throw e;
+        }
+      }
+      estimatedGas = deployGasLimit;
       contract = await contractFactory.deploy(...params, {
-        gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
+        gasLimit: deployGasLimit,
       });
       // manually wait for deploy tx to be confirmed
       assert(contract.deployTransaction, 'Deploy transaction missing');

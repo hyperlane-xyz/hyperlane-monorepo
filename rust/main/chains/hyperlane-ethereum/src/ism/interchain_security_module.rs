@@ -25,7 +25,7 @@ use crate::interfaces::i_interchain_security_module::{
 use crate::interfaces::i_rate_limited_ism::IRateLimitedIsm;
 use crate::interfaces::i_routing_ism::IRoutingIsm;
 use crate::interfaces::i_trusted_relayer_ism::ITrustedRelayerIsm;
-use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
+use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, SignerRequirement};
 
 pub struct InterchainSecurityModuleBuilder {}
 
@@ -33,6 +33,7 @@ pub struct InterchainSecurityModuleBuilder {}
 impl BuildableWithProvider for InterchainSecurityModuleBuilder {
     type Output = Box<dyn InterchainSecurityModule>;
     const NEEDS_SIGNER: bool = true;
+    const SIGNER_REQUIREMENT: SignerRequirement = SignerRequirement::Sender;
 
     fn uses_ethers_submission_middleware(&self) -> bool {
         false

@@ -57,6 +57,35 @@ describe('core', async () => {
       contracts = await deployer.deploy(coreConfig);
     });
 
+    it('recovers a Mailbox owned by its configured owner override', async () => {
+      const [, topLevelOwner, mailboxOwner] = await hre.ethers.getSigners();
+      const chain = TestChainName.test1;
+      const config: ChainMap<CoreConfig> = {
+        [chain]: {
+          ...coreConfig[chain],
+          owner: topLevelOwner.address,
+          ownerOverrides: {
+            ...coreConfig[chain].ownerOverrides,
+            mailbox: mailboxOwner.address,
+          },
+        },
+      };
+      const ownerOverrideDeployer = new HyperlaneCoreDeployer(
+        multiProvider,
+        ismFactory,
+      );
+
+      const initial = await ownerOverrideDeployer.deploy(config);
+      const recovered = await ownerOverrideDeployer.deploy(config);
+
+      expect(recovered[chain].mailbox.address).to.equal(
+        initial[chain].mailbox.address,
+      );
+      expect(await recovered[chain].mailbox.owner()).to.equal(
+        mailboxOwner.address,
+      );
+    });
+
     it('rotates default and required hooks and recovers artifacts', async () => {
       const getHooks = async (
         contracts: HyperlaneContractsMap<CoreFactories>,
@@ -298,6 +327,21 @@ describe('core', async () => {
         // expect(e.message).to.include('Timed out in 1ms');
       }
     });
+  });
+
+  it('omits quotedCalls when disabled', async () => {
+    const deployerWithoutQuotedCalls = new HyperlaneCoreDeployer(
+      multiProvider,
+      ismFactory,
+    );
+    const [chain] = testChains;
+
+    const result = await deployerWithoutQuotedCalls.deployContracts(chain, {
+      ...coreConfig[chain],
+      deployQuotedCalls: false,
+    });
+
+    expect(result).not.to.have.property('quotedCalls');
   });
 
   it('checks', async () => {

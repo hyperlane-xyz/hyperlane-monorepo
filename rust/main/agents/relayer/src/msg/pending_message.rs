@@ -54,6 +54,9 @@ pub const INVALIDATE_CACHE_METADATA_LOG: &str = "Invalidating cached metadata";
 pub const ISM_MAX_DEPTH: u32 = 13;
 pub const ISM_MAX_COUNT: u32 = 100;
 
+const VALIDATOR_SIGNATURE_FAST_RETRY_INTERVAL: Duration = Duration::from_secs(2);
+const VALIDATOR_SIGNATURE_FAST_RETRY_MAX: u32 = 3;
+
 /// Revert string emitted by the ICA router when the originating commit has not
 /// yet been confirmed on-chain. There is no typed error variant for this today —
 /// it is an opaque on-chain revert string — so Display-format substring matching
@@ -283,6 +286,7 @@ impl PendingOperation for PendingMessage {
         };
         if is_already_delivered {
             debug!("Message has already been delivered, marking as submitted.");
+            self.ctx.destination_mailbox.on_delivered(&self.message);
             self.submitted = true;
             self.set_next_attempt_after(CONFIRM_DELAY);
             return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted);
@@ -496,6 +500,9 @@ impl PendingOperation for PendingMessage {
         match tx_outcome {
             Ok(outcome) => {
                 self.set_operation_outcome(outcome, state.gas_limit).await;
+                self.ctx
+                    .destination_mailbox
+                    .on_submitted_success(&self.message);
                 PendingOperationResult::Confirm(ConfirmReason::SubmittedBySelf)
             }
             Err(e) => {
@@ -536,6 +543,7 @@ impl PendingOperation for PendingMessage {
                 return self
                     .on_reconfirm(Some(err), "Error when recording message process success");
             }
+            self.ctx.destination_mailbox.on_delivered(&self.message);
             info!(
                 submission=?self.submission_outcome,
                 "Message successfully processed"
@@ -624,6 +632,12 @@ impl PendingOperation for PendingMessage {
         Some(self.ctx.destination_mailbox.clone())
     }
 
+    fn on_submitted_success(&self) {
+        self.ctx
+            .destination_mailbox
+            .on_submitted_success(&self.message);
+    }
+
     fn get_metric(&self) -> Option<Arc<IntGauge>> {
         self.metric.clone()
     }
@@ -671,9 +685,14 @@ impl PendingMessage {
     ) -> Option<Self> {
         let num_retries = Self::get_retries_or_skip(ctx.origin_db.clone(), &message, max_retries)?;
         let message_status = Self::get_message_status(ctx.origin_db.clone(), &message);
+        let reprepare_reason = match &message_status {
+            PendingOperationStatus::Retry(r) => Some(r.clone()),
+            _ => None,
+        };
         let mut pending_message = Self::new(message, ctx, message_status, app_context, max_retries);
         if num_retries > 0 {
-            let next_attempt_after = Self::next_attempt_after(num_retries, max_retries);
+            let next_attempt_after =
+                Self::next_attempt_after(num_retries, max_retries, reprepare_reason.as_ref());
             pending_message.num_retries = num_retries;
             pending_message.next_attempt_after = next_attempt_after;
         }
@@ -688,8 +707,12 @@ impl PendingMessage {
         self
     }
 
-    fn next_attempt_after(num_retries: u32, max_retries: u32) -> Option<Instant> {
-        PendingMessage::calculate_msg_backoff(num_retries, max_retries, None)
+    fn next_attempt_after(
+        num_retries: u32,
+        max_retries: u32,
+        reason: Option<&ReprepareReason>,
+    ) -> Option<Instant> {
+        PendingMessage::calculate_msg_backoff(num_retries, max_retries, None, reason)
             .and_then(|dur| Instant::now().checked_add(dur))
     }
 
@@ -727,16 +750,11 @@ impl PendingMessage {
         if let Ok(Some(status)) = origin_db.retrieve_status_by_message_id(&message.id()) {
             // This event is used for E2E tests to ensure message statuses
             // are being properly loaded from the db
-            tracing::event!(
-                if cfg!(feature = "test-utils") {
-                    Level::DEBUG
-                } else {
-                    Level::TRACE
-                },
-                ?status,
-                id=?message.id(),
-                RETRIEVED_MESSAGE_LOG,
-            );
+            if cfg!(feature = "test-utils") {
+                tracing::event!(Level::DEBUG, ?status, id=?message.id(), RETRIEVED_MESSAGE_LOG);
+            } else {
+                tracing::event!(Level::TRACE, ?status, id=?message.id(), RETRIEVED_MESSAGE_LOG);
+            }
             return status;
         }
 
@@ -964,7 +982,7 @@ impl PendingMessage {
         err: Option<E>,
         reason: ReprepareReason,
     ) -> PendingOperationResult {
-        self.inc_attempts();
+        self.inc_attempts(Some(&reason));
         self.submitted = false;
         if let Some(e) = err {
             warn!(error = ?e, "Repreparing message: {}", reason.clone());
@@ -988,7 +1006,7 @@ impl PendingMessage {
     }
 
     fn on_reconfirm<E: Debug>(&mut self, err: Option<E>, reason: &str) -> PendingOperationResult {
-        self.inc_attempts();
+        self.inc_attempts(None);
         if let Some(e) = err {
             warn!(error = ?e, id = ?self.id(), "Reconfirming message: {}", reason);
         } else {
@@ -1018,13 +1036,14 @@ impl PendingMessage {
         self.last_attempted_at = Instant::now();
     }
 
-    fn inc_attempts(&mut self) {
+    fn inc_attempts(&mut self, reason: Option<&ReprepareReason>) {
         self.set_retries(self.num_retries.saturating_add(1));
         self.last_attempted_at = Instant::now();
         self.next_attempt_after = PendingMessage::calculate_msg_backoff(
             self.num_retries,
             self.max_retries,
             Some(self.message.id()),
+            reason,
         )
         .and_then(|dur| self.last_attempted_at.checked_add(dur));
     }
@@ -1051,7 +1070,29 @@ impl PendingMessage {
         num_retries: u32,
         max_retries: u32,
         message_id: Option<H256>,
+        reason: Option<&ReprepareReason>,
     ) -> Option<Duration> {
+        // Signatures are simply not yet available (validator hasn't signed past the reorg
+        // period yet). Use a short 2s fast-path so the relayer can pick them up promptly
+        // without repeatedly rebuilding aggregation metadata for up to 20 seconds. Note:
+        // num_retries is the total persisted retry counter across all reasons, not a
+        // per-reason count.
+        //
+        // After the fast-path budget is spent, restart the normal gentle ramp (5s→10s→30s…)
+        // from the beginning rather than landing mid-table at the 3-min arm.
+        if matches!(reason, Some(ReprepareReason::AwaitingValidatorSignatures)) {
+            if (1..=VALIDATOR_SIGNATURE_FAST_RETRY_MAX).contains(&num_retries) {
+                return Some(VALIDATOR_SIGNATURE_FAST_RETRY_INTERVAL);
+            }
+            // Offset retries so the first retry after the fast path resumes the normal ramp.
+            // Pass reason=None to avoid recursing into this branch again.
+            return Self::calculate_msg_backoff(
+                num_retries.saturating_sub(VALIDATOR_SIGNATURE_FAST_RETRY_MAX),
+                max_retries,
+                message_id,
+                None,
+            );
+        }
         Some(Duration::from_secs(match num_retries {
             i if i < 1 => return None,
             1 => 5,
@@ -1149,6 +1190,9 @@ impl PendingMessage {
             MetadataBuildError::CouldNotFetch => {
                 self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata)
             }
+            MetadataBuildError::AwaitingValidatorSignatures => {
+                self.on_reprepare::<String>(None, ReprepareReason::AwaitingValidatorSignatures)
+            }
             // If the metadata building is refused, we still allow it to be retried later.
             MetadataBuildError::Refused(reason) => {
                 warn!(?reason, "Metadata building refused");
@@ -1219,7 +1263,7 @@ mod test {
 
     use crate::test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder};
 
-    use super::{PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES};
+    use super::{PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES, VALIDATOR_SIGNATURE_FAST_RETRY_MAX};
 
     #[test]
     fn test_calculate_msg_backoff_does_not_overflow() {
@@ -1237,6 +1281,7 @@ mod test {
         let next_prepare_attempt = PendingMessage::next_attempt_after(
             DEFAULT_MAX_MESSAGE_RETRIES,
             DEFAULT_MAX_MESSAGE_RETRIES,
+            None,
         )
         .unwrap();
 
@@ -1281,7 +1326,7 @@ mod test {
 
         // Intentionally only up to 50 because after that we add some randomness that'll cause this test to flake
         for i in 0..=50 {
-            let backoff_duration = PendingMessage::calculate_msg_backoff(i, u32::MAX, None)
+            let backoff_duration = PendingMessage::calculate_msg_backoff(i, u32::MAX, None, None)
                 .unwrap_or(Duration::from_secs(0));
             // Uncomment to show the impact of changes to the backoff duration:
 
@@ -1325,13 +1370,63 @@ mod test {
         assert_eq!(num_retries, expected_retries);
     }
 
+    #[test]
+    fn test_awaiting_validator_signatures_backoff() {
+        let reason = ReprepareReason::AwaitingValidatorSignatures;
+
+        // Fast path: the bounded initial retries always return 2s.
+        for i in 1..=VALIDATOR_SIGNATURE_FAST_RETRY_MAX {
+            assert_eq!(
+                PendingMessage::calculate_msg_backoff(
+                    i,
+                    DEFAULT_MAX_MESSAGE_RETRIES,
+                    None,
+                    Some(&reason)
+                ),
+                Some(Duration::from_secs(2)),
+                "retry {i} should be 2s"
+            );
+        }
+
+        // After the fast path, resume the gentle ramp from its first step.
+        let first_normal_retry = VALIDATOR_SIGNATURE_FAST_RETRY_MAX.saturating_add(1);
+        assert_eq!(
+            PendingMessage::calculate_msg_backoff(
+                first_normal_retry,
+                DEFAULT_MAX_MESSAGE_RETRIES,
+                None,
+                Some(&reason)
+            ),
+            Some(Duration::from_secs(5)),
+            "first retry after the fast path should resume the normal ramp at 5s"
+        );
+        assert_eq!(
+            PendingMessage::calculate_msg_backoff(
+                first_normal_retry.saturating_add(1),
+                DEFAULT_MAX_MESSAGE_RETRIES,
+                None,
+                Some(&reason)
+            ),
+            Some(Duration::from_secs(10)),
+        );
+        assert_eq!(
+            PendingMessage::calculate_msg_backoff(
+                first_normal_retry.saturating_add(2),
+                DEFAULT_MAX_MESSAGE_RETRIES,
+                None,
+                Some(&reason)
+            ),
+            Some(Duration::from_secs(30)),
+        );
+    }
+
     /// Make sure DEFAULT_MAX_MESSAGE_RETRIES takes around 2 weeks to reach
     /// so that messages doesn't getting dropped earlier than expected
     #[test]
     fn check_default_max_message_retries() {
         let total_backoff_duration: Duration = (0..DEFAULT_MAX_MESSAGE_RETRIES)
             .filter_map(|i| {
-                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None)
+                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None, None)
             })
             .sum();
 
@@ -1362,7 +1457,7 @@ mod test {
     fn check_ccip_retry() {
         let backoff_durations: Vec<Duration> = (0..DEFAULT_MAX_MESSAGE_RETRIES)
             .filter_map(|i| {
-                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None)
+                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None, None)
             })
             .collect();
 

@@ -13,6 +13,7 @@ use hyperlane_core::{
     HyperlaneMessage, InterchainSecurityModule, Mailbox, MultisigIsm, RoutingIsm, H256, H512,
 };
 use hyperlane_ethereum::Signers;
+use hyperlane_sealevel::SealevelCompositeIsm;
 use hyperlane_test::mocks::MockMailboxContract;
 
 use crate::{
@@ -242,6 +243,12 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
             .unwrap()
             .pop_front()
             .expect("No mock build_ccip_read_ism response set")
+    }
+    async fn build_sealevel_composite_ism(
+        &self,
+        _address: H256,
+    ) -> eyre::Result<Arc<SealevelCompositeIsm>> {
+        unimplemented!("SealevelCompositeIsm not mocked")
     }
     async fn build_checkpoint_syncer(
         &self,

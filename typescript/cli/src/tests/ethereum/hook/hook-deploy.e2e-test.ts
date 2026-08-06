@@ -5,7 +5,7 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
-import { hyperlaneHookDeploy } from '../../commands/hook.js';
+import { HyperlaneE2EHookTestCommands } from '../../commands/hook.js';
 import {
   ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
@@ -30,6 +30,11 @@ describe('hyperlane hook deploy e2e tests (EVM)', async function () {
     CORE_CONFIG_PATH,
     CORE_READ_CONFIG_PATH_2,
   );
+  const hyperlaneHook = new HyperlaneE2EHookTestCommands(
+    ProtocolType.Ethereum,
+    CHAIN_NAME_2,
+    REGISTRY_PATH,
+  );
 
   before(async () => {
     await hyperlaneCore.deployOrUseExistingCore(ANVIL_KEY);
@@ -44,13 +49,11 @@ describe('hyperlane hook deploy e2e tests (EVM)', async function () {
       owner: ANVIL_DEPLOYER_ADDRESS,
     });
 
-    const output = await hyperlaneHookDeploy({
-      chain: CHAIN_NAME_2,
-      configPath: HOOK_CONFIG_PATH,
-      keyFlags: ['--key', ANVIL_KEY],
-      registryPath: REGISTRY_PATH,
-      outPath: HOOK_OUTPUT_PATH,
-    });
+    const output = await hyperlaneHook.deploy(
+      ANVIL_KEY,
+      HOOK_CONFIG_PATH,
+      HOOK_OUTPUT_PATH,
+    );
 
     expect(output.exitCode).to.equal(0);
     expect(output.stdout).to.include('Hook deployed successfully');

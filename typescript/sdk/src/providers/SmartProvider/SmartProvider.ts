@@ -20,8 +20,10 @@ import {
 import { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
 import { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
 import { IProviderMethods, ProviderMethod } from './ProviderMethods.js';
+import { getMultiAddressLogs, isMultiAddressFilter } from './logFilters.js';
 import {
   ChainMetadataWithRpcConnectionInfo,
+  HyperlaneLogFilter,
   ProviderPerformResult,
   ProviderStatus,
   ProviderTimeoutResult,
@@ -104,6 +106,72 @@ type HyperlaneProvider = HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider;
 
 function getErrorMessage(error: unknown): string | undefined {
   return error instanceof Error ? error.message : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function getRecord(value: unknown): Record<string, unknown> | undefined {
+  return isRecord(value) ? value : undefined;
+}
+
+function getJsonRpcErrorCode(value: unknown): number | string | undefined {
+  if (!isRecord(value)) return undefined;
+  const code = value.code;
+  return typeof code === 'number' || typeof code === 'string'
+    ? code
+    : undefined;
+}
+
+function getJsonRpcErrorMessage(value: unknown): string | undefined {
+  if (!isRecord(value)) return undefined;
+  return typeof value.message === 'string' ? value.message : undefined;
+}
+
+function parseJsonRpcErrorBody(body: unknown): {
+  code?: number | string;
+  message?: string;
+} {
+  if (typeof body !== 'string') return {};
+  try {
+    const parsed = getRecord(JSON.parse(body));
+    const error = getRecord(parsed?.error);
+    return {
+      code: getJsonRpcErrorCode(error),
+      message: getJsonRpcErrorMessage(error),
+    };
+  } catch {
+    return {};
+  }
+}
+
+function getNestedJsonRpcError(error: unknown): {
+  code?: number | string;
+  message?: string;
+} {
+  const nested = getRecord(getRecord(error)?.error);
+  const nestedError = getRecord(nested?.error);
+  const nestedBody = parseJsonRpcErrorBody(nested?.body);
+  return {
+    code:
+      getJsonRpcErrorCode(nestedError) ??
+      getJsonRpcErrorCode(nested) ??
+      nestedBody.code,
+    message:
+      getJsonRpcErrorMessage(nestedError) ??
+      getJsonRpcErrorMessage(nested) ??
+      nestedBody.message,
+  };
+}
+
+function isCallExceptionWithTransientRpcError(error: unknown): boolean {
+  const record = getRecord(error);
+  if (record?.code !== EthersError.CALL_EXCEPTION) return false;
+  const hasRevertData = !!record.data && record.data !== '0x';
+  const nestedError = record.error;
+  const jsonRpcErrorCode = getNestedJsonRpcError(error).code;
+  return !!nestedError && !hasRevertData && jsonRpcErrorCode !== 3;
 }
 
 function errorChainHasMessage(error: unknown, message: string): boolean {
@@ -295,11 +363,20 @@ export class HyperlaneSmartProvider
     const allProviders = [...this.explorerProviders, ...this.rpcProviders];
     if (!allProviders.length) throw new Error('No providers available');
 
-    const supportedProviders = allProviders.filter((p) =>
-      p.supportedMethods.includes(method as ProviderMethod),
+    const isMultiAddressGetLogs =
+      method === ProviderMethod.GetLogs &&
+      Array.isArray(params?.filter?.address);
+    const supportedProviders = allProviders.filter(
+      (provider) =>
+        provider.supportedMethods.includes(method as ProviderMethod) &&
+        (!isMultiAddressGetLogs || !this.isExplorerProvider(provider)),
     );
     if (!supportedProviders.length)
-      throw new Error(`No providers available for method ${method}`);
+      throw new Error(
+        isMultiAddressGetLogs
+          ? 'No RPC providers available for multi-address getLogs'
+          : `No providers available for method ${method}`,
+      );
 
     this.requestCount += 1;
     const reqId = this.requestCount;
@@ -319,6 +396,16 @@ export class HyperlaneSmartProvider
       this.options?.maxRetries || DEFAULT_MAX_RETRIES,
       this.options?.baseRetryDelayMs || DEFAULT_BASE_RETRY_DELAY_MS,
     );
+  }
+
+  override async getLogs(
+    filter: HyperlaneLogFilter | Promise<HyperlaneLogFilter>,
+  ): Promise<providers.Log[]> {
+    const resolvedFilter = await filter;
+    if (!isMultiAddressFilter(resolvedFilter)) {
+      return super.getLogs(resolvedFilter);
+    }
+    return getMultiAddressLogs(this, resolvedFilter);
   }
 
   /**
@@ -444,24 +531,8 @@ export class HyperlaneSmartProvider
           // 3. Empty return data decode failure - permanent (no nested error, ethers failed to decode "0x")
           // 4. Actual RPC issue - transient (has nested error but not code 3)
           const errorCode = (result.error as any)?.code;
-          const revertData = (result.error as any)?.data;
-          const hasRevertData = !!revertData && revertData !== '0x';
-          const nestedError = (result.error as any)?.error;
-          // JSON-RPC error code 3 definitively indicates execution revert (EIP-1474)
-          // Check both nested levels as ethers wraps errors in error.error.code structure
-          const jsonRpcErrorCode =
-            nestedError?.error?.code ?? nestedError?.code;
-          const isJsonRpcRevert = jsonRpcErrorCode === 3;
-          // No nested error means ethers failed to decode empty return data - this is permanent
-          const isEmptyReturnDecodeFailure =
-            errorCode === EthersError.CALL_EXCEPTION &&
-            !hasRevertData &&
-            !nestedError;
           const isCallExceptionWithoutData =
-            errorCode === EthersError.CALL_EXCEPTION &&
-            !hasRevertData &&
-            !isJsonRpcRevert &&
-            !isEmptyReturnDecodeFailure;
+            isCallExceptionWithTransientRpcError(result.error);
           const isPermanentBlockchainError =
             RPC_BLOCKCHAIN_ERRORS.includes(errorCode) &&
             !isCallExceptionWithoutData;
@@ -620,25 +691,30 @@ export class HyperlaneSmartProvider
     // However, JSON-RPC error code 3 definitively indicates a contract revert (EIP-1474)
     // Also, no nested error means ethers failed to decode empty return data - also permanent
     const rpcBlockchainError = errors.find((e) => {
-      if (!RPC_BLOCKCHAIN_ERRORS.includes(e.code)) return false;
-      if (e.code !== EthersError.CALL_EXCEPTION) return true;
+      const errorCode = e?.code;
+      if (!errorCode || !RPC_BLOCKCHAIN_ERRORS.includes(errorCode)) {
+        return false;
+      }
+      if (errorCode !== EthersError.CALL_EXCEPTION) return true;
       // For CALL_EXCEPTION, check if it's a real revert or decode failure
       const hasRevertData = !!e.data && e.data !== '0x';
-      // Check for JSON-RPC error code 3 (nested in error.error.code by ethers)
-      // Also check shallower level as error nesting varies
-      const jsonRpcErrorCode = e.error?.error?.code ?? e.error?.code;
+      // Check for JSON-RPC error code 3. Ethers nesting varies and some
+      // providers put the JSON-RPC error only in the response body.
+      const jsonRpcErrorCode = getNestedJsonRpcError(e).code;
       const isJsonRpcRevert = jsonRpcErrorCode === 3;
       // No nested error means ethers failed to decode empty return data - permanent
       const isEmptyReturnDecodeFailure = !e.error;
       return hasRevertData || isJsonRpcRevert || isEmptyReturnDecodeFailure;
     });
 
-    const rpcServerError = errors.find((e) =>
-      RPC_SERVER_ERRORS.includes(e.code),
+    const rpcServerError = errors.find(
+      (e) =>
+        (e?.code ? RPC_SERVER_ERRORS.includes(e.code) : false) ||
+        isCallExceptionWithTransientRpcError(e),
     );
 
     const timedOutError = errors.find(
-      (e) => e.status === ProviderStatus.Timeout,
+      (e) => e?.status === ProviderStatus.Timeout,
     );
 
     if (rpcBlockchainError) {
@@ -654,7 +730,8 @@ export class HyperlaneSmartProvider
       return class extends Error {
         constructor() {
           super(
-            rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
+            getNestedJsonRpcError(rpcServerError).message ??
+              rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
               getSmartProviderErrorMessage(rpcServerError.code),
             { cause: rpcServerError },
           );

@@ -1,14 +1,19 @@
 import { expect } from 'chai';
-import { errors as EthersError, providers } from 'ethers';
+import { errors as EthersError, providers, utils } from 'ethers';
+import sinon from 'sinon';
 
 import {
   AllProviderMethods,
   IProviderMethods,
   ProviderMethod,
 } from './ProviderMethods.js';
-import type { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
+import { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
 import type { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
-import { BlockchainError, HyperlaneSmartProvider } from './SmartProvider.js';
+import {
+  BlockchainError,
+  getSmartProviderErrorMessage,
+  HyperlaneSmartProvider,
+} from './SmartProvider.js';
 import { ProviderStatus } from './types.js';
 import { isMissingSelectorCallException } from '../../utils/contract.js';
 
@@ -125,13 +130,23 @@ class ProviderError extends Error {
   public readonly reason: string;
   public readonly code: string;
   public readonly data?: string;
-  public readonly error?: { error?: { code?: number } };
+  public readonly error?: {
+    code?: string;
+    message?: string;
+    body?: string;
+    error?: { code?: number; message?: string };
+  };
 
   constructor(
     message: string,
     code: string,
     data?: string,
-    options?: { jsonRpcErrorCode?: number; hasNestedError?: boolean },
+    options?: {
+      jsonRpcErrorCode?: number;
+      jsonRpcErrorMessage?: string;
+      hasNestedError?: boolean;
+      nestedBody?: string;
+    },
   ) {
     super(message);
     this.reason = message;
@@ -139,10 +154,15 @@ class ProviderError extends Error {
     this.data = data;
     // Simulate ethers nested error structure for JSON-RPC errors
     if (options?.jsonRpcErrorCode !== undefined) {
-      this.error = { error: { code: options.jsonRpcErrorCode } };
+      this.error = {
+        error: {
+          code: options.jsonRpcErrorCode,
+          message: options.jsonRpcErrorMessage,
+        },
+      };
     } else if (options?.hasNestedError) {
       // Has nested error but no JSON-RPC code (e.g., RPC connection issue)
-      this.error = { error: {} };
+      this.error = { error: {}, body: options.nestedBody };
     }
     // If neither is set, error remains undefined (empty return decode failure)
   }
@@ -287,6 +307,249 @@ describe('SmartProvider', () => {
     });
   });
 
+  describe('multi-address getLogs', () => {
+    const addresses = [
+      '0x0000000000000000000000000000000000000001',
+      '0x0000000000000000000000000000000000000002',
+    ];
+    const rawLog = {
+      address: addresses[1],
+      blockHash: `0x${'1'.repeat(64)}`,
+      blockNumber: '0x2',
+      data: '0x',
+      logIndex: '0x0',
+      topics: [`0x${'2'.repeat(64)}`],
+      transactionHash: `0x${'3'.repeat(64)}`,
+      transactionIndex: '0x0',
+    };
+
+    afterEach(() => sinon.restore());
+
+    it('preserves retry, fallback, and formatted log behavior', async () => {
+      const filters: providers.Filter[] = [];
+      sinon
+        .stub(providers.JsonRpcProvider.prototype, 'perform')
+        .callsFake(async function (
+          this: providers.JsonRpcProvider,
+          method: string,
+          params: { filter?: providers.Filter },
+        ) {
+          if (method !== ProviderMethod.GetLogs) {
+            throw new Error(`Unexpected method ${method}`);
+          }
+          if (!params.filter) throw new Error('Missing log filter');
+          filters.push(params.filter);
+          if (this.connection.url === 'http://provider1') {
+            throw new ProviderError('server error', EthersError.SERVER_ERROR);
+          }
+          return [rawLog];
+        });
+      const smartProvider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: 'http://provider1' }, { http: 'http://provider2' }],
+        [],
+        { fallbackStaggerMs: 5 },
+      );
+
+      const logs = await smartProvider.getLogs({ address: addresses });
+
+      expect(filters).to.have.length(2);
+      expect(filters.map((filter) => filter.address)).to.deep.equal([
+        addresses,
+        addresses,
+      ]);
+      expect(logs).to.deep.equal([
+        {
+          ...rawLog,
+          address: utils.getAddress(rawLog.address),
+          blockNumber: 2,
+          logIndex: 0,
+          removed: false,
+          transactionIndex: 0,
+        },
+      ]);
+    });
+
+    it('deterministically excludes explorer providers', async () => {
+      const explorerPerform = sinon.stub(
+        HyperlaneEtherscanProvider.prototype,
+        'perform',
+      );
+      sinon
+        .stub(providers.JsonRpcProvider.prototype, 'perform')
+        .withArgs(ProviderMethod.GetLogs)
+        .resolves([]);
+      const smartProvider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: 'http://provider' }],
+        [
+          {
+            name: 'test explorer',
+            url: 'https://explorer.test',
+            apiUrl: 'https://explorer.test/api',
+          },
+        ],
+      );
+
+      await smartProvider.getLogs({ address: addresses });
+
+      expect(explorerPerform.called).to.be.false;
+    });
+
+    it('falls back from a slow primary without changing the filter', async () => {
+      const requests: Array<{ url: string; filter: providers.Filter }> = [];
+      sinon
+        .stub(providers.JsonRpcProvider.prototype, 'perform')
+        .callsFake(async function (
+          this: providers.JsonRpcProvider,
+          method: string,
+          params: { filter: providers.Filter },
+        ) {
+          if (method !== ProviderMethod.GetLogs) {
+            throw new Error(`Unexpected method ${method}`);
+          }
+          requests.push({ url: this.connection.url, filter: params.filter });
+          if (this.connection.url === 'http://provider1') {
+            await new Promise((resolve) => setTimeout(resolve, 20));
+          }
+          return [];
+        });
+      const smartProvider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: 'http://provider1' }, { http: 'http://provider2' }],
+        [],
+        { fallbackStaggerMs: 1 },
+      );
+
+      await smartProvider.getLogs({ address: addresses });
+
+      expect(requests.map(({ url }) => url)).to.deep.equal([
+        'http://provider1',
+        'http://provider2',
+      ]);
+      expect(requests.map(({ filter }) => filter.address)).to.deep.equal([
+        addresses,
+        addresses,
+      ]);
+    });
+
+    it('retries the identical filter after a recoverable provider failure', async () => {
+      const filters: providers.Filter[] = [];
+      sinon
+        .stub(providers.JsonRpcProvider.prototype, 'perform')
+        .callsFake(
+          async (method: string, params: { filter: providers.Filter }) => {
+            if (method !== ProviderMethod.GetLogs) {
+              throw new Error(`Unexpected method ${method}`);
+            }
+            filters.push(params.filter);
+            if (filters.length === 1) {
+              throw new ProviderError('server error', EthersError.SERVER_ERROR);
+            }
+            return [];
+          },
+        );
+      const smartProvider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: 'http://provider' }],
+        [],
+        { maxRetries: 2, baseRetryDelayMs: 1 },
+      );
+
+      await smartProvider.getLogs({ address: addresses });
+
+      expect(filters).to.have.length(2);
+      expect(filters.map((filter) => filter.address)).to.deep.equal([
+        addresses,
+        addresses,
+      ]);
+    });
+
+    it('fails closed when only explorer providers are configured', async () => {
+      const smartProvider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [],
+        [
+          {
+            name: 'test explorer',
+            url: 'https://explorer.test',
+            apiUrl: 'https://explorer.test/api',
+          },
+        ],
+      );
+
+      try {
+        await smartProvider.getLogs({ address: addresses });
+        expect.fail('Expected multi-address explorer request to fail');
+      } catch (error) {
+        if (!(error instanceof Error)) throw error;
+        expect(error.message).to.equal(
+          'No RPC providers available for multi-address getLogs',
+        );
+      }
+    });
+
+    it('rejects direct multi-address explorer requests', async () => {
+      const explorerProvider = new HyperlaneEtherscanProvider(
+        {
+          name: 'test explorer',
+          url: 'https://explorer.test',
+          apiUrl: 'https://explorer.test/api',
+          apiKey: 'test-key',
+        },
+        { chainId: 1, name: 'test' },
+      );
+
+      try {
+        await explorerProvider.perform(ProviderMethod.GetLogs, {
+          filter: { address: addresses },
+        });
+        expect.fail('Expected multi-address explorer request to fail');
+      } catch (error) {
+        if (!(error instanceof Error)) throw error;
+        expect(error.message).to.equal(
+          'Multi-address getLogs is not supported by explorer providers',
+        );
+      }
+    });
+  });
+
+  describe('Call "0x" failover', () => {
+    let performStub: sinon.SinonStub;
+
+    afterEach(() => {
+      performStub?.restore();
+    });
+
+    it('fails over to a second RPC when the first returns "0x" for a call (transient/flaky node)', async () => {
+      // Exercises the real HyperlaneJsonRpcProvider transport, not MockProvider:
+      // a spurious empty "0x" from one provider must not be trusted as a final
+      // answer when another provider returns real data (see #8792/#8910 — a
+      // genuine empty response is only trustworthy once every configured RPC
+      // agrees on it).
+      performStub = sinon
+        .stub(providers.JsonRpcProvider.prototype, 'perform')
+        .callsFake(function (this: providers.JsonRpcProvider, method: string) {
+          if (method !== 'call') return Promise.resolve('0x0');
+          const isFirstProvider = this.connection.url === 'http://provider1';
+          return Promise.resolve(isFirstProvider ? '0x' : '0x1234');
+        });
+
+      const smartProvider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: 'http://provider1' }, { http: 'http://provider2' }],
+        [],
+      );
+
+      const result = await smartProvider.call({
+        to: '0x0000000000000000000000000000000000000001',
+        data: '0x12345678',
+      });
+
+      expect(result).to.equal('0x1234');
+    });
+  });
+
   describe('getCombinedProviderError', () => {
     const blockchainErrorTestCases = [
       {
@@ -351,6 +614,26 @@ describe('SmartProvider', () => {
       expect(e.isRecoverable).to.be.undefined;
       expect(e.cause).to.equal(error);
       expect(e.cause.code).to.equal(EthersError.SERVER_ERROR);
+    });
+
+    it('ignores malformed errors when selecting SERVER_ERROR', () => {
+      const error = new ProviderError(
+        'connection refused',
+        EthersError.SERVER_ERROR,
+      );
+      const CombinedError = provider.testGetCombinedProviderError(
+        [null, error],
+        'Test fallback message',
+      );
+
+      const e: any = new CombinedError();
+
+      expect(e).to.be.instanceOf(Error);
+      expect(e).to.not.be.instanceOf(BlockchainError);
+      expect(e.cause).to.equal(error);
+      expect(e.message).to.equal(
+        getSmartProviderErrorMessage(EthersError.SERVER_ERROR),
+      );
     });
 
     it('throws regular Error for TIMEOUT (not BlockchainError)', () => {
@@ -450,8 +733,36 @@ describe('SmartProvider', () => {
       // With nested error but no code 3, this should NOT be a BlockchainError
       expect(e).to.be.instanceOf(Error);
       expect(e).to.not.be.instanceOf(BlockchainError);
-      // Falls through to generic error handler (unhandled case)
-      expect(e.message).to.equal('Test fallback message');
+      expect(e.message).to.equal(
+        getSmartProviderErrorMessage(EthersError.CALL_EXCEPTION),
+      );
+    });
+
+    it('surfaces nested provider message for CALL_EXCEPTION wrapping SERVER_ERROR body', () => {
+      const error = new ProviderError(
+        'missing revert data in call exception',
+        EthersError.CALL_EXCEPTION,
+        '0x',
+        {
+          hasNestedError: true,
+          nestedBody: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 331,
+            error: { code: -32000, message: 'header not found' },
+          }),
+        },
+      );
+      const CombinedError = provider.testGetCombinedProviderError(
+        [error],
+        'Test fallback message',
+      );
+
+      const e: any = new CombinedError();
+
+      expect(e).to.be.instanceOf(Error);
+      expect(e).to.not.be.instanceOf(BlockchainError);
+      expect(e.message).to.equal('header not found');
+      expect(e.cause).to.equal(error);
     });
 
     it('preserves unhandled provider errors as causes', () => {

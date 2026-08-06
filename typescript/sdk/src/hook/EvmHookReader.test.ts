@@ -18,29 +18,44 @@ import {
   MerkleTreeHook__factory,
   OPStackHook,
   OPStackHook__factory,
+  PackageVersioned,
+  PackageVersioned__factory,
   PausableHook,
   PausableHook__factory,
   ProtocolFee,
   ProtocolFee__factory,
+  StorageGasOracle,
+  StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
 import { WithAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName, test1 } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { missingSelectorError, networkError } from '../test/errors.js';
+import {
+  missingSelectorError,
+  networkError,
+  wrappedError,
+} from '../test/errors.js';
 import { randomAddress } from '../test/testUtils.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
 import {
   CCIPHookConfig,
   HookType,
+  IgpVersion,
   MailboxDefaultHookConfig,
   MerkleTreeHookConfig,
+  OFFCHAIN_QUOTED_IGP_VERSION,
   OnchainHookType,
   OpStackHookConfig,
   PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './types.js';
+
+// Message HyperlaneJsonRpcProvider emits for an empty eth_call result, which
+// isEmptyProviderResponse (utils/contract.ts) string-matches to detect a
+// missing-selector revert. Kept in one place so the coupling can't drift.
+const EMPTY_PROVIDER_RESPONSE_MESSAGE = 'Invalid response from provider';
 
 describe('EvmHookReader', () => {
   let evmHookReader: EvmHookReader;
@@ -56,6 +71,21 @@ describe('EvmHookReader', () => {
   afterEach(() => {
     sandbox.restore();
   });
+
+  // deriveIgpConfig reads PACKAGE_VERSION off PackageVersioned to decide whether
+  // an IGP is legacy (pre-quoteSigners). A version string stubs the read; an
+  // Error stubs the revert (missing selector => legacy, else propagates).
+  const stubIgpPackageVersion = (version: string | Error) => {
+    const packageVersion = sandbox.stub();
+    if (version instanceof Error) {
+      packageVersion.rejects(version);
+    } else {
+      packageVersion.resolves(version);
+    }
+    sandbox.stub(PackageVersioned__factory, 'connect').returns({
+      PACKAGE_VERSION: packageVersion,
+    } as unknown as PackageVersioned);
+  };
 
   it('should derive merkle tree config correctly', async () => {
     const mockAddress = randomAddress();
@@ -277,10 +307,11 @@ describe('EvmHookReader', () => {
     expect(thrown).to.equal(transientError);
   });
 
-  it('should not drop IGP quote signers on transient probe failures', async () => {
+  it('should propagate transient quoteSigners failures on a v2 IGP', async () => {
     const mockAddress = randomAddress();
     const transientError = networkError();
 
+    stubIgpPackageVersion(OFFCHAIN_QUOTED_IGP_VERSION);
     sandbox.stub(InterchainGasPaymaster__factory, 'connect').returns({
       hookType: sandbox
         .stub()
@@ -300,12 +331,74 @@ describe('EvmHookReader', () => {
     expect(thrown).to.equal(transientError);
   });
 
+  it('should propagate empty provider responses from quoteSigners on a v2 IGP', async () => {
+    const mockAddress = randomAddress();
+    const emptyProviderResponse = new Error(EMPTY_PROVIDER_RESPONSE_MESSAGE);
+
+    stubIgpPackageVersion(OFFCHAIN_QUOTED_IGP_VERSION);
+    sandbox.stub(InterchainGasPaymaster__factory, 'connect').returns({
+      hookType: sandbox
+        .stub()
+        .resolves(OnchainHookType.INTERCHAIN_GAS_PAYMASTER),
+      owner: sandbox.stub().resolves(randomAddress()),
+      beneficiary: sandbox.stub().resolves(randomAddress()),
+      quoteSigners: sandbox.stub().rejects(emptyProviderResponse),
+    } as unknown as InterchainGasPaymaster);
+
+    let thrown: unknown;
+    try {
+      await evmHookReader.deriveIgpConfig(mockAddress);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).to.equal(emptyProviderResponse);
+  });
+
+  it('should classify a legacy IGP when PACKAGE_VERSION revert is wrapped by the SmartProvider', async () => {
+    const mockAddress = randomAddress();
+    const owner = randomAddress();
+    const beneficiary = randomAddress();
+
+    // Real production shape: a legacy IGP's empty-data revert surfaces through
+    // HyperlaneSmartProvider as "All providers failed" whose cause chain is
+    // "Invalid response from provider" (never a CALL_EXCEPTION).
+    stubIgpPackageVersion(
+      wrappedError(new Error(EMPTY_PROVIDER_RESPONSE_MESSAGE)),
+    );
+    sandbox.stub(evmHookReader, 'possibleDomainIds').returns([]);
+    sandbox.stub(InterchainGasPaymaster__factory, 'connect').returns({
+      hookType: sandbox
+        .stub()
+        .resolves(OnchainHookType.INTERCHAIN_GAS_PAYMASTER),
+      owner: sandbox.stub().resolves(owner),
+      beneficiary: sandbox.stub().resolves(beneficiary),
+      quoteSigners: sandbox
+        .stub()
+        .rejects(new Error('quoteSigners must not be called on a legacy IGP')),
+    } as unknown as InterchainGasPaymaster);
+
+    const config = await evmHookReader.deriveIgpConfig(mockAddress);
+
+    expect(config).to.deep.equal({
+      owner,
+      address: mockAddress,
+      type: HookType.INTERCHAIN_GAS_PAYMASTER,
+      beneficiary,
+      igpVersion: IgpVersion.Legacy,
+      oracleKey: owner,
+      overhead: {},
+      oracleConfig: {},
+    });
+  });
+
   it('should still derive IGP config when a domain is unsupported', async () => {
     const mockAddress = randomAddress();
     const owner = randomAddress();
     const beneficiary = randomAddress();
     const domainId = test1.domainId;
 
+    stubIgpPackageVersion(missingSelectorError());
     sandbox.stub(evmHookReader, 'possibleDomainIds').returns([domainId]);
     sandbox.stub(InterchainGasPaymaster__factory, 'connect').returns({
       hookType: sandbox
@@ -313,7 +406,9 @@ describe('EvmHookReader', () => {
         .resolves(OnchainHookType.INTERCHAIN_GAS_PAYMASTER),
       owner: sandbox.stub().resolves(owner),
       beneficiary: sandbox.stub().resolves(beneficiary),
-      quoteSigners: sandbox.stub().rejects(missingSelectorError()),
+      quoteSigners: sandbox
+        .stub()
+        .rejects(new Error('quoteSigners must not be called on a legacy IGP')),
       getExchangeRateAndGasPrice: sandbox
         .stub()
         .rejects(
@@ -328,6 +423,7 @@ describe('EvmHookReader', () => {
       address: mockAddress,
       type: HookType.INTERCHAIN_GAS_PAYMASTER,
       beneficiary,
+      igpVersion: IgpVersion.Legacy,
       oracleKey: owner,
       overhead: {},
       oracleConfig: {},
@@ -379,6 +475,141 @@ describe('EvmHookReader', () => {
         `Failed to derive undefined hook (${mockAddress}):`,
       );
     }
+  });
+
+  it('should derive IGP config with tokenOracleConfig', async () => {
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
+    const mockBeneficiary = randomAddress();
+    const mockOracleAddress = randomAddress();
+    const feeToken = randomAddress();
+
+    stubIgpPackageVersion(missingSelectorError());
+    const mockIgp = {
+      hookType: sandbox
+        .stub()
+        .resolves(OnchainHookType.INTERCHAIN_GAS_PAYMASTER),
+      owner: sandbox.stub().resolves(mockOwner),
+      beneficiary: sandbox.stub().resolves(mockBeneficiary),
+      quoteSigners: sandbox
+        .stub()
+        .rejects(new Error('quoteSigners must not be called on a legacy IGP')),
+      getExchangeRateAndGasPrice: sandbox
+        .stub()
+        .callsFake((domainId: number) =>
+          Promise.reject(
+            new Error(`Configured IGP doesn't support domain ${domainId}`),
+          ),
+        ),
+      destinationGasLimit: sandbox.stub().resolves(ethers.BigNumber.from(0)),
+      destinationGasConfigs: sandbox.stub().resolves({
+        gasOracle: mockOracleAddress,
+        gasOverhead: ethers.BigNumber.from(0),
+      }),
+      tokenGasOracles: sandbox.stub(),
+    };
+
+    // tokenGasOracles returns zero for all domains except when feeToken matches
+    mockIgp.tokenGasOracles.resolves(ethers.constants.AddressZero);
+    // No configured domains for native oracle
+    mockIgp.getExchangeRateAndGasPrice.callsFake((domainId: number) =>
+      Promise.reject(
+        new Error(`Configured IGP doesn't support domain ${domainId}`),
+      ),
+    );
+
+    sandbox
+      .stub(InterchainGasPaymaster__factory, 'connect')
+      .returns(mockIgp as unknown as InterchainGasPaymaster);
+    sandbox
+      .stub(IPostDispatchHook__factory, 'connect')
+      .returns(mockIgp as unknown as IPostDispatchHook);
+
+    const mockOracle = {
+      owner: sandbox.stub().resolves(mockOwner),
+      remoteGasData: sandbox.stub().resolves({
+        tokenExchangeRate: ethers.BigNumber.from('15000000000'),
+        gasPrice: ethers.BigNumber.from('500000000'),
+      }),
+    };
+    sandbox
+      .stub(StorageGasOracle__factory, 'connect')
+      .returns(mockOracle as unknown as StorageGasOracle);
+
+    // No fee tokens provided - should not have tokenOracleConfig
+    const configNoTokens = await evmHookReader.deriveIgpConfig(mockAddress);
+    expect(configNoTokens.tokenOracleConfig).to.be.undefined;
+
+    // With fee tokens but all return zero address - should be undefined
+    const configZeroOracle = await evmHookReader.deriveIgpConfig(mockAddress, [
+      feeToken,
+    ]);
+    expect(configZeroOracle.tokenOracleConfig).to.be.undefined;
+  });
+
+  it('should populate tokenOracleConfig when tokenGasOracles returns non-zero oracle', async () => {
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
+    const mockBeneficiary = randomAddress();
+    const mockOracleAddress = randomAddress();
+    const feeToken = randomAddress();
+    const domainId = test1.domainId;
+
+    stubIgpPackageVersion(missingSelectorError());
+    sandbox.stub(evmHookReader, 'possibleDomainIds').returns([domainId]);
+
+    const mockIgp = {
+      hookType: sandbox
+        .stub()
+        .resolves(OnchainHookType.INTERCHAIN_GAS_PAYMASTER),
+      owner: sandbox.stub().resolves(mockOwner),
+      beneficiary: sandbox.stub().resolves(mockBeneficiary),
+      quoteSigners: sandbox
+        .stub()
+        .rejects(new Error('quoteSigners must not be called on a legacy IGP')),
+      getExchangeRateAndGasPrice: sandbox
+        .stub()
+        .rejects(
+          new Error(`Configured IGP doesn't support domain ${domainId}`),
+        ),
+      destinationGasLimit: sandbox.stub().resolves(ethers.BigNumber.from(0)),
+      destinationGasConfigs: sandbox.stub().resolves({
+        gasOracle: mockOracleAddress,
+        gasOverhead: ethers.BigNumber.from(0),
+      }),
+      tokenGasOracles: sandbox.stub().resolves(mockOracleAddress), // non-zero oracle for all calls
+    };
+
+    sandbox
+      .stub(InterchainGasPaymaster__factory, 'connect')
+      .returns(mockIgp as unknown as InterchainGasPaymaster);
+    sandbox
+      .stub(IPostDispatchHook__factory, 'connect')
+      .returns(mockIgp as unknown as IPostDispatchHook);
+
+    const mockOracle = {
+      owner: sandbox.stub().resolves(mockOwner),
+      remoteGasData: sandbox.stub().resolves({
+        tokenExchangeRate: ethers.BigNumber.from('15000000000'),
+        gasPrice: ethers.BigNumber.from('500000000'),
+      }),
+    };
+    sandbox
+      .stub(StorageGasOracle__factory, 'connect')
+      .returns(mockOracle as unknown as StorageGasOracle);
+
+    const config = await evmHookReader.deriveIgpConfig(mockAddress, [feeToken]);
+
+    expect(mockOracle.remoteGasData.calledOnce).to.be.true;
+    expect(config.tokenOracleConfig).to.deep.equal({
+      [feeToken]: {
+        [test1.name]: {
+          tokenExchangeRate: '15000000000',
+          gasPrice: '500000000',
+          tokenDecimals: test1.nativeToken?.decimals,
+        },
+      },
+    });
   });
 
   /*

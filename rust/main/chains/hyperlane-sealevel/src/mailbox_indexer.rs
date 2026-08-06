@@ -47,7 +47,7 @@ impl SealevelMailboxIndexer {
         conf: &ConnectionConf,
         advanced_log_meta: bool,
     ) -> ChainResult<Self> {
-        let mailbox = SealevelMailbox::new(provider, tx_submitter, conf, locator, None)?;
+        let mailbox = SealevelMailbox::new(provider, tx_submitter, conf, locator, None, None)?;
 
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
 

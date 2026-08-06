@@ -10,6 +10,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
+  addressToBytes32,
   arrayToObject,
   assert,
   intersection,
@@ -17,7 +18,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { getDomainId, getRegistry } from '../../../../registry.js';
+import { getRegistry } from '../../../../registry.js';
 import { usdcTokenAddresses } from '../cctp.js';
 import { usdtTokenAddresses } from '../tokens.js';
 import { WarpRouteIds } from '../warpIds.js';
@@ -79,7 +80,7 @@ export function getUSDCRebalancingBridgesConfigFor(
       const allowedRebalancingBridges = Object.fromEntries(
         rebalanceableChains
           .filter((remoteChain) => remoteChain !== currentChain)
-          .map((remoteChain) => [String(getDomainId(remoteChain)), bridges]),
+          .map((remoteChain) => [remoteChain, bridges]),
       );
 
       return {
@@ -163,7 +164,7 @@ export function getRebalancingBridgesConfigFor(
       const allowedRebalancingBridges = Object.fromEntries(
         rebalanceableChains
           .filter((remoteChain) => remoteChain !== currentChain)
-          .map((remoteChain) => {
+          .map((remoteChain): [string, Array<{ bridge: string }>] => {
             const bridges = routeData
               .filter(
                 ({ chainSet }) =>
@@ -174,7 +175,7 @@ export function getRebalancingBridgesConfigFor(
                 assert(bridge, `No bridge found for chain ${currentChain}`);
                 return { bridge };
               });
-            return [String(getDomainId(remoteChain)), bridges] as const;
+            return [remoteChain, bridges];
           })
           .filter(([, bridges]) => bridges.length > 0),
       );
@@ -185,6 +186,40 @@ export function getRebalancingBridgesConfigFor(
       };
     },
   );
+}
+
+/**
+ * Returns the set of cross-collateral target routers (as bytes32), keyed by chain,
+ * unioned across the given warp routes and deduplicated.
+ *
+ * Used to key per-destination-token fee contracts in a CrossCollateralRoutingFee:
+ * the inner fee map is keyed by the destination router's bytes32 (the target token),
+ * matching the on-chain lookup `feeContracts[destination][targetRouter]`.
+ */
+export function getCrossCollateralTargetRoutersByChain(
+  warpRouteIds: readonly WarpRouteIds[],
+): ChainMap<string[]> {
+  const registry = getRegistry();
+  const routersByChain: ChainMap<string[]> = {};
+
+  for (const warpRouteId of warpRouteIds) {
+    const route = registry.getWarpRoute(warpRouteId);
+    assert(route, `Warp route ${warpRouteId} not found`);
+
+    for (const { chainName, addressOrDenom } of route.tokens) {
+      assert(
+        addressOrDenom,
+        `Missing router address for ${warpRouteId} on ${chainName}`,
+      );
+      const routerKey = addressToBytes32(addressOrDenom);
+      const existing = (routersByChain[chainName] ??= []);
+      if (!existing.includes(routerKey)) {
+        existing.push(routerKey);
+      }
+    }
+  }
+
+  return routersByChain;
 }
 
 export const getRebalancingUSDTConfigForChain = (
@@ -304,7 +339,13 @@ export function scaleDownConfig(
  * Destinations not included will have no fee (RoutingFee returns 0 for unconfigured destinations).
  * The fee token is auto-derived at deploy time based on the warp route token type.
  *
- * @param owner - The owner address for the fee contract
+ * The `owner` is applied to the top-level RoutingFee contract and to every
+ * nested per-destination sub-fee contract. Sub-fee ownership is not a
+ * meaningful authority — the RoutingFee owner controls pricing via
+ * `setFeeContract` and claims accrued fees — so the warp check ignores sub-fee
+ * owners (see `normalizeTokenFeeForCheck`) and a single owner is sufficient.
+ *
+ * @param owner - The owner of the RoutingFee contract (and its sub-fee contracts)
  * @param feeDestinations - List of destination chains that should have the fee applied
  * @param bps - The fee in basis points to apply for feeDestinations
  * @param feeParams - Optional pre-deployed fee parameters per chain
@@ -374,6 +415,27 @@ export function getFileSubmitterStrategyConfig(
       { submitter: { type: 'file', filepath, chain } },
     ]),
   ) as unknown as ChainSubmissionStrategy;
+}
+
+/**
+ * Merges multiple allowedRebalancingBridges maps by concatenating bridge arrays
+ * for overlapping domain IDs. Undefined inputs are skipped.
+ */
+export function mergeAllowedBridges(
+  ...configs: (
+    | NonNullable<MovableTokenConfig['allowedRebalancingBridges']>
+    | undefined
+  )[]
+): NonNullable<MovableTokenConfig['allowedRebalancingBridges']> {
+  const result: NonNullable<MovableTokenConfig['allowedRebalancingBridges']> =
+    {};
+  for (const config of configs) {
+    if (!config) continue;
+    for (const [domain, bridges] of Object.entries(config)) {
+      result[domain] = [...(result[domain] ?? []), ...bridges];
+    }
+  }
+  return result;
 }
 
 /**

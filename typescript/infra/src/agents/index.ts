@@ -3,6 +3,7 @@ import { join } from 'path';
 import {
   AgentSealevelPriorityFeeOracle,
   AgentSealevelTransactionSubmitter,
+  AgentSealevelUrReveal,
   ChainName,
   RelayerConfig,
   RpcConsensusType,
@@ -30,6 +31,7 @@ import { ValidatorConfigHelper } from '../config/agent/validator.js';
 import { DeployEnvironment } from '../config/deploy-environment.js';
 import { AgentRole, Role } from '../roles.js';
 import {
+  bindWorkloadIdentityUserIfNotExists,
   createServiceAccountIfNotExists,
   createServiceAccountKey,
   fetchGCPSecret,
@@ -46,6 +48,7 @@ import {
 } from '../utils/utils.js';
 
 import { AgentGCPKey } from './gcp.js';
+import { gcpValidatorServiceAccountName } from './gcp-kms/validator-user.js';
 
 const HELM_CHART_PATH = join(
   getInfraPath(),
@@ -118,6 +121,12 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
               );
           }
 
+          let urReveal: AgentSealevelUrReveal | undefined;
+          if (getChain(chain).protocol === ProtocolType.Sealevel) {
+            urReveal =
+              this.config.rawConfig.sealevel?.urRevealConfigGetter?.(chain);
+          }
+
           const batchConfig = this.batchConfig(chain);
 
           return {
@@ -132,8 +141,12 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
                   maxSubmitQueueLength: batchConfig.maxSubmitQueueLength,
                 }
               : {}),
+            ...(this.config.rawConfig.relayer?.interval != null
+              ? { index: { interval: this.config.rawConfig.relayer.interval } }
+              : {}),
             priorityFeeOracle,
             transactionSubmitter,
+            urReveal,
           };
         }),
       },
@@ -266,6 +279,17 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       effect: 'NoSchedule',
     });
 
+    // The toleration above only permits relayers onto the tainted relayer pool;
+    // it does not force them there. Historically the oversized resource requests
+    // meant the pods only fit on the relayer pool, but with right-sized requests
+    // they can now land on other pools. Pin mainnet3 relayers to the relayer node
+    // pool explicitly so they schedule there deterministically at redeploy.
+    if (this.environment === 'mainnet3') {
+      values.nodeSelector = {
+        'cloud.google.com/gke-nodepool': 'relayer-pool-2',
+      };
+    }
+
     return values;
   }
 
@@ -371,6 +395,12 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
       throw Error('Environment does not support chain');
   }
 
+  // Own namespace per environment (shared across contexts) — the k8s
+  // namespace is the trust boundary Workload Identity relies on.
+  override get namespace(): string {
+    return `validator-${this.environment}`;
+  }
+
   get length(): number {
     return this.config.validators.length;
   }
@@ -384,6 +414,29 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
     helmValues.hyperlane.chains = helmValues.hyperlane.chains.filter(
       (chain) => chain.name === cfg.originChainName,
     );
+    const originChain = helmValues.hyperlane.chains[0];
+    if (!originChain) {
+      throw new Error(`Missing chain config for ${cfg.originChainName}`);
+    }
+    originChain.blocks = {
+      ...originChain.blocks,
+      reorgPeriod: cfg.reorgPeriod,
+    };
+    originChain.index = {
+      ...originChain.index,
+      interval: cfg.interval,
+    };
+    // Additional public RPCs for CUSTOMADDITIONALQUORUMRPCURLS. rpcUrls already
+    // votes in the same quorum group (see external-secret.yaml), so no private
+    // batch is merged in here. Gated on explicit per-chain opt-in:
+    // external-secret.yaml emits CUSTOMADDITIONALQUORUMRPCURLS whenever
+    // publicRpcUrls is non-empty, so leaving this unset keeps quorum verification
+    // off until a chain deliberately enables it.
+    if (this.config.quorumVerificationEnabled) {
+      originChain.publicRpcUrls = getChain(cfg.originChainName).rpcUrls.map(
+        (rpc) => rpc.http,
+      );
+    }
 
     helmValues.hyperlane.validator = {
       enabled: true,
@@ -392,7 +445,7 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
         originChainName: cfg.originChainName,
         interval: cfg.interval,
       })),
-      resources: this.kubernetesResources(),
+      resources: this.config.resourcesForChain(this.chainName),
     };
 
     // The name of the helm release for agents is `hyperlane-agent`.
@@ -400,6 +453,26 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
     // To work around this, we shorten the name of the helm release to `agent`
     if (this.config.context !== Contexts.Hyperlane) {
       helmValues.nameOverride = 'agent';
+    }
+
+    if (this.config.gcp) {
+      // GSA is release-scoped (see ValidatorAgentGcpUser), not per index.
+      const serviceAccountEmail = `${gcpValidatorServiceAccountName(this.context, this.environment, this.chainName)}@${this.config.gcp.project}.iam.gserviceaccount.com`;
+      // Pinned explicitly so it matches what the chart actually creates,
+      // rather than duplicating its `agent-common.fullname` derivation here.
+      const ksaName = this.helmReleaseName;
+      helmValues.serviceAccount = {
+        name: ksaName,
+        annotations: {
+          'iam.gke.io/gcp-service-account': serviceAccountEmail,
+        },
+      };
+      await bindWorkloadIdentityUserIfNotExists(
+        serviceAccountEmail,
+        this.config.gcp.project,
+        this.namespace,
+        ksaName,
+      );
     }
 
     return helmValues;

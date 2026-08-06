@@ -71,6 +71,8 @@ import {
   warpRouteIdCommandOption,
 } from './options.js';
 import { type MessageOptionsArgTypes, messageSendOptions } from './send.js';
+import { altCommand } from './warp-alt.js';
+import { quoteCommand } from './warp-quote.js';
 
 /**
  * Parent command
@@ -80,6 +82,7 @@ export const warpCommand: CommandModule = {
   describe: 'Manage Hyperlane warp routes',
   builder: (yargs) =>
     yargs
+      .command(altCommand)
       .command(apply)
       .command(balances)
       .command(check)
@@ -88,6 +91,7 @@ export const warpCommand: CommandModule = {
       .command(fork)
       .command(getFees)
       .command(init)
+      .command(quoteCommand)
       .command(read)
       .command(rebalancer)
       .command(send)

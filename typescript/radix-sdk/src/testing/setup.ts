@@ -1,5 +1,5 @@
 import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
-import { assert, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
+import { retryAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import { RadixSigner } from '../clients/signer.js';
 
@@ -67,12 +67,7 @@ export async function deployHyperlaneRadixPackage(
     packageAddress: 'not-yet-deployed',
   };
 
-  const rpcUrls = metadata.rpcUrls?.map((rpc) => rpc.http) ?? [];
-  assert(rpcUrls.length > 0, `Expected radix rpc urls not to be empty`);
-
-  const signer = (await RadixSigner.connectWithSigner(rpcUrls, privateKey, {
-    metadata,
-  })) as RadixSigner;
+  const signer = await RadixSigner.connectWithSigner(metadata, privateKey);
 
   // Get the actual XRD resource address for this network
   // This is dynamically derived based on the network ID and must be used

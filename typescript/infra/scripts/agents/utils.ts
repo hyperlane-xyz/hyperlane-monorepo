@@ -26,6 +26,7 @@ import {
   withChains,
   withConcurrency,
   withContext,
+  withYes,
 } from '../agent-utils.js';
 import { getConfigsBasedOnArgs } from '../core-utils.js';
 
@@ -38,6 +39,7 @@ export class AgentCli {
   chains?: string[];
   concurrency = 1;
   skipPreflightCheck = false;
+  skipConfirmation = false;
 
   public async restartAgents() {
     await this.init();
@@ -112,8 +114,10 @@ export class AgentCli {
 
   protected async init() {
     if (this.initialized) return;
-    const argv = await withConcurrency(
-      withChains(withAgentRolesRequired(withContext(getArgs()))),
+    const argv = await withYes(
+      withConcurrency(
+        withChains(withAgentRolesRequired(withContext(getArgs()))),
+      ),
     )
       .describe('dry-run', 'Run through the steps without making any changes')
       .boolean('dry-run')
@@ -138,6 +142,7 @@ export class AgentCli {
     this.agentConfig = agentConfig;
     this.dryRun = argv.dryRun || false;
     this.skipPreflightCheck = argv.skipPreflightCheck || false;
+    this.skipConfirmation = argv.yes || false;
     this.initialized = true;
     this.chains = argv.chains;
     this.concurrency = argv.concurrency;
@@ -189,6 +194,13 @@ export class AgentCli {
 
     printPreflightSummaryTable(diffs);
 
+    if (this.skipConfirmation) {
+      console.log(
+        chalk.yellow('--yes set; proceeding with deployment without prompt.'),
+      );
+      return true;
+    }
+
     return confirm({
       message: chalk.yellow(
         `Proceed with deployment of ${diffs.length} agent(s)?`,
@@ -208,7 +220,12 @@ export class AgentCli {
             : contextChainNames.filter((chain: string) =>
                 this.chains!.includes(chain),
               );
-          for (const chain of validatorChains) {
+          const configuredValidatorChains = validatorChains.filter(
+            (chain) =>
+              (this.agentConfig.validators?.chains[chain]?.validators.length ??
+                0) > 0,
+          );
+          for (const chain of configuredValidatorChains) {
             const key = `${role}-${chain}`;
             managers[key] = new ValidatorHelmManager(this.agentConfig, chain);
           }

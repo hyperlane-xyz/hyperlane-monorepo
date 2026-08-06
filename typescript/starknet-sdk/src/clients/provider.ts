@@ -6,16 +6,19 @@ import {
   Contract,
   RawArgsArray,
   RpcProvider,
-  hash,
   shortString,
 } from 'starknet';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 import {
+  composeWarpDeployGas,
+  type WarpArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
+import {
   ContractType,
-  getCompiledContract,
-} from '@hyperlane-xyz/starknet-core';
+  getContractClassHash,
+} from '@hyperlane-xyz/starknet-core/runtime';
 import {
   addressToBytes32,
   assert,
@@ -48,27 +51,18 @@ function getTokenTypeByClassHash(): Map<string, AltVM.TokenType> {
 
   const entries = [
     [
-      hash.computeContractClassHash(
-        getCompiledContract(StarknetContractName.HYP_ERC20, ContractType.TOKEN),
-      ),
+      getContractClassHash(StarknetContractName.HYP_ERC20, ContractType.TOKEN),
       AltVM.TokenType.synthetic,
     ],
     [
-      hash.computeContractClassHash(
-        getCompiledContract(
-          StarknetContractName.HYP_ERC20_COLLATERAL,
-          ContractType.TOKEN,
-        ),
+      getContractClassHash(
+        StarknetContractName.HYP_ERC20_COLLATERAL,
+        ContractType.TOKEN,
       ),
       AltVM.TokenType.collateral,
     ],
     [
-      hash.computeContractClassHash(
-        getCompiledContract(
-          StarknetContractName.HYP_NATIVE,
-          ContractType.TOKEN,
-        ),
-      ),
+      getContractClassHash(StarknetContractName.HYP_NATIVE, ContractType.TOKEN),
       AltVM.TokenType.native,
     ],
   ] satisfies ReadonlyArray<readonly [string, AltVM.TokenType]>;
@@ -83,14 +77,22 @@ function getTokenTypeByClassHash(): Map<string, AltVM.TokenType> {
   return tokenTypeByClassHash;
 }
 
+// Warp-deploy cost breakdown for Starknet. Composed additively in
+// getMinGasForWarpDeploy() based on the WarpConfig shape. Values are native
+// denom (fri, 18 decimals).
+//
+// The base is a devnet-observed base-router deploy floor with safety margin;
+// mainnet gas prices differ, so treat it as a lower-bound advisory. Per-feature
+// deltas stay 0n pending measured feature-heavy deploys.
+const WARP_DEPLOY_BASE_FRI = 10_000_000_000_000_000_000n; // 10 STRK base router deploy
+const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_FRI = 0n; // + crossCollateral router extras
+const WARP_DEPLOY_FEE_PROGRAM_FRI = 0n; // + fee program (config.fee object)
+const WARP_DEPLOY_CUSTOM_ISM_FRI = 0n; // + custom ISM (config.interchainSecurityModule object)
+const WARP_DEPLOY_CUSTOM_HOOK_FRI = 0n; // + custom hook / IGP (config.hook object)
+
 export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
-  static connect(
-    rpcUrls: string[],
-    _chainId: string | number,
-    extraParams?: { metadata?: ChainMetadataForAltVM },
-  ): StarknetProvider {
-    assert(extraParams?.metadata, 'metadata missing for Starknet provider');
-    const metadata = extraParams.metadata;
+  static connect(metadata: ChainMetadataForAltVM): StarknetProvider {
+    const rpcUrls = (metadata.rpcUrls ?? []).map(({ http }) => http);
     assert(rpcUrls.length > 0, 'at least one rpc url is required');
 
     const blockTime = metadata.blocks?.estimateBlockTime;
@@ -114,6 +116,18 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     protected readonly metadata: ChainMetadataForAltVM,
     protected readonly rpcUrls: string[],
   ) {}
+
+  async getMinGasForWarpDeploy(
+    warpConfig: WarpArtifactConfig,
+  ): Promise<bigint> {
+    return composeWarpDeployGas(warpConfig, {
+      base: WARP_DEPLOY_BASE_FRI,
+      crossCollateralExtra: WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_FRI,
+      feeProgram: WARP_DEPLOY_FEE_PROGRAM_FRI,
+      customIsm: WARP_DEPLOY_CUSTOM_ISM_FRI,
+      customHook: WARP_DEPLOY_CUSTOM_HOOK_FRI,
+    });
+  }
 
   getRawProvider(): RpcProvider {
     return this.provider;

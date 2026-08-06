@@ -17,12 +17,24 @@ pnpm add @hyperlane-xyz/cosmos-sdk
 
 ```ts
 import { CosmosNativeProvider, CosmosNativeSigner } from "@hyperlane-xyz/cosmos-sdk";
+import { ChainMetadataForAltVM, ProtocolType } from "@hyperlane-xyz/provider-sdk";
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 
+const metadata: ChainMetadataForAltVM = {
+  name: 'mychain',
+  protocol: ProtocolType.CosmosNative,
+  chainId: 'mychain-1',
+  domainId: 1234,
+  bech32Prefix: 'test',
+  gasPrice: {
+    amount: '0.2',
+    denom: 'denom',
+  },
+  rpcUrls: [{ http: 'https://rpc-endpoint:26657' }],
+};
+
 // using hyperlane queries without needing signers
-const client = await CosmosNativeProvider.connect(
-  ["https://rpc-endpoint:26657"]
-);
+const client = await CosmosNativeProvider.connect(metadata);
 
 const mailbox = await client.getMailbox('mailbox-id');
 const bridgedSupply = await client.getBridgedSupply({ id: "token-id" });
@@ -31,19 +43,7 @@ const bridgedSupply = await client.getBridgedSupply({ id: "token-id" });
 // performing hyperlane transactions
 const wallet = await DirectSecp256k1Wallet.fromKey(PRIV_KEY);
 
-const signer = await CosmosNativeSigner.connectWithSigner(
-  ["https://rpc-endpoint:26657"],
-  wallet,
-  {
-    metadata: {
-      gasPrice: {
-        amount: '0.2',
-        denom: 'denom'
-      },
-      bech32Prefix: 'test',
-    }
-  }
-);
+const signer = await CosmosNativeSigner.connectWithSigner(metadata, wallet);
 
 const { mailbox_id } = await signer.createMailbox({
   owner: '...',

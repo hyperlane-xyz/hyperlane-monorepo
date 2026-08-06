@@ -65,5 +65,37 @@ describe('hyperlane core apply (Sealevel E2E tests)', async function () {
         BURN_ADDRESS_BY_PROTOCOL.sealevel,
       );
     });
+
+    it('round-trips contractVersion through deploy → read → apply', async () => {
+      const afterDeploy = await hyperlaneCore.readConfig();
+      expect(afterDeploy.contractVersion).to.equal('1.0.0');
+
+      // Round-trip: write the read-back config to YAML and apply it. The
+      // mailbox writer should no-op the program upgrade since the expected
+      // and on-chain versions match, and contractVersion should round-trip.
+      writeYamlOrJson(
+        CORE_READ_CONFIG_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
+        afterDeploy,
+      );
+      await hyperlaneCore.apply(HYP_KEY_BY_PROTOCOL.sealevel);
+
+      const afterApply = await hyperlaneCore.readConfig();
+      expect(afterApply.contractVersion).to.equal('1.0.0');
+    });
+
+    it('passes core check when the expected config omits contractVersion', async () => {
+      // Users with pre-existing core configs (written before contractVersion
+      // surfaced on the schema) should not see false drift against a now-
+      // versioned mailbox. core check mirrors warpCheck's behavior:
+      // missing-expected drops the on-chain side from the diff.
+      const afterDeploy = await hyperlaneCore.readConfig();
+      const { contractVersion: _omitted, ...withoutVersion } = afterDeploy;
+      writeYamlOrJson(
+        CORE_READ_CONFIG_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
+        withoutVersion,
+      );
+
+      await hyperlaneCore.check();
+    });
   });
 });

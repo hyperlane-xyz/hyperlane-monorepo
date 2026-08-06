@@ -1,7 +1,7 @@
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import fs from 'fs';
 
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { retryAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DockerImageNames } from '../../config/docker.js';
 import { rm, writeFile } from 'fs/promises';
@@ -15,7 +15,72 @@ interface IamCondition {
   expression: string;
 }
 
+// Shape of an entry in a `gcloud ... get-iam-policy --format=json` response's
+// `bindings` array — narrows the `any` that `execCmdAndParseJson` returns.
+interface IamPolicyBinding {
+  role: string;
+  members?: string[];
+  condition?: IamCondition;
+}
+
 const logger = rootLogger.child({ module: 'infra:utils:gcloud' });
+const kmsIamGrantQueues = new Map<string, Promise<void>>();
+const gcsBucketMutationQueues = new Map<string, Promise<void>>();
+let serviceAccountCreateQueue: Promise<void> = Promise.resolve();
+
+async function withKmsIamGrantQueue<T>(
+  queueKey: string,
+  task: () => Promise<T>,
+): Promise<T> {
+  const previous = kmsIamGrantQueues.get(queueKey) ?? Promise.resolve();
+  const run = previous.then(task, task);
+  const queued = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  kmsIamGrantQueues.set(queueKey, queued);
+
+  try {
+    return await run;
+  } finally {
+    if (kmsIamGrantQueues.get(queueKey) === queued) {
+      kmsIamGrantQueues.delete(queueKey);
+    }
+  }
+}
+
+async function withGcsBucketMutationQueue<T>(
+  bucketName: string,
+  task: () => Promise<T>,
+): Promise<T> {
+  const previous = gcsBucketMutationQueues.get(bucketName) ?? Promise.resolve();
+  const run = previous.then(task, task);
+  const queued = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  gcsBucketMutationQueues.set(bucketName, queued);
+
+  try {
+    return await run;
+  } finally {
+    if (gcsBucketMutationQueues.get(bucketName) === queued) {
+      gcsBucketMutationQueues.delete(bucketName);
+    }
+  }
+}
+
+async function withServiceAccountCreateQueue<T>(
+  task: () => Promise<T>,
+): Promise<T> {
+  const previous = serviceAccountCreateQueue;
+  const run = previous.then(task, task);
+  serviceAccountCreateQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
 
 // Allows secrets to be overridden via environment variables to avoid
 // gcloud calls. This is particularly useful for running commands in k8s,
@@ -251,17 +316,46 @@ export async function disableGCPSecretVersion(secretName: string) {
 // Returns the email of the service account
 export async function createServiceAccountIfNotExists(
   serviceAccountName: string,
+  project: string = GCP_PROJECT_ID,
 ) {
-  let serviceAccountInfo = await getServiceAccountInfo(serviceAccountName);
-  if (!serviceAccountInfo) {
-    serviceAccountInfo = await createServiceAccount(serviceAccountName);
-    logger.debug(`Created new service account with name ${serviceAccountName}`);
-  } else {
-    logger.debug(
-      `Service account with name ${serviceAccountName} already exists`,
+  return withServiceAccountCreateQueue(async () => {
+    let serviceAccountInfo = await getServiceAccountInfo(
+      serviceAccountName,
+      project,
     );
-  }
-  return serviceAccountInfo.email;
+    if (!serviceAccountInfo) {
+      try {
+        serviceAccountInfo = await retryAsync(
+          () => createServiceAccount(serviceAccountName, project),
+          3,
+          60_000,
+        );
+        logger.debug(
+          `Created new service account with name ${serviceAccountName}`,
+        );
+      } catch (error) {
+        // This service account is shared across every validator index for the
+        // chain (see ValidatorAgentGcpUser), so concurrent buildConfig() calls
+        // race the list-then-create above. Re-check real state rather than
+        // pattern-match the error text — only recover if it genuinely exists now.
+        serviceAccountInfo = await getServiceAccountInfo(
+          serviceAccountName,
+          project,
+        );
+        if (!serviceAccountInfo) {
+          throw error;
+        }
+        logger.debug(
+          `Service account with name ${serviceAccountName} already exists`,
+        );
+      }
+    } else {
+      logger.debug(
+        `Service account with name ${serviceAccountName} already exists`,
+      );
+    }
+    return serviceAccountInfo.email;
+  });
 }
 
 export async function grantServiceAccountRoleIfNotExists(
@@ -297,25 +391,255 @@ export async function grantServiceAccountStorageRoleIfNotExists(
   bucketName: string,
   role: string,
 ) {
-  const bucketUri = `gs://${bucketName}`;
-  const existingPolicies = await execCmdAndParseJson(
-    `gcloud storage buckets get-iam-policy ${bucketUri} --format="json"`,
-  );
-  const existingBindings = existingPolicies.bindings || [];
-  const hasRole = existingBindings.some(
-    (binding: any) =>
-      binding.role === role &&
-      binding.members &&
-      binding.members.includes(`serviceAccount:${serviceAccountEmail}`),
-  );
-  if (hasRole) {
-    logger.debug(
-      `Service account ${serviceAccountEmail} already has role ${role} on bucket ${bucketName}`,
+  return withGcsBucketMutationQueue(bucketName, async () => {
+    const bucketUri = `gs://${bucketName}`;
+    const existingPolicies = await execCmdAndParseJson(
+      `gcloud storage buckets get-iam-policy ${bucketUri} --format="json"`,
     );
-    return;
+    const existingBindings = existingPolicies.bindings || [];
+    const hasRole = existingBindings.some(
+      (binding: any) =>
+        binding.role === role &&
+        binding.members &&
+        binding.members.includes(`serviceAccount:${serviceAccountEmail}`),
+    );
+    if (hasRole) {
+      logger.debug(
+        `Service account ${serviceAccountEmail} already has role ${role} on bucket ${bucketName}`,
+      );
+      return;
+    }
+    // A just-created service account can take a few seconds to propagate to
+    // other GCP APIs (Storage's IAM binding endpoint here) — retry rather than
+    // fail outright on "does not exist" for a service account we just created.
+    await retryAsync(
+      () =>
+        execCmd(
+          `gcloud storage buckets add-iam-policy-binding ${bucketUri} --member="serviceAccount:${serviceAccountEmail}" --role="${role}"`,
+        ),
+      6,
+      3000,
+    );
+  });
+}
+
+// == Cloud KMS + GCS + Workload Identity (validator provisioning) ==
+
+// Returns the full KeyRing resource name.
+export async function createKmsKeyRingIfNotExists(
+  project: string,
+  location: string,
+  keyRingId: string,
+): Promise<string> {
+  const resourceName = `projects/${project}/locations/${location}/keyRings/${keyRingId}`;
+  const listCmd = `gcloud kms keyrings list --project=${project} --location=${location} --filter="name=${resourceName}" --format=json`;
+  const matches = await execCmdAndParseJson(listCmd);
+  if (matches.length > 0) {
+    logger.debug(`KMS key ring ${resourceName} already exists`);
+    return resourceName;
   }
-  await execCmd(
-    `gcloud storage buckets add-iam-policy-binding ${bucketUri} --member="serviceAccount:${serviceAccountEmail}" --role="${role}"`,
+
+  try {
+    await execCmd(
+      `gcloud kms keyrings create ${keyRingId} --project=${project} --location=${location}`,
+    );
+    logger.debug(`Created new KMS key ring ${resourceName}`);
+  } catch (error) {
+    // The keyring is shared across every validator index (see
+    // AgentGcpKmsKey), so concurrent createIfNotExists() calls race the
+    // list-then-create above. Re-check real state rather than pattern-match
+    // the error text — only swallow the error if the ring genuinely exists now.
+    const matchesNow = await execCmdAndParseJson(listCmd);
+    if (matchesNow.length === 0) {
+      throw error;
+    }
+    logger.debug(`KMS key ring ${resourceName} already exists`);
+  }
+  return resourceName;
+}
+
+// Returns the full CryptoKey resource name. Never exports key material —
+// only usable via KMS's own sign API.
+export async function createKmsSignerKeyIfNotExists(
+  project: string,
+  location: string,
+  keyRingId: string,
+  keyId: string,
+): Promise<string> {
+  const resourceName = `projects/${project}/locations/${location}/keyRings/${keyRingId}/cryptoKeys/${keyId}`;
+  const listCmd = `gcloud kms keys list --project=${project} --location=${location} --keyring=${keyRingId} --filter="name=${resourceName}" --format=json`;
+  const matches = await execCmdAndParseJson(listCmd);
+  if (matches.length > 0) {
+    logger.debug(`KMS signing key ${resourceName} already exists`);
+    return resourceName;
+  }
+
+  try {
+    await execCmd(
+      `gcloud kms keys create ${keyId} --project=${project} --location=${location} --keyring=${keyRingId} --purpose=asymmetric-signing --default-algorithm=ec-sign-secp256k1-sha256 --protection-level=hsm`,
+    );
+    logger.debug(`Created new KMS signing key ${resourceName}`);
+  } catch (error) {
+    // This key is shared across every chain that validator index signs for
+    // (see AgentGcpKmsKey), so concurrent createIfNotExists() calls race the
+    // list-then-create above. Re-check real state rather than pattern-match
+    // the error text — only swallow the error if the key genuinely exists now.
+    const matchesNow = await execCmdAndParseJson(listCmd);
+    if (matchesNow.length === 0) {
+      throw error;
+    }
+    logger.debug(`KMS signing key ${resourceName} already exists`);
+  }
+  return resourceName;
+}
+
+// Used to derive the key's Ethereum address; private key material never leaves KMS.
+export async function getKmsPublicKeyPem(
+  project: string,
+  location: string,
+  keyRingId: string,
+  keyId: string,
+  version = '1',
+): Promise<string> {
+  const [pem] = await execCmd(
+    `gcloud kms keys versions get-public-key ${version} --project=${project} --location=${location} --keyring=${keyRingId} --key=${keyId} --output-file=-`,
+  );
+  return pem;
+}
+
+// Scoped to this one CryptoKey — not the key ring or project.
+export async function grantKmsKeySignerRoleIfNotExists(
+  project: string,
+  location: string,
+  keyRingId: string,
+  keyId: string,
+  serviceAccountEmail: string,
+) {
+  const member = `serviceAccount:${serviceAccountEmail}`;
+  const role = 'roles/cloudkms.signerVerifier';
+  const queueKey = `${project}/${location}/${keyRingId}/${keyId}`;
+
+  await withKmsIamGrantQueue(queueKey, () =>
+    retryAsync(
+      async () => {
+        const policy = await execCmdAndParseJson(
+          `gcloud kms keys get-iam-policy ${keyId} --project=${project} --location=${location} --keyring=${keyRingId} --format=json`,
+        );
+        const hasRole = (policy.bindings || []).some(
+          (binding: IamPolicyBinding) =>
+            binding.role === role && binding.members?.includes(member),
+        );
+        if (hasRole) {
+          logger.debug(
+            `Service account ${serviceAccountEmail} already has ${role} on key ${keyId}`,
+          );
+          return;
+        }
+
+        await execCmd(
+          `gcloud kms keys add-iam-policy-binding ${keyId} --project=${project} --location=${location} --keyring=${keyRingId} --member="${member}" --role="${role}"`,
+        );
+        logger.debug(
+          `Granted ${role} to ${serviceAccountEmail} on key ${keyId}`,
+        );
+      },
+      6,
+      3000,
+    ),
+  );
+}
+
+export async function createGcsBucketIfNotExists(
+  project: string,
+  location: string,
+  bucketName: string,
+) {
+  return withGcsBucketMutationQueue(bucketName, async () => {
+    const listCmd = `gcloud storage buckets list --project=${project} --filter="name=${bucketName}" --format=json`;
+    const matches = await execCmdAndParseJson(listCmd);
+    if (matches.length > 0) {
+      logger.debug(`GCS bucket ${bucketName} already exists`);
+      return;
+    }
+
+    try {
+      await execCmd(
+        `gcloud storage buckets create gs://${bucketName} --project=${project} --location=${location} --uniform-bucket-level-access`,
+      );
+      logger.debug(`Created new GCS bucket ${bucketName}`);
+    } catch (error) {
+      // This bucket is shared across every chain that validator index writes
+      // checkpoints for (see #configForValidator), so concurrent
+      // createIfNotExists() calls race the list-then-create above. Re-check
+      // real state rather than pattern-match the error text — only swallow the
+      // error if the bucket genuinely exists now.
+      const matchesNow = await execCmdAndParseJson(listCmd);
+      if (matchesNow.length === 0) {
+        throw error;
+      }
+      logger.debug(`GCS bucket ${bucketName} already exists`);
+    }
+  });
+}
+
+// Public, unauthenticated read — relayers with no relationship to this
+// project still need to fetch checkpoints.
+export async function grantPublicReadOnBucketIfNotExists(bucketName: string) {
+  return withGcsBucketMutationQueue(bucketName, async () => {
+    const role = 'roles/storage.objectViewer';
+    const policy = await execCmdAndParseJson(
+      `gcloud storage buckets get-iam-policy gs://${bucketName} --format=json`,
+    );
+    const hasRole = (policy.bindings || []).some(
+      (binding: IamPolicyBinding) =>
+        binding.role === role && binding.members?.includes('allUsers'),
+    );
+    if (hasRole) {
+      logger.debug(`Bucket ${bucketName} is already publicly readable`);
+      return;
+    }
+    await execCmd(
+      `gcloud storage buckets add-iam-policy-binding gs://${bucketName} --member=allUsers --role="${role}"`,
+    );
+    logger.debug(`Granted public read on bucket ${bucketName}`);
+  });
+}
+
+// Lets a pod running as this KSA impersonate the GSA via Workload Identity —
+// no static credential anywhere.
+export async function bindWorkloadIdentityUserIfNotExists(
+  serviceAccountEmail: string,
+  project: string,
+  namespace: string,
+  ksaName: string,
+) {
+  const member = `serviceAccount:${project}.svc.id.goog[${namespace}/${ksaName}]`;
+  const role = 'roles/iam.workloadIdentityUser';
+  // A just-created service account can take a few seconds to propagate to
+  // other GCP APIs — retry the whole read-then-write rather than fail
+  // outright on "does not exist" for a service account we just created.
+  await retryAsync(
+    async () => {
+      const policy = await execCmdAndParseJson(
+        `gcloud iam service-accounts get-iam-policy ${serviceAccountEmail} --project=${project} --format=json`,
+      );
+      const hasRole = (policy.bindings || []).some(
+        (binding: IamPolicyBinding) =>
+          binding.role === role && binding.members?.includes(member),
+      );
+      if (hasRole) {
+        logger.debug(`${member} already bound to ${serviceAccountEmail}`);
+        return;
+      }
+      await execCmd(
+        `gcloud iam service-accounts add-iam-policy-binding ${serviceAccountEmail} --project=${project} --member="${member}" --role="${role}"`,
+      );
+      logger.debug(
+        `Bound ${member} to ${serviceAccountEmail} via Workload Identity`,
+      );
+    },
+    6,
+    3000,
   );
 }
 
@@ -358,17 +682,32 @@ async function getIamMemberPolicyBindings(memberEmail: string) {
   return bindings;
 }
 
-async function createServiceAccount(serviceAccountName: string) {
+async function createServiceAccount(
+  serviceAccountName: string,
+  project: string,
+) {
   return execCmdAndParseJson(
-    `gcloud iam service-accounts create ${serviceAccountName} --display-name="${serviceAccountName}" --format json`,
+    `gcloud iam service-accounts create ${serviceAccountName} --project=${project} --display-name="${serviceAccountName}" --format json`,
   );
 }
 
-async function getServiceAccountInfo(serviceAccountName: string) {
+async function getServiceAccountInfo(
+  serviceAccountName: string,
+  project: string,
+) {
+  // Filter by email, not displayName - displayName is mutable and not
+  // guaranteed unique, so a filter on it could match a different service
+  // account than the one `serviceAccountName` was created as, and callers
+  // then grant that account KMS signer / bucket-admin access. The account ID
+  // (and therefore its email) is fixed at creation time (see
+  // createServiceAccount, which passes serviceAccountName as the account ID),
+  // so deriving the same email here is the exact, unambiguous match.
+  //
   // By filtering, we get an array with one element upon a match and an empty
   // array if there is not a match, which is desirable because it never errors.
+  const email = `${serviceAccountName}@${project}.iam.gserviceaccount.com`;
   const matches = await execCmdAndParseJson(
-    `gcloud iam service-accounts list --format json --filter displayName="${serviceAccountName}"`,
+    `gcloud iam service-accounts list --project=${project} --format json --filter email="${email}"`,
   );
   if (matches.length === 0) {
     logger.debug(`No service account found with name ${serviceAccountName}`);

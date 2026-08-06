@@ -3,16 +3,11 @@ import {
   IPostDispatchHook__factory,
   Mailbox,
   QuotedCalls,
+  QuotedCalls__factory,
   TestRecipient,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
-import {
-  Address,
-  addBufferToGasLimit,
-  assert,
-  isZeroishAddress,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { Address, assert, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
@@ -32,7 +27,11 @@ import {
   PERMIT2_ADDRESS,
   coreFactories,
 } from './contracts.js';
-import { CoreConfig } from './types.js';
+import {
+  CoreConfig,
+  getConfiguredMailboxOwner,
+  shouldDeployQuotedCalls,
+} from './types.js';
 
 export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   CoreConfig,
@@ -75,28 +74,61 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     super.cacheAddressesMap(addressesMap);
   }
 
-  async deployMailbox(
+  async deployMailboxProxy(
     chain: ChainName,
     config: CoreConfig,
     proxyAdmin: Address,
-  ): Promise<Mailbox> {
+  ) {
     const domain = this.multiProvider.getDomainId(chain);
+    const signerAddress = await this.multiProvider.getSignerAddress(chain);
+    // ProxyAdmin is already deployed and rejects the Mailbox ISM/hook calls,
+    // so it is a fail-closed placeholder until owner-only configuration lands.
     const mailbox = await this.deployProxiedContract(
       chain,
       'mailbox',
       'mailbox',
       proxyAdmin,
       [domain],
+      [signerAddress, proxyAdmin, proxyAdmin, proxyAdmin],
+    );
+    const mailboxOwner = await mailbox.owner();
+    const expectedMailboxOwner = getConfiguredMailboxOwner(config);
+    assert(
+      eqAddress(mailboxOwner, signerAddress) ||
+        eqAddress(mailboxOwner, expectedMailboxOwner),
+      `Mailbox at ${mailbox.address} on ${chain} has unexpected owner ${mailboxOwner}`,
+    );
+
+    return {
+      mailbox,
+      mailboxOwner,
+      signerAddress,
+      signerIsOwner: eqAddress(mailboxOwner, signerAddress),
+      configuredMailboxOwner: expectedMailboxOwner,
+    };
+  }
+
+  async deployMailbox(
+    chain: ChainName,
+    config: CoreConfig,
+    proxyAdmin: Address,
+  ): Promise<Mailbox> {
+    const { mailbox } = await this.deployMailboxProxy(
+      chain,
+      config,
+      proxyAdmin,
     );
 
     let defaultIsm = await mailbox.defaultIsm();
-    const matches = await moduleMatchesConfig(
-      chain,
-      defaultIsm,
-      config.defaultIsm,
-      this.multiProvider,
-      this.ismFactory.getContracts(chain),
-    );
+    const matches =
+      !eqAddress(defaultIsm, proxyAdmin) &&
+      (await moduleMatchesConfig(
+        chain,
+        defaultIsm,
+        config.defaultIsm,
+        this.multiProvider,
+        this.ismFactory.getContracts(chain),
+      ));
     if (!matches) {
       this.logger.debug('Deploying default ISM');
       defaultIsm = await this.deployIsm(
@@ -124,41 +156,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     );
 
     const txOverrides = this.multiProvider.getTransactionOverrides(chain);
-
-    // Check if the mailbox has already been initialized
-    const currentDefaultIsm = await mailbox.defaultIsm();
-    if (isZeroishAddress(currentDefaultIsm)) {
-      // If the default ISM is the zero address, the mailbox hasn't been initialized
-      this.logger.debug('Initializing mailbox');
-      try {
-        const estimatedGas = await mailbox.estimateGas.initialize(
-          config.owner,
-          defaultIsm,
-          defaultHook.address,
-          requiredHook.address,
-        );
-        await this.multiProvider.handleTx(
-          chain,
-          mailbox.initialize(
-            config.owner,
-            defaultIsm,
-            defaultHook.address,
-            requiredHook.address,
-            {
-              gasLimit: addBufferToGasLimit(estimatedGas),
-              ...txOverrides,
-            },
-          ),
-        );
-      } catch (e: any) {
-        // If we still get an error here, it's likely a genuine error
-        this.logger.error('Failed to initialize mailbox:', e);
-        throw e;
-      }
-    } else {
-      // If the default ISM is not the zero address, the mailbox has likely been initialized
-      this.logger.debug('Mailbox appears to be already initialized');
-    }
 
     await this.configureHook(
       chain,
@@ -259,9 +256,16 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     chain: ChainName,
     permit2?: Address,
   ): Promise<QuotedCalls> {
-    return this.deployContract(chain, 'quotedCalls', [
-      permit2 ?? PERMIT2_ADDRESS,
-    ]);
+    const quotedCalls = await this.deployContractFromFactory(
+      chain,
+      new QuotedCalls__factory(),
+      'quotedCalls',
+      [permit2 ?? PERMIT2_ADDRESS],
+      undefined,
+      true,
+    );
+    this.writeCache(chain, 'quotedCalls', quotedCalls.address);
+    return quotedCalls;
   }
 
   async deployTestRecipient(
@@ -293,7 +297,9 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox.address,
     );
 
-    const quotedCalls = await this.deployQuotedCalls(chain, config.permit2);
+    const quotedCalls = shouldDeployQuotedCalls(config)
+      ? await this.deployQuotedCalls(chain, config.permit2)
+      : undefined;
 
     if (config.upgrade) {
       const timelockController = await this.deployTimelock(
@@ -306,23 +312,50 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       };
     }
 
-    const testRecipient = await this.deployTestRecipient(
-      chain,
-      this.cachedAddresses[chain].interchainSecurityModule,
-    );
-
-    const ownableContracts = {
+    const coreOwnableContracts = {
       mailbox,
       proxyAdmin,
       validatorAnnounce,
-      testRecipient,
     };
 
-    await this.transferOwnershipOfContracts(chain, config, ownableContracts);
+    await this.transferOwnershipOfContracts(
+      chain,
+      config,
+      coreOwnableContracts,
+    );
 
-    return {
-      ...ownableContracts,
-      quotedCalls,
-    };
+    const ownableContracts = { ...coreOwnableContracts };
+
+    try {
+      // TestRecipient is diagnostic, so its ISM configuration should not block
+      // finalizing ownership for core contracts.
+      const testRecipient = await this.deployTestRecipient(
+        chain,
+        this.cachedAddresses[chain].interchainSecurityModule,
+      );
+
+      await this.transferOwnershipOfContracts(chain, config, {
+        testRecipient,
+      });
+
+      Object.assign(ownableContracts, { testRecipient });
+    } catch (error) {
+      if (this.cachedAddresses[chain]) {
+        delete this.cachedAddresses[chain].testRecipient;
+      }
+      this.logger.warn(
+        { chain, err: error },
+        'Skipping TestRecipient after core deployment finalized',
+      );
+    }
+
+    // Optional contracts must be omitted, not returned as undefined leaves.
+    // Address artifact serialization expects every present value to be a contract.
+    return quotedCalls
+      ? {
+          ...ownableContracts,
+          quotedCalls,
+        }
+      : ownableContracts;
   }
 }

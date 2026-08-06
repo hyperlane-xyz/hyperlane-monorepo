@@ -4,6 +4,8 @@ import { it } from 'mocha';
 
 import type { ArtifactWriter } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+
+import { supportsFeeConfig } from '../version/version-query.js';
 import type {
   DeployedWarpAddress,
   RawNativeWarpArtifactConfig,
@@ -13,6 +15,7 @@ import type {
 import { SvmSigner } from '../clients/signer.js';
 import { getProgramUpgradeAuthority } from '../deploy/program-deployer.js';
 import type { createRpc } from '../rpc.js';
+import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 import { airdropSol } from '../testing/setup.js';
 
 /**
@@ -73,6 +76,8 @@ export function defineWarpTokenTests(
     expect(onChain.config.hook).to.be.undefined;
     expect(onChain.config.interchainSecurityModule).to.be.undefined;
     expect(onChain.config.scale).to.equal(testScale);
+    expect(onChain.config.contractVersion).to.be.a('string');
+    expect(supportsFeeConfig(onChain.config.contractVersion)).to.equal(true);
   });
 
   it('should deploy with IGP and ISM configured and read them back', async () => {
@@ -239,11 +244,11 @@ export function defineWarpTokenTests(
   });
 
   it('should transfer ownership and allow new owner to update', async () => {
-    const { writer, makeConfig, testIsmAddress, rpc, rpcUrl } = getContext();
+    const { writer, makeConfig, testIsmAddress, rpc } = getContext();
 
     // Create a second keypair to act as the new owner.
     const newOwnerSigner = await SvmSigner.connectWithSigner(
-      [rpcUrl],
+      TEST_SVM_CHAIN_METADATA,
       '0x0000000000000000000000000000000000000000000000000000000000000002',
     );
 

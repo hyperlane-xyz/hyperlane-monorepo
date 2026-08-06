@@ -497,7 +497,7 @@ describe('TokenDeployer', async () => {
           expect.fail('Expected pure non-EVM route subset to reject');
         } catch (error) {
           expect((error as Error).message).to.contain(
-            'Warp route check requires at least one EVM chain in the selected route config',
+            'Warp route check requires at least one EVM or supported altVM chain in the selected route config',
           );
         }
       });
@@ -693,6 +693,7 @@ describe('TokenDeployer', async () => {
         [chain]: {
           type: IsmType.RATE_LIMITED,
           maxCapacity: '86400',
+          duration: 86400n,
           owner: warpOwner,
         },
       };
@@ -751,6 +752,7 @@ describe('TokenDeployer', async () => {
           {
             type: IsmType.RATE_LIMITED,
             maxCapacity: '1000000000000000000',
+            duration: 86400n,
             owner: warpOwner,
           },
         ],

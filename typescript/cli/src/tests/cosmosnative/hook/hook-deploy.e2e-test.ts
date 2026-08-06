@@ -5,7 +5,7 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
-import { hyperlaneHookDeploy } from '../../commands/hook.js';
+import { HyperlaneE2EHookTestCommands } from '../../commands/hook.js';
 import {
   CHAIN_NAME_1,
   CORE_CONFIG_PATH,
@@ -29,6 +29,11 @@ describe('hyperlane hook deploy e2e tests (CosmosNative)', async function () {
     CORE_CONFIG_PATH,
     CORE_READ_CONFIG_PATH_1,
   );
+  const hyperlaneHook = new HyperlaneE2EHookTestCommands(
+    ProtocolType.CosmosNative,
+    CHAIN_NAME_1,
+    REGISTRY_PATH,
+  );
 
   before(async () => {
     await hyperlaneCore.deployOrUseExistingCore(HYP_KEY);
@@ -39,13 +44,11 @@ describe('hyperlane hook deploy e2e tests (CosmosNative)', async function () {
       type: HookType.MERKLE_TREE,
     });
 
-    const output = await hyperlaneHookDeploy({
-      chain: CHAIN_NAME_1,
-      configPath: HOOK_CONFIG_PATH,
-      keyFlags: [`--key.${ProtocolType.CosmosNative}`, HYP_KEY],
-      registryPath: REGISTRY_PATH,
-      outPath: HOOK_OUTPUT_PATH,
-    });
+    const output = await hyperlaneHook.deploy(
+      HYP_KEY,
+      HOOK_CONFIG_PATH,
+      HOOK_OUTPUT_PATH,
+    );
 
     expect(output.exitCode).to.equal(0);
     expect(output.stdout).to.include('Hook deployed successfully');

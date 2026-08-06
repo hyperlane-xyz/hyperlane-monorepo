@@ -12,6 +12,7 @@ import { HelmManager, getHelmReleaseName } from '../../src/utils/helm.js';
 import { WarpRouteMonitorHelmManager } from '../../src/warp-monitor/helm.js';
 import {
   assertCorrectKubeContext,
+  withEnvironment,
   withWarpRouteIdRequired,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -19,14 +20,13 @@ import { getEnvironmentConfig } from '../core-utils.js';
 const orange = chalk.hex('#FFA500');
 const GRAFANA_LINK =
   'https://abacusworks.grafana.net/d/ddz6ma94rnzswc/warp-routes?orgId=1&var-warp_route_id=';
-const LOG_AMOUNT = 5;
-
-const environment = 'mainnet3';
+const LOG_AMOUNT = 200;
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
-  const { warpRouteId } = await withWarpRouteIdRequired(
-    yargs(process.argv.slice(2)),
+  const { warpRouteId, environment } = await withEnvironment(
+    withWarpRouteIdRequired(yargs(process.argv.slice(2))),
+    { defaultEnv: 'mainnet3' },
   ).demandOption('warpRouteId').argv;
 
   const config = getEnvironmentConfig(environment);
@@ -58,6 +58,7 @@ async function showWarpMonitorStatus(warpRouteId: string, environment: string) {
     );
   } catch (error) {
     rootLogger.error(`Failed to get status for ${warpRouteId}:`, error);
+    throw error;
   }
 }
 

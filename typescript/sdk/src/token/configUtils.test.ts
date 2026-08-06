@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import { constants } from 'ethers';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import {
   DEFAULT_ROUTER_KEY,
   ResolvedCrossCollateralRoutingFeeConfigInput,
@@ -16,6 +18,7 @@ import type { WarpCoreConfig } from '../warp/types.js';
 
 import { TokenType } from './config.js';
 import {
+  canonicalizeAllowedRebalancingBridges,
   filterWarpCoreConfigMapByChains,
   getChainsFromWarpCoreConfig,
   normalizeWarpDeployConfigForCheck,
@@ -26,6 +29,7 @@ import {
 import { TokenStandard } from './TokenStandard.js';
 import {
   HypTokenConfig,
+  HypTokenRouterConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from './types.js';
 
@@ -374,7 +378,7 @@ describe('configUtils', () => {
           feeContracts: {
             ethereum: {
               type: TokenFeeType.LinearFee,
-              owner: ADDRESS,
+              owner: constants.AddressZero,
               token: ADDRESS,
               bps: 300n,
             },
@@ -426,13 +430,13 @@ describe('configUtils', () => {
             ethereum: {
               [DEFAULT_ROUTER_KEY]: {
                 type: TokenFeeType.LinearFee,
-                owner: ADDRESS,
+                owner: constants.AddressZero,
                 token: ADDRESS,
                 bps: 200n,
               },
               [ROUTER_KEY]: {
                 type: TokenFeeType.LinearFee,
-                owner: ADDRESS,
+                owner: constants.AddressZero,
                 token: ADDRESS,
                 bps: 300n,
               },
@@ -473,7 +477,7 @@ describe('configUtils', () => {
             ethereum: {
               [DEFAULT_ROUTER_KEY]: {
                 type: TokenFeeType.LinearFee,
-                owner: ADDRESS,
+                owner: constants.AddressZero,
                 token: ADDRESS,
                 bps: 200n,
               },
@@ -513,13 +517,105 @@ describe('configUtils', () => {
           feeContracts: {
             ethereum: {
               type: TokenFeeType.LinearFee,
-              owner: ADDRESS,
+              owner: constants.AddressZero,
               token: ADDRESS,
               bps: 100n,
             },
           },
         },
       });
+    });
+
+    it('ignores nested LinearFee sub-fee owner drift while preserving the top-level owner', () => {
+      const OTHER_OWNER = '0x1111111111111111111111111111111111111111';
+
+      const build = (subOwner: string): HypTokenRouterConfig => {
+        const tokenFee: ResolvedRoutingFeeConfigInput = {
+          type: TokenFeeType.RoutingFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          feeContracts: {
+            ethereum: {
+              type: TokenFeeType.LinearFee,
+              owner: subOwner,
+              token: ADDRESS,
+              bps: 100,
+            },
+          },
+        };
+        return transformConfigToCheck({
+          type: TokenType.collateral,
+          token: ADDRESS,
+          mailbox: ADDRESS,
+          owner: ADDRESS,
+          tokenFee,
+        });
+      };
+
+      // Two configs that differ ONLY in the nested LinearFee owner normalize equal.
+      expect(build(ADDRESS)).to.eql(build(OTHER_OWNER));
+
+      const { tokenFee } = build(OTHER_OWNER);
+      assert(
+        tokenFee?.type === TokenFeeType.RoutingFee,
+        'expected a RoutingFee tokenFee',
+      );
+      // Top-level RoutingFee owner is still surfaced (not collapsed).
+      expect(tokenFee.owner).to.equal(ADDRESS);
+
+      const nested = tokenFee.feeContracts.ethereum;
+      assert(
+        nested.type === TokenFeeType.LinearFee,
+        'expected a LinearFee nested fee',
+      );
+      // Nested LinearFee owner is collapsed to the sentinel: drift is ignored.
+      expect(nested.owner).to.equal(constants.AddressZero);
+    });
+
+    it('detects OffchainQuotedLinearFee sub-fee owner drift', () => {
+      const OTHER_OWNER = '0x1111111111111111111111111111111111111111';
+
+      const build = (subOwner: string): HypTokenRouterConfig => {
+        const tokenFee: ResolvedRoutingFeeConfigInput = {
+          type: TokenFeeType.RoutingFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          feeContracts: {
+            ethereum: {
+              type: TokenFeeType.OffchainQuotedLinearFee,
+              owner: subOwner,
+              token: ADDRESS,
+              bps: 100,
+              quoteSigners: [ADDRESS],
+            },
+          },
+        };
+        return transformConfigToCheck({
+          type: TokenType.collateral,
+          token: ADDRESS,
+          mailbox: ADDRESS,
+          owner: ADDRESS,
+          tokenFee,
+        });
+      };
+
+      // OQLF owner controls quote signers, so owner-only drift must NOT normalize equal.
+      expect(build(ADDRESS)).to.not.eql(build(OTHER_OWNER));
+
+      const { tokenFee } = build(OTHER_OWNER);
+      assert(
+        tokenFee?.type === TokenFeeType.RoutingFee,
+        'expected a RoutingFee tokenFee',
+      );
+      const nested = tokenFee.feeContracts.ethereum;
+      assert(
+        nested.type === TokenFeeType.OffchainQuotedLinearFee,
+        'expected an OffchainQuotedLinearFee nested fee',
+      );
+      // Real OQLF owner is preserved (not collapsed to the sentinel).
+      expect(nested.owner).to.equal(OTHER_OWNER);
+      // Nested quoteSigners are still surfaced.
+      expect(nested.quoteSigners).to.eql([ADDRESS]);
     });
   });
 
@@ -543,7 +639,7 @@ describe('configUtils', () => {
 
     it('should resolve token to router address for synthetic tokens', () => {
       const input = {
-        type: TokenFeeType.LinearFee as const,
+        type: TokenFeeType.LinearFee,
         owner: OWNER_ADDRESS,
         bps: 100,
       };
@@ -560,7 +656,7 @@ describe('configUtils', () => {
 
     it('should resolve token to collateral address for collateral tokens', () => {
       const input = {
-        type: TokenFeeType.LinearFee as const,
+        type: TokenFeeType.LinearFee,
         owner: OWNER_ADDRESS,
         bps: 100,
       };
@@ -576,7 +672,7 @@ describe('configUtils', () => {
 
     it('should resolve token to AddressZero for native tokens', () => {
       const input = {
-        type: TokenFeeType.LinearFee as const,
+        type: TokenFeeType.LinearFee,
         owner: OWNER_ADDRESS,
         bps: 100,
       };
@@ -592,16 +688,16 @@ describe('configUtils', () => {
 
     it('should resolve nested feeContracts tokens for RoutingFee', () => {
       const input = {
-        type: TokenFeeType.RoutingFee as const,
+        type: TokenFeeType.RoutingFee,
         owner: OWNER_ADDRESS,
         feeContracts: {
           ethereum: {
-            type: TokenFeeType.LinearFee as const,
+            type: TokenFeeType.LinearFee,
             owner: OWNER_ADDRESS,
             bps: 100,
           },
           arbitrum: {
-            type: TokenFeeType.LinearFee as const,
+            type: TokenFeeType.LinearFee,
             owner: OWNER_ADDRESS,
             bps: 50,
           },
@@ -623,7 +719,7 @@ describe('configUtils', () => {
 
     it('should handle RoutingFee with empty feeContracts', () => {
       const input = {
-        type: TokenFeeType.RoutingFee as const,
+        type: TokenFeeType.RoutingFee,
         owner: OWNER_ADDRESS,
         feeContracts: {},
       };
@@ -642,17 +738,17 @@ describe('configUtils', () => {
       const ROUTER_KEY =
         '0x1111111111111111111111111111111111111111111111111111111111111111';
       const input = {
-        type: TokenFeeType.CrossCollateralRoutingFee as const,
+        type: TokenFeeType.CrossCollateralRoutingFee,
         owner: OWNER_ADDRESS,
         feeContracts: {
           ethereum: {
             [DEFAULT_ROUTER_KEY]: {
-              type: TokenFeeType.LinearFee as const,
+              type: TokenFeeType.LinearFee,
               owner: OWNER_ADDRESS,
               bps: 100n,
             },
             [ROUTER_KEY]: {
-              type: TokenFeeType.LinearFee as const,
+              type: TokenFeeType.LinearFee,
               owner: OWNER_ADDRESS,
               bps: 200n,
             },
@@ -854,6 +950,87 @@ describe('configUtils', () => {
     it('should return all routes for empty chains array', () => {
       const result = filterWarpCoreConfigMapByChains(configMap, []);
       expect(Object.keys(result)).to.have.lengthOf(3);
+    });
+  });
+
+  describe(canonicalizeAllowedRebalancingBridges.name, () => {
+    const BRIDGE_A = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const BRIDGE_B = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    const TOKEN_X = '0x1111111111111111111111111111111111111111';
+    const TOKEN_Y = '0x2222222222222222222222222222222222222222';
+    const TEST1_DOMAIN = test1.domainId.toString();
+
+    // Only test1 resolves; everything else is treated as unknown.
+    const resolveDomainId = (key: string): number | undefined =>
+      key === test1.name ? test1.domainId : undefined;
+
+    it('canonicalizes chain-name keys to domain ids', () => {
+      const result = canonicalizeAllowedRebalancingBridges(
+        { [test1.name]: [{ bridge: BRIDGE_A }] },
+        resolveDomainId,
+      );
+      expect(result).to.deep.equal({ [TEST1_DOMAIN]: [{ bridge: BRIDGE_A }] });
+    });
+
+    it('merges an identical bridge keyed by both chain name and domain id into one entry', () => {
+      const result = canonicalizeAllowedRebalancingBridges(
+        {
+          [test1.name]: [{ bridge: BRIDGE_A }],
+          [TEST1_DOMAIN]: [{ bridge: BRIDGE_A }],
+        },
+        resolveDomainId,
+      );
+      expect(result).to.deep.equal({ [TEST1_DOMAIN]: [{ bridge: BRIDGE_A }] });
+    });
+
+    it('deduplicates an identical bridge whose addresses differ only in case', () => {
+      const bridgeMixedCase = '0x' + BRIDGE_A.slice(2).toUpperCase();
+      const result = canonicalizeAllowedRebalancingBridges(
+        {
+          [test1.name]: [{ bridge: BRIDGE_A }],
+          [TEST1_DOMAIN]: [{ bridge: bridgeMixedCase }],
+        },
+        resolveDomainId,
+      );
+      expect(result[TEST1_DOMAIN]).to.have.lengthOf(1);
+    });
+
+    it('unions approvedTokens when merging an identical bridge across collided keys', () => {
+      const result = canonicalizeAllowedRebalancingBridges(
+        {
+          [test1.name]: [{ bridge: BRIDGE_A, approvedTokens: [TOKEN_X] }],
+          [TEST1_DOMAIN]: [{ bridge: BRIDGE_A, approvedTokens: [TOKEN_Y] }],
+        },
+        resolveDomainId,
+      );
+      expect(result[TEST1_DOMAIN]).to.have.lengthOf(1);
+      expect(result[TEST1_DOMAIN][0].bridge).to.equal(BRIDGE_A);
+      expect(result[TEST1_DOMAIN][0].approvedTokens).to.have.deep.members([
+        TOKEN_X,
+        TOKEN_Y,
+      ]);
+    });
+
+    it('keeps distinct bridges under one key when chain name and domain id collide', () => {
+      const result = canonicalizeAllowedRebalancingBridges(
+        {
+          [test1.name]: [{ bridge: BRIDGE_A }],
+          [TEST1_DOMAIN]: [{ bridge: BRIDGE_B }],
+        },
+        resolveDomainId,
+      );
+      expect(result[TEST1_DOMAIN]).to.have.deep.members([
+        { bridge: BRIDGE_A },
+        { bridge: BRIDGE_B },
+      ]);
+    });
+
+    it('preserves keys the resolver does not recognize', () => {
+      const result = canonicalizeAllowedRebalancingBridges(
+        { unknownchain: [{ bridge: BRIDGE_A }] },
+        resolveDomainId,
+      );
+      expect(result).to.deep.equal({ unknownchain: [{ bridge: BRIDGE_A }] });
     });
   });
 });

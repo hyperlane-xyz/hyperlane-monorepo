@@ -1,0 +1,163 @@
+{
+  "arbitrumsepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "basesepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "bsctestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "fuji": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "optimismsepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "polygonamoy": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "solanatestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "sonicsvmtestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "eclipsetestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "aleotestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "celosepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "radixtestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "tronshasta": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "somniatestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "cotitestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "kyvetestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "modetestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "celestiatestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "hyperliquidevmtestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "paradexsepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "starknetsepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "seismictestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "sepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  }
+}

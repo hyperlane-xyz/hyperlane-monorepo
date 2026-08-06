@@ -1326,6 +1326,7 @@ async fn test_fallback_provider() {
         connection_type: ClientConnectionType::Rpc,
         node: None,
         chain: None,
+        rpc_role: Default::default(),
     };
     let rpc_client =
         CosmosHttpClient::from_url(&url, metrics.clone(), metrics_config, CompatMode::latest())

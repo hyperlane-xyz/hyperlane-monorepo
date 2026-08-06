@@ -2,8 +2,11 @@ import {
   AgentChainMetadata,
   AgentSealevelPriorityFeeOracle,
   AgentSealevelTransactionSubmitter,
+  AgentSealevelUrReveal,
   AgentSignerAwsKey,
+  AgentSignerGcpKey,
   AgentSignerKeyType,
+  ChainMap,
   ChainName,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
@@ -39,6 +42,11 @@ export interface HelmRootAgentValues {
   hyperlane: HelmHyperlaneValues;
   nameOverride?: string;
   tolerations?: KubernetesToleration[];
+  nodeSelector?: Record<string, string>;
+  serviceAccount?: {
+    name?: string;
+    annotations?: Record<string, string>;
+  };
 }
 
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
@@ -61,6 +69,11 @@ interface HelmHyperlaneValues {
 // This is at `.hyperlane.chains` in the values file.
 export interface HelmAgentChainOverride extends DeepPartial<AgentChainMetadata> {
   name: AgentChainMetadata['name'];
+  // Validator only: additional public registry RPC URLs used to build
+  // CUSTOMADDITIONALQUORUMRPCURLS. No private RPCs are merged in here — rpcUrls
+  // already votes in the same quorum group, so this is public-only. Not part of
+  // AgentChainMetadata itself — consumed only by the external-secret Helm template.
+  publicRpcUrls?: string[];
 }
 
 export interface RootAgentConfig extends AgentContextConfig {
@@ -82,6 +95,7 @@ export interface AgentContextConfig extends AgentEnvConfig {
   namespace: string;
   context: Contexts;
   aws?: AwsConfig;
+  gcp?: GcpConfig;
   // Roles to manage keys for
   rolesWithKeys: Role[];
   // Names of chains this context cares about (subset of environmentChainNames)
@@ -96,6 +110,7 @@ export interface SealevelAgentConfig {
   transactionSubmitterConfigGetter?: (
     chain: ChainName,
   ) => AgentSealevelTransactionSubmitter;
+  urRevealConfigGetter?: (chain: ChainName) => AgentSealevelUrReveal;
 }
 
 // An ugly way to mark a URL as a the secret Helius URL when Helm templating
@@ -107,6 +122,8 @@ interface AgentRoleConfig {
   docker: DockerConfig;
   chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;
   resources?: KubernetesResources;
+  // Optional per-chain overrides for resources (currently used for validator tiering).
+  chainResourceOverrides?: ChainMap<KubernetesResources>;
 
   // Agent-specific
   rpcConsensusType: RpcConsensusType;
@@ -131,8 +148,12 @@ export type RadixKeyConfig = {
   type: AgentSignerKeyType.Radix;
   suffix: string;
 };
+// Cloud KMS-backed key. `keyVersionName` is the full CryptoKeyVersion resource
+// name (GetPublicKey/AsymmetricSign require the version, not just the key).
+export type GcpKeyConfig = Required<AgentSignerGcpKey>;
 export type KeyConfig =
   | AwsKeyConfig
+  | GcpKeyConfig
   | HexKeyConfig
   | CosmosKeyConfig
   | StarknetKeyConfig
@@ -144,6 +165,11 @@ interface IndexingConfig {
 
 export interface AwsConfig {
   region: string;
+}
+
+export interface GcpConfig {
+  project: string;
+  location: string;
 }
 
 export interface DockerConfig {
@@ -175,6 +201,7 @@ export class RootAgentConfigHelper implements AgentContextConfig {
   namespace: string;
   runEnv: DeployEnvironment;
   aws?: AwsConfig;
+  gcp?: GcpConfig;
   rolesWithKeys: Role[];
   contextChainNames: AgentChainNames;
   environmentChainNames: ChainName[];
@@ -184,6 +211,7 @@ export class RootAgentConfigHelper implements AgentContextConfig {
     this.context = root.context;
     this.namespace = root.namespace;
     this.aws = root.aws;
+    this.gcp = root.gcp;
     this.runEnv = root.runEnv;
     this.rolesWithKeys = root.rolesWithKeys;
     this.contextChainNames = root.contextChainNames;
@@ -227,6 +255,14 @@ export abstract class AgentConfigHelper<
       };
     }
     return this.agentRoleConfig.docker;
+  }
+
+  // If the provided chain has a resource override, return it, otherwise the default.
+  resourcesForChain(chainName: ChainName): KubernetesResources | undefined {
+    return (
+      this.agentRoleConfig.chainResourceOverrides?.[chainName] ??
+      this.agentRoleConfig.resources
+    );
   }
 }
 

@@ -70,7 +70,9 @@ pub(crate) async fn filter_operations_for_submit(
                 submit_queue.push(op, Some(ReadyToSubmit)).await;
             }
             PostSubmitSuccess => {
-                // PostSubmitSuccess is sent to Confirm stage.
+                // Tx is confirmed on-chain at this point (Included/Finalized).
+                // Fire the reveal hook now, before the 10-min confirm delay.
+                op.on_submitted_success();
                 confirm_op(op, confirm_queue, metrics).await;
             }
             PostSubmitFailure => {

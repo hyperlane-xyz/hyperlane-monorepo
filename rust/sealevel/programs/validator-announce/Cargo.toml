@@ -23,6 +23,7 @@ hyperlane-sealevel-mailbox = { path = "../mailbox", features = [
     "no-entrypoint",
 ] }
 hyperlane-core = { path = "../../../main/hyperlane-core" }
+package-versioned = { path = "../../libraries/package-versioned" }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
 
 [dev-dependencies]

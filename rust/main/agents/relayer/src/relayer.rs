@@ -504,6 +504,7 @@ impl BaseAgent for Relayer {
             let message_db_loader = match self.run_message_db_loader(
                 origin,
                 send_channels.clone(),
+                BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
                 task_monitor.clone(),
             ) {
                 Ok(task) => task,
@@ -915,6 +916,7 @@ impl Relayer {
         &self,
         origin: &Origin,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+        index_notifications: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
     ) -> eyre::Result<JoinHandle<()>> {
         let metrics = MessageDbLoaderMetrics::new(&self.core.metrics, &origin.domain);
@@ -959,6 +961,7 @@ impl Relayer {
             destination_ctxs,
             self.metric_app_contexts.clone(),
             self.max_retries,
+            index_notifications,
         );
 
         let span = info_span!("MessageDbLoader", origin=%message_db_loader.domain());

@@ -11,12 +11,13 @@ import { Contexts } from '../../contexts.js';
 
 import { agents } from './agent.js';
 import { environment as environmentName, getRegistry } from './chains.js';
-import { core } from './core.js';
+import { getCore } from './core.js';
 import { keyFunderConfig } from './funding.js';
-import { igp } from './igp.js';
+import { getIgp } from './igp.js';
 import { infrastructure } from './infrastructure.js';
 import { chainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
+import { validatorMonitorConfig } from './validatorMonitor.js';
 import { checkWarpDeployConfig } from './warp/checkWarpDeploy.js';
 
 export const environment: EnvironmentConfig = {
@@ -47,10 +48,17 @@ export const environment: EnvironmentConfig = {
     role: Role = Role.Deployer,
   ) => getKeysForRole(environmentName, supportedChainNames, context, role),
   agents,
-  core,
-  igp,
+  // Lazy getters so merely importing the environment config does not trigger the
+  // expensive IGP / gas oracle computation (and its precision-rebalance warnings).
+  get core() {
+    return getCore();
+  },
+  get igp() {
+    return getIgp();
+  },
   owners: chainOwners,
   infra: infrastructure,
   keyFunderConfig,
   checkWarpDeployConfig,
+  validatorMonitorConfig,
 };

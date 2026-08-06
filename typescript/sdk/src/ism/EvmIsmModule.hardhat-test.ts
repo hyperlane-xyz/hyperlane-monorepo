@@ -1,9 +1,14 @@
 import assert from 'assert';
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
-import { RateLimitedIsm__factory } from '@hyperlane-xyz/core';
+import {
+  BlacklistIsm__factory,
+  RateLimitedIsm__factory,
+  StaticAggregationIsm__factory,
+} from '@hyperlane-xyz/core';
 
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
@@ -24,14 +29,25 @@ import { EvmIsmModule } from './EvmIsmModule.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
   AggregationIsmConfig,
+  BlacklistIsmConfig,
   DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
+  ModuleType,
   MultisigIsmConfig,
   RateLimitedIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
 } from './types.js';
+
+chai.use(chaiAsPromised);
+
+const randomBytes32 = () =>
+  hre.ethers.utils.hexlify(hre.ethers.utils.randomBytes(32));
+
+// Blacklist ISMs are only valid in a mandatory (exhaustive-aggregation)
+// position, so build a standalone one to prove the composition walk rejects it.
+const BLACKLIST_COMPOSITION_ERROR = 'must be a member of an aggregation';
 
 describe('EvmIsmModule', async () => {
   let multiProvider: MultiProvider;
@@ -190,6 +206,7 @@ describe('EvmIsmModule', async () => {
       const config: RateLimitedIsmConfig = {
         type: IsmType.RATE_LIMITED,
         maxCapacity: '86400',
+        duration: 86400n,
         recipient,
         owner,
       };
@@ -202,6 +219,71 @@ describe('EvmIsmModule', async () => {
       expect((await rateLimitedIsm.owner()).toLowerCase()).to.equal(
         owner.toLowerCase(),
       );
+    });
+
+    it('deploys a blacklist submodule under an exhaustive aggregation and transfers ownership to non-deployer', async () => {
+      const owner = randomAddress();
+      const blacklistedIds = [randomBytes32(), randomBytes32()];
+      const blacklistSubmodule: BlacklistIsmConfig = {
+        type: IsmType.BLACKLIST,
+        owner,
+        blacklistedIds,
+      };
+
+      // threshold === modules.length: the blacklist sits in a mandatory
+      // (exhaustive-aggregation) position, so the composition invariant holds
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [randomMultisigIsmConfig(3, 5), blacklistSubmodule],
+        threshold: 2,
+      };
+
+      const { ism } = await createIsm(config);
+
+      const provider = multiProvider.getProvider(chain);
+      const [moduleAddresses] = await StaticAggregationIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        provider,
+      ).modulesAndThreshold(hre.ethers.constants.AddressZero);
+
+      let blacklistFound = false;
+      for (const moduleAddress of moduleAddresses) {
+        const blacklistIsm = BlacklistIsm__factory.connect(
+          moduleAddress,
+          provider,
+        );
+        if ((await blacklistIsm.moduleType()) === ModuleType.NULL) {
+          expect((await blacklistIsm.owner()).toLowerCase()).to.equal(
+            owner.toLowerCase(),
+          );
+          for (const id of blacklistedIds) {
+            expect(await blacklistIsm.blacklistedIds(id)).to.be.true;
+          }
+          blacklistFound = true;
+        }
+      }
+      expect(blacklistFound).to.be.true;
+    });
+
+    it('rejects create of a standalone blacklist ism', async () => {
+      // seed a valid deployed ISM so the afterEach invariant reads a real config
+      await createIsm(randomMultisigIsmConfig(3, 5));
+
+      const config: BlacklistIsmConfig = {
+        type: IsmType.BLACKLIST,
+        owner: randomAddress(),
+        blacklistedIds: [randomBytes32()],
+      };
+
+      await expect(
+        EvmIsmModule.create({
+          chain,
+          config,
+          proxyFactoryFactories: factoryAddresses,
+          mailbox: mailboxAddress,
+          multiProvider,
+        }),
+      ).to.be.rejectedWith(BLACKLIST_COMPOSITION_ERROR);
     });
 
     for (let i = 0; i < 16; i++) {
@@ -589,6 +671,7 @@ describe('EvmIsmModule', async () => {
       const rateLimitedConfig: RateLimitedIsmConfig = {
         type: IsmType.RATE_LIMITED,
         maxCapacity: '86400',
+        duration: 86400n,
         recipient,
         owner: signerAddress,
       };
@@ -613,6 +696,152 @@ describe('EvmIsmModule', async () => {
       expect((await rateLimitedIsm.owner()).toLowerCase()).to.equal(
         newOwner.toLowerCase(),
       );
+    });
+
+    it('redeploys a new ISM on duration change (immutable)', async () => {
+      const recipient = randomAddress();
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+      const rateLimitedConfig: RateLimitedIsmConfig = {
+        type: IsmType.RATE_LIMITED,
+        maxCapacity: '86400',
+        duration: 86400n,
+        recipient,
+        owner: signerAddress,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(rateLimitedConfig);
+
+      // duration is immutable on-chain; changing it must redeploy a fresh ISM.
+      // keep maxCapacity a multiple of the new duration (schema constraint).
+      rateLimitedConfig.duration = 3600n;
+      rateLimitedConfig.maxCapacity = '3600';
+
+      // update() redeploys internally and emits no txs
+      await expectTxsAndUpdate(ism, rateLimitedConfig, 0);
+
+      // different contract address — redeployed
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .false;
+
+      const rateLimitedIsm = RateLimitedIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        multiProvider.getProvider(chain),
+      );
+      expect((await rateLimitedIsm.DURATION()).toString()).to.equal('3600');
+    });
+
+    it('redeploys the aggregation when a blacklisted ID is dropped under an exhaustive aggregation (append-only)', async () => {
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+      const idToKeep = randomBytes32();
+      const idToDrop = randomBytes32();
+      const blacklistSubmodule: BlacklistIsmConfig = {
+        type: IsmType.BLACKLIST,
+        owner: signerAddress,
+        blacklistedIds: [idToKeep, idToDrop],
+      };
+
+      // threshold === modules.length: mandatory (exhaustive-aggregation) position
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [randomMultisigIsmConfig(3, 5), blacklistSubmodule],
+        threshold: 2,
+      };
+      const { ism, initialIsmAddress } = await createIsm(config);
+
+      // entries are append-only on-chain; dropping one must redeploy a fresh ISM,
+      // which changes the submodule address and forces the container to redeploy
+      blacklistSubmodule.blacklistedIds = [idToKeep];
+
+      // update() redeploys internally and emits no txs
+      await expectTxsAndUpdate(ism, config, 0);
+
+      // different aggregation address — redeployed
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .false;
+
+      const provider = multiProvider.getProvider(chain);
+      const [moduleAddresses] = await StaticAggregationIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        provider,
+      ).modulesAndThreshold(hre.ethers.constants.AddressZero);
+
+      let blacklistFound = false;
+      for (const moduleAddress of moduleAddresses) {
+        const blacklistIsm = BlacklistIsm__factory.connect(
+          moduleAddress,
+          provider,
+        );
+        if ((await blacklistIsm.moduleType()) === ModuleType.NULL) {
+          expect(await blacklistIsm.blacklistedIds(idToKeep)).to.be.true;
+          expect(await blacklistIsm.blacklistedIds(idToDrop)).to.be.false;
+          blacklistFound = true;
+        }
+      }
+      expect(blacklistFound).to.be.true;
+    });
+
+    it('rejects update to a standalone blacklist ism', async () => {
+      const { ism } = await createIsm(randomMultisigIsmConfig(3, 5));
+
+      const standaloneBlacklist: BlacklistIsmConfig = {
+        type: IsmType.BLACKLIST,
+        owner: await multiProvider.getSignerAddress(chain),
+        blacklistedIds: [randomBytes32()],
+      };
+
+      await expect(ism.update(standaloneBlacklist)).to.be.rejectedWith(
+        BLACKLIST_COMPOSITION_ERROR,
+      );
+    });
+
+    it('updates a blacklist submodule in-place under an exhaustive aggregation', async () => {
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+      const existingIds = [randomBytes32()];
+      const blacklistSubmodule: BlacklistIsmConfig = {
+        type: IsmType.BLACKLIST,
+        owner: signerAddress,
+        blacklistedIds: [...existingIds],
+      };
+
+      // threshold === modules.length: the blacklist sits in a mandatory
+      // (exhaustive-aggregation) position, so the composition invariant holds
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [randomMultisigIsmConfig(3, 5), blacklistSubmodule],
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(config);
+
+      const newId = randomBytes32();
+      // mutate in-place so testConfig (same reference) stays in sync for afterEach
+      blacklistSubmodule.blacklistedIds = [...existingIds, newId];
+
+      // 1 tx blacklisting only the new ID on the submodule; aggregation stays put
+      await expectTxsAndUpdate(ism, config, 1);
+
+      // same aggregation address — container updated in place, no redeploy
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+
+      const provider = multiProvider.getProvider(chain);
+      const [moduleAddresses] = await StaticAggregationIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        provider,
+      ).modulesAndThreshold(hre.ethers.constants.AddressZero);
+
+      let blacklistFound = false;
+      for (const moduleAddress of moduleAddresses) {
+        const blacklistIsm = BlacklistIsm__factory.connect(
+          moduleAddress,
+          provider,
+        );
+        if ((await blacklistIsm.moduleType()) === ModuleType.NULL) {
+          expect(await blacklistIsm.blacklistedIds(newId)).to.be.true;
+          blacklistFound = true;
+        }
+      }
+      expect(blacklistFound).to.be.true;
     });
   });
 });

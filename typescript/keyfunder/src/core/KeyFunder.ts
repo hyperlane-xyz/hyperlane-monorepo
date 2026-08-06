@@ -118,16 +118,24 @@ export class KeyFunder {
     logger.info({ durationSeconds }, 'Chain funding completed');
   }
 
+  private getNativeDecimals(chain: string): number {
+    return (
+      this.multiProvider.getChainMetadata(chain).nativeToken?.decimals ?? 18
+    );
+  }
+
   private async recordFunderBalance(chain: string): Promise<void> {
     const signer = this.multiProvider.getSigner(chain);
     const funderAddress = await signer.getAddress();
     const funderBalance = await signer.getBalance();
-    const balanceInEther = parseFloat(ethers.utils.formatEther(funderBalance));
+    const balance = parseFloat(
+      ethers.utils.formatUnits(funderBalance, this.getNativeDecimals(chain)),
+    );
     this.options.metrics?.recordUnifiedWalletBalance(
       chain,
       funderAddress,
       'key-funder',
-      balanceInEther,
+      balance,
     );
   }
 
@@ -175,18 +183,22 @@ export class KeyFunder {
     const provider = this.multiProvider.getProvider(chain);
     const igpContract =
       this.options.igp.getContracts(chain).interchainGasPaymaster;
+    const decimals = this.getNativeDecimals(chain);
     const igpBalance = await provider.getBalance(igpContract.address);
-    const claimThreshold = ethers.utils.parseEther(igpConfig.claimThreshold);
+    const claimThreshold = ethers.utils.parseUnits(
+      igpConfig.claimThreshold,
+      decimals,
+    );
 
     this.options.metrics?.recordIgpBalance(
       chain,
-      parseFloat(ethers.utils.formatEther(igpBalance)),
+      parseFloat(ethers.utils.formatUnits(igpBalance, decimals)),
     );
 
     logger.info(
       {
-        igpBalance: ethers.utils.formatEther(igpBalance),
-        claimThreshold: ethers.utils.formatEther(claimThreshold),
+        igpBalance: ethers.utils.formatUnits(igpBalance, decimals),
+        claimThreshold: ethers.utils.formatUnits(claimThreshold, decimals),
       },
       'Checking IGP balance',
     );
@@ -217,7 +229,11 @@ export class KeyFunder {
       role: key.role,
     });
 
-    const desiredBalance = ethers.utils.parseEther(key.desiredBalance);
+    const decimals = this.getNativeDecimals(chain);
+    const desiredBalance = ethers.utils.parseUnits(
+      key.desiredBalance,
+      decimals,
+    );
     const fundingAmount = await this.calculateFundingAmount(
       chain,
       key.address,
@@ -232,12 +248,12 @@ export class KeyFunder {
       chain,
       key.address,
       key.role,
-      parseFloat(ethers.utils.formatEther(currentBalance)),
+      parseFloat(ethers.utils.formatUnits(currentBalance, decimals)),
     );
 
     if (fundingAmount.eq(0)) {
       logger.debug(
-        { currentBalance: ethers.utils.formatEther(currentBalance) },
+        { currentBalance: ethers.utils.formatUnits(currentBalance, decimals) },
         'Key balance sufficient, skipping',
       );
       return;
@@ -251,23 +267,23 @@ export class KeyFunder {
     if (funderBalance.lt(fundingAmount)) {
       logger.error(
         {
-          funderBalance: ethers.utils.formatEther(funderBalance),
-          requiredAmount: ethers.utils.formatEther(fundingAmount),
+          funderBalance: ethers.utils.formatUnits(funderBalance, decimals),
+          requiredAmount: ethers.utils.formatUnits(fundingAmount, decimals),
         },
         'Funder balance insufficient to cover funding amount',
       );
       throw new Error(
-        `Insufficient funder balance on ${chain}: has ${ethers.utils.formatEther(funderBalance)}, needs ${ethers.utils.formatEther(fundingAmount)}`,
+        `Insufficient funder balance on ${chain}: has ${ethers.utils.formatUnits(funderBalance, decimals)}, needs ${ethers.utils.formatUnits(fundingAmount, decimals)}`,
       );
     }
 
     logger.info(
       {
-        amount: ethers.utils.formatEther(fundingAmount),
-        currentBalance: ethers.utils.formatEther(currentBalance),
-        desiredBalance: ethers.utils.formatEther(desiredBalance),
+        amount: ethers.utils.formatUnits(fundingAmount, decimals),
+        currentBalance: ethers.utils.formatUnits(currentBalance, decimals),
+        desiredBalance: ethers.utils.formatUnits(desiredBalance, decimals),
         funderAddress,
-        funderBalance: ethers.utils.formatEther(funderBalance),
+        funderBalance: ethers.utils.formatUnits(funderBalance, decimals),
       },
       'Funding key',
     );
@@ -281,7 +297,7 @@ export class KeyFunder {
       chain,
       key.address,
       key.role,
-      parseFloat(ethers.utils.formatEther(fundingAmount)),
+      parseFloat(ethers.utils.formatUnits(fundingAmount, decimals)),
     );
 
     logger.info(
@@ -330,7 +346,8 @@ export class KeyFunder {
       );
     }
 
-    const threshold = ethers.utils.parseEther(sweepConfig.threshold);
+    const decimals = this.getNativeDecimals(chain);
+    const threshold = ethers.utils.parseUnits(sweepConfig.threshold, decimals);
     const targetBalance = calculateMultipliedBalance(
       threshold,
       sweepConfig.targetMultiplier,
@@ -346,9 +363,9 @@ export class KeyFunder {
 
     logger.info(
       {
-        funderBalance: ethers.utils.formatEther(funderBalance),
-        triggerThreshold: ethers.utils.formatEther(triggerThreshold),
-        targetBalance: ethers.utils.formatEther(targetBalance),
+        funderBalance: ethers.utils.formatUnits(funderBalance, decimals),
+        triggerThreshold: ethers.utils.formatUnits(triggerThreshold, decimals),
+        targetBalance: ethers.utils.formatUnits(targetBalance, decimals),
       },
       'Checking sweep conditions',
     );
@@ -358,7 +375,7 @@ export class KeyFunder {
 
       logger.info(
         {
-          sweepAmount: ethers.utils.formatEther(sweepAmount),
+          sweepAmount: ethers.utils.formatUnits(sweepAmount, decimals),
           sweepAddress: sweepConfig.address,
         },
         'Sweeping excess funds',
@@ -371,7 +388,7 @@ export class KeyFunder {
 
       this.options.metrics?.recordSweepAmount(
         chain,
-        parseFloat(ethers.utils.formatEther(sweepAmount)),
+        parseFloat(ethers.utils.formatUnits(sweepAmount, decimals)),
       );
 
       logger.info(
