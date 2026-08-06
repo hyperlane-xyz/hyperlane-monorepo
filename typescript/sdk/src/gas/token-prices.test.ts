@@ -79,11 +79,22 @@ describe('TokenPriceGetter', () => {
   });
 
   describe('prefetchTokenPrices / getCachedTokenPrice', () => {
+    let fetchStub: sinon.SinonStub;
+
+    afterEach(() => {
+      fetchStub?.restore();
+    });
+
     it('warms the cache in one deduped batched pass', async () => {
-      // @ts-ignore stub the private network method
-      const getStub = sinon
-        .stub(tokenPriceGetter, 'get')
-        .resolves({ ethereum: { usd: 1900 }, bitcoin: { usd: 64000 } });
+      fetchStub = sinon.stub(globalThis, 'fetch').resolves(
+        new Response(
+          JSON.stringify({
+            ethereum: { usd: 1900 },
+            bitcoin: { usd: 64000 },
+          }),
+          { status: 200 },
+        ),
+      );
 
       await tokenPriceGetter.prefetchTokenPrices([
         'ethereum',
@@ -91,17 +102,17 @@ describe('TokenPriceGetter', () => {
         'ethereum',
       ]);
 
-      expect(getStub.callCount).to.equal(1);
+      expect(fetchStub.callCount).to.equal(1);
       expect(tokenPriceGetter.getCachedTokenPrice('ethereum')).to.equal(1900);
       expect(tokenPriceGetter.getCachedTokenPrice('bitcoin')).to.equal(64000);
-      getStub.restore();
     });
 
     it('skips ids with no returned price instead of dropping the batch', async () => {
-      // @ts-ignore stub the private network method
-      const getStub = sinon
-        .stub(tokenPriceGetter, 'get')
-        .resolves({ ethereum: { usd: 1900 } });
+      fetchStub = sinon.stub(globalThis, 'fetch').resolves(
+        new Response(JSON.stringify({ ethereum: { usd: 1900 } }), {
+          status: 200,
+        }),
+      );
 
       await tokenPriceGetter.prefetchTokenPrices(['ethereum', 'unknown-token']);
 
@@ -109,7 +120,6 @@ describe('TokenPriceGetter', () => {
       expect(tokenPriceGetter.getCachedTokenPrice('unknown-token')).to.equal(
         undefined,
       );
-      getStub.restore();
     });
   });
 });
