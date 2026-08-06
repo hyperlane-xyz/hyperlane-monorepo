@@ -40,7 +40,22 @@ type RequiredGetLogByTopicOptions = z.infer<
   typeof RequiredGetLogByTopicOptionsSchema
 >;
 
+/**
+ * Where a set of logs came from. Callers that need to reason about the
+ * completeness of a response need this: the explorer API caps its result at a
+ * page and reports the capped page as a success, whereas the RPC path walks the
+ * whole block range in chunks.
+ */
+export const EvmEventLogsSource = {
+  Explorer: 'explorer',
+  Rpc: 'rpc',
+} as const;
+
+export type EvmEventLogsSource =
+  (typeof EvmEventLogsSource)[keyof typeof EvmEventLogsSource];
+
 interface IEvmEventLogsReaderStrategy {
+  readonly source: EvmEventLogsSource;
   getContractDeploymentBlockNumber(address: Address): Promise<number>;
   getContractLogs(
     address: RequiredGetLogByTopicOptions,
@@ -48,6 +63,8 @@ interface IEvmEventLogsReaderStrategy {
 }
 
 export class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrategy {
+  readonly source = EvmEventLogsSource.Explorer;
+
   constructor(
     protected readonly chain: ChainNameOrId,
     protected readonly config: Awaited<
@@ -94,6 +111,8 @@ export class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrat
 }
 
 export class EvmRpcEventLogsReader implements IEvmEventLogsReaderStrategy {
+  readonly source = EvmEventLogsSource.Rpc;
+
   constructor(
     protected readonly chain: ChainNameOrId,
     protected readonly config: { paginationBlockRange?: number },
@@ -179,6 +198,17 @@ export class EvmEventLogsReader {
   async getLogsByTopic(
     options: GetLogByTopicOptions,
   ): Promise<GetEventLogsResponse[]> {
+    const { logs } = await this.getLogsByTopicWithSource(options);
+    return logs;
+  }
+
+  /**
+   * As `getLogsByTopic`, but also reports which strategy served the request.
+   * The fallback means the source cannot be predicted from the config alone.
+   */
+  async getLogsByTopicWithSource(
+    options: GetLogByTopicOptions,
+  ): Promise<{ logs: GetEventLogsResponse[]; source: EvmEventLogsSource }> {
     const provider = this.multiProvider.getProvider(this.config.chain);
     await assertIsContractAddress(
       this.multiProvider,
@@ -189,13 +219,14 @@ export class EvmEventLogsReader {
     try {
       // Retry the primary strategy with exponential backoff to handle
       // transient failures like explorer rate limits
-      return await retryAsync(() =>
+      const logs = await retryAsync(() =>
         this.getLogsByTopicWithStrategy(
           options,
           provider,
           this.logReaderStrategy,
         ),
       );
+      return { logs, source: this.logReaderStrategy.source };
     } catch (err) {
       if (!this.fallbackLogReaderStrategy) {
         throw err;
@@ -205,11 +236,12 @@ export class EvmEventLogsReader {
         `Failed to read logs on chain "${this.config.chain}": ${err}. Falling back to using the RPC`,
       );
 
-      return this.getLogsByTopicWithStrategy(
+      const logs = await this.getLogsByTopicWithStrategy(
         options,
         provider,
         this.fallbackLogReaderStrategy,
       );
+      return { logs, source: this.fallbackLogReaderStrategy.source };
     }
   }
 
