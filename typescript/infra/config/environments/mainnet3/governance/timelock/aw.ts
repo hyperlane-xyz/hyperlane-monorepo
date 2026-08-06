@@ -68,4 +68,8 @@ export const awTimelocks: ChainMap<Address> = {
   // Sep 22, 2025 - Timelock for 0G oUSDT extension
   // ----------------------------------------------------------
   zerogravity: '0x11EF91d17c5ad3330DbCa709a8841743d3Af6819',
+
+  // Aug 6, 2026 - Timelock for oUSDT expansion to Tron
+  // ----------------------------------------------------------
+  tron: '0xf354dE0536da38537fe751B586eB5CCc81101741',
 } as const;
