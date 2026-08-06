@@ -851,7 +851,8 @@ const fork: CommandModuleWithContext<
   }
 > = {
   command: 'fork',
-  describe: 'Fork a Hyperlane chain on a compatible Anvil/Hardhat node',
+  describe:
+    'Fork the chains of a warp route on a per-protocol local node (Anvil for EVM, surfpool for Sealevel) and replay governance transactions',
   builder: {
     ...forkCommandOptions,
     ...WARP_ROUTE_OPTIONS,
