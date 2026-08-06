@@ -28,7 +28,7 @@ export async function buildForkedChainMetadata(args: {
 }> {
   const { chains, forkManagers, basePort = DEFAULT_FORK_BASE_PORT } = args;
 
-  const ports = allocateSequentialPorts(basePort, chains.length);
+  const ports = allocateSequentialPorts(basePort, chains.length * 2);
 
   const metadata: ChainMap<ForkedChainMetadata> = {};
   const managers: ChainMap<IForkManager<unknown>> = {};
@@ -44,6 +44,7 @@ export async function buildForkedChainMetadata(args: {
         chainName: chain.chainName,
         upstreamRpcUrl: chain.upstreamRpcUrl,
         port: ports[i],
+        wsPort: ports[chains.length + i],
       });
       started.push({ chainName: chain.chainName, manager });
 

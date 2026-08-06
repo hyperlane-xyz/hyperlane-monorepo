@@ -30,6 +30,11 @@ export interface ForkManagerContext {
   upstreamRpcUrl: string;
   /** Local port the fork node should bind its RPC to. */
   port: number;
+  /**
+   * Optional secondary local port for protocols whose node binds more than one
+   * port (e.g. a WebSocket port). Protocols that bind a single port ignore it.
+   */
+  wsPort?: number;
 }
 
 export type ForkManagerFactory = (

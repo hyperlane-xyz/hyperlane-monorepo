@@ -56,6 +56,7 @@ export async function loadForkManager(
           chainName: ctx.chainName,
           upstreamRpcUrl: ctx.upstreamRpcUrl,
           rpcPort: ctx.port,
+          wsPort: ctx.wsPort,
           killAfterApply: kill,
         }),
       );

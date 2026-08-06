@@ -89,6 +89,7 @@ describe('buildForkedChainMetadata', () => {
     });
 
     expect(created.map((m) => m.ctx.port)).to.deep.equal([9000, 9001, 9002]);
+    expect(created.map((m) => m.ctx.wsPort)).to.deep.equal([9003, 9004, 9005]);
     expect(created.map((m) => m.ctx.chainName)).to.deep.equal([
       'alpha',
       'beta',
