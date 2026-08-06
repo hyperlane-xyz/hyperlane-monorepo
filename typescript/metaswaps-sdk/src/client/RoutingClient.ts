@@ -44,6 +44,7 @@ export class RoutingClient {
     } else {
       if (query.chain != null) params.set('chain', String(query.chain));
       if (query.search) params.set('search', query.search);
+      if (query.userAddress) params.set('userAddress', query.userAddress);
     }
     const qs = params.toString();
     return this.get(`/v1/tokens${qs ? `?${qs}` : ''}`, TokensResponseSchema);

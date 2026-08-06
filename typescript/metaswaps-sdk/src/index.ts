@@ -17,9 +17,14 @@ export {
   TokensResponseSchema,
   QuoteRequestSchema,
   QuoteResponseSchema,
+  QuoteRejectionSchema,
   RouteResponseSchema,
   CallCommitmentSchema,
+  ChainRouteTxSchema,
+  EvmRouteTxSchema,
+  RouteApprovalSchema,
   RouteTxSchema,
+  SdkRouteTxSchema,
   // Types
   type ChainDiscovery,
   type ChainsResponse,
@@ -33,10 +38,15 @@ export {
   type QuoteSwapStep,
   type QuoteBridgeStep,
   type RouteTx,
+  type ChainRouteTx,
+  type EvmRouteTx,
+  type SdkRouteTx,
+  type RouteApproval,
   type CallCommitment,
   type CallCommitmentBody,
   type HealthResponse,
   type ReadinessResponse,
+  type QuoteRejection,
 } from './client/schemas.js';
 
 // Wallet

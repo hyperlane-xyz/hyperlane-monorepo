@@ -12,13 +12,22 @@
  *   RECIPIENT     Override recipient address (defaults to sender)
  */
 import { ethers } from 'ethers';
-import { MetaswapsSDK, SwapStatus } from '../index.js';
+import { MetaswapsSDK, SwapStatus, type QuoteStep } from '../index.js';
 
 const USDC_BASE = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const USDT_ARB = '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9';
 const BASE_CHAIN_ID = 8453;
 const ARB_CHAIN_ID = 42161;
 const AMOUNT = 10_000n; // 0.01 USDC (6 decimals)
+const CHAIN_LABELS: Record<number, string> = {
+  [BASE_CHAIN_ID]: 'Base',
+  [ARB_CHAIN_ID]: 'Arbitrum',
+};
+const TOKEN_LABELS: Record<string, string> = {
+  [`${BASE_CHAIN_ID}:${USDC_BASE.toLowerCase()}`]: 'USDC',
+  [`${ARB_CHAIN_ID}:${USDT_ARB.toLowerCase()}`]: 'USDT',
+  [`${ARB_CHAIN_ID}:0xaf88d065e77cc2239327c5edb3a432268e5831`]: 'USDC',
+};
 
 async function main(): Promise<void> {
   const privateKey = process.env.HYP_KEY;
@@ -59,6 +68,7 @@ async function main(): Promise<void> {
     sender,
     recipient,
     slippageBps: 50,
+    usePermit2: false,
   });
 
   if (quote.routes.length === 0) {
@@ -71,8 +81,8 @@ async function main(): Promise<void> {
   for (const [i, route] of quote.routes.entries()) {
     const output = (Number(BigInt(route.output)) / 1e6).toFixed(6);
     const min = (Number(BigInt(route.outputMin)) / 1e6).toFixed(6);
-    const steps = route.steps.map((s) => s.type).join(' → ');
-    console.log(`Route ${i + 1}: ${steps}`);
+    const path = describeRoutePath(route.steps);
+    console.log(`Route ${i + 1}: ${path}`);
     console.log(`  Output: ${output} USDT  (min ${min})\n`);
   }
 
@@ -143,3 +153,40 @@ main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
+
+function describeRoutePath(steps: QuoteStep[]): string {
+  const parts: string[] = [];
+  for (const step of steps) {
+    if (step.type === 'swap') {
+      if (parts.length === 0) {
+        parts.push(tokenLabel(step.chain, step.tokenIn));
+      }
+      parts.push(
+        `${tokenLabel(step.chain, step.tokenOut)} on ${chainLabel(step.chain)}`,
+      );
+      continue;
+    }
+
+    if (parts.length === 0) {
+      parts.push(
+        `${tokenLabel(step.chain, step.asset)} on ${chainLabel(step.chain)}`,
+      );
+    }
+    const bridgeName = step.warpRouteId
+      ? `Hyperlane bridge (${step.warpRouteId})`
+      : 'Hyperlane bridge';
+    parts.push(bridgeName);
+    parts.push(
+      `${tokenLabel(step.destChain, step.asset)} on ${chainLabel(step.destChain)}`,
+    );
+  }
+  return parts.join(' -> ');
+}
+
+function tokenLabel(chainId: number, address: string): string {
+  return TOKEN_LABELS[`${chainId}:${address.toLowerCase()}`] ?? address;
+}
+
+function chainLabel(chainId: number): string {
+  return CHAIN_LABELS[chainId] ?? `chain ${chainId}`;
+}

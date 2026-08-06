@@ -1,6 +1,13 @@
 import { ethers } from 'ethers';
 import { postCallCommitment } from '../client/ccs.js';
-import type { QuoteResponse, RouteResponse } from '../client/schemas.js';
+import {
+  EvmRouteTxSchema,
+  type EvmRouteTx,
+  type QuoteResponse,
+  type RouteApproval,
+  type RouteResponse,
+  type RouteTx,
+} from '../client/schemas.js';
 import { resolveRpcUrl } from '../utils/constants.js';
 import { resolveEvmSigner } from '../wallet/adapter.js';
 import type { WalletConfig } from '../wallet/types.js';
@@ -12,6 +19,12 @@ const ERC20_ABI = [
   'function allowance(address owner, address spender) view returns (uint256)',
   'function approve(address spender, uint256 amount) returns (bool)',
 ];
+const PERMIT2_ABI = [
+  'function allowance(address owner, address token, address spender) view returns (uint160 amount, uint48 expiration, uint48 nonce)',
+  'function approve(address token, address spender, uint160 amount, uint48 expiration)',
+];
+const MAX_UINT160 = (1n << 160n) - 1n;
+const MAX_UINT48 = (1n << 48n) - 1n;
 
 export interface ExecutorConfig {
   ccsUrl: string;
@@ -50,7 +63,6 @@ export async function executeSwap(
   const provider = signer.provider;
   assert(provider, 'Signer has no provider');
 
-  // ERC-20 approval if needed.
   await ensureApproval(route, signer, srcChainId, rpcUrls);
 
   // If the route needs CCS coordination, register the commitment first.
@@ -60,12 +72,19 @@ export async function executeSwap(
     await postCallCommitment(config.ccsUrl, ccs.path, ccs.body);
   }
 
-  // Submit origin transaction. The engine already encodes a deadline in tx.data.
-  const tx = await signer.sendTransaction({
-    to: route.tx.to,
-    data: route.tx.data,
-    value: BigInt(route.tx.value),
-  });
+  const executableTxs = executableEvmTxs(route);
+  assert(executableTxs.length > 0, 'Route has no EVM transaction to execute');
+
+  let tx: ethers.providers.TransactionResponse | undefined;
+  for (const executableTx of executableTxs) {
+    tx = await signer.sendTransaction({
+      to: executableTx.to,
+      data: executableTx.data,
+      value: BigInt(executableTx.value),
+    });
+    await tx.wait(1);
+  }
+  assert(tx, 'No origin transaction was submitted');
 
   tracker.onOriginTxSent(tx.hash, provider, route, srcChainId, dstChainId);
 
@@ -78,6 +97,11 @@ async function ensureApproval(
   chainId: number,
   rpcUrls: Record<number, string>,
 ): Promise<void> {
+  if (route.approval) {
+    await ensureRouteApproval(route.approval, signer, chainId, rpcUrls);
+    return;
+  }
+
   const firstStep = route.steps[0];
   if (!firstStep) return;
 
@@ -99,7 +123,7 @@ async function ensureApproval(
   if (isNative) return;
 
   // Router address comes from the route tx target.
-  const routerAddress = route.tx?.to;
+  const routerAddress = route.tx ? evmTxFromRouteTx(route.tx)?.to : undefined;
   if (!routerAddress) return;
 
   const owner = await signer.getAddress();
@@ -120,4 +144,131 @@ async function ensureApproval(
   const approveTx: ethers.providers.TransactionResponse =
     await tokenWithSigner.approve(routerAddress, ethers.constants.MaxUint256);
   await approveTx.wait(1);
+}
+
+async function ensureRouteApproval(
+  approval: RouteApproval,
+  signer: ethers.Signer,
+  chainId: number,
+  rpcUrls: Record<number, string>,
+): Promise<void> {
+  if (approval.kind === 'erc20') {
+    await ensureErc20Allowance(
+      approval.token,
+      approval.spender,
+      BigInt(approval.amount),
+      signer,
+      chainId,
+      rpcUrls,
+    );
+    return;
+  }
+
+  assert(approval.permit2Spender, 'Permit2 approval missing permit2Spender');
+  const amount = BigInt(approval.amount);
+  assert(amount <= MAX_UINT160, 'Permit2 approval amount exceeds uint160');
+
+  await ensureErc20Allowance(
+    approval.token,
+    approval.spender,
+    amount,
+    signer,
+    chainId,
+    rpcUrls,
+  );
+
+  const owner = await signer.getAddress();
+  const rpcUrl = resolveRpcUrl(chainId, rpcUrls);
+  assert(rpcUrl, `No RPC URL for chain ${chainId}`);
+  const provider = new ethers.providers.JsonRpcProvider(rpcUrl, chainId);
+  const permit2 = new ethers.Contract(approval.spender, PERMIT2_ABI, provider);
+  const allowance = await permit2.allowance(
+    owner,
+    approval.token,
+    approval.permit2Spender,
+  );
+  const currentAmount = BigInt(allowance.amount.toString());
+  const expiration = Number(allowance.expiration.toString());
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (currentAmount >= amount && expiration > nowSeconds) return;
+
+  const permit2WithSigner = permit2.connect(signer);
+  const approveTx: ethers.providers.TransactionResponse =
+    await permit2WithSigner.approve(
+      approval.token,
+      approval.permit2Spender,
+      amount.toString(),
+      MAX_UINT48.toString(),
+    );
+  await approveTx.wait(1);
+}
+
+async function ensureErc20Allowance(
+  tokenAddress: string,
+  spender: string,
+  amount: bigint,
+  signer: ethers.Signer,
+  chainId: number,
+  rpcUrls: Record<number, string>,
+): Promise<void> {
+  const owner = await signer.getAddress();
+  const rpcUrl = resolveRpcUrl(chainId, rpcUrls);
+  assert(rpcUrl, `No RPC URL for chain ${chainId}`);
+
+  const provider = new ethers.providers.JsonRpcProvider(rpcUrl, chainId);
+  const token = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+  const currentAllowance: ethers.BigNumber = await token.allowance(
+    owner,
+    spender,
+  );
+  if (currentAllowance.toBigInt() >= amount) return;
+
+  const tokenWithSigner = token.connect(signer);
+  const approveTx: ethers.providers.TransactionResponse =
+    await tokenWithSigner.approve(spender, ethers.constants.MaxUint256);
+  await approveTx.wait(1);
+}
+
+function executableEvmTxs(route: RouteResponse): EvmRouteTx[] {
+  const txs = route.txs?.length ? route.txs : route.tx ? [route.tx] : [];
+  return txs.map((tx) => {
+    const evmTx = evmTxFromRouteTx(tx);
+    assert(
+      evmTx,
+      `Route execution kind ${route.executionKind} returned a transaction this EVM wallet adapter cannot execute`,
+    );
+    return evmTx;
+  });
+}
+
+function evmTxFromRouteTx(tx: RouteTx): EvmRouteTx | undefined {
+  const chainTx = EvmRouteTxSchema.safeParse(tx);
+  if (chainTx.success) return chainTx.data;
+
+  if (!('transaction' in tx)) return undefined;
+  const parsed = EvmRouteTxSchema.safeParse(tx.transaction);
+  if (parsed.success) return parsed.data;
+
+  if (typeof tx.transaction !== 'object' || tx.transaction === null) {
+    return undefined;
+  }
+  const transaction = tx.transaction as Record<string, unknown>;
+  const candidate = {
+    to: transaction.to,
+    data: stringifyTxField(transaction.data),
+    value: stringifyTxField(transaction.value) ?? '0',
+  };
+  const normalized = EvmRouteTxSchema.safeParse(candidate);
+  return normalized.success ? normalized.data : undefined;
+}
+
+function stringifyTxField(value: unknown): string | undefined {
+  if (value == null) return undefined;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'bigint') return value.toString();
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'object' && value !== null && '_isBigNumber' in value) {
+    return (value as ethers.BigNumber).toString();
+  }
+  return undefined;
 }
