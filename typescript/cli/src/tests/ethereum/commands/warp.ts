@@ -922,12 +922,10 @@ export async function setupIncompleteWarpRouteExtension(
     ? await readChainSubmissionStrategyConfig(context.strategyPath)
     : {};
 
-  const altVmSigners = await createAltVMSigners(
-    context.multiProvider,
-    [],
-    {},
-    strategyConfig,
-  );
+  const {
+    signers: altVmSigners,
+    impersonatingSigners: altVmImpersonatingSigners,
+  } = await createAltVMSigners(context.multiProvider, [], {}, strategyConfig);
 
   await extendWarpRouteWithoutApplyTransactions(
     {
@@ -938,6 +936,7 @@ export async function setupIncompleteWarpRouteExtension(
           [ProtocolType.Ethereum]: ANVIL_KEY,
         },
         altVmSigners,
+        altVmImpersonatingSigners,
       },
       warpCoreConfig,
       warpDeployConfig,

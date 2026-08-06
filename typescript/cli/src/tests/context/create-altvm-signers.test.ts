@@ -374,4 +374,121 @@ describe('createAltVMSigners', () => {
     expect(capturedConfigs[0].accountAddress).to.equal('0xaaa');
     expect(capturedConfigs[1].accountAddress).to.equal('0xbbb');
   });
+
+  function getSealevelMetadata(chainName: string): ChainMetadataForAltVM {
+    return {
+      name: chainName,
+      protocol: ProtocolType.Sealevel,
+      chainId: 1399811149,
+      domainId: 1399811149,
+      rpcUrls: [{ http: 'http://localhost:8899' }],
+    };
+  }
+
+  function getImpersonationRegistry(options: { supported: boolean }): {
+    registry: NonNullable<Parameters<typeof createAltVMSigners>[4]>;
+    impersonatingConfigs: Array<{ privateKey?: string }>;
+  } {
+    const impersonatingConfigs: Array<{ privateKey?: string }> = [];
+    const provider: Pick<
+      ProtocolProvider,
+      'createSigner' | 'createImpersonatingSigner'
+    > = {
+      async createSigner(_chainMetadata, config) {
+        capturedConfigs.push(config);
+        return getStubSigner();
+      },
+    };
+    if (options.supported) {
+      provider.createImpersonatingSigner = async (_chainMetadata, config) => {
+        impersonatingConfigs.push(config);
+        return getStubSigner();
+      };
+    }
+    return {
+      registry: {
+        getProtocolProvider: () => provider,
+        hasProtocol: () => true,
+      },
+      impersonatingConfigs,
+    };
+  }
+
+  it('builds an impersonating signer only for impersonatedAccount chains', async () => {
+    const strategy: Partial<ExtendedChainSubmissionStrategy> = {
+      svmimpersonate: {
+        submitter: {
+          type: TxSubmitterType.IMPERSONATED_ACCOUNT,
+          chain: 'svmimpersonate',
+        },
+      },
+      svmplain: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: 'svmplain',
+          privateKey: '0xplainkey',
+        },
+      },
+    };
+
+    const keys: SignerKeyProtocolMap = {
+      [ProtocolType.Sealevel]: '0xfeepayer',
+    };
+
+    const { registry, impersonatingConfigs } = getImpersonationRegistry({
+      supported: true,
+    });
+
+    const result = await createAltVMSigners(
+      getMetadataManager((chainName) => getSealevelMetadata(chainName)),
+      ['svmimpersonate', 'svmplain'],
+      keys,
+      strategy,
+      registry,
+    );
+
+    expect(Object.keys(result.signers)).to.have.members([
+      'svmimpersonate',
+      'svmplain',
+    ]);
+    expect(Object.keys(result.impersonatingSigners)).to.deep.equal([
+      'svmimpersonate',
+    ]);
+    // Reuses the same fee-payer key resolved for the normal signer.
+    expect(impersonatingConfigs).to.have.length(1);
+    expect(impersonatingConfigs[0].privateKey).to.equal('0xfeepayer');
+  });
+
+  it('throws when impersonatedAccount is requested but unsupported', async () => {
+    const strategy: Partial<ExtendedChainSubmissionStrategy> = {
+      svmimpersonate: {
+        submitter: {
+          type: TxSubmitterType.IMPERSONATED_ACCOUNT,
+          chain: 'svmimpersonate',
+        },
+      },
+    };
+
+    const keys: SignerKeyProtocolMap = {
+      [ProtocolType.Sealevel]: '0xfeepayer',
+    };
+
+    const { registry } = getImpersonationRegistry({ supported: false });
+
+    await createAltVMSigners(
+      getMetadataManager((chainName) => getSealevelMetadata(chainName)),
+      ['svmimpersonate'],
+      keys,
+      strategy,
+      registry,
+    )
+      .then(() => expect.fail('expected createAltVMSigners to throw'))
+      .catch((error: unknown) => {
+        expect(error).to.be.instanceOf(Error);
+        const message = error instanceof Error ? error.message : String(error);
+        expect(message).to.equal(
+          'Impersonated submission is not supported for protocol sealevel (chain svmimpersonate)',
+        );
+      });
+  });
 });

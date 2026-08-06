@@ -13,7 +13,10 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import { assert, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { type ExtendedChainSubmissionStrategy } from '../submitters/types.js';
+import {
+  CustomTxSubmitterType,
+  type ExtendedChainSubmissionStrategy,
+} from '../submitters/types.js';
 
 import {
   JSON_RPC_SUBMITTER_TYPE,
@@ -107,9 +110,14 @@ async function loadAccountAddress(
 type AltVmProtocolRegistry = {
   getProtocolProvider: (
     protocol: ProtocolType,
-  ) => Pick<ProtocolProvider, 'createSigner'>;
+  ) => Pick<ProtocolProvider, 'createSigner' | 'createImpersonatingSigner'>;
   hasProtocol: (protocol: ProtocolType) => boolean;
 };
+
+export interface AltVMSigners {
+  signers: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
+  impersonatingSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
+}
 
 export async function createAltVMSigners(
   metadataManager: ChainMetadataManagerLike,
@@ -120,8 +128,10 @@ export async function createAltVMSigners(
     getProtocolProvider,
     hasProtocol,
   },
-) {
+): Promise<AltVMSigners> {
   const signers: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>> = {};
+  const impersonatingSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>> =
+    {};
   const promptedKeyByProtocol: Partial<Record<ProtocolType, string>> = {};
 
   for (const chain of chains) {
@@ -147,10 +157,26 @@ export async function createAltVMSigners(
       accountAddress,
     };
 
-    signers[chain] = await protocolRegistry
-      .getProtocolProvider(metadata.protocol)
-      .createSigner(metadata, signerConfig);
+    const provider = protocolRegistry.getProtocolProvider(metadata.protocol);
+    signers[chain] = await provider.createSigner(metadata, signerConfig);
+
+    // Only build an impersonating signer when the chain's strategy selects the
+    // impersonatedAccount submitter — it targets a fork with signature
+    // verification disabled and must never be used against a live cluster.
+    if (
+      strategyConfig[chain]?.submitter.type ===
+      CustomTxSubmitterType.IMPERSONATED_ACCOUNT
+    ) {
+      assert(
+        provider.createImpersonatingSigner,
+        `Impersonated submission is not supported for protocol ${metadata.protocol} (chain ${chain})`,
+      );
+      impersonatingSigners[chain] = await provider.createImpersonatingSigner(
+        metadata,
+        signerConfig,
+      );
+    }
   }
 
-  return signers;
+  return { signers, impersonatingSigners };
 }

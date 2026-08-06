@@ -60,6 +60,9 @@ export interface CommandContext extends Omit<
   warpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
   resolvedWarpRouteId?: string;
   altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
+  // Impersonating signers keyed by chain, populated only for chains whose
+  // strategy selects the impersonatedAccount submitter (fork governance).
+  altVmImpersonatingSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
   // just for evm chains backward compatibility
   signerAddress?: string;
 }

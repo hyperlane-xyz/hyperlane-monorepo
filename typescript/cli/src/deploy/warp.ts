@@ -3,6 +3,7 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
+  AltVMImpersonatedSubmitter,
   AltVMJsonRpcSubmitter,
   createWarpTokenWriter,
 } from '@hyperlane-xyz/deploy-sdk';
@@ -1213,7 +1214,8 @@ async function getFeeSubmitterByStrategy<T extends ProtocolType>({
   context: WriteCommandContext;
   strategyUrl?: string;
 }): Promise<TxSubmitterBuilder<T> | undefined> {
-  const { multiProvider, altVmSigners, registry } = context;
+  const { multiProvider, altVmSigners, altVmImpersonatingSigners, registry } =
+    context;
 
   if (!strategyUrl) return undefined;
 
@@ -1240,6 +1242,11 @@ async function getFeeSubmitterByStrategy<T extends ProtocolType>({
     const signer = mustGet(altVmSigners, chain);
     additionalSubmitterFactories[protocol] = {
       jsonRpc: () => new AltVMJsonRpcSubmitter(signer, { chain }),
+      [CustomTxSubmitterType.IMPERSONATED_ACCOUNT]: () =>
+        new AltVMImpersonatedSubmitter(
+          mustGet(altVmImpersonatingSigners, chain),
+          { chain },
+        ),
       [CustomTxSubmitterType.FILE]: (
         _multiProvider: MultiProvider,
         metadata: any,
@@ -1672,7 +1679,8 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
   submitter: TxSubmitterBuilder<T>;
   config: ExtendedSubmissionStrategy;
 }> {
-  const { multiProvider, altVmSigners, registry } = context;
+  const { multiProvider, altVmSigners, altVmImpersonatingSigners, registry } =
+    context;
 
   const defaultSubmitter: ExtendedSubmissionStrategy = {
     submitter: {
@@ -1711,6 +1719,12 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
         return new AltVMJsonRpcSubmitter(signer, {
           chain: chain,
         });
+      },
+      [CustomTxSubmitterType.IMPERSONATED_ACCOUNT]: () => {
+        return new AltVMImpersonatedSubmitter(
+          mustGet(altVmImpersonatingSigners, chain),
+          { chain },
+        );
       },
       [CustomTxSubmitterType.FILE]: (
         _multiProvider: MultiProvider,

@@ -183,12 +183,14 @@ export async function signerMiddleware(argv: ContextMiddlewareArgv) {
   /**
    * Creates AltVM signers
    */
-  argv.context.altVmSigners = await createAltVMSigners(
+  const { signers, impersonatingSigners } = await createAltVMSigners(
     argv.context.multiProvider,
     chains,
     key,
     strategyConfig,
   );
+  argv.context.altVmSigners = signers;
+  argv.context.altVmImpersonatingSigners = impersonatingSigners;
 
   return;
 }
@@ -242,6 +244,7 @@ export async function getContext({
     multiProtocolProvider,
     altVmProviders,
     altVmSigners: {},
+    altVmImpersonatingSigners: {},
     supportedProtocols,
     key: keyMap,
     skipConfirmation: !!skipConfirmation,
