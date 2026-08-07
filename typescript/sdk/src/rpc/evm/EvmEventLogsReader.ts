@@ -40,6 +40,23 @@ type RequiredGetLogByTopicOptions = z.infer<
   typeof RequiredGetLogByTopicOptionsSchema
 >;
 
+// How far below the end of a query the explorer's indexing is re-checked over
+// RPC. Explorer indexing lag runs to seconds or minutes, so an hour clears it
+// with room for an incident while keeping the re-read to a handful of calls.
+const EXPLORER_LAG_TAIL_SECONDS = 60 * 60;
+
+// Used where a chain publishes no block time. Assuming a fast chain overshoots
+// on a slow one, costing a few more calls; assuming a slow one would undershoot
+// on a fast chain and leave part of the lag window unread.
+const ASSUMED_BLOCK_TIME_SECONDS = 1;
+
+// Ceiling on the derived window, so the re-read stays a bounded cost no matter
+// how fast a chain is: at the default 500-block RPC page this is about twenty
+// calls. It binds only below roughly a third of a second per block, where it
+// trades the tail end of the hour for that bound — around forty minutes of
+// coverage on the fastest chains, still well beyond observed indexing lag.
+const EXPLORER_LAG_TAIL_MAX_BLOCKS = 10_000;
+
 interface IEvmEventLogsReaderStrategy {
   getContractDeploymentBlockNumber(address: Address): Promise<number>;
   getContractLogs(
@@ -52,7 +69,7 @@ export class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrat
     protected readonly chain: ChainNameOrId,
     protected readonly config: Awaited<
       ReturnType<ChainMetadataManager['getExplorerApi']>
-    >,
+    > & { paginationBlockRange?: number },
     protected readonly multiProvider: MultiProvider,
   ) {}
 
@@ -73,12 +90,45 @@ export class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrat
     return deploymentTransactionReceipt.blockNumber;
   }
 
+  // The lag window is a duration, so it is converted into blocks per chain
+  // rather than fixed as a block count: the same count is a whole day on a slow
+  // chain and minutes on a fast one.
+  private lagTailBlocks(): number {
+    const { blocks } = this.multiProvider.getChainMetadata(this.chain);
+    const estimate = blocks?.estimateBlockTime;
+    // The metadata schema already requires this to be positive and finite;
+    // re-checking keeps a hand-built metadata object from turning the bounded
+    // re-read into a full-range scan.
+    const blockTime =
+      estimate !== undefined && Number.isFinite(estimate) && estimate > 0
+        ? estimate
+        : ASSUMED_BLOCK_TIME_SECONDS;
+
+    return Math.min(
+      Math.ceil(EXPLORER_LAG_TAIL_SECONDS / blockTime),
+      EXPLORER_LAG_TAIL_MAX_BLOCKS,
+    );
+  }
+
+  /**
+   * Reads the explorer's records, and where the query reaches into the recent
+   * past also re-reads that part over RPC and merges the two.
+   *
+   * A page that comes back short proves the explorer has served everything it
+   * has indexed, which is not the same as everything up to `toBlock`: an
+   * explorer indexing behind the chain reports a stale set as a complete one.
+   * Indexing lag only affects blocks near the head, so the re-read covers the
+   * intersection of the requested range with the lag window below the head. A
+   * query that ends before that window is already settled as far as the explorer
+   * is concerned and is left alone — which also keeps historical reads off
+   * archive RPC endpoints, since re-reading old blocks would demand one.
+   */
   async getContractLogs(
     options: RequiredGetLogByTopicOptions,
   ): Promise<GetEventLogsResponse[]> {
     const parsedOptions = RequiredGetLogByTopicOptionsSchema.parse(options);
 
-    return getLogsFromEtherscanLikeExplorerAPI(
+    const explorerLogs = await getLogsFromEtherscanLikeExplorerAPI(
       {
         apiUrl: this.config.apiUrl,
         apiKey: this.config.apiKey,
@@ -90,7 +140,63 @@ export class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrat
         topic0: parsedOptions.eventTopic,
       },
     );
+
+    // Anchored to the head rather than to `toBlock`: lag is a property of the
+    // chain's tip, so a query that ends well below it has nothing to reconcile.
+    // Costs one eth_blockNumber per explorer read, which is cheap next to the
+    // explorer request itself and, unlike re-reading old blocks, needs no
+    // archive node.
+    const headBlock = await this.multiProvider
+      .getProvider(this.chain)
+      .getBlockNumber();
+
+    // The explorer accounted for every block up to and including the last one
+    // it returned a record from. That block is re-read rather than skipped,
+    // since a page boundary can fall inside a block; the merge de-duplicates.
+    const lastExplorerBlock =
+      explorerLogs.length > 0
+        ? Math.max(...explorerLogs.map((log) => log.blockNumber))
+        : parsedOptions.fromBlock;
+    const tailFromBlock = Math.max(
+      parsedOptions.fromBlock,
+      lastExplorerBlock,
+      headBlock - this.lagTailBlocks(),
+    );
+    const tailToBlock = Math.min(parsedOptions.toBlock, headBlock);
+
+    // The requested range and the lag window do not overlap.
+    if (tailFromBlock > tailToBlock) {
+      return explorerLogs;
+    }
+
+    const tailLogs = await getLogsFromRpc({
+      chain: this.chain,
+      contractAddress: parsedOptions.contractAddress,
+      topic: parsedOptions.eventTopic,
+      fromBlock: tailFromBlock,
+      toBlock: tailToBlock,
+      multiProvider: this.multiProvider,
+      // The re-read is an RPC call like any other, so it honours the same
+      // per-chain block-range cap the RPC strategy does.
+      range: this.config.paginationBlockRange,
+    });
+
+    return mergeEventLogs(explorerLogs, tailLogs);
   }
+}
+
+// A log is identified by its transaction and its position within it, so a
+// record read from both sources is kept once.
+function mergeEventLogs(
+  ...sources: GetEventLogsResponse[][]
+): GetEventLogsResponse[] {
+  const byIdentity = new Map<string, GetEventLogsResponse>();
+  for (const logs of sources) {
+    for (const log of logs) {
+      byIdentity.set(`${log.transactionHash}:${log.logIndex}`, log);
+    }
+  }
+  return [...byIdentity.values()];
 }
 
 export class EvmRpcEventLogsReader implements IEvmEventLogsReaderStrategy {
@@ -150,7 +256,12 @@ export class EvmEventLogsReader {
     if (explorer && !config.useRPC) {
       logReaderStrategy = new EvmEtherscanLikeEventLogsReader(
         config.chain,
-        explorer,
+        {
+          apiUrl: explorer.apiUrl,
+          apiKey: explorer.apiKey,
+          family: explorer.family,
+          paginationBlockRange: config.paginationBlockRange,
+        },
         multiProvider,
       );
 

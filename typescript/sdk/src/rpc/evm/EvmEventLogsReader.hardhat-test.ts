@@ -15,6 +15,7 @@ import {
   ethereumTestChain,
 } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import { contractDouble } from '../../test/contractDouble.js';
 import { randomAddress, randomInt } from '../../test/testUtils.js';
 
 import {
@@ -391,6 +392,107 @@ describe('EvmEventLogsReader', () => {
       });
 
       expect(res.length).to.equal(17);
+    });
+  });
+
+  describe('explorer reconciliation with the chain', () => {
+    // The explorer strategy against a stubbed explorer, so the only real reads
+    // are the RPC ones it makes to cover what the explorer had not indexed.
+    async function readWithStubbedExplorer(
+      explorerLogs: unknown,
+      sandbox: sinon.SinonSandbox,
+    ) {
+      sandbox.stub(global, 'fetch').resolves(
+        contractDouble<Response>({
+          url: 'https://api.example.com/api',
+          json: async () => ({
+            status: '1',
+            message: 'OK',
+            result: explorerLogs,
+          }),
+        }),
+      );
+
+      const strategy = new EvmEtherscanLikeEventLogsReader(
+        TestChainName.test1,
+        { apiUrl: 'https://api.example.com/api' },
+        multiProvider,
+      );
+
+      return strategy.getContractLogs({
+        contractAddress: testContract.address,
+        eventTopic: transferTopic,
+        fromBlock: deploymentBlockNumber,
+        toBlock: await providerChainTest1.getBlockNumber(),
+      });
+    }
+
+    it('recovers events the explorer had not indexed yet', async () => {
+      await deployTestErc20();
+      const tx = await testContract.transfer(
+        tokenRecipient1.address,
+        ethers.utils.parseEther('100'),
+      );
+      await tx.wait();
+
+      const sandbox = sinon.createSandbox();
+      try {
+        // An explorer that is behind: it reports nothing for a range that does
+        // contain an event.
+        const logs = await readWithStubbedExplorer([], sandbox);
+
+        expect(logs.length).to.be.greaterThan(0);
+        expect(logs[0].topics[0]).to.equal(transferTopic);
+      } finally {
+        sandbox.restore();
+      }
+    });
+
+    it('keeps one copy of an event both sources return', async () => {
+      await deployTestErc20();
+      const tx = await testContract.transfer(
+        tokenRecipient1.address,
+        ethers.utils.parseEther('100'),
+      );
+      const receipt = await tx.wait();
+      const transferLog = receipt.logs.find(
+        (log: { topics: string[] }) => log.topics[0] === transferTopic,
+      );
+      assert(transferLog, 'Expected a Transfer log in the receipt');
+
+      const sandbox = sinon.createSandbox();
+      try {
+        // The same event the RPC tail will also see, in the explorer's shape.
+        const logs = await readWithStubbedExplorer(
+          [
+            {
+              address: transferLog.address,
+              blockNumber: ethers.utils.hexValue(transferLog.blockNumber),
+              data: transferLog.data,
+              gasPrice: '0x1',
+              gasUsed: '0x1',
+              logIndex: ethers.utils.hexValue(transferLog.logIndex),
+              timeStamp: '0x64000000',
+              topics: transferLog.topics,
+              transactionHash: transferLog.transactionHash,
+              transactionIndex: ethers.utils.hexValue(
+                transferLog.transactionIndex,
+              ),
+            },
+          ],
+          sandbox,
+        );
+
+        expect(
+          logs.filter(
+            (log) =>
+              log.transactionHash === transferLog.transactionHash &&
+              log.logIndex === transferLog.logIndex,
+          ),
+        ).to.have.lengthOf(1);
+      } finally {
+        sandbox.restore();
+      }
     });
   });
 

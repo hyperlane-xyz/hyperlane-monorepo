@@ -92,10 +92,17 @@ function formatExplorerUrl<
   return urlObject.toString();
 }
 
-async function handleEtherscanResponse<T>(response: Response): Promise<T> {
-  const body = await response.json();
+type EtherscanResponseBody = {
+  status?: unknown;
+  message?: unknown;
+  result?: unknown;
+};
 
-  const explorerUrl = new URL(response.url);
+function assertEtherscanBodyOk(
+  body: EtherscanResponseBody,
+  responseUrl: string,
+): void {
+  const explorerUrl = new URL(responseUrl);
   // Avoid throwing if no logs are found for the current address
   if (
     body.status === '0' &&
@@ -103,9 +110,15 @@ async function handleEtherscanResponse<T>(response: Response): Promise<T> {
     body.message !== EtherscanLikeExplorerApiErrors.NO_LOGS_FOUND
   ) {
     throw new Error(
-      `Error while performing request to Etherscan like API at ${explorerUrl.host}: ${body.message} ${body.result}`,
+      `Error while performing request to Etherscan like API at ${explorerUrl.host}: ${String(body.message)} ${String(body.result)}`,
     );
   }
+}
+
+async function handleEtherscanResponse<T>(response: Response): Promise<T> {
+  const body = await response.json();
+
+  assertEtherscanBodyOk(body, response.url);
 
   return body.result;
 }
@@ -188,9 +201,66 @@ interface GetEventLogs extends BaseEtherscanLikeAPIParams<
   fromBlock: number;
   toBlock: number;
   topic0: string;
+  page: number;
+  offset: number;
 }
 
-type RawEtherscanGetEventLogsResponse = {
+// Records requested per page. Etherscan caps `logs/getLogs` here and reports a
+// capped page as a success, so a page of exactly this size means "there may be
+// more" rather than "that is everything".
+const EXPLORER_LOGS_PAGE_SIZE = 1000;
+
+// Upper bound on pages walked for a single query, so a clone that ignores
+// `page` cannot spin forever and an unexpectedly large result set fails loudly
+// instead of being silently truncated. 20 pages is 20,000 records for one
+// contract and topic, well above anything this SDK reads today.
+const EXPLORER_LOGS_MAX_PAGES = 20;
+
+// Messages explorers use to reject a page outright, rather than to report a
+// transient condition. Best-effort recognition: an unrecognized failure is
+// treated as transient, so it is retried rather than abandoning the explorer.
+const EXPLORER_PAGINATION_REJECTIONS = [
+  'result window is too large',
+  'pageno x offset',
+];
+
+function isNoRecordsMessage(message: string | undefined): boolean {
+  return (
+    message === EtherscanLikeExplorerApiErrors.NO_RECORD ||
+    message === EtherscanLikeExplorerApiErrors.NO_LOGS_FOUND
+  );
+}
+
+// Explorers split the detail across `message` and `result` inconsistently:
+// zkSync answers a rejected page with message "NOTOK" and puts the reason in
+// `result`, so both are searched.
+function isPaginationRejection(body: EtherscanResponseBody): boolean {
+  const detail = [body.message, body.result]
+    .filter((field) => typeof field === 'string')
+    .join(' ')
+    .toLowerCase();
+  return EXPLORER_PAGINATION_REJECTIONS.some((rejection) =>
+    detail.includes(rejection),
+  );
+}
+
+function incompleteExplorerLogsError(
+  address: Address,
+  reason: string,
+  cause?: unknown,
+): Error & { isRecoverable: boolean } {
+  // Not recoverable: retrying the same query reproduces it. Callers that have a
+  // fallback should use it, since the result cannot be shown to be complete.
+  return Object.assign(
+    new Error(
+      `Unable to read a complete set of logs for ${address} from the block explorer: ${reason}`,
+      { cause },
+    ),
+    { isRecoverable: false },
+  );
+}
+
+export type RawEtherscanGetEventLogsResponse = {
   address: Address;
   blockNumber: HexString;
   data: HexString;
@@ -203,37 +273,114 @@ type RawEtherscanGetEventLogsResponse = {
   transactionIndex: HexString;
 };
 
+/**
+ * Reads every log matching the query, walking the explorer's pages until one
+ * comes back short.
+ *
+ * A single request cannot distinguish "that is all of them" from "that is as
+ * many as the page holds", so the result is only known to be complete once a
+ * page arrives with fewer records than were asked for. Throws rather than
+ * returning a partial set when that cannot be established.
+ */
 export async function getLogsFromEtherscanLikeExplorerAPI(
   { apiUrl, apiKey: apikey }: EtherscanLikeAPIOptions,
-  options: Omit<GetEventLogs, 'module' | 'action'>,
+  options: Omit<GetEventLogs, 'module' | 'action' | 'page' | 'offset'>,
 ): Promise<Array<GetEventLogsResponse>> {
-  const data: GetEventLogs = {
-    module: EtherscanLikeExplorerApiModule.LOGS,
-    action: EtherscanLikeExplorerApiAction.GET_LOGS,
-    address: options.address,
-    fromBlock: options.fromBlock,
-    toBlock: options.toBlock,
-    topic0: options.topic0,
-  };
+  const rawLogs: RawEtherscanGetEventLogsResponse[] = [];
+  let previousPageMarker: string | undefined;
 
-  const requestUrl = formatExplorerUrl({ apiUrl, apiKey: apikey }, data);
+  for (let page = 1; page <= EXPLORER_LOGS_MAX_PAGES; page++) {
+    const data: GetEventLogs = {
+      module: EtherscanLikeExplorerApiModule.LOGS,
+      action: EtherscanLikeExplorerApiAction.GET_LOGS,
+      address: options.address,
+      fromBlock: options.fromBlock,
+      toBlock: options.toBlock,
+      topic0: options.topic0,
+      page,
+      offset: EXPLORER_LOGS_PAGE_SIZE,
+    };
 
-  const response = await fetch(requestUrl);
+    const requestUrl = formatExplorerUrl({ apiUrl, apiKey: apikey }, data);
 
-  const rawLogs: RawEtherscanGetEventLogsResponse[] =
-    await handleEtherscanResponse(response);
+    const response = await fetch(requestUrl);
+    const body = await response.json();
+    const message =
+      typeof body?.message === 'string' ? body.message : undefined;
 
-  return rawLogs.map(
-    (rawLogs): GetEventLogsResponse => ({
-      address: rawLogs.address,
-      blockNumber: Number(rawLogs.blockNumber),
-      data: rawLogs.data,
-      logIndex: Number(rawLogs.logIndex),
-      topics: rawLogs.topics,
-      transactionHash: rawLogs.transactionHash,
-      transactionIndex: Number(rawLogs.transactionIndex),
-    }),
+    // A page past the end of the data. Recognized before the generic status
+    // check because it is the walk's normal termination rather than a failure.
+    // Gated on the status as well: a success carrying this message alongside a
+    // full page would otherwise drop that page and report the rest as complete.
+    if (body.status === '0' && isNoRecordsMessage(message)) {
+      return rawLogs.map(toGetEventLogsResponse);
+    }
+
+    // The explorer refuses to serve this page at all, so the walk cannot
+    // finish here or on a retry.
+    if (isPaginationRejection(body)) {
+      throw incompleteExplorerLogsError(
+        options.address,
+        `page ${page} was rejected by the explorer: ${String(body.message)} ${String(body.result)}`,
+      );
+    }
+
+    // Anything else that failed is transient as far as we can tell — a rate
+    // limit, a timeout, an outage — so it stays retryable.
+    assertEtherscanBodyOk(body, response.url);
+
+    const result: unknown = body.result;
+    if (!Array.isArray(result)) {
+      // A success carrying something other than a list of records. Trusting it
+      // as the end of the walk would turn a partial set into a complete one.
+      throw new Error(
+        `Unexpected response reading logs for ${options.address} from the block explorer: page ${page} was a success carrying no record list`,
+      );
+    }
+    const pageLogs: RawEtherscanGetEventLogsResponse[] = result;
+    if (pageLogs.length === 0) {
+      return rawLogs.map(toGetEventLogsResponse);
+    }
+
+    // Some clones ignore `page` and keep answering with the first one. Walking
+    // further would loop until the page cap and duplicate every record.
+    const pageMarker = `${pageLogs[0].transactionHash}:${pageLogs[0].logIndex}`;
+    if (pageMarker === previousPageMarker) {
+      throw incompleteExplorerLogsError(
+        options.address,
+        `page ${page} repeated the previous page, so the explorer appears to ignore pagination`,
+      );
+    }
+    previousPageMarker = pageMarker;
+
+    rawLogs.push(...pageLogs);
+
+    // A short page is the only proof that the set is complete.
+    if (pageLogs.length < EXPLORER_LOGS_PAGE_SIZE) {
+      return rawLogs.map(toGetEventLogsResponse);
+    }
+  }
+
+  // The loop only runs to completion when every page was full, which leaves the
+  // set unproven.
+  throw incompleteExplorerLogsError(
+    options.address,
+    `every one of the ${EXPLORER_LOGS_MAX_PAGES} pages read was full, so more records may remain`,
   );
+}
+
+function toGetEventLogsResponse(
+  rawLog: RawEtherscanGetEventLogsResponse,
+): GetEventLogsResponse {
+  return {
+    address: rawLog.address,
+    blockNumber: Number(rawLog.blockNumber),
+    data: rawLog.data,
+    logIndex: Number(rawLog.logIndex),
+    topics: rawLog.topics,
+    transactionHash: rawLog.transactionHash,
+    transactionIndex: Number(rawLog.transactionIndex),
+  };
 }
 
 interface GetContractVerificationStatus extends BaseEtherscanLikeAPIParams<
