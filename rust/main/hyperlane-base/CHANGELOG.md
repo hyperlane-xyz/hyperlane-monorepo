@@ -1,3 +1,7 @@
+## [3.0.0] - 2026-08-07
+
+* feat(validators)!: migrate signing and checkpoint storage to GCP (#9160)
+
 ## [2.3.0] - 2026-07-20
 
 * feat(tron): migrate Tron agents from gRPC to HTTP API (#8370)

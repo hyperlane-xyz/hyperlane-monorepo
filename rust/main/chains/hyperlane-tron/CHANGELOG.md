@@ -1,3 +1,8 @@
+## [3.0.0] - 2026-08-07
+
+* feat(validators)!: migrate signing and checkpoint storage to GCP (#9160)
+* fix(core): avoid HyperlaneMessage::from panics in indexer paths (#9181)
+
 ## [2.3.0] - 2026-07-20
 
 * feat(infra): add Tron mainnet deployment (#8356)

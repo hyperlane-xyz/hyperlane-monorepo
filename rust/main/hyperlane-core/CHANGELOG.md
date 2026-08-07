@@ -1,3 +1,9 @@
+## [3.0.0] - 2026-08-07
+
+* fix(core): avoid HyperlaneMessage::from panics in indexer paths (#9181)
+* fix(infra): restore Nibiru and B² agent operations (#9140)
+* fix: add timeout to FallbackProvider::call to unblock stalled providers (#9195)
+
 ## [2.3.0] - 2026-07-20
 
 * chore: jun 5 deprecations (21 chains) (#8860)

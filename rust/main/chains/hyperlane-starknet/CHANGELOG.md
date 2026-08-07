@@ -1,3 +1,7 @@
+## [3.0.0] - 2026-08-07
+
+* fix(starknet): read at latest block for version-safe RPC compatibility (#9208)
+
 ## [2.2.0] - 2026-03-09
 
 * chore: migrate spellchecker from codespell to typos (#8214)
