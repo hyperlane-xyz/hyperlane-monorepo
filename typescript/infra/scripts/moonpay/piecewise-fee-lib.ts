@@ -391,10 +391,21 @@ function requireRouteRouter(
     `Lane ${lane.id} ${role} route must contain exactly one token on ${chain}`,
   );
   const token = matches[0];
-  assert(
-    token.addressOrDenom && /^0x[0-9a-f]{40}$/i.test(token.addressOrDenom),
-    `Lane ${lane.id} ${role} router on ${chain} is missing or not EVM`,
-  );
+  assert(token.addressOrDenom, `Lane ${lane.id} ${role} router is missing`);
+  if (role === 'source') {
+    assert(
+      /^0x[0-9a-f]{40}$/i.test(token.addressOrDenom),
+      `Lane ${lane.id} source router on ${chain} is not EVM`,
+    );
+  } else {
+    try {
+      addressToBytes32(token.addressOrDenom);
+    } catch {
+      throw new Error(
+        `Lane ${lane.id} target router on ${chain} cannot be encoded as bytes32`,
+      );
+    }
+  }
   return { address: token.addressOrDenom, symbol: token.symbol ?? role };
 }
 
