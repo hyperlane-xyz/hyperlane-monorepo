@@ -74,6 +74,17 @@ const LOCAL_REBALANCE_CHAINS = [
   'ethereum',
   'polygon',
 ] as const satisfies readonly ChainName[];
+type LocalRebalanceChain = (typeof LOCAL_REBALANCE_CHAINS)[number];
+
+// Production deployments are pinned here so this branch can generate and
+// check the source-router governance config before the registry PR is merged.
+const LOCAL_REBALANCING_BRIDGES = {
+  arbitrum: '0x42090C67b41a51101a5Bb6ef16450898c42F5D76',
+  base: '0x710520ae6da8638e1C8e2FB89Df79359e6bCE0f6',
+  bsc: '0x20Af529061af6D038448f900B23BB19F613c6d3b',
+  ethereum: '0x4B53fF6a975F0f887d4Df3F4C9B5815B54e4Ed1E',
+  polygon: '0xBBBDD95a46EEbB4021Fb96AfAe360fa7779d9265',
+} as const satisfies Record<LocalRebalanceChain, string>;
 
 type RebalancingConfig = Required<
   Pick<MovableTokenConfig, 'allowedRebalancingBridges' | 'allowedRebalancers'>
@@ -136,20 +147,12 @@ function getAtomicLocalRebalancingConfig(
   existingByChain: ChainMap<RebalancingConfig>,
 ): ChainMap<AtomicLocalRebalancingConfig> {
   const registry = getRegistry();
-  const bridgeRoute = registry.getWarpRoute(
-    WarpRouteIds.CROSSMoonpayLocalBridgeUSDT,
-  );
-  assert(bridgeRoute, 'Moonpay USDT local bridge route not found in registry');
-
   const usdcRoute = registry.getWarpRoute(WarpRouteIds.USDCCitreaMoonpay);
   assert(usdcRoute, 'USDC/moonpay route not found in registry');
 
   return Object.fromEntries(
     LOCAL_REBALANCE_CHAINS.map((chain) => {
-      const bridge = bridgeRoute.tokens.find(
-        ({ chainName }) => chainName === chain,
-      )?.addressOrDenom;
-      assert(bridge, `Missing Moonpay USDT local bridge on ${chain}`);
+      const bridge = LOCAL_REBALANCING_BRIDGES[chain];
 
       const destinationRouter = usdcRoute.tokens.find(
         ({ chainName }) => chainName === chain,

@@ -7,6 +7,12 @@ import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { WarpRouteIds } from '../warpIds.js';
 
+// Kept outside WarpRouteIds until the corresponding registry PR is merged.
+// This lets the monorepo and registry deployment branches remain independently
+// usable during the production rollout.
+export const CROSS_MOONPAY_LOCAL_BRIDGE_USDT_ROUTE_ID =
+  'CROSS/moonpay-localbridge-usdt';
+
 const deploymentChains = [
   'arbitrum',
   'base',
@@ -34,7 +40,7 @@ const decimalsByChain = {
 // Each bridge binds the local USDT router as its immutable source. The route
 // contains one independently deployed bridge per supported chain.
 const SOURCE_WARP_ROUTE_ID_BY_DIRECTION: Record<string, WarpRouteIds> = {
-  [WarpRouteIds.CROSSMoonpayLocalBridgeUSDT]: WarpRouteIds.USDTCitreaMoonpay,
+  [CROSS_MOONPAY_LOCAL_BRIDGE_USDT_ROUTE_ID]: WarpRouteIds.USDTCitreaMoonpay,
 };
 
 function getSourceRoutersByChain(sourceWarpRouteId: string): ChainMap<string> {
