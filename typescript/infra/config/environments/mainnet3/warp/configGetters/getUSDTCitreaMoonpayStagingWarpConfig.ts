@@ -72,7 +72,7 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       token: tokens.base.USDT,
       mailbox: routerConfig.base.mailbox,
       owner: DEPLOYER_EVM,
-      allowedRebalancers: [EXTRA_REBALANCER],
+      allowedRebalancers: ALLOWED_REBALANCERS,
       crossCollateralRouters,
     },
     bsc: {
