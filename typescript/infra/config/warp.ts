@@ -171,8 +171,6 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getUSDCCitreaMoonpayStagingWarpConfig,
   [WarpRouteIds.USDTCitreaMoonpaySTAGING]:
     getUSDTCitreaMoonpayStagingWarpConfig,
-  [WarpRouteIds.CROSSMoonpayLocalBridgeUSDC]:
-    getCrossMoonpayLocalBridgeWarpConfig,
   [WarpRouteIds.CROSSMoonpayLocalBridgeUSDT]:
     getCrossMoonpayLocalBridgeWarpConfig,
 };

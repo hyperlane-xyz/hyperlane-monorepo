@@ -47,7 +47,6 @@ contract AtomicLocalRebalancingBridgeProductionForkTest is Test {
     uint32 internal constant LOCAL_DOMAIN = 8453;
     uint256 internal constant FORK_BLOCK = 49_665_817;
 
-    AtomicLocalRebalancingBridge internal usdcBridge;
     AtomicLocalRebalancingBridge internal usdtBridge;
 
     function setUp() public {
@@ -56,30 +55,13 @@ contract AtomicLocalRebalancingBridgeProductionForkTest is Test {
         _upgradeRouter(USDC_ROUTER, USDC_PROXY_ADMIN);
         _upgradeRouter(USDT_ROUTER, USDT_PROXY_ADMIN);
 
-        usdcBridge = new AtomicLocalRebalancingBridge(
-            LOCAL_DOMAIN,
-            address(USDC_ROUTER),
-            OWNER
-        );
         usdtBridge = new AtomicLocalRebalancingBridge(
             LOCAL_DOMAIN,
             address(USDT_ROUTER),
             OWNER
         );
 
-        _configureDirection(USDC_ROUTER, USDT_ROUTER, usdcBridge);
         _configureDirection(USDT_ROUTER, USDC_ROUTER, usdtBridge);
-    }
-
-    function testFork_productionUsdcToUsdtLocalRebalance() public {
-        _assertDirectionConfigured(USDC_ROUTER, USDT_ROUTER, usdcBridge);
-        _rebalance(
-            USDC_ROUTER,
-            USDT_ROUTER,
-            usdcBridge,
-            IERC20(USDC),
-            IERC20(USDT)
-        );
     }
 
     function testFork_productionUsdtToUsdcLocalRebalance() public {

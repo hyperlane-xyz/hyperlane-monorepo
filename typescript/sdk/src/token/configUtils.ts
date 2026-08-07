@@ -52,6 +52,7 @@ import {
   OwnerStatus,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  isAtomicLocalRebalancingBridgeTokenConfig,
   isCollateralTokenConfig,
   isCrossCollateralTokenConfig,
   isDepositAddressTokenConfig,
@@ -511,6 +512,17 @@ export function normalizeWarpDeployConfigForCheck(params: {
   const { multiProvider, warpDeployConfig } = params;
 
   return objMap(warpDeployConfig, (_chain, config) => {
+    if (isAtomicLocalRebalancingBridgeTokenConfig(config)) {
+      return {
+        ...config,
+        mailbox: constants.AddressZero,
+        hook: constants.AddressZero,
+        interchainSecurityModule: constants.AddressZero,
+        remoteRouters: {},
+        destinationGas: undefined,
+      };
+    }
+
     if (isDepositAddressTokenConfig(config)) {
       return {
         ...config,

@@ -2,6 +2,7 @@ import { compareVersions } from 'compare-versions';
 import { BigNumber, Contract, constants } from 'ethers';
 
 import {
+  AtomicLocalRebalancingBridge__factory,
   CrossCollateralRouter__factory,
   EverclearTokenBridge,
   EverclearTokenBridge__factory,
@@ -83,6 +84,7 @@ import {
 } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
+  AtomicLocalRebalancingBridgeTokenConfig,
   CctpTokenConfig,
   CollateralTokenConfig,
   ContractVerificationStatus,
@@ -192,8 +194,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveHypCollateralDepositAddressTokenConfig.bind(this),
       [TokenType.collateralOft]:
         this.deriveHypCollateralOftTokenConfig.bind(this),
-      // Bare adapter with no derivable on-chain warp config; deploy-only.
-      [TokenType.atomicLocalRebalancing]: null,
+      [TokenType.atomicLocalRebalancing]:
+        this.deriveAtomicLocalRebalancingBridgeTokenConfig.bind(this),
       [TokenType.crossCollateral]:
         this.deriveCrossCollateralTokenConfig.bind(this),
     };
@@ -222,9 +224,11 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const type = await this.deriveTokenType(warpRouteAddress);
     const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
     const isDepositAddressBridge = type === TokenType.collateralDepositAddress;
-    // OFT and deposit-address bridges don't expose Router/MailboxClient interfaces.
+    // Bare bridges don't expose Router/MailboxClient interfaces.
     const isOft = type === TokenType.collateralOft;
-    const usesSentinelRouterConfig = isDepositAddressBridge || isOft;
+    const isAtomicLocalRebalancing = type === TokenType.atomicLocalRebalancing;
+    const usesSentinelRouterConfig =
+      isDepositAddressBridge || isOft || isAtomicLocalRebalancing;
     const routerConfig = usesSentinelRouterConfig
       ? {
           mailbox: constants.AddressZero,
@@ -695,6 +699,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       [TokenType.collateralOft]: {
         factory: TokenBridgeOft__factory,
         method: 'oft',
+      },
+      [TokenType.atomicLocalRebalancing]: {
+        factory: AtomicLocalRebalancingBridge__factory,
+        method: 'allowedSourceRouter',
       },
       [TokenType.collateralCctp]: {
         factory: TokenBridgeCctpBase__factory,
@@ -1220,6 +1228,26 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       oft,
       domainMappings,
       extraOptions: extraOptions !== '0x' ? extraOptions : undefined,
+    };
+  }
+
+  private async deriveAtomicLocalRebalancingBridgeTokenConfig(
+    bridgeAddress: Address,
+  ): Promise<AtomicLocalRebalancingBridgeTokenConfig> {
+    const bridge = AtomicLocalRebalancingBridge__factory.connect(
+      bridgeAddress,
+      this.provider,
+    );
+    const sourceRouter = await bridge.allowedSourceRouter();
+    const sourceToken = await MovableCollateralRouter__factory.connect(
+      sourceRouter,
+      this.provider,
+    ).token();
+
+    return {
+      ...(await this.fetchERC20Metadata(sourceToken)),
+      type: TokenType.atomicLocalRebalancing,
+      sourceRouter,
     };
   }
 

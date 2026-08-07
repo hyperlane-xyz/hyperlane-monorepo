@@ -4,14 +4,36 @@ import { assert } from '@hyperlane-xyz/utils';
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { getRegistry } from '../../../../registry.js';
 import { awIcas } from '../../governance/ica/aw.js';
+import { awSafes } from '../../governance/safe/aw.js';
 import { WarpRouteIds } from '../warpIds.js';
 
-const deploymentChains = ['base'] as const;
+const deploymentChains = [
+  'arbitrum',
+  'base',
+  'bsc',
+  'ethereum',
+  'polygon',
+] as const;
 
-// Each bridge has one immutable source router, so USDC -> USDT and USDT -> USDC
-// are deployed as separate one-chain routes.
+const ownersByChain = {
+  arbitrum: awIcas.arbitrum,
+  base: awIcas.base,
+  bsc: awIcas.bsc,
+  ethereum: awSafes.ethereum,
+  polygon: awIcas.polygon,
+} as const;
+
+const decimalsByChain = {
+  arbitrum: 6,
+  base: 6,
+  bsc: 18,
+  ethereum: 6,
+  polygon: 6,
+} as const;
+
+// Each bridge binds the local USDT router as its immutable source. The route
+// contains one independently deployed bridge per supported chain.
 const SOURCE_WARP_ROUTE_ID_BY_DIRECTION: Record<string, WarpRouteIds> = {
-  [WarpRouteIds.CROSSMoonpayLocalBridgeUSDC]: WarpRouteIds.USDCCitreaMoonpay,
   [WarpRouteIds.CROSSMoonpayLocalBridgeUSDT]: WarpRouteIds.USDTCitreaMoonpay,
 };
 
@@ -54,10 +76,10 @@ export const getCrossMoonpayLocalBridgeWarpConfig = async (
         chain,
         {
           ...routerConfig[chain],
-          owner: awIcas[chain],
+          owner: ownersByChain[chain],
           type: TokenType.atomicLocalRebalancing,
           sourceRouter,
-          decimals: 6,
+          decimals: decimalsByChain[chain],
           name: 'Moonpay Local Rebalancing Bridge',
           symbol: 'mpALRB',
         },
