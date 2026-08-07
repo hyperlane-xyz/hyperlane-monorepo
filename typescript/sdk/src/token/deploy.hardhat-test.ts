@@ -24,6 +24,7 @@ import {
 import {
   Address,
   ProtocolType,
+  assert,
   deepCopy,
   eqAddress,
   isZeroishAddress,
@@ -901,11 +902,15 @@ describe('TokenDeployer', async () => {
       // the router's token()/feeToken() returns the underlying wrapped ERC20.
       // The fee contract must be deployed with token() so the router's
       // "fee must match token" check passes. Resolution reads this on-chain.
+      const { name, symbol, decimals } = config[chain];
+      assert(name, 'expected a token name in the config');
+      assert(symbol, 'expected a token symbol in the config');
+      assert(decimals != null, 'expected token decimals in the config');
       const lockbox = await new XERC20LockboxTest__factory(signer).deploy(
-        config[chain].name!,
-        config[chain].symbol!,
+        name,
+        symbol,
         totalSupply,
-        config[chain].decimals!,
+        decimals,
       );
       const wrappedToken = await lockbox.ERC20();
 
