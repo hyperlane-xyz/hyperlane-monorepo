@@ -69,6 +69,7 @@ export interface ProductionApplyManifest {
   };
   strategies: {
     fork: string;
+    forkSubmit: string;
     icaFile: string;
     futureLive: string;
   };
@@ -282,6 +283,8 @@ export function buildProductionApplyArtifact(
       },
       strategies: {
         fork: 'config/environments/mainnet3/warp/strategies/moonpay-production-piecewise-fork.yaml',
+        forkSubmit:
+          'config/environments/mainnet3/warp/strategies/moonpay-production-piecewise-fork-submit.yaml',
         icaFile:
           'config/environments/mainnet3/warp/strategies/moonpay-production-piecewise-ica-file.yaml',
         futureLive:

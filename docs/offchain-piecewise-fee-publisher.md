@@ -113,9 +113,9 @@ addresses. `MergedRegistry` uses the first truthy result, so ordering is
 significant: pass the generated overlay first and the complete registry
 second, despite the CLI option's current help text.
 
-To execute against a local fork, start `warp fork` with that registry order,
-then apply through the writable fork registry using the checked-in
-impersonated fee-owner strategy:
+To execute against a local fork, start `warp fork` with that registry order.
+The fork command exposes a read-only merged registry at port 8535 and the BSC
+Anvil RPC at port 8545:
 
 ```bash
 ARTIFACT=/tmp/moonpay-production-piecewise-apply
@@ -124,22 +124,52 @@ FULL_REGISTRY=/path/to/hyperlane-registry
 hyperlane warp fork \
   --warp-route-id USDT/moonpay \
   --registry "$ARTIFACT/registry" "$FULL_REGISTRY"
-
-hyperlane warp apply \
-  --registry http://localhost:8535 \
-  --config "$ARTIFACT/registry/deployments/warp_routes/USDT/moonpay-deploy.yaml" \
-  --strategy config/environments/mainnet3/warp/strategies/moonpay-production-piecewise-fork.yaml
 ```
 
-For review without submission, the ICA/file strategy turns the fee-owner calls
-into a local Ethereum ICA payload. Its primary `submitter` is a file guard, so
-any unexpected non-fee transaction is written separately rather than sent:
+In a second terminal, clear the fixed file-sink paths and run the ICA/file
+apply against the **fork registry**. `warp apply` deploys fee leaves during
+planning even when governance calls are written to a file, so never point this
+review command at live BSC RPCs:
 
 ```bash
+rm -f /tmp/moonpay-production-piecewise-ica-payload.json \
+  /tmp/moonpay-production-piecewise-ica-non-fee-guard.json
 hyperlane warp apply \
-  --registry "$ARTIFACT/registry" "$FULL_REGISTRY" \
-  --config "$ARTIFACT/registry/deployments/warp_routes/USDT/moonpay-deploy.yaml" \
+  --warp-route-id USDT/moonpay \
+  --registry http://localhost:8535 \
   --strategy config/environments/mainnet3/warp/strategies/moonpay-production-piecewise-ica-file.yaml
+```
+
+The primary submitter is a file guard, so the non-fee guard file must not
+exist. Strictly decode the one Ethereum Safe-to-ICA payload, materialize its
+single validated BSC transaction, and execute that transaction only on Anvil:
+
+```bash
+test ! -e /tmp/moonpay-production-piecewise-ica-non-fee-guard.json
+pnpm tsx scripts/moonpay/decode-production-piecewise-ica-payload.ts \
+  --input /tmp/moonpay-production-piecewise-ica-payload.json \
+  | tee /tmp/moonpay-production-piecewise-decoded.json
+jq '[.bscTransaction]' /tmp/moonpay-production-piecewise-decoded.json \
+  > /tmp/moonpay-production-piecewise-bsc-transactions.json
+hyperlane submit \
+  --registry http://localhost:8535 \
+  --transactions /tmp/moonpay-production-piecewise-bsc-transactions.json \
+  --strategy config/environments/mainnet3/warp/strategies/moonpay-production-piecewise-fork-submit.yaml
+```
+
+Run the attach-only Foundry verifier against the updated fork, then repeat
+`warp apply` with the fork strategy and require a no-op (no new leaf
+deployments and no fee-root transaction):
+
+```bash
+RUN_MOONPAY_PRODUCTION_POST_APPLY=true \
+RPC_URL_BSC=http://127.0.0.1:8545 \
+forge test --match-contract MoonpayProductionPiecewiseFeePostApplyForkTest -vvv
+
+hyperlane warp apply \
+  --warp-route-id USDT/moonpay \
+  --registry http://localhost:8535 \
+  --strategy config/environments/mainnet3/warp/strategies/moonpay-production-piecewise-fork.yaml
 ```
 
 `moonpay-production-piecewise-live.yaml` is the corresponding future

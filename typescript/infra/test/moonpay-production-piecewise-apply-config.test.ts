@@ -356,6 +356,24 @@ describe('Moonpay production piecewise apply-config builder', () => {
     expect(strategies[2].bsc.feeSubmitter.internalSubmitter.type).to.equal(
       'gnosisSafe',
     );
+
+    const forkSubmit = readYaml<Record<string, any>>(
+      fileURLToPath(
+        new URL(
+          '../config/environments/mainnet3/warp/strategies/moonpay-production-piecewise-fork-submit.yaml',
+          import.meta.url,
+        ),
+      ),
+    );
+    expect(forkSubmit).to.deep.equal({
+      bsc: {
+        submitter: {
+          chain: 'bsc',
+          type: 'impersonatedAccount',
+          userAddress: '0xA0e41Ab972294A8f7CD1599BB76AdDB6bAE24556',
+        },
+      },
+    });
   });
 
   it('uses the registry-compatible checked-in artifact paths', () => {
