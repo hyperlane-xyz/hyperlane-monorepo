@@ -1,0 +1,31 @@
+lanes:
+  - destination: arbitrum
+    fallback:
+      breakpoints:
+        - '0.25'
+        - '0.75'
+      marginalBps:
+        - 4
+        - 10
+        - 20
+    id: bsc-usdt-arbitrum-usdc
+    origin: bsc
+    sourceRouteId: USDT/moonpay-staging
+    # Non-production staging values. Breakpoints are human token units and
+    # are scaled with the resolved fee token's local decimals.
+    standing:
+      breakpoints:
+        - '0.25'
+        - '0.75'
+      marginalBps:
+        - 2
+        - 6
+        - 12
+      staleAfter: 12s
+      staleMarginalSurchargeBps:
+        - 2
+        - 4
+        - 8
+      ttl: 60s
+    targetRouteId: USDC/moonpay-staging
+version: 2
