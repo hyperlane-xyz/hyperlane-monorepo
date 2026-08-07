@@ -11,6 +11,18 @@ import { throwIfNotMissingSelector } from '../utils/contract.js';
 
 const logger = rootLogger.child({ module: 'BlacklistIsmUtils' });
 
+/**
+ * Puts a set of blacklisted IDs in the shape `readBlacklistedIds` returns:
+ * lowercased, de-duplicated and sorted. Both of its sources go through this, so
+ * a caller cannot tell which one served a set, and a config compared against one
+ * has to be put in the same shape first. The log replay also relies on the
+ * de-duplication, since deployments that predate on-chain enumeration emit on
+ * re-adds.
+ */
+export function normalizeBlacklistedIds(ids: readonly string[]): string[] {
+  return [...new Set(ids.map((id) => id.toLowerCase()))].sort();
+}
+
 const MESSAGE_BLACKLISTED_EVENT_SELECTOR = toEventSelector(
   getAbiItem({
     abi: BlacklistIsm__factory.abi,
@@ -26,45 +38,50 @@ const MESSAGE_BLACKLISTED_EVENT_SELECTOR = toEventSelector(
  * entries are append-only. Those deployments also emit on re-adds, hence the
  * de-duplication.
  *
- * Returns undefined when the set cannot be established, never a partial list: a
+ * Throws when the set cannot be established, and never returns a partial list. A
  * truncated set would be diffed as "these IDs are missing on-chain" and could be
- * written back as the complete set. Errors that are not a missing `values()`
- * selector propagate, so a transient RPC failure is never read as a legacy
- * deployment.
+ * written back as the complete set, and a Blacklist ISM config without its
+ * entries does not describe the deployment it claims to. Errors that are not a
+ * missing `values()` selector propagate, so a transient RPC failure is never
+ * read as a legacy deployment.
+ *
+ * An empty set is a result, not a failure: a Blacklist ISM that has never
+ * blacklisted anything returns [].
  *
  * Result size does not constrain the replay. The explorer source walks pages
  * until one comes back short and throws when it cannot establish that, and the
  * RPC source chunks the whole block range; an explorer that cannot prove
- * completeness falls back to the RPC rather than capping the set. The explorer
- * source treats a short page as proof it has reached the end, so that guarantee
- * holds for explorers that honour the requested page size — one that silently
- * serves a smaller page would look complete on its first response.
+ * completeness falls back to the RPC rather than capping the set.
  *
- * The replay's other limitation is that the explorer path
- * trusts the explorer's indexer. A set read within the indexing window can omit an ID that
- * is already on-chain and still look complete. Append-only entries do not make
- * this harmless: an in-place update computed from a stale set only re-adds an ID
- * that is already set, but a redeploy — which this design deliberately takes for
- * deployments that predate on-chain enumeration — seeds the replacement from the
- * target config, so an ID missing from a stale set that was persisted into a
- * registry is dropped permanently. This is a property of the shared
- * `EvmEventLogsReader` explorer-primary strategy rather than of blacklist
- * enumeration: `EvmTimelockReader` reads through the same path with the same
- * exposure, which is why it is recorded here instead of worked around locally.
+ * Nor does indexer lag, within a bound. A short page proves the explorer has
+ * served everything it has indexed, not everything up to the requested block,
+ * so the explorer source re-reads the end of the range over RPC and merges the
+ * two. Entries added while the explorer was behind are recovered that way,
+ * which matters because a redeploy — the path this design takes for deployments
+ * that predate on-chain enumeration — seeds the replacement from the target
+ * config, so an entry missing from a set persisted into a registry would be
+ * dropped permanently.
+ *
+ * Two things that re-read does not cover. It spans a fixed duration below the
+ * end of the range, so an explorer lagging further behind than that can still
+ * under-report. And it starts no earlier than the explorer's own last record, so
+ * a record the explorer silently omitted from earlier in the range is not
+ * recovered; the same applies to an explorer that serves a shorter page than
+ * asked for, which the walk reads as the end of the data.
  */
 export async function readBlacklistedIds(
   chain: ChainNameOrId,
   address: Address,
   multiProvider: MultiProvider,
   eventLogsReader?: EvmEventLogsReader,
-): Promise<string[] | undefined> {
+): Promise<string[]> {
   const blacklistIsm = BlacklistIsm__factory.connect(
     address,
     multiProvider.getProvider(chain),
   );
 
   try {
-    return [...(await blacklistIsm.values())];
+    return normalizeBlacklistedIds(await blacklistIsm.values());
   } catch (error) {
     throwIfNotMissingSelector(error);
     logger.debug(
@@ -88,14 +105,11 @@ export async function readBlacklistedIds(
       logs: logs.map(viemLogFromGetEventLogsResponse),
     });
 
-    return [
-      ...new Set(events.map((event) => event.args.messageId.toLowerCase())),
-    ].sort();
+    return normalizeBlacklistedIds(events.map((event) => event.args.messageId));
   } catch (error) {
-    logger.warn(
-      { chain, address, error },
-      'Failed to rebuild the blacklisted ID set from logs; reporting it as unknown.',
+    throw new Error(
+      `Unable to read the blacklisted IDs of the Blacklist ISM at "${address}" on chain "${chain}": rebuilding the set from MessageBlacklisted logs failed`,
+      { cause: error },
     );
-    return undefined;
   }
 }

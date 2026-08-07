@@ -706,8 +706,9 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
    *
    * Detection and enumeration are separate probes: deployments that predate
    * `values()` expose the same `blacklistedIds(bytes32)` getter, so a missing
-   * `values()` selector must degrade to an unknown ID set rather than
-   * disqualifying the contract.
+   * `values()` selector falls back to replaying the entries from logs rather
+   * than disqualifying the contract. That replay either yields the entries or
+   * throws; it never yields a config without them.
    */
   private async deriveBlacklistConfig(
     address: Address,
@@ -733,10 +734,6 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       this.multiProvider,
       this.evmLogReader,
     );
-
-    if (blacklistedIds === undefined) {
-      return { address, type: IsmType.BLACKLIST, owner };
-    }
 
     return { address, type: IsmType.BLACKLIST, owner, blacklistedIds };
   }

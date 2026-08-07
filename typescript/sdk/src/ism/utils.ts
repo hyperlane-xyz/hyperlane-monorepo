@@ -38,7 +38,7 @@ import { throwIfNotMissingSelector } from '../utils/contract.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
-import { readBlacklistedIds } from './blacklist.js';
+import { normalizeBlacklistedIds, readBlacklistedIds } from './blacklist.js';
 import {
   DomainRoutingIsmConfig,
   InterchainAccountRouterIsm,
@@ -232,9 +232,6 @@ export async function moduleCanCertainlyVerify(
         // BlacklistIsm.verify returns false for a blacklisted message ID, so
         // this helper can only guarantee verification when the sample message
         // is not itself blacklisted.
-        if (destModule.blacklistedIds === undefined) {
-          return false;
-        }
         const sampleId = messageId(message).toLowerCase();
         return !destModule.blacklistedIds.some(
           (id) => id.toLowerCase() === sampleId,
@@ -542,11 +539,6 @@ export async function moduleMatchesConfig(
       }
       matches &&= eqAddress(owner, config.owner);
 
-      // An unspecified target set cannot be proven equal to what is on-chain.
-      if (config.blacklistedIds === undefined) {
-        return false;
-      }
-
       // Same enumeration the reader uses, so a deployment that reads back as
       // matching here also converges to zero transactions in EvmIsmModule.
       const onChainIds = await readBlacklistedIds(
@@ -554,18 +546,12 @@ export async function moduleMatchesConfig(
         moduleAddress,
         multiProvider,
       );
-      // A set that cannot be established cannot be proven equal either.
-      if (onChainIds === undefined) {
-        return false;
-      }
 
       // Entries are append-only on-chain, so any on-chain ID missing from the
       // config makes the config unreachable: require exact set equality.
-      const normalizeIds = (ids: readonly string[]) =>
-        [...new Set(ids.map((id) => id.toLowerCase()))].sort();
       matches &&= deepEquals(
-        normalizeIds(onChainIds),
-        normalizeIds(config.blacklistedIds),
+        onChainIds,
+        normalizeBlacklistedIds(config.blacklistedIds),
       );
       break;
     }

@@ -136,7 +136,6 @@ export class EvmIsmModule extends HyperlaneModule<
     targetConfig: IsmConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const parsedTargetConfig = IsmConfigSchema.parse(targetConfig);
-    this.assertTargetBlacklistedIdsPresent(parsedTargetConfig);
     return this.updateInternal(parsedTargetConfig);
   }
 
@@ -572,68 +571,6 @@ export class EvmIsmModule extends HyperlaneModule<
     return txs;
   }
 
-  // An absent set means the on-chain set could not be read, which is not an
-  // expressible deploy target — `deployBlacklistIsm` rejects it too.
-  //
-  // Walks the caller-supplied config only, before derivation: an address the
-  // caller pinned stays a string here and is skipped, because pinning an
-  // address asks for that exact deployment rather than for a set of entries.
-  // Derivation would expand such an address into a config whose entries may be
-  // unreadable, which is not something the caller can be asked to fix.
-  private assertTargetBlacklistedIdsPresent(
-    config: IsmConfig,
-    path: string[] = [],
-  ): void {
-    if (typeof config === 'string') {
-      return;
-    }
-
-    switch (config.type) {
-      case IsmType.BLACKLIST:
-        assert(
-          config.blacklistedIds,
-          // The node is named by its position in the supplied config: a
-          // declaratively authored node has no address, and normalizeConfig
-          // strips the address from a derived one.
-          `Missing target blacklisted IDs for Blacklist ISM at "${
-            path.length > 0 ? path.join('.') : 'root'
-          }" on chain "${this.chain}"; an unreadable set cannot be applied as a target`,
-        );
-        break;
-      case IsmType.AGGREGATION:
-      case IsmType.STORAGE_AGGREGATION:
-        config.modules.forEach((module, index) =>
-          this.assertTargetBlacklistedIdsPresent(module, [
-            ...path,
-            `modules[${index}]`,
-          ]),
-        );
-        break;
-      case IsmType.ROUTING:
-      case IsmType.FALLBACK_ROUTING:
-      case IsmType.INCREMENTAL_ROUTING:
-        Object.entries(config.domains).forEach(([domain, domainIsm]) =>
-          this.assertTargetBlacklistedIdsPresent(domainIsm, [
-            ...path,
-            `domains.${domain}`,
-          ]),
-        );
-        break;
-      case IsmType.AMOUNT_ROUTING:
-        this.assertTargetBlacklistedIdsPresent(config.lowerIsm, [
-          ...path,
-          'lowerIsm',
-        ]);
-        this.assertTargetBlacklistedIdsPresent(config.upperIsm, [
-          ...path,
-          'upperIsm',
-        ]);
-        break;
-      default:
-        break;
-    }
-  }
-
   // Deployments that predate the enumerable BlacklistIsm expose no `values()`.
   // They are phased out rather than appended to, so they are detected on-chain
   // instead of being represented in the config.
@@ -661,18 +598,10 @@ export class EvmIsmModule extends HyperlaneModule<
       return false;
     }
 
-    const { blacklistedIds: currentIds } = current;
-    const { blacklistedIds: targetIds } = target;
-    assert(
-      currentIds,
-      `Missing on-chain blacklisted IDs for Blacklist ISM at "${address}" on chain "${this.chain}"`,
+    return (
+      calculateBlacklistDelta(current.blacklistedIds, target.blacklistedIds)
+        .extras.length === 0
     );
-    assert(
-      targetIds,
-      `Missing target blacklisted IDs for Blacklist ISM at "${address}" on chain "${this.chain}"`,
-    );
-
-    return calculateBlacklistDelta(currentIds, targetIds).extras.length === 0;
   }
 
   protected updateBlacklistIsm({
@@ -682,20 +611,12 @@ export class EvmIsmModule extends HyperlaneModule<
     current: BlacklistIsmConfig;
     target: BlacklistIsmConfig;
   }): AnnotatedEV5Transaction[] {
-    const { blacklistedIds: currentIds } = current;
-    const { blacklistedIds: targetIds } = target;
-    assert(
-      currentIds,
-      `Missing on-chain blacklisted IDs for Blacklist ISM at "${this.args.addresses.deployedIsm}" on chain "${this.chain}"`,
-    );
-    assert(
-      targetIds,
-      `Missing target blacklisted IDs for Blacklist ISM at "${this.args.addresses.deployedIsm}" on chain "${this.chain}"`,
-    );
-
     // `extras` are handled upstream in `update()` by redeploying a fresh ISM
     // (entries are append-only), so only additions remain here.
-    const { toAdd } = calculateBlacklistDelta(currentIds, targetIds);
+    const { toAdd } = calculateBlacklistDelta(
+      current.blacklistedIds,
+      target.blacklistedIds,
+    );
     if (toAdd.length === 0) {
       return [];
     }

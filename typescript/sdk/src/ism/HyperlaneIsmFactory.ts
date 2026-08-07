@@ -501,12 +501,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     config: BlacklistIsmConfig,
   ): Promise<DeployedIsmType[typeof IsmType.BLACKLIST]> {
     const { blacklistedIds } = config;
-    // An absent set means the on-chain set could not be read, which must never
-    // be deployed as an empty blacklist; an empty blacklist is written as [].
-    assert(
-      blacklistedIds,
-      `Cannot deploy a Blacklist ISM on chain "${destination}" without an explicit blacklistedIds list`,
-    );
 
     const signer = this.multiProvider.getSigner(destination);
     const signerAddress = await signer.getAddress();

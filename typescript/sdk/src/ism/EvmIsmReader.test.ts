@@ -368,6 +368,40 @@ describe('EvmIsmReader', () => {
     });
   });
 
+  // The counterpart to the failure cases below: no events is a readable, empty
+  // set, and must never be conflated with an unreadable one.
+  it('should normalize the ids an enumerable blacklist ISM returns', async () => {
+    const mockOwner = randomAddress();
+    const lowerId =
+      '0x1111111111111111111111111111111111111111111111111111111111111111';
+    const upperId =
+      '0x2222222222222222222222222222222222222222222222222222222222222222';
+
+    stubProbesBeforeBlacklist(sandbox);
+    sandbox.stub(BlacklistIsm__factory, 'connect').returns(
+      contractDouble<BlacklistIsm>({
+        blacklistedIds: sandbox.stub().resolves(false),
+        owner: sandbox.stub().resolves(mockOwner),
+        // Unsorted, mixed case, and repeated — the shape a contract can return.
+        values: sandbox
+          .stub()
+          .resolves([upperId.toUpperCase(), lowerId, upperId.toUpperCase()]),
+      }),
+    );
+
+    const config = await evmIsmReader.deriveNullConfig(
+      LEGACY_BLACKLIST_ADDRESS,
+    );
+
+    assert(
+      config.type === IsmType.BLACKLIST,
+      'expected a blacklist ISM config',
+    );
+    // Same shape the log replay produces, so neither source is identifiable
+    // from the result.
+    expect(config.blacklistedIds).to.deep.equal([lowerId, upperId]);
+  });
+
   it('should derive an empty set for a legacy blacklist ISM with no events', async () => {
     const mockOwner = randomAddress();
 
@@ -394,32 +428,48 @@ describe('EvmIsmReader', () => {
     expect(config).to.deep.equal(expectedConfig);
   });
 
-  it('should omit blacklistedIds when the legacy blacklist logs cannot be read', async () => {
-    const mockOwner = randomAddress();
+  // An unreadable set is a failure, not an empty set: the contract is a
+  // Blacklist ISM, so a config that omits its entries would misdescribe it.
+  const unreadableCases: { name: string; error: () => Error }[] = [
+    { name: 'the logs cannot be read', error: networkError },
+    {
+      name: 'the address is not a contract',
+      error: () =>
+        new Error(
+          `Address "${LEGACY_BLACKLIST_ADDRESS}" on chain "test1" is not a contract`,
+        ),
+    },
+  ];
 
-    stubProbesBeforeBlacklist(sandbox);
-    sandbox.stub(BlacklistIsm__factory, 'connect').returns(
-      contractDouble<BlacklistIsm>({
-        blacklistedIds: sandbox.stub().resolves(false),
-        owner: sandbox.stub().resolves(mockOwner),
-        values: sandbox.stub().rejects(missingSelectorError()),
-      }),
-    );
-    sandbox
-      .stub(EvmEventLogsReader.prototype, 'getLogsByTopic')
-      .rejects(networkError());
+  for (const unreadable of unreadableCases) {
+    it(`should fail when ${unreadable.name}`, async () => {
+      const readError = unreadable.error();
 
-    const config = await evmIsmReader.deriveNullConfig(
-      LEGACY_BLACKLIST_ADDRESS,
-    );
+      stubProbesBeforeBlacklist(sandbox);
+      sandbox.stub(BlacklistIsm__factory, 'connect').returns(
+        contractDouble<BlacklistIsm>({
+          blacklistedIds: sandbox.stub().resolves(false),
+          owner: sandbox.stub().resolves(randomAddress()),
+          values: sandbox.stub().rejects(missingSelectorError()),
+        }),
+      );
+      sandbox
+        .stub(EvmEventLogsReader.prototype, 'getLogsByTopic')
+        .rejects(readError);
 
-    expect(config).to.deep.equal({
-      address: LEGACY_BLACKLIST_ADDRESS,
-      type: IsmType.BLACKLIST,
-      owner: mockOwner,
+      let thrown: unknown;
+      try {
+        await evmIsmReader.deriveNullConfig(LEGACY_BLACKLIST_ADDRESS);
+      } catch (error) {
+        thrown = error;
+      }
+
+      assert(thrown instanceof Error, 'expected the derivation to fail');
+      expect(thrown.message).to.include(LEGACY_BLACKLIST_ADDRESS);
+      expect(thrown.message).to.include('test1');
+      expect(thrown.cause).to.equal(readError);
     });
-    expect('blacklistedIds' in config).to.be.false;
-  });
+  }
 
   // The reader returns a complete set or fails, so a set is never discarded for
   // its size.
@@ -446,37 +496,6 @@ describe('EvmIsmReader', () => {
       'expected a blacklist ISM config',
     );
     expect(config.blacklistedIds).to.have.lengthOf(logs.length);
-  });
-
-  it('should omit blacklistedIds when the legacy blacklist address is not a contract', async () => {
-    const mockOwner = randomAddress();
-
-    stubProbesBeforeBlacklist(sandbox);
-    sandbox.stub(BlacklistIsm__factory, 'connect').returns(
-      contractDouble<BlacklistIsm>({
-        blacklistedIds: sandbox.stub().resolves(false),
-        owner: sandbox.stub().resolves(mockOwner),
-        values: sandbox.stub().rejects(missingSelectorError()),
-      }),
-    );
-    sandbox
-      .stub(EvmEventLogsReader.prototype, 'getLogsByTopic')
-      .rejects(
-        new Error(
-          `Address "${LEGACY_BLACKLIST_ADDRESS}" on chain "test1" is not a contract`,
-        ),
-      );
-
-    const config = await evmIsmReader.deriveNullConfig(
-      LEGACY_BLACKLIST_ADDRESS,
-    );
-
-    expect(config).to.deep.equal({
-      address: LEGACY_BLACKLIST_ADDRESS,
-      type: IsmType.BLACKLIST,
-      owner: mockOwner,
-    });
-    expect('blacklistedIds' in config).to.be.false;
   });
 
   it('should not read logs for an enumerable blacklist ISM', async () => {

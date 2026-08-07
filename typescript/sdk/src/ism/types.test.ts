@@ -490,9 +490,7 @@ describe('BlacklistIsmConfigSchema composition', () => {
     owner: SOME_ADDRESS,
     blacklistedIds: [],
   };
-  // Mirrors what the reader derives for a deployment whose entries could not
-  // be read back: a blacklist ISM with an unknown ID set.
-  const unenumerableBlacklist = {
+  const blacklistWithoutIds = {
     type: IsmType.BLACKLIST,
     owner: SOME_ADDRESS,
   };
@@ -757,22 +755,23 @@ describe('BlacklistIsmConfigSchema composition', () => {
     expect(result.success).to.be.true;
   });
 
-  it('parses a blacklist whose blacklisted ids are unknown', () => {
-    const parsed = BlacklistIsmConfigSchema.parse(unenumerableBlacklist);
+  // A blacklist ISM is its entries; a config without them does not describe the
+  // deployment it names.
+  it('rejects a blacklist without blacklisted ids', () => {
+    const result = BlacklistIsmConfigSchema.safeParse(blacklistWithoutIds);
 
-    expect(parsed.blacklistedIds).to.be.undefined;
-    expect('blacklistedIds' in parsed).to.be.false;
+    expect(result.success).to.be.false;
   });
 
-  it('accepts a blacklist without blacklisted ids in an exhaustive aggregation', () => {
+  it('rejects a blacklist without blacklisted ids nested in an aggregation', () => {
     const config = {
       type: IsmType.AGGREGATION,
-      modules: [messageIdMultisig, unenumerableBlacklist],
+      modules: [messageIdMultisig, blacklistWithoutIds],
       threshold: 2,
     };
 
     const result = IsmConfigSchema.safeParse(config);
 
-    expect(result.success).to.be.true;
+    expect(result.success).to.be.false;
   });
 });

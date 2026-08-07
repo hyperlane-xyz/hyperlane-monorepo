@@ -14,7 +14,7 @@ import {
   TestLegacyBlacklistIsm__factory,
   TrustedRelayerIsm,
 } from '@hyperlane-xyz/core';
-import { Address, WithAddress, randomInt } from '@hyperlane-xyz/utils';
+import { Address, WithAddress, assert, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
@@ -365,20 +365,6 @@ describe('HyperlaneIsmFactory', async () => {
       expect(matches).to.be.false;
     });
 
-    it('does not match when the config ids are unknown', async () => {
-      const owner = await multiProvider.getSignerAddress(chain);
-      const blacklistAddress = await deployBlacklistIsm(owner, [
-        randomBytes32(),
-      ]);
-
-      const matches = await matchesConfig(blacklistAddress, {
-        type: IsmType.BLACKLIST,
-        owner,
-      });
-
-      expect(matches).to.be.false;
-    });
-
     describe('deployments that predate on-chain enumeration', () => {
       let sandbox: sinon.SinonSandbox;
 
@@ -436,21 +422,31 @@ describe('HyperlaneIsmFactory', async () => {
         expect(matches).to.be.false;
       });
 
-      it('does not match when the ids cannot be replayed', async () => {
+      // A check that cannot establish the on-chain set has not shown the
+      // deployment to differ from the config, so it fails rather than reporting
+      // a mismatch it cannot support.
+      it('fails when the ids cannot be replayed', async () => {
         const owner = await multiProvider.getSignerAddress(chain);
         const blacklistedId = randomBytes32();
         const legacyAddress = await deployLegacyIsm(owner, [blacklistedId]);
+        const readError = networkError();
         sandbox
           .stub(EvmEventLogsReader.prototype, 'getLogsByTopic')
-          .rejects(networkError());
+          .rejects(readError);
 
-        const matches = await matchesConfig(legacyAddress, {
-          type: IsmType.BLACKLIST,
-          owner,
-          blacklistedIds: [blacklistedId],
-        });
+        let thrown: unknown;
+        try {
+          await matchesConfig(legacyAddress, {
+            type: IsmType.BLACKLIST,
+            owner,
+            blacklistedIds: [blacklistedId],
+          });
+        } catch (error) {
+          thrown = error;
+        }
 
-        expect(matches).to.be.false;
+        assert(thrown instanceof Error, 'expected the check to fail');
+        expect(thrown.cause).to.equal(readError);
       });
     });
 
@@ -522,17 +518,6 @@ describe('HyperlaneIsmFactory', async () => {
       ).to.be.rejectedWith(
         'A blacklist ISM must be a member of an aggregation whose threshold equals its module count',
       );
-    });
-
-    it('refuses to deploy without an explicit blacklistedIds list', async () => {
-      const owner = await multiProvider.getSignerAddress(chain);
-
-      await expect(
-        ismFactory.deploy({
-          destination: chain,
-          config: aggregationOf({ type: IsmType.BLACKLIST, owner }),
-        }),
-      ).to.be.rejectedWith('without an explicit blacklistedIds list');
     });
   });
 
