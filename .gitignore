@@ -20,6 +20,7 @@ typescript/*/node_modules
 typescript/infra/config/environments/test/create2/*json
 typescript/infra/config/environments/test/testrecipient/*json
 solidity/artifacts
+typescript/sdk/artifacts
 
 # pnpm
 .pnpm-store/
