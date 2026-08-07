@@ -4,7 +4,7 @@ import { expect } from 'chai';
 import { Wallet } from 'ethers';
 import { $ } from 'zx';
 
-import { type XERC20VSTest } from '@hyperlane-xyz/core';
+import { type XERC20LockboxTest, type XERC20VSTest } from '@hyperlane-xyz/core';
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   type ChainMetadata,
@@ -14,11 +14,20 @@ import {
   type WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { type Address, assert, isNullish } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  assert,
+  eqAddress,
+  isNullish,
+} from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
-import { deployXERC20VSToken } from '../commands/helpers.js';
+import {
+  deployToken,
+  deployXERC20LockboxToken,
+  deployXERC20VSToken,
+} from '../commands/helpers.js';
 import {
   hyperlaneWarpApply,
   hyperlaneWarpDeploy,
@@ -141,6 +150,75 @@ describe('hyperlane warp xERC20 token fee e2e tests', function () {
       expect(fee.bps).to.equal(FEE_BPS);
       // For xERC20 the fee token resolves to the wrapped/collateral token.
       expect(fee.token).to.equal(xerc20.address);
+    });
+  });
+
+  // Regression for the xERC20Lockbox fee-token resolution bug: the deploy
+  // config stores token = lockbox address, but the router's token()/feeToken()
+  // returns the underlying wrapped ERC20. The fee contract must be deployed
+  // with token() so the router's fee==token() check passes; the SDK reads this
+  // on-chain for the lockbox variant.
+  describe('xERC20Lockbox token fee', () => {
+    const LB_SYMBOL = 'XLBFEE';
+    const LB_WARP_ROUTE_ID = getWarpRouteId(LB_SYMBOL, [CHAIN_NAME_2]);
+    const LB_CORE_PATH = getCombinedWarpRoutePath(LB_SYMBOL, [CHAIN_NAME_2]);
+    const LB_REGISTRY_DEPLOY_PATH = getCombinedWarpDeployPath(LB_SYMBOL, [
+      CHAIN_NAME_2,
+    ]);
+    const LB_DEPLOY_PATH = `${TEMP_PATH}/warp-xerc20lockbox-fee-deploy.yaml`;
+
+    let lockbox: XERC20LockboxTest;
+    let wrappedToken: Address;
+
+    before(async function () {
+      const underlying = await deployToken(
+        ANVIL_KEY,
+        CHAIN_NAME_2,
+        18,
+        LB_SYMBOL,
+      );
+      lockbox = await deployXERC20LockboxToken(
+        ANVIL_KEY,
+        CHAIN_NAME_2,
+        underlying,
+      );
+      // The lockbox exposes its underlying wrapped ERC20 via ERC20().
+      wrappedToken = await lockbox.ERC20();
+    });
+
+    function buildLockboxConfig(bps?: number): WarpRouteDeployConfig {
+      return WarpRouteDeployConfigSchema.parse({
+        [CHAIN_NAME_2]: {
+          type: TokenType.XERC20Lockbox,
+          token: lockbox.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+          ...(isNullish(bps)
+            ? {}
+            : { tokenFee: { type: TokenFeeType.LinearFee, bps } }),
+        },
+      });
+    }
+
+    it('deploys an xERC20Lockbox warp route with a LinearFee resolved to the wrapped token', async function () {
+      writeYamlOrJson(LB_DEPLOY_PATH, buildLockboxConfig(FEE_BPS));
+      await hyperlaneWarpDeploy(LB_DEPLOY_PATH, LB_WARP_ROUTE_ID);
+
+      const config = (
+        await readWarpConfig(
+          CHAIN_NAME_2,
+          LB_CORE_PATH,
+          LB_REGISTRY_DEPLOY_PATH,
+        )
+      )[CHAIN_NAME_2];
+
+      const fee = TokenFeeConfigSchema.parse(config.tokenFee);
+      assert(fee.type === TokenFeeType.LinearFee, 'expected a LinearFee');
+      expect(fee.bps).to.equal(FEE_BPS);
+      // The fee token must be the underlying wrapped ERC20 (router.token()),
+      // NOT the lockbox address stored in the deploy config.
+      expect(eqAddress(fee.token, wrappedToken)).to.be.true;
+      expect(eqAddress(fee.token, lockbox.address)).to.be.false;
     });
   });
 });
