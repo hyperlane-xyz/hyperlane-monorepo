@@ -73,7 +73,7 @@ topology.
 
 `moonpay-production-piecewise.yaml` contains the seven remote
 `BSC USDT -> USDC` production lanes: Arbitrum, Base, Citrea, Ethereum, Katana,
-Polygon, and Solana. Each lane starts with a flat 3 bps mutable fallback and
+Polygon, and Solana. Each lane starts with a flat 15 bps mutable fallback and
 has no standing curve. The same-domain BSC USDC target, all USDT targets, and
 every destination default remain on the existing 3 bps quoted-linear fee.
 
@@ -91,22 +91,60 @@ The publisher accepts the Solana target router as a 32-byte Sealevel address;
 the source router remains the EVM BSC router. No production curve submission
 is part of the staging rollout.
 
-The production topology can be applied only to a local BSC fork with the
-guarded harness. Its default invocation is a zero-write preview; its write path
-requires both `--apply` and `--fork`, impersonates the fee-owner ICA locally,
-and has no live mode:
+Build the production apply input from the current BSC router before any fork or
+ICA workflow. The builder has no signer or submit path: it only reads the live
+router and existing routing-fee root, then writes a local artifact and
+manifest:
 
 ```bash
-pnpm tsx scripts/moonpay/deploy-production-piecewise-fee-fork.ts
-
-anvil --fork-url "$RPC_URL_BSC" --block-time 1
-pnpm tsx scripts/moonpay/deploy-production-piecewise-fee-fork.ts \
-  --apply --fork
+pnpm tsx scripts/moonpay/build-production-piecewise-apply-config.ts \
+  --output /tmp/moonpay-production-piecewise-apply
 ```
 
-Fork validation requires the production BSC router and existing fee root to
-match their guarded snapshot. It verifies seven distinct piecewise leaves and
-also verifies that the router continues pointing at its existing routing root.
+The builder fails closed unless the router still points at the guarded fee
+root and all seven target leaves are the expected 3 bps
+`OffchainQuotedLinearFee` entries. It overlays only those seven leaves. The
+manifest records the source block, source router and fee root, full git commit,
+deterministic apply-config hash, and each old root pointer.
+
+The generated registry is deliberately BSC-only. It must be combined with a
+complete registry so the CLI can resolve remote metadata and the Ethereum ICA
+addresses. `MergedRegistry` uses the first truthy result, so ordering is
+significant: pass the generated overlay first and the complete registry
+second, despite the CLI option's current help text.
+
+To execute against a local fork, start `warp fork` with that registry order,
+then apply through the writable fork registry using the checked-in
+impersonated fee-owner strategy:
+
+```bash
+ARTIFACT=/tmp/moonpay-production-piecewise-apply
+FULL_REGISTRY=/path/to/hyperlane-registry
+
+hyperlane warp fork \
+  --warp-route-id USDT/moonpay \
+  --registry "$ARTIFACT/registry" "$FULL_REGISTRY"
+
+hyperlane warp apply \
+  --registry http://localhost:8535 \
+  --config "$ARTIFACT/registry/deployments/warp_routes/USDT/moonpay-deploy.yaml" \
+  --strategy config/environments/mainnet3/warp/strategies/moonpay-production-piecewise-fork.yaml
+```
+
+For review without submission, the ICA/file strategy turns the fee-owner calls
+into a local Ethereum ICA payload. Its primary `submitter` is a file guard, so
+any unexpected non-fee transaction is written separately rather than sent:
+
+```bash
+hyperlane warp apply \
+  --registry "$ARTIFACT/registry" "$FULL_REGISTRY" \
+  --config "$ARTIFACT/registry/deployments/warp_routes/USDT/moonpay-deploy.yaml" \
+  --strategy config/environments/mainnet3/warp/strategies/moonpay-production-piecewise-ica-file.yaml
+```
+
+`moonpay-production-piecewise-live.yaml` is the corresponding future
+Ethereum-Safe proposal strategy. It is checked in for review only; this rollout
+does not execute it or perform any production or Safe write.
 
 ## Guarded staging lifecycle
 

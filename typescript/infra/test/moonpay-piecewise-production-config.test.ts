@@ -136,7 +136,7 @@ describe('USDT/moonpay BSC production piecewise fee topology', () => {
       );
       expect(entry.config.initialFallback).to.deep.equal({
         breakpoints: [],
-        marginalBps: [3],
+        marginalBps: [15],
       });
       expect(entry.config.quoteSigners).to.deep.equal(QUOTE_SIGNERS);
     }

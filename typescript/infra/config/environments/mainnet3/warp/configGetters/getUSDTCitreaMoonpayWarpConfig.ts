@@ -163,7 +163,7 @@ function buildCrossCollateralRoutingFee(
   const piecewiseFee = (): TokenFeeConfigInput => ({
     type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
     owner,
-    initialFallback: { breakpoints: [], marginalBps: [3] },
+    initialFallback: { breakpoints: [], marginalBps: [15] },
     maxBands: 4,
     quoteSigners: QUOTE_SIGNERS,
   });

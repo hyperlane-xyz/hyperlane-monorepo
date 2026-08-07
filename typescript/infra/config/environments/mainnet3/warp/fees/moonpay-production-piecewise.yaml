@@ -3,7 +3,7 @@ lanes:
     fallback:
       breakpoints: []
       marginalBps:
-        - 3
+        - 15
     id: bsc-usdt-arbitrum-usdc
     origin: bsc
     sourceRouteId: USDT/moonpay
@@ -12,7 +12,7 @@ lanes:
     fallback:
       breakpoints: []
       marginalBps:
-        - 3
+        - 15
     id: bsc-usdt-base-usdc
     origin: bsc
     sourceRouteId: USDT/moonpay
@@ -21,7 +21,7 @@ lanes:
     fallback:
       breakpoints: []
       marginalBps:
-        - 3
+        - 15
     id: bsc-usdt-citrea-usdc
     origin: bsc
     sourceRouteId: USDT/moonpay
@@ -30,7 +30,7 @@ lanes:
     fallback:
       breakpoints: []
       marginalBps:
-        - 3
+        - 15
     id: bsc-usdt-ethereum-usdc
     origin: bsc
     sourceRouteId: USDT/moonpay
@@ -39,7 +39,7 @@ lanes:
     fallback:
       breakpoints: []
       marginalBps:
-        - 3
+        - 15
     id: bsc-usdt-katana-usdc
     origin: bsc
     sourceRouteId: USDT/moonpay
@@ -48,7 +48,7 @@ lanes:
     fallback:
       breakpoints: []
       marginalBps:
-        - 3
+        - 15
     id: bsc-usdt-polygon-usdc
     origin: bsc
     sourceRouteId: USDT/moonpay
@@ -57,7 +57,7 @@ lanes:
     fallback:
       breakpoints: []
       marginalBps:
-        - 3
+        - 15
     id: bsc-usdt-solanamainnet-usdc
     origin: bsc
     sourceRouteId: USDT/moonpay

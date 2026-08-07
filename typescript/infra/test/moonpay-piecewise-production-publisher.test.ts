@@ -47,7 +47,7 @@ describe('Moonpay production piecewise publisher template', () => {
       expect(lane.standing).to.equal(undefined);
       expect(lane.fallback).to.deep.equal({
         breakpoints: [],
-        marginalBps: [3],
+        marginalBps: [15],
       });
     }
     expect(selectPublisherLanes(config, undefined, 'fallback')).to.have.length(
