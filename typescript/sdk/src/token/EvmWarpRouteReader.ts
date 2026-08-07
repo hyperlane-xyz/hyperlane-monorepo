@@ -1248,6 +1248,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       ...(await this.fetchERC20Metadata(sourceToken)),
       type: TokenType.atomicLocalRebalancing,
       sourceRouter,
+      scale: await this.fetchScale(sourceRouter),
     };
   }
 

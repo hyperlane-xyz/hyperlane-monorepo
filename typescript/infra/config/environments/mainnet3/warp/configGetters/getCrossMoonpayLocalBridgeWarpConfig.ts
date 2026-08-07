@@ -80,6 +80,9 @@ export const getCrossMoonpayLocalBridgeWarpConfig = async (
           type: TokenType.atomicLocalRebalancing,
           sourceRouter,
           decimals: decimalsByChain[chain],
+          ...(chain === 'bsc'
+            ? { scale: { numerator: 1, denominator: 1_000_000_000_000 } }
+            : {}),
           name: 'Moonpay Local Rebalancing Bridge',
           symbol: 'mpALRB',
         },
