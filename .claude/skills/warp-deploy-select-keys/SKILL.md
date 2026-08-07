@@ -9,6 +9,12 @@ You are resolving which private key(s) the warp-deploy chain should use for sign
 
 A single route can span multiple protocols (e.g., `ethereum` + `sealevel` + `cosmos`) — each needs its own key. This skill walks every required protocol and resolves them in one pass.
 
+## Run Log (mandatory)
+
+Open-or-create the run log at entry, then maintain it, per `/warp-run-log` (never assume a previous step created it). Use `warp-deploy-select-keys` as the skill name in each entry; don't report complete until the URL is surfaced.
+
+**Log at least:** skill entry (ticket ID), the resolved key NAME + derived address per protocol (never the value), skill exit.
+
 ## Input
 
 The user provides:

@@ -7,15 +7,22 @@ description: Ownership-validation preflight for a warp route. For each chain in 
 
 You are running the ownership-validation preflight for a warp route. For each chain in the route, you confirm that the configured owner is a valid multisig (ICA, Safe, Squads, or other) that exists on chain. EOAs are rejected outright.
 
+## Run Log (mandatory)
+
+Open-or-create the run log at entry, then maintain it, per `/warp-run-log` (never assume a previous step created it). Use `warp-deploy-validate-owners` as the skill name in each entry; don't report complete until the URL is surfaced.
+
+**Log at least:** skill entry (ticket ID), the resolved deploy mode, per-chain owner type + verdict, any ICA deployed (address + tx), skill exit.
+
 ## Input
 
 The user provides:
 
-- **Linear ticket URL or ID** (required, e.g. `AW-652`) — the structured `Multisig for Ownership` table in the ticket is the source of truth for owner addresses + types.
+- **Linear ticket URL or ID** (e.g. `AW-652`) — when one exists, its structured `Multisig for Ownership` table is the source of truth for owner addresses + types, **or**
+- **Explicit per-chain owner addresses + types**, supplied directly.
 
-If the ticket is not provided, ask for it.
+Not every deployment has a ticket behind it. Ask for one only if neither source is present. If the user supplies owners directly, they are the authoritative map: skip Step 1's extraction and feed the supplied per-chain types straight into Step 2's classification. If a ticket also exists, still load it — Step 3d reads its label for deploy mode and Step 3f may need its per-role owner sources — but let the explicit addresses win on any conflict.
 
-If the user provides explicit per-chain owner addresses (overriding the ticket), use those.
+**Run key.** Downstream artifacts key off the ticket ID (`/warp-run-log`'s document, `~/.hyperlane/key-contexts/<id>.yaml` in Step 3a). With no ticket, use the **warp route ID** as that key throughout, consistently, so a resumed run resolves the same log and key context.
 
 ### Key Context (Prerequisite)
 
@@ -112,6 +119,8 @@ Run the code probe from `/classify-onchain-owner` on the owner address (or the p
 - Ticket description explicitly marks the route as staging / test / non-production (e.g. "staging test", "haggis test run", "not for production") → **non-prod mode**
 - Otherwise → **production mode**
 
+With no ticket, there is no label to parse: default to **production mode** unless the user states the route is non-prod. The strict default is deliberate — an unlabelled route hard-rejects EOAs rather than waving them through. When the user does declare it, record the mode as `non-prod — user-declared (no ticket)` and persist that verbatim, so Step 4's report and every downstream skill see an explicit non-prod resolution rather than inferring production from a missing label.
+
 Then apply the EOA policy per mode:
 
 | Mode           | EOA owner detection outcome                                                                             |
@@ -149,6 +158,25 @@ For every chain, also confirm the address format matches the protocol:
 
 A format mismatch is a stop condition — surface to the user.
 
+### 3f. Cross-check a pre-existing deploy.yaml against the authoritative owners
+
+**Only when a `deployments/warp_routes/<TOKEN>/<...>-deploy.yaml` already exists.** Skip when it doesn't — init-route then generates it from the same source this skill validated, so there is nothing to diverge. Check against whichever source is authoritative for this run: the user's explicit owners when supplied, otherwise the ticket.
+
+When the config was authored ahead of time, the owners are already baked into it and the checks above only prove those baked owners are valid on chain — not that they are the _intended_ ones.
+
+**Compare like-for-like, role by role.** The config's owner fields are separate governance roles with separate authoritative sources — they are routinely and correctly different addresses, so asserting one table's value against all of them false-stops valid configs and pushes toward collapsing roles that exist to be distinct:
+
+| Config field                                            | Compare against                                                                                                                                  |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `<chain>.owner` (router)                                | the ticket's `Multisig for Ownership` row for that chain                                                                                         |
+| `tokenFee.owner`, `tokenFee.feeContracts.<chain>.owner` | the ticket's fee-owner entry for that chain — a distinct role (`getWarpFeeOwner` / `<chain>FeeOwner` in the infra configs), never the router row |
+| `tokenFee.beneficiary`                                  | the ticket's beneficiary, which may differ from the fee owner                                                                                    |
+| `<chain>.proxyAdmin.owner`                              | its own override when the ticket specifies one, else the router row                                                                              |
+
+If the ticket names no distinct source for a role, say so and ask rather than defaulting it to the router owner.
+
+A genuine mismatch is a **stop condition**. Report the chain, the field, both addresses, and which side you believe is stale — do not silently prefer either. Without this, a config authored with the wrong owner passes on-chain validation cleanly and deploys to the wrong controller.
+
 ---
 
 ## Step 4: Emit Resolution Report
@@ -166,7 +194,7 @@ mode          | EOA          | 0x3f13C1…0913                                 |
 bsc           | EOA          | 0x3f13C1…0913                                 | ⚠️ NON-PROD EOA     | ticket [STAGING] label allows EOA
 ```
 
-The first line of the resolution table always states the resolved deploy mode + which label triggered it (or "production — no non-prod label detected"). Downstream skills read this to decide their own behavior.
+The first line of the resolution table always states the resolved deploy mode + what triggered it: the ticket label, `non-prod — user-declared (no ticket)`, or `production — no non-prod label detected`. Downstream skills read this to decide their own behavior.
 
 If any row is ❌, **stop** — surface the rejections to the user. Do not proceed to `/warp-deploy-init-route` until every row is ✅ or ⚠️.
 

@@ -9,7 +9,7 @@ You are adding a new chain to an existing Hyperlane warp route. Routes are commo
 
 ## Run Log (mandatory)
 
-Maintain the durable, per-ticket run log per `/warp-run-log` — that skill owns the storage contract (Linear-document-by-title primary, single-writer discipline, local-file fallback), the machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-update-extend` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
+Open-or-create the run log at entry, then maintain it, per `/warp-run-log` (never assume a previous step created it) — that skill owns the storage contract, the machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-update-extend` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
 
 **Log at least:** (a) skill entry with the ticket ID + warp route ID + the new chain, (b) every `[CONFIRM:]` gate — before and after the response, (c) the new-chain contract deploy (deployed addresses + tx hashes), (d) the `warp apply` run for existing chains, (e) the emitted customer transaction-file paths (one per signer/chain), (f) skill exit (success or bail-out). Log smooth steps too — success data grounds the retrospective as much as failure data.
 
@@ -529,7 +529,7 @@ Show the user the PR URL.
 - The `file` submitter for Sealevel chains writes raw transactions — the customer executes these with their Solana CLI or tooling.
 - After this skill, run `/warp-deploy-register-route` once the registry PR is merged to update warpIds.ts and agent config.
 - **`warp apply` re-runs corrupt deploy.yaml owners (bug, fixed in monorepo):** `runWarpRouteApply` previously set ALL chain owners to the deployer in `intermediateOwnerConfig` and wrote that back to the registry — meaning a second run would generate `transferOwnership(deployer)` for every existing chain. The fix scopes this override to new chains only. If working with an older CLI, always check for unexpected `transferOwnership` calls after running (see Step 9c).
-- **Multi-RPC failure modes on the new-chain deploy:** a stale-gas OOG on `initialize`, or a confirmation-timeout on a tx that already landed (`status: 1`), are read-after-write / short-confirmation-budget artifacts, not real failures. Apply the same cushions a fresh deploy uses — pin a single premium RPC for opstack/multi-RPC chains, and/or raise `estimateBlockTime` in the local registry metadata for short-block chains (ethereum, bsc, tron), then restore per the cleanup gate. Full mechanism in `/warp-deploy-init-route` §8c.
+- **Multi-RPC failure modes on the new-chain deploy:** a confirmation-timeout on a tx that already landed (`status: 1`) is an observation artifact, not a real failure — apply the cushions per `/warp-chain-metadata-cushions` up front and restore per its cleanup gate. A stale-gas OOG on `initialize` is different: the tx genuinely reverted, so the new-chain deploy is incomplete and needs retry plus reconciliation of what landed before anything is reported complete.
 
 ### Tron-specific notes
 
