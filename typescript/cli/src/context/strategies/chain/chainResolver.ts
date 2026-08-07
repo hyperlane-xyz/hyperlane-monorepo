@@ -243,7 +243,7 @@ async function resolveWarpConfigChains(
   if (argv.strategy) {
     const strategy = readChainSubmissionStrategy(argv.strategy);
     for (const config of Object.values(strategy)) {
-      for (const c of getSubmitterChains(config.submitter)) {
+      for (const c of getSubmissionStrategyChains(config)) {
         chains.add(c);
       }
     }
@@ -557,7 +557,7 @@ async function resolveSubmitChains(
       const strategy = readChainSubmissionStrategy(argv.strategy);
       for (const [destChain, config] of Object.entries(strategy)) {
         chains.add(destChain);
-        for (const c of getSubmitterChains(config.submitter)) {
+        for (const c of getSubmissionStrategyChains(config)) {
           chains.add(c);
         }
       }
@@ -570,6 +570,15 @@ async function resolveSubmitChains(
       cause: error,
     });
   }
+}
+
+export function getSubmissionStrategyChains(
+  strategy: ExtendedSubmissionStrategy,
+): ChainName[] {
+  return [
+    ...getSubmitterChains(strategy.submitter),
+    ...(strategy.feeSubmitter ? getSubmitterChains(strategy.feeSubmitter) : []),
+  ];
 }
 
 // Recursively extracts all chain names referenced by a submitter (e.g. ICA origin, destination, nested submitters).

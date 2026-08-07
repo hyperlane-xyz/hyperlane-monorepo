@@ -277,6 +277,7 @@ describe('Moonpay production piecewise apply-config builder', () => {
       expect(manifest.registryMergeOrder).to.deep.equal([
         'generated-artifact',
         'base-registry',
+        'generated-artifact',
       ]);
       expect(manifest.requiresBaseRegistry).to.equal(true);
       expect(manifest.artifactScope).to.deep.equal({
@@ -303,6 +304,13 @@ describe('Moonpay production piecewise apply-config builder', () => {
       const ethereumIcaRouter = '0x0000000000000000000000000000000000000e01';
       const base = new PartialRegistry({
         chainMetadata: {
+          bsc: {
+            name: 'bsc',
+            chainId: 56,
+            domainId: 56,
+            protocol: ProtocolType.Ethereum,
+            rpcUrls: [{ http: 'http://unverified-bsc.example' }],
+          },
           ethereum: {
             name: 'ethereum',
             chainId: 1,
@@ -317,12 +325,17 @@ describe('Moonpay production piecewise apply-config builder', () => {
       });
       // MergedRegistry returns the first truthy registry result, so the
       // generated BSC route/config overlay must precede the complete registry.
-      const merged = new MergedRegistry({ registries: [generated, base] });
+      const merged = new MergedRegistry({
+        registries: [generated, base, generated],
+      });
       expect((await merged.getMetadata()).ethereum?.chainId).to.equal(1);
       expect(
         (await merged.getAddresses()).ethereum?.interchainAccountRouter,
       ).to.equal(ethereumIcaRouter);
       expect((await merged.getMetadata()).bsc?.chainId).to.equal(56);
+      expect((await merged.getMetadata()).bsc?.rpcUrls[0].http).to.equal(
+        'http://bsc.example',
+      );
     } finally {
       rmSync(output, { recursive: true, force: true });
     }

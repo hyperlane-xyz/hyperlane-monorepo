@@ -59,7 +59,11 @@ export interface ProductionApplyManifest {
   overlayCount: 7;
   overlays: ProductionPiecewiseOverlay[];
   files: typeof PRODUCTION_APPLY_ARTIFACT_PATHS;
-  registryMergeOrder: ['generated-artifact', 'base-registry'];
+  registryMergeOrder: [
+    'generated-artifact',
+    'base-registry',
+    'generated-artifact',
+  ];
   requiresBaseRegistry: true;
   artifactScope: {
     metadataChains: ['bsc'];
@@ -273,7 +277,11 @@ export function buildProductionApplyArtifact(
       overlayCount: 7,
       overlays,
       files: PRODUCTION_APPLY_ARTIFACT_PATHS,
-      registryMergeOrder: ['generated-artifact', 'base-registry'],
+      registryMergeOrder: [
+        'generated-artifact',
+        'base-registry',
+        'generated-artifact',
+      ],
       requiresBaseRegistry: true,
       artifactScope: {
         metadataChains: ['bsc'],

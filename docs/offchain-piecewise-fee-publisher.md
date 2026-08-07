@@ -113,9 +113,10 @@ deterministic apply-config hash, and each old root pointer.
 
 The generated registry is deliberately BSC-only. It must be combined with a
 complete registry so the CLI can resolve remote metadata and the Ethereum ICA
-addresses. `MergedRegistry` uses the first truthy result, so ordering is
-significant: pass the generated overlay first and the complete registry
-second, despite the CLI option's current help text.
+addresses. Route artifacts use the first truthy registry while metadata uses
+the last value on conflicts. Pass the generated overlay first and last, with
+the complete registry between them: the first overlay scopes the deploy config
+to BSC and the last applies its verified BSC RPC override.
 
 To execute against a local fork, start `warp fork` with that registry order.
 The fork command exposes a read-only merged registry at port 8535 and the BSC
@@ -127,7 +128,7 @@ FULL_REGISTRY=/path/to/hyperlane-registry
 
 hyperlane warp fork \
   --warp-route-id USDT/moonpay \
-  --registry "$ARTIFACT/registry" "$FULL_REGISTRY"
+  --registry "$ARTIFACT/registry" "$FULL_REGISTRY" "$ARTIFACT/registry"
 ```
 
 In a second terminal, clear the fixed file-sink paths and run the ICA/file
@@ -152,9 +153,8 @@ single validated BSC transaction, and execute that transaction only on Anvil:
 test ! -e /tmp/moonpay-production-piecewise-ica-non-fee-guard.json
 pnpm tsx scripts/moonpay/decode-production-piecewise-ica-payload.ts \
   --input /tmp/moonpay-production-piecewise-ica-payload.json \
-  | tee /tmp/moonpay-production-piecewise-decoded.json
-jq '[.bscTransaction]' /tmp/moonpay-production-piecewise-decoded.json \
-  > /tmp/moonpay-production-piecewise-bsc-transactions.json
+  --output /tmp/moonpay-production-piecewise-decoded.json \
+  --bsc-transactions-output /tmp/moonpay-production-piecewise-bsc-transactions.json
 hyperlane submit \
   --registry http://localhost:8535 \
   --transactions /tmp/moonpay-production-piecewise-bsc-transactions.json \
