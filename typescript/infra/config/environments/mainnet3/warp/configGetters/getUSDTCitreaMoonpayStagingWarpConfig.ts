@@ -74,22 +74,11 @@ function getSiblingCrossCollateralRouters(): Record<string, string[]> {
   );
 }
 
-function buildBscUsdtTokenFee(): TokenFeeConfigInput {
-  const targetsByChain =
-    getCrossCollateralTargetRoutersByChain(STAGING_ROUTE_IDS);
-  const usdcRoute = getRegistry().getWarpRoute(
-    WarpRouteIds.USDCCitreaMoonpaySTAGING,
-  );
-  assert(usdcRoute, 'USDC/moonpay-staging route not found in registry');
-  const arbitrumUsdc = usdcRoute.tokens.find(
-    ({ chainName }) => chainName === 'arbitrum',
-  );
-  assert(
-    arbitrumUsdc?.addressOrDenom,
-    'Missing Arbitrum USDC/moonpay-staging router',
-  );
-  const arbitrumUsdcRouterKey = addressToBytes32(arbitrumUsdc.addressOrDenom);
-
+export function buildBscUsdtTokenFeeForTargets(
+  destinations: readonly string[],
+  arbitrumUsdcRouter: string,
+): TokenFeeConfigInput {
+  const arbitrumUsdcRouterKey = addressToBytes32(arbitrumUsdcRouter);
   const linearFee = (): TokenFeeConfigInput => ({
     type: TokenFeeType.OffchainQuotedLinearFee,
     owner: DEPLOYER_EVM,
@@ -108,7 +97,7 @@ function buildBscUsdtTokenFee(): TokenFeeConfigInput {
     type: TokenFeeType.CrossCollateralRoutingFee,
     owner: DEPLOYER_EVM,
     feeContracts: Object.fromEntries(
-      Object.keys(targetsByChain).map((destination) => [
+      destinations.map((destination) => [
         destination,
         {
           [DEFAULT_ROUTER_KEY]: linearFee(),
@@ -119,6 +108,26 @@ function buildBscUsdtTokenFee(): TokenFeeConfigInput {
       ]),
     ),
   };
+}
+
+function buildBscUsdtTokenFee(): TokenFeeConfigInput {
+  const targetsByChain =
+    getCrossCollateralTargetRoutersByChain(STAGING_ROUTE_IDS);
+  const usdcRoute = getRegistry().getWarpRoute(
+    WarpRouteIds.USDCCitreaMoonpaySTAGING,
+  );
+  assert(usdcRoute, 'USDC/moonpay-staging route not found in registry');
+  const arbitrumUsdc = usdcRoute.tokens.find(
+    ({ chainName }) => chainName === 'arbitrum',
+  );
+  assert(
+    arbitrumUsdc?.addressOrDenom,
+    'Missing Arbitrum USDC/moonpay-staging router',
+  );
+  return buildBscUsdtTokenFeeForTargets(
+    Object.keys(targetsByChain),
+    arbitrumUsdc.addressOrDenom,
+  );
 }
 
 export async function getUSDTCitreaMoonpayStagingWarpConfig(
