@@ -4,6 +4,7 @@ import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { ethers } from 'ethers';
 import hre from 'hardhat';
+import sinon from 'sinon';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
@@ -219,6 +220,360 @@ describe('RPC Utils', () => {
       });
 
       expect(logs).to.have.length(0);
+    });
+
+    describe('block range pagination', () => {
+      let getLogsStub: sinon.SinonStub | undefined;
+
+      afterEach(() => {
+        getLogsStub?.restore();
+        getLogsStub = undefined;
+      });
+
+      type ObservedChunk = { fromBlock: number; toBlock: number };
+
+      const REJECTION_MESSAGE = 'query returned more than 10000 results';
+
+      // A span rejection phrased in a way BLOCK_RANGE_ERROR_SIGNALS does not
+      // cover, which the paginator must therefore treat as transient at first.
+      const UNRECOGNISED_REJECTION_MESSAGE =
+        'exceeds the maximum window for this endpoint';
+
+      const TRANSIENT_MESSAGE = '429 Too Many Requests';
+
+      function stubGetLogs(
+        onChunk: (chunk: ObservedChunk) => void,
+      ): ObservedChunk[] {
+        const provider = multiProvider.getProvider(TestChainName.test1);
+        const requested: ObservedChunk[] = [];
+
+        getLogsStub = sinon
+          .stub(provider, 'getLogs')
+          .callsFake(async (filter) => {
+            const resolved = await filter;
+            assert(
+              resolved &&
+                'fromBlock' in resolved &&
+                typeof resolved.fromBlock === 'number',
+              'Expected getLogsFromRpc to request a numeric fromBlock',
+            );
+            assert(
+              'toBlock' in resolved && typeof resolved.toBlock === 'number',
+              'Expected getLogsFromRpc to request a numeric toBlock',
+            );
+
+            const chunk = {
+              fromBlock: resolved.fromBlock,
+              toBlock: resolved.toBlock,
+            };
+            requested.push(chunk);
+            onChunk(chunk);
+
+            return [];
+          });
+
+        return requested;
+      }
+
+      // Mimics the providers that cap how many blocks a single eth_getLogs
+      // request may span. Returns every chunk the paginator requested; the
+      // accepted ones are the entries whose span is at most `maxSpan`.
+      function stubBlockSpanLimit(
+        maxSpan: number,
+        message = REJECTION_MESSAGE,
+      ): ObservedChunk[] {
+        return stubGetLogs((chunk) => {
+          if (chunk.toBlock - chunk.fromBlock + 1 > maxSpan) {
+            throw new Error(message);
+          }
+        });
+      }
+
+      // Mimics an endpoint that is temporarily unavailable: the failure says
+      // nothing about the block range, so the range must not shrink.
+      function stubTransientFailures(failureCount: number): ObservedChunk[] {
+        let failuresLeft = failureCount;
+        return stubGetLogs(() => {
+          if (failuresLeft > 0) {
+            failuresLeft--;
+            throw new Error(TRANSIENT_MESSAGE);
+          }
+        });
+      }
+
+      function spanOf({ fromBlock, toBlock }: ObservedChunk): number {
+        return toBlock - fromBlock + 1;
+      }
+
+      // Collapses the repeats a retried chunk leaves behind so the remaining
+      // entries can be checked for gaps.
+      function dedupeConsecutive(chunks: ObservedChunk[]): ObservedChunk[] {
+        return chunks.filter(
+          (chunk, index) =>
+            index === 0 ||
+            chunk.fromBlock !== chunks[index - 1].fromBlock ||
+            chunk.toBlock !== chunks[index - 1].toBlock,
+        );
+      }
+
+      // The accepted chunks must tile [fromBlock, toBlock] without gaps or
+      // overlaps, otherwise the paginator silently skips or re-reads blocks.
+      function expectContiguousCoverage(
+        accepted: ObservedChunk[],
+        fromBlock: number,
+        toBlock: number,
+      ): void {
+        expect(accepted.length).to.be.greaterThan(0);
+        expect(accepted[0].fromBlock).to.equal(fromBlock);
+        expect(accepted[accepted.length - 1].toBlock).to.equal(toBlock);
+        for (let i = 1; i < accepted.length; i++) {
+          expect(accepted[i].fromBlock).to.equal(accepted[i - 1].toBlock + 1);
+        }
+      }
+
+      async function mineBlocks(count: number): Promise<void> {
+        for (let i = 0; i < count; i++) {
+          await providerChainTest1.send('evm_mine', []);
+        }
+      }
+
+      it('should never span more blocks than the configured range', async () => {
+        const range = 8;
+        const requested = stubBlockSpanLimit(range);
+
+        await mineBlocks(100);
+        const toBlock = await providerChainTest1.getBlockNumber();
+
+        await getLogsFromRpc({
+          chain: TestChainName.test1,
+          contractAddress: testContract.address,
+          multiProvider,
+          fromBlock: deploymentBlockNumber,
+          toBlock,
+          topic: transferTopic,
+          range,
+        });
+
+        // Every request was accepted, so a chunk never exceeded the range
+        const totalBlocks = toBlock - deploymentBlockNumber + 1;
+        expect(requested).to.have.length(Math.ceil(totalBlocks / range));
+        expect(Math.max(...requested.map(spanOf))).to.equal(range);
+        expectContiguousCoverage(requested, deploymentBlockNumber, toBlock);
+      });
+
+      it('should halve the block range on rejection and keep it reduced', async () => {
+        const maxSpan = 4;
+        const requested = stubBlockSpanLimit(maxSpan);
+
+        await mineBlocks(100);
+        const toBlock = await providerChainTest1.getBlockNumber();
+
+        await getLogsFromRpc({
+          chain: TestChainName.test1,
+          contractAddress: testContract.address,
+          multiProvider,
+          fromBlock: deploymentBlockNumber,
+          toBlock,
+          topic: transferTopic,
+          range: 16,
+        });
+
+        // 16 and 8 are rejected before 4 is accepted, and the reduced range is
+        // reused for every following chunk instead of growing back
+        expect(requested.slice(0, 2).map(spanOf)).to.deep.equal([16, 8]);
+        expect(
+          requested.filter((chunk) => spanOf(chunk) > maxSpan),
+        ).to.have.length(2);
+        expectContiguousCoverage(
+          requested.filter((chunk) => spanOf(chunk) <= maxSpan),
+          deploymentBlockNumber,
+          toBlock,
+        );
+      });
+
+      it('should rethrow the provider error once the range cannot be reduced further', async () => {
+        const requested = stubBlockSpanLimit(0);
+
+        await mineBlocks(10);
+        const toBlock = await providerChainTest1.getBlockNumber();
+
+        await expect(
+          getLogsFromRpc({
+            chain: TestChainName.test1,
+            contractAddress: testContract.address,
+            multiProvider,
+            fromBlock: deploymentBlockNumber,
+            toBlock,
+            topic: transferTopic,
+            range: 4,
+          }),
+        ).to.be.rejectedWith(REJECTION_MESSAGE);
+
+        expect(requested.map(spanOf)).to.deep.equal([4, 2, 1]);
+      });
+
+      // Neither a retry nor a narrower range changes the answer to a rejection
+      // of the caller, so walking one down the halving ladder only delays it by
+      // four attempts and their backoffs at every range down to one block.
+      it('should rethrow a rejected request without retrying or reducing the range', async () => {
+        const requested = stubGetLogs(() => {
+          throw Object.assign(new Error('bad response'), { status: 401 });
+        });
+
+        await mineBlocks(10);
+        const toBlock = await providerChainTest1.getBlockNumber();
+
+        await expect(
+          getLogsFromRpc({
+            chain: TestChainName.test1,
+            contractAddress: testContract.address,
+            multiProvider,
+            fromBlock: deploymentBlockNumber,
+            toBlock,
+            topic: transferTopic,
+            range: 4,
+          }),
+        ).to.be.rejectedWith('bad response');
+
+        expect(requested.map(spanOf)).to.deep.equal([4]);
+      });
+
+      it('should rethrow a non recoverable error reported behind a wrapper', async () => {
+        const requested = stubGetLogs(() => {
+          throw new Error('All providers failed on chain test1', {
+            cause: Object.assign(new Error('NETWORK_ERROR'), {
+              isRecoverable: false,
+            }),
+          });
+        });
+
+        await mineBlocks(10);
+        const toBlock = await providerChainTest1.getBlockNumber();
+
+        await expect(
+          getLogsFromRpc({
+            chain: TestChainName.test1,
+            contractAddress: testContract.address,
+            multiProvider,
+            fromBlock: deploymentBlockNumber,
+            toBlock,
+            topic: transferTopic,
+            range: 4,
+          }),
+        ).to.be.rejectedWith('All providers failed on chain test1');
+
+        expect(requested.map(spanOf)).to.deep.equal([4]);
+      });
+
+      // Shrinking the range is sticky for the rest of the scan, so a failure
+      // that says nothing about the block range must cost a retry rather than
+      // permanently degrading every remaining chunk.
+      it('should retry a transient failure at the unchanged block range', async () => {
+        const range = 16;
+        const requested = stubTransientFailures(2);
+
+        await mineBlocks(100);
+        const toBlock = await providerChainTest1.getBlockNumber();
+
+        await getLogsFromRpc({
+          chain: TestChainName.test1,
+          contractAddress: testContract.address,
+          multiProvider,
+          fromBlock: deploymentBlockNumber,
+          toBlock,
+          topic: transferTopic,
+          range,
+        });
+
+        // The first chunk is requested three times unchanged before it succeeds
+        expect(requested.slice(0, 3)).to.deep.equal([
+          requested[0],
+          requested[0],
+          requested[0],
+        ]);
+        expect(Math.max(...requested.map(spanOf))).to.equal(range);
+        expectContiguousCoverage(
+          dedupeConsecutive(requested),
+          deploymentBlockNumber,
+          toBlock,
+        );
+      });
+
+      // A spent retry budget is not proof that the failure is unrelated to the
+      // block range, only that the signal list did not recognise it, so the
+      // range is halved before the read is given up on.
+      it('should halve the block range once the transient retry budget is spent', async () => {
+        const requested = stubTransientFailures(Number.POSITIVE_INFINITY);
+
+        await mineBlocks(10);
+        const toBlock = await providerChainTest1.getBlockNumber();
+
+        await expect(
+          getLogsFromRpc({
+            chain: TestChainName.test1,
+            contractAddress: testContract.address,
+            multiProvider,
+            fromBlock: deploymentBlockNumber,
+            toBlock,
+            topic: transferTopic,
+            range: 4,
+          }),
+        ).to.be.rejectedWith(TRANSIENT_MESSAGE);
+
+        // One attempt plus three retries at each range down to the minimum,
+        // where the original provider error is rethrown unchanged
+        expect(requested.map(spanOf)).to.deep.equal([
+          4, 4, 4, 4, 2, 2, 2, 2, 1, 1, 1, 1,
+        ]);
+      });
+
+      // The signal list is an optimisation, not a correctness dependency: a
+      // provider phrasing it does not cover costs retries, not the scan.
+      it('should complete the scan when a span rejection is not recognised', async () => {
+        const maxSpan = 4;
+        const requested = stubBlockSpanLimit(
+          maxSpan,
+          UNRECOGNISED_REJECTION_MESSAGE,
+        );
+
+        await mineBlocks(100);
+        const toBlock = await providerChainTest1.getBlockNumber();
+
+        await getLogsFromRpc({
+          chain: TestChainName.test1,
+          contractAddress: testContract.address,
+          multiProvider,
+          fromBlock: deploymentBlockNumber,
+          toBlock,
+          topic: transferTopic,
+          range: 16,
+        });
+
+        // 16 and 8 each exhaust the retry budget before 4 is accepted
+        expect(requested.slice(0, 8).map(spanOf)).to.deep.equal([
+          16, 16, 16, 16, 8, 8, 8, 8,
+        ]);
+        expectContiguousCoverage(
+          requested.filter((chunk) => spanOf(chunk) <= maxSpan),
+          deploymentBlockNumber,
+          toBlock,
+        );
+      });
+
+      it('should reject a range below the supported minimum', async () => {
+        await expect(
+          getLogsFromRpc({
+            chain: TestChainName.test1,
+            contractAddress: testContract.address,
+            multiProvider,
+            fromBlock: deploymentBlockNumber,
+            topic: transferTopic,
+            range: 0,
+          }),
+        ).to.be.rejectedWith(
+          'Log pagination range must be an integer of at least 1, got 0',
+        );
+      });
     });
   });
 });
