@@ -1,0 +1,6 @@
+hyperlane:
+  runEnv: mainnet3
+
+ingress:
+  host: router.services.hyperlane.xyz
+  staticIpName: universal-router-engine-mainnet
