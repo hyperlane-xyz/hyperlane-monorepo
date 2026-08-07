@@ -210,6 +210,27 @@ describe('sortNestedArrays', () => {
     expect(result.nested.flags).to.deep.equal([false, true, true]);
   });
 
+  it('should preserve primitive array order for configured paths', () => {
+    const data = {
+      lanes: [
+        {
+          fallback: {
+            marginalBps: [4, 10, 20],
+          },
+        },
+      ],
+      names: ['zeta', 'alpha'],
+    };
+
+    const result = sortNestedArrays(data, {
+      arrays: [],
+      preserve: ['lanes[].fallback.marginalBps'],
+    });
+
+    expect(result.lanes[0].fallback.marginalBps).to.deep.equal([4, 10, 20]);
+    expect(result.names).to.deep.equal(['alpha', 'zeta']);
+  });
+
   it('should not match when path length is shorter than pattern length', () => {
     const data = {
       items: [
@@ -433,6 +454,13 @@ describe('WARP_YAML_SORT_CONFIG', () => {
           path: '*.interchainSecurityModule.modules[].domains.*.modules',
           sortKey: 'type',
         },
+      ],
+      preserve: [
+        'lanes[].standing.breakpoints',
+        'lanes[].standing.marginalBps',
+        'lanes[].standing.staleMarginalSurchargeBps',
+        'lanes[].fallback.breakpoints',
+        'lanes[].fallback.marginalBps',
       ],
     });
   });
