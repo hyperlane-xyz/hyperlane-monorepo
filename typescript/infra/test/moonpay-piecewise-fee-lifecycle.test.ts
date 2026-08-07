@@ -45,7 +45,7 @@ function slot(overrides: Partial<PiecewiseLaneSlot> = {}): PiecewiseLaneSlot {
 }
 
 const fallbackCurve: MaterializedCurve = {
-  breakpoints: [100_000n * 10n ** 18n, 250_000n * 10n ** 18n],
+  breakpoints: [250_000_000_000_000_000n, 750_000_000_000_000_000n],
   marginalBpsX1e4: [40_000, 100_000, 200_000],
 };
 
@@ -217,7 +217,7 @@ describe('Moonpay piecewise staging lifecycle', () => {
     expect(computePiecewiseFee(curve, 250n)).to.equal(4n);
     expect(
       computePiecewiseFee(fallbackCurve, STAGING_TRANSFER_AMOUNT),
-    ).to.equal(400_000_000_000_000n);
+    ).to.equal(1_100_000_000_000_000n);
   });
 
   it('polls block timestamps, not wall-clock time', async () => {
@@ -257,6 +257,24 @@ describe('Moonpay piecewise staging lifecycle', () => {
     expect(calls.end).to.equal(0);
     expect(lines.join('\n')).to.include('DRY RUN');
     expect(lines.join('\n')).to.include('No approval');
+  });
+
+  it('rejects a lifecycle curve that does not cross every band', async () => {
+    const { dependencies } = lifecycleDependencies({});
+    const message = await rejectionMessage(
+      runStagingLifecycle({
+        submit: false,
+        slot: slot(),
+        fallbackCurve: {
+          ...fallbackCurve,
+          breakpoints: [250_000_000_000_000_000n, 2n * 10n ** 18n],
+        },
+        standingCurve,
+        dependencies,
+        log: () => undefined,
+      }),
+    );
+    expect(message).to.include('below the 1e18 lifecycle transfer');
   });
 
   it('runs fallback, fresh, stale, and expired with block-time gates', async () => {

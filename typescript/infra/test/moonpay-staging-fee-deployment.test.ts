@@ -42,7 +42,7 @@ function routeConfig(): Record<string, HypTokenRouterConfig> {
     maxBands: 4,
     quoteSigners: [address(2)],
     initialFallback: {
-      breakpoints: [100_000n, 250_000n],
+      breakpoints: [250_000_000_000_000_000n, 750_000_000_000_000_000n],
       marginalBps: [4, 10, 20],
     },
   };

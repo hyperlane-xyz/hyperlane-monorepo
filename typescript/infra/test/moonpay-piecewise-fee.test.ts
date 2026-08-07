@@ -31,14 +31,14 @@ function rawLane(overrides: Record<string, unknown> = {}) {
     destination: 'arbitrum',
     targetRouteId: 'USDC/moonpay-staging',
     standing: {
-      breakpoints: ['100000', '250000'],
+      breakpoints: ['0.25', '0.75'],
       marginalBps: [2, 6, 12],
       ttl: '60s',
       staleAfter: '12s',
       staleMarginalSurchargeBps: [2, 4, 8],
     },
     fallback: {
-      breakpoints: ['100000', '250000'],
+      breakpoints: ['0.25', '0.75'],
       marginalBps: [4, 10, 20],
     },
     ...overrides,
@@ -161,14 +161,14 @@ describe('Moonpay lane-addressed piecewise fee publisher', () => {
       destination: 'arbitrum',
       targetRouteId: 'USDC/moonpay-staging',
       standing: {
-        breakpoints: ['100000', '250000'],
+        breakpoints: ['0.25', '0.75'],
         marginalBps: [2, 6, 12],
         ttlSeconds: 60,
         staleAfterSeconds: 12,
         staleMarginalSurchargeBps: [2, 4, 8],
       },
       fallback: {
-        breakpoints: ['100000', '250000'],
+        breakpoints: ['0.25', '0.75'],
         marginalBps: [4, 10, 20],
       },
     });
@@ -253,8 +253,8 @@ describe('Moonpay lane-addressed piecewise fee publisher', () => {
   it('materializes human units with the resolved fee-token decimals', () => {
     const update = prepareLaneUpdate(parsedLane(), slot(), 'standing');
     expect(update.curve.breakpoints).to.deep.equal([
-      100_000n * 10n ** 18n,
-      250_000n * 10n ** 18n,
+      250_000_000_000_000_000n,
+      750_000_000_000_000_000n,
     ]);
     expect(update.curve.marginalBpsX1e4).to.deep.equal([
       20_000, 60_000, 120_000,

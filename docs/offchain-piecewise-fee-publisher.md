@@ -13,13 +13,13 @@ lanes:
     destination: arbitrum
     targetRouteId: USDC/moonpay-staging
     standing:
-      breakpoints: ['100000', '250000']
+      breakpoints: ['0.25', '0.75']
       marginalBps: [2, 6, 12]
       ttl: 60s
       staleAfter: 12s
       staleMarginalSurchargeBps: [2, 4, 8]
     fallback:
-      breakpoints: ['100000', '250000']
+      breakpoints: ['0.25', '0.75']
       marginalBps: [4, 10, 20]
 ```
 
@@ -74,6 +74,11 @@ topology.
 `run-piecewise-lifecycle.ts` is locked to the checked-in
 `bsc-usdt-arbitrum-usdc` staging lane. It exercises four 1e18 transfers to the
 explicit Arbitrum USDC router:
+
+The staging breakpoints are deliberately compressed to 0.25 and 0.75 USDT, so
+each 1-USDT transfer crosses both breakpoints and consumes all three marginal
+bands. The harness rejects a lifecycle curve whose final breakpoint is not
+below the transfer amount.
 
 1. fallback, after any existing standing curve has expired;
 2. fresh, immediately after publishing the configured standing curve;

@@ -2,8 +2,8 @@ lanes:
   - destination: arbitrum
     fallback:
       breakpoints:
-        - '100000'
-        - '250000'
+        - '0.25'
+        - '0.75'
       marginalBps:
         - 4
         - 10
@@ -15,8 +15,8 @@ lanes:
     # are scaled with the resolved fee token's local decimals.
     standing:
       breakpoints:
-        - '100000'
-        - '250000'
+        - '0.25'
+        - '0.75'
       marginalBps:
         - 2
         - 6
