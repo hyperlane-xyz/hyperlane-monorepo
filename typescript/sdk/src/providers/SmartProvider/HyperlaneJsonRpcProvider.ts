@@ -19,8 +19,38 @@ import {
 } from './logFilters.js';
 import { HyperlaneLogFilter, RpcConfigWithConnectionInfo } from './types.js';
 
-const NUM_LOG_BLOCK_RANGES_TO_QUERY = 10;
+/**
+ * The most chunks of `pagination.maxBlockRange` a single eth_getLogs request is
+ * split into. Anything up to this is served in full; beyond it the request is
+ * rejected with {@link LogBlockRangeTooLargeError} rather than answered over a
+ * narrower window, so a caller never mistakes a partial log set for a complete
+ * one.
+ *
+ * It bounds the work one request may cause rather than fitting any chain's
+ * history: a registry maxBlockRange is what the chain declares, not necessarily
+ * what its endpoints enforce, so a bound sized to declared values would be sized
+ * to numbers that do not always hold. Where it sits therefore only decides how
+ * soon the split is refused, not whether a scan can complete: `getLogsFromRpc`
+ * reads the rejection as a block range error and halves its own chunk, so a
+ * caller that paginates carries on with smaller requests. Only a caller issuing
+ * one unpaginated request over a very deep span sees it as a failure.
+ */
+const MAX_LOG_BLOCK_RANGES_TO_QUERY = 2_000;
 const NUM_PARALLEL_LOG_QUERIES = 5;
+
+/**
+ * Thrown when a log query would take more than
+ * {@link MAX_LOG_BLOCK_RANGES_TO_QUERY} sub-queries to serve in full.
+ *
+ * The message names the block range because that is what `isBlockRangeError` in
+ * `rpc/evm/utils.ts` matches on, so a paginating caller shrinks its chunks and
+ * completes the scan instead of failing it.
+ */
+export class LogBlockRangeTooLargeError extends Error {
+  static {
+    this.prototype.name = this.name;
+  }
+}
 
 export class HyperlaneJsonRpcProvider
   extends providers.StaticJsonRpcProvider
@@ -156,15 +186,6 @@ export class HyperlaneJsonRpcProvider
       );
       startBlock = endBlock;
     }
-    const minForBlockRange = maxBlockRange
-      ? endBlock - maxBlockRange * NUM_LOG_BLOCK_RANGES_TO_QUERY + 1
-      : 0;
-    if (startBlock < minForBlockRange) {
-      this.logger.info(
-        `Start block ${startBlock} requires too many queries, using ${minForBlockRange}.`,
-      );
-      startBlock = minForBlockRange;
-    }
     const minForBlockAge = maxBlockAge ? currentBlockNumber - maxBlockAge : 0;
     if (startBlock < minForBlockAge) {
       this.logger.info(
@@ -177,6 +198,17 @@ export class HyperlaneJsonRpcProvider
         `Start block ${startBlock} below config min, increasing to ${minBlockNumber}`,
       );
       startBlock = minBlockNumber;
+    }
+
+    if (maxBlockRange) {
+      const requiredQueries = Math.ceil(
+        (endBlock - startBlock + 1) / maxBlockRange,
+      );
+      if (requiredQueries > MAX_LOG_BLOCK_RANGES_TO_QUERY) {
+        throw new LogBlockRangeTooLargeError(
+          `Serving blocks ${startBlock} to ${endBlock} needs ${requiredQueries} queries at a block range of ${maxBlockRange}, above the ${MAX_LOG_BLOCK_RANGES_TO_QUERY} this provider issues for one request`,
+        );
+      }
     }
 
     const blockChunkRange = maxBlockRange || endBlock - startBlock;

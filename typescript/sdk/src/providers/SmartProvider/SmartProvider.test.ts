@@ -1,6 +1,8 @@
 import { expect } from 'chai';
-import { errors as EthersError, providers, utils } from 'ethers';
+import { BigNumber, errors as EthersError, providers, utils } from 'ethers';
 import sinon from 'sinon';
+
+import { assert } from '@hyperlane-xyz/utils';
 
 import {
   AllProviderMethods,
@@ -511,6 +513,91 @@ describe('SmartProvider', () => {
           'Multi-address getLogs is not supported by explorer providers',
         );
       }
+    });
+  });
+
+  describe('paginated getLogs failover', () => {
+    const PAGINATED_LATEST_BLOCK = 20;
+
+    afterEach(() => sinon.restore());
+
+    function decodeWindow(filter: {
+      fromBlock?: unknown;
+      toBlock?: unknown;
+    }): [number, number] {
+      const { fromBlock, toBlock } = filter;
+      assert(
+        typeof fromBlock === 'string' && typeof toBlock === 'string',
+        'Expected hex block bounds on the log filter',
+      );
+      return [
+        BigNumber.from(fromBlock).toNumber(),
+        BigNumber.from(toBlock).toNumber(),
+      ];
+    }
+
+    // Each sub-query of a paginated getLogs goes through the same provider, so
+    // one failing sub-query fails the whole call and the next provider has to
+    // re-serve every window before the combined result is complete.
+    it('re-serves every window from the next provider after a sub-query fails', async () => {
+      const requests: Array<{ url: string; window: [number, number] }> = [];
+      const logs = [12, 18].map((blockNumber) => ({
+        address: '0x0000000000000000000000000000000000000001',
+        blockHash: utils.hexZeroPad(utils.hexValue(blockNumber), 32),
+        blockNumber: utils.hexValue(blockNumber),
+        data: '0x',
+        logIndex: '0x0',
+        removed: false,
+        topics: [`0x${'2'.repeat(64)}`],
+        transactionHash: utils.hexZeroPad(utils.hexValue(blockNumber), 32),
+        transactionIndex: '0x0',
+      }));
+      sinon
+        .stub(providers.JsonRpcProvider.prototype, 'perform')
+        .callsFake(async function (
+          this: providers.JsonRpcProvider,
+          method: string,
+          params: { filter?: { fromBlock?: unknown; toBlock?: unknown } },
+        ) {
+          if (method === ProviderMethod.GetBlockNumber) {
+            return PAGINATED_LATEST_BLOCK;
+          }
+          if (method !== ProviderMethod.GetLogs) {
+            throw new Error(`Unexpected method ${method}`);
+          }
+          if (!params.filter) throw new Error('Missing log filter');
+          const window = decodeWindow(params.filter);
+          requests.push({ url: this.connection.url, window });
+          if (this.connection.url === 'http://provider1') {
+            throw new ProviderError('server error', EthersError.SERVER_ERROR);
+          }
+          return logs.filter((log) => {
+            const blockNumber = BigNumber.from(log.blockNumber).toNumber();
+            return blockNumber >= window[0] && blockNumber <= window[1];
+          });
+        });
+      const smartProvider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [
+          { http: 'http://provider1', pagination: { maxBlockRange: 5 } },
+          { http: 'http://provider2', pagination: { maxBlockRange: 5 } },
+        ],
+        [],
+      );
+
+      const result = await smartProvider.getLogs({
+        address: '0x0000000000000000000000000000000000000001',
+        fromBlock: 11,
+        toBlock: 20,
+      });
+
+      expect(requests).to.deep.equal([
+        { url: 'http://provider1', window: [11, 15] },
+        { url: 'http://provider1', window: [16, 20] },
+        { url: 'http://provider2', window: [11, 15] },
+        { url: 'http://provider2', window: [16, 20] },
+      ]);
+      expect(result.map((log) => log.blockNumber)).to.deep.equal([12, 18]);
     });
   });
 
