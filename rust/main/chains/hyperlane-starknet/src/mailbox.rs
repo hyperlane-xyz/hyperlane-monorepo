@@ -13,7 +13,7 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
 };
 use starknet::accounts::{Account, ExecutionV3, SingleOwnerAccount};
-use starknet::core::types::Felt;
+use starknet::core::types::{BlockId, BlockTag, Felt};
 
 use starknet::signers::LocalWallet;
 use tracing::instrument;
@@ -48,7 +48,11 @@ impl StarknetMailbox {
 
         let mailbox_address: Felt = HyH256(locator.address).into();
 
-        let contract = StarknetMailboxInternal::new(mailbox_address, account);
+        // Read at the latest accepted block. `latest` is the only block tag valid
+        // across all Starknet JSON-RPC spec versions; `pending` was renamed to
+        // `pre_confirmed` in RPC v0.9+, so providers on newer specs reject it.
+        let contract = StarknetMailboxInternal::new(mailbox_address, account)
+            .with_block(BlockId::Tag(BlockTag::Latest));
 
         Ok(Self {
             contract,
