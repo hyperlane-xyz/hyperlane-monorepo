@@ -1,5 +1,42 @@
 # @hyperlane-xyz/sdk
 
+## 41.0.0
+
+### Major Changes
+
+- 1a32515: The agent config schema is updated as part of migrating validators from AWS to GCP:
+  - Added a GCP Cloud KMS signer config surface (`AgentSignerKeyType.Gcp`, `{ type: 'gcp', keyVersionName }`), alongside the existing AWS KMS signer, for validators and other agents that sign with a GCP-managed key.
+  - Renamed the GCS checkpoint syncer's `service_account_key` and `user_secrets` fields to `serviceAccountKey` and `userSecrets`, matching the camelCase convention used by the syncer's other fields, and added `useApplicationDefault` to support ambient GKE Workload Identity credentials. Hand-written agent configs using the old snake_case field names must be updated.
+  - Fixed the Ethereum/Tron protocol-signer refinement, which compared `signerType` against boolean expressions instead of the `AgentSignerKeyType` enum values and therefore never actually validated the AWS or Node signer types.
+  - Reduced the default multisig ISM validator sets for `bsctestnet`, `fuji`, and `sepolia` from 3 validators (threshold 2) to a single GCP-based validator (threshold 1), matching the new default validator agent config for these testnets during the migration rollout.
+
+### Minor Changes
+
+- 72738e2: Added SDK support for the Blacklist ISM:
+  - Blacklist ISM configs can now be deployed, derived from on-chain state (including the full list of blacklisted message IDs) and matched against existing deployments using exact set equality.
+  - Updates that only add message IDs are applied in-place by submitting a single `blacklist` transaction with the missing IDs.
+  - Updates that drop a currently blacklisted message ID redeploy a fresh ISM, since on-chain entries are append-only and cannot be removed.
+  - Blacklisted message IDs are validated as 32-byte hex strings and normalized to lowercase at config parse time.
+  - The relayer now treats the blacklist ISM as a null-metadata ISM when building message metadata.
+  - `moduleCanCertainlyVerify` reports that a Blacklist ISM cannot certainly verify a message whose ID is in the blacklisted set.
+  - Blacklist ISM configs are validated at parse time to require a mandatory composition: they must be a member of an aggregation whose threshold equals its module count, and are rejected when used standalone, as a routing target, or under a non-exhaustive aggregation.
+
+- b1c6b7e: Added a Turnkey signer (EVM signer + Turnkey client) to the SDK for warp-route propose automation, exported from the package entrypoint. The EVM signer's EIP-712 typed-data signing submitted the full typed-data payload to Turnkey (PAYLOAD_ENCODING_EIP712) so Turnkey policies could inspect the domain and message fields rather than an opaque digest, and resolved ENS names in address-typed fields via the configured provider before encoding, mirroring ethers v5's own signer. The signer assembled Turnkey's raw signature response by accepting r/s as bare 32-byte hex (re-prefixed with 0x) and lifting the recovery-id v ("00"/"01") into the 27/28 space before joining, and rejected an unsupported or malformed recovery id instead of silently producing an unrecoverable signature.
+
+### Patch Changes
+
+- 0765fe0: The EVM warp route check was updated to ignore nested immutable `LinearFee` sub-fee (per-destination) owners when comparing `tokenFee` configs. `normalizeTokenFeeForCheck` collapses nested `LinearFee` owners to a fixed sentinel on both sides of the diff — their only authority is `setFee`, and `bps` is already compared — so that owner drift no longer produces a `check-warp-deploy` violation. `OffchainQuotedLinearFee` sub-fee owners are still compared, since that owner additionally controls quote-signer management. The top-level RoutingFee owner (which controls `setFeeContract` routing and fee claiming), fee parameters, and `quoteSigners` are still compared normally.
+- Updated dependencies [178614d]
+  - @hyperlane-xyz/aleo-sdk@41.0.0
+  - @hyperlane-xyz/deploy-sdk@8.0.3
+  - @hyperlane-xyz/starknet-core@41.0.0
+  - @hyperlane-xyz/cosmos-sdk@41.0.0
+  - @hyperlane-xyz/radix-sdk@41.0.0
+  - @hyperlane-xyz/utils@41.0.0
+  - @hyperlane-xyz/core@12.0.0
+  - @hyperlane-xyz/provider-sdk@8.0.3
+  - @hyperlane-xyz/tron-sdk@24.1.1
+
 ## 40.0.0
 
 ### Major Changes
