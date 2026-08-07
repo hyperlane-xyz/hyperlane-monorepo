@@ -50,10 +50,22 @@ function okResponse(result: unknown): Response {
 
 // The shape Blockscout and zkSync return for a query with no matches, and for a
 // page past the end: status 0 with an empty array.
-function noRecordsResponse(): Response {
+function noRecordsResponse(message = 'No logs found'): Response {
   return contractDouble<Response>({
     url: API_URL,
-    json: async () => ({ status: '0', message: 'No logs found', result: [] }),
+    json: async () => ({ status: '0', message, result: [] }),
+  });
+}
+
+// A transient condition: the same request usually succeeds on a retry.
+function rateLimitedResponse(): Response {
+  return contractDouble<Response>({
+    url: API_URL,
+    json: async () => ({
+      status: '0',
+      message: 'NOTOK',
+      result: 'Max rate limit reached',
+    }),
   });
 }
 
@@ -200,12 +212,26 @@ describe('getLogsFromEtherscanLikeExplorerAPI', () => {
     // Without this the explorer's own error surfaces as recoverable, so the
     // whole walk is retried before a caller with a fallback can use it.
     expect(thrown).to.have.property('isRecoverable', false);
-    expect(String(thrown)).to.include('page 2 could not be read');
+    expect(String(thrown)).to.include('page 2 was rejected by the explorer');
     expect(String(thrown)).to.include('Result window is too large');
     expect(fetchStub.callCount).to.equal(2);
   });
 
-  it('surfaces a first-page failure unchanged', async () => {
+  it('keeps a transient first-page failure retryable', async () => {
+    fetchStub.onCall(0).resolves(rateLimitedResponse());
+
+    let thrown: unknown;
+    try {
+      await getLogsFromEtherscanLikeExplorerAPI({ apiUrl: API_URL }, options);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).to.not.have.property('isRecoverable');
+    expect(String(thrown)).to.include('Max rate limit reached');
+  });
+
+  it('rejects a first-page pagination rejection as unrecoverable', async () => {
     fetchStub.onCall(0).resolves(pageRejectedResponse());
 
     let thrown: unknown;
@@ -215,10 +241,32 @@ describe('getLogsFromEtherscanLikeExplorerAPI', () => {
       thrown = error;
     }
 
-    // Nothing has been read yet, so this is an ordinary failed query and stays
-    // retryable.
-    expect(thrown).to.not.have.property('isRecoverable');
+    // The offset itself is unservable here, so no retry can help.
+    expect(thrown).to.have.property('isRecoverable', false);
     expect(String(thrown)).to.include('Result window is too large');
+  });
+
+  // A success is a success: the message is only a termination signal alongside
+  // the no-records status.
+  it('does not treat a full page as the end because of its message', async () => {
+    fetchStub.onCall(0).resolves(okResponse(rawLogPage(PAGE_SIZE)));
+    fetchStub.onCall(1).resolves(
+      contractDouble<Response>({
+        url: API_URL,
+        json: async () => ({
+          status: '1',
+          message: 'No logs found',
+          result: rawLogPage(5, PAGE_SIZE),
+        }),
+      }),
+    );
+
+    const logs = await getLogsFromEtherscanLikeExplorerAPI(
+      { apiUrl: API_URL },
+      options,
+    );
+
+    expect(logs).to.have.lengthOf(PAGE_SIZE + 5);
   });
 
   it('returns an empty set when the explorer reports no records', async () => {
@@ -245,11 +293,44 @@ describe('getLogsFromEtherscanLikeExplorerAPI', () => {
     expect(fetchStub.callCount).to.equal(1);
   });
 
-  // Not a shape any probed explorer returns; the response body is untyped, so
-  // the walk narrows it rather than trusting it to be an array.
-  it('treats a non-array result as the end of the walk', async () => {
+  // Trusting a success that carries no record list would turn the page already
+  // read into a complete set.
+  it('rejects a success whose payload is not a record list', async () => {
     fetchStub.onCall(0).resolves(okResponse(rawLogPage(PAGE_SIZE)));
     fetchStub.onCall(1).resolves(okResponse('No logs found'));
+
+    let thrown: unknown;
+    try {
+      await getLogsFromEtherscanLikeExplorerAPI({ apiUrl: API_URL }, options);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(String(thrown)).to.include('carrying no record list');
+    // Not a confirmed pagination problem, so it stays retryable.
+    expect(thrown).to.not.have.property('isRecoverable');
+  });
+
+  it('keeps a transient later-page failure retryable', async () => {
+    fetchStub.onCall(0).resolves(okResponse(rawLogPage(PAGE_SIZE)));
+    fetchStub.onCall(1).resolves(rateLimitedResponse());
+
+    let thrown: unknown;
+    try {
+      await getLogsFromEtherscanLikeExplorerAPI({ apiUrl: API_URL }, options);
+    } catch (error) {
+      thrown = error;
+    }
+
+    // Marking this unrecoverable would skip the retry that usually clears it
+    // and start a full RPC scan instead.
+    expect(thrown).to.not.have.property('isRecoverable');
+    expect(String(thrown)).to.include('Max rate limit reached');
+  });
+
+  it('terminates on a no-records page reported with either recognized message', async () => {
+    fetchStub.onCall(0).resolves(okResponse(rawLogPage(PAGE_SIZE)));
+    fetchStub.onCall(1).resolves(noRecordsResponse('No records found'));
 
     const logs = await getLogsFromEtherscanLikeExplorerAPI(
       { apiUrl: API_URL },
