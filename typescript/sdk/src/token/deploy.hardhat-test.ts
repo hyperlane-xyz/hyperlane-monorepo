@@ -4,6 +4,8 @@ import { ethers } from 'ethers';
 import hre from 'hardhat';
 
 import {
+  AtomicLocalRebalancingBridge__factory,
+  CrossCollateralRouter__factory,
   ERC20Test,
   ERC20Test__factory,
   GasRouter__factory,
@@ -35,6 +37,7 @@ import { TestChainName } from '../consts/testChains.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
+import { executeWarpDeploy } from '../deploy/warp.js';
 import { TokenFeeType } from '../fee/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import {
@@ -52,6 +55,7 @@ import { HypERC20Deployer } from './deploy.js';
 import {
   SyntheticTokenConfig,
   WarpRouteDeployConfigMailboxRequired,
+  isAtomicLocalRebalancingBridgeTokenConfig,
   isDepositAddressTokenConfig,
 } from './types.js';
 import { WarpCoreConfig } from '../warp/types.js';
@@ -193,6 +197,97 @@ describe('TokenDeployer', async () => {
         },
       },
     });
+  });
+
+  it('deploys an atomic local rebalancing bridge with its immutable source and configured owner', async () => {
+    const bridgeOwner = ethers.Wallet.createRandom().address;
+    const sourceRouter = await new CrossCollateralRouter__factory(
+      signer,
+    ).deploy(erc20.address, 1, 1, config[chain].mailbox);
+    await sourceRouter.initialize(
+      ethers.constants.AddressZero,
+      ethers.constants.AddressZero,
+      signer.address,
+    );
+    const atomicConfig: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...config[chain],
+        type: TokenType.atomicLocalRebalancing,
+        sourceRouter: sourceRouter.address,
+        owner: bridgeOwner,
+      },
+    };
+
+    const contracts = await deployer.deploy(atomicConfig);
+    const bridgeAddress =
+      contracts[chain][TokenType.atomicLocalRebalancing].address;
+    const bridge = AtomicLocalRebalancingBridge__factory.connect(
+      bridgeAddress,
+      signer,
+    );
+
+    expect(await bridge.localDomain()).to.equal(
+      multiProvider.getDomainId(chain),
+    );
+    expect(await bridge.allowedSourceRouter()).to.equal(sourceRouter.address);
+    expect(await bridge.owner()).to.equal(bridgeOwner);
+
+    const reader = new EvmWarpRouteReader(multiProvider, chain);
+    const derivedConfig = await reader.deriveWarpRouteConfig(bridgeAddress);
+    expect(derivedConfig.type).to.equal(TokenType.atomicLocalRebalancing);
+    if (!isAtomicLocalRebalancingBridgeTokenConfig(derivedConfig)) {
+      throw new Error('Expected atomic local rebalancing bridge config');
+    }
+    expect(derivedConfig.sourceRouter).to.equal(sourceRouter.address);
+    expect(derivedConfig.owner).to.equal(bridgeOwner);
+    expect(derivedConfig.mailbox).to.equal(ethers.constants.AddressZero);
+    expect(derivedConfig.remoteRouters).to.deep.equal({});
+
+    const checkResult = await checkWarpRouteDeployConfig({
+      multiProvider,
+      warpCoreConfig: {
+        tokens: [{ chainName: chain, addressOrDenom: bridgeAddress }],
+      } as WarpCoreConfig,
+      warpDeployConfig: atomicConfig,
+    });
+    expect(checkResult.isValid, JSON.stringify(checkResult, null, 2)).to.equal(
+      true,
+    );
+    expect(checkResult.violations).to.deep.equal([]);
+  });
+
+  it('transfers an atomic local rebalancing bridge to its configured owner through executeWarpDeploy', async () => {
+    const bridgeOwner = ethers.Wallet.createRandom().address;
+    const sourceRouter = await new CrossCollateralRouter__factory(
+      signer,
+    ).deploy(erc20.address, 1, 1, config[chain].mailbox);
+    await sourceRouter.initialize(
+      ethers.constants.AddressZero,
+      ethers.constants.AddressZero,
+      signer.address,
+    );
+    const atomicConfig: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...config[chain],
+        type: TokenType.atomicLocalRebalancing,
+        sourceRouter: sourceRouter.address,
+        owner: bridgeOwner,
+      },
+    };
+
+    const deployedContracts = await executeWarpDeploy(
+      atomicConfig,
+      multiProvider,
+      {},
+      { [chain]: coreApp.getAddresses(chain) },
+      {},
+    );
+    const bridge = AtomicLocalRebalancingBridge__factory.connect(
+      deployedContracts[chain],
+      signer,
+    );
+
+    expect(await bridge.owner()).to.equal(bridgeOwner);
   });
 
   it('deploys mixed deposit-address and router configs', async () => {
