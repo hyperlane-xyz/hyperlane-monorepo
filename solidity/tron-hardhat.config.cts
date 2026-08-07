@@ -17,6 +17,8 @@ const TRON_EXCLUDED_PATTERNS = [
   "/contracts/hooks/OPStackHook.sol",
   "/contracts/hooks/aggregation/ERC5164Hook.sol",
   "/contracts/token/extensions/OPL2ToL1TokenBridgeNative.sol",
+  // The piecewise quoter is EVM-only and pushes tron-solc beyond its WASM input limit.
+  "/contracts/token/fees/OffchainQuotedPiecewiseLinearFee.sol",
   "/contracts/token/CCTP",
   "/contracts/token/TokenBridgeCctp",
   "/contracts/libs/CctpMessageV1.sol",

@@ -3,6 +3,7 @@ import { constants } from 'ethers';
 import {
   CrossCollateralRoutingFee__factory,
   OffchainQuotedLinearFee__factory,
+  OffchainQuotedPiecewiseLinearFee__factory,
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -80,6 +81,8 @@ function getDeployedFeeAddress(
       return contracts.CrossCollateralRoutingFee.address;
     case TokenFeeType.OffchainQuotedLinearFee:
       return contracts.OffchainQuotedLinearFee.address;
+    case TokenFeeType.OffchainQuotedPiecewiseLinearFee:
+      return contracts.OffchainQuotedPiecewiseLinearFee.address;
   }
 }
 
@@ -226,8 +229,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     return module;
   }
 
-  // Processes the Input config to the Final config
-  // For LinearFee/OffchainQuotedLinearFee, it converts the bps to maxFee and halfAmount
+  // Processes the Input config to the Final config.
   public static async expandConfig(params: {
     config: ResolvedTokenFeeConfigInput;
     multiProvider: MultiProvider;
@@ -235,7 +237,20 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   }): Promise<TokenFeeConfig> {
     const { config, multiProvider, chainName } = params;
     let intermediaryConfig: TokenFeeConfig;
-    if (
+    if (config.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee) {
+      const fallbackCurve =
+        'initialFallback' in config
+          ? { ...config.initialFallback, issuedAt: 0 }
+          : config.fallbackCurve;
+      intermediaryConfig = {
+        type: config.type,
+        token: config.token,
+        owner: config.owner,
+        quoteSigners: config.quoteSigners,
+        maxBands: config.maxBands,
+        fallbackCurve,
+      };
+    } else if (
       config.type === TokenFeeType.LinearFee ||
       config.type === TokenFeeType.OffchainQuotedLinearFee
     ) {
@@ -285,7 +300,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
       if (config.type === TokenFeeType.OffchainQuotedLinearFee) {
         intermediaryConfig = {
-          type: TokenFeeType.OffchainQuotedLinearFee,
+          type: config.type,
           token,
           owner: config.owner,
           bps,
@@ -427,8 +442,16 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     if (actualConfig.type !== targetConfig.type) return true;
 
     const mutableFields: Record<string, true> = { owner: true };
-    if (targetConfig.type === TokenFeeType.OffchainQuotedLinearFee) {
+    if (
+      targetConfig.type === TokenFeeType.OffchainQuotedLinearFee ||
+      targetConfig.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee
+    ) {
       mutableFields.quoteSigners = true;
+    }
+    if (targetConfig.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee) {
+      // The constructor fallback is only an initialization value. Runtime
+      // fallback changes are authorized by quote signers and never redeploy.
+      mutableFields.fallbackCurve = true;
     }
     if (
       targetConfig.type === TokenFeeType.RoutingFee ||
@@ -447,7 +470,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
    * Updates the fee configuration to match the target config.
    *
    * IMPORTANT: This method may deploy new contracts as a side effect when:
-   * - Any non-owner diff is detected (triggers redeploy)
+   * - An immutable config diff is detected (triggers redeploy)
+   * Mutable piecewise fallback drift is left to quote-signer tooling.
    *
    * These deployments are executed immediately and are NOT included in the returned
    * transaction array. The returned transactions only include configuration changes
@@ -511,15 +535,33 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       return [];
     }
 
-    // OffchainQuotedLinearFee: signers are mutable (fee params handled by shouldRedeploy)
     if (
-      normalizedTargetConfig.type === TokenFeeType.OffchainQuotedLinearFee &&
-      normalizedActualConfig.type === TokenFeeType.OffchainQuotedLinearFee
+      normalizedActualConfig.type ===
+        TokenFeeType.OffchainQuotedPiecewiseLinearFee &&
+      normalizedTargetConfig.type ===
+        TokenFeeType.OffchainQuotedPiecewiseLinearFee &&
+      !deepEquals(
+        normalizedActualConfig.fallbackCurve,
+        normalizedTargetConfig.fallbackCurve,
+      )
+    ) {
+      this.logger.info(
+        'Ignoring piecewise fallback drift; use quote-signer tooling to update it',
+      );
+    }
+
+    // Offchain-quoted fee signers are mutable; immutable params redeploy above.
+    if (
+      (normalizedTargetConfig.type === TokenFeeType.OffchainQuotedLinearFee ||
+        normalizedTargetConfig.type ===
+          TokenFeeType.OffchainQuotedPiecewiseLinearFee) &&
+      normalizedActualConfig.type === normalizedTargetConfig.type
     ) {
       return [
         ...this.createQuoteSignerUpdateTxs(
           normalizedActualConfig.quoteSigners,
           normalizedTargetConfig.quoteSigners,
+          normalizedTargetConfig.type,
         ),
         ...this.createOwnershipUpdateTxs(
           normalizedActualConfig,
@@ -866,9 +908,15 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   private createQuoteSignerUpdateTxs(
     actualSigners: string[] | undefined,
     targetSigners: string[] | undefined,
+    feeType:
+      | typeof TokenFeeType.OffchainQuotedLinearFee
+      | typeof TokenFeeType.OffchainQuotedPiecewiseLinearFee,
   ): AnnotatedEV5Transaction[] {
     const txs: AnnotatedEV5Transaction[] = [];
-    const iface = OffchainQuotedLinearFee__factory.createInterface();
+    const iface =
+      feeType === TokenFeeType.OffchainQuotedPiecewiseLinearFee
+        ? OffchainQuotedPiecewiseLinearFee__factory.createInterface()
+        : OffchainQuotedLinearFee__factory.createInterface();
     const contractAddress = this.args.addresses.deployedFee;
 
     const actualSet = new Set(

@@ -1,6 +1,12 @@
 import { expect } from 'chai';
 import { pino } from 'pino';
-import { type Address, type Hex, verifyTypedData } from 'viem';
+import {
+  type Address,
+  type Hex,
+  decodeAbiParameters,
+  encodePacked,
+  verifyTypedData,
+} from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
 import {
@@ -259,6 +265,80 @@ describe('QuoteService', () => {
         signature,
       });
       expect(valid).to.be.true;
+    });
+
+    it('encodes the transient piecewise placeholder as linear fee data', async () => {
+      const service = createTestService({
+        derivedConfig: {
+          ...mockDerivedConfig,
+          tokenFee: {
+            ...mockDerivedConfig.tokenFee,
+            type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+            maxBands: 4,
+          },
+        },
+      });
+      const res = await service.getQuote(
+        'ethereum',
+        FeeQuotingCommand.TransferRemote,
+        ROUTER,
+        DESTINATION,
+        SALT,
+        RECIPIENT,
+      );
+      const feeQuote = res.quotes.find(
+        (quote) => quote.quoter.toLowerCase() === FEE_CONTRACT.toLowerCase(),
+      );
+      expect(feeQuote).to.exist;
+
+      expect(feeQuote!.quote.data).to.equal(
+        encodePacked(['uint256', 'uint256'], [0n, 1n]),
+      );
+    });
+
+    it('encodes the standing piecewise placeholder as a valid curve', async () => {
+      const service = createTestService({
+        quoteMode: 'standing',
+        derivedConfig: {
+          ...mockDerivedConfig,
+          tokenFee: {
+            ...mockDerivedConfig.tokenFee,
+            type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+            maxBands: 4,
+          },
+        },
+      });
+      const res = await service.getQuote(
+        'ethereum',
+        FeeQuotingCommand.TransferRemote,
+        ROUTER,
+        DESTINATION,
+        SALT,
+        RECIPIENT,
+      );
+      const feeQuote = res.quotes.find(
+        (quote) => quote.quoter.toLowerCase() === FEE_CONTRACT.toLowerCase(),
+      );
+      expect(feeQuote).to.exist;
+
+      const [
+        breakpoints,
+        marginalBpsX1e4,
+        staleAfterSeconds,
+        staleMarginalSurchargeBpsX1e4,
+      ] = decodeAbiParameters(
+        [
+          { type: 'uint128[]' },
+          { type: 'uint32[]' },
+          { type: 'uint32' },
+          { type: 'uint32[]' },
+        ],
+        feeQuote!.quote.data,
+      );
+      expect(breakpoints).to.deep.equal([]);
+      expect(marginalBpsX1e4).to.deep.equal([0]);
+      expect(staleAfterSeconds).to.equal(300);
+      expect(staleMarginalSurchargeBpsX1e4).to.deep.equal([0]);
     });
   });
 

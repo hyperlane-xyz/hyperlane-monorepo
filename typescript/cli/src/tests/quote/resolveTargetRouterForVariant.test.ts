@@ -105,6 +105,19 @@ describe('resolveTargetRouterForVariant', () => {
         address: ADDR,
       },
       {
+        type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+        token: ADDR,
+        owner: ADDR,
+        quoteSigners: [ADDR],
+        maxBands: 4,
+        fallbackCurve: {
+          breakpoints: [100_000n, 250_000n],
+          marginalBps: [4, 10, 20],
+          issuedAt: 0,
+        },
+        address: ADDR,
+      },
+      {
         type: TokenFeeType.RoutingFee,
         token: ADDR,
         owner: ADDR,

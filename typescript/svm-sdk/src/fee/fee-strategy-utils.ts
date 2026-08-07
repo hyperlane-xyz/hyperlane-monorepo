@@ -124,6 +124,11 @@ export function feeStrategyToOnChain(strategy: FeeStrategy): {
         signers: strategy.quoteSigners,
       };
 
+    case FeeStrategyType.offchainQuotedPiecewiseLinear:
+      throw new Error(
+        'OffchainQuotedPiecewiseLinearFee is not supported on Sealevel',
+      );
+
     default: {
       const _exhaustive: never = strategy;
       throw new Error(`Unhandled FeeStrategyType: ${String(_exhaustive)}`);
@@ -133,6 +138,14 @@ export function feeStrategyToOnChain(strategy: FeeStrategy): {
 
 export function feeStrategiesEqual(a: FeeStrategy, b: FeeStrategy): boolean {
   if (a.type !== b.type) return false;
+  if (
+    a.type === FeeStrategyType.offchainQuotedPiecewiseLinear ||
+    b.type === FeeStrategyType.offchainQuotedPiecewiseLinear
+  ) {
+    throw new Error(
+      'OffchainQuotedPiecewiseLinearFee is not supported on Sealevel',
+    );
+  }
 
   const aParams = resolveRawFeeParams(a.params);
   const bParams = resolveRawFeeParams(b.params);

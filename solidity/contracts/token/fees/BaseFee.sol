@@ -15,10 +15,11 @@ enum FeeType {
     PROGRESSIVE,
     ROUTING,
     CROSS_COLLATERAL_ROUTING,
-    OFFCHAIN_QUOTED_LINEAR
+    OFFCHAIN_QUOTED_LINEAR,
+    OFFCHAIN_QUOTED_PIECEWISE_LINEAR
 }
 
-abstract contract BaseFee is Ownable, ITokenFee, PackageVersioned {
+abstract contract TokenFeeBase is Ownable, ITokenFee, PackageVersioned {
     using Address for address payable;
     using SafeERC20 for IERC20;
 
@@ -27,31 +28,10 @@ abstract contract BaseFee is Ownable, ITokenFee, PackageVersioned {
      */
     IERC20 public immutable token;
 
-    /**
-     * @notice The maximum fee (in token units) that can be charged for a transfer.
-     * @dev Used as the cap or asymptote in fee calculations for derived contracts.
-     */
-    uint256 public immutable maxFee;
-
-    /**
-     * @notice The reference amount at which the fee equals half of maxFee.
-     * @dev Used as a scaling parameter in fee formulas; its interpretation depends on the fee model.
-     */
-    uint256 public immutable halfAmount;
-
-    constructor(
-        address _token,
-        uint256 _maxFee,
-        uint256 _halfAmount,
-        address _owner
-    ) Ownable() {
-        require(_maxFee > 0, "maxFee must be greater than zero");
-        require(_halfAmount > 0, "halfAmount must be greater than zero");
+    constructor(address _token, address _owner) Ownable() {
         require(_owner != address(0), "owner cannot be zero address");
 
         token = IERC20(_token);
-        maxFee = _maxFee;
-        halfAmount = _halfAmount;
         _transferOwnership(_owner);
     }
 
@@ -83,5 +63,32 @@ abstract contract BaseFee is Ownable, ITokenFee, PackageVersioned {
 
     receive() external payable {
         require(address(token) == address(0), "Not native token");
+    }
+}
+
+abstract contract BaseFee is TokenFeeBase {
+    /**
+     * @notice The maximum fee (in token units) that can be charged for a transfer.
+     * @dev Used as the cap or asymptote in fee calculations for derived contracts.
+     */
+    uint256 public immutable maxFee;
+
+    /**
+     * @notice The reference amount at which the fee equals half of maxFee.
+     * @dev Used as a scaling parameter in fee formulas; its interpretation depends on the fee model.
+     */
+    uint256 public immutable halfAmount;
+
+    constructor(
+        address _token,
+        uint256 _maxFee,
+        uint256 _halfAmount,
+        address _owner
+    ) TokenFeeBase(_token, _owner) {
+        require(_maxFee > 0, "maxFee must be greater than zero");
+        require(_halfAmount > 0, "halfAmount must be greater than zero");
+
+        maxFee = _maxFee;
+        halfAmount = _halfAmount;
     }
 }

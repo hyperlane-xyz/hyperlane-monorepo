@@ -29,6 +29,7 @@ export const ServerConfigSchema = z.object({
     .number()
     .int()
     .positive()
+    .max(0xffff_ffff)
     .default(DEFAULT_QUOTE_EXPIRY_SECONDS),
   /**
    * Transient forward-date buffer in seconds (transient mode only). Must stay

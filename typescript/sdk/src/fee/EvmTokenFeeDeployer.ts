@@ -3,6 +3,7 @@ import {
   BaseFee__factory,
   CrossCollateralRoutingFee,
   OffchainQuotedLinearFee,
+  OffchainQuotedPiecewiseLinearFee,
   RoutingFee,
 } from '@hyperlane-xyz/core';
 import { assert, eqAddress } from '@hyperlane-xyz/utils';
@@ -20,12 +21,26 @@ import { EvmTokenFeeFactories, evmTokenFeeFactories } from './contracts.js';
 import {
   CrossCollateralRoutingFeeConfig,
   OffchainQuotedLinearFeeConfig,
+  OffchainQuotedPiecewiseLinearFeeConfig,
   RoutingFeeConfig,
   TokenFeeConfig,
-  TokenFeeConfigInput,
   TokenFeeConfigSchema,
   TokenFeeType,
 } from './types.js';
+import { BPS_PRECISION } from './utils.js';
+
+type OffchainQuotedFeeConfig =
+  | OffchainQuotedLinearFeeConfig
+  | OffchainQuotedPiecewiseLinearFeeConfig;
+
+function isOffchainQuotedFeeConfig(
+  config: TokenFeeConfig,
+): config is OffchainQuotedFeeConfig {
+  return (
+    config.type === TokenFeeType.OffchainQuotedLinearFee ||
+    config.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee
+  );
+}
 
 export class EvmTokenFeeDeployer extends HyperlaneDeployer<
   TokenFeeConfig,
@@ -51,7 +66,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
   }
   async deployContracts(
     chain: ChainName,
-    config: TokenFeeConfigInput,
+    config: TokenFeeConfig,
   ): Promise<HyperlaneContracts<EvmTokenFeeFactories>> {
     const deployedContract: any = {}; // This is a partial HyperlaneContracts<EvmTokenFeeFactories>
     const parsedConfig = TokenFeeConfigSchema.parse(config);
@@ -66,8 +81,9 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
         );
         break;
       case TokenFeeType.OffchainQuotedLinearFee:
+      case TokenFeeType.OffchainQuotedPiecewiseLinearFee:
         deployedContract[parsedConfig.type] =
-          await this.deployOffchainQuotedLinearFee(chain, parsedConfig);
+          await this.deployOffchainQuotedFee(chain, parsedConfig);
         break;
       case TokenFeeType.RoutingFee: {
         deployedContract[TokenFeeType.RoutingFee] = await this.deployRoutingFee(
@@ -92,6 +108,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       | { type: typeof TokenFeeType.RoutingFee }
       | { type: typeof TokenFeeType.CrossCollateralRoutingFee }
       | { type: typeof TokenFeeType.OffchainQuotedLinearFee }
+      | { type: typeof TokenFeeType.OffchainQuotedPiecewiseLinearFee }
     >,
   ): Promise<BaseFee> {
     let { maxFee, halfAmount } = config;
@@ -113,31 +130,46 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     ]);
   }
 
-  private async deployOffchainQuotedLinearFee(
+  private async deployOffchainQuotedFee(
     chain: ChainName,
-    config: OffchainQuotedLinearFeeConfig,
-  ): Promise<OffchainQuotedLinearFee> {
-    let { maxFee, halfAmount } = config;
-    if (config.bps && (!maxFee || !halfAmount)) {
-      const derived = this.tokenFeeReader.convertFromBps(config.bps);
-      maxFee = derived.maxFee;
-      halfAmount = derived.halfAmount;
-    }
-
+    config: OffchainQuotedFeeConfig,
+  ): Promise<OffchainQuotedLinearFee | OffchainQuotedPiecewiseLinearFee> {
     assert(
       config.quoteSigners?.length,
-      'At least one quote signer is required for OffchainQuotedLinearFee',
+      `At least one quote signer is required for ${config.type}`,
     );
 
     const signerAddress = await this.multiProvider.getSignerAddress(chain);
     const [firstSigner, ...additionalSigners] = config.quoteSigners;
 
     // addQuoteSigner is onlyOwner, so deploy with signer as temporary owner
-    const contract = await this.deployContract(
-      chain,
-      TokenFeeType.OffchainQuotedLinearFee,
-      [firstSigner, config.token, maxFee, halfAmount, signerAddress],
-    );
+    let contract: OffchainQuotedLinearFee | OffchainQuotedPiecewiseLinearFee;
+    if (config.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee) {
+      contract = await this.deployContract(chain, config.type, [
+        firstSigner,
+        config.token,
+        config.fallbackCurve.breakpoints,
+        config.fallbackCurve.marginalBps.map((bps) =>
+          Math.round(bps * Number(BPS_PRECISION)),
+        ),
+        config.maxBands,
+        signerAddress,
+      ]);
+    } else {
+      let { maxFee, halfAmount } = config;
+      if (config.bps && (!maxFee || !halfAmount)) {
+        const derived = this.tokenFeeReader.convertFromBps(config.bps);
+        maxFee = derived.maxFee;
+        halfAmount = derived.halfAmount;
+      }
+      contract = await this.deployContract(chain, config.type, [
+        firstSigner,
+        config.token,
+        maxFee,
+        halfAmount,
+        signerAddress,
+      ]);
+    }
 
     for (const signer of additionalSigners) {
       await this.multiProvider.handleTx(
@@ -185,18 +217,13 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
         ...feeConfig,
         token: feeConfig.token ?? config.token,
       };
-      const deployedFeeContract =
-        resolvedFeeConfig.type === TokenFeeType.OffchainQuotedLinearFee
-          ? BaseFee__factory.connect(
-              (
-                await this.deployOffchainQuotedLinearFee(
-                  chain,
-                  resolvedFeeConfig,
-                )
-              ).address,
-              this.multiProvider.getSigner(chain),
-            )
-          : await this.deployFee(chain, resolvedFeeConfig);
+      const deployedFeeContract = isOffchainQuotedFeeConfig(resolvedFeeConfig)
+        ? BaseFee__factory.connect(
+            (await this.deployOffchainQuotedFee(chain, resolvedFeeConfig))
+              .address,
+            this.multiProvider.getSigner(chain),
+          )
+        : await this.deployFee(chain, resolvedFeeConfig);
 
       await this.multiProvider.handleTx(
         chain,
@@ -245,10 +272,9 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       for (const [routerKey, routerFeeConfig] of Object.entries(
         destinationConfig,
       )) {
-        const { address } =
-          routerFeeConfig.type === TokenFeeType.OffchainQuotedLinearFee
-            ? await this.deployOffchainQuotedLinearFee(chain, routerFeeConfig)
-            : await this.deployFee(chain, routerFeeConfig);
+        const { address } = isOffchainQuotedFeeConfig(routerFeeConfig)
+          ? await this.deployOffchainQuotedFee(chain, routerFeeConfig)
+          : await this.deployFee(chain, routerFeeConfig);
 
         destinationDomains.push(
           this.multiProvider.getDomainId(destinationChain),
