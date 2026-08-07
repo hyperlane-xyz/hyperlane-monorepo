@@ -16,3 +16,7 @@ export function explorerResultResponse(
 ): Response {
   return explorerResponse({ status: '1', message: 'OK', result: [result] });
 }
+
+export function explorerLogsResponse(logs: ReadonlyArray<unknown>): Response {
+  return explorerResponse({ status: '1', message: 'OK', result: logs });
+}
