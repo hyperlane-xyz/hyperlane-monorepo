@@ -1,0 +1,10 @@
+{
+  "extends": "@hyperlane-xyz/tsconfig/tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist/",
+    "rootDir": "./src",
+    "types": ["node"]
+  },
+  "exclude": ["./node_modules/", "./dist/"],
+  "include": ["./src/**/*.ts"]
+}
