@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import { assert } from '@hyperlane-xyz/utils';
 
 import type {
+  LaneRegistry,
   MaterializedCurve,
   MaterializedStandingCurve,
   PiecewiseLaneSlot,
@@ -11,6 +12,9 @@ import type {
 export const STAGING_LIFECYCLE_LANE_ID = 'bsc-usdt-arbitrum-usdc';
 export const STAGING_TRANSFER_AMOUNT = 10n * 10n ** 18n;
 export const STAGING_TOKEN_ALLOWANCE_CAP = 50n * 10n ** 18n;
+
+const STAGING_SOURCE_ROUTE_ID = 'USDT/moonpay-staging';
+const STAGING_TARGET_ROUTE_ID = 'USDC/moonpay-staging';
 
 const BPS_X1E4_DENOMINATOR = 100_000_000n;
 
@@ -67,13 +71,57 @@ export interface LifecyclePhaseResult {
   blockTimestamp: number;
 }
 
+/**
+ * The public registry does not carry the private Moonpay staging routes. Use
+ * the deployment-guarded router addresses for these two exact route ids, then
+ * let discoverPiecewiseLane validate the fee root and leaf onchain.
+ */
+export function withStagingLifecycleRoutes(
+  registry: LaneRegistry,
+  sourceRouter: string,
+  targetRouter: string,
+): LaneRegistry {
+  assert(
+    ethers.utils.isAddress(sourceRouter) &&
+      ethers.utils.isAddress(targetRouter),
+    'Staging lifecycle routers must be EVM addresses',
+  );
+  return {
+    getWarpRoute: async (routeId: string) => {
+      if (routeId === STAGING_SOURCE_ROUTE_ID) {
+        return {
+          tokens: [
+            {
+              chainName: 'bsc',
+              addressOrDenom: sourceRouter,
+              symbol: 'USDT',
+            },
+          ],
+        };
+      }
+      if (routeId === STAGING_TARGET_ROUTE_ID) {
+        return {
+          tokens: [
+            {
+              chainName: 'arbitrum',
+              addressOrDenom: targetRouter,
+              symbol: 'USDC',
+            },
+          ],
+        };
+      }
+      return registry.getWarpRoute(routeId);
+    },
+  };
+}
+
 export function assertStagingLifecycleLane(slot: PiecewiseLaneSlot): void {
   assert(
     slot.laneId === STAGING_LIFECYCLE_LANE_ID &&
       slot.origin === 'bsc' &&
       slot.destination === 'arbitrum' &&
-      slot.sourceRouteId === 'USDT/moonpay-staging' &&
-      slot.targetRouteId === 'USDC/moonpay-staging',
+      slot.sourceRouteId === STAGING_SOURCE_ROUTE_ID &&
+      slot.targetRouteId === STAGING_TARGET_ROUTE_ID,
     `Lifecycle is locked to ${STAGING_LIFECYCLE_LANE_ID} (BSC USDT -> Arbitrum USDC)`,
   );
   assert(

@@ -46,7 +46,12 @@ import {
   assertStagingLifecycleLane,
   pollForBlockTimestamp,
   runStagingLifecycle,
+  withStagingLifecycleRoutes,
 } from './piecewise-fee-lifecycle-lib.js';
+import {
+  STAGING_ARBITRUM_USDC_ROUTER,
+  STAGING_BSC_USDT_ROUTER,
+} from './deploy-staging-piecewise-fee-lib.js';
 
 const DEFAULT_CONFIG =
   'config/environments/mainnet3/warp/fees/moonpay-staging-piecewise.yaml';
@@ -138,7 +143,11 @@ async function main(): Promise<void> {
     : getRegistry();
   const multiProvider = new MultiProvider(await registry.getMetadata());
   const slot = await discoverPiecewiseLane(
-    registry as unknown as LaneRegistry,
+    withStagingLifecycleRoutes(
+      registry as unknown as LaneRegistry,
+      STAGING_BSC_USDT_ROUTER,
+      STAGING_ARBITRUM_USDC_ROUTER,
+    ),
     new EvmLaneOnchainReader(multiProvider),
     lane,
   );
