@@ -321,12 +321,24 @@ describe('QuoteService', () => {
       );
       expect(feeQuote).to.exist;
 
-      const [breakpoints, marginalBpsX1e4] = decodeAbiParameters(
-        [{ type: 'uint128[]' }, { type: 'uint32[]' }],
+      const [
+        breakpoints,
+        marginalBpsX1e4,
+        staleAfterSeconds,
+        staleMarginalSurchargeBpsX1e4,
+      ] = decodeAbiParameters(
+        [
+          { type: 'uint128[]' },
+          { type: 'uint32[]' },
+          { type: 'uint32' },
+          { type: 'uint32[]' },
+        ],
         feeQuote!.quote.data,
       );
       expect(breakpoints).to.deep.equal([]);
       expect(marginalBpsX1e4).to.deep.equal([0]);
+      expect(staleAfterSeconds).to.equal(300);
+      expect(staleMarginalSurchargeBpsX1e4).to.deep.equal([0]);
     });
   });
 

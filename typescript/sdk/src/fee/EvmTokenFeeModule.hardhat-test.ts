@@ -1220,11 +1220,13 @@ describe('EvmTokenFeeModule', () => {
         type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
         owner: signer.address,
         token: token.address,
-        maxFee: MAX_FEE,
-        halfAmount: HALF_AMOUNT,
-        bps: BPS,
         maxBands: 4,
         quoteSigners: [signer.address],
+        fallbackCurve: {
+          breakpoints: [100_000n, 250_000n],
+          marginalBps: [4, 10, 20],
+          issuedAt: 0,
+        },
       }) as OffchainQuotedPiecewiseLinearFeeConfig;
     });
 
@@ -1275,6 +1277,30 @@ describe('EvmTokenFeeModule', () => {
         `Must be ${TokenFeeType.OffchainQuotedPiecewiseLinearFee}`,
       );
       expect(onchainConfig.maxBands).to.equal(8);
+    });
+
+    it('should ignore fallback drift instead of redeploying', async () => {
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: piecewiseConfig,
+      });
+      const originalAddress = module.serialize().deployedFee;
+
+      await expectTxsAndUpdate(
+        module,
+        {
+          ...piecewiseConfig,
+          fallbackCurve: {
+            breakpoints: [],
+            marginalBps: [25],
+            issuedAt: 1,
+          },
+        },
+        0,
+      );
+
+      expect(module.serialize().deployedFee).to.equal(originalAddress);
     });
   });
 });

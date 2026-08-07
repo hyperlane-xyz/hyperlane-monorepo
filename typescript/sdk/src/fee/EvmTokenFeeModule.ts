@@ -229,8 +229,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     return module;
   }
 
-  // Processes the Input config to the Final config
-  // For LinearFee and offchain-quoted fees, convert bps to maxFee and halfAmount.
+  // Processes the Input config to the Final config.
   public static async expandConfig(params: {
     config: ResolvedTokenFeeConfigInput;
     multiProvider: MultiProvider;
@@ -238,10 +237,22 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   }): Promise<TokenFeeConfig> {
     const { config, multiProvider, chainName } = params;
     let intermediaryConfig: TokenFeeConfig;
-    if (
+    if (config.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee) {
+      const fallbackCurve =
+        'initialFallback' in config
+          ? { ...config.initialFallback, issuedAt: 0 }
+          : config.fallbackCurve;
+      intermediaryConfig = {
+        type: config.type,
+        token: config.token,
+        owner: config.owner,
+        quoteSigners: config.quoteSigners,
+        maxBands: config.maxBands,
+        fallbackCurve,
+      };
+    } else if (
       config.type === TokenFeeType.LinearFee ||
-      config.type === TokenFeeType.OffchainQuotedLinearFee ||
-      config.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee
+      config.type === TokenFeeType.OffchainQuotedLinearFee
     ) {
       const { token } = config;
 
@@ -287,18 +298,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         );
       }
 
-      if (config.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee) {
-        intermediaryConfig = {
-          type: config.type,
-          token,
-          owner: config.owner,
-          bps,
-          maxFee,
-          halfAmount,
-          quoteSigners: config.quoteSigners,
-          maxBands: config.maxBands,
-        };
-      } else if (config.type === TokenFeeType.OffchainQuotedLinearFee) {
+      if (config.type === TokenFeeType.OffchainQuotedLinearFee) {
         intermediaryConfig = {
           type: config.type,
           token,
@@ -448,6 +448,11 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     ) {
       mutableFields.quoteSigners = true;
     }
+    if (targetConfig.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee) {
+      // The constructor fallback is only an initialization value. Runtime
+      // fallback changes are authorized by quote signers and never redeploy.
+      mutableFields.fallbackCurve = true;
+    }
     if (
       targetConfig.type === TokenFeeType.RoutingFee ||
       targetConfig.type === TokenFeeType.CrossCollateralRoutingFee
@@ -465,7 +470,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
    * Updates the fee configuration to match the target config.
    *
    * IMPORTANT: This method may deploy new contracts as a side effect when:
-   * - Any non-owner diff is detected (triggers redeploy)
+   * - An immutable config diff is detected (triggers redeploy)
+   * Mutable piecewise fallback drift is left to quote-signer tooling.
    *
    * These deployments are executed immediately and are NOT included in the returned
    * transaction array. The returned transactions only include configuration changes
@@ -527,6 +533,21 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       );
 
       return [];
+    }
+
+    if (
+      normalizedActualConfig.type ===
+        TokenFeeType.OffchainQuotedPiecewiseLinearFee &&
+      normalizedTargetConfig.type ===
+        TokenFeeType.OffchainQuotedPiecewiseLinearFee &&
+      !deepEquals(
+        normalizedActualConfig.fallbackCurve,
+        normalizedTargetConfig.fallbackCurve,
+      )
+    ) {
+      this.logger.info(
+        'Ignoring piecewise fallback drift; use quote-signer tooling to update it',
+      );
     }
 
     // Offchain-quoted fee signers are mutable; immutable params redeploy above.

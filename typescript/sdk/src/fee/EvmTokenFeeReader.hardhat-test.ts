@@ -218,13 +218,15 @@ describe('EvmTokenFeeReader', () => {
     it('should round-trip the piecewise fee deployment config', async () => {
       const config = TokenFeeConfigSchema.parse({
         type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
-        maxFee: MAX_FEE,
-        halfAmount: HALF_AMOUNT,
-        bps: BPS,
         maxBands: 4,
         token: token.address,
         owner: signer.address,
         quoteSigners: [signer.address],
+        fallbackCurve: {
+          breakpoints: [100_000n, 250_000n],
+          marginalBps: [4, 10, 20],
+          issuedAt: 0,
+        },
       });
       const deployer = new EvmTokenFeeDeployer(
         multiProvider,

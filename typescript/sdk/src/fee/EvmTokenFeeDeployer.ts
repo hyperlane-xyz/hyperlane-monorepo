@@ -24,10 +24,10 @@ import {
   OffchainQuotedPiecewiseLinearFeeConfig,
   RoutingFeeConfig,
   TokenFeeConfig,
-  TokenFeeConfigInput,
   TokenFeeConfigSchema,
   TokenFeeType,
 } from './types.js';
+import { BPS_PRECISION } from './utils.js';
 
 type OffchainQuotedFeeConfig =
   | OffchainQuotedLinearFeeConfig
@@ -66,7 +66,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
   }
   async deployContracts(
     chain: ChainName,
-    config: TokenFeeConfigInput,
+    config: TokenFeeConfig,
   ): Promise<HyperlaneContracts<EvmTokenFeeFactories>> {
     const deployedContract: any = {}; // This is a partial HyperlaneContracts<EvmTokenFeeFactories>
     const parsedConfig = TokenFeeConfigSchema.parse(config);
@@ -134,13 +134,6 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: OffchainQuotedFeeConfig,
   ): Promise<OffchainQuotedLinearFee | OffchainQuotedPiecewiseLinearFee> {
-    let { maxFee, halfAmount } = config;
-    if (config.bps && (!maxFee || !halfAmount)) {
-      const derived = this.tokenFeeReader.convertFromBps(config.bps);
-      maxFee = derived.maxFee;
-      halfAmount = derived.halfAmount;
-    }
-
     assert(
       config.quoteSigners?.length,
       `At least one quote signer is required for ${config.type}`,
@@ -150,23 +143,33 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     const [firstSigner, ...additionalSigners] = config.quoteSigners;
 
     // addQuoteSigner is onlyOwner, so deploy with signer as temporary owner
-    const contract =
-      config.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee
-        ? await this.deployContract(chain, config.type, [
-            firstSigner,
-            config.token,
-            maxFee,
-            halfAmount,
-            config.maxBands,
-            signerAddress,
-          ])
-        : await this.deployContract(chain, config.type, [
-            firstSigner,
-            config.token,
-            maxFee,
-            halfAmount,
-            signerAddress,
-          ]);
+    let contract: OffchainQuotedLinearFee | OffchainQuotedPiecewiseLinearFee;
+    if (config.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee) {
+      contract = await this.deployContract(chain, config.type, [
+        firstSigner,
+        config.token,
+        config.fallbackCurve.breakpoints,
+        config.fallbackCurve.marginalBps.map((bps) =>
+          Math.round(bps * Number(BPS_PRECISION)),
+        ),
+        config.maxBands,
+        signerAddress,
+      ]);
+    } else {
+      let { maxFee, halfAmount } = config;
+      if (config.bps && (!maxFee || !halfAmount)) {
+        const derived = this.tokenFeeReader.convertFromBps(config.bps);
+        maxFee = derived.maxFee;
+        halfAmount = derived.halfAmount;
+      }
+      contract = await this.deployContract(chain, config.type, [
+        firstSigner,
+        config.token,
+        maxFee,
+        halfAmount,
+        signerAddress,
+      ]);
+    }
 
     for (const signer of additionalSigners) {
       await this.multiProvider.handleTx(

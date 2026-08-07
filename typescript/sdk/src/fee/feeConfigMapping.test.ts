@@ -107,18 +107,24 @@ describe('tokenFeeInputToFeeConfig', () => {
     const input: TokenFeeConfigInput = {
       type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
       owner: OWNER,
-      bps: 3,
       maxBands: 4,
       quoteSigners: [SIGNER_A],
+      initialFallback: {
+        breakpoints: [100_000n, 250_000n],
+        marginalBps: [4, 10, 20],
+      },
     };
 
     expect(tokenFeeInputToFeeConfig(input)).to.deep.equal({
       type: FeeType.offchainQuotedPiecewiseLinear,
       owner: OWNER,
       beneficiary: OWNER,
-      params: { type: FeeParamsType.bps, bps: 3 },
       quoteSigners: [SIGNER_A],
       maxBands: 4,
+      initialFallback: {
+        breakpoints: ['100000', '250000'],
+        marginalBps: [4, 10, 20],
+      },
     });
   });
 

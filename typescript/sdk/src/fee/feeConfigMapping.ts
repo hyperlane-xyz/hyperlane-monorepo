@@ -38,15 +38,23 @@ export function tokenFeeInputToFeeConfig(
         quoteSigners: input.quoteSigners ?? [],
       };
 
-    case TokenFeeType.OffchainQuotedPiecewiseLinearFee:
+    case TokenFeeType.OffchainQuotedPiecewiseLinearFee: {
+      const fallback =
+        'initialFallback' in input
+          ? input.initialFallback
+          : input.fallbackCurve;
       return {
         type: input.type,
         owner: input.owner,
         beneficiary,
-        params: toFeeParams(input),
         quoteSigners: input.quoteSigners ?? [],
         maxBands: input.maxBands,
+        initialFallback: {
+          breakpoints: fallback.breakpoints.map(String),
+          marginalBps: fallback.marginalBps,
+        },
       };
+    }
 
     case TokenFeeType.RoutingFee:
       return {
@@ -100,13 +108,21 @@ function toFeeStrategy(input: TokenFeeConfigInput): FeeStrategy {
         quoteSigners: input.quoteSigners ?? [],
       };
 
-    case TokenFeeType.OffchainQuotedPiecewiseLinearFee:
+    case TokenFeeType.OffchainQuotedPiecewiseLinearFee: {
+      const fallback =
+        'initialFallback' in input
+          ? input.initialFallback
+          : input.fallbackCurve;
       return {
         type: input.type,
-        params: toFeeParams(input),
         quoteSigners: input.quoteSigners ?? [],
         maxBands: input.maxBands,
+        initialFallback: {
+          breakpoints: fallback.breakpoints.map(String),
+          marginalBps: fallback.marginalBps,
+        },
       };
+    }
 
     default: {
       const _exhaustive: never = input;

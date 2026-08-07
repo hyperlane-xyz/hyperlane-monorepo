@@ -173,6 +173,13 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
                 sq.submitter
             )
         );
+        _verifyQuoteSigner(structHash, signature);
+    }
+
+    function _verifyQuoteSigner(
+        bytes32 structHash,
+        bytes calldata signature
+    ) internal view {
         bytes32 digest = ECDSA.toTypedDataHash(_domainSeparator(), structHash);
         address signer = ECDSA.recover(digest, signature);
         if (!isQuoteSigner(signer)) revert InvalidSigner();

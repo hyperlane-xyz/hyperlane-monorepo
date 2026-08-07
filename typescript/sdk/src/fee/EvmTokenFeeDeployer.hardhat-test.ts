@@ -369,11 +369,13 @@ describe('EvmTokenFeeDeployer', () => {
       type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
       token: token.address,
       owner: signer.address,
-      maxFee: MAX_FEE,
-      halfAmount: HALF_AMOUNT,
-      bps: BPS,
       maxBands: 4,
       quoteSigners: [signer.address, otherSigner.address],
+      fallbackCurve: {
+        breakpoints: [100_000n, 250_000n],
+        marginalBps: [4, 10, 20],
+        issuedAt: 0,
+      },
     });
 
     const deployedContracts = await deployer.deploy({
@@ -391,6 +393,11 @@ describe('EvmTokenFeeDeployer', () => {
     expect(await fee.owner()).to.equal(signer.address);
     expect(await fee.token()).to.equal(token.address);
     expect(await fee.maxBands()).to.equal(4);
+    const fallback = await fee.getFallbackCurve();
+    expect(fallback.breakpoints.map((value) => value.toBigInt())).to.deep.equal(
+      [100_000n, 250_000n],
+    );
+    expect(fallback.marginalBpsX1e4).to.deep.equal([40_000, 100_000, 200_000]);
     expect(await fee.quoteSigners()).to.have.members([
       signer.address,
       otherSigner.address,
@@ -416,11 +423,13 @@ describe('EvmTokenFeeDeployer', () => {
             type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
             token: token.address,
             owner: signer.address,
-            maxFee: MAX_FEE,
-            halfAmount: HALF_AMOUNT,
-            bps: BPS,
             maxBands: 4,
             quoteSigners: [signer.address],
+            fallbackCurve: {
+              breakpoints: [100_000n],
+              marginalBps: [4, 10],
+              issuedAt: 0,
+            },
           },
         },
       },

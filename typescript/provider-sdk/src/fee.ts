@@ -73,11 +73,23 @@ export interface OffchainQuotedLinearFeeStrategy {
   quoteSigners: string[];
 }
 
+/** Piecewise curve amounts are serialized atomic token units. */
+export interface PiecewiseCurveConfig {
+  breakpoints: string[];
+  marginalBps: number[];
+}
+
+export interface DerivedPiecewiseFallback {
+  breakpoints: bigint[];
+  marginalBps: number[];
+  issuedAt: number;
+}
+
 export interface OffchainQuotedPiecewiseLinearFeeStrategy {
   type: typeof FeeStrategyType.offchainQuotedPiecewiseLinear;
-  params: FeeParams;
   quoteSigners: string[];
   maxBands: number;
+  initialFallback: PiecewiseCurveConfig;
 }
 
 export type FeeStrategy =
@@ -141,9 +153,9 @@ export interface OffchainQuotedLinearFeeConfig extends BaseFeeConfig {
 
 export interface OffchainQuotedPiecewiseLinearFeeConfig extends BaseFeeConfig {
   type: typeof FeeType.offchainQuotedPiecewiseLinear;
-  params: FeeParams;
   quoteSigners: string[];
   maxBands: number;
+  initialFallback: PiecewiseCurveConfig;
 }
 
 export interface RoutingFeeConfig extends BaseFeeConfig {
@@ -202,11 +214,9 @@ export interface DerivedOffchainQuotedPiecewiseLinearFeeConfig {
   token: string;
   owner: string;
   beneficiary: string;
-  maxFee: bigint;
-  halfAmount: bigint;
-  bps: number;
   quoteSigners: string[];
   maxBands: number;
+  fallbackCurve: DerivedPiecewiseFallback;
   address: string;
 }
 
@@ -375,6 +385,23 @@ function strategyToDerivedFeeConfig(
   beneficiary: string,
   address: string,
 ): DerivedFeeConfig {
+  if (strategy.type === FeeStrategyType.offchainQuotedPiecewiseLinear) {
+    return {
+      type: strategy.type,
+      token,
+      owner,
+      beneficiary,
+      quoteSigners: strategy.quoteSigners,
+      maxBands: strategy.maxBands,
+      fallbackCurve: {
+        breakpoints: strategy.initialFallback.breakpoints.map(BigInt),
+        marginalBps: strategy.initialFallback.marginalBps,
+        issuedAt: 0,
+      },
+      address,
+    };
+  }
+
   const { maxFee, halfAmount } = resolveRawParams(strategy.params);
   const base = {
     token,
@@ -397,14 +424,6 @@ function strategyToDerivedFeeConfig(
         ...base,
         type: strategy.type,
         quoteSigners: strategy.quoteSigners,
-      };
-
-    case FeeStrategyType.offchainQuotedPiecewiseLinear:
-      return {
-        ...base,
-        type: strategy.type,
-        quoteSigners: strategy.quoteSigners,
-        maxBands: strategy.maxBands,
       };
 
     default: {
@@ -599,17 +618,18 @@ export function feeArtifactToDerivedConfig(
     }
 
     case FeeType.offchainQuotedPiecewiseLinear: {
-      const { maxFee, halfAmount } = resolveRawParams(config.params);
       return {
         type: config.type,
         token,
         owner: config.owner,
         beneficiary: config.beneficiary,
-        maxFee,
-        halfAmount,
-        bps: computeBps(maxFee, halfAmount),
         quoteSigners: config.quoteSigners,
         maxBands: config.maxBands,
+        fallbackCurve: {
+          breakpoints: config.initialFallback.breakpoints.map(BigInt),
+          marginalBps: config.initialFallback.marginalBps,
+          issuedAt: 0,
+        },
         address,
       };
     }
@@ -702,14 +722,12 @@ function isLeafFeeConfig(
   | LinearFeeConfig
   | RegressiveFeeConfig
   | ProgressiveFeeConfig
-  | OffchainQuotedLinearFeeConfig
-  | OffchainQuotedPiecewiseLinearFeeConfig {
+  | OffchainQuotedLinearFeeConfig {
   return (
     c.type === FeeType.linear ||
     c.type === FeeType.regressive ||
     c.type === FeeType.progressive ||
-    c.type === FeeType.offchainQuotedLinear ||
-    c.type === FeeType.offchainQuotedPiecewiseLinear
+    c.type === FeeType.offchainQuotedLinear
   );
 }
 
@@ -719,8 +737,10 @@ function isLeafFeeConfig(
  * A change of fee type always requires a fresh deployment (different program
  * semantics). For matching leaf types, only `params` divergence forces a
  * redeploy — EVM fee contracts have constructor-set immutable params, so a
- * params change cannot be applied in place. All other leaf fields
- * (`owner`, `beneficiary`, `token`, `quoteSigners`) are settable
+ * params change cannot be applied in place. The piecewise fee instead
+ * redeploys only for immutable token or maxBands changes; signer-managed
+ * fallback changes are deliberately ignored here. Other leaf fields
+ * (`owner`, `beneficiary`, `quoteSigners`) are settable
  * post-deploy on both SVM (UpdateFeeParams/SetBeneficiary/TransferOwnership/
  * AddWildcardQuoteSigner) and EVM (transferOwnership/setBeneficiary), so
  * they go through the writer's update path rather than triggering a
@@ -745,8 +765,7 @@ export function shouldDeployNewFee(
     case FeeType.offchainQuotedPiecewiseLinear: {
       if (actual.type !== FeeType.offchainQuotedPiecewiseLinear) return true;
       return (
-        actual.maxBands !== expected.maxBands ||
-        !feeParamsEqual(actual.params, expected.params)
+        actual.maxBands !== expected.maxBands || actual.token !== expected.token
       );
     }
 
@@ -798,9 +817,9 @@ export function withFeeAssetConfig(
         type: config.type,
         owner: config.owner,
         beneficiary: config.beneficiary,
-        params: config.params,
         quoteSigners: config.quoteSigners,
         maxBands: config.maxBands,
+        initialFallback: config.initialFallback,
         token,
       };
     case FeeType.routing:

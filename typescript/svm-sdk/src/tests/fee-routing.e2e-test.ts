@@ -88,8 +88,9 @@ describe('SVM Routing Fee E2E Tests', function () {
     const readResult = await reader.read(deployed.deployed.programId);
 
     expect(readResult.config.type).to.equal(FeeType.routing);
-    expect(readResult.config.routes[10]?.type).to.equal(FeeStrategyType.linear);
-    expect(readResult.config.routes[10]?.params.maxFee).to.equal('1000');
+    const route10 = readResult.config.routes[10];
+    assert(route10?.type === FeeStrategyType.linear, 'Expected linear route');
+    expect(route10.params.maxFee).to.equal('1000');
     expect(readResult.config.routes[20]?.type).to.equal(
       FeeStrategyType.regressive,
     );
@@ -208,10 +209,12 @@ describe('SVM Routing Fee E2E Tests', function () {
       DEFAULT_FEE_SALT,
     );
     const readResult = await reader.read(deployed.deployed.programId);
-    expect(readResult.config.routes[20]?.type).to.equal(
-      FeeStrategyType.progressive,
+    const route20 = readResult.config.routes[20];
+    assert(
+      route20?.type === FeeStrategyType.progressive,
+      'Expected progressive route',
     );
-    expect(readResult.config.routes[20]?.params.maxFee).to.equal('3000');
+    expect(route20.params.maxFee).to.equal('3000');
   });
 
   it('should update params on an existing route', async () => {
@@ -246,8 +249,10 @@ describe('SVM Routing Fee E2E Tests', function () {
       DEFAULT_FEE_SALT,
     );
     const readResult = await reader.read(deployed.deployed.programId);
-    expect(readResult.config.routes[10]?.params.maxFee).to.equal('9999');
-    expect(readResult.config.routes[10]?.params.halfAmount).to.equal('4444');
+    const route10 = readResult.config.routes[10];
+    assert(route10?.type === FeeStrategyType.linear, 'Expected linear route');
+    expect(route10.params.maxFee).to.equal('9999');
+    expect(route10.params.halfAmount).to.equal('4444');
   });
 
   it('should change route strategy type', async () => {

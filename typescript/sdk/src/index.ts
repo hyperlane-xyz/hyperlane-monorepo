@@ -1135,6 +1135,11 @@ export {
   OffchainQuotedPiecewiseLinearFeeConfigSchema,
   OffchainQuotedPiecewiseLinearFeeInputConfig,
   OffchainQuotedPiecewiseLinearFeeInputConfigSchema,
+  InitialOffchainQuotedPiecewiseLinearFeeInputConfigSchema,
+  PiecewiseCurve,
+  PiecewiseCurveSchema,
+  DerivedPiecewiseFallback,
+  DerivedPiecewiseFallbackSchema,
   QuoteSignersSchema,
   QuoteSignersConfig,
 } from './fee/types.js';

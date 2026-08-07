@@ -19,12 +19,16 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
     bytes32 internal constant WILDCARD_RECIPIENT = bytes32(type(uint256).max);
     uint256 internal constant WILDCARD_AMOUNT = type(uint256).max;
 
-    uint256 internal constant FALLBACK_MAX_FEE = 0.02 ether;
-    uint256 internal constant FALLBACK_HALF_AMOUNT = 1 ether;
+    uint32 internal constant FALLBACK_RATE = 20_000; // 2 bps
+    uint32 internal constant DEFAULT_STALE_AFTER = 1 hours;
     uint256 internal constant DENOMINATOR = 100_000_000;
     bytes32 internal constant SIGNED_QUOTE_TYPEHASH =
         keccak256(
             "SignedQuote(bytes context,bytes data,uint48 issuedAt,uint48 expiry,bytes32 salt,address submitter)"
+        );
+    bytes32 internal constant SIGNED_FALLBACK_CURVE_TYPEHASH =
+        keccak256(
+            "SignedFallbackCurve(bytes data,uint48 issuedAt,address submitter)"
         );
 
     address internal signer;
@@ -38,12 +42,15 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
     function _deploy(
         uint16 maxBands
     ) internal returns (OffchainQuotedPiecewiseLinearFee) {
+        uint128[] memory breakpoints = new uint128[](0);
+        uint32[] memory rates = new uint32[](1);
+        rates[0] = FALLBACK_RATE;
         return
             new OffchainQuotedPiecewiseLinearFee(
                 signer,
                 FEE_TOKEN,
-                FALLBACK_MAX_FEE,
-                FALLBACK_HALF_AMOUNT,
+                breakpoints,
+                rates,
                 maxBands,
                 signer
             );
@@ -89,6 +96,27 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
         return abi.encodePacked(r, s, v);
     }
 
+    function _signFallback(
+        OffchainQuotedPiecewiseLinearFee fee,
+        OffchainQuotedPiecewiseLinearFee.SignedFallbackCurve memory update,
+        uint256 signerKey
+    ) internal view returns (bytes memory) {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                SIGNED_FALLBACK_CURVE_TYPEHASH,
+                keccak256(update.data),
+                update.issuedAt,
+                update.submitter
+            )
+        );
+        bytes32 digest = ECDSA.toTypedDataHash(
+            _domainSeparator(fee),
+            structHash
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, digest);
+        return abi.encodePacked(r, s, v);
+    }
+
     function _context(
         uint32 destination,
         bytes32 recipient,
@@ -101,7 +129,17 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
         uint128[] memory breakpoints,
         uint32[] memory rates
     ) internal pure returns (bytes memory) {
-        return abi.encode(breakpoints, rates);
+        uint32[] memory surcharges = new uint32[](rates.length);
+        return abi.encode(breakpoints, rates, DEFAULT_STALE_AFTER, surcharges);
+    }
+
+    function _curveData(
+        uint128[] memory breakpoints,
+        uint32[] memory rates,
+        uint32 staleAfter,
+        uint32[] memory surcharges
+    ) internal pure returns (bytes memory) {
+        return abi.encode(breakpoints, rates, staleAfter, surcharges);
     }
 
     function _submitData(
@@ -143,6 +181,44 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
             issuedAt,
             expiry
         );
+    }
+
+    function _submitCurveWithStaleness(
+        OffchainQuotedPiecewiseLinearFee fee,
+        uint32 destination,
+        bytes32 recipient,
+        uint128[] memory breakpoints,
+        uint32[] memory rates,
+        uint32 staleAfter,
+        uint32[] memory surcharges,
+        uint48 issuedAt,
+        uint48 expiry
+    ) internal {
+        _submitData(
+            fee,
+            destination,
+            recipient,
+            WILDCARD_AMOUNT,
+            _curveData(breakpoints, rates, staleAfter, surcharges),
+            issuedAt,
+            expiry
+        );
+    }
+
+    function _submitFallback(
+        OffchainQuotedPiecewiseLinearFee fee,
+        uint128[] memory breakpoints,
+        uint32[] memory rates,
+        uint48 issuedAt
+    ) internal {
+        OffchainQuotedPiecewiseLinearFee.SignedFallbackCurve
+            memory update = OffchainQuotedPiecewiseLinearFee
+                .SignedFallbackCurve({
+                    data: abi.encode(breakpoints, rates),
+                    issuedAt: issuedAt,
+                    submitter: address(this)
+                });
+        fee.submitFallbackCurve(update, _signFallback(fee, update, SIGNER_KEY));
     }
 
     function _submitLinearTransient(
@@ -201,9 +277,7 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
     }
 
     function _fallbackFee(uint256 amount) internal pure returns (uint256) {
-        uint256 uncapped = (amount * FALLBACK_MAX_FEE) /
-            (2 * FALLBACK_HALF_AMOUNT);
-        return uncapped > FALLBACK_MAX_FEE ? FALLBACK_MAX_FEE : uncapped;
+        return (amount * FALLBACK_RATE) / DENOMINATOR;
     }
 
     function _exampleCurve()
@@ -246,6 +320,13 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
             uint8(quotedFee.feeType()),
             uint8(FeeType.OFFCHAIN_QUOTED_PIECEWISE_LINEAR)
         );
+
+        OffchainQuotedPiecewiseLinearFee.FallbackCurve
+            memory fallback_ = quotedFee.getFallbackCurve();
+        assertEq(fallback_.breakpoints.length, 0);
+        assertEq(fallback_.marginalBpsX1e4.length, 1);
+        assertEq(fallback_.marginalBpsX1e4[0], FALLBACK_RATE);
+        assertEq(fallback_.issuedAt, 0);
     }
 
     function test_constructorRejectsInvalidMaxBands() public {
@@ -258,6 +339,34 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
             OffchainQuotedPiecewiseLinearFee.InvalidMaxBands.selector
         );
         _deploy(257);
+    }
+
+    function test_constructorRejectsInvalidOrZeroFallback() public {
+        uint128[] memory breakpoints = new uint128[](0);
+        uint32[] memory rates = new uint32[](1);
+
+        vm.expectRevert(OffchainQuotedPiecewiseLinearFee.InvalidCurve.selector);
+        new OffchainQuotedPiecewiseLinearFee(
+            signer,
+            FEE_TOKEN,
+            breakpoints,
+            rates,
+            4,
+            signer
+        );
+
+        breakpoints = new uint128[](1);
+        breakpoints[0] = 1 ether;
+        rates[0] = FALLBACK_RATE;
+        vm.expectRevert(OffchainQuotedPiecewiseLinearFee.InvalidCurve.selector);
+        new OffchainQuotedPiecewiseLinearFee(
+            signer,
+            FEE_TOKEN,
+            breakpoints,
+            rates,
+            4,
+            signer
+        );
     }
 
     // ============ Fee calculation ============
@@ -360,6 +469,88 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
         assertEq(
             _quote(quotedFee, DESTINATION, RECIPIENT, amount),
             _referenceFee(breakpoints, rates, amount)
+        );
+    }
+
+    function test_staleThresholdUsesPerBandSurcharges() public {
+        (uint128[] memory breakpoints, uint32[] memory rates) = _exampleCurve();
+        uint32[] memory surcharges = new uint32[](3);
+        surcharges[0] = 20_000; // +2 bps
+        surcharges[1] = 40_000; // +4 bps
+        surcharges[2] = 80_000; // +8 bps
+        uint48 issuedAt = uint48(block.timestamp);
+        uint48 expiry = issuedAt + 1 days;
+        _submitCurveWithStaleness(
+            quotedFee,
+            DESTINATION,
+            RECIPIENT,
+            breakpoints,
+            rates,
+            12,
+            surcharges,
+            issuedAt,
+            expiry
+        );
+
+        assertEq(
+            _quote(quotedFee, DESTINATION, RECIPIENT, 300_000 ether),
+            130 ether
+        );
+        vm.warp(issuedAt + 11);
+        assertEq(
+            _quote(quotedFee, DESTINATION, RECIPIENT, 300_000 ether),
+            130 ether
+        );
+
+        uint32[] memory staleRates = new uint32[](3);
+        staleRates[0] = 30_000;
+        staleRates[1] = 80_000;
+        staleRates[2] = 200_000;
+        vm.warp(issuedAt + 12);
+        assertEq(
+            _quote(quotedFee, DESTINATION, RECIPIENT, 300_000 ether),
+            _referenceFee(breakpoints, staleRates, 300_000 ether)
+        );
+
+        vm.warp(expiry);
+        assertEq(
+            _quote(quotedFee, DESTINATION, RECIPIENT, 300_000 ether),
+            250 ether
+        );
+        vm.warp(expiry + 1);
+        assertEq(
+            _quote(quotedFee, DESTINATION, RECIPIENT, 300_000 ether),
+            _fallbackFee(300_000 ether)
+        );
+    }
+
+    function testFuzz_staleFeeMatchesReference(uint128 amount) public {
+        (uint128[] memory breakpoints, uint32[] memory rates) = _exampleCurve();
+        uint32[] memory surcharges = new uint32[](3);
+        surcharges[0] = 10_000;
+        surcharges[1] = 20_000;
+        surcharges[2] = 30_000;
+        uint48 now_ = uint48(block.timestamp);
+        _submitCurveWithStaleness(
+            quotedFee,
+            DESTINATION,
+            RECIPIENT,
+            breakpoints,
+            rates,
+            1,
+            surcharges,
+            now_,
+            now_ + 1 days
+        );
+        vm.warp(now_ + 1);
+
+        uint32[] memory staleRates = new uint32[](3);
+        for (uint256 i = 0; i < rates.length; ++i) {
+            staleRates[i] = rates[i] + surcharges[i];
+        }
+        assertEq(
+            _quote(quotedFee, DESTINATION, RECIPIENT, amount),
+            _referenceFee(breakpoints, staleRates, amount)
         );
     }
 
@@ -583,6 +774,88 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
         _expectInvalidCurve(breakpoints, rates);
     }
 
+    function test_rejectsInvalidStalePolicy() public {
+        uint128[] memory breakpoints = new uint128[](1);
+        breakpoints[0] = 1 ether;
+        uint32[] memory rates = new uint32[](2);
+        rates[0] = 10_000;
+        rates[1] = 20_000;
+        uint32[] memory surcharges = new uint32[](1);
+        uint48 now_ = uint48(block.timestamp);
+
+        _expectInvalidStaleCurve(
+            breakpoints,
+            rates,
+            1,
+            surcharges,
+            now_,
+            now_ + 1 days
+        );
+
+        surcharges = new uint32[](2);
+        _expectInvalidStaleCurve(
+            breakpoints,
+            rates,
+            0,
+            surcharges,
+            now_,
+            now_ + 1 days
+        );
+        _expectInvalidStaleCurve(
+            breakpoints,
+            rates,
+            uint32(1 days + 1),
+            surcharges,
+            now_,
+            now_ + 1 days
+        );
+
+        surcharges[0] = 20_000;
+        surcharges[1] = 10_000;
+        _expectInvalidStaleCurve(
+            breakpoints,
+            rates,
+            1,
+            surcharges,
+            now_,
+            now_ + 1 days
+        );
+
+        rates[1] = 99_999_999;
+        surcharges[0] = 1;
+        surcharges[1] = 2;
+        _expectInvalidStaleCurve(
+            breakpoints,
+            rates,
+            1,
+            surcharges,
+            now_,
+            now_ + 1 days
+        );
+    }
+
+    function _expectInvalidStaleCurve(
+        uint128[] memory breakpoints,
+        uint32[] memory rates,
+        uint32 staleAfter,
+        uint32[] memory surcharges,
+        uint48 issuedAt,
+        uint48 expiry
+    ) internal {
+        vm.expectRevert(OffchainQuotedPiecewiseLinearFee.InvalidCurve.selector);
+        _submitCurveWithStaleness(
+            quotedFee,
+            DESTINATION,
+            RECIPIENT,
+            breakpoints,
+            rates,
+            staleAfter,
+            surcharges,
+            issuedAt,
+            expiry
+        );
+    }
+
     function _expectInvalidCurve(
         uint128[] memory breakpoints,
         uint32[] memory rates
@@ -657,6 +930,167 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
         );
     }
 
+    function test_equalIssuedAtIsIdempotentOrConflicting() public {
+        uint128[] memory breakpoints = new uint128[](0);
+        uint32[] memory rates = new uint32[](1);
+        rates[0] = 10_000;
+        uint48 now_ = uint48(block.timestamp);
+        _submitCurve(
+            quotedFee,
+            DESTINATION,
+            RECIPIENT,
+            WILDCARD_AMOUNT,
+            breakpoints,
+            rates,
+            now_,
+            now_ + 1 days
+        );
+
+        _submitCurve(
+            quotedFee,
+            DESTINATION,
+            RECIPIENT,
+            WILDCARD_AMOUNT,
+            breakpoints,
+            rates,
+            now_,
+            now_ + 1 days
+        );
+
+        vm.expectRevert(
+            OffchainQuotedPiecewiseLinearFee.ConflictingQuote.selector
+        );
+        _submitCurve(
+            quotedFee,
+            DESTINATION,
+            RECIPIENT,
+            WILDCARD_AMOUNT,
+            breakpoints,
+            rates,
+            now_,
+            now_ + 2 days
+        );
+    }
+
+    // ============ Permanent fallback ============
+
+    function test_quoteSignerCanReplaceFallback() public {
+        (uint128[] memory breakpoints, uint32[] memory rates) = _exampleCurve();
+        uint48 now_ = uint48(block.timestamp);
+        _submitFallback(quotedFee, breakpoints, rates, now_);
+
+        assertEq(
+            _quote(quotedFee, DESTINATION, RECIPIENT, 300_000 ether),
+            130 ether
+        );
+        OffchainQuotedPiecewiseLinearFee.FallbackCurve
+            memory fallback_ = quotedFee.getFallbackCurve();
+        assertEq(fallback_.issuedAt, now_);
+        assertEq(fallback_.breakpoints.length, 2);
+        assertEq(fallback_.marginalBpsX1e4.length, 3);
+
+        vm.warp(block.timestamp + 365 days);
+        assertEq(
+            _quote(quotedFee, DESTINATION, RECIPIENT, 300_000 ether),
+            130 ether
+        );
+    }
+
+    function test_fallbackEqualIssuedAtIsIdempotentOrConflicting() public {
+        uint128[] memory breakpoints = new uint128[](0);
+        uint32[] memory rates = new uint32[](1);
+        rates[0] = 30_000;
+        uint48 now_ = uint48(block.timestamp);
+        _submitFallback(quotedFee, breakpoints, rates, now_);
+        _submitFallback(quotedFee, breakpoints, rates, now_);
+
+        rates[0] = 40_000;
+        vm.expectRevert(
+            OffchainQuotedPiecewiseLinearFee.ConflictingQuote.selector
+        );
+        _submitFallback(quotedFee, breakpoints, rates, now_);
+    }
+
+    function test_fallbackRejectsOlderAndFutureUpdates() public {
+        uint128[] memory breakpoints = new uint128[](0);
+        uint32[] memory rates = new uint32[](1);
+        rates[0] = 30_000;
+        uint48 now_ = uint48(block.timestamp);
+        _submitFallback(quotedFee, breakpoints, rates, now_);
+
+        vm.expectRevert(AbstractOffchainQuoter.StaleQuote.selector);
+        _submitFallback(quotedFee, breakpoints, rates, now_ - 1);
+
+        vm.expectRevert(AbstractOffchainQuoter.InvalidQuote.selector);
+        _submitFallback(quotedFee, breakpoints, rates, now_ + 1);
+    }
+
+    function test_fallbackRequiresBoundSubmitter() public {
+        uint128[] memory breakpoints = new uint128[](0);
+        uint32[] memory rates = new uint32[](1);
+        rates[0] = 30_000;
+        OffchainQuotedPiecewiseLinearFee.SignedFallbackCurve
+            memory update = OffchainQuotedPiecewiseLinearFee
+                .SignedFallbackCurve({
+                    data: abi.encode(breakpoints, rates),
+                    issuedAt: uint48(block.timestamp),
+                    submitter: address(0)
+                });
+        vm.expectRevert(AbstractOffchainQuoter.InvalidSubmitter.selector);
+        quotedFee.submitFallbackCurve(
+            update,
+            _signFallback(quotedFee, update, SIGNER_KEY)
+        );
+
+        update.submitter = address(0xB0B);
+        vm.expectRevert(AbstractOffchainQuoter.InvalidSubmitter.selector);
+        quotedFee.submitFallbackCurve(
+            update,
+            _signFallback(quotedFee, update, SIGNER_KEY)
+        );
+    }
+
+    function test_fallbackRejectsInvalidSignerAndCurve() public {
+        uint128[] memory breakpoints = new uint128[](0);
+        uint32[] memory rates = new uint32[](1);
+        rates[0] = 30_000;
+        OffchainQuotedPiecewiseLinearFee.SignedFallbackCurve
+            memory update = OffchainQuotedPiecewiseLinearFee
+                .SignedFallbackCurve({
+                    data: abi.encode(breakpoints, rates),
+                    issuedAt: uint48(block.timestamp),
+                    submitter: address(this)
+                });
+        vm.expectRevert(AbstractOffchainQuoter.InvalidSigner.selector);
+        quotedFee.submitFallbackCurve(
+            update,
+            _signFallback(quotedFee, update, 0xBAD)
+        );
+
+        rates[0] = 0;
+        update.data = abi.encode(breakpoints, rates);
+        vm.expectRevert(OffchainQuotedPiecewiseLinearFee.InvalidCurve.selector);
+        quotedFee.submitFallbackCurve(
+            update,
+            _signFallback(quotedFee, update, SIGNER_KEY)
+        );
+    }
+
+    function test_removedSignerDoesNotInvalidateFallback() public {
+        uint128[] memory breakpoints = new uint128[](0);
+        uint32[] memory rates = new uint32[](1);
+        rates[0] = 30_000;
+        _submitFallback(quotedFee, breakpoints, rates, uint48(block.timestamp));
+        vm.prank(signer);
+        quotedFee.removeQuoteSigner(signer);
+
+        vm.warp(block.timestamp + 365 days);
+        assertEq(
+            _quote(quotedFee, DESTINATION, RECIPIENT, 1 ether),
+            0.0003 ether
+        );
+    }
+
     // ============ Inspection ============
 
     function test_enumeratesStandingCurvesOnly() public {
@@ -673,6 +1107,11 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
         assertEq(entries[0].recipient, RECIPIENT);
         assertEq(entries[0].quote.breakpoints.length, breakpoints.length);
         assertEq(entries[0].quote.marginalBpsX1e4.length, rates.length);
+        assertEq(
+            entries[0].quote.staleMarginalSurchargeBpsX1e4.length,
+            rates.length
+        );
+        assertEq(entries[0].quote.staleAfterSeconds, DEFAULT_STALE_AFTER);
         for (uint256 i = 0; i < breakpoints.length; ++i) {
             assertEq(entries[0].quote.breakpoints[i], breakpoints[i]);
         }

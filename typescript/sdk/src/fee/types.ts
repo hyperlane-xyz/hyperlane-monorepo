@@ -215,63 +215,145 @@ export type OffchainQuotedLinearFeeInputConfig = z.infer<
   typeof OffchainQuotedLinearFeeInputConfigSchema
 >;
 
+const UINT128_MAX = (1n << 128n) - 1n;
+
+function validatePiecewiseCurve(
+  curve: {
+    breakpoints: bigint[];
+    marginalBps: number[];
+  },
+  ctx: z.RefinementCtx,
+): void {
+  if (curve.breakpoints.length + 1 !== curve.marginalBps.length) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['marginalBps'],
+      message: 'marginalBps must contain one more value than breakpoints',
+    });
+  }
+
+  for (let i = 0; i < curve.breakpoints.length; i += 1) {
+    if (curve.breakpoints[i] === 0n || curve.breakpoints[i] > UINT128_MAX) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['breakpoints', i],
+        message: 'breakpoints must be positive uint128 values',
+      });
+    }
+    if (i > 0 && curve.breakpoints[i] <= curve.breakpoints[i - 1]) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['breakpoints', i],
+        message: 'breakpoints must be strictly increasing',
+      });
+    }
+  }
+
+  for (let i = 0; i < curve.marginalBps.length; i += 1) {
+    const marginalBps = curve.marginalBps[i];
+    if (marginalBps > 10_000) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['marginalBps', i],
+        message: 'marginalBps must not exceed 10000 bps',
+      });
+    }
+    if (!isBpsPrecisionValid(marginalBps)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['marginalBps', i],
+        message: `marginalBps must have at most ${MAX_BPS_DECIMALS} decimal places`,
+      });
+    }
+    if (i > 0 && marginalBps < curve.marginalBps[i - 1]) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['marginalBps', i],
+        message: 'marginalBps must be nondecreasing',
+      });
+    }
+  }
+
+  if (curve.marginalBps.every((marginalBps) => marginalBps === 0)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['marginalBps'],
+      message: 'fallback curve must charge a positive rate',
+    });
+  }
+}
+
+const PiecewiseCurveBaseSchema = z.object({
+  breakpoints: z.array(ZBigNumberish).max(255),
+  marginalBps: z.array(ZBps).min(1).max(256),
+});
+
+export const PiecewiseCurveSchema = PiecewiseCurveBaseSchema.superRefine(
+  validatePiecewiseCurve,
+);
+export type PiecewiseCurve = z.infer<typeof PiecewiseCurveSchema>;
+
+export const DerivedPiecewiseFallbackSchema = PiecewiseCurveBaseSchema.extend({
+  issuedAt: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(2 ** 48 - 1),
+}).superRefine(validatePiecewiseCurve);
+export type DerivedPiecewiseFallback = z.infer<
+  typeof DerivedPiecewiseFallbackSchema
+>;
+
 export const OffchainQuotedPiecewiseLinearFeeConfigSchema =
-  BpsConfigSchema.merge(QuoteSignersSchema).extend({
+  BaseFeeConfigSchema.merge(QuoteSignersSchema).extend({
     type: z.literal(TokenFeeType.OffchainQuotedPiecewiseLinearFee),
     maxBands: z.number().int().min(1).max(256),
+    fallbackCurve: DerivedPiecewiseFallbackSchema,
   });
 export type OffchainQuotedPiecewiseLinearFeeConfig = z.infer<
   typeof OffchainQuotedPiecewiseLinearFeeConfigSchema
 >;
 
-export const OffchainQuotedPiecewiseLinearFeeInputConfigSchema =
+export const InitialOffchainQuotedPiecewiseLinearFeeInputConfigSchema =
   BaseFeeConfigInputSchema.merge(QuoteSignersSchema)
     .extend({
       type: z.literal(TokenFeeType.OffchainQuotedPiecewiseLinearFee),
       maxBands: z.number().int().min(1).max(256),
-      bps: ZBps.optional(),
-      ...FeeParametersSchema.partial().shape,
+      initialFallback: PiecewiseCurveSchema,
     })
     .superRefine((v, ctx) => {
-      const hasBps = v.bps !== undefined;
-      const hasFeeParams = v.maxFee !== undefined && v.halfAmount !== undefined;
-
-      if (!hasBps && !hasFeeParams) {
+      if (v.initialFallback.marginalBps.length > v.maxBands) {
         ctx.addIssue({
           code: 'custom',
-          path: ['bps'],
-          message: 'Provide bps or both maxFee and halfAmount',
+          path: ['initialFallback', 'marginalBps'],
+          message: 'initial fallback curve exceeds maxBands',
         });
       }
+    });
 
-      if (hasBps && v.bps! <= 0) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['bps'],
-          message: 'bps must be > 0',
-        });
-      }
-
-      if (hasBps && !isBpsPrecisionValid(v.bps!)) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['bps'],
-          message: `bps must have at most ${MAX_BPS_DECIMALS} decimal places`,
-        });
-      }
-
-      if (v.halfAmount === 0n) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['halfAmount'],
-          message: 'halfAmount must be > 0',
-        });
-      }
+// Read results use fallbackCurve to distinguish mutable on-chain state from
+// deployment-only initialFallback while remaining usable by generic modules.
+const DerivedOffchainQuotedPiecewiseLinearFeeInputConfigSchema =
+  BaseFeeConfigInputSchema.merge(QuoteSignersSchema)
+    .extend({
+      type: z.literal(TokenFeeType.OffchainQuotedPiecewiseLinearFee),
+      maxBands: z.number().int().min(1).max(256),
+      fallbackCurve: DerivedPiecewiseFallbackSchema,
     })
-    .transform((v) => ({
-      ...v,
-      bps: v.bps ?? convertToBps(v.maxFee!, v.halfAmount!),
-    }));
+    .superRefine((v, ctx) => {
+      if (v.fallbackCurve.marginalBps.length > v.maxBands) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['fallbackCurve', 'marginalBps'],
+          message: 'fallback curve exceeds maxBands',
+        });
+      }
+    });
+
+export const OffchainQuotedPiecewiseLinearFeeInputConfigSchema = z.union([
+  InitialOffchainQuotedPiecewiseLinearFeeInputConfigSchema,
+  DerivedOffchainQuotedPiecewiseLinearFeeInputConfigSchema,
+]);
 export type OffchainQuotedPiecewiseLinearFeeInputConfig = z.infer<
   typeof OffchainQuotedPiecewiseLinearFeeInputConfigSchema
 >;
