@@ -68,3 +68,41 @@ deduplicated; conflicting policies for one target are rejected.
 The checked-in values are staging fixtures, not production recommendations.
 Changing these operational values does not change Warp getters or deployment
 topology.
+
+## Guarded staging lifecycle
+
+`run-piecewise-lifecycle.ts` is locked to the checked-in
+`bsc-usdt-arbitrum-usdc` staging lane. It exercises four 10e18 transfers to the
+explicit Arbitrum USDC router:
+
+1. fallback, after any existing standing curve has expired;
+2. fresh, immediately after publishing the configured standing curve;
+3. stale, after the BSC block timestamp reaches `issuedAt + staleAfter`;
+4. expired, after the BSC block timestamp is greater than `expiry`.
+
+The script checks the effective fee at every phase and requires the BSC USDT
+balance of the routing fee root to increase by that fee after each transfer.
+It polls BSC block timestamps rather than local wall-clock time. Token approval
+is bounded to 50e18 across the four transfers and revoked in a `finally` block.
+
+The default invocation is read-only. It discovers and prints the exact routers,
+checks the fallback curve, and quotes the current state without loading GCP
+keys, approving tokens, publishing a curve, waiting, or transferring:
+
+```bash
+pnpm tsx scripts/moonpay/run-piecewise-lifecycle.ts \
+  --recipient <ARBITRUM_RECIPIENT>
+```
+
+Submission additionally requires both discovered router addresses to be copied
+back exactly. Only this path loads the GCP quote signer and deployer:
+
+```bash
+pnpm tsx scripts/moonpay/run-piecewise-lifecycle.ts \
+  --recipient <ARBITRUM_RECIPIENT> \
+  --submit \
+  --confirm-source-router <DISCOVERED_BSC_USDT_ROUTER> \
+  --confirm-target-router <DISCOVERED_ARBITRUM_USDC_ROUTER>
+```
+
+This is an operator-run staging harness, not a production transfer loop.
