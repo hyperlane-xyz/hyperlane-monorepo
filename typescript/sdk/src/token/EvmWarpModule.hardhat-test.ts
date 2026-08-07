@@ -25,6 +25,8 @@ import {
   MockEverclearAdapter__factory,
   MovableCollateralRouter__factory,
   TokenBridgeCctpV2__factory,
+  XERC20Test,
+  XERC20Test__factory,
 } from '@hyperlane-xyz/core';
 import {
   EvmIsmModule,
@@ -2757,6 +2759,163 @@ describe('EvmWarpModule', async () => {
       if (finalConfig.tokenFee?.type === TokenFeeType.OffchainQuotedLinearFee) {
         expect(finalConfig.tokenFee.quoteSigners).to.have.lengthOf(2);
       }
+    });
+
+    describe('xERC20 token fee', () => {
+      const SET_FEE_RECIPIENT_SELECTOR = '0xe74b981b';
+
+      // The default test4 metadata configures an Etherscan explorer, which the
+      // xERC20 reader would call to derive extra-lockbox configs on every
+      // read(). Strip it on a scoped MultiProvider so lockbox derivation
+      // early-returns []; XERC20Test has no extra lockboxes anyway.
+      let xerc20MultiProvider: MultiProvider;
+      before(() => {
+        xerc20MultiProvider = MultiProvider.createTestMultiProvider({ signer });
+        xerc20MultiProvider.metadata[chain] = {
+          ...xerc20MultiProvider.getChainMetadata(chain),
+          blockExplorers: [],
+        };
+      });
+
+      // Deploys a fresh xERC20 warp route so each test starts with no fee.
+      // XERC20Test grants unlimited mint/burn limits to any bridge, so no
+      // limit-granting is required to exercise the fee-setting path.
+      async function deployXERC20Route(): Promise<{
+        warpModule: EvmWarpModule;
+        xerc20: XERC20Test;
+      }> {
+        const xerc20 = await new XERC20Test__factory(signer).deploy(
+          TOKEN_NAME,
+          TOKEN_NAME,
+          TOKEN_SUPPLY,
+          TOKEN_DECIMALS,
+        );
+        const config: HypTokenRouterConfig = {
+          ...baseConfig,
+          type: TokenType.XERC20,
+          token: xerc20.address,
+        };
+        const warpModule = await EvmWarpModule.create({
+          chain,
+          config,
+          multiProvider: xerc20MultiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+        return { warpModule, xerc20 };
+      }
+
+      it('should set a LinearFee on an xERC20 route via warp apply', async () => {
+        const { warpModule } = await deployXERC20Route();
+
+        const actualConfig = await warpModule.read();
+        expect(actualConfig.tokenFee).to.be.undefined;
+
+        const expectedConfig = HypTokenRouterConfigSchema.parse({
+          ...actualConfig,
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            maxFee: 1000000000,
+            halfAmount: 500000000,
+          },
+        });
+
+        const txs = await warpModule.update(expectedConfig);
+        const setFeeRecipientTxs = txs.filter((tx) =>
+          tx.data?.startsWith(SET_FEE_RECIPIENT_SELECTOR),
+        );
+        expect(setFeeRecipientTxs.length).to.equal(1);
+        await sendTxs(txs);
+
+        const updatedConfig = await warpModule.read();
+        expect(updatedConfig.tokenFee?.type).to.equal(TokenFeeType.LinearFee);
+      });
+
+      it('should update the fee on an xERC20 route', async () => {
+        const { warpModule } = await deployXERC20Route();
+
+        const actualConfig = await warpModule.read();
+        const firstFeeConfig = HypTokenRouterConfigSchema.parse({
+          ...actualConfig,
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            maxFee: 1000000000,
+            halfAmount: 500000000,
+          },
+        });
+        await sendTxs(await warpModule.update(firstFeeConfig));
+
+        const afterFirst = await warpModule.read();
+        assert(
+          afterFirst.tokenFee?.type === TokenFeeType.LinearFee,
+          'LinearFee',
+        );
+
+        const secondFeeConfig = HypTokenRouterConfigSchema.parse({
+          ...afterFirst,
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            maxFee: 2000000000,
+            halfAmount: 1000000000,
+          },
+        });
+
+        const txs = await warpModule.update(secondFeeConfig);
+        // Immutable fee contract is redeployed on change, so the router must be
+        // repointed at the new fee contract via setFeeRecipient.
+        const setFeeRecipientTxs = txs.filter((tx) =>
+          tx.data?.startsWith(SET_FEE_RECIPIENT_SELECTOR),
+        );
+        expect(setFeeRecipientTxs.length).to.equal(1);
+        await sendTxs(txs);
+
+        const finalConfig = await warpModule.read();
+        expect(finalConfig.tokenFee?.type).to.equal(TokenFeeType.LinearFee);
+      });
+
+      it('should set and update OffchainQuotedLinearFee on an xERC20 route', async () => {
+        const { warpModule } = await deployXERC20Route();
+        const signerAddress = await xerc20MultiProvider.getSignerAddress(chain);
+
+        const actualConfig = await warpModule.read();
+        const expectedConfig = HypTokenRouterConfigSchema.parse({
+          ...actualConfig,
+          tokenFee: {
+            type: TokenFeeType.OffchainQuotedLinearFee,
+            maxFee: 1000000000,
+            halfAmount: 500000000,
+            quoteSigners: [signerAddress],
+          },
+        });
+        await sendTxs(await warpModule.update(expectedConfig));
+
+        const updatedConfig = await warpModule.read();
+        expect(updatedConfig.tokenFee?.type).to.equal(
+          TokenFeeType.OffchainQuotedLinearFee,
+        );
+
+        const [, otherSigner] = await hre.ethers.getSigners();
+        const updatedFeeConfig = HypTokenRouterConfigSchema.parse({
+          ...updatedConfig,
+          tokenFee: {
+            type: TokenFeeType.OffchainQuotedLinearFee,
+            maxFee: 1000000000,
+            halfAmount: 500000000,
+            quoteSigners: [signerAddress, otherSigner.address],
+          },
+        });
+        const signerUpdateTxs = await warpModule.update(updatedFeeConfig);
+        // Only add the new signer; fee contract address is unchanged so no
+        // setFeeRecipient tx.
+        expect(signerUpdateTxs.length).to.equal(1);
+        await sendTxs(signerUpdateTxs);
+
+        const finalConfig = await warpModule.read();
+        assert(
+          finalConfig.tokenFee?.type === TokenFeeType.OffchainQuotedLinearFee,
+          'OffchainQuotedLinearFee',
+        );
+        expect(finalConfig.tokenFee.quoteSigners).to.have.lengthOf(2);
+      });
     });
 
     it('clears orphan CCR fee pointer without explicit tokenReaderParams (CLI path)', async () => {

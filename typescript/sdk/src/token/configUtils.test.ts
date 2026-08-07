@@ -1,12 +1,12 @@
 import { expect } from 'chai';
-import { constants } from 'ethers';
+import { constants, providers } from 'ethers';
+import sinon from 'sinon';
 
+import { HypXERC20Lockbox__factory } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
 import {
   DEFAULT_ROUTER_KEY,
-  ResolvedCrossCollateralRoutingFeeConfigInput,
-  ResolvedLinearFeeConfigInput,
   ResolvedRoutingFeeConfigInput,
   TokenFeeType,
 } from '../fee/types.js';
@@ -623,6 +623,22 @@ describe('configUtils', () => {
     const ROUTER_ADDRESS = '0x1234567890123456789012345678901234567890';
     const OWNER_ADDRESS = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd';
     const COLLATERAL_TOKEN = '0x9999999999999999999999999999999999999999';
+    // The lockbox's on-chain token() returns the underlying wrapped ERC20,
+    // which is distinct from the lockbox address stored in tokenConfig.token.
+    const LOCKBOX_ADDRESS = '0x8888888888888888888888888888888888888888';
+    const LOCKBOX_WRAPPED_TOKEN = '0x7777777777777777777777777777777777777777';
+
+    let sandbox: sinon.SinonSandbox;
+    let provider: providers.Provider;
+
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+      provider = buildMultiProvider().getProvider(test1.name);
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
 
     const syntheticConfig: HypTokenConfig = {
       type: TokenType.synthetic,
@@ -637,56 +653,116 @@ describe('configUtils', () => {
       type: TokenType.native,
     };
 
-    it('should resolve token to router address for synthetic tokens', () => {
+    const xerc20Config: HypTokenConfig = {
+      type: TokenType.XERC20,
+      token: COLLATERAL_TOKEN,
+    };
+
+    const xerc20LockboxConfig: HypTokenConfig = {
+      type: TokenType.XERC20Lockbox,
+      token: LOCKBOX_ADDRESS,
+    };
+
+    it('should resolve token to router address for synthetic tokens', async () => {
       const input = {
         type: TokenFeeType.LinearFee,
         owner: OWNER_ADDRESS,
         bps: 100,
       };
 
-      const result = resolveTokenFeeAddress(
+      const result = await resolveTokenFeeAddress(
         input,
         ROUTER_ADDRESS,
         syntheticConfig,
-      ) as ResolvedLinearFeeConfigInput;
+        provider,
+      );
 
+      assert(result.type === TokenFeeType.LinearFee, 'expected a LinearFee');
       expect(result.token).to.equal(ROUTER_ADDRESS);
       expect(result.owner).to.equal(OWNER_ADDRESS);
     });
 
-    it('should resolve token to collateral address for collateral tokens', () => {
+    it('should resolve token to collateral address for collateral tokens', async () => {
       const input = {
         type: TokenFeeType.LinearFee,
         owner: OWNER_ADDRESS,
         bps: 100,
       };
 
-      const result = resolveTokenFeeAddress(
+      const result = await resolveTokenFeeAddress(
         input,
         ROUTER_ADDRESS,
         collateralConfig,
-      ) as ResolvedLinearFeeConfigInput;
+        provider,
+      );
 
+      assert(result.type === TokenFeeType.LinearFee, 'expected a LinearFee');
       expect(result.token).to.equal(COLLATERAL_TOKEN);
     });
 
-    it('should resolve token to AddressZero for native tokens', () => {
+    it('should resolve token to AddressZero for native tokens', async () => {
       const input = {
         type: TokenFeeType.LinearFee,
         owner: OWNER_ADDRESS,
         bps: 100,
       };
 
-      const result = resolveTokenFeeAddress(
+      const result = await resolveTokenFeeAddress(
         input,
         ROUTER_ADDRESS,
         nativeConfig,
-      ) as ResolvedLinearFeeConfigInput;
+        provider,
+      );
 
+      assert(result.type === TokenFeeType.LinearFee, 'expected a LinearFee');
       expect(result.token).to.equal(constants.AddressZero);
     });
 
-    it('should resolve nested feeContracts tokens for RoutingFee', () => {
+    it('should resolve token to the xERC20 token address for xERC20 tokens', async () => {
+      const input = {
+        type: TokenFeeType.LinearFee,
+        owner: OWNER_ADDRESS,
+        bps: 100,
+      };
+
+      const result = await resolveTokenFeeAddress(
+        input,
+        ROUTER_ADDRESS,
+        xerc20Config,
+        provider,
+      );
+
+      assert(result.type === TokenFeeType.LinearFee, 'expected a LinearFee');
+      expect(result.token).to.equal(COLLATERAL_TOKEN);
+    });
+
+    it('should resolve token to the on-chain wrapped token for xERC20Lockbox tokens', async () => {
+      // For a lockbox, the fee token must match the router's token() (the
+      // underlying wrapped ERC20), NOT the lockbox address in the config.
+      const tokenStub = sandbox.stub().resolves(LOCKBOX_WRAPPED_TOKEN);
+      sandbox.stub(HypXERC20Lockbox__factory, 'connect').returns({
+        token: tokenStub,
+      } as any);
+
+      const input = {
+        type: TokenFeeType.LinearFee,
+        owner: OWNER_ADDRESS,
+        bps: 100,
+      };
+
+      const result = await resolveTokenFeeAddress(
+        input,
+        ROUTER_ADDRESS,
+        xerc20LockboxConfig,
+        provider,
+      );
+
+      assert(result.type === TokenFeeType.LinearFee, 'expected a LinearFee');
+      expect(result.token).to.equal(LOCKBOX_WRAPPED_TOKEN);
+      expect(result.token).to.not.equal(LOCKBOX_ADDRESS);
+    });
+
+    it('should resolve nested feeContracts tokens for RoutingFee', async () => {
       const input = {
         type: TokenFeeType.RoutingFee,
         owner: OWNER_ADDRESS,
@@ -704,37 +780,38 @@ describe('configUtils', () => {
         },
       };
 
-      const result = resolveTokenFeeAddress(
+      const result = await resolveTokenFeeAddress(
         input,
         ROUTER_ADDRESS,
         syntheticConfig,
-      ) as ResolvedRoutingFeeConfigInput;
+        provider,
+      );
 
+      assert(result.type === TokenFeeType.RoutingFee, 'expected a RoutingFee');
       expect(result.token).to.equal(ROUTER_ADDRESS);
-      expect(result.type).to.equal(TokenFeeType.RoutingFee);
-
       expect(result.feeContracts.ethereum.token).to.equal(ROUTER_ADDRESS);
       expect(result.feeContracts.arbitrum.token).to.equal(ROUTER_ADDRESS);
     });
 
-    it('should handle RoutingFee with empty feeContracts', () => {
+    it('should handle RoutingFee with empty feeContracts', async () => {
       const input = {
         type: TokenFeeType.RoutingFee,
         owner: OWNER_ADDRESS,
         feeContracts: {},
       };
 
-      const result = resolveTokenFeeAddress(
+      const result = await resolveTokenFeeAddress(
         input,
         ROUTER_ADDRESS,
         syntheticConfig,
-      ) as ResolvedRoutingFeeConfigInput;
+        provider,
+      );
 
+      assert(result.type === TokenFeeType.RoutingFee, 'expected a RoutingFee');
       expect(result.token).to.equal(ROUTER_ADDRESS);
-      expect(result.type).to.equal(TokenFeeType.RoutingFee);
     });
 
-    it('should resolve token for nested cross collateral feeContracts', () => {
+    it('should resolve token for nested cross collateral feeContracts', async () => {
       const ROUTER_KEY =
         '0x1111111111111111111111111111111111111111111111111111111111111111';
       const input = {
@@ -756,12 +833,17 @@ describe('configUtils', () => {
         },
       };
 
-      const result = resolveTokenFeeAddress(
+      const result = await resolveTokenFeeAddress(
         input,
         ROUTER_ADDRESS,
         syntheticConfig,
-      ) as ResolvedCrossCollateralRoutingFeeConfigInput;
+        provider,
+      );
 
+      assert(
+        result.type === TokenFeeType.CrossCollateralRoutingFee,
+        'expected a CrossCollateralRoutingFee',
+      );
       expect(result.feeContracts.ethereum[DEFAULT_ROUTER_KEY]?.token).to.equal(
         ROUTER_ADDRESS,
       );
