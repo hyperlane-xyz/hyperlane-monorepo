@@ -241,6 +241,16 @@ export class EvmWarpRouteReader extends EvmRouterReader {
           remoteRouters: {},
         }
       : await this.readRouterConfig(warpRouteAddress);
+    // ALRB is a bare ITokenBridge adapter rather than a TokenRouter. Its full
+    // readable surface is covered by tokenConfig plus the sentinel router
+    // fields above, so avoid probing proxy, fee, hook, and destination-gas
+    // interfaces that it intentionally does not implement.
+    if (isAtomicLocalRebalancing) {
+      return {
+        ...routerConfig,
+        ...tokenConfig,
+      };
+    }
     // if the token has not been deployed as a proxy do not derive the config
     // inevm warp routes are an example
     const proxyAdmin = (await isProxy(this.provider, warpRouteAddress))

@@ -34,6 +34,7 @@ import { TestChainName } from '../consts/testChains.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
+import { executeWarpDeploy } from '../deploy/warp.js';
 import { TokenFeeType } from '../fee/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import {
@@ -250,6 +251,40 @@ describe('TokenDeployer', async () => {
       true,
     );
     expect(checkResult.violations).to.deep.equal([]);
+  });
+
+  it('transfers an atomic local rebalancing bridge to its configured owner through executeWarpDeploy', async () => {
+    const bridgeOwner = ethers.Wallet.createRandom().address;
+    const sourceRouter = await new CrossCollateralRouter__factory(
+      signer,
+    ).deploy(erc20.address, 1, 1, config[chain].mailbox);
+    await sourceRouter.initialize(
+      ethers.constants.AddressZero,
+      ethers.constants.AddressZero,
+      signer.address,
+    );
+    const atomicConfig: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...config[chain],
+        type: TokenType.atomicLocalRebalancing,
+        sourceRouter: sourceRouter.address,
+        owner: bridgeOwner,
+      },
+    };
+
+    const deployedContracts = await executeWarpDeploy(
+      atomicConfig,
+      multiProvider,
+      {},
+      { [chain]: coreApp.getAddresses(chain) },
+      {},
+    );
+    const bridge = AtomicLocalRebalancingBridge__factory.connect(
+      deployedContracts[chain],
+      signer,
+    );
+
+    expect(await bridge.owner()).to.equal(bridgeOwner);
   });
 
   it('deploys mixed deposit-address and router configs', async () => {
