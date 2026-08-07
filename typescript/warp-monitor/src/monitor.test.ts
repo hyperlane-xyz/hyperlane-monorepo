@@ -13,7 +13,7 @@ import {
   resetPendingDestinationMetrics,
   metricsRegister,
 } from './metrics.js';
-import { WarpMonitor } from './monitor.js';
+import { WarpMonitor, updatePendingAndInventoryMetrics } from './monitor.js';
 
 function createMockToken({
   collateralized,
@@ -36,7 +36,7 @@ function createMockToken({
 }
 
 async function invokeUpdatePendingAndInventoryMetrics(
-  monitor: WarpMonitor,
+  _monitor: WarpMonitor,
   warpCore: WarpCore,
   routerNodes: RouterNodeMetadata[],
   collateralByNodeId: Map<string, bigint>,
@@ -45,19 +45,7 @@ async function invokeUpdatePendingAndInventoryMetrics(
   explorerQueryLimit?: number,
   inventoryAddress?: string,
 ) {
-  const updatePendingAndInventoryMetrics = (monitor as any)
-    .updatePendingAndInventoryMetrics as (
-    warpCore: WarpCore,
-    routerNodes: RouterNodeMetadata[],
-    collateralByNodeId: Map<string, bigint>,
-    warpRouteId: string,
-    pendingTransfersClient?: ExplorerPendingTransfersClient,
-    explorerQueryLimit?: number,
-    inventoryAddress?: string,
-  ) => Promise<void>;
-
-  await updatePendingAndInventoryMetrics.call(
-    monitor,
+  await updatePendingAndInventoryMetrics(
     warpCore,
     routerNodes,
     collateralByNodeId,
