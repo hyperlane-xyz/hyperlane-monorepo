@@ -71,7 +71,7 @@ const usdtDecimals = {
   tron: 6,
 } as const;
 
-// ENI's collateral routers use route-specific TokenBridgeDepositAddress
+// ENI's collateral routers use route-specific TokenBridgeCctpV2
 // adapters for the fast CCTP path instead of the fast warp-router addresses.
 const eniUsdcFastCctpAdapters = {
   arbitrum: '0xb0B8D4C6EF212D76d5079df5Ff7A0888A27e9b32',
