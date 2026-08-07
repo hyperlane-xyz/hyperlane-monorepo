@@ -4,6 +4,7 @@ import { ethers } from 'ethers';
 import hre from 'hardhat';
 
 import {
+  AtomicLocalRebalancingBridge__factory,
   ERC20Test,
   ERC20Test__factory,
   GasRouter__factory,
@@ -190,6 +191,32 @@ describe('TokenDeployer', async () => {
         },
       },
     });
+  });
+
+  it('deploys an atomic local rebalancing bridge with its immutable source and configured owner', async () => {
+    const bridgeOwner = ethers.Wallet.createRandom().address;
+    const atomicConfig: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...config[chain],
+        type: TokenType.atomicLocalRebalancing,
+        sourceRouter: erc20.address,
+        owner: bridgeOwner,
+      },
+    };
+
+    const contracts = await deployer.deploy(atomicConfig);
+    const bridgeAddress =
+      contracts[chain][TokenType.atomicLocalRebalancing].address;
+    const bridge = AtomicLocalRebalancingBridge__factory.connect(
+      bridgeAddress,
+      signer,
+    );
+
+    expect(await bridge.localDomain()).to.equal(
+      multiProvider.getDomainId(chain),
+    );
+    expect(await bridge.allowedSourceRouter()).to.equal(erc20.address);
+    expect(await bridge.owner()).to.equal(bridgeOwner);
   });
 
   it('deploys mixed deposit-address and router configs', async () => {
