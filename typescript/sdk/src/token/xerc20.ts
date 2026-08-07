@@ -8,14 +8,10 @@ import {
 } from '@hyperlane-xyz/core';
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
-import {
-  getContractDeploymentTransaction,
-  getLogsFromEtherscanLikeExplorerAPI,
-} from '../block-explorer/etherscan.js';
 import { isContractAddress } from '../contracts/contracts.js';
 import { isProxy, proxyImplementation } from '../deploy/proxy.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { GetEventLogsResponse } from '../rpc/evm/types.js';
+import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { throwIfNotMissingSelector } from '../utils/contract.js';
@@ -78,12 +74,15 @@ export async function getExtraLockBoxConfigs({
     return [];
   }
 
-  const logs = await getConfigurationChangedLogsFromExplorerApi({
-    chain,
+  // Read through the shared reader so this gets the same treatment as every
+  // other explorer log consumer: a paginated walk, an RPC re-read of the recent
+  // window the explorer may not have indexed, and an RPC fallback.
+  const logs = await EvmEventLogsReader.fromConfig(
+    { chain },
     multiProvider,
-    xERC20Address,
-    explorerUrl: explorer.apiUrl,
-    apiKey: explorer.apiKey,
+  ).getLogsByTopic({
+    contractAddress: xERC20Address,
+    eventTopic: CONFIGURATION_CHANGED_EVENT_SELECTOR,
   });
 
   const viemLogs = logs.map(viemLogFromGetEventLogsResponse);
@@ -92,39 +91,6 @@ export async function getExtraLockBoxConfigs({
     multiProvider.getProvider(chain),
     chain,
     logger,
-  );
-}
-
-async function getConfigurationChangedLogsFromExplorerApi({
-  xERC20Address,
-  chain,
-  multiProvider,
-  explorerUrl,
-  apiKey,
-}: GetExtraLockboxesOptions): Promise<Array<GetEventLogsResponse>> {
-  const contractDeploymentTx = await getContractDeploymentTransaction(
-    { apiUrl: explorerUrl, apiKey },
-    { contractAddress: xERC20Address },
-  );
-
-  const provider = multiProvider.getProvider(chain);
-  const [currentBlockNumber, deploymentTransactionReceipt] = await Promise.all([
-    provider.getBlockNumber(),
-    provider.getTransactionReceipt(contractDeploymentTx.txHash),
-  ]);
-  assert(
-    deploymentTransactionReceipt?.blockNumber != null,
-    `No deployment receipt block number for xERC20 ${xERC20Address} on ${chain}`,
-  );
-
-  return getLogsFromEtherscanLikeExplorerAPI(
-    { apiUrl: explorerUrl, apiKey },
-    {
-      address: xERC20Address,
-      fromBlock: deploymentTransactionReceipt.blockNumber,
-      toBlock: currentBlockNumber,
-      topic0: CONFIGURATION_CHANGED_EVENT_SELECTOR,
-    },
   );
 }
 
