@@ -3,6 +3,18 @@ pragma solidity >=0.8.0;
 
 import {BaseFee, FeeType} from "./BaseFee.sol";
 
+library CappedLinearFeeMath {
+    function compute(
+        uint256 maxFee,
+        uint256 halfAmount,
+        uint256 amount
+    ) internal pure returns (uint256) {
+        if (maxFee == 0 || halfAmount == 0) return 0;
+        uint256 uncapped = (amount * maxFee) / (2 * halfAmount);
+        return uncapped > maxFee ? maxFee : uncapped;
+    }
+}
+
 /**
  * @title Linear Fee Structure
  * @dev Implements a linear fee model where the fee increases linearly with the transfer amount, up to a maximum cap.
@@ -40,9 +52,7 @@ contract LinearFee is BaseFee {
         uint256 halfAmount_,
         uint256 amount
     ) internal pure returns (uint256) {
-        if (maxFee_ == 0 || halfAmount_ == 0) return 0;
-        uint256 uncapped = (amount * maxFee_) / (2 * halfAmount_);
-        return uncapped > maxFee_ ? maxFee_ : uncapped;
+        return CappedLinearFeeMath.compute(maxFee_, halfAmount_, amount);
     }
 
     function feeType() external pure virtual override returns (FeeType) {

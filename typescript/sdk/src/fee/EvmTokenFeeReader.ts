@@ -36,7 +36,11 @@ import {
 } from './crossCollateralUtils.js';
 import { bpsToRawFeeParams } from '@hyperlane-xyz/provider-sdk/fee';
 
-import { ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY, convertToBps } from './utils.js';
+import {
+  ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY,
+  BPS_PRECISION,
+  convertToBps,
+} from './utils.js';
 
 export type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
 type DerivedCrossCollateralFeeContracts = Record<
@@ -178,29 +182,31 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       address,
       this.provider,
     );
-    const [token, owner, maxFee, halfAmount, maxBands, quoteSigners] =
+    const [token, owner, fallbackCurve, maxBands, quoteSigners] =
       await Promise.all([
         tokenFee.token(),
         tokenFee.owner(),
-        tokenFee.maxFee(),
-        tokenFee.halfAmount(),
+        tokenFee.getFallbackCurve(),
         tokenFee.maxBands(),
         tokenFee.quoteSigners(),
       ]);
-    const maxFeeBn = BigInt(maxFee.toString());
-    const halfAmountBn = BigInt(halfAmount.toString());
-    const bps = convertToBps(maxFeeBn, halfAmountBn);
 
     return {
       type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
-      maxFee: maxFeeBn,
-      halfAmount: halfAmountBn,
       maxBands,
       address,
-      bps,
       token,
       owner,
       quoteSigners: [...quoteSigners],
+      fallbackCurve: {
+        breakpoints: fallbackCurve.breakpoints.map((breakpoint) =>
+          BigInt(breakpoint.toString()),
+        ),
+        marginalBps: fallbackCurve.marginalBpsX1e4.map(
+          (marginalBps) => Number(marginalBps) / Number(BPS_PRECISION),
+        ),
+        issuedAt: Number(fallbackCurve.issuedAt),
+      },
     };
   }
 

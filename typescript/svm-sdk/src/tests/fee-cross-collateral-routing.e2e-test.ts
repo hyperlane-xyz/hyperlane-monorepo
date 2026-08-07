@@ -254,9 +254,9 @@ describe('SVM Cross-Collateral Routing Fee E2E Tests', function () {
       DEFAULT_FEE_SALT,
     );
     const readResult = await reader.read(deployed.deployed.programId);
-    expect(readResult.config.routes[10]?.[ROUTER_A]?.params.maxFee).to.equal(
-      '9999',
-    );
+    const route = readResult.config.routes[10]?.[ROUTER_A];
+    assert(route?.type === FeeStrategyType.linear, 'Expected linear route');
+    expect(route.params.maxFee).to.equal('9999');
   });
 
   it('should change CC route strategy type', async () => {

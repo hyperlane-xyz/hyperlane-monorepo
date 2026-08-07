@@ -376,8 +376,13 @@ export class EvmQuoteService implements IProtocolQuoteService {
       feeQuoter.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee &&
       binding.kind === QuoteMode.STANDING
         ? encodeAbiParameters(
-            [{ type: 'uint128[]' }, { type: 'uint32[]' }],
-            [[], [0]],
+            [
+              { type: 'uint128[]' },
+              { type: 'uint32[]' },
+              { type: 'uint32' },
+              { type: 'uint32[]' },
+            ],
+            [[], [0], binding.ttlSeconds, [0]],
           )
         : encodePacked(
             ['uint256', 'uint256'],

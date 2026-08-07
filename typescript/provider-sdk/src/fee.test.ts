@@ -44,6 +44,11 @@ const rawParams = (maxFee: string, halfAmount: string): FeeParams => ({
   halfAmount,
 });
 
+const initialFallback = {
+  breakpoints: ['100000', '250000'],
+  marginalBps: [4, 10, 20],
+};
+
 describe('fee type support', () => {
   describe('feeConfigToArtifact', () => {
     it('passes through linear fee config unchanged', () => {
@@ -227,6 +232,40 @@ describe('fee type support', () => {
         maxFee: 1000n,
         halfAmount: 500n,
         bps: 10000,
+        address: '0xfee',
+      });
+    });
+
+    it('derives the piecewise fallback without linear fee params', () => {
+      const derived = feeArtifactToDerivedConfig(
+        {
+          artifactState: ArtifactState.DEPLOYED,
+          config: {
+            type: FeeType.offchainQuotedPiecewiseLinear,
+            owner: '0xowner',
+            beneficiary: '0xbeneficiary',
+            quoteSigners: ['0xsigner'],
+            maxBands: 4,
+            initialFallback,
+          },
+          deployed: { address: '0xfee' },
+        },
+        chainLookup,
+        TOKEN,
+      );
+
+      expect(derived).to.deep.equal({
+        type: FeeType.offchainQuotedPiecewiseLinear,
+        token: TOKEN,
+        owner: '0xowner',
+        beneficiary: '0xbeneficiary',
+        quoteSigners: ['0xsigner'],
+        maxBands: 4,
+        fallbackCurve: {
+          breakpoints: [100000n, 250000n],
+          marginalBps: [4, 10, 20],
+          issuedAt: 0,
+        },
         address: '0xfee',
       });
     });
@@ -704,17 +743,17 @@ describe('fee type support', () => {
           type: FeeType.offchainQuotedPiecewiseLinear,
           owner: '0xowner',
           beneficiary: '0xbeneficiary',
-          params: rawParams('1000', '500'),
           quoteSigners: ['0xsigner1'],
           maxBands: 4,
+          initialFallback,
         },
         expected: {
           type: FeeType.offchainQuotedPiecewiseLinear,
           owner: '0xowner',
           beneficiary: '0xbeneficiary',
-          params: rawParams('1000', '500'),
           quoteSigners: ['0xsigner1'],
           maxBands: 8,
+          initialFallback,
         },
         redeploy: true,
       },
@@ -724,19 +763,61 @@ describe('fee type support', () => {
           type: FeeType.offchainQuotedPiecewiseLinear,
           owner: '0xowner',
           beneficiary: '0xbeneficiary',
-          params: rawParams('1000', '500'),
           quoteSigners: ['0xsigner1'],
           maxBands: 4,
+          initialFallback,
         },
         expected: {
           type: FeeType.offchainQuotedPiecewiseLinear,
           owner: '0xowner',
           beneficiary: '0xbeneficiary',
-          params: rawParams('1000', '500'),
           quoteSigners: ['0xsigner1', '0xsigner2'],
           maxBands: 4,
+          initialFallback,
         },
         redeploy: false,
+      },
+      {
+        name: 'does not redeploy offchainQuotedPiecewiseLinear when only the fallback changes',
+        actual: {
+          type: FeeType.offchainQuotedPiecewiseLinear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          quoteSigners: ['0xsigner1'],
+          maxBands: 4,
+          initialFallback,
+        },
+        expected: {
+          type: FeeType.offchainQuotedPiecewiseLinear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          quoteSigners: ['0xsigner1'],
+          maxBands: 4,
+          initialFallback: { breakpoints: [], marginalBps: [25] },
+        },
+        redeploy: false,
+      },
+      {
+        name: 'redeploys offchainQuotedPiecewiseLinear when the token changes',
+        actual: {
+          type: FeeType.offchainQuotedPiecewiseLinear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          token: '0xtoken1',
+          quoteSigners: ['0xsigner1'],
+          maxBands: 4,
+          initialFallback,
+        },
+        expected: {
+          type: FeeType.offchainQuotedPiecewiseLinear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          token: '0xtoken2',
+          quoteSigners: ['0xsigner1'],
+          maxBands: 4,
+          initialFallback,
+        },
+        redeploy: true,
       },
     ];
 
