@@ -197,10 +197,7 @@ describe('Moonpay staging fee topology', () => {
     expect(piecewise.quoteSigners).to.deep.equal(QUOTE_SIGNERS);
     expect(piecewise.maxBands).to.equal(4);
     expect(piecewise.initialFallback).to.deep.equal({
-      breakpoints: [
-        100_000_000_000_000_000_000_000n,
-        250_000_000_000_000_000_000_000n,
-      ],
+      breakpoints: [250_000_000_000_000_000n, 750_000_000_000_000_000n],
       marginalBps: [4, 10, 20],
     });
 

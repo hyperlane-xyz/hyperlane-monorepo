@@ -47,10 +47,7 @@ const STAGING_ROUTE_IDS = [
 const INITIAL_FALLBACK = {
   // BSC USDT is locally 18 decimals, and fees are quoted against the source
   // amount before the router applies its 1e12 scale-down for the 6-decimal wire amount.
-  breakpoints: [
-    100_000_000_000_000_000_000_000n,
-    250_000_000_000_000_000_000_000n,
-  ],
+  breakpoints: [250_000_000_000_000_000n, 750_000_000_000_000_000n],
   marginalBps: [4, 10, 20],
 };
 

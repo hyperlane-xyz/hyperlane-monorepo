@@ -26,9 +26,9 @@ contract MoonpayPiecewiseFeeForkTest is Test {
     address internal constant USER = address(0xBEEF);
 
     uint256 internal constant QUOTE_SIGNER_PK = 0xA11CE;
-    uint256 internal constant TRANSFER_AMOUNT = 10e18;
-    uint256 internal constant FIRST_BREAKPOINT = 100_000e18;
-    uint256 internal constant SECOND_BREAKPOINT = 250_000e18;
+    uint256 internal constant TRANSFER_AMOUNT = 1e18;
+    uint256 internal constant FIRST_BREAKPOINT = 250_000_000_000_000_000;
+    uint256 internal constant SECOND_BREAKPOINT = 750_000_000_000_000_000;
 
     CrossCollateralRouter internal router;
     IERC20 internal usdt;
@@ -103,19 +103,36 @@ contract MoonpayPiecewiseFeeForkTest is Test {
         bytes32 recipient = USER.addressToBytes32();
 
         assertEq(router.feeRecipient(), address(routingFee));
-        assertEq(_targetFee(recipient, targetRouter), 4e15, "fallback fee");
+        assertGt(TRANSFER_AMOUNT, SECOND_BREAKPOINT, "must cross all bands");
+        assertEq(
+            _targetFee(recipient, targetRouter),
+            1_100_000_000_000_000,
+            "weighted fallback fee"
+        );
 
         uint48 issuedAt = uint48(block.timestamp);
         _submitStandingCurve(issuedAt, issuedAt + 60);
-        assertEq(_targetFee(recipient, targetRouter), 2e15, "fresh fee");
+        assertEq(
+            _targetFee(recipient, targetRouter),
+            650_000_000_000_000,
+            "weighted fresh fee"
+        );
 
         _assertFreshTransferChargesRoutingRoot(recipient, targetRouter);
 
         vm.warp(issuedAt + 12);
-        assertEq(_targetFee(recipient, targetRouter), 4e15, "stale fee");
+        assertEq(
+            _targetFee(recipient, targetRouter),
+            1_100_000_000_000_000,
+            "weighted stale fee"
+        );
 
         vm.warp(issuedAt + 61);
-        assertEq(_targetFee(recipient, targetRouter), 4e15, "expired fallback");
+        assertEq(
+            _targetFee(recipient, targetRouter),
+            1_100_000_000_000_000,
+            "weighted expired fallback"
+        );
 
         Quote[] memory primaryQuotes = router.quoteTransferRemote(
             ARBITRUM_DOMAIN,
@@ -124,7 +141,7 @@ contract MoonpayPiecewiseFeeForkTest is Test {
         );
         assertEq(
             primaryQuotes[1].amount - TRANSFER_AMOUNT,
-            3e15,
+            300_000_000_000_000,
             "primary USDT route uses 3 bps default"
         );
     }
@@ -164,7 +181,7 @@ contract MoonpayPiecewiseFeeForkTest is Test {
         }(ARBITRUM_DOMAIN, recipient, TRANSFER_AMOUNT, targetRouter);
         vm.stopPrank();
 
-        assertEq(usdt.balanceOf(address(routingFee)), 2e15);
+        assertEq(usdt.balanceOf(address(routingFee)), 650_000_000_000_000);
         assertEq(usdt.balanceOf(address(piecewiseFee)), 0);
     }
 

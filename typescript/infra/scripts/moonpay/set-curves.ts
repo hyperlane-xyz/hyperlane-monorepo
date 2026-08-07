@@ -18,6 +18,14 @@ import {
   resolveGcpKey,
 } from './oqlf-lib.js';
 import {
+  STAGING_ARBITRUM_USDC_ROUTER,
+  STAGING_BSC_USDT_ROUTER,
+} from './deploy-staging-piecewise-fee-lib.js';
+import {
+  STAGING_LIFECYCLE_LANE_ID,
+  withStagingLifecycleRoutes,
+} from './piecewise-fee-lifecycle-lib.js';
+import {
   EvmLaneOnchainReader,
   type LaneRegistry,
   deduplicatePreparedUpdates,
@@ -86,7 +94,13 @@ async function main(): Promise<void> {
         prepareLaneUpdate(
           lane,
           await discoverPiecewiseLane(
-            registry as unknown as LaneRegistry,
+            lane.id === STAGING_LIFECYCLE_LANE_ID
+              ? withStagingLifecycleRoutes(
+                  registry as unknown as LaneRegistry,
+                  STAGING_BSC_USDT_ROUTER,
+                  STAGING_ARBITRUM_USDC_ROUTER,
+                )
+              : (registry as unknown as LaneRegistry),
             reader,
             lane,
           ),

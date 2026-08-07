@@ -214,6 +214,19 @@ function expectedCurveForPhase(
   return fallbackCurve;
 }
 
+function assertTransferCrossesEveryBand(
+  label: string,
+  curve: MaterializedCurve,
+): void {
+  const finalBreakpoint = curve.breakpoints.at(-1);
+  assert(
+    curve.breakpoints.length >= 2 &&
+      finalBreakpoint !== undefined &&
+      STAGING_TRANSFER_AMOUNT > finalBreakpoint,
+    `${label} must have at least two breakpoints below the 1e18 lifecycle transfer`,
+  );
+}
+
 function assertPhaseTimestamp(
   phase: LifecyclePhase,
   timestamp: number,
@@ -287,6 +300,8 @@ export async function runStagingLifecycle(
   options: LifecycleOptions,
 ): Promise<LifecyclePhaseResult[]> {
   assertStagingLifecycleLane(options.slot);
+  assertTransferCrossesEveryBand('fallback curve', options.fallbackCurve);
+  assertTransferCrossesEveryBand('standing curve', options.standingCurve);
   await options.dependencies.verifyFallback();
   const [timestamp, currentTiming, currentQuote] = await Promise.all([
     options.dependencies.getBlockTimestamp(),
