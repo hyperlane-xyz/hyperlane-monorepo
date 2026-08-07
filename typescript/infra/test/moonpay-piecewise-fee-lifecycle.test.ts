@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 
 import type {
+  LaneRegistry,
   MaterializedCurve,
   MaterializedStandingCurve,
   PiecewiseLaneSlot,
@@ -17,6 +18,7 @@ import {
   computePiecewiseFee,
   pollForBlockTimestamp,
   runStagingLifecycle,
+  withStagingLifecycleRoutes,
 } from '../scripts/moonpay/piecewise-fee-lifecycle-lib.js';
 
 const SOURCE_ROUTER = '0x1111111111111111111111111111111111111111';
@@ -155,6 +157,42 @@ function lifecycleDependencies(options: {
 }
 
 describe('Moonpay piecewise staging lifecycle', () => {
+  it('supplies exact private staging routes without relying on registry records', async () => {
+    const delegated: string[] = [];
+    const baseRegistry: LaneRegistry = {
+      getWarpRoute: async (routeId) => {
+        delegated.push(routeId);
+        return { tokens: [] };
+      },
+    };
+    const registry = withStagingLifecycleRoutes(
+      baseRegistry,
+      SOURCE_ROUTER,
+      TARGET_ROUTER,
+    );
+
+    expect(await registry.getWarpRoute('USDT/moonpay-staging')).to.deep.equal({
+      tokens: [
+        {
+          chainName: 'bsc',
+          addressOrDenom: SOURCE_ROUTER,
+          symbol: 'USDT',
+        },
+      ],
+    });
+    expect(await registry.getWarpRoute('USDC/moonpay-staging')).to.deep.equal({
+      tokens: [
+        {
+          chainName: 'arbitrum',
+          addressOrDenom: TARGET_ROUTER,
+          symbol: 'USDC',
+        },
+      ],
+    });
+    await registry.getWarpRoute('unrelated/route');
+    expect(delegated).to.deep.equal(['unrelated/route']);
+  });
+
   it('locks the lifecycle to the exact lane, decimals, and router confirmations', () => {
     expect(() => assertStagingLifecycleLane(slot())).not.to.throw();
     expect(() =>
