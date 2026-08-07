@@ -98,8 +98,12 @@ manifest:
 
 ```bash
 pnpm tsx scripts/moonpay/build-production-piecewise-apply-config.ts \
-  --output /tmp/moonpay-production-piecewise-apply
+  --output /tmp/moonpay-production-piecewise-apply \
+  --rpc-url "$RPC_URL_BSC"
 ```
+
+`--rpc-url` is optional; when supplied, the builder also writes that endpoint
+into the generated BSC metadata so `warp fork` uses the same verified RPC.
 
 The builder fails closed unless the router still points at the guarded fee
 root and all seven target leaves are the expected 3 bps

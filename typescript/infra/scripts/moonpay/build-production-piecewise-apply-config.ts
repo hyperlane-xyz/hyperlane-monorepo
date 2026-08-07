@@ -36,13 +36,18 @@ import {
 const DEFAULT_OUTPUT = '/tmp/moonpay-production-piecewise-apply';
 
 async function main(): Promise<void> {
-  const { output } = await yargs(process.argv.slice(2))
+  const { output, rpcUrl } = await yargs(process.argv.slice(2))
     .strict()
     .option('output', {
       alias: 'o',
       type: 'string',
       default: DEFAULT_OUTPUT,
       describe: 'Local directory for the BSC-only registry and manifest',
+    })
+    .option('rpc-url', {
+      type: 'string',
+      describe:
+        'BSC RPC URL override used for the read and emitted fork metadata',
     })
     .parseAsync();
 
@@ -55,10 +60,13 @@ async function main(): Promise<void> {
   const addresses = getChainAddresses();
   assert(metadata.bsc, 'BSC metadata is missing from the registry');
   assert(addresses.bsc?.mailbox, 'BSC addresses are missing from the registry');
+  const bscMetadata = rpcUrl
+    ? { ...metadata.bsc, rpcUrls: [{ http: rpcUrl }] }
+    : metadata.bsc;
 
   // This MultiProvider has no signer. The builder calls read() only and never
   // invokes update(), createTokenFeeUpdateTxs(), or a transaction submitter.
-  const multiProvider = new MultiProvider(metadata);
+  const multiProvider = new MultiProvider({ ...metadata, bsc: bscMetadata });
   const module = new EvmWarpModule(multiProvider, {
     chain: 'bsc',
     config: {
@@ -122,7 +130,7 @@ async function main(): Promise<void> {
     currentConfig,
     sourceRoute,
     usdcRoute,
-    metadata: metadata.bsc,
+    metadata: bscMetadata,
     addresses: addresses.bsc,
     sourceBlock,
     sourceFeeRoot,
