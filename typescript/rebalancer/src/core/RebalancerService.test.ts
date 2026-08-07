@@ -16,10 +16,11 @@ import { MonitorEventType } from '../interfaces/IMonitor.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
-import { Monitor } from '../monitor/Monitor.js';
+import { type InventoryMonitorConfig, Monitor } from '../monitor/Monitor.js';
 import { TEST_ADDRESSES, getTestAddress } from '../test/helpers.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 import { InflightContextAdapter } from '../tracking/InflightContextAdapter.js';
+import type { IMutex } from '../utils/mutex.js';
 
 import {
   RebalancerService,
@@ -162,6 +163,7 @@ function createMockContextFactory(
     inflightAdapter?: InflightContextAdapter;
     monitor?: Monitor;
     metrics?: Metrics;
+    inventoryConfig?: InventoryMonitorConfig;
   } = {},
 ): RebalancerContextFactory {
   const warpCore = overrides.warpCore ?? createMockWarpCore();
@@ -186,7 +188,7 @@ function createMockContextFactory(
     createRebalancers: async (_actionTracker: IActionTracker) => ({
       rebalancers: [rebalancer],
       externalBridgeRegistry: {},
-      inventoryConfig: undefined,
+      inventoryConfig: overrides.inventoryConfig,
     }),
     createStrategy: async () => strategy,
     createMonitor: () => monitor,
@@ -202,6 +204,8 @@ function createMockContextFactory(
       rebalancers: IRebalancer[];
       externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
       metrics?: Metrics;
+      executionLock?: IMutex;
+      inventoryConfig?: InventoryMonitorConfig;
     }) => ({
       executeCycle: Sinon.stub().callsFake(async (_event: any) => {
         // Simulate orchestrator behavior: call strategy, then rebalancer, then record metrics
@@ -229,6 +233,8 @@ interface DaemonTestSetup {
   actionTracker: IActionTracker;
   rebalancer: IRebalancer & { rebalance: Sinon.SinonStub };
   strategy: IStrategy & { getRebalancingRoutes: Sinon.SinonStub };
+  service: RebalancerService;
+  createOrchestratorSpy: Sinon.SinonSpy;
   triggerCycle: () => Promise<void>;
 }
 
@@ -253,6 +259,8 @@ async function setupDaemonTest(
       amount: bigint;
       bridge: string;
     }>;
+    serviceConfig?: Omit<RebalancerServiceConfig, 'mode' | 'logger'>;
+    inventoryConfig?: InventoryMonitorConfig;
   },
 ): Promise<DaemonTestSetup> {
   const actionTracker = createMockActionTracker();
@@ -283,7 +291,12 @@ async function setupDaemonTest(
     actionTracker,
     inflightAdapter,
     monitor,
+    inventoryConfig: options.inventoryConfig,
   });
+  const createOrchestratorSpy = sandbox.spy(
+    contextFactory,
+    'createOrchestrator',
+  );
   sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
 
   const service = new RebalancerService(
@@ -291,7 +304,12 @@ async function setupDaemonTest(
     undefined,
     {} as any,
     createMockRebalancerConfig(),
-    { mode: 'daemon', checkFrequency: 60000, logger: testLogger },
+    {
+      mode: 'daemon',
+      checkFrequency: 60000,
+      logger: testLogger,
+      ...options.serviceConfig,
+    },
   );
 
   await service.start();
@@ -300,6 +318,8 @@ async function setupDaemonTest(
     actionTracker,
     rebalancer,
     strategy,
+    service,
+    createOrchestratorSpy,
     triggerCycle: async () => {
       expect(tokenInfoHandler).to.not.be.undefined;
       await tokenInfoHandler!({
@@ -641,6 +661,30 @@ describe('RebalancerService', () => {
       expect((monitor.on as Sinon.SinonStub).called).to.be.true;
       expect((monitor.start as Sinon.SinonStub).calledOnce).to.be.true;
     });
+
+    it('should not register signal handlers when the service does not own the process', async () => {
+      const processOnStub = sandbox.stub(process, 'on');
+
+      await setupDaemonTest(sandbox, {
+        rebalanceResults: [],
+        strategyRoutes: [],
+        serviceConfig: { ownsProcess: false },
+      });
+
+      expect(processOnStub.called).to.be.false;
+    });
+
+    it('should register signal handlers by default', async () => {
+      const processOnStub = sandbox.stub(process, 'on');
+
+      await setupDaemonTest(sandbox, {
+        rebalanceResults: [],
+        strategyRoutes: [],
+      });
+
+      expect(processOnStub.calledWith('SIGINT')).to.be.true;
+      expect(processOnStub.calledWith('SIGTERM')).to.be.true;
+    });
   });
 
   describe('stop()', () => {
@@ -672,6 +716,21 @@ describe('RebalancerService', () => {
       await service.stop();
 
       expect((monitor.stop as Sinon.SinonStub).calledOnce).to.be.true;
+    });
+
+    it('should stop without exiting when the service does not own the process', async () => {
+      const processExitStub = sandbox.stub(process, 'exit');
+      const { service } = await setupDaemonTest(sandbox, {
+        rebalanceResults: [],
+        strategyRoutes: [],
+        serviceConfig: { ownsProcess: false },
+      });
+      const stopSpy = sandbox.spy(service, 'stop');
+
+      await service.gracefulShutdown();
+
+      expect(stopSpy.calledOnce).to.be.true;
+      expect(processExitStub.called).to.be.false;
     });
   });
 
@@ -1060,6 +1119,33 @@ describe('RebalancerService', () => {
   });
 
   describe('initialization', () => {
+    it('should forward the execution lock and inventory config to the orchestrator', async () => {
+      const executionLock: IMutex = {
+        async runExclusive<T>(fn: () => Promise<T>): Promise<T> {
+          return fn();
+        },
+      };
+      const inventoryConfig: InventoryMonitorConfig = {
+        inventoryAddresses: {},
+        chains: ['ethereum'],
+      };
+
+      const { createOrchestratorSpy } = await setupDaemonTest(sandbox, {
+        rebalanceResults: [],
+        strategyRoutes: [],
+        serviceConfig: { ownsProcess: false, executionLock },
+        inventoryConfig,
+      });
+
+      expect(createOrchestratorSpy.calledOnce).to.be.true;
+      expect(createOrchestratorSpy.firstCall.args[0].executionLock).to.equal(
+        executionLock,
+      );
+      expect(createOrchestratorSpy.firstCall.args[0].inventoryConfig).to.equal(
+        inventoryConfig,
+      );
+    });
+
     it('should initialize only once', async () => {
       const contextFactory = createMockContextFactory();
       const createStub = sandbox

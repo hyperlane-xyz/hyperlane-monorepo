@@ -31,6 +31,7 @@ import { type InventoryMonitorConfig, Monitor } from '../monitor/Monitor.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 import { InflightContextAdapter } from '../tracking/InflightContextAdapter.js';
 import { normalizeConfiguredAmount } from '../utils/balanceUtils.js';
+import type { IMutex } from '../utils/mutex.js';
 
 import type { RebalancerOrchestrator } from './RebalancerOrchestrator.js';
 
@@ -55,6 +56,12 @@ export interface RebalancerServiceConfig {
 
   /** Service version for logging */
   version?: string;
+
+  /** When false, the service registers no signal handlers and never exits the process (embedded/fleet mode). Default true. */
+  ownsProcess?: boolean;
+
+  /** Optional shared execution lock, forwarded to the orchestrator (fleet mode). */
+  executionLock?: IMutex;
 
   /**
    * Optional pre-configured ActionTracker.
@@ -233,6 +240,8 @@ export class RebalancerService {
       rebalancers,
       externalBridgeRegistry: externalBridgeRegistry,
       metrics: this.metrics,
+      executionLock: this.config.executionLock,
+      inventoryConfig,
     });
 
     this.logger.info(
@@ -333,9 +342,11 @@ export class RebalancerService {
       .on(MonitorEventType.Error, this.onMonitorError.bind(this))
       .on(MonitorEventType.Start, this.onMonitorStart.bind(this));
 
-    // Set up signal handlers for graceful shutdown
-    process.on('SIGINT', () => this.gracefulShutdown());
-    process.on('SIGTERM', () => this.gracefulShutdown());
+    if (this.config.ownsProcess !== false) {
+      // Set up signal handlers for graceful shutdown
+      process.on('SIGINT', () => this.gracefulShutdown());
+      process.on('SIGTERM', () => this.gracefulShutdown());
+    }
 
     try {
       await this.monitor.start();
@@ -365,6 +376,11 @@ export class RebalancerService {
 
     this.logger.info('Gracefully shutting down rebalancer...');
     await this.stop();
+
+    if (this.config.ownsProcess === false) {
+      this.logger.info('Rebalancer shutdown complete');
+      return;
+    }
 
     // Unregister listeners to prevent them from being called again during shutdown
     process.removeAllListeners('SIGINT');
