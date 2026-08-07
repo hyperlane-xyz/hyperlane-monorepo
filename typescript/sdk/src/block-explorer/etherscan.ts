@@ -8,6 +8,7 @@ import {
 
 import type { SolidityStandardJsonInput } from '../deploy/verify/types.js';
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
+import { toNumber } from '../utils/numbers.js';
 
 export enum EtherscanLikeExplorerApiModule {
   LOGS = 'logs',
@@ -134,10 +135,20 @@ interface GetContractDeploymentTransaction extends BaseEtherscanLikeAPIParams<
   contractaddresses: Address;
 }
 
+type RawGetContractDeploymentTransactionResponse = {
+  contractAddress: Address;
+  contractCreator: Address;
+  txHash: HexString;
+  // Etherscan and Blockscout report the deployment block as a decimal string
+  // while other explorers report it as a JSON number, and some omit it
+  blockNumber?: string | number;
+};
+
 type GetContractDeploymentTransactionResponse = {
   contractAddress: Address;
   contractCreator: Address;
   txHash: HexString;
+  blockNumber?: number;
 };
 
 export async function tryGetContractDeploymentTransaction(
@@ -155,10 +166,34 @@ export async function tryGetContractDeploymentTransaction(
 
   const [deploymentTx] =
     await handleEtherscanResponse<
-      Array<GetContractDeploymentTransactionResponse>
+      Array<RawGetContractDeploymentTransactionResponse>
     >(response);
 
-  return deploymentTx;
+  if (!deploymentTx) {
+    return undefined;
+  }
+
+  return {
+    contractAddress: deploymentTx.contractAddress,
+    contractCreator: deploymentTx.contractCreator,
+    txHash: deploymentTx.txHash,
+    blockNumber: isNullish(deploymentTx.blockNumber)
+      ? undefined
+      : toNumber(deploymentTx.blockNumber, 'blockNumber'),
+  };
+}
+
+/**
+ * An explorer that has no record of a contract's deployment transaction will
+ * keep answering the same way, so `retryAsync` must not spend attempts on it.
+ */
+class ContractDeploymentTransactionNotFoundError extends Error {
+  readonly isRecoverable = false;
+
+  constructor(contractAddress: Address) {
+    super(`No deployment transaction found for contract ${contractAddress}`);
+    this.name = 'ContractDeploymentTransactionNotFoundError';
+  }
 }
 
 export async function getContractDeploymentTransaction(
@@ -171,8 +206,8 @@ export async function getContractDeploymentTransaction(
   );
 
   if (!deploymentTx) {
-    throw new Error(
-      `No deployment transaction found for contract ${requestOptions.contractAddress}`,
+    throw new ContractDeploymentTransactionNotFoundError(
+      requestOptions.contractAddress,
     );
   }
 
