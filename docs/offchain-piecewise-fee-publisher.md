@@ -72,7 +72,7 @@ topology.
 ## Guarded staging lifecycle
 
 `run-piecewise-lifecycle.ts` is locked to the checked-in
-`bsc-usdt-arbitrum-usdc` staging lane. It exercises four 10e18 transfers to the
+`bsc-usdt-arbitrum-usdc` staging lane. It exercises four 1e18 transfers to the
 explicit Arbitrum USDC router:
 
 1. fallback, after any existing standing curve has expired;
@@ -83,7 +83,7 @@ explicit Arbitrum USDC router:
 The script checks the effective fee at every phase and requires the BSC USDT
 balance of the routing fee root to increase by that fee after each transfer.
 It polls BSC block timestamps rather than local wall-clock time. Token approval
-is bounded to 50e18 across the four transfers and revoked in a `finally` block.
+is bounded to 5e18 across the four transfers and revoked in a `finally` block.
 
 The default invocation is read-only. It discovers and prints the exact routers,
 checks the fallback curve, and quotes the current state without loading GCP

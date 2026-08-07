@@ -10,8 +10,8 @@ import type {
 } from './piecewise-fee-lib.js';
 
 export const STAGING_LIFECYCLE_LANE_ID = 'bsc-usdt-arbitrum-usdc';
-export const STAGING_TRANSFER_AMOUNT = 10n * 10n ** 18n;
-export const STAGING_TOKEN_ALLOWANCE_CAP = 50n * 10n ** 18n;
+export const STAGING_TRANSFER_AMOUNT = 1n * 10n ** 18n;
+export const STAGING_TOKEN_ALLOWANCE_CAP = 5n * 10n ** 18n;
 
 const STAGING_SOURCE_ROUTE_ID = 'USDT/moonpay-staging';
 const STAGING_TARGET_ROUTE_ID = 'USDC/moonpay-staging';
@@ -126,7 +126,7 @@ export function assertStagingLifecycleLane(slot: PiecewiseLaneSlot): void {
   );
   assert(
     slot.tokenDecimals === 18,
-    `Lifecycle amount is fixed at 10e18; fee token must have 18 decimals, got ${slot.tokenDecimals}`,
+    `Lifecycle amount is fixed at 1e18; fee token must have 18 decimals, got ${slot.tokenDecimals}`,
   );
 }
 
@@ -260,7 +260,7 @@ async function executePhase(
   );
   assert(
     quote.tokenDebit <= STAGING_TOKEN_ALLOWANCE_CAP,
-    `${phase} token debit exceeds the 50e18 lifecycle allowance cap`,
+    `${phase} token debit exceeds the 5e18 lifecycle allowance cap`,
   );
   options.log(
     `${phase}: effective=${formatBpsX1e4(expectedEffectiveBpsX1e4)} bps fee=${expectedFee} rootBefore=${quote.feeRootBalance}`,
