@@ -60,6 +60,7 @@ import {
   isOftTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
+  isXERC20TokenConfig,
 } from './types.js';
 
 /**
@@ -546,6 +547,8 @@ export function normalizeWarpDeployConfigForCheck(params: {
  * Resolves the fee token address based on the warp route token type.
  * - Native tokens: fee token is AddressZero
  * - Collateral tokens: fee token is the collateral token address
+ * - xERC20 tokens: fee token is the wrapped/collateral token address
+ *   (matches the contract's feeToken(), which returns token() when a fee hook is set)
  * - Synthetic tokens: fee token is the router address (the HypERC20 itself)
  */
 function getFeeTokenAddress(
@@ -558,7 +561,8 @@ function getFeeTokenAddress(
 
   if (
     isCollateralTokenConfig(tokenConfig) ||
-    isCrossCollateralTokenConfig(tokenConfig)
+    isCrossCollateralTokenConfig(tokenConfig) ||
+    isXERC20TokenConfig(tokenConfig)
   ) {
     return tokenConfig.token;
   }

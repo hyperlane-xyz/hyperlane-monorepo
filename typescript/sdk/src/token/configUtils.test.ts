@@ -637,6 +637,16 @@ describe('configUtils', () => {
       type: TokenType.native,
     };
 
+    const xerc20Config: HypTokenConfig = {
+      type: TokenType.XERC20,
+      token: COLLATERAL_TOKEN,
+    };
+
+    const xerc20LockboxConfig: HypTokenConfig = {
+      type: TokenType.XERC20Lockbox,
+      token: COLLATERAL_TOKEN,
+    };
+
     it('should resolve token to router address for synthetic tokens', () => {
       const input = {
         type: TokenFeeType.LinearFee,
@@ -684,6 +694,38 @@ describe('configUtils', () => {
       ) as ResolvedLinearFeeConfigInput;
 
       expect(result.token).to.equal(constants.AddressZero);
+    });
+
+    it('should resolve token to wrapped token address for xERC20 tokens', () => {
+      const input = {
+        type: TokenFeeType.LinearFee,
+        owner: OWNER_ADDRESS,
+        bps: 100,
+      };
+
+      const result = resolveTokenFeeAddress(
+        input,
+        ROUTER_ADDRESS,
+        xerc20Config,
+      ) as ResolvedLinearFeeConfigInput;
+
+      expect(result.token).to.equal(COLLATERAL_TOKEN);
+    });
+
+    it('should resolve token to wrapped token address for xERC20Lockbox tokens', () => {
+      const input = {
+        type: TokenFeeType.LinearFee,
+        owner: OWNER_ADDRESS,
+        bps: 100,
+      };
+
+      const result = resolveTokenFeeAddress(
+        input,
+        ROUTER_ADDRESS,
+        xerc20LockboxConfig,
+      ) as ResolvedLinearFeeConfigInput;
+
+      expect(result.token).to.equal(COLLATERAL_TOKEN);
     });
 
     it('should resolve nested feeContracts tokens for RoutingFee', () => {
