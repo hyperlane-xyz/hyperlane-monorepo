@@ -13,6 +13,8 @@ import {
   parseWarpRouteMessage,
 } from '@hyperlane-xyz/utils';
 
+import { DEFAULT_EXPLORER_QUERY_LIMIT } from './constants.js';
+
 type ExplorerMessageRow = {
   msg_id: string;
   origin_domain_id: number;
@@ -107,7 +109,7 @@ export class ExplorerPendingTransfersClient {
   }
 
   async getPendingDestinationTransfers(
-    limit = 200,
+    limit = DEFAULT_EXPLORER_QUERY_LIMIT,
   ): Promise<PendingDestinationTransfer[]> {
     const rows = await this.queryInflightTransfers(limit);
     const transfers: PendingDestinationTransfer[] = [];
