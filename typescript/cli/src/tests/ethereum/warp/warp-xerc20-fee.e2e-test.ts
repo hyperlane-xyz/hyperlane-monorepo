@@ -13,7 +13,7 @@ import {
   type WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { type Address } from '@hyperlane-xyz/utils';
+import { type Address, isNullish } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
@@ -91,9 +91,9 @@ describe('hyperlane warp xERC20 token fee e2e tests', function () {
         token: xerc20.address,
         mailbox: chain2Addresses.mailbox,
         owner: ownerAddress,
-        ...(bps != null
-          ? { tokenFee: { type: TokenFeeType.LinearFee, bps } }
-          : {}),
+        ...(isNullish(bps)
+          ? {}
+          : { tokenFee: { type: TokenFeeType.LinearFee, bps } }),
       },
     });
   }

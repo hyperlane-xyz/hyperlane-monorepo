@@ -707,9 +707,11 @@ describe('configUtils', () => {
         input,
         ROUTER_ADDRESS,
         xerc20Config,
-      ) as ResolvedLinearFeeConfigInput;
+      );
 
-      expect(result.token).to.equal(COLLATERAL_TOKEN);
+      expect('token' in result ? result.token : undefined).to.equal(
+        COLLATERAL_TOKEN,
+      );
     });
 
     it('should resolve token to wrapped token address for xERC20Lockbox tokens', () => {
@@ -723,9 +725,11 @@ describe('configUtils', () => {
         input,
         ROUTER_ADDRESS,
         xerc20LockboxConfig,
-      ) as ResolvedLinearFeeConfigInput;
+      );
 
-      expect(result.token).to.equal(COLLATERAL_TOKEN);
+      expect('token' in result ? result.token : undefined).to.equal(
+        COLLATERAL_TOKEN,
+      );
     });
 
     it('should resolve nested feeContracts tokens for RoutingFee', () => {
