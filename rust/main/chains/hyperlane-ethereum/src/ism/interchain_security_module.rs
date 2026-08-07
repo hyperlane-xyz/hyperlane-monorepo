@@ -102,11 +102,10 @@ where
                 metadata.to_owned().into(),
                 RawHyperlaneMessage::from(message).to_vec().into(),
             );
-            if self.domain.is_zksync_stack() {
-                // We use a random from address to ensure compatibility with zksync,
-                // but intentionally do not set this for other chains which may have assumptions
-                // around the presence of funds in the from address (which defaults to address(0)).
-                // Context here: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4585
+            if let Some(sender) = ism.contract.client().default_sender() {
+                tx = tx.from(sender);
+            } else if self.domain.is_zksync_stack() {
+                // Use a non-zero fallback for zksync when no signer-backed sender exists.
                 tx = tx.from(RANDOM_ADDRESS);
             }
             match try_join(tx.call(), tx.estimate_gas()).await {
