@@ -111,15 +111,17 @@ export class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrat
   }
 
   /**
-   * Reads the explorer's records, then re-reads the end of the range over RPC
-   * and merges the two.
+   * Reads the explorer's records, and where the query reaches into the recent
+   * past also re-reads that part over RPC and merges the two.
    *
    * A page that comes back short proves the explorer has served everything it
    * has indexed, which is not the same as everything up to `toBlock`: an
    * explorer indexing behind the chain reports a stale set as a complete one.
-   * The RPC read covers from the last block the explorer accounted for through
-   * `toBlock`, which is the window where that staleness can hide. It is bounded
-   * by how far behind the explorer is, not by the size of the query.
+   * Indexing lag only affects blocks near the head, so the re-read covers the
+   * intersection of the requested range with the lag window below the head. A
+   * query that ends before that window is already settled as far as the explorer
+   * is concerned and is left alone — which also keeps historical reads off
+   * archive RPC endpoints, since re-reading old blocks would demand one.
    */
   async getContractLogs(
     options: RequiredGetLogByTopicOptions,
@@ -139,14 +141,18 @@ export class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrat
       },
     );
 
+    // Anchored to the head rather than to `toBlock`: lag is a property of the
+    // chain's tip, so a query that ends well below it has nothing to reconcile.
+    // Costs one eth_blockNumber per explorer read, which is cheap next to the
+    // explorer request itself and, unlike re-reading old blocks, needs no
+    // archive node.
+    const headBlock = await this.multiProvider
+      .getProvider(this.chain)
+      .getBlockNumber();
+
     // The explorer accounted for every block up to and including the last one
     // it returned a record from. That block is re-read rather than skipped,
     // since a page boundary can fall inside a block; the merge de-duplicates.
-    //
-    // The distance from there to `toBlock` is a property of the query, not of
-    // the lag — a contract whose last matching event is old would otherwise be
-    // re-read across the whole gap — so the window is also floored at the lag
-    // window below `toBlock`, which is where lag can hide.
     const lastExplorerBlock =
       explorerLogs.length > 0
         ? Math.max(...explorerLogs.map((log) => log.blockNumber))
@@ -154,10 +160,12 @@ export class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrat
     const tailFromBlock = Math.max(
       parsedOptions.fromBlock,
       lastExplorerBlock,
-      parsedOptions.toBlock - this.lagTailBlocks(),
+      headBlock - this.lagTailBlocks(),
     );
+    const tailToBlock = Math.min(parsedOptions.toBlock, headBlock);
 
-    if (tailFromBlock > parsedOptions.toBlock) {
+    // The requested range and the lag window do not overlap.
+    if (tailFromBlock > tailToBlock) {
       return explorerLogs;
     }
 
@@ -166,7 +174,7 @@ export class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrat
       contractAddress: parsedOptions.contractAddress,
       topic: parsedOptions.eventTopic,
       fromBlock: tailFromBlock,
-      toBlock: parsedOptions.toBlock,
+      toBlock: tailToBlock,
       multiProvider: this.multiProvider,
       // The re-read is an RPC call like any other, so it honours the same
       // per-chain block-range cap the RPC strategy does.

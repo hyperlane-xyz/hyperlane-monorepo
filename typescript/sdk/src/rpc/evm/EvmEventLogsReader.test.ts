@@ -31,6 +31,7 @@ describe('EvmEtherscanLikeEventLogsReader lag window', () => {
   async function tailStartBlockFor(
     estimateBlockTime: number | undefined,
     explorerResult: unknown = [],
+    headBlock: number = TO_BLOCK,
   ): Promise<number> {
     sandbox.stub(global, 'fetch').resolves(
       contractDouble<Response>({
@@ -51,9 +52,12 @@ describe('EvmEtherscanLikeEventLogsReader lag window', () => {
     const multiProvider = new MultiProvider({ [metadata.name]: metadata });
 
     const getLogs = sandbox.stub().resolves([]);
-    sandbox
-      .stub(multiProvider, 'getProvider')
-      .returns(contractDouble<providers.Provider>({ getLogs }));
+    sandbox.stub(multiProvider, 'getProvider').returns(
+      contractDouble<providers.Provider>({
+        getLogs,
+        getBlockNumber: sandbox.stub().resolves(headBlock),
+      }),
+    );
 
     const reader = new EvmEtherscanLikeEventLogsReader(
       metadata.name,
@@ -71,6 +75,48 @@ describe('EvmEtherscanLikeEventLogsReader lag window', () => {
     expect(getLogs.called).to.be.true;
     return getLogs.firstCall.args[0].fromBlock;
   }
+
+  // As above, but for ranges that are not expected to be re-read at all.
+  async function chainReadsFor(headBlock: number): Promise<number> {
+    sandbox.stub(global, 'fetch').resolves(
+      contractDouble<Response>({
+        url: API_URL,
+        json: async () => ({ status: '1', message: 'OK', result: [] }),
+      }),
+    );
+
+    const multiProvider = new MultiProvider({ [test1.name]: test1 });
+    const getLogs = sandbox.stub().resolves([]);
+    sandbox.stub(multiProvider, 'getProvider').returns(
+      contractDouble<providers.Provider>({
+        getLogs,
+        getBlockNumber: sandbox.stub().resolves(headBlock),
+      }),
+    );
+
+    await new EvmEtherscanLikeEventLogsReader(
+      test1.name,
+      { apiUrl: API_URL },
+      multiProvider,
+    ).getContractLogs({
+      contractAddress: CONTRACT_ADDRESS,
+      eventTopic: TOPIC,
+      fromBlock: 0,
+      toBlock: TO_BLOCK,
+    });
+
+    return getLogs.callCount;
+  }
+
+  // Lag lives at the tip, so a range that ends well below it has nothing to
+  // reconcile — and re-reading those blocks would require an archive node.
+  it('does not read from the chain for a historical range', async () => {
+    expect(await chainReadsFor(TO_BLOCK + 2_000_000)).to.equal(0);
+  });
+
+  it('reads from the chain for a range that reaches the head', async () => {
+    expect(await chainReadsFor(TO_BLOCK)).to.be.greaterThan(0);
+  });
 
   interface Case {
     name: string;

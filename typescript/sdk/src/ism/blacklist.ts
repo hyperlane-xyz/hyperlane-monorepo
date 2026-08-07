@@ -55,16 +55,17 @@ const MESSAGE_BLACKLISTED_EVENT_SELECTOR = toEventSelector(
  *
  * Nor does indexer lag, within a bound. A short page proves the explorer has
  * served everything it has indexed, not everything up to the requested block,
- * so the explorer source re-reads the end of the range over RPC and merges the
- * two. Entries added while the explorer was behind are recovered that way,
- * which matters because a redeploy — the path this design takes for deployments
- * that predate on-chain enumeration — seeds the replacement from the target
- * config, so an entry missing from a set persisted into a registry would be
- * dropped permanently.
+ * so where the read reaches into the recent past the explorer source re-reads
+ * that part over RPC and merges the two. Entries added while the explorer was
+ * behind are recovered that way, which matters because a redeploy — the path
+ * this design takes for deployments that predate on-chain enumeration — seeds
+ * the replacement from the target config, so an entry missing from a set
+ * persisted into a registry would be dropped permanently.
  *
  * Two things that re-read does not cover. It spans a fixed duration below the
- * end of the range, so an explorer lagging further behind than that can still
- * under-report. And it starts no earlier than the explorer's own last record, so
+ * chain head, so an explorer lagging further behind than that can still
+ * under-report, and a read that ends before that window is left to the explorer
+ * alone. And it starts no earlier than the explorer's own last record, so
  * a record the explorer silently omitted from earlier in the range is not
  * recovered; the same applies to an explorer that serves a shorter page than
  * asked for, which the walk reads as the end of the data.
