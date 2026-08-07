@@ -41,6 +41,7 @@ import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
 import {TokenMessage} from "contracts/token/libs/TokenMessage.sol";
 import {GasRouter} from "contracts/client/GasRouter.sol";
 import {LinearFee} from "contracts/token/fees/LinearFee.sol";
+import {OffchainQuotedPiecewiseLinearFee} from "contracts/token/fees/OffchainQuotedPiecewiseLinearFee.sol";
 import {MockITokenBridge} from "./MovableCollateralRouter.t.sol";
 
 /// @notice Mock fee contract: fixed percentage fee.
@@ -155,6 +156,10 @@ contract CrossCollateralRouterTest is Test {
     uint256 internal constant USDT_SCALE_NUM = 1;
     uint256 internal constant USDT_SCALE_DEN = 1;
     uint256 internal constant DEFAULT_FEE_BPS = 5; // 0.05%
+    uint256 internal constant PIECEWISE_SIGNER_PK = 0xB0B;
+    uint32 internal constant PIECEWISE_FRESH_RATE = 20_000; // 2 bps
+    uint32 internal constant PIECEWISE_STALE_SURCHARGE = 30_000; // +3 bps
+    uint32 internal constant PIECEWISE_FALLBACK_RATE = 80_000; // 8 bps
 
     address internal constant ALICE = address(0x1);
     address internal constant BOB = address(0x2);
@@ -1443,6 +1448,241 @@ contract CrossCollateralRouterTest is Test {
         assertEq(quotedFee, 10e6, "quote uses primary router fee");
         assertEq(actualFee, 10e6, "charge uses primary router fee");
         assertEq(quotedFee, actualFee, "quote matches actual charge");
+    }
+
+    function test_routingFee_piecewiseLeafIntegration() public {
+        LinearFee defaultFee5bps = new LinearFee(
+            address(originUSDC),
+            10e6,
+            10000e6,
+            address(this)
+        );
+        LinearFee primaryRouterFee10bps = new LinearFee(
+            address(originUSDC),
+            20e6,
+            10000e6,
+            address(this)
+        );
+        OffchainQuotedPiecewiseLinearFee piecewiseFee = _deployPiecewiseFee();
+        CrossCollateralRoutingFee routingFee = new CrossCollateralRoutingFee(
+            address(this)
+        );
+        _configurePiecewiseRouting(
+            routingFee,
+            defaultFee5bps,
+            primaryRouterFee10bps,
+            piecewiseFee
+        );
+        usdcRouterA.setFeeRecipient(address(routingFee));
+
+        assertEq(
+            routingFee.feeContracts(
+                DESTINATION,
+                address(usdtRouterB).addressToBytes32()
+            ),
+            address(piecewiseFee),
+            "explicit target uses piecewise leaf"
+        );
+        assertEq(
+            usdcRouterA.feeRecipient(),
+            address(routingFee),
+            "routing root remains fee recipient"
+        );
+
+        uint256 amount = 10000e6;
+        _assertPrimaryQuoteAndCharge(routingFee, amount, 10e6);
+
+        bytes32 piecewiseTarget = address(usdtRouterB).addressToBytes32();
+        uint48 issuedAt = uint48(block.timestamp);
+        _submitPiecewiseStandingCurve(piecewiseFee, issuedAt, issuedAt + 20);
+
+        _assertTargetQuoteAndCharge(routingFee, piecewiseTarget, amount, 2e6);
+
+        vm.warp(issuedAt + 10);
+        _assertTargetQuoteAndCharge(routingFee, piecewiseTarget, amount, 5e6);
+
+        vm.warp(issuedAt + 21);
+        _assertTargetQuoteAndCharge(routingFee, piecewiseTarget, amount, 8e6);
+
+        _removeRouterFee(routingFee, piecewiseTarget);
+        assertEq(
+            routingFee.feeContracts(DESTINATION, piecewiseTarget),
+            address(0)
+        );
+        _assertTargetQuoteAndCharge(routingFee, piecewiseTarget, amount, 5e6);
+
+        assertEq(usdcRouterA.feeRecipient(), address(routingFee));
+        assertEq(originUSDC.balanceOf(address(piecewiseFee)), 0);
+    }
+
+    function _deployPiecewiseFee()
+        internal
+        returns (OffchainQuotedPiecewiseLinearFee)
+    {
+        uint128[] memory breakpoints = new uint128[](0);
+        uint32[] memory fallbackRates = new uint32[](1);
+        fallbackRates[0] = PIECEWISE_FALLBACK_RATE;
+        return
+            new OffchainQuotedPiecewiseLinearFee(
+                vm.addr(PIECEWISE_SIGNER_PK),
+                address(originUSDC),
+                breakpoints,
+                fallbackRates,
+                1,
+                address(this)
+            );
+    }
+
+    function _configurePiecewiseRouting(
+        CrossCollateralRoutingFee routingFee,
+        LinearFee defaultFee,
+        LinearFee primaryRouterFee,
+        OffchainQuotedPiecewiseLinearFee piecewiseFee
+    ) internal {
+        uint32[] memory destinations = new uint32[](3);
+        bytes32[] memory targetRouters = new bytes32[](3);
+        address[] memory feeContracts = new address[](3);
+        for (uint256 i = 0; i < destinations.length; ++i) {
+            destinations[i] = DESTINATION;
+        }
+        targetRouters[0] = routingFee.DEFAULT_ROUTER();
+        targetRouters[1] = address(usdcRouterB).addressToBytes32();
+        targetRouters[2] = address(usdtRouterB).addressToBytes32();
+        feeContracts[0] = address(defaultFee);
+        feeContracts[1] = address(primaryRouterFee);
+        feeContracts[2] = address(piecewiseFee);
+        routingFee.setCrossCollateralRouterFeeContracts(
+            destinations,
+            targetRouters,
+            feeContracts
+        );
+    }
+
+    function _submitPiecewiseStandingCurve(
+        OffchainQuotedPiecewiseLinearFee piecewiseFee,
+        uint48 issuedAt,
+        uint48 expiry
+    ) internal {
+        uint128[] memory breakpoints = new uint128[](0);
+        uint32[] memory freshRates = new uint32[](1);
+        freshRates[0] = PIECEWISE_FRESH_RATE;
+        uint32[] memory staleSurcharges = new uint32[](1);
+        staleSurcharges[0] = PIECEWISE_STALE_SURCHARGE;
+        SignedQuote memory sq = SignedQuote({
+            context: FeeQuoteContext.encode(
+                DESTINATION,
+                bytes32(type(uint256).max),
+                type(uint256).max
+            ),
+            data: abi.encode(
+                breakpoints,
+                freshRates,
+                uint32(10),
+                staleSurcharges
+            ),
+            issuedAt: issuedAt,
+            expiry: expiry,
+            salt: bytes32(0),
+            submitter: address(this)
+        });
+
+        bytes32 structHash = keccak256(
+            abi.encode(
+                piecewiseFee.SIGNED_QUOTE_TYPEHASH(),
+                keccak256(sq.context),
+                keccak256(sq.data),
+                sq.issuedAt,
+                sq.expiry,
+                sq.salt,
+                sq.submitter
+            )
+        );
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                keccak256(
+                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                ),
+                keccak256("OffchainQuoter"),
+                keccak256("1"),
+                block.chainid,
+                address(piecewiseFee)
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            PIECEWISE_SIGNER_PK,
+            ECDSA.toTypedDataHash(domainSeparator, structHash)
+        );
+        piecewiseFee.submitQuote(sq, abi.encodePacked(r, s, v));
+    }
+
+    function _assertPrimaryQuoteAndCharge(
+        CrossCollateralRoutingFee routingFee,
+        uint256 amount,
+        uint256 expectedFee
+    ) internal {
+        Quote[] memory quotes = usdcRouterA.quoteTransferRemote(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount
+        );
+        assertEq(quotes.length, 3);
+        assertEq(quotes[1].token, address(originUSDC));
+        assertEq(quotes[1].amount, amount + expectedFee);
+
+        uint256 balanceBefore = originUSDC.balanceOf(address(routingFee));
+        vm.prank(ALICE);
+        usdcRouterA.transferRemote(DESTINATION, BOB.addressToBytes32(), amount);
+        assertEq(
+            originUSDC.balanceOf(address(routingFee)) - balanceBefore,
+            expectedFee
+        );
+    }
+
+    function _assertTargetQuoteAndCharge(
+        CrossCollateralRoutingFee routingFee,
+        bytes32 targetRouter,
+        uint256 amount,
+        uint256 expectedFee
+    ) internal {
+        Quote[] memory quotes = usdcRouterA.quoteTransferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount,
+            targetRouter
+        );
+        assertEq(quotes.length, 3);
+        assertEq(quotes[1].token, address(originUSDC));
+        assertEq(quotes[1].amount, amount + expectedFee);
+
+        uint256 balanceBefore = originUSDC.balanceOf(address(routingFee));
+        vm.prank(ALICE);
+        usdcRouterA.transferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount,
+            targetRouter
+        );
+        assertEq(
+            originUSDC.balanceOf(address(routingFee)) - balanceBefore,
+            expectedFee
+        );
+    }
+
+    function _removeRouterFee(
+        CrossCollateralRoutingFee routingFee,
+        bytes32 targetRouter
+    ) internal {
+        uint32[] memory destinations = new uint32[](1);
+        bytes32[] memory targetRouters = new bytes32[](1);
+        address[] memory feeContracts = new address[](1);
+        destinations[0] = DESTINATION;
+        targetRouters[0] = targetRouter;
+        feeContracts[0] = address(0);
+        routingFee.setCrossCollateralRouterFeeContracts(
+            destinations,
+            targetRouters,
+            feeContracts
+        );
     }
 
     function test_quoteTransferRemote_usesScaledOutboundAmountForHookFee()
