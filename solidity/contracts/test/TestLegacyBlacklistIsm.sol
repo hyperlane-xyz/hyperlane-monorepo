@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.8.0;
+// Raised from the deployed contract's >=0.8.0: named mapping parameters, used
+// verbatim below, require 0.8.18.
+pragma solidity >=0.8.18;
 
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
@@ -11,10 +13,11 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title TestLegacyBlacklistIsm
- * @notice Verbatim copy of the pre-audit BlacklistIsm that is deployed on
- * mainnet, kept as a test fixture so the SDK can be exercised against a real
- * non-enumerable deployment. It has no `values()` and its `blacklist` emits an
- * event for every entry, including re-adds of an already blacklisted ID.
+ * @notice Copy of the pre-audit BlacklistIsm that is deployed on mainnet, kept
+ * as a test fixture so the SDK can be exercised against a real non-enumerable
+ * deployment. It has no `values()` and its `blacklist` emits an event for every
+ * entry, including re-adds of an already blacklisted ID. Only the contract name
+ * and the pragma differ from the deployed source.
  * @dev Not for production use; the current BlacklistIsm supersedes it.
  */
 contract TestLegacyBlacklistIsm is
