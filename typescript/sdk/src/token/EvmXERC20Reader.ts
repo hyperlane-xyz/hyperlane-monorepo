@@ -1,5 +1,4 @@
 import { ethers } from 'ethers';
-import { parseEventLogs } from 'viem';
 
 import { Ownable__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import {
@@ -12,6 +11,8 @@ import {
 import { proxyAdmin } from '../deploy/proxy.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
+import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
@@ -21,11 +22,12 @@ import {
 } from './adapters/EvmTokenAdapter.js';
 import { RateLimitMidPoint, xERC20Limits } from './adapters/ITokenAdapter.js';
 import { XERC20Type } from './types.js';
+import { CONFIGURATION_CHANGED_EVENT_SELECTOR } from './xerc20-abi.js';
 import {
-  CONFIGURATION_CHANGED_EVENT_SELECTOR,
-  XERC20_VS_ABI,
-} from './xerc20-abi.js';
-import { deriveXERC20TokenType } from './xerc20.js';
+  XERC20_LOG_SCAN_BLOCK_RANGE,
+  deriveXERC20TokenType,
+  latestConfigurationPerBridge,
+} from './xerc20.js';
 
 export interface StandardXERC20Limits {
   type: typeof XERC20Type.Standard;
@@ -111,7 +113,9 @@ export class EvmXERC20Reader extends HyperlaneReader {
   /**
    * Read all bridges configured on-chain for a Velodrome XERC20 by parsing ConfigurationChanged events.
    * Returns empty array for Standard XERC20 since it has no event-based bridge enumeration.
-   * Note: Queries from block 0 which may be slow on chains with long histories.
+   * The scan covers the token's whole history, from the block it was deployed in
+   * to the chain head, over the block explorer where the chain has a usable one
+   * and over the paginated RPC otherwise.
    */
   async readOnChainBridges(
     xERC20Address: Address,
@@ -124,47 +128,20 @@ export class EvmXERC20Reader extends HyperlaneReader {
       return [];
     }
 
-    const filter = {
-      address: xERC20Address,
-      topics: [CONFIGURATION_CHANGED_EVENT_SELECTOR],
-      fromBlock: 0,
-      toBlock: 'latest',
-    };
+    const logsReader = EvmEventLogsReader.fromConfig(
+      { chain: this.chain, paginationBlockRange: XERC20_LOG_SCAN_BLOCK_RANGE },
+      this.multiProvider,
+      this.logger,
+    );
 
-    const rawLogs = await this.provider.getLogs(filter);
-
-    const logs = rawLogs.map((log) => ({
-      address: log.address as `0x${string}`,
-      blockHash: log.blockHash as `0x${string}`,
-      blockNumber: BigInt(log.blockNumber),
-      data: log.data as `0x${string}`,
-      logIndex: log.logIndex,
-      transactionHash: log.transactionHash as `0x${string}`,
-      transactionIndex: log.transactionIndex,
-      removed: log.removed,
-      topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
-    }));
-
-    const parsedLogs = parseEventLogs({
-      abi: XERC20_VS_ABI,
-      eventName: 'ConfigurationChanged',
-      logs,
+    const rawLogs = await logsReader.getLogsByTopic({
+      contractAddress: xERC20Address,
+      eventTopic: CONFIGURATION_CHANGED_EVENT_SELECTOR,
     });
 
-    // Track latest log per bridge (use logIndex as tiebreaker for same block)
-    const bridgeToLatestLog = new Map<string, (typeof parsedLogs)[0]>();
-    for (const log of parsedLogs) {
-      const bridge = normalizeAddress(log.args.bridge);
-      const existing = bridgeToLatestLog.get(bridge);
-      const isMoreRecent =
-        !existing ||
-        log.blockNumber > existing.blockNumber ||
-        (log.blockNumber === existing.blockNumber &&
-          log.logIndex > existing.logIndex);
-      if (isMoreRecent) {
-        bridgeToLatestLog.set(bridge, log);
-      }
-    }
+    const bridgeToLatestLog = latestConfigurationPerBridge(
+      rawLogs.map(viemLogFromGetEventLogsResponse),
+    );
 
     // Filter to active bridges (non-zero limits)
     const activeBridges: Address[] = [];
