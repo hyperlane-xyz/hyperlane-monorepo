@@ -9,6 +9,7 @@ import type { RpcUrl } from '../../metadata/chainMetadataTypes.js';
 import { ProviderMethod } from './ProviderMethods.js';
 import {
   HyperlaneJsonRpcProvider,
+  LogBlockHistoryUnavailableError,
   LogBlockRangeTooLargeError,
 } from './HyperlaneJsonRpcProvider.js';
 import type { HyperlaneLogFilter } from './types.js';
@@ -22,6 +23,14 @@ interface BlockWindowCase {
   fromBlock: number;
   toBlock: number | 'latest';
   expected: Array<[number, number]>;
+}
+
+interface HistoryFloorCase {
+  name: string;
+  pagination: RpcUrl['pagination'];
+  fromBlock: number;
+  toBlock: number | 'latest';
+  expectedMessage: string;
 }
 
 describe('HyperlaneJsonRpcProvider', () => {
@@ -152,60 +161,40 @@ describe('HyperlaneJsonRpcProvider', () => {
     ]);
   });
 
-  // The span has to need more than ten sub-queries: ten is where the transport
-  // used to stop and answer over a narrower window instead.
-  it('serves the full requested span however many sub-queries it takes', async () => {
-    const served = stubBlockWindows();
-    const provider = new HyperlaneJsonRpcProvider(
-      { http: 'http://provider', pagination: { maxBlockRange: 2 } },
-      { chainId: 1, name: 'test' },
-    );
-
-    await provider.getLogs({
-      address: FILTER_ADDRESS,
-      fromBlock: 0,
-      toBlock: 23,
-    });
-
-    expect(served).to.deep.equal([
-      [0, 1],
-      [2, 3],
-      [4, 5],
-      [6, 7],
-      [8, 9],
-      [10, 11],
-      [12, 13],
-      [14, 15],
-      [16, 17],
-      [18, 19],
-      [20, 21],
-      [22, 23],
-    ]);
-  });
-
   describe('the sub-query work bound', () => {
     it('serves a span sitting exactly on the bound', async () => {
       const served = stubBlockWindows();
       const provider = new HyperlaneJsonRpcProvider(
-        { http: 'http://provider', pagination: { maxBlockRange: 1 } },
+        { http: 'http://provider', pagination: { maxBlockRange: 2 } },
         { chainId: 1, name: 'test' },
       );
 
       await provider.getLogs({
         address: FILTER_ADDRESS,
-        fromBlock: 1,
-        toBlock: 2000,
+        fromBlock: 0,
+        toBlock: 19,
       });
 
-      expect(served).to.have.length(2000);
-      expect(served[0]).to.deep.equal([1, 1]);
-      expect(served[1999]).to.deep.equal([2000, 2000]);
+      expect(served).to.deep.equal([
+        [0, 1],
+        [2, 3],
+        [4, 5],
+        [6, 7],
+        [8, 9],
+        [10, 11],
+        [12, 13],
+        [14, 15],
+        [16, 17],
+        [18, 19],
+      ]);
     });
 
+    // The span used to be answered over its last ten sub-queries, with nothing
+    // in the response marking the blocks below that had been dropped.
     it('rejects a span one sub-query above the bound without querying', async () => {
       const served = stubBlockWindows();
       const provider = new HyperlaneJsonRpcProvider(
-        { http: 'http://provider', pagination: { maxBlockRange: 1 } },
+        { http: 'http://provider', pagination: { maxBlockRange: 2 } },
         { chainId: 1, name: 'test' },
       );
 
@@ -213,22 +202,23 @@ describe('HyperlaneJsonRpcProvider', () => {
         provider.getLogs({
           address: FILTER_ADDRESS,
           fromBlock: 0,
-          toBlock: 2000,
+          toBlock: 21,
         }),
       );
 
       expect(error).to.be.instanceOf(LogBlockRangeTooLargeError);
       assert(error instanceof Error, 'Expected the rejection to be an Error');
       expect(error.message).to.equal(
-        'Serving blocks 0 to 2000 needs 2001 queries at a block range of 1, above the 2000 this provider issues for one request',
+        'Serving blocks 0 to 21 needs 11 queries at a block range of 2, above the 10 this provider issues for one request',
       );
       expect(served).to.deep.equal([]);
     });
 
-    // The floors run before the bound, so the same request that is refused
-    // outright becomes two sub-queries once minBlockNumber has raised the start
-    // block past the bound.
-    it('counts sub-queries from the start block the floors produced', async () => {
+    // Halving recovers from the bound but never from a floor, so a request
+    // below both has to be reported as the floor: a caller told it asked for
+    // too wide a span would shrink its chunks all the way to one block and
+    // still be below the history this endpoint holds.
+    it('reports the history floor rather than the bound when a request is below both', async () => {
       const served = stubBlockWindows(5_001);
       const provider = new HyperlaneJsonRpcProvider(
         {
@@ -238,16 +228,20 @@ describe('HyperlaneJsonRpcProvider', () => {
         { chainId: 1, name: 'test' },
       );
 
-      await provider.getLogs({
-        address: FILTER_ADDRESS,
-        fromBlock: 0,
-        toBlock: 'latest',
-      });
+      const error = await captureRejection(
+        provider.getLogs({
+          address: FILTER_ADDRESS,
+          fromBlock: 0,
+          toBlock: 'latest',
+        }),
+      );
 
-      expect(served).to.deep.equal([
-        [5_000, 5_000],
-        [5_001, 5_001],
-      ]);
+      expect(error).to.be.instanceOf(LogBlockHistoryUnavailableError);
+      assert(error instanceof Error, 'Expected the rejection to be an Error');
+      expect(error.message).to.equal(
+        'Blocks 0 to 5001 were requested, but this provider serves no block below 5000',
+      );
+      expect(served).to.deep.equal([]);
     });
   });
 
@@ -397,70 +391,155 @@ describe('HyperlaneJsonRpcProvider', () => {
     }
   });
 
-  // Every case here requests a span the provider serves in full, so the only
-  // thing moving the start block is the floor under test.
+  // Each of these used to be answered by raising the start block to the floor
+  // and returning the logs of the remaining window, with nothing in the
+  // response marking the blocks below that had been dropped.
   describe('start block floors', () => {
-    const cases: BlockWindowCase[] = [
+    const refusedCases: HistoryFloorCase[] = [
       {
-        name: 'raises the start block to minBlockNumber',
+        name: 'refuses a start block below minBlockNumber',
         pagination: { maxBlockRange: 5, minBlockNumber: 90 },
         fromBlock: 60,
         toBlock: 100,
-        expected: [
-          [90, 94],
-          [95, 99],
-          [100, 100],
-        ],
+        expectedMessage:
+          'Blocks 60 to 100 were requested, but this provider serves no block below 90',
       },
       {
-        // Without maxBlockRange the chunk size is the whole post-floor span, so
-        // the trailing block lands in a window of its own.
-        name: 'raises the start block to minBlockNumber without maxBlockRange',
+        name: 'refuses a start block below minBlockNumber without maxBlockRange',
         pagination: { minBlockNumber: 90 },
         fromBlock: 0,
         toBlock: 100,
-        expected: [
-          [90, 99],
-          [100, 100],
-        ],
+        expectedMessage:
+          'Blocks 0 to 100 were requested, but this provider serves no block below 90',
       },
       {
-        name: 'raises the start block to the maxBlockAge floor',
+        name: 'refuses a start block below the maxBlockAge floor',
         pagination: { maxBlockRange: 5, maxBlockAge: 20 },
         fromBlock: 60,
         toBlock: 100,
-        expected: [
-          [80, 84],
-          [85, 89],
-          [90, 94],
-          [95, 99],
-          [100, 100],
-        ],
+        expectedMessage:
+          'Blocks 60 to 100 were requested, but at block height 100 a max block age of 20 leaves this provider serving no block below 80',
       },
       {
         name: 'measures maxBlockAge from the chain head, not the requested toBlock',
         pagination: { maxBlockRange: 5, maxBlockAge: 20 },
         fromBlock: 60,
         toBlock: 90,
-        expected: [
-          [80, 84],
-          [85, 89],
-          [90, 90],
-        ],
+        expectedMessage:
+          'Blocks 60 to 90 were requested, but at block height 100 a max block age of 20 leaves this provider serving no block below 80',
       },
       {
-        name: 'applies minBlockNumber after the maxBlockAge floor',
+        // The start block clears the age floor of 80, so only the higher of the
+        // two floors refuses this one.
+        name: 'refuses a start block below minBlockNumber but above the maxBlockAge floor',
+        pagination: { maxBlockRange: 5, maxBlockAge: 20, minBlockNumber: 95 },
+        fromBlock: 85,
+        toBlock: 100,
+        expectedMessage:
+          'Blocks 85 to 100 were requested, but this provider serves no block below 95',
+      },
+      {
+        // Below both floors. The age floor of 80 is the one checked first but
+        // not the one the provider starts at, and naming it would have a caller
+        // raise its start block to 80 only to be refused again at 95.
+        name: 'names the higher floor when the start block is below both',
         pagination: { maxBlockRange: 5, maxBlockAge: 20, minBlockNumber: 95 },
         fromBlock: 60,
         toBlock: 100,
+        expectedMessage:
+          'Blocks 60 to 100 were requested, but this provider serves no block below 95',
+      },
+      {
+        // Below both floors with the age floor of 80 the higher of the two, so
+        // the same rule reports the age floor rather than minBlockNumber.
+        name: 'names the maxBlockAge floor when it sits above minBlockNumber',
+        pagination: { maxBlockRange: 5, maxBlockAge: 20, minBlockNumber: 70 },
+        fromBlock: 60,
+        toBlock: 100,
+        expectedMessage:
+          'Blocks 60 to 100 were requested, but at block height 100 a max block age of 20 leaves this provider serving no block below 80',
+      },
+    ];
+
+    for (const testCase of refusedCases) {
+      it(testCase.name, async () => {
+        const served = stubBlockWindows();
+        const provider = new HyperlaneJsonRpcProvider(
+          { http: 'http://provider', pagination: testCase.pagination },
+          { chainId: 1, name: 'test' },
+        );
+
+        const error = await captureRejection(
+          provider.getLogs({
+            address: FILTER_ADDRESS,
+            fromBlock: testCase.fromBlock,
+            toBlock: testCase.toBlock,
+          }),
+        );
+
+        expect(error).to.be.instanceOf(LogBlockHistoryUnavailableError);
+        assert(error instanceof Error, 'Expected the rejection to be an Error');
+        expect(error.message).to.equal(testCase.expectedMessage);
+        expect(served).to.deep.equal([]);
+      });
+    }
+
+    const servedCases: BlockWindowCase[] = [
+      {
+        name: 'serves a request starting exactly at minBlockNumber',
+        pagination: { maxBlockRange: 5, minBlockNumber: 90 },
+        fromBlock: 90,
+        toBlock: 100,
         expected: [
+          [90, 94],
           [95, 99],
           [100, 100],
         ],
       },
+      {
+        name: 'serves a request starting exactly at the maxBlockAge floor',
+        pagination: { maxBlockRange: 5, maxBlockAge: 20 },
+        fromBlock: 80,
+        toBlock: 100,
+        expected: [
+          [80, 84],
+          [85, 89],
+          [90, 94],
+          [95, 99],
+          [100, 100],
+        ],
+      },
+      {
+        name: 'serves a request starting above both floors',
+        pagination: { maxBlockRange: 5, maxBlockAge: 20, minBlockNumber: 90 },
+        fromBlock: 90,
+        toBlock: 100,
+        expected: [
+          [90, 94],
+          [95, 99],
+          [100, 100],
+        ],
+      },
+      {
+        name: 'serves the whole span as one window without maxBlockRange',
+        pagination: { minBlockNumber: 90 },
+        fromBlock: 90,
+        toBlock: 100,
+        expected: [[90, 100]],
+      },
+      {
+        // The chunk size without maxBlockRange is the span itself, which a
+        // single block request leaves at zero unless the span is counted
+        // inclusively: the window loop would then never advance past it.
+        name: 'serves a single block span without maxBlockRange',
+        pagination: { minBlockNumber: 90 },
+        fromBlock: 95,
+        toBlock: 95,
+        expected: [[95, 95]],
+      },
     ];
 
-    for (const testCase of cases) {
+    for (const testCase of servedCases) {
       it(testCase.name, async () => {
         const served = stubBlockWindows();
         const provider = new HyperlaneJsonRpcProvider(

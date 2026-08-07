@@ -19,6 +19,8 @@ import {
 } from './logFilters.js';
 import { HyperlaneLogFilter, RpcConfigWithConnectionInfo } from './types.js';
 
+const NUM_PARALLEL_LOG_QUERIES = 5;
+
 /**
  * The most chunks of `pagination.maxBlockRange` a single eth_getLogs request is
  * split into. Anything up to this is served in full; beyond it the request is
@@ -26,17 +28,23 @@ import { HyperlaneLogFilter, RpcConfigWithConnectionInfo } from './types.js';
  * narrower window, so a caller never mistakes a partial log set for a complete
  * one.
  *
- * It bounds the work one request may cause rather than fitting any chain's
- * history: a registry maxBlockRange is what the chain declares, not necessarily
- * what its endpoints enforce, so a bound sized to declared values would be sized
- * to numbers that do not always hold. Where it sits therefore only decides how
- * soon the split is refused, not whether a scan can complete: `getLogsFromRpc`
- * reads the rejection as a block range error and halves its own chunk, so a
- * caller that paginates carries on with smaller requests. Only a caller issuing
- * one unpaginated request over a very deep span sees it as a failure.
+ * At {@link NUM_PARALLEL_LOG_QUERIES} in flight this is two batches of serial
+ * round trips, which is what keeps the split abandonable. Nothing cancels the
+ * sub-queries once they are running: SmartProvider stops waiting on a slow
+ * request and reports a timeout while the remaining batches carry on unread, so
+ * every batch beyond the point where that timeout fires is work the caller's
+ * retry then repeats.
+ *
+ * Holding it low costs volume nothing. The sub-queries a deep scan needs are
+ * its span divided by maxBlockRange whatever this is; the bound only decides
+ * how they are grouped into requests. `getLogsFromRpc` reads the rejection as a
+ * block range error and halves its own chunk, so a paginating caller pays one
+ * rejection per factor of two between its starting chunk and what this admits,
+ * once, and then carries on at the reduced chunk. Only a caller issuing a
+ * single unpaginated request over a span wider than maxBlockRange times this
+ * sees the bound as a failure.
  */
-const MAX_LOG_BLOCK_RANGES_TO_QUERY = 2_000;
-const NUM_PARALLEL_LOG_QUERIES = 5;
+const MAX_LOG_BLOCK_RANGES_TO_QUERY = 10;
 
 /**
  * Thrown when a log query would take more than
@@ -45,8 +53,43 @@ const NUM_PARALLEL_LOG_QUERIES = 5;
  * The message names the block range because that is what `isBlockRangeError` in
  * `rpc/evm/utils.ts` matches on, so a paginating caller shrinks its chunks and
  * completes the scan instead of failing it.
+ *
+ * The decision is made from the requested span alone, before any log query is
+ * issued, and is the same every time it is asked, so the error carries
+ * `isRecoverable = false` to keep SmartProvider from spending its retry budget
+ * and backoffs re-deriving it. That flag is also what `isTerminalLogReadError`
+ * reads, which is why `getLogsFromRpc` classifies a range rejection first.
  */
 export class LogBlockRangeTooLargeError extends Error {
+  readonly isRecoverable = false;
+
+  static {
+    this.prototype.name = this.name;
+  }
+}
+
+/**
+ * Thrown when a log query reaches below the earliest block this RPC says it
+ * serves, through either `pagination.minBlockNumber` or
+ * `pagination.maxBlockAge`.
+ *
+ * The start block used to be raised to the floor and the logs of the remaining
+ * window returned, which is the silent truncation
+ * {@link LogBlockRangeTooLargeError} removes on the other bound: nothing in the
+ * response marked the blocks that had been dropped.
+ *
+ * Unlike a span that is too wide, this is not something a caller can page
+ * around, because no part of the missing history is on this endpoint at any
+ * chunk size. The only recovery is another RPC, so the message deliberately
+ * avoids the wording `isBlockRangeError` in `rpc/evm/utils.ts` matches, and the
+ * error carries `isRecoverable = false` so that `getLogsFromRpc` surfaces it at
+ * once instead of halving its way to the one block minimum first. SmartProvider
+ * moves on to the next provider either way, and once every provider has refused
+ * it passes the flag on rather than retrying them all again.
+ */
+export class LogBlockHistoryUnavailableError extends Error {
+  readonly isRecoverable = false;
+
   static {
     this.prototype.name = this.name;
   }
@@ -186,18 +229,26 @@ export class HyperlaneJsonRpcProvider
       );
       startBlock = endBlock;
     }
-    const minForBlockAge = maxBlockAge ? currentBlockNumber - maxBlockAge : 0;
-    if (startBlock < minForBlockAge) {
-      this.logger.info(
-        `Start block ${startBlock} below max block age, increasing to ${minForBlockAge}`,
+    // Whichever of the two floors is higher is the block this provider
+    // actually starts at, and is the one the refusal has to name. Reporting the
+    // lower one sent a caller that raised its start block to it into a second
+    // refusal naming the other.
+    const earliestServedBlock = maxBlockAge
+      ? currentBlockNumber - maxBlockAge
+      : undefined;
+    if (
+      !isNullish(earliestServedBlock) &&
+      startBlock < earliestServedBlock &&
+      (isNullish(minBlockNumber) || minBlockNumber <= earliestServedBlock)
+    ) {
+      throw new LogBlockHistoryUnavailableError(
+        `Blocks ${startBlock} to ${endBlock} were requested, but at block height ${currentBlockNumber} a max block age of ${maxBlockAge} leaves this provider serving no block below ${earliestServedBlock}`,
       );
-      startBlock = minForBlockAge;
     }
-    if (minBlockNumber && startBlock < minBlockNumber) {
-      this.logger.info(
-        `Start block ${startBlock} below config min, increasing to ${minBlockNumber}`,
+    if (!isNullish(minBlockNumber) && startBlock < minBlockNumber) {
+      throw new LogBlockHistoryUnavailableError(
+        `Blocks ${startBlock} to ${endBlock} were requested, but this provider serves no block below ${minBlockNumber}`,
       );
-      startBlock = minBlockNumber;
     }
 
     if (maxBlockRange) {
@@ -211,7 +262,9 @@ export class HyperlaneJsonRpcProvider
       }
     }
 
-    const blockChunkRange = maxBlockRange || endBlock - startBlock;
+    // A span of one block leaves endBlock - startBlock at zero, which the loop
+    // below would never advance past.
+    const blockChunkRange = maxBlockRange || endBlock - startBlock + 1;
     const blockChunks: [number, number][] = [];
     for (let from = startBlock; from <= endBlock; from += blockChunkRange) {
       const to = Math.min(from + blockChunkRange - 1, endBlock);
