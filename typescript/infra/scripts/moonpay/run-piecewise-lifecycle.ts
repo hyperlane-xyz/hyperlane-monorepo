@@ -104,7 +104,7 @@ async function main(): Promise<void> {
     .option('recipient', {
       type: 'string',
       demandOption: true,
-      describe: 'Explicit Arbitrum recipient of each 10 USDC transfer',
+      describe: 'Explicit Arbitrum recipient of each 1 USDC transfer',
     })
     .option('submit', {
       type: 'boolean',
@@ -275,7 +275,7 @@ async function main(): Promise<void> {
         (await connected.allowance(submitter.address, slot.sourceRouter)).eq(
           STAGING_TOKEN_ALLOWANCE_CAP,
         ),
-        'Failed to install exact 50e18 lifecycle allowance cap',
+        'Failed to install exact 5e18 lifecycle allowance cap',
       );
     },
     publishStanding: async (): Promise<StandingTiming> => {
@@ -301,7 +301,7 @@ async function main(): Promise<void> {
       const nextSpend = cumulativeTokenSpend + phaseQuote.tokenDebit;
       assert(
         nextSpend <= STAGING_TOKEN_ALLOWANCE_CAP,
-        `${phase} would exceed the cumulative 50e18 token spend cap`,
+        `${phase} would exceed the cumulative 5e18 token spend cap`,
       );
       const connectedToken = token.connect(submitter.connect(provider));
       const [tokenBalanceBefore, nativeBalance, allowance] = await Promise.all([
@@ -401,7 +401,7 @@ async function main(): Promise<void> {
   if (!args.yes) {
     const approved = await confirm({
       message:
-        `Publish one standing curve and send four 10 USDT transfers from ${slot.sourceRouter}` +
+        `Publish one standing curve and send four 1 USDT transfers from ${slot.sourceRouter}` +
         ` to explicit target ${slot.targetRouter}, recipient ${args.recipient}?`,
       default: false,
     });

@@ -200,7 +200,7 @@ describe('Moonpay piecewise staging lifecycle', () => {
     ).to.throw('locked to');
     expect(() =>
       assertStagingLifecycleLane(slot({ tokenDecimals: 6 })),
-    ).to.throw('10e18');
+    ).to.throw('1e18');
     expect(() =>
       assertExactRouterConfirmations(slot(), SOURCE_ROUTER, TARGET_ROUTER),
     ).not.to.throw();
@@ -217,7 +217,7 @@ describe('Moonpay piecewise staging lifecycle', () => {
     expect(computePiecewiseFee(curve, 250n)).to.equal(4n);
     expect(
       computePiecewiseFee(fallbackCurve, STAGING_TRANSFER_AMOUNT),
-    ).to.equal(4_000_000_000_000_000n);
+    ).to.equal(400_000_000_000_000n);
   });
 
   it('polls block timestamps, not wall-clock time', async () => {
@@ -354,7 +354,7 @@ describe('Moonpay piecewise staging lifecycle', () => {
     expect(calls.end).to.equal(1);
   });
 
-  it('keeps the cumulative lifecycle token approval below 50e18', () => {
+  it('keeps the cumulative lifecycle token approval below 5e18', () => {
     expect(4n * STAGING_TRANSFER_AMOUNT < STAGING_TOKEN_ALLOWANCE_CAP).to.equal(
       true,
     );
