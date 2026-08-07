@@ -960,9 +960,10 @@ abstract class TokenDeployer<
         // mailbox-client config) exactly like OFT/DepositAddress.
         const contractKey = this.routerContractKey(config);
         const constructorArgs = await this.constructorArgs(chain, config);
-        const contract = await this.deployContract(
+        const contract = await this.deployContractWithName(
           chain,
           contractKey,
+          this.routerContractName(config),
           constructorArgs,
         );
         directBridgeContracts[chain] = { [contractKey]: contract };
