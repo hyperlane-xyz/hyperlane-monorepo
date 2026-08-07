@@ -1,4 +1,11 @@
-import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  DEFAULT_ROUTER_KEY,
+  HypTokenRouterConfig,
+  TokenFeeConfigInput,
+  TokenFeeType,
+  TokenType,
+} from '@hyperlane-xyz/sdk';
 import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import {
@@ -8,11 +15,14 @@ import {
 import { getDomainId, getRegistry } from '../../../../registry.js';
 import { DEPLOYER } from '../../owners.js';
 import { WarpRouteIds } from '../warpIds.js';
-import { getRebalancingBridgesConfigFor } from './utils.js';
+import {
+  getCrossCollateralTargetRoutersByChain,
+  getRebalancingBridgesConfigFor,
+} from './utils.js';
 
 // Staging mimic of the production CROSS/moonpay USDT route (getUSDTCitreaMoonpayWarpConfig).
-// Same simplifications as the USDC staging getter: deployer-owned, default ISM, default hook,
-// zero fee. 6 EVM chains (no Solana XO leg, no Citrea ctUSD leg — those live
+// Same simplifications as the USDC staging getter: deployer-owned, default ISM and default hook.
+// Only BSC enables the staging fee experiment. 6 EVM chains (no Solana XO leg, no Citrea ctUSD leg — those live
 // on the USDC route, same as prod).
 // Rebalancing IS reproduced from prod: same allowedRebalancers (MCR signer) and the same
 // OFT + Eclipse USDT bridge wiring (arbitrum/bsc/ethereum/polygon; base + katana have none).
@@ -24,6 +34,25 @@ const DEPLOYER_EVM = DEPLOYER;
 const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
 const EXTRA_REBALANCER = '0x2cB236403574301029c7bDDfda133c6e0338a857';
 const ALLOWED_REBALANCERS = [REBALANCER, EXTRA_REBALANCER];
+const QUOTE_SIGNERS = [
+  '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
+  '0x6bb7818bbE8d88094Cf3620e58BC6BbEd542B867',
+];
+
+const STAGING_ROUTE_IDS = [
+  WarpRouteIds.USDCCitreaMoonpaySTAGING,
+  WarpRouteIds.USDTCitreaMoonpaySTAGING,
+] as const;
+
+const INITIAL_FALLBACK = {
+  // BSC USDT is locally 18 decimals, and fees are quoted against the source
+  // amount before the router applies its 1e12 scale-down for the 6-decimal wire amount.
+  breakpoints: [
+    100_000_000_000_000_000_000_000n,
+    250_000_000_000_000_000_000_000n,
+  ],
+  marginalBps: [4, 10, 20],
+};
 
 const EVM_CHAINS = ['arbitrum', 'base', 'ethereum', 'polygon'] as const;
 
@@ -43,6 +72,53 @@ function getSiblingCrossCollateralRouters(): Record<string, string[]> {
       ];
     }),
   );
+}
+
+function buildBscUsdtTokenFee(): TokenFeeConfigInput {
+  const targetsByChain =
+    getCrossCollateralTargetRoutersByChain(STAGING_ROUTE_IDS);
+  const usdcRoute = getRegistry().getWarpRoute(
+    WarpRouteIds.USDCCitreaMoonpaySTAGING,
+  );
+  assert(usdcRoute, 'USDC/moonpay-staging route not found in registry');
+  const arbitrumUsdc = usdcRoute.tokens.find(
+    ({ chainName }) => chainName === 'arbitrum',
+  );
+  assert(
+    arbitrumUsdc?.addressOrDenom,
+    'Missing Arbitrum USDC/moonpay-staging router',
+  );
+  const arbitrumUsdcRouterKey = addressToBytes32(arbitrumUsdc.addressOrDenom);
+
+  const linearFee = (): TokenFeeConfigInput => ({
+    type: TokenFeeType.OffchainQuotedLinearFee,
+    owner: DEPLOYER_EVM,
+    bps: 3,
+    quoteSigners: QUOTE_SIGNERS,
+  });
+  const piecewiseFee = (): TokenFeeConfigInput => ({
+    type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+    owner: DEPLOYER_EVM,
+    maxBands: 4,
+    quoteSigners: QUOTE_SIGNERS,
+    initialFallback: INITIAL_FALLBACK,
+  });
+
+  return {
+    type: TokenFeeType.CrossCollateralRoutingFee,
+    owner: DEPLOYER_EVM,
+    feeContracts: Object.fromEntries(
+      Object.keys(targetsByChain).map((destination) => [
+        destination,
+        {
+          [DEFAULT_ROUTER_KEY]: linearFee(),
+          ...(destination === 'arbitrum'
+            ? { [arbitrumUsdcRouterKey]: piecewiseFee() }
+            : {}),
+        },
+      ]),
+    ),
+  };
 }
 
 export async function getUSDTCitreaMoonpayStagingWarpConfig(
@@ -84,6 +160,7 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       allowedRebalancers: ALLOWED_REBALANCERS,
       scale: { numerator: 1, denominator: 1_000_000_000_000 },
       crossCollateralRouters,
+      tokenFee: buildBscUsdtTokenFee(),
     },
     ethereum: {
       type: TokenType.crossCollateral,
