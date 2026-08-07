@@ -8,12 +8,13 @@ import { type XERC20VSTest } from '@hyperlane-xyz/core';
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   type ChainMetadata,
+  TokenFeeConfigSchema,
   TokenFeeType,
   TokenType,
   type WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { type Address, isNullish } from '@hyperlane-xyz/utils';
+import { type Address, assert, isNullish } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
@@ -106,19 +107,11 @@ describe('hyperlane warp xERC20 token fee e2e tests', function () {
       await readWarpConfig(CHAIN_NAME_2, CORE_PATH, REGISTRY_DEPLOY_PATH)
     )[CHAIN_NAME_2];
 
-    expect(config.tokenFee).to.exist;
-    expect(config.tokenFee?.type).to.equal(TokenFeeType.LinearFee);
-    expect(
-      config.tokenFee && 'bps' in config.tokenFee
-        ? config.tokenFee.bps
-        : undefined,
-    ).to.equal(FEE_BPS);
+    const fee = TokenFeeConfigSchema.parse(config.tokenFee);
+    assert(fee.type === TokenFeeType.LinearFee, 'expected a LinearFee');
+    expect(fee.bps).to.equal(FEE_BPS);
     // For xERC20 the fee token resolves to the wrapped/collateral token.
-    expect(
-      config.tokenFee && 'token' in config.tokenFee
-        ? config.tokenFee.token
-        : undefined,
-    ).to.equal(xerc20.address);
+    expect(fee.token).to.equal(xerc20.address);
   });
 
   describe('setting a fee on an existing xERC20 warp route via warp apply', () => {
@@ -143,19 +136,11 @@ describe('hyperlane warp xERC20 token fee e2e tests', function () {
         await readWarpConfig(CHAIN_NAME_2, CORE_PATH, REGISTRY_DEPLOY_PATH)
       )[CHAIN_NAME_2];
 
-      expect(updatedConfig.tokenFee).to.exist;
-      expect(updatedConfig.tokenFee?.type).to.equal(TokenFeeType.LinearFee);
-      expect(
-        updatedConfig.tokenFee && 'bps' in updatedConfig.tokenFee
-          ? updatedConfig.tokenFee.bps
-          : undefined,
-      ).to.equal(FEE_BPS);
+      const fee = TokenFeeConfigSchema.parse(updatedConfig.tokenFee);
+      assert(fee.type === TokenFeeType.LinearFee, 'expected a LinearFee');
+      expect(fee.bps).to.equal(FEE_BPS);
       // For xERC20 the fee token resolves to the wrapped/collateral token.
-      expect(
-        updatedConfig.tokenFee && 'token' in updatedConfig.tokenFee
-          ? updatedConfig.tokenFee.token
-          : undefined,
-      ).to.equal(xerc20.address);
+      expect(fee.token).to.equal(xerc20.address);
     });
   });
 });
