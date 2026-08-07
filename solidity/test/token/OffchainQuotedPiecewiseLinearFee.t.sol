@@ -892,14 +892,25 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
     }
 
     function test_replacesOnlyWithNewerIssuedAt() public {
+        // Use fixed timestamps so this ordering test is independent of the
+        // runner-provided initial block timestamp and coverage instrumentation.
+        vm.warp(100);
         uint128[] memory breakpoints = new uint128[](0);
         uint32[] memory oneBp = new uint32[](1);
         oneBp[0] = 10_000;
-        _submitStanding(DESTINATION, RECIPIENT, breakpoints, oneBp);
+        _submitCurve(
+            quotedFee,
+            DESTINATION,
+            RECIPIENT,
+            WILDCARD_AMOUNT,
+            breakpoints,
+            oneBp,
+            10,
+            10_000
+        );
 
         uint32[] memory twoBps = new uint32[](1);
         twoBps[0] = 20_000;
-        uint48 now_ = uint48(block.timestamp);
         vm.expectRevert(AbstractOffchainQuoter.StaleQuote.selector);
         _submitCurve(
             quotedFee,
@@ -908,12 +919,10 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
             WILDCARD_AMOUNT,
             breakpoints,
             twoBps,
-            now_ - 1,
-            now_ + 1 days
+            9,
+            10_000
         );
 
-        vm.warp(block.timestamp + 1);
-        uint48 later = uint48(block.timestamp);
         _submitCurve(
             quotedFee,
             DESTINATION,
@@ -921,8 +930,8 @@ contract OffchainQuotedPiecewiseLinearFeeTest is Test {
             WILDCARD_AMOUNT,
             breakpoints,
             twoBps,
-            later,
-            later + 1 days
+            11,
+            10_000
         );
         assertEq(
             _quote(quotedFee, DESTINATION, RECIPIENT, 1 ether),
