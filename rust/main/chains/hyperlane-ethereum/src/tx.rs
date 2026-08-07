@@ -119,8 +119,19 @@ pub(crate) async fn track_pending_tx<P: JsonRpcClient>(
 }
 
 /// Populates the gas limit and price for a transaction
+fn ensure_from_for_estimation(tx: &mut TypedTransaction, default_sender: Option<H160>) {
+    // Some chains estimate gas from address(0) when `from` is missing,
+    // which can fail with insufficient-funds on L1 fee checks.
+    // If signer/provider has a default sender, use it for gas estimation.
+    if tx.from().is_none() {
+        if let Some(default_sender) = default_sender {
+            tx.set_from(default_sender);
+        }
+    }
+}
+
 pub(crate) async fn fill_tx_gas_params<M, D>(
-    tx: ContractCall<M, D>,
+    mut tx: ContractCall<M, D>,
     provider: Arc<M>,
     transaction_overrides: &TransactionOverrides,
     domain: &HyperlaneDomain,
@@ -134,7 +145,10 @@ where
     // either use the pre-estimated gas limit or estimate it
     let mut estimated_gas_limit: U256 = match tx.tx.gas() {
         Some(&estimate) => estimate.into(),
-        None => tx.estimate_gas().await?.into(),
+        None => {
+            ensure_from_for_estimation(&mut tx.tx, provider.default_sender());
+            tx.estimate_gas().await?.into()
+        }
     };
 
     if with_gas_limit_overrides {
@@ -526,7 +540,7 @@ mod test {
     use ethers_core::types::FeeHistory;
     use url::Url;
 
-    use crate::tx::zksync_estimate_fee;
+    use crate::tx::{ensure_from_for_estimation, zksync_estimate_fee, EVM_RELAYER_ADDRESS};
 
     #[test]
     fn test_is_rewards_non_zero_all_zero() {
@@ -548,6 +562,45 @@ mod test {
             gas_used_ratio: vec![],
         };
         assert!(super::has_rewards(&fee_history));
+    }
+
+    #[test]
+    fn test_ensure_from_for_estimation_sets_default_sender_when_missing() {
+        let mut tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
+            from: None,
+            ..Default::default()
+        });
+
+        let default_sender = Address::from_str(EVM_RELAYER_ADDRESS).unwrap();
+        ensure_from_for_estimation(&mut tx, Some(default_sender));
+
+        assert_eq!(tx.from(), Some(&default_sender));
+    }
+
+    #[test]
+    fn test_ensure_from_for_estimation_keeps_existing_sender() {
+        let original_sender = Address::from_str("0x1111111111111111111111111111111111111111").unwrap();
+        let mut tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
+            from: Some(original_sender),
+            ..Default::default()
+        });
+
+        let default_sender = Address::from_str(EVM_RELAYER_ADDRESS).unwrap();
+        ensure_from_for_estimation(&mut tx, Some(default_sender));
+
+        assert_eq!(tx.from(), Some(&original_sender));
+    }
+
+    #[test]
+    fn test_ensure_from_for_estimation_no_default_keeps_none() {
+        let mut tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
+            from: None,
+            ..Default::default()
+        });
+
+        ensure_from_for_estimation(&mut tx, None);
+
+        assert!(tx.from().is_none());
     }
 
     #[ignore = "Not running a flaky test requiring network"]
