@@ -208,7 +208,10 @@ describe('EvmXERC20Reader', () => {
       {
         // The scan starts at the deployment block rather than block 0 and the
         // transport serves every window between it and the head, so a bridge
-        // configured only in the first of them is still reported.
+        // configured only in the first of them is still reported. The 93 block
+        // span is refused as more sub-queries than one request issues and the
+        // pagination halves it, so it arrives as two chunks of 46 blocks and
+        // the trailing block, each chunk split into windows of five.
         name: 'returns bridges configured before the last maxBlockRange * 10 blocks',
         pagination: { maxBlockRange: MAX_BLOCK_RANGE },
         expectedWindows: [
@@ -221,16 +224,18 @@ describe('EvmXERC20Reader', () => {
           [38, 42],
           [43, 47],
           [48, 52],
-          [53, 57],
-          [58, 62],
-          [63, 67],
-          [68, 72],
-          [73, 77],
-          [78, 82],
-          [83, 87],
-          [88, 92],
-          [93, 97],
-          [98, 100],
+          [53, 53],
+          [54, 58],
+          [59, 63],
+          [64, 68],
+          [69, 73],
+          [74, 78],
+          [79, 83],
+          [84, 88],
+          [89, 93],
+          [94, 98],
+          [99, 99],
+          [100, 100],
         ],
         expectedBridges: [
           BRIDGE_ONLY_EARLY,

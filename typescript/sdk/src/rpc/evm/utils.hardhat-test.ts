@@ -7,7 +7,7 @@ import hre from 'hardhat';
 import sinon from 'sinon';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, isNullish } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
@@ -73,6 +73,8 @@ describe('RPC Utils', () => {
   }
 
   describe(getContractCreationBlockFromRpc.name, () => {
+    afterEach(() => sinon.restore());
+
     it('should find the correct deployment block for a deployed contract', async () => {
       await mineRandomNumberOfBlocks();
 
@@ -91,6 +93,46 @@ describe('RPC Utils', () => {
         testContract.address,
       );
       expect(contractCode).not.to.equal('0x');
+    });
+
+    // A pruned endpoint holds the state of the last few hundred blocks and
+    // errors below that, so there is no history for the bisection to search
+    // even though the same endpoint still serves the logs of those blocks.
+    it('should start from the genesis block when the endpoint cannot serve historical state', async () => {
+      await mineRandomNumberOfBlocks();
+
+      await deployTestErc20();
+
+      await mineRandomNumberOfBlocks();
+
+      const provider = multiProvider.getProvider(TestChainName.test1);
+      const codeAtHead = provider.getCode.bind(provider);
+      const getCode = sinon
+        .stub(provider, 'getCode')
+        .callsFake(async (address, blockTag) => {
+          if (isNullish(blockTag)) {
+            return codeAtHead(address);
+          }
+          // How a pruned geth reports state it no longer holds, and what 0g's
+          // endpoints answer a historical eth_getCode with at any depth.
+          throw new Error(
+            'missing trie node 8a1c7f (path ) state 0x8a1c7f is not available',
+          );
+        });
+
+      const foundBlock = await getContractCreationBlockFromRpc(
+        TestChainName.test1,
+        testContract.address,
+        multiProvider,
+      );
+
+      expect(foundBlock).to.equal(0);
+      // The first probe that cannot be answered ends the search, rather than
+      // every rung of the bisection failing its way down to the floor.
+      const historicalProbes = getCode
+        .getCalls()
+        .filter((call) => !isNullish(call.args[1]));
+      expect(historicalProbes).to.have.length(1);
     });
 
     it('should throw an error for non-existing contract address', async () => {
@@ -505,7 +547,7 @@ describe('RPC Utils', () => {
       it('should halve the block range once the transient retry budget is spent', async () => {
         const requested = stubTransientFailures(Number.POSITIVE_INFINITY);
 
-        await mineBlocks(10);
+        await mineBlocks(450);
         const toBlock = await providerChainTest1.getBlockNumber();
 
         await expect(
@@ -516,27 +558,30 @@ describe('RPC Utils', () => {
             fromBlock: deploymentBlockNumber,
             toBlock,
             topic: transferTopic,
-            range: 4,
+            range: 400,
           }),
         ).to.be.rejectedWith(TRANSIENT_MESSAGE);
 
-        // One attempt plus three retries at each range down to the minimum,
-        // where the original provider error is rethrown unchanged
+        // One attempt plus three retries at each range down to a hundred
+        // blocks, below which a failure naming no span is taken as an outage
+        // rather than an unrecognised cap and the original provider error is
+        // rethrown unchanged.
         expect(requested.map(spanOf)).to.deep.equal([
-          4, 4, 4, 4, 2, 2, 2, 2, 1, 1, 1, 1,
+          400, 400, 400, 400, 200, 200, 200, 200, 100, 100, 100, 100,
         ]);
       });
 
-      // The signal list is an optimisation, not a correctness dependency: a
-      // provider phrasing it does not cover costs retries, not the scan.
+      // The signal list is an optimisation, not a correctness dependency for
+      // any cap above the hundred block floor: a provider phrasing it does not
+      // cover costs retries, not the scan.
       it('should complete the scan when a span rejection is not recognised', async () => {
-        const maxSpan = 4;
+        const maxSpan = 150;
         const requested = stubBlockSpanLimit(
           maxSpan,
           UNRECOGNISED_REJECTION_MESSAGE,
         );
 
-        await mineBlocks(100);
+        await mineBlocks(450);
         const toBlock = await providerChainTest1.getBlockNumber();
 
         await getLogsFromRpc({
@@ -546,12 +591,12 @@ describe('RPC Utils', () => {
           fromBlock: deploymentBlockNumber,
           toBlock,
           topic: transferTopic,
-          range: 16,
+          range: 400,
         });
 
-        // 16 and 8 each exhaust the retry budget before 4 is accepted
+        // 400 and 200 each exhaust the retry budget before 100 is accepted
         expect(requested.slice(0, 8).map(spanOf)).to.deep.equal([
-          16, 16, 16, 16, 8, 8, 8, 8,
+          400, 400, 400, 400, 200, 200, 200, 200,
         ]);
         expectContiguousCoverage(
           requested.filter((chunk) => spanOf(chunk) <= maxSpan),

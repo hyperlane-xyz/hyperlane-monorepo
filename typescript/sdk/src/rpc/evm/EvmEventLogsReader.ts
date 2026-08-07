@@ -228,7 +228,7 @@ export class EvmEventLogsReader {
     logReaderStrategy: IEvmEventLogsReaderStrategy,
   ): Promise<number> {
     const cached = this.deploymentBlockCache.get(contractAddress);
-    if (cached) return cached;
+    if (!isNullish(cached)) return cached;
 
     const block =
       await logReaderStrategy.getContractDeploymentBlockNumber(contractAddress);
