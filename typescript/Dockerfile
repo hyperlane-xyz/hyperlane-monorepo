@@ -8,7 +8,7 @@
 # Runtime env:
 #   SERVICE_NAME - One of: rebalancer, warp-monitor, ccip-server, keyfunder, relayer, fee-quoting
 
-ARG NODE_VERSION=24
+ARG NODE_VERSION=26
 FROM node:${NODE_VERSION}-slim AS builder
 
 WORKDIR /hyperlane-monorepo
@@ -28,7 +28,7 @@ SHELL ["/bin/sh", "-c"]
 
 # Copy package.json first for corepack to read packageManager field
 COPY package.json ./
-RUN corepack enable && corepack install
+RUN npm install --global corepack@0.35.0 && corepack enable && corepack install
 
 # Copy pnpm config files
 COPY pnpm-lock.yaml pnpm-workspace.yaml ./

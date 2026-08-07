@@ -20,7 +20,7 @@ runs:
     # So we default to github, and expect the workflow to set cache-provider=buildjet if needed.
     # https://depot.dev/docs/github-actions/overview#faster-caching
     - name: Setup pnpm
-      uses: pnpm/action-setup@v4
+      uses: pnpm/action-setup@v6
 
     - name: Determine Cache Provider
       id: determine-cache
@@ -45,7 +45,7 @@ runs:
     - name: Cache (GitHub)
       id: github-cache
       if: env.cache_provider == 'github'
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: ${{ steps.pnpm-store.outputs.store_path }}
         key: ${{ runner.os }}-pnpm-11-store-${{ hashFiles('**/pnpm-lock.yaml') }}

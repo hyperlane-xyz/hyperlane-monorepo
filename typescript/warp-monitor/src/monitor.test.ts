@@ -88,7 +88,7 @@ describe('WarpMonitor', () => {
     const routerNodes: RouterNodeMetadata[] = [
       {
         nodeId: collateralizedNodeId,
-        chainName: 'anvil2' as RouterNodeMetadata['chainName'],
+        chainName: 'anvil2',
         domainId: 31337,
         routerAddress: '0xroutera',
         tokenAddress: '0xtokena',
@@ -102,7 +102,7 @@ describe('WarpMonitor', () => {
       },
       {
         nodeId: nonCollateralizedNodeId,
-        chainName: 'anvil2' as RouterNodeMetadata['chainName'],
+        chainName: 'anvil2',
         domainId: 31337,
         routerAddress: '0xrouterb',
         tokenAddress: '0xtokenb',
@@ -207,7 +207,7 @@ describe('WarpMonitor', () => {
     const routerNodes: RouterNodeMetadata[] = [
       {
         nodeId,
-        chainName: 'anvil2' as RouterNodeMetadata['chainName'],
+        chainName: 'anvil2',
         domainId: 31337,
         routerAddress: '0xroutera',
         tokenAddress: '0xtokena',
@@ -268,7 +268,7 @@ describe('WarpMonitor', () => {
     const routerNodes: RouterNodeMetadata[] = [
       {
         nodeId,
-        chainName: 'anvil2' as RouterNodeMetadata['chainName'],
+        chainName: 'anvil2',
         domainId: 31337,
         routerAddress: '0xroutera',
         tokenAddress: '0xtokena',

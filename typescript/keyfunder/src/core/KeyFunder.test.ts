@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import { BigNumber, ethers } from 'ethers';
-import type { ChainMetadata } from '@hyperlane-xyz/sdk';
 import type { Logger } from 'pino';
 import sinon from 'sinon';
 
@@ -33,7 +32,7 @@ describe('KeyFunder', () => {
     } as never);
     multiProvider.getChainMetadata.returns({
       nativeToken: { name: 'TRON', symbol: 'TRX', decimals: 6 },
-    } as never);
+    });
 
     const recordUnifiedWalletBalance = sinon.spy();
     const metrics = {
@@ -94,11 +93,9 @@ describe('KeyFunder', () => {
       '0x3333333333333333333333333333333333333333',
     );
 
-    // CAST: getNativeDecimals only reads nativeToken.decimals; the rest of
-    // ChainMetadata is irrelevant to this test.
     multiProvider.getChainMetadata.returns({
       nativeToken: { name: 'TRON', symbol: 'TRX', decimals: 6 },
-    } as unknown as ChainMetadata);
+    });
     const sendTransaction = sinon.stub<
       Parameters<MultiProvider['sendTransaction']>,
       ReturnType<MultiProvider['sendTransaction']>

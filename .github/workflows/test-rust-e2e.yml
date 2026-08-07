@@ -26,14 +26,14 @@ jobs:
       matrix:
         e2e-type: [cosmwasm, cosmosnative, evm, sealevel, starknet, radix, tron]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           persist-credentials: false
           fetch-depth: 0
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         if: matrix.e2e-type == 'evm'
         with:
           node-version-file: .nvmrc
@@ -223,7 +223,7 @@ jobs:
     needs: e2e-matrix
     if: always()
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Check e2e matrix status
         uses: ./.github/actions/check-job-status
         with:
