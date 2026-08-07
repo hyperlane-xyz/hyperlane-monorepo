@@ -115,7 +115,7 @@ const TARGET_ROUTERS_BY_CHAIN = getCrossCollateralTargetRoutersByChain([
   WarpRouteIds.USDTCitreaMoonpay,
 ]);
 
-const BSC_PIECEWISE_USDC_DESTINATIONS = [
+export const BSC_PIECEWISE_USDC_DESTINATIONS = [
   'arbitrum',
   'base',
   'citrea',
@@ -192,6 +192,14 @@ function buildCrossCollateralRoutingFee(
       }),
     ),
   };
+}
+
+export function buildBscUsdtProductionTokenFee(): TokenFeeConfigInput {
+  return buildCrossCollateralRoutingFee(
+    feeOwnersByChain.bsc,
+    ROUTE_CHAINS,
+    BSC_PIECEWISE_USDC_TARGETS,
+  );
 }
 
 function buildDefaultIsm(owner: string): IsmConfig {
@@ -288,7 +296,6 @@ export async function getUSDTCitreaMoonpayWarpConfig(
   const {
     arbitrum: arbitrumFeeOwner,
     base: baseFeeOwner,
-    bsc: bscFeeOwner,
     ethereum: ethereumFeeOwner,
     katana: katanaFeeOwner,
     polygon: polygonFeeOwner,
@@ -335,11 +342,7 @@ export async function getUSDTCitreaMoonpayWarpConfig(
       scale: { numerator: 1, denominator: 1_000_000_000_000 },
       hook: buildHook('bsc', bscOwner),
       interchainSecurityModule: buildInterchainSecurityModule('bsc', bscOwner),
-      tokenFee: buildCrossCollateralRoutingFee(
-        bscFeeOwner,
-        ROUTE_CHAINS,
-        BSC_PIECEWISE_USDC_TARGETS,
-      ),
+      tokenFee: buildBscUsdtProductionTokenFee(),
       crossCollateralRouters,
     },
     katana: {

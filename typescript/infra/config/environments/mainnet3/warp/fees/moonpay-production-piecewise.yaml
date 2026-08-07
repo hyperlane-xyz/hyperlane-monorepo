@@ -1,0 +1,65 @@
+lanes:
+  - destination: arbitrum
+    fallback:
+      breakpoints: []
+      marginalBps:
+        - 3
+    id: bsc-usdt-arbitrum-usdc
+    origin: bsc
+    sourceRouteId: USDT/moonpay
+    targetRouteId: USDC/moonpay
+  - destination: base
+    fallback:
+      breakpoints: []
+      marginalBps:
+        - 3
+    id: bsc-usdt-base-usdc
+    origin: bsc
+    sourceRouteId: USDT/moonpay
+    targetRouteId: USDC/moonpay
+  - destination: citrea
+    fallback:
+      breakpoints: []
+      marginalBps:
+        - 3
+    id: bsc-usdt-citrea-usdc
+    origin: bsc
+    sourceRouteId: USDT/moonpay
+    targetRouteId: USDC/moonpay
+  - destination: ethereum
+    fallback:
+      breakpoints: []
+      marginalBps:
+        - 3
+    id: bsc-usdt-ethereum-usdc
+    origin: bsc
+    sourceRouteId: USDT/moonpay
+    targetRouteId: USDC/moonpay
+  - destination: katana
+    fallback:
+      breakpoints: []
+      marginalBps:
+        - 3
+    id: bsc-usdt-katana-usdc
+    origin: bsc
+    sourceRouteId: USDT/moonpay
+    targetRouteId: USDC/moonpay
+  - destination: polygon
+    fallback:
+      breakpoints: []
+      marginalBps:
+        - 3
+    id: bsc-usdt-polygon-usdc
+    origin: bsc
+    sourceRouteId: USDT/moonpay
+    targetRouteId: USDC/moonpay
+  - destination: solanamainnet
+    fallback:
+      breakpoints: []
+      marginalBps:
+        - 3
+    id: bsc-usdt-solanamainnet-usdc
+    origin: bsc
+    sourceRouteId: USDT/moonpay
+    targetRouteId: USDC/moonpay
+version: 2

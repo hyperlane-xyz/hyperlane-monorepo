@@ -69,6 +69,45 @@ The checked-in values are staging fixtures, not production recommendations.
 Changing these operational values does not change Warp getters or deployment
 topology.
 
+## Production fallback template
+
+`moonpay-production-piecewise.yaml` contains the seven remote
+`BSC USDT -> USDC` production lanes: Arbitrum, Base, Citrea, Ethereum, Katana,
+Polygon, and Solana. Each lane starts with a flat 3 bps mutable fallback and
+has no standing curve. The same-domain BSC USDC target, all USDT targets, and
+every destination default remain on the existing 3 bps quoted-linear fee.
+
+The production file is an operational template for fork validation and future
+fallback updates. It does not authorize a production write. Preview all seven
+fallback updates with:
+
+```bash
+pnpm tsx scripts/moonpay/set-curves.ts \
+  --config config/environments/mainnet3/warp/fees/moonpay-production-piecewise.yaml \
+  --mode fallback
+```
+
+The publisher accepts the Solana target router as a 32-byte Sealevel address;
+the source router remains the EVM BSC router. No production curve submission
+is part of the staging rollout.
+
+The production topology can be applied only to a local BSC fork with the
+guarded harness. Its default invocation is a zero-write preview; its write path
+requires both `--apply` and `--fork`, impersonates the fee-owner ICA locally,
+and has no live mode:
+
+```bash
+pnpm tsx scripts/moonpay/deploy-production-piecewise-fee-fork.ts
+
+anvil --fork-url "$RPC_URL_BSC" --block-time 1
+pnpm tsx scripts/moonpay/deploy-production-piecewise-fee-fork.ts \
+  --apply --fork
+```
+
+Fork validation requires the production BSC router and existing fee root to
+match their guarded snapshot. It verifies seven distinct piecewise leaves and
+also verifies that the router continues pointing at its existing routing root.
+
 ## Guarded staging lifecycle
 
 `run-piecewise-lifecycle.ts` is locked to the checked-in
