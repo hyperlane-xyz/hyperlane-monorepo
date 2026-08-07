@@ -31,6 +31,12 @@ pub const STAGE_NAME: &str = "InclusionStage";
 
 const MIN_TX_STATUS_CHECK_DELAY: Duration = Duration::from_millis(100);
 
+enum SubmitOutcome {
+    Submitted(Transaction),
+    TxAlreadyExists(Transaction),
+    TxGasCapReached(Transaction),
+}
+
 pub struct InclusionStage {
     pub(crate) pool: InclusionStagePool,
     tx_receiver: mpsc::Receiver<Transaction>,
@@ -175,7 +181,7 @@ impl InclusionStage {
             }
 
             if let Err(err) =
-                Self::try_process_tx(tx.clone(), finality_stage_sender, state, pool).await
+                Self::try_process_tx(tx.clone(), finality_stage_sender, state, pool, domain).await
             {
                 error!(?err, ?tx, "Error processing transaction. Dropping it");
 
@@ -284,6 +290,7 @@ impl InclusionStage {
         finality_stage_sender: &mpsc::Sender<Transaction>,
         state: &DispatcherState,
         pool: &InclusionStagePool,
+        domain: &str,
     ) -> Result<(), LanderError> {
         info!(?tx, "Processing inclusion stage transaction");
 
@@ -304,8 +311,15 @@ impl InclusionStage {
             pool_lock.insert(tx.uuid.clone(), tx.clone());
         }
 
-        Self::try_process_tx_with_next_status(tx, tx_status, finality_stage_sender, state, pool)
-            .await
+        Self::try_process_tx_with_next_status(
+            tx,
+            tx_status,
+            finality_stage_sender,
+            state,
+            pool,
+            domain,
+        )
+        .await
     }
 
     #[instrument(
@@ -319,6 +333,7 @@ impl InclusionStage {
         finality_stage_sender: &mpsc::Sender<Transaction>,
         state: &DispatcherState,
         pool: &InclusionStagePool,
+        domain: &str,
     ) -> Result<(), LanderError> {
         match tx_status {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
@@ -328,7 +343,7 @@ impl InclusionStage {
                     info!(?tx, "Transaction is not ready for resubmission");
                     return Ok(());
                 }
-                Self::process_pending_tx(tx, state, pool).await
+                Self::process_pending_tx(tx, state, pool, domain).await
             }
             TransactionStatus::Included | TransactionStatus::Finalized => {
                 update_tx_status(state, &mut tx, tx_status.clone()).await?;
@@ -357,6 +372,7 @@ impl InclusionStage {
         mut tx: Transaction,
         state: &DispatcherState,
         pool: &InclusionStagePool,
+        domain: &str,
     ) -> Result<(), LanderError> {
         info!(?tx, "Processing pending transaction");
 
@@ -371,7 +387,26 @@ impl InclusionStage {
         tx = Self::estimate_tx(&tx, state).await?;
 
         // Submitting transaction to the node
-        tx = Self::submit_tx(&tx, state).await?;
+        let submit_outcome = Self::submit_tx(&tx, state).await?;
+        match submit_outcome {
+            SubmitOutcome::Submitted(submitted_tx)
+            | SubmitOutcome::TxAlreadyExists(submitted_tx) => {
+                tx = submitted_tx;
+            }
+            SubmitOutcome::TxGasCapReached(mut blocked_tx) => {
+                info!(
+                    ?blocked_tx,
+                    "Transaction reached gas cap for now; keeping it pending for later retry"
+                );
+                Self::update_inclusion_stage_metric(state, domain, &LanderError::TxGasCapReached);
+                let current_status = blocked_tx.status.clone();
+                update_tx_status(state, &mut blocked_tx, current_status).await?;
+                pool.lock()
+                    .await
+                    .insert(blocked_tx.uuid.clone(), blocked_tx);
+                return Ok(());
+            }
+        }
         info!(?tx, "Transaction submitted to node");
 
         state
@@ -393,7 +428,7 @@ impl InclusionStage {
     async fn submit_tx(
         tx: &Transaction,
         state: &DispatcherState,
-    ) -> Result<Transaction, LanderError> {
+    ) -> Result<SubmitOutcome, LanderError> {
         // create a temporary arcmutex so that submission retries are aware of tx fields (e.g. gas price)
         // set by previous retries when calling `adapter.submit`
         let tx_shared = Arc::new(Mutex::new(tx.clone()));
@@ -409,10 +444,18 @@ impl InclusionStage {
                     let submit_result = state.adapter.submit(&mut tx_guard).await;
 
                     match submit_result {
-                        Ok(()) => Ok(tx_guard.clone()),
+                        Ok(()) => Ok(SubmitOutcome::Submitted(tx_guard.clone())),
                         Err(err) if matches!(err, LanderError::TxAlreadyExists) => {
                             warn!(tx=?tx_guard, ?err, "Transaction resubmission failed, will check the status of transaction before dropping it");
-                            Ok(tx_guard.clone())
+                            Ok(SubmitOutcome::TxAlreadyExists(tx_guard.clone()))
+                        }
+                        Err(err) if matches!(err, LanderError::TxGasCapReached) => {
+                            warn!(
+                                tx=?tx_guard,
+                                ?err,
+                                "Transaction resubmission hit the current gas cap; keeping it for later retry"
+                            );
+                            Ok(SubmitOutcome::TxGasCapReached(tx_guard.clone()))
                         }
                         Err(err) => Err(err),
                     }
