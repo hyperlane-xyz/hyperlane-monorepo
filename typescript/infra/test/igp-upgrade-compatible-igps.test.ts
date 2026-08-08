@@ -14,6 +14,7 @@ import {
   getUpgradeTargetImplementation,
   isMissingPackageVersionError,
   mergeVerificationInputs,
+  orderUpgradeCalls,
   splitProposableGroups,
 } from '../scripts/igp/upgrade-compatible-igps.js';
 
@@ -141,6 +142,34 @@ describe('upgrade-compatible-igps', () => {
         proxyAddress: proxy,
       }),
     ).to.equal(implementation);
+  });
+
+  it('orders governance ICA dispatches before the Ethereum IGP upgrade', () => {
+    const upgrade = {
+      to: '0x1111111111111111111111111111111111111111',
+      data: '0x01',
+      value: BigNumber.from(0),
+      description: 'Upgrade Ethereum IGP',
+      deferUntilAfterIcaDispatches: true,
+    };
+    const avalancheIca = {
+      to: '0x2222222222222222222222222222222222222222',
+      data: '0x02',
+      value: BigNumber.from(1),
+      description: 'ICA avalanche',
+    };
+    const baseIca = {
+      to: '0x3333333333333333333333333333333333333333',
+      data: '0x03',
+      value: BigNumber.from(2),
+      description: 'ICA base',
+    };
+
+    expect(orderUpgradeCalls([upgrade, avalancheIca, baseIca])).to.deep.equal([
+      avalancheIca,
+      baseIca,
+      upgrade,
+    ]);
   });
 
   it('matches timelock IGP upgrade operations across different implementations', () => {
