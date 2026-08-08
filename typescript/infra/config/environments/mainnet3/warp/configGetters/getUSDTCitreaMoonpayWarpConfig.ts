@@ -1,12 +1,14 @@
 import {
   ChainMap,
   ChainName,
+  CrossCollateralTokenConfig,
   DEFAULT_ROUTER_KEY,
   HookConfig,
   HookType,
   HypTokenRouterConfig,
   IsmConfig,
   IsmType,
+  MovableTokenConfig,
   TokenFeeConfigInput,
   TokenFeeType,
   TokenType,
@@ -62,6 +64,39 @@ const QUOTE_SIGNERS = [
   '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
   '0x6bb7818bbE8d88094Cf3620e58BC6BbEd542B867',
 ];
+const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
+const AUDITED_CONTRACT_VERSION = '12.0.0';
+
+const LOCAL_REBALANCE_CHAINS = [
+  'arbitrum',
+  'base',
+  'bsc',
+  'ethereum',
+  'polygon',
+] as const satisfies readonly ChainName[];
+type LocalRebalanceChain = (typeof LOCAL_REBALANCE_CHAINS)[number];
+
+// Production deployments are pinned here so this branch can generate and
+// check the source-router governance config before the registry PR is merged.
+const LOCAL_REBALANCING_BRIDGES = {
+  arbitrum: '0x42090C67b41a51101a5Bb6ef16450898c42F5D76',
+  base: '0x710520ae6da8638e1C8e2FB89Df79359e6bCE0f6',
+  bsc: '0x20Af529061af6D038448f900B23BB19F613c6d3b',
+  ethereum: '0x4B53fF6a975F0f887d4Df3F4C9B5815B54e4Ed1E',
+  polygon: '0xBBBDD95a46EEbB4021Fb96AfAe360fa7779d9265',
+} as const satisfies Record<LocalRebalanceChain, string>;
+
+type RebalancingConfig = Required<
+  Pick<MovableTokenConfig, 'allowedRebalancingBridges' | 'allowedRebalancers'>
+>;
+
+type AtomicLocalRebalancingConfig = RebalancingConfig &
+  Required<
+    Pick<
+      CrossCollateralTokenConfig,
+      'contractVersion' | 'rebalanceRecipients' | 'rebalanceTargets'
+    >
+  >;
 
 const ROUTE_CHAINS = [
   'solanamainnet',
@@ -103,6 +138,47 @@ function getUsdcCrossCollateralRouters(): Record<string, string[]> {
       return [
         String(getDomainId(chainName)),
         [addressToBytes32(addressOrDenom)],
+      ];
+    }),
+  );
+}
+
+function getAtomicLocalRebalancingConfig(
+  existingByChain: ChainMap<RebalancingConfig>,
+): ChainMap<AtomicLocalRebalancingConfig> {
+  const registry = getRegistry();
+  const usdcRoute = registry.getWarpRoute(WarpRouteIds.USDCCitreaMoonpay);
+  assert(usdcRoute, 'USDC/moonpay route not found in registry');
+
+  return Object.fromEntries(
+    LOCAL_REBALANCE_CHAINS.map((chain) => {
+      const bridge = LOCAL_REBALANCING_BRIDGES[chain];
+
+      const destinationRouter = usdcRoute.tokens.find(
+        ({ chainName }) => chainName === chain,
+      )?.addressOrDenom;
+      assert(destinationRouter, `Missing Moonpay USDC router on ${chain}`);
+      const destination = addressToBytes32(destinationRouter);
+      const existing = existingByChain[chain];
+
+      return [
+        chain,
+        {
+          contractVersion: AUDITED_CONTRACT_VERSION,
+          allowedRebalancers: [
+            ...new Set([
+              ...(existing?.allowedRebalancers ?? []),
+              REBALANCER,
+              bridge,
+            ]),
+          ],
+          allowedRebalancingBridges: {
+            ...existing?.allowedRebalancingBridges,
+            [chain]: [{ bridge }],
+          },
+          rebalanceTargets: { [chain]: [destination] },
+          rebalanceRecipients: { [chain]: destination },
+        },
       ];
     }),
   );
@@ -229,6 +305,9 @@ export async function getUSDTCitreaMoonpayWarpConfig(
     [...EVM_CHAINS, 'bsc'],
     [WarpRouteIds.USDTOft, WarpRouteIds.EclipseUSDT],
   );
+  const rebalancingConfigByChain = getAtomicLocalRebalancingConfig(
+    oftRebalancingConfigByChain,
+  );
 
   const {
     arbitrum: arbitrumOwner,
@@ -257,7 +336,7 @@ export async function getUSDTCitreaMoonpayWarpConfig(
       token: tokens.arbitrum.USDT,
       mailbox: routerConfig.arbitrum.mailbox,
       owner: arbitrumOwner,
-      ...oftRebalancingConfigByChain.arbitrum,
+      ...rebalancingConfigByChain.arbitrum,
       hook: buildHook('arbitrum', arbitrumOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'arbitrum',
@@ -271,6 +350,7 @@ export async function getUSDTCitreaMoonpayWarpConfig(
       token: tokens.base.USDT,
       mailbox: routerConfig.base.mailbox,
       owner: baseOwner,
+      ...rebalancingConfigByChain.base,
       hook: buildHook('base', baseOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'base',
@@ -284,7 +364,7 @@ export async function getUSDTCitreaMoonpayWarpConfig(
       token: tokens.bsc.USDT,
       mailbox: routerConfig.bsc.mailbox,
       owner: bscOwner,
-      ...oftRebalancingConfigByChain.bsc,
+      ...rebalancingConfigByChain.bsc,
       scale: { numerator: 1, denominator: 1_000_000_000_000 },
       hook: buildHook('bsc', bscOwner),
       interchainSecurityModule: buildInterchainSecurityModule('bsc', bscOwner),
@@ -309,7 +389,7 @@ export async function getUSDTCitreaMoonpayWarpConfig(
       token: tokens.ethereum.USDT,
       mailbox: routerConfig.ethereum.mailbox,
       owner: ethereumOwner,
-      ...oftRebalancingConfigByChain.ethereum,
+      ...rebalancingConfigByChain.ethereum,
       hook: buildHook('ethereum', ethereumOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'ethereum',
@@ -323,7 +403,7 @@ export async function getUSDTCitreaMoonpayWarpConfig(
       token: tokens.polygon.USDT,
       mailbox: routerConfig.polygon.mailbox,
       owner: polygonOwner,
-      ...oftRebalancingConfigByChain.polygon,
+      ...rebalancingConfigByChain.polygon,
       hook: buildHook('polygon', polygonOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'polygon',

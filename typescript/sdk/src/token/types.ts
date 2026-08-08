@@ -330,6 +330,29 @@ export const OftTokenConfigSchema = TokenMetadataSchema.partial().extend({
 export type OftTokenConfig = z.infer<typeof OftTokenConfigSchema>;
 export const isOftTokenConfig = isCompliant(OftTokenConfigSchema);
 
+/**
+ * Configuration for AtomicLocalRebalancingBridge — a bare ITokenBridge adapter
+ * (no mailbox, no proxy/initialize) that performs same-chain rebalances by
+ * pulling collateral from an immutable source router, running swap calls, and
+ * funding a validated destination router. Deployed unproxied like OFT/DepositAddress.
+ */
+export const AtomicLocalRebalancingBridgeTokenConfigSchema =
+  TokenMetadataSchema.partial().extend({
+    type: z.literal(TokenType.atomicLocalRebalancing),
+    sourceRouter: z
+      .string()
+      .describe(
+        'Source collateral router the bridge is immutably bound to (rebalances pull collateral from it)',
+      ),
+    predicateWrapper: PredicateWrapperConfigSchema.optional(),
+  });
+export type AtomicLocalRebalancingBridgeTokenConfig = z.infer<
+  typeof AtomicLocalRebalancingBridgeTokenConfigSchema
+>;
+export const isAtomicLocalRebalancingBridgeTokenConfig = isCompliant(
+  AtomicLocalRebalancingBridgeTokenConfigSchema,
+);
+
 export const CollateralRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.collateralVaultRebase),
@@ -372,6 +395,22 @@ export const CrossCollateralTokenConfigSchema =
     /** Map of domain → router addresses to enroll */
     crossCollateralRouters: z
       .record(RemoteRouterDomainOrChainNameSchema, z.array(ZHash))
+      .optional(),
+    /**
+     * Map of domain → rebalance target router addresses (beyond the enrolled
+     * remote router), authorized via `addRebalanceTarget`. Used e.g. to let a
+     * same-chain AtomicLocalRebalancingBridge fund a sibling collateral router.
+     */
+    rebalanceTargets: z
+      .record(RemoteRouterDomainOrChainNameSchema, z.array(ZHash))
+      .optional(),
+    /**
+     * Map of domain → the rebalance recipient router address applied via
+     * `setRecipient()`; e.g. the same-chain sibling CrossCollateralRouter for an
+     * AtomicLocalRebalancingBridge escrow.
+     */
+    rebalanceRecipients: z
+      .record(RemoteRouterDomainOrChainNameSchema, ZHash)
       .optional(),
     ...BaseMovableTokenConfigSchema.shape,
     predicateWrapper: PredicateWrapperConfigSchema.optional(),
@@ -473,6 +512,7 @@ const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   EverclearCollateralTokenConfigSchema,
   EverclearEthBridgeTokenConfigSchema,
   DepositAddressTokenConfigSchema,
+  AtomicLocalRebalancingBridgeTokenConfigSchema,
   CrossCollateralTokenConfigSchema,
   UnknownTokenConfigSchema,
 ]);
@@ -599,6 +639,7 @@ export const WarpRouteDeployConfigSchema = z
           isEverclearTokenBridgeConfig(config) ||
           isDepositAddressTokenConfig(config) ||
           isCrossCollateralTokenConfig(config) ||
+          isAtomicLocalRebalancingBridgeTokenConfig(config) ||
           isOftTokenConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );
