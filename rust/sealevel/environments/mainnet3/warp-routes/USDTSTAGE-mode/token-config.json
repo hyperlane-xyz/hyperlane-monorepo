@@ -30,5 +30,17 @@
     "name": "Tether USD STAGE",
     "symbol": "USDTSTAGE",
     "foreignDeployment": "0x01419427C18cC14d66817E90d2e550760230Cf3D"
+  },
+  "bsc": {
+    "type": "collateral",
+    "decimals": 18,
+    "token": "0x55d398326f99059fF775485246999027B3197955",
+    "foreignDeployment": "0x46fc549830f47e93684141e38756382ffb9ec0d1"
+  },
+  "tron": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0xa614f803b6fd780986a42c78ec9c7f77e6ded13c",
+    "foreignDeployment": "0x079f2b83892b5675888eb28191dc171874b49ac8"
   }
 }
