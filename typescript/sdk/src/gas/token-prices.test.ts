@@ -77,4 +77,65 @@ describe('TokenPriceGetter', () => {
       ).to.equal(priceA / priceB);
     });
   });
+
+  describe('prefetchTokenPrices / getCachedTokenPrice', () => {
+    let fetchStub: sinon.SinonStub;
+
+    afterEach(() => {
+      fetchStub?.restore();
+    });
+
+    it('warms the cache in one deduped batched pass', async () => {
+      fetchStub = sinon.stub(globalThis, 'fetch').resolves(
+        new Response(
+          JSON.stringify({
+            ethereum: { usd: 1900 },
+            bitcoin: { usd: 64000 },
+          }),
+          { status: 200 },
+        ),
+      );
+
+      await tokenPriceGetter.prefetchTokenPrices([
+        'ethereum',
+        'bitcoin',
+        'ethereum',
+      ]);
+
+      expect(fetchStub.callCount).to.equal(1);
+      expect(tokenPriceGetter.getCachedTokenPrice('ethereum')).to.equal(1900);
+      expect(tokenPriceGetter.getCachedTokenPrice('bitcoin')).to.equal(64000);
+    });
+
+    it('skips ids with no returned price instead of dropping the batch', async () => {
+      fetchStub = sinon.stub(globalThis, 'fetch').resolves(
+        new Response(JSON.stringify({ ethereum: { usd: 1900 } }), {
+          status: 200,
+        }),
+      );
+
+      await tokenPriceGetter.prefetchTokenPrices(['ethereum', 'unknown-token']);
+
+      expect(tokenPriceGetter.getCachedTokenPrice('ethereum')).to.equal(1900);
+      expect(tokenPriceGetter.getCachedTokenPrice('unknown-token')).to.equal(
+        undefined,
+      );
+    });
+
+    it('chunks id lists that exceed the per-call limit', async () => {
+      // A list longer than the per-call cap must be split across requests
+      // rather than sent as one oversized (and rejected) batch.
+      fetchStub = sinon
+        .stub(globalThis, 'fetch')
+        .callsFake(
+          async () => new Response(JSON.stringify({}), { status: 200 }),
+        );
+
+      const ids = Array.from({ length: 150 }, (_, i) => `id-${i}`);
+      await tokenPriceGetter.prefetchTokenPrices(ids);
+
+      // 150 ids at a 100-per-call cap => 2 requests.
+      expect(fetchStub.callCount).to.equal(2);
+    });
+  });
 });

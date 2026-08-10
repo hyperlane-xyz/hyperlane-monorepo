@@ -9,5 +9,33 @@ hyperlane:
   registryUri: ''
 nameOverride: ''
 fullnameOverride: ''
+# Centralized multi-route monitor: one long-running Deployment that monitors
+# many routes at once, instead of a StatefulSet per route. When enabled, the
+# per-route StatefulSet is not rendered.
+centralized:
+  enabled: false
+  # Monitor every route in the registry. When false, warpRouteIds is used.
+  # Defaults to false so a misconfigured deploy monitors nothing (and crash-loops)
+  # rather than silently pulling in every registry route, incl. testnet/staging.
+  warpRouteAll: false
+  # Explicit route IDs to monitor when warpRouteAll is false.
+  warpRouteIds: []
+  # Max routes processed concurrently per cycle. Kept low so per-cycle RPC/CPU
+  # load stays flat rather than bursting the whole fleet at once.
+  concurrency: 2
+  # Routes whose shared balance metrics are emitted by a rebalancer and must not
+  # be double-emitted by this monitor.
+  skipSharedBalanceWarpRouteIds: []
+  explorerApiUrl: ''
+  explorerQueryLimit: 200
+  inventoryAddress: ''
+  # 5 minutes. Warp balances move slowly; sub-minute resolution is unnecessary
+  # and just multiplies RPC load across the whole fleet.
+  checkFrequency: 300000
+  # Guaranteed QoS (requests == limits) so the pod is not evicted under node
+  # memory pressure. One process covers the whole fleet, so size accordingly.
+  resources:
+    cpu: '1'
+    memory: 4Gi
 externalSecrets:
   clusterSecretStore:

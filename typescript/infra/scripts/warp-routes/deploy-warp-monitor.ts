@@ -9,12 +9,20 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
+import { mainnetDockerTags } from '../../config/docker.js';
 import { getWarpCoreConfig } from '../../config/registry.js';
-import { WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX } from '../../src/utils/consts.js';
+import { DeployEnvironment } from '../../src/config/deploy-environment.js';
+import { getDeployedRebalancerWarpRouteIds } from '../../src/rebalancer/helm.js';
+import {
+  REBALANCER_HELM_RELEASE_PREFIX,
+  WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX,
+} from '../../src/utils/consts.js';
 import { validateRegistryCommit } from '../../src/utils/git.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import {
+  CentralizedWarpRouteMonitorHelmManager,
   WarpRouteMonitorHelmManager,
+  getDeployedCentralizedWarpMonitorWarpRouteIds,
   getDeployedWarpMonitorWarpRouteIds,
 } from '../../src/warp-monitor/helm.js';
 import {
@@ -23,11 +31,141 @@ import {
   getAgentConfig,
   getArgs,
   getMultiProtocolProvider,
+  withDryRun,
   withRegistryCommit,
   withWarpRouteId,
   withYes,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
+
+function dedupeAndSortWarpRouteIds(
+  ids: (string | undefined | null)[],
+): string[] {
+  return [...new Set(ids.filter((id): id is string => !!id))].sort();
+}
+
+// Deploys the single centralized multi-route monitor. Routes currently owned by
+// a deployed rebalancer are auto-derived from the live cluster: they are both
+// monitored and passed as the shared-balance skip list, so their shared-balance
+// metrics are not double-emitted while the rest of their coverage is kept.
+async function deployCentralizedWarpMonitor({
+  environment,
+  warpRouteId,
+  registryCommitArg,
+  skipConfirmation,
+  imageTagArg,
+  dryRun,
+}: {
+  environment: DeployEnvironment;
+  warpRouteId?: string;
+  registryCommitArg?: string;
+  skipConfirmation: boolean;
+  imageTagArg?: string;
+  dryRun: boolean;
+}) {
+  let registryCommit: string;
+  if (registryCommitArg) {
+    registryCommit = registryCommitArg;
+  } else if (skipConfirmation) {
+    registryCommit = 'main';
+  } else {
+    registryCommit = await input({
+      message: 'Enter registry version (commit, branch or tag):',
+      default: 'main',
+    });
+  }
+  await validateRegistryCommit(registryCommit);
+
+  const rebalancerPods = await getDeployedRebalancerWarpRouteIds(
+    environment,
+    REBALANCER_HELM_RELEASE_PREFIX,
+  );
+  const rebalancerWarpRouteIds = dedupeAndSortWarpRouteIds(
+    rebalancerPods.map((p) => p.warpRouteId),
+  );
+  // Rebalancers already emit shared-balance metrics for these routes, so the
+  // monitor must not double-emit them — but it still monitors everything else
+  // (pending transfers, projected deficit, inventory) for them.
+  const skipSharedBalanceWarpRouteIds = rebalancerWarpRouteIds;
+  rootLogger.info(
+    `Rebalancer-owned routes (${rebalancerWarpRouteIds.length}) — monitored, but shared-balance metrics suppressed:\n${rebalancerWarpRouteIds.map((id) => `  - ${id}`).join('\n')}`,
+  );
+
+  const agentConfig = getAgentConfig(Contexts.Hyperlane, environment);
+  const imageTag = imageTagArg ?? mainnetDockerTags.warpMonitor;
+
+  // Build the monitored whitelist as the UNION of every source so the singleton
+  // is always extended, never replaced or frozen: the centralized monitor's own
+  // currently-deployed route list (its durable Deployment whitelist), the
+  // currently-deployed per-route monitors (so a route added via the per-route
+  // flow gets folded in), an explicit --warp-route-id when provided (added on
+  // top, not substituted), and rebalancer-owned routes (kept for full
+  // non-shared-balance coverage). Every id is then validated against the
+  // registry so an unknown or orphaned id never silently deploys, and stale
+  // entries are dropped. This keeps scope to the mainnet fleet rather than
+  // every registry route, so it never pages on testnet/staging routes that were
+  // never monitored.
+  const deployedCentralized =
+    await getDeployedCentralizedWarpMonitorWarpRouteIds(environment);
+  const deployedMonitors = await getDeployedWarpMonitorWarpRouteIds(
+    environment,
+    WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX,
+  );
+  const deployedPerRouteIds = deployedMonitors
+    .map((p) => p.warpRouteId)
+    .filter((id): id is string => !!id);
+  const candidateWarpRouteIds = [
+    ...deployedCentralized,
+    ...deployedPerRouteIds,
+    ...(warpRouteId ? [warpRouteId] : []),
+    ...rebalancerWarpRouteIds,
+  ];
+  rootLogger.info(
+    `Whitelist union — centralized: ${deployedCentralized.length}, per-route: ${dedupeAndSortWarpRouteIds(deployedPerRouteIds).length}, explicit: ${warpRouteId ? 1 : 0}, rebalancer: ${rebalancerWarpRouteIds.length}`,
+  );
+
+  const { validIds: warpRouteIds, orphanedIds } = filterOrphanedWarpRouteIds(
+    dedupeAndSortWarpRouteIds(candidateWarpRouteIds),
+  );
+  // Guard against a typo'd --warp-route-id: an explicit id that fails registry
+  // validation is a user error, not a stale entry to silently drop.
+  if (warpRouteId && orphanedIds.includes(warpRouteId)) {
+    rootLogger.error(
+      `Warp route "${warpRouteId}" not found in registry. Verify the warp route ID is correct.`,
+    );
+    process.exit(1);
+  }
+  if (orphanedIds.length > 0) {
+    rootLogger.warn(
+      `Excluding ${orphanedIds.length} route(s) not in the selected registry:\n${orphanedIds.map((id) => `  - ${id}`).join('\n')}`,
+    );
+  }
+
+  if (warpRouteIds.length === 0) {
+    rootLogger.error(
+      'No warp routes to monitor: found no current centralized monitor, no per-route monitors, no rebalancer routes, and no --warp-route-id provided.',
+    );
+    process.exit(1);
+  }
+  rootLogger.info(
+    `Centralized monitor whitelist: ${warpRouteIds.length} route(s)`,
+  );
+
+  const helmManager = new CentralizedWarpRouteMonitorHelmManager(
+    environment,
+    agentConfig.environmentChainNames,
+    registryCommit,
+    skipSharedBalanceWarpRouteIds,
+    imageTag,
+    warpRouteIds,
+  );
+  rootLogger.info(
+    `Deploying centralized warp monitor (image ${imageTag}, ${warpRouteIds.length} route(s))`,
+  );
+  await timedAsync('runHelmCommand(centralized)', () =>
+    helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade, { dryRun }),
+  );
+}
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
@@ -36,12 +174,40 @@ async function main() {
     warpRouteId,
     registryCommit: registryCommitArg,
     yes: skipConfirmation,
-  } = await withYes(withRegistryCommit(withWarpRouteId(getArgs()))).argv;
+    centralized,
+    imageTag: imageTagArg,
+    dryRun,
+  } = await withDryRun(
+    withYes(withRegistryCommit(withWarpRouteId(getArgs())))
+      .boolean('centralized')
+      .describe(
+        'centralized',
+        'Deploy the single centralized multi-route monitor instead of per-route monitors',
+      )
+      .default('centralized', false)
+      .string('imageTag')
+      .describe(
+        'imageTag',
+        'node-services image tag for the centralized monitor (defaults to the pinned mainnet warpMonitor tag)',
+      ),
+  ).argv;
   await timedAsync('assertCorrectKubeContext', () =>
     assertCorrectKubeContext(getEnvironmentConfig(environment)),
   );
 
   const envConfig = getEnvironmentConfig(environment);
+
+  if (centralized) {
+    await deployCentralizedWarpMonitor({
+      environment,
+      warpRouteId,
+      registryCommitArg,
+      skipConfirmation,
+      imageTagArg,
+      dryRun,
+    });
+    return;
+  }
 
   let warpRouteIds: string[];
   if (warpRouteId) {
@@ -160,7 +326,7 @@ async function main() {
       helmManager.runPreflightChecks(multiProtocolProvider, skipConfirmation),
     );
     await timedAsync(`runHelmCommand(${warpRouteId})`, () =>
-      helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade),
+      helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade, { dryRun }),
     );
   };
 
