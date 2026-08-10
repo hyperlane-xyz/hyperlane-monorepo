@@ -1153,6 +1153,9 @@ describe('EvmWarpRouteReader', async () => {
     const scaleStub = sinon
       .stub(evmERC20WarpRouteReader, 'fetchScale')
       .resolves(expectedScale);
+    const packageVersionStub = sinon
+      .stub(evmERC20WarpRouteReader, 'fetchPackageVersion')
+      .resolves('12.0.0');
 
     const deriveCrossCollateralTokenConfig = (evmERC20WarpRouteReader as any)
       .deriveCrossCollateralTokenConfig as (address: string) => Promise<any>;
@@ -1176,21 +1179,33 @@ describe('EvmWarpRouteReader', async () => {
         [localDomain.toString()]: rebalanceRecipient,
       });
 
-      const missingSelector = Object.assign(new Error('missing selector'), {
-        code: 'CALL_EXCEPTION',
-        data: '0x',
-      });
+      packageVersionStub.resolves('11.3.1');
+      rebalanceTargetsStub.resetHistory();
       rebalanceTargetsStub.resetBehavior();
-      rebalanceTargetsStub.rejects(missingSelector);
-      allowedRecipientStub.resetBehavior();
-      allowedRecipientStub.rejects(missingSelector);
+      rebalanceTargetsStub.rejects(new Error('Invalid response from provider'));
       const legacyConfig = await deriveCrossCollateralTokenConfig.call(
         evmERC20WarpRouteReader,
         routerAddress,
       );
       expect(legacyConfig.rebalanceTargets).to.equal(undefined);
-      expect(legacyConfig.rebalanceRecipients).to.equal(undefined);
+      expect(legacyConfig.rebalanceRecipients).to.deep.equal({
+        [localDomain.toString()]: rebalanceRecipient,
+      });
+      sinon.assert.notCalled(rebalanceTargetsStub);
 
+      const missingSelector = Object.assign(new Error('missing selector'), {
+        code: 'CALL_EXCEPTION',
+        data: '0x',
+      });
+      allowedRecipientStub.resetBehavior();
+      allowedRecipientStub.rejects(missingSelector);
+      const legacyRecipientConfig = await deriveCrossCollateralTokenConfig.call(
+        evmERC20WarpRouteReader,
+        routerAddress,
+      );
+      expect(legacyRecipientConfig.rebalanceRecipients).to.equal(undefined);
+
+      packageVersionStub.resolves('12.0.0');
       rebalanceTargetsStub.resetBehavior();
       rebalanceTargetsStub.rejects(new Error('RPC unavailable'));
       let error: unknown;
@@ -1212,6 +1227,7 @@ describe('EvmWarpRouteReader', async () => {
       tokenRouterConnectStub.restore();
       metadataStub.restore();
       scaleStub.restore();
+      packageVersionStub.restore();
     }
   });
 
