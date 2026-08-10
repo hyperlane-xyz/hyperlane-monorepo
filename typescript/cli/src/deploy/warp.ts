@@ -43,6 +43,7 @@ import {
   type ProtocolTransaction,
   type RoutingIsmConfig,
   type SubmissionStrategy,
+  type SubmitterMetadata,
   type TokenMetadataMap,
   type TrustedRelayerIsmConfig,
   type TxSubmitterBuilder,
@@ -1247,16 +1248,21 @@ async function getFeeSubmitterByStrategy<T extends ProtocolType>({
       jsonRpc: () => new AltVMJsonRpcSubmitter(signer, { chain }),
       [CustomTxSubmitterType.IMPERSONATED_ACCOUNT]: (
         _multiProvider: MultiProvider,
-        metadata: { userAddress: string },
-      ) =>
-        getProtocolProvider(protocol).createSubmitter(
+        metadata: SubmitterMetadata,
+      ) => {
+        assert(
+          metadata.type === CustomTxSubmitterType.IMPERSONATED_ACCOUNT,
+          `Invalid metadata type: ${metadata.type}, expected ${CustomTxSubmitterType.IMPERSONATED_ACCOUNT}`,
+        );
+        return getProtocolProvider(protocol).createSubmitter(
           multiProvider.getChainMetadata(chain),
           {
             type: SubmitterType.ImpersonatedAccount,
             chain,
             userAddress: metadata.userAddress,
           },
-        ),
+        );
+      },
       [CustomTxSubmitterType.FILE]: (
         _multiProvider: MultiProvider,
         metadata: any,
@@ -1731,8 +1737,12 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
       },
       [CustomTxSubmitterType.IMPERSONATED_ACCOUNT]: (
         _multiProvider: MultiProvider,
-        metadata: { userAddress: string },
+        metadata: SubmitterMetadata,
       ) => {
+        assert(
+          metadata.type === CustomTxSubmitterType.IMPERSONATED_ACCOUNT,
+          `Invalid metadata type: ${metadata.type}, expected ${CustomTxSubmitterType.IMPERSONATED_ACCOUNT}`,
+        );
         return getProtocolProvider(protocol).createSubmitter(
           multiProvider.getChainMetadata(chain),
           {
