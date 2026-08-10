@@ -92,3 +92,66 @@ The warp-routes container
   - secretRef:
       name: {{ include "hyperlane.fullname" . }}-secret
 {{- end }}
+
+{{/*
+The centralized warp-monitor container. One long-running process monitors many
+routes and emits all their metrics into one scraped registry, replacing the
+fleet of per-route StatefulSets. Resources are Guaranteed QoS (requests ==
+limits) so GKE does not evict it under node memory pressure the way it did the
+BestEffort per-route pods.
+*/}}
+{{- define "hyperlane.warp-routes.centralized-container" }}
+- name: warp-routes
+  image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+  imagePullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: {{ .Values.centralized.resources.cpu | quote }}
+      memory: {{ .Values.centralized.resources.memory | quote }}
+    limits:
+      cpu: {{ .Values.centralized.resources.cpu | quote }}
+      memory: {{ .Values.centralized.resources.memory | quote }}
+  env:
+  - name: SERVICE_NAME
+    value: {{ .Values.serviceName | default "warp-monitor" | quote }}
+  - name: LOG_FORMAT
+    value: json
+  - name: LOG_LEVEL
+    value: info
+  {{- if .Values.hyperlane.registryUri }}
+  - name: REGISTRY_URI
+    value: {{ .Values.hyperlane.registryUri }}
+  {{- end }}
+  {{- if .Values.centralized.warpRouteAll }}
+  - name: WARP_ROUTE_ALL
+    value: "true"
+  {{- else if .Values.centralized.warpRouteIds }}
+  - name: WARP_ROUTE_IDS
+    value: {{ join "," .Values.centralized.warpRouteIds | quote }}
+  {{- else }}
+  {{- fail "centralized.warpRouteIds must be non-empty when centralized.warpRouteAll is false" }}
+  {{- end }}
+  - name: WARP_MONITOR_CONCURRENCY
+    value: {{ .Values.centralized.concurrency | quote }}
+  {{- if .Values.centralized.skipSharedBalanceWarpRouteIds }}
+  - name: SKIP_SHARED_BALANCE_WARP_ROUTE_IDS
+    value: {{ join "," .Values.centralized.skipSharedBalanceWarpRouteIds | quote }}
+  {{- end }}
+  {{- if .Values.centralized.explorerApiUrl }}
+  - name: EXPLORER_API_URL
+    value: {{ .Values.centralized.explorerApiUrl | quote }}
+  {{- end }}
+  {{- if .Values.centralized.explorerQueryLimit }}
+  - name: EXPLORER_QUERY_LIMIT
+    value: {{ .Values.centralized.explorerQueryLimit | quote }}
+  {{- end }}
+  {{- if .Values.centralized.inventoryAddress }}
+  - name: INVENTORY_ADDRESS
+    value: {{ .Values.centralized.inventoryAddress | quote }}
+  {{- end }}
+  - name: CHECK_FREQUENCY
+    value: {{ .Values.centralized.checkFrequency | default 30000 | quote }}
+  envFrom:
+  - secretRef:
+      name: {{ include "hyperlane.fullname" . }}-secret
+{{- end }}
