@@ -369,6 +369,7 @@ export type ArraySortConfig = {
     sortKey: string;
   }>;
   preserve?: string[];
+  preserveKeys?: string[];
 };
 
 export const WARP_YAML_SORT_CONFIG: ArraySortConfig = {
@@ -381,15 +382,10 @@ export const WARP_YAML_SORT_CONFIG: ArraySortConfig = {
       sortKey: 'type',
     },
   ],
-  // These arrays describe ordered piecewise curves, so sorting changes their
-  // meaning by disconnecting each rate from its corresponding band.
-  preserve: [
-    'lanes[].standing.breakpoints',
-    'lanes[].standing.marginalBps',
-    'lanes[].standing.staleMarginalSurchargeBps',
-    'lanes[].fallback.breakpoints',
-    'lanes[].fallback.marginalBps',
-  ],
+  // These arrays describe ordered piecewise curves. They can occur at many
+  // depths inside nested routing-fee configs, so preserve them by semantic
+  // key instead of enumerating individual paths.
+  preserveKeys: ['breakpoints', 'marginalBps', 'staleMarginalSurchargeBps'],
 };
 
 export function sortObjectKeys(obj: unknown): unknown {
@@ -436,9 +432,11 @@ function shouldPreserveArrayOrder(
   config: ArraySortConfig,
 ): boolean {
   return (
-    config.preserve?.some((configPath) =>
+    (path.length > 0 && config.preserveKeys?.includes(path.at(-1)!)) ||
+    (config.preserve?.some((configPath) =>
       isPathMatch(path, configPath.split('.')),
-    ) ?? false
+    ) ??
+      false)
   );
 }
 

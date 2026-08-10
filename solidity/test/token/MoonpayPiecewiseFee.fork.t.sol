@@ -74,7 +74,7 @@ contract MoonpayPiecewiseFeeForkTest is Test {
             address(usdt),
             breakpoints,
             fallbackRates,
-            4,
+            5,
             address(this)
         );
 
