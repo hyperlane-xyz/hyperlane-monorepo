@@ -7,7 +7,12 @@ import {
   createWarpTokenWriter,
 } from '@hyperlane-xyz/deploy-sdk';
 import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter';
-import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import {
+  GasAction,
+  ProtocolType,
+  SubmitterType,
+  getProtocolProvider,
+} from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type WarpArtifactConfig,
@@ -1240,6 +1245,18 @@ async function getFeeSubmitterByStrategy<T extends ProtocolType>({
     const signer = mustGet(altVmSigners, chain);
     additionalSubmitterFactories[protocol] = {
       jsonRpc: () => new AltVMJsonRpcSubmitter(signer, { chain }),
+      [CustomTxSubmitterType.IMPERSONATED_ACCOUNT]: (
+        _multiProvider: MultiProvider,
+        metadata: { userAddress: string },
+      ) =>
+        getProtocolProvider(protocol).createSubmitter(
+          multiProvider.getChainMetadata(chain),
+          {
+            type: SubmitterType.ImpersonatedAccount,
+            chain,
+            userAddress: metadata.userAddress,
+          },
+        ),
       [CustomTxSubmitterType.FILE]: (
         _multiProvider: MultiProvider,
         metadata: any,
@@ -1711,6 +1728,19 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
         return new AltVMJsonRpcSubmitter(signer, {
           chain: chain,
         });
+      },
+      [CustomTxSubmitterType.IMPERSONATED_ACCOUNT]: (
+        _multiProvider: MultiProvider,
+        metadata: { userAddress: string },
+      ) => {
+        return getProtocolProvider(protocol).createSubmitter(
+          multiProvider.getChainMetadata(chain),
+          {
+            type: SubmitterType.ImpersonatedAccount,
+            chain,
+            userAddress: metadata.userAddress,
+          },
+        );
       },
       [CustomTxSubmitterType.FILE]: (
         _multiProvider: MultiProvider,

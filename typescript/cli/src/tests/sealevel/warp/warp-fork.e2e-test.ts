@@ -9,6 +9,7 @@ import { airdropSol, createSplMint } from '@hyperlane-xyz/sealevel-sdk/testing';
 import {
   TokenFeeType,
   TokenType,
+  TxSubmitterType,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, pollAsync } from '@hyperlane-xyz/utils';
@@ -40,6 +41,15 @@ const HAPPY_REGISTRY_PORT = HAPPY_FORK_PORT - 10;
 
 const REPLAY_FORK_PORT = 8602;
 const REPLAY_REGISTRY_PORT = REPLAY_FORK_PORT - 10;
+
+const IMPERSONATE_FORK_PORT = 8604;
+const IMPERSONATE_REGISTRY_PORT = IMPERSONATE_FORK_PORT - 10;
+
+// A valid private key we deploy the route owner from, then never hand to the
+// CLI: the impersonated apply must land an owner-authorized transaction without
+// holding this key.
+const FOREIGN_OWNER_KEY =
+  '0x0000000000000000000000000000000000000000000000000000000000000042';
 
 const SPECIFIC_REMOTE_ROUTER =
   '0x000000000000000000000000000000000000000000000000000000000000beef';
@@ -268,6 +278,117 @@ describe('hyperlane warp fork CLI e2e tests (Sealevel)', function () {
           warpRouteId,
           registry: `${LOCAL_HOST}:${REPLAY_REGISTRY_PORT}`,
         })
+        .stdio('pipe')
+        .nothrow();
+
+      expect(output.exitCode).to.equal(0);
+      expect(output.text()).to.include('No violations found');
+    } finally {
+      try {
+        await forkProcess.kill('SIGINT');
+        await forkProcess;
+      } catch {
+        // Process may have already exited, which is fine
+      }
+    }
+  });
+
+  it('applies an owner-authorized change via an impersonated submitter it cannot sign for', async function () {
+    const ourAddress = signer.getSignerAddress();
+    // The route is owned by an address whose key the CLI is never given.
+    const foreignOwner = await SealevelSigner.connectWithSigner(
+      TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
+      FOREIGN_OWNER_KEY,
+    );
+    const foreignOwnerAddress = foreignOwner.getSignerAddress();
+
+    const symbol = 'FORKIMP';
+    const warpRouteId = createWarpRouteConfigId(symbol, CHAIN_NAME);
+
+    const deployConfig: WarpRouteDeployConfig = {
+      [CHAIN_NAME]: {
+        type: TokenType.native,
+        name: 'Fork Impersonate Token',
+        symbol,
+        decimals: 9,
+        mailbox: mailboxAddress,
+        owner: foreignOwnerAddress,
+      },
+    };
+    const deployPath = `${TEMP_PATH}/svm-fork-impersonate-deploy.yaml`;
+    writeYamlOrJson(deployPath, deployConfig);
+    await warpCommands.deploy(SVM_KEY, warpRouteId, deployPath);
+
+    // Desired state = on-chain state with ownership transferred to us. Reading
+    // back captures deploy-set defaults so the only diff is the owner, whose
+    // transfer must be authorized by the foreign owner we cannot sign for.
+    const warpCorePath = getWarpCoreConfigPath(symbol, [CHAIN_NAME]);
+    const desiredConfig = await warpCommands.readConfig(
+      CHAIN_NAME,
+      warpCorePath,
+    );
+    desiredConfig[CHAIN_NAME].owner = ourAddress;
+    const desiredPath = getWarpDeployConfigPath(symbol, [CHAIN_NAME]);
+    writeYamlOrJson(desiredPath, desiredConfig);
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath: desiredPath,
+      warpRouteId,
+      registryPath: REGISTRY_PATH,
+    });
+
+    await waitForFinalizedSlot(rpc);
+
+    const forkProcess = warpCommands
+      .fork({ warpRouteId, port: IMPERSONATE_FORK_PORT })
+      .nothrow();
+    const forkRegistry = `${LOCAL_HOST}:${IMPERSONATE_REGISTRY_PORT}`;
+
+    try {
+      await waitForForkedRegistry(IMPERSONATE_REGISTRY_PORT, CHAIN_NAME);
+
+      // Negative: the ordinary jsonRpc submitter cannot sign for the foreign
+      // owner, so the client-side full-signature check rejects the transaction.
+      const failed = await warpCommands
+        .applyRaw({
+          warpRouteId,
+          registry: forkRegistry,
+          privateKey: SVM_KEY,
+          skipConfirmationPrompts: true,
+        })
+        .stdio('pipe')
+        .nothrow();
+
+      expect(failed.exitCode).to.not.equal(0);
+      expect(failed.text()).to.include('missing signatures');
+
+      // Positive: the impersonated submitter partially signs with only the fee
+      // payer and relies on the fork's disabled signature verification.
+      const strategyPath = `${TEMP_PATH}/svm-fork-impersonate-strategy.yaml`;
+      writeYamlOrJson(strategyPath, {
+        [CHAIN_NAME]: {
+          submitter: {
+            type: TxSubmitterType.IMPERSONATED_ACCOUNT,
+            chain: CHAIN_NAME,
+            userAddress: foreignOwnerAddress,
+          },
+        },
+      });
+
+      const applied = await warpCommands
+        .applyRaw({
+          warpRouteId,
+          registry: forkRegistry,
+          strategyUrl: strategyPath,
+          privateKey: SVM_KEY,
+          skipConfirmationPrompts: true,
+        })
+        .stdio('pipe')
+        .nothrow();
+
+      expect(applied.exitCode).to.equal(0);
+
+      const output = await warpCommands
+        .checkRaw({ warpRouteId, registry: forkRegistry })
         .stdio('pipe')
         .nothrow();
 

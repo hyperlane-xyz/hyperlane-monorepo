@@ -1,6 +1,7 @@
 // Clients
 export { SvmProvider as SealevelProvider } from './clients/provider.js';
 export { SvmSigner as SealevelSigner } from './clients/signer.js';
+export { SvmImpersonatingSigner as SealevelImpersonatingSigner } from './clients/impersonating-signer.js';
 export { SvmProtocolProvider as SealevelProtocolProvider } from './clients/protocol.js';
 
 // Types

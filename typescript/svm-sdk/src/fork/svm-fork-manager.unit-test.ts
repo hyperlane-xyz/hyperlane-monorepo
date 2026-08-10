@@ -23,8 +23,16 @@ import { type AccountInfoRpc } from '../accounts/address-lookup-table.js';
 import { createRpc } from '../rpc.js';
 import { serializeUnsignedTransaction } from '../tx.js';
 
+import {
+  FORK_IMPERSONATION_AIRDROP_LAMPORTS,
+  FORK_IMPERSONATION_FEE_PAYER,
+} from './impersonation.js';
 import { type SvmForkTransaction } from './svm-fork-config.js';
-import { buildForkReplayTransaction } from './svm-fork-manager.js';
+import { type SurfpoolAirdrops } from './surfpool-node.js';
+import {
+  buildForkReplayTransaction,
+  withImpersonationAirdrop,
+} from './svm-fork-manager.js';
 
 const base58Decoder = getBase58Decoder();
 const base64Decoder = getBase64Decoder();
@@ -221,4 +229,54 @@ describe('buildForkReplayTransaction', () => {
     );
     expect(instructions[1].programAddress).to.equal(PAYLOAD_PROGRAM);
   });
+});
+
+const IMPERSONATED_FEE_PAYER = FORK_IMPERSONATION_FEE_PAYER.address;
+const OTHER_ADDRESS = 'F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF5';
+
+describe('withImpersonationAirdrop', () => {
+  interface Case {
+    name: string;
+    input: SurfpoolAirdrops | undefined;
+    expected: SurfpoolAirdrops;
+  }
+
+  const cases: Case[] = [
+    {
+      name: 'no airdrops → funds only the fee payer at the buffer amount',
+      input: undefined,
+      expected: {
+        addresses: [IMPERSONATED_FEE_PAYER],
+        lamports: FORK_IMPERSONATION_AIRDROP_LAMPORTS,
+      },
+    },
+    {
+      name: 'existing airdrops below the buffer → appends fee payer, raises lamports',
+      input: {
+        addresses: [OTHER_ADDRESS],
+        lamports: FORK_IMPERSONATION_AIRDROP_LAMPORTS - 1n,
+      },
+      expected: {
+        addresses: [OTHER_ADDRESS, IMPERSONATED_FEE_PAYER],
+        lamports: FORK_IMPERSONATION_AIRDROP_LAMPORTS,
+      },
+    },
+    {
+      name: 'fee payer already present above the buffer → no duplicate, keeps higher lamports',
+      input: {
+        addresses: [OTHER_ADDRESS, IMPERSONATED_FEE_PAYER],
+        lamports: FORK_IMPERSONATION_AIRDROP_LAMPORTS + 1n,
+      },
+      expected: {
+        addresses: [OTHER_ADDRESS, IMPERSONATED_FEE_PAYER],
+        lamports: FORK_IMPERSONATION_AIRDROP_LAMPORTS + 1n,
+      },
+    },
+  ];
+
+  for (const c of cases) {
+    it(c.name, () => {
+      expect(withImpersonationAirdrop(c.input)).to.deep.equal(c.expected);
+    });
+  }
 });

@@ -16,9 +16,13 @@ export {
   listProtocols,
 } from './protocol.js';
 export {
+  AltVMImpersonatedSubmitter,
+  AltVMJsonRpcSubmitter,
+  SubmitterType,
   ITransactionSubmitter,
   TransactionSubmitterConfig,
   JsonRpcSubmitterConfig,
+  ImpersonatedAccountSubmitterConfig,
   FileSubmitterConfig,
 } from './submitter.js';
 export { MockProvider } from './test/AltVMMockProvider.js';
