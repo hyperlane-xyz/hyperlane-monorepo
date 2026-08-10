@@ -397,6 +397,8 @@ export {
   SafeParseIsmConfigSchema,
   RateLimitedIsmConfig,
   RateLimitedIsmConfigSchema,
+  BlacklistIsmConfig,
+  BlacklistIsmConfigSchema,
   TrustedRelayerIsmConfig,
   TrustedRelayerIsmConfigSchema,
   WeightedMultisigIsmConfig,
@@ -427,6 +429,7 @@ export {
   AgentSealevelUrReveal,
   AgentSigner,
   AgentSignerAwsKey,
+  AgentSignerGcpKey,
   AgentSignerHexKey,
   AgentSignerKeyType,
   AgentSignerNode,
@@ -1137,6 +1140,7 @@ export { tokenFeeInputToFeeConfig } from './fee/feeConfigMapping.js';
 export {
   TurnkeyClientManager,
   TurnkeyConfig,
+  TurnkeyConfigSchema,
 } from './signers/turnkeyClient.js';
 export { TurnkeyEvmSigner } from './signers/evm/turnkey.js';
 export { TurnkeySealevelSigner } from './signers/svm/turnkey.js';

@@ -1,6 +1,6 @@
 import {
   MultiProvider,
-  TurnkeyConfig,
+  TurnkeyConfigSchema,
   TurnkeyEvmSigner,
   TurnkeySealevelSigner,
 } from '@hyperlane-xyz/sdk';
@@ -31,7 +31,7 @@ export async function createTurnkeySigner(
   const secretName = turnkeySecret(deployEnvironment, role);
   try {
     const secretData = await fetchLatestGCPSecret(secretName);
-    const turnkeyConfig = JSON.parse(secretData) as TurnkeyConfig;
+    const turnkeyConfig = TurnkeyConfigSchema.parse(JSON.parse(secretData));
 
     // Create the appropriate signer based on role
     let signer: TurnkeySigner;
@@ -44,6 +44,7 @@ export async function createTurnkeySigner(
       case TurnkeyRole.EvmRebalancer:
       case TurnkeyRole.EvmIgpClaimer:
       case TurnkeyRole.EvmIgpUpdater:
+      case TurnkeyRole.EvmWarpFeesOwner:
         signer = new TurnkeyEvmSigner(turnkeyConfig);
         break;
       default:

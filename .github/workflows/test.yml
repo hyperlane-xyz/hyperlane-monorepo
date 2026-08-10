@@ -27,12 +27,12 @@ jobs:
   pnpm-install:
     runs-on: depot-ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           persist-credentials: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
 
@@ -52,11 +52,11 @@ jobs:
     if: needs.change-detection.outputs.run_lint_prettier == 'true'
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
 
@@ -122,7 +122,7 @@ jobs:
     needs: [lint-prettier-run]
     if: always()
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Check lint-prettier status
         uses: ./.github/actions/check-job-status
         with:
@@ -136,7 +136,7 @@ jobs:
       current_sha: ${{ steps.determine-sha.outputs.current_sha }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           # Full history needed to compute merge-base for PRs
@@ -163,7 +163,7 @@ jobs:
       has_svm: ${{ steps.decide.outputs.has_svm }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -327,7 +327,7 @@ jobs:
     timeout-minutes: 20
     if: needs.change-detection.outputs.skip_ts != 'true'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -346,7 +346,7 @@ jobs:
     needs: [pnpm-test-run]
     if: always()
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Check pnpm-test status
         uses: ./.github/actions/check-job-status
         with:
@@ -362,7 +362,7 @@ jobs:
       BALANCE_CHANGES: false
       WARP_CONFIG_CHANGES: false
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -410,7 +410,7 @@ jobs:
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_ts != 'true'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -428,7 +428,7 @@ jobs:
     needs: [cli-install-test-run]
     if: always()
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Check cli-install-test status
         uses: ./.github/actions/check-job-status
         with:
@@ -458,7 +458,7 @@ jobs:
     needs: [cli-e2e-tests]
     if: always()
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Check CLI E2E status
         uses: ./.github/actions/check-job-status
         with:
@@ -482,7 +482,7 @@ jobs:
     needs: [sdk-e2e-tests]
     if: always()
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Check SDK E2E status
         uses: ./.github/actions/check-job-status
         with:
@@ -513,7 +513,7 @@ jobs:
       matrix:
         environment: [mainnet3, testnet4]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -538,11 +538,11 @@ jobs:
     needs: [change-detection]
     if: needs.change-detection.outputs.has_svm == 'true'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
 

@@ -79,7 +79,7 @@ export function execCmd(
               new Error([err, stdout.toString(), stderr.toString()].join('\n')),
             );
           } else {
-            reject(err);
+            reject(new Error(err.message, { cause: err }));
           }
         } else {
           resolve([stdout.toString(), stderr.toString()]);

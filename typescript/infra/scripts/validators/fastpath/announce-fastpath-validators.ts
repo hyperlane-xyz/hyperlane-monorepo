@@ -1,7 +1,7 @@
 /**
  * Announce all fastpath validators (AW, Enigma, Luganodes) on-chain.
  *
- * - AW:        storage locations read from fastpath agent config (S3)
+ * - AW:        storage locations read from fastpath agent config (S3 or GCS)
  * - Enigma:    s3://hyperlane-fastpath-validator-enigma-signatures/<chain>
  * - Luganodes: s3://hyperlane-fastpath-validators-signatures/<chain>
  *
@@ -17,11 +17,12 @@ import chalk from 'chalk';
 import { ethers } from 'ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
-import { addBufferToGasLimit, assert } from '@hyperlane-xyz/utils';
+import { addBufferToGasLimit } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../../config/contexts.js';
 import { getChains } from '../../../config/registry.js';
 import { InfraS3Validator } from '../../../src/agents/aws/validator.js';
+import { InfraGcsValidator } from '../../../src/agents/gcp/validator.js';
 import { CheckpointSyncerType } from '../../../src/config/agent/validator.js';
 import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
 import { getAgentConfig, getArgs as getRootArgs } from '../../agent-utils.js';
@@ -78,22 +79,45 @@ async function main() {
       Object.entries(agentConfig.validators.chains)
         .filter(([c]) => evmChains.includes(c))
         .map(async ([c, chainConfig]) => {
-          for (const v of chainConfig.validators) {
-            if (v.checkpointSyncer.type !== CheckpointSyncerType.S3) continue;
-            const contracts = core.getContracts(c);
-            const infraValidator = new InfraS3Validator(
-              {
-                localDomain: multiProvider.getDomainId(c),
-                address: v.address,
-                mailbox: contracts.mailbox.address,
-              },
-              v.checkpointSyncer,
-            );
-            pending.push({
-              chain: c,
-              storageLocation: infraValidator.storageLocation(),
-              announcement: await infraValidator.getSignedAnnouncement(),
-            });
+          const contracts = core.getContracts(c);
+
+          for (const [idx, v] of chainConfig.validators.entries()) {
+            const validatorConfig = {
+              localDomain: multiProvider.getDomainId(c),
+              address: v.address,
+              mailbox: contracts.mailbox.address,
+            };
+
+            // createChainValidatorBaseConfigs always materializes an S3
+            // checkpointSyncer here regardless of context — the real
+            // deployed validator only switches to GCS at deploy time inside
+            // ValidatorConfigHelper#configForValidator, which this static
+            // config lookup never runs. So checkpointSyncer.type is never
+            // actually Gcs here; derive the GCS bucket/folder directly from
+            // agentConfig.gcp instead, mirroring #configForValidator's naming.
+            if (agentConfig.gcp) {
+              const bucketName = `${Contexts.FastPath}-${environment}-validator-${idx}`;
+              const infraValidator = new InfraGcsValidator(validatorConfig, {
+                bucket: bucketName,
+                folder: c,
+                caching: true,
+              });
+              pending.push({
+                chain: c,
+                storageLocation: infraValidator.storageLocation(),
+                announcement: await infraValidator.getSignedAnnouncement(),
+              });
+            } else if (v.checkpointSyncer.type === CheckpointSyncerType.S3) {
+              const infraValidator = new InfraS3Validator(
+                validatorConfig,
+                v.checkpointSyncer,
+              );
+              pending.push({
+                chain: c,
+                storageLocation: infraValidator.storageLocation(),
+                announcement: await infraValidator.getSignedAnnouncement(),
+              });
+            }
           }
         }),
     );

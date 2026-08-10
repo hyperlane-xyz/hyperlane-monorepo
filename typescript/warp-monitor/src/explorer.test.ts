@@ -63,7 +63,7 @@ describe('Explorer Pending Transfers', () => {
     const nodes: RouterNodeMetadata[] = [
       {
         nodeId: 'USDC|base|0xrouter',
-        chainName: 'base' as any,
+        chainName: 'base',
         domainId: 8453,
         routerAddress: router,
         tokenAddress: '0x00000000000000000000000000000000000000bb',
@@ -149,7 +149,7 @@ describe('Explorer Pending Transfers', () => {
     const nodes: RouterNodeMetadata[] = [
       {
         nodeId: 'USDC|base|0xrouter',
-        chainName: 'base' as any,
+        chainName: 'base',
         domainId: 8453,
         routerAddress: '0x00000000000000000000000000000000000000aa',
         tokenAddress: '0x00000000000000000000000000000000000000bb',

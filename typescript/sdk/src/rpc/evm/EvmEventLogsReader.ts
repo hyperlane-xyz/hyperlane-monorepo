@@ -1,7 +1,13 @@
 import { Logger } from 'pino';
 import { z } from 'zod';
 
-import { Address, assert, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  isNullish,
+  retryAsync,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import {
   getContractDeploymentTransaction,
@@ -61,6 +67,10 @@ export class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrat
       { apiUrl: this.config.apiUrl, apiKey: this.config.apiKey },
       { contractAddress: address },
     );
+
+    if (!isNullish(contractDeploymentTx.blockNumber)) {
+      return contractDeploymentTx.blockNumber;
+    }
 
     const deploymentTransactionReceipt = await this.multiProvider
       .getProvider(this.chain)
@@ -218,7 +228,7 @@ export class EvmEventLogsReader {
     logReaderStrategy: IEvmEventLogsReaderStrategy,
   ): Promise<number> {
     const cached = this.deploymentBlockCache.get(contractAddress);
-    if (cached) return cached;
+    if (!isNullish(cached)) return cached;
 
     const block =
       await logReaderStrategy.getContractDeploymentBlockNumber(contractAddress);

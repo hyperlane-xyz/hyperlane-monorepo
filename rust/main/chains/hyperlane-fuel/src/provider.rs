@@ -17,9 +17,9 @@ use fuels::{
 };
 use futures::future::join_all;
 use hyperlane_core::{
-    h512_to_bytes, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, Indexed, LogMeta,
-    TxnInfo, H256, H512, U256,
+    h512_to_bytes, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, Decode,
+    HyperlaneChain, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError,
+    Indexed, LogMeta, TxnInfo, H256, H512, U256,
 };
 
 use crate::{make_client, make_provider, prelude::FuelIntoH256, ConnectionConf};
@@ -240,14 +240,17 @@ impl FuelProvider {
                     })
                     .next()?; // Each dispatch call should have only one log data receipt
 
-                if !receipt_log_data.is_empty() {
-                    // We cut out the message id, recipient and domain which are encoded in the first 76 bytes
-                    receipt_log_data.drain(0..76);
-                    let encoded_message = HyperlaneMessage::from(receipt_log_data);
-                    Some((tx_id, tx_data, encoded_message, log_index))
-                } else {
-                    None
+                // 76-byte Fuel prefix + ≥77-byte Hyperlane message; guard before drain/parse.
+                const FUEL_DISPATCH_PREFIX_LEN: usize = 76;
+                const HYPERLANE_MESSAGE_PREFIX_LEN: usize = 77;
+                if receipt_log_data.len() < FUEL_DISPATCH_PREFIX_LEN + HYPERLANE_MESSAGE_PREFIX_LEN
+                {
+                    return None;
                 }
+                receipt_log_data.drain(0..FUEL_DISPATCH_PREFIX_LEN);
+                let encoded_message =
+                    HyperlaneMessage::read_from(&mut receipt_log_data.as_slice()).ok()?;
+                Some((tx_id, tx_data, encoded_message, log_index))
             })
             .collect::<Vec<(Bytes32, TransactionResponse, HyperlaneMessage, U256)>>(); // Collect all Vec<u8> from each transaction into a Vec<Vec<u8>>
 

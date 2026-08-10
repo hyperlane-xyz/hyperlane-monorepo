@@ -7,64 +7,86 @@ description: First step of deploying a new warp route (steps 1–9). Reads a Lin
 
 You are generating the initial `deploy.yaml` for a new Hyperlane warp route deployment.
 
+## Step 0: Confirm the working environment
+
+Before anything else, surface the checkout you're operating in so a stale-branch or wrong-directory run is visible up front:
+
+```bash
+git rev-parse --show-toplevel && git rev-parse --abbrev-ref HEAD
+```
+
+Skills load from whatever branch is checked out — running an older branch's copy silently follows outdated instructions. Confirm with the operator that this is the intended monorepo + branch before proceeding. (This is a visibility check; a hard "you must be on branch X" validation belongs at the harness level, since the skill can't know the intended branch on its own.)
+
+## PREREQUISITE (per-chain gate): confirmed sufficient deployer funds
+
+Before running `warp deploy`, EVERY chain in the route must be in one of two states:
+
+1. **Verified sufficient** — the deployer's native balance (and, on collateral chains, ≥ 1 USD of the collateral token) has been checked via `/warp-deploy-fund-deployer` — or an equivalent manual check appropriate to the chain's billing model — and reported ✅ OK **for the route's shape** (base-collateral vs cross-collateral vs cross-collateral + fee program each require different floors on non-EVM chains; see `/warp-deploy-fund-deployer` Step 5's shape table).
+2. **Verified short and topped up** — a `⚠️ LOW` / `❌ EMPTY` was funded to ✅ OK before proceeding.
+
+If you are _unsure_ about a chain, treat it as unverified — run `/warp-deploy-fund-deployer <ticket-id>` and let it check. It is a preflight, not an unconditional funding action: chains already at ✅ OK are skipped, only shortfalls trigger transfers.
+
+The gate is **per-chain**, not per-run. If a prior session already left `ethereum` at ✅ OK and nothing has changed since (no other deploys draining the key), skipping re-check on that chain is fine. Any chain that is unverified OR short must be resolved before Step 1.
+
+**Why**: an under-funded chain fails mid-deploy after partial contract deployment on other chains, leaving orphaned artifacts that need manual cleanup before a retry. Fund-deployer's role is to catch shortfalls up front. The reactive text later in Step 8 ("insufficient gas → run /warp-deploy-fund-deployer first") is a defensive fallback for state that decayed between preflight and deploy — it is not a substitute for the preflight itself.
+
+## Run Log (mandatory)
+
+Maintain the durable, per-ticket run log per `/warp-run-log` — that skill owns the storage contract (Linear-document-by-title primary, single-writer discipline, local-file fallback), the `chain | protocol | shape | floor | actual | verdict` machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-deploy-init-route` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
+
+**Log at least:** (a) skill entry with the ticket ID, (b) every `[CONFIRM:]` gate — before showing it to the user AND after their response, (c) every command execution, with expected vs actual (gas amounts, tx hashes, deployed addresses, wall-clock times), (d) skill exit (success or bail-out). If any number, timing, or output diverges from what this skill's text predicts, log it — the diff is the input to the next skill revision. Log smooth steps too — success data grounds the retrospective as much as failure data.
+
 ## Input
 
 The user provides:
 
 - **Linear ticket URL or ID** (required, e.g. `ENG-3516` or `https://linear.app/hyperlane-xyz/issue/ENG-3516/...`)
-- **Deployer address** (required — the temporary owner for all chains, e.g. `0xabc...`)
 
 If the ticket is not provided, ask for it now.
 
-If the deployer address is not provided, ask for it before proceeding. The deployer address is always used as the `owner` for every `owner` field in the deploy.yaml (chain-level and tokenFee-level). Real ownership is set later via `/warp-deploy-update-owners` — never use real Safe/ICA addresses in this step.
+### Key Context (Prerequisite)
 
-**Multi-protocol deployer addresses**: if the route spans multiple VM protocols (e.g. EVM + Sealevel), each protocol requires its own deployer address with a different format (EVM: `0x...`, Solana: base58). In this case, ask for a separate deployer address per protocol and use:
+This skill needs deployer key(s) per protocol to sign the warp-deploy txs, and the matching deployer address per protocol to fill `owner` fields in the deploy.yaml. It auto-loads `~/.hyperlane/key-contexts/<ticket-id>.yaml` produced by `/warp-deploy-select-keys`. If the artifact does not exist, invoke `/warp-deploy-select-keys <ticket-id>` first — do not ask the user for an env var name or a deployer address inline.
 
-- The **EVM deployer address** as `owner` on all EVM chains
-- The **Sealevel deployer address** as `owner` on all Sealevel chains (Solana, Eclipse)
-- The **Cosmos deployer address** as `owner` on all Cosmos chains (if applicable)
+From the artifact, read per protocol:
 
-If the route spans multiple VM protocols and only one deployer address was given, check whether it matches the expected format for each protocol — if not, ask for the missing addresses.
+- `keys.<protocol>.name` — the GCP secret name (or env var name) for the signer
+- `keys.<protocol>.address` — the derived address used as `owner` in the deploy.yaml on all chains of that protocol
+
+A pure-EVM route uses one ethereum key + one EVM owner address across all EVM chains. A cross-VM route uses one key + address per protocol. Real ownership is transferred later via `/warp-deploy-update-owners` — never use real Safe/ICA addresses in this step.
 
 ---
 
 ## Step 1: Fetch the Linear Ticket
 
-Extract the issue ID from the URL or input (e.g. `ENG-3516`).
-
-Query the Linear GraphQL API:
-
-```bash
-curl -s -X POST https://api.linear.app/graphql \
-  -H "Authorization: $LINEAR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "{ issue(id: \"<ISSUE_ID>\") { title description } }"}'
-```
-
-**If `LINEAR_API_KEY` is not set or returns 401:** Stop and tell the user:
-
-> `LINEAR_API_KEY` is not set or invalid. Please export it in your shell: `export LINEAR_API_KEY=<your-key>` and restart Claude Code, then try again.
-
-Show the user the ticket title and description before proceeding.
+Fetch the ticket per `/fetch-linear-ticket` — it extracts the issue ID, fetches via the agent's Linear integration or the GraphQL API + `LINEAR_API_KEY`, halts if neither is configured, and shows the title + description. Extract the Step 2 fields from that returned description.
 
 ---
 
 ## Step 2: Extract Warp Route Details
 
-Parse the ticket description to extract the following. Ask the user to clarify anything that is ambiguous or missing:
+Parse the ticket description to extract the following. **Read every value from the ticket itself — do not infer it by copying a similar-looking existing route's deploy.yaml.** Existing production deploy.yamls are a reference for structural _format_ only. The warp route ID, fee type, per-chain owners, and (for offchain-quoted fees) quote signers are ticket-specific and are the fields most often drafted wrong from a prior route — copy each verbatim from the ticket. Ask the user to clarify anything that is ambiguous or missing:
 
-| Field                            | Description                                                                                   |
-| -------------------------------- | --------------------------------------------------------------------------------------------- |
-| **Token name**                   | Full name (e.g. `RISE`)                                                                       |
-| **Token symbol**                 | Symbol (e.g. `RISE`)                                                                          |
-| **Decimals**                     | Token decimals (e.g. `18`) — use the reference table below for USDC; query on-chain if unsure |
-| **Collateral chain(s)**          | Chain(s) where the real token lives — may be multiple for multi-collateral routes             |
-| **Collateral token address(es)** | ERC-20 contract address per collateral chain — use the reference table below for USDC         |
-| **Synthetic chains**             | Chains that get a synthetic (bridged) representation                                          |
-| **Warp fee**                     | Fee in basis points (bps), if specified (e.g. `6bps`)                                         |
-| **Fee owner**                    | Address that receives fees — defaults to the chain's `owner` if not specified                 |
-| **Type overrides**               | Any chain that should be `native` instead of `collateral`/`synthetic`                         |
-| **Yield route type**             | If the ticket mentions yield/ERC4626/vault, determine the yield subtype (see below)           |
+| Field                            | Description                                                                                                                                                                                                                                                        |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Token name**                   | Full name (e.g. `RISE`)                                                                                                                                                                                                                                            |
+| **Token symbol**                 | Symbol (e.g. `RISE`)                                                                                                                                                                                                                                               |
+| **Warp route ID**                | The route's registry ID exactly as the ticket gives it (e.g. `WBTC/staging`). If the ticket states one, use it verbatim — do NOT synthesize a `<TOKEN>/<chains>` name. Only derive `<TOKEN>/<chains-alphabetical>` (Step 7a) when the ticket gives no explicit ID. |
+| **Decimals**                     | Token decimals (e.g. `18`) — use the reference table below for USDC; query on-chain if unsure                                                                                                                                                                      |
+| **Collateral chain(s)**          | Chain(s) where the real token lives — may be multiple for multi-collateral routes                                                                                                                                                                                  |
+| **Collateral token address(es)** | ERC-20 contract address per collateral chain — use the reference table below for USDC                                                                                                                                                                              |
+| **Synthetic chains**             | Chains that get a synthetic (bridged) representation                                                                                                                                                                                                               |
+| **Warp fee**                     | Fee in basis points (bps) + direction (`deposits` / `withdrawals`) from the ticket's `Warp Fee` checkboxes                                                                                                                                                         |
+| **Fee type**                     | The fee contract type the ticket specifies (`LinearFee`, `OffchainQuotedLinearFee`, …). Take it from the ticket — never default to whatever type a similar route happened to use. `OffchainQuotedLinearFee` additionally requires `quoteSigners` (below).          |
+| **Fee owner**                    | Address that receives fees — defaults to "Standard AW controlled ICA" per the ticket                                                                                                                                                                               |
+| **Quote signers**                | `OffchainQuotedLinearFee` only: the EVM (hex) addresses authorized to sign off-chain quotes, from the ticket. Required whenever the fee type is offchain-quoted; omitting them ships a fee contract nobody can quote against.                                      |
+| **Type overrides**               | Any chain that should be `native` instead of `collateral`/`synthetic`                                                                                                                                                                                              |
+| **Yield route type**             | If the ticket mentions yield/ERC4626/vault, determine the yield subtype (see below)                                                                                                                                                                                |
+| **Daily Rate Limit**             | Optional amount (e.g. `200,000,000`) — present in the structured `Daily Rate Limit` row on newer tickets. If present, the route adds a rate-limited hook on the synthetic chain (see Step 4).                                                                      |
+
+**Validate the token symbol UNCONDITIONALLY and FIRST** — before the eager logo download (below) or any other filesystem write, and regardless of whether the ticket gives an explicit route ID. `<TOKEN>` (the symbol) is used verbatim as the registry directory `deployments/warp_routes/<TOKEN>/`, as the logo path, and — when no explicit ID is given — as the base of the derived route ID; a symbol containing `../`, whitespace, or shell metacharacters would escape the registry directory or inject into the `curl`/deploy commands well before Step 7 validates the derived ID. Require: a single path component matching `^[A-Za-z0-9._-]+$`, **neither `.` nor `..`**, no whitespace, no shell metacharacters (``; | & $ ` > < ( ) * ? \``). Then build any path from it (e.g. the logo path or deploy.yaml path), resolve **non-strictly** (`realpath -m`), and assert the result stays under `$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/` **specifically** before writing. Halt with a clear error on any violation.
+
+**Validate an explicit Warp route ID immediately** — fail fast, here, before any registry/filesystem work. It must be exactly `<TOKEN>/<suffix>`: exactly one `/`; **each** of the two components matches `^[A-Za-z0-9._-]+$` **and is neither `.` nor `..`** (a bare `.`/`..` component matches the charset but is still a traversal); no whitespace, no shell metacharacters (``; | & $ ` > < ( ) * ? \``). The `<TOKEN>` component must **equal the ticket's token symbol** (the canonical registry key), not an arbitrary string. Halt with a clear error otherwise — the id later becomes a registry filename and a `--warp-route-id` argument, so a hostile value is a path-traversal / command-injection vector. When you later build the deploy.yaml path, resolve it **non-strictly** (`realpath -m`, which canonicalizes without requiring the file to exist — for a new deploy the deploy.yaml isn't created yet, so a strict `realpath` would error) and assert it stays under `$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/` **specifically** — a bare `deployments/warp_routes/` check doesn't prove it didn't escape the token directory. (Re-validated the same way in Step 7a.)
 
 **Yield routes**: if the ticket mentions "yield", "ERC4626", "vault", "rebasing", "Aave", or the token is a known yield-bearing token (sUSDS, sDAI, etc.), it is a yield route. There are two subtypes:
 
@@ -97,6 +119,19 @@ cast call <collateral-token-address> "asset()(address)" --rpc-url <RPC_URL>
 **Multi-collateral routes**: when the ticket lists multiple collateral chains, each gets its own `token` address. All `owner` fields use the deployer address — real ICA/multisig addresses are set later in `/warp-deploy-update-owners`.
 
 **Rebalancing**: if the ticket includes liquidity weights (e.g. `35% ethereum, 20% arb…`), the route uses the rebalancer. Add `allowedRebalancers` and `allowedRebalancingBridges` to each **collateral chain** (not synthetic). Use the hardcoded values in the reference tables below — no need to search the registry. The **weights themselves** are NOT in the deploy.yaml — they go in `typescript/infra/config/environments/mainnet3/balances/desiredRebalancerBalances.json` in the monorepo. Flag this to the user as a separate step.
+
+**Daily Rate Limit**: if the ticket's `Daily Rate Limit` row is set (e.g. `200,000,000`), the route needs a rate-limited hook on the synthetic chain. Add the hook config to that chain's entry in deploy.yaml. The value is the daily rate limit cap in the token's smallest unit (i.e. apply `× 10^decimals` to the human-readable number from the ticket).
+
+**Ownership validation prerequisite**: before generating the deploy.yaml in Step 4, **the agent invokes** `/warp-deploy-validate-owners` with the same Linear ticket as input. That skill produces a per-chain owner resolution table (ICA / Safe / Squads / EOA-rejected). The deploy.yaml in Step 4 uses the same deployer address for `owner` fields (real owner transfer happens later in `/warp-deploy-update-owners`), but the validation pass ensures the eventual owners are valid before any chain is touched. If `/warp-deploy-validate-owners` reports any ❌ row, abort — don't proceed to deploy against rejected owners.
+
+**Logo handling**: the Linear ticket's `SVG logo` row links to a Linear upload URL with `?signature=…&exp=…` JWT parameters that expire (typically ~5 minutes). To prevent 401s mid-flow on longer runs, **download the logo eagerly right after fetching the ticket** in Step 1 and cache it locally to `<registry>/deployments/warp_routes/<TOKEN>/logo.<ext>`:
+
+```bash
+# After mcp__plugin_linear_linear__get_issue returns, grab the SVG/PNG row's image URL
+curl -sSL -o "$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/logo.<ext>" "<signed-url>"
+```
+
+Use `logo.svg` if the upload is SVG; `logo.png` otherwise. The local file is then referenced by `logoURI` in `<chain>-config.yaml` later (`/warp-deploy-update-owners` Step 11b). Eagerly downloading prevents the signed URL from expiring before that later step needs to read it.
 
 ---
 
@@ -179,6 +214,29 @@ Save this address — it is used as the `hook` field in Step 4.
 ## Step 4: Generate deploy.yaml
 
 Compose the deploy.yaml using the extracted details and mailbox addresses.
+
+**Canonical schema files — read these before authoring nested ISM / hook / fee configs.** A `deploy.yaml` that fails Zod validation never reaches on-chain state — `warp apply` rejects it at parse time, but the resulting error output is voluminous; start from a correct shape:
+
+- Per-chain router config (token type + ISM + hook + fee + proxyAdmin + remoteRouters + destinationGas): `typescript/sdk/src/token/types.ts` — `HypTokenRouterConfigSchema` is the per-chain entry; `HypTokenConfig` is the token-type discriminated union (collateral, native, synthetic, xerc20, opL1/L2, cctp, everclear, depositAddress, crossCollateral, unknown).
+- ISMs: `typescript/sdk/src/ism/types.ts` — `IsmConfigSchema` union, plus per-type schemas (`PausableIsmConfigSchema`, `RateLimitedIsmConfigSchema`, `AggregationIsmConfigSchema`, `RoutingIsmConfigSchema`, etc.). Threshold semantics: `staticAggregationIsm` with `threshold = modules.length` is AND across all modules; `threshold: 1` is OR.
+- Hooks: `typescript/sdk/src/hook/types.ts` — `HookConfigSchema` union. Note `defaultHook` is the sentinel that means "use mailbox default"; `fallbackRoutingHook` is the standard pattern for "default hook on most chains, custom hook on a specific chain".
+- Fees: `typescript/sdk/src/fee/types.ts` — `TokenFeeConfigSchema` discriminated union (`LinearFee`, `OffchainQuotedLinearFee`, `RoutingFee`, `CrossCollateralRoutingFee`, etc.). The `bps` field on `LinearFee` is immutable at the contract level so a bps edit redeploys the contract.
+- Shared mixins: `typescript/sdk/src/types.ts` — `OwnableSchema` (`owner` + optional `ownerOverrides`) and `PausableSchema` (Ownable + `paused: boolean`). Many ISM / hook configs extend these, so `owner` is required on more types than the schema name alone suggests.
+
+**Token-type ⇔ fee-wrapper coupling (mandatory pairing).** The outer fee wrapper on a chain's `tokenFee` block is constrained by the chain's token `type`:
+
+| Chain `type`                         | Outer `tokenFee.type`         | Inner (per-destination) fee shape                                                                                           |
+| ------------------------------------ | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `synthetic` / `syntheticRebase`      | `RoutingFee`                  | `feeContracts: Record<destChain, LinearFee \| OffchainQuotedLinearFee \| …>` — single-level nesting                         |
+| `collateral` / `collateralVault` / … | `RoutingFee`                  | Same as synthetic                                                                                                           |
+| `crossCollateral`                    | `CrossCollateralRoutingFee`   | `feeContracts: Record<destChain, Record<routerKey-bytes32, LinearFee \| OffchainQuotedLinearFee \| …>>` — two-level nesting |
+| `native` / `nativeScaled`            | `RoutingFee` (if fees needed) | Same as synthetic                                                                                                           |
+
+Cross-collateral routers MUST be paired with `CrossCollateralRoutingFee` — the inner `routerKey` layer maps the on-chain router (per `crossCollateralRouters` in the same chain block) to its fee contract. Attempting to use `RoutingFee` on a `crossCollateral` chain (or `CrossCollateralRoutingFee` on a plain collateral / synthetic chain) fails Zod validation at parse time.
+
+**SVM-specific fields on fee configs**: on Sealevel chains, fee contracts can carry `beneficiary: <base58>` (the account that accrues collected fees, distinct from `owner` which controls limits). `OffchainQuotedLinearFee` also takes `quoteSigners: [EVM hex address, …]` — EVM addresses regardless of the fee contract's own protocol. Both fields visible in `USDCFEE/sol-deploy.yaml` and `USDTFEE/sol-deploy.yaml` on internal test branches; grep the registry for `OffchainQuotedLinearFee` for the current live shape.
+
+Reference existing production deploy.yamls in the registry (`deployments/warp_routes/*/*-deploy.yaml`) — grep for the token type + protocol combination you want (e.g. a `crossCollateral` chain with `type: LinearFee` inside `RoutingFee` on a `synthetic` chain in the same route), then copy the canonical shape. Different protocols may need different fields (e.g. `foreignDeployment` on Sealevel synthetics, `gas: 300000` on Sealevel entries, `contractVersion` on newer Sealevel deploys); the schema is protocol-aware.
 
 **Multi-collateral format** (multiple collateral chains + one synthetic): same as standard but repeated for each collateral chain, each with its own `token` address and `owner`:
 
@@ -387,7 +445,7 @@ solanamainnet:
 
 **Rules:**
 
-- Chains are listed in alphabetical order
+- **Alphabetical sort, both levels** (top-level chain entries AND keys within each entry) per `/registry-yaml-sort-policy` — that skill carries the canonical `deploy.yaml` key order. Insert every field at its alphabetical position; CI / CodeRabbit blocks unsorted PRs.
 - `token` field only present on `collateral`, `collateralVault`, and `collateralVaultRebase` types
 - `name` and `symbol` omitted on `native` type; `decimals` IS included
 - `collateralChainName` is REQUIRED on every `syntheticRebase` chain; omit on all other types
@@ -401,19 +459,28 @@ solanamainnet:
 The deploy.yaml goes in the local registry at:
 
 ```
-$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/<new-chain>-deploy.yaml
+$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/<route-suffix>-deploy.yaml
 ```
+
+**`<route-suffix>` precedence:**
+
+1. **If the ticket gave an explicit warp route ID** (Step 2, e.g. `WBTC/staging`), use its suffix verbatim → `deployments/warp_routes/WBTC/staging-deploy.yaml`. The route ID and the filename suffix are the same string, so an explicit ticket ID drives both — do NOT overwrite it with a chain list.
+2. **Otherwise**, derive `<chains-alphabetical>` — **every chain in the route**, lowercase, joined with `-` in alphabetical order.
 
 Where:
 
 - `<TOKEN>` is the token symbol (uppercase)
-- `<new-chain>` is the **primary new destination chain** — i.e., the new chain being added, typically the synthetic chain. Do NOT include all chains in the filename; using only the new chain creates a stable ID that doesn't change when additional chains are added later.
 
-Example: for USDS bridging from ethereum (collateral) to igra (synthetic), the file is `deployments/warp_routes/USDS/igra-deploy.yaml` — NOT `ethereum-igra-deploy.yaml`.
+Examples (matching current registry convention):
 
-Exception: if there is no clear "primary" new chain (e.g., both chains are new/co-equal), use just the synthetic or destination chain name.
+- `base` + `arbitrum` → `arbitrum-base-deploy.yaml`
+- `ethereum` + `coti` → `coti-ethereum-deploy.yaml`
+- `arbitrum` + `base` + `blast` + `bsc` → `arbitrum-base-blast-bsc-deploy.yaml`
+- single chain (no other legs deployed yet) → `<chain>-deploy.yaml`
 
-Check if a directory and/or file already exists. If it does, show the user the existing file and ask if they want to overwrite.
+This matches existing multi-chain routes in the registry (e.g. `arbitrum-base-blast-…`). Naming the file after every chain — rather than just the "new" or synthetic chain — prevents collisions when more routes with the same token are added later (e.g. a future `ETH/arbitrum-only` route wouldn't conflict with this one).
+
+Before writing, **scan `deployments/warp_routes/<TOKEN>/` for existing routes** and check that the alphabetical-joined filename you're about to write doesn't already exist. If it does, show the user the existing file and ask if they want to overwrite.
 
 ---
 
@@ -421,9 +488,15 @@ Check if a directory and/or file already exists. If it does, show the user the e
 
 Write the deploy.yaml to the registry path, then show the user the final content and full path.
 
-Ask the user: **"Does this deploy.yaml look correct? Type `yes` to proceed to deployment, or describe any changes needed."**
+Ask the user to review the deploy.yaml and confirm or describe any changes needed. End your message with this marker (this MUST be the very last thing in your message):
+
+```test
+[CONFIRM: Proceed with deploy.yaml as written]
+```
 
 Do not proceed to Step 7 until the user confirms.
+
+> **Note:** `[CONFIRM: ...]` is a Haggis-specific harness primitive — Haggis renders it as an inline approve/reject button. In other Claude Code contexts it is just text.
 
 ---
 
@@ -434,14 +507,21 @@ Do not proceed to Step 7 until the user confirms.
 The warp route ID is derived from the deploy.yaml output path:
 
 ```
-$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/<new-chain>-deploy.yaml
-                                        └─────────────────────────────┘
-                                        Warp route ID = <TOKEN>/<new-chain>
+$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/<chains-alphabetical>-deploy.yaml
+                                        └────────────────────────────────────┘
+                                        Warp route ID = <TOKEN>/<chains-alphabetical>
 ```
 
-Example: if the file is `deployments/warp_routes/USDS/igra-deploy.yaml`, the warp route ID is `USDS/igra`.
+Examples:
 
-The stable warp route ID uses only the primary new chain name (not all chains), so it stays constant if more chains are added to the route later.
+- `deployments/warp_routes/ETH/arbitrum-base-deploy.yaml` → warp route ID `ETH/arbitrum-base`
+- `deployments/warp_routes/USDC/eclipsemainnet-ethereum-solanamainnet-deploy.yaml` → `USDC/eclipsemainnet-ethereum-solanamainnet`
+
+The route ID always matches the filename suffix (without `-deploy.yaml`), so it follows the same Step 5 precedence: if the ticket gave an explicit route ID (e.g. `WBTC/staging`) the suffix is that ID; otherwise it is every chain in the route, lowercase, joined by `-` in alphabetical order. Never re-derive a chain-list ID over an explicit one the ticket provided.
+
+Refer to this resolved value as `<warp-route-id>` in the commands below (Steps 7d and 8) — it is the explicit ticket ID when one was given, the derived chains-alphabetical ID otherwise. Do not hardcode `<TOKEN>/<chains-alphabetical>` in the deploy commands, or an explicit-ID deploy (e.g. `WBTC/staging`) would write/deploy under the wrong id.
+
+**Validate the resolved ID before it crosses a filesystem or shell boundary** — it becomes a registry filename _and_ a `--warp-route-id` argument, so a hostile value is an injection/traversal vector. Require exactly `<TOKEN>/<suffix>`: **exactly one `/`**; each component matches `^[A-Za-z0-9._-]+$` **and is neither `.` nor `..`**; no additional `/`, whitespace, or shell metacharacters (``; | & $ ` > < ( ) * ? \``). The `<TOKEN>` component must **equal the ticket's token symbol**. Halt with a clear error on any mismatch (a `.`/`..`/metacharacter-laden value could escape the token directory or alter the privileged deploy command). Then build the deploy.yaml path, resolve it **non-strictly** (`realpath -m` — canonicalizes even when the file doesn't exist yet), and assert it lives under `$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/` **specifically** (not merely under `deployments/warp_routes/`) before writing. Always pass the id as a single quoted argument (`--warp-route-id "<warp-route-id>"`), never unquoted.
 
 ### 7b: Identify Required Protocols
 
@@ -456,67 +536,70 @@ For each chain in the route, determine its VM protocol type:
 
 If all chains are EVM, only one key is needed. If the route spans multiple VM types, a separate key flag is needed per protocol.
 
-### 7c: Ask for Key Environment Variables
+### 7c: Load Keys from the Key-Context Artifact
 
-For each unique protocol needed, ask the user:
+For each unique protocol in the route, read `keys.<protocol>.name` and `keys.<protocol>.source` from `~/.hyperlane/key-contexts/<ticket-id>.yaml`. Do NOT ask the user for env var names inline — the artifact is the source of truth.
 
-> **What environment variable holds your deployer private key for `{protocol}` chains?**
-> (Press enter to use the default: `HYP_KEY` for single-protocol routes, or `HYP_KEY_{PROTOCOL}` for multi-protocol)
+### 7d: Build and Show the Command (preview only — do NOT run yet)
 
-Use the provided variable name(s) to build the command.
+Assemble the full deploy command and **show it to the user as a preview** for the `[CONFIRM:]` gate below. Do NOT execute the deploy in this step — Step 8 starts the HTTP registry first and then runs the deploy. Running the command here against the filesystem registry would skip the private-RPC injection, exposing the deploy to flaky public-RPC gas estimates (stale-gas underflow → mid-deploy out-of-gas on opstack chains in particular).
 
-### 7d: Build and Show the Command
-
-Assemble the full deploy command. The command must be run from `typescript/cli`. Always include `--yes` to skip the interactive confirmation prompt.
-
-> **Note:** The HTTP registry must be running before executing this command (started in Step 8). Start it first, then use its URL here.
+The command must be run from `typescript/cli`. Always include `--yes` to skip the interactive confirmation prompt. Include exactly one `--key.<protocol>` flag for each protocol actually present in the route (EVM, tron, sealevel, cosmos, starknet) and drop the rest — a Sealevel-only route needs no `--key.ethereum`, a route with a starknet chain needs `--key.starknet`, and a route with a tron chain needs `--key.tron` (the CLI keys tron separately from EVM — do not rely on the ethereum key for a tron chain). The preview (7d) and execution (8b) commands must use the same protocol set. For each included protocol, expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field using the canonical key-value expansion legend in `/warp-key-value-expansion`.
 
 ```bash
-cd /path/to/hyperlane-monorepo/typescript/cli && pnpm hyperlane warp deploy \
+pnpm --silent -C typescript/cli hyperlane warp deploy \
   --registry http://localhost:<port> \
-  --warp-route-id <TOKEN>/<new-chain> \
-  --key.ethereum $MY_ETH_KEY_VAR \
-  [--key.sealevel $MY_SOL_KEY_VAR]   # only if sealevel chains present
-  [--key.cosmos $MY_COSMOS_KEY_VAR]   # only if cosmos chains present
+  --warp-route-id <warp-route-id> \
+  [--key.ethereum <KEY_ETHEREUM_VALUE>]   # only if EVM chains present
+  [--key.tron <KEY_TRON_VALUE>]           # only if tron chains present (CLI keys tron separately)
+  [--key.sealevel <KEY_SEALEVEL_VALUE>]   # only if sealevel chains present
+  [--key.cosmos <KEY_COSMOS_VALUE>]       # only if cosmos chains present
+  [--key.starknet <KEY_STARKNET_VALUE>]   # only if starknet chains present
   --yes
 ```
 
-Where `<TOKEN>/<new-chain>` is the warp route ID from Step 7a, `<port>` is the HTTP registry port (typically `3333`), and `$MY_ETH_KEY_VAR` etc. are the env variable names provided in 7c.
+Where `<warp-route-id>` is the resolved route ID from Step 7a, `<port>` is the HTTP registry port (typically `3333`), and `<KEY_<PROTOCOL>_VALUE>` is expanded per the artifact's `source` for that protocol (e.g. `"$(gcloud secrets versions access latest --secret=<name>)"` for `gcp-secret`, `"$<name>"` for `env-var`).
 
-Show the user the exact command with env variable names substituted (e.g. `$MY_ETH_KEY_VAR`), never key values. Then ask:
+Show the user the exact command with the resolved secret/env-var NAMES substituted (from the artifact), never private-key values. Also show the corresponding derived `address` per protocol so the human can spot a wrong-key foot-gun at the gate. End your message with this marker (this MUST be the very last thing in your message):
 
-> **Ready to run the warp deploy?** Type `yes` to execute, or `no` to run it manually.
+```test
+[CONFIRM: Run warp deploy for <warp-route-id>]
+```
 
 ---
 
 ## Step 8: Run Warp Deploy
 
-If the user confirms, first start the HTTP registry in the background to get private RPC URLs from Secret Manager:
+### 8a: Start the HTTP Registry FIRST
 
-```bash
-cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
-```
+The HTTP registry MUST be running before the deploy command. Starting it later or skipping it means the deploy falls back to public-RPC gas estimates and is exposed to OOG / nonce errors on chains with flaky public free-tier RPCs (notably base, optimism, drpc-routed chains).
 
-Run with `run_in_background: true`. Wait for the server to be ready by checking the logs for a line like `Listening on http://localhost:<port>`. Note the port (typically `3333`) and the background task/shell ID — you will need both to stop the server after the skill completes.
+Start it per `/start-http-registry` **with `--writeMode`** (the deploy persists the route config back through the server). Note the port (typically `3333`) and the background task/shell ID — you will need both to stop the server after the skill completes.
+
+### 8b: Run the Deploy Command
 
 Tell the user upfront:
 
-> **Starting warp deploy for `<TOKEN>/<new-chain>`.**
+> **Starting warp deploy for `<warp-route-id>`.**
 > This deploys contracts on each chain sequentially and typically takes **5–15 minutes**.
 > Chains: `<list all chains>`
 > You'll see the full output when it completes.
 
-Then run the deploy command from `typescript/cli`. Use only the HTTP registry — it is started with `--writeMode` so it handles both private RPC reads and artifact writes. Always include `--yes`:
+Then run the deploy command from `typescript/cli`, with the port substituted from Step 8a. Always include `--yes`. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the canonical key-value expansion legend in `/warp-key-value-expansion`):
 
 ```bash
-cd /path/to/hyperlane-monorepo/typescript/cli && pnpm hyperlane warp deploy \
+pnpm --silent -C typescript/cli hyperlane warp deploy \
   --registry http://localhost:<port> \
-  --warp-route-id <TOKEN>/<new-chain> \
-  --key.ethereum $MY_ETH_KEY_VAR \
+  --warp-route-id <warp-route-id> \
+  [--key.ethereum <KEY_ETHEREUM_VALUE>]   # only if EVM chains present
+  [--key.tron <KEY_TRON_VALUE>]           # only if tron chains present (CLI keys tron separately)
+  [--key.sealevel <KEY_SEALEVEL_VALUE>]   # only if sealevel chains present
+  [--key.cosmos <KEY_COSMOS_VALUE>]       # only if cosmos chains present
+  [--key.starknet <KEY_STARKNET_VALUE>]   # only if starknet chains present
   --yes
 ```
 
-**On success:** the CLI writes a `<new-chain>-config.yaml` file next to the deploy.yaml in the registry. Show the user the full deploy output so they can see which contracts were deployed and their addresses.
+**On success:** the CLI writes a `<chains-alphabetical>-config.yaml` file next to the deploy.yaml in the registry. Show the user the full deploy output so they can see which contracts were deployed and their addresses.
 
 **On failure:** show the error output and stop the HTTP registry (Step 8a), then do not proceed to Step 9. Common issues:
 
@@ -524,100 +607,34 @@ cd /path/to/hyperlane-monorepo/typescript/cli && pnpm hyperlane warp deploy \
 - RPC errors → check the chain's RPC URL in the registry
 - Key not set → confirm the env variable is exported in the shell
 
+### 8c: Multi-RPC failure modes (and the mandatory cleanup gate)
+
+Two deploy failures come from read-after-write lag across a chain's load-balanced private RPCs, NOT from a real problem — recognize them so you don't chase a phantom or re-fund unnecessarily:
+
+- **Stale-gas OOG on the proxy `initialize`.** A fresh impl deploys, then `initialize` is gas-estimated against an RPC replica that hasn't indexed the new contract yet → it returns an EOA-sized (~25k) estimate and the tx runs out of gas. Signature: OOG on `initialize` right after a successful impl deploy, on opstack / multi-RPC chains (base, optimism). Fix: pin the affected chain to a single RPC in the local registry metadata for the duration of the deploy.
+- **Confirmation-timeout on a tx that actually landed.** `Timeout (Xms) waiting for N block confirmations for tx 0x…` where the tx already succeeded on-chain (check the receipt: `status: 1`). Root cause: the CLI's confirmation budget is `confirmations × estimateBlockTime × 2`, as low as ~6s on chains whose registry `estimateBlockTime` is 3s (bsc, tron). Fix: raise `estimateBlockTime` in the local registry metadata for those chains (e.g. eth 13→45, bsc/tron 3→30). This survives the GCP RPC-override merge, unlike re-pinning RPCs — do NOT re-pin RPCs for this one.
+
+**Prevent, don't just react.** A mid-deploy abort burns gas and forces a fresh re-run, so apply these cushions up front rather than waiting for the signature: before deploying, pin a single premium RPC per chain on opstack / multi-RPC chains (base, optimism), and raise `estimateBlockTime` on short-block / confirmation-timeout-prone chains (ethereum, bsc, tron) so the `confirmations × estimateBlockTime × 2` budget isn't razor-thin. These are the same edits described above and fall under the same cleanup gate.
+
+**Cleanup gate (mandatory).** Any single-RPC pin or `estimateBlockTime` bump above is a LOCAL registry edit. After a green deploy, **restore the original values and confirm `git -C $HYPERLANE_REGISTRY diff` is clean** before moving on — a left-behind override silently drifts the local registry from canonical for every later run.
+
+**Orphaned contracts on a failed deploy.** The `<chains>-config.yaml` is written only on FULL success, so a mid-deploy failure leaves the already-deployed contracts orphaned on chain (and the deployer nonce advanced). A clean re-run picks fresh addresses — do NOT try to salvage partial addresses; fix the cause, re-run, and note the burnt gas.
+
 ---
 
 ## Step 9: Warp Send Test
 
-Run the send test **now, while the deployer still owns the contracts** — before transferring ownership in Step 10.
+Run the send test **now, while the deployer still owns the contracts** — before transferring ownership in Step 10 — via `/warp-deploy-send-test`. Reuse the deployer key from the key-context artifact (loaded in Step 7c) and the HTTP registry already running from the deploy.
 
-Use the same key environment variable from Step 7c (no need to ask again).
+That skill owns the test shape (full collateral mesh vs. round trip), the enrollment-coverage rule (every chain must originate at least one send or its outbound enrollment goes unverified), per-destination gas budgeting + fundkey top-ups, prod-relayer delivery, fee accrual + return-leg sizing, and per-leg reporting (message ID + explorer link). This send test is a **functional smoke test, not the config-vs-target validation** — that runs in `/warp-deploy-update-owners` Step 10e (`/warp-verify-onchain-config` Mode A).
 
-### Amount calculation
-
-Always use `--amount 10000` (in token's smallest units, i.e. wei-equivalent). This is small enough to stay well within any warp fee budget across all legs.
-
-**Warp fee accounting**: if the route has a fee (e.g. 10 bps on withdrawals), the CLI charges `amount + fee` from the sender's balance on the fee leg. After the forward send mints `10000` synthetic tokens on the destination, the return leg needs `10000 + fee` in the synthetic balance. With `--amount 10000` and 10 bps fee:
-
-- fee = `10000 * 10 / 10000 = 10` units
-- total needed = `10010` — but the deployer only received `10000` from the forward send
-
-To avoid this, use `--amount 9000` on the return leg (synthetic → collateral/native), which leaves headroom for the fee:
-
-- fee = `9000 * 10 / 10000 = 9` units → total needed = `9009 ≤ 10000` ✓
-
-If the fee bps is known upfront, calculate the safe return amount as: `floor(forward_amount / (1 + fee_bps / 10000))`. With no fee, use the same amount in both directions.
-
-**For native collateral chains**: the IGP payment for each outbound send also costs native gas. Ensure the deployer has enough native token before running all sends — the preflight check only covers deploy gas, not IGP gas per send. If "Insufficient for interchain gas" appears, top up and retry.
-
-### Two-chain routes
-
-Send forward then back. Use the amounts from the calculation above:
-
-```bash
-cd /path/to/hyperlane-monorepo/typescript/cli
-
-# Forward (no fee on this direction for standard routes)
-pnpm hyperlane warp send \
-  --registry http://localhost:<port> \
-  --origin <chain1> --destination <chain2> \
-  --amount 10000 --key $MY_PK \
-  -w <TOKEN>/<new-chain>
-
-# Return (fee charged — use reduced amount)
-pnpm hyperlane warp send \
-  --registry http://localhost:<port> \
-  --origin <chain2> --destination <chain1> \
-  --amount 9000 --key $MY_PK \
-  -w <TOKEN>/<new-chain>
-```
-
-### Multi-chain routes (1 native/collateral + multiple synthetics)
-
-Do NOT use `--round-trip`. Test each native ↔ synthetic pair sequentially:
-
-```bash
-cd /path/to/hyperlane-monorepo/typescript/cli
-
-# For each synthetic chain: send native → synthetic (forward, no fee)
-pnpm hyperlane warp send \
-  --registry http://localhost:<port> \
-  --origin <native-chain> --destination <synthetic-chain> \
-  --amount 10000 --key $MY_PK \
-  -w <TOKEN>/<new-chain>
-
-# Then return: synthetic → native (fee charged — use reduced amount)
-pnpm hyperlane warp send \
-  --registry http://localhost:<port> \
-  --origin <synthetic-chain> --destination <native-chain> \
-  --amount 9000 --key $MY_PK \
-  -w <TOKEN>/<new-chain>
-```
-
-Skip any leg where the deployer has insufficient balance. After each forward send from a native chain, check the native balance — IGP payments accumulate across sends.
-
-Each send may take a few minutes to relay. After each send, show the user:
-
-- Whether it succeeded or failed
-- The **Message ID** (from the CLI output)
-- The **Explorer link** (e.g. `https://explorer.hyperlane.xyz/message/<id>`)
-
-If either send fails or times out, show the error and still report the message ID if available so it can be tracked. Do not block on failures — proceed when ready.
-
-### After all sends complete (or on any failure)
-
-Stop the HTTP registry:
-
-```bash
-# Kill the background process started in Step 8 using its shell/task ID
-```
-
-Use `TaskStop` or `KillShell` with the ID noted when starting the registry. Always stop it — even if sends failed — so no background process is left running.
+After the send test (or on any failure), stop the HTTP registry per `/stop-http-registry` — always, even if sends failed.
 
 ---
 
 ## Next Steps
 
-Once Step 9 is complete, run `/warp-deploy-update-owners` to transfer ownership, add the CoinGecko ID, and open the registry PR.
+Once Step 9 is complete, run `/warp-deploy-update-owners` to transfer ownership, add the CoinGecko ID, and open the registry PR. The post-change on-chain config verification for this deploy runs there — the comprehensive `warp check` gate in Step 10e, which is the `/warp-verify-onchain-config` contract's **Mode A** (everything in the deploy chain is deployer-signed, so the check is live). This skill's send test is a functional smoke test, not the config-vs-target validation.
 
 ---
 

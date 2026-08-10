@@ -1,10 +1,13 @@
 import { describe, expect, test } from '@jest/globals';
 
-import * as config from '../../src/config';
+import { assert } from '@hyperlane-xyz/utils';
+
 import { RPCService } from '../../src/services/RPCService';
 
 describe('RPCService', () => {
-  const rpcService = new RPCService(config.RPC_ADDRESS);
+  const rpcAddress = process.env.RPC_ADDRESS;
+  assert(rpcAddress, 'RPC_ADDRESS is required');
+  const rpcService = new RPCService(rpcAddress);
 
   test('should return the proofs from api', async () => {
     const proofs = await rpcService.getProofs(

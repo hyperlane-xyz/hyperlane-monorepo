@@ -498,6 +498,39 @@ describe('EvmEventLogsReader', () => {
       expect(deploymentSpy.callCount).to.equal(1);
     });
 
+    // The block an RPC strategy answers with when the endpoint cannot serve
+    // the historical state its search needs, and the one value a cache read
+    // testing the entry for truthiness misses.
+    it('should only look up a deployment block of zero once', async () => {
+      await deployTestErc20();
+
+      const reader = EvmEventLogsReader.fromConfig(
+        { chain: TestChainName.test1, useRPC: true },
+        multiProvider,
+      );
+
+      const strategy = {
+        getContractDeploymentBlockNumber: async () => 0,
+        getContractLogs: async () => [],
+      };
+      const deploymentSpy = sinon.spy(
+        strategy,
+        'getContractDeploymentBlockNumber',
+      );
+      reader['logReaderStrategy'] = strategy;
+
+      await reader.getLogsByTopic({
+        eventTopic: transferTopic,
+        contractAddress: testContract.address,
+      });
+      await reader.getLogsByTopic({
+        eventTopic: transferTopic,
+        contractAddress: testContract.address,
+      });
+
+      expect(deploymentSpy.callCount).to.equal(1);
+    });
+
     it('should not look up deployment block when fromBlock is provided', async () => {
       await deployTestErc20();
 

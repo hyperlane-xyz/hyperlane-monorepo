@@ -339,7 +339,13 @@ export function scaleDownConfig(
  * Destinations not included will have no fee (RoutingFee returns 0 for unconfigured destinations).
  * The fee token is auto-derived at deploy time based on the warp route token type.
  *
- * @param owner - The owner address for the fee contract
+ * The `owner` is applied to the top-level RoutingFee contract and to every
+ * nested per-destination sub-fee contract. Sub-fee ownership is not a
+ * meaningful authority — the RoutingFee owner controls pricing via
+ * `setFeeContract` and claims accrued fees — so the warp check ignores sub-fee
+ * owners (see `normalizeTokenFeeForCheck`) and a single owner is sufficient.
+ *
+ * @param owner - The owner of the RoutingFee contract (and its sub-fee contracts)
  * @param feeDestinations - List of destination chains that should have the fee applied
  * @param bps - The fee in basis points to apply for feeDestinations
  * @param feeParams - Optional pre-deployed fee parameters per chain

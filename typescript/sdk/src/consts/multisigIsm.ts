@@ -84,7 +84,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: [
       {
-        address: '0x7233d80194c69af6b84b0786a7fd2a7294396ca8',
+        address: '0x3c659e0fe8d01b80d7828b421630085777346e7c',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
@@ -336,18 +336,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   bsctestnet: {
-    threshold: 2,
+    threshold: 1,
     validators: [
       {
-        address: '0x242d8a855a8c932dec51f7999ae7d1e48b10c95e',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0xf620f5e3d25a3ae848fec74bccae5de3edcd8796',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0x1f030345963c54ff8229720dd3a711c15c554aeb',
+        address: '0x3c659e0fe8d01b80d7828b421630085777346e7c',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
@@ -673,18 +665,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   fuji: {
-    threshold: 2,
+    threshold: 1,
     validators: [
       {
-        address: '0xd8154f73d04cc7f7f0c332793692e6e6f6b2402e',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0x895ae30bc83ff1493b9cf7781b0b813d23659857',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0x43e915573d9f1383cbf482049e4a012290759e7f',
+        address: '0x3c659e0fe8d01b80d7828b421630085777346e7c',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
@@ -1433,18 +1417,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   sepolia: {
-    threshold: 2,
+    threshold: 1,
     validators: [
       {
-        address: '0xb22b65f202558adf86a8bb2847b76ae1036686a5',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0x469f0940684d147defc44f3647146cb90dd0bc8e',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83',
+        address: '0x3c659e0fe8d01b80d7828b421630085777346e7c',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],

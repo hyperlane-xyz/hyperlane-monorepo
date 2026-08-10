@@ -243,7 +243,7 @@ export class StarknetProtocolFeeHookWriter
     const current = await this.read(artifact.deployed.address);
     const maxProtocolFeeUnknown =
       // CAST: Reflect.get requires an object argument; protocolFee config is always an object here.
-      Reflect.get(current.config as object, '__maxProtocolFeeUnknown') === true;
+      Reflect.get(current.config, '__maxProtocolFeeUnknown') === true;
     assert(
       !maxProtocolFeeUnknown,
       'Cannot update Starknet protocolFee hook because the current maxProtocolFee is unreadable; redeploy required',

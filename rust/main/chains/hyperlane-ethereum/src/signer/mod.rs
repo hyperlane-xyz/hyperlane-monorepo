@@ -8,7 +8,9 @@ use hyperlane_core::{
     HyperlaneSigner, HyperlaneSignerError, Signature as HyperlaneSignature, H160, H256,
 };
 
+mod gcp;
 mod singleton;
+pub use gcp::*;
 pub use singleton::*;
 
 /// Ethereum-supported signer types
@@ -18,6 +20,8 @@ pub enum Signers {
     Local(LocalWallet),
     /// A signer using a key stored in aws kms
     Aws(AwsSigner),
+    /// A signer using a key stored in gcp cloud kms
+    Gcp(GcpSigner),
 }
 
 impl From<LocalWallet> for Signers {
@@ -32,6 +36,12 @@ impl From<AwsSigner> for Signers {
     }
 }
 
+impl From<GcpSigner> for Signers {
+    fn from(s: GcpSigner) -> Self {
+        Signers::Gcp(s)
+    }
+}
+
 #[async_trait]
 impl Signer for Signers {
     type Error = SignersError;
@@ -43,6 +53,7 @@ impl Signer for Signers {
         match self {
             Signers::Local(signer) => Ok(signer.sign_message(message).await?),
             Signers::Aws(signer) => Ok(signer.sign_message(message).await?),
+            Signers::Gcp(signer) => Ok(signer.sign_message(message).await?),
         }
     }
 
@@ -50,6 +61,7 @@ impl Signer for Signers {
         match self {
             Signers::Local(signer) => Ok(signer.sign_transaction(message).await?),
             Signers::Aws(signer) => Ok(signer.sign_transaction(message).await?),
+            Signers::Gcp(signer) => Ok(signer.sign_transaction(message).await?),
         }
     }
 
@@ -60,6 +72,7 @@ impl Signer for Signers {
         match self {
             Signers::Local(signer) => Ok(signer.sign_typed_data(payload).await?),
             Signers::Aws(signer) => Ok(signer.sign_typed_data(payload).await?),
+            Signers::Gcp(signer) => Ok(signer.sign_typed_data(payload).await?),
         }
     }
 
@@ -67,6 +80,7 @@ impl Signer for Signers {
         match self {
             Signers::Local(signer) => signer.address(),
             Signers::Aws(signer) => signer.address(),
+            Signers::Gcp(signer) => signer.address(),
         }
     }
 
@@ -74,6 +88,7 @@ impl Signer for Signers {
         match self {
             Signers::Local(signer) => signer.chain_id(),
             Signers::Aws(signer) => signer.chain_id(),
+            Signers::Gcp(signer) => signer.chain_id(),
         }
     }
 
@@ -81,6 +96,7 @@ impl Signer for Signers {
         match self {
             Signers::Local(signer) => signer.with_chain_id(chain_id).into(),
             Signers::Aws(signer) => signer.with_chain_id(chain_id).into(),
+            Signers::Gcp(signer) => signer.with_chain_id(chain_id).into(),
         }
     }
 }
@@ -106,6 +122,9 @@ pub enum SignersError {
     /// AWS Signer Error
     #[error("{0}")]
     AwsSignerError(#[from] AwsSignerError),
+    /// GCP Signer Error
+    #[error("{0}")]
+    GcpSignerError(#[from] GcpSignerError),
     /// Wallet Signer Error
     #[error("{0}")]
     WalletError(#[from] WalletError),

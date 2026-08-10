@@ -712,36 +712,50 @@ const FIELDS_TO_IGNORE = new Set<keyof HypTokenRouterConfig>([
   'name',
 ]);
 
+// Nested LinearFee sub-fee owners are intentionally excluded from the warp
+// check. A LinearFee owner's only lever is setFee (bps), and bps is compared
+// directly, so its owner carries no additional security-relevant authority.
+// Collapsing nested LinearFee owners to a fixed sentinel on both sides of the
+// diff makes that owner drift invisible while the top-level RoutingFee owner
+// (which controls setFeeContract routing and claim) still diffs normally.
+//
+// OffchainQuotedLinearFee owners are NOT collapsed: that owner additionally
+// controls addQuoteSigner/removeQuoteSigner, a live pricing authority, so its
+// drift must remain visible and is always compared against the real owner.
+const IGNORED_SUB_FEE_OWNER = constants.AddressZero;
+
 function normalizeCrossCollateralFeeContractsForCheck(
   destinationConfig: Record<string, TokenFeeConfigInput>,
 ) {
   return Object.fromEntries(
     Object.entries(destinationConfig).map(([router, nestedFee]) => [
       router,
-      normalizeTokenFeeForCheck(nestedFee),
+      normalizeTokenFeeForCheck(nestedFee, true),
     ]),
   );
 }
 
 function normalizeTokenFeeForCheck(
   feeConfig: TokenFeeConfigInput | undefined,
+  isNested = false,
 ): TokenFeeConfigInput | undefined {
   if (!feeConfig) return feeConfig;
 
   const tokenConfig =
     'token' in feeConfig && feeConfig.token ? { token: feeConfig.token } : {};
+  const owner = isNested ? IGNORED_SUB_FEE_OWNER : feeConfig.owner;
 
   if (feeConfig.type === TokenFeeType.RoutingFee) {
     const normalizedFeeContracts = Object.fromEntries(
       Object.entries(feeConfig.feeContracts).map(([chain, nestedFee]) => [
         chain,
-        normalizeTokenFeeForCheck(nestedFee),
+        normalizeTokenFeeForCheck(nestedFee, true),
       ]),
     );
 
     return {
       type: TokenFeeType.RoutingFee,
-      owner: feeConfig.owner,
+      owner,
       ...tokenConfig,
       feeContracts: normalizedFeeContracts,
     };
@@ -758,12 +772,14 @@ function normalizeTokenFeeForCheck(
     );
     return {
       type: TokenFeeType.CrossCollateralRoutingFee,
-      owner: feeConfig.owner,
+      owner,
       feeContracts: normalizedFeeContracts,
     };
   }
 
   if (feeConfig.type === TokenFeeType.OffchainQuotedLinearFee) {
+    // OQLF owner controls quote-signer management, so compare the real owner
+    // even when nested rather than collapsing to the sentinel.
     return {
       type: feeConfig.type,
       owner: feeConfig.owner,
@@ -776,7 +792,7 @@ function normalizeTokenFeeForCheck(
   if (feeConfig.type === TokenFeeType.LinearFee) {
     return {
       type: feeConfig.type,
-      owner: feeConfig.owner,
+      owner,
       bps: feeConfig.bps,
       ...tokenConfig,
     };

@@ -78,15 +78,16 @@ RUN git clone -q https://github.com/nodenv/nodenv.git "$NODENV_ROOT" && \
     git clone -q https://github.com/nodenv/nodenv-aliases.git "$NODENV_ROOT/plugins/nodenv-aliases" && \
     git clone -q https://github.com/nodenv/nodenv-nvmrc.git "$NODENV_ROOT/plugins/nodenv-nvmrc"
 
-# Install the latest Node 24.x that node-build knows about, set as global default.
+# Install the latest Node 26.x that node-build knows about, set as global default.
 # Rebuild the image to pick up new versions (after node-build plugin updates).
 RUN NODE_VER=$(ls "$NODENV_ROOT/plugins/node-build/share/node-build/" \
-      | grep -E '^24\.' | sort -V | tail -1) && \
+      | grep -E '^26\.' | sort -V | tail -1) && \
     nodenv install "$NODE_VER" && \
     nodenv global "$NODE_VER" && \
     nodenv rehash && \
+    npm install --global corepack@0.35.0 && \
     corepack enable pnpm && \
-    corepack prepare pnpm@11.1.3 --activate && \
+    corepack prepare pnpm@11.20.0 --activate && \
     nodenv rehash
 
 # --------------------------------------------------------------------------

@@ -37,7 +37,7 @@
     ],
     "import/no-named-as-default": "warn",
     "import/no-duplicates": "warn",
-    "@typescript-eslint/no-require-imports": "warn",
+    "typescript/no-require-imports": "warn",
     "import/no-cycle": "error",
     "guard-for-in": "error",
     "import/no-self-import": "error",
@@ -76,30 +76,31 @@
     "jest/no-conditional-expect": "warn",
     "jest/no-export": "warn",
 
-    "@typescript-eslint/no-floating-promises": "error",
-    "@typescript-eslint/await-thenable": "error",
-    "@typescript-eslint/no-for-in-array": "error",
-    "@typescript-eslint/no-implied-eval": "error",
-    "@typescript-eslint/no-unnecessary-type-assertion": "error",
-    "@typescript-eslint/restrict-plus-operands": "error",
-    "@typescript-eslint/restrict-template-expressions": "error",
-    "@typescript-eslint/unbound-method": "error",
-    "@typescript-eslint/no-base-to-string": "error",
-    "@typescript-eslint/only-throw-error": "error",
-    "@typescript-eslint/prefer-promise-reject-errors": "error",
-    "@typescript-eslint/no-duplicate-type-constituents": "error",
-    "@typescript-eslint/no-redundant-type-constituents": "error",
-    "@typescript-eslint/consistent-type-imports": "off",
-    "@typescript-eslint/require-await": "off",
-    "@typescript-eslint/no-misused-promises": "off",
-    "@typescript-eslint/no-unsafe-argument": "off",
-    "@typescript-eslint/no-unsafe-assignment": "off",
-    "@typescript-eslint/no-unsafe-call": "off",
-    "@typescript-eslint/no-unsafe-enum-comparison": "off",
-    "@typescript-eslint/no-unsafe-member-access": "off",
-    "@typescript-eslint/no-unsafe-return": "off",
-    "@typescript-eslint/require-array-sort-compare": "off",
-    "@typescript-eslint/no-misused-spread": "off"
+    "typescript/no-floating-promises": "error",
+    "typescript/await-thenable": "error",
+    "typescript/no-for-in-array": "error",
+    "typescript/no-implied-eval": "error",
+    "typescript/no-unnecessary-type-assertion": "error",
+    "typescript/no-useless-default-assignment": "off",
+    "typescript/restrict-plus-operands": "error",
+    "typescript/restrict-template-expressions": "error",
+    "typescript/unbound-method": "error",
+    "typescript/no-base-to-string": "error",
+    "typescript/only-throw-error": "error",
+    "typescript/prefer-promise-reject-errors": "error",
+    "typescript/no-duplicate-type-constituents": "error",
+    "typescript/no-redundant-type-constituents": "error",
+    "typescript/consistent-type-imports": "off",
+    "typescript/require-await": "off",
+    "typescript/no-misused-promises": "off",
+    "typescript/no-unsafe-argument": "off",
+    "typescript/no-unsafe-assignment": "off",
+    "typescript/no-unsafe-call": "off",
+    "typescript/no-unsafe-enum-comparison": "off",
+    "typescript/no-unsafe-member-access": "off",
+    "typescript/no-unsafe-return": "off",
+    "typescript/require-array-sort-compare": "off",
+    "typescript/no-misused-spread": "off"
   },
   "globals": {
     "AudioWorkletGlobalScope": "readonly",
@@ -144,7 +145,7 @@
     {
       "files": ["**/scripts/**", "typescript/infra/src/**/*.ts"],
       "rules": {
-        "@typescript-eslint/no-floating-promises": "off"
+        "typescript/no-floating-promises": "off"
       }
     },
     {
@@ -303,14 +304,14 @@
         "starknet/**/*.ts"
       ],
       "rules": {
-        "@typescript-eslint/await-thenable": "off",
-        "@typescript-eslint/no-base-to-string": "off",
-        "@typescript-eslint/no-duplicate-type-constituents": "off",
-        "@typescript-eslint/no-redundant-type-constituents": "off",
-        "@typescript-eslint/no-unnecessary-type-assertion": "off",
-        "@typescript-eslint/restrict-plus-operands": "off",
-        "@typescript-eslint/restrict-template-expressions": "off",
-        "@typescript-eslint/unbound-method": "off"
+        "typescript/await-thenable": "off",
+        "typescript/no-base-to-string": "off",
+        "typescript/no-duplicate-type-constituents": "off",
+        "typescript/no-redundant-type-constituents": "off",
+        "typescript/no-unnecessary-type-assertion": "off",
+        "typescript/restrict-plus-operands": "off",
+        "typescript/restrict-template-expressions": "off",
+        "typescript/unbound-method": "off"
       }
     },
     {
@@ -324,14 +325,14 @@
         "typescript/warp-widget/src/**/*.{ts,tsx}"
       ],
       "rules": {
-        "@typescript-eslint/no-confusing-void-expression": "error",
-        "@typescript-eslint/no-deprecated": "error",
-        "@typescript-eslint/no-misused-promises": "error",
-        "@typescript-eslint/no-unnecessary-condition": "error",
-        "@typescript-eslint/prefer-nullish-coalescing": "error",
-        "@typescript-eslint/prefer-optional-chain": "error",
-        "@typescript-eslint/promise-function-async": "error",
-        "@typescript-eslint/return-await": "error"
+        "typescript/no-confusing-void-expression": "error",
+        "typescript/no-deprecated": "error",
+        "typescript/no-misused-promises": "error",
+        "typescript/no-unnecessary-condition": "error",
+        "typescript/prefer-nullish-coalescing": "error",
+        "typescript/prefer-optional-chain": "error",
+        "typescript/promise-function-async": "error",
+        "typescript/return-await": "error"
       }
     },
     {
@@ -342,7 +343,7 @@
         "typescript/aleo-sdk/src/**/*.ts"
       ],
       "rules": {
-        "@typescript-eslint/consistent-type-imports": [
+        "typescript/consistent-type-imports": [
           "error",
           {
             "prefer": "type-imports",

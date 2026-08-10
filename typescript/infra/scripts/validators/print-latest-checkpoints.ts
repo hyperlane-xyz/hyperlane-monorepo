@@ -28,6 +28,7 @@ async function main() {
     all = false,
     validator,
     alias: aliasFilter,
+    ready: readyFilter,
   } = await withChains(getArgs())
     .describe('all', 'all validators, including non-default ISM')
     .boolean('all')
@@ -39,7 +40,12 @@ async function main() {
       'alias',
       'filter to validators whose default ISM alias matches this string (case-insensitive substring match, e.g. "Abacus Works")',
     )
-    .string('alias').argv;
+    .string('alias')
+    .describe(
+      'ready',
+      'filter by readable latest checkpoint; use --ready or --ready=false',
+    )
+    .boolean('ready').argv;
 
   // Get multiprovider for target networks
   const envConfig = getEnvironmentConfig(environment);
@@ -63,6 +69,7 @@ async function main() {
         alias: string;
         default: string;
         latest: number;
+        ready: boolean;
         bucket: string;
       }
     >
@@ -155,18 +162,29 @@ async function main() {
           const latestCheckpoint =
             await validatorInstance.getLatestCheckpointIndex();
           const bucket = validatorInstance.getLatestCheckpointUrl();
+          const ready = latestCheckpoint >= 0;
+
+          if (readyFilter !== undefined && readyFilter !== ready) {
+            continue;
+          }
 
           if (!validators[chain]) {
             validators[chain] = {};
           }
+
           const alias = findDefaultValidatorAlias(validatorAddress);
           validators[chain][validatorAddress] = {
             alias,
             default: alias ? '✅' : '',
             latest: latestCheckpoint,
+            ready,
             bucket,
           };
         } catch (error) {
+          if (readyFilter === true) {
+            continue;
+          }
+
           // Only log errors for default ISM validators. This is because
           // non-default ISM validators may be configured with bogus
           // signature locations, which will cause errors when trying to
@@ -175,10 +193,14 @@ async function main() {
           rootLogger[logLevel](
             `Error getting metadata for ${validatorAddress} on chain ${chain}: ${error}`,
           );
+          if (!validators[chain]) {
+            validators[chain] = {};
+          }
           validators[chain][validatorAddress] = {
             alias: '',
             default: '',
             latest: -1,
+            ready: false,
             bucket: location,
           };
         }
@@ -200,7 +222,13 @@ async function main() {
       }),
     );
     // eslint-disable-next-line no-console
-    console.table(sortedValidators, ['alias', 'default', 'latest', 'bucket']);
+    console.table(sortedValidators, [
+      'alias',
+      'default',
+      'latest',
+      'ready',
+      'bucket',
+    ]);
   });
 
   process.exit(0);

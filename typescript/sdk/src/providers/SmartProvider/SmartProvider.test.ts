@@ -1,6 +1,8 @@
 import { expect } from 'chai';
-import { errors as EthersError, providers, utils } from 'ethers';
+import { BigNumber, errors as EthersError, providers, utils } from 'ethers';
 import sinon from 'sinon';
+
+import { assert } from '@hyperlane-xyz/utils';
 
 import {
   AllProviderMethods,
@@ -8,7 +10,11 @@ import {
   ProviderMethod,
 } from './ProviderMethods.js';
 import { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
-import type { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
+import {
+  LogBlockHistoryUnavailableError,
+  LogBlockRangeTooLargeError,
+  type HyperlaneJsonRpcProvider,
+} from './HyperlaneJsonRpcProvider.js';
 import {
   BlockchainError,
   getSmartProviderErrorMessage,
@@ -514,6 +520,91 @@ describe('SmartProvider', () => {
     });
   });
 
+  describe('paginated getLogs failover', () => {
+    const PAGINATED_LATEST_BLOCK = 20;
+
+    afterEach(() => sinon.restore());
+
+    function decodeWindow(filter: {
+      fromBlock?: unknown;
+      toBlock?: unknown;
+    }): [number, number] {
+      const { fromBlock, toBlock } = filter;
+      assert(
+        typeof fromBlock === 'string' && typeof toBlock === 'string',
+        'Expected hex block bounds on the log filter',
+      );
+      return [
+        BigNumber.from(fromBlock).toNumber(),
+        BigNumber.from(toBlock).toNumber(),
+      ];
+    }
+
+    // Each sub-query of a paginated getLogs goes through the same provider, so
+    // one failing sub-query fails the whole call and the next provider has to
+    // re-serve every window before the combined result is complete.
+    it('re-serves every window from the next provider after a sub-query fails', async () => {
+      const requests: Array<{ url: string; window: [number, number] }> = [];
+      const logs = [12, 18].map((blockNumber) => ({
+        address: '0x0000000000000000000000000000000000000001',
+        blockHash: utils.hexZeroPad(utils.hexValue(blockNumber), 32),
+        blockNumber: utils.hexValue(blockNumber),
+        data: '0x',
+        logIndex: '0x0',
+        removed: false,
+        topics: [`0x${'2'.repeat(64)}`],
+        transactionHash: utils.hexZeroPad(utils.hexValue(blockNumber), 32),
+        transactionIndex: '0x0',
+      }));
+      sinon
+        .stub(providers.JsonRpcProvider.prototype, 'perform')
+        .callsFake(async function (
+          this: providers.JsonRpcProvider,
+          method: string,
+          params: { filter?: { fromBlock?: unknown; toBlock?: unknown } },
+        ) {
+          if (method === ProviderMethod.GetBlockNumber) {
+            return PAGINATED_LATEST_BLOCK;
+          }
+          if (method !== ProviderMethod.GetLogs) {
+            throw new Error(`Unexpected method ${method}`);
+          }
+          if (!params.filter) throw new Error('Missing log filter');
+          const window = decodeWindow(params.filter);
+          requests.push({ url: this.connection.url, window });
+          if (this.connection.url === 'http://provider1') {
+            throw new ProviderError('server error', EthersError.SERVER_ERROR);
+          }
+          return logs.filter((log) => {
+            const blockNumber = BigNumber.from(log.blockNumber).toNumber();
+            return blockNumber >= window[0] && blockNumber <= window[1];
+          });
+        });
+      const smartProvider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [
+          { http: 'http://provider1', pagination: { maxBlockRange: 5 } },
+          { http: 'http://provider2', pagination: { maxBlockRange: 5 } },
+        ],
+        [],
+      );
+
+      const result = await smartProvider.getLogs({
+        address: '0x0000000000000000000000000000000000000001',
+        fromBlock: 11,
+        toBlock: 20,
+      });
+
+      expect(requests).to.deep.equal([
+        { url: 'http://provider1', window: [11, 15] },
+        { url: 'http://provider1', window: [16, 20] },
+        { url: 'http://provider2', window: [11, 15] },
+        { url: 'http://provider2', window: [16, 20] },
+      ]);
+      expect(result.map((log) => log.blockNumber)).to.deep.equal([12, 18]);
+    });
+  });
+
   describe('Call "0x" failover', () => {
     let performStub: sinon.SinonStub;
 
@@ -693,6 +784,91 @@ describe('SmartProvider', () => {
         expect(e.cause).to.equal(secondError);
       });
     });
+
+    // A single provider refusing must not mark the combined error unretryable:
+    // perform()'s retryAsync would stop at the first attempt and never ask the
+    // provider whose failure was transient again.
+    const nonRecoverableTestCases: Array<{
+      name: string;
+      errors: () => Error[];
+      expectedIsRecoverable: false | undefined;
+      expectedCauseIndex: number;
+    }> = [
+      {
+        name: 'only one of two providers declared its failure unretryable',
+        errors: () => [
+          new LogBlockHistoryUnavailableError(
+            'Requested block 100 is below the earliest block this RPC serves',
+          ),
+          new ProviderError('connection refused', EthersError.SERVER_ERROR),
+        ],
+        expectedIsRecoverable: undefined,
+        expectedCauseIndex: 1,
+      },
+      {
+        name: 'every provider declared its failure unretryable',
+        errors: () => [
+          new LogBlockHistoryUnavailableError(
+            'Requested block 100 is below the earliest block this RPC serves',
+          ),
+          new LogBlockHistoryUnavailableError(
+            'Requested block 100 is below the earliest block this RPC serves',
+          ),
+        ],
+        expectedIsRecoverable: false,
+        expectedCauseIndex: 0,
+      },
+      // Both orders of the same pair, because the cause is what
+      // `isBlockRangeError` reads and only the range rejection is answerable by
+      // a narrower request. Picking by provider order would have the same two
+      // failures fail the read on one registry and complete it on another.
+      {
+        name: 'a range rejection was tried after a history floor',
+        errors: () => [
+          new LogBlockHistoryUnavailableError(
+            'Requested block 100 is below the earliest block this RPC serves',
+          ),
+          new LogBlockRangeTooLargeError(
+            'Serving blocks 100 to 200 needs 11 queries at a block range of 10',
+          ),
+        ],
+        expectedIsRecoverable: false,
+        expectedCauseIndex: 1,
+      },
+      {
+        name: 'a range rejection was tried before a history floor',
+        errors: () => [
+          new LogBlockRangeTooLargeError(
+            'Serving blocks 100 to 200 needs 11 queries at a block range of 10',
+          ),
+          new LogBlockHistoryUnavailableError(
+            'Requested block 100 is below the earliest block this RPC serves',
+          ),
+        ],
+        expectedIsRecoverable: false,
+        expectedCauseIndex: 0,
+      },
+    ];
+
+    nonRecoverableTestCases.forEach(
+      ({ name, errors, expectedIsRecoverable, expectedCauseIndex }) => {
+        it(`sets isRecoverable=${expectedIsRecoverable} when ${name}`, () => {
+          const providerErrors = errors();
+          const CombinedError = provider.testGetCombinedProviderError(
+            providerErrors,
+            'Test fallback message',
+          );
+
+          const e = new CombinedError();
+
+          expect(e).to.not.be.instanceOf(BlockchainError);
+          expect(Reflect.get(e, 'isRecoverable')).to.equal(
+            expectedIsRecoverable,
+          );
+          expect(e.cause).to.equal(providerErrors[expectedCauseIndex]);
+        });
+      },
+    );
 
     it('treats CALL_EXCEPTION without nested error as permanent (BlockchainError)', () => {
       // CALL_EXCEPTION without nested error means ethers failed to decode empty return data

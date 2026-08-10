@@ -11,7 +11,7 @@ use hyperlane_core::Metadata;
 use tracing::instrument;
 
 use hyperlane_core::{
-    rpc_clients::call_and_retry_indefinitely, ChainResult, ContractLocator, HyperlaneChain,
+    rpc_clients::call_and_retry_indefinitely, ChainResult, ContractLocator, Decode, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer,
     LogMeta, Mailbox, RawHyperlaneMessage, ReorgPeriod, SequenceAwareIndexer, TxCostEstimate,
     TxOutcome, H256, H512, U256,
@@ -60,13 +60,13 @@ impl Indexer<HyperlaneMessage> for TronMailboxIndexer {
             .query_with_meta()
             .await?
             .into_iter()
-            .map(|(event, meta)| {
-                (
-                    HyperlaneMessage::from(event.message.to_vec()).into(),
+            .map(|(event, meta)| -> ChainResult<_> {
+                Ok((
+                    HyperlaneMessage::read_from(&mut event.message.as_ref())?.into(),
                     meta.into(),
-                )
+                ))
             })
-            .collect();
+            .collect::<ChainResult<Vec<_>>>()?;
 
         events.sort_by(|a, b| a.0.inner().nonce.cmp(&b.0.inner().nonce));
         Ok(events)
@@ -86,13 +86,13 @@ impl Indexer<HyperlaneMessage> for TronMailboxIndexer {
         .await;
         let logs = raw_logs_and_meta
             .into_iter()
-            .map(|(log, log_meta)| {
-                (
-                    HyperlaneMessage::from(log.message.to_vec()).into(),
+            .map(|(log, log_meta)| -> ChainResult<_> {
+                Ok((
+                    HyperlaneMessage::read_from(&mut log.message.as_ref())?.into(),
                     log_meta,
-                )
+                ))
             })
-            .collect();
+            .collect::<ChainResult<Vec<_>>>()?;
         Ok(logs)
     }
 }

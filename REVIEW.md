@@ -41,7 +41,7 @@
 
 ## Type Cast Audit (MANDATORY PASS)
 
-**Do a dedicated pass over the diff looking for every `as` keyword and `any` type.** Flag each one. This is the most common source of bugs in this codebase.
+**Do a dedicated pass over the diff looking for every type-assertion `as` and `any` type.** Flag each one. This is the most common source of bugs in this codebase.
 
 - **`as X`** — flag it. The fix is almost always to fix the function signature, add a type guard, or restructure the code
 - **`as unknown as X`** — always flag. This completely bypasses type checking
@@ -51,6 +51,8 @@
 - **`!` (non-null assertion)** — flag unless the value is provably non-null on the preceding line
 
 The only acceptable cast is one with a `// CAST:` comment explaining why it's unavoidable.
+
+> **`as const` is exempt** — it is a _const assertion_, not a type assertion. It only narrows a literal to its readonly literal type and cannot widen or reinterpret a value, so it is not a type-safety escape. It is the endorsed idiom for the `const { … } as const` object + `type X = (typeof X)[keyof typeof X]` derived-union pattern used throughout the codebase. Do **not** flag it and do **not** require a `// CAST:` comment for it.
 
 ## TypeScript/SDK Patterns
 
