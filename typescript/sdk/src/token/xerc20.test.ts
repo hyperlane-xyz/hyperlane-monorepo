@@ -1,12 +1,18 @@
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import { ethers } from 'ethers';
 import sinon from 'sinon';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
+import { GetEventLogsResponse } from '../rpc/evm/types.js';
 
-import { XERC20Type } from './types.js';
-import { deriveXERC20TokenType } from './xerc20.js';
+import { XERC20TokenExtraBridgesLimits, XERC20Type } from './types.js';
+import { CONFIGURATION_CHANGED_EVENT_SELECTOR } from './xerc20-abi.js';
+import { deriveXERC20TokenType, getExtraLockBoxConfigs } from './xerc20.js';
+
+chai.use(chaiAsPromised);
 
 const PROXY_ADDRESS = '0x1111111111111111111111111111111111111111';
 const IMPLEMENTATION_ADDRESS = '0x2222222222222222222222222222222222222222';
@@ -171,4 +177,341 @@ describe('deriveXERC20TokenType', () => {
       }
     });
   }
+});
+
+const XERC20_ADDRESS = '0x6666666666666666666666666666666666666666';
+const BRIDGE_A = '0x4444444444444444444444444444444444444444';
+const BRIDGE_B = '0x5555555555555555555555555555555555555555';
+// Value returned by a lockbox's XERC20() getter; never asserted on.
+const LOCKBOX_XERC20 = '0x7777777777777777777777777777777777777777';
+
+function configurationChangedLog({
+  bridge,
+  bufferCap,
+  rateLimitPerSecond,
+  blockNumber,
+  logIndex = 0,
+}: {
+  bridge: string;
+  bufferCap: number;
+  rateLimitPerSecond: number;
+  blockNumber: number;
+  logIndex?: number;
+}): GetEventLogsResponse {
+  return {
+    address: XERC20_ADDRESS,
+    blockNumber,
+    data: ethers.utils.defaultAbiCoder.encode(
+      ['uint112', 'uint128'],
+      [bufferCap, rateLimitPerSecond],
+    ),
+    logIndex,
+    topics: [
+      CONFIGURATION_CHANGED_EVENT_SELECTOR,
+      ethers.utils.hexZeroPad(bridge, 32),
+    ],
+    transactionHash: ethers.utils.hexZeroPad(`0x${blockNumber}`, 32),
+    transactionIndex: 0,
+  };
+}
+
+interface LockboxCase {
+  name: string;
+  logs: GetEventLogsResponse[];
+  // Bridges whose XERC20() getter resolves. Any other bridge reverts with
+  // empty return data, like a contract missing the selector would.
+  lockboxBridges: string[];
+  expected: XERC20TokenExtraBridgesLimits[];
+}
+
+const lockboxCases: LockboxCase[] = [
+  {
+    name: 'keeps only the most recent configuration of a bridge',
+    logs: [
+      configurationChangedLog({
+        bridge: BRIDGE_A,
+        bufferCap: 100,
+        rateLimitPerSecond: 1,
+        blockNumber: 10,
+      }),
+      configurationChangedLog({
+        bridge: BRIDGE_A,
+        bufferCap: 500,
+        rateLimitPerSecond: 2,
+        blockNumber: 20,
+      }),
+    ],
+    lockboxBridges: [BRIDGE_A],
+    expected: [
+      {
+        lockbox: BRIDGE_A,
+        limits: {
+          type: XERC20Type.Velo,
+          bufferCap: '500',
+          rateLimitPerSecond: '2',
+        },
+      },
+    ],
+  },
+  {
+    // A bridge can be reconfigured twice in the same block, so ordering on the
+    // block number alone kept the first configuration instead of the last.
+    name: 'keeps the highest logIndex configuration of a bridge within a block',
+    logs: [
+      configurationChangedLog({
+        bridge: BRIDGE_A,
+        bufferCap: 100,
+        rateLimitPerSecond: 1,
+        blockNumber: 10,
+        logIndex: 3,
+      }),
+      configurationChangedLog({
+        bridge: BRIDGE_A,
+        bufferCap: 500,
+        rateLimitPerSecond: 2,
+        blockNumber: 10,
+        logIndex: 7,
+      }),
+    ],
+    lockboxBridges: [BRIDGE_A],
+    expected: [
+      {
+        lockbox: BRIDGE_A,
+        limits: {
+          type: XERC20Type.Velo,
+          bufferCap: '500',
+          rateLimitPerSecond: '2',
+        },
+      },
+    ],
+  },
+  {
+    // The same-block tiebreaker must not depend on the order the logs arrive in
+    name: 'keeps the highest logIndex configuration when logs arrive out of order',
+    logs: [
+      configurationChangedLog({
+        bridge: BRIDGE_A,
+        bufferCap: 500,
+        rateLimitPerSecond: 2,
+        blockNumber: 10,
+        logIndex: 7,
+      }),
+      configurationChangedLog({
+        bridge: BRIDGE_A,
+        bufferCap: 100,
+        rateLimitPerSecond: 1,
+        blockNumber: 10,
+        logIndex: 3,
+      }),
+    ],
+    lockboxBridges: [BRIDGE_A],
+    expected: [
+      {
+        lockbox: BRIDGE_A,
+        limits: {
+          type: XERC20Type.Velo,
+          bufferCap: '500',
+          rateLimitPerSecond: '2',
+        },
+      },
+    ],
+  },
+  {
+    // Deduplication must run before the zero-limit filter, otherwise the stale
+    // non-zero configuration would keep a deactivated bridge alive.
+    name: 'drops a bridge whose most recent configuration zeroes both limits',
+    logs: [
+      configurationChangedLog({
+        bridge: BRIDGE_A,
+        bufferCap: 100,
+        rateLimitPerSecond: 1,
+        blockNumber: 10,
+      }),
+      configurationChangedLog({
+        bridge: BRIDGE_A,
+        bufferCap: 0,
+        rateLimitPerSecond: 0,
+        blockNumber: 20,
+      }),
+    ],
+    lockboxBridges: [BRIDGE_A],
+    expected: [],
+  },
+  {
+    name: 'drops a bridge configured with both limits set to zero',
+    logs: [
+      configurationChangedLog({
+        bridge: BRIDGE_A,
+        bufferCap: 0,
+        rateLimitPerSecond: 0,
+        blockNumber: 10,
+      }),
+    ],
+    lockboxBridges: [BRIDGE_A],
+    expected: [],
+  },
+  {
+    name: 'keeps bridges where either limit is non zero',
+    logs: [
+      configurationChangedLog({
+        bridge: BRIDGE_A,
+        bufferCap: 0,
+        rateLimitPerSecond: 7,
+        blockNumber: 10,
+      }),
+      configurationChangedLog({
+        bridge: BRIDGE_B,
+        bufferCap: 9,
+        rateLimitPerSecond: 0,
+        blockNumber: 11,
+      }),
+    ],
+    lockboxBridges: [BRIDGE_A, BRIDGE_B],
+    expected: [
+      {
+        lockbox: BRIDGE_A,
+        limits: {
+          type: XERC20Type.Velo,
+          bufferCap: '0',
+          rateLimitPerSecond: '7',
+        },
+      },
+      {
+        lockbox: BRIDGE_B,
+        limits: {
+          type: XERC20Type.Velo,
+          bufferCap: '9',
+          rateLimitPerSecond: '0',
+        },
+      },
+    ],
+  },
+  {
+    name: 'drops bridges that are not lockbox contracts',
+    logs: [
+      configurationChangedLog({
+        bridge: BRIDGE_A,
+        bufferCap: 100,
+        rateLimitPerSecond: 1,
+        blockNumber: 10,
+      }),
+      configurationChangedLog({
+        bridge: BRIDGE_B,
+        bufferCap: 200,
+        rateLimitPerSecond: 2,
+        blockNumber: 11,
+      }),
+    ],
+    lockboxBridges: [BRIDGE_A],
+    expected: [
+      {
+        lockbox: BRIDGE_A,
+        limits: {
+          type: XERC20Type.Velo,
+          bufferCap: '100',
+          rateLimitPerSecond: '1',
+        },
+      },
+    ],
+  },
+  {
+    name: 'returns an empty list when no configuration events were emitted',
+    logs: [],
+    lockboxBridges: [],
+    expected: [],
+  },
+];
+
+describe('getExtraLockBoxConfigs', () => {
+  let sandbox: sinon.SinonSandbox;
+  let multiProvider: MultiProvider;
+
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
+    multiProvider = MultiProvider.createTestMultiProvider();
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  function stubLockboxCalls(lockboxBridges: string[]): void {
+    const lockboxes = new Set(lockboxBridges.map((b) => b.toLowerCase()));
+    const provider = multiProvider.getProvider(TestChainName.test1);
+
+    sandbox.stub(provider, 'call').callsFake(async (transaction) => {
+      const to = await transaction.to;
+      if (typeof to === 'string' && lockboxes.has(to.toLowerCase())) {
+        return ethers.utils.defaultAbiCoder.encode(
+          ['address'],
+          [LOCKBOX_XERC20],
+        );
+      }
+
+      throw Object.assign(new Error('call revert exception'), {
+        code: 'CALL_EXCEPTION',
+        data: '0x',
+      });
+    });
+  }
+
+  for (const c of lockboxCases) {
+    it(c.name, async () => {
+      sandbox
+        .stub(EvmEventLogsReader.prototype, 'getLogsByTopic')
+        .resolves(c.logs);
+      stubLockboxCalls(c.lockboxBridges);
+
+      const result = await getExtraLockBoxConfigs({
+        chain: TestChainName.test1,
+        xERC20Address: XERC20_ADDRESS,
+        multiProvider,
+      });
+
+      expect(result).to.deep.equal(c.expected);
+    });
+  }
+
+  it('reads the ConfigurationChanged logs with the xERC20 scan block range', async () => {
+    const fromConfig = sandbox.spy(EvmEventLogsReader, 'fromConfig');
+    const getLogsByTopic = sandbox
+      .stub(EvmEventLogsReader.prototype, 'getLogsByTopic')
+      .resolves([]);
+    stubLockboxCalls([]);
+
+    await getExtraLockBoxConfigs({
+      chain: TestChainName.test1,
+      xERC20Address: XERC20_ADDRESS,
+      multiProvider,
+    });
+
+    expect(fromConfig.calledOnce).to.be.true;
+    expect(fromConfig.firstCall.args[0]).to.deep.equal({
+      chain: TestChainName.test1,
+      paginationBlockRange: 1_000_000,
+    });
+    expect(
+      getLogsByTopic.calledOnceWithExactly({
+        contractAddress: XERC20_ADDRESS,
+        eventTopic: CONFIGURATION_CHANGED_EVENT_SELECTOR,
+      }),
+    ).to.be.true;
+  });
+
+  // A failed log read used to be swallowed into an empty list, which reported
+  // a token with extra lockboxes as having none.
+  it('propagates a log read failure instead of reporting no lockboxes', async () => {
+    sandbox
+      .stub(EvmEventLogsReader.prototype, 'getLogsByTopic')
+      .rejects(new Error('rpc down'));
+    stubLockboxCalls([]);
+
+    await expect(
+      getExtraLockBoxConfigs({
+        chain: TestChainName.test1,
+        xERC20Address: XERC20_ADDRESS,
+        multiProvider,
+      }),
+    ).to.be.rejectedWith('rpc down');
+  });
 });

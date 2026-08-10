@@ -6,7 +6,6 @@ import {
   Contract,
   RawArgsArray,
   RpcProvider,
-  hash,
   shortString,
 } from 'starknet';
 
@@ -18,8 +17,8 @@ import {
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   ContractType,
-  getCompiledContract,
-} from '@hyperlane-xyz/starknet-core';
+  getContractClassHash,
+} from '@hyperlane-xyz/starknet-core/runtime';
 import {
   addressToBytes32,
   assert,
@@ -52,27 +51,18 @@ function getTokenTypeByClassHash(): Map<string, AltVM.TokenType> {
 
   const entries = [
     [
-      hash.computeContractClassHash(
-        getCompiledContract(StarknetContractName.HYP_ERC20, ContractType.TOKEN),
-      ),
+      getContractClassHash(StarknetContractName.HYP_ERC20, ContractType.TOKEN),
       AltVM.TokenType.synthetic,
     ],
     [
-      hash.computeContractClassHash(
-        getCompiledContract(
-          StarknetContractName.HYP_ERC20_COLLATERAL,
-          ContractType.TOKEN,
-        ),
+      getContractClassHash(
+        StarknetContractName.HYP_ERC20_COLLATERAL,
+        ContractType.TOKEN,
       ),
       AltVM.TokenType.collateral,
     ],
     [
-      hash.computeContractClassHash(
-        getCompiledContract(
-          StarknetContractName.HYP_NATIVE,
-          ContractType.TOKEN,
-        ),
-      ),
+      getContractClassHash(StarknetContractName.HYP_NATIVE, ContractType.TOKEN),
       AltVM.TokenType.native,
     ],
   ] satisfies ReadonlyArray<readonly [string, AltVM.TokenType]>;

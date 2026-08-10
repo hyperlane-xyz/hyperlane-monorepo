@@ -37,6 +37,7 @@ impl OpQueue {
     }
 
     /// Pop an element from the queue and update metrics
+    #[allow(dead_code)] // only used in tests
     #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "trace")]
     pub async fn pop(&mut self) -> Option<QueueOperation> {
         let pop_attempt = self.pop_many(1).await;

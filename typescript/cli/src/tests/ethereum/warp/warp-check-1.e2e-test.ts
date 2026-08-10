@@ -96,9 +96,13 @@ describe('hyperlane warp check e2e tests', async function () {
     };
   });
 
-  // Removing the offchain lookup ism because it is a family of different isms
+  // Removing the offchain lookup ism because it is a family of different isms.
+  // Removing the blacklist ism because it cannot be a standalone/top-level ISM
+  // (mandatory-composition invariant), so it is not exercised by this
+  // owner-diff test.
   for (const ismType of MUTABLE_ISM_TYPE.filter(
-    (ismType) => ismType !== IsmType.OFFCHAIN_LOOKUP,
+    (ismType) =>
+      ismType !== IsmType.OFFCHAIN_LOOKUP && ismType !== IsmType.BLACKLIST,
   )) {
     it(`should find owner differences between the local config and the on chain config for ism of type ${ismType}`, async function () {
       warpConfig[CHAIN_NAME_3].interchainSecurityModule =

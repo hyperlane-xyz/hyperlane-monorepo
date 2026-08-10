@@ -18,7 +18,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { getDomainId, getRegistry } from '../../../../registry.js';
+import { getRegistry } from '../../../../registry.js';
 import { usdcTokenAddresses } from '../cctp.js';
 import { usdtTokenAddresses } from '../tokens.js';
 import { WarpRouteIds } from '../warpIds.js';
@@ -80,7 +80,7 @@ export function getUSDCRebalancingBridgesConfigFor(
       const allowedRebalancingBridges = Object.fromEntries(
         rebalanceableChains
           .filter((remoteChain) => remoteChain !== currentChain)
-          .map((remoteChain) => [String(getDomainId(remoteChain)), bridges]),
+          .map((remoteChain) => [remoteChain, bridges]),
       );
 
       return {
@@ -164,7 +164,7 @@ export function getRebalancingBridgesConfigFor(
       const allowedRebalancingBridges = Object.fromEntries(
         rebalanceableChains
           .filter((remoteChain) => remoteChain !== currentChain)
-          .map((remoteChain) => {
+          .map((remoteChain): [string, Array<{ bridge: string }>] => {
             const bridges = routeData
               .filter(
                 ({ chainSet }) =>
@@ -175,7 +175,7 @@ export function getRebalancingBridgesConfigFor(
                 assert(bridge, `No bridge found for chain ${currentChain}`);
                 return { bridge };
               });
-            return [String(getDomainId(remoteChain)), bridges] as const;
+            return [remoteChain, bridges];
           })
           .filter(([, bridges]) => bridges.length > 0),
       );
@@ -339,7 +339,13 @@ export function scaleDownConfig(
  * Destinations not included will have no fee (RoutingFee returns 0 for unconfigured destinations).
  * The fee token is auto-derived at deploy time based on the warp route token type.
  *
- * @param owner - The owner address for the fee contract
+ * The `owner` is applied to the top-level RoutingFee contract and to every
+ * nested per-destination sub-fee contract. Sub-fee ownership is not a
+ * meaningful authority — the RoutingFee owner controls pricing via
+ * `setFeeContract` and claims accrued fees — so the warp check ignores sub-fee
+ * owners (see `normalizeTokenFeeForCheck`) and a single owner is sufficient.
+ *
+ * @param owner - The owner of the RoutingFee contract (and its sub-fee contracts)
  * @param feeDestinations - List of destination chains that should have the fee applied
  * @param bps - The fee in basis points to apply for feeDestinations
  * @param feeParams - Optional pre-deployed fee parameters per chain

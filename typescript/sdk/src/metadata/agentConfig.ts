@@ -51,6 +51,7 @@ export enum AgentIndexMode {
 
 export enum AgentSignerKeyType {
   Aws = 'aws',
+  Gcp = 'gcp',
   Hex = 'hexKey',
   Node = 'node',
   Cosmos = 'cosmosKey',
@@ -93,6 +94,21 @@ const AgentSignerAwsKeySchema = z
   .describe(
     'An AWS signer. Note that AWS credentials must be inserted into the env separately.',
   );
+const AgentSignerGcpKeySchema = z
+  .object({
+    // Required, unlike Hex/Aws's optional `type` - those stay optional only
+    // for backward compat with configs written before those had a
+    // discriminant; Gcp has no such pre-discriminant format to preserve, and
+    // an optional type here would let `signerType` resolve to `undefined`,
+    // silently skipping the protocol-signer refinement below.
+    type: z.literal(AgentSignerKeyType.Gcp),
+    keyVersionName: z
+      .string()
+      .describe('The full GCP KMS CryptoKeyVersion resource name'),
+  })
+  .describe(
+    'A GCP Cloud KMS signer. Note that GCP credentials (e.g. Workload Identity) must be available in the env separately.',
+  );
 const AgentSignerCosmosKeySchema = z
   .object({
     type: z.literal(AgentSignerKeyType.Cosmos),
@@ -116,12 +132,14 @@ const AgentSignerNodeSchema = z
 const AgentSignerSchema = z.union([
   AgentSignerHexKeySchema,
   AgentSignerAwsKeySchema,
+  AgentSignerGcpKeySchema,
   AgentSignerCosmosKeySchema,
   AgentSignerNodeSchema,
   AgentSignerRadixKeySchema,
 ]);
 
 export type AgentSignerHexKey = z.infer<typeof AgentSignerHexKeySchema>;
+export type AgentSignerGcpKey = z.infer<typeof AgentSignerGcpKeySchema>;
 export type AgentSignerAwsKey = z.infer<typeof AgentSignerAwsKeySchema>;
 export type AgentSignerCosmosKey = z.infer<typeof AgentSignerNodeSchema>;
 export type AgentSignerNode = z.infer<typeof AgentSignerNodeSchema>;
@@ -234,17 +252,17 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
       .describe(
         'Specify a comma separated list of custom RPC URLs to use for this chain. If not specified, the default RPC urls will be used.',
       ),
-    quorumRpcUrls: z
+    additionalQuorumRpcUrls: z
       .array(RpcUrlSchema)
       .optional()
       .describe(
-        'Validator only: statically configured RPC URLs that vote together (2/3 majority) on safety-critical merkle tree hook reads. Overridden entirely by customQuorumRpcUrls when set, same as rpcUrls/customRpcUrls. See customQuorumRpcUrls for the full quorum semantics.',
+        'Validator only: statically configured, *additional* RPC URLs that vote together with rpcUrls (2/3 majority, combined) on safety-critical merkle tree hook reads. Overridden entirely by customAdditionalQuorumRpcUrls when set, same as rpcUrls/customRpcUrls. See customAdditionalQuorumRpcUrls for the full quorum semantics.',
       ),
-    customQuorumRpcUrls: z
+    customAdditionalQuorumRpcUrls: z
       .string()
       .optional()
       .describe(
-        'Validator only: comma separated list of RPC URLs that vote together (2/3 majority) on safety-critical merkle tree hook reads. The winning value must also match what rpcUrls (its own configured consensus mode) independently returns. Empty disables quorum verification. Recommended: include your private rpcUrls here too, alongside a sizeable public batch -- a pool of 1-2 entries provides little real protection.',
+        'Validator only: comma separated list of *additional* RPC URLs that vote together with rpcUrls (2/3 majority, combined) on safety-critical merkle tree hook reads. Empty disables quorum verification. Intended for additional public RPCs only -- rpcUrls already votes in the same group, so there is no need to duplicate its (typically private) entries here.',
       ),
     rpcConsensusType: z
       .nativeEnum(RpcConsensusType)
@@ -291,8 +309,9 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
         if (
           ![
             AgentSignerKeyType.Hex,
-            signerType === AgentSignerKeyType.Aws,
-            signerType === AgentSignerKeyType.Node,
+            AgentSignerKeyType.Aws,
+            AgentSignerKeyType.Node,
+            AgentSignerKeyType.Gcp,
           ].includes(signerType)
         ) {
           return false;
@@ -682,16 +701,22 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
           .min(1)
           .optional()
           .describe('The folder to use, defaults to the root of the bucket'),
-        service_account_key: z
+        serviceAccountKey: z
           .string()
           .min(1)
           .optional()
           .describe('The path to GCS service account key file'),
-        user_secrets: z
+        userSecrets: z
           .string()
           .min(1)
           .optional()
           .describe('The path to GCS user secret file'),
+        useApplicationDefault: z
+          .boolean()
+          .optional()
+          .describe(
+            'Use ambient Application Default Credentials (e.g. GKE Workload Identity) instead of a key file or user secrets',
+          ),
       })
       .describe('A checkpoint syncer that uses Google Cloud Storage'),
   ]),

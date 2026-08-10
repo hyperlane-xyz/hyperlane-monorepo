@@ -10,8 +10,8 @@ import {
 
 import {
   ContractType,
-  getCompiledContract,
-} from '@hyperlane-xyz/starknet-core';
+  getContractAbi,
+} from '@hyperlane-xyz/starknet-core/runtime';
 import { Address, eqAddressStarknet } from '@hyperlane-xyz/utils';
 
 import { DispatchedMessage } from '../core/types.js';
@@ -53,8 +53,11 @@ export function getStarknetContract(
   providerOrAccount?: ProviderInterface | AccountInterface,
   contractType: ContractType = ContractType.CONTRACT,
 ): Contract {
-  const { abi } = getCompiledContract(contractName, contractType);
-  return new Contract(abi, address, providerOrAccount);
+  return new Contract(
+    getContractAbi(contractName, contractType),
+    address,
+    providerOrAccount,
+  );
 }
 
 export function getStarknetMailboxContract(

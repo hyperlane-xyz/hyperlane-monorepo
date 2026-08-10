@@ -35,6 +35,7 @@ import {
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TokenStandard,
+  XERC20_STANDARDS,
 } from '../token/TokenStandard.js';
 import { TokenType } from '../token/config.js';
 import {
@@ -68,6 +69,11 @@ export interface WarpCoreOptions {
   localFeeConstants?: FeeConstantConfig;
   interchainFeeConstants?: FeeConstantConfig;
   routeBlacklist?: RouteBlacklist;
+}
+
+export interface InterchainTransferFeeQuote {
+  igpQuote: TokenAmount<IToken>;
+  tokenFeeQuote?: TokenAmount<IToken>;
 }
 
 const DESTINATION_COLLATERAL_EXEMPT_TOKEN_TYPES = new Set<TokenType>([
@@ -177,10 +183,7 @@ export class WarpCore {
     sender?: Address;
     recipient: Address;
     destinationToken?: IToken;
-  }): Promise<{
-    igpQuote: TokenAmount<IToken>;
-    tokenFeeQuote?: TokenAmount<IToken>;
-  }> {
+  }): Promise<InterchainTransferFeeQuote> {
     this.logger.debug(`Fetching interchain transfer quote to ${destination}`);
     const { amount, token: originToken } = originTokenAmount;
     const originName = originToken.chainName;
@@ -1324,8 +1327,25 @@ export class WarpCore {
     );
     if (destinationCollateralError) return destinationCollateralError;
 
-    const originCollateralError =
-      await this.validateOriginCollateral(originTokenAmount);
+    // Quote the interchain transfer fee once and reuse it across the origin
+    // burn-limit and token-balance checks so both use identical values and we
+    // avoid a redundant remote quote.
+    const interchainFee = await this.getInterchainTransferFee({
+      originTokenAmount,
+      destination,
+      sender,
+      recipient,
+      destinationToken: resolvedDestinationToken,
+    });
+
+    const originCollateralError = await this.validateOriginCollateral(
+      originTokenAmount,
+      destination,
+      recipient,
+      sender,
+      resolvedDestinationToken,
+      interchainFee,
+    );
     if (originCollateralError) return originCollateralError;
 
     const balancesError = await this.validateTokenBalances(
@@ -1336,6 +1356,7 @@ export class WarpCore {
       senderPubKey,
       attestation,
       resolvedDestinationToken,
+      interchainFee,
     );
     if (balancesError) return balancesError;
 
@@ -1461,6 +1482,7 @@ export class WarpCore {
     senderPubKey?: HexString,
     attestation?: PredicateAttestation,
     destinationToken?: IToken,
+    interchainFee?: InterchainTransferFeeQuote,
   ): Promise<Record<string, string> | null> {
     const { token: originToken, amount } = originTokenAmount;
 
@@ -1477,13 +1499,14 @@ export class WarpCore {
     // Slightly redundant with Check 5 but gives more specific error messages
 
     const { igpQuote: interchainQuote, tokenFeeQuote } =
-      await this.getInterchainTransferFee({
+      interchainFee ??
+      (await this.getInterchainTransferFee({
         originTokenAmount,
         destination,
         sender,
         recipient,
         destinationToken,
-      });
+      }));
     // Get balance of the IGP fee token, which may be different from the transfer token
     const interchainQuoteTokenBalance = originToken.isFungibleWith(
       interchainQuote.token,
@@ -1582,13 +1605,7 @@ export class WarpCore {
     }
 
     let destinationMintLimit: bigint = 0n;
-    if (
-      resolvedDestinationToken.standard === TokenStandard.EvmHypVSXERC20 ||
-      resolvedDestinationToken.standard ===
-        TokenStandard.EvmHypVSXERC20Lockbox ||
-      resolvedDestinationToken.standard === TokenStandard.EvmHypXERC20 ||
-      resolvedDestinationToken.standard === TokenStandard.EvmHypXERC20Lockbox
-    ) {
+    if (XERC20_STANDARDS.includes(resolvedDestinationToken.standard)) {
       const adapter = resolvedDestinationToken.getAdapter(
         this.multiProvider,
       ) as IHypXERC20Adapter<unknown>;
@@ -1597,7 +1614,10 @@ export class WarpCore {
       if (
         resolvedDestinationToken.standard === TokenStandard.EvmHypVSXERC20 ||
         resolvedDestinationToken.standard ===
-          TokenStandard.EvmHypVSXERC20Lockbox
+          TokenStandard.EvmHypVSXERC20Lockbox ||
+        resolvedDestinationToken.standard === TokenStandard.TronHypVSXERC20 ||
+        resolvedDestinationToken.standard ===
+          TokenStandard.TronHypVSXERC20Lockbox
       ) {
         const bufferCap = await adapter.getMintMaxLimit();
         const max = bufferCap / 2n;
@@ -1609,7 +1629,9 @@ export class WarpCore {
         }
       }
     } else if (
-      resolvedDestinationToken.standard === TokenStandard.EvmHypCollateralFiat
+      resolvedDestinationToken.standard ===
+        TokenStandard.EvmHypCollateralFiat ||
+      resolvedDestinationToken.standard === TokenStandard.TronHypCollateralFiat
     ) {
       const adapter = resolvedDestinationToken.getAdapter(
         this.multiProvider,
@@ -1617,13 +1639,45 @@ export class WarpCore {
       destinationMintLimit = await adapter.getMintLimit();
     }
 
-    const destinationMintLimitInOriginDecimals = convertDecimalsToIntegerString(
-      resolvedDestinationToken.decimals,
-      originToken.decimals,
-      destinationMintLimit.toString(),
-    );
+    // Legacy fallback: when both scales are undefined but decimals differ,
+    // we can't use message-space comparison because messageAmountFromLocal
+    // with identity scale would compare raw local units across different
+    // decimal spaces. Fall back to decimal conversion instead.
+    // Well-configured routes should have scale set — verifyScale() catches
+    // this at deploy time. Misconfigured routes that reach the message-space
+    // path below may produce incorrect results.
+    if (
+      originToken.decimals !== resolvedDestinationToken.decimals &&
+      originToken.scale === undefined &&
+      resolvedDestinationToken.scale === undefined
+    ) {
+      const destinationMintLimitInOriginDecimals = BigInt(
+        convertDecimalsToIntegerString(
+          resolvedDestinationToken.decimals,
+          originToken.decimals,
+          destinationMintLimit.toString(),
+        ),
+      );
+      const isSufficient = destinationMintLimitInOriginDecimals >= amount;
+      this.logger.debug(
+        `${originTokenAmount.token.symbol} to ${destination} has ${
+          isSufficient ? 'sufficient' : 'INSUFFICIENT'
+        } rate limits`,
+      );
+      if (!isSufficient)
+        return { amount: 'Rate limit exceeded on destination' };
+      return null;
+    }
 
-    const isSufficient = BigInt(destinationMintLimitInOriginDecimals) >= amount;
+    const requiredMessageAmount = messageAmountFromLocal(
+      amount,
+      originToken.scale,
+    );
+    const availableMessageAmount = messageAmountFromLocal(
+      destinationMintLimit,
+      resolvedDestinationToken.scale,
+    );
+    const isSufficient = availableMessageAmount >= requiredMessageAmount;
     this.logger.debug(
       `${originTokenAmount.token.symbol} to ${destination} has ${
         isSufficient ? 'sufficient' : 'INSUFFICIENT'
@@ -1638,17 +1692,39 @@ export class WarpCore {
    */
   protected async validateOriginCollateral(
     originTokenAmount: TokenAmount<IToken>,
+    destination: ChainNameOrId,
+    recipient: Address,
+    sender?: Address,
+    destinationToken?: IToken,
+    interchainFee?: InterchainTransferFeeQuote,
   ): Promise<Record<string, string> | null> {
-    const adapter = originTokenAmount.token.getAdapter(this.multiProvider);
+    const { token: originToken, amount } = originTokenAmount;
+    const adapter = originToken.getAdapter(this.multiProvider);
 
-    if (
-      originTokenAmount.token.standard === TokenStandard.EvmHypXERC20 ||
-      originTokenAmount.token.standard === TokenStandard.EvmHypXERC20Lockbox
-    ) {
+    if (XERC20_STANDARDS.includes(originToken.standard)) {
+      // The on-chain burn path debits amount + any interchain fee charged in
+      // the same asset being burned (token-denominated hook fee). The IGP /
+      // native gas fee is paid separately and does not count toward the burn
+      // limit, so only add fees fungible with the origin token.
+      const { tokenFeeQuote } =
+        interchainFee ??
+        (await this.getInterchainTransferFee({
+          originTokenAmount,
+          destination,
+          sender,
+          recipient,
+          destinationToken,
+        }));
+      const originTokenFee =
+        tokenFeeQuote && originToken.isFungibleWith(tokenFeeQuote.token)
+          ? tokenFeeQuote.amount
+          : 0n;
+      const burnDebit = amount + originTokenFee;
+
       const burnLimit = await (
         adapter as IHypXERC20Adapter<unknown>
       ).getBurnLimit();
-      if (burnLimit < BigInt(originTokenAmount.amount)) {
+      if (burnLimit < burnDebit) {
         return { amount: 'Insufficient burn limit on origin' };
       }
     }

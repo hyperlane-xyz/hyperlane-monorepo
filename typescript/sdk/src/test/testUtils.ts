@@ -14,6 +14,7 @@ import { IgpConfig } from '../gas/types.js';
 import { HookConfig, HookType } from '../hook/types.js';
 import {
   AggregationIsmConfig,
+  BlacklistIsmConfig,
   IsmConfig,
   IsmType,
   ModuleType,
@@ -284,6 +285,7 @@ export function randomHookConfig(
         owner: randomAddress(),
         type: hookType,
         maxCapacity: ((1 + Math.floor(Math.random() * 100)) * 86400).toString(),
+        duration: 86400n,
       };
 
     default:
@@ -407,8 +409,20 @@ export const randomIsmConfig = (
         const config: RateLimitedIsmConfig = {
           type: IsmType.RATE_LIMITED,
           maxCapacity: '86400',
+          duration: 86400n,
           recipient: randomAddress(),
           owner: randomAddress(),
+        };
+        return config;
+      }
+      if (providedIsmType === IsmType.BLACKLIST) {
+        const config: BlacklistIsmConfig = {
+          type: IsmType.BLACKLIST,
+          owner: randomAddress(),
+          blacklistedIds: [
+            ethers.utils.hexlify(ethers.utils.randomBytes(32)),
+            ethers.utils.hexlify(ethers.utils.randomBytes(32)),
+          ],
         };
         return config;
       }

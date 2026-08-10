@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/sdk",
-  "version": "39.0.0",
+  "version": "40.0.0",
   "description": "The official SDK for the Hyperlane Network",
   "keywords": [
     "Hyperlane",
@@ -16,7 +16,8 @@
   "type": "module",
   "sideEffects": false,
   "browser": {
-    "./dist/providers/builders/aleo.js": "./dist/providers/builders/aleo.browser.js"
+    "./dist/providers/builders/aleo.js": "./dist/providers/builders/aleo.browser.js",
+    "./dist/providers/builders/radix.js": "./dist/providers/builders/radix.browser.js"
   },
   "types": "./dist/index.d.ts",
   "exports": {

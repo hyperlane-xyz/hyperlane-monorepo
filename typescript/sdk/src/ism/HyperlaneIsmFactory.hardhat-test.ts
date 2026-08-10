@@ -27,7 +27,10 @@ import {
   assertSubmodulesMatchExpected,
 } from './HyperlaneIsmFactory.js';
 import {
+  AggregationIsmConfig,
+  BlacklistIsmConfig,
   DomainRoutingIsmConfig,
+  IsmConfig,
   IsmType,
   MultisigIsmConfig,
   PausableIsmConfig,
@@ -138,6 +141,162 @@ describe('HyperlaneIsmFactory', async () => {
       ismFactory.getContracts(chain),
     );
     expect(matches).to.be.true;
+  });
+
+  describe('blacklist ism', () => {
+    const randomBytes32 = () =>
+      hre.ethers.utils.hexlify(hre.ethers.utils.randomBytes(32));
+
+    // A blacklist ISM cannot be deployed standalone; it must sit in an
+    // exhaustive aggregation so its verdict can never be outvoted. Wrap it
+    // alongside a multisig for every deploy in this block.
+    const multisig: MultisigIsmConfig = {
+      type: IsmType.MESSAGE_ID_MULTISIG,
+      validators: [randomAddress()],
+      threshold: 1,
+    };
+
+    function aggregationOf(
+      blacklist: BlacklistIsmConfig,
+    ): AggregationIsmConfig {
+      return {
+        type: IsmType.AGGREGATION,
+        threshold: 2,
+        modules: [multisig, blacklist],
+      };
+    }
+
+    function matchesConfig(
+      ismAddress: Address,
+      config: IsmConfig,
+    ): Promise<boolean> {
+      return moduleMatchesConfig(
+        chain,
+        ismAddress,
+        config,
+        ismFactory.multiProvider,
+        ismFactory.getContracts(chain),
+      );
+    }
+
+    it('matches when config ids are permuted, case-shifted or duplicated', async () => {
+      const firstId = randomBytes32();
+      const secondId = randomBytes32();
+      const owner = await multiProvider.getSignerAddress(chain);
+      const ism = await ismFactory.deploy({
+        destination: chain,
+        config: aggregationOf({
+          type: IsmType.BLACKLIST,
+          owner,
+          blacklistedIds: [firstId, secondId],
+        }),
+      });
+
+      const matches = await matchesConfig(
+        ism.address,
+        aggregationOf({
+          type: IsmType.BLACKLIST,
+          owner,
+          blacklistedIds: [
+            `0x${secondId.slice(2).toUpperCase()}`,
+            firstId,
+            firstId,
+          ],
+        }),
+      );
+
+      expect(matches).to.be.true;
+    });
+
+    it('does not match when the config adds an id', async () => {
+      const firstId = randomBytes32();
+      const owner = await multiProvider.getSignerAddress(chain);
+      const ism = await ismFactory.deploy({
+        destination: chain,
+        config: aggregationOf({
+          type: IsmType.BLACKLIST,
+          owner,
+          blacklistedIds: [firstId],
+        }),
+      });
+
+      const matches = await matchesConfig(
+        ism.address,
+        aggregationOf({
+          type: IsmType.BLACKLIST,
+          owner,
+          blacklistedIds: [firstId, randomBytes32()],
+        }),
+      );
+
+      expect(matches).to.be.false;
+    });
+
+    it('does not match when an on-chain id is missing from the config (append-only)', async () => {
+      const firstId = randomBytes32();
+      const secondId = randomBytes32();
+      const owner = await multiProvider.getSignerAddress(chain);
+      const ism = await ismFactory.deploy({
+        destination: chain,
+        config: aggregationOf({
+          type: IsmType.BLACKLIST,
+          owner,
+          blacklistedIds: [firstId, secondId],
+        }),
+      });
+
+      const matches = await matchesConfig(
+        ism.address,
+        aggregationOf({
+          type: IsmType.BLACKLIST,
+          owner,
+          blacklistedIds: [firstId],
+        }),
+      );
+
+      expect(matches).to.be.false;
+    });
+
+    it('does not match when the owner differs', async () => {
+      const firstId = randomBytes32();
+      const owner = await multiProvider.getSignerAddress(chain);
+      const ism = await ismFactory.deploy({
+        destination: chain,
+        config: aggregationOf({
+          type: IsmType.BLACKLIST,
+          owner,
+          blacklistedIds: [firstId],
+        }),
+      });
+
+      const matches = await matchesConfig(
+        ism.address,
+        aggregationOf({
+          type: IsmType.BLACKLIST,
+          owner: randomAddress(),
+          blacklistedIds: [firstId],
+        }),
+      );
+
+      expect(matches).to.be.false;
+    });
+
+    it('rejects a standalone blacklist deploy at the public boundary', async () => {
+      const owner = await multiProvider.getSignerAddress(chain);
+
+      await expect(
+        ismFactory.deploy({
+          destination: chain,
+          config: {
+            type: IsmType.BLACKLIST,
+            owner,
+            blacklistedIds: [randomBytes32()],
+          },
+        }),
+      ).to.be.rejectedWith(
+        'A blacklist ISM must be a member of an aggregation whose threshold equals its module count',
+      );
+    });
   });
 
   for (let i = 0; i < 16; i++) {

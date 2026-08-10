@@ -18,10 +18,15 @@ import {
 } from '../../metadata/chainMetadataTypes.js';
 
 import { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
-import { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
+import {
+  HyperlaneJsonRpcProvider,
+  LogBlockRangeTooLargeError,
+} from './HyperlaneJsonRpcProvider.js';
 import { IProviderMethods, ProviderMethod } from './ProviderMethods.js';
+import { getMultiAddressLogs, isMultiAddressFilter } from './logFilters.js';
 import {
   ChainMetadataWithRpcConnectionInfo,
+  HyperlaneLogFilter,
   ProviderPerformResult,
   ProviderStatus,
   ProviderTimeoutResult,
@@ -361,11 +366,20 @@ export class HyperlaneSmartProvider
     const allProviders = [...this.explorerProviders, ...this.rpcProviders];
     if (!allProviders.length) throw new Error('No providers available');
 
-    const supportedProviders = allProviders.filter((p) =>
-      p.supportedMethods.includes(method as ProviderMethod),
+    const isMultiAddressGetLogs =
+      method === ProviderMethod.GetLogs &&
+      Array.isArray(params?.filter?.address);
+    const supportedProviders = allProviders.filter(
+      (provider) =>
+        provider.supportedMethods.includes(method as ProviderMethod) &&
+        (!isMultiAddressGetLogs || !this.isExplorerProvider(provider)),
     );
     if (!supportedProviders.length)
-      throw new Error(`No providers available for method ${method}`);
+      throw new Error(
+        isMultiAddressGetLogs
+          ? 'No RPC providers available for multi-address getLogs'
+          : `No providers available for method ${method}`,
+      );
 
     this.requestCount += 1;
     const reqId = this.requestCount;
@@ -385,6 +399,16 @@ export class HyperlaneSmartProvider
       this.options?.maxRetries || DEFAULT_MAX_RETRIES,
       this.options?.baseRetryDelayMs || DEFAULT_BASE_RETRY_DELAY_MS,
     );
+  }
+
+  override async getLogs(
+    filter: HyperlaneLogFilter | Promise<HyperlaneLogFilter>,
+  ): Promise<providers.Log[]> {
+    const resolvedFilter = await filter;
+    if (!isMultiAddressFilter(resolvedFilter)) {
+      return super.getLogs(resolvedFilter);
+    }
+    return getMultiAddressLogs(this, resolvedFilter);
   }
 
   /**
@@ -696,6 +720,32 @@ export class HyperlaneSmartProvider
       (e) => e?.status === ProviderStatus.Timeout,
     );
 
+    // retryAsync reads the flag off the error it is handed and not off its
+    // cause, so a failure the producing layer declared unretryable has to carry
+    // it through this wrapper or perform() spends its whole retry budget, and
+    // the backoffs between the attempts, re-deriving the same answer. Only when
+    // every provider says so: one refusing does not stop another from
+    // succeeding on a second attempt.
+    //
+    // Which of them becomes the cause decides what a caller reading the chain
+    // does next, so it cannot be left to the order the providers happen to sit
+    // in. A range rejection is the one refusal here that is still actionable:
+    // `getLogsFromRpc` answers it by halving its chunk, which may get under the
+    // cap of whichever provider raised it. Every other refusal in this branch,
+    // a history floor above all, holds at any chunk size. Surfacing the range
+    // rejection therefore costs nothing where the read was doomed anyway, and
+    // preferring a floor over it gives up a read that would have completed.
+    //
+    // Matched by type rather than through `isBlockRangeError` in
+    // `rpc/evm/utils.ts`, which cannot be imported here without an import
+    // cycle. Its message matching is what covers external providers, and none
+    // of those set `isRecoverable`, so inside this branch the type check it
+    // also performs is the whole of what applies.
+    const nonRecoverableError = errors.every((e) => e?.isRecoverable === false)
+      ? (errors.find((e) => e instanceof LogBlockRangeTooLargeError) ??
+        errors[0])
+      : undefined;
+
     if (rpcBlockchainError) {
       // All blockchain errors are non-retryable and take priority
       return class extends BlockchainError {
@@ -703,6 +753,14 @@ export class HyperlaneSmartProvider
           super(rpcBlockchainError.reason ?? rpcBlockchainError.code, {
             cause: rpcBlockchainError,
           });
+        }
+      };
+    } else if (nonRecoverableError) {
+      return class extends Error {
+        readonly isRecoverable = false;
+
+        constructor() {
+          super(fallbackMsg, { cause: nonRecoverableError });
         }
       };
     } else if (rpcServerError) {

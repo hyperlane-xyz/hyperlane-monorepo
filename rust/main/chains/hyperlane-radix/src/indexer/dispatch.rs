@@ -3,7 +3,7 @@ use std::ops::RangeInclusive;
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer, LogMeta,
+    ChainResult, ContractLocator, Decode, HyperlaneMessage, Indexed, Indexer, LogMeta,
     SequenceAwareIndexer, H512,
 };
 
@@ -28,6 +28,10 @@ impl RadixDispatchIndexer {
     }
 }
 
+fn decode_dispatch_message(message: &[u8]) -> ChainResult<HyperlaneMessage> {
+    Ok(HyperlaneMessage::read_from(&mut &message[..])?)
+}
+
 #[async_trait]
 impl Indexer<HyperlaneMessage> for RadixDispatchIndexer {
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
@@ -41,12 +45,12 @@ impl Indexer<HyperlaneMessage> for RadixDispatchIndexer {
             .await?;
         let result = events
             .into_iter()
-            .map(|(event, meta)| {
-                let message: HyperlaneMessage = event.message.into();
+            .map(|(event, meta)| -> ChainResult<_> {
+                let message = decode_dispatch_message(&event.message)?;
                 let sequence = event.sequence;
-                (Indexed::new(message).with_sequence(sequence), meta)
+                Ok((Indexed::new(message).with_sequence(sequence), meta))
             })
-            .collect();
+            .collect::<ChainResult<Vec<_>>>()?;
         Ok(result)
     }
 
@@ -64,12 +68,12 @@ impl Indexer<HyperlaneMessage> for RadixDispatchIndexer {
             .await?;
         let result = events
             .into_iter()
-            .map(|(event, meta)| {
-                let message: HyperlaneMessage = event.message.into();
+            .map(|(event, meta)| -> ChainResult<_> {
+                let message = decode_dispatch_message(&event.message)?;
                 let sequence = event.sequence;
-                (Indexed::new(message).with_sequence(sequence), meta)
+                Ok((Indexed::new(message).with_sequence(sequence), meta))
             })
-            .collect();
+            .collect::<ChainResult<Vec<_>>>()?;
         Ok(result)
     }
 }
@@ -82,5 +86,38 @@ impl SequenceAwareIndexer<HyperlaneMessage> for RadixDispatchIndexer {
             .call_method(&self.address, "nonce", None, Vec::new())
             .await?;
         Ok((Some(sequence), state_version.try_into()?))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_dispatch_message;
+    use hyperlane_core::{Decode, HyperlaneMessage, RawHyperlaneMessage, H256};
+
+    #[test]
+    fn decode_dispatch_message_rejects_malformed_short_bytes() {
+        assert!(decode_dispatch_message(&[]).is_err());
+        assert!(decode_dispatch_message(&[0u8; 40]).is_err());
+        assert!(decode_dispatch_message(&[0u8; 76]).is_err());
+    }
+
+    #[test]
+    fn decode_dispatch_message_accepts_valid_bytes() {
+        let expected = HyperlaneMessage {
+            version: 3,
+            nonce: 7,
+            origin: 1,
+            sender: H256::repeat_byte(0x11),
+            destination: 2,
+            recipient: H256::repeat_byte(0x22),
+            body: b"radix".to_vec(),
+        };
+        let bytes = RawHyperlaneMessage::from(&expected);
+        let decoded = decode_dispatch_message(&bytes).expect("valid dispatch message");
+        assert_eq!(decoded, expected);
+        assert_eq!(
+            HyperlaneMessage::read_from(&mut bytes.as_slice()).unwrap(),
+            decoded
+        );
     }
 }

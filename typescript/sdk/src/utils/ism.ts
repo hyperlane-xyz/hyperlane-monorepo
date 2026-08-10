@@ -159,8 +159,10 @@ export function sortArraysInConfig(config: any): any {
   else if (typeof config === 'object' && config !== null) {
     const sortedConfig: any = {};
     for (const key in config) {
-      if (key === 'validators' && Array.isArray(config[key])) {
-        // Sort the validators array in lexicographical order (since they're already lowercase)
+      if (
+        (key === 'validators' || key === 'blacklistedIds') &&
+        Array.isArray(config[key])
+      ) {
         sortedConfig[key] = [...config[key]].sort();
       }
       // if key is modules or hooks, sort the objects in the array by their 'type' property

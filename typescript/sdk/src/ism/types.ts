@@ -15,6 +15,7 @@ import {
   RateLimitedIsm,
   TestIsm,
   TrustedRelayerIsm,
+  BlacklistIsm,
 } from '@hyperlane-xyz/core';
 import type {
   Address,
@@ -29,12 +30,17 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { ZHash } from '../metadata/customZodTypes.js';
+import {
+  ZBigNumberish,
+  ZBytes32String,
+  ZHash,
+} from '../metadata/customZodTypes.js';
 import {
   ChainMap,
   OwnableConfig,
   OwnableSchema,
   PausableSchema,
+  RATE_LIMIT_DEFAULT_DURATION_SECONDS,
 } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
 
@@ -85,6 +91,7 @@ export const IsmType = {
   OFFCHAIN_LOOKUP: 'offchainLookupIsm',
   RATE_LIMITED: 'rateLimitedIsm',
   COMPOSITE: 'compositeIsm',
+  BLACKLIST: 'blacklistIsm',
   UNKNOWN: 'unknownIsm',
 } as const;
 
@@ -106,6 +113,7 @@ export const MUTABLE_ISM_TYPE: IsmType[] = [
   IsmType.OFFCHAIN_LOOKUP,
   IsmType.INCREMENTAL_ROUTING,
   IsmType.RATE_LIMITED,
+  IsmType.BLACKLIST,
 ];
 
 /**
@@ -157,6 +165,7 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.TRUSTED_RELAYER:
     case IsmType.CCIP:
     case IsmType.RATE_LIMITED:
+    case IsmType.BLACKLIST:
       return ModuleType.NULL;
     case IsmType.ARB_L2_TO_L1:
       return ModuleType.ARB_L2_TO_L1;
@@ -196,6 +205,7 @@ export type TrustedRelayerIsmConfig = z.infer<
 export type CCIPIsmConfig = z.infer<typeof CCIPIsmConfigSchema>;
 export type ArbL2ToL1IsmConfig = z.infer<typeof ArbL2ToL1IsmConfigSchema>;
 export type RateLimitedIsmConfig = z.infer<typeof RateLimitedIsmConfigSchema>;
+export type BlacklistIsmConfig = z.infer<typeof BlacklistIsmConfigSchema>;
 
 export type OffchainLookupIsmConfig = z.infer<
   typeof OffchainLookupIsmConfigSchema
@@ -207,7 +217,8 @@ export type NullIsmConfig =
   | OpStackIsmConfig
   | TrustedRelayerIsmConfig
   | CCIPIsmConfig
-  | RateLimitedIsmConfig;
+  | RateLimitedIsmConfig
+  | BlacklistIsmConfig;
 
 type BaseRoutingIsmConfig<
   T extends
@@ -270,6 +281,7 @@ export type IsmConfig =
   | TrustedRelayerIsmConfig
   | CCIPIsmConfig
   | RateLimitedIsmConfig
+  | BlacklistIsmConfig
   | MultisigIsmConfig
   | WeightedMultisigIsmConfig
   | RoutingIsmConfig
@@ -305,6 +317,7 @@ export type DeployedIsmType = {
   [IsmType.OFFCHAIN_LOOKUP]: AbstractCcipReadIsm;
   [IsmType.INTERCHAIN_ACCOUNT_ROUTING]: InterchainAccountRouter;
   [IsmType.RATE_LIMITED]: RateLimitedIsm;
+  [IsmType.BLACKLIST]: BlacklistIsm;
   [IsmType.UNKNOWN]: IInterchainSecurityModule;
 };
 
@@ -342,25 +355,41 @@ export const TrustedRelayerIsmConfigSchema = z.object({
   relayer: z.string(),
 });
 
+export const BlacklistIsmConfigSchema = OwnableSchema.extend({
+  type: z.literal(IsmType.BLACKLIST),
+  blacklistedIds: z.array(ZBytes32String),
+});
+
 export const RateLimitedIsmConfigSchema = z
   .object({
     type: z.literal(IsmType.RATE_LIMITED),
     maxCapacity: z
       .string()
       .regex(/^\d+$/, 'maxCapacity must be a base-10 integer string'),
+    /**
+     * Refill window in seconds — must match the on-chain immutable
+     * `DURATION`. Defaults to 1 day (86400s) when omitted, matching the
+     * previous hard-coded on-chain window.
+     */
+    duration: ZBigNumberish.default(RATE_LIMIT_DEFAULT_DURATION_SECONDS),
     recipient: ZHash.optional(),
     owner: ZHash.optional(),
   })
-  .refine((val) => BigInt(val.maxCapacity) >= 86400n, {
-    message: 'maxCapacity must be at least 86400',
+  .refine((val) => val.duration > 0n, {
+    message: 'duration must be greater than 0',
+    path: ['duration'],
+  })
+  .refine((val) => BigInt(val.maxCapacity) >= val.duration, {
+    message: 'maxCapacity must be at least duration',
     path: ['maxCapacity'],
   })
   .transform((val) => {
     const capacity = BigInt(val.maxCapacity);
-    if (capacity % 86400n !== 0n) {
-      const rounded = ((capacity / 86400n) * 86400n).toString();
+    const duration = val.duration;
+    if (capacity % duration !== 0n) {
+      const rounded = ((capacity / duration) * duration).toString();
       rootLogger.warn(
-        `RateLimitedIsm maxCapacity ${val.maxCapacity} is not divisible by 86400; rounding down to ${rounded}`,
+        `RateLimitedIsm maxCapacity ${val.maxCapacity} is not divisible by duration ${val.duration}; rounding down to ${rounded}`,
       );
       return { ...val, maxCapacity: rounded };
     }
@@ -426,35 +455,42 @@ export const WeightedMultisigIsmConfigSchema = WeightedMultisigConfigSchema.and(
   }),
 );
 
-export const RoutingIsmConfigSchema: z.ZodSchema<RoutingIsmConfig> = z.lazy(
-  () =>
-    z.discriminatedUnion('type', [
-      z.object({
-        type: z.literal(IsmType.AMOUNT_ROUTING),
-        lowerIsm: IsmConfigSchema,
-        upperIsm: IsmConfigSchema,
-        threshold: z.number(),
-      }),
-      OwnableSchema.extend({
-        type: z.enum([
-          IsmType.ROUTING,
-          IsmType.FALLBACK_ROUTING,
-          IsmType.INCREMENTAL_ROUTING,
-        ]),
-        domains: z.record(IsmConfigSchema),
-      }),
-      InterchainAccountRouterIsmSchema,
-    ]),
+export const RoutingIsmConfigSchema: z.ZodType<
+  RoutingIsmConfig,
+  z.ZodTypeDef,
+  unknown
+> = z.lazy(() =>
+  z.discriminatedUnion('type', [
+    z.object({
+      type: z.literal(IsmType.AMOUNT_ROUTING),
+      lowerIsm: BaseIsmConfigSchema,
+      upperIsm: BaseIsmConfigSchema,
+      threshold: z.number(),
+    }),
+    OwnableSchema.extend({
+      type: z.enum([
+        IsmType.ROUTING,
+        IsmType.FALLBACK_ROUTING,
+        IsmType.INCREMENTAL_ROUTING,
+      ]),
+      domains: z.record(BaseIsmConfigSchema),
+    }),
+    InterchainAccountRouterIsmSchema,
+  ]),
 );
 
-export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> = z
+export const AggregationIsmConfigSchema: z.ZodType<
+  AggregationIsmConfig,
+  z.ZodTypeDef,
+  unknown
+> = z
   .lazy(() =>
     z.object({
       type: z.union([
         z.literal(IsmType.AGGREGATION),
         z.literal(IsmType.STORAGE_AGGREGATION),
       ]),
-      modules: z.array(IsmConfigSchema),
+      modules: z.array(BaseIsmConfigSchema),
       threshold: z.number(),
     }),
   )
@@ -864,25 +900,109 @@ export function normalizeUnknownIsmTypes<T>(config: T): T {
   return normalized as T;
 }
 
-export const IsmConfigSchema: z.ZodSchema<IsmConfig> = z.union([
-  ZHash,
-  TestIsmConfigSchema,
-  OpStackIsmConfigSchema,
-  DerivedPausableIsmConfigSchema,
-  PausableIsmConfigSchema,
-  TrustedRelayerIsmConfigSchema,
-  CCIPIsmConfigSchema,
-  RateLimitedIsmConfigSchema,
-  MultisigIsmConfigSchema,
-  WeightedMultisigIsmConfigSchema,
-  RoutingIsmConfigSchema,
-  AggregationIsmConfigSchema,
-  CompositeIsmConfigSchema,
-  ArbL2ToL1IsmConfigSchema,
-  OffchainLookupIsmConfigSchema,
-  InterchainAccountRouterIsmSchema,
-  UnknownIsmConfigSchema,
-]);
+export const BaseIsmConfigSchema: z.ZodType<IsmConfig, z.ZodTypeDef, unknown> =
+  z.union([
+    ZHash,
+    TestIsmConfigSchema,
+    OpStackIsmConfigSchema,
+    DerivedPausableIsmConfigSchema,
+    PausableIsmConfigSchema,
+    TrustedRelayerIsmConfigSchema,
+    CCIPIsmConfigSchema,
+    RateLimitedIsmConfigSchema,
+    BlacklistIsmConfigSchema,
+    MultisigIsmConfigSchema,
+    WeightedMultisigIsmConfigSchema,
+    RoutingIsmConfigSchema,
+    AggregationIsmConfigSchema,
+    CompositeIsmConfigSchema,
+    ArbL2ToL1IsmConfigSchema,
+    OffchainLookupIsmConfigSchema,
+    InterchainAccountRouterIsmSchema,
+    UnknownIsmConfigSchema,
+  ]);
+
+/**
+ * Validates that every blacklist ISM in the tree sits in a mandatory position:
+ * a member of an aggregation whose threshold equals its module count, so the
+ * blacklist verdict can never be outvoted. A blacklist ISM cannot be used
+ * standalone, as a routing target, or under a non-exhaustive aggregation.
+ */
+function validateBlacklistComposition(
+  node: IsmConfig,
+  path: (string | number)[],
+  mandatoryPosition: boolean,
+  underAggregation: boolean,
+  ctx: z.RefinementCtx,
+): void {
+  if (typeof node === 'string') {
+    return;
+  }
+
+  switch (node.type) {
+    case IsmType.BLACKLIST:
+      if (!(mandatoryPosition && underAggregation)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'A blacklist ISM must be a member of an aggregation whose threshold equals its module count; it cannot be used standalone, as a routing target, or under a non-exhaustive aggregation.',
+          path,
+        });
+      }
+      break;
+    case IsmType.AGGREGATION:
+    case IsmType.STORAGE_AGGREGATION: {
+      const childMandatory =
+        mandatoryPosition && node.threshold === node.modules.length;
+      node.modules.forEach((subIsm, i) =>
+        validateBlacklistComposition(
+          subIsm,
+          [...path, 'modules', i],
+          childMandatory,
+          true,
+          ctx,
+        ),
+      );
+      break;
+    }
+    case IsmType.ROUTING:
+    case IsmType.FALLBACK_ROUTING:
+    case IsmType.INCREMENTAL_ROUTING:
+      for (const [chain, domainIsm] of Object.entries(node.domains)) {
+        validateBlacklistComposition(
+          domainIsm,
+          [...path, 'domains', chain],
+          mandatoryPosition,
+          false,
+          ctx,
+        );
+      }
+      break;
+    case IsmType.AMOUNT_ROUTING:
+      validateBlacklistComposition(
+        node.lowerIsm,
+        [...path, 'lowerIsm'],
+        mandatoryPosition,
+        false,
+        ctx,
+      );
+      validateBlacklistComposition(
+        node.upperIsm,
+        [...path, 'upperIsm'],
+        mandatoryPosition,
+        false,
+        ctx,
+      );
+      break;
+    default:
+      break;
+  }
+}
+
+export const IsmConfigSchema: z.ZodType<IsmConfig, z.ZodTypeDef, unknown> =
+  BaseIsmConfigSchema.superRefine((data, ctx) =>
+    validateBlacklistComposition(data, [], true, false, ctx),
+  );
 
 /**
  * Forward-compatible ISM config schema that normalizes unknown ISM types.

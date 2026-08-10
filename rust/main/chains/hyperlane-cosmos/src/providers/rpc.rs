@@ -459,7 +459,8 @@ impl RpcProvider {
             ))?
             .gas_used;
 
-        let gas_estimate = (gas_used as f64 * self.conf.get_gas_multiplier()) as u64;
+        let gas_multiplier = self.conf.get_gas_multiplier().max(2.0);
+        let gas_estimate = (gas_used as f64 * gas_multiplier).ceil() as u64;
 
         Ok(gas_estimate)
     }

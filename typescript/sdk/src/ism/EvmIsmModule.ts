@@ -4,6 +4,7 @@ import { Logger } from 'pino';
 import {
   AbstractCcipReadIsm__factory,
   AmountRoutingIsm__factory,
+  BlacklistIsm__factory,
   DomainRoutingIsm__factory,
   PausableIsm__factory,
   RateLimitedIsm__factory,
@@ -40,6 +41,8 @@ import { normalizeConfig } from '../utils/ism.js';
 import { EvmIsmReader } from './EvmIsmReader.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
+  BaseIsmConfigSchema,
+  BlacklistIsmConfig,
   DeployedIsm,
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
@@ -52,6 +55,27 @@ import {
   RateLimitedIsmConfig,
 } from './types.js';
 import { calculateDomainRoutingDelta } from './utils.js';
+
+// Computes the case-insensitive difference between the current and target
+// blacklisted ID sets. `extras` are on-chain IDs missing from the target;
+// since the contract is append-only, non-empty `extras` means the target
+// config can only be reached by redeploying a fresh ISM.
+function calculateBlacklistDelta(
+  current: BlacklistIsmConfig,
+  target: BlacklistIsmConfig,
+): { toAdd: string[]; extras: string[] } {
+  const currentIds = new Set(
+    current.blacklistedIds.map((id) => id.toLowerCase()),
+  );
+  const targetIds = new Set(
+    target.blacklistedIds.map((id) => id.toLowerCase()),
+  );
+
+  return {
+    toAdd: [...targetIds].filter((id) => !currentIds.has(id)),
+    extras: [...currentIds].filter((id) => !targetIds.has(id)),
+  };
+}
 
 type IsmModuleAddresses = {
   deployedIsm: Address;
@@ -85,7 +109,7 @@ export class EvmIsmModule extends HyperlaneModule<
     protected readonly ccipContractCache?: CCIPContractCache,
     protected readonly contractVerifier?: ContractVerifier,
   ) {
-    params.config = IsmConfigSchema.parse(params.config);
+    params.config = BaseIsmConfigSchema.parse(params.config);
     super(params);
 
     this.reader = new EvmIsmReader(multiProvider, params.chain);
@@ -114,16 +138,26 @@ export class EvmIsmModule extends HyperlaneModule<
   public async update(
     targetConfig: IsmConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
-    targetConfig = IsmConfigSchema.parse(targetConfig);
+    const parsedTargetConfig = IsmConfigSchema.parse(targetConfig);
+    return this.updateInternal(parsedTargetConfig);
+  }
+
+  private async updateInternal(
+    targetConfig: IsmConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    const parsedTargetConfig = BaseIsmConfigSchema.parse(targetConfig);
 
     // Nothing to do if its the default ism
-    if (typeof targetConfig === 'string' && isZeroishAddress(targetConfig)) {
+    if (
+      typeof parsedTargetConfig === 'string' &&
+      isZeroishAddress(parsedTargetConfig)
+    ) {
       return [];
     }
 
     // We need to normalize the current and target configs to compare.
     const normalizedTargetConfig: DerivedIsmConfig = normalizeConfig(
-      await this.reader.deriveIsmConfig(targetConfig),
+      await this.reader.deriveIsmConfig(parsedTargetConfig),
     );
     const normalizedCurrentConfig: DerivedIsmConfig | string = normalizeConfig(
       await this.read(),
@@ -151,26 +185,44 @@ export class EvmIsmModule extends HyperlaneModule<
     // Else, we have to figure out what an update for this ISM entails
     // Check if we need to deploy a new ISM
     //
-    // Special case: RATE_LIMITED recipient is immutable — must redeploy if it changes.
-    // read() omits recipient (immutable constructor arg), so fetch on-chain to compare.
-    let rateLimitedRecipientChanged = false;
+    // Special case: RATE_LIMITED recipient and duration are immutable (set in
+    // the constructor) — must redeploy a fresh ISM if either changes. duration
+    // is available from read(), but recipient is omitted (immutable constructor
+    // arg), so fetch it on-chain to compare.
+    let rateLimitedImmutableChanged = false;
     if (
       typeof normalizedCurrentConfig !== 'string' &&
       normalizedCurrentConfig.type === IsmType.RATE_LIMITED &&
-      normalizedTargetConfig.type === IsmType.RATE_LIMITED &&
-      normalizedTargetConfig.recipient !== undefined
+      normalizedTargetConfig.type === IsmType.RATE_LIMITED
     ) {
-      const onChainRecipient = (
-        await RateLimitedIsm__factory.connect(
+      const durationChanged =
+        normalizedCurrentConfig.duration !== normalizedTargetConfig.duration;
+      let recipientChanged = false;
+      if (normalizedTargetConfig.recipient !== undefined) {
+        const onChainRecipient = await RateLimitedIsm__factory.connect(
           this.args.addresses.deployedIsm,
           this.multiProvider.getProvider(this.chain),
-        ).recipient()
-      ).toLowerCase();
-      rateLimitedRecipientChanged =
-        onChainRecipient !== normalizedTargetConfig.recipient;
+        ).recipient();
+        recipientChanged = !eqAddress(
+          onChainRecipient,
+          normalizedTargetConfig.recipient,
+        );
+      }
+      rateLimitedImmutableChanged = durationChanged || recipientChanged;
     }
+
+    // Special case: BLACKLIST entries are append-only — if the target config
+    // drops any currently blacklisted ID, must redeploy a fresh ISM.
+    const blacklistShrunk =
+      typeof normalizedCurrentConfig !== 'string' &&
+      normalizedCurrentConfig.type === IsmType.BLACKLIST &&
+      normalizedTargetConfig.type === IsmType.BLACKLIST &&
+      calculateBlacklistDelta(normalizedCurrentConfig, normalizedTargetConfig)
+        .extras.length > 0;
+
     if (
-      rateLimitedRecipientChanged ||
+      rateLimitedImmutableChanged ||
+      blacklistShrunk ||
       typeof normalizedCurrentConfig === 'string' ||
       normalizedCurrentConfig.type !== normalizedTargetConfig.type ||
       !MUTABLE_ISM_TYPE.includes(normalizedTargetConfig.type)
@@ -294,6 +346,16 @@ export class EvmIsmModule extends HyperlaneModule<
       // owner is optional on RateLimitedIsmConfig — handle ownership here
       // rather than falling through to the generic transferOwnershipTransactions call
       return this.updateRateLimitedIsm({ current, target });
+    } else if (
+      current.type === IsmType.BLACKLIST &&
+      target.type === IsmType.BLACKLIST
+    ) {
+      updateTxs.push(
+        ...this.updateBlacklistIsm({
+          current,
+          target,
+        }),
+      );
     } else {
       throw new Error(
         `Unsupported update to mutable ISM of type ${target.type}`,
@@ -331,6 +393,8 @@ export class EvmIsmModule extends HyperlaneModule<
     ccipContractCache?: CCIPContractCache;
     contractVerifier?: ContractVerifier;
   }): Promise<EvmIsmModule> {
+    const parsedConfig = IsmConfigSchema.parse(config);
+
     const module = new EvmIsmModule(
       multiProvider,
       {
@@ -340,13 +404,13 @@ export class EvmIsmModule extends HyperlaneModule<
           deployedIsm: ethers.constants.AddressZero,
         },
         chain,
-        config,
+        config: parsedConfig,
       },
       ccipContractCache,
       contractVerifier,
     );
 
-    const deployedIsm = await module.deploy({ config });
+    const deployedIsm = await module.deploy({ config: parsedConfig });
     module.args.addresses.deployedIsm = deployedIsm.address;
 
     return module;
@@ -474,6 +538,8 @@ export class EvmIsmModule extends HyperlaneModule<
   }): AnnotatedEV5Transaction[] {
     const txs: AnnotatedEV5Transaction[] = [];
 
+    // Duration changes are handled upstream in `update()` by redeploying a
+    // fresh ISM (duration is immutable), so it never differs here.
     if (current.maxCapacity !== target.maxCapacity) {
       txs.push({
         annotation: `Setting maxCapacity on RateLimitedIsm on chain "${this.chain}" and address "${this.args.addresses.deployedIsm}"`,
@@ -504,14 +570,41 @@ export class EvmIsmModule extends HyperlaneModule<
     return txs;
   }
 
+  protected updateBlacklistIsm({
+    current,
+    target,
+  }: {
+    current: BlacklistIsmConfig;
+    target: BlacklistIsmConfig;
+  }): AnnotatedEV5Transaction[] {
+    // `extras` are handled upstream in `update()` by redeploying a fresh ISM
+    // (entries are append-only), so only additions remain here.
+    const { toAdd } = calculateBlacklistDelta(current, target);
+    if (toAdd.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        annotation: `Blacklisting ${toAdd.length} message ID(s) on Blacklist ISM on chain "${this.chain}" and address "${this.args.addresses.deployedIsm}"`,
+        chainId: this.multiProvider.getEvmChainId(this.chain),
+        to: this.args.addresses.deployedIsm,
+        data: BlacklistIsm__factory.createInterface().encodeFunctionData(
+          'blacklist',
+          [toAdd],
+        ),
+      },
+    ];
+  }
+
   protected async deploy({
     config,
   }: {
     config: IsmConfig;
   }): Promise<DeployedIsm> {
-    config = IsmConfigSchema.parse(config);
+    config = BaseIsmConfigSchema.parse(config);
 
-    return this.ismFactory.deploy({
+    return this.ismFactory.deployInternal({
       destination: this.chain,
       config,
       mailbox: this.mailbox,
@@ -550,7 +643,7 @@ export class EvmIsmModule extends HyperlaneModule<
         this.ccipContractCache,
         this.contractVerifier,
       );
-      allUpdateTxs.push(...(await subModule.update(targetConfig)));
+      allUpdateTxs.push(...(await subModule.updateInternal(targetConfig)));
       if (!eqAddress(origAddress, subModule.serialize().deployedIsm)) {
         return null;
       }

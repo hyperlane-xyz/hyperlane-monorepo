@@ -506,6 +506,15 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 .to_owned();
             err.into_result(SignerConf::Aws { id, region })
         }};
+        (gcp) => {{
+            let key_version_name = signer
+                .chain(&mut err)
+                .get_key("keyVersionName")
+                .parse_string()
+                .unwrap_or("")
+                .to_owned();
+            err.into_result(SignerConf::Gcp { key_version_name })
+        }};
         (cosmosKey) => {{
             let key = signer
                 .chain(&mut err)
@@ -572,6 +581,7 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
     match signer_type {
         Some("hexKey") => parse_signer!(hexKey),
         Some("aws") => parse_signer!(aws),
+        Some("gcp") => parse_signer!(gcp),
         Some("cosmosKey") => parse_signer!(cosmosKey),
         Some("starkKey") => parse_signer!(starkKey),
         Some("radixKey") => parse_signer!(radixKey),

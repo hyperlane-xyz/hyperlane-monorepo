@@ -13,7 +13,7 @@ use ethers::abi::AbiEncode;
 use ethers::prelude::*;
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::utils::hex::ToHex;
-use hyperlane_metric::prometheus_metric::ChainInfo;
+use hyperlane_metric::prometheus_metric::{ChainInfo, RpcRole};
 use maplit::hashmap;
 use prometheus::{CounterVec, IntCounterVec};
 use static_assertions::assert_impl_all;
@@ -203,6 +203,11 @@ pub struct PrometheusMiddlewareConf {
 
     /// Information about the chain this provider is for.
     pub chain: Option<ChainInfo>,
+
+    /// Which pool this connection belongs to (primary vs. a verification-only pool like
+    /// the validator's `additionalQuorumRpcUrls`). Defaults to `Primary`.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub rpc_role: RpcRole,
 }
 
 assert_impl_all!(PrometheusMiddlewareConf: Send, Sync);

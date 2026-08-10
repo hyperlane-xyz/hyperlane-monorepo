@@ -1,5 +1,27 @@
 # @hyperlane-xyz/starknet-sdk
 
+## 29.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@40.0.0
+- @hyperlane-xyz/utils@40.0.0
+- @hyperlane-xyz/provider-sdk@8.0.2
+
+## 29.1.0
+
+### Minor Changes
+
+- 086ec59: Kept Starknet deployment artifacts out of browser runtime paths by publishing ABI and class-hash data through dedicated runtime exports.
+
+### Patch Changes
+
+- Updated dependencies [4976bb1]
+- Updated dependencies [086ec59]
+  - @hyperlane-xyz/utils@39.1.0
+  - @hyperlane-xyz/starknet-core@39.1.0
+  - @hyperlane-xyz/provider-sdk@8.0.1
+
 ## 29.0.0
 
 ### Major Changes

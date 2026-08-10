@@ -4,6 +4,7 @@ import {
   AgentSealevelTransactionSubmitter,
   AgentSealevelUrReveal,
   AgentSignerAwsKey,
+  AgentSignerGcpKey,
   AgentSignerKeyType,
   ChainMap,
   ChainName,
@@ -42,6 +43,10 @@ export interface HelmRootAgentValues {
   nameOverride?: string;
   tolerations?: KubernetesToleration[];
   nodeSelector?: Record<string, string>;
+  serviceAccount?: {
+    name?: string;
+    annotations?: Record<string, string>;
+  };
 }
 
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
@@ -64,9 +69,10 @@ interface HelmHyperlaneValues {
 // This is at `.hyperlane.chains` in the values file.
 export interface HelmAgentChainOverride extends DeepPartial<AgentChainMetadata> {
   name: AgentChainMetadata['name'];
-  // Validator only: public registry RPC URLs to append after the private ones (from
-  // GCP Secret Manager) when building CUSTOMQUORUMRPCURLS. Not part of AgentChainMetadata
-  // itself — consumed only by the external-secret Helm template.
+  // Validator only: additional public registry RPC URLs used to build
+  // CUSTOMADDITIONALQUORUMRPCURLS. No private RPCs are merged in here — rpcUrls
+  // already votes in the same quorum group, so this is public-only. Not part of
+  // AgentChainMetadata itself — consumed only by the external-secret Helm template.
   publicRpcUrls?: string[];
 }
 
@@ -89,6 +95,7 @@ export interface AgentContextConfig extends AgentEnvConfig {
   namespace: string;
   context: Contexts;
   aws?: AwsConfig;
+  gcp?: GcpConfig;
   // Roles to manage keys for
   rolesWithKeys: Role[];
   // Names of chains this context cares about (subset of environmentChainNames)
@@ -141,8 +148,12 @@ export type RadixKeyConfig = {
   type: AgentSignerKeyType.Radix;
   suffix: string;
 };
+// Cloud KMS-backed key. `keyVersionName` is the full CryptoKeyVersion resource
+// name (GetPublicKey/AsymmetricSign require the version, not just the key).
+export type GcpKeyConfig = Required<AgentSignerGcpKey>;
 export type KeyConfig =
   | AwsKeyConfig
+  | GcpKeyConfig
   | HexKeyConfig
   | CosmosKeyConfig
   | StarknetKeyConfig
@@ -154,6 +165,11 @@ interface IndexingConfig {
 
 export interface AwsConfig {
   region: string;
+}
+
+export interface GcpConfig {
+  project: string;
+  location: string;
 }
 
 export interface DockerConfig {
@@ -185,6 +201,7 @@ export class RootAgentConfigHelper implements AgentContextConfig {
   namespace: string;
   runEnv: DeployEnvironment;
   aws?: AwsConfig;
+  gcp?: GcpConfig;
   rolesWithKeys: Role[];
   contextChainNames: AgentChainNames;
   environmentChainNames: ChainName[];
@@ -194,6 +211,7 @@ export class RootAgentConfigHelper implements AgentContextConfig {
     this.context = root.context;
     this.namespace = root.namespace;
     this.aws = root.aws;
+    this.gcp = root.gcp;
     this.runEnv = root.runEnv;
     this.rolesWithKeys = root.rolesWithKeys;
     this.contextChainNames = root.contextChainNames;

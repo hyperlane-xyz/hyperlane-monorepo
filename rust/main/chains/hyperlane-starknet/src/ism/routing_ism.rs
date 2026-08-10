@@ -6,7 +6,7 @@ use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, RoutingIsm, H256,
 };
-use starknet::core::types::Felt;
+use starknet::core::types::{BlockId, BlockTag, Felt};
 use tracing::instrument;
 
 use crate::contracts::routing_ism::RoutingIsmReader;
@@ -32,7 +32,8 @@ impl StarknetRoutingIsm {
     ) -> ChainResult<Self> {
         let json_provider = provider.rpc_client().clone();
         let ism_address: Felt = HyH256(locator.address).into();
-        let contract = RoutingIsmReader::new(ism_address, json_provider);
+        let contract = RoutingIsmReader::new(ism_address, json_provider)
+            .with_block(BlockId::Tag(BlockTag::Latest));
 
         Ok(Self {
             contract,

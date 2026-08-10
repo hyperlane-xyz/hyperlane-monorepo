@@ -42,6 +42,9 @@ pub enum CheckpointSyncerConf {
         /// Path to oauth user secrets, like those created by
         /// `gcloud auth application-default login`
         user_secrets: Option<String>,
+        /// Use ambient Application Default Credentials (e.g. GKE Workload
+        /// Identity) instead of a key file or user secrets.
+        use_application_default: bool,
     },
 }
 
@@ -102,12 +105,14 @@ impl FromStr for CheckpointSyncerConf {
                         folder: None,
                         service_account_key,
                         user_secrets,
+                        use_application_default: false,
                     }),
                     Some(folder) => Ok(CheckpointSyncerConf::Gcs {
                         bucket: bucket.into(),
                         folder: Some(folder),
                         service_account_key,
                         user_secrets,
+                        use_application_default: false,
                     }),
                 }
             }
@@ -164,8 +169,11 @@ impl CheckpointSyncerConf {
                 folder,
                 service_account_key,
                 user_secrets,
+                use_application_default,
             } => {
-                let auth = if let Some(path) = service_account_key {
+                let auth = if *use_application_default {
+                    AuthFlow::ServiceAccount(ServiceAccountAuth::ApplicationDefault)
+                } else if let Some(path) = service_account_key {
                     AuthFlow::ServiceAccount(ServiceAccountAuth::Path(path.into()))
                 } else if let Some(path) = user_secrets {
                     AuthFlow::UserAccount(path.into())

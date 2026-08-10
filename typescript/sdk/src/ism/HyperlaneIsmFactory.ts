@@ -4,10 +4,13 @@ import { Logger } from 'pino';
 import {
   AmountRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
+  BlacklistIsm__factory,
   CCIPIsm,
   CCIPIsm__factory,
   DefaultFallbackRoutingIsm,
-  DefaultFallbackRoutingIsm__factory,
+  AtomicInitDefaultFallbackRoutingIsm__factory,
+  AtomicInitDomainRoutingIsm__factory,
+  AtomicInitIncrementalDomainRoutingIsm__factory,
   DomainRoutingIsm,
   DomainRoutingIsm__factory,
   IAggregationIsm,
@@ -54,7 +57,6 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
-import { isInitialized } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -64,6 +66,7 @@ import { getZKSyncArtifactByContractName } from '../utils/zksync.js';
 import {
   AggregationIsmConfig,
   AmountRoutingIsmConfig,
+  BlacklistIsmConfig,
   CCIPIsmConfig,
   CompositeIsmConfig,
   DeployedIsm,
@@ -71,9 +74,9 @@ import {
   DerivedPausableIsmConfigSchema,
   DomainRoutingIsmConfig,
   IsmConfig,
+  IsmConfigSchema,
   IsmType,
   MultisigIsmConfig,
-  RateLimitedIsmConfig,
   RoutingIsmConfig,
   RoutingIsmDelta,
   WeightedMultisigIsmConfig,
@@ -88,6 +91,7 @@ const ismFactories = {
   [IsmType.ARB_L2_TO_L1]: new ArbL2ToL1Ism__factory(),
   [IsmType.CCIP]: new CCIPIsm__factory(),
   [IsmType.RATE_LIMITED]: new RateLimitedIsm__factory(),
+  [IsmType.BLACKLIST]: new BlacklistIsm__factory(),
 };
 
 const domainRoutingInitializationSize = (destination: ChainName) => {
@@ -269,6 +273,25 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     mailbox?: Address;
     existingIsmAddress?: Address;
   }): Promise<DeployedIsm> {
+    // Validate the full ISM tree at the public deployment boundary; recursion
+    // and pre-validated callers use deployInternal (structural only).
+    IsmConfigSchema.parse(params.config);
+    return this.deployInternal(params);
+  }
+
+  /**
+   * @internal Structural deploy primitive for recursion and pre-validated
+   * callers. Assumes the whole ISM tree has already been validated via
+   * IsmConfigSchema (e.g. by the public deploy() or EvmIsmModule.create/update).
+   * Do not call directly from application code.
+   */
+  async deployInternal<C extends IsmConfig>(params: {
+    destination: ChainName;
+    config: C;
+    origin?: ChainName;
+    mailbox?: Address;
+    existingIsmAddress?: Address;
+  }): Promise<DeployedIsm> {
     const { destination, config, origin, mailbox, existingIsmAddress } = params;
 
     // Reject a nested Composite ISM (Sealevel-only) before deploying any
@@ -388,21 +411,20 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
         break;
       case IsmType.RATE_LIMITED: {
-        const rateLimitedConfig = config as RateLimitedIsmConfig;
         assert(mailbox, `Mailbox address is required for deploying ${ismType}`);
         assert(
-          rateLimitedConfig.recipient,
+          config.recipient,
           `Recipient address is required for deploying ${ismType}`,
         );
         contract = await this.deployer.deployContract(
           destination,
           IsmType.RATE_LIMITED,
-          [mailbox, rateLimitedConfig.maxCapacity, rateLimitedConfig.recipient],
+          [mailbox, config.maxCapacity, config.duration, config.recipient],
         );
-        if (rateLimitedConfig.owner) {
+        if (config.owner) {
           const signer = this.multiProvider.getSigner(destination);
           const signerAddress = await signer.getAddress();
-          if (!eqAddress(signerAddress, rateLimitedConfig.owner)) {
+          if (!eqAddress(signerAddress, config.owner)) {
             const overrides =
               this.multiProvider.getTransactionOverrides(destination);
             const rateLimitedIsm = RateLimitedIsm__factory.connect(
@@ -410,7 +432,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
               signer,
             );
             const tx = await rateLimitedIsm.transferOwnership(
-              rateLimitedConfig.owner,
+              config.owner,
               overrides,
             );
             await this.multiProvider.handleTx(destination, tx);
@@ -418,6 +440,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         }
         break;
       }
+      case IsmType.BLACKLIST:
+        contract = await this.deployBlacklistIsm(destination, config);
+        break;
       case IsmType.CCIP:
         contract = await this.deployCCIPIsm(destination, config);
         break;
@@ -469,6 +494,32 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       ism,
       this.multiProvider.getSigner(destination),
     );
+  }
+
+  protected async deployBlacklistIsm(
+    destination: ChainName,
+    config: BlacklistIsmConfig,
+  ): Promise<DeployedIsmType[typeof IsmType.BLACKLIST]> {
+    const signer = this.multiProvider.getSigner(destination);
+    const signerAddress = await signer.getAddress();
+    const overrides = this.multiProvider.getTransactionOverrides(destination);
+    const contract = await this.deployer.deployContract(
+      destination,
+      IsmType.BLACKLIST,
+      [signerAddress],
+    );
+
+    if (config.blacklistedIds.length > 0) {
+      const tx = await contract.blacklist(config.blacklistedIds, overrides);
+      await this.multiProvider.handleTx(destination, tx);
+    }
+
+    if (!eqAddress(signerAddress, config.owner)) {
+      const tx = await contract.transferOwnership(config.owner, overrides);
+      await this.multiProvider.handleTx(destination, tx);
+    }
+
+    return contract;
   }
 
   protected async deployMultisigIsm(
@@ -528,7 +579,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
         break;
       default:
-        throw new Error(`Unsupported multisig ISM type ${config.type}`);
+        throw new Error(`Unsupported multisig ISM type: ${config.type}`);
     }
 
     return IMultisigIsm__factory.connect(address, signer);
@@ -600,7 +651,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
     const addresses: Address[] = [];
     for (const module of [lowerIsm, upperIsm]) {
-      const submodule = await this.deploy({
+      const submodule = await this.deployInternal({
         destination: params.destination,
         config: module,
         origin: params.origin,
@@ -688,7 +739,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         logger.debug(
           `Reconfiguring preexisting routing ISM at for origin ${origin}...`,
         );
-        const ism = await this.deploy({
+        const ism = await this.deployInternal({
           destination,
           config: config.domains[origin],
           origin,
@@ -719,7 +770,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     } else {
       const isms: ChainMap<Address> = {};
       for (const origin of Object.keys(config.domains)) {
-        const ism = await this.deploy({
+        const ism = await this.deployInternal({
           destination,
           config: config.domains[origin],
           origin,
@@ -739,48 +790,12 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         logger.debug('Deploying fallback routing ISM ...');
         routingIsm = await this.multiProvider.handleDeploy(
           destination,
-          new DefaultFallbackRoutingIsm__factory(),
-          [mailbox],
-          await getZKSyncArtifactByContractName(config.type),
+          new AtomicInitDefaultFallbackRoutingIsm__factory(),
+          [mailbox, config.owner, safeConfigDomains, submoduleAddresses],
+          await getZKSyncArtifactByContractName(
+            'AtomicInitDefaultFallbackRoutingIsm',
+          ),
         );
-        // TODO: Should verify contract here
-        if (
-          !(await isInitialized(
-            this.multiProvider.getProvider(destination),
-            routingIsm.address,
-          ))
-        ) {
-          logger.debug('Initialising fallback routing ISM ...');
-          receipt = await this.multiProvider.handleTx(
-            destination,
-            routingIsm['initialize(address,uint32[],address[])'](
-              config.owner,
-              safeConfigDomains,
-              submoduleAddresses,
-              overrides,
-            ),
-          );
-        } else {
-          // Already initialized by the time we got here — either a resumed
-          // deploy, or someone else won the race on this ISM's permissionless
-          // one-time initialize(). Refuse to proceed silently if it's the
-          // latter: a hijacked owner here would otherwise be treated as a
-          // successful deploy.
-          const existingOwner = await routingIsm.owner();
-          assert(
-            eqAddress(existingOwner, config.owner),
-            `Fallback routing ISM at ${routingIsm.address} on ${destination} was front-run: address ${existingOwner} initialized it before this deploy could, and now owns it instead of the expected owner ${config.owner} — refusing to proceed`,
-          );
-          await assertSubmodulesMatchExpected(
-            routingIsm,
-            safeConfigDomains,
-            submoduleAddresses,
-            destination,
-          );
-          logger.debug(
-            `Skipping initialization of fallback routing ISM at ${routingIsm.address} — already initialized with the expected owner and submodules`,
-          );
-        }
       } else {
         // deploying new domain routing ISM
         const owner = config.owner;
@@ -794,47 +809,20 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             this.deployer,
             'HyperlaneDeployer must be set to deploy routing ISM',
           );
+          const contractName =
+            config.type === IsmType.INCREMENTAL_ROUTING
+              ? 'AtomicInitIncrementalDomainRoutingIsm'
+              : 'AtomicInitDomainRoutingIsm';
           const factory =
             config.type === IsmType.INCREMENTAL_ROUTING
-              ? new IncrementalDomainRoutingIsm__factory()
-              : new DomainRoutingIsm__factory();
-          const routingIsm = await this.deployer?.deployContractFromFactory(
+              ? new AtomicInitIncrementalDomainRoutingIsm__factory()
+              : new AtomicInitDomainRoutingIsm__factory();
+          const routingIsm = await this.deployer.deployContractFromFactory(
             destination,
             factory,
-            config.type,
-            [],
+            contractName,
+            [owner, safeConfigDomains, submoduleAddresses],
           );
-          // ZkSync uses deterministic addresses, so a re-run after a
-          // mid-deploy crash can land on an already-initialized contract.
-          if (
-            !(await isInitialized(
-              this.multiProvider.getProvider(destination),
-              routingIsm.address,
-            ))
-          ) {
-            await routingIsm['initialize(address,uint32[],address[])'](
-              owner,
-              safeConfigDomains,
-              submoduleAddresses,
-              overrides,
-            );
-          } else {
-            // Already initialized — either a resumed deploy landing on the
-            // same deterministic address, or someone else won the race on
-            // this ISM's permissionless one-time initialize(). Refuse to
-            // proceed silently if it's the latter.
-            const existingOwner = await routingIsm.owner();
-            assert(
-              eqAddress(existingOwner, owner),
-              `Routing ISM at ${routingIsm.address} on ${destination} was front-run: address ${existingOwner} initialized it before this deploy could, and now owns it instead of the expected owner ${owner} — refusing to proceed`,
-            );
-            await assertSubmodulesMatchExpected(
-              routingIsm,
-              safeConfigDomains,
-              submoduleAddresses,
-              destination,
-            );
-          }
           return routingIsm;
         }
 
@@ -954,7 +942,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
     const addresses: Address[] = [];
     for (const module of config.modules) {
-      const submodule = await this.deploy({
+      const submodule = await this.deployInternal({
         destination,
         config: module,
         origin,

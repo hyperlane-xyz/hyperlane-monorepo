@@ -553,18 +553,24 @@ async function getWarpConfigsToCheck({
           `Warp route config not found for ${warpRouteId}`,
         );
 
-        const warpDeployConfig = warpConfigGetterMap[warpRouteId]
-          ? WarpRouteDeployConfigMailboxRequiredSchema.parse(
-              await getWarpConfig(
-                getterInputsMultiProvider,
-                envConfig,
-                warpRouteId,
-                registryUris,
-                false,
-                warpConfigGetterInputs,
-              ),
-            )
-          : registryWarpDeployConfigMap[warpRouteId];
+        // Both branches parse through the schema so defaults (e.g. the
+        // RateLimited ISM `duration`) and normalization are applied
+        // consistently. Registry configs arrive as raw YAML, so without this
+        // parse an omitted schema-defaulted field would false-positive against
+        // the on-chain value.
+        const warpDeployConfig =
+          WarpRouteDeployConfigMailboxRequiredSchema.parse(
+            warpConfigGetterMap[warpRouteId]
+              ? await getWarpConfig(
+                  getterInputsMultiProvider,
+                  envConfig,
+                  warpRouteId,
+                  registryUris,
+                  false,
+                  warpConfigGetterInputs,
+                )
+              : registryWarpDeployConfigMap[warpRouteId],
+          );
 
         const requiredChains = new Set([
           ...Object.keys(warpDeployConfig),

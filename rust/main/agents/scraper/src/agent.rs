@@ -743,6 +743,7 @@ mod test {
                 metrics_conf: PrometheusMiddlewareConf {
                     contracts: HashMap::new(),
                     chain: None,
+                    rpc_role: Default::default(),
                 },
                 index: IndexSettings {
                     from: 0,
