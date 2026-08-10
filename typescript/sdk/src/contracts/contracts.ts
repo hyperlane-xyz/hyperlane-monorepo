@@ -11,6 +11,7 @@ import {
   eqAddress,
   hexOrBase58ToHex,
   isEVMLike,
+  isZeroishAddressEvm,
   objFilter,
   objMap,
   pick,
@@ -35,10 +36,6 @@ import {
   HyperlaneContractsMap,
   HyperlaneFactories,
 } from './types.js';
-
-function isEvmZeroishAddress(address: Address): boolean {
-  return /^0x0*$/i.test(address);
-}
 
 export function serializeContractsMap<F extends HyperlaneFactories>(
   contractsMap: HyperlaneContractsMap<F>,
@@ -314,12 +311,12 @@ export function transferOwnershipTransactions(
 ): AnnotatedEV5Transaction[] {
   if (
     eqAddress(actual.owner, expected.owner) ||
-    (isEvmZeroishAddress(actual.owner) && isEvmZeroishAddress(expected.owner))
+    (isZeroishAddressEvm(actual.owner) && isZeroishAddressEvm(expected.owner))
   ) {
     return [];
   }
 
-  if (isEvmZeroishAddress(expected.owner)) {
+  if (isZeroishAddressEvm(expected.owner)) {
     return [
       {
         chainId,
