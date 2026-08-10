@@ -182,6 +182,7 @@ impl FinalityStage {
                 update_tx_status(state, &mut tx, tx_status).await?;
                 Self::record_reverted_payloads(&mut tx, state).await?;
                 state.adapter.post_finalized().await?;
+                state.notify_reprocess_txs_activity();
                 let tx_uuid = tx.uuid.clone();
                 info!(?tx_uuid, "Transaction is finalized");
                 let _ = pool.remove(&tx_uuid).await;

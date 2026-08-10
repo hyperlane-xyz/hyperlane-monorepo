@@ -6,7 +6,10 @@ use std::sync::Arc;
 use chrono::format;
 use derive_new::new;
 use eyre::Result;
-use tokio::{sync::Mutex, task::JoinHandle};
+use tokio::{
+    sync::{Mutex, Notify},
+    task::JoinHandle,
+};
 use tracing::{error, info, instrument, instrument::Instrumented, warn};
 
 use hyperlane_base::{
@@ -34,6 +37,7 @@ pub struct DispatcherState {
     pub(crate) adapter: Arc<dyn AdaptsChain>,
     pub(crate) metrics: DispatcherMetrics,
     pub(crate) domain: String,
+    reprocess_txs_wakeup: Arc<Notify>,
 }
 
 impl DispatcherState {
@@ -50,7 +54,16 @@ impl DispatcherState {
             adapter,
             metrics,
             domain,
+            reprocess_txs_wakeup: Arc::new(Notify::new()),
         }
+    }
+
+    pub(crate) fn notify_reprocess_txs_activity(&self) {
+        self.reprocess_txs_wakeup.notify_one();
+    }
+
+    pub(crate) async fn wait_for_reprocess_txs_activity(&self) {
+        self.reprocess_txs_wakeup.notified().await;
     }
 
     pub async fn try_from_settings(
