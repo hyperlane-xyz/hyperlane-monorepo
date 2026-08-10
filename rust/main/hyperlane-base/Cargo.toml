@@ -81,6 +81,7 @@ color-eyre.workspace = true
 hyper = "0.14"
 reqwest.workspace = true
 tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 tracing-test.workspace = true
 walkdir.workspace = true
 
