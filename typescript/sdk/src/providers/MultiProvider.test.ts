@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { ContractFactory } from 'ethers';
+import type { ContractTransaction } from 'ethers';
 
 import {
   Mailbox__factory,
@@ -115,19 +116,24 @@ describe('MultiProvider', () => {
       expect(mockTx.wait.calledOnce).to.be.true;
     });
 
-    it('should wait for inclusion when wait(0) returns null', async () => {
+    it('should wait for inclusion when zero confirmations are requested', async () => {
       const mockReceipt = {
         transactionHash: '0xabc123def456',
         blockNumber: 100,
         status: 1,
       } as unknown as ProtocolReceipt<any>;
 
-      const waitStub = sinon
-        .stub()
-        .callsFake(async (confirmations?: number) => {
-          if (confirmations === 0) return null;
-          return mockReceipt;
-        });
+      const waitStub = sinon.stub();
+      waitStub.withArgs(0).resolves(mockReceipt);
+      waitStub.withArgs(1).returns(new Promise(() => {}));
+      const receiptProbe = sinon
+        .stub(
+          multiProvider.getProvider(TestChainName.test1),
+          'getTransactionReceipt',
+        )
+        .onFirstCall()
+        .resolves(undefined);
+      receiptProbe.onSecondCall().resolves(mockReceipt);
 
       const mockTx = {
         hash: '0xabc123def456',
@@ -140,10 +146,60 @@ describe('MultiProvider', () => {
       });
 
       expect(result).to.deep.equal(mockReceipt);
-      expect(waitStub.calledTwice).to.be.true;
-      expect(waitStub.firstCall.args[0]).to.equal(0);
-      expect(waitStub.secondCall.args[0]).to.equal(1);
+      expect(receiptProbe.calledTwice).to.be.true;
+      expect(waitStub.withArgs(0).calledOnce).to.be.true;
+      expect(waitStub.withArgs(1).calledOnce).to.be.true;
     });
+
+    for (const { reason, cancelled } of [
+      { reason: 'cancelled', cancelled: true },
+      { reason: 'repriced', cancelled: false },
+    ] as const) {
+      it(`should propagate ${reason} transaction replacements`, async () => {
+        const replacementReceipt = {
+          transactionHash: '0xreplacement',
+          blockNumber: 101,
+          status: 1,
+        };
+        const replacementError = Object.assign(
+          new Error('transaction was replaced'),
+          {
+            code: 'TRANSACTION_REPLACED',
+            reason,
+            cancelled,
+            receipt: replacementReceipt,
+          },
+        );
+        const waitStub = sinon.stub();
+        waitStub.withArgs(1).rejects(replacementError);
+        const receiptProbe = sinon
+          .stub(
+            multiProvider.getProvider(TestChainName.test1),
+            'getTransactionReceipt',
+          )
+          .resolves(undefined);
+        // CAST: handleTx only reads hash and wait; a complete ethers transaction
+        // would add unrelated fields to this focused replacement-error test.
+        const mockTx = {
+          hash: '0xabc123def456',
+          wait: waitStub,
+        } as unknown as ContractTransaction;
+
+        try {
+          await multiProvider.handleTx(TestChainName.test1, mockTx, {
+            waitConfirmations: 0,
+            timeoutMs: 5000,
+          });
+          expect.fail('Expected transaction replacement error');
+        } catch (error) {
+          expect(error).to.equal(replacementError);
+          expect(replacementError.reason).to.equal(reason);
+          expect(replacementError.receipt).to.equal(replacementReceipt);
+          expect(receiptProbe.called).to.be.true;
+          expect(waitStub.withArgs(0).notCalled).to.be.true;
+        }
+      });
+    }
 
     it('should not timeout when timeoutMs is 0', async () => {
       const mockReceipt = {

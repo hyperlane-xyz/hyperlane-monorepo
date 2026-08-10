@@ -23,6 +23,7 @@ import {
   assert,
   pick,
   rootLogger,
+  sleep,
   timeout,
 } from '@hyperlane-xyz/utils';
 
@@ -47,6 +48,47 @@ type Provider = providers.Provider | ZKSyncProvider;
 
 const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
 const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
+const INITIAL_RECEIPT_POLL_INTERVAL_MS = 100;
+
+// Preserve ethers' replacement detection while polling its non-blocking
+// zero-confirmation receipt probe more frequently than the default interval.
+async function waitForInitialReceipt(
+  response: ContractTransaction,
+  provider: Provider,
+  timeoutMs: number,
+): Promise<ContractReceipt> {
+  let shouldPoll = true;
+  const replacementAwareReceipt = response.wait(1);
+  const fastReceipt = async (): Promise<ContractReceipt> => {
+    while (shouldPoll) {
+      // ContractTransaction.wait(0) attempts to parse receipt.logs even when
+      // ethers' provider-level wait returns null. Probe the provider first so
+      // the contract wrapper only runs after the transaction is included.
+      const receipt = await provider.getTransactionReceipt(response.hash);
+      if (receipt) {
+        const contractReceipt = await response.wait(0);
+        assert(
+          contractReceipt,
+          `Transaction ${response.hash} was not included`,
+        );
+        return contractReceipt;
+      }
+      await sleep(INITIAL_RECEIPT_POLL_INTERVAL_MS);
+    }
+
+    return replacementAwareReceipt;
+  };
+
+  try {
+    return await timeout(
+      Promise.race([fastReceipt(), replacementAwareReceipt]),
+      timeoutMs,
+      `Timeout (${timeoutMs}ms) waiting for initial inclusion for tx ${response.hash}`,
+    );
+  } finally {
+    shouldPoll = false;
+  }
+}
 
 export interface MultiProviderOptions {
   logger?: Logger;
@@ -538,6 +580,14 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       );
     }
 
+    if (confirmations === 0) {
+      return waitForInitialReceipt(
+        response,
+        this.getProvider(chainNameOrId),
+        timeoutMs,
+      );
+    }
+
     // Handle numeric confirmations
     this.logger.info(
       `Pending ${txUrl || response.hash} (waiting ${confirmations} blocks for confirmation)`,
@@ -548,19 +598,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       `Timeout (${timeoutMs}ms) waiting for ${confirmations} block confirmations for tx ${response.hash}`,
     );
 
-    // ethers v5 can return null for wait(0) if tx is still pending.
-    if (receipt) return receipt;
-
-    this.logger.info(
-      `Pending ${txUrl || response.hash} (wait(0) returned pending, waiting for initial inclusion)`,
-    );
-    const inclusionReceipt = await timeout(
-      response.wait(1),
-      timeoutMs,
-      `Timeout (${timeoutMs}ms) waiting for initial inclusion for tx ${response.hash}`,
-    );
-    assert(inclusionReceipt, `Transaction ${response.hash} was not included`);
-    return inclusionReceipt;
+    assert(receipt, `Transaction ${response.hash} was not included`);
+    return receipt;
   }
 
   /**
