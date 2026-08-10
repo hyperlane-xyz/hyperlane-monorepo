@@ -1,6 +1,6 @@
 import { Logger, rootLogger } from '@hyperlane-xyz/utils';
 
-import { ISigner } from './altvm.js';
+import { IImpersonatingSigner, ISigner } from './altvm.js';
 import { AnnotatedTx, TxReceipt } from './module.js';
 
 export const SubmitterType = {
@@ -110,4 +110,11 @@ export class AltVMJsonRpcSubmitter implements ITransactionSubmitter {
  */
 export class AltVMImpersonatedSubmitter extends AltVMJsonRpcSubmitter {
   public override readonly txSubmitterType: string = 'impersonatedAccount';
+
+  constructor(
+    signer: IImpersonatingSigner<AnnotatedTx, TxReceipt>,
+    config: { chain: string },
+  ) {
+    super(signer, config);
+  }
 }

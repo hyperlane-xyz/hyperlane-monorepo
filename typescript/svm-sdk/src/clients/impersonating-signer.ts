@@ -3,11 +3,12 @@ import {
   partiallySignTransactionMessageWithSigners,
 } from '@solana/kit';
 
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 import { type Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { FORK_IMPERSONATION_FEE_PAYER } from '../fork/impersonation.js';
-import type { SvmRpc } from '../types.js';
+import type { SvmReceipt, SvmRpc, SvmTransaction } from '../types.js';
 
 import { BaseSvmSigner, type SignTransactionMessage } from './base-signer.js';
 
@@ -22,7 +23,11 @@ import { BaseSvmSigner, type SignTransactionMessage } from './base-signer.js';
  * accounts it impersonates, so it must only ever target a fork, never a live
  * cluster.
  */
-export class SvmImpersonatingSigner extends BaseSvmSigner {
+export class SvmImpersonatingSigner
+  extends BaseSvmSigner
+  implements AltVM.IImpersonatingSigner<SvmTransaction, SvmReceipt>
+{
+  readonly impersonatesAccount = true;
   protected readonly logger: Logger = rootLogger.child({
     module: 'SvmImpersonatingSigner',
   });
