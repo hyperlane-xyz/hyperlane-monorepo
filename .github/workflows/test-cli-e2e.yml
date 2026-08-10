@@ -241,7 +241,7 @@ jobs:
   cli-radix-e2e-matrix:
     runs-on: depot-ubuntu-24.04
     if: (inputs.run_cli_e2e == 'true' || inputs.has_radix == 'true') && inputs.ci_tier == 'full'
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -542,7 +542,7 @@ jobs:
   cli-svm-e2e-matrix:
     runs-on: depot-ubuntu-24.04
     if: (inputs.run_cli_e2e == 'true' || inputs.has_svm == 'true') && inputs.ci_tier == 'full'
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
