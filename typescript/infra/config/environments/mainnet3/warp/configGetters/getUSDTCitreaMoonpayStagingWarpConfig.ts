@@ -85,7 +85,7 @@ export function buildBscUsdtTokenFeeForTargets(
   const piecewiseFee = (): TokenFeeConfigInput => ({
     type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
     owner: DEPLOYER_EVM,
-    maxBands: 4,
+    maxBands: 5,
     quoteSigners: QUOTE_SIGNERS,
     initialFallback: INITIAL_FALLBACK,
   });

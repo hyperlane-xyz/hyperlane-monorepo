@@ -182,6 +182,3 @@ owner and quote-signer changes remain ordinary owner transactions.
 Publishing and route-specific rollout configuration are separate operational
 concerns. This contract does not add transfer maximum-fee/deadline parameters,
 onchain derivation from rebalance inputs, or persistent band consumption.
-
-See [Lane-addressed Piecewise Fee Publisher](./offchain-piecewise-fee-publisher.md)
-for the operational config, route resolution, dry-run, and submission flow.
