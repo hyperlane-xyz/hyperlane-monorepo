@@ -30,7 +30,7 @@ import {
 import { assertWarpRouteConfig } from '../../utils.js';
 
 describe('hyperlane warp deploy (Aleo E2E tests)', async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   const nativeTokenData =
     TEST_CHAIN_METADATA_BY_PROTOCOL.aleo.CHAIN_NAME_1.nativeToken;

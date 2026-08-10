@@ -651,10 +651,8 @@ export class SealevelHypCrossCollateralAdapter
     }
 
     // Legacy path — unchanged for routes without ALT.
-    // @ts-expect-error Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
     const tx = new Transaction({
       feePayer: bundle.feePayer,
-      blockhash: recentBlockhash,
       recentBlockhash,
     });
     for (const ix of allInstructions) tx.add(ix);
