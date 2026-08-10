@@ -149,6 +149,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   [TokenStandard.EvmHypEverclearCollateral]: null,
   [TokenStandard.EvmHypEverclearEth]: null,
   [TokenStandard.EvmHypCrossCollateralRouter]: null,
+  [TokenStandard.EvmAtomicLocalRebalancingBridge]: null,
 
   // Sealevel
   [TokenStandard.SealevelSpl]: {
@@ -280,6 +281,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   [TokenStandard.TronHypEverclearCollateral]: null,
   [TokenStandard.TronHypEverclearEth]: null,
   [TokenStandard.TronHypCrossCollateralRouter]: null,
+  [TokenStandard.TronAtomicLocalRebalancingBridge]: null,
 };
 
 const PROTOCOL_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<
@@ -345,6 +347,26 @@ describe('Token', () => {
       sandbox.restore();
     });
   }
+
+  it('rejects user adapters for atomic local rebalancing bridges', () => {
+    const multiProvider = MultiProtocolProvider.createTestMultiProtocolProvider(
+      createMailboxTestMetadata(),
+    );
+    const token = new Token({
+      chainName: TestChainName.test1,
+      standard: TokenStandard.EvmAtomicLocalRebalancingBridge,
+      addressOrDenom: '0x1111111111111111111111111111111111111111',
+      decimals: 6,
+      symbol: 'ALRB',
+      name: 'Atomic Local Rebalancing Bridge',
+    });
+
+    expect(token.isHypToken()).to.equal(false);
+    expect(token.isMultiChainToken()).to.equal(false);
+    expect(() => token.getAdapter(multiProvider)).to.throw(
+      'does not support user token transfers',
+    );
+  });
 
   describe('getHypAdapter', () => {
     it('returns EvmHypNativeAdapter for EvmNative with connections', () => {

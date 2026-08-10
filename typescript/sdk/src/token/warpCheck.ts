@@ -982,6 +982,19 @@ export function buildWarpRouteDiff({
           : undefined;
       }
 
+      if (expectedDeployedConfig.type === TokenType.atomicLocalRebalancing) {
+        // ALRBs are bare local bridge adapters. The deploy config still carries
+        // a mailbox because the shared warp schema requires one, but the
+        // contract neither stores nor uses mailbox-client or gas-router state.
+        // Keep checking the operational surface (owner, source, token metadata,
+        // scale, targets, and recipients) without reporting those schema-only
+        // fields as on-chain drift.
+        expectedDeployedConfig.mailbox = undefined;
+        currentDeployedConfig.mailbox = undefined;
+        expectedDeployedConfig.destinationGas = undefined;
+        currentDeployedConfig.destinationGas = undefined;
+      }
+
       const { mergedObject, isInvalid } = diffObjMerge(
         transformConfigToCheck(currentDeployedConfig),
         transformConfigToCheck(expectedDeployedConfig),

@@ -52,6 +52,7 @@ import {
   OwnerStatus,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  isAtomicLocalRebalancingBridgeTokenConfig,
   isCollateralTokenConfig,
   isCrossCollateralTokenConfig,
   isDepositAddressTokenConfig,
@@ -96,11 +97,18 @@ export function getDefaultRemoteRouterAndDestinationGasConfig(
   const remoteRouters: RemoteRouters = {};
   const destinationGas: DestinationGas = {};
 
+  if (isAtomicLocalRebalancingBridgeTokenConfig(warpDeployConfig[chain])) {
+    return [remoteRouters, destinationGas];
+  }
+
   const otherChains = multiProvider.getRemoteChains(chain).filter(
     (remoteChain) =>
-      // Include chains that specify foreignDeployment so that they can be enrolled
-      // in the current deployment/update
-      Object.keys(deployedRoutersAddresses).includes(remoteChain) ||
+      (!isAtomicLocalRebalancingBridgeTokenConfig(
+        warpDeployConfig[remoteChain],
+      ) &&
+        // Include chains that specify foreignDeployment so that they can be enrolled
+        // in the current deployment/update
+        Object.keys(deployedRoutersAddresses).includes(remoteChain)) ||
       warpDeployConfig[remoteChain]?.foreignDeployment,
   );
 
@@ -119,6 +127,56 @@ export function getDefaultRemoteRouterAndDestinationGasConfig(
   }
 
   return [remoteRouters, destinationGas];
+}
+
+export type ResolvedRebalanceConfig = {
+  rebalanceTargets: Record<number, string[]>;
+  rebalanceRecipients: Record<number, string>;
+};
+
+export function resolveAndValidateRebalanceConfig(
+  multiProvider: MultiProvider,
+  chain: string,
+  config: HypTokenRouterConfig,
+): ResolvedRebalanceConfig {
+  assert(
+    isCrossCollateralTokenConfig(config),
+    `Expected cross-collateral config for ${chain}`,
+  );
+
+  const remoteRouters = resolveRouterMapConfig(
+    multiProvider,
+    config.remoteRouters ?? {},
+  );
+  const crossCollateralRouters = resolveRouterMapConfig(
+    multiProvider,
+    config.crossCollateralRouters ?? {},
+  );
+  const rebalanceTargets = resolveRouterMapConfig(
+    multiProvider,
+    config.rebalanceTargets ?? {},
+  );
+  const rebalanceRecipients = resolveRouterMapConfig(
+    multiProvider,
+    config.rebalanceRecipients ?? {},
+  );
+  const observableDomains = new Set<number>([
+    multiProvider.getDomainId(chain),
+    ...Object.keys(remoteRouters).map(Number),
+    ...Object.keys(crossCollateralRouters).map(Number),
+  ]);
+
+  for (const domain of [
+    ...Object.keys(rebalanceTargets),
+    ...Object.keys(rebalanceRecipients),
+  ].map(Number)) {
+    assert(
+      observableDomains.has(domain),
+      `Rebalance domain ${domain} on ${chain} must be the local domain or have an enrolled router`,
+    );
+  }
+
+  return { rebalanceTargets, rebalanceRecipients };
 }
 
 export function getRouterAddressesFromWarpCoreConfig(

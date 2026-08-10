@@ -1098,11 +1098,29 @@ describe('EvmWarpRouteReader', async () => {
     const remoteRouter = addressToBytes32(
       '0x4000000000000000000000000000000000000004',
     );
+    const rebalanceTarget = addressToBytes32(
+      '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    );
+    const rebalanceRecipient = addressToBytes32(
+      '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    );
     const expectedScale = {
       numerator: 1n,
       denominator: 1_000_000_000_000n,
     };
 
+    const rebalanceTargetsStub = sinon
+      .stub()
+      .callsFake(async (domain: number) =>
+        domain === localDomain ? [rebalanceTarget] : [],
+      );
+    const allowedRecipientStub = sinon
+      .stub()
+      .callsFake(async (domain: number) =>
+        domain === localDomain
+          ? rebalanceRecipient
+          : hre.ethers.constants.HashZero,
+      );
     const mcConnectStub = sinon
       .stub(CrossCollateralRouter__factory, 'connect')
       .returns({
@@ -1116,6 +1134,8 @@ describe('EvmWarpRouteReader', async () => {
           .callsFake(async (domain: number) =>
             domain === localDomain ? [localRouter] : [remoteRouter],
           ),
+        rebalanceTargets: rebalanceTargetsStub,
+        allowedRecipient: allowedRecipientStub,
       } as any);
     const tokenRouterConnectStub = sinon
       .stub(TokenRouter__factory, 'connect')
@@ -1149,6 +1169,41 @@ describe('EvmWarpRouteReader', async () => {
         [localDomain.toString()]: [localRouter],
         [remoteDomain.toString()]: [remoteRouter],
       });
+      expect(derivedConfig.rebalanceTargets).to.deep.equal({
+        [localDomain.toString()]: [rebalanceTarget],
+      });
+      expect(derivedConfig.rebalanceRecipients).to.deep.equal({
+        [localDomain.toString()]: rebalanceRecipient,
+      });
+
+      const missingSelector = Object.assign(new Error('missing selector'), {
+        code: 'CALL_EXCEPTION',
+        data: '0x',
+      });
+      rebalanceTargetsStub.resetBehavior();
+      rebalanceTargetsStub.rejects(missingSelector);
+      allowedRecipientStub.resetBehavior();
+      allowedRecipientStub.rejects(missingSelector);
+      const legacyConfig = await deriveCrossCollateralTokenConfig.call(
+        evmERC20WarpRouteReader,
+        routerAddress,
+      );
+      expect(legacyConfig.rebalanceTargets).to.equal(undefined);
+      expect(legacyConfig.rebalanceRecipients).to.equal(undefined);
+
+      rebalanceTargetsStub.resetBehavior();
+      rebalanceTargetsStub.rejects(new Error('RPC unavailable'));
+      let error: unknown;
+      try {
+        await deriveCrossCollateralTokenConfig.call(
+          evmERC20WarpRouteReader,
+          routerAddress,
+        );
+      } catch (caught) {
+        error = caught;
+      }
+      expect(error).to.be.instanceOf(Error);
+      expect((error as Error).message).to.include('RPC unavailable');
     } finally {
       mcConnectStub.restore();
       tokenRouterConnectStub.restore();

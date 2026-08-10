@@ -51,7 +51,10 @@ import {
 } from './EvmWarpRouteReader.js';
 import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { DeployableTokenType, gasOverhead } from './config.js';
-import { resolveTokenFeeAddress } from './configUtils.js';
+import {
+  resolveAndValidateRebalanceConfig,
+  resolveTokenFeeAddress,
+} from './configUtils.js';
 import {
   HypERC20Factories,
   HypERC20contracts,
@@ -838,6 +841,50 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async configureRebalanceTargetsAndRecipients(
+    configMap: ChainMap<HypTokenRouterConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        if (!isCrossCollateralTokenConfig(config)) return;
+
+        const { rebalanceTargets, rebalanceRecipients } =
+          resolveAndValidateRebalanceConfig(this.multiProvider, chain, config);
+        const router = this.router(deployedContractsMap[chain]).address;
+        const crossCollateralRouter = CrossCollateralRouter__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
+
+        for (const [domain, targets] of Object.entries(rebalanceTargets)) {
+          for (const target of targets) {
+            await this.multiProvider.handleTx(
+              chain,
+              crossCollateralRouter.addRebalanceTarget(
+                Number(domain),
+                addressToBytes32(target),
+                overrides,
+              ),
+            );
+          }
+        }
+
+        for (const [domain, recipient] of Object.entries(rebalanceRecipients)) {
+          await this.multiProvider.handleTx(
+            chain,
+            crossCollateralRouter.setRecipient(
+              Number(domain),
+              addressToBytes32(recipient),
+              overrides,
+            ),
+          );
+        }
+      }),
+    );
+  }
+
   // Wire rate-limited ISMs BEFORE ownership transfer so that
   // setInterchainSecurityModule succeeds regardless of config.owner.
   // Handles both top-level RateLimitedIsm and ISMs nested inside composites
@@ -960,9 +1007,10 @@ abstract class TokenDeployer<
         // mailbox-client config) exactly like OFT/DepositAddress.
         const contractKey = this.routerContractKey(config);
         const constructorArgs = await this.constructorArgs(chain, config);
-        const contract = await this.deployContract(
+        const contract = await this.deployContractWithName(
           chain,
           contractKey,
+          this.routerContractName(config),
           constructorArgs,
         );
         directBridgeContracts[chain] = { [contractKey]: contract };
@@ -1033,6 +1081,11 @@ abstract class TokenDeployer<
     await this.deployPredicateWrappers(configMap, deployedContractsMap);
 
     await this.enrollCrossCollateralRouters(configMap, deployedContractsMap);
+
+    await this.configureRebalanceTargetsAndRecipients(
+      configMap,
+      deployedContractsMap,
+    );
 
     // RateLimitedIsms are wired after enrollment. A brief window exists where
     // the token's effective ISM is the mailbox defaultIsm, but it is inert on a

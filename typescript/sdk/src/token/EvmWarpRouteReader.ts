@@ -2,6 +2,7 @@ import { compareVersions } from 'compare-versions';
 import { BigNumber, Contract, constants } from 'ethers';
 
 import {
+  AtomicLocalRebalancingBridge__factory,
   CrossCollateralRouter__factory,
   EverclearTokenBridge,
   EverclearTokenBridge__factory,
@@ -35,12 +36,10 @@ import {
   addressToBytes32,
   arrayToObject,
   assert,
-  bytes32ToAddress,
   eqAddress,
   getLogLevel,
   isZeroish,
   isZeroishAddress,
-  normalizeAddressEvm,
   objFilter,
   objMap,
   promiseObjAll,
@@ -72,6 +71,7 @@ import {
   fetchPackageVersion as fetchContractPackageVersion,
   isMissingSelectorCallException,
   throwIfNotMissingSelector,
+  throwIfNotMissingSelectorRevert,
 } from '../utils/contract.js';
 import { NormalizedScale } from '../utils/decimals.js';
 
@@ -83,6 +83,7 @@ import {
 } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
+  AtomicLocalRebalancingBridgeTokenConfig,
   CctpTokenConfig,
   CollateralTokenConfig,
   ContractVerificationStatus,
@@ -192,8 +193,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveHypCollateralDepositAddressTokenConfig.bind(this),
       [TokenType.collateralOft]:
         this.deriveHypCollateralOftTokenConfig.bind(this),
-      // Bare adapter with no derivable on-chain warp config; deploy-only.
-      [TokenType.atomicLocalRebalancing]: null,
+      [TokenType.atomicLocalRebalancing]:
+        this.deriveAtomicLocalRebalancingBridgeTokenConfig.bind(this),
       [TokenType.crossCollateral]:
         this.deriveCrossCollateralTokenConfig.bind(this),
     };
@@ -222,9 +223,11 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const type = await this.deriveTokenType(warpRouteAddress);
     const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
     const isDepositAddressBridge = type === TokenType.collateralDepositAddress;
-    // OFT and deposit-address bridges don't expose Router/MailboxClient interfaces.
+    // Bare bridges don't expose Router/MailboxClient interfaces.
     const isOft = type === TokenType.collateralOft;
-    const usesSentinelRouterConfig = isDepositAddressBridge || isOft;
+    const isAtomicLocalRebalancing = type === TokenType.atomicLocalRebalancing;
+    const usesSentinelRouterConfig =
+      isDepositAddressBridge || isOft || isAtomicLocalRebalancing;
     const routerConfig = usesSentinelRouterConfig
       ? {
           mailbox: constants.AddressZero,
@@ -705,6 +708,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       [TokenType.collateralOft]: {
         factory: TokenBridgeOft__factory,
         method: 'oft',
+      },
+      [TokenType.atomicLocalRebalancing]: {
+        factory: AtomicLocalRebalancingBridge__factory,
+        method: 'allowedSourceRouter',
       },
       [TokenType.collateralCctp]: {
         factory: TokenBridgeCctpBase__factory,
@@ -1233,6 +1240,35 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     };
   }
 
+  private async deriveAtomicLocalRebalancingBridgeTokenConfig(
+    bridgeAddress: Address,
+  ): Promise<AtomicLocalRebalancingBridgeTokenConfig> {
+    const bridge = AtomicLocalRebalancingBridge__factory.connect(
+      bridgeAddress,
+      this.provider,
+    );
+    const [sourceRouter, localDomain] = await Promise.all([
+      bridge.allowedSourceRouter(),
+      bridge.localDomain(),
+    ]);
+    const expectedLocalDomain = this.multiProvider.getDomainId(this.chain);
+    assert(
+      BigNumber.from(localDomain).toNumber() === expectedLocalDomain,
+      `AtomicLocalRebalancingBridge localDomain ${localDomain} does not match ${expectedLocalDomain} for ${this.chain}`,
+    );
+    const sourceToken = await MovableCollateralRouter__factory.connect(
+      sourceRouter,
+      this.provider,
+    ).token();
+
+    return {
+      ...(await this.fetchERC20Metadata(sourceToken)),
+      type: TokenType.atomicLocalRebalancing,
+      sourceRouter,
+      scale: await this.fetchScale(sourceRouter),
+    };
+  }
+
   private async deriveHypCollateralTokenConfig(
     hypToken: Address,
   ): Promise<CollateralTokenConfig> {
@@ -1581,7 +1617,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     let supportsRebalanceTargets = true;
     try {
       await crossCollateralRouter.rebalanceTargets(localDomain);
-    } catch {
+    } catch (error: unknown) {
+      throwIfNotMissingSelectorRevert(error);
       supportsRebalanceTargets = false;
     }
 
@@ -1590,10 +1627,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         allDomains.map(async (domain) => {
           const targets = await crossCollateralRouter.rebalanceTargets(domain);
           if (targets.length > 0) {
-            // rebalanceTargets stores addresses (as bytes32); the config keeps
-            // plain addresses, so normalize for a clean apply/read round-trip.
-            rebalanceTargets[domain.toString()] = targets.map((t) =>
-              normalizeAddressEvm(bytes32ToAddress(t)),
+            rebalanceTargets[domain.toString()] = targets.map((target) =>
+              target.toLowerCase(),
             );
           }
         }),
@@ -1605,7 +1640,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     let supportsRebalanceRecipients = true;
     try {
       await crossCollateralRouter.allowedRecipient(localDomain);
-    } catch {
+    } catch (error: unknown) {
+      throwIfNotMissingSelectorRevert(error);
       supportsRebalanceRecipients = false;
     }
 
@@ -1615,9 +1651,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
           const recipient =
             await crossCollateralRouter.allowedRecipient(domain);
           if (!isZeroishAddress(recipient)) {
-            rebalanceRecipients[domain.toString()] = normalizeAddressEvm(
-              bytes32ToAddress(recipient),
-            );
+            rebalanceRecipients[domain.toString()] = recipient.toLowerCase();
           }
         }),
       );
