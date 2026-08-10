@@ -289,6 +289,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         tokenConfig.contractVersion,
         REBALANCING_CONTRACT_VERSION,
       ) >= 0;
+    const selfDomainId = this.multiProvider.getDomainId(this.chain);
 
     let allowedRebalancers: Address[] | undefined;
     let allowedRebalancingBridges: MovableTokenConfig['allowedRebalancingBridges'];
@@ -319,9 +320,15 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
       try {
         domains = await movableToken.domains();
+        // CrossCollateralRouter can enroll a same-domain atomic bridge even
+        // though Router.domains() only returns remote domains. Include the
+        // local domain so warp check/apply observes that bridge and converges.
+        const bridgeDomains = isCrossCollateralTokenConfig(tokenConfig)
+          ? [...new Set([...domains, selfDomainId])]
+          : domains;
         const allowedBridgesByDomain = await promiseObjAll(
           objMap(
-            arrayToObject(domains.map((domain) => domain.toString())),
+            arrayToObject(bridgeDomains.map((domain) => domain.toString())),
             (domain) => movableToken.allowedBridges(domain),
           ),
         );
@@ -354,7 +361,6 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     // fee entry keyed under a normal router and reports false-positive diffs.
     // remoteRouters omits the local domain, so add this router's own address as
     // the key for self-domain (same-chain CCR swap) fee entries.
-    const selfDomainId = this.multiProvider.getDomainId(this.chain);
     const feeRouterKeys = isCrossCollateralTokenConfig(tokenConfig)
       ? mergeCrossCollateralRouters(
           tokenConfig.crossCollateralRouters,
