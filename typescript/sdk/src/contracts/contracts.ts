@@ -11,6 +11,7 @@ import {
   eqAddress,
   hexOrBase58ToHex,
   isEVMLike,
+  isZeroishAddressEvm,
   objFilter,
   objMap,
   pick,
@@ -308,8 +309,26 @@ export function transferOwnershipTransactions(
   expected: OwnableConfig,
   label?: string,
 ): AnnotatedEV5Transaction[] {
-  if (eqAddress(actual.owner, expected.owner)) {
+  if (
+    eqAddress(actual.owner, expected.owner) ||
+    (isZeroishAddressEvm(actual.owner) && isZeroishAddressEvm(expected.owner))
+  ) {
     return [];
+  }
+
+  if (isZeroishAddressEvm(expected.owner)) {
+    return [
+      {
+        chainId,
+        annotation: `Renouncing ownership of ${label ?? contract} from ${
+          actual.owner
+        }`,
+        to: contract,
+        data: Ownable__factory.createInterface().encodeFunctionData(
+          'renounceOwnership',
+        ),
+      },
+    ];
   }
 
   return [
