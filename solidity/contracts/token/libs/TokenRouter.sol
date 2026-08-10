@@ -98,7 +98,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * @dev This function must be implemented by derived contracts to specify the token address.
      * @return The address of the token contract.
      */
-    function token() public view virtual returns (address);
+    function token() public view virtual override returns (address);
 
     /**
      * @inheritdoc ITokenFee

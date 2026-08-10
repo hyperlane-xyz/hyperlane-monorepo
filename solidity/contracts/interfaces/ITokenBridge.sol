@@ -26,6 +26,12 @@ interface ITokenFee {
 
 interface ITokenBridge is ITokenFee {
     /**
+     * @notice Returns the ERC20 token managed by this bridge, or address(0) for native.
+     * @dev Callers use this to know which token to approve for `transferRemote`.
+     */
+    function token() external view returns (address);
+
+    /**
      * @notice Transfer value to another domain
      * @param _destination The destination domain of the message
      * @param _recipient The message recipient address on `destination`
