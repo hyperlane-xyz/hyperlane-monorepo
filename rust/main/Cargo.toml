@@ -276,27 +276,27 @@ tag = "2025-08-07"
 [workspace.dependencies.ethers]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2026-01-23"
+rev = "8885b1a90908b2354239a08874f69f0d44e88573"
 
 [workspace.dependencies.ethers-contract]
 features = ["legacy"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2026-01-23"
+rev = "8885b1a90908b2354239a08874f69f0d44e88573"
 
 [workspace.dependencies.ethers-core]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2026-01-23"
+rev = "8885b1a90908b2354239a08874f69f0d44e88573"
 
 [workspace.dependencies.ethers-providers]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2026-01-23"
+rev = "8885b1a90908b2354239a08874f69f0d44e88573"
 
 [workspace.dependencies.ethers-signers]
 features = ["aws"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2026-01-23"
+rev = "8885b1a90908b2354239a08874f69f0d44e88573"
 
 [patch.crates-io.curve25519-dalek]
 branch = "v3.2.2-relax-zeroize"
@@ -312,4 +312,3 @@ version = "=0.12.1"
 branch = "hyperlane"
 git = "https://github.com/hyperlane-xyz/parity-common.git"
 version = "=0.5.2"
-
