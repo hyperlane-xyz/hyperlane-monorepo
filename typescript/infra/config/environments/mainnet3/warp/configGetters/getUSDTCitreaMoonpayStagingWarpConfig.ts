@@ -1,4 +1,10 @@
-import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  CrossCollateralTokenConfig,
+  HypTokenRouterConfig,
+  MovableTokenConfig,
+  TokenType,
+} from '@hyperlane-xyz/sdk';
 import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import {
@@ -26,6 +32,22 @@ const EXTRA_REBALANCER = '0x2cB236403574301029c7bDDfda133c6e0338a857';
 const ALLOWED_REBALANCERS = [REBALANCER, EXTRA_REBALANCER];
 
 const EVM_CHAINS = ['arbitrum', 'base', 'ethereum', 'polygon'] as const;
+const LOCAL_REBALANCE_CHAINS = [
+  'arbitrum',
+  'base',
+  'bsc',
+  'ethereum',
+  'polygon',
+] as const;
+
+type RebalancingConfig = Required<
+  Pick<MovableTokenConfig, 'allowedRebalancingBridges' | 'allowedRebalancers'>
+>;
+
+type AtomicLocalRebalancingConfig = RebalancingConfig &
+  Required<
+    Pick<CrossCollateralTokenConfig, 'rebalanceRecipients' | 'rebalanceTargets'>
+  >;
 
 // Cross-collateral peers reference the sibling USDC staging route by deployed address.
 // Returns {} until that route is registered; wire on a second pass via `warp apply`.
@@ -45,6 +67,66 @@ function getSiblingCrossCollateralRouters(): Record<string, string[]> {
   );
 }
 
+// The ALRB route is deployed before it is added to the registry. Until its
+// output config is available, preserve the existing staging configuration so
+// the bridge deployment getter can be used independently. A second `warp apply`
+// pass against the registry branch adds the local bridge wiring.
+function getAtomicLocalRebalancingConfig(
+  existingByChain: ChainMap<RebalancingConfig>,
+): ChainMap<AtomicLocalRebalancingConfig> {
+  const registry = getRegistry();
+  const bridgeRoute = registry.getWarpRoute(
+    WarpRouteIds.CROSSMoonpayStagingLocalBridgeUSDT,
+  );
+  if (!bridgeRoute) return {};
+
+  const usdcRoute = registry.getWarpRoute(
+    WarpRouteIds.USDCCitreaMoonpaySTAGING,
+  );
+  assert(usdcRoute, 'USDC/moonpay-staging route not found in registry');
+
+  return Object.fromEntries(
+    LOCAL_REBALANCE_CHAINS.map((chain) => {
+      const bridge = bridgeRoute.tokens.find(
+        ({ chainName }) => chainName === chain,
+      )?.addressOrDenom;
+      assert(bridge, `Missing staging ALRB on ${chain}`);
+
+      const destinationRouter = usdcRoute.tokens.find(
+        ({ chainName }) => chainName === chain,
+      )?.addressOrDenom;
+      assert(destinationRouter, `Missing staging USDC router on ${chain}`);
+      const destination = addressToBytes32(destinationRouter);
+      const existing = existingByChain[chain] ?? {
+        allowedRebalancers: [],
+        allowedRebalancingBridges: {},
+      };
+
+      return [
+        chain,
+        {
+          allowedRebalancers: [
+            ...new Set([
+              ...ALLOWED_REBALANCERS,
+              ...existing.allowedRebalancers,
+              bridge,
+            ]),
+          ],
+          allowedRebalancingBridges: {
+            ...existing.allowedRebalancingBridges,
+            [chain]: [
+              ...(existing.allowedRebalancingBridges[chain] ?? []),
+              { bridge },
+            ],
+          },
+          rebalanceTargets: { [chain]: [destination] },
+          rebalanceRecipients: { [chain]: destination },
+        },
+      ];
+    }),
+  );
+}
+
 export async function getUSDTCitreaMoonpayStagingWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
@@ -54,6 +136,20 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
     [...EVM_CHAINS, 'bsc'],
     [WarpRouteIds.USDTOft, WarpRouteIds.EclipseUSDT],
   );
+  const atomicLocalRebalancingConfigByChain = getAtomicLocalRebalancingConfig(
+    oftRebalancingConfigByChain,
+  );
+  const rebalancingConfigByChain: ChainMap<RebalancingConfig> =
+    Object.fromEntries(
+      LOCAL_REBALANCE_CHAINS.map((chain) => [
+        chain,
+        atomicLocalRebalancingConfigByChain[chain] ?? {
+          allowedRebalancers: ALLOWED_REBALANCERS,
+          allowedRebalancingBridges:
+            oftRebalancingConfigByChain[chain]?.allowedRebalancingBridges ?? {},
+        },
+      ]),
+    );
 
   assert(oftRebalancingConfigByChain.bsc, 'missing rebalancing config for bsc');
 
@@ -63,8 +159,7 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       token: tokens.arbitrum.USDT,
       mailbox: routerConfig.arbitrum.mailbox,
       owner: DEPLOYER_EVM,
-      ...oftRebalancingConfigByChain.arbitrum,
-      allowedRebalancers: ALLOWED_REBALANCERS,
+      ...rebalancingConfigByChain.arbitrum,
       crossCollateralRouters,
     },
     base: {
@@ -72,7 +167,7 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       token: tokens.base.USDT,
       mailbox: routerConfig.base.mailbox,
       owner: DEPLOYER_EVM,
-      allowedRebalancers: ALLOWED_REBALANCERS,
+      ...rebalancingConfigByChain.base,
       crossCollateralRouters,
     },
     bsc: {
@@ -80,8 +175,7 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       token: tokens.bsc.USDT,
       mailbox: routerConfig.bsc.mailbox,
       owner: DEPLOYER_EVM,
-      ...oftRebalancingConfigByChain.bsc,
-      allowedRebalancers: ALLOWED_REBALANCERS,
+      ...rebalancingConfigByChain.bsc,
       scale: { numerator: 1, denominator: 1_000_000_000_000 },
       crossCollateralRouters,
     },
@@ -90,8 +184,7 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       token: tokens.ethereum.USDT,
       mailbox: routerConfig.ethereum.mailbox,
       owner: DEPLOYER_EVM,
-      ...oftRebalancingConfigByChain.ethereum,
-      allowedRebalancers: ALLOWED_REBALANCERS,
+      ...rebalancingConfigByChain.ethereum,
       crossCollateralRouters,
     },
     katana: {
@@ -107,8 +200,7 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       token: tokens.polygon.USDT,
       mailbox: routerConfig.polygon.mailbox,
       owner: DEPLOYER_EVM,
-      ...oftRebalancingConfigByChain.polygon,
-      allowedRebalancers: ALLOWED_REBALANCERS,
+      ...rebalancingConfigByChain.polygon,
       crossCollateralRouters,
     },
   };
