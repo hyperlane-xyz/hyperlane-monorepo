@@ -17,7 +17,7 @@ use hyperlane_cosmos_rs::prost::{Message, Name};
 use tonic::async_trait;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, HyperlaneMessage, RawHyperlaneMessage, H256, H512,
+    ChainCommunicationError, ChainResult, Decode, HyperlaneMessage, RawHyperlaneMessage, H256, H512,
 };
 
 use crate::GrpcProvider;
@@ -93,7 +93,7 @@ impl ModuleQueryClient {
                 let result = MsgProcessMessage::decode(msg.value.as_slice())
                     .map_err(HyperlaneCosmosError::from)?;
                 let message: RawHyperlaneMessage = hex::decode(result.message)?;
-                let message = HyperlaneMessage::from(message);
+                let message = HyperlaneMessage::read_from(&mut message.as_slice())?;
                 Ok(Some(message.recipient))
             }
             None => Ok(None),

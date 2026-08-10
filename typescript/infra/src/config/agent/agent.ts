@@ -4,6 +4,7 @@ import {
   AgentSealevelTransactionSubmitter,
   AgentSealevelUrReveal,
   AgentSignerAwsKey,
+  AgentSignerGcpKey,
   AgentSignerKeyType,
   ChainMap,
   ChainName,
@@ -42,6 +43,10 @@ export interface HelmRootAgentValues {
   nameOverride?: string;
   tolerations?: KubernetesToleration[];
   nodeSelector?: Record<string, string>;
+  serviceAccount?: {
+    name?: string;
+    annotations?: Record<string, string>;
+  };
 }
 
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
@@ -90,6 +95,7 @@ export interface AgentContextConfig extends AgentEnvConfig {
   namespace: string;
   context: Contexts;
   aws?: AwsConfig;
+  gcp?: GcpConfig;
   // Roles to manage keys for
   rolesWithKeys: Role[];
   // Names of chains this context cares about (subset of environmentChainNames)
@@ -142,8 +148,12 @@ export type RadixKeyConfig = {
   type: AgentSignerKeyType.Radix;
   suffix: string;
 };
+// Cloud KMS-backed key. `keyVersionName` is the full CryptoKeyVersion resource
+// name (GetPublicKey/AsymmetricSign require the version, not just the key).
+export type GcpKeyConfig = Required<AgentSignerGcpKey>;
 export type KeyConfig =
   | AwsKeyConfig
+  | GcpKeyConfig
   | HexKeyConfig
   | CosmosKeyConfig
   | StarknetKeyConfig
@@ -155,6 +165,11 @@ interface IndexingConfig {
 
 export interface AwsConfig {
   region: string;
+}
+
+export interface GcpConfig {
+  project: string;
+  location: string;
 }
 
 export interface DockerConfig {
@@ -186,6 +201,7 @@ export class RootAgentConfigHelper implements AgentContextConfig {
   namespace: string;
   runEnv: DeployEnvironment;
   aws?: AwsConfig;
+  gcp?: GcpConfig;
   rolesWithKeys: Role[];
   contextChainNames: AgentChainNames;
   environmentChainNames: ChainName[];
@@ -195,6 +211,7 @@ export class RootAgentConfigHelper implements AgentContextConfig {
     this.context = root.context;
     this.namespace = root.namespace;
     this.aws = root.aws;
+    this.gcp = root.gcp;
     this.runEnv = root.runEnv;
     this.rolesWithKeys = root.rolesWithKeys;
     this.contextChainNames = root.contextChainNames;

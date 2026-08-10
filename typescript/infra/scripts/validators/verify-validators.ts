@@ -1,9 +1,22 @@
 import { CoreConfig } from '@hyperlane-xyz/sdk';
 import { objFilter, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { InfraS3Validator } from '../../src/agents/aws/validator.js';
+import {
+  ComparableValidator,
+  InfraS3Validator,
+} from '../../src/agents/aws/validator.js';
+import { InfraGcsValidator } from '../../src/agents/gcp/validator.js';
 import { getArgs, getValidatorsByChain, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
+
+function validatorFromStorageLocation(
+  storageLocation: string,
+): Promise<ComparableValidator> {
+  if (storageLocation.startsWith('gs://')) {
+    return InfraGcsValidator.fromStorageLocation(storageLocation);
+  }
+  return InfraS3Validator.fromStorageLocation(storageLocation);
+}
 
 async function main() {
   const { environment, chains } = await withChains(getArgs()).argv;
@@ -29,19 +42,19 @@ async function main() {
           if (storageLocations[i].length != 1) {
             throw new Error('Only support single announcement');
           }
-          return InfraS3Validator.fromStorageLocation(storageLocations[i][0]);
+          return validatorFromStorageLocation(storageLocations[i][0]);
         }),
       );
       const controlValidator = validators[0];
       await Promise.all(
         validators.slice(1).map(async (prospectiveValidator) => {
           const address = prospectiveValidator.address;
-          const bucket = prospectiveValidator.s3Bucket;
+          const bucket = prospectiveValidator.storageLocation();
           try {
             const metrics =
               await prospectiveValidator.compare(controlValidator);
             console.log(
-              `${chain} ${bucket} validators against control ${controlValidator.s3Bucket}`,
+              `${chain} ${bucket} validators against control ${controlValidator.storageLocation()}`,
             );
             console.table(metrics);
           } catch (error) {

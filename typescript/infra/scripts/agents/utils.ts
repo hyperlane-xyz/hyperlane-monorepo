@@ -220,7 +220,12 @@ export class AgentCli {
             : contextChainNames.filter((chain: string) =>
                 this.chains!.includes(chain),
               );
-          for (const chain of validatorChains) {
+          const configuredValidatorChains = validatorChains.filter(
+            (chain) =>
+              (this.agentConfig.validators?.chains[chain]?.validators.length ??
+                0) > 0,
+          );
+          for (const chain of configuredValidatorChains) {
             const key = `${role}-${chain}`;
             managers[key] = new ValidatorHelmManager(this.agentConfig, chain);
           }

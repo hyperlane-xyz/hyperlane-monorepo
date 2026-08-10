@@ -27,25 +27,30 @@ runs:
     - name: Check for path changes
       id: check-changes
       shell: bash
+      env:
+        BASE_SHA: ${{ inputs.base_sha }}
+        HEAD_SHA: ${{ inputs.head_sha }}
+        PATH_PATTERN: ${{ inputs.path_pattern }}
+        PATH_PATTERN_ONLY: ${{ inputs.path_pattern_only }}
       run: |
         # Check if the specified path has any changes
-        if git diff ${{ inputs.base_sha }}...${{ inputs.head_sha }} --name-only | grep -qE '^${{ inputs.path_pattern }}'; then
+        if git diff "$BASE_SHA"..."$HEAD_SHA" --name-only | grep -qE "^${PATH_PATTERN}"; then
           echo "has_changes=true" >> $GITHUB_OUTPUT
 
           # If path_pattern_only is requested, also check if ONLY this path changed
-          if [[ "${{ inputs.path_pattern_only }}" == "true" ]]; then
-            if ! git diff ${{ inputs.base_sha }}...${{ inputs.head_sha }} --name-only | grep -qvE '^${{ inputs.path_pattern }}'; then
+          if [[ "$PATH_PATTERN_ONLY" == "true" ]]; then
+            if ! git diff "$BASE_SHA"..."$HEAD_SHA" --name-only | grep -qvE "^${PATH_PATTERN}"; then
               echo "only_changes=true" >> $GITHUB_OUTPUT
-              echo "Only ${{ inputs.path_pattern }} changes detected."
+              echo "Only ${PATH_PATTERN} changes detected."
             else
               echo "only_changes=false" >> $GITHUB_OUTPUT
-              echo "${{ inputs.path_pattern }} changes detected along with other changes."
+              echo "${PATH_PATTERN} changes detected along with other changes."
             fi
           fi
         else
           echo "has_changes=false" >> $GITHUB_OUTPUT
-          if [[ "${{ inputs.path_pattern_only }}" == "true" ]]; then
+          if [[ "$PATH_PATTERN_ONLY" == "true" ]]; then
             echo "only_changes=false" >> $GITHUB_OUTPUT
           fi
-          echo "No ${{ inputs.path_pattern }} changes detected."
+          echo "No ${PATH_PATTERN} changes detected."
         fi

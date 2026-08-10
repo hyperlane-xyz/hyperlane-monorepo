@@ -1,284 +1,290 @@
 {
   "abstract": {
-    "validators": ["0x2ef8ece5b51562e65970c7d36007baa43a1de685"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "adichain": {
-    "validators": ["0x4b11a6310bc06300b529b0397683ca3376407eca"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "aleo": {
-    "validators": ["0xb9e79db67d02db0f79726c1aa499cc4d26b084fa"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "apechain": {
-    "validators": ["0x773d7fe6ffb1ba4de814c28044ff9a2d83a48221"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "appchain": {
-    "validators": ["0x0531251bbadc1f9f19ccce3ca6b3f79f08eae1be"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "arbitrum": {
-    "validators": ["0x4d966438fe9e2b1e7124c87bbb90cb4f0f6c59a1"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "arcadia": {
-    "validators": ["0xe16ee9618f138cc2dcf9f9a95462099a8bf33a38"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "avalanche": {
-    "validators": ["0x3fb8263859843bffb02950c492d492cae169f4cf"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "base": {
-    "validators": ["0xb9453d675e0fa3c178a17b4ce1ad5b1a279b3af9"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "berachain": {
-    "validators": ["0x0190915c55d9c7555e6d2cb838f04d18b5e2260e"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "bitlayer": {
-    "validators": ["0x1d9b0f4ea80dbfc71cb7d64d8005eccf7c41e75f"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "blast": {
-    "validators": ["0xf20c0b09f597597c8d2430d3d72dfddaf09177d1"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "bob": {
-    "validators": ["0x20f283be1eb0e81e22f51705dcb79883cfdd34aa"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "boba": {
-    "validators": ["0xebeb92c94ca8408e73aa16fd554cb3a7df075c59"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "botanix": {
-    "validators": ["0xc944176bc4d4e5c7b0598884478a27a2b1904664"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "bsc": {
-    "validators": ["0x570af9b7b36568c8877eebba6c6727aa9dab7268"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "bsquared": {
-    "validators": ["0xcadc90933c9fbe843358a4e70e46ad2db78e28aa"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "carrchain": {
-    "validators": ["0x7ed0a7582af75dc38ad82e7125b51e3eaa6ec33b"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "celestia": {
-    "validators": ["0x6dbc192c06907784fb0af0c0c2d8809ea50ba675"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "celo": {
-    "validators": ["0x63478422679303c3e4fc611b771fa4a707ef7f4a"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "citrea": {
-    "validators": ["0xe175e8db1d04fb525879ce9f088a215d3e3fe3f0"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "coti": {
-    "validators": ["0x3c89379537f8beafc54e7e8ab4f8a1cf7974b9f0"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "eclipsemainnet": {
-    "validators": ["0xebb52d7eaa3ff7a5a6260bfe5111ce52d57401d0"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "eden": {
-    "validators": ["0x1c61e6379443e2842d3e9db28e962b6c717fdab1"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "electroneum": {
-    "validators": ["0x32917f0a38c60ff5b1c4968cb40bc88b14ef0d83"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "eni": {
-    "validators": ["0xaedc7f95c57baa668eb94341589837b5430a484c"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "ethereum": {
-    "validators": ["0x03c842db86a6a3e524d4a6615390c1ea8e2b9541"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "fluent": {
-    "validators": ["0xea189ae1a9c3e86bcb63597a34a8ea3b0bb83406"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "flowmainnet": {
-    "validators": ["0xe132235c958ca1f3f24d772e5970dd58da4c0f6e"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "fraxtal": {
-    "validators": ["0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "galactica": {
-    "validators": ["0xfc48af3372d621f476c53d79d42a9e96ce11fd7d"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "gnosis": {
-    "validators": ["0xd4df66a859585678f2ea8357161d896be19cc1ca"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "hashkey": {
-    "validators": ["0x55007cab8788cdba22844e7a2499cf43347f487a"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "hemi": {
-    "validators": ["0x312dc72c17d01f3fd0abd31dd9b569bc473266dd"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "hyperevm": {
-    "validators": ["0x01be14a9eceeca36c9c1d46c056ca8c87f77c26f"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "igra": {
-    "validators": ["0x485f0739639e46d3b06b1b92debe2ade56d8bfb1"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "immutablezkevmmainnet": {
-    "validators": ["0xbdda85b19a5efbe09e52a32db1a072f043dd66da"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "ink": {
-    "validators": ["0xb533b8b104522958b984fb258e0684dec0f1a6a5"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "katana": {
-    "validators": ["0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "kiichain": {
-    "validators": ["0x5513bc60f0a3a8520edc03828c1bc6111008b54e"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "krown": {
-    "validators": ["0x4f78f3fca0660716c4b276893d73f6f4c95fe618"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "kyve": {
-    "validators": ["0x8576ddc0cd96325f85528e53f333357afb8bf044"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "lazai": {
-    "validators": ["0x3b00fe3518e739bb978b04d28e1492d8d865d96e"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "linea": {
-    "validators": ["0xf2d5409a59e0f5ae7635aff73685624904a77d94"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "lisk": {
-    "validators": ["0xc0b282aa5bac43fee83cf71dc3dd1797c1090ea5"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "lukso": {
-    "validators": ["0xa5e953701dcddc5b958b5defb677a829d908df6d"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "lumiaprism": {
-    "validators": ["0xb69731640ffd4338a2c9358a935b0274c6463f85"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "mantle": {
-    "validators": ["0xf930636c5a1a8bf9302405f72e3af3c96ebe4a52"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "mantra": {
-    "validators": ["0x89b8064e29f125e896f6081ebb77090c46bca9cd"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "matchain": {
-    "validators": ["0x8a052f7934b0626105f34f980c875ec03aaf82e8"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "megaeth": {
-    "validators": ["0x051ddac8ecf4bae2532b8b7caa626b5567dab528"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "metal": {
-    "validators": ["0xd9f7f1a05826197a93df51e86cefb41dfbfb896a"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "metis": {
-    "validators": ["0xc4a3d25107060e800a43842964546db508092260"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "mitosis": {
-    "validators": ["0x3b3eb808d90a4e19bb601790a6b6297812d6a61f"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "mocachain": {
-    "validators": ["0x31ab8fc95d941defa077f8501c6800e935c3b081"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "mode": {
-    "validators": ["0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "monad": {
-    "validators": ["0xb4654795b2f1b17513ffde7d85c776e4cade366c"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "morph": {
-    "validators": ["0x4884535f393151ec419add872100d352f71af380"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "nesa": {
-    "validators": ["0x990f548e766b830f69642d36cdd47fb20a2aa405"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "nexus": {
-    "validators": ["0x4621452aeca3dcaf457a1ff9c68470bbfd6312b4"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "nibiru": {
-    "validators": ["0xba9779d84a8efba1c6bc66326d875c3611a24b24"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "noble": {
-    "validators": ["0x28495e5c72a7dafd1658e5d99dfeffaada175c46"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "oortmainnet": {
-    "validators": ["0x9b7ff56cd9aa69006f73f1c5b8c63390c706a5d7"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "optimism": {
-    "validators": ["0x20349eadc6c72e94ce38268b96692b1a5c20de4f"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
+  },
+  "paradex": {
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "peaq": {
-    "validators": ["0x7f7fe70b676f65097e2a1e2683d0fc96ea8fea49"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "plasma": {
-    "validators": ["0x4ba900a8549fe503bca674114dc98a254637fc2c"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "plume": {
-    "validators": ["0x63c9b5ea28710d956a51f0f746ee8df81215663f"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "polygon": {
-    "validators": ["0x12ecb319c7f4e8ac5eb5226662aeb8528c5cefac"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "prom": {
-    "validators": ["0xb0c4042b7c9a95345be8913f4cdbf4043b923d98"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "pulsechain": {
-    "validators": ["0xa73fc7ebb2149d9c6992ae002cb1849696be895b"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "radix": {
-    "validators": ["0xa715a7cd97f68caeedb7be64f9e1da10f8ffafb4"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "reactive": {
-    "validators": ["0x45768525f6c5ca2e4e7cc50d405370eadee2d624"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "robinhood": {
-    "validators": ["0x4b22d7b451e5ad05e91356ef847cc7c253533584"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "ronin": {
-    "validators": ["0xa3e11929317e4a871c3d47445ea7bb8c4976fd8a"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "sei": {
-    "validators": ["0x9920d2dbf6c85ffc228fdc2e810bf895732c6aa5"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "solanamainnet": {
-    "validators": ["0x28464752829b3ea59a497fca0bdff575c534c3ff"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "solaxy": {
-    "validators": ["0x4fa10dd6d854cd05f57bacf6f46d1a72eb1396e5"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "somnia": {
-    "validators": ["0xf484907083d32fdc0848bfb998dfdde835e6f9cb"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "soneium": {
-    "validators": ["0xd4b7af853ed6a2bfc329ecef545df90c959cbee8"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "sonic": {
-    "validators": ["0xa313d72dbbd3fa51a2ed1611ea50c37946fa42f7"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "sonicsvm": {
-    "validators": ["0xf21f46905d8d09f76bc8c503f856e5466bc5ffea"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "stable": {
-    "validators": ["0x21820baebcd972c769e490415cfee43a894f3c18"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
+  },
+  "starknet": {
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "subtensor": {
-    "validators": ["0xd5f8196d7060b85bea491f0b52a671e05f3d10a2"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "superseed": {
-    "validators": ["0xdc2b87cb555411bb138d3a4e5f7832c87fae2b88"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "tac": {
-    "validators": ["0x606561d6a45188ba0a486e513e440bfc421dbc36"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "tea": {
-    "validators": ["0xb442f3df246b8c7f067da15a6e390c253f6eaeb6"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "tron": {
-    "validators": ["0x5f059616ce75d0fe6a02ea1d9fd2b32659b52adb"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "unichain": {
-    "validators": ["0x9773a382342ebf604a2e5de0a1f462fb499e28b1"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "vana": {
-    "validators": ["0xfdf3b0dfd4b822d10cacb15c8ae945ea269e7534"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "viction": {
-    "validators": ["0x1f87c368f8e05a85ef9126d984a980a20930cb9c"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "worldchain": {
-    "validators": ["0x31048785845325b22817448b68d08f8a8fe36854"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "xlayer": {
-    "validators": ["0xa2ae7c594703e988f23d97220717c513db638ea3"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "zerogravity": {
-    "validators": ["0xc37e7dad064c11d7ecfc75813a4d8d649d797275"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "zksync": {
-    "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   }
 }

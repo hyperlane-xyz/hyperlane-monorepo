@@ -12,7 +12,7 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { getChainAddresses } from '../../../../registry.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
-import { getWarpFeeOwner } from '../../governance/utils.js';
+import { WARP_FEES_TURNKEY_OWNER } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
 import { usdcTokenAddresses } from '../cctp.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
@@ -308,7 +308,7 @@ export const buildEclipseUSDCWarpConfig = async (
         (otherChain) => otherChain !== currentChain,
       );
       const feeConfig = getFixedRoutingFeeConfig(
-        getWarpFeeOwner(currentChain),
+        WARP_FEES_TURNKEY_OWNER,
         feeDestinations,
         1.5,
         undefined,

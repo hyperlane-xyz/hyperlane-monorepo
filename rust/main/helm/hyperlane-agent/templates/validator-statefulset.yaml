@@ -36,6 +36,7 @@ spec:
         {{ toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      serviceAccountName: {{ include "agent-common.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -61,6 +62,7 @@ spec:
             name: {{ include "agent-common.fullname" . }}-secret
         - secretRef:
             name: {{ include "validator.fullname" . }}-secret
+            optional: true
         env:
           - name: REPLICA_NAME
             valueFrom:
@@ -85,6 +87,7 @@ spec:
       - name: secret-env-vars
         secret:
           secretName: {{ include "validator.fullname" . }}-secret
+          optional: true
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

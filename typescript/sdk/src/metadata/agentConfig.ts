@@ -51,6 +51,7 @@ export enum AgentIndexMode {
 
 export enum AgentSignerKeyType {
   Aws = 'aws',
+  Gcp = 'gcp',
   Hex = 'hexKey',
   Node = 'node',
   Cosmos = 'cosmosKey',
@@ -93,6 +94,21 @@ const AgentSignerAwsKeySchema = z
   .describe(
     'An AWS signer. Note that AWS credentials must be inserted into the env separately.',
   );
+const AgentSignerGcpKeySchema = z
+  .object({
+    // Required, unlike Hex/Aws's optional `type` - those stay optional only
+    // for backward compat with configs written before those had a
+    // discriminant; Gcp has no such pre-discriminant format to preserve, and
+    // an optional type here would let `signerType` resolve to `undefined`,
+    // silently skipping the protocol-signer refinement below.
+    type: z.literal(AgentSignerKeyType.Gcp),
+    keyVersionName: z
+      .string()
+      .describe('The full GCP KMS CryptoKeyVersion resource name'),
+  })
+  .describe(
+    'A GCP Cloud KMS signer. Note that GCP credentials (e.g. Workload Identity) must be available in the env separately.',
+  );
 const AgentSignerCosmosKeySchema = z
   .object({
     type: z.literal(AgentSignerKeyType.Cosmos),
@@ -116,12 +132,14 @@ const AgentSignerNodeSchema = z
 const AgentSignerSchema = z.union([
   AgentSignerHexKeySchema,
   AgentSignerAwsKeySchema,
+  AgentSignerGcpKeySchema,
   AgentSignerCosmosKeySchema,
   AgentSignerNodeSchema,
   AgentSignerRadixKeySchema,
 ]);
 
 export type AgentSignerHexKey = z.infer<typeof AgentSignerHexKeySchema>;
+export type AgentSignerGcpKey = z.infer<typeof AgentSignerGcpKeySchema>;
 export type AgentSignerAwsKey = z.infer<typeof AgentSignerAwsKeySchema>;
 export type AgentSignerCosmosKey = z.infer<typeof AgentSignerNodeSchema>;
 export type AgentSignerNode = z.infer<typeof AgentSignerNodeSchema>;
@@ -291,8 +309,9 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
         if (
           ![
             AgentSignerKeyType.Hex,
-            signerType === AgentSignerKeyType.Aws,
-            signerType === AgentSignerKeyType.Node,
+            AgentSignerKeyType.Aws,
+            AgentSignerKeyType.Node,
+            AgentSignerKeyType.Gcp,
           ].includes(signerType)
         ) {
           return false;
@@ -682,16 +701,22 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
           .min(1)
           .optional()
           .describe('The folder to use, defaults to the root of the bucket'),
-        service_account_key: z
+        serviceAccountKey: z
           .string()
           .min(1)
           .optional()
           .describe('The path to GCS service account key file'),
-        user_secrets: z
+        userSecrets: z
           .string()
           .min(1)
           .optional()
           .describe('The path to GCS user secret file'),
+        useApplicationDefault: z
+          .boolean()
+          .optional()
+          .describe(
+            'Use ambient Application Default Credentials (e.g. GKE Workload Identity) instead of a key file or user secrets',
+          ),
       })
       .describe('A checkpoint syncer that uses Google Cloud Storage'),
   ]),

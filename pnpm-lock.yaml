@@ -1388,6 +1388,9 @@ importers:
       '@ethersproject/abi':
         specifier: '*'
         version: 5.8.0
+      '@ethersproject/abstract-signer':
+        specifier: '*'
+        version: 5.8.0
       '@ethersproject/experimental':
         specifier: ^5.7.0
         version: 5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
