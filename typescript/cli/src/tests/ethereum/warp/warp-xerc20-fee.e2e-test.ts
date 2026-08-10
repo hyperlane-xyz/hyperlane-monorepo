@@ -220,5 +220,45 @@ describe('hyperlane warp xERC20 token fee e2e tests', function () {
       expect(eqAddress(fee.token, wrappedToken)).to.be.true;
       expect(eqAddress(fee.token, lockbox.address)).to.be.false;
     });
+
+    describe('setting a fee on an existing xERC20Lockbox warp route via warp apply', () => {
+      // The global e2e beforeEach wipes deployments/warp_routes before every
+      // test, so re-deploy a fee-less lockbox route here.
+      beforeEach(async function () {
+        writeYamlOrJson(LB_DEPLOY_PATH, buildLockboxConfig());
+        await hyperlaneWarpDeploy(LB_DEPLOY_PATH, LB_WARP_ROUTE_ID);
+      });
+
+      it('sets a LinearFee on a fee-less xERC20Lockbox warp route', async function () {
+        const deployedConfig = (
+          await readWarpConfig(
+            CHAIN_NAME_2,
+            LB_CORE_PATH,
+            LB_REGISTRY_DEPLOY_PATH,
+          )
+        )[CHAIN_NAME_2];
+        expect(deployedConfig.tokenFee).to.be.undefined;
+
+        // warp apply reads the desired config from the registry deploy path.
+        writeYamlOrJson(LB_REGISTRY_DEPLOY_PATH, buildLockboxConfig(FEE_BPS));
+        await hyperlaneWarpApply(LB_WARP_ROUTE_ID);
+
+        const updatedConfig = (
+          await readWarpConfig(
+            CHAIN_NAME_2,
+            LB_CORE_PATH,
+            LB_REGISTRY_DEPLOY_PATH,
+          )
+        )[CHAIN_NAME_2];
+
+        const fee = TokenFeeConfigSchema.parse(updatedConfig.tokenFee);
+        assert(fee.type === TokenFeeType.LinearFee, 'expected a LinearFee');
+        expect(fee.bps).to.equal(FEE_BPS);
+        // The applied fee token must resolve to the wrapped ERC20 (router.token()),
+        // NOT the lockbox address stored in the deploy config.
+        expect(eqAddress(fee.token, wrappedToken)).to.be.true;
+        expect(eqAddress(fee.token, lockbox.address)).to.be.false;
+      });
+    });
   });
 });

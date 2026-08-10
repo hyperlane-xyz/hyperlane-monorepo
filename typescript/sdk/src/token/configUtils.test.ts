@@ -1,8 +1,7 @@
 import { expect } from 'chai';
-import { constants, providers } from 'ethers';
+import { constants, providers, utils } from 'ethers';
 import sinon from 'sinon';
 
-import { HypXERC20Lockbox__factory } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
 import {
@@ -623,6 +622,10 @@ describe('configUtils', () => {
     const ROUTER_ADDRESS = '0x1234567890123456789012345678901234567890';
     const OWNER_ADDRESS = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd';
     const COLLATERAL_TOKEN = '0x9999999999999999999999999999999999999999';
+    // xERC20 fee token is read from the router's on-chain token(), which is
+    // distinct from tokenConfig.token here so we can prove the on-chain read.
+    const XERC20_CONFIG_TOKEN = '0x6666666666666666666666666666666666666666';
+    const XERC20_ONCHAIN_TOKEN = '0x5555555555555555555555555555555555555555';
     // The lockbox's on-chain token() returns the underlying wrapped ERC20,
     // which is distinct from the lockbox address stored in tokenConfig.token.
     const LOCKBOX_ADDRESS = '0x8888888888888888888888888888888888888888';
@@ -630,6 +633,14 @@ describe('configUtils', () => {
 
     let sandbox: sinon.SinonSandbox;
     let provider: providers.Provider;
+
+    // Stubs the router's on-chain token() view call so xERC20/xERC20Lockbox fee
+    // resolution reads the returned address without hitting a live RPC.
+    function stubRouterToken(returnedToken: string): void {
+      sandbox
+        .stub(provider, 'call')
+        .resolves(utils.defaultAbiCoder.encode(['address'], [returnedToken]));
+    }
 
     beforeEach(() => {
       sandbox = sinon.createSandbox();
@@ -655,7 +666,7 @@ describe('configUtils', () => {
 
     const xerc20Config: HypTokenConfig = {
       type: TokenType.XERC20,
-      token: COLLATERAL_TOKEN,
+      token: XERC20_CONFIG_TOKEN,
     };
 
     const xerc20LockboxConfig: HypTokenConfig = {
@@ -718,7 +729,10 @@ describe('configUtils', () => {
       expect(result.token).to.equal(constants.AddressZero);
     });
 
-    it('should resolve token to the xERC20 token address for xERC20 tokens', async () => {
+    it('should resolve token to the on-chain token() for xERC20 tokens', async () => {
+      // The fee token is read from the router's token(), not tokenConfig.token.
+      stubRouterToken(XERC20_ONCHAIN_TOKEN);
+
       const input = {
         type: TokenFeeType.LinearFee,
         owner: OWNER_ADDRESS,
@@ -733,16 +747,14 @@ describe('configUtils', () => {
       );
 
       assert(result.type === TokenFeeType.LinearFee, 'expected a LinearFee');
-      expect(result.token).to.equal(COLLATERAL_TOKEN);
+      expect(result.token).to.equal(XERC20_ONCHAIN_TOKEN);
+      expect(result.token).to.not.equal(XERC20_CONFIG_TOKEN);
     });
 
     it('should resolve token to the on-chain wrapped token for xERC20Lockbox tokens', async () => {
       // For a lockbox, the fee token must match the router's token() (the
       // underlying wrapped ERC20), NOT the lockbox address in the config.
-      const tokenStub = sandbox.stub().resolves(LOCKBOX_WRAPPED_TOKEN);
-      sandbox.stub(HypXERC20Lockbox__factory, 'connect').returns({
-        token: tokenStub,
-      } as any);
+      stubRouterToken(LOCKBOX_WRAPPED_TOKEN);
 
       const input = {
         type: TokenFeeType.LinearFee,
@@ -850,6 +862,46 @@ describe('configUtils', () => {
       expect(result.feeContracts.ethereum[ROUTER_KEY]?.token).to.equal(
         ROUTER_ADDRESS,
       );
+    });
+
+    it('reads the on-chain token() only once for nested RoutingFee', async () => {
+      const callStub = sandbox
+        .stub(provider, 'call')
+        .resolves(
+          utils.defaultAbiCoder.encode(['address'], [XERC20_ONCHAIN_TOKEN]),
+        );
+
+      const input = {
+        type: TokenFeeType.RoutingFee,
+        owner: OWNER_ADDRESS,
+        feeContracts: {
+          ethereum: {
+            type: TokenFeeType.LinearFee,
+            owner: OWNER_ADDRESS,
+            bps: 100,
+          },
+          arbitrum: {
+            type: TokenFeeType.LinearFee,
+            owner: OWNER_ADDRESS,
+            bps: 50,
+          },
+        },
+      };
+
+      const result = await resolveTokenFeeAddress(
+        input,
+        ROUTER_ADDRESS,
+        xerc20Config,
+        provider,
+      );
+
+      assert(result.type === TokenFeeType.RoutingFee, 'expected a RoutingFee');
+      // Same feeToken threaded through every nesting level.
+      expect(result.token).to.equal(XERC20_ONCHAIN_TOKEN);
+      expect(result.feeContracts.ethereum.token).to.equal(XERC20_ONCHAIN_TOKEN);
+      expect(result.feeContracts.arbitrum.token).to.equal(XERC20_ONCHAIN_TOKEN);
+      // token() resolved a single time despite the nested fee contracts.
+      expect(callStub.callCount).to.equal(1);
     });
   });
 

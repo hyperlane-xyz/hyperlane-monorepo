@@ -18,6 +18,8 @@ import {
   HypERC20__factory,
   HypERC4626Collateral__factory,
   HypNative__factory,
+  HypXERC20__factory,
+  LinearFee__factory,
   Mailbox,
   MailboxClient__factory,
   Mailbox__factory,
@@ -2804,6 +2806,78 @@ describe('EvmWarpModule', async () => {
         return { warpModule, xerc20 };
       }
 
+      // LinearFee = min(maxFee, (amount * maxFee) / (2 * halfAmount)).
+      function expectedLinearFee(
+        maxFee: bigint,
+        halfAmount: bigint,
+        amount: bigint,
+      ): bigint {
+        const uncapped = (amount * maxFee) / (2n * halfAmount);
+        return uncapped > maxFee ? maxFee : uncapped;
+      }
+
+      // Reads the deployed LinearFee contract wired to the router and asserts
+      // its on-chain params. Critically verifies fee.token() == router.token(),
+      // the exact invariant the router enforces at transfer time
+      // ("FungibleTokenRouter: fee must match token").
+      async function assertOnchainLinearFee(
+        warpModule: EvmWarpModule,
+        expected: { maxFee: bigint; halfAmount: bigint },
+      ): Promise<void> {
+        const { deployedTokenRoute } = warpModule.serialize();
+        const router = HypXERC20__factory.connect(deployedTokenRoute, signer);
+        const feeRecipient = await router.feeRecipient();
+        expect(eqAddress(feeRecipient, ethers.constants.AddressZero)).to.be
+          .false;
+
+        const fee = LinearFee__factory.connect(feeRecipient, signer);
+        expect(eqAddress(await fee.token(), await router.token())).to.be.true;
+        expect((await fee.maxFee()).toBigInt()).to.equal(expected.maxFee);
+        expect((await fee.halfAmount()).toBigInt()).to.equal(
+          expected.halfAmount,
+        );
+      }
+
+      it('charges the resolved token when quoting a fee-bearing transfer', async () => {
+        const { warpModule } = await deployXERC20Route();
+        const maxFee = 1_000_000_000n;
+        const halfAmount = 500_000_000n;
+
+        const actualConfig = await warpModule.read();
+        const feeConfig = HypTokenRouterConfigSchema.parse({
+          ...actualConfig,
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            maxFee: maxFee.toString(),
+            halfAmount: halfAmount.toString(),
+          },
+        });
+        await sendTxs(await warpModule.update(feeConfig));
+
+        await assertOnchainLinearFee(warpModule, { maxFee, halfAmount });
+
+        const { deployedTokenRoute } = warpModule.serialize();
+        const router = HypXERC20__factory.connect(deployedTokenRoute, signer);
+        const fee = LinearFee__factory.connect(
+          await router.feeRecipient(),
+          signer,
+        );
+
+        // Quote a transfer through the deployed fee contract: fee token must be
+        // the router token and the amount must match the LinearFee formula.
+        const amount = halfAmount; // fee = maxFee / 2
+        const quotes = await fee.quoteTransferRemote(
+          1,
+          addressToBytes32(signer.address),
+          amount,
+        );
+        expect(quotes.length).to.equal(1);
+        expect(eqAddress(quotes[0].token, await router.token())).to.be.true;
+        const expected = expectedLinearFee(maxFee, halfAmount, amount);
+        expect(quotes[0].amount.toBigInt()).to.equal(expected);
+        expect(expected > 0n, 'expected a non-zero fee').to.be.true;
+      });
+
       it('should set a LinearFee on an xERC20 route via warp apply', async () => {
         const { warpModule } = await deployXERC20Route();
 
@@ -2870,6 +2944,12 @@ describe('EvmWarpModule', async () => {
 
         const finalConfig = await warpModule.read();
         expect(finalConfig.tokenFee?.type).to.equal(TokenFeeType.LinearFee);
+        // Assert the updated amounts and token are live on-chain, not just the
+        // fee type. Confirms the new fee contract was wired with the new params.
+        await assertOnchainLinearFee(warpModule, {
+          maxFee: 2_000_000_000n,
+          halfAmount: 1_000_000_000n,
+        });
       });
 
       it('should set and update OffchainQuotedLinearFee on an xERC20 route', async () => {
