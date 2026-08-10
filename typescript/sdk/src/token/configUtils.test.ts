@@ -622,20 +622,25 @@ describe('configUtils', () => {
     const ROUTER_ADDRESS = '0x1234567890123456789012345678901234567890';
     const OWNER_ADDRESS = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd';
     const COLLATERAL_TOKEN = '0x9999999999999999999999999999999999999999';
-    // xERC20 fee token is read from the router's on-chain token(), which is
-    // distinct from tokenConfig.token here so we can prove the on-chain read.
+    // xERC20 fee token is read from the router's on-chain wrappedToken(), which
+    // is distinct from tokenConfig.token here so we can prove the on-chain read.
     const XERC20_CONFIG_TOKEN = '0x6666666666666666666666666666666666666666';
     const XERC20_ONCHAIN_TOKEN = '0x5555555555555555555555555555555555555555';
-    // The lockbox's on-chain token() returns the underlying wrapped ERC20,
-    // which is distinct from the lockbox address stored in tokenConfig.token.
+    // The lockbox's on-chain wrappedToken() returns the underlying wrapped
+    // ERC20, distinct from the lockbox address stored in tokenConfig.token.
     const LOCKBOX_ADDRESS = '0x8888888888888888888888888888888888888888';
     const LOCKBOX_WRAPPED_TOKEN = '0x7777777777777777777777777777777777777777';
+
+    // Function selectors for the router getters exercised by fee resolution.
+    const TOKEN_SELECTOR = utils.id('token()').slice(0, 10);
+    const WRAPPED_TOKEN_SELECTOR = utils.id('wrappedToken()').slice(0, 10);
 
     let sandbox: sinon.SinonSandbox;
     let provider: providers.Provider;
 
-    // Stubs the router's on-chain token() view call so xERC20/xERC20Lockbox fee
-    // resolution reads the returned address without hitting a live RPC.
+    // Stubs the router's on-chain wrappedToken() view call so xERC20/
+    // xERC20Lockbox fee resolution reads the returned address without hitting a
+    // live RPC.
     function stubRouterToken(returnedToken: string): void {
       sandbox
         .stub(provider, 'call')
@@ -729,8 +734,8 @@ describe('configUtils', () => {
       expect(result.token).to.equal(constants.AddressZero);
     });
 
-    it('should resolve token to the on-chain token() for xERC20 tokens', async () => {
-      // The fee token is read from the router's token(), not tokenConfig.token.
+    it('should resolve token to the on-chain wrappedToken() for xERC20 tokens', async () => {
+      // The fee token is read from wrappedToken(), not tokenConfig.token.
       stubRouterToken(XERC20_ONCHAIN_TOKEN);
 
       const input = {
@@ -752,8 +757,8 @@ describe('configUtils', () => {
     });
 
     it('should resolve token to the on-chain wrapped token for xERC20Lockbox tokens', async () => {
-      // For a lockbox, the fee token must match the router's token() (the
-      // underlying wrapped ERC20), NOT the lockbox address in the config.
+      // For a lockbox, the fee token must match the router's wrappedToken()
+      // (the underlying wrapped ERC20), NOT the lockbox address in the config.
       stubRouterToken(LOCKBOX_WRAPPED_TOKEN);
 
       const input = {
@@ -773,6 +778,57 @@ describe('configUtils', () => {
       expect(result.token).to.equal(LOCKBOX_WRAPPED_TOKEN);
       expect(result.token).to.not.equal(LOCKBOX_ADDRESS);
     });
+
+    // Regression: legacy routers (e.g. 6.1.0) do not override token(), so it
+    // reverts. Fee resolution runs at plan time BEFORE the router is upgraded,
+    // so a single warp apply that both upgrades the contract and adds a fee
+    // would fail if it read token(). It must read the immutable wrappedToken(),
+    // which is present and non-reverting across router versions.
+    for (const { name, config, wrappedToken } of [
+      {
+        name: 'xERC20',
+        config: xerc20Config,
+        wrappedToken: XERC20_ONCHAIN_TOKEN,
+      },
+      {
+        name: 'xERC20Lockbox',
+        config: xerc20LockboxConfig,
+        wrappedToken: LOCKBOX_WRAPPED_TOKEN,
+      },
+    ]) {
+      it(`resolves the fee token via wrappedToken() when a legacy router's token() reverts for ${name}`, async () => {
+        sandbox
+          .stub(provider, 'call')
+          .callsFake(
+            async (
+              transaction: utils.Deferrable<providers.TransactionRequest>,
+            ) => {
+              const data = utils.hexlify((await transaction.data) ?? '0x');
+              if (data.startsWith(TOKEN_SELECTOR)) {
+                // Mirror the legacy 6.1.0 router: token() reverts.
+                throw new Error('call revert exception: token()');
+              }
+              if (data.startsWith(WRAPPED_TOKEN_SELECTOR)) {
+                return utils.defaultAbiCoder.encode(
+                  ['address'],
+                  [wrappedToken],
+                );
+              }
+              throw new Error(`unexpected call to router: ${data}`);
+            },
+          );
+
+        const result = await resolveTokenFeeAddress(
+          { type: TokenFeeType.LinearFee, owner: OWNER_ADDRESS, bps: 100 },
+          ROUTER_ADDRESS,
+          config,
+          provider,
+        );
+
+        assert(result.type === TokenFeeType.LinearFee, 'expected a LinearFee');
+        expect(result.token).to.equal(wrappedToken);
+      });
+    }
 
     it('should resolve nested feeContracts tokens for RoutingFee', async () => {
       const input = {

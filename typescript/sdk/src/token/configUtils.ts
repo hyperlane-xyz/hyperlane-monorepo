@@ -553,12 +553,16 @@ export function normalizeWarpDeployConfigForCheck(params: {
  * - Native tokens: fee token is AddressZero
  * - Collateral tokens: fee token is the collateral token address
  * - xERC20 / xERC20Lockbox tokens: the fee token is read on-chain from the
- *   deployed router's token() rather than trusting tokenConfig.token. Plain
- *   xERC20 token() returns the wrapped xERC20, while xERC20Lockbox token()
- *   returns the underlying wrapped ERC20 (lockbox.ERC20()), NOT the lockbox
- *   address stored in tokenConfig.token. Reading on-chain guarantees the fee
- *   token matches the contract's feeToken() and passes the router's
- *   fee==token() check.
+ *   deployed router's immutable wrappedToken() rather than trusting
+ *   tokenConfig.token. Plain xERC20 wrappedToken() returns the wrapped xERC20,
+ *   while xERC20Lockbox wrappedToken() returns the underlying wrapped ERC20,
+ *   NOT the lockbox address stored in tokenConfig.token. wrappedToken() (not
+ *   token()) is used because it is an immutable getter present across router
+ *   versions: on legacy routers (e.g. 6.1.0) token() reverts, and fee
+ *   resolution runs at plan time BEFORE the router is upgraded, so reading
+ *   token() there would revert when adding a fee in the same warp apply that
+ *   also upgrades the contract. In current routers token() == wrappedToken(),
+ *   so the resolved fee token still matches the router's fee==token() check.
  * - Synthetic tokens: fee token is the router address (the HypERC20 itself)
  */
 async function getFeeTokenAddress(
@@ -571,11 +575,14 @@ async function getFeeTokenAddress(
   }
 
   if (tokenConfig.type === TokenType.XERC20Lockbox) {
-    return HypXERC20Lockbox__factory.connect(routerAddress, provider).token();
+    return HypXERC20Lockbox__factory.connect(
+      routerAddress,
+      provider,
+    ).wrappedToken();
   }
 
   if (isXERC20TokenConfig(tokenConfig)) {
-    return HypXERC20__factory.connect(routerAddress, provider).token();
+    return HypXERC20__factory.connect(routerAddress, provider).wrappedToken();
   }
 
   if (
