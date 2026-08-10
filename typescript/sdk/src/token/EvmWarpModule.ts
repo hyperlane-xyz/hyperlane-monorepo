@@ -83,7 +83,10 @@ import {
 } from './EvmWarpRouteReader.js';
 import { EvmXERC20Module } from './EvmXERC20Module.js';
 import { DeployableTokenType, TokenType } from './config.js';
-import { resolveTokenFeeAddress } from './configUtils.js';
+import {
+  resolveAndValidateRebalanceConfig,
+  resolveTokenFeeAddress,
+} from './configUtils.js';
 import { hypERC20contracts } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
@@ -159,7 +162,8 @@ const getRebalanceTargetsByDomain = (
 ): Record<string, Set<Address>> => {
   return objMap(
     rebalanceTargetsByDomain,
-    (_domainId, targets) => new Set(targets.map(normalizeAddressEvm)),
+    (_domainId, targets) =>
+      new Set(targets.map((target) => addressToBytes32(target).toLowerCase())),
   );
 };
 
@@ -169,7 +173,7 @@ const getRebalanceRecipientsByDomain = (
   >,
 ): Record<string, Address> => {
   return objMap(rebalanceRecipientsByDomain, (_domainId, recipient) =>
-    normalizeAddressEvm(recipient),
+    addressToBytes32(recipient).toLowerCase(),
   );
 };
 export class EvmWarpModule extends HyperlaneModule<
@@ -935,12 +939,12 @@ export class EvmWarpModule extends HyperlaneModule<
         actualConfig.rebalanceTargets ?? {},
       ),
     );
-    const expectedTargets = getRebalanceTargetsByDomain(
-      resolveRouterMapConfig(
-        this.multiProvider,
-        expectedConfig.rebalanceTargets,
-      ),
+    const { rebalanceTargets } = resolveAndValidateRebalanceConfig(
+      this.multiProvider,
+      this.chainName,
+      expectedConfig,
     );
+    const expectedTargets = getRebalanceTargetsByDomain(rebalanceTargets);
 
     const targetsToAddByDomain = objMap(expectedTargets, (domain, targets) => {
       const actual = actualTargets[domain] ?? new Set();
@@ -954,7 +958,7 @@ export class EvmWarpModule extends HyperlaneModule<
         to: this.args.addresses.deployedTokenRoute,
         data: CrossCollateralRouter__factory.createInterface().encodeFunctionData(
           'addRebalanceTarget(uint32,bytes32)',
-          [domain, addressToBytes32(target)],
+          [domain, target],
         ),
       })),
     );
@@ -971,22 +975,18 @@ export class EvmWarpModule extends HyperlaneModule<
       return [];
     }
 
-    if (!expectedConfig.rebalanceTargets) {
-      return [];
-    }
-
     const actualTargets = getRebalanceTargetsByDomain(
       resolveRouterMapConfig(
         this.multiProvider,
         actualConfig.rebalanceTargets ?? {},
       ),
     );
-    const expectedTargets = getRebalanceTargetsByDomain(
-      resolveRouterMapConfig(
-        this.multiProvider,
-        expectedConfig.rebalanceTargets,
-      ),
+    const { rebalanceTargets } = resolveAndValidateRebalanceConfig(
+      this.multiProvider,
+      this.chainName,
+      expectedConfig,
     );
+    const expectedTargets = getRebalanceTargetsByDomain(rebalanceTargets);
 
     const targetsToRemoveByDomain = objMap(actualTargets, (domain, targets) => {
       const expected = expectedTargets[domain] ?? new Set();
@@ -1001,7 +1001,7 @@ export class EvmWarpModule extends HyperlaneModule<
           to: this.args.addresses.deployedTokenRoute,
           data: CrossCollateralRouter__factory.createInterface().encodeFunctionData(
             'removeRebalanceTarget(uint32,bytes32)',
-            [domain, addressToBytes32(target)],
+            [domain, target],
           ),
         })),
     );
@@ -1028,12 +1028,13 @@ export class EvmWarpModule extends HyperlaneModule<
         actualConfig.rebalanceRecipients ?? {},
       ),
     );
-    const expectedRecipients = getRebalanceRecipientsByDomain(
-      resolveRouterMapConfig(
-        this.multiProvider,
-        expectedConfig.rebalanceRecipients,
-      ),
+    const { rebalanceRecipients } = resolveAndValidateRebalanceConfig(
+      this.multiProvider,
+      this.chainName,
+      expectedConfig,
     );
+    const expectedRecipients =
+      getRebalanceRecipientsByDomain(rebalanceRecipients);
 
     const recipientsToSetByDomain = objDiff(
       expectedRecipients,
@@ -1047,7 +1048,7 @@ export class EvmWarpModule extends HyperlaneModule<
         to: this.args.addresses.deployedTokenRoute,
         data: CrossCollateralRouter__factory.createInterface().encodeFunctionData(
           'setRecipient(uint32,bytes32)',
-          [domain, addressToBytes32(recipient)],
+          [domain, recipient],
         ),
       }),
     );
@@ -1064,22 +1065,19 @@ export class EvmWarpModule extends HyperlaneModule<
       return [];
     }
 
-    if (!expectedConfig.rebalanceRecipients) {
-      return [];
-    }
-
     const actualRecipients = getRebalanceRecipientsByDomain(
       resolveRouterMapConfig(
         this.multiProvider,
         actualConfig.rebalanceRecipients ?? {},
       ),
     );
-    const expectedRecipients = getRebalanceRecipientsByDomain(
-      resolveRouterMapConfig(
-        this.multiProvider,
-        expectedConfig.rebalanceRecipients,
-      ),
+    const { rebalanceRecipients } = resolveAndValidateRebalanceConfig(
+      this.multiProvider,
+      this.chainName,
+      expectedConfig,
     );
+    const expectedRecipients =
+      getRebalanceRecipientsByDomain(rebalanceRecipients);
 
     const recipientDomainsToRemove = Array.from(
       difference(
@@ -1647,8 +1645,16 @@ export class EvmWarpModule extends HyperlaneModule<
     // mailbox default — the user who removed predicateWrapper without supplying a
     // replacement hook wants the default behavior restored, not the underlying sub-hook
     // silently preserved.
+    const actualPredicateWrapper =
+      'predicateWrapper' in actualConfig
+        ? actualConfig.predicateWrapper
+        : undefined;
+    const expectedPredicateWrapper =
+      'predicateWrapper' in expectedConfig
+        ? expectedConfig.predicateWrapper
+        : undefined;
     const needsPredicateRemoval =
-      actualConfig.predicateWrapper != null && !expectedConfig.predicateWrapper;
+      actualPredicateWrapper != null && !expectedPredicateWrapper;
 
     // Treat a zero-address hook the same as "no explicit hook": expandWarpDeployConfig
     // sets hook: zeroAddress as a default when the user config omits the hook field.
@@ -1673,7 +1679,7 @@ export class EvmWarpModule extends HyperlaneModule<
       // hook (e.g. IGP) on both sides and doesn't generate a spurious setHook.
       // The needsPredicateRemoval block below then fires to clear the hook to zero.
       const shouldStripHookForComparison =
-        !!expectedConfig.predicateWrapper || needsPredicateRemoval;
+        !!expectedPredicateWrapper || needsPredicateRemoval;
       const actualHookForComparison = shouldStripHookForComparison
         ? stripPredicateSubHook(actualHook)
         : actualHook;

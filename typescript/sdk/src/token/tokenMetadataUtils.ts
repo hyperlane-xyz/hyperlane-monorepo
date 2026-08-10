@@ -3,6 +3,7 @@ import {
   ERC721Enumerable__factory,
   IERC4626__factory,
   IXERC20Lockbox__factory,
+  MovableCollateralRouter__factory,
 } from '@hyperlane-xyz/core';
 import { isEVMLike } from '@hyperlane-xyz/utils';
 
@@ -14,6 +15,7 @@ import {
   TokenMetadataSchema,
   WarpRouteDeployConfig,
   isCctpTokenConfig,
+  isAtomicLocalRebalancingBridgeTokenConfig,
   isCollateralTokenConfig,
   isDepositAddressTokenConfig,
   isEverclearCollateralTokenConfig,
@@ -37,6 +39,7 @@ export async function deriveTokenMetadata(
     TokenType.collateralCctp,
     TokenType.collateralDepositAddress,
     TokenType.collateralEverclear,
+    TokenType.atomicLocalRebalancing,
     TokenType.XERC20,
     TokenType.XERC20Lockbox,
     TokenType.native,
@@ -76,6 +79,30 @@ export async function deriveTokenMetadata(
         );
         continue;
       }
+    }
+
+    if (isAtomicLocalRebalancingBridgeTokenConfig(config)) {
+      const provider = multiProvider.getProvider(chain);
+      const sourceToken = await MovableCollateralRouter__factory.connect(
+        config.sourceRouter,
+        provider,
+      ).token();
+      const erc20 = ERC20__factory.connect(sourceToken, provider);
+      const [name, symbol, decimals] = await Promise.all([
+        erc20.name(),
+        erc20.symbol(),
+        erc20.decimals(),
+      ]);
+      metadataMap.update(
+        chain,
+        TokenMetadataSchema.parse({
+          name,
+          symbol,
+          decimals,
+          scale: config.scale,
+        }),
+      );
+      continue;
     }
 
     if (

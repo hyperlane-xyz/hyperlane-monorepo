@@ -339,12 +339,9 @@ export const isOftTokenConfig = isCompliant(OftTokenConfigSchema);
 export const AtomicLocalRebalancingBridgeTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.atomicLocalRebalancing),
-    sourceRouter: z
-      .string()
-      .describe(
-        'Source collateral router the bridge is immutably bound to (rebalances pull collateral from it)',
-      ),
-    predicateWrapper: PredicateWrapperConfigSchema.optional(),
+    sourceRouter: ZHash.describe(
+      'Source collateral router the bridge is immutably bound to (rebalances pull collateral from it)',
+    ),
   });
 export type AtomicLocalRebalancingBridgeTokenConfig = z.infer<
   typeof AtomicLocalRebalancingBridgeTokenConfigSchema
