@@ -98,6 +98,7 @@ function getAtomicLocalRebalancingConfig(
       )?.addressOrDenom;
       assert(destinationRouter, `Missing staging USDC router on ${chain}`);
       const destination = addressToBytes32(destinationRouter);
+      const localDomain = String(getDomainId(chain));
       const existing = existingByChain[chain] ?? {
         allowedRebalancers: [],
         allowedRebalancingBridges: {},
@@ -120,8 +121,8 @@ function getAtomicLocalRebalancingConfig(
               { bridge },
             ],
           },
-          rebalanceTargets: { [chain]: [destination] },
-          rebalanceRecipients: { [chain]: destination },
+          rebalanceTargets: { [localDomain]: [destination] },
+          rebalanceRecipients: { [localDomain]: destination },
         },
       ];
     }),
