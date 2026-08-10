@@ -2,4 +2,4 @@
 "@hyperlane-xyz/sdk": patch
 ---
 
-Renounce ownership if a zero address is provided
+Renounced ownership when a zero address was provided
