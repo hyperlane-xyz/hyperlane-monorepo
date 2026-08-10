@@ -119,6 +119,9 @@ const SCALE_FRACTION_VERSION = '11.0.0';
 // https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/tag/%40hyperlane-xyz%2Fcore%406.0.0
 const SCALE_VERSION = '6.0.0';
 
+// Version that introduced CrossCollateralRouter.rebalanceTargets().
+const REBALANCE_TARGETS_CONTRACT_VERSION = '12.0.0';
+
 // Version that first introduced ppm precision for CCTP V2 fee storage (was bps before)
 export const CCTP_PPM_STORAGE_VERSION = '10.2.0';
 // Version that renamed maxFeeBps() to maxFeePpm() on-chain
@@ -1610,17 +1613,15 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       }),
     );
 
-    // `rebalanceTargets()` only exists on the #8894+ CrossCollateralRouter;
-    // older deployed impls revert. Probe once so a pre-upgrade router is derived
-    // without failing (e.g. when the same `warp apply` both upgrades the impl
-    // and adds targets), and skip the per-domain reads if unsupported.
-    let supportsRebalanceTargets = true;
-    try {
-      await crossCollateralRouter.rebalanceTargets(localDomain);
-    } catch (error: unknown) {
-      throwIfNotMissingSelectorRevert(error);
-      supportsRebalanceTargets = false;
-    }
+    // `rebalanceTargets()` only exists on the #8894+ CrossCollateralRouter.
+    // Gate the read on PACKAGE_VERSION so legacy routers can be read before an
+    // upgrade without relying on how a particular RPC represents empty return
+    // data for a missing selector.
+    const supportsRebalanceTargets =
+      compareVersions(
+        await this.fetchPackageVersion(hypTokenAddress),
+        REBALANCE_TARGETS_CONTRACT_VERSION,
+      ) >= 0;
 
     if (supportsRebalanceTargets) {
       await Promise.all(
