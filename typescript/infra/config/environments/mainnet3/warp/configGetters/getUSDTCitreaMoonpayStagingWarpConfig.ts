@@ -30,6 +30,7 @@ const DEPLOYER_EVM = DEPLOYER;
 const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
 const EXTRA_REBALANCER = '0x2cB236403574301029c7bDDfda133c6e0338a857';
 const ALLOWED_REBALANCERS = [REBALANCER, EXTRA_REBALANCER];
+const CONTRACT_VERSION = '12.0.0';
 
 const EVM_CHAINS = ['arbitrum', 'base', 'ethereum', 'polygon'] as const;
 const LOCAL_REBALANCE_CHAINS = [
@@ -159,6 +160,7 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       token: tokens.arbitrum.USDT,
       mailbox: routerConfig.arbitrum.mailbox,
       owner: DEPLOYER_EVM,
+      contractVersion: CONTRACT_VERSION,
       ...rebalancingConfigByChain.arbitrum,
       crossCollateralRouters,
     },
@@ -167,6 +169,7 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       token: tokens.base.USDT,
       mailbox: routerConfig.base.mailbox,
       owner: DEPLOYER_EVM,
+      contractVersion: CONTRACT_VERSION,
       ...rebalancingConfigByChain.base,
       crossCollateralRouters,
     },
@@ -175,6 +178,7 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       token: tokens.bsc.USDT,
       mailbox: routerConfig.bsc.mailbox,
       owner: DEPLOYER_EVM,
+      contractVersion: CONTRACT_VERSION,
       ...rebalancingConfigByChain.bsc,
       scale: { numerator: 1, denominator: 1_000_000_000_000 },
       crossCollateralRouters,
@@ -184,6 +188,7 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       token: tokens.ethereum.USDT,
       mailbox: routerConfig.ethereum.mailbox,
       owner: DEPLOYER_EVM,
+      contractVersion: CONTRACT_VERSION,
       ...rebalancingConfigByChain.ethereum,
       crossCollateralRouters,
     },
@@ -200,6 +205,7 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       token: tokens.polygon.USDT,
       mailbox: routerConfig.polygon.mailbox,
       owner: DEPLOYER_EVM,
+      contractVersion: CONTRACT_VERSION,
       ...rebalancingConfigByChain.polygon,
       crossCollateralRouters,
     },

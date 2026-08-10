@@ -14,6 +14,11 @@ const DEPLOYMENT_CHAINS = [
   'polygon',
 ] as const;
 
+const TOKEN_METADATA = {
+  name: 'Moonpay Staging Local Rebalancing Bridge',
+  symbol: 'mpALRB-STAGE',
+} as const;
+
 function getSourceRouters(): ChainMap<string> {
   const route = getRegistry().getWarpRoute(
     WarpRouteIds.USDTCitreaMoonpaySTAGING,
@@ -41,6 +46,8 @@ export async function getCrossMoonpayStagingLocalBridgeWarpConfig(
       return [
         chain,
         {
+          ...TOKEN_METADATA,
+          decimals: chain === 'bsc' ? 18 : 6,
           mailbox: routerConfig[chain].mailbox,
           owner: DEPLOYER,
           type: TokenType.atomicLocalRebalancing,
