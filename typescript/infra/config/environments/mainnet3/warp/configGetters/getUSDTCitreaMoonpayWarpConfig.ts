@@ -115,14 +115,56 @@ const TARGET_ROUTERS_BY_CHAIN = getCrossCollateralTargetRoutersByChain([
   WarpRouteIds.USDTCitreaMoonpay,
 ]);
 
+export const BSC_PIECEWISE_USDC_DESTINATIONS = [
+  'arbitrum',
+  'base',
+  'citrea',
+  'ethereum',
+  'katana',
+  'polygon',
+  'solanamainnet',
+] as const satisfies readonly ChainName[];
+
+function getUsdcTargetRoutersByChain(
+  destinations: readonly ChainName[],
+): Partial<Record<ChainName, string>> {
+  const route = getRegistry().getWarpRoute(WarpRouteIds.USDCCitreaMoonpay);
+  assert(route, 'USDC/moonpay route not found in registry');
+
+  return Object.fromEntries(
+    destinations.map((destination) => {
+      const token = route.tokens.find(
+        ({ chainName }) => chainName === destination,
+      );
+      assert(
+        token?.addressOrDenom,
+        `Missing USDC/moonpay target router for ${destination}`,
+      );
+      return [destination, addressToBytes32(token.addressOrDenom)];
+    }),
+  );
+}
+
+const BSC_PIECEWISE_USDC_TARGETS = getUsdcTargetRoutersByChain(
+  BSC_PIECEWISE_USDC_DESTINATIONS,
+);
+
 function buildCrossCollateralRoutingFee(
   owner: string,
   destinations: readonly ChainName[],
+  piecewiseTargetByDestination: Partial<Record<ChainName, string>> = {},
 ): TokenFeeConfigInput {
   const offchainFee = (): TokenFeeConfigInput => ({
     type: TokenFeeType.OffchainQuotedLinearFee,
     owner,
     bps: 3,
+    quoteSigners: QUOTE_SIGNERS,
+  });
+  const piecewiseFee = (): TokenFeeConfigInput => ({
+    type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+    owner,
+    initialFallback: { breakpoints: [], marginalBps: [15] },
+    maxBands: 5,
     quoteSigners: QUOTE_SIGNERS,
   });
 
@@ -137,7 +179,12 @@ function buildCrossCollateralRoutingFee(
           {
             // Per-destination-token fee slots, plus a default fallback.
             ...Object.fromEntries(
-              targetRouters.map((routerKey) => [routerKey, offchainFee()]),
+              targetRouters.map((routerKey) => [
+                routerKey,
+                routerKey === piecewiseTargetByDestination[dest]
+                  ? piecewiseFee()
+                  : offchainFee(),
+              ]),
             ),
             [DEFAULT_ROUTER_KEY]: offchainFee(),
           },
@@ -145,6 +192,14 @@ function buildCrossCollateralRoutingFee(
       }),
     ),
   };
+}
+
+export function buildBscUsdtProductionTokenFee(): TokenFeeConfigInput {
+  return buildCrossCollateralRoutingFee(
+    feeOwnersByChain.bsc,
+    ROUTE_CHAINS,
+    BSC_PIECEWISE_USDC_TARGETS,
+  );
 }
 
 function buildDefaultIsm(owner: string): IsmConfig {
@@ -241,7 +296,6 @@ export async function getUSDTCitreaMoonpayWarpConfig(
   const {
     arbitrum: arbitrumFeeOwner,
     base: baseFeeOwner,
-    bsc: bscFeeOwner,
     ethereum: ethereumFeeOwner,
     katana: katanaFeeOwner,
     polygon: polygonFeeOwner,
@@ -288,7 +342,7 @@ export async function getUSDTCitreaMoonpayWarpConfig(
       scale: { numerator: 1, denominator: 1_000_000_000_000 },
       hook: buildHook('bsc', bscOwner),
       interchainSecurityModule: buildInterchainSecurityModule('bsc', bscOwner),
-      tokenFee: buildCrossCollateralRoutingFee(bscFeeOwner, ROUTE_CHAINS),
+      tokenFee: buildBscUsdtProductionTokenFee(),
       crossCollateralRouters,
     },
     katana: {
