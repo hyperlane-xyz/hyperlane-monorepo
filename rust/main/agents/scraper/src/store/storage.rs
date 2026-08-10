@@ -106,6 +106,10 @@ impl HyperlaneDbStore {
         Ok(txns_with_ids.map(move |TxnWithId { hash, id: txn_id }| TxnWithId { hash, id: txn_id }))
     }
 
+    pub(crate) async fn fetch_txn_info(&self, hash: &H512) -> Result<hyperlane_core::TxnInfo> {
+        Ok(self.provider.get_txn_by_hash(hash).await?)
+    }
+
     /// Takes a list of transaction hashes and the block id the transaction is
     /// in. if it is in the database already:
     ///     Fetches its associated database id

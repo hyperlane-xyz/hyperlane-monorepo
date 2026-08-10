@@ -708,6 +708,7 @@ impl<C: AleoClient> HyperlaneProvider for AleoProvider<C> {
                 gas_used: gas_limit.into(),
                 cumulative_gas_used: gas_limit.into(),
                 effective_gas_price: Some(U256::one()),
+                logs: None,
             }),
             raw_input_data: None,
         })

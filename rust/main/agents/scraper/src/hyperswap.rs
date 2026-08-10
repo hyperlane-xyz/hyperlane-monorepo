@@ -3,7 +3,7 @@ use ethers::{
     types::{Address, U256 as EthersU256},
     utils::keccak256,
 };
-use hyperlane_core::{H256, U256};
+use hyperlane_core::{TxnReceiptLog, H256, U256};
 
 const COMMAND_TYPE_MASK: u8 = 0x3f;
 const V3_SWAP_EXACT_IN: u8 = 0x00;
@@ -31,6 +31,7 @@ pub struct DestinationHyperswap {
     pub destination_token_address: Option<H256>,
     pub destination_swap: bool,
     pub destination_sweep: bool,
+    pub destination_sweep_executed: Option<bool>,
     pub destination_sweep_token: Option<H256>,
 }
 
@@ -47,7 +48,7 @@ struct PlanSummary {
     has_swap: bool,
     bridge: Option<BridgeCommand>,
     cross_chain: Option<CrossChainCommand>,
-    sweep_token: Option<H256>,
+    sweep: Option<SweepCommand>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,27 +69,56 @@ struct IcaCall {
     data: Vec<u8>,
 }
 
-pub fn decode_origin_hyperswap(input: &[u8]) -> Option<OriginHyperswap> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SweepCommand {
+    token: H256,
+    recipient: H256,
+    router: Option<H256>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RouterEvents {
+    has_swap: bool,
+    bridge: Option<BridgeCommand>,
+    cross_chain: Option<CrossChainCommand>,
+}
+
+pub fn decode_origin_hyperswap_with_logs(
+    input: &[u8],
+    logs: &[TxnReceiptLog],
+) -> Option<OriginHyperswap> {
     let (commands, inputs) = decode_execute_input(input)?;
     let plan = summarize_plan(&commands, &inputs)?;
-    let bridge = plan.bridge?;
-    let cross_chain = plan.cross_chain?;
+    let events = summarize_router_events(logs);
+    let bridge = events.bridge.or(plan.bridge)?;
+    let cross_chain = events.cross_chain.or(plan.cross_chain)?;
+    let origin_swap = events.has_swap;
     Some(OriginHyperswap {
         commitment: cross_chain.commitment,
         destination_domain: cross_chain.destination_domain,
-        origin_token_address: plan.first_swap_token_in.unwrap_or(bridge.token),
+        origin_token_address: if origin_swap {
+            plan.first_swap_token_in.unwrap_or(bridge.token)
+        } else {
+            bridge.token
+        },
         bridge_token_address: bridge.token,
         bridge_amount: bridge.amount,
-        origin_swap: plan.has_swap,
+        origin_swap,
     })
 }
 
-pub fn decode_destination_hyperswap_from_process(input: &[u8]) -> Option<DestinationHyperswap> {
+pub fn decode_destination_hyperswap_from_process_with_logs(
+    input: &[u8],
+    logs: &[TxnReceiptLog],
+) -> Option<DestinationHyperswap> {
     let metadata = decode_process_metadata(input)?;
-    decode_destination_hyperswap_from_metadata(&metadata)
+    decode_destination_hyperswap_from_metadata_with_logs(&metadata, logs)
 }
 
-pub fn decode_destination_hyperswap_from_metadata(metadata: &[u8]) -> Option<DestinationHyperswap> {
+pub fn decode_destination_hyperswap_from_metadata_with_logs(
+    metadata: &[u8],
+    logs: &[TxnReceiptLog],
+) -> Option<DestinationHyperswap> {
     if metadata.len() < 52 {
         return None;
     }
@@ -98,21 +128,36 @@ pub fn decode_destination_hyperswap_from_metadata(metadata: &[u8]) -> Option<Des
         let Some((commands, inputs)) = decode_execute_input(&call.data) else {
             continue;
         };
-        let Some(plan) = summarize_plan(&commands, &inputs) else {
+        let Some(mut plan) = summarize_plan(&commands, &inputs) else {
             continue;
         };
+        if let Some(sweep) = &mut plan.sweep {
+            sweep.router = Some(call.to);
+        }
         aggregate.merge(plan);
     }
 
-    if !aggregate.has_swap && aggregate.sweep_token.is_none() {
+    if !aggregate.has_swap && aggregate.sweep.is_none() {
         return None;
     }
 
+    let has_swap_event = summarize_router_events(logs).has_swap;
+    let sweep_executed = aggregate
+        .sweep
+        .as_ref()
+        .map(|sweep| has_erc20_sweep_transfer(logs, sweep));
+    let sweep_token = aggregate.sweep.as_ref().map(|sweep| sweep.token);
+
     Some(DestinationHyperswap {
-        destination_token_address: aggregate.last_swap_token_out.or(aggregate.sweep_token),
-        destination_swap: aggregate.has_swap,
-        destination_sweep: aggregate.sweep_token.is_some(),
-        destination_sweep_token: aggregate.sweep_token,
+        destination_token_address: if has_swap_event {
+            aggregate.last_swap_token_out
+        } else {
+            sweep_token
+        },
+        destination_swap: has_swap_event,
+        destination_sweep: aggregate.sweep.is_some(),
+        destination_sweep_executed: sweep_executed,
+        destination_sweep_token: sweep_token,
     })
 }
 
@@ -205,8 +250,8 @@ fn summarize_plan(commands: &[u8], inputs: &[Vec<u8>]) -> Option<PlanSummary> {
                 summary.has_swap = true;
             }
             SWEEP => {
-                if let Some(token) = decode_sweep_token(input) {
-                    summary.sweep_token = Some(token);
+                if let Some(sweep) = decode_sweep(input) {
+                    summary.sweep = Some(sweep);
                 }
             }
             BRIDGE_TOKEN => {
@@ -292,16 +337,21 @@ fn decode_v2_swap_tokens(input: &[u8]) -> Option<(H256, H256)> {
     ))
 }
 
-fn decode_sweep_token(input: &[u8]) -> Option<H256> {
-    decode(
+fn decode_sweep(input: &[u8]) -> Option<SweepCommand> {
+    let tokens = decode(
         &[ParamType::Address, ParamType::Address, ParamType::Uint(256)],
         input,
     )
-    .ok()?
-    .first()?
-    .clone()
-    .into_address()
-    .map(address_to_h256)
+    .ok()?;
+    Some(SweepCommand {
+        token: tokens
+            .first()?
+            .clone()
+            .into_address()
+            .map(address_to_h256)?,
+        recipient: tokens.get(1)?.clone().into_address().map(address_to_h256)?,
+        router: None,
+    })
 }
 
 fn decode_bridge(input: &[u8]) -> Option<BridgeCommand> {
@@ -384,7 +434,7 @@ impl Default for PlanSummary {
             has_swap: false,
             bridge: None,
             cross_chain: None,
-            sweep_token: None,
+            sweep: None,
         }
     }
 }
@@ -410,16 +460,110 @@ impl PlanSummary {
         if other.cross_chain.is_some() {
             self.cross_chain = other.cross_chain;
         }
-        if other.sweep_token.is_some() {
-            self.sweep_token = other.sweep_token;
+        if other.sweep.is_some() {
+            self.sweep = other.sweep;
         }
     }
+}
+
+fn summarize_router_events(logs: &[TxnReceiptLog]) -> RouterEvents {
+    let swap_topic = topic_for("UniversalRouterSwap(address,address)");
+    let bridge_topic = topic_for("UniversalRouterBridge(address,bytes32,address,uint256,uint32)");
+    let cross_chain_topic = topic_for("CrossChainSwap(address,address,uint32,bytes32)");
+
+    let mut events = RouterEvents {
+        has_swap: false,
+        bridge: None,
+        cross_chain: None,
+    };
+
+    for log in logs {
+        match log.topics.first() {
+            Some(topic) if *topic == swap_topic => {
+                events.has_swap = true;
+            }
+            Some(topic) if *topic == bridge_topic => {
+                let Some(token) = log.topics.get(3).copied() else {
+                    continue;
+                };
+                let Ok(values) = decode(&[ParamType::Uint(256), ParamType::Uint(32)], &log.data)
+                else {
+                    continue;
+                };
+                let Some(amount) = values.first().cloned().and_then(Token::into_uint) else {
+                    continue;
+                };
+                events.bridge = Some(BridgeCommand {
+                    token,
+                    amount: ethers_u256_to_core(amount),
+                });
+            }
+            Some(topic) if *topic == cross_chain_topic => {
+                let Some(destination_topic) = log.topics.get(3) else {
+                    continue;
+                };
+                let Ok(values) = decode(&[ParamType::FixedBytes(32)], &log.data) else {
+                    continue;
+                };
+                let Some(commitment) = values.first().cloned().and_then(Token::into_fixed_bytes)
+                else {
+                    continue;
+                };
+                events.cross_chain = Some(CrossChainCommand {
+                    destination_domain: u32::from_be_bytes(
+                        destination_topic.as_bytes()[28..32]
+                            .try_into()
+                            .expect("topic has 32 bytes"),
+                    ),
+                    commitment: H256::from_slice(&commitment),
+                });
+            }
+            _ => {}
+        }
+    }
+
+    events
+}
+
+fn has_erc20_sweep_transfer(logs: &[TxnReceiptLog], sweep: &SweepCommand) -> bool {
+    let transfer_topic = topic_for("Transfer(address,address,uint256)");
+    let recipient = mapped_recipient(logs, sweep);
+    let Some(recipient) = recipient else {
+        return false;
+    };
+
+    logs.iter().any(|log| {
+        log.address == sweep.token
+            && log.topics.first() == Some(&transfer_topic)
+            && log.topics.get(2) == Some(&recipient)
+    })
+}
+
+fn mapped_recipient(logs: &[TxnReceiptLog], sweep: &SweepCommand) -> Option<H256> {
+    let msg_sender = low_address_to_h256(1);
+    let address_this = low_address_to_h256(2);
+    if sweep.recipient == address_this {
+        return sweep.router;
+    }
+    if sweep.recipient != msg_sender {
+        return Some(sweep.recipient);
+    }
+
+    let router = sweep.router?;
+    let swap_topic = topic_for("UniversalRouterSwap(address,address)");
+    logs.iter()
+        .find(|log| log.address == router && log.topics.first() == Some(&swap_topic))
+        .and_then(|log| log.topics.get(1).copied())
 }
 
 fn selector_for(signature: &str) -> [u8; 4] {
     keccak256(signature.as_bytes())[..4]
         .try_into()
         .expect("selector length")
+}
+
+fn topic_for(signature: &str) -> H256 {
+    H256::from_slice(&keccak256(signature.as_bytes()))
 }
 
 fn address_to_h256(address: Address) -> H256 {
@@ -429,6 +573,12 @@ fn address_to_h256(address: Address) -> H256 {
 fn address_slice_to_h256(address: &[u8]) -> H256 {
     let mut out = [0u8; 32];
     out[12..].copy_from_slice(address);
+    H256::from(out)
+}
+
+fn low_address_to_h256(value: u8) -> H256 {
+    let mut out = [0u8; 32];
+    out[31] = value;
     H256::from(out)
 }
 

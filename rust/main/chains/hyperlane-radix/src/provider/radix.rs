@@ -806,6 +806,7 @@ impl HyperlaneProvider for RadixProvider {
                 gas_used: U256::from(gas_limit),
                 cumulative_gas_used: gas_price,
                 effective_gas_price: Some(gas_price),
+                logs: None,
             }),
             raw_input_data: None,
         })

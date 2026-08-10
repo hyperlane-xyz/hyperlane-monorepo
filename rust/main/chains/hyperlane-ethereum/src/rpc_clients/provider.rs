@@ -19,7 +19,7 @@ use tracing::instrument;
 use hyperlane_core::{
     ethers_core_types, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, ContractLocator,
     HyperlaneChain, HyperlaneCustomErrorWrapper, HyperlaneDomain, HyperlaneProvider,
-    HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256, H512, U256,
+    HyperlaneProviderError, TxnInfo, TxnReceiptInfo, TxnReceiptLog, H256, H512, U256,
 };
 
 use crate::contracts::multicall::BatchCache;
@@ -404,10 +404,21 @@ where
             .await
             .map_err(ChainCommunicationError::from_other)?
             .map(|r| -> Result<_, HyperlaneProviderError> {
+                let logs = r
+                    .logs
+                    .into_iter()
+                    .map(|log| TxnReceiptLog {
+                        address: log.address.into(),
+                        topics: log.topics.into_iter().map(Into::into).collect(),
+                        data: log.data.to_vec(),
+                        log_index: log.log_index.map(Into::into),
+                    })
+                    .collect();
                 Ok(TxnReceiptInfo {
                     gas_used: r.gas_used.ok_or(HyperlaneProviderError::NoGasUsed)?.into(),
                     cumulative_gas_used: r.cumulative_gas_used.into(),
                     effective_gas_price: r.effective_gas_price.map(Into::into),
+                    logs: Some(logs),
                 })
             })
             .transpose()?;

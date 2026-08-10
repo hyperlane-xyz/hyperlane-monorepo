@@ -1,7 +1,5 @@
 use eyre::Result;
-use sea_orm::{
-    prelude::*, sea_query::OnConflict, ActiveValue::*, EntityTrait, Insert, QuerySelect,
-};
+use sea_orm::{prelude::*, sea_query::OnConflict, ActiveValue::*, EntityTrait, Insert};
 use tracing::instrument;
 
 use hyperlane_core::{h256_to_bytes, H256};
@@ -12,10 +10,7 @@ use crate::{
     hyperswap::{DestinationHyperswap, OriginHyperswap},
 };
 
-use super::{
-    generated::{hyperswap, transaction},
-    ScraperDb,
-};
+use super::{generated::hyperswap, ScraperDb};
 
 #[derive(Debug, Clone)]
 pub struct StorableOriginHyperswap {
@@ -34,18 +29,6 @@ pub struct StorableDestinationHyperswap {
 }
 
 impl ScraperDb {
-    #[instrument(skip_all)]
-    pub async fn retrieve_tx_raw_input_data(&self, tx_id: i64) -> Result<Option<Vec<u8>>> {
-        let raw_input_data = transaction::Entity::find_by_id(tx_id)
-            .select_only()
-            .column(transaction::Column::RawInputData)
-            .into_tuple::<Option<Vec<u8>>>()
-            .one(&self.0)
-            .await?
-            .flatten();
-        Ok(raw_input_data)
-    }
-
     #[instrument(skip_all)]
     pub async fn store_origin_hyperswap(&self, storable: StorableOriginHyperswap) -> Result<()> {
         let origin = storable.origin;
@@ -125,6 +108,10 @@ impl ScraperDb {
             .col_expr(
                 hyperswap::Column::DestinationSweep,
                 Expr::value(storable.destination.destination_sweep),
+            )
+            .col_expr(
+                hyperswap::Column::DestinationSweepExecuted,
+                Expr::value(storable.destination.destination_sweep_executed),
             )
             .col_expr(
                 hyperswap::Column::DestinationSweepToken,

@@ -160,6 +160,7 @@ impl HyperlaneProvider for StarknetProvider {
                 gas_used: U256::one(),
                 cumulative_gas_used: U256::one(),
                 effective_gas_price: Some(gas_paid),
+                logs: None,
             }),
         })
     }

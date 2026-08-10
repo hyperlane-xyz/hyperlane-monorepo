@@ -828,6 +828,7 @@ impl HyperlaneProvider for SealevelProvider {
             gas_used,
             cumulative_gas_used: gas_used,
             effective_gas_price: gas_price,
+            logs: None,
         };
 
         Ok(TxnInfo {

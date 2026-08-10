@@ -707,6 +707,7 @@ mod tests {
                             gas_used: U256::one(),
                             cumulative_gas_used: U256::one(),
                             effective_gas_price: None,
+                            logs: None,
                         }),
                         raw_input_data: None,
                     },

@@ -7,9 +7,10 @@ use hyperlane_core::{
     unwrap_or_none_result, Delivery, HyperlaneLogStore, HyperlaneSequenceAwareIndexerStoreReader,
     Indexed, LogMeta, H512,
 };
+use tracing::warn;
 
 use crate::db::{StorableDelivery, StorableDestinationHyperswap};
-use crate::hyperswap::decode_destination_hyperswap_from_process;
+use crate::hyperswap::decode_destination_hyperswap_from_process_with_logs;
 use crate::store::storage::{HyperlaneDbStore, TxnWithId};
 
 #[async_trait]
@@ -65,11 +66,27 @@ impl HyperlaneDbStore {
         deliveries: &[StorableDelivery<'_>],
     ) -> Result<()> {
         for delivery in deliveries {
-            let Some(raw_input_data) = self.db.retrieve_tx_raw_input_data(delivery.txn_id).await?
-            else {
+            let tx_info = match self.fetch_txn_info(&delivery.meta.transaction_id).await {
+                Ok(tx_info) => tx_info,
+                Err(err) => {
+                    warn!(
+                        tx_hash = ?delivery.meta.transaction_id,
+                        ?err,
+                        "skipping hyperswap destination enrichment: failed to fetch transaction"
+                    );
+                    continue;
+                }
+            };
+            let Some(raw_input_data) = tx_info.raw_input_data.as_deref() else {
                 continue;
             };
-            let Some(destination) = decode_destination_hyperswap_from_process(&raw_input_data)
+            let logs = tx_info
+                .receipt
+                .as_ref()
+                .and_then(|receipt| receipt.logs.as_deref())
+                .unwrap_or(&[]);
+            let Some(destination) =
+                decode_destination_hyperswap_from_process_with_logs(raw_input_data, logs)
             else {
                 continue;
             };

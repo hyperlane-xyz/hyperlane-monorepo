@@ -65,4 +65,19 @@ pub struct TxnReceiptInfo {
     /// fee + max priority fee), the amount that's actually paid by users can
     /// only be determined post-execution
     pub effective_gas_price: Option<U256>,
+    /// Raw logs emitted by this transaction, when available from the chain provider.
+    pub logs: Option<Vec<TxnReceiptLog>>,
+}
+
+/// A chain-agnostic representation of a transaction receipt log.
+#[derive(Debug, Clone)]
+pub struct TxnReceiptLog {
+    /// Contract address that emitted the log.
+    pub address: H256,
+    /// Indexed log topics.
+    pub topics: Vec<H256>,
+    /// Unindexed log data.
+    pub data: Vec<u8>,
+    /// Log index within the transaction receipt, when provided by the chain.
+    pub log_index: Option<U256>,
 }

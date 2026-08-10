@@ -12,7 +12,9 @@ use tracing::warn;
 
 use crate::db::StorableOriginHyperswap;
 use crate::db::{StorableMessage, StorableRawMessageDispatch};
-use crate::hyperswap::{decode_ica_message_body, decode_origin_hyperswap, IcaMessageBody};
+use crate::hyperswap::{
+    decode_ica_message_body, decode_origin_hyperswap_with_logs, IcaMessageBody,
+};
 use crate::store::storage::{HyperlaneDbStore, TxnWithId};
 
 /// Label for raw message dispatch metrics
@@ -153,10 +155,32 @@ impl HyperlaneDbStore {
             messages.iter().into_group_map_by(|message| message.txn_id);
 
         for (txn_id, tx_messages) in by_txn {
-            let Some(raw_input_data) = self.db.retrieve_tx_raw_input_data(txn_id).await? else {
+            let Some(first_message) = tx_messages.first() else {
                 continue;
             };
-            let Some(origin) = decode_origin_hyperswap(&raw_input_data) else {
+            let tx_info = match self
+                .fetch_txn_info(&first_message.meta.transaction_id)
+                .await
+            {
+                Ok(tx_info) => tx_info,
+                Err(err) => {
+                    warn!(
+                        tx_hash = ?first_message.meta.transaction_id,
+                        ?err,
+                        "skipping hyperswap origin enrichment: failed to fetch transaction"
+                    );
+                    continue;
+                }
+            };
+            let Some(raw_input_data) = tx_info.raw_input_data.as_deref() else {
+                continue;
+            };
+            let logs = tx_info
+                .receipt
+                .as_ref()
+                .and_then(|receipt| receipt.logs.as_deref())
+                .unwrap_or(&[]);
+            let Some(origin) = decode_origin_hyperswap_with_logs(raw_input_data, logs) else {
                 continue;
             };
 
