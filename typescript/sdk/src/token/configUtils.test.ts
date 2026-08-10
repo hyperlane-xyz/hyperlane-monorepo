@@ -19,6 +19,7 @@ import { TokenType } from './config.js';
 import {
   canonicalizeAllowedRebalancingBridges,
   filterWarpCoreConfigMapByChains,
+  getDefaultRemoteRouterAndDestinationGasConfig,
   getChainsFromWarpCoreConfig,
   normalizeWarpDeployConfigForCheck,
   resolveTokenFeeAddress,
@@ -29,6 +30,7 @@ import { TokenStandard } from './TokenStandard.js';
 import {
   HypTokenConfig,
   HypTokenRouterConfig,
+  WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from './types.js';
 
@@ -40,6 +42,35 @@ function buildMultiProvider(): MultiProvider {
 }
 
 describe('configUtils', () => {
+  describe(getDefaultRemoteRouterAndDestinationGasConfig.name, () => {
+    it('excludes atomic local bridge foreign deployments', () => {
+      const address = '0x1111111111111111111111111111111111111111';
+      const deployConfig: WarpRouteDeployConfig = {
+        [test1.name]: {
+          owner: address,
+          type: TokenType.synthetic,
+        },
+        [test2.name]: {
+          foreignDeployment: address,
+          owner: address,
+          sourceRouter: address,
+          type: TokenType.atomicLocalRebalancing,
+        },
+      };
+
+      const [remoteRouters, destinationGas] =
+        getDefaultRemoteRouterAndDestinationGasConfig(
+          buildMultiProvider(),
+          test1.name,
+          { [test1.name]: address },
+          deployConfig,
+        );
+
+      expect(remoteRouters).to.deep.equal({});
+      expect(destinationGas).to.deep.equal({});
+    });
+  });
+
   describe(transformConfigToCheck.name, () => {
     const ADDRESS = '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359';
 

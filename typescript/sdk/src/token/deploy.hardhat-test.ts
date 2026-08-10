@@ -50,6 +50,7 @@ import {
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
+import { TokenStandard } from './TokenStandard.js';
 import { TokenType } from './config.js';
 import { checkWarpRouteDeployConfig } from './warpCheck.js';
 import { HypERC20Deployer } from './deploy.js';
@@ -247,11 +248,22 @@ describe('TokenDeployer', async () => {
     expect(derivedConfig.mailbox).to.equal(ethers.constants.AddressZero);
     expect(derivedConfig.remoteRouters).to.deep.equal({});
 
+    const warpCoreConfig: WarpCoreConfig = {
+      tokens: [
+        {
+          chainName: chain,
+          addressOrDenom: bridgeAddress,
+          decimals: await erc20.decimals(),
+          name: await erc20.name(),
+          standard: TokenStandard.EvmAtomicLocalRebalancingBridge,
+          symbol: await erc20.symbol(),
+          tokenType: TokenType.atomicLocalRebalancing,
+        },
+      ],
+    };
     const checkResult = await checkWarpRouteDeployConfig({
       multiProvider,
-      warpCoreConfig: {
-        tokens: [{ chainName: chain, addressOrDenom: bridgeAddress }],
-      } as WarpCoreConfig,
+      warpCoreConfig,
       warpDeployConfig: atomicConfig,
     });
     expect(checkResult.isValid, JSON.stringify(checkResult, null, 2)).to.equal(
@@ -277,7 +289,10 @@ describe('TokenDeployer', async () => {
       error = caught;
     }
     expect(error).to.be.instanceOf(Error);
-    expect((error as Error).message).to.include(
+    if (!(error instanceof Error)) {
+      throw new Error('Expected local domain mismatch error');
+    }
+    expect(error.message).to.include(
       `localDomain ${wrongDomain} does not match`,
     );
   });

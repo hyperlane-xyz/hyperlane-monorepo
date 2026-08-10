@@ -108,13 +108,13 @@ export function getDefaultRemoteRouterAndDestinationGasConfig(
 
   const otherChains = multiProvider.getRemoteChains(chain).filter(
     (remoteChain) =>
-      (!isAtomicLocalRebalancingBridgeTokenConfig(
+      !isAtomicLocalRebalancingBridgeTokenConfig(
         warpDeployConfig[remoteChain],
       ) &&
-        // Include chains that specify foreignDeployment so that they can be enrolled
-        // in the current deployment/update
-        Object.keys(deployedRoutersAddresses).includes(remoteChain)) ||
-      warpDeployConfig[remoteChain]?.foreignDeployment,
+      // Include chains that specify foreignDeployment so that they can be enrolled
+      // in the current deployment/update
+      (Object.keys(deployedRoutersAddresses).includes(remoteChain) ||
+        Boolean(warpDeployConfig[remoteChain]?.foreignDeployment)),
   );
 
   for (const otherChain of otherChains) {

@@ -1203,7 +1203,10 @@ describe('EvmWarpRouteReader', async () => {
         error = caught;
       }
       expect(error).to.be.instanceOf(Error);
-      expect((error as Error).message).to.include('RPC unavailable');
+      if (!(error instanceof Error)) {
+        throw new Error('Expected RPC error');
+      }
+      expect(error.message).to.include('RPC unavailable');
     } finally {
       mcConnectStub.restore();
       tokenRouterConnectStub.restore();

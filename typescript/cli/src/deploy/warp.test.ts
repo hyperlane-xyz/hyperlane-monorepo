@@ -8,6 +8,7 @@ import {
 } from '@hyperlane-xyz/utils';
 import {
   IsmType,
+  MultiProvider,
   TokenStandard,
   TokenType,
   type WarpCoreConfig,
@@ -22,7 +23,7 @@ import {
 
 describe('fullyConnectTokens', () => {
   it('does not connect operational ALRB entries', () => {
-    const warpCoreConfig = {
+    const warpCoreConfig: WarpCoreConfig = {
       tokens: [
         buildCrossCollateralToken({
           chainName: 'anvil2',
@@ -46,10 +47,9 @@ describe('fullyConnectTokens', () => {
           addressOrDenom: '0x3333333333333333333333333333333333333333',
         },
       ],
-    } as WarpCoreConfig;
-    const multiProvider = {
-      getProtocol: () => ProtocolType.Ethereum,
-    } as any;
+    };
+    const multiProvider = sinon.createStubInstance(MultiProvider);
+    multiProvider.getProtocol.returns(ProtocolType.Ethereum);
 
     fullyConnectTokens(warpCoreConfig, multiProvider);
 
