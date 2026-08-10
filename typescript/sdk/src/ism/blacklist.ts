@@ -66,6 +66,17 @@ const MESSAGE_BLACKLISTED_EVENT_SELECTOR = toEventSelector(
  * was persisted into a registry is dropped permanently. This is shared
  * `EvmEventLogsReader` behaviour rather than anything specific to blacklists;
  * every consumer reading logs through an explorer has the same exposure.
+ *
+ * The lower bound of the replay carries a related caveat. No `fromBlock` is
+ * passed, so the reader derives one: the explorer reports the deployment block
+ * and that answer is cached, so losing the explorer partway through a read does
+ * not lose the bound. Where no explorer is configured, or where the explorer
+ * cannot answer for the contract at all, the bound comes from bisecting
+ * `eth_getCode` instead, and `getContractCreationBlockFromRpc` documents why an
+ * endpoint that prunes silently defeats that: reporting no code at a height the
+ * contract did exist reads as a genuine pre-deployment answer, so the search
+ * settles above the deployment and the replay starts too late. The same helper
+ * bounds every log read in the SDK, so this is not specific to blacklists.
  */
 export async function readBlacklistedIds(
   chain: ChainNameOrId,
