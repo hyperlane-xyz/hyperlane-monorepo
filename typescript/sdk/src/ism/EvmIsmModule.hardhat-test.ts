@@ -3,14 +3,16 @@ import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
+import sinon from 'sinon';
 
 import {
   BlacklistIsm__factory,
   RateLimitedIsm__factory,
   StaticAggregationIsm__factory,
+  TestLegacyBlacklistIsm__factory,
 } from '@hyperlane-xyz/core';
 
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
@@ -167,6 +169,70 @@ describe('EvmIsmModule', async () => {
     testIsm = ism;
     testConfig = config;
     return { ism, initialIsmAddress: ism.serialize().deployedIsm };
+  }
+
+  // Registers an externally built ISM with the afterEach state check.
+  function adoptIsm(ism: EvmIsmModule, config: IsmConfig): EvmIsmModule {
+    testIsm = ism;
+    testConfig = config;
+    return ism;
+  }
+
+  // Builds a StaticAggregationIsm whose blacklist submodule is the pre-audit
+  // contract that is still deployed on mainnet: no `values()`, and an event per
+  // entry even when the entry is already blacklisted.
+  async function deployLegacyBlacklistAggregation(
+    owner: Address,
+    blacklistedIds: string[],
+  ): Promise<{
+    aggregationAddress: Address;
+    multisigConfig: MultisigIsmConfig;
+  }> {
+    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+      { [chain]: factoryAddresses },
+      multiProvider,
+    );
+
+    const multisigConfig = randomMultisigIsmConfig(3, 5);
+    const multisigIsm = await ismFactory.deploy({
+      destination: chain,
+      config: multisigConfig,
+    });
+
+    const legacyIsm = await new TestLegacyBlacklistIsm__factory(
+      multiProvider.getSigner(chain),
+    ).deploy(owner);
+    await legacyIsm.deployTransaction.wait();
+    for (const blacklistedId of blacklistedIds) {
+      await multiProvider.handleTx(chain, legacyIsm.blacklist([blacklistedId]));
+    }
+    // re-add everything so the log replay has to de-duplicate
+    await multiProvider.handleTx(chain, legacyIsm.blacklist(blacklistedIds));
+
+    const aggregationAddress = await ismFactory.deployStaticAddressSet(
+      chain,
+      factoryContracts.staticAggregationIsmFactory,
+      [multisigIsm.address, legacyIsm.address],
+      rootLogger,
+      2,
+    );
+
+    return { aggregationAddress, multisigConfig };
+  }
+
+  function moduleForAggregation(
+    deployedIsm: Address,
+    config: IsmConfig,
+  ): EvmIsmModule {
+    return new EvmIsmModule(multiProvider, {
+      chain,
+      config,
+      addresses: {
+        ...factoryAddresses,
+        mailbox: mailboxAddress,
+        deployedIsm,
+      },
+    });
   }
 
   describe('create', async () => {
@@ -842,6 +908,148 @@ describe('EvmIsmModule', async () => {
         }
       }
       expect(blacklistFound).to.be.true;
+    });
+
+    describe('blacklist submodule that predates on-chain enumeration', () => {
+      let explorerMetadataStub: sinon.SinonStub;
+
+      beforeEach(() => {
+        // The test chain metadata declares an Etherscan explorer with a
+        // placeholder API key, which would send the log reader to the live
+        // Etherscan API before falling back to the RPC.
+        explorerMetadataStub = sinon
+          .stub(multiProvider, 'tryGetEvmExplorerMetadata')
+          .returns(null);
+      });
+
+      afterEach(() => {
+        explorerMetadataStub.restore();
+      });
+
+      it('derives the submodule as a blacklist ISM with the ids replayed from logs', async () => {
+        const owner = await multiProvider.getSignerAddress(chain);
+        const firstId = randomBytes32();
+        const secondId = randomBytes32();
+        const { aggregationAddress, multisigConfig } =
+          await deployLegacyBlacklistAggregation(owner, [firstId, secondId]);
+
+        const config: AggregationIsmConfig = {
+          type: IsmType.AGGREGATION,
+          modules: [
+            multisigConfig,
+            {
+              type: IsmType.BLACKLIST,
+              owner,
+              blacklistedIds: [firstId, secondId],
+            },
+          ],
+          threshold: 2,
+        };
+        const ism = adoptIsm(
+          moduleForAggregation(aggregationAddress, config),
+          config,
+        );
+
+        const derived = await ism.read();
+        assert(
+          typeof derived !== 'string' && derived.type === IsmType.AGGREGATION,
+          'expected the derived config to be an aggregation',
+        );
+
+        const blacklistModule = derived.modules.find(
+          (module) =>
+            typeof module !== 'string' && module.type === IsmType.BLACKLIST,
+        );
+        assert(
+          blacklistModule !== undefined &&
+            typeof blacklistModule !== 'string' &&
+            blacklistModule.type === IsmType.BLACKLIST,
+          'expected a blacklist submodule in the derived config',
+        );
+        expect(blacklistModule.blacklistedIds).to.have.members([
+          firstId.toLowerCase(),
+          secondId.toLowerCase(),
+        ]);
+      });
+
+      it('applies no transactions when the submodule already matches', async () => {
+        const owner = await multiProvider.getSignerAddress(chain);
+        const blacklistedId = randomBytes32();
+        const { aggregationAddress, multisigConfig } =
+          await deployLegacyBlacklistAggregation(owner, [blacklistedId]);
+
+        const config: AggregationIsmConfig = {
+          type: IsmType.AGGREGATION,
+          modules: [
+            multisigConfig,
+            { type: IsmType.BLACKLIST, owner, blacklistedIds: [blacklistedId] },
+          ],
+          threshold: 2,
+        };
+        const ism = adoptIsm(
+          moduleForAggregation(aggregationAddress, config),
+          config,
+        );
+
+        await expectTxsAndUpdate(ism, config, 0);
+
+        expect(eqAddress(aggregationAddress, ism.serialize().deployedIsm)).to.be
+          .true;
+      });
+
+      it('redeploys instead of blacklisting in place when an id is added', async () => {
+        const owner = await multiProvider.getSignerAddress(chain);
+        const existingId = randomBytes32();
+        const newId = randomBytes32();
+        const { aggregationAddress, multisigConfig } =
+          await deployLegacyBlacklistAggregation(owner, [existingId]);
+
+        const config: AggregationIsmConfig = {
+          type: IsmType.AGGREGATION,
+          modules: [
+            multisigConfig,
+            {
+              type: IsmType.BLACKLIST,
+              owner,
+              blacklistedIds: [existingId, newId],
+            },
+          ],
+          threshold: 2,
+        };
+        const ism = adoptIsm(
+          moduleForAggregation(aggregationAddress, config),
+          config,
+        );
+
+        // update() redeploys internally and emits no txs
+        await expectTxsAndUpdate(ism, config, 0);
+
+        expect(eqAddress(aggregationAddress, ism.serialize().deployedIsm)).to.be
+          .false;
+
+        const provider = multiProvider.getProvider(chain);
+        const [moduleAddresses] = await StaticAggregationIsm__factory.connect(
+          ism.serialize().deployedIsm,
+          provider,
+        ).modulesAndThreshold(hre.ethers.constants.AddressZero);
+
+        let blacklistFound = false;
+        for (const moduleAddress of moduleAddresses) {
+          const blacklistIsm = BlacklistIsm__factory.connect(
+            moduleAddress,
+            provider,
+          );
+          if ((await blacklistIsm.moduleType()) === ModuleType.NULL) {
+            // the replacement exposes on-chain enumeration and carries both ids
+            expect(await blacklistIsm.values()).to.have.members([
+              existingId,
+              newId,
+            ]);
+            blacklistFound = true;
+          }
+        }
+        expect(blacklistFound).to.be.true;
+      });
     });
   });
 });
