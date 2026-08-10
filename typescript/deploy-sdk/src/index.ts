@@ -2,7 +2,6 @@
 // and should not be bundled for browser use. CLI can import directly:
 // import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter';
 
-export { AltVMImpersonatedSubmitter } from './AltVMImpersonatedSubmitter.js';
 export { AltVMJsonRpcSubmitter } from './AltVMJsonRpcSubmitter.js';
 export { createFeeReader, FeeReader } from './fee/fee-reader.js';
 export { createFeeWriter, FeeWriter } from './fee/fee-writer.js';
