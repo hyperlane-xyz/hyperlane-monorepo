@@ -89,6 +89,21 @@ impl AnnouncementRetryBackoff {
             .is_none_or(|next_funding_check_at| now >= next_funding_check_at)
     }
 
+    /// Poll funding between attempts only when the last successful preflight proved the signer is
+    /// unfunded. If preflight is unavailable (for example, an RPC does not support `feeHistory`),
+    /// retrying it on a separate timer cannot detect funding and only creates more failed calls.
+    fn should_check_funding(&self, now: Instant) -> bool {
+        if self.submission_in_flight {
+            return false;
+        }
+
+        self.ready(now)
+            || (self
+                .last_tokens_needed
+                .is_some_and(|tokens_needed| !tokens_needed.is_zero())
+                && self.funding_check_due(now))
+    }
+
     fn record_funding_check(&mut self, now: Instant) {
         self.next_funding_check_at = now.checked_add(ANNOUNCEMENT_FUNDING_POLL_INTERVAL);
     }
@@ -1260,7 +1275,7 @@ impl Validator {
                     let chain_signer_string = chain_signer.address_string();
                     let chain_signer_h256 = chain_signer.address_h256();
                     let now = Instant::now();
-                    if !retry_backoff.funding_check_due(now) {
+                    if !retry_backoff.should_check_funding(now) {
                         sleep(self.interval).await;
                         continue;
                     }
@@ -1285,15 +1300,17 @@ impl Validator {
                         if let Some(balance_delta) =
                             effective_balance_delta.filter(|balance_delta| !balance_delta.is_zero())
                         {
+                            let delay = Self::jittered_announcement_retry_delay(
+                                retry_backoff.next_failure_delay(),
+                            );
                             warn!(
                                 tokens_needed=%balance_delta,
                                 eth_validator_address=?announcement.validator,
                                 ?chain_signer_string,
                                 ?chain_signer_h256,
+                                retry_delay_ms=delay.as_millis(),
+                                consecutive_failures=retry_backoff.consecutive_failures.saturating_add(1),
                                 "Please send tokens to your chain signer address to announce",
-                            );
-                            let delay = Self::jittered_announcement_retry_delay(
-                                retry_backoff.next_failure_delay(),
                             );
                             retry_backoff.record_failure(Instant::now(), delay);
                         } else {
@@ -1333,6 +1350,12 @@ impl Validator {
                             } else {
                                 let delay = Self::jittered_announcement_retry_delay(
                                     retry_backoff.next_failure_delay(),
+                                );
+                                info!(
+                                    retry_delay_ms = delay.as_millis(),
+                                    consecutive_failures =
+                                        retry_backoff.consecutive_failures.saturating_add(1),
+                                    "Scheduled validator announcement retry",
                                 );
                                 retry_backoff.record_failure(Instant::now(), delay);
                             }
@@ -1490,17 +1513,45 @@ mod tests {
     async fn funding_preflight_uses_bounded_polling_while_submission_backs_off() {
         let mut backoff = AnnouncementRetryBackoff::default();
         let now = Instant::now();
-        assert!(backoff.funding_check_due(now));
+        assert!(!backoff.observe_tokens_needed(Some(U256::from(1_u64))));
+        backoff.record_failure(now, ANNOUNCEMENT_RETRY_MAX_DELAY);
+        assert!(backoff.should_check_funding(now));
         backoff.record_funding_check(now);
-        assert!(!backoff.funding_check_due(now));
+        assert!(!backoff.should_check_funding(now));
 
         let before_poll = ANNOUNCEMENT_FUNDING_POLL_INTERVAL
             .checked_sub(Duration::from_millis(1))
             .expect("funding poll interval exceeds one millisecond");
         tokio::time::advance(before_poll).await;
-        assert!(!backoff.funding_check_due(Instant::now()));
+        assert!(!backoff.should_check_funding(Instant::now()));
         tokio::time::advance(Duration::from_millis(1)).await;
-        assert!(backoff.funding_check_due(Instant::now()));
+        assert!(backoff.should_check_funding(Instant::now()));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn unavailable_funding_preflight_waits_for_submission_retry_deadline() {
+        let mut backoff = AnnouncementRetryBackoff::default();
+        let now = Instant::now();
+        backoff.record_funding_check(now);
+        backoff.record_failure(now, ANNOUNCEMENT_RETRY_MAX_DELAY);
+
+        assert_eq!(backoff.last_tokens_needed, None);
+        assert!(!backoff.should_check_funding(now));
+        tokio::time::advance(ANNOUNCEMENT_RETRY_MAX_DELAY).await;
+        assert!(backoff.should_check_funding(Instant::now()));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn funded_preflight_waits_for_submission_retry_deadline() {
+        let mut backoff = AnnouncementRetryBackoff::default();
+        let now = Instant::now();
+        assert!(!backoff.observe_tokens_needed(Some(U256::zero())));
+        backoff.record_funding_check(now);
+        backoff.record_failure(now, ANNOUNCEMENT_RETRY_MAX_DELAY);
+
+        assert!(!backoff.should_check_funding(now));
+        tokio::time::advance(ANNOUNCEMENT_RETRY_MAX_DELAY).await;
+        assert!(backoff.should_check_funding(Instant::now()));
     }
 
     #[tokio::test(start_paused = true)]
@@ -1513,8 +1564,10 @@ mod tests {
         backoff.mark_submission_in_flight();
         assert_eq!(backoff.consecutive_failures, 0);
         assert!(!backoff.ready(now));
+        assert!(!backoff.should_check_funding(now));
         tokio::time::advance(ANNOUNCEMENT_RETRY_MAX_DELAY.saturating_mul(10)).await;
         assert!(!backoff.ready(Instant::now()));
+        assert!(!backoff.should_check_funding(Instant::now()));
 
         // Delayed zero preflight or a transient unfunded/funded flap cannot erase in-flight state.
         assert!(!backoff.observe_tokens_needed(Some(U256::from(1_u64))));
