@@ -3,6 +3,6 @@
 pub use super::{
     block::Entity as Block, cursor::Entity as Cursor,
     delivered_message::Entity as DeliveredMessage, domain::Entity as Domain,
-    gas_payment::Entity as GasPayment, message::Entity as Message,
+    gas_payment::Entity as GasPayment, hyperswap::Entity as Hyperswap, message::Entity as Message,
     raw_message_dispatch::Entity as RawMessageDispatch, transaction::Entity as Transaction,
 };

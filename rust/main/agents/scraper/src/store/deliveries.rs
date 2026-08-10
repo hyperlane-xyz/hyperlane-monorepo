@@ -8,7 +8,8 @@ use hyperlane_core::{
     Indexed, LogMeta, H512,
 };
 
-use crate::db::StorableDelivery;
+use crate::db::{StorableDelivery, StorableDestinationHyperswap};
+use crate::hyperswap::decode_destination_hyperswap_from_process;
 use crate::store::storage::{HyperlaneDbStore, TxnWithId};
 
 #[async_trait]
@@ -42,13 +43,47 @@ impl HyperlaneLogStore<Delivery> for HyperlaneDbStore {
                 sequence,
                 meta,
                 txn_id,
-            });
+            })
+            .collect::<Vec<_>>();
 
         let stored = self
             .db
-            .store_deliveries(self.domain.id(), self.mailbox_address, storable)
+            .store_deliveries(
+                self.domain.id(),
+                self.mailbox_address,
+                storable.clone().into_iter(),
+            )
             .await?;
+        self.store_destination_hyperswaps(&storable).await?;
         Ok(stored as u32)
+    }
+}
+
+impl HyperlaneDbStore {
+    async fn store_destination_hyperswaps(
+        &self,
+        deliveries: &[StorableDelivery<'_>],
+    ) -> Result<()> {
+        for delivery in deliveries {
+            let Some(raw_input_data) = self.db.retrieve_tx_raw_input_data(delivery.txn_id).await?
+            else {
+                continue;
+            };
+            let Some(destination) = decode_destination_hyperswap_from_process(&raw_input_data)
+            else {
+                continue;
+            };
+            self.db
+                .update_destination_hyperswap_by_reveal_message_id(
+                    delivery.message_id,
+                    StorableDestinationHyperswap {
+                        destination,
+                        destination_tx_id: delivery.txn_id,
+                    },
+                )
+                .await?;
+        }
+        Ok(())
     }
 }
 

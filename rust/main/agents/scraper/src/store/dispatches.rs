@@ -6,10 +6,13 @@ use hyperlane_core::{
     unwrap_or_none_result, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneSequenceAwareIndexerStoreReader, Indexed, LogMeta, H512,
 };
+use itertools::Itertools;
 use time::OffsetDateTime;
 use tracing::warn;
 
+use crate::db::StorableOriginHyperswap;
 use crate::db::{StorableMessage, StorableRawMessageDispatch};
+use crate::hyperswap::{decode_ica_message_body, decode_origin_hyperswap, IcaMessageBody};
 use crate::store::storage::{HyperlaneDbStore, TxnWithId};
 
 /// Label for raw message dispatch metrics
@@ -127,9 +130,10 @@ impl HyperlaneDbStore {
             .store_dispatched_messages(
                 self.domain.id(),
                 &self.mailbox_address,
-                storable.into_iter(),
+                storable.clone().into_iter(),
             )
             .await?;
+        self.store_origin_hyperswaps(&storable).await?;
 
         if let Some(missing_txns) = missing_txns {
             warn!(
@@ -142,6 +146,56 @@ impl HyperlaneDbStore {
         }
 
         Ok(stored as u32)
+    }
+
+    async fn store_origin_hyperswaps(&self, messages: &[StorableMessage<'_>]) -> Result<()> {
+        let by_txn: HashMap<i64, Vec<&StorableMessage<'_>>> =
+            messages.iter().into_group_map_by(|message| message.txn_id);
+
+        for (txn_id, tx_messages) in by_txn {
+            let Some(raw_input_data) = self.db.retrieve_tx_raw_input_data(txn_id).await? else {
+                continue;
+            };
+            let Some(origin) = decode_origin_hyperswap(&raw_input_data) else {
+                continue;
+            };
+
+            let mut warp_message_id = None;
+            let mut commit_message_id = None;
+            let mut reveal_message_id = None;
+            for storable in tx_messages {
+                let msg_id = storable.id_override.unwrap_or_else(|| storable.msg.id());
+                match decode_ica_message_body(&storable.msg.body) {
+                    Some(IcaMessageBody::Commitment(commitment))
+                        if commitment == origin.commitment =>
+                    {
+                        commit_message_id = Some(msg_id);
+                    }
+                    Some(IcaMessageBody::Reveal(commitment)) if commitment == origin.commitment => {
+                        reveal_message_id = Some(msg_id);
+                    }
+                    _ if storable.msg.destination == origin.destination_domain
+                        && warp_message_id.is_none() =>
+                    {
+                        warp_message_id = Some(msg_id);
+                    }
+                    _ => {}
+                }
+            }
+
+            self.db
+                .store_origin_hyperswap(StorableOriginHyperswap {
+                    origin,
+                    origin_domain: self.domain.id(),
+                    origin_tx_id: txn_id,
+                    warp_message_id,
+                    commit_message_id,
+                    reveal_message_id,
+                })
+                .await?;
+        }
+
+        Ok(())
     }
 
     pub(crate) async fn reconcile_raw_message_dispatches(

@@ -26,6 +26,7 @@ pub struct StorableDelivery<'a> {
     pub txn_id: i64,
 }
 
+#[derive(Clone)]
 pub struct StorableMessage<'a> {
     pub msg: HyperlaneMessage,
     pub meta: &'a LogMeta,

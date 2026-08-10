@@ -23,6 +23,7 @@ mod agent;
 mod conversions;
 mod date_time;
 mod db;
+mod hyperswap;
 mod settings;
 mod store;
 
