@@ -13,6 +13,14 @@ export {
   parseEip712Signable,
 } from './quote/Eip712Signable.js';
 export { EvmPrivateKeyQuoteSigner } from './quote/EvmPrivateKeyQuoteSigner.js';
+export {
+  type CreateEvmPiecewiseWarpQuoteRequest,
+  type EvmPiecewiseStandingCurve,
+  type EvmPiecewiseStoredStandingCurve,
+  encodeEvmPiecewiseStandingQuoteData,
+  validateEvmPiecewiseStandingCurve,
+} from './quote/EvmPiecewiseQuote.js';
+export { EvmPiecewiseQuoteWriter } from './quote/EvmPiecewiseQuoteWriter.js';
 export { EvmQuoteArtifactManager } from './quote/EvmQuoteArtifactManager.js';
 export { EvmQuoteReader } from './quote/EvmQuoteReader.js';
 export { EvmQuoteWriter } from './quote/EvmQuoteWriter.js';
