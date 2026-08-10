@@ -1044,32 +1044,39 @@ describe('EvmWarpModule', async () => {
           ...baseConfig,
           type: TokenType.crossCollateral,
           token: token.address,
-        } as HypTokenRouterConfig,
-        addresses: { deployedTokenRoute: randomAddress() },
-      } as ConstructorParameters<typeof EvmWarpModule>[1]);
+        } satisfies HypTokenRouterConfig,
+        addresses: {
+          ...ismFactoryAddresses,
+          deployedTokenRoute: randomAddress(),
+        },
+      });
       const actualConfig = {
         ...baseConfig,
+        hook: ethers.constants.AddressZero,
+        interchainSecurityModule: ethers.constants.AddressZero,
         type: TokenType.crossCollateral,
         token: token.address,
+        tokenFee: undefined,
         rebalanceTargets: {},
         rebalanceRecipients: {},
-      } as DerivedTokenRouterConfig;
+      } satisfies DerivedTokenRouterConfig;
       const expectedConfig = {
         ...baseConfig,
         type: TokenType.crossCollateral,
         token: token.address,
         rebalanceTargets: { [localDomain]: [target] },
         rebalanceRecipients: { [localDomain]: recipient },
-      } as HypTokenRouterConfig;
+      } satisfies HypTokenRouterConfig;
 
       const [targetTx] = module.createAddRebalanceTargetsUpdateTxs(
         actualConfig,
         expectedConfig,
       );
+      assert(targetTx.data, 'Expected rebalance target calldata');
       const [, decodedTarget] =
         CrossCollateralRouter__factory.createInterface().decodeFunctionData(
           'addRebalanceTarget(uint32,bytes32)',
-          targetTx.data!,
+          targetTx.data,
         );
       expect(decodedTarget.toLowerCase()).to.equal(target);
 
@@ -1077,10 +1084,11 @@ describe('EvmWarpModule', async () => {
         actualConfig,
         expectedConfig,
       );
+      assert(recipientTx.data, 'Expected rebalance recipient calldata');
       const [, decodedRecipient] =
         CrossCollateralRouter__factory.createInterface().decodeFunctionData(
           'setRecipient(uint32,bytes32)',
-          recipientTx.data!,
+          recipientTx.data,
         );
       expect(decodedRecipient.toLowerCase()).to.equal(recipient);
     });
@@ -1094,14 +1102,20 @@ describe('EvmWarpModule', async () => {
           ...baseConfig,
           type: TokenType.crossCollateral,
           token: token.address,
-        } as HypTokenRouterConfig,
-        addresses: { deployedTokenRoute: randomAddress() },
-      } as ConstructorParameters<typeof EvmWarpModule>[1]);
+        } satisfies HypTokenRouterConfig,
+        addresses: {
+          ...ismFactoryAddresses,
+          deployedTokenRoute: randomAddress(),
+        },
+      });
       const actualConfig = {
         ...baseConfig,
+        hook: ethers.constants.AddressZero,
+        interchainSecurityModule: ethers.constants.AddressZero,
         type: TokenType.crossCollateral,
         token: token.address,
-      } as DerivedTokenRouterConfig;
+        tokenFee: undefined,
+      } satisfies DerivedTokenRouterConfig;
       const expectedConfig = {
         ...baseConfig,
         type: TokenType.crossCollateral,
@@ -1109,7 +1123,7 @@ describe('EvmWarpModule', async () => {
         rebalanceTargets: {
           [unknownDomain]: [addressToBytes32(randomAddress())],
         },
-      } as HypTokenRouterConfig;
+      } satisfies HypTokenRouterConfig;
 
       expect(() =>
         module.createAddRebalanceTargetsUpdateTxs(actualConfig, expectedConfig),
@@ -1126,21 +1140,27 @@ describe('EvmWarpModule', async () => {
           ...baseConfig,
           type: TokenType.crossCollateral,
           token: token.address,
-        } as HypTokenRouterConfig,
-        addresses: { deployedTokenRoute: randomAddress() },
-      } as ConstructorParameters<typeof EvmWarpModule>[1]);
+        } satisfies HypTokenRouterConfig,
+        addresses: {
+          ...ismFactoryAddresses,
+          deployedTokenRoute: randomAddress(),
+        },
+      });
       const actualConfig = {
         ...baseConfig,
+        hook: ethers.constants.AddressZero,
+        interchainSecurityModule: ethers.constants.AddressZero,
         type: TokenType.crossCollateral,
         token: token.address,
+        tokenFee: undefined,
         rebalanceTargets: { [localDomain]: [target] },
         rebalanceRecipients: { [localDomain]: recipient },
-      } as DerivedTokenRouterConfig;
+      } satisfies DerivedTokenRouterConfig;
       const expectedConfig = {
         ...baseConfig,
         type: TokenType.crossCollateral,
         token: token.address,
-      } as HypTokenRouterConfig;
+      } satisfies HypTokenRouterConfig;
 
       expect(
         module.createRemoveRebalanceTargetsTxs(actualConfig, expectedConfig),
