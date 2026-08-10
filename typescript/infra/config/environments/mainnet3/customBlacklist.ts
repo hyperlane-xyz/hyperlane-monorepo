@@ -491,4 +491,11 @@ export const blacklistedMessageIds = [
   '0x5363566d09d1cd70ba0a31d0a71417e03c3f783cf7b80eb99c43586af2b0ba2b',
   '0xf617e8061c72cead9ae873e3933f6aff49c3134aeac9a1ab22fd0748b73d350c',
   '0x04f359c6db8b55c86d1ae5e91d50d0e7df75ffa51ea9fdbae153c17bffca8c91',
+
+  // ETH/viction arbitrum->base — EIP-7702 recipient rejects native ETH [2026-08-10]
+  // recipient 0xbda8dfd4e0ade15b0a02da318777764ec1ac6987 is an EIP-7702-delegated EOA whose
+  // delegate has no payable receive path; Mailbox.process reverts "Address: unable to send
+  // value, recipient may have reverted". Permanently undeliverable recipient-side (~0.0001 ETH);
+  // denylisting to stop endless prepare-queue retries that keep re-paging the queue-length alert.
+  '0x898301d4e591195057088c29df05bb6cb5be9698f84d5b85b76831e2d80243b4',
 ];
