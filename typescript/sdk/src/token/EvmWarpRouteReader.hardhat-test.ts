@@ -1289,10 +1289,11 @@ describe('EvmWarpRouteReader', async () => {
     }
   });
 
-  it('deriveWarpRouteConfig includes CCR-only destinations when deriving token fees', async () => {
+  it('deriveWarpRouteConfig includes CCR-only fee destinations and local allowed bridges', async () => {
     const routerAddress = token.address;
     const localDomain = multiProvider.getDomainId(chain);
     const ccrOnlyDomain = localDomain + 100;
+    const localBridge = '0x1000000000000000000000000000000000000003';
 
     const readRouterConfigStub = sinon
       .stub(evmERC20WarpRouteReader, 'readRouterConfig')
@@ -1323,21 +1324,35 @@ describe('EvmWarpRouteReader', async () => {
       .stub(evmERC20WarpRouteReader, 'fetchTokenFee')
       .resolves(undefined);
 
+    const allowedBridgesStub = sinon
+      .stub()
+      .callsFake(async (domain: number | string) =>
+        Number(domain) === localDomain ? [localBridge] : [],
+      );
     const movableConnectStub = sinon
       .stub(MovableCollateralRouter__factory, 'connect')
       .returns({
         allowedRebalancers: sinon.stub().resolves([]),
         domains: sinon.stub().resolves([]),
-        allowedBridges: sinon.stub().resolves([]),
+        allowedBridges: allowedBridgesStub,
       } as any);
 
     try {
-      await evmERC20WarpRouteReader.deriveWarpRouteConfig(routerAddress);
+      const config =
+        await evmERC20WarpRouteReader.deriveWarpRouteConfig(routerAddress);
       expect(fetchTokenFeeStub.calledOnce).to.equal(true);
       expect(fetchTokenFeeStub.firstCall.args[1]).to.deep.equal([
         localDomain,
         ccrOnlyDomain,
       ]);
+      expect(
+        'allowedRebalancingBridges' in config
+          ? config.allowedRebalancingBridges
+          : undefined,
+      ).to.deep.equal({
+        [localDomain]: [{ bridge: localBridge }],
+      });
+      sinon.assert.calledWith(allowedBridgesStub, localDomain.toString());
     } finally {
       readRouterConfigStub.restore();
       fetchTokenConfigStub.restore();
