@@ -69,7 +69,7 @@ const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
 const EVM_RELAYER_ADDRESS: &str = "0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5";
 
 pub(crate) enum TransactionDispatchOutcome {
-    Confirmed(TransactionReceipt),
+    Confirmed(Box<TransactionReceipt>),
     BroadcastError {
         tx_hash: H256,
         error: ChainCommunicationError,
@@ -81,7 +81,7 @@ fn classify_broadcast_result(
     result: ChainResult<TransactionReceipt>,
 ) -> TransactionDispatchOutcome {
     match result {
-        Ok(receipt) => TransactionDispatchOutcome::Confirmed(receipt),
+        Ok(receipt) => TransactionDispatchOutcome::Confirmed(Box::new(receipt)),
         Err(error) => TransactionDispatchOutcome::BroadcastError { tx_hash, error },
     }
 }
@@ -93,7 +93,7 @@ where
     D: Detokenize,
 {
     match report_tx_with_status(tx).await? {
-        TransactionDispatchOutcome::Confirmed(receipt) => Ok(receipt),
+        TransactionDispatchOutcome::Confirmed(receipt) => Ok(*receipt),
         TransactionDispatchOutcome::BroadcastError { error, .. } => Err(error),
     }
 }

@@ -201,7 +201,7 @@ where
         let contract_call = self.announce_contract_call(announcement).await?;
         Ok(match report_tx_with_status(contract_call).await? {
             TransactionDispatchOutcome::Confirmed(receipt) => {
-                ValidatorAnnounceSubmission::Confirmed(receipt.into())
+                ValidatorAnnounceSubmission::Confirmed((*receipt).into())
             }
             TransactionDispatchOutcome::BroadcastError { tx_hash, error } => {
                 ValidatorAnnounceSubmission::BroadcastError {
