@@ -275,7 +275,7 @@ describe('updatePendingAndInventoryMetrics', () => {
     const routerNodes: RouterNodeMetadata[] = [
       {
         nodeId: stableNodeId,
-        chainName: 'anvil2' as RouterNodeMetadata['chainName'],
+        chainName: 'anvil2',
         domainId: 31337,
         routerAddress: '0xroutera',
         tokenAddress: '0xtokena',
@@ -290,7 +290,7 @@ describe('updatePendingAndInventoryMetrics', () => {
       },
       {
         nodeId: flakyNodeId,
-        chainName: 'anvil2' as RouterNodeMetadata['chainName'],
+        chainName: 'anvil2',
         domainId: 31337,
         routerAddress: '0xrouterb',
         tokenAddress: '0xtokenb',
