@@ -526,6 +526,86 @@ describe('EvmTokenFeeModule', () => {
       ).to.equal(BPS + 1);
     });
 
+    it('should preserve piecewise arrays while replacing a CCRF sub-fee', async () => {
+      const initialPiecewiseConfig = TokenFeeConfigSchema.parse({
+        type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+        owner: signer.address,
+        token: token.address,
+        maxBands: 4,
+        quoteSigners: [signer.address],
+        fallbackCurve: {
+          breakpoints: [250_000n, 750_000n],
+          marginalBps: [4, 10, 20],
+          issuedAt: 0,
+        },
+      }) as OffchainQuotedPiecewiseLinearFeeConfig;
+      const initialSubFeeModule = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: initialPiecewiseConfig,
+      });
+      const initialSubFeeAddress = initialSubFeeModule.serialize().deployedFee;
+      const ccrf = await deployCrossCollateralRoutingFee(signer.address);
+      const routingDestination = multiProvider.getDomainId(test4Chain);
+      await ccrf.setCrossCollateralRouterFeeContracts(
+        [routingDestination],
+        [DEFAULT_ROUTER_KEY],
+        [initialSubFeeAddress],
+      );
+
+      const module = new EvmTokenFeeModule(multiProvider, {
+        chain: test4Chain,
+        config: {
+          type: TokenFeeType.CrossCollateralRoutingFee,
+          owner: signer.address,
+          feeContracts: {},
+        },
+        addresses: { deployedFee: ccrf.address },
+      });
+
+      const txs = await module.update({
+        type: TokenFeeType.CrossCollateralRoutingFee,
+        owner: signer.address,
+        feeContracts: {
+          [test4Chain]: {
+            [DEFAULT_ROUTER_KEY]: {
+              type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+              owner: signer.address,
+              maxBands: 5,
+              quoteSigners: [signer.address],
+              initialFallback: {
+                breakpoints: [250_000n, 750_000n],
+                marginalBps: [4, 10, 20],
+              },
+            },
+          },
+        },
+      });
+
+      expect(txs).to.have.lengthOf(1);
+      await multiProvider.sendTransaction(test4Chain, txs[0]);
+
+      const replacementAddress = await ccrf.feeContracts(
+        routingDestination,
+        DEFAULT_ROUTER_KEY,
+      );
+      expect(replacementAddress).to.not.equal(initialSubFeeAddress);
+      const replacement = await new EvmTokenFeeReader(
+        multiProvider,
+        test4Chain,
+      ).deriveTokenFeeConfig({ address: replacementAddress });
+      assert(
+        replacement.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+        `Must be ${TokenFeeType.OffchainQuotedPiecewiseLinearFee}`,
+      );
+      expect(replacement.maxBands).to.equal(5);
+      expect(replacement.fallbackCurve.breakpoints).to.deep.equal([
+        250_000n,
+        750_000n,
+      ]);
+      expect(replacement.fallbackCurve.marginalBps).to.deep.equal([4, 10, 20]);
+    });
+
     it('should update an empty CCRF using explicitly resolved child tokens', async () => {
       const emptyCcrf = await deployCrossCollateralRoutingFee(signer.address);
       const routingDestination = multiProvider.getDomainId(test4Chain);

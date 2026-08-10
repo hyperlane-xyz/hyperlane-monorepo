@@ -164,6 +164,27 @@ function resolveTokenForFeeConfig(
   };
 }
 
+function attachExistingCrossCollateralFeeAddresses(
+  actualConfig: DerivedCrossCollateralRoutingFeeConfig,
+  targetConfig: TokenFeeConfig & {
+    type: typeof TokenFeeType.CrossCollateralRoutingFee;
+  },
+): DerivedCrossCollateralRoutingFeeConfig {
+  return {
+    ...targetConfig,
+    address: actualConfig.address,
+    feeContracts: objMap(
+      targetConfig.feeContracts,
+      (chainName, routerConfigs) =>
+        objMap(routerConfigs, (routerBytes32, subFeeConfig) => {
+          const address =
+            actualConfig.feeContracts[chainName]?.[routerBytes32]?.address;
+          return address ? { ...subFeeConfig, address } : subFeeConfig;
+        }),
+    ),
+  } as DerivedCrossCollateralRoutingFeeConfig;
+}
+
 export class EvmTokenFeeModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   TokenFeeConfigInput,
@@ -577,29 +598,13 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       actualConfig.type === TokenFeeType.CrossCollateralRoutingFee
     ) {
       const targetFeeContracts = normalizedTargetConfig.feeContracts ?? {};
-      // Carry actual addresses into target entries, but limit to target keys only so
-      // orphan entries from actualConfig don't get re-injected into the update loop.
-      const merged = objMerge<DerivedCrossCollateralRoutingFeeConfig>(
+      // Carry only the actual contract addresses into target entries. Deep-merging
+      // the full configs corrupts array-valued fee parameters (for example,
+      // piecewise breakpoints and marginal rates) by merging array indices.
+      const merged = attachExistingCrossCollateralFeeAddresses(
         actualConfig,
         normalizedTargetConfig,
-        10,
-        true,
       );
-      if (merged.feeContracts) {
-        for (const chainName of Object.keys(merged.feeContracts)) {
-          if (!(chainName in targetFeeContracts)) {
-            delete merged.feeContracts[chainName];
-          } else {
-            for (const routerBytes32 of Object.keys(
-              merged.feeContracts[chainName],
-            )) {
-              if (!(routerBytes32 in targetFeeContracts[chainName])) {
-                delete merged.feeContracts[chainName][routerBytes32];
-              }
-            }
-          }
-        }
-      }
 
       // Emit clearing transactions for entries removed from target.
       const removalDestinations: number[] = [];
