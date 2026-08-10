@@ -164,7 +164,7 @@ function buildCrossCollateralRoutingFee(
     type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
     owner,
     initialFallback: { breakpoints: [], marginalBps: [15] },
-    maxBands: 4,
+    maxBands: 5,
     quoteSigners: QUOTE_SIGNERS,
   });
 

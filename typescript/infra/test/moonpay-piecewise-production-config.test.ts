@@ -129,7 +129,7 @@ describe('USDT/moonpay BSC production piecewise fee topology', () => {
         `Expected piecewise leaf for ${destination}`,
       );
       expect(entry.config.owner).to.equal(warpFeesIcas.bsc);
-      expect(entry.config.maxBands).to.equal(4);
+      expect(entry.config.maxBands).to.equal(5);
       assert(
         'initialFallback' in entry.config,
         `Expected initial fallback for ${destination}`,

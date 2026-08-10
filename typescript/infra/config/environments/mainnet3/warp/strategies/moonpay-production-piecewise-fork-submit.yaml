@@ -1,7 +1,0 @@
-bsc:
-  # Fork-only executor for the single BSC transaction emitted by the strict
-  # ICA payload decoder. Do not use this strategy with warp apply.
-  submitter:
-    chain: bsc
-    type: impersonatedAccount
-    userAddress: '0xA0e41Ab972294A8f7CD1599BB76AdDB6bAE24556'

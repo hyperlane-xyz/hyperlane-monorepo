@@ -4,11 +4,7 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 
 import { type ExtendedSubmissionStrategy } from '../../../submitters/types.js';
 
-import {
-  getSubmissionStrategyChains,
-  getSubmitterChains,
-  resolveChains,
-} from './chainResolver.js';
+import { getSubmitterChains, resolveChains } from './chainResolver.js';
 
 type Submitter = ExtendedSubmissionStrategy['submitter'];
 
@@ -77,36 +73,6 @@ describe('getSubmitterChains', () => {
     expect(getSubmitterChains(submitter)).to.deep.equal([
       'ethereum',
       'arbitrum',
-      'ethereum',
-    ]);
-  });
-});
-
-describe('getSubmissionStrategyChains', () => {
-  it('includes chains referenced only by the fee submitter', () => {
-    const strategy: ExtendedSubmissionStrategy = {
-      submitter: {
-        type: 'file',
-        chain: 'bsc',
-        filepath: '/tmp/non-fee.json',
-      },
-      feeSubmitter: {
-        type: TxSubmitterType.INTERCHAIN_ACCOUNT,
-        chain: 'ethereum',
-        owner: '0x0000000000000000000000000000000000000001',
-        destinationChain: 'bsc',
-        internalSubmitter: {
-          type: 'file',
-          chain: 'ethereum',
-          filepath: '/tmp/fee.json',
-        },
-      },
-    };
-
-    expect(getSubmissionStrategyChains(strategy)).to.deep.equal([
-      'bsc',
-      'ethereum',
-      'bsc',
       'ethereum',
     ]);
   });
