@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
+import { Ownable__factory } from '@hyperlane-xyz/core';
+
 import { isInitialized, proxyAdmin, proxyAdminUpdateTxs } from './proxy.js';
 
 describe('proxy utilities', () => {
@@ -209,6 +211,29 @@ describe('proxy utilities', () => {
       );
       expect(txs.length).to.equal(1);
       expect(txs[0].annotation).to.include(OWNER_B);
+    });
+
+    it('should renounce ownership when expected proxyAdmin owner is zero address', () => {
+      const txs = proxyAdminUpdateTxs(
+        CHAIN_ID,
+        PROXY_ADDRESS,
+        {
+          owner: OWNER_A,
+          proxyAdmin: { address: PROXY_ADMIN_ADDRESS, owner: OWNER_A },
+        },
+        {
+          owner: OWNER_A,
+          proxyAdmin: { owner: ethers.constants.AddressZero },
+        },
+      );
+      expect(txs.length).to.equal(1);
+      expect(txs[0].to).to.equal(PROXY_ADMIN_ADDRESS);
+      expect(txs[0].annotation).to.include('Renouncing ownership');
+      expect(txs[0].data).to.equal(
+        Ownable__factory.createInterface().encodeFunctionData(
+          'renounceOwnership',
+        ),
+      );
     });
   });
 });
