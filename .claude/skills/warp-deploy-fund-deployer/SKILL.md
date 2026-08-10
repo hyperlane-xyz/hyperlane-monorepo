@@ -111,18 +111,19 @@ curl -s "https://api.coingecko.com/api/v3/simple/price?ids=<id1>,<id2>&vs_curren
 ```
 
 Common native token CoinGecko IDs:
-| Chain | CoinGecko ID |
-|---|---|
-| ethereum | `ethereum` |
-| arbitrum | `ethereum` |
-| base | `ethereum` |
-| optimism | `ethereum` |
-| polygon | `polygon-ecosystem-token` |
-| bsc | `binancecoin` |
-| avalanche | `avalanche-2` |
-| solana | `solana` |
-| celo | `celo` |
-| gnosis | `xdai` |
+
+| Chain     | CoinGecko ID              |
+| --------- | ------------------------- |
+| ethereum  | `ethereum`                |
+| arbitrum  | `ethereum`                |
+| base      | `ethereum`                |
+| optimism  | `ethereum`                |
+| polygon   | `polygon-ecosystem-token` |
+| bsc       | `binancecoin`             |
+| avalanche | `avalanche-2`             |
+| solana    | `solana`                  |
+| celo      | `celo`                    |
+| gnosis    | `xdai`                    |
 
 If CoinGecko fails for a chain, **do not silently fall back to 0 USD** — that would bypass the 10 USD warning and the funding script's `MAX_FUNDING_AMOUNT_IN_USD` safety bound. Instead, the agent tries **alternative price venues** in order before escalating to the user:
 

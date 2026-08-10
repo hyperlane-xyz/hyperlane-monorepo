@@ -81,12 +81,9 @@ describe('BaseMetadataBuilder', () => {
       (_, { testRecipient }) => testRecipient,
     );
     core = await coreDeployer.deployApp();
-    const hookConfig = objMap(
-      core.chainMap,
-      (): MerkleTreeHookConfig => ({
-        type: HookType.MERKLE_TREE,
-      }),
-    );
+    const hookConfig = objMap(core.chainMap, (): MerkleTreeHookConfig => ({
+      type: HookType.MERKLE_TREE,
+    }));
 
     // deploy hooks
     for (const chain of Object.keys(hookConfig)) {
