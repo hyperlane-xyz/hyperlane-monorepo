@@ -1,0 +1,9 @@
+---
+'@hyperlane-xyz/sdk': major
+---
+
+Three things break. The explorerUrl and apiKey fields are dropped from the GetExtraLockboxesOptions type. HyperlaneJsonRpcProvider refuses an eth_getLogs request it cannot serve in full rather than answering it over a narrower window: LogBlockRangeTooLargeError above the sub-queries it issues for one request, and LogBlockHistoryUnavailableError below the pagination.minBlockNumber or pagination.maxBlockAge history floors, where the start block used to be raised, so SmartProvider fails the request on that RPC instead of returning a truncated log set.
+
+getExtraLockBoxConfigs and EvmXERC20Reader.readOnChainBridges are routed through EvmEventLogsReader, so a chain without a usable explorer scans ConfigurationChanged logs over the RPC instead of reporting no extra bridges, and starts at the xERC20's deployment block, or at genesis where the RPC cannot serve the state of a past block. Both share latestConfigurationPerBridge, which breaks a tie within a block by log index; getExtraLockBoxConfigs kept the first configuration of a bridge instead of the last. The RPC read halves its block range when a provider rejects a chunk and retries one whose failure names no span, and HyperlaneSmartProvider stops retrying a request every provider reported as unrecoverable, taking a block range rejection among those refusals as the combined error's cause so that the read halves its chunk rather than being decided by which provider was tried first.
+
+The explorer log read pages through a block range instead of stopping at the first 1000 records, retries a page rather than the whole read, and falls back to the RPC for a range it cannot page through in full. Its log fields are parsed rather than read through Number, which reported the bare "0x" of a zero valued field as NaN. The deployment block comes from the explorer's getcontractcreation response where it reports one, rather than from the deployment receipt.

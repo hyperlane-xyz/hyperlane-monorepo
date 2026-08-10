@@ -6,16 +6,17 @@ import {
   HypXERC20Lockbox__factory,
   IXERC20Lockbox__factory,
 } from '@hyperlane-xyz/core';
-import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
-
 import {
-  getContractDeploymentTransaction,
-  getLogsFromEtherscanLikeExplorerAPI,
-} from '../block-explorer/etherscan.js';
+  Address,
+  assert,
+  normalizeAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
+
 import { isContractAddress } from '../contracts/contracts.js';
 import { isProxy, proxyImplementation } from '../deploy/proxy.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { GetEventLogsResponse } from '../rpc/evm/types.js';
+import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { throwIfNotMissingSelector } from '../utils/contract.js';
@@ -57,33 +58,31 @@ export type GetExtraLockboxesOptions = {
   chain: ChainNameOrId;
   xERC20Address: Address;
   multiProvider: MultiProvider;
-  explorerUrl: string;
-  apiKey?: string;
   logger?: Logger;
 };
+
+// xERC20 tokens emit ConfigurationChanged rarely, so scanning them over the
+// 500 block default is prohibitively slow. 1_000_000 was measured on base
+// specifically, which declares no pagination.maxBlockRange: the token's full
+// history was covered in 22 requests (~2.3s). Providers that cap the span
+// reject the chunk, and getLogsFromRpc halves the range until it is accepted.
+export const XERC20_LOG_SCAN_BLOCK_RANGE = 1_000_000;
 
 export async function getExtraLockBoxConfigs({
   xERC20Address,
   chain,
   multiProvider,
   logger = rootLogger,
-}: Omit<GetExtraLockboxesOptions, 'explorerUrl' | 'apiKey'>): Promise<
-  XERC20TokenExtraBridgesLimits[]
-> {
-  const explorer = multiProvider.tryGetEvmExplorerMetadata(chain);
-  if (!explorer) {
-    logger.warn(
-      `No block explorer was configured correctly, skipping lockbox derivation on chain ${chain}`,
-    );
-    return [];
-  }
-
-  const logs = await getConfigurationChangedLogsFromExplorerApi({
-    chain,
+}: GetExtraLockboxesOptions): Promise<XERC20TokenExtraBridgesLimits[]> {
+  const logsReader = EvmEventLogsReader.fromConfig(
+    { chain, paginationBlockRange: XERC20_LOG_SCAN_BLOCK_RANGE },
     multiProvider,
-    xERC20Address,
-    explorerUrl: explorer.apiUrl,
-    apiKey: explorer.apiKey,
+    logger,
+  );
+
+  const logs = await logsReader.getLogsByTopic({
+    contractAddress: xERC20Address,
+    eventTopic: CONFIGURATION_CHANGED_EVENT_SELECTOR,
   });
 
   const viemLogs = logs.map(viemLogFromGetEventLogsResponse);
@@ -95,40 +94,7 @@ export async function getExtraLockBoxConfigs({
   );
 }
 
-async function getConfigurationChangedLogsFromExplorerApi({
-  xERC20Address,
-  chain,
-  multiProvider,
-  explorerUrl,
-  apiKey,
-}: GetExtraLockboxesOptions): Promise<Array<GetEventLogsResponse>> {
-  const contractDeploymentTx = await getContractDeploymentTransaction(
-    { apiUrl: explorerUrl, apiKey },
-    { contractAddress: xERC20Address },
-  );
-
-  const provider = multiProvider.getProvider(chain);
-  const [currentBlockNumber, deploymentTransactionReceipt] = await Promise.all([
-    provider.getBlockNumber(),
-    provider.getTransactionReceipt(contractDeploymentTx.txHash),
-  ]);
-  assert(
-    deploymentTransactionReceipt?.blockNumber != null,
-    `No deployment receipt block number for xERC20 ${xERC20Address} on ${chain}`,
-  );
-
-  return getLogsFromEtherscanLikeExplorerAPI(
-    { apiUrl: explorerUrl, apiKey },
-    {
-      address: xERC20Address,
-      fromBlock: deploymentTransactionReceipt.blockNumber,
-      toBlock: currentBlockNumber,
-      topic0: CONFIGURATION_CHANGED_EVENT_SELECTOR,
-    },
-  );
-}
-
-type ConfigurationChangedLog = Log<
+export type ConfigurationChangedLog = Log<
   bigint,
   number,
   false,
@@ -138,72 +104,90 @@ type ConfigurationChangedLog = Log<
   'ConfigurationChanged'
 >;
 
-async function getLockboxesFromLogs(
+/**
+ * Parses ConfigurationChanged logs and keeps only the most recent configuration
+ * of each bridge, keyed by its normalized address.
+ *
+ * A bridge can be reconfigured more than once in the same block, so the block
+ * number alone is not a total order over the logs and logIndex breaks the tie.
+ */
+export function latestConfigurationPerBridge(
   logs: Log[],
-  provider: ethers.providers.Provider,
-  chain: ChainNameOrId,
-  logger: Logger,
-): Promise<XERC20TokenExtraBridgesLimits[]> {
+): Map<Address, ConfigurationChangedLog> {
   const parsedLogs = parseEventLogs({
     abi: XERC20_VS_ABI,
     eventName: 'ConfigurationChanged',
     logs,
   });
 
-  // A bridge might appear more than once in the event logs, we are only
-  // interested in the most recent one for each bridge so we deduplicate
-  // entries here
-  const dedupedBridges = parsedLogs.reduce(
-    (acc, log) => {
-      const bridgeAddress = log.args.bridge;
-      const isMostRecentLogForBridge =
-        log.blockNumber > (acc[bridgeAddress]?.blockNumber ?? 0n);
+  const latestPerBridge = new Map<Address, ConfigurationChangedLog>();
+  for (const log of parsedLogs) {
+    const bridge = normalizeAddress(log.args.bridge);
+    const current = latestPerBridge.get(bridge);
+    const isMostRecentLogForBridge =
+      !current ||
+      log.blockNumber > current.blockNumber ||
+      (log.blockNumber === current.blockNumber &&
+        log.logIndex > current.logIndex);
 
-      if (isMostRecentLogForBridge) {
-        acc[bridgeAddress] = log;
-      }
+    if (isMostRecentLogForBridge) {
+      latestPerBridge.set(bridge, log);
+    }
+  }
 
-      return acc;
-    },
-    {} as Record<string, ConfigurationChangedLog>,
-  );
+  return latestPerBridge;
+}
 
-  const lockboxPromises = Object.values(dedupedBridges)
+async function getLockboxesFromLogs(
+  logs: Log[],
+  provider: ethers.providers.Provider,
+  chain: ChainNameOrId,
+  logger: Logger,
+): Promise<XERC20TokenExtraBridgesLimits[]> {
+  const lockboxPromises = [...latestConfigurationPerBridge(logs).entries()]
     // Removing bridges where the limits are set to 0 because it is equivalent of being deactivated
     // A bridge is active if EITHER bufferCap OR rateLimitPerSecond is non-zero
     .filter(
-      (log) => log.args.bufferCap !== 0n || log.args.rateLimitPerSecond !== 0n,
+      ([, log]) =>
+        log.args.bufferCap !== 0n || log.args.rateLimitPerSecond !== 0n,
     )
-    .map(async (log) => {
+    .map(async ([bridge, log]) => {
       try {
         const maybeXERC20Lockbox = IXERC20Lockbox__factory.connect(
-          log.args.bridge,
+          bridge,
           provider,
         );
 
         await maybeXERC20Lockbox.callStatic.XERC20();
-        return log;
+        return { bridge, log };
       } catch (error) {
         throwIfNotMissingSelector(error);
         logger.debug(
-          `Contract at address ${log.args.bridge} on chain ${chain} is not a XERC20Lockbox contract.`,
+          `Contract at address ${bridge} on chain ${chain} is not a XERC20Lockbox contract.`,
         );
         return undefined;
       }
     });
 
   const lockboxes = await Promise.all(lockboxPromises);
-  return lockboxes
-    .filter((log) => log !== undefined)
-    .map((log) => log as ConfigurationChangedLog)
-    .map((log) => ({
-      lockbox: log.args.bridge,
+
+  const extraBridges: XERC20TokenExtraBridgesLimits[] = [];
+  for (const lockbox of lockboxes) {
+    if (!lockbox) {
+      continue;
+    }
+
+    extraBridges.push({
+      lockbox: lockbox.bridge,
       limits: {
         type: XERC20Type.Velo,
-        bufferCap: log.args.bufferCap.toString(),
-        rateLimitPerSecond: log.args.rateLimitPerSecond.toString(),
+        bufferCap: lockbox.log.args.bufferCap.toString(),
+        rateLimitPerSecond: lockbox.log.args.rateLimitPerSecond.toString(),
       },
-    }));
+    });
+  }
+
+  return extraBridges;
 }
 
 /**
