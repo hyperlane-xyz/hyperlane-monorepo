@@ -7,7 +7,7 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, Metadata, ModuleType, H256,
     U256,
 };
-use starknet::core::types::Felt;
+use starknet::core::types::{BlockId, BlockTag, Felt};
 use tracing::instrument;
 
 use crate::contracts::interchain_security_module::InterchainSecurityModuleReader;
@@ -34,7 +34,8 @@ impl StarknetInterchainSecurityModule {
     ) -> ChainResult<Self> {
         let json_provider = provider.rpc_client().clone();
         let ism_address: Felt = HyH256(locator.address).into();
-        let contract = InterchainSecurityModuleReader::new(ism_address, json_provider);
+        let contract = InterchainSecurityModuleReader::new(ism_address, json_provider)
+            .with_block(BlockId::Tag(BlockTag::Latest));
 
         Ok(Self {
             contract,

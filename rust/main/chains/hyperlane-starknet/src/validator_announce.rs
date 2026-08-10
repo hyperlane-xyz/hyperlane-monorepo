@@ -8,7 +8,7 @@ use hyperlane_core::{
     HyperlaneProvider, TxOutcome, H256, U256,
 };
 use starknet::accounts::{Account, ExecutionV3, SingleOwnerAccount};
-use starknet::core::types::Felt;
+use starknet::core::types::{BlockId, BlockTag, Felt};
 use starknet::core::utils::{parse_cairo_short_string, ParseCairoShortStringError};
 use starknet::signers::LocalWallet;
 use tracing::{instrument, warn};
@@ -54,7 +54,8 @@ impl StarknetValidatorAnnounce {
 
         let va_address: Felt = HyH256(locator.address).into();
 
-        let contract = StarknetValidatorAnnounceInternal::new(va_address, account);
+        let contract = StarknetValidatorAnnounceInternal::new(va_address, account)
+            .with_block(BlockId::Tag(BlockTag::Latest));
 
         Ok(Self {
             contract,

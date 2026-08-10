@@ -85,7 +85,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     blast: true,
     bob: true,
     boba: true,
-    botanix: true,
+    botanix: false, // disabled — RPC down (chain tip frozen); removal per ENG-3999
     bsc: true,
     bsquared: true,
     carrchain: true,
@@ -187,7 +187,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     blast: true,
     bob: true,
     boba: true,
-    botanix: true,
+    botanix: false, // disabled — RPC down (chain tip frozen); removal per ENG-3999
     bsc: true,
     bsquared: true,
     carrchain: true,
@@ -289,7 +289,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     blast: true,
     bob: true,
     boba: true,
-    botanix: true,
+    botanix: false, // disabled — RPC down (chain tip frozen); removal per ENG-3999
     bsc: true,
     bsquared: true,
     carrchain: true,

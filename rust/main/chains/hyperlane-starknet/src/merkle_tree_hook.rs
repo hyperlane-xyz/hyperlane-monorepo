@@ -9,7 +9,7 @@ use hyperlane_core::{
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
     IncrementalMerkleAtBlock, MerkleTreeHook, ReorgPeriod, H256,
 };
-use starknet::core::types::Felt;
+use starknet::core::types::{BlockId, BlockTag, Felt};
 use tracing::instrument;
 
 use crate::contracts::merkle_tree_hook::MerkleTreeHookReader;
@@ -35,7 +35,8 @@ impl StarknetMerkleTreeHook {
         locator: &ContractLocator<'_>,
     ) -> ChainResult<Self> {
         let hook_address: Felt = HyH256(locator.address).into();
-        let contract = MerkleTreeHookReader::new(hook_address, provider.rpc_client().clone());
+        let contract = MerkleTreeHookReader::new(hook_address, provider.rpc_client().clone())
+            .with_block(BlockId::Tag(BlockTag::Latest));
 
         Ok(Self {
             contract,

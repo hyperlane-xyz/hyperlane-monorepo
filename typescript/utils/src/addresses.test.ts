@@ -7,6 +7,7 @@ import {
   isAddressStarknet,
   isValidAddressStarknet,
   isZeroishAddress,
+  isZeroishAddressEvm,
   normalizeAddressEvm,
   padBytesToLength,
 } from './addresses.js';
@@ -56,6 +57,20 @@ describe('Address utilities', () => {
       expect(isZeroishAddress(COSMOS_NATIVE_NON_ZERO_ADDR)).to.be.false;
       expect(isZeroishAddress(SOL_NON_ZERO_ADDR)).to.be.false;
       expect(isZeroishAddress(STARKNET_NON_ZERO_ADDR)).to.be.false;
+    });
+  });
+
+  describe('isZeroishAddressEvm', () => {
+    it('Identifies EVM 0-ish addresses', () => {
+      expect(isZeroishAddressEvm('0x')).to.be.true;
+      expect(isZeroishAddressEvm(ETH_ZERO_ADDR)).to.be.true;
+      expect(isZeroishAddressEvm(COSMOS_NATIVE_ZERO_ADDR)).to.be.true;
+    });
+
+    it('Rejects non-hex 0-ish addresses', () => {
+      expect(isZeroishAddressEvm(COS_ZERO_ADDR)).to.be.false;
+      expect(isZeroishAddressEvm(SOL_ZERO_ADDR)).to.be.false;
+      expect(isZeroishAddressEvm(STARKNET_ZERO_ADDR)).to.be.true;
     });
   });
 
