@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use eyre::Result;
@@ -25,20 +28,37 @@ pub(crate) struct RawDispatchReconciliationResult {
     pub stored_count: u32,
     pub next_after_id: i64,
     pub max_unenriched_age_seconds: u64,
+    pub next_retry_delay: Option<Duration>,
 }
 
 #[derive(Debug, Default)]
 pub(crate) struct RawDispatchRetryBackoff {
     rows: HashMap<i64, RawDispatchRetry>,
+    current_scan: u64,
 }
 
 #[derive(Debug)]
 struct RawDispatchRetry {
     attempts: u32,
     next_retry_at: OffsetDateTime,
+    last_seen_scan: u64,
 }
 
 impl RawDispatchRetryBackoff {
+    fn begin_scan(&mut self, after_id: i64) {
+        if after_id == 0 {
+            self.current_scan = self.current_scan.wrapping_add(1);
+        }
+    }
+
+    fn observe_candidates(&mut self, raw_ids: impl Iterator<Item = i64>) {
+        for raw_id in raw_ids {
+            if let Some(retry) = self.rows.get_mut(&raw_id) {
+                retry.last_seen_scan = self.current_scan;
+            }
+        }
+    }
+
     fn should_attempt(&self, raw_id: i64, now: OffsetDateTime) -> bool {
         match self.rows.get(&raw_id) {
             Some(retry) => retry.next_retry_at <= now,
@@ -47,10 +67,13 @@ impl RawDispatchRetryBackoff {
     }
 
     fn record_missing(&mut self, raw_id: i64, now: OffsetDateTime) -> u32 {
+        let current_scan = self.current_scan;
         let retry = self.rows.entry(raw_id).or_insert(RawDispatchRetry {
             attempts: 0,
             next_retry_at: now,
+            last_seen_scan: current_scan,
         });
+        retry.last_seen_scan = current_scan;
         retry.attempts = retry.attempts.saturating_add(1);
 
         let multiplier = 2_i64.pow(retry.attempts.saturating_sub(1).min(4));
@@ -63,6 +86,35 @@ impl RawDispatchRetryBackoff {
 
     fn record_success(&mut self, raw_id: i64) {
         self.rows.remove(&raw_id);
+    }
+
+    fn next_retry_delay(&self, now: OffsetDateTime) -> Option<Duration> {
+        self.rows
+            .values()
+            .map(|retry| {
+                if retry.next_retry_at <= now {
+                    Duration::ZERO
+                } else {
+                    retry
+                        .next_retry_at
+                        .unix_timestamp_nanos()
+                        .checked_sub(now.unix_timestamp_nanos())
+                        .and_then(|nanos| u64::try_from(nanos).ok())
+                        .map(Duration::from_nanos)
+                        .unwrap_or(Duration::MAX)
+                }
+            })
+            .min()
+    }
+
+    fn finish_scan(&mut self, candidate_count: usize, limit: u64) {
+        if candidate_count as u64 >= limit {
+            return;
+        }
+
+        let current_scan = self.current_scan;
+        self.rows
+            .retain(|_, retry| retry.last_seen_scan == current_scan);
     }
 }
 
@@ -160,15 +212,23 @@ impl HyperlaneDbStore {
             )
             .await?;
         let now = OffsetDateTime::now_utc();
+        retry_backoff.begin_scan(after_id);
+        retry_backoff.observe_candidates(
+            raw_dispatches
+                .iter()
+                .map(|raw_dispatch| raw_dispatch.raw_id),
+        );
         let max_unenriched_age_seconds = raw_dispatches
             .iter()
             .map(|raw_dispatch| raw_dispatch_age_seconds(raw_dispatch.time_created, now))
             .max()
             .unwrap_or_default();
         if raw_dispatches.is_empty() {
+            retry_backoff.finish_scan(0, limit);
             return Ok(RawDispatchReconciliationResult {
                 next_after_id: after_id,
                 max_unenriched_age_seconds,
+                next_retry_delay: retry_backoff.next_retry_delay(now),
                 ..Default::default()
             });
         }
@@ -187,11 +247,13 @@ impl HyperlaneDbStore {
             .collect::<Vec<_>>();
 
         if raw_dispatches_to_attempt.is_empty() {
+            retry_backoff.finish_scan(raw_dispatches.len(), limit);
             return Ok(RawDispatchReconciliationResult {
                 candidate_count: raw_dispatches.len(),
                 skipped_backoff_count,
                 next_after_id,
                 max_unenriched_age_seconds,
+                next_retry_delay: retry_backoff.next_retry_delay(now),
                 ..Default::default()
             });
         }
@@ -240,6 +302,7 @@ impl HyperlaneDbStore {
         for raw_id in stored_raw_ids {
             retry_backoff.record_success(raw_id);
         }
+        retry_backoff.finish_scan(raw_dispatches.len(), limit);
 
         if !missing_tx_hashes.is_empty() {
             warn!(
@@ -259,6 +322,7 @@ impl HyperlaneDbStore {
             stored_count: stored as u32,
             next_after_id,
             max_unenriched_age_seconds,
+            next_retry_delay: retry_backoff.next_retry_delay(OffsetDateTime::now_utc()),
         })
     }
 }
@@ -487,5 +551,56 @@ mod tests {
 
         backoff.record_success(raw_id);
         assert!(backoff.should_attempt(raw_id, now));
+    }
+
+    #[test]
+    fn raw_dispatch_retry_backoff_reports_earliest_retry() {
+        let now = OffsetDateTime::now_utc();
+        let mut backoff = RawDispatchRetryBackoff::default();
+
+        backoff.record_missing(7, now);
+        backoff.record_missing(8, offset_by_seconds(now, 30));
+
+        assert_eq!(
+            backoff.next_retry_delay(now),
+            Some(Duration::from_secs(
+                RAW_DISPATCH_RETRY_INITIAL_BACKOFF_SECONDS as u64
+            ))
+        );
+    }
+
+    #[test]
+    fn scan_preserves_retry_that_became_due_after_its_page() {
+        let start = OffsetDateTime::now_utc();
+        let raw_id = 7;
+        let mut backoff = RawDispatchRetryBackoff::default();
+
+        backoff.begin_scan(0);
+        assert_eq!(backoff.record_missing(raw_id, start), 1);
+
+        backoff.begin_scan(0);
+        let page_time = offset_by_seconds(start, 50);
+        backoff.observe_candidates([raw_id].into_iter());
+        assert!(!backoff.should_attempt(raw_id, page_time));
+
+        backoff.finish_scan(1, 100);
+        let scan_end = offset_by_seconds(start, 70);
+        assert_eq!(backoff.next_retry_delay(scan_end), Some(Duration::ZERO));
+        assert_eq!(backoff.record_missing(raw_id, scan_end), 2);
+    }
+
+    #[test]
+    fn scan_drops_retry_rows_no_longer_returned_by_database() {
+        let now = OffsetDateTime::now_utc();
+        let raw_id = 7;
+        let mut backoff = RawDispatchRetryBackoff::default();
+
+        backoff.begin_scan(0);
+        assert_eq!(backoff.record_missing(raw_id, now), 1);
+
+        backoff.begin_scan(0);
+        backoff.finish_scan(0, 100);
+
+        assert_eq!(backoff.record_missing(raw_id, now), 1);
     }
 }
