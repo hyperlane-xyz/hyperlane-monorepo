@@ -148,7 +148,17 @@ export class AgentGcpKmsKey extends CloudAgentKey {
     try {
       await this.fetch();
       return true;
-    } catch {
+    } catch (error) {
+      // A permission-denied read means the key exists but the caller lacks
+      // access to it. Treat it as existing so we never prompt to (re)create a
+      // key that is already provisioned.
+      const message = error instanceof Error ? error.message : String(error);
+      if (/permission[_ ]denied/i.test(message)) {
+        this.logger.debug(
+          'Permission denied reading KMS key; treating as existing',
+        );
+        return true;
+      }
       return false;
     }
   }
