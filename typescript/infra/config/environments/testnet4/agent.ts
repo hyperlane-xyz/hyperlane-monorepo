@@ -49,7 +49,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bsctestnet: true,
     celestiatestnet: false,
     celosepolia: false, // disabled — deprecated dead testnet, no traffic (2026-07)
-    cotitestnet: false, // disabled — deprecated dead testnet, no traffic (2026-07)
     eclipsetestnet: false,
     fuji: true,
     hyperliquidevmtestnet: true,
@@ -75,7 +74,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bsctestnet: true,
     celestiatestnet: false,
     celosepolia: false, // disabled — deprecated dead testnet, no traffic (2026-07)
-    cotitestnet: false, // disabled — deprecated dead testnet, no traffic (2026-07)
     eclipsetestnet: false,
     fuji: true,
     hyperliquidevmtestnet: true,
@@ -101,7 +99,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bsctestnet: true,
     celestiatestnet: false,
     celosepolia: false, // disabled — deprecated dead testnet, no traffic (2026-07)
-    cotitestnet: false, // disabled — deprecated dead testnet, no traffic (2026-07)
     eclipsetestnet: false,
     fuji: true,
     hyperliquidevmtestnet: true,
