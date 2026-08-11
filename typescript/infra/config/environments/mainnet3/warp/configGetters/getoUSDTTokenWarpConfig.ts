@@ -175,9 +175,11 @@ const productionCeloXERC20LockboxAddress =
   '0x5e5F4d6B03db16E7f00dE7C9AFAA53b92C8d1D42';
 const productionXERC20TokenAddress =
   '0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189';
-// PLACEHOLDER: Tron prod xERC20 is not yet deployed (non-deterministic on Tron).
-// Replace with the real Tron base58 address before running the production deploy (AW-745).
-const productionTronXERC20Address = 'TRON_PROD_XERC20_PLACEHOLDER';
+// Production Tron xERC20 (already deployed; non-deterministic on Tron).
+// TUtpibSKKE43FQNzw2794pcHqDsYsUTKPa in base58; kept as EVM hex to match the
+// rest of this file and the tron chain addresses in the registry.
+const productionTronXERC20Address =
+  '0xcf961fD920a2f49E46dcF78812a5a9De35972748';
 
 const zeroLimits: XERC20VSLimitConfig = {
   type: XERC20Type.Velo,
@@ -316,7 +318,7 @@ const stagingXERC20TokenAddress = '0x0290B74980C051EB46b84b1236645444e77da0E9';
 // Staging Tron xERC20 (already deployed; non-deterministic on Tron).
 // TUVzhcYfWwAp3qGdgTFDKa7cePLvurvxdA in base58; kept as EVM hex to match the
 // rest of this file and the tron chain addresses in the registry.
-const stagingTronXERC20Address = '0xcb44e40813b21c64baacb1bc9b9a2272320a22e2';
+const stagingTronXERC20Address = '0xcB44E40813b21C64BAacB1bC9B9A2272320a22E2';
 const stagingXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   ethereum: stagingEthereumXERC20LockboxAddress,
   celo: stagingCeloXERC20LockboxAddress,
