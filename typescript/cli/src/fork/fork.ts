@@ -104,6 +104,13 @@ export async function runForkCommand({
     basePort,
   });
 
+  // Under --kill the fork managers are torn down after replaying their configs,
+  // so there is nothing left to serve; starting the registry server would only
+  // keep the CLI process alive indefinitely. Skip it.
+  if (kill) {
+    return;
+  }
+
   const mergedRegistry = new MergedRegistry({
     registries: [registry, new PartialRegistry({ chainMetadata: metadata })],
   });
