@@ -87,6 +87,32 @@ export async function runSurfpoolContainer(
     },
   };
 
-  await waitForSolanaRpcReady(node.rpcUrl);
+  await stopContainerOnReadinessFailure(container, node.rpcUrl);
   return node;
+}
+
+/**
+ * Waits for the container's RPC to become ready, stopping the (already-started)
+ * container if it never does. Without this, a readiness failure drops the only
+ * handle to the started container and leaves surfpool running, contaminating
+ * later local/e2e runs. The readiness probe is injectable for testing.
+ */
+export async function stopContainerOnReadinessFailure(
+  container: { stop: () => Promise<unknown> },
+  rpcUrl: string,
+  waitForReady: (url: string) => Promise<void> = waitForSolanaRpcReady,
+): Promise<void> {
+  try {
+    await waitForReady(rpcUrl);
+  } catch (error: unknown) {
+    await container
+      .stop()
+      .catch((stopError: unknown) =>
+        logger.debug(
+          { err: stopError },
+          'surfpool container stop failed after readiness failure',
+        ),
+      );
+    throw error;
+  }
 }
