@@ -38,6 +38,16 @@ catalog:
 
   # HTTP
   express-rate-limit: ^8.3.1
+  '@as-integrations/express5': ^1.1.2
+  '@apollo/server': ^5.5.0
+  '@nestjs/apollo': 13.2.3
+  '@nestjs/common': 11.1.28
+  '@nestjs/core': 11.1.28
+  '@nestjs/graphql': 13.2.3
+  '@nestjs/platform-express': 11.1.28
+  graphql: ^16.14.2
+  reflect-metadata: ^0.2.2
+  rxjs: ^7.8.2
 
   # Utilities
   bignumber.js: ^9.1.1
@@ -213,6 +223,7 @@ patchedDependencies:
   bigint-buffer@1.1.5: patches/bigint-buffer@1.1.5.patch
   node-fetch@3.3.2: patches/node-fetch@3.3.2.patch
 allowBuilds:
+  '@apollo/protobufjs': true
   '@prisma/engines': true
   '@reown/appkit': true
   '@trufflesuite/bigint-buffer': true
