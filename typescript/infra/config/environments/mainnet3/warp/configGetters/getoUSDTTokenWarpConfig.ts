@@ -314,7 +314,9 @@ const stagingCeloXERC20LockboxAddress =
   '0x9a3D8d7E931679374448FB2B661F664D42d05057';
 const stagingXERC20TokenAddress = '0x0290B74980C051EB46b84b1236645444e77da0E9';
 // Staging Tron xERC20 (already deployed; non-deterministic on Tron).
-const stagingTronXERC20Address = 'TF1cXmd5e7CfWp2jgBaVQz1TYgda4omzDy';
+// TUVzhcYfWwAp3qGdgTFDKa7cePLvurvxdA in base58; kept as EVM hex to match the
+// rest of this file and the tron chain addresses in the registry.
+const stagingTronXERC20Address = '0xcb44e40813b21c64baacb1bc9b9a2272320a22e2';
 const stagingXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   ethereum: stagingEthereumXERC20LockboxAddress,
   celo: stagingCeloXERC20LockboxAddress,
