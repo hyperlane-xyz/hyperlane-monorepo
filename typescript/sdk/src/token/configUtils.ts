@@ -1,6 +1,10 @@
-import { constants } from 'ethers';
+import { constants, providers } from 'ethers';
 import { zeroAddress } from 'viem';
 
+import {
+  HypXERC20Lockbox__factory,
+  HypXERC20__factory,
+} from '@hyperlane-xyz/core';
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
@@ -40,7 +44,7 @@ import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { TokenMetadataMap } from './TokenMetadataMap.js';
-import { gasOverhead } from './config.js';
+import { TokenType, gasOverhead } from './config.js';
 import { deriveTokenMetadata } from './tokenMetadataUtils.js';
 import {
   ContractVerificationStatus,
@@ -60,6 +64,7 @@ import {
   isOftTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
+  isXERC20TokenConfig,
 } from './types.js';
 
 /**
@@ -492,10 +497,11 @@ export async function expandWarpDeployConfig(params: {
       if (chainConfig.tokenFee) {
         const routerAddress = deployedRoutersAddresses[chain];
         assert(routerAddress, `Missing deployed router address for ${chain}`);
-        chainConfig.tokenFee = resolveTokenFeeAddress(
+        chainConfig.tokenFee = await resolveTokenFeeAddress(
           chainConfig.tokenFee,
           routerAddress,
           chainConfig,
+          multiProvider.getProvider(chain),
         );
       }
 
@@ -546,14 +552,37 @@ export function normalizeWarpDeployConfigForCheck(params: {
  * Resolves the fee token address based on the warp route token type.
  * - Native tokens: fee token is AddressZero
  * - Collateral tokens: fee token is the collateral token address
+ * - xERC20 / xERC20Lockbox tokens: the fee token is read on-chain from the
+ *   deployed router's immutable wrappedToken() rather than trusting
+ *   tokenConfig.token. Plain xERC20 wrappedToken() returns the wrapped xERC20,
+ *   while xERC20Lockbox wrappedToken() returns the underlying wrapped ERC20,
+ *   NOT the lockbox address stored in tokenConfig.token. wrappedToken() (not
+ *   token()) is used because it is an immutable getter present across router
+ *   versions: on legacy routers (e.g. 6.1.0) token() reverts, and fee
+ *   resolution runs at plan time BEFORE the router is upgraded, so reading
+ *   token() there would revert when adding a fee in the same warp apply that
+ *   also upgrades the contract. In current routers token() == wrappedToken(),
+ *   so the resolved fee token still matches the router's fee==token() check.
  * - Synthetic tokens: fee token is the router address (the HypERC20 itself)
  */
-function getFeeTokenAddress(
+async function getFeeTokenAddress(
   routerAddress: Address,
   tokenConfig: HypTokenConfig,
-): Address {
+  provider: providers.Provider,
+): Promise<Address> {
   if (isNativeTokenConfig(tokenConfig)) {
     return constants.AddressZero;
+  }
+
+  if (tokenConfig.type === TokenType.XERC20Lockbox) {
+    return HypXERC20Lockbox__factory.connect(
+      routerAddress,
+      provider,
+    ).wrappedToken();
+  }
+
+  if (isXERC20TokenConfig(tokenConfig)) {
+    return HypXERC20__factory.connect(routerAddress, provider).wrappedToken();
   }
 
   if (
@@ -573,35 +602,22 @@ function getFeeTokenAddress(
   throw new Error(`Unsupported token type for fee resolution`);
 }
 
-function resolveCrossCollateralFeeContracts(
-  destinationConfig: Record<string, TokenFeeConfigInput>,
-  routerAddress: Address,
-  tokenConfig: HypTokenConfig,
-) {
-  return Object.fromEntries(
-    Object.entries(destinationConfig).map(([router, subFee]) => [
-      router,
-      resolveTokenFeeAddress(subFee, routerAddress, tokenConfig),
-    ]),
-  );
-}
-
-export function resolveTokenFeeAddress(
+/**
+ * Applies an already-resolved fee token to a (possibly nested) fee config.
+ * Pure and synchronous: every nesting level of a routing fee shares the same
+ * router/token, so the fee token is resolved once by the caller and threaded
+ * through here without additional RPC calls.
+ */
+function applyFeeTokenAddress(
   feeConfig: TokenFeeConfigInput,
-  routerAddress: Address,
-  tokenConfig: HypTokenConfig,
+  feeToken: Address,
 ): ResolvedTokenFeeConfigInput {
-  const feeToken = getFeeTokenAddress(routerAddress, tokenConfig);
-
   if (feeConfig.type === TokenFeeType.RoutingFee) {
     return {
       ...feeConfig,
       token: feeToken,
-      feeContracts: Object.fromEntries(
-        Object.entries(feeConfig.feeContracts).map(([chain, subFee]) => [
-          chain,
-          resolveTokenFeeAddress(subFee, routerAddress, tokenConfig),
-        ]),
+      feeContracts: objMap(feeConfig.feeContracts, (_chain, subFee) =>
+        applyFeeTokenAddress(subFee, feeToken),
       ),
     } satisfies ResolvedTokenFeeConfigInput;
   }
@@ -609,15 +625,12 @@ export function resolveTokenFeeAddress(
   if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
     return {
       ...feeConfig,
-      feeContracts: Object.fromEntries(
-        Object.keys(feeConfig.feeContracts).map((chain) => [
-          chain,
-          resolveCrossCollateralFeeContracts(
-            feeConfig.feeContracts[chain],
-            routerAddress,
-            tokenConfig,
+      feeContracts: objMap(
+        feeConfig.feeContracts,
+        (_chain, destinationConfig) =>
+          objMap(destinationConfig, (_router, subFee) =>
+            applyFeeTokenAddress(subFee, feeToken),
           ),
-        ]),
       ),
     } satisfies ResolvedTokenFeeConfigInput;
   }
@@ -626,6 +639,21 @@ export function resolveTokenFeeAddress(
     ...feeConfig,
     token: feeToken,
   } satisfies ResolvedTokenFeeConfigInput;
+}
+
+export async function resolveTokenFeeAddress(
+  feeConfig: TokenFeeConfigInput,
+  routerAddress: Address,
+  tokenConfig: HypTokenConfig,
+  provider: providers.Provider,
+): Promise<ResolvedTokenFeeConfigInput> {
+  const feeToken = await getFeeTokenAddress(
+    routerAddress,
+    tokenConfig,
+    provider,
+  );
+
+  return applyFeeTokenAddress(feeConfig, feeToken);
 }
 
 export async function expandVirtualWarpDeployConfig(params: {

@@ -1898,10 +1898,11 @@ export class EvmWarpModule extends HyperlaneModule<
     }
 
     const routerAddress = this.args.addresses.deployedTokenRoute;
-    const resolvedTokenFee = resolveTokenFeeAddress(
+    const resolvedTokenFee = await resolveTokenFeeAddress(
       expectedConfig.tokenFee,
       routerAddress,
       expectedConfig,
+      this.multiProvider.getProvider(this.chainId),
     );
 
     const currentTokenFee = actualConfig.tokenFee;

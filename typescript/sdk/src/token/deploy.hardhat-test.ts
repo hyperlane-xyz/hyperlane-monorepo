@@ -7,6 +7,7 @@ import {
   ERC20Test,
   ERC20Test__factory,
   GasRouter__factory,
+  HypXERC20Lockbox__factory,
   LinearFee__factory,
   MailboxClient__factory,
   ProxyAdmin,
@@ -16,12 +17,14 @@ import {
   StaticAggregationIsm__factory,
   TokenRouter__factory,
   TransparentUpgradeableProxy__factory,
+  XERC20LockboxTest__factory,
   XERC20Test,
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
+  assert,
   deepCopy,
   eqAddress,
   isZeroishAddress,
@@ -892,6 +895,64 @@ describe('TokenDeployer', async () => {
       );
       const feeToken = await routingFee.token();
       expect(eqAddress(feeToken, routerAddress)).to.be.true;
+    });
+
+    it('should resolve LinearFee token to the on-chain wrapped token for xERC20Lockbox', async () => {
+      // Regression: for a lockbox, tokenConfig.token is the lockbox address, but
+      // the router's token()/feeToken() returns the underlying wrapped ERC20.
+      // The fee contract must be deployed with token() so the router's
+      // "fee must match token" check passes. Resolution reads this on-chain.
+      const { name, symbol, decimals } = config[chain];
+      assert(name, 'expected a token name in the config');
+      assert(symbol, 'expected a token symbol in the config');
+      assert(decimals != null, 'expected token decimals in the config');
+      const lockbox = await new XERC20LockboxTest__factory(signer).deploy(
+        name,
+        symbol,
+        totalSupply,
+        decimals,
+      );
+      const wrappedToken = await lockbox.ERC20();
+
+      const lockboxConfig: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: {
+          ...config[chain],
+          type: TokenType.XERC20Lockbox,
+          token: lockbox.address,
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            owner: signer.address,
+            bps: 100,
+            maxFee: 1000000000n,
+            halfAmount: 500000000n,
+          },
+        },
+      };
+
+      const warpRoute = await deployer.deploy(lockboxConfig);
+      const routerAddress = warpRoute[chain].xERC20Lockbox.address;
+
+      const router = HypXERC20Lockbox__factory.connect(
+        routerAddress,
+        multiProvider.getProvider(chain),
+      );
+      const routerToken = await router.token();
+      // Sanity: the router's token is the wrapped ERC20, not the lockbox.
+      expect(eqAddress(routerToken, wrappedToken)).to.be.true;
+      expect(eqAddress(routerToken, lockbox.address)).to.be.false;
+
+      const feeRecipient = await router.feeRecipient();
+      expect(isZeroishAddress(feeRecipient)).to.be.false;
+
+      const linearFee = LinearFee__factory.connect(
+        feeRecipient,
+        multiProvider.getProvider(chain),
+      );
+      const feeToken = await linearFee.token();
+      // The fee token must equal router.token() (the invariant the router
+      // enforces), and must NOT be the lockbox address (the pre-fix bug).
+      expect(eqAddress(feeToken, routerToken)).to.be.true;
+      expect(eqAddress(feeToken, lockbox.address)).to.be.false;
     });
   });
 });
