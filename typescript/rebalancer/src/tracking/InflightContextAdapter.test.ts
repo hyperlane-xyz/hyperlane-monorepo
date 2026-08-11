@@ -5,7 +5,7 @@ import type { MultiProvider } from '@hyperlane-xyz/sdk';
 
 import type { IActionTracker } from './IActionTracker.js';
 import { InflightContextAdapter } from './InflightContextAdapter.js';
-import type { RebalanceIntent, Transfer } from './types.js';
+import type { RebalanceAction, RebalanceIntent, Transfer } from './types.js';
 
 describe('InflightContextAdapter', () => {
   let actionTracker: Sinon.SinonStubbedInstance<IActionTracker>;
@@ -17,6 +17,7 @@ describe('InflightContextAdapter', () => {
       getActiveRebalanceIntents: Sinon.stub(),
       getInProgressTransfers: Sinon.stub(),
       getActionsForIntent: Sinon.stub(),
+      getActionsForIntents: Sinon.stub(),
     } as any;
 
     multiProvider = {
@@ -201,6 +202,81 @@ describe('InflightContextAdapter', () => {
 
       expect(result.pendingRebalances).to.have.lengthOf(2);
       expect(result.pendingTransfers).to.have.lengthOf(2);
+    });
+
+    it('should fetch inventory intent actions in one batch', async () => {
+      const mockIntents: RebalanceIntent[] = [
+        {
+          id: 'inventory-intent-1',
+          origin: 1,
+          destination: 2,
+          amount: 1000n,
+          status: 'in_progress',
+          executionMethod: 'inventory',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        {
+          id: 'inventory-intent-2',
+          origin: 2,
+          destination: 3,
+          amount: 2000n,
+          status: 'in_progress',
+          executionMethod: 'inventory',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+      ];
+
+      const actionsByIntent = new Map<string, RebalanceAction[]>([
+        [
+          'inventory-intent-1',
+          [
+            {
+              id: 'action-complete',
+              type: 'inventory_deposit',
+              status: 'complete',
+              intentId: 'inventory-intent-1',
+              origin: 1,
+              destination: 2,
+              amount: 300n,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            },
+            {
+              id: 'action-in-progress',
+              type: 'inventory_deposit',
+              status: 'in_progress',
+              intentId: 'inventory-intent-1',
+              origin: 1,
+              destination: 2,
+              amount: 200n,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            },
+          ],
+        ],
+        ['inventory-intent-2', []],
+      ]);
+
+      actionTracker.getActiveRebalanceIntents.resolves(mockIntents);
+      actionTracker.getInProgressTransfers.resolves([]);
+      actionTracker.getActionsForIntents.resolves(actionsByIntent);
+      multiProvider.getChainName.withArgs(1).returns('ethereum');
+      multiProvider.getChainName.withArgs(2).returns('arbitrum');
+      multiProvider.getChainName.withArgs(3).returns('optimism');
+
+      const result = await adapter.getInflightContext();
+
+      expect(actionTracker.getActionsForIntents.calledOnce).to.be.true;
+      expect(
+        actionTracker.getActionsForIntents.firstCall.args[0],
+      ).to.deep.equal(['inventory-intent-1', 'inventory-intent-2']);
+      expect(actionTracker.getActionsForIntent.notCalled).to.be.true;
+      expect(result.pendingRebalances[0].deliveredAmount).to.equal(300n);
+      expect(result.pendingRebalances[0].awaitingDeliveryAmount).to.equal(200n);
+      expect(result.pendingRebalances[1].deliveredAmount).to.equal(0n);
+      expect(result.pendingRebalances[1].awaitingDeliveryAmount).to.equal(0n);
     });
   });
 });

@@ -24,6 +24,17 @@ import { getRawBalances } from '../utils/balanceUtils.js';
 
 import { InventoryRebalancer } from './InventoryRebalancer.js';
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+type ActionTrackerSyncStep = {
+  name: string;
+  run: () => Promise<unknown>;
+};
+
+const METRICS_PROCESS_TOKEN_TIMEOUT_MS = 30_000;
+
 /**
  * Result of a rebalancing cycle.
  * executedCount/failedCount: Counts from movable_collateral execution ONLY
@@ -57,6 +68,7 @@ export class RebalancerOrchestrator {
   private readonly rebalancersByType: Map<RebalancerType, IRebalancer>;
   private readonly externalBridgeRegistry?: Partial<ExternalBridgeRegistry>;
   private readonly metrics?: Metrics;
+  private readonly inFlightMetricTokens = new Set<string>();
 
   constructor(deps: RebalancerOrchestratorDeps) {
     this.strategy = deps.strategy;
@@ -78,12 +90,7 @@ export class RebalancerOrchestrator {
   async executeCycle(event: MonitorEvent): Promise<CycleResult> {
     this.logger.info('Polling cycle started');
 
-    const { metrics } = this;
-    if (metrics) {
-      await Promise.all(
-        event.tokensInfo.map((tokenInfo) => metrics.processToken(tokenInfo)),
-      );
-    }
+    this.processMetricsBestEffort(event);
 
     await this.syncActionTracker(event.confirmedBlockTags);
 
@@ -148,26 +155,139 @@ export class RebalancerOrchestrator {
     };
   }
 
+  private processMetricsBestEffort(event: MonitorEvent): void {
+    const { metrics } = this;
+    if (!metrics) return;
+
+    const tokenInfosToProcess = event.tokensInfo.filter((tokenInfo) => {
+      const metricKey = this.metricTokenKey(tokenInfo.token);
+      if (this.inFlightMetricTokens.has(metricKey)) {
+        this.logger.debug(
+          { metricKey },
+          'Skipping token metrics processing already in flight',
+        );
+        return false;
+      }
+      this.inFlightMetricTokens.add(metricKey);
+      return true;
+    });
+
+    // Best-effort metrics are intentionally detached from the polling cycle.
+    // They may be dropped on process shutdown, but they cannot gate rebalancing.
+    void Promise.allSettled(
+      tokenInfosToProcess.map((tokenInfo) =>
+        this.processTokenMetricsWithTimeout(() =>
+          metrics.processToken(tokenInfo),
+        ).finally(() => {
+          this.inFlightMetricTokens.delete(
+            this.metricTokenKey(tokenInfo.token),
+          );
+        }),
+      ),
+    ).then((results) => {
+      const failed = results.filter((result) => result.status === 'rejected');
+      if (failed.length === 0) return;
+
+      this.logger.warn(
+        {
+          count: failed.length,
+          errors: failed.map((result) => errorMessage(result.reason)),
+        },
+        'Metrics token processing failed',
+      );
+    });
+  }
+
+  private async processTokenMetricsWithTimeout(
+    processToken: () => Promise<void>,
+  ): Promise<void> {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        processToken(),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `Metrics token processing timed out after ${METRICS_PROCESS_TOKEN_TIMEOUT_MS}ms`,
+                ),
+              ),
+            METRICS_PROCESS_TOKEN_TIMEOUT_MS,
+          );
+          timeout.unref?.();
+        }),
+      ]);
+    } finally {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    }
+  }
+
+  private metricTokenKey(token: MonitorEvent['tokensInfo'][number]['token']) {
+    return `${token.chainName}:${token.addressOrDenom}`;
+  }
+
   /**
    * Sync action tracker with current chain state.
    */
   private async syncActionTracker(
     confirmedBlockTags?: ConfirmedBlockTags,
   ): Promise<void> {
-    try {
-      await Promise.all([
-        this.actionTracker.syncTransfers(confirmedBlockTags),
-        this.actionTracker.syncRebalanceIntents(),
-        this.actionTracker.syncRebalanceActions(confirmedBlockTags),
-      ]);
+    const syncSteps: ActionTrackerSyncStep[] = [
+      {
+        name: 'transfers',
+        run: () => this.actionTracker.syncTransfers(confirmedBlockTags),
+      },
+      {
+        name: 'rebalanceIntents',
+        run: () => this.actionTracker.syncRebalanceIntents(),
+      },
+      {
+        name: 'rebalanceActions',
+        run: () => this.actionTracker.syncRebalanceActions(confirmedBlockTags),
+      },
+    ];
 
-      // Sync inventory movement actions via external bridge API
-      if (this.externalBridgeRegistry) {
-        await this.actionTracker.syncInventoryMovementActions(
-          this.externalBridgeRegistry,
-        );
+    const externalBridgeRegistry = this.externalBridgeRegistry;
+    if (externalBridgeRegistry) {
+      syncSteps.push({
+        name: 'inventoryMovementActions',
+        run: () =>
+          this.actionTracker.syncInventoryMovementActions(
+            externalBridgeRegistry,
+          ),
+      });
+    }
+
+    const results = await Promise.allSettled(
+      syncSteps.map((step) => Promise.resolve().then(() => step.run())),
+    );
+
+    const freshSources: string[] = [];
+    const staleSources: string[] = [];
+
+    results.forEach((result, index) => {
+      const { name } = syncSteps[index];
+      if (result.status === 'fulfilled') {
+        freshSources.push(name);
+        return;
       }
 
+      staleSources.push(name);
+      this.logger.warn(
+        { source: name, error: errorMessage(result.reason) },
+        'ActionTracker sync source failed, using stale data',
+      );
+    });
+
+    this.logger.info(
+      { freshSources, staleSources },
+      'ActionTracker sync freshness',
+    );
+
+    try {
       await this.actionTracker.logStoreContents();
     } catch (error) {
       this.logger.warn(
@@ -259,15 +379,21 @@ export class RebalancerOrchestrator {
       }
 
       return results;
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (rebalancer.rebalancerType === 'movableCollateral') {
         this.metrics?.recordRebalancerFailure();
       }
+      const errorMessageString = errorMessage(error);
       this.logger.error(
         { error, type: rebalancer.rebalancerType },
         'Error while executing routes',
       );
-      return [];
+      return routes.map((route) => ({
+        route,
+        success: false,
+        error: errorMessageString,
+        reason: 'executor_error',
+      }));
     }
   }
 }

@@ -168,6 +168,22 @@ export interface IActionTracker {
   getActionsForIntent(intentId: string): Promise<RebalanceAction[]>;
 
   /**
+   * Get actions grouped by intent ID.
+   * @param intentIds - IDs of the intents
+   */
+  getActionsForIntents(
+    intentIds: readonly string[],
+  ): Promise<Map<string, RebalanceAction[]>>;
+
+  /**
+   * Get actions keyed by Hyperlane message ID.
+   * @param messageIds - Message IDs associated with actions
+   */
+  getActionsByMessageIds(
+    messageIds: readonly string[],
+  ): Promise<Map<string, RebalanceAction>>;
+
+  /**
    * Get total inflight inventory movement amount from a specific chain.
    * Returns the sum of amounts for all in_progress inventory_movement actions
    * that originate from the specified domain.
