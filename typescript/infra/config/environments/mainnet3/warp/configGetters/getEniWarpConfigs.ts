@@ -5,6 +5,7 @@ import {
   tokens,
 } from '../../../../../src/config/warp.js';
 import { getWarpFeeOwner } from '../../governance/utils.js';
+import { WARP_QUOTE_SIGNER } from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
 
 import {
@@ -27,8 +28,6 @@ const owners = {
 } as const;
 
 const WARP_FEE_BPS = 8;
-// Moonpay offchain quote signer for the inter-collateral fees added on the USDT/eni route
-const QUOTE_SIGNER = '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d';
 const USDT_INTER_COLLATERAL_FEE_BPS = 5;
 
 const usdcTokenAddresses = {
@@ -271,7 +270,7 @@ export async function getEniUsdtWarpConfig(
         USDT_INTER_COLLATERAL_FEE_BPS,
         undefined,
         // tron's fee contract charges the flat fee directly, without an offchain quote
-        chain === 'tron' ? undefined : [QUOTE_SIGNER],
+        chain === 'tron' ? undefined : [WARP_QUOTE_SIGNER],
       ),
     };
     configs.push([chain, config]);
