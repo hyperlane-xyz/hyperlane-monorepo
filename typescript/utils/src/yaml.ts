@@ -368,6 +368,8 @@ export type ArraySortConfig = {
     path: string;
     sortKey: string;
   }>;
+  preserve?: string[];
+  preserveKeys?: string[];
 };
 
 export const WARP_YAML_SORT_CONFIG: ArraySortConfig = {
@@ -380,6 +382,10 @@ export const WARP_YAML_SORT_CONFIG: ArraySortConfig = {
       sortKey: 'type',
     },
   ],
+  // These arrays describe ordered piecewise curves. They can occur at many
+  // depths inside nested routing-fee configs, so preserve them by semantic
+  // key instead of enumerating individual paths.
+  preserveKeys: ['breakpoints', 'marginalBps', 'staleMarginalSurchargeBps'],
 };
 
 export function sortObjectKeys(obj: unknown): unknown {
@@ -419,6 +425,19 @@ function findSortKeyForPath(
   });
 
   return matchingConfig?.sortKey || null;
+}
+
+function shouldPreserveArrayOrder(
+  path: string[],
+  config: ArraySortConfig,
+): boolean {
+  return (
+    (path.length > 0 && config.preserveKeys?.includes(path.at(-1)!)) ||
+    (config.preserve?.some((configPath) =>
+      isPathMatch(path, configPath.split('.')),
+    ) ??
+      false)
+  );
 }
 
 function isPathMatch(path: string[], patternParts: string[]): boolean {
@@ -493,6 +512,7 @@ export function sortNestedArrays<T>(
   // Handle arrays
   if (Array.isArray(data)) {
     const sortKey = findSortKeyForPath(path, config);
+    const preserveOrder = shouldPreserveArrayOrder(path, config);
 
     // Process each array item recursively
     const processedArray = data.map((item, idx) =>
@@ -500,9 +520,11 @@ export function sortNestedArrays<T>(
     );
 
     return (
-      sortKey
-        ? sortArrayByKey(processedArray, sortKey)
-        : sortPrimitiveArray(processedArray)
+      preserveOrder
+        ? processedArray
+        : sortKey
+          ? sortArrayByKey(processedArray, sortKey)
+          : sortPrimitiveArray(processedArray)
     ) as T;
   }
 

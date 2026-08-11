@@ -210,6 +210,63 @@ describe('sortNestedArrays', () => {
     expect(result.nested.flags).to.deep.equal([false, true, true]);
   });
 
+  it('should preserve primitive array order for configured paths', () => {
+    const data = {
+      lanes: [
+        {
+          fallback: {
+            marginalBps: [4, 10, 20],
+          },
+        },
+      ],
+      names: ['zeta', 'alpha'],
+    };
+
+    const result = sortNestedArrays(data, {
+      arrays: [],
+      preserve: ['lanes[].fallback.marginalBps'],
+    });
+
+    expect(result.lanes[0].fallback.marginalBps).to.deep.equal([4, 10, 20]);
+    expect(result.names).to.deep.equal(['alpha', 'zeta']);
+  });
+
+  it('should preserve primitive array order for configured keys at any depth', () => {
+    const data = {
+      bsc: {
+        tokenFee: {
+          feeContracts: {
+            arbitrum: {
+              router: {
+                initialFallback: {
+                  breakpoints: ['750000000000000000', '250000000000000000'],
+                  marginalBps: [4, 10, 20],
+                  staleMarginalSurchargeBps: [2, 4, 8],
+                },
+              },
+            },
+          },
+        },
+      },
+      names: ['zeta', 'alpha'],
+    };
+
+    const result = sortNestedArrays(data, {
+      arrays: [],
+      preserveKeys: ['breakpoints', 'marginalBps', 'staleMarginalSurchargeBps'],
+    });
+
+    const curve =
+      result.bsc.tokenFee.feeContracts.arbitrum.router.initialFallback;
+    expect(curve.breakpoints).to.deep.equal([
+      '750000000000000000',
+      '250000000000000000',
+    ]);
+    expect(curve.marginalBps).to.deep.equal([4, 10, 20]);
+    expect(curve.staleMarginalSurchargeBps).to.deep.equal([2, 4, 8]);
+    expect(result.names).to.deep.equal(['alpha', 'zeta']);
+  });
+
   it('should not match when path length is shorter than pattern length', () => {
     const data = {
       items: [
@@ -434,6 +491,7 @@ describe('WARP_YAML_SORT_CONFIG', () => {
           sortKey: 'type',
         },
       ],
+      preserveKeys: ['breakpoints', 'marginalBps', 'staleMarginalSurchargeBps'],
     });
   });
 });
