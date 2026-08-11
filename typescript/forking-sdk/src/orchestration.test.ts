@@ -148,6 +148,42 @@ describe('buildForkedChainMetadata', () => {
     expect(managers.beta).to.equal(created[1]);
   });
 
+  it('rejects duplicate chain names before starting any node', async () => {
+    const { created, registry } = setup();
+
+    const duplicatedChains: ForkChainInput[] = [
+      {
+        chainName: 'alpha',
+        protocol: ProtocolType.Ethereum,
+        upstreamRpcUrl: 'https://alpha.example',
+      },
+      {
+        chainName: 'alpha',
+        protocol: ProtocolType.Ethereum,
+        upstreamRpcUrl: 'https://alpha-2.example',
+      },
+    ];
+
+    let threw = false;
+    try {
+      await buildForkedChainMetadata({
+        chains: duplicatedChains,
+        forkManagers: registry,
+        basePort: 9000,
+      });
+    } catch (error: unknown) {
+      threw = true;
+      expect(error).to.be.instanceOf(Error);
+      if (error instanceof Error) {
+        expect(error.message).to.include('alpha');
+      }
+    }
+
+    expect(threw).to.equal(true);
+    // No manager is created or started: the guard runs before the loop.
+    expect(created.length).to.equal(0);
+  });
+
   it('kills previously-started managers when a later manager fails to start', async () => {
     const created: FakeForkManager[] = [];
     const registry = new ForkManagerRegistry();

@@ -1,4 +1,4 @@
-import { isNullish, rootLogger } from '@hyperlane-xyz/utils';
+import { assert, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { allocateSequentialPorts } from './helpers.js';
 import { ForkManagerRegistry } from './registry.js';
@@ -27,6 +27,21 @@ export async function buildForkedChainMetadata(args: {
   managers: ChainMap<IForkManager<unknown>>;
 }> {
   const { chains, forkManagers, basePort = DEFAULT_FORK_BASE_PORT } = args;
+
+  const seen = new Set<ChainName>();
+  const duplicates = chains
+    .map((chain) => chain.chainName)
+    .filter((chainName) => {
+      if (seen.has(chainName)) {
+        return true;
+      }
+      seen.add(chainName);
+      return false;
+    });
+  assert(
+    duplicates.length === 0,
+    `Duplicate chain names in fork input: ${duplicates.join(', ')}. Each forked chain must be unique; a duplicate would start a second, unreferenced fork node.`,
+  );
 
   const ports = allocateSequentialPorts(basePort, chains.length * 2);
 
