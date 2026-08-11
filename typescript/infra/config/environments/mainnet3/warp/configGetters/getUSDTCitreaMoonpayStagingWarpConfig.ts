@@ -73,9 +73,8 @@ function getSiblingCrossCollateralRouters(): Record<string, string[]> {
 
 export function buildBscUsdtTokenFeeForTargets(
   destinations: readonly string[],
-  arbitrumUsdcRouter: string,
+  usdcTargetRouters: Readonly<Record<string, string>>,
 ): TokenFeeConfigInput {
-  const arbitrumUsdcRouterKey = addressToBytes32(arbitrumUsdcRouter);
   const linearFee = (): TokenFeeConfigInput => ({
     type: TokenFeeType.OffchainQuotedLinearFee,
     owner: DEPLOYER_EVM,
@@ -94,15 +93,18 @@ export function buildBscUsdtTokenFeeForTargets(
     type: TokenFeeType.CrossCollateralRoutingFee,
     owner: DEPLOYER_EVM,
     feeContracts: Object.fromEntries(
-      destinations.map((destination) => [
-        destination,
-        {
-          [DEFAULT_ROUTER_KEY]: linearFee(),
-          ...(destination === 'arbitrum'
-            ? { [arbitrumUsdcRouterKey]: piecewiseFee() }
-            : {}),
-        },
-      ]),
+      destinations.map((destination) => {
+        const usdcTargetRouter = usdcTargetRouters[destination];
+        return [
+          destination,
+          {
+            [DEFAULT_ROUTER_KEY]: linearFee(),
+            ...(usdcTargetRouter
+              ? { [addressToBytes32(usdcTargetRouter)]: piecewiseFee() }
+              : {}),
+          },
+        ];
+      }),
     ),
   };
 }
@@ -114,16 +116,20 @@ function buildBscUsdtTokenFee(): TokenFeeConfigInput {
     WarpRouteIds.USDCCitreaMoonpaySTAGING,
   );
   assert(usdcRoute, 'USDC/moonpay-staging route not found in registry');
-  const arbitrumUsdc = usdcRoute.tokens.find(
-    ({ chainName }) => chainName === 'arbitrum',
-  );
-  assert(
-    arbitrumUsdc?.addressOrDenom,
-    'Missing Arbitrum USDC/moonpay-staging router',
+  const usdcTargetRouters = Object.fromEntries(
+    usdcRoute.tokens
+      .filter(({ chainName }) => chainName !== 'bsc')
+      .map(({ chainName, addressOrDenom }) => {
+        assert(
+          addressOrDenom,
+          `Missing ${chainName} USDC/moonpay-staging router`,
+        );
+        return [chainName, addressOrDenom];
+      }),
   );
   return buildBscUsdtTokenFeeForTargets(
     Object.keys(targetsByChain),
-    arbitrumUsdc.addressOrDenom,
+    usdcTargetRouters,
   );
 }
 

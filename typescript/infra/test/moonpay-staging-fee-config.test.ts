@@ -72,14 +72,18 @@ function tokensFor(
   }));
 }
 
-function installRegistryFixture(): void {
+function usdcStagingTokensForAssertion(): ReturnType<typeof tokensFor> {
   const usdcStagingTokens = tokensFor(STAGING_UNIVERSE, 100);
   const arbitrumUsdc = usdcStagingTokens.find(
     ({ chainName }) => chainName === 'arbitrum',
   );
   assert(arbitrumUsdc, 'Missing fixture Arbitrum USDC token');
   arbitrumUsdc.addressOrDenom = ARBITRUM_USDC_STAGING_ROUTER;
+  return usdcStagingTokens;
+}
 
+function installRegistryFixture(): void {
+  const usdcStagingTokens = usdcStagingTokensForAssertion();
   const routes: Record<string, { tokens: ReturnType<typeof tokensFor> }> = {
     [WarpRouteIds.USDCCitreaMoonpaySTAGING]: { tokens: usdcStagingTokens },
     [WarpRouteIds.USDTCitreaMoonpaySTAGING]: {
@@ -138,7 +142,7 @@ describe('Moonpay staging fee topology', () => {
   beforeEach(installRegistryFixture);
   afterEach(resetRegistry);
 
-  it('configures only BSC USDT with defaults and one Arbitrum USDC piecewise override', async () => {
+  it('configures only BSC USDT with defaults and one piecewise override per remote USDC target', async () => {
     const config = await getUSDTCitreaMoonpayStagingWarpConfig(routerConfig);
     const originsWithFees = Object.entries(config)
       .filter(([, originConfig]) => originConfig.tokenFee !== undefined)
@@ -179,27 +183,42 @@ describe('Moonpay staging fee topology', () => {
           .filter(([router]) => router !== DEFAULT_ROUTER_KEY)
           .map(([router, fee]) => ({ destination, router, fee })),
     );
-    expect(explicitLeaves).to.have.length(1);
-    expect(explicitLeaves[0].destination).to.equal('arbitrum');
-    expect(explicitLeaves[0].router).to.equal(
-      addressToBytes32(ARBITRUM_USDC_STAGING_ROUTER),
+    const expectedUsdcTargets = STAGING_UNIVERSE.filter(
+      (destination) => destination !== 'bsc',
     );
-    const piecewise = explicitLeaves[0].fee;
-    assert(
-      piecewise.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee,
-      'Expected Arbitrum USDC piecewise fee',
-    );
-    assert(
-      'initialFallback' in piecewise,
-      'Expected deployment fallback config',
-    );
-    expect(piecewise.owner).to.equal(DEPLOYER);
-    expect(piecewise.quoteSigners).to.deep.equal(QUOTE_SIGNERS);
-    expect(piecewise.maxBands).to.equal(4);
-    expect(piecewise.initialFallback).to.deep.equal({
-      breakpoints: [250_000_000_000_000_000n, 750_000_000_000_000_000n],
-      marginalBps: [4, 10, 20],
-    });
+    expect(explicitLeaves).to.have.length(expectedUsdcTargets.length);
+    expect(
+      explicitLeaves.map(({ destination }) => destination),
+    ).to.have.members(expectedUsdcTargets);
+    for (const destination of expectedUsdcTargets) {
+      const usdcTarget = usdcStagingTokensForAssertion().find(
+        ({ chainName }) => chainName === destination,
+      );
+      assert(usdcTarget?.addressOrDenom, `Missing ${destination} USDC target`);
+      const explicit = explicitLeaves.find(
+        (leaf) => leaf.destination === destination,
+      );
+      assert(explicit, `Missing ${destination} piecewise fee`);
+      expect(explicit.router).to.equal(
+        addressToBytes32(usdcTarget.addressOrDenom),
+      );
+      const piecewise = explicit.fee;
+      assert(
+        piecewise.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+        `Expected ${destination} USDC piecewise fee`,
+      );
+      assert(
+        'initialFallback' in piecewise,
+        'Expected deployment fallback config',
+      );
+      expect(piecewise.owner).to.equal(DEPLOYER);
+      expect(piecewise.quoteSigners).to.deep.equal(QUOTE_SIGNERS);
+      expect(piecewise.maxBands).to.equal(4);
+      expect(piecewise.initialFallback).to.deep.equal({
+        breakpoints: [250_000_000_000_000_000n, 750_000_000_000_000_000n],
+        marginalBps: [4, 10, 20],
+      });
+    }
 
     expect(Object.keys(feeContracts.bsc)).to.deep.equal([DEFAULT_ROUTER_KEY]);
   });
