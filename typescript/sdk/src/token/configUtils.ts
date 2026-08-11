@@ -57,6 +57,7 @@ import {
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   isCollateralTokenConfig,
+  isCrossCollateralSyntheticTokenConfig,
   isCrossCollateralTokenConfig,
   isDepositAddressTokenConfig,
   isMovableCollateralTokenConfig,
@@ -587,14 +588,15 @@ async function getFeeTokenAddress(
 
   if (
     isCollateralTokenConfig(tokenConfig) ||
-    isCrossCollateralTokenConfig(tokenConfig)
+    tokenConfig.type === TokenType.crossCollateral
   ) {
     return tokenConfig.token;
   }
 
   if (
     isSyntheticTokenConfig(tokenConfig) ||
-    isSyntheticRebaseTokenConfig(tokenConfig)
+    isSyntheticRebaseTokenConfig(tokenConfig) ||
+    isCrossCollateralSyntheticTokenConfig(tokenConfig)
   ) {
     return routerAddress;
   }

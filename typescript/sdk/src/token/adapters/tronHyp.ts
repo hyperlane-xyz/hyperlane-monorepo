@@ -13,7 +13,7 @@ export function createTronHypAdapter(
     hypNative: TokenStandard.TronHypNative,
     hypCollateral: [TokenStandard.TronHypCollateral],
     hypOwnerCollateral: TokenStandard.TronHypOwnerCollateral,
-    hypCrossCollateralRouter: TokenStandard.TronHypCrossCollateralRouter,
+    hypCrossCollateralRouter: [TokenStandard.TronHypCrossCollateralRouter],
     hypRebaseCollateral: TokenStandard.TronHypRebaseCollateral,
     hypCollateralFiat: TokenStandard.TronHypCollateralFiat,
     hypSynthetic: TokenStandard.TronHypSynthetic,

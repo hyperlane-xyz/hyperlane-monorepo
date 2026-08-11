@@ -1075,7 +1075,10 @@ async function getCollateralTokenAddress(
     return config.token;
   }
 
-  if (isCollateralTokenConfig(config) || isCrossCollateralTokenConfig(config)) {
+  if (
+    isCollateralTokenConfig(config) ||
+    config.type === TokenType.crossCollateral
+  ) {
     if (
       config.type === TokenType.collateralVault ||
       config.type === TokenType.collateralVaultRebase

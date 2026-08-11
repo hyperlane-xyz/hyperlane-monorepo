@@ -50,7 +50,7 @@ import {
   CCTP_PPM_STORAGE_VERSION,
 } from './EvmWarpRouteReader.js';
 import { TokenMetadataMap } from './TokenMetadataMap.js';
-import { DeployableTokenType, gasOverhead } from './config.js';
+import { DeployableTokenType, TokenType, gasOverhead } from './config.js';
 import { resolveTokenFeeAddress } from './configUtils.js';
 import {
   HypERC20Factories,
@@ -80,6 +80,7 @@ import {
   isDepositAddressTokenConfig,
   isMovableCollateralTokenConfig,
   isCrossCollateralTokenConfig,
+  isCrossCollateralSyntheticTokenConfig,
   isNativeTokenConfig,
   isOftTokenConfig,
   isOpL1TokenConfig,
@@ -170,7 +171,7 @@ abstract class TokenDeployer<
     if (
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
-      isCrossCollateralTokenConfig(config)
+      config.type === TokenType.crossCollateral
     ) {
       return [config.token, numerator, denominator, config.mailbox];
     } else if (isEverclearCollateralTokenConfig(config)) {
@@ -193,7 +194,10 @@ abstract class TokenDeployer<
       return [config.mailbox, config.l2Bridge];
     } else if (isOpL1TokenConfig(config)) {
       return [config.mailbox, config.portal];
-    } else if (isSyntheticTokenConfig(config)) {
+    } else if (
+      isSyntheticTokenConfig(config) ||
+      isCrossCollateralSyntheticTokenConfig(config)
+    ) {
       assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
       return [config.decimals, numerator, denominator, config.mailbox];
     } else if (isSyntheticRebaseTokenConfig(config)) {
@@ -273,7 +277,7 @@ abstract class TokenDeployer<
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
       isNativeTokenConfig(config) ||
-      isCrossCollateralTokenConfig(config)
+      config.type === TokenType.crossCollateral
     ) {
       return defaultArgs;
     } else if (
@@ -287,7 +291,10 @@ abstract class TokenDeployer<
       return [config.owner, config.urls];
     } else if (isCctpTokenConfig(config)) {
       return [config.hook ?? constants.AddressZero, config.owner, config.urls];
-    } else if (isSyntheticTokenConfig(config)) {
+    } else if (
+      isSyntheticTokenConfig(config) ||
+      isCrossCollateralSyntheticTokenConfig(config)
+    ) {
       return [
         config.initialSupply ?? 0,
         config.name,

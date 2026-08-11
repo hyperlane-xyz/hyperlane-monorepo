@@ -361,26 +361,51 @@ export const isSyntheticRebaseTokenConfig = isCompliant(
   SyntheticRebaseTokenConfigSchema,
 );
 
+const CrossCollateralRoutersConfigSchema = z.object({
+  /** Map of domain -> router addresses to enroll */
+  crossCollateralRouters: z
+    .record(RemoteRouterDomainOrChainNameSchema, z.array(ZHash))
+    .optional(),
+});
+
 /**
  * Configuration for CrossCollateralRouter (multi-router collateral routing).
  * Direct 1-message atomic transfers between collateral routers.
  */
-export const CrossCollateralTokenConfigSchema =
-  TokenMetadataSchema.partial().extend({
+export const CrossCollateralTokenConfigSchema = TokenMetadataSchema.partial()
+  .extend({
     type: z.literal(TokenType.crossCollateral),
     token: z.string().describe('Collateral token address'),
-    /** Map of domain → router addresses to enroll */
-    crossCollateralRouters: z
-      .record(RemoteRouterDomainOrChainNameSchema, z.array(ZHash))
-      .optional(),
     ...BaseMovableTokenConfigSchema.shape,
     predicateWrapper: PredicateWrapperConfigSchema.optional(),
-  });
+  })
+  .merge(CrossCollateralRoutersConfigSchema);
+
+export const CrossCollateralSyntheticTokenConfigSchema =
+  TokenMetadataSchema.partial()
+    .extend({
+      type: z.literal(TokenType.crossCollateralSynthetic),
+      initialSupply: z.string().or(z.number()).optional(),
+      predicateWrapper: PredicateWrapperConfigSchema.optional(),
+    })
+    .merge(CrossCollateralRoutersConfigSchema);
+
+const CrossCollateralTokenConfigUnionSchema = z.discriminatedUnion('type', [
+  CrossCollateralTokenConfigSchema,
+  CrossCollateralSyntheticTokenConfigSchema,
+]);
+
 export type CrossCollateralTokenConfig = z.infer<
-  typeof CrossCollateralTokenConfigSchema
+  typeof CrossCollateralTokenConfigUnionSchema
 >;
 export const isCrossCollateralTokenConfig = isCompliant(
-  CrossCollateralTokenConfigSchema,
+  CrossCollateralTokenConfigUnionSchema,
+);
+export type CrossCollateralSyntheticTokenConfig = z.infer<
+  typeof CrossCollateralSyntheticTokenConfigSchema
+>;
+export const isCrossCollateralSyntheticTokenConfig = isCompliant(
+  CrossCollateralSyntheticTokenConfigSchema,
 );
 
 export const EverclearCollateralTokenConfigSchema = z.object({
@@ -474,6 +499,7 @@ const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   EverclearEthBridgeTokenConfigSchema,
   DepositAddressTokenConfigSchema,
   CrossCollateralTokenConfigSchema,
+  CrossCollateralSyntheticTokenConfigSchema,
   UnknownTokenConfigSchema,
 ]);
 
@@ -598,7 +624,7 @@ export const WarpRouteDeployConfigSchema = z
           isNativeTokenConfig(config) ||
           isEverclearTokenBridgeConfig(config) ||
           isDepositAddressTokenConfig(config) ||
-          isCrossCollateralTokenConfig(config) ||
+          config.type === TokenType.crossCollateral ||
           isOftTokenConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );
