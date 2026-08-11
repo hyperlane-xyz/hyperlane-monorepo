@@ -32,7 +32,7 @@ Fork a warp route using the local HTTP registry.
 **Prerequisites:**
 
 - The http-registry server must be running on port 3333. If not, start it first with `/start-http-registry`.
-- Forking is per-protocol: EVM chains need Foundry `anvil` on `PATH`; Sealevel chains need a locally-installed `surfpool` binary (`>= 1.5.0`) on `PATH` — there is **no Docker fallback** in the CLI (install with `curl -sSfL https://run.surfpool.run/ | bash`). If the binary is missing, `warp fork` aborts with a "surfpool 1.5.0+ is required" error before forking.
+- Forking is per-protocol: EVM chains need Foundry `anvil` on `PATH`; Sealevel chains need a locally-installed `surfpool` binary (`>= 1.5.0`) on `PATH` — there is **no Docker fallback** in the CLI. Install the pinned, checksum-verified `surfpool` release the way CI does — see the `Install surfpool` step in `.github/workflows/test-cli-e2e.yml` (a pinned `v1.5.0` release tarball verified against its SHA-256); do **not** pipe the mutable `run.surfpool.run` installer to a shell. If the binary is missing, `warp fork` aborts with a "surfpool 1.5.0+ is required" error before forking.
 
 **Related skills:**
 

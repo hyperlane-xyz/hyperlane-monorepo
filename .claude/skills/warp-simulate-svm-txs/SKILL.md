@@ -39,9 +39,12 @@ don't hold the authority's key.
 ## Prerequisites
 
 - **surfpool** installed: the CLI `warp fork` SVM path runs a locally-installed
-  `surfpool` binary (`>= 1.5.0`) on `PATH` — there is **no Docker fallback** (install
-  with `curl -sSfL https://run.surfpool.run/ | bash`). If it's missing, `warp fork`
-  aborts before replaying anything with a "surfpool 1.5.0+ is required" error.
+  `surfpool` binary (`>= 1.5.0`) on `PATH` — there is **no Docker fallback**. Install
+  the pinned, checksum-verified release the way CI does — see the `Install surfpool`
+  step in `.github/workflows/test-cli-e2e.yml` (a pinned `v1.5.0` tarball verified
+  against its SHA-256); do **not** pipe the mutable `run.surfpool.run` installer to a
+  shell. If it's missing, `warp fork` aborts before replaying anything with a
+  "surfpool 1.5.0+ is required" error.
 - Monorepo root: `MONOREPO_ROOT=$(git rev-parse --show-toplevel)`. Prefix CLI
   commands with `cd $MONOREPO_ROOT &&`.
 - A local HTTP registry serving the **target** (PR) config (use
