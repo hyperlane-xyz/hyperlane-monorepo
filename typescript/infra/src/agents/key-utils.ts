@@ -6,6 +6,7 @@ import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
+  assert,
   deepEquals,
   objMap,
   rootLogger,
@@ -47,6 +48,24 @@ const logger = rootLogger.child({ module: 'infra:agents:key-utils' });
 export interface KeyAsAddress {
   identifier: string;
   address: string;
+}
+
+function isKeyAsAddressArray(value: unknown): value is KeyAsAddress[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (entry) =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        typeof (entry as KeyAsAddress).identifier === 'string' &&
+        typeof (entry as KeyAsAddress).address === 'string',
+    )
+  );
+}
+
+function isSecretNotFoundError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /not[_\s]?found/i.test(message);
 }
 
 const CONFIG_DIRECTORY_PATH = join(getInfraPath(), 'config');
@@ -606,23 +625,33 @@ async function persistAddressesInGcp(
   // Key reconciliation may be scoped to a subset of roles (e.g. a relayer-only
   // deploy), so a wholesale overwrite would drop addresses for the roles that
   // were not reconciled this run.
-  let mergedByIdentifier = new Map<string, KeyAsAddress>();
+  let existingKeys: KeyAsAddress[] = [];
   try {
-    const existingSecret = (await fetchGCPSecret(
+    const existingSecret = await fetchGCPSecret(
       addressesIdentifier(environment, context),
       true,
-    )) as KeyAsAddress[];
-    mergedByIdentifier = new Map(
-      existingSecret.map((key) => [key.identifier, key]),
     );
-  } catch {
-    // If the secret doesn't exist, we'll create it below.
+    assert(
+      isKeyAsAddressArray(existingSecret),
+      `Unexpected shape for ${context} addresses secret in ${environment}`,
+    );
+    existingKeys = existingSecret;
+  } catch (error) {
+    // Only a confirmed missing secret is safe to treat as empty. Any other
+    // failure (transient, permission, malformed) must abort: proceeding would
+    // overwrite the secret with a reduced, role-scoped set and drop the
+    // addresses of roles that were not reconciled this run.
+    if (!isSecretNotFoundError(error)) {
+      throw error;
+    }
     logger.debug(
       `No existing secret found for ${context} context in ${environment} environment`,
     );
   }
 
-  const existingKeys = [...mergedByIdentifier.values()];
+  const mergedByIdentifier = new Map<string, KeyAsAddress>(
+    existingKeys.map((key) => [key.identifier, key]),
+  );
   for (const key of keys) {
     mergedByIdentifier.set(key.identifier, key);
   }
