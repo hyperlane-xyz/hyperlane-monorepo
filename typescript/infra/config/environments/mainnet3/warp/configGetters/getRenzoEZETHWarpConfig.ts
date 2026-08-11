@@ -100,6 +100,7 @@ export function getRenzoHook(
   defaultHook: Address,
   chain: ChainName,
   owner: Address,
+  protocolFeeOverride?: string,
 ): HookConfig {
   return {
     type: HookType.AGGREGATION,
@@ -110,8 +111,10 @@ export function getRenzoHook(
         owner: owner,
         beneficiary: owner,
 
-        // Use hardcoded, actual onchain fees, or fallback to fee calculation
+        // Route-specific onchain fee, then the shared EZETH-derived snapshot,
+        // then fall back to the fee calculation.
         protocolFee:
+          protocolFeeOverride ??
           chainProtocolFee[chain] ??
           parseEther(getProtocolFee(chain)).toString(),
         maxProtocolFee: MAX_PROTOCOL_FEE,
@@ -497,6 +500,7 @@ export function getRenzoWarpConfigGenerator(params: {
   xERC20Lockbox: string;
   tokenPrices: ChainMap<string>;
   chainOwnerOverrides?: ChainOwnerOverrides;
+  protocolFeeOverrides?: ChainMap<string>;
 }) {
   const {
     chainsToDeploy,
@@ -506,6 +510,7 @@ export function getRenzoWarpConfigGenerator(params: {
     xERC20Lockbox,
     tokenPrices,
     chainOwnerOverrides,
+    protocolFeeOverrides,
   } = params;
   return async (): Promise<ChainMap<HypTokenRouterConfig>> => {
     const config = getEnvironmentConfig('mainnet3');
@@ -602,7 +607,12 @@ export function getRenzoWarpConfigGenerator(params: {
                   },
                 ],
               },
-              hook: getRenzoHook(defaultHook, chain, safes[chain]),
+              hook: getRenzoHook(
+                defaultHook,
+                chain,
+                safes[chain],
+                protocolFeeOverrides?.[chain],
+              ),
             };
 
             if (chainOwnerOverrides?.[chain]) {
