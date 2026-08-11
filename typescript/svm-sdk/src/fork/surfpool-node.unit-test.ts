@@ -9,6 +9,7 @@ import {
   type WaitForRpcReady,
   buildSurfpoolArgs,
   buildSurfpoolDatasourceEnv,
+  runSurfpoolNode,
   startLocalSurfpool,
 } from './surfpool-node.js';
 
@@ -118,5 +119,38 @@ describe('startLocalSurfpool readiness', () => {
       // The spawn ENOENT — not a misleading RPC-probe timeout — surfaces.
       expect(rejected.message).to.include('ENOENT');
     }
+  });
+});
+
+describe('runSurfpoolNode explicit binaryPath validation', () => {
+  async function runError(binaryPath: string): Promise<Error> {
+    const config: SurfpoolNodeConfig = {
+      datasource: { mode: SurfpoolDatasourceMode.Offline },
+      rpcPort: 8899,
+      binaryPath,
+    };
+    try {
+      await runSurfpoolNode(config);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        return error;
+      }
+      throw error;
+    }
+    throw new Error('expected runSurfpoolNode to reject');
+  }
+
+  it('fails with a not-found error for a missing binary path', async () => {
+    const error = await runError('/nonexistent/surfpool-does-not-exist');
+    // Specific cause, not the generic "only found version(s) unknown".
+    expect(error.message).to.include('surfpool binary not found at');
+    expect(error.message).to.not.include('unknown');
+  });
+
+  it('fails with an unreadable-version error for a non-surfpool binary', async () => {
+    // A real, runnable executable whose `--version` output is not surfpool's.
+    const error = await runError(process.execPath);
+    expect(error.message).to.include('could not be run');
+    expect(error.message).to.not.include('only found version(s) unknown');
   });
 });

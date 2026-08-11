@@ -86,9 +86,13 @@ const SURFPOOL_BINARY_PATHS = [
   '/usr/local/bin',
 ];
 
-function parseVersion(
-  version: string,
-): { major: number; minor: number; patch: number } | null {
+interface SurfpoolVersion {
+  major: number;
+  minor: number;
+  patch: number;
+}
+
+function parseVersion(version: string): SurfpoolVersion | null {
   const match = version.match(/(\d+)\.(\d+)\.(\d+)/);
   if (!match) return null;
   return {
@@ -99,8 +103,8 @@ function parseVersion(
 }
 
 function meetsMinVersion(
-  version: { major: number; minor: number; patch: number },
-  min: { major: number; minor: number; patch: number },
+  version: SurfpoolVersion,
+  min: SurfpoolVersion,
 ): boolean {
   if (version.major !== min.major) return version.major > min.major;
   if (version.minor !== min.minor) return version.minor > min.minor;
@@ -301,26 +305,37 @@ export async function startLocalSurfpool(
   return { node: { rpcUrl, kill }, waitForReady };
 }
 
-/**
- * Starts a surfpool node from a locally-installed `surfpool` binary (version
- * {@link SURFPOOL_MIN_VERSION} or newer) and waits for its RPC to be ready.
- * Throws with install guidance if no compatible binary is found.
- */
-export async function runSurfpoolNode(
-  config: SurfpoolNodeConfig,
-): Promise<SurfpoolNode> {
-  const min = parseVersion(SURFPOOL_MIN_VERSION);
-  assert(min, `Invalid SURFPOOL_MIN_VERSION: ${SURFPOOL_MIN_VERSION}`);
+// A caller-supplied binary is an explicit choice, so failures name the specific
+// cause (missing / not executable / too old) instead of the generic auto-
+// discovery "no compatible binary" message, which would otherwise report the
+// substituted "unknown" version and hide the real problem.
+function resolveExplicitBinary(
+  binaryPath: string,
+  min: SurfpoolVersion,
+): { path: string; version: string } {
+  assert(existsSync(binaryPath), `surfpool binary not found at ${binaryPath}`);
 
-  const candidates = config.binaryPath
-    ? [
-        {
-          path: config.binaryPath,
-          version: getSurfpoolVersion(config.binaryPath) ?? 'unknown',
-        },
-      ]
-    : findSurfpoolCandidates();
+  const version = getSurfpoolVersion(binaryPath);
+  assert(
+    version,
+    `surfpool binary at ${binaryPath} could not be run (check it is executable and 'surfpool --version' works).`,
+  );
 
+  const parsed = parseVersion(version);
+  assert(
+    parsed && meetsMinVersion(parsed, min),
+    `surfpool at ${binaryPath} is version ${version} but ${SURFPOOL_MIN_VERSION}+ is required. ` +
+      'Upgrade it: curl -sSfL https://run.surfpool.run/ | bash.',
+  );
+
+  return { path: binaryPath, version };
+}
+
+function resolveDiscoveredBinary(min: SurfpoolVersion): {
+  path: string;
+  version: string;
+} {
+  const candidates = findSurfpoolCandidates();
   const match = candidates.find((candidate) => {
     const parsed = parseVersion(candidate.version);
     return parsed !== null && meetsMinVersion(parsed, min);
@@ -336,6 +351,26 @@ export async function runSurfpoolNode(
           `${candidates.map((c) => c.version).join(', ')}. ` +
           'Upgrade it: curl -sSfL https://run.surfpool.run/ | bash.',
   );
+
+  return match;
+}
+
+/**
+ * Starts a surfpool node from a locally-installed `surfpool` binary (version
+ * {@link SURFPOOL_MIN_VERSION} or newer) and waits for its RPC to be ready.
+ * An explicit `config.binaryPath` is validated up front with a specific error;
+ * otherwise the PATH is searched and an install-guidance error is thrown if no
+ * compatible binary is found.
+ */
+export async function runSurfpoolNode(
+  config: SurfpoolNodeConfig,
+): Promise<SurfpoolNode> {
+  const min = parseVersion(SURFPOOL_MIN_VERSION);
+  assert(min, `Invalid SURFPOOL_MIN_VERSION: ${SURFPOOL_MIN_VERSION}`);
+
+  const match = config.binaryPath
+    ? resolveExplicitBinary(config.binaryPath, min)
+    : resolveDiscoveredBinary(min);
 
   logger.debug(
     `Using local surfpool binary: ${match.path} (v${match.version})`,
