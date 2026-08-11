@@ -57,14 +57,16 @@ If you don't already have the tx file, generate it with `warp apply` and the **f
 submitter**, which writes the governance txs (as base58 wire transactions) to a file
 instead of submitting them:
 
-```bash
+```yaml
 # strategy.yaml — route the Sealevel chain's txs to a file
-# <sealevelChain>:
-#   submitter:
-#     type: file
-#     chain: <sealevelChain>
-#     filepath: <WORK>/svm-txs.json
+<sealevelChain>:
+  submitter:
+    type: file
+    chain: <sealevelChain>
+    filepath: <WORK>/svm-txs.json
+```
 
+```test
 cd $MONOREPO_ROOT && pnpm -C typescript/cli exec tsx cli.ts warp apply \
   --warpRouteId $WARP_ROUTE_ID --registry http://localhost:3333 \
   --strategy $WORK/strategy.yaml
@@ -95,7 +97,7 @@ Serve the target (PR) registry so fork/check read the intended addresses, then r
 replays the txs under skip-sigverify/skip-blockhash, and serves an overlaid registry
 whose Sealevel RPC points at the local fork):
 
-```bash
+```test
 cd $MONOREPO_ROOT && pnpm -C typescript/cli exec tsx cli.ts warp fork \
   --warpRouteId $WARP_ROUTE_ID --registry http://localhost:3333 \
   --fork-config $WORK/fork-config.yaml --port 8545
@@ -111,7 +113,7 @@ cd $MONOREPO_ROOT && pnpm -C typescript/cli exec tsx cli.ts warp fork \
 
 ### Step 4 — warp check against the desired config
 
-```bash
+```test
 cd $MONOREPO_ROOT && pnpm -C typescript/cli exec tsx cli.ts warp check \
   --warpRouteId $WARP_ROUTE_ID --registry http://localhost:8535
 ```
