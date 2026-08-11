@@ -222,9 +222,17 @@ export async function waitForSolanaRpcReady(rpcUrl: string): Promise<void> {
   );
 }
 
-async function startLocalSurfpool(
+/**
+ * Readiness probe injected into {@link startLocalSurfpool}. Defaults to
+ * {@link waitForSolanaRpcReady}; tests override it (e.g. with a never-settling
+ * probe) to exercise the spawn-error / exit races without a live RPC.
+ */
+export type WaitForRpcReady = (rpcUrl: string) => Promise<void>;
+
+export async function startLocalSurfpool(
   config: SurfpoolNodeConfig,
   binaryPath: string,
+  waitForRpcReady: WaitForRpcReady = waitForSolanaRpcReady,
 ): Promise<{ node: SurfpoolNode; waitForReady: () => Promise<void> }> {
   const args = buildSurfpoolArgs(config, config.datasource, '127.0.0.1');
   // Suppress surfpool's own logs (its default ./.surfpool/logs dir would clutter
@@ -243,9 +251,19 @@ async function startLocalSurfpool(
     stderrTail = (stderrTail + chunk.toString()).slice(-STDERR_TAIL_MAX);
   });
 
-  proc.on('error', (error) => {
-    logger.error({ err: error }, 'surfpool process error');
+  // A failed spawn (e.g. ENOENT) emits `error` with no guaranteed `exit`, so the
+  // readiness race must reject on it — otherwise readiness burns the full probe
+  // timeout and reports a misleading RPC error instead of the real spawn failure.
+  // Attach synchronously here so no `error` can fire before a listener exists.
+  const errored = new Promise<never>((_, reject) => {
+    proc.once('error', (error: Error) => {
+      logger.debug({ err: error }, 'surfpool process error');
+      reject(error);
+    });
   });
+  // A spawn error arriving after readiness (or exit) has already settled the race
+  // must not surface as an unhandled rejection.
+  errored.catch(() => {});
 
   const rpcUrl = `http://127.0.0.1:${config.rpcPort}`;
 
@@ -277,7 +295,7 @@ async function startLocalSurfpool(
     // A later exit (e.g. on kill once readiness has won) must not surface as an
     // unhandled rejection after the race settles.
     exited.catch(() => {});
-    await Promise.race([waitForSolanaRpcReady(rpcUrl), exited]);
+    await Promise.race([waitForRpcReady(rpcUrl), exited, errored]);
   };
 
   return { node: { rpcUrl, kill }, waitForReady };

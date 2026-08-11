@@ -6,8 +6,10 @@ import {
   SolanaCluster,
   type SurfpoolNodeConfig,
   SurfpoolDatasourceMode,
+  type WaitForRpcReady,
   buildSurfpoolArgs,
   buildSurfpoolDatasourceEnv,
+  startLocalSurfpool,
 } from './surfpool-node.js';
 
 const FORK_URL = 'https://user:secret@rpc.example/mainnet';
@@ -82,5 +84,39 @@ describe('buildSurfpoolDatasourceEnv', () => {
     });
 
     expect(env).to.deep.equal({});
+  });
+});
+
+describe('startLocalSurfpool readiness', () => {
+  // A never-settling probe stands in for waitForSolanaRpcReady. It has no
+  // pending timers, so once the spawn `error` wins the race the promise rejects
+  // immediately and the process can exit cleanly — unlike the real probe, whose
+  // ~60s of retry timers would otherwise hang the suite.
+  const neverReady: WaitForRpcReady = () => new Promise<void>(() => {});
+
+  it('rejects readiness with the real spawn error when the binary is missing', async () => {
+    const config: SurfpoolNodeConfig = {
+      datasource: { mode: SurfpoolDatasourceMode.Offline },
+      rpcPort: 8899,
+    };
+
+    const { waitForReady } = await startLocalSurfpool(
+      config,
+      '/nonexistent/surfpool-does-not-exist',
+      neverReady,
+    );
+
+    let rejected: unknown;
+    try {
+      await waitForReady();
+    } catch (error: unknown) {
+      rejected = error;
+    }
+
+    expect(rejected).to.be.instanceOf(Error);
+    if (rejected instanceof Error) {
+      // The spawn ENOENT — not a misleading RPC-probe timeout — surfaces.
+      expect(rejected.message).to.include('ENOENT');
+    }
   });
 });
