@@ -25,7 +25,7 @@ import {
   timeout,
 } from '@hyperlane-xyz/utils';
 
-import { logGray } from '../logger.js';
+import { logDebug, logGray } from '../logger.js';
 
 const LOCAL_HOST = 'http://127.0.0.1';
 
@@ -82,7 +82,14 @@ async function startEvmFork(
     exited.catch(() => {});
     await Promise.race([readiness, exited]);
 
-    process.once('exit', () => void kill(false));
+    process.once('exit', () => {
+      void kill(false).catch((error: unknown) =>
+        logDebug(
+          `Failed to kill anvil fork for chain ${config.chainName}`,
+          error,
+        ),
+      );
+    });
 
     return new RunningEvmFork(provider, endpoint, kill);
   } catch (error) {
@@ -139,7 +146,14 @@ export class EvmForkManager implements IForkManager<ForkedChainConfig> {
   }
 
   kill(): void {
-    void this.running?.kill(false);
+    void this.running
+      ?.kill(false)
+      .catch((error: unknown) =>
+        logDebug(
+          `Failed to kill anvil fork for chain ${this.config.chainName}`,
+          error,
+        ),
+      );
   }
 }
 
@@ -211,6 +225,9 @@ async function handleTransactions(
     }
 
     const annotation = transaction.annotation ?? `#${txCounter}`;
+    // Advance once per iteration (before any `continue`) so fallback `#n`
+    // annotations stay unique even when a tx short-circuits on a revert assert.
+    txCounter++;
     logGray(`Executing transaction on chain ${chainName}: "${annotation}"`);
 
     let pendingTx;
@@ -237,7 +254,7 @@ async function handleTransactions(
     const txReceipt = await pendingTx.wait();
     if (txReceipt.status == 0) {
       throw new Error(
-        `Transaction ${transaction} reverted on chain ${chainName}`,
+        `Transaction "${annotation}" reverted on chain ${chainName}`,
       );
     }
 
@@ -255,8 +272,6 @@ async function handleTransactions(
       );
       await provider.send('evm_increaseTime', [transaction.timeSkip]);
     }
-
-    txCounter++;
   }
   logGray(`Successfully executed all transactions on chain ${chainName}`);
 }
