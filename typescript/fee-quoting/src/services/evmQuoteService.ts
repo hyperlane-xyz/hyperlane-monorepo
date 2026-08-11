@@ -10,9 +10,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 
 import {
   DEFAULT_ROUTER_KEY,
-  type DerivedCrossCollateralRoutingFeeConfig,
   type DerivedHookConfig,
-  type DerivedRoutingFeeConfig,
   type DerivedTokenFeeConfig,
   type DerivedTokenRouterConfig,
   type EthereumQuoteV2Entry,
@@ -493,14 +491,12 @@ function pickFeeLeaf(
 ): DerivedTokenFeeConfig {
   switch (fee.type) {
     case TokenFeeType.RoutingFee: {
-      // SDK's static narrowing widens `feeContracts` after the type discriminant;
-      // the reader populates the `DerivedRoutingFeeConfig` shape at runtime.
-      const routing = fee as DerivedRoutingFeeConfig;
+      const routing = fee;
       const destFee = routing.feeContracts[destChainName];
       return destFee ? pickFeeLeaf(destFee, destChainName, targetRouter) : fee;
     }
     case TokenFeeType.CrossCollateralRoutingFee: {
-      const cc = fee as DerivedCrossCollateralRoutingFeeConfig;
+      const cc = fee;
       const destConfig = cc.feeContracts[destChainName];
       if (!destConfig) return fee;
       // Config keys / DEFAULT_ROUTER_KEY are lowercase, but bytes32Schema

@@ -119,7 +119,8 @@ export class SvmNativeTokenReader implements ArtifactReader<
 
 export class SvmNativeTokenWriter
   extends SvmNativeTokenReader
-  implements ArtifactWriter<RawNativeWarpArtifactConfig, SvmDeployedWarpAddress>
+  implements
+    ArtifactWriter<RawNativeWarpArtifactConfig, SvmDeployedWarpAddress>
 {
   constructor(
     private readonly config: SvmWarpTokenConfig,

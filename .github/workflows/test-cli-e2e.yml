@@ -50,7 +50,7 @@ jobs:
           - warp-check-1
           - warp-send
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -125,8 +125,9 @@ jobs:
           - warp-send-predicate
           # xerc20
           - xerc20
+          - warp-xerc20-fee
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -155,7 +156,7 @@ jobs:
           - core-deploy
           - warp-deploy
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -193,7 +194,7 @@ jobs:
           - warp-deploy
           - warp-read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -222,7 +223,7 @@ jobs:
           - core-deploy
           - warp-deploy
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -241,7 +242,7 @@ jobs:
   cli-radix-e2e-matrix:
     runs-on: depot-ubuntu-24.04
     if: (inputs.run_cli_e2e == 'true' || inputs.has_radix == 'true') && inputs.ci_tier == 'full'
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -258,7 +259,7 @@ jobs:
           - warp-apply-ownership-updates
           - warp-apply-route-extension
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -287,7 +288,7 @@ jobs:
           - core-deploy
           - warp-deploy
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -334,7 +335,7 @@ jobs:
           - warp-deploy
           - warp-read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -365,7 +366,7 @@ jobs:
           - warp-deploy-1
           - warp-deploy-2
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -397,7 +398,7 @@ jobs:
           - warp-send
           - warp-send-evm-svm
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -424,7 +425,7 @@ jobs:
           - warp-apply-starknet
           - warp-deploy-starknet
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -454,7 +455,7 @@ jobs:
           - warp-deploy
           - warp-apply-ism-updates
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -494,7 +495,7 @@ jobs:
           - warp-deploy
           - warp-read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -523,7 +524,7 @@ jobs:
           - core-deploy
           - core-composite-ism
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -542,7 +543,7 @@ jobs:
   cli-svm-e2e-matrix:
     runs-on: depot-ubuntu-24.04
     if: (inputs.run_cli_e2e == 'true' || inputs.has_svm == 'true') && inputs.ci_tier == 'full'
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -559,7 +560,7 @@ jobs:
           - warp-quote
           - warp-read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -584,7 +585,7 @@ jobs:
     if: inputs.has_relayer == 'true'
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -605,7 +606,7 @@ jobs:
     if: inputs.has_rebalancer == 'true'
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive

@@ -41,13 +41,26 @@ const ataPayerAlertThreshold: ChainMap<number> = {
 // i.e. 15% higher than the alert threshold.
 const minAtaPayerBalanceFactor: number = 1.15;
 
+// Shared by both the per-route and centralized managers, which render the same
+// chart.
+const WARP_ROUTES_HELM_CHART_PATH: string = path.join(
+  getInfraPath(),
+  './helm/warp-routes',
+);
+
+// Builds the registry URI a warp-monitor pod reads, embedding the commit in the
+// /tree/{commit} form when one is given.
+export function registryUriFromCommit(registryCommit: string): string {
+  if (!registryCommit) {
+    return DEFAULT_GITHUB_REGISTRY;
+  }
+  return `${DEFAULT_GITHUB_REGISTRY}/tree/${registryCommit}`;
+}
+
 export class WarpRouteMonitorHelmManager extends HelmManager {
   static helmReleasePrefix: string = 'hyperlane-warp-route';
 
-  readonly helmChartPath: string = path.join(
-    getInfraPath(),
-    './helm/warp-routes',
-  );
+  readonly helmChartPath: string = WARP_ROUTES_HELM_CHART_PATH;
 
   constructor(
     readonly warpRouteId: string,
@@ -59,12 +72,7 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   }
 
   private get registryUri(): string {
-    // If no commit specified, use the default registry URL without /tree/ suffix
-    if (!this.registryCommit) {
-      return DEFAULT_GITHUB_REGISTRY;
-    }
-    // Build registry URI with commit embedded in /tree/{commit} format
-    return `${DEFAULT_GITHUB_REGISTRY}/tree/${this.registryCommit}`;
+    return registryUriFromCommit(this.registryCommit);
   }
 
   async runPreflightChecks(
@@ -300,6 +308,103 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
       );
     }
   }
+}
+
+/**
+ * Deploys the single centralized multi-route warp monitor: one Deployment that
+ * iterates many routes and emits all their metrics into one scraped registry,
+ * instead of a StatefulSet per route. Routes owned by a rebalancer are passed in
+ * `skipSharedBalanceWarpRouteIds` so their shared-balance metrics (already
+ * emitted by the rebalancer) are not double-published.
+ */
+export class CentralizedWarpRouteMonitorHelmManager extends HelmManager {
+  static helmReleaseName = 'hyperlane-warp-monitor-centralized';
+
+  readonly helmChartPath: string = WARP_ROUTES_HELM_CHART_PATH;
+
+  constructor(
+    readonly runEnv: DeployEnvironment,
+    readonly environmentChainNames: string[],
+    readonly registryCommit: string,
+    readonly skipSharedBalanceWarpRouteIds: string[],
+    readonly imageTag: string,
+    readonly warpRouteIds: string[] = [],
+    readonly concurrency: number = 2,
+    readonly checkFrequency: number = 300000,
+  ) {
+    super();
+  }
+
+  async helmValues() {
+    return {
+      image: {
+        repository: DockerImageRepos.NODE_SERVICES,
+        tag: this.imageTag,
+      },
+      serviceName: NODE_SERVICE_NAMES.WARP_MONITOR,
+      fullnameOverride: this.helmReleaseName,
+      hyperlane: {
+        chains: this.environmentChainNames,
+        registryUri: registryUriFromCommit(this.registryCommit),
+      },
+      centralized: {
+        enabled: true,
+        // Monitor every route in the registry unless an explicit subset is given.
+        warpRouteAll: this.warpRouteIds.length === 0,
+        warpRouteIds: this.warpRouteIds,
+        concurrency: this.concurrency,
+        skipSharedBalanceWarpRouteIds: this.skipSharedBalanceWarpRouteIds,
+        checkFrequency: this.checkFrequency,
+      },
+    };
+  }
+
+  get namespace() {
+    return this.runEnv;
+  }
+
+  get helmReleaseName() {
+    return CentralizedWarpRouteMonitorHelmManager.helmReleaseName;
+  }
+}
+
+// Reads the route whitelist (WARP_ROUTE_IDS env) off the currently-deployed
+// centralized monitor Deployment. The Deployment is the durable source for a
+// redeploy: its pod template retains WARP_ROUTE_IDS even when the pod is
+// deleted, crashlooping, or scaled to zero, so a redeploy can recover the
+// singleton exactly when no pod is running. It survives after the per-route
+// StatefulSets are decommissioned, unlike a source derived from those pods.
+// Returns [] when no centralized monitor is deployed yet, or when it was
+// deployed in warpRouteAll mode (no explicit id list to read).
+export async function getDeployedCentralizedWarpMonitorWarpRouteIds(
+  namespace: string,
+): Promise<string[]> {
+  const releaseName = CentralizedWarpRouteMonitorHelmManager.helmReleaseName;
+  const deploymentsResult = await execCmdAndParseJson(
+    `kubectl get deployment -n ${namespace} -l app.kubernetes.io/instance=${releaseName} -o json`,
+  );
+
+  const ids = new Set<string>();
+
+  for (const deployment of deploymentsResult.items || []) {
+    const containers = deployment.spec?.template?.spec?.containers || [];
+    for (const container of containers) {
+      const env = (container.env || []).find(
+        (e: { name: string; value?: string }) => e.name === 'WARP_ROUTE_IDS',
+      );
+      if (!env?.value) {
+        continue;
+      }
+      for (const id of env.value.split(',')) {
+        const trimmed = id.trim();
+        if (trimmed) {
+          ids.add(trimmed);
+        }
+      }
+    }
+  }
+
+  return [...ids].sort();
 }
 
 export interface WarpMonitorPodInfo {

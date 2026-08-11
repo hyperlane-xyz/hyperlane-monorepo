@@ -29,11 +29,34 @@ env:
   TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
 
 jobs:
-  rebalancer-e2e-test:
+  rebalancer-e2e-shards:
+    name: rebalancer-e2e-shard (${{ matrix.name }})
     runs-on: depot-ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: collateral-composite
+            specs: >-
+              src/e2e/collateral-deficit.e2e-test.ts
+              src/e2e/composite.e2e-test.ts
+          - name: erc20-min-mixed
+            specs: >-
+              src/e2e/inventory-erc20-minAmount.e2e-test.ts
+              src/e2e/mixed-weighted.e2e-test.ts
+          - name: erc20-weighted-min
+            specs: >-
+              src/e2e/inventory-erc20-weighted.e2e-test.ts
+              src/e2e/minAmount.e2e-test.ts
+          - name: inventory-min-weighted
+            specs: >-
+              src/e2e/inventory-minAmount.e2e-test.ts
+              src/e2e/weighted.e2e-test.ts
+          - name: inventory-weighted
+            specs: src/e2e/inventory-weighted.e2e-test.ts
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -43,4 +66,21 @@ jobs:
 
       - name: Run rebalancer E2E tests (serial)
         working-directory: typescript/rebalancer
-        run: pnpm mocha --config .mocharc.e2e.json --exit
+        run: >-
+          pnpm mocha
+          --no-config
+          --extension ts
+          --node-option import=tsx/esm
+          --timeout 300000
+          --exit
+          ${{ matrix.specs }}
+
+  rebalancer-e2e-test:
+    name: rebalancer-e2e-test
+    if: always()
+    needs: rebalancer-e2e-shards
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check E2E shards
+        run: test '${{ needs.rebalancer-e2e-shards.result }}' = success

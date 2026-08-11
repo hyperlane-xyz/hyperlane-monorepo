@@ -25,7 +25,7 @@ runs:
         echo "REGISTRY_VERSION=$REGISTRY_VERSION" >> $GITHUB_ENV
 
     - name: Checkout hyperlane-registry
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         repository: hyperlane-xyz/hyperlane-registry
         ref: ${{ env.REGISTRY_VERSION }}

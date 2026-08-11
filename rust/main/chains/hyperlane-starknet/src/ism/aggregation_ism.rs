@@ -6,7 +6,7 @@ use hyperlane_core::{
     AggregationIsm, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, H256,
 };
-use starknet::core::types::Felt;
+use starknet::core::types::{BlockId, BlockTag, Felt};
 use tracing::instrument;
 
 use crate::contracts::aggregation_ism::{AggregationIsmReader, Message as StarknetMessage};
@@ -33,7 +33,8 @@ impl StarknetAggregationIsm {
     ) -> ChainResult<Self> {
         let ism_address: Felt = HyH256(locator.address).into();
         let json_provider = provider.rpc_client().clone();
-        let contract = AggregationIsmReader::new(ism_address, json_provider);
+        let contract = AggregationIsmReader::new(ism_address, json_provider)
+            .with_block(BlockId::Tag(BlockTag::Latest));
 
         Ok(Self {
             contract,

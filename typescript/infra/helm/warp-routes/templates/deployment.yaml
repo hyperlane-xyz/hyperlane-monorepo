@@ -1,0 +1,26 @@
+{{- if .Values.centralized.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hyperlane.fullname" . }}
+  labels: &metadata_labels
+    {{- include "hyperlane.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels: *metadata_labels
+  replicas: 1
+  # Recreate (not the default RollingUpdate) so the old pod is torn down before
+  # the new one starts. Two monitors running at once would double-emit every
+  # metric series and double the RPC/CoinGecko load across the whole fleet.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels: *metadata_labels
+      annotations:
+        prometheus.io/port: "9090"
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+{{- include "hyperlane.warp-routes.centralized-container" . | indent 6 }}
+{{- end }}

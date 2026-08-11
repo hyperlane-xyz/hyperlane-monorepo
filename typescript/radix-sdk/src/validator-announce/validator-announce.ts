@@ -54,7 +54,10 @@ export class RadixValidatorAnnounceReader implements ArtifactReader<
 export class RadixValidatorAnnounceWriter
   extends RadixValidatorAnnounceReader
   implements
-    ArtifactWriter<RawValidatorAnnounceConfig, DeployedValidatorAnnounceAddress>
+    ArtifactWriter<
+      RawValidatorAnnounceConfig,
+      DeployedValidatorAnnounceAddress
+    >
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,

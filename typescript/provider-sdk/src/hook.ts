@@ -189,7 +189,7 @@ function hasUnreadableProtocolFeeMax(config: HookArtifactConfig): boolean {
   return (
     isProtocolFeeHookConfig(config) &&
     // CAST: Reflect.get requires an object argument; HookArtifactConfig is always an object here.
-    Reflect.get(config as object, '__maxProtocolFeeUnknown') === true
+    Reflect.get(config, '__maxProtocolFeeUnknown') === true
   );
 }
 

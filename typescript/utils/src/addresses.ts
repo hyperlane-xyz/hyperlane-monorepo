@@ -413,9 +413,13 @@ export function isEmptyAddress(address: Address | undefined | null): boolean {
   return !address || isZeroishAddress(address);
 }
 
+export function isZeroishAddressEvm(address: Address) {
+  return EVM_ZEROISH_ADDRESS_REGEX.test(address);
+}
+
 export function isZeroishAddress(address: Address) {
   return (
-    EVM_ZEROISH_ADDRESS_REGEX.test(address) ||
+    isZeroishAddressEvm(address) ||
     SEALEVEL_ZEROISH_ADDRESS_REGEX.test(address) ||
     COSMOS_ZEROISH_ADDRESS_REGEX.test(address) ||
     COSMOS_NATIVE_ZEROISH_ADDRESS_REGEX.test(address) ||
