@@ -85,4 +85,14 @@ impl TypedDB {
     ) -> Result<Option<V>> {
         self.retrieve_decodable(prefix, key.to_vec())
     }
+
+    /// Delete the value at the given prefixed key. Idempotent.
+    pub fn delete_keyed(
+        &self,
+        prefix: impl AsRef<[u8]>,
+        key: impl AsRef<[u8]>,
+    ) -> Result<()> {
+        self.db
+            .delete(&self.prefixed_key(prefix.as_ref(), key.as_ref()))
+    }
 }
