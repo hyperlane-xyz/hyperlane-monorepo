@@ -8,6 +8,7 @@ import {
   IsmConfig,
   IsmType,
   TokenFeeConfigInput,
+  TokenFeeType,
   TokenType,
   XERC20TokenExtraBridgesLimits,
   XERC20Type,
@@ -365,6 +366,16 @@ function generateTokenFeeConfig(
   }
   const owner = feeOwnerByChain[chain];
   assert(owner, `Fee owner for ${chain} not found`);
+  // Tron: a per-destination RoutingFee would deploy one OQLF per destination,
+  // which is prohibitively expensive on TVM. Use a single bare OQLF instead.
+  if (chain === 'tron') {
+    return {
+      type: TokenFeeType.OffchainQuotedLinearFee,
+      owner,
+      bps: withdrawalFeeBps,
+      quoteSigners,
+    };
+  }
   const feeDestinations = deploymentChains.filter(
     (destination) => destination !== chain,
   );
