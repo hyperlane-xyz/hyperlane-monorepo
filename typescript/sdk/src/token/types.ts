@@ -460,6 +460,13 @@ const KnownTokenTypes: string[] = Object.values(TokenType).filter(
   (t) => t !== TokenType.unknown,
 );
 
+// `collateralDex` is a paradex-only registry annotation for a collateral route
+// that performs a DEX conversion (see registry ETH/paradex & DIME/paradex). It has
+// no dedicated SDK TokenType, but on-chain the leg is a standard collateral router,
+// so normalize it to `collateral` instead of letting it fall through to `unknown`
+// (which would false-flag a `type` ConfigMismatch against the derived config).
+export const COLLATERAL_DEX_TYPE_ALIAS = 'collateralDex';
+
 const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   NativeTokenConfigSchema,
   OpL2TokenConfigSchema,
@@ -487,11 +494,13 @@ export type HypTokenConfig = z.infer<typeof AllHypTokenConfigSchema>;
 export const HypTokenConfigSchema = z.preprocess((val) => {
   if (typeof val === 'object' && val !== null && 'type' in val) {
     const obj = val as { type: unknown };
-    if (
-      typeof obj.type === 'string' &&
-      !KnownTokenTypes.includes(obj.type as TokenType)
-    ) {
-      return { ...obj, type: TokenType.unknown };
+    if (typeof obj.type === 'string') {
+      if (obj.type === COLLATERAL_DEX_TYPE_ALIAS) {
+        return { ...obj, type: TokenType.collateral };
+      }
+      if (!KnownTokenTypes.includes(obj.type as TokenType)) {
+        return { ...obj, type: TokenType.unknown };
+      }
     }
   }
   return val;
