@@ -9,6 +9,7 @@ import {
   assert,
   convertToProtocolAddress,
   isAddressCosmos,
+  isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
 import { BaseCosmNativeAdapter } from '../../app/MultiProtocolApp.js';
@@ -250,6 +251,11 @@ export class CosmNativeHypCollateralAdapter
       params.destination,
     );
     const destinationProtocol = destinationMetadata.protocol;
+
+    assert(
+      !isZeroishAddress(params.recipient),
+      `Refusing to construct cosmos remote transfer to zero recipient (${params.recipient})`,
+    );
 
     return provider.getRemoteTransferTransaction({
       signer: params.fromAccountOwner!,
