@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ContractFactory } from 'ethers';
+import { BigNumber, ContractFactory } from 'ethers';
 import type { ContractTransaction } from 'ethers';
 
 import {
@@ -7,6 +7,7 @@ import {
   ProxyAdmin__factory,
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
+import type { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
   Mailbox__factory as TronMailbox__factory,
   ProxyAdmin__factory as TronProxyAdmin__factory,
@@ -15,7 +16,10 @@ import {
 } from '@hyperlane-xyz/tron-sdk';
 import { TestChainName, test1, test2 } from '../consts/testChains.js';
 import type { ProtocolTransaction, ProtocolReceipt } from './ProviderType.js';
-import { EthJsonRpcBlockParameterTag } from '../metadata/chainMetadataTypes.js';
+import {
+  ChainTechnicalStack,
+  EthJsonRpcBlockParameterTag,
+} from '../metadata/chainMetadataTypes.js';
 import sinon from 'sinon';
 
 import { MultiProvider } from './MultiProvider.js';
@@ -67,6 +71,64 @@ describe('MultiProvider Tron factory resolution', () => {
 });
 
 describe('MultiProvider', () => {
+  describe('handleDeploy', () => {
+    afterEach(() => sinon.restore());
+
+    it('delegates zkSync deployments through the dynamically loaded deployer', async () => {
+      const zkSyncChain = 'testzksync';
+      const multiProvider = new MultiProvider({
+        [zkSyncChain]: {
+          ...test1,
+          chainId: 260,
+          displayName: 'Test zkSync',
+          domainId: 260,
+          name: zkSyncChain,
+          technicalStack: ChainTechnicalStack.ZkSync,
+        },
+      });
+      const zkSyncSigner = {
+        provider: {},
+        connect: sinon.stub().returnsThis(),
+      };
+      multiProvider.setSigner(zkSyncChain, zkSyncSigner as any);
+
+      const artifact = {
+        abi: [],
+        bytecode: '0x00',
+        contractName: 'TestContract',
+        factoryDeps: {},
+        sourceName: 'TestContract.sol',
+      } as unknown as ZKSyncArtifact;
+      const params = ['constructor-param'];
+      const deployedContract = { address: '0x1234' };
+      const { ZKSyncDeployer } = await import('../zksync/ZKSyncDeployer.js');
+      const estimateDeployGas = sinon
+        .stub(ZKSyncDeployer.prototype, 'estimateDeployGas')
+        .resolves(BigNumber.from(100_000));
+      const deploy = sinon
+        .stub(ZKSyncDeployer.prototype, 'deploy')
+        .resolves(deployedContract as any);
+
+      const result = await multiProvider.handleDeploy(
+        zkSyncChain,
+        new ContractFactory([], '0x'),
+        params,
+        artifact,
+      );
+
+      expect(result).to.equal(deployedContract);
+      expect(zkSyncSigner.connect.calledOnceWithExactly(zkSyncSigner.provider))
+        .to.be.true;
+      expect(estimateDeployGas.calledOnceWithExactly(artifact, params)).to.be
+        .true;
+      expect(deploy.calledOnce).to.be.true;
+      expect(deploy.firstCall.args[0]).to.equal(artifact);
+      expect(deploy.firstCall.args[1]).to.equal(params);
+      expect(BigNumber.from(deploy.firstCall.args[2]?.gasLimit).gt(100_000)).to
+        .be.true;
+    });
+  });
+
   describe('handleTx', () => {
     let multiProvider: MultiProvider;
 
