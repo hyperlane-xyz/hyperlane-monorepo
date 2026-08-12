@@ -1,4 +1,5 @@
 import { zeroAddress } from 'viem';
+import type { BigNumber } from 'ethers';
 
 import {
   CrossCollateralRouter__factory,
@@ -6,6 +7,7 @@ import {
   IXERC20Lockbox__factory,
   Ownable__factory,
   ProxyAdmin__factory,
+  TimelockController__factory,
 } from '@hyperlane-xyz/core';
 import {
   createWarpTokenReader,
@@ -39,6 +41,11 @@ import { isProxy, proxyAdmin } from '../deploy/proxy.js';
 import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { resolveRouterMapConfig } from '../router/types.js';
+import {
+  CANCELLER_ROLE,
+  EXECUTOR_ROLE,
+  PROPOSER_ROLE,
+} from '../timelock/evm/constants.js';
 import { ChainName } from '../types.js';
 import {
   type ScaleInput,
@@ -849,6 +856,12 @@ export async function checkWarpRouteDeployConfig({
     diff: rawEvmDiff,
     warpRouteConfig: evmExpandedWarpDeployConfig,
   });
+  await addTimelockDiffs({
+    multiProvider,
+    diff: rawEvmDiff,
+    onChainWarpConfig: expandedOnChainWarpConfig,
+    warpRouteConfig: evmExpandedWarpDeployConfig,
+  });
 
   // AltVM check: diff the already-fetched on-chain state against the expanded
   // deploy config
@@ -963,6 +976,13 @@ export function buildWarpRouteDiff({
         currentDeployedConfig.contractVersion = undefined;
       }
 
+      if (expectedDeployedConfig.timelock && currentDeployedConfig.proxyAdmin) {
+        expectedDeployedConfig.proxyAdmin = {
+          ...expectedDeployedConfig.proxyAdmin,
+          owner: currentDeployedConfig.proxyAdmin.owner,
+        };
+      }
+
       if (!expectedDeployedConfig.proxyAdmin?.address) {
         currentDeployedConfig.proxyAdmin = currentDeployedConfig.proxyAdmin
           ? {
@@ -985,6 +1005,88 @@ export function buildWarpRouteDiff({
     },
     {} as Record<string, ObjectDiff>, // CAST: reduce incrementally populates chain-keyed ObjectDiff entries
   );
+}
+
+async function addTimelockDiffs({
+  multiProvider,
+  diff,
+  onChainWarpConfig,
+  warpRouteConfig,
+}: {
+  multiProvider: MultiProvider;
+  diff: Record<string, ObjectDiff>;
+  onChainWarpConfig: DerivedWarpRouteDeployConfig &
+    Record<string, Partial<HypTokenRouterVirtualConfig>>;
+  warpRouteConfig: WarpRouteDeployConfigMailboxRequired &
+    Record<string, Partial<HypTokenRouterVirtualConfig>>;
+}) {
+  for (const [chain, config] of Object.entries(warpRouteConfig)) {
+    if (!config.timelock || !isEVMLike(multiProvider.getProtocol(chain))) {
+      continue;
+    }
+
+    const proxyAdminOwner = onChainWarpConfig[chain]?.proxyAdmin?.owner;
+    if (!proxyAdminOwner) {
+      addNestedDiff(diff, chain, ['timelock'], {
+        actual: 'missing',
+        expected: 'present',
+      });
+      continue;
+    }
+
+    let delay: BigNumber;
+    let hasProposer: boolean;
+    let hasExecutor: boolean;
+    let hasCanceller: boolean;
+    let hasAdminSelf: boolean;
+    try {
+      const timelock = TimelockController__factory.connect(
+        proxyAdminOwner,
+        multiProvider.getProvider(chain),
+      );
+      const [timelockDelay, adminRole, proposer, executor, canceller] =
+        await Promise.all([
+          timelock.getMinDelay(),
+          timelock.TIMELOCK_ADMIN_ROLE(),
+          timelock.hasRole(PROPOSER_ROLE, config.timelock.roles.proposer),
+          timelock.hasRole(EXECUTOR_ROLE, config.timelock.roles.executor),
+          timelock.hasRole(CANCELLER_ROLE, config.timelock.roles.proposer),
+        ]);
+      delay = timelockDelay;
+      hasProposer = proposer;
+      hasExecutor = executor;
+      hasCanceller = canceller;
+      hasAdminSelf = await timelock.hasRole(adminRole, proxyAdminOwner);
+    } catch {
+      addNestedDiff(diff, chain, ['timelock', 'address'], {
+        actual: proxyAdminOwner,
+        expected: 'TimelockController',
+      });
+      continue;
+    }
+
+    if (!delay.eq(config.timelock.delay)) {
+      addNestedDiff(diff, chain, ['timelock', 'delay'], {
+        actual: delay.toString(),
+        expected: config.timelock.delay.toString(),
+      });
+    }
+
+    const roleChecks = {
+      proposer: hasProposer,
+      executor: hasExecutor,
+      canceller: hasCanceller,
+      admin: hasAdminSelf,
+    };
+    for (const [role, hasRole] of Object.entries(roleChecks)) {
+      if (!hasRole) {
+        addNestedDiff(diff, chain, ['timelock', 'roles', role], {
+          actual: false,
+          expected: true,
+        });
+      }
+    }
+  }
 }
 
 async function addOwnerOverrideDiffs({

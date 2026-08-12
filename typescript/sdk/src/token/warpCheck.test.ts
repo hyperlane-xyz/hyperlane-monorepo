@@ -36,6 +36,7 @@ import {
 
 const MAILBOX = '0x000000000000000000000000000000000000b001';
 const OWNER = '0x000000000000000000000000000000000000dEaD';
+const TIMELOCK = '0x000000000000000000000000000000000000bEEF';
 const ROUTER_B = '0x2222222222222222222222222222222222222222';
 const TOKEN_A = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const TOKEN_B = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -869,6 +870,30 @@ describe('buildWarpRouteDiff', () => {
     });
 
     expect(diff[CHAIN]).to.have.nested.property('hook.actual');
+  });
+
+  it('treats the actual ProxyAdmin owner as expected when timelock config is present', () => {
+    const actual = onChainConfig(zeroAddress);
+    actual[CHAIN].proxyAdmin = {
+      address: '0x3333333333333333333333333333333333333333',
+      owner: TIMELOCK,
+    };
+    const expected = expectedConfig();
+    expected[CHAIN].proxyAdmin = { owner: OWNER };
+    expected[CHAIN].timelock = {
+      delay: 259200,
+      roles: {
+        executor: OWNER,
+        proposer: OWNER,
+      },
+    };
+
+    const diff = buildWarpRouteDiff({
+      onChainWarpConfig: actual,
+      warpRouteConfig: expected,
+    });
+
+    expect(diff).to.deep.equal({});
   });
 });
 
