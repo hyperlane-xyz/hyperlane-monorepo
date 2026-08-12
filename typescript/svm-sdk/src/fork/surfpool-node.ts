@@ -23,6 +23,15 @@ const logger = rootLogger.child({ module: 'surfpool-node' });
 // `surfpool/surfpool:1.5.0` used by the container runner in test infra.
 export const SURFPOOL_MIN_VERSION = '1.5.0';
 
+// Install guidance surfaced whenever a compatible `surfpool` binary is missing.
+// Points at the pinned, checksum-verified release rather than the mutable
+// `run.surfpool.run` installer, so an operator (or agent) never pipes remote
+// code to a shell.
+const SURFPOOL_INSTALL_GUIDANCE =
+  `Install a pinned surfpool ${SURFPOOL_MIN_VERSION}+ release from ` +
+  'https://github.com/txtx/surfpool/releases and verify its SHA-256 checksum; ' +
+  'do not pipe the mutable run.surfpool.run installer to a shell.';
+
 // Env var surfpool reads for its fork datasource. Passing the (possibly
 // credential-bearing) upstream URL this way keeps it out of the process argv.
 export const SURFPOOL_DATASOURCE_RPC_URL_ENV = 'SURFPOOL_DATASOURCE_RPC_URL';
@@ -325,7 +334,7 @@ function resolveExplicitBinary(
   assert(
     parsed && meetsMinVersion(parsed, min),
     `surfpool at ${binaryPath} is version ${version} but ${SURFPOOL_MIN_VERSION}+ is required. ` +
-      'Upgrade it: curl -sSfL https://run.surfpool.run/ | bash.',
+      SURFPOOL_INSTALL_GUIDANCE,
   );
 
   return { path: binaryPath, version };
@@ -345,11 +354,10 @@ function resolveDiscoveredBinary(min: SurfpoolVersion): {
     match,
     candidates.length === 0
       ? `surfpool ${SURFPOOL_MIN_VERSION}+ is required but no surfpool binary was found on PATH. ` +
-          'Install it: curl -sSfL https://run.surfpool.run/ | bash ' +
-          '(or download from https://github.com/txtx/surfpool/releases).'
+          SURFPOOL_INSTALL_GUIDANCE
       : `surfpool ${SURFPOOL_MIN_VERSION}+ is required but only found version(s) ` +
           `${candidates.map((c) => c.version).join(', ')}. ` +
-          'Upgrade it: curl -sSfL https://run.surfpool.run/ | bash.',
+          SURFPOOL_INSTALL_GUIDANCE,
   );
 
   return match;
