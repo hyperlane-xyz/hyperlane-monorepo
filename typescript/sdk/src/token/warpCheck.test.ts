@@ -19,6 +19,7 @@ import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { TokenType } from './config.js';
 import {
   type DerivedWarpRouteDeployConfig,
+  HypTokenConfigSchema,
   OwnerStatus,
   type WarpRouteDeployConfigMailboxRequired,
 } from './types.js';
@@ -31,7 +32,6 @@ import {
   expandedDeployConfigToAltVmCheckConfig,
   getScaleViolations,
   normalizeAltVmDestinationGas,
-  normalizeAltVmExpectedTokenType,
 } from './warpCheck.js';
 
 const MAILBOX = '0x000000000000000000000000000000000000b001';
@@ -499,26 +499,49 @@ describe('expandedDeployConfigToAltVmCheckConfig', () => {
   });
 });
 
-describe('normalizeAltVmExpectedTokenType', () => {
+describe("HypTokenConfigSchema 'collateralDex' normalization", () => {
   it("maps the paradex-only 'collateralDex' annotation to collateral", () => {
     // collateralDex is a registry-only annotation with no SDK TokenType; the leg
-    // is a standard collateral router on-chain, so the checker must treat the two
-    // as equivalent instead of false-flagging a `type` ConfigMismatch.
-    expect(normalizeAltVmExpectedTokenType('collateralDex')).to.equal(
-      TokenType.collateral,
-    );
+    // is a standard collateral router on-chain, so the schema normalizes it to
+    // collateral instead of falling through to unknown (which would false-flag a
+    // `type` ConfigMismatch against the derived config).
+    const parsed = HypTokenConfigSchema.parse({
+      type: 'collateralDex',
+      token: TOKEN_A,
+      name: 'ETH',
+      symbol: 'ETH',
+      decimals: 18,
+    });
+    expect(parsed.type).to.equal(TokenType.collateral);
+  });
+
+  it('coerces genuinely unknown token types to unknown', () => {
+    const parsed = HypTokenConfigSchema.parse({
+      type: 'somethingBogus',
+      name: 'ETH',
+      symbol: 'ETH',
+      decimals: 18,
+    });
+    expect(parsed.type).to.equal(TokenType.unknown);
   });
 
   it('leaves known token types unchanged', () => {
-    expect(normalizeAltVmExpectedTokenType(TokenType.collateral)).to.equal(
-      TokenType.collateral,
-    );
-    expect(normalizeAltVmExpectedTokenType(TokenType.synthetic)).to.equal(
-      TokenType.synthetic,
-    );
-    expect(normalizeAltVmExpectedTokenType(TokenType.native)).to.equal(
-      TokenType.native,
-    );
+    const collateral = HypTokenConfigSchema.parse({
+      type: TokenType.collateral,
+      token: TOKEN_A,
+      name: 'ETH',
+      symbol: 'ETH',
+      decimals: 18,
+    });
+    expect(collateral.type).to.equal(TokenType.collateral);
+
+    const native = HypTokenConfigSchema.parse({
+      type: TokenType.native,
+      name: 'ETH',
+      symbol: 'ETH',
+      decimals: 18,
+    });
+    expect(native.type).to.equal(TokenType.native);
   });
 });
 
