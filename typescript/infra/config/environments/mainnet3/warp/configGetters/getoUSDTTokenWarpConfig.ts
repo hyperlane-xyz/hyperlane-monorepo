@@ -8,7 +8,6 @@ import {
   IsmConfig,
   IsmType,
   TokenFeeConfigInput,
-  TokenFeeType,
   TokenType,
   XERC20TokenExtraBridgesLimits,
   XERC20Type,
@@ -17,6 +16,7 @@ import {
 import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { getFixedRoutingFeeConfig } from './utils.js';
 import { warpFeesIcas } from '../../governance/ica/warpFees.js';
 import { warpFeesSafes } from '../../governance/safe/warpFees.js';
 import { awTimelocks } from '../../governance/timelock/aw.js';
@@ -78,7 +78,6 @@ const stagingQuoteSigners: Address[] = [
 ];
 const productionQuoteSigners: Address[] = [
   '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
-  '0x6bb7818bbE8d88094Cf3620e58BC6BbEd542B867',
 ];
 const stagingFeeOwnerByChain: ChainMap<Address> = Object.fromEntries(
   feeChains.map((chain) => [chain, DEPLOYER]),
@@ -366,12 +365,16 @@ function generateTokenFeeConfig(
   }
   const owner = feeOwnerByChain[chain];
   assert(owner, `Fee owner for ${chain} not found`);
-  return {
-    type: TokenFeeType.OffchainQuotedLinearFee,
+  const feeDestinations = deploymentChains.filter(
+    (destination) => destination !== chain,
+  );
+  return getFixedRoutingFeeConfig(
     owner,
-    bps: withdrawalFeeBps,
+    feeDestinations,
+    withdrawalFeeBps,
+    undefined,
     quoteSigners,
-  };
+  );
 }
 
 function generateIsmConfig(
