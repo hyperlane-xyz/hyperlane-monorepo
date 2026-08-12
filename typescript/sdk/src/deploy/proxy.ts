@@ -1,25 +1,29 @@
 import { ethers } from 'ethers';
 import { Provider as ZKSyncProvider } from 'zksync-ethers';
+import { z } from 'zod';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { Address, ChainId, eqAddress, retryAsync } from '@hyperlane-xyz/utils';
 
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
+import { ZHash, ZNzUint } from '../metadata/customZodTypes.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { DeployedOwnableConfig } from '../types.js';
 
 export type EthersLikeProvider = ethers.providers.Provider | ZKSyncProvider;
 
-export type UpgradeConfig = {
-  timelock: {
-    delay: number;
+export const UpgradeConfigSchema = z.object({
+  timelock: z.object({
+    delay: ZNzUint,
     // canceller inherited from proposer and admin not supported
-    roles: {
-      executor: Address;
-      proposer: Address;
-    };
-  };
-};
+    roles: z.object({
+      executor: ZHash,
+      proposer: ZHash,
+    }),
+  }),
+});
+
+export type UpgradeConfig = z.infer<typeof UpgradeConfigSchema>;
 
 /**
  * Checks if a storage value represents empty/uninitialized storage.

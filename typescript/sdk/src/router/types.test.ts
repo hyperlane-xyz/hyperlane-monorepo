@@ -34,4 +34,39 @@ describe('GasRouterConfigSchema', () => {
     });
     expect(result.success).to.be.false;
   });
+
+  it('should accept config with timelock', () => {
+    const result = GasRouterConfigSchema.safeParse({
+      ...baseConfig,
+      timelock: {
+        delay: 259200,
+        roles: {
+          executor: SOME_ADDRESS,
+          proposer: SOME_ADDRESS,
+        },
+      },
+    });
+
+    expect(result.success).to.be.true;
+    if (result.success) {
+      expect(result.data.timelock?.delay).to.equal(259200);
+      expect(result.data.timelock?.roles.executor).to.equal(SOME_ADDRESS);
+      expect(result.data.timelock?.roles.proposer).to.equal(SOME_ADDRESS);
+    }
+  });
+
+  it('should reject timelock with invalid delay', () => {
+    const result = GasRouterConfigSchema.safeParse({
+      ...baseConfig,
+      timelock: {
+        delay: 0,
+        roles: {
+          executor: SOME_ADDRESS,
+          proposer: SOME_ADDRESS,
+        },
+      },
+    });
+
+    expect(result.success).to.be.false;
+  });
 });

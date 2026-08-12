@@ -13,6 +13,7 @@ import {
   ProxyAdmin__factory,
   StaticAggregationHook__factory,
   StaticAggregationHookFactory__factory,
+  TimelockController__factory,
   TokenBridgeCctpV2__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
@@ -68,6 +69,11 @@ import { PredicateWrapperDeployer } from '../predicate/PredicateDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
+import {
+  CANCELLER_ROLE,
+  EXECUTOR_ROLE,
+  PROPOSER_ROLE,
+} from '../timelock/evm/constants.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { scalesEqual } from '../utils/decimals.js';
 import { IsmType } from '../ism/types.js';
@@ -218,6 +224,73 @@ export class EvmWarpModule extends HyperlaneModule<
     return config;
   }
 
+  private async timelockMatchesConfig(
+    timelockAddress: Address,
+    config: NonNullable<HypTokenRouterConfig['timelock']>,
+  ): Promise<boolean> {
+    const provider = this.multiProvider.getProvider(this.chainName);
+    const timelockController = TimelockController__factory.connect(
+      timelockAddress,
+      provider,
+    );
+
+    try {
+      const [delay, hasProposer, hasExecutor, hasCanceller] = await Promise.all(
+        [
+          timelockController.getMinDelay(),
+          timelockController.hasRole(PROPOSER_ROLE, config.roles.proposer),
+          timelockController.hasRole(EXECUTOR_ROLE, config.roles.executor),
+          timelockController.hasRole(CANCELLER_ROLE, config.roles.proposer),
+        ],
+      );
+
+      return (
+        delay.eq(config.delay) && hasProposer && hasExecutor && hasCanceller
+      );
+    } catch (error) {
+      this.logger.debug(
+        { chain: this.chainName, error, timelockAddress },
+        'ProxyAdmin owner does not match the expected timelock config',
+      );
+      return false;
+    }
+  }
+
+  private async configWithTimelockProxyAdminOwner(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): Promise<HypTokenRouterConfig> {
+    if (!expectedConfig.timelock) return expectedConfig;
+
+    assert(
+      actualConfig.proxyAdmin?.address && actualConfig.proxyAdmin.owner,
+      `Cannot configure timelock for non-proxied warp route on ${this.chainName}`,
+    );
+
+    const timelockControllerAddress = (await this.timelockMatchesConfig(
+      actualConfig.proxyAdmin.owner,
+      expectedConfig.timelock,
+    ))
+      ? actualConfig.proxyAdmin.owner
+      : (
+          await new HypERC20Deployer(
+            this.multiProvider,
+            undefined,
+            this.contractVerifier,
+          ).deployTimelock(this.chainName, expectedConfig.timelock)
+        ).address;
+
+    return {
+      ...expectedConfig,
+      proxyAdmin: {
+        ...expectedConfig.proxyAdmin,
+        address:
+          expectedConfig.proxyAdmin?.address ?? actualConfig.proxyAdmin.address,
+        owner: timelockControllerAddress,
+      },
+    };
+  }
+
   /**
    * Updates the Warp Route contract with the provided configuration.
    *
@@ -235,6 +308,10 @@ export class EvmWarpModule extends HyperlaneModule<
   ): Promise<WarpUpdateResult> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
+    expectedConfig = await this.configWithTimelockProxyAdminOwner(
+      actualConfig,
+      expectedConfig,
+    );
     const transactions = [];
 
     let xerc20Txs: AnnotatedEV5Transaction[] = [];

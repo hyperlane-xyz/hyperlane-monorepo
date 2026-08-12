@@ -9,7 +9,7 @@ import {
 import { Address, AddressBytes32, isNumeric } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types.js';
-import { UpgradeConfig } from '../deploy/proxy.js';
+import { UpgradeConfig, UpgradeConfigSchema } from '../deploy/proxy.js';
 import { CheckerViolation } from '../deploy/types.js';
 import { DerivedTokenFeeConfig } from '../fee/EvmTokenFeeReader.js';
 import { TokenFeeConfigInputSchema } from '../fee/types.js';
@@ -133,13 +133,15 @@ export const RemoteRoutersSchema = z.record(
 
 export const RouterConfigSchema = MailboxClientConfigSchema.merge(
   ForeignDeploymentConfigSchema,
-).merge(
-  z.object({
-    remoteRouters: RemoteRoutersSchema.optional(),
-    proxyAdmin: DeployedOwnableSchema.optional(),
-    tokenFee: TokenFeeConfigInputSchema.optional(),
-  }),
-);
+)
+  .merge(UpgradeConfigSchema.partial())
+  .merge(
+    z.object({
+      remoteRouters: RemoteRoutersSchema.optional(),
+      proxyAdmin: DeployedOwnableSchema.optional(),
+      tokenFee: TokenFeeConfigInputSchema.optional(),
+    }),
+  );
 
 const DestinationGasAmount = z.string(); // This must be a string type to match Ether's type
 export const DestinationGasSchema = z.record(
