@@ -1,6 +1,10 @@
 import { expect } from 'chai';
-import { BigNumber, ContractFactory } from 'ethers';
+import { BigNumber, Contract, ContractFactory, Wallet } from 'ethers';
 import type { ContractTransaction } from 'ethers';
+import {
+  Provider as ZKSyncProvider,
+  Wallet as ZKSyncWallet,
+} from 'zksync-ethers';
 
 import {
   Mailbox__factory,
@@ -86,28 +90,37 @@ describe('MultiProvider', () => {
           technicalStack: ChainTechnicalStack.ZkSync,
         },
       });
-      const zkSyncSigner = {
-        provider: {},
-        connect: sinon.stub().returnsThis(),
-      };
-      multiProvider.setSigner(zkSyncChain, zkSyncSigner as any);
+      const zkSyncSigner = new ZKSyncWallet(
+        Wallet.createRandom().privateKey,
+        new ZKSyncProvider(test1.rpcUrls[0].http),
+      );
+      const connect = sinon.spy(zkSyncSigner, 'connect');
+      multiProvider.setSigner(zkSyncChain, zkSyncSigner);
 
       const artifact = {
+        _format: 'hh-zksolc-artifact-1',
         abi: [],
         bytecode: '0x00',
         contractName: 'TestContract',
+        deployedBytecode: '0x00',
+        deployedLinkReferences: {},
         factoryDeps: {},
+        linkReferences: {},
         sourceName: 'TestContract.sol',
-      } as unknown as ZKSyncArtifact;
+      } satisfies ZKSyncArtifact;
       const params = ['constructor-param'];
-      const deployedContract = { address: '0x1234' };
+      const deployedContract = new Contract(
+        '0x0000000000000000000000000000000000001234',
+        [],
+        zkSyncSigner,
+      );
       const { ZKSyncDeployer } = await import('../zksync/ZKSyncDeployer.js');
       const estimateDeployGas = sinon
         .stub(ZKSyncDeployer.prototype, 'estimateDeployGas')
         .resolves(BigNumber.from(100_000));
       const deploy = sinon
         .stub(ZKSyncDeployer.prototype, 'deploy')
-        .resolves(deployedContract as any);
+        .resolves(deployedContract);
 
       const result = await multiProvider.handleDeploy(
         zkSyncChain,
@@ -117,8 +130,7 @@ describe('MultiProvider', () => {
       );
 
       expect(result).to.equal(deployedContract);
-      expect(zkSyncSigner.connect.calledOnceWithExactly(zkSyncSigner.provider))
-        .to.be.true;
+      expect(connect.calledOnceWithExactly(zkSyncSigner.provider)).to.be.true;
       expect(estimateDeployGas.calledOnceWithExactly(artifact, params)).to.be
         .true;
       expect(deploy.calledOnce).to.be.true;
