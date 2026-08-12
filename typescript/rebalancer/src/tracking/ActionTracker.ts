@@ -363,6 +363,12 @@ export class ActionTracker implements IActionTracker {
     return this.transferStore.getByDestination(destination);
   }
 
+  async getRecentTransfers(sinceMs: number): Promise<Transfer[]> {
+    const cutoff = Date.now() - sinceMs;
+    const all = await this.transferStore.getAll();
+    return all.filter((t) => t.createdAt >= cutoff);
+  }
+
   // === RebalanceIntent Queries ===
 
   async getRebalanceIntent(id: string): Promise<RebalanceIntent | undefined> {

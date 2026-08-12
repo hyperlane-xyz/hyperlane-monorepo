@@ -17,6 +17,7 @@ describe('InflightContextAdapter', () => {
       getActiveRebalanceIntents: Sinon.stub(),
       getInProgressTransfers: Sinon.stub(),
       getActionsForIntent: Sinon.stub(),
+      getRecentTransfers: Sinon.stub(),
     } as any;
 
     multiProvider = {
