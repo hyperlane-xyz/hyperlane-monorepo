@@ -87,11 +87,12 @@ const localSafeUpgradeTimelockGovernance: ChainMap<GovernanceType | undefined> =
 // used by the pending-timelock scripts.
 const TIMELOCK_LOOKBACK_BLOCKS = 2_000_000;
 
-type UpgradeCall = {
+export type UpgradeCall = {
   to: Address;
   data: string;
   value: BigNumber;
   description: string;
+  deferUntilAfterIcaDispatches?: boolean;
 };
 
 type ChainPlan = {
@@ -531,6 +532,13 @@ function splitSafeCallGroups(groups: SafeCallGroup[]): SafeCallGroup[] {
   }
 
   return splitGroups;
+}
+
+export function orderUpgradeCalls(calls: UpgradeCall[]): UpgradeCall[] {
+  return [
+    ...calls.filter((call) => !call.deferUntilAfterIcaDispatches),
+    ...calls.filter((call) => call.deferUntilAfterIcaDispatches),
+  ];
 }
 
 function addSafeCall(
@@ -1544,10 +1552,18 @@ async function main() {
       let routedTransactionCount = 0;
 
       if (upgradeIndex >= 0) {
-        const upgradeCall = toUpgradeCall(
-          transactions[upgradeIndex],
-          `Upgrade IGP ${interchainGasPaymaster} to ${CONTRACTS_PACKAGE_VERSION}`,
-        );
+        const upgradeCall = {
+          ...toUpgradeCall(
+            transactions[upgradeIndex],
+            `Upgrade IGP ${interchainGasPaymaster} to ${CONTRACTS_PACKAGE_VERSION}`,
+          ),
+          // Ethereum originates the governance ICA messages. Keep its legacy
+          // IGP configured until every remote upgrade has been dispatched and
+          // paid for in the same Safe transaction.
+          ...(chain === ETHEREUM_CHAIN
+            ? { deferUntilAfterIcaDispatches: true }
+            : {}),
+        };
         const route = await routeGovernedCall({
           groups: safeGroups,
           icaGroups,
@@ -1637,6 +1653,10 @@ async function main() {
     ica,
   });
 
+  for (const group of safeGroups.values()) {
+    group.calls = orderUpgradeCalls(group.calls);
+  }
+
   const groups = splitSafeCallGroups([...safeGroups.values()]);
   const runDir = join(
     OUTPUT_ROOT,
@@ -1711,6 +1731,7 @@ async function main() {
     rootLogger.warn(
       [
         `Upgrade-only mode: apply IGP config after upgrade execution for chain(s): ${upgradeChains.join(', ')}`,
+        'Until configured, normal outbound dispatches from an upgraded chain will revert.',
         `pnpm -C typescript/infra exec tsx scripts/deploy.ts -e ${environment} -x ${context} -m igp --chains ${upgradeChains.join(' ')}`,
       ].join('\n'),
     );

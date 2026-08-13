@@ -13,5 +13,165 @@
       "isProxy": true,
       "expectedimplementation": "0xF6CC9B10c607afB777380bF71F272E4D7037C3A9"
     }
+  ],
+  "avalanche": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xc0D0eF8D8BDD7395ec02617d1c705b0c6a60D6fa",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "celo": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x8f271392b5C7728EFc6FD825FF6A200BA50040Da",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "bsc": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x284830a64E59CF85e46bA66744B2910cB4Bd9f90",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "arbitrum": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x2eBFE904CcbC143ac0a0c03250459Aa7140bA09D",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "blast": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x3e419fA7267b9A3fF0358Ef16467B095d9E8d8AE",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "base": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x0E025067fe1a009e39F9C3De6A9965Ee1EAeB2d2",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "ink": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x2761Bf59a3f129269D36676134bcaF7F6d1b7249",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "fraxtal": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x3129C37ea8083917E13d3351A4263E968CAfe80d",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "gnosis": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x4fa96B3667C276FEC8F674EcD12e09D7ff3a16A2",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "linea": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xa95064E99eF2107c31bF662a118500Fd87b64D3E",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "hyperevm": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x284f71eBF22b7C7bf43aD20c460343D1a2d697c0",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "ethereum": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xb6b16b5EEDe90e93c8E558F49EffB06193b04EdF",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "soneium": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xc1D7Ef4D477f68229c3F5AC259931C3845a80FE1",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "mode": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x28F5135a3bCb1673598D8C30Fc37A32441Fe6a0a",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "lisk": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x6783dC9f1Bf88DC554c8716c4C42C5bf640dDcc8",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "mantle": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xa6a280234E617dc9B5A41b2E568Afda2351467B8",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "optimism": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x69D1A90f1A6ce003E993678aC8d19717454d1467",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "polygon": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xF0a2d22C7064E9F5e6C7990CeA999a57EC2d0f80",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "worldchain": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x07359FdCE1b1Ce451B8C683F8ae1274B5Bf8266C",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "unichain": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x322BA98FdEc849ABB965F142e30edf12e6a8cbBe",
+      "constructorArguments": "",
+      "isProxy": false
+    }
   ]
 }
