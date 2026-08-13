@@ -3,22 +3,32 @@ import { Provider as ZKSyncProvider } from 'zksync-ethers';
 import { z } from 'zod';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
-import { Address, ChainId, eqAddress, retryAsync } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ChainId,
+  eqAddress,
+  isAddressEvm,
+  retryAsync,
+} from '@hyperlane-xyz/utils';
 
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
-import { ZHash, ZNzUint } from '../metadata/customZodTypes.js';
+import { ZNzUint } from '../metadata/customZodTypes.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { DeployedOwnableConfig } from '../types.js';
 
 export type EthersLikeProvider = ethers.providers.Provider | ZKSyncProvider;
+
+const ZEvmAddress = z
+  .string()
+  .refine(isAddressEvm, 'Must be a valid EVM address');
 
 export const UpgradeConfigSchema = z.object({
   timelock: z.object({
     delay: ZNzUint,
     // canceller inherited from proposer and admin not supported
     roles: z.object({
-      executor: ZHash,
-      proposer: ZHash,
+      executor: ZEvmAddress,
+      proposer: ZEvmAddress,
     }),
   }),
 });

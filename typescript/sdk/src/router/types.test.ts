@@ -4,6 +4,8 @@ import { ethers } from 'ethers';
 import { GasRouterConfigSchema } from './types.js';
 
 const SOME_ADDRESS = ethers.Wallet.createRandom().address;
+const EXECUTOR_ADDRESS = ethers.Wallet.createRandom().address;
+const PROPOSER_ADDRESS = ethers.Wallet.createRandom().address;
 
 describe('GasRouterConfigSchema', () => {
   const baseConfig = {
@@ -41,8 +43,8 @@ describe('GasRouterConfigSchema', () => {
       timelock: {
         delay: 259200,
         roles: {
-          executor: SOME_ADDRESS,
-          proposer: SOME_ADDRESS,
+          executor: EXECUTOR_ADDRESS,
+          proposer: PROPOSER_ADDRESS,
         },
       },
     });
@@ -50,9 +52,25 @@ describe('GasRouterConfigSchema', () => {
     expect(result.success).to.be.true;
     if (result.success) {
       expect(result.data.timelock?.delay).to.equal(259200);
-      expect(result.data.timelock?.roles.executor).to.equal(SOME_ADDRESS);
-      expect(result.data.timelock?.roles.proposer).to.equal(SOME_ADDRESS);
+      expect(result.data.timelock?.roles.executor).to.equal(EXECUTOR_ADDRESS);
+      expect(result.data.timelock?.roles.proposer).to.equal(PROPOSER_ADDRESS);
     }
+  });
+
+  it('should reject timelock roles with non-EVM hashes', () => {
+    const result = GasRouterConfigSchema.safeParse({
+      ...baseConfig,
+      timelock: {
+        delay: 259200,
+        roles: {
+          executor:
+            '0x1111111111111111111111111111111111111111111111111111111111111111',
+          proposer: PROPOSER_ADDRESS,
+        },
+      },
+    });
+
+    expect(result.success).to.be.false;
   });
 
   it('should reject timelock with invalid delay', () => {

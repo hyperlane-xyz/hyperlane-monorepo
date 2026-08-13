@@ -266,6 +266,18 @@ export class EvmWarpModule extends HyperlaneModule<
       actualConfig.proxyAdmin?.address && actualConfig.proxyAdmin.owner,
       `Cannot configure timelock for non-proxied warp route on ${this.chainName}`,
     );
+    assert(
+      !expectedConfig.ownerOverrides?.proxyAdmin,
+      `Cannot configure timelock with ownerOverrides.proxyAdmin on ${this.chainName}`,
+    );
+    assert(
+      !expectedConfig.proxyAdmin?.address ||
+        eqAddress(
+          expectedConfig.proxyAdmin.address,
+          actualConfig.proxyAdmin.address,
+        ),
+      `Cannot configure timelock while changing ProxyAdmin address on ${this.chainName}`,
+    );
 
     const timelockControllerAddress = (await this.timelockMatchesConfig(
       actualConfig.proxyAdmin.owner,

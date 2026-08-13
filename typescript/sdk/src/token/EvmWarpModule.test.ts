@@ -17,6 +17,10 @@ const TOKEN_ADDRESS = '0x1111111111111111111111111111111111111111';
 const MAILBOX_ADDRESS = '0x2222222222222222222222222222222222222222';
 const OWNER_ADDRESS = '0x3333333333333333333333333333333333333333';
 const ROUTER_ADDRESS = '0x4444444444444444444444444444444444444444';
+const PROXY_ADMIN_ADDRESS = '0x5555555555555555555555555555555555555555';
+const OTHER_PROXY_ADMIN_ADDRESS = '0x6666666666666666666666666666666666666666';
+const TIMELOCK_PROPOSER_ADDRESS = '0x7777777777777777777777777777777777777777';
+const TIMELOCK_EXECUTOR_ADDRESS = '0x8888888888888888888888888888888888888888';
 
 // Sentinel thrown by the createTokenFeeUpdateTxs stub to short-circuit
 // updateSplit immediately after the module.update() call, so the test does not
@@ -38,6 +42,21 @@ describe('EvmWarpModule', () => {
         mint: '1000000000000000000',
         burn: '1000000000000000000',
       },
+    },
+  };
+
+  const actualProxiedConfig = {
+    proxyAdmin: {
+      address: PROXY_ADMIN_ADDRESS,
+      owner: OWNER_ADDRESS,
+    },
+  } as DerivedTokenRouterConfig;
+
+  const timelockConfig: NonNullable<HypTokenRouterConfig['timelock']> = {
+    delay: 259200,
+    roles: {
+      executor: TIMELOCK_EXECUTOR_ADDRESS,
+      proposer: TIMELOCK_PROPOSER_ADDRESS,
     },
   };
 
@@ -90,5 +109,56 @@ describe('EvmWarpModule', () => {
     expect(updateStub.calledOnce).to.equal(true);
     expect(updateStub.firstCall.args).to.have.length(1);
     expect(updateStub.firstCall.args[1]).to.equal(undefined);
+  });
+
+  it('rejects timelock with ownerOverrides.proxyAdmin', async () => {
+    sandbox.stub(EvmWarpModule.prototype, 'read').resolves(actualProxiedConfig);
+
+    const module = new EvmWarpModule(multiProvider, {
+      chain: TestChainName.test1,
+      config: xERC20Config,
+      addresses: { deployedTokenRoute: ROUTER_ADDRESS },
+    } as ConstructorParameters<typeof EvmWarpModule>[1]);
+
+    try {
+      await module.updateSplit({
+        ...xERC20Config,
+        ownerOverrides: {
+          proxyAdmin: TIMELOCK_PROPOSER_ADDRESS,
+        },
+        timelock: timelockConfig,
+      });
+      expect.fail('expected timelock plus ownerOverrides.proxyAdmin to reject');
+    } catch (error) {
+      expect((error as Error).message).to.include(
+        'Cannot configure timelock with ownerOverrides.proxyAdmin',
+      );
+    }
+  });
+
+  it('rejects timelock while changing ProxyAdmin address', async () => {
+    sandbox.stub(EvmWarpModule.prototype, 'read').resolves(actualProxiedConfig);
+
+    const module = new EvmWarpModule(multiProvider, {
+      chain: TestChainName.test1,
+      config: xERC20Config,
+      addresses: { deployedTokenRoute: ROUTER_ADDRESS },
+    } as ConstructorParameters<typeof EvmWarpModule>[1]);
+
+    try {
+      await module.updateSplit({
+        ...xERC20Config,
+        proxyAdmin: {
+          address: OTHER_PROXY_ADMIN_ADDRESS,
+          owner: OWNER_ADDRESS,
+        },
+        timelock: timelockConfig,
+      });
+      expect.fail('expected timelock plus ProxyAdmin address change to reject');
+    } catch (error) {
+      expect((error as Error).message).to.include(
+        'Cannot configure timelock while changing ProxyAdmin address',
+      );
+    }
   });
 });
