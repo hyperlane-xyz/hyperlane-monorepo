@@ -7,7 +7,7 @@ import {
   Address,
   ChainId,
   eqAddress,
-  isAddressEvm,
+  isValidAddressEvm,
   retryAsync,
 } from '@hyperlane-xyz/utils';
 
@@ -20,15 +20,19 @@ export type EthersLikeProvider = ethers.providers.Provider | ZKSyncProvider;
 
 const ZEvmAddress = z
   .string()
-  .refine(isAddressEvm, 'Must be a valid EVM address');
+  .refine(isValidAddressEvm, 'Must be a valid EVM address');
 const ZEvmNonZeroAddress = ZEvmAddress.refine(
   (address) => !eqAddress(address, ethers.constants.AddressZero),
   'Must be a non-zero EVM address',
 );
+const ZSafeNzUint = ZNzUint.refine(
+  (value) => Number.isSafeInteger(value),
+  'Must be a safe integer',
+);
 
 export const UpgradeConfigSchema = z.object({
   timelock: z.object({
-    delay: ZNzUint,
+    delay: ZSafeNzUint,
     // canceller inherited from proposer and admin not supported
     roles: z.object({
       executor: ZEvmAddress,

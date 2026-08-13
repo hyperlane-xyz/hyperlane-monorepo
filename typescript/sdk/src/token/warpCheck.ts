@@ -46,6 +46,7 @@ import {
   EXECUTOR_ROLE,
   PROPOSER_ROLE,
 } from '../timelock/evm/constants.js';
+import { isDeterministicTimelockReadError } from '../timelock/evm/errors.js';
 import { ChainName } from '../types.js';
 import {
   type ScaleInput,
@@ -720,6 +721,7 @@ export async function checkWarpRouteDeployConfig({
   const knownWarpCoreTokens = warpCoreConfig.tokens.filter(
     (token) => multiProvider.tryGetProtocol(token.chainName) !== null,
   );
+  assertTimelockSupportedByProtocols({ multiProvider, warpDeployConfig });
   const evmWarpCoreConfig = {
     ...warpCoreConfig,
     tokens: knownWarpCoreTokens.filter((token) =>
@@ -927,6 +929,23 @@ export async function checkWarpRouteDeployConfig({
   };
 }
 
+function assertTimelockSupportedByProtocols({
+  multiProvider,
+  warpDeployConfig,
+}: {
+  multiProvider: MultiProvider;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+}) {
+  for (const [chain, config] of Object.entries(warpDeployConfig)) {
+    const protocol = multiProvider.tryGetProtocol(chain);
+    if (config.timelock && (!protocol || !isEVMLike(protocol))) {
+      throw new Error(
+        `Timelock config is not supported on Alt-VM chain '${chain}'.`,
+      );
+    }
+  }
+}
+
 export function buildWarpRouteDiff({
   warpRouteConfig,
   onChainWarpConfig,
@@ -1057,7 +1076,8 @@ async function addTimelockDiffs({
       hasExecutor = executor;
       hasCanceller = canceller;
       hasAdminSelf = await timelock.hasRole(adminRole, proxyAdminOwner);
-    } catch {
+    } catch (error) {
+      if (!isDeterministicTimelockReadError(error)) throw error;
       addNestedDiff(diff, chain, ['timelock', 'address'], {
         actual: proxyAdminOwner,
         expected: 'TimelockController',

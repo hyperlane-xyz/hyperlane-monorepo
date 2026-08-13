@@ -50,6 +50,11 @@ type EvmWarpModuleForTest = {
 // need to stub the ~20 downstream create*UpdateTxs helpers.
 class ShortCircuit extends Error {}
 
+function errorMessage(error: unknown): string {
+  if (!(error instanceof Error)) throw error;
+  return error.message;
+}
+
 describe('EvmWarpModule', () => {
   let multiProvider: MultiProvider;
   let sandbox: sinon.SinonSandbox;
@@ -68,6 +73,7 @@ describe('EvmWarpModule', () => {
     },
   };
 
+  // CAST: only proxyAdmin fields are read by the tested planning helper.
   const actualProxiedConfig = {
     proxyAdmin: {
       address: PROXY_ADMIN_ADDRESS,
@@ -84,6 +90,7 @@ describe('EvmWarpModule', () => {
   };
 
   function createModule() {
+    // CAST: deploy-time fixture only needs the address fields used by update planning.
     return new EvmWarpModule(multiProvider, {
       chain: TestChainName.test1,
       config: xERC20Config,
@@ -116,6 +123,7 @@ describe('EvmWarpModule', () => {
           return hasAdminSelf && account === TIMELOCK_ADDRESS;
         return false;
       },
+      // CAST: test stub implements only the TimelockController methods under test.
     } as ReturnType<typeof TimelockController__factory.connect>);
   }
 
@@ -176,7 +184,7 @@ describe('EvmWarpModule', () => {
       });
       expect.fail('expected timelock plus ownerOverrides.proxyAdmin to reject');
     } catch (error) {
-      expect((error as Error).message).to.include(
+      expect(errorMessage(error)).to.include(
         'Cannot configure timelock with ownerOverrides.proxyAdmin',
       );
     }
@@ -198,7 +206,7 @@ describe('EvmWarpModule', () => {
       });
       expect.fail('expected timelock plus ProxyAdmin address change to reject');
     } catch (error) {
-      expect((error as Error).message).to.include(
+      expect(errorMessage(error)).to.include(
         'Cannot configure timelock while changing ProxyAdmin address',
       );
     }
@@ -236,6 +244,43 @@ describe('EvmWarpModule', () => {
             address: PROXY_ADMIN_ADDRESS,
             owner: TIMELOCK_ADDRESS,
           },
+          // CAST: only proxyAdmin fields are read before the transient error propagates.
+        } as DerivedTokenRouterConfig,
+        {
+          ...xERC20Config,
+          timelock: timelockConfig,
+        },
+      );
+      expect.fail('expected transient timelock read failure to propagate');
+    } catch (error) {
+      expect(error).to.equal(transientError);
+      expect(deployStub.called).to.equal(false);
+    }
+  });
+
+  it('propagates nested transient call exceptions without deploying a replacement', async () => {
+    const transientError = Object.assign(new Error('missing revert data'), {
+      code: 'CALL_EXCEPTION',
+      error: { code: -32000, data: '0x' },
+    });
+    stubTimelockController({
+      getMinDelay: async () => {
+        throw transientError;
+      },
+    });
+    const deployStub = sandbox.stub(
+      HypERC20Deployer.prototype,
+      'deployTimelock',
+    );
+
+    try {
+      await createModuleForTest().configWithTimelockProxyAdminOwner(
+        {
+          proxyAdmin: {
+            address: PROXY_ADMIN_ADDRESS,
+            owner: TIMELOCK_ADDRESS,
+          },
+          // CAST: only proxyAdmin fields are read before the transient error propagates.
         } as DerivedTokenRouterConfig,
         {
           ...xERC20Config,
@@ -256,9 +301,11 @@ describe('EvmWarpModule', () => {
     sandbox.stub(secondModule, 'timelockMatchesConfig').resolves(false);
     const deployStub = sandbox
       .stub(HypERC20Deployer.prototype, 'deployTimelock')
+      // CAST: test needs only deployTimelock's returned address.
       .resolves({
         address: TIMELOCK_ADDRESS,
       } as Awaited<ReturnType<HypERC20Deployer['deployTimelock']>>);
+    // CAST: only proxyAdmin fields are read by the tested planning helper.
     const actualConfig = {
       proxyAdmin: {
         address: PROXY_ADMIN_ADDRESS,

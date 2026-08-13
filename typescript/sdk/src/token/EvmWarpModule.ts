@@ -75,6 +75,7 @@ import {
   PROPOSER_ROLE,
   TIMELOCK_ADMIN_ROLE,
 } from '../timelock/evm/constants.js';
+import { isDeterministicTimelockReadError } from '../timelock/evm/errors.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { scalesEqual } from '../utils/decimals.js';
 import { IsmType } from '../ism/types.js';
@@ -254,7 +255,7 @@ export class EvmWarpModule extends HyperlaneModule<
         hasAdminSelf
       );
     } catch (error) {
-      if (!isEthersCallException(error)) throw error;
+      if (!isDeterministicTimelockReadError(error)) throw error;
       this.logger.debug(
         { chain: this.chainName, error, timelockAddress },
         'ProxyAdmin owner does not match the expected timelock config',
@@ -2513,13 +2514,4 @@ export class EvmWarpModule extends HyperlaneModule<
 
     return warpModule;
   }
-}
-
-function isEthersCallException(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === 'CALL_EXCEPTION'
-  );
 }

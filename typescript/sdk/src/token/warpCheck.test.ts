@@ -16,6 +16,7 @@ import {
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
+import { TokenStandard } from './TokenStandard.js';
 import { TokenType } from './config.js';
 import {
   type DerivedWarpRouteDeployConfig,
@@ -28,6 +29,7 @@ import {
   applyAcceptedInactiveOwnerStatus,
   buildAltVmWarpRouteDiff,
   buildWarpRouteDiff,
+  checkWarpRouteDeployConfig,
   derivedWarpConfigToCheckConfig,
   expandedDeployConfigToAltVmCheckConfig,
   getScaleViolations,
@@ -894,6 +896,51 @@ describe('buildWarpRouteDiff', () => {
     });
 
     expect(diff).to.deep.equal({});
+  });
+});
+
+describe('checkWarpRouteDeployConfig', () => {
+  it('rejects timelock config on Alt-VM chains', async () => {
+    const chain = testSealevelChain.name;
+    const warpDeployConfig: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        mailbox: MAILBOX,
+        owner: OWNER,
+        timelock: {
+          delay: 259200,
+          roles: {
+            executor: OWNER,
+            proposer: OWNER,
+          },
+        },
+        type: TokenType.native,
+      },
+    };
+
+    try {
+      await checkWarpRouteDeployConfig({
+        multiProvider: buildMultiProvider(),
+        warpCoreConfig: {
+          tokens: [
+            {
+              addressOrDenom: TOKEN_A,
+              chainName: chain,
+              decimals: 9,
+              name: 'Token',
+              standard: TokenStandard.SealevelHypNative,
+              symbol: 'TOKEN',
+            },
+          ],
+        },
+        warpDeployConfig,
+      });
+      expect.fail('expected Alt-VM timelock config to reject');
+    } catch (error) {
+      if (!(error instanceof Error)) throw error;
+      expect(error.message).to.equal(
+        "Timelock config is not supported on Alt-VM chain 'testsealevel'.",
+      );
+    }
   });
 });
 

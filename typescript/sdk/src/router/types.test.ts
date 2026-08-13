@@ -73,6 +73,36 @@ describe('GasRouterConfigSchema', () => {
     expect(result.success).to.be.false;
   });
 
+  it('should reject timelock roles with invalid EVM checksum', () => {
+    const result = GasRouterConfigSchema.safeParse({
+      ...baseConfig,
+      timelock: {
+        delay: 259200,
+        roles: {
+          executor: '0x8Ba1f109551bD432803012645Ac136ddd64DBA72',
+          proposer: PROPOSER_ADDRESS,
+        },
+      },
+    });
+
+    expect(result.success).to.be.false;
+  });
+
+  it('should reject timelock delay larger than a safe integer', () => {
+    const result = GasRouterConfigSchema.safeParse({
+      ...baseConfig,
+      timelock: {
+        delay: Number.MAX_SAFE_INTEGER + 1,
+        roles: {
+          executor: EXECUTOR_ADDRESS,
+          proposer: PROPOSER_ADDRESS,
+        },
+      },
+    });
+
+    expect(result.success).to.be.false;
+  });
+
   it('should reject timelock with zero-address proposer', () => {
     const result = GasRouterConfigSchema.safeParse({
       ...baseConfig,
