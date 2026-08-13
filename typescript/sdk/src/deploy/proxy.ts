@@ -21,6 +21,10 @@ export type EthersLikeProvider = ethers.providers.Provider | ZKSyncProvider;
 const ZEvmAddress = z
   .string()
   .refine(isAddressEvm, 'Must be a valid EVM address');
+const ZEvmNonZeroAddress = ZEvmAddress.refine(
+  (address) => !eqAddress(address, ethers.constants.AddressZero),
+  'Must be a non-zero EVM address',
+);
 
 export const UpgradeConfigSchema = z.object({
   timelock: z.object({
@@ -28,7 +32,7 @@ export const UpgradeConfigSchema = z.object({
     // canceller inherited from proposer and admin not supported
     roles: z.object({
       executor: ZEvmAddress,
-      proposer: ZEvmAddress,
+      proposer: ZEvmNonZeroAddress,
     }),
   }),
 });

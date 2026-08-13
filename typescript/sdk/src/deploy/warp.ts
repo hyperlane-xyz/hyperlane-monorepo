@@ -165,6 +165,11 @@ export function validateWarpConfigForAltVM(
         `Supported token types: ${supportedTypes}.`,
     );
   }
+  if (config.timelock) {
+    throw new Error(
+      `Timelock config is not supported on Alt-VM chain '${chain}'.`,
+    );
+  }
 
   if (config.interchainSecurityModule) {
     validateIsmConfig(

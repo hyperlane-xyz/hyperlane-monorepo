@@ -73,6 +73,36 @@ describe('GasRouterConfigSchema', () => {
     expect(result.success).to.be.false;
   });
 
+  it('should reject timelock with zero-address proposer', () => {
+    const result = GasRouterConfigSchema.safeParse({
+      ...baseConfig,
+      timelock: {
+        delay: 259200,
+        roles: {
+          executor: EXECUTOR_ADDRESS,
+          proposer: ethers.constants.AddressZero,
+        },
+      },
+    });
+
+    expect(result.success).to.be.false;
+  });
+
+  it('should accept timelock with zero-address executor', () => {
+    const result = GasRouterConfigSchema.safeParse({
+      ...baseConfig,
+      timelock: {
+        delay: 259200,
+        roles: {
+          executor: ethers.constants.AddressZero,
+          proposer: PROPOSER_ADDRESS,
+        },
+      },
+    });
+
+    expect(result.success).to.be.true;
+  });
+
   it('should reject timelock with invalid delay', () => {
     const result = GasRouterConfigSchema.safeParse({
       ...baseConfig,
