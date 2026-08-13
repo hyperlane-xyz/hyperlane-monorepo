@@ -122,6 +122,37 @@ describe('startLocalSurfpool readiness', () => {
       expect(rejected.message).to.include('ENOENT');
     }
   });
+
+  it('aborts the readiness probe once the spawn error wins the race', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    const capturingNeverReady: WaitForRpcReady = (_rpcUrl, signal) => {
+      capturedSignal = signal;
+      return new Promise<void>(() => {});
+    };
+
+    const config: SurfpoolNodeConfig = {
+      datasource: { mode: SurfpoolDatasourceMode.Offline },
+      rpcPort: 8899,
+    };
+
+    const { waitForReady } = await startLocalSurfpool(
+      config,
+      '/nonexistent/surfpool-does-not-exist',
+      capturingNeverReady,
+    );
+
+    let rejected = false;
+    try {
+      await waitForReady();
+    } catch {
+      rejected = true;
+    }
+
+    expect(rejected).to.equal(true);
+    // Without the abort the never-settling probe's retry timers would keep
+    // polling a dead port after the spawn error already failed the race.
+    expect(capturedSignal?.aborted).to.equal(true);
+  });
 });
 
 describe('runSurfpoolNode explicit binaryPath validation', () => {

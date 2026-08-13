@@ -224,7 +224,10 @@ export function buildSurfpoolDatasourceEnv(
   return { [SURFPOOL_DATASOURCE_RPC_URL_ENV]: datasource.rpcUrl };
 }
 
-export async function waitForSolanaRpcReady(rpcUrl: string): Promise<void> {
+export async function waitForSolanaRpcReady(
+  rpcUrl: string,
+  signal?: AbortSignal,
+): Promise<void> {
   const rpc = createRpc(rpcUrl);
   await waitUntilReady(
     async () => {
@@ -233,7 +236,7 @@ export async function waitForSolanaRpcReady(rpcUrl: string): Promise<void> {
         .send({ abortSignal: AbortSignal.timeout(RPC_PROBE_TIMEOUT_MS) });
       assert(health === 'ok', `surfpool RPC not healthy: ${health}`);
     },
-    { attempts: 60, baseRetryMs: 1000 },
+    { attempts: 60, baseRetryMs: 1000, signal },
   );
 }
 
@@ -266,7 +269,10 @@ export async function assertPortAvailable(port: number): Promise<void> {
  * {@link waitForSolanaRpcReady}; tests override it (e.g. with a never-settling
  * probe) to exercise the spawn-error / exit races without a live RPC.
  */
-export type WaitForRpcReady = (rpcUrl: string) => Promise<void>;
+export type WaitForRpcReady = (
+  rpcUrl: string,
+  signal?: AbortSignal,
+) => Promise<void>;
 
 export async function startLocalSurfpool(
   config: SurfpoolNodeConfig,
@@ -338,7 +344,18 @@ export async function startLocalSurfpool(
     // A later exit (e.g. on kill once readiness has won) must not surface as an
     // unhandled rejection after the race settles.
     exited.catch(() => {});
-    await Promise.race([waitForRpcReady(rpcUrl), exited, errored]);
+    // Abort the readiness probe the instant the race settles so no retry timer
+    // keeps polling a dead port after an early exit or spawn error wins.
+    const controller = new AbortController();
+    try {
+      await Promise.race([
+        waitForRpcReady(rpcUrl, controller.signal),
+        exited,
+        errored,
+      ]);
+    } finally {
+      controller.abort();
+    }
   };
 
   return { node: { rpcUrl, kill }, waitForReady };

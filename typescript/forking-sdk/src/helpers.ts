@@ -1,6 +1,34 @@
-import { assert, sleep } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 const MAX_PORT = 65535;
+
+function toAbortError(reason: unknown): Error {
+  return reason instanceof Error ? reason : new Error(String(reason));
+}
+
+/**
+ * Resolves after `ms`, or rejects with the signal's abort reason the moment it
+ * is aborted (clearing the pending timer so nothing lingers). A pre-aborted
+ * signal rejects synchronously.
+ */
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(toAbortError(signal.reason));
+      return;
+    }
+    let timer: ReturnType<typeof setTimeout>;
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      reject(toAbortError(signal?.reason));
+    };
+    timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
 
 /**
  * Allocates a contiguous block of ports starting at basePort.
@@ -35,20 +63,21 @@ export function allocateSequentialPorts(
  */
 export async function waitUntilReady(
   probe: () => Promise<unknown>,
-  opts?: { attempts?: number; baseRetryMs?: number },
+  opts?: { attempts?: number; baseRetryMs?: number; signal?: AbortSignal },
 ): Promise<void> {
   const attempts = Math.max(1, opts?.attempts ?? 10);
   const baseRetryMs = opts?.baseRetryMs ?? 500;
 
   let lastError: unknown;
   for (let i = 0; i < attempts; i++) {
+    opts?.signal?.throwIfAborted();
     try {
       await probe();
       return;
     } catch (error: unknown) {
       lastError = error;
       if (i < attempts - 1) {
-        await sleep(baseRetryMs);
+        await sleep(baseRetryMs, opts?.signal);
       }
     }
   }

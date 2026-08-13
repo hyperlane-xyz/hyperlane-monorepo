@@ -50,6 +50,51 @@ class RunningEvmFork {
 }
 
 /**
+ * Minimal handle the fork logic needs from a spawned anvil child. Satisfied by
+ * execa's return value; the tests inject a fake to drive the exit race without a
+ * live anvil.
+ */
+export interface AnvilProcessHandle extends Promise<unknown> {
+  kill(signal: 'SIGTERM' | 'SIGINT'): void;
+}
+
+type SpawnAnvil = (config: EvmForkManagerConfig) => AnvilProcessHandle;
+
+export type WaitForEvmRpcReady = (
+  provider: JsonRpcProvider,
+  signal: AbortSignal,
+) => Promise<void>;
+
+interface StartEvmForkDeps {
+  spawnAnvil: SpawnAnvil;
+  waitForReady: WaitForEvmRpcReady;
+}
+
+function defaultSpawnAnvil(config: EvmForkManagerConfig): AnvilProcessHandle {
+  return execa`anvil --port ${config.port} --chain-id ${config.chainId} --fork-url ${config.upstreamRpcUrl} --disable-block-gas-limit`;
+}
+
+async function waitForEvmRpcReady(
+  provider: JsonRpcProvider,
+  signal: AbortSignal,
+): Promise<void> {
+  await waitUntilReady(
+    () =>
+      timeout(
+        provider.getNetwork(),
+        RPC_PROBE_TIMEOUT_MS,
+        'anvil readiness probe timed out',
+      ),
+    { attempts: 10, baseRetryMs: 500, signal },
+  );
+}
+
+const DEFAULT_START_EVM_FORK_DEPS: StartEvmForkDeps = {
+  spawnAnvil: defaultSpawnAnvil,
+  waitForReady: waitForEvmRpcReady,
+};
+
+/**
  * Rejects if `port` on 127.0.0.1 is already bound. A bind-test up front closes
  * the port-collision race: proving RPC health after spawn can otherwise pass
  * against an unrelated node already listening on the port, before our freshly
@@ -75,6 +120,7 @@ async function assertPortAvailable(port: number): Promise<void> {
 
 async function startEvmFork(
   config: EvmForkManagerConfig,
+  deps: StartEvmForkDeps = DEFAULT_START_EVM_FORK_DEPS,
 ): Promise<RunningEvmFork> {
   const endpoint = `${LOCAL_HOST}:${config.port}`;
 
@@ -84,7 +130,7 @@ async function startEvmFork(
 
   let killOnError: ((isPanicking: boolean) => Promise<void>) | undefined;
   try {
-    const anvilProcess = execa`anvil --port ${config.port} --chain-id ${config.chainId} --fork-url ${config.upstreamRpcUrl} --disable-block-gas-limit`;
+    const anvilProcess = deps.spawnAnvil(config);
 
     const kill = async (isPanicking: boolean): Promise<void> => {
       anvilProcess.kill(isPanicking ? 'SIGTERM' : 'SIGINT');
@@ -92,15 +138,10 @@ async function startEvmFork(
     killOnError = kill;
 
     const provider = new JsonRpcProvider(endpoint);
-    const readiness = waitUntilReady(
-      () =>
-        timeout(
-          provider.getNetwork(),
-          RPC_PROBE_TIMEOUT_MS,
-          'anvil readiness probe timed out',
-        ),
-      { attempts: 10, baseRetryMs: 500 },
-    );
+    // Abort the readiness probe the instant the race settles so no retry timer
+    // keeps polling a dead port after anvil exits before its RPC is ready.
+    const controller = new AbortController();
+    const readiness = deps.waitForReady(provider, controller.signal);
     // Reject if anvil exits before its RPC is ready (e.g. the port is already
     // occupied) so we never treat another process's RPC as our fork.
     const exited = anvilProcess.then(() => {
@@ -109,7 +150,11 @@ async function startEvmFork(
     // A later exit (e.g. on kill once readiness has won) must not surface as an
     // unhandled rejection after the race settles.
     exited.catch(() => {});
-    await Promise.race([readiness, exited]);
+    try {
+      await Promise.race([readiness, exited]);
+    } finally {
+      controller.abort();
+    }
 
     process.once('exit', () => {
       void kill(false).catch((error: unknown) =>
@@ -135,7 +180,10 @@ async function startEvmFork(
 export class EvmForkManager implements IForkManager<ForkedChainConfig> {
   private running?: RunningEvmFork;
 
-  constructor(private readonly config: EvmForkManagerConfig) {}
+  constructor(
+    private readonly config: EvmForkManagerConfig,
+    private readonly deps?: StartEvmForkDeps,
+  ) {}
 
   private get requireRunning(): RunningEvmFork {
     const running = this.running;
@@ -144,7 +192,7 @@ export class EvmForkManager implements IForkManager<ForkedChainConfig> {
   }
 
   async start(): Promise<void> {
-    this.running = await startEvmFork(this.config);
+    this.running = await startEvmFork(this.config, this.deps);
   }
 
   async applyForkConfig(config: ForkedChainConfig): Promise<void> {

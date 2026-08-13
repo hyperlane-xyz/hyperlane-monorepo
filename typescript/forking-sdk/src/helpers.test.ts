@@ -63,6 +63,58 @@ describe('waitUntilReady', () => {
     expect(calls).to.equal(3);
   });
 
+  it('stops probing and rejects once its signal is aborted mid-retry', async () => {
+    const baseRetryMs = 1000;
+    const controller = new AbortController();
+    let calls = 0;
+    const pending = waitUntilReady(
+      () => {
+        calls++;
+        return Promise.reject(new Error('not ready'));
+      },
+      { attempts: 60, baseRetryMs, signal: controller.signal },
+    );
+
+    // Let the first probe run and enter its inter-attempt sleep, then abort.
+    await new Promise<void>((resolve) => setTimeout(resolve, 5));
+    const callsAtAbort = calls;
+    const abortedAt = Date.now();
+    controller.abort();
+
+    let rejected = false;
+    try {
+      await pending;
+    } catch {
+      rejected = true;
+    }
+    const rejectedAfterMs = Date.now() - abortedAt;
+
+    expect(rejected).to.equal(true);
+    // No further probe fired after the abort.
+    expect(calls).to.equal(callsAtAbort);
+    // Rejection landed far under baseRetryMs, proving the pending timer was
+    // cancelled on abort rather than run to completion.
+    expect(rejectedAfterMs).to.be.lessThan(200);
+  });
+
+  it('rejects immediately when handed an already-aborted signal', async () => {
+    let calls = 0;
+    let rejected = false;
+    try {
+      await waitUntilReady(
+        () => {
+          calls++;
+          return Promise.resolve('ready');
+        },
+        { attempts: 5, baseRetryMs: 1, signal: AbortSignal.abort() },
+      );
+    } catch {
+      rejected = true;
+    }
+    expect(rejected).to.equal(true);
+    expect(calls).to.equal(0);
+  });
+
   it('waits a bounded, linear time rather than backing off exponentially', async () => {
     const attempts = 10;
     const baseRetryMs = 2;
