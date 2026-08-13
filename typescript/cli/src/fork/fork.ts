@@ -97,6 +97,14 @@ export async function runForkCommand({
     };
   });
 
+  // The registry server binds `basePort - 10`; a non-positive value would let
+  // Node pick an ephemeral port and advertise no usable endpoint. Guard the
+  // arithmetic here, before any fork manager starts.
+  assert(
+    basePort - 10 > 0,
+    'registry server port (--port minus 10) must be > 0; increase --port',
+  );
+
   const { metadata, managers } = await buildForkedChainMetadata({
     chains,
     forkManagers,

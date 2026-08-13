@@ -12,6 +12,7 @@ import {
   buildSurfpoolArgs,
   buildSurfpoolDatasourceEnv,
   probeTimeoutSignal,
+  redactSurfpoolStderr,
   runSurfpoolNode,
   startLocalSurfpool,
 } from './surfpool-node.js';
@@ -88,6 +89,34 @@ describe('buildSurfpoolDatasourceEnv', () => {
     });
 
     expect(env).to.deep.equal({});
+  });
+});
+
+describe('redactSurfpoolStderr', () => {
+  it('scrubs the datasource URL and userinfo credentials while keeping context', () => {
+    const detail =
+      `error: failed to connect to datasource ${FORK_URL}; ` +
+      'and to fallback https://alt-user:alt-pass@backup.example/rpc too';
+
+    const redacted = redactSurfpoolStderr(detail, FORK_URL);
+
+    // Neither the exact datasource URL nor either set of credentials survives.
+    expect(redacted).to.not.include(FORK_URL);
+    expect(redacted).to.not.include('secret');
+    expect(redacted).to.not.include('alt-user:alt-pass');
+    // The non-secret diagnostic context is retained.
+    expect(redacted).to.include('failed to connect to datasource');
+    expect(redacted).to.include('backup.example/rpc');
+  });
+
+  it('scrubs userinfo credentials even without a known datasource URL', () => {
+    const detail = 'auth failed for https://user:p%40ss@rpc.example/mainnet';
+
+    const redacted = redactSurfpoolStderr(detail);
+
+    expect(redacted).to.not.include('user:p%40ss');
+    expect(redacted).to.include('auth failed for');
+    expect(redacted).to.include('rpc.example/mainnet');
   });
 });
 
@@ -221,7 +250,10 @@ describe('runSurfpoolNode explicit binaryPath validation', () => {
 });
 
 describe('startLocalSurfpool port preflight', () => {
-  it('rejects before spawning when the port is already in use', async () => {
+  async function occupyPort(): Promise<{
+    port: number;
+    close: () => Promise<void>;
+  }> {
     const blocker = createServer();
     await new Promise<void>((resolve, reject) => {
       blocker.once('error', reject);
@@ -232,24 +264,73 @@ describe('startLocalSurfpool port preflight', () => {
     if (!address || typeof address !== 'object') {
       throw new Error('expected a bound TCP address');
     }
-    const port = address.port;
+    return {
+      port: address.port,
+      close: () =>
+        new Promise<void>((resolve) => blocker.close(() => resolve())),
+    };
+  }
+
+  async function freeTcpPort(): Promise<number> {
+    const { port, close } = await occupyPort();
+    await close();
+    return port;
+  }
+
+  it('rejects before spawning when the rpc port is already in use', async () => {
+    const blocker = await occupyPort();
 
     let rejected: unknown;
     try {
       // `binaryPath` is irrelevant: the preflight throws before any spawn.
       await startLocalSurfpool(
-        { datasource: { mode: SurfpoolDatasourceMode.Offline }, rpcPort: port },
+        {
+          datasource: { mode: SurfpoolDatasourceMode.Offline },
+          rpcPort: blocker.port,
+        },
         '/nonexistent/surfpool',
       );
     } catch (error: unknown) {
       rejected = error;
     } finally {
-      await new Promise<void>((resolve) => blocker.close(() => resolve()));
+      await blocker.close();
     }
 
     expect(rejected).to.be.instanceOf(Error);
     if (rejected instanceof Error) {
-      expect(rejected.message).to.include(`port ${port} is already in use`);
+      expect(rejected.message).to.include(
+        `port ${blocker.port} is already in use`,
+      );
+    }
+  });
+
+  it('rejects before spawning when the ws port is already in use', async () => {
+    // surfpool binds both --port and --ws-port; an occupied ws port must fail
+    // preflight rather than spawn a doomed child that cannot bind it.
+    const rpcPort = await freeTcpPort();
+    const blocker = await occupyPort();
+
+    let rejected: unknown;
+    try {
+      await startLocalSurfpool(
+        {
+          datasource: { mode: SurfpoolDatasourceMode.Offline },
+          rpcPort,
+          wsPort: blocker.port,
+        },
+        '/nonexistent/surfpool',
+      );
+    } catch (error: unknown) {
+      rejected = error;
+    } finally {
+      await blocker.close();
+    }
+
+    expect(rejected).to.be.instanceOf(Error);
+    if (rejected instanceof Error) {
+      expect(rejected.message).to.include(
+        `port ${blocker.port} is already in use`,
+      );
     }
   });
 });

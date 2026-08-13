@@ -62,12 +62,22 @@ describe('EvmForkManager port preflight', () => {
 });
 
 describe('EvmForkManager error redaction', () => {
-  it('redacts the upstream RPC URL from surfaced anvil errors', async () => {
-    const upstreamRpcUrl = 'https://mainnet.example.com/v2/SUPER_SECRET_KEY';
-    // execa embeds the full command (with --fork-url) in its error message, so
-    // a raw anvil failure would otherwise leak the credential-bearing URL.
-    const execaLikeError = new Error(
-      `Command failed with exit code 1: anvil --fork-url ${upstreamRpcUrl} --disable-block-gas-limit`,
+  it('never surfaces the upstream RPC URL from anvil errors', async () => {
+    // A quote in the credential is escaped when execa shell-quotes the rendered
+    // command, so an exact-string strip of the raw URL would miss it and leak
+    // the secret. The surfaced error must derive from none of execa's
+    // rendered-command fields.
+    const upstreamRpcUrl = "https://user:p'ass@host/SUPER_SECRET_KEY";
+    const escapedCommand =
+      "anvil --fork-url 'https://user:p'\\''ass@host/SUPER_SECRET_KEY' --disable-block-gas-limit";
+    const execaLikeError = Object.assign(
+      new Error(`Command failed with exit code 1: ${escapedCommand}`),
+      {
+        command: `anvil --fork-url ${upstreamRpcUrl} --disable-block-gas-limit`,
+        escapedCommand,
+        shortMessage: 'Command failed with exit code 1',
+        exitCode: 1,
+      },
     );
     const spawnAnvil = (): AnvilProcessHandle =>
       Object.assign(Promise.reject(execaLikeError), { kill: () => {} });
@@ -92,8 +102,49 @@ describe('EvmForkManager error redaction', () => {
 
     expect(rejected).to.be.instanceOf(Error);
     if (rejected instanceof Error) {
-      expect(rejected.message).to.not.include(upstreamRpcUrl);
-      expect(rejected.message).to.not.include('SUPER_SECRET_KEY');
+      // Both the message and every enumerable string field must be free of the
+      // URL, the secret token, and any execa-rendered command fragment.
+      const enumerable = JSON.stringify(rejected);
+      for (const surfaced of [rejected.message, enumerable]) {
+        expect(surfaced).to.not.include(upstreamRpcUrl);
+        expect(surfaced).to.not.include('SUPER_SECRET_KEY');
+        expect(surfaced).to.not.include('--fork-url');
+      }
+    }
+  });
+});
+
+describe('EvmForkManager readiness error surfacing', () => {
+  it('surfaces a readiness-timeout error verbatim (not the redacted anvil error)', async () => {
+    // A never-exiting anvil so the exit branch never settles; only the
+    // readiness rejection drives the race.
+    const spawnAnvil = (): AnvilProcessHandle =>
+      Object.assign(new Promise<void>(() => {}), { kill: () => {} });
+    const timingOutReady: WaitForEvmRpcReady = () =>
+      Promise.reject(new Error('anvil readiness probe timed out'));
+
+    const manager = new EvmForkManager(
+      {
+        chainName: 'anvil2',
+        chainId: 31337,
+        upstreamRpcUrl: 'https://user:secret@host/SUPER_SECRET_KEY',
+        port: await freePort(),
+      },
+      { spawnAnvil, waitForReady: timingOutReady },
+    );
+
+    let rejected: unknown;
+    try {
+      await manager.start();
+    } catch (error: unknown) {
+      rejected = error;
+    }
+
+    expect(rejected).to.be.instanceOf(Error);
+    if (rejected instanceof Error) {
+      // The real readiness diagnostic survives rather than being flattened to
+      // the generic 'anvil failed to start'.
+      expect(rejected.message).to.equal('anvil readiness probe timed out');
     }
   });
 });

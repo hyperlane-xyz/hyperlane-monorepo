@@ -79,6 +79,7 @@ export class HttpServer {
       );
     }
 
+    let server: Server | undefined;
     try {
       this.registryService = new RegistryService(
         this.getRegistry,
@@ -120,12 +121,13 @@ export class HttpServer {
       this.app.use(createErrorHandler(this.logger));
 
       const host = process.env.HOST || ServerConstants.DEFAULT_HOST;
-      const server = await this.listen(port, host);
+      const listeningServer = await this.listen(port, host);
+      server = listeningServer;
 
-      server.on('request', (req, _res) =>
+      listeningServer.on('request', (req, _res) =>
         this.logger.info({ url: req.url }, 'Request received'),
       );
-      server.on('error', (error) =>
+      listeningServer.on('error', (error) =>
         this.logger.error({ error }, 'Server error'),
       );
 
@@ -133,12 +135,19 @@ export class HttpServer {
       const shutdown = () => {
         this.logger.info('Shutting down…');
         this.registryService?.stop();
-        server.close(() => process.exit(0));
+        listeningServer.close(() => process.exit(0));
       };
       process.on('SIGTERM', shutdown);
       process.on('SIGINT', shutdown);
     } catch (error) {
       this.logger.error({ error }, 'Error starting server');
+      // initialize() may have already started the registry's filesystem watcher,
+      // whose active handle would keep the event loop alive after callers give up
+      // on this failed start. Stop it (and any partially-set-up server) before
+      // rethrowing so a bind failure cannot orphan a lingering watcher.
+      this.registryService?.stop();
+      this.registryService = null;
+      server?.close();
       throw error;
     }
   }

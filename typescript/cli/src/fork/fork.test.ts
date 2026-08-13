@@ -142,6 +142,31 @@ describe('runForkCommand --kill teardown', () => {
     expect(created.every((manager) => manager.killCount === 1)).to.equal(true);
   });
 
+  it('rejects without creating any fork manager when --port is too low', async () => {
+    const created: FakeForkManager[] = [];
+    stubRegistry(created);
+    const createStub = sinon.stub(HttpServer, 'create');
+
+    let rejected: unknown;
+    try {
+      await runForkCommand({
+        context: makeContext(),
+        chainsToFork: new Set([CHAIN]),
+        forkConfig: {},
+        kill: false,
+        // basePort - 10 === 0: the registry server would bind an ephemeral port
+        // and advertise no usable endpoint, so no fork must start.
+        basePort: 10,
+      });
+    } catch (error: unknown) {
+      rejected = error;
+    }
+
+    expect(rejected).to.be.instanceOf(Error);
+    expect(created.length).to.equal(0);
+    expect(createStub.called).to.equal(false);
+  });
+
   it('kills every fork manager when the registry server fails to start', async () => {
     const created: FakeForkManager[] = [];
     stubRegistry(created);

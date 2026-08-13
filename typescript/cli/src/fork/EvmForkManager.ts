@@ -74,19 +74,48 @@ function defaultSpawnAnvil(config: EvmForkManagerConfig): AnvilProcessHandle {
   return execa`anvil --port ${config.port} --chain-id ${config.chainId} --fork-url ${config.upstreamRpcUrl} --disable-block-gas-limit`;
 }
 
-const REDACTED_URL = '<redacted>';
-
 /**
- * execa embeds the full anvil command — including the `--fork-url` argument,
- * which can carry API keys or credentials — in its error message. Surfacing that
- * verbatim would leak the secret to logs, so we strip the URL and rethrow our own
- * Error rather than propagating execa's raw error object. anvil has no env option
- * for `--fork-url`, so the URL stays in argv (local-machine `ps` only); this keeps
- * it out of every error we log or rethrow.
+ * execa renders the full anvil command — including the credential-bearing
+ * `--fork-url` argument — into its error's message/command fields, and shell-
+ * quotes it, so a URL containing a quote survives an exact-string strip. We
+ * therefore surface a fixed error derived from none of execa's rendered-command
+ * fields, copying only non-command diagnostics so failures stay debuggable.
+ * anvil has no env option for `--fork-url`, so the URL stays in argv (visible to
+ * a local-machine `ps` only); this keeps it out of every error we log or rethrow.
  */
-function redactUpstreamRpcUrl(error: unknown, upstreamRpcUrl: string): Error {
-  const message = error instanceof Error ? error.message : String(error);
-  return new Error(message.split(upstreamRpcUrl).join(REDACTED_URL));
+class AnvilStartError extends Error {
+  exitCode?: unknown;
+  signal?: unknown;
+  signalDescription?: unknown;
+  code?: unknown;
+
+  constructor() {
+    super('anvil failed to start');
+    this.name = 'AnvilStartError';
+  }
+}
+
+// Only execa-derived errors carry the credential-bearing rendered command;
+// they are the sole errors that must be sanitized before surfacing.
+function isCommandBearing(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    ('command' in error || 'escapedCommand' in error)
+  );
+}
+
+function sanitizeAnvilError(error: unknown): AnvilStartError {
+  const sanitized = new AnvilStartError();
+  if (typeof error === 'object' && error !== null) {
+    if ('exitCode' in error) sanitized.exitCode = error.exitCode;
+    if ('signal' in error) sanitized.signal = error.signal;
+    if ('signalDescription' in error) {
+      sanitized.signalDescription = error.signalDescription;
+    }
+    if ('code' in error) sanitized.code = error.code;
+  }
+  return sanitized;
 }
 
 async function waitForEvmRpcReady(
@@ -164,7 +193,7 @@ async function startEvmFork(
         throw new Error('anvil exited before its RPC was ready');
       },
       (error: unknown) => {
-        throw redactUpstreamRpcUrl(error, config.upstreamRpcUrl);
+        throw sanitizeAnvilError(error);
       },
     );
     // A later exit (e.g. on kill once readiness has won) must not surface as an
@@ -193,7 +222,14 @@ async function startEvmFork(
       await killOnError(true);
     }
 
-    throw redactUpstreamRpcUrl(error, config.upstreamRpcUrl);
+    // The URL-bearing execa error is already sanitized at the `exited` mapping
+    // before it reaches here; readiness/exit errors carry no URL. Sanitize only
+    // a command-bearing error (a defensive catch for a synchronous spawn
+    // throw), and rethrow everything else verbatim to keep its real message.
+    if (isCommandBearing(error)) {
+      throw sanitizeAnvilError(error);
+    }
+    throw error;
   }
 }
 

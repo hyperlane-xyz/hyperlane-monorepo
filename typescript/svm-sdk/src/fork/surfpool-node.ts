@@ -45,6 +45,32 @@ const RPC_PROBE_TIMEOUT_MS = 5000;
 // Cap on the retained tail of surfpool stderr, surfaced in exit errors.
 const STDERR_TAIL_MAX = 8192;
 
+const REDACTED_DATASOURCE_URL = '<redacted-datasource-url>';
+
+// URL userinfo credentials (scheme://user:pass@host). A defense-in-depth
+// backstop that scrubs a reformatted/percent-encoded credential the exact
+// datasource-URL match would miss.
+const URL_USERINFO_CREDENTIALS_RE = /\/\/[^/@\s]+:[^/@\s]+@/g;
+
+/**
+ * Scrubs secrets from surfpool stderr before it is embedded in a surfaced error.
+ * surfpool prints stderr verbatim (not shell-escaped), so the known
+ * credential-bearing datasource URL is removed by exact-string replacement;
+ * stripping URL userinfo credentials is a backstop for any other credential URL.
+ */
+export function redactSurfpoolStderr(
+  detail: string,
+  datasourceUrl?: string,
+): string {
+  const withoutDatasource = isNullish(datasourceUrl)
+    ? detail
+    : detail.split(datasourceUrl).join(REDACTED_DATASOURCE_URL);
+  return withoutDatasource.replace(
+    URL_USERINFO_CREDENTIALS_RE,
+    '//<redacted>@',
+  );
+}
+
 export const SurfpoolDatasourceMode = {
   Fork: 'fork',
   Network: 'network',
@@ -73,6 +99,11 @@ export interface SurfpoolAirdrops {
 export interface SurfpoolNodeConfig {
   datasource: SurfpoolDatasource;
   rpcPort: number;
+  /**
+   * WebSocket port. Omitting it disables the ws-port collision preflight, so
+   * surfpool binds its default ws port unpreflighted (reintroducing the
+   * collision race for that port).
+   */
   wsPort?: number;
   airdrops?: SurfpoolAirdrops;
   skipSignatureVerification?: boolean;
@@ -313,9 +344,13 @@ export async function startLocalSurfpool(
   binaryPath: string,
   waitForRpcReady: WaitForRpcReady = waitForSolanaRpcReady,
 ): Promise<{ node: SurfpoolNode; waitForReady: () => Promise<void> }> {
-  // Fail fast if the port is taken, before spawning, so we never treat another
-  // process's RPC as our fork.
+  // Fail fast if any bind port is taken, before spawning, so we never treat
+  // another process's RPC as our fork and never spawn a doomed child that would
+  // fail to bind an occupied ws port.
   await assertPortAvailable(config.rpcPort);
+  if (!isNullish(config.wsPort)) {
+    await assertPortAvailable(config.wsPort);
+  }
 
   const args = buildSurfpoolArgs(config, config.datasource, '127.0.0.1');
   // Suppress surfpool's own logs (its default ./.surfpool/logs dir would clutter
@@ -364,9 +399,13 @@ export async function startLocalSurfpool(
   // Reject if the process exits before its RPC is ready (e.g. the port is
   // already occupied) so we never treat another process's RPC as our fork.
   const waitForReady = async (): Promise<void> => {
+    const datasourceUrl =
+      config.datasource.mode === SurfpoolDatasourceMode.Fork
+        ? config.datasource.rpcUrl
+        : undefined;
     const exited = new Promise<never>((_, reject) => {
       proc.once('exit', (code, signal) => {
-        const detail = stderrTail.trim();
+        const detail = redactSurfpoolStderr(stderrTail.trim(), datasourceUrl);
         reject(
           new Error(
             `surfpool exited before its RPC was ready (code=${code}, signal=${signal})` +
