@@ -3,7 +3,7 @@ use std::{
     fmt::{Debug, Formatter},
     hash::Hash,
     sync::Arc,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use async_trait::async_trait;
@@ -41,6 +41,9 @@ use lander::{CommandEntrypoint, DispatcherMetrics};
 use crate::relay_api::{
     handlers::{RateLimiter, ServerState as RelayApiState, TxHashCache},
     RelayApiMetrics,
+};
+use crate::scraper_proxy_message_indexer::{
+    ScraperProxyMessageIndexer, ScraperProxyMessageIndexerOrigin,
 };
 use crate::{db_loader::DbLoader, relayer::origin::Origin, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 use crate::{
@@ -102,6 +105,9 @@ pub struct Relayer {
     relay_api_rate_limit_max_requests: Option<usize>,
     relay_api_rate_limit_window_secs: Option<u64>,
     relay_api_cors_origins: Vec<String>,
+    scraper_proxy_message_indexer_url: Option<String>,
+    scraper_proxy_message_indexer_reconnect_delay: Duration,
+    scraper_proxy_message_indexer_stale_timeout: Duration,
     core_metrics: Arc<CoreMetrics>,
     // TODO: decide whether to consolidate `agent_metrics` and `chain_metrics` into a single struct
     // or move them in `core_metrics`, like the validator metrics
@@ -304,6 +310,13 @@ impl BaseAgent for Relayer {
             relay_api_rate_limit_max_requests: settings.relay_api_rate_limit_max_requests,
             relay_api_rate_limit_window_secs: settings.relay_api_rate_limit_window_secs,
             relay_api_cors_origins: settings.relay_api_cors_origins,
+            scraper_proxy_message_indexer_url: settings.scraper_proxy_message_indexer_url,
+            scraper_proxy_message_indexer_reconnect_delay: Duration::from_secs(
+                settings.scraper_proxy_message_indexer_reconnect_delay_secs,
+            ),
+            scraper_proxy_message_indexer_stale_timeout: Duration::from_secs(
+                settings.scraper_proxy_message_indexer_stale_timeout_secs,
+            ),
             core_metrics,
             agent_metrics,
             chain_metrics,
@@ -440,22 +453,37 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started processors", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
+        let mut scraper_proxy_origins = Vec::new();
+        let mut local_message_syncs = Vec::new();
         for (origin_domain, origin) in self.origins.iter() {
             let maybe_broadcaster = origin.message_sync.get_broadcaster();
 
-            let message_sync = match self.run_message_sync(origin, task_monitor.clone()).await {
-                Ok(task) => task,
-                Err(err) => {
-                    Self::record_critical_error(
-                        origin_domain,
-                        &self.chain_metrics,
-                        &err,
-                        "Failed to run message sync",
-                    );
-                    continue;
-                }
-            };
-            tasks.push(message_sync);
+            if self.scraper_proxy_message_indexer_url.is_some() {
+                scraper_proxy_origins.push(ScraperProxyMessageIndexerOrigin {
+                    domain: origin.domain.clone(),
+                    db: origin.database.clone(),
+                    tx_id_broadcaster: maybe_broadcaster.clone(),
+                });
+                local_message_syncs.push((
+                    origin.domain.clone(),
+                    origin.message_sync.clone(),
+                    origin.chain_conf.index_settings().clone(),
+                ));
+            } else {
+                let message_sync = match self.run_message_sync(origin, task_monitor.clone()).await {
+                    Ok(task) => task,
+                    Err(err) => {
+                        Self::record_critical_error(
+                            origin_domain,
+                            &self.chain_metrics,
+                            &err,
+                            "Failed to run message sync",
+                        );
+                        continue;
+                    }
+                };
+                tasks.push(message_sync);
+            }
 
             let interchain_gas_payment_sync = match self
                 .run_interchain_gas_payment_sync(
@@ -534,6 +562,23 @@ impl BaseAgent for Relayer {
                     }
                 };
             tasks.push(merkle_tree_db_loader);
+        }
+        if self.scraper_proxy_message_indexer_url.is_some() {
+            let message_sync = match self
+                .run_global_scraper_proxy_message_indexing(
+                    scraper_proxy_origins,
+                    local_message_syncs,
+                    task_monitor.clone(),
+                )
+                .await
+            {
+                Ok(task) => task,
+                Err(err) => {
+                    error!(error = %err, "[WS] failed to run scraper-proxy message sync");
+                    return;
+                }
+            };
+            tasks.push(message_sync);
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started message, IGP, merkle tree hook syncs, and message and merkle tree db loader", "Relayer startup duration measurement");
 
@@ -761,6 +806,129 @@ impl Relayer {
                     .await;
                 }
                 .instrument(info_span!("MessageSync")),
+            ))
+            .expect("spawning tokio task from Builder is infallible"))
+    }
+
+    async fn run_global_scraper_proxy_message_indexing(
+        &self,
+        scraper_proxy_origins: Vec<ScraperProxyMessageIndexerOrigin>,
+        local_message_syncs: Vec<(
+            HyperlaneDomain,
+            Arc<dyn ContractSyncer<HyperlaneMessage>>,
+            IndexSettings,
+        )>,
+        task_monitor: TaskMonitor,
+    ) -> eyre::Result<JoinHandle<()>> {
+        let Some(url) = self.scraper_proxy_message_indexer_url.clone() else {
+            eyre::bail!("missing scraper-proxy message indexer url");
+        };
+        let chain_metrics = self.chain_metrics.clone();
+        let reconnect_delay = self.scraper_proxy_message_indexer_reconnect_delay;
+        let stale_timeout = self.scraper_proxy_message_indexer_stale_timeout;
+
+        let name = "scraper_proxy_message::global";
+        Ok(tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(
+                &task_monitor,
+                async move {
+                    let mut local_tasks: Vec<JoinHandle<()>> = Vec::new();
+
+                    loop {
+                        let (connected_tx, connected_rx) = tokio::sync::oneshot::channel();
+                        let scraper_proxy_indexer = ScraperProxyMessageIndexer::new(
+                            url.clone(),
+                            scraper_proxy_origins.clone(),
+                            reconnect_delay,
+                            stale_timeout,
+                        );
+                        let ws_task = tokio::spawn(async move {
+                            scraper_proxy_indexer.run(Some(connected_tx)).await
+                        });
+
+                        tokio::pin!(ws_task);
+                        tokio::select! {
+                            connected = connected_rx => {
+                                if connected.is_ok() {
+                                    if !local_tasks.is_empty() {
+                                        info!(
+                                            local_task_count = local_tasks.len(),
+                                            "[WS] scraper-proxy websocket restored; stopping local message sync fallback"
+                                        );
+                                        for task in local_tasks.drain(..) {
+                                            task.abort();
+                                        }
+                                    }
+                                    match (&mut ws_task).await {
+                                        Ok(Ok(())) => {}
+                                        Ok(Err(err)) => {
+                                            error!(
+                                                error = %err,
+                                                "[WS] global scraper-proxy message indexer exited; falling back to local message sync"
+                                            );
+                                        }
+                                        Err(err) => {
+                                            error!(
+                                                error = %err,
+                                                "[WS] global scraper-proxy message indexer task failed; falling back to local message sync"
+                                            );
+                                        }
+                                    }
+                                } else {
+                                    error!("[WS] global scraper-proxy message indexer exited before connection signal; falling back to local message sync");
+                                }
+                            }
+                            result = &mut ws_task => {
+                                match result {
+                                    Ok(Ok(())) => {}
+                                    Ok(Err(err)) => {
+                                        error!(
+                                            error = %err,
+                                            "[WS] global scraper-proxy message indexer exited; falling back to local message sync"
+                                        );
+                                    }
+                                    Err(err) => {
+                                        error!(
+                                            error = %err,
+                                            "[WS] global scraper-proxy message indexer task failed; falling back to local message sync"
+                                        );
+                                    }
+                                }
+                            }
+                        }
+
+                        if local_tasks.is_empty() {
+                            info!(
+                                origin_count = local_message_syncs.len(),
+                                "[WS] starting local message sync fallback"
+                            );
+                            local_tasks = local_message_syncs
+                                .iter()
+                                .cloned()
+                                .map(|(origin_domain, contract_sync, index_settings)| {
+                                    let chain_metrics = chain_metrics.clone();
+                                    tokio::spawn(async move {
+                                        Self::message_sync_task(
+                                            &origin_domain,
+                                            contract_sync,
+                                            index_settings,
+                                            chain_metrics,
+                                        )
+                                        .await;
+                                    })
+                                })
+                                .collect::<Vec<_>>();
+                        }
+
+                        info!(
+                            reconnect_delay_ms = reconnect_delay.as_millis(),
+                            "[WS] retrying scraper-proxy websocket while local fallback is running"
+                        );
+                        tokio::time::sleep(reconnect_delay).await;
+                    }
+                }
+                .instrument(info_span!("GlobalScraperProxyMessageSync")),
             ))
             .expect("spawning tokio task from Builder is infallible"))
     }

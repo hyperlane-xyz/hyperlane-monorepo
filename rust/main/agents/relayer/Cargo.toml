@@ -48,6 +48,7 @@ tokio = { workspace = true, features = [
     "rt-multi-thread",
 ] }
 tokio-metrics.workspace = true
+tokio-tungstenite = { version = "0.20.1", features = ["rustls-tls-webpki-roots"] }
 tracing-futures.workspace = true
 tracing.workspace = true
 typetag.workspace = true

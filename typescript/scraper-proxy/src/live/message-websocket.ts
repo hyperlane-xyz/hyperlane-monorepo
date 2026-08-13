@@ -38,6 +38,10 @@ type ClientMessage =
     };
 
 type MessageRow = Record<string, unknown>;
+type MessageNotification = {
+  messageId: string;
+  operation: 'INSERT' | 'UPDATE' | null;
+};
 type LiveWebSocket = WebSocket & {
   clientMessageCount?: number;
   clientMessageWindowStartedAt?: number;
@@ -53,7 +57,7 @@ export class MessageWebSocketServer {
   >();
   private readonly clientsByMessageId = new Map<string, Set<LiveWebSocket>>();
   private readonly latestClients = new Set<LiveWebSocket>();
-  private readonly pendingMessageIds = new Set<string>();
+  private readonly pendingMessages = new Map<string, MessageNotification>();
   private stats: WebSocketStats = emptyWebSocketStats();
   private flushTimer?: NodeJS.Timeout;
   private heartbeatTimer?: NodeJS.Timeout;
@@ -158,7 +162,7 @@ export class MessageWebSocketServer {
     const stats = this.stats;
     this.stats = emptyWebSocketStats();
     this.logger.log(
-      `websocket stats activeClients=${this.subscriptionsByClient.size} latestClients=${this.latestClients.size} messageSubscriptions=${this.messageSubscriptionCount()} trackedMessageIds=${this.clientsByMessageId.size} pendingMessageIds=${this.pendingMessageIds.size} accepted=${stats.acceptedConnections} closed=${stats.closedConnections} rejectedMaxClients=${stats.rejectedMaxClients} rejectedLatest=${stats.rejectedLatestClients} rejectedSubscriptionLimit=${stats.rejectedSubscriptionLimit} rejectedRateLimit=${stats.rejectedRateLimit} staleTerminations=${stats.staleTerminations} notifications=${stats.notifications} ignoredNotifications=${stats.ignoredNotifications} latestBroadcasts=${stats.latestBroadcasts} directBroadcasts=${stats.directBroadcasts} snapshotFailures=${stats.snapshotFailures}`,
+      `websocket stats activeClients=${this.subscriptionsByClient.size} latestClients=${this.latestClients.size} messageSubscriptions=${this.messageSubscriptionCount()} trackedMessageIds=${this.clientsByMessageId.size} pendingMessageIds=${this.pendingMessages.size} accepted=${stats.acceptedConnections} closed=${stats.closedConnections} rejectedMaxClients=${stats.rejectedMaxClients} rejectedLatest=${stats.rejectedLatestClients} rejectedSubscriptionLimit=${stats.rejectedSubscriptionLimit} rejectedRateLimit=${stats.rejectedRateLimit} staleTerminations=${stats.staleTerminations} notifications=${stats.notifications} ignoredNotifications=${stats.ignoredNotifications} latestBroadcasts=${stats.latestBroadcasts} directBroadcasts=${stats.directBroadcasts} snapshotFailures=${stats.snapshotFailures}`,
     );
   }
 
@@ -285,16 +289,37 @@ export class MessageWebSocketServer {
 
   private onNotification(payload: string | undefined): void {
     this.stats.notifications += 1;
-    const messageId = parseNotificationPayload(payload);
-    if (
-      !messageId ||
-      (!this.clientsByMessageId.has(messageId) && this.latestClients.size === 0)
-    ) {
+    const notification = parseNotificationPayload(payload);
+    if (!notification) {
       this.stats.ignoredNotifications += 1;
+      this.logger.warn(
+        `ignored websocket notification: invalidPayload=${payload}`,
+      );
       return;
     }
 
-    this.pendingMessageIds.add(messageId);
+    const hasMessageSubscribers = this.clientsByMessageId.has(
+      notification.messageId,
+    );
+    if (!hasMessageSubscribers && this.latestClients.size === 0) {
+      this.stats.ignoredNotifications += 1;
+      this.logger.log(
+        `ignored websocket notification msg_id=${notification.messageId} operation=${notification.operation ?? 'unknown'} latestClients=${this.latestClients.size} hasMessageSubscribers=${hasMessageSubscribers}`,
+      );
+      return;
+    }
+
+    this.logger.log(
+      `queued websocket notification msg_id=${notification.messageId} operation=${notification.operation ?? 'unknown'} latestClients=${this.latestClients.size} hasMessageSubscribers=${hasMessageSubscribers}`,
+    );
+    const previous = this.pendingMessages.get(notification.messageId);
+    this.pendingMessages.set(notification.messageId, {
+      messageId: notification.messageId,
+      operation:
+        previous?.operation === 'INSERT'
+          ? previous.operation
+          : notification.operation,
+    });
     this.flushTimer ??= setTimeout(() => {
       this.flushTimer = undefined;
       void this.flushPendingMessages();
@@ -302,21 +327,31 @@ export class MessageWebSocketServer {
   }
 
   private async flushPendingMessages(): Promise<void> {
-    const messageIds = [...this.pendingMessageIds];
-    this.pendingMessageIds.clear();
+    const notifications = [...this.pendingMessages.values()];
+    this.pendingMessages.clear();
 
     await Promise.all(
-      messageIds.map(async (messageId) => {
+      notifications.map(async ({ messageId, operation }) => {
         const message = await this.fetchMessage(messageId);
+        if (!message) {
+          this.logger.warn(
+            `websocket notification row not found msg_id=${messageId} operation=${operation ?? 'unknown'}`,
+          );
+        }
         this.broadcast(messageId, {
           message,
           msg_id: messageId,
-          type: 'message_updated',
+          operation,
+          type: 'message',
         });
+        this.logger.log(
+          `broadcasting websocket latest_message msg_id=${messageId} operation=${operation ?? 'unknown'} latestClients=${this.latestClients.size}`,
+        );
         this.broadcastLatest({
           message,
           msg_id: messageId,
-          type: 'latest_message_updated',
+          operation,
+          type: 'latest_message',
         });
       }),
     );
@@ -430,15 +465,30 @@ function emptyWebSocketStats(): WebSocketStats {
   };
 }
 
-function parseNotificationPayload(payload: string | undefined): string | null {
+function parseNotificationPayload(
+  payload: string | undefined,
+): MessageNotification | null {
   if (!payload) return null;
 
   try {
-    const parsed = JSON.parse(payload) as { msg_id?: unknown };
-    return normalizeMessageId(parsed.msg_id);
+    const parsed = JSON.parse(payload) as {
+      msg_id?: unknown;
+      operation?: unknown;
+    };
+    const messageId = normalizeMessageId(parsed.msg_id);
+    if (!messageId) return null;
+    return {
+      messageId,
+      operation: normalizeOperation(parsed.operation),
+    };
   } catch {
     return null;
   }
+}
+
+function normalizeOperation(value: unknown): MessageNotification['operation'] {
+  if (value !== 'INSERT' && value !== 'UPDATE') return null;
+  return value;
 }
 
 function normalizeMessageId(value: unknown): string | null {

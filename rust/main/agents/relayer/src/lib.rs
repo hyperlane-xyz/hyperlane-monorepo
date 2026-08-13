@@ -9,6 +9,7 @@ mod merkle_tree;
 mod metrics;
 mod prover;
 mod relayer;
+mod scraper_proxy_message_indexer;
 mod settings;
 
 #[cfg(test)]

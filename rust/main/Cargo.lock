@@ -9946,6 +9946,7 @@ dependencies = [
  "tokio",
  "tokio-metrics",
  "tokio-test",
+ "tokio-tungstenite 0.20.1",
  "tower 0.5.2",
  "tower-http",
  "tracing",
