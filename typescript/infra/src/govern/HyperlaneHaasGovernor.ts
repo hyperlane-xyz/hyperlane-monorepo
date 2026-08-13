@@ -11,9 +11,11 @@ import {
   ViolationType,
 } from '@hyperlane-xyz/sdk';
 import {
+  formatStandardHookMetadata,
   hasValidRefundAddress,
   isEVMLike,
   isZeroishAddress,
+  parseStandardHookMetadata,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -187,12 +189,29 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
       for (const call of calls) {
         if (!call.callRemoteArgs) continue;
 
-        // Create a key based on all callRemoteArgs properties except innerCalls
+        const hookMetadata = call.callRemoteArgs.hookMetadata;
+        const parsedHookMetadata =
+          typeof hookMetadata === 'string'
+            ? parseStandardHookMetadata(hookMetadata)
+            : undefined;
+        const hookMetadataIdentity = parsedHookMetadata
+          ? {
+              msgValue: parsedHookMetadata.msgValue.toString(),
+              refundAddress: parsedHookMetadata.refundAddress,
+            }
+          : typeof hookMetadata === 'object'
+            ? {
+                msgValue: hookMetadata.msgValue,
+                refundAddress: hookMetadata.refundAddress,
+              }
+            : hookMetadata;
+
+        // Gas limits differ per inner call and must be recomputed for the batch.
         const key = [
           call.callRemoteArgs.chain,
           call.callRemoteArgs.destination,
           JSON.stringify(call.callRemoteArgs.config),
-          JSON.stringify(call.callRemoteArgs.hookMetadata),
+          JSON.stringify(hookMetadataIdentity),
         ].join('|');
 
         if (!callGroups.has(key)) {
@@ -231,11 +250,36 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
           return call.callRemoteArgs.innerCalls;
         });
 
-        // Create the combined callRemoteArgs
-        const combinedCallRemoteArgs = {
+        let combinedCallRemoteArgs = {
           ...baseCallRemoteArgs,
           innerCalls: combinedInnerCalls,
         };
+
+        const baseHookMetadata = baseCallRemoteArgs.hookMetadata;
+        const parsedBaseHookMetadata =
+          typeof baseHookMetadata === 'string'
+            ? parseStandardHookMetadata(baseHookMetadata)
+            : undefined;
+        const baseHookMetadataObject =
+          typeof baseHookMetadata === 'object' ? baseHookMetadata : undefined;
+        if (parsedBaseHookMetadata || baseHookMetadataObject) {
+          const gasLimit = await this.interchainAccount.estimateIcaHandleGas({
+            origin: combinedCallRemoteArgs.chain,
+            destination: combinedCallRemoteArgs.destination,
+            innerCalls: combinedInnerCalls,
+            config: combinedCallRemoteArgs.config,
+          });
+          combinedCallRemoteArgs = {
+            ...combinedCallRemoteArgs,
+            hookMetadata: formatStandardHookMetadata({
+              gasLimit: gasLimit.toBigInt(),
+              msgValue: parsedBaseHookMetadata?.msgValue,
+              refundAddress:
+                parsedBaseHookMetadata?.refundAddress ??
+                baseHookMetadataObject?.refundAddress,
+            }),
+          };
+        }
 
         // Get the callRemote transaction
         const callRemote = await this.interchainAccount.getCallRemote(

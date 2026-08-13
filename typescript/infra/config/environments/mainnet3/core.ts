@@ -31,6 +31,20 @@ import { getIgp } from './igp.js';
 import { DEPLOYER, ethereumChainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
+const deprecatedCoreHandoffConfig: ChainMap<{
+  defaultIsm: Address;
+  owner: Address;
+}> = {
+  prom: {
+    defaultIsm: '0xEC340e9e1FA2E646aE9864B43a08Db633596341B',
+    owner: '0x65Bf3DEEbFD82ccDadadF43FB3701aEFE1d8bb00',
+  },
+  vana: {
+    defaultIsm: '0x43539a67cdAbA1a11e6ed3a394f91A47786F35b6',
+    owner: '0xDDF71a6ddf3FCABBbA4D607b57f0f6Fc0265bb84',
+  },
+};
+
 // There are no static ISMs or hooks for zkSync, this means
 // that the default ISM is a routing ISM and the default hook
 // is a fallback routing hook.
@@ -54,6 +68,18 @@ export function getCore(): ChainMap<CoreConfig> {
     if (local === 'tron') {
       return getTronCoreConfig(owner, igp['tron']);
     }
+
+    const handoffConfig = deprecatedCoreHandoffConfig[local];
+    const coreOwner = handoffConfig
+      ? {
+          ...owner,
+          owner: handoffConfig.owner,
+          ownerOverrides: {
+            ...owner.ownerOverrides,
+            proxyAdmin: handoffConfig.owner,
+          },
+        }
+      : owner;
 
     const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(
       supportedChainNames
@@ -195,25 +221,27 @@ export function getCore(): ChainMap<CoreConfig> {
         address: addresses.pausableIsm,
       };
       return {
-        defaultIsm: isZksyncChain
-          ? defaultIsm
-          : {
-              type: IsmType.AGGREGATION,
-              modules: [routingIsm, recoveredPausableIsm],
-              threshold: 2,
-            },
+        defaultIsm:
+          handoffConfig?.defaultIsm ??
+          (isZksyncChain
+            ? defaultIsm
+            : {
+                type: IsmType.AGGREGATION,
+                modules: [routingIsm, recoveredPausableIsm],
+                threshold: 2,
+              }),
         defaultHook: addresses.fallbackRoutingHook,
         requiredHook: requiredHookAddress,
         deployQuotedCalls: false,
-        ...owner,
+        ...coreOwner,
       };
     }
 
     return {
-      defaultIsm,
+      defaultIsm: handoffConfig?.defaultIsm ?? defaultIsm,
       defaultHook,
       requiredHook,
-      ...owner,
+      ...coreOwner,
     };
   });
   return coreCache;
