@@ -28,7 +28,7 @@ export async function runForkCommand({
   kill,
   basePort = 8545,
 }: {
-  context: CommandContext;
+  context: Pick<CommandContext, 'registry' | 'multiProvider'>;
   chainsToFork: Set<ChainName>;
   forkConfig: ForkConfigByChain;
   kill: boolean;
@@ -47,7 +47,6 @@ export async function runForkCommand({
       registry: forkManagers,
       parsers,
       multiProvider,
-      kill,
       fileReader: readYamlOrJson,
     });
   }
@@ -98,16 +97,18 @@ export async function runForkCommand({
     };
   });
 
-  const { metadata } = await buildForkedChainMetadata({
+  const { metadata, managers } = await buildForkedChainMetadata({
     chains,
     forkManagers,
     basePort,
   });
 
-  // Under --kill the fork managers are torn down after replaying their configs,
-  // so there is nothing left to serve; starting the registry server would only
-  // keep the CLI process alive indefinitely. Skip it.
+  // fork.ts owns --kill teardown: tear down EVERY fork (including supported
+  // chains with no fork-config slice, which never self-kill) before returning.
+  // With nothing left to serve, skip the registry server too — it would only
+  // keep the CLI process alive indefinitely.
   if (kill) {
+    Object.values(managers).forEach((manager) => manager.kill());
     return;
   }
 

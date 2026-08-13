@@ -15,7 +15,6 @@ interface LoadForkManagerArgs {
   registry: ForkManagerRegistry;
   parsers: Map<ProtocolType, ForkConfigParser>;
   multiProvider: MultiProvider;
-  kill: boolean;
   fileReader: <T>(path: string) => T;
 }
 
@@ -26,7 +25,7 @@ interface LoadForkManagerArgs {
  */
 export async function loadForkManager(
   protocol: ProtocolType,
-  { registry, parsers, multiProvider, kill, fileReader }: LoadForkManagerArgs,
+  { registry, parsers, multiProvider, fileReader }: LoadForkManagerArgs,
 ): Promise<void> {
   if (registry.hasProtocol(protocol)) {
     return;
@@ -38,7 +37,7 @@ export async function loadForkManager(
         await import('./EvmForkManager.js');
       registry.registerProtocol(
         protocol,
-        createEvmForkManagerFactory(multiProvider, kill),
+        createEvmForkManagerFactory(multiProvider),
       );
       parsers.set(protocol, (rawSubset) =>
         forkedChainConfigByChainFromRaw(
@@ -57,7 +56,6 @@ export async function loadForkManager(
           upstreamRpcUrl: ctx.upstreamRpcUrl,
           rpcPort: ctx.port,
           wsPort: ctx.wsPort,
-          killAfterApply: kill,
         }),
       );
       parsers.set(protocol, (rawSubset) =>

@@ -8,6 +8,8 @@ import {
 // eslint-disable-next-line import/no-nodejs-modules
 import { existsSync } from 'node:fs';
 // eslint-disable-next-line import/no-nodejs-modules
+import { createServer } from 'node:net';
+// eslint-disable-next-line import/no-nodejs-modules
 import { homedir } from 'node:os';
 // eslint-disable-next-line import/no-nodejs-modules
 import { join } from 'node:path';
@@ -236,6 +238,30 @@ export async function waitForSolanaRpcReady(rpcUrl: string): Promise<void> {
 }
 
 /**
+ * Rejects if `port` on 127.0.0.1 is already bound. A bind-test up front closes
+ * the port-collision race: proving RPC health after spawn can otherwise pass
+ * against an unrelated node already listening on the port, before our freshly
+ * spawned child fails with EADDRINUSE.
+ */
+export async function assertPortAvailable(port: number): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const server = createServer();
+    server.once('error', (error: Error) => {
+      const code = 'code' in error ? error.code : undefined;
+      reject(
+        code === 'EADDRINUSE'
+          ? new Error(`port ${port} is already in use`)
+          : error,
+      );
+    });
+    server.once('listening', () => {
+      server.close(() => resolve());
+    });
+    server.listen(port, '127.0.0.1');
+  });
+}
+
+/**
  * Readiness probe injected into {@link startLocalSurfpool}. Defaults to
  * {@link waitForSolanaRpcReady}; tests override it (e.g. with a never-settling
  * probe) to exercise the spawn-error / exit races without a live RPC.
@@ -247,6 +273,10 @@ export async function startLocalSurfpool(
   binaryPath: string,
   waitForRpcReady: WaitForRpcReady = waitForSolanaRpcReady,
 ): Promise<{ node: SurfpoolNode; waitForReady: () => Promise<void> }> {
+  // Fail fast if the port is taken, before spawning, so we never treat another
+  // process's RPC as our fork.
+  await assertPortAvailable(config.rpcPort);
+
   const args = buildSurfpoolArgs(config, config.datasource, '127.0.0.1');
   // Suppress surfpool's own logs (its default ./.surfpool/logs dir would clutter
   // the working dir); startup/bind failures still surface on stderr, drained below.

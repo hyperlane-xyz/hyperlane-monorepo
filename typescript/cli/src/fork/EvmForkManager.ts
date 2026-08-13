@@ -1,6 +1,7 @@
 import { JsonRpcProvider, type Log } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 import { execa } from 'execa';
+import { createServer } from 'node:net';
 
 import {
   type ForkManagerFactory,
@@ -38,7 +39,6 @@ export interface EvmForkManagerConfig {
   chainId: string | number;
   upstreamRpcUrl: string;
   port: number;
-  kill: boolean;
 }
 
 class RunningEvmFork {
@@ -49,10 +49,39 @@ class RunningEvmFork {
   ) {}
 }
 
+/**
+ * Rejects if `port` on 127.0.0.1 is already bound. A bind-test up front closes
+ * the port-collision race: proving RPC health after spawn can otherwise pass
+ * against an unrelated node already listening on the port, before our freshly
+ * spawned anvil fails with EADDRINUSE.
+ */
+async function assertPortAvailable(port: number): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const server = createServer();
+    server.once('error', (error: Error) => {
+      const code = 'code' in error ? error.code : undefined;
+      reject(
+        code === 'EADDRINUSE'
+          ? new Error(`port ${port} is already in use`)
+          : error,
+      );
+    });
+    server.once('listening', () => {
+      server.close(() => resolve());
+    });
+    server.listen(port, '127.0.0.1');
+  });
+}
+
 async function startEvmFork(
   config: EvmForkManagerConfig,
 ): Promise<RunningEvmFork> {
   const endpoint = `${LOCAL_HOST}:${config.port}`;
+
+  // Fail fast if the port is taken, before spawning, so we never treat another
+  // process's RPC as our fork.
+  await assertPortAvailable(config.port);
+
   let killOnError: ((isPanicking: boolean) => Promise<void>) | undefined;
   try {
     const anvilProcess = execa`anvil --port ${config.port} --chain-id ${config.chainId} --fork-url ${config.upstreamRpcUrl} --disable-block-gas-limit`;
@@ -119,7 +148,7 @@ export class EvmForkManager implements IForkManager<ForkedChainConfig> {
   }
 
   async applyForkConfig(config: ForkedChainConfig): Promise<void> {
-    const { provider, kill } = this.requireRunning;
+    const { provider } = this.requireRunning;
 
     await handleImpersonations(
       provider,
@@ -132,10 +161,6 @@ export class EvmForkManager implements IForkManager<ForkedChainConfig> {
       this.config.chainName,
       config.transactions,
     );
-
-    if (this.config.kill) {
-      await kill(false);
-    }
   }
 
   getForkedChainMetadata(): ForkedChainMetadata {
@@ -159,7 +184,6 @@ export class EvmForkManager implements IForkManager<ForkedChainConfig> {
 
 export function createEvmForkManagerFactory(
   multiProvider: MultiProvider,
-  kill: boolean,
 ): ForkManagerFactory {
   return (ctx) =>
     new EvmForkManager({
@@ -167,7 +191,6 @@ export function createEvmForkManagerFactory(
       chainId: multiProvider.getChainMetadata(ctx.chainName).chainId,
       upstreamRpcUrl: ctx.upstreamRpcUrl,
       port: ctx.port,
-      kill,
     });
 }
 

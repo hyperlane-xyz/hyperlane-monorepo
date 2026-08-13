@@ -56,8 +56,6 @@ export interface SvmForkManagerConfig {
   rpcPort: number;
   wsPort?: number;
   airdrops?: SurfpoolAirdrops;
-  /** Tear the fork node down after replaying the fork config. */
-  killAfterApply?: boolean;
   image?: string;
   binaryPath?: string;
   keepRunning?: boolean;
@@ -212,10 +210,6 @@ export class SvmForkManager implements IForkManager<SvmForkConfig> {
 
     for (const transaction of config.transactions) {
       await this.submitTransaction(rpc, transaction);
-    }
-
-    if (this.config.killAfterApply) {
-      this.kill();
     }
   }
 
