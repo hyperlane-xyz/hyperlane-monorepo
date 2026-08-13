@@ -22,6 +22,7 @@ import {
 } from './scraperdb/request-compatibility.js';
 import { buildResolvers } from './scraperdb/resolver-map.js';
 import { sanitizeScraperDbSchema } from './scraperdb/schema.js';
+import { scraperProxyValidationRule } from './scraperdb/validation.js';
 
 type RequestWithBody = {
   body?: unknown;
@@ -67,6 +68,7 @@ if (!schemaPath) {
             scraperDb,
           ) as ApolloDriverConfig['resolvers'],
           typeDefs: sanitizeScraperDbSchema(readFileSync(schemaPath, 'utf8')),
+          validationRules: [scraperProxyValidationRule],
         };
       },
     }),

@@ -40,12 +40,14 @@
     "pg": "^8.17.2",
     "reflect-metadata": "catalog:",
     "rxjs": "catalog:",
+    "ws": "^8.21.1",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/node": "catalog:",
     "@types/pg": "^8.16.0",
+    "@types/ws": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
   },

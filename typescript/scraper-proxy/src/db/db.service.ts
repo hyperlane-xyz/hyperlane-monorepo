@@ -16,6 +16,7 @@ pg.types.setTypeParser(POSTGRES_TIMESTAMP_OID, (value: string) => value);
 @Injectable()
 export class DbService implements OnModuleDestroy, OnModuleInit {
   private readonly logger = new Logger(DbService.name);
+  private readonly listenerClients = new Set<pg.Client>();
   private pool?: pg.Pool;
 
   async query<T extends pg.QueryResultRow>(
@@ -31,6 +32,9 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
   }
 
   async onModuleDestroy(): Promise<void> {
+    await Promise.all(
+      [...this.listenerClients].map(async (client) => client.end()),
+    );
     await this.pool?.end();
   }
 
@@ -57,6 +61,45 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
     });
     return this.pool;
   }
+
+  async listen(
+    channel: string,
+    handler: (payload: string | undefined) => void,
+  ): Promise<() => Promise<void>> {
+    const client = new pg.Client(
+      this.connectionOptions(config.LISTEN_DATABASE_URL),
+    );
+    client.on('notification', (message) => {
+      if (message.channel === channel) {
+        handler(message.payload);
+      }
+    });
+
+    await client.connect();
+    await client.query(`LISTEN ${quoteIdentifier(channel)}`);
+    this.listenerClients.add(client);
+    this.logger.log(`listening on ${channel}`);
+
+    return async () => {
+      this.listenerClients.delete(client);
+      await client.query(`UNLISTEN ${quoteIdentifier(channel)}`);
+      await client.end();
+    };
+  }
+
+  private connectionOptions(
+    connectionStringOverride?: string,
+  ): pg.ClientConfig | pg.PoolConfig {
+    const connectionString = normalizeConnectionString(
+      connectionStringOverride ?? config.DATABASE_URL,
+    );
+    return {
+      connectionString,
+      ssl: connectionString.startsWith('postgres')
+        ? { rejectUnauthorized: false }
+        : undefined,
+    };
+  }
 }
 
 function normalizeConnectionString(connectionString: string): string {
@@ -76,4 +119,8 @@ function normalizeRow(row: pg.QueryResultRow): pg.QueryResultRow {
       Buffer.isBuffer(value) ? `\\x${value.toString('hex')}` : value,
     ]),
   );
+}
+
+function quoteIdentifier(identifier: string): string {
+  return `"${identifier.replaceAll('"', '""')}"`;
 }

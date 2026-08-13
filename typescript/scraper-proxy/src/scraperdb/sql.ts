@@ -36,13 +36,27 @@ interface SqlParts {
   values: unknown[];
 }
 
+const DEFAULT_SELECT_LIMIT = 500;
+const MAX_LIMIT = 500;
+const MAX_OFFSET = 5_000;
+const MAX_ORDER_BY_COLUMNS = 3;
+const MAX_DISTINCT_COLUMNS = 3;
+const MAX_CURSOR_COLUMNS = 3;
+const MAX_BOOL_DEPTH = 8;
+const MAX_BOOL_PREDICATES = 100;
+const MAX_IN_ITEMS = 200;
+
 export function buildSelect(table: TableName, args: SelectArgs = {}): SqlParts {
+  validateSelectArgs(args);
   const values: unknown[] = [];
   const distinct = buildDistinct(table, args.distinct_on);
   const where = buildWhere(table, args.where, values);
   const cursorWhere = buildCursorWhere(table, args.cursor, values);
   const orderBy = buildOrderBy(table, args.order_by, args.cursor);
-  const limit = buildLimit(args.limit ?? args.batch_size, values);
+  const limit = buildLimit(
+    clampLimit(args.limit ?? args.batch_size ?? DEFAULT_SELECT_LIMIT),
+    values,
+  );
   const offset = buildOffset(args.offset, values);
   const filters = [where, cursorWhere].filter(Boolean);
   const whereClause = filters.length ? ` WHERE ${filters.join(' AND ')}` : '';
@@ -54,11 +68,15 @@ export function buildSelect(table: TableName, args: SelectArgs = {}): SqlParts {
 }
 
 export function buildCount(table: TableName, args: SelectArgs = {}): SqlParts {
+  validateSelectArgs(args);
   const values: unknown[] = [];
   const distinct = buildDistinct(table, args.distinct_on);
   const where = buildWhere(table, args.where, values);
   const cursorWhere = buildCursorWhere(table, args.cursor, values);
-  const limit = buildLimit(args.limit ?? args.batch_size, values);
+  const limit =
+    args.limit !== undefined || args.batch_size !== undefined
+      ? buildLimit(clampLimit(args.limit ?? args.batch_size), values)
+      : '';
   const offset = buildOffset(args.offset, values);
   const filters = [where, cursorWhere].filter(Boolean);
   const whereClause = filters.length ? ` WHERE ${filters.join(' AND ')}` : '';
@@ -211,20 +229,10 @@ const comparisonOperators: Record<string, string> = {
   _eq: '=',
   _gt: '>',
   _gte: '>=',
-  _ilike: 'ILIKE',
-  _iregex: '~*',
-  _like: 'LIKE',
   _lt: '<',
   _lte: '<=',
   _neq: '<>',
-  _nilike: 'NOT ILIKE',
-  _niregex: '!~*',
   _nin: 'NOT IN',
-  _nlike: 'NOT LIKE',
-  _nregex: '!~',
-  _nsimilar: 'NOT SIMILAR TO',
-  _regex: '~',
-  _similar: 'SIMILAR TO',
   _in: 'IN',
 };
 
@@ -309,4 +317,134 @@ function buildOffset(offset: number | undefined, values: unknown[]): string {
 function bindValue(value: unknown, values: unknown[]): string {
   values.push(value);
   return `$${values.length}`;
+}
+
+function validateSelectArgs(args: SelectArgs): void {
+  validateLimit(args.limit, 'limit');
+  validateLimit(args.batch_size, 'batch_size');
+  validateOffset(args.offset);
+  validateColumns(args.distinct_on, MAX_DISTINCT_COLUMNS, 'distinct_on');
+  validateOrderBy(args.order_by);
+  validateCursors(args.cursor);
+  validateBoolExpressionShape(args.where);
+}
+
+function validateLimit(limit: number | undefined, name: string): void {
+  if (limit === undefined) return;
+  if (!Number.isInteger(limit) || limit < 0) {
+    throw new Error(`${name} must be a non-negative integer`);
+  }
+  if (limit > MAX_LIMIT) {
+    throw new Error(`${name} exceeds maximum of ${MAX_LIMIT}`);
+  }
+}
+
+function validateOffset(offset: number | undefined): void {
+  if (offset === undefined) return;
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new Error('offset must be a non-negative integer');
+  }
+  if (offset > MAX_OFFSET) {
+    throw new Error(`offset exceeds maximum of ${MAX_OFFSET}`);
+  }
+}
+
+function validateColumns(
+  columns: string[] | undefined,
+  max: number,
+  name: string,
+): void {
+  if (!columns?.length) return;
+  if (columns.length > max) {
+    throw new Error(`${name} exceeds maximum of ${max} columns`);
+  }
+}
+
+function validateOrderBy(orderBy: SelectArgs['order_by']): void {
+  const orderItems = Array.isArray(orderBy)
+    ? orderBy
+    : orderBy
+      ? [orderBy]
+      : [];
+  const columnCount = orderItems.reduce(
+    (sum, item) => sum + Object.keys(item).length,
+    0,
+  );
+  if (columnCount > MAX_ORDER_BY_COLUMNS) {
+    throw new Error(
+      `order_by exceeds maximum of ${MAX_ORDER_BY_COLUMNS} columns`,
+    );
+  }
+}
+
+function validateCursors(cursors: StreamCursor[] | undefined): void {
+  if (!cursors?.length) return;
+  const columnCount = cursors.reduce(
+    (sum, cursor) => sum + Object.keys(cursor.initial_value).length,
+    0,
+  );
+  if (columnCount > MAX_CURSOR_COLUMNS) {
+    throw new Error(`cursor exceeds maximum of ${MAX_CURSOR_COLUMNS} columns`);
+  }
+}
+
+function validateBoolExpressionShape(where: BoolExp | undefined): void {
+  const state = { predicates: 0 };
+  visitBoolExpression(where, 0, state);
+}
+
+function visitBoolExpression(
+  where: unknown,
+  depth: number,
+  state: { predicates: number },
+): void {
+  if (!where || typeof where !== 'object') return;
+  if (depth > MAX_BOOL_DEPTH) {
+    throw new Error(`where exceeds maximum depth of ${MAX_BOOL_DEPTH}`);
+  }
+
+  for (const [key, value] of Object.entries(where)) {
+    if (key === '_and' || key === '_or') {
+      const children = Array.isArray(value) ? value : [value];
+      state.predicates += children.length;
+      assertPredicateBudget(state);
+      children.forEach((child) => visitBoolExpression(child, depth + 1, state));
+      continue;
+    }
+
+    if (key === '_not') {
+      state.predicates += 1;
+      assertPredicateBudget(state);
+      visitBoolExpression(value, depth + 1, state);
+      continue;
+    }
+
+    state.predicates += 1;
+    assertPredicateBudget(state);
+    validateComparisonShape(value);
+  }
+}
+
+function validateComparisonShape(comparison: unknown): void {
+  if (!comparison || typeof comparison !== 'object') return;
+  for (const [operator, value] of Object.entries(comparison)) {
+    if (operator !== '_in' && operator !== '_nin') continue;
+    const items = Array.isArray(value) ? value : [];
+    if (items.length > MAX_IN_ITEMS) {
+      throw new Error(`${operator} exceeds maximum of ${MAX_IN_ITEMS} items`);
+    }
+  }
+}
+
+function assertPredicateBudget(state: { predicates: number }): void {
+  if (state.predicates > MAX_BOOL_PREDICATES) {
+    throw new Error(
+      `where exceeds maximum of ${MAX_BOOL_PREDICATES} predicates`,
+    );
+  }
+}
+
+function clampLimit(limit: number | undefined): number | undefined {
+  if (limit === undefined) return undefined;
+  return Math.min(limit, MAX_LIMIT);
 }

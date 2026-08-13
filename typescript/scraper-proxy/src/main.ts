@@ -4,6 +4,8 @@ import { NestFactory } from '@nestjs/core';
 
 import { AppModule } from './module.js';
 import { config } from './config.js';
+import { DbService } from './db/db.service.js';
+import { MessageWebSocketServer } from './live/message-websocket.js';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
@@ -12,7 +14,9 @@ async function bootstrap(): Promise<void> {
     credentials: false,
     origin: true,
   });
-  await app.listen(config.PORT);
+  const server = await app.listen(config.PORT);
+  const messageWebSocketServer = new MessageWebSocketServer(app.get(DbService));
+  await messageWebSocketServer.start(server);
 }
 
 await bootstrap();
