@@ -303,12 +303,13 @@ describe('hyperlane warp fork CLI e2e tests (Sealevel)', function () {
     const foreignOwnerAddress = foreignOwner.getSignerAddress();
 
     const symbol = 'FORKIMP';
+    const name = 'Fork Impersonate Token';
     const warpRouteId = createWarpRouteConfigId(symbol, CHAIN_NAME);
 
     const deployConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME]: {
         type: TokenType.native,
-        name: 'Fork Impersonate Token',
+        name,
         symbol,
         decimals: 9,
         mailbox: mailboxAddress,
@@ -328,6 +329,11 @@ describe('hyperlane warp fork CLI e2e tests (Sealevel)', function () {
       warpCorePath,
     );
     desiredConfig[CHAIN_NAME].owner = ourAddress;
+    // The SVM native on-chain read carries no name/symbol (they aren't stored
+    // on-chain), so restore them or warp apply's config expansion can't resolve
+    // the token symbol.
+    desiredConfig[CHAIN_NAME].name = name;
+    desiredConfig[CHAIN_NAME].symbol = symbol;
     const desiredPath = getWarpDeployConfigPath(symbol, [CHAIN_NAME]);
     writeYamlOrJson(desiredPath, desiredConfig);
     syncWarpDeployConfigToRegistry({
