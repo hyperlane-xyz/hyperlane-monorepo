@@ -14,7 +14,7 @@ import { DockerConfig } from './agent/agent.js';
  * Can be overridden per-chain via sweepOverrides config.
  */
 export const DEFAULT_SWEEP_ADDRESS =
-  '0x478be6076f31E9666123B9721D0B6631baD944AF';
+  '0x5b73A98165778BCCE72979B4EE3faCdb31728b8E';
 
 export interface ContextAndRoles {
   context: Contexts;
@@ -43,7 +43,7 @@ export interface KeyFunderConfig<
   igpClaimThresholdPerChain: ChainMap<string>;
   chainsToSkip: ChainName[];
   // Per-chain overrides for automatic sweep of excess funds to Safes
-  // Defaults: sweep to 0x478be6076f31E9666123B9721D0B6631baD944AF when balance > 2x threshold, leave behind 1.5x threshold
+  // Defaults: sweep to 0x5b73A98165778BCCE72979B4EE3faCdb31728b8E when balance > 2x threshold, leave behind 1.5x threshold
   sweepOverrides?: ChainMap<SweepOverrideConfig>;
   // Low urgency key funder balance thresholds for sweep calculations
   lowUrgencyKeyFunderBalances?: ChainMap<string>;

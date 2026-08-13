@@ -114,8 +114,8 @@ export const keyFunderConfig: KeyFunderConfig<
     sonicsvm: '0',
   },
   // Low urgency key funder balance thresholds for sweep calculations
-  // Automatic sweep enabled by default for all chains with these thresholds
-  // Defaults: sweep to 0x478be6076f31E9666123B9721D0B6631baD944AF when balance > 2x threshold, leave 1.5x threshold
+  // Automatic sweep enabled for the expected chain allowlist
+  // Defaults: sweep to 0x5b73A98165778BCCE72979B4EE3faCdb31728b8E when balance > 2x threshold, leave 1.5x threshold
   lowUrgencyKeyFunderBalances: lowUrgencyKeyFunderBalancePerChain,
   // Per-chain overrides for sweep (optional)
   sweepOverrides: {},
