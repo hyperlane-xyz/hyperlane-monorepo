@@ -53,15 +53,62 @@ const EnvSchema = z.object({
   SERVER_BASE_URL: z.string(),
 });
 
-// Zod schema for retrieving a commitment record
-const CommitmentRecordSchema = z.object({
-  commitment: z.string(),
+const CommitmentMetadataSchema = z.object({
   ica: z.string(),
-  calls: z.array(z.any()),
   relayers: z.array(z.string()),
-  salt: z.string(),
   originDomain: z.number(),
 });
+
+// Zod schema for retrieving a commitment record
+const CommitmentRecordSchema = CommitmentMetadataSchema.extend({
+  commitment: z.string(),
+  calls: z.array(z.any()),
+  salt: z.string(),
+});
+
+type CommitmentMetadata = z.infer<typeof CommitmentMetadataSchema>;
+
+const commitmentMetadataSelect = {
+  ica: true,
+  originDomain: true,
+  relayers: true,
+} as const;
+
+function normalizedRelayerSet(relayers: string[]): string[] {
+  return [...new Set(relayers.map((relayer) => relayer.toLowerCase()))].sort();
+}
+
+function hasMatchingCommitmentMetadata(
+  requested: CommitmentMetadata,
+  stored: CommitmentMetadata,
+): boolean {
+  if (
+    requested.ica.toLowerCase() !== stored.ica.toLowerCase() ||
+    requested.originDomain !== stored.originDomain
+  ) {
+    return false;
+  }
+
+  const requestedRelayers = normalizedRelayerSet(requested.relayers);
+  const storedRelayers = normalizedRelayerSet(stored.relayers);
+  return (
+    requestedRelayers.length === storedRelayers.length &&
+    requestedRelayers.every(
+      (relayer, index) => relayer === storedRelayers[index],
+    )
+  );
+}
+
+function isPrismaUniqueConstraintError(
+  error: unknown,
+): error is { code: 'P2002' } {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === 'P2002'
+  );
+}
 
 export class CallCommitmentsService extends BaseService {
   private multiProvider: MultiProvider;
@@ -104,7 +151,7 @@ export class CallCommitmentsService extends BaseService {
   public async handleCommitment(req: Request, res: Response) {
     const logger = this.addLoggerServiceContext(req.log);
 
-    logger.info({ body: req.body }, 'Received commitment creation request');
+    logger.info('Received commitment creation request');
 
     const data = this.parseCommitmentBody(req.body, res, logger);
     if (!data) return;
@@ -119,7 +166,7 @@ export class CallCommitmentsService extends BaseService {
       logger.warn(
         {
           error: error instanceof Error ? error.message : error,
-          calls: data.calls,
+          callsCount: data.calls.length,
         },
         'Invalid call data',
       );
@@ -127,7 +174,14 @@ export class CallCommitmentsService extends BaseService {
     }
     logger.setBindings({ commitment });
 
-    logger.info(data, 'Processing commitment creation');
+    logger.info(
+      {
+        callsCount: data.calls.length,
+        originDomain: data.originDomain,
+        relayersCount: data.relayers.length,
+      },
+      'Processing commitment creation',
+    );
 
     let ica: string;
     try {
@@ -136,27 +190,38 @@ export class CallCommitmentsService extends BaseService {
       } else {
         ica = await this.deriveIcaFromDispatchTx(data, logger);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       logger.warn(
-        { error: error.message, stack: error.stack },
+        {
+          error: errorMessage,
+          stack: error instanceof Error ? error.stack : undefined,
+        },
         'Failed to derive ICA address',
       );
       return res.status(400).json({
-        error: `Failed to derive ICA address: ${error.message}`,
+        error: `Failed to derive ICA address: ${errorMessage}`,
       });
     }
 
-    // Attempt to insert the commitment. Using upsert for idempotency.
+    let storedMetadata: CommitmentMetadata;
     try {
-      await this.upsertCommitmentInDB(commitment, { ...data, ica }, logger);
-    } catch (error: any) {
+      storedMetadata = await this.upsertCommitmentInDB(
+        commitment,
+        { ...data, ica },
+        logger,
+      );
+    } catch (error: unknown) {
       // Any database error is unexpected.
       logger.error(
         {
-          ...data,
-          ica,
-          error: error.message,
-          stack: error.stack,
+          commitment,
+          callsCount: data.calls.length,
+          originDomain: data.originDomain,
+          relayersCount: data.relayers.length,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
           error_reason: UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
         },
         'Database error during commitment processing',
@@ -168,8 +233,40 @@ export class CallCommitmentsService extends BaseService {
       return res.status(500).json({ error: 'Internal server error' });
     }
 
-    logger.info(data, 'Commitment processing completed successfully');
-    return res.status(200).json({ commitment });
+    const requestedMetadata = {
+      ica,
+      originDomain: data.originDomain,
+      relayers: data.relayers,
+    };
+    if (!hasMatchingCommitmentMetadata(requestedMetadata, storedMetadata)) {
+      logger.warn(
+        {
+          commitment,
+          requestedOriginDomain: data.originDomain,
+          storedOriginDomain: storedMetadata.originDomain,
+          requestedRelayersCount: data.relayers.length,
+          storedRelayersCount: storedMetadata.relayers.length,
+        },
+        'Commitment already exists with different metadata',
+      );
+      return res
+        .status(409)
+        .json({ error: 'Commitment already exists with different metadata' });
+    }
+
+    logger.info(
+      {
+        commitment,
+        originDomain: storedMetadata.originDomain,
+        relayersCount: storedMetadata.relayers.length,
+      },
+      'Commitment processing completed successfully',
+    );
+    return res.status(200).json({
+      commitment,
+      ica: storedMetadata.ica,
+      originDomain: storedMetadata.originDomain,
+    });
   }
 
   public async handleFetchCommitment(
@@ -196,8 +293,9 @@ export class CallCommitmentsService extends BaseService {
       ) {
         log.warn(
           {
-            ...record,
+            commitment: record.commitment,
             relayer,
+            authorizedRelayersCount: record.relayers.length,
           },
           'Relayer not authorized for this commitment',
         );
@@ -242,7 +340,7 @@ export class CallCommitmentsService extends BaseService {
     const result = PostCallsSchema.safeParse(body);
     if (!result.success) {
       const errors = result.error.format();
-      logger.warn({ errors, body }, 'Invalid request body received');
+      logger.warn({ errors }, 'Invalid request body received');
       res.status(400).json({ errors });
       return null;
     }
@@ -258,21 +356,35 @@ export class CallCommitmentsService extends BaseService {
       ica: string;
     },
     logger: Logger,
-  ) {
+  ): Promise<CommitmentMetadata> {
     const { calls, relayers, salt, ica, originDomain } = data;
 
-    await prisma.commitment.upsert({
-      where: { commitment },
-      update: {}, // Do nothing if it already exists.
-      create: {
-        commitment,
-        calls,
-        relayers,
-        salt,
-        ica,
-        originDomain,
-      },
-    });
+    let record;
+    try {
+      record = await prisma.commitment.upsert({
+        where: { commitment },
+        update: {}, // Do nothing if it already exists.
+        create: {
+          commitment,
+          calls,
+          relayers,
+          salt,
+          ica,
+          originDomain,
+        },
+        select: commitmentMetadataSelect,
+      });
+    } catch (error: unknown) {
+      if (!isPrismaUniqueConstraintError(error)) throw error;
+
+      // Empty-update upserts may be client-handled by Prisma and race with a
+      // concurrent create. Re-read the winning row instead of reporting 500.
+      record = await prisma.commitment.findUnique({
+        where: { commitment },
+        select: commitmentMetadataSelect,
+      });
+      if (record === null) throw error;
+    }
 
     logger.info(
       {
@@ -282,6 +394,8 @@ export class CallCommitmentsService extends BaseService {
       },
       'Upserted commitment to database',
     );
+
+    return CommitmentMetadataSchema.parse(record);
   }
 
   /**
@@ -301,7 +415,15 @@ export class CallCommitmentsService extends BaseService {
     }
 
     const parsed = CommitmentRecordSchema.parse(record);
-    logger.info(parsed, 'Successfully fetched commitment record');
+    logger.info(
+      {
+        commitment: parsed.commitment,
+        callsCount: parsed.calls.length,
+        originDomain: parsed.originDomain,
+        relayersCount: parsed.relayers.length,
+      },
+      'Successfully fetched commitment record',
+    );
 
     return parsed;
   }
@@ -389,25 +511,33 @@ export class CallCommitmentsService extends BaseService {
   }
 
   /**
-   * GET /calls/:commitment — returns { exists: boolean }.
+   * GET /calls/:commitment — returns existence and stored routing metadata.
    * Used by the router status service to detect call_lost without a time threshold.
    */
   public async handleCheckCommitment(req: Request, res: Response) {
     const logger = this.addLoggerServiceContext(req.log);
     const { commitment } = req.params;
     assert(commitment, 'Route parameter :commitment must be present');
+    res.set('Cache-Control', 'no-store');
     try {
       const record = await prisma.commitment.findUnique({
         where: { commitment },
-        select: { commitment: true },
+        select: commitmentMetadataSelect,
       });
-      return res.json({ exists: record !== null });
-    } catch (error: any) {
+      if (record === null) return res.json({ exists: false });
+
+      const metadata = CommitmentMetadataSchema.parse(record);
+      return res.json({
+        exists: true,
+        ica: metadata.ica,
+        originDomain: metadata.originDomain,
+      });
+    } catch (error: unknown) {
       logger.error(
         {
           commitment,
-          error: error.message,
-          stack: error.stack,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
           error_reason: UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
         },
         'Database error during commitment existence check',
