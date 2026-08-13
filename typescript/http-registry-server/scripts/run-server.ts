@@ -59,8 +59,9 @@ async function main() {
   await server.start(port?.toString(), refreshInterval?.toString());
 }
 
-main().catch((err) =>
+main().catch((err) => {
   rootLogger.error('Error in main execution', {
     err,
-  }),
-);
+  });
+  process.exit(1);
+});

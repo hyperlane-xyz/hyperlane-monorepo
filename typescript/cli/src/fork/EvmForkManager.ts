@@ -74,6 +74,21 @@ function defaultSpawnAnvil(config: EvmForkManagerConfig): AnvilProcessHandle {
   return execa`anvil --port ${config.port} --chain-id ${config.chainId} --fork-url ${config.upstreamRpcUrl} --disable-block-gas-limit`;
 }
 
+const REDACTED_URL = '<redacted>';
+
+/**
+ * execa embeds the full anvil command — including the `--fork-url` argument,
+ * which can carry API keys or credentials — in its error message. Surfacing that
+ * verbatim would leak the secret to logs, so we strip the URL and rethrow our own
+ * Error rather than propagating execa's raw error object. anvil has no env option
+ * for `--fork-url`, so the URL stays in argv (local-machine `ps` only); this keeps
+ * it out of every error we log or rethrow.
+ */
+function redactUpstreamRpcUrl(error: unknown, upstreamRpcUrl: string): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  return new Error(message.split(upstreamRpcUrl).join(REDACTED_URL));
+}
+
 async function waitForEvmRpcReady(
   provider: JsonRpcProvider,
   signal: AbortSignal,
@@ -144,9 +159,14 @@ async function startEvmFork(
     const readiness = deps.waitForReady(provider, controller.signal);
     // Reject if anvil exits before its RPC is ready (e.g. the port is already
     // occupied) so we never treat another process's RPC as our fork.
-    const exited = anvilProcess.then(() => {
-      throw new Error('anvil exited before its RPC was ready');
-    });
+    const exited = anvilProcess.then(
+      () => {
+        throw new Error('anvil exited before its RPC was ready');
+      },
+      (error: unknown) => {
+        throw redactUpstreamRpcUrl(error, config.upstreamRpcUrl);
+      },
+    );
     // A later exit (e.g. on kill once readiness has won) must not surface as an
     // unhandled rejection after the race settles.
     exited.catch(() => {});
@@ -173,7 +193,7 @@ async function startEvmFork(
       await killOnError(true);
     }
 
-    throw error;
+    throw redactUpstreamRpcUrl(error, config.upstreamRpcUrl);
   }
 }
 

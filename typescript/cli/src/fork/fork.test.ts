@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import { createServer } from 'node:net';
 import sinon from 'sinon';
 
 import {
@@ -143,46 +142,30 @@ describe('runForkCommand --kill teardown', () => {
     expect(created.every((manager) => manager.killCount === 1)).to.equal(true);
   });
 
-  it('fails fast without spawning forks when the registry port is in use', async () => {
+  it('kills every fork manager when the registry server fails to start', async () => {
     const created: FakeForkManager[] = [];
     stubRegistry(created);
-    const createStub = sinon.stub(HttpServer, 'create');
-
-    const blocker = createServer();
-    await new Promise<void>((resolve, reject) => {
-      blocker.once('error', reject);
-      blocker.listen(0, '127.0.0.1', resolve);
-    });
-    const blocked = blocker.address();
-    if (!blocked || typeof blocked !== 'object') {
-      throw new Error('expected a bound TCP address');
-    }
-    const registryPort = blocked.port;
+    const serverStub = sinon.createStubInstance(HttpServer);
+    serverStub.start.rejects(new Error('registry server bind failed'));
+    sinon.stub(HttpServer, 'create').resolves(serverStub);
 
     let rejected: unknown;
     try {
-      // basePort - 10 lands on the occupied registry port, so the preflight
-      // rejects before buildForkedChainMetadata spawns anything.
       await runForkCommand({
         context: makeContext(),
         chainsToFork: new Set([CHAIN]),
         forkConfig: {},
         kill: false,
-        basePort: registryPort + 10,
+        basePort: 9545,
       });
     } catch (error: unknown) {
       rejected = error;
-    } finally {
-      await new Promise<void>((resolve) => blocker.close(() => resolve()));
     }
 
     expect(rejected).to.be.instanceOf(Error);
-    if (rejected instanceof Error) {
-      expect(rejected.message).to.include(
-        `registry server port ${registryPort} is already in use`,
-      );
-    }
-    expect(created.length).to.equal(0);
-    expect(createStub.called).to.equal(false);
+    // Forks now spawn before the server starts; a rejected start() must tear
+    // every one of them down.
+    expect(created.length).to.equal(1);
+    expect(created.every((manager) => manager.killCount === 1)).to.equal(true);
   });
 });

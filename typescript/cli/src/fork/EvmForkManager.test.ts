@@ -61,6 +61,43 @@ describe('EvmForkManager port preflight', () => {
   });
 });
 
+describe('EvmForkManager error redaction', () => {
+  it('redacts the upstream RPC URL from surfaced anvil errors', async () => {
+    const upstreamRpcUrl = 'https://mainnet.example.com/v2/SUPER_SECRET_KEY';
+    // execa embeds the full command (with --fork-url) in its error message, so
+    // a raw anvil failure would otherwise leak the credential-bearing URL.
+    const execaLikeError = new Error(
+      `Command failed with exit code 1: anvil --fork-url ${upstreamRpcUrl} --disable-block-gas-limit`,
+    );
+    const spawnAnvil = (): AnvilProcessHandle =>
+      Object.assign(Promise.reject(execaLikeError), { kill: () => {} });
+    const neverReady: WaitForEvmRpcReady = () => new Promise<void>(() => {});
+
+    const manager = new EvmForkManager(
+      {
+        chainName: 'anvil2',
+        chainId: 31337,
+        upstreamRpcUrl,
+        port: await freePort(),
+      },
+      { spawnAnvil, waitForReady: neverReady },
+    );
+
+    let rejected: unknown;
+    try {
+      await manager.start();
+    } catch (error: unknown) {
+      rejected = error;
+    }
+
+    expect(rejected).to.be.instanceOf(Error);
+    if (rejected instanceof Error) {
+      expect(rejected.message).to.not.include(upstreamRpcUrl);
+      expect(rejected.message).to.not.include('SUPER_SECRET_KEY');
+    }
+  });
+});
+
 describe('EvmForkManager readiness abort', () => {
   it('aborts the readiness probe when anvil exits before its RPC is ready', async () => {
     let capturedSignal: AbortSignal | undefined;

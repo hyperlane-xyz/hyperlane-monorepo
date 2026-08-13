@@ -1,4 +1,5 @@
 import express, { Express, Request, Response } from 'express';
+import type { Server } from 'node:http';
 import type { Logger } from 'pino';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
@@ -119,9 +120,7 @@ export class HttpServer {
       this.app.use(createErrorHandler(this.logger));
 
       const host = process.env.HOST || ServerConstants.DEFAULT_HOST;
-      const server = this.app.listen(port, host, () =>
-        this.logger.info({ port }, 'Server running'),
-      );
+      const server = await this.listen(port, host);
 
       server.on('request', (req, _res) =>
         this.logger.info({ url: req.url }, 'Request received'),
@@ -140,7 +139,26 @@ export class HttpServer {
       process.on('SIGINT', shutdown);
     } catch (error) {
       this.logger.error({ error }, 'Error starting server');
-      process.exit(1);
+      throw error;
     }
+  }
+
+  /**
+   * Resolves once the server is listening and rejects if binding fails (e.g.
+   * EADDRINUSE) before it starts listening, so callers can observe a bind
+   * failure instead of a silently orphaned server. Runtime errors after
+   * listening are logged rather than surfaced here.
+   */
+  private listen(port: number, host: string): Promise<Server> {
+    return new Promise((resolve, reject) => {
+      const server = this.app.listen(port, host);
+      const onError = (error: Error) => reject(error);
+      server.once('error', onError);
+      server.once('listening', () => {
+        server.removeListener('error', onError);
+        this.logger.info({ port }, 'Server running');
+        resolve(server);
+      });
+    });
   }
 }
