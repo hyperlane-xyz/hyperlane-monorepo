@@ -9,7 +9,7 @@ import { DockerConfig } from './agent/agent.js';
 
 /**
  * Default address for sweeping excess funds from the keyfunder wallet.
- * This is a Hyperlane-controlled Safe address used to collect surplus funds
+ * This is an Abacus Works signer EOA used to collect surplus funds
  * when the keyfunder wallet balance exceeds the configured threshold.
  * Can be overridden per-chain via sweepOverrides config.
  */
@@ -42,7 +42,7 @@ export interface KeyFunderConfig<
   desiredStableswapInventoryRebalancerBalancePerChain?: ChainMap<string>;
   igpClaimThresholdPerChain: ChainMap<string>;
   chainsToSkip: ChainName[];
-  // Per-chain overrides for automatic sweep of excess funds to Safes
+  // Per-chain overrides for automatic sweep of excess funds
   // Defaults: sweep to 0x5b73A98165778BCCE72979B4EE3faCdb31728b8E when balance > 2x threshold, leave behind 1.5x threshold
   sweepOverrides?: ChainMap<SweepOverrideConfig>;
   // Low urgency key funder balance thresholds for sweep calculations
