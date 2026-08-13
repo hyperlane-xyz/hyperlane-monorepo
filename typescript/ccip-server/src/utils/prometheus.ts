@@ -30,6 +30,14 @@ let requestCounter: Counter<string> | undefined;
 let unhandledErrorCounter: Counter<string> | undefined;
 let rateLimitedCounter: Counter<string> | undefined;
 
+export type RateLimitedMethod = 'GET' | 'POST' | 'OTHER';
+export type RateLimitedRoute =
+  | '/calls'
+  | '/calls/:commitment'
+  | '/calldata'
+  | '/calldata/:commitment'
+  | 'unknown';
+
 /**
  * Initializes Prometheus metrics with the given registry.
  * Must be called before using PrometheusMetrics.
@@ -52,6 +60,7 @@ export function initializeMetrics(register: Registry): void {
   rateLimitedCounter = new Counter({
     name: 'hyperlane_offchain_lookup_server_rate_limited_requests',
     help: 'Total number of rate-limited requests',
+    labelNames: ['method', 'route'],
     registers: [register],
   });
 }
@@ -72,10 +81,10 @@ export const PrometheusMetrics = {
       error_reason: errorReason,
     });
   },
-  logRateLimited() {
+  logRateLimited(method: RateLimitedMethod, route: RateLimitedRoute) {
     if (!rateLimitedCounter) {
       throw new Error('Metrics not initialized. Call initializeMetrics first.');
     }
-    rateLimitedCounter.inc();
+    rateLimitedCounter.inc({ method, route });
   },
 };

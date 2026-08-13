@@ -39,6 +39,10 @@ import {
   PrometheusMetrics,
   UnhandledErrorReason,
 } from '../utils/prometheus.js';
+import type {
+  RateLimitedMethod,
+  RateLimitedRoute,
+} from '../utils/prometheus.js';
 
 import {
   BaseService,
@@ -620,35 +624,52 @@ export class CallCommitmentsService extends BaseService {
    * Register routes onto an Express Router or app.
    */
   private registerRoutes(router: Router, baseUrl: string): void {
-    const commitmentRateLimit = rateLimit({
-      windowMs: 60 * 1000,
-      max: 20,
-      standardHeaders: true,
-      legacyHeaders: false,
-      handler: (_req, res) => {
-        PrometheusMetrics.logRateLimited();
-        res.status(429).json({ error: 'Too many requests' });
-      },
-    });
+    const toRateLimitedMethod = (method: string): RateLimitedMethod => {
+      if (method === 'GET' || method === 'POST') return method;
+      return 'OTHER';
+    };
+    const toRateLimitedRoute = (route: string): RateLimitedRoute => {
+      if (
+        route === '/calls' ||
+        route === '/calls/:commitment' ||
+        route === '/calldata' ||
+        route === '/calldata/:commitment'
+      ) {
+        return route;
+      }
+      return 'unknown';
+    };
+    const createRateLimit = () =>
+      rateLimit({
+        windowMs: 60 * 1000,
+        max: 20,
+        standardHeaders: true,
+        legacyHeaders: false,
+        handler: (req, res) => {
+          PrometheusMetrics.logRateLimited(
+            toRateLimitedMethod(req.method),
+            toRateLimitedRoute(req.route.path),
+          );
+          res.status(429).json({ error: 'Too many requests' });
+        },
+      });
+    const writeRateLimit = createRateLimit();
+    const readRateLimit = createRateLimit();
 
-    router.post(
-      '/calls',
-      commitmentRateLimit,
-      this.handleCommitment.bind(this),
-    );
+    router.post('/calls', writeRateLimit, this.handleCommitment.bind(this));
     router.get(
       '/calls/:commitment',
-      commitmentRateLimit,
+      readRateLimit,
       this.handleCheckCommitment.bind(this),
     );
     router.post(
       '/calldata',
-      commitmentRateLimit,
+      writeRateLimit,
       this.handleCalldataPost.bind(this),
     );
     router.get(
       '/calldata/:commitment',
-      commitmentRateLimit,
+      readRateLimit,
       this.handleCalldataGet.bind(this),
     );
     router.post(
