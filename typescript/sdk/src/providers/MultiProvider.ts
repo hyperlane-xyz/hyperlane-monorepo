@@ -35,7 +35,6 @@ import {
   EthJsonRpcBlockParameterTag,
 } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
-import { ZKSyncDeployer } from '../zksync/ZKSyncDeployer.js';
 
 import { AnnotatedEV5Transaction } from './ProviderType.js';
 import { ProviderBuilderFn } from './builders/types.js';
@@ -462,6 +461,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (technicalStack === ChainTechnicalStack.ZkSync) {
       if (!artifact) throw new Error(`No ZkSync contract artifact provided!`);
 
+      const { ZKSyncDeployer } = await import('../zksync/ZKSyncDeployer.js');
       const deployer = new ZKSyncDeployer(signer as ZKSyncWallet);
       estimatedGas = await deployer.estimateDeployGas(artifact, params);
       contract = await deployer.deploy(artifact, params, {
