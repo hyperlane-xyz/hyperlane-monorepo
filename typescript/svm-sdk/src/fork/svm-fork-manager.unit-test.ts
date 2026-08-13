@@ -19,7 +19,8 @@ import {
   COMPUTE_BUDGET_PROGRAM_ID,
   DEFAULT_COMPUTE_UNITS,
 } from '../constants.js';
-import { type SolanaRpcClient, createRpc } from '../rpc.js';
+import { type AccountInfoRpc } from '../accounts/address-lookup-table.js';
+import { createRpc } from '../rpc.js';
 import { serializeUnsignedTransaction } from '../tx.js';
 
 import { type SvmForkTransaction } from './svm-fork-config.js';
@@ -75,7 +76,7 @@ function encodeAltAccount(addresses: Address[]): Uint8Array {
 function mockAltRpc(
   altAddress: Address,
   accountData: Uint8Array,
-): SolanaRpcClient {
+): AccountInfoRpc {
   const data = base64Decoder.decode(accountData);
   const rpc = {
     getAccountInfo(queried: Address) {
@@ -93,8 +94,10 @@ function mockAltRpc(
       return { send: async () => ({ context: { slot: 0n }, value }) };
     },
   };
-  // Mock double: only getAccountInfo is exercised by the ALT-resolution path.
-  return rpc as unknown as SolanaRpcClient;
+  // CAST: kit's Rpc methods return branded PendingRpcRequest values a hand-built
+  // double cannot reproduce structurally. The fork ALT-resolution path only ever
+  // calls getAccountInfo (see AccountInfoRpc), so this single-method stub suffices.
+  return rpc as unknown as AccountInfoRpc;
 }
 
 function decodeCompiledMessage(wireBase64: string) {

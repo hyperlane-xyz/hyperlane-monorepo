@@ -24,7 +24,10 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { fetchAddressLookupTableState } from '../accounts/address-lookup-table.js';
+import {
+  type AccountInfoRpc,
+  fetchAddressLookupTableState,
+} from '../accounts/address-lookup-table.js';
 import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 import { type SolanaRpcClient, createRpc } from '../rpc.js';
 import { getComputeBudgetInstructions } from '../tx.js';
@@ -74,7 +77,7 @@ const compiledMessageDecoder = getCompiledTransactionMessageDecoder();
  * that uses no lookup tables (so callers can skip compression entirely).
  */
 async function resolveForkLookupTables(
-  rpc: SolanaRpcClient,
+  rpc: AccountInfoRpc,
   compiledMessage: ReturnType<typeof compiledMessageDecoder.decode>,
 ): Promise<AddressesByLookupTableAddress | undefined> {
   const lookups =
@@ -120,7 +123,7 @@ async function resolveForkLookupTables(
  * `skipBlockhashCheck` and the send uses `skipPreflight`.
  */
 export async function buildForkReplayTransaction(
-  rpc: SolanaRpcClient,
+  rpc: AccountInfoRpc,
   transaction: SvmForkTransaction,
 ): Promise<Base64EncodedWireTransaction> {
   const wireBytes = base58Encoder.encode(transaction.transaction_base58);

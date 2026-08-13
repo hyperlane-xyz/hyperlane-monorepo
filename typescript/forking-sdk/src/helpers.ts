@@ -70,7 +70,9 @@ export async function waitUntilReady(
 
   let lastError: unknown;
   for (let i = 0; i < attempts; i++) {
-    opts?.signal?.throwIfAborted();
+    if (opts?.signal?.aborted) {
+      throw toAbortError(opts.signal.reason);
+    }
     try {
       await probe();
       return;

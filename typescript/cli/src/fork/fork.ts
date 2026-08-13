@@ -1,3 +1,4 @@
+import { createServer } from 'node:net';
 import { z } from 'zod';
 
 import {
@@ -20,6 +21,29 @@ import { type ForkConfigParser, loadForkManager } from './loadForkManager.js';
 /** Protocol-neutral per-chain fork-config envelope; slices are parsed per protocol. */
 export const ForkConfigByChainSchema = z.record(z.unknown());
 export type ForkConfigByChain = z.infer<typeof ForkConfigByChainSchema>;
+
+/**
+ * Rejects if `port` on 127.0.0.1 is already bound. Preflighting the registry
+ * server port before any fork node is spawned turns an occupied port into a
+ * fast failure with nothing to tear down.
+ */
+async function assertPortAvailable(port: number): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const server = createServer();
+    server.once('error', (error: Error) => {
+      const code = 'code' in error ? error.code : undefined;
+      reject(
+        code === 'EADDRINUSE'
+          ? new Error(`registry server port ${port} is already in use`)
+          : error,
+      );
+    });
+    server.once('listening', () => {
+      server.close(() => resolve());
+    });
+    server.listen(port, '127.0.0.1');
+  });
+}
 
 export async function runForkCommand({
   context,
@@ -97,6 +121,18 @@ export async function runForkCommand({
     };
   });
 
+  // Preflight the registry server port before spawning any fork node so an
+  // occupied port fails fast with nothing to tear down. Skipped under --kill,
+  // which never starts the server.
+  const httpServerPort = basePort - 10;
+  if (!kill) {
+    assert(
+      httpServerPort > 0,
+      'HTTP server port too low, consider increasing --port',
+    );
+    await assertPortAvailable(httpServerPort);
+  }
+
   const { metadata, managers } = await buildForkedChainMetadata({
     chains,
     forkManagers,
@@ -112,17 +148,18 @@ export async function runForkCommand({
     return;
   }
 
-  const mergedRegistry = new MergedRegistry({
-    registries: [registry, new PartialRegistry({ chainMetadata: metadata })],
-  });
-  const httpServerPort = basePort - 10;
-  assert(
-    httpServerPort > 0,
-    'HTTP server port too low, consider increasing --port',
-  );
-
-  const httpRegistryServer = await HttpServer.create(
-    async () => mergedRegistry,
-  );
-  await httpRegistryServer.start(httpServerPort.toString());
+  // A failure setting up or starting the registry server would otherwise orphan
+  // every running fork, so tear them all down before rethrowing.
+  try {
+    const mergedRegistry = new MergedRegistry({
+      registries: [registry, new PartialRegistry({ chainMetadata: metadata })],
+    });
+    const httpRegistryServer = await HttpServer.create(
+      async () => mergedRegistry,
+    );
+    await httpRegistryServer.start(httpServerPort.toString());
+  } catch (error: unknown) {
+    Object.values(managers).forEach((manager) => manager.kill());
+    throw error;
+  }
 }

@@ -224,6 +224,34 @@ export function buildSurfpoolDatasourceEnv(
   return { [SURFPOOL_DATASOURCE_RPC_URL_ENV]: datasource.rpcUrl };
 }
 
+/**
+ * Per-attempt abort signal that fires after `timeoutMs`, or immediately when
+ * `parent` aborts (so a caller cancelling the readiness loop also cancels the
+ * in-flight probe request). Composed manually to stay usable on Node <17, which
+ * lacks `AbortSignal.timeout`/`AbortSignal.any`. `dispose` clears the timer and
+ * detaches the parent listener so nothing lingers between attempts.
+ */
+export function probeTimeoutSignal(
+  timeoutMs: number,
+  parent?: AbortSignal,
+): { signal: AbortSignal; dispose: () => void } {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const onParentAbort = (): void => controller.abort();
+  if (parent) {
+    if (parent.aborted) {
+      controller.abort();
+    } else {
+      parent.addEventListener('abort', onParentAbort, { once: true });
+    }
+  }
+  const dispose = (): void => {
+    clearTimeout(timer);
+    parent?.removeEventListener('abort', onParentAbort);
+  };
+  return { signal: controller.signal, dispose };
+}
+
 export async function waitForSolanaRpcReady(
   rpcUrl: string,
   signal?: AbortSignal,
@@ -231,10 +259,16 @@ export async function waitForSolanaRpcReady(
   const rpc = createRpc(rpcUrl);
   await waitUntilReady(
     async () => {
-      const health = await rpc
-        .getHealth()
-        .send({ abortSignal: AbortSignal.timeout(RPC_PROBE_TIMEOUT_MS) });
-      assert(health === 'ok', `surfpool RPC not healthy: ${health}`);
+      const { signal: probeSignal, dispose } = probeTimeoutSignal(
+        RPC_PROBE_TIMEOUT_MS,
+        signal,
+      );
+      try {
+        const health = await rpc.getHealth().send({ abortSignal: probeSignal });
+        assert(health === 'ok', `surfpool RPC not healthy: ${health}`);
+      } finally {
+        dispose();
+      }
     },
     { attempts: 60, baseRetryMs: 1000, signal },
   );

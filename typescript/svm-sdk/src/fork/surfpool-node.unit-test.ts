@@ -11,6 +11,7 @@ import {
   type WaitForRpcReady,
   buildSurfpoolArgs,
   buildSurfpoolDatasourceEnv,
+  probeTimeoutSignal,
   runSurfpoolNode,
   startLocalSurfpool,
 } from './surfpool-node.js';
@@ -87,6 +88,37 @@ describe('buildSurfpoolDatasourceEnv', () => {
     });
 
     expect(env).to.deep.equal({});
+  });
+});
+
+describe('probeTimeoutSignal parent composition', () => {
+  it('aborts the probe signal when the parent aborts mid-flight', () => {
+    const parent = new AbortController();
+    const { signal, dispose } = probeTimeoutSignal(60_000, parent.signal);
+    expect(signal.aborted).to.equal(false);
+
+    // The in-flight probe is cancelled the instant the readiness loop is
+    // aborted, rather than lingering until the per-attempt timeout.
+    parent.abort();
+    expect(signal.aborted).to.equal(true);
+    dispose();
+  });
+
+  it('aborts immediately when the parent is already aborted', () => {
+    const parent = new AbortController();
+    parent.abort();
+    const { signal, dispose } = probeTimeoutSignal(60_000, parent.signal);
+    expect(signal.aborted).to.equal(true);
+    dispose();
+  });
+
+  it('stops tracking the parent after dispose', () => {
+    const parent = new AbortController();
+    const { signal, dispose } = probeTimeoutSignal(60_000, parent.signal);
+    dispose();
+
+    parent.abort();
+    expect(signal.aborted).to.equal(false);
   });
 });
 
