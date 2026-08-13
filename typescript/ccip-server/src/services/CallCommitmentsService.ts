@@ -34,6 +34,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { prisma } from '../db.js';
+import type { Prisma } from '../generated/prisma/client.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
 import {
   PrometheusMetrics,
@@ -74,8 +75,75 @@ const commitmentMetadataSelect = {
   relayers: true,
 } as const;
 
+const RevealAccountSchema = z.object({
+  pubkey: z.string(),
+  isWritable: z.boolean(),
+  isSigner: z.boolean(),
+});
+
+const CalldataMetadataSchema = z.object({
+  originDomain: z.number(),
+  data: z.string(),
+  salt: z.string(),
+  relayers: z.array(z.string()),
+  destinationAccount: z.string(),
+  revealAccounts: z.array(RevealAccountSchema).nullish(),
+});
+
+const StoredCallSchema = z.object({
+  to: z.string(),
+  data: z.string(),
+  value: z.union([z.string(), z.number()]).optional(),
+});
+
+const commitmentReconciliationSelect = {
+  ...commitmentMetadataSelect,
+  calls: true,
+  salt: true,
+} as const;
+
+const calldataMetadataSelect = {
+  originDomain: true,
+  data: true,
+  salt: true,
+  relayers: true,
+  destinationAccount: true,
+  revealAccounts: true,
+} as const;
+
+type CalldataPost = {
+  commitment: string;
+  originDomain: number;
+  data: string;
+  salt: string;
+  relayers: string[];
+  destinationAccount: string;
+  revealAccounts?: Array<z.infer<typeof RevealAccountSchema>>;
+};
+type CalldataMetadata = z.infer<typeof CalldataMetadataSchema>;
+type StoredCall = z.infer<typeof StoredCallSchema>;
+type ReconciliationDb = Pick<
+  Prisma.TransactionClient,
+  'calldata' | 'commitment'
+>;
+
+class CommitmentConflictError extends Error {}
+
+const EVM_RELAYER_REGEX = /^0x(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
+
 function normalizedRelayerSet(relayers: string[]): string[] {
-  return [...new Set(relayers.map((relayer) => relayer.toLowerCase()))].sort();
+  return [
+    ...new Set(
+      relayers.map((relayer) => {
+        if (EVM_RELAYER_REGEX.test(relayer)) {
+          return addressToBytes32(
+            '0x' + relayer.slice(2).toLowerCase(),
+          ).toLowerCase();
+        }
+        return relayer;
+      }),
+    ),
+  ].sort();
 }
 
 function hasMatchingCommitmentMetadata(
@@ -107,6 +175,77 @@ function isPrismaUniqueConstraintError(
     error !== null &&
     'code' in error &&
     error.code === 'P2002'
+  );
+}
+
+function hasMatchingRevealAccounts(
+  requested: CalldataMetadata['revealAccounts'],
+  stored: CalldataMetadata['revealAccounts'],
+): boolean {
+  const requestedAccounts = requested ?? [];
+  const storedAccounts = stored ?? [];
+  return (
+    requestedAccounts.length === storedAccounts.length &&
+    requestedAccounts.every((account, index) => {
+      const storedAccount = storedAccounts[index];
+      return (
+        storedAccount !== undefined &&
+        account.pubkey === storedAccount.pubkey &&
+        account.isWritable === storedAccount.isWritable &&
+        account.isSigner === storedAccount.isSigner
+      );
+    })
+  );
+}
+
+function hasMatchingCalldataMetadata(
+  requested: CalldataMetadata,
+  stored: CalldataMetadata,
+): boolean {
+  return (
+    requested.originDomain === stored.originDomain &&
+    requested.data.toLowerCase() === stored.data.toLowerCase() &&
+    requested.salt.toLowerCase() === stored.salt.toLowerCase() &&
+    requested.destinationAccount.toLowerCase() ===
+      stored.destinationAccount.toLowerCase() &&
+    normalizedRelayerSet(requested.relayers).join(',') ===
+      normalizedRelayerSet(stored.relayers).join(',') &&
+    hasMatchingRevealAccounts(requested.revealAccounts, stored.revealAccounts)
+  );
+}
+
+function hasMatchingLegacyCommitment(
+  requested: CalldataPost,
+  requestedCalls: StoredCall[],
+  stored: CommitmentMetadata & { calls: unknown; salt: string },
+): boolean {
+  const parsedCalls = z.array(StoredCallSchema).safeParse(stored.calls);
+  if (!parsedCalls.success) return false;
+
+  let storedEncodedCalls: string;
+  try {
+    storedEncodedCalls = encodeIcaCalls(
+      normalizeCalls(parsedCalls.data),
+      stored.salt,
+    );
+  } catch {
+    return false;
+  }
+
+  const requestedEncodedCalls = encodeIcaCalls(
+    normalizeCalls(requestedCalls),
+    requested.salt,
+  );
+  return (
+    requestedEncodedCalls.toLowerCase() === storedEncodedCalls.toLowerCase() &&
+    hasMatchingCommitmentMetadata(
+      {
+        ica: bytes32ToAddress(requested.destinationAccount),
+        originDomain: requested.originDomain,
+        relayers: requested.relayers,
+      },
+      stored,
+    )
   );
 }
 
@@ -610,12 +749,11 @@ export class CallCommitmentsService extends BaseService {
       return res.status(400).json({ errors: result.error.format() });
     }
     const {
-      commitment,
+      commitment: requestedCommitment,
       originDomain,
       data,
       salt,
       relayers,
-      destinationAccount,
       revealAccounts,
     } = result.data;
     // Verify commitment = keccak256(salt || data) before persisting.
@@ -623,78 +761,63 @@ export class CallCommitmentsService extends BaseService {
     const expectedCommitment = utils.keccak256(
       utils.concat([utils.arrayify(salt), utils.arrayify(data)]),
     );
-    if (expectedCommitment.toLowerCase() !== commitment.toLowerCase()) {
+    if (
+      expectedCommitment.toLowerCase() !== requestedCommitment.toLowerCase()
+    ) {
       return res
         .status(400)
         .json({ error: 'commitment does not match keccak256(salt || data)' });
     }
+    const commitment = expectedCommitment;
+
+    // Only EVM-destination routes carry ABI-encoded ICA calls. Decode before
+    // writing so those routes can persist both records in one transaction.
+    let decodedCalls: StoredCall[] | null = null;
+    try {
+      // CAST: ethers v5 ABI decoding returns Result rather than the tuple type.
+      const [raw] = utils.defaultAbiCoder.decode(
+        ['tuple(bytes32 to, uint256 value, bytes data)[]'],
+        data,
+      ) as [Array<{ to: string; value: { toString(): string }; data: string }>];
+      decodedCalls = raw.map((call) => ({
+        to: call.to,
+        value: call.value.toString(),
+        data: call.data,
+      }));
+    } catch {
+      logger.debug(
+        { commitment },
+        'Skipping Commitment dual-write (data is not ABI-encoded ICA calls)',
+      );
+    }
 
     logger.info({ originDomain, commitment }, 'Storing calldata');
     try {
-      await prisma.calldata.upsert({
-        where: { commitment },
-        update: {},
-        create: {
-          commitment,
-          originDomain,
-          data,
-          salt,
-          relayers,
-          destinationAccount,
-          ...(revealAccounts != null && { revealAccounts }),
-        },
-      });
-
-      // Dual-write to Commitment table so the existing getCallsFromRevealMessage
-      // CCIP-Read endpoint keeps working. Only EVM-destination routes carry
-      // ABI-encoded ICA calls — borsh (Solana) data will fail to decode and
-      // skip the dual-write automatically.
-      let decodedCalls: Array<{
-        to: string;
-        value: string;
-        data: string;
-      }> | null = null;
-      try {
-        const [raw] = utils.defaultAbiCoder.decode(
-          ['tuple(bytes32 to, uint256 value, bytes data)[]'],
-          data,
-        ) as [
-          Array<{ to: string; value: { toString(): string }; data: string }>,
-        ];
-        decodedCalls = raw.map((c) => ({
-          to: c.to,
-          value: c.value.toString(),
-          data: c.data,
-        }));
-      } catch {
-        // Solana-destination routes carry borsh data that fails ABI decode — not an error.
-        logger.debug(
-          { commitment },
-          'Skipping Commitment dual-write (data is not ABI-encoded ICA calls)',
-        );
-      }
-      if (decodedCalls != null) {
-        const icaAddress = bytes32ToAddress(destinationAccount);
-        await prisma.commitment.upsert({
-          where: { commitment },
-          update: {},
-          create: {
-            commitment,
-            calls: decodedCalls,
-            relayers,
-            salt,
-            ica: icaAddress,
-            originDomain,
-          },
-        });
-        logger.info(
-          { commitment, icaAddress, originDomain },
-          'Dual-wrote to Commitment table',
-        );
-      }
+      await this.storeCalldata(
+        { ...result.data, commitment },
+        decodedCalls,
+        logger,
+      );
     } catch (error: unknown) {
+      if (error instanceof CommitmentConflictError) {
+        logger.warn(
+          {
+            commitment,
+            originDomain,
+            relayersCount: relayers.length,
+            hasRevealAccounts: revealAccounts !== undefined,
+          },
+          'Commitment already exists with different metadata',
+        );
+        return res
+          .status(409)
+          .json({ error: 'Commitment already exists with different metadata' });
+      }
+
       logger.error(
         {
+          commitment,
+          originDomain,
           error: error instanceof Error ? error.message : String(error),
           error_reason: UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
         },
@@ -706,7 +829,79 @@ export class CallCommitmentsService extends BaseService {
       );
       return res.status(500).json({ error: 'Internal server error' });
     }
+
     return res.status(200).json({ commitment });
+  }
+
+  private async storeCalldata(
+    data: CalldataPost,
+    decodedCalls: StoredCall[] | null,
+    logger: Logger,
+  ): Promise<void> {
+    const write = async (db: ReconciliationDb): Promise<void> => {
+      const storedCalldata = CalldataMetadataSchema.parse(
+        await db.calldata.upsert({
+          where: { commitment: data.commitment },
+          // Non-empty no-op update makes this a database-native upsert, avoiding
+          // client-side create races while preserving first-write-wins semantics.
+          update: { commitment: data.commitment },
+          create: {
+            commitment: data.commitment,
+            originDomain: data.originDomain,
+            data: data.data,
+            salt: data.salt,
+            relayers: data.relayers,
+            destinationAccount: data.destinationAccount,
+            ...(data.revealAccounts !== undefined && {
+              revealAccounts: data.revealAccounts,
+            }),
+          },
+          select: calldataMetadataSelect,
+        }),
+      );
+      if (!hasMatchingCalldataMetadata(data, storedCalldata)) {
+        throw new CommitmentConflictError();
+      }
+
+      if (decodedCalls === null) return;
+
+      const storedCommitmentRecord = await db.commitment.upsert({
+        where: { commitment: data.commitment },
+        update: { commitment: data.commitment },
+        create: {
+          commitment: data.commitment,
+          calls: decodedCalls,
+          relayers: data.relayers,
+          salt: data.salt,
+          ica: bytes32ToAddress(data.destinationAccount),
+          originDomain: data.originDomain,
+        },
+        select: commitmentReconciliationSelect,
+      });
+      const storedCommitment = {
+        ...CommitmentMetadataSchema.parse(storedCommitmentRecord),
+        calls: storedCommitmentRecord.calls,
+        salt: storedCommitmentRecord.salt,
+      };
+      if (!hasMatchingLegacyCommitment(data, decodedCalls, storedCommitment)) {
+        throw new CommitmentConflictError();
+      }
+    };
+
+    if (decodedCalls === null) {
+      await write(prisma);
+      logger.info(
+        { commitment: data.commitment, originDomain: data.originDomain },
+        'Stored calldata',
+      );
+      return;
+    }
+
+    await prisma.$transaction(write);
+    logger.info(
+      { commitment: data.commitment, originDomain: data.originDomain },
+      'Atomically stored calldata and legacy commitment',
+    );
   }
 
   public async handleCalldataGet(req: Request, res: Response) {

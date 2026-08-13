@@ -1,3 +1,4 @@
+import { utils } from 'ethers';
 import { expect } from 'chai';
 import sinon from 'sinon';
 
@@ -7,6 +8,7 @@ import {
   isPostCallsIca,
   normalizeCalls,
 } from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { prisma } from '../../src/db.js';
 import { CallCommitmentsService } from '../../src/services/CallCommitmentsService.js';
@@ -59,6 +61,24 @@ const storedMetadata = {
   ica: mockIca,
   originDomain: icaPayload.originDomain,
   relayers: baseRelayers,
+};
+
+const abiData = utils.defaultAbiCoder.encode(
+  ['tuple(bytes32 to, uint256 value, bytes data)[]'],
+  [[{ to: addressToBytes32(validAddress), value: 0, data: '0x' }]],
+);
+const calldataSalt = '0x' + '56'.repeat(32);
+const calldataCommitment = utils.keccak256(
+  utils.concat([utils.arrayify(calldataSalt), utils.arrayify(abiData)]),
+);
+const destinationAccount = addressToBytes32(mockIca);
+const calldataPayload = {
+  commitment: calldataCommitment,
+  originDomain: 1,
+  data: abiData,
+  salt: calldataSalt,
+  relayers: [baseRelayers[0]],
+  destinationAccount,
 };
 
 class TestPrismaUniqueConstraintError extends Error {
@@ -197,6 +217,27 @@ describe('CallCommitmentsService.handleCommitment', () => {
       }),
     ).to.be.true;
     expect(res.json.firstCall.args[0]).not.to.have.property('relayers');
+  });
+
+  it('accepts identical case-sensitive non-EVM relayers', async () => {
+    const nonEvmRelayer = '11111111111111111111111111111111';
+    const payload = { ...icaPayload, relayers: [nonEvmRelayer] };
+    const icaApp = {
+      getAccount: sinon.stub().resolves(mockIca),
+    };
+    const multiProvider = {
+      getChainName: sinon.stub().returns('ethereum'),
+    };
+    const service = createService({ icaApp, multiProvider });
+    service.upsertCommitmentInDB = sinon.stub().resolves({
+      ...storedMetadata,
+      relayers: [nonEvmRelayer],
+    });
+    const res = mockRes();
+
+    await service.handleCommitment({ body: payload, log: mockLogger() }, res);
+
+    expect(res.status.calledWith(200)).to.be.true;
   });
 
   for (const [field, conflict] of [
@@ -438,6 +479,276 @@ describe('CallCommitmentsService.handleCheckCommitment', () => {
     );
 
     expect(res.set.calledWith('Cache-Control', 'no-store')).to.be.true;
+    expect(res.status.calledWith(500)).to.be.true;
+    expect(res.json.calledWith({ error: 'Internal server error' })).to.be.true;
+  });
+});
+
+describe('CallCommitmentsService.handleCalldataPost', () => {
+  function createService() {
+    const service = Object.create(CallCommitmentsService.prototype);
+    service.addLoggerServiceContext = () => mockLogger();
+    service.config = { serviceName: 'callCommitments' };
+    return service;
+  }
+
+  function storedCalldata(
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return {
+      originDomain: calldataPayload.originDomain,
+      data: calldataPayload.data,
+      salt: calldataPayload.salt,
+      relayers: calldataPayload.relayers,
+      destinationAccount: calldataPayload.destinationAccount,
+      revealAccounts: null,
+      ...overrides,
+    };
+  }
+
+  function storedCommitment(
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return {
+      ica: mockIca,
+      originDomain: calldataPayload.originDomain,
+      relayers: calldataPayload.relayers,
+      calls: [{ to: addressToBytes32(validAddress), data: '0x', value: '0' }],
+      salt: calldataPayload.salt,
+      ...overrides,
+    };
+  }
+
+  it('atomically stores EVM calldata and its legacy commitment', async () => {
+    const calldataUpsert = sinon.stub().resolves(storedCalldata());
+    const commitmentUpsert = sinon.stub().resolves(storedCommitment());
+    const transaction = sinon.stub().callsFake(async (write) =>
+      write({
+        calldata: { upsert: calldataUpsert },
+        commitment: { upsert: commitmentUpsert },
+      }),
+    );
+    sinon.stub(prisma, '$transaction').value(transaction);
+    const service = createService();
+    const res = mockRes();
+
+    await service.handleCalldataPost(
+      { body: calldataPayload, log: mockLogger() },
+      res,
+    );
+
+    expect(transaction.calledOnce).to.be.true;
+    expect(calldataUpsert.calledOnce).to.be.true;
+    expect(commitmentUpsert.calledOnce).to.be.true;
+    expect(calldataUpsert.firstCall.args[0]).to.deep.include({
+      update: { commitment: calldataCommitment },
+    });
+    expect(commitmentUpsert.firstCall.args[0]).to.deep.include({
+      update: { commitment: calldataCommitment },
+    });
+    expect(res.status.calledWith(200)).to.be.true;
+    expect(res.json.calledWith({ commitment: calldataCommitment })).to.be.true;
+  });
+
+  it('accepts an identical EVM retry with canonicalized relayers', async () => {
+    const calldataUpsert = sinon
+      .stub()
+      .resolves(
+        storedCalldata({ relayers: [addressToBytes32(baseRelayers[0])] }),
+      );
+    const commitmentUpsert = sinon
+      .stub()
+      .resolves(
+        storedCommitment({ relayers: [addressToBytes32(baseRelayers[0])] }),
+      );
+    const transaction = sinon.stub().callsFake(async (write) =>
+      write({
+        calldata: { upsert: calldataUpsert },
+        commitment: { upsert: commitmentUpsert },
+      }),
+    );
+    sinon.stub(prisma, '$transaction').value(transaction);
+    const service = createService();
+    const res = mockRes();
+
+    await service.handleCalldataPost(
+      {
+        body: {
+          ...calldataPayload,
+          commitment: '0x' + calldataPayload.commitment.slice(2).toUpperCase(),
+        },
+        log: mockLogger(),
+      },
+      res,
+    );
+
+    expect(res.status.calledWith(200)).to.be.true;
+    expect(calldataUpsert.firstCall.args[0]).to.deep.include({
+      where: { commitment: calldataCommitment },
+    });
+  });
+
+  it('accepts concurrent identical EVM retries', async () => {
+    const calldataUpsert = sinon.stub().resolves(storedCalldata());
+    const commitmentUpsert = sinon.stub().resolves(storedCommitment());
+    const transaction = sinon.stub().callsFake(async (write) =>
+      write({
+        calldata: { upsert: calldataUpsert },
+        commitment: { upsert: commitmentUpsert },
+      }),
+    );
+    sinon.stub(prisma, '$transaction').value(transaction);
+    const service = createService();
+    const responses = [mockRes(), mockRes()];
+
+    await Promise.all(
+      responses.map((res) =>
+        service.handleCalldataPost(
+          { body: calldataPayload, log: mockLogger() },
+          res,
+        ),
+      ),
+    );
+
+    expect(transaction.callCount).to.equal(2);
+    expect(calldataUpsert.callCount).to.equal(2);
+    expect(commitmentUpsert.callCount).to.equal(2);
+    expect(responses.every((res) => res.status.calledWith(200))).to.be.true;
+  });
+
+  it('rolls back both EVM writes when the legacy commitment conflicts', async () => {
+    let rolledBack = false;
+    const calldataUpsert = sinon.stub().resolves(storedCalldata());
+    const commitmentUpsert = sinon
+      .stub()
+      .resolves(storedCommitment({ originDomain: 2 }));
+    const transaction = sinon.stub().callsFake(async (write) => {
+      try {
+        return await write({
+          calldata: { upsert: calldataUpsert },
+          commitment: { upsert: commitmentUpsert },
+        });
+      } catch (error: unknown) {
+        rolledBack = true;
+        throw error;
+      }
+    });
+    sinon.stub(prisma, '$transaction').value(transaction);
+    const service = createService();
+    const res = mockRes();
+
+    await service.handleCalldataPost(
+      { body: calldataPayload, log: mockLogger() },
+      res,
+    );
+
+    expect(rolledBack).to.be.true;
+    expect(res.status.calledWith(409)).to.be.true;
+  });
+
+  it('rejects conflicting stored calldata without writing legacy state', async () => {
+    const calldataUpsert = sinon
+      .stub()
+      .resolves(
+        storedCalldata({ destinationAccount: addressToBytes32(validAddress) }),
+      );
+    const commitmentUpsert = sinon.stub();
+    const transaction = sinon.stub().callsFake(async (write) =>
+      write({
+        calldata: { upsert: calldataUpsert },
+        commitment: { upsert: commitmentUpsert },
+      }),
+    );
+    sinon.stub(prisma, '$transaction').value(transaction);
+    const service = createService();
+    const res = mockRes();
+
+    await service.handleCalldataPost(
+      { body: calldataPayload, log: mockLogger() },
+      res,
+    );
+
+    expect(commitmentUpsert.called).to.be.false;
+    expect(res.status.calledWith(409)).to.be.true;
+  });
+
+  it('stores non-ABI calldata without opening a transaction', async () => {
+    const solanaData = '0x01';
+    const solanaPayload = {
+      ...calldataPayload,
+      data: solanaData,
+      commitment: utils.keccak256(
+        utils.concat([
+          utils.arrayify(calldataPayload.salt),
+          utils.arrayify(solanaData),
+        ]),
+      ),
+    };
+    const calldataUpsert = sinon.stub().resolves(
+      storedCalldata({
+        data: solanaData,
+        destinationAccount: solanaPayload.destinationAccount,
+      }),
+    );
+    sinon.stub(prisma, 'calldata').value({ upsert: calldataUpsert });
+    const transaction = sinon.stub(prisma, '$transaction');
+    const service = createService();
+    const res = mockRes();
+
+    await service.handleCalldataPost(
+      { body: solanaPayload, log: mockLogger() },
+      res,
+    );
+
+    expect(transaction.called).to.be.false;
+    expect(res.status.calledWith(200)).to.be.true;
+  });
+
+  it('rejects conflicting non-ABI calldata without opening a transaction', async () => {
+    const solanaData = '0x01';
+    const solanaPayload = {
+      ...calldataPayload,
+      data: solanaData,
+      commitment: utils.keccak256(
+        utils.concat([
+          utils.arrayify(calldataPayload.salt),
+          utils.arrayify(solanaData),
+        ]),
+      ),
+    };
+    const calldataUpsert = sinon.stub().resolves(
+      storedCalldata({
+        data: solanaData,
+        originDomain: 2,
+      }),
+    );
+    sinon.stub(prisma, 'calldata').value({ upsert: calldataUpsert });
+    const transaction = sinon.stub(prisma, '$transaction');
+    const service = createService();
+    const res = mockRes();
+
+    await service.handleCalldataPost(
+      { body: solanaPayload, log: mockLogger() },
+      res,
+    );
+
+    expect(transaction.called).to.be.false;
+    expect(res.status.calledWith(409)).to.be.true;
+  });
+
+  it('returns 500 when the atomic EVM write fails', async () => {
+    sinon.stub(PrometheusMetrics, 'logUnhandledError');
+    sinon
+      .stub(prisma, '$transaction')
+      .rejects(new Error('database unavailable'));
+    const service = createService();
+    const res = mockRes();
+
+    await service.handleCalldataPost(
+      { body: calldataPayload, log: mockLogger() },
+      res,
+    );
+
     expect(res.status.calledWith(500)).to.be.true;
     expect(res.json.calledWith({ error: 'Internal server error' })).to.be.true;
   });
