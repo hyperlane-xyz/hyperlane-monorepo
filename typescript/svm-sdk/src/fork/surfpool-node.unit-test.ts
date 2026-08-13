@@ -334,3 +334,80 @@ describe('startLocalSurfpool port preflight', () => {
     }
   });
 });
+
+describe('startLocalSurfpool process lifecycle', function () {
+  // Real child spawns (node run with surfpool's argv exits at once on the
+  // unknown arguments) take a moment, so allow generous headroom.
+  this.timeout(30_000);
+
+  async function freeTcpPort(): Promise<number> {
+    const server = createServer();
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    const address = server.address();
+    if (!address || typeof address !== 'object') {
+      throw new Error('expected a bound TCP address');
+    }
+    const port = address.port;
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    return port;
+  }
+
+  // Never settles, so only the child's exit can settle waitForReady — isolating
+  // the exit-capture path from the RPC probe.
+  const neverReady: WaitForRpcReady = () => new Promise<void>(() => {});
+
+  it('rejects promptly when the child exited before waitForReady is called', async () => {
+    const rpcPort = await freeTcpPort();
+    const wsPort = await freeTcpPort();
+    const { waitForReady } = await startLocalSurfpool(
+      { datasource: { mode: SurfpoolDatasourceMode.Offline }, rpcPort, wsPort },
+      process.execPath,
+      neverReady,
+    );
+
+    // Let the short-lived child exit before we wait; `exit` is not replayed, so
+    // only the eager (post-spawn) capture can surface it.
+    await new Promise<void>((resolve) => setTimeout(resolve, 500));
+
+    const startedAt = Date.now();
+    let rejected: unknown;
+    try {
+      await waitForReady();
+    } catch (error: unknown) {
+      rejected = error;
+    }
+
+    expect(rejected).to.be.instanceOf(Error);
+    if (rejected instanceof Error) {
+      expect(rejected.message).to.include(
+        'surfpool exited before its RPC was ready',
+      );
+    }
+    // Surfaces the exit at once rather than polling to the readiness bound.
+    expect(Date.now() - startedAt).to.be.lessThan(1_000);
+  });
+
+  it('does not add a process exit listener per fork', async () => {
+    const baseline = process.listenerCount('exit');
+    for (let i = 0; i < 12; i++) {
+      const rpcPort = await freeTcpPort();
+      const wsPort = await freeTcpPort();
+      const { waitForReady } = await startLocalSurfpool(
+        {
+          datasource: { mode: SurfpoolDatasourceMode.Offline },
+          rpcPort,
+          wsPort,
+        },
+        process.execPath,
+        neverReady,
+      );
+      await waitForReady().catch(() => {});
+    }
+    // A single shared exit hook — not one per fork (which would be baseline + 12
+    // and trip MaxListenersExceededWarning past ten).
+    expect(process.listenerCount('exit')).to.be.at.most(baseline + 1);
+  });
+});

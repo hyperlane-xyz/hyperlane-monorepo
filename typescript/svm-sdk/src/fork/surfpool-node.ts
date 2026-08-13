@@ -339,6 +339,28 @@ export type WaitForRpcReady = (
   signal?: AbortSignal,
 ) => Promise<void>;
 
+// A single process-level `exit` hook kills every still-running fork, rather than
+// one listener per fork — which would trip MaxListenersExceededWarning past ten
+// forks and retain each child's closure until process exit. A fork joins the
+// registry on start and leaves when it is killed or its child exits.
+const runningForkKills = new Set<() => void>();
+let forkExitHookInstalled = false;
+
+function trackForkExit(killFork: () => void): () => void {
+  runningForkKills.add(killFork);
+  if (!forkExitHookInstalled) {
+    forkExitHookInstalled = true;
+    process.once('exit', () => {
+      for (const kill of Array.from(runningForkKills)) {
+        kill();
+      }
+    });
+  }
+  return () => {
+    runningForkKills.delete(killFork);
+  };
+}
+
 export async function startLocalSurfpool(
   config: SurfpoolNodeConfig,
   binaryPath: string,
@@ -369,12 +391,32 @@ export async function startLocalSurfpool(
     stderrTail = (stderrTail + chunk.toString()).slice(-STDERR_TAIL_MAX);
   });
 
+  const rpcUrl = `http://127.0.0.1:${config.rpcPort}`;
+  const datasourceUrl =
+    config.datasource.mode === SurfpoolDatasourceMode.Fork
+      ? config.datasource.rpcUrl
+      : undefined;
+
+  const kill = (): void => {
+    // Leave the process-exit registry whenever the child is gone (killed here,
+    // or exited/errored below) so a dead fork never keeps being tracked.
+    untrackFork();
+    if (config.keepRunning) {
+      return;
+    }
+    if (isNullish(proc.exitCode)) {
+      proc.kill('SIGTERM');
+    }
+  };
+  const untrackFork = trackForkExit(kill);
+
   // A failed spawn (e.g. ENOENT) emits `error` with no guaranteed `exit`, so the
   // readiness race must reject on it — otherwise readiness burns the full probe
   // timeout and reports a misleading RPC error instead of the real spawn failure.
   // Attach synchronously here so no `error` can fire before a listener exists.
   const errored = new Promise<never>((_, reject) => {
     proc.once('error', (error: Error) => {
+      untrackFork();
       logger.debug({ err: error }, 'surfpool process error');
       reject(error);
     });
@@ -383,40 +425,27 @@ export async function startLocalSurfpool(
   // must not surface as an unhandled rejection.
   errored.catch(() => {});
 
-  const rpcUrl = `http://127.0.0.1:${config.rpcPort}`;
-
-  const kill = (): void => {
-    if (config.keepRunning) {
-      return;
-    }
-    if (isNullish(proc.exitCode)) {
-      proc.kill('SIGTERM');
-    }
-  };
-
-  process.once('exit', kill);
-
-  // Reject if the process exits before its RPC is ready (e.g. the port is
-  // already occupied) so we never treat another process's RPC as our fork.
-  const waitForReady = async (): Promise<void> => {
-    const datasourceUrl =
-      config.datasource.mode === SurfpoolDatasourceMode.Fork
-        ? config.datasource.rpcUrl
-        : undefined;
-    const exited = new Promise<never>((_, reject) => {
-      proc.once('exit', (code, signal) => {
-        const detail = redactSurfpoolStderr(stderrTail.trim(), datasourceUrl);
-        reject(
-          new Error(
-            `surfpool exited before its RPC was ready (code=${code}, signal=${signal})` +
-              (detail ? `: ${detail}` : ''),
-          ),
-        );
-      });
+  // Capture the child's exit synchronously after spawn rather than lazily inside
+  // `waitForReady`: `exit` is not replayed, so a caller that waits after the
+  // child has already exited must still observe it instead of polling to the
+  // readiness bound. Rejecting here also drops the fork from the exit registry.
+  const exited = new Promise<never>((_, reject) => {
+    proc.once('exit', (code, signal) => {
+      untrackFork();
+      const detail = redactSurfpoolStderr(stderrTail.trim(), datasourceUrl);
+      reject(
+        new Error(
+          `surfpool exited before its RPC was ready (code=${code}, signal=${signal})` +
+            (detail ? `: ${detail}` : ''),
+        ),
+      );
     });
-    // A later exit (e.g. on kill once readiness has won) must not surface as an
-    // unhandled rejection after the race settles.
-    exited.catch(() => {});
+  });
+  // A later exit (e.g. on kill once readiness has won) must not surface as an
+  // unhandled rejection after the race settles.
+  exited.catch(() => {});
+
+  const waitForReady = async (): Promise<void> => {
     // Abort the readiness probe the instant the race settles so no retry timer
     // keeps polling a dead port after an early exit or spawn error wins.
     const controller = new AbortController();

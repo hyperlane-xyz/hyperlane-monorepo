@@ -186,3 +186,75 @@ describe('EvmForkManager readiness abort', () => {
     expect(capturedSignal?.aborted).to.equal(true);
   });
 });
+
+describe('EvmForkManager synchronous spawn error redaction', () => {
+  it('redacts the upstream RPC URL from a synchronous spawn throw', async () => {
+    const upstreamRpcUrl = 'https://user:SUPER_SECRET_KEY@host/mainnet';
+    // execa validates argv synchronously and can throw (e.g. an argument with a
+    // NUL byte) with the raw URL in the message but no command/escapedCommand,
+    // so it must be sanitized at the spawn call site rather than downstream.
+    const spawnAnvil = (): AnvilProcessHandle => {
+      throw new Error(
+        `Arguments cannot contain null bytes: --fork-url ${upstreamRpcUrl}`,
+      );
+    };
+    const neverReady: WaitForEvmRpcReady = () => new Promise<void>(() => {});
+
+    const manager = new EvmForkManager(
+      {
+        chainName: 'anvil2',
+        chainId: 31337,
+        upstreamRpcUrl,
+        port: await freePort(),
+      },
+      { spawnAnvil, waitForReady: neverReady },
+    );
+
+    let rejected: unknown;
+    try {
+      await manager.start();
+    } catch (error: unknown) {
+      rejected = error;
+    }
+
+    expect(rejected).to.be.instanceOf(Error);
+    if (rejected instanceof Error) {
+      const enumerable = JSON.stringify(rejected);
+      for (const surfaced of [rejected.message, enumerable]) {
+        expect(surfaced).to.not.include(upstreamRpcUrl);
+        expect(surfaced).to.not.include('SUPER_SECRET_KEY');
+      }
+    }
+  });
+});
+
+describe('EvmForkManager process exit listener lifecycle', () => {
+  it('shares a single process exit hook across many forks', async () => {
+    const baseline = process.listenerCount('exit');
+    // A never-exiting anvil keeps each fork live; readiness resolves so start()
+    // succeeds and the fork stays tracked.
+    const spawnAnvil = (): AnvilProcessHandle =>
+      Object.assign(new Promise<void>(() => {}), { kill: () => {} });
+    const readyNow: WaitForEvmRpcReady = () => Promise.resolve();
+
+    const managers: EvmForkManager[] = [];
+    for (let i = 0; i < 12; i++) {
+      const manager = new EvmForkManager(
+        {
+          chainName: `anvil${i}`,
+          chainId: 31337,
+          upstreamRpcUrl: 'http://127.0.0.1:1',
+          port: await freePort(),
+        },
+        { spawnAnvil, waitForReady: readyNow },
+      );
+      await manager.start();
+      managers.push(manager);
+    }
+
+    // Twelve live forks share one exit hook — not one listener each (baseline +
+    // 12, which trips MaxListenersExceededWarning past ten).
+    expect(process.listenerCount('exit')).to.be.at.most(baseline + 1);
+    managers.forEach((manager) => manager.kill());
+  });
+});

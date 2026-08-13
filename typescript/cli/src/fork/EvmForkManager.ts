@@ -95,16 +95,6 @@ class AnvilStartError extends Error {
   }
 }
 
-// Only execa-derived errors carry the credential-bearing rendered command;
-// they are the sole errors that must be sanitized before surfacing.
-function isCommandBearing(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    ('command' in error || 'escapedCommand' in error)
-  );
-}
-
 function sanitizeAnvilError(error: unknown): AnvilStartError {
   const sanitized = new AnvilStartError();
   if (typeof error === 'object' && error !== null) {
@@ -162,6 +152,28 @@ async function assertPortAvailable(port: number): Promise<void> {
   });
 }
 
+// A single process-level `exit` hook kills every still-running fork, rather than
+// one listener per fork — which would trip MaxListenersExceededWarning past ten
+// forks and retain each child's closure until process exit. A fork joins the
+// registry on start and leaves when it is killed or its child exits.
+const runningForkKills = new Set<() => void>();
+let forkExitHookInstalled = false;
+
+function trackForkExit(killFork: () => void): () => void {
+  runningForkKills.add(killFork);
+  if (!forkExitHookInstalled) {
+    forkExitHookInstalled = true;
+    process.once('exit', () => {
+      for (const kill of Array.from(runningForkKills)) {
+        kill();
+      }
+    });
+  }
+  return () => {
+    runningForkKills.delete(killFork);
+  };
+}
+
 async function startEvmFork(
   config: EvmForkManagerConfig,
   deps: StartEvmForkDeps = DEFAULT_START_EVM_FORK_DEPS,
@@ -174,12 +186,39 @@ async function startEvmFork(
 
   let killOnError: ((isPanicking: boolean) => Promise<void>) | undefined;
   try {
-    const anvilProcess = deps.spawnAnvil(config);
+    let anvilProcess: AnvilProcessHandle;
+    try {
+      anvilProcess = deps.spawnAnvil(config);
+    } catch (error: unknown) {
+      // A synchronous spawn throw (e.g. execa rejecting an argument that
+      // contains a NUL byte) can embed the credential-bearing URL in its
+      // message; sanitize it at the source so it never leaks.
+      throw sanitizeAnvilError(error);
+    }
 
+    const onProcessExit = (): void => {
+      void kill(false).catch((error: unknown) =>
+        logDebug(
+          `Failed to kill anvil fork for chain ${config.chainName}`,
+          error,
+        ),
+      );
+    };
     const kill = async (isPanicking: boolean): Promise<void> => {
+      untrackFork();
       anvilProcess.kill(isPanicking ? 'SIGTERM' : 'SIGINT');
     };
     killOnError = kill;
+
+    // Kill this fork if the process exits; drop it from the registry once the
+    // child is gone (killed or exited) so a single process-level `exit` hook
+    // covers any number of forks without accumulating listeners. Registered
+    // before the readiness race so the failure path's kill can untrack it.
+    const untrackFork = trackForkExit(onProcessExit);
+    void anvilProcess.then(
+      () => untrackFork(),
+      () => untrackFork(),
+    );
 
     const provider = new JsonRpcProvider(endpoint);
     // Abort the readiness probe the instant the race settles so no retry timer
@@ -205,15 +244,6 @@ async function startEvmFork(
       controller.abort();
     }
 
-    process.once('exit', () => {
-      void kill(false).catch((error: unknown) =>
-        logDebug(
-          `Failed to kill anvil fork for chain ${config.chainName}`,
-          error,
-        ),
-      );
-    });
-
     return new RunningEvmFork(provider, endpoint, kill);
   } catch (error) {
     // Kill any running anvil process otherwise the process will keep running
@@ -222,13 +252,9 @@ async function startEvmFork(
       await killOnError(true);
     }
 
-    // The URL-bearing execa error is already sanitized at the `exited` mapping
-    // before it reaches here; readiness/exit errors carry no URL. Sanitize only
-    // a command-bearing error (a defensive catch for a synchronous spawn
-    // throw), and rethrow everything else verbatim to keep its real message.
-    if (isCommandBearing(error)) {
-      throw sanitizeAnvilError(error);
-    }
+    // Both anvil-error sources are sanitized at their source (the synchronous
+    // spawn throw above and the async `exited` mapping), so no URL-bearing error
+    // reaches here; rethrow verbatim to preserve real readiness/exit messages.
     throw error;
   }
 }
