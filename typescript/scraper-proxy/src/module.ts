@@ -38,6 +38,19 @@ type ResponseWithFinish = {
 };
 
 const graphqlLogger = new Logger('GraphQL');
+const GRAPHQL_STATS_INTERVAL_MS = 60_000;
+let graphqlStats = emptyGraphqlStats();
+
+setInterval(() => {
+  const stats = graphqlStats;
+  graphqlStats = emptyGraphqlStats();
+  const averageDurationMs = stats.requests
+    ? Math.round(stats.totalDurationMs / stats.requests)
+    : 0;
+  graphqlLogger.log(
+    `graphql stats requests=${stats.requests} errors=${stats.errors} status4xx=${stats.status4xx} status5xx=${stats.status5xx} avgMs=${averageDurationMs} maxMs=${stats.maxDurationMs}`,
+  );
+}, GRAPHQL_STATS_INTERVAL_MS);
 
 const schemaPath = [
   join(import.meta.dirname, 'graphql/scraperdb-schema.graphql'),
@@ -90,8 +103,11 @@ function graphqlRequestMiddleware(
   normalizeGraphqlRequestBody(req.body);
   applyCacheControlCompatibility(req.body, res);
   res.on('finish', () => {
-    graphqlLogger.log(
-      `${req.method ?? 'REQUEST'} ${req.originalUrl ?? req.url ?? '/graphql'} ${res.statusCode ?? 0} ${Date.now() - startedAt}ms`,
+    const durationMs = Date.now() - startedAt;
+    const statusCode = res.statusCode ?? 0;
+    recordGraphqlRequestStats(durationMs, statusCode);
+    graphqlLogger.debug(
+      `${req.method ?? 'REQUEST'} ${req.originalUrl ?? req.url ?? '/graphql'} ${statusCode} ${durationMs}ms`,
     );
   });
   next();
@@ -126,6 +142,38 @@ function formatGraphqlError(
     typeof error.extensions?.code === 'string'
       ? ` code=${error.extensions.code}`
       : '';
+  graphqlStats.errors += 1;
   graphqlLogger.warn(`error${code}: ${error.message}`);
   return error;
+}
+
+type GraphqlStats = {
+  errors: number;
+  maxDurationMs: number;
+  requests: number;
+  status4xx: number;
+  status5xx: number;
+  totalDurationMs: number;
+};
+
+function emptyGraphqlStats(): GraphqlStats {
+  return {
+    errors: 0,
+    maxDurationMs: 0,
+    requests: 0,
+    status4xx: 0,
+    status5xx: 0,
+    totalDurationMs: 0,
+  };
+}
+
+function recordGraphqlRequestStats(
+  durationMs: number,
+  statusCode: number,
+): void {
+  graphqlStats.requests += 1;
+  graphqlStats.totalDurationMs += durationMs;
+  graphqlStats.maxDurationMs = Math.max(graphqlStats.maxDurationMs, durationMs);
+  if (statusCode >= 400 && statusCode < 500) graphqlStats.status4xx += 1;
+  if (statusCode >= 500) graphqlStats.status5xx += 1;
 }

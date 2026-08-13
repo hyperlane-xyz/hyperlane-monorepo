@@ -10,6 +10,7 @@ import { config } from '../config.js';
 
 const POSTGRES_TIMESTAMP_OID = 1114;
 const MIN_POOL_CLIENTS = 5;
+const DB_STATS_INTERVAL_MS = 60_000;
 
 pg.types.setTypeParser(POSTGRES_TIMESTAMP_OID, (value: string) => value);
 
@@ -17,6 +18,8 @@ pg.types.setTypeParser(POSTGRES_TIMESTAMP_OID, (value: string) => value);
 export class DbService implements OnModuleDestroy, OnModuleInit {
   private readonly logger = new Logger(DbService.name);
   private readonly listenerClients = new Set<pg.Client>();
+  private stats: DbStats = emptyDbStats();
+  private statsTimer?: NodeJS.Timeout;
   private pool?: pg.Pool;
 
   async query<T extends pg.QueryResultRow>(
@@ -24,14 +27,20 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
     values: unknown[] = [],
   ): Promise<T[]> {
     const startedAt = Date.now();
-    const result = await this.getPool().query<T>(text, values);
-    this.logger.log(
-      `query ${Date.now() - startedAt}ms rows=${result.rowCount}`,
-    );
-    return result.rows.map(normalizeRow) as T[];
+    try {
+      const result = await this.getPool().query<T>(text, values);
+      const durationMs = Date.now() - startedAt;
+      this.recordQueryStats(durationMs, result.rowCount ?? 0, false);
+      this.logger.debug(`query ${durationMs}ms rows=${result.rowCount}`);
+      return result.rows.map(normalizeRow) as T[];
+    } catch (error) {
+      this.recordQueryStats(Date.now() - startedAt, 0, true);
+      throw error;
+    }
   }
 
   async onModuleDestroy(): Promise<void> {
+    if (this.statsTimer) clearInterval(this.statsTimer);
     await Promise.all(
       [...this.listenerClients].map(async (client) => client.end()),
     );
@@ -47,6 +56,7 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
     this.logger.log(
       `warmed ${MIN_POOL_CLIENTS} db connections in ${Date.now() - startedAt}ms`,
     );
+    this.statsTimer = setInterval(() => this.logStats(), DB_STATS_INTERVAL_MS);
   }
 
   private getPool(): pg.Pool {
@@ -100,6 +110,48 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
         : undefined,
     };
   }
+
+  private recordQueryStats(
+    durationMs: number,
+    rowCount: number,
+    failed: boolean,
+  ): void {
+    this.stats.queries += 1;
+    this.stats.rows += rowCount;
+    this.stats.totalDurationMs += durationMs;
+    this.stats.maxDurationMs = Math.max(this.stats.maxDurationMs, durationMs);
+    if (failed) this.stats.errors += 1;
+  }
+
+  private logStats(): void {
+    const stats = this.stats;
+    this.stats = emptyDbStats();
+    const pool = this.pool;
+    const averageDurationMs = stats.queries
+      ? Math.round(stats.totalDurationMs / stats.queries)
+      : 0;
+    this.logger.log(
+      `db stats queries=${stats.queries} errors=${stats.errors} rows=${stats.rows} avgMs=${averageDurationMs} maxMs=${stats.maxDurationMs} poolTotal=${pool?.totalCount ?? 0} poolIdle=${pool?.idleCount ?? 0} poolWaiting=${pool?.waitingCount ?? 0}`,
+    );
+  }
+}
+
+type DbStats = {
+  errors: number;
+  maxDurationMs: number;
+  queries: number;
+  rows: number;
+  totalDurationMs: number;
+};
+
+function emptyDbStats(): DbStats {
+  return {
+    errors: 0,
+    maxDurationMs: 0,
+    queries: 0,
+    rows: 0,
+    totalDurationMs: 0,
+  };
 }
 
 function normalizeConnectionString(connectionString: string): string {
