@@ -38,16 +38,7 @@
   "bob": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
-  "boba": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
-  "botanix": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
   "bsc": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
-  "bsquared": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "carrchain": {
@@ -96,9 +87,6 @@
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "hashkey": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
-  "hemi": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "hyperevm": {
@@ -170,19 +158,10 @@
   "monad": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
-  "morph": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
   "nesa": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "nexus": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
-  "nibiru": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
-  "noble": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "oortmainnet": {
@@ -194,28 +173,16 @@
   "paradex": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
-  "peaq": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
   "plasma": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
-  "plume": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
   "polygon": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
-  "prom": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "pulsechain": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "radix": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
-  "reactive": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "robinhood": {
@@ -267,9 +234,6 @@
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "unichain": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
-  "vana": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "viction": {

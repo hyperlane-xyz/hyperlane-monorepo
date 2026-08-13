@@ -43,21 +43,6 @@ bob:
       type: interchainAccount
     timelockAddress: '0x790306c30eFeeAF3943ee3700C71D7B7812c85a1'
     type: timelockController
-botanix:
-  submitter:
-    chain: botanix
-    proposerSubmitter:
-      chain: ethereum
-      destinationChain: botanix
-      internalSubmitter:
-        chain: ethereum
-        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
-        type: gnosisSafeTxBuilder
-        version: '1.0'
-      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
-      type: interchainAccount
-    timelockAddress: '0x4C2C26664D9A72F50e8B260408B070F34e7F748f'
-    type: timelockController
 celo:
   submitter:
     chain: celo

@@ -42,7 +42,6 @@ export const deploymentChains = [
   'bob',
   'hashkey',
   'swell',
-  'botanix',
   'zerogravity',
 ] as const;
 const supportedCCIPChains = ['base', 'mode', 'optimism'];
@@ -82,7 +81,6 @@ const productionBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   bob: lowerBufferCap,
   hashkey: lowerBufferCap,
   swell: middleBufferCap,
-  botanix: middleBufferCap,
   zerogravity: middleBufferCap,
 };
 const productionDefaultRateLimitPerSecond = '5000000000'; // 5k/s = 5 * 10^3 ^ 10^6
@@ -111,7 +109,6 @@ const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   bob: lowerRateLimitPerSecond,
   hashkey: lowerRateLimitPerSecond,
   swell: middleRateLimitPerSecond,
-  botanix: middleRateLimitPerSecond,
   zerogravity: middleRateLimitPerSecond,
 };
 
@@ -219,10 +216,6 @@ const productionOwnerOverridesByChain: TypedoUSDTTokenChainMap<
     collateralToken: productionOwnerByChain.swell,
     collateralProxyAdmin: productionOwnerByChain.swell,
   },
-  botanix: {
-    collateralToken: productionOwnerByChain.botanix,
-    collateralProxyAdmin: productionOwnerByChain.botanix,
-  },
   zerogravity: {
     collateralToken: productionOwnerByChain.zerogravity,
     collateralProxyAdmin: productionOwnerByChain.zerogravity,
@@ -251,7 +244,6 @@ const productionCCIPTokenPoolAddresses: ChainMap<Address> = {
   optimism: '0x6a21a19aD44542d83F7f7FF45Aa31A62a36200de',
   bob: '0xAFEd606Bd2CAb6983fC6F10167c98aaC2173D77f',
   hashkey: '0x55aeb80Aa6Ab34aA83E1F387903F8Bb2Aa9e2F2d',
-  botanix: '0x0EEFa8b75587bcD4A909a0F3c36180D4441481a0',
   zerogravity: '0xd7502CaBdb70c79382deF58FB6df3CdA69cb2A1b',
 };
 
@@ -332,12 +324,6 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
       limits: productionCCIPTokenPoolLimits,
     },
   ],
-  botanix: [
-    {
-      lockbox: productionCCIPTokenPoolAddresses.botanix,
-      limits: productionCCIPTokenPoolLimits,
-    },
-  ],
   zerogravity: [
     {
       lockbox: productionCCIPTokenPoolAddresses.zerogravity,
@@ -369,7 +355,6 @@ const productionXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   bob: productionXERC20TokenAddress,
   hashkey: productionXERC20TokenAddress,
   swell: productionXERC20TokenAddress,
-  botanix: productionXERC20TokenAddress,
   zerogravity: productionXERC20TokenAddress,
 };
 
@@ -398,7 +383,6 @@ const stagingBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   bob: stagingDefaultBufferCap,
   hashkey: stagingDefaultBufferCap,
   swell: stagingDefaultBufferCap,
-  botanix: stagingDefaultBufferCap,
   zerogravity: stagingDefaultBufferCap,
 };
 const stagingDefaultRateLimitPerSecond = '120000000';
@@ -425,7 +409,6 @@ const stagingRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   bob: stagingDefaultRateLimitPerSecond,
   hashkey: stagingDefaultRateLimitPerSecond,
   swell: stagingDefaultRateLimitPerSecond,
-  botanix: stagingDefaultRateLimitPerSecond,
   zerogravity: stagingDefaultRateLimitPerSecond,
 };
 
@@ -464,7 +447,6 @@ const stagingXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   bob: stagingXERC20TokenAddress,
   hashkey: stagingXERC20TokenAddress,
   swell: stagingXERC20TokenAddress,
-  botanix: stagingXERC20TokenAddress,
   zerogravity: stagingXERC20TokenAddress,
 };
 
