@@ -33,9 +33,6 @@ export const tokens = {
     WETH: '0x4200000000000000000000000000000000000006',
     TONY: '0xb22a793a81ff5b6ad37f40d5fe1e0ac4184d52f3',
   },
-  bsquared: {
-    uBTC: '0x796e4D53067FF374B89b2Ac101ce0c1f72ccaAc2',
-  },
   citrea: {
     ctUSD: '0x8D82c4E3c936C7B5724A382a9c5a4E6Eb7aB6d5D',
   },
