@@ -1,4 +1,4 @@
-import { utils } from 'ethers';
+import { constants, utils } from 'ethers';
 import { expect } from 'chai';
 import sinon from 'sinon';
 
@@ -9,7 +9,12 @@ import {
   isPostCallsIca,
   normalizeCalls,
 } from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
-import { addressToBytes32, formatMessage } from '@hyperlane-xyz/utils';
+import { InterchainAccount } from '@hyperlane-xyz/sdk';
+import {
+  addressToBytes32,
+  bytes32ToAddress,
+  formatMessage,
+} from '@hyperlane-xyz/utils';
 
 import { prisma } from '../../src/db.js';
 import { CallCommitmentsService } from '../../src/services/CallCommitmentsService.js';
@@ -129,6 +134,8 @@ describe('CallCommitmentsService.handleCommitment', () => {
     service.config = { serviceName: 'callCommitments' };
     service.multiProvider = overrides.multiProvider ?? {};
     service.icaApp = overrides.icaApp ?? {};
+    service.deriveIcaFromConfig =
+      overrides.deriveIcaFromConfig ?? sinon.stub().resolves(mockIca);
     return service;
   }
 
@@ -156,14 +163,12 @@ describe('CallCommitmentsService.handleCommitment', () => {
   });
 
   it('routes ICA payload to deriveIcaFromConfig', async () => {
-    const icaApp = {
-      getAccount: sinon.stub().resolves(mockIca),
-    };
+    const deriveIcaFromConfig = sinon.stub().resolves(mockIca);
     const multiProvider = {
       getChainName: sinon.stub().returns('ethereum'),
       getProvider: sinon.stub(),
     };
-    const service = createService({ icaApp, multiProvider });
+    const service = createService({ deriveIcaFromConfig, multiProvider });
     service.upsertCommitmentInDB = sinon.stub().resolves(storedMetadata);
 
     const req = { body: icaPayload, log: mockLogger() };
@@ -171,7 +176,7 @@ describe('CallCommitmentsService.handleCommitment', () => {
 
     await service.handleCommitment(req, res);
 
-    expect(icaApp.getAccount.called).to.be.true;
+    expect(deriveIcaFromConfig.calledOnce).to.be.true;
     expect(res.status.calledWith(200)).to.be.true;
     expect(
       res.json.calledWithMatch({
@@ -296,6 +301,23 @@ describe('CallCommitmentsService.handleCommitment', () => {
     expect(res.json.calledWith({ error: 'Internal server error' })).to.be.true;
   });
 
+  it('does not write when ICA derivation fails', async () => {
+    const deriveIcaFromConfig = sinon
+      .stub()
+      .rejects(new Error('destination RPC unavailable'));
+    const service = createService({ deriveIcaFromConfig });
+    service.upsertCommitmentInDB = sinon.stub();
+    const res = mockRes();
+
+    await service.handleCommitment(
+      { body: icaPayload, log: mockLogger() },
+      res,
+    );
+
+    expect(res.status.calledWith(400)).to.be.true;
+    expect(service.upsertCommitmentInDB.called).to.be.false;
+  });
+
   it('routes legacy payload to deriveIcaFromDispatchTx', async () => {
     const multiProvider = {
       getChainName: sinon.stub().returns('ethereum'),
@@ -417,6 +439,275 @@ describe('CallCommitmentsService.handleCommitment', () => {
 
     expect(caught).to.equal(error);
     expect(findUnique.called).to.be.false;
+  });
+});
+
+describe('CallCommitmentsService.deriveIcaFromConfig', () => {
+  const originDomain = 1;
+  const destinationDomain = 2;
+  const originRouterAddress = '0x' + '11'.repeat(20);
+  const destinationRouterAddress = '0x' + '22'.repeat(20);
+  const ismAddress = '0x' + '33'.repeat(20);
+  const bytecodeHash = '0x' + '44'.repeat(32);
+
+  function expectedIca({
+    owner = icaPayload.owner,
+    originRouter = addressToBytes32(originRouterAddress),
+    ism = addressToBytes32(ismAddress),
+    userSalt = InterchainAccount.EMPTY_SALT,
+  }: {
+    owner?: string;
+    originRouter?: string;
+    ism?: string;
+    userSalt?: string;
+  } = {}) {
+    const deploySalt = utils.solidityKeccak256(
+      ['uint32', 'bytes32', 'bytes32', 'bytes32', 'bytes32'],
+      [
+        originDomain,
+        addressToBytes32(owner),
+        addressToBytes32(bytes32ToAddress(originRouter)),
+        utils.hexZeroPad(bytes32ToAddress(addressToBytes32(ism)), 32),
+        userSalt,
+      ],
+    );
+    return utils.getCreate2Address(
+      destinationRouterAddress,
+      deploySalt,
+      bytecodeHash,
+    );
+  }
+
+  function createService({
+    router = addressToBytes32(originRouterAddress),
+    ism = addressToBytes32(ismAddress),
+    hash = bytecodeHash,
+    origin = originDomain,
+    destinationAddress = destinationRouterAddress,
+  }: {
+    router?: string;
+    ism?: string;
+    hash?: string | Error;
+    origin?: number | null;
+    destinationAddress?: string;
+  } = {}) {
+    const destinationRouter = {
+      address: destinationAddress,
+      routers: sinon.stub().resolves(router),
+      isms: sinon.stub().resolves(ism),
+      bytecodeHash:
+        hash instanceof Error
+          ? sinon.stub().rejects(hash)
+          : sinon.stub().resolves(hash),
+      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)': sinon
+        .stub()
+        .callsFake(
+          async (
+            requestedOrigin: number,
+            owner: string,
+            requestedRouter: string,
+            requestedIsm: string,
+            userSalt: string,
+          ) => {
+            expect(requestedOrigin).to.equal(originDomain);
+            const deploySalt = utils.solidityKeccak256(
+              ['uint32', 'bytes32', 'bytes32', 'bytes32', 'bytes32'],
+              [
+                requestedOrigin,
+                owner,
+                requestedRouter,
+                addressToBytes32(requestedIsm),
+                userSalt,
+              ],
+            );
+            return utils.getCreate2Address(
+              destinationRouterAddress,
+              deploySalt,
+              bytecodeHash,
+            );
+          },
+        ),
+    };
+    const multiProvider = {
+      getChainName: sinon
+        .stub()
+        .callsFake((domain: number) =>
+          domain === originDomain ? 'ethereum' : 'optimism',
+        ),
+      tryGetDomainId: sinon.stub().returns(origin),
+    };
+    const service = Object.create(CallCommitmentsService.prototype);
+    service.multiProvider = multiProvider;
+    service.icaApp = {
+      contractsMap: { optimism: {} },
+      router: sinon.stub().returns(destinationRouter),
+    };
+    return { service, destinationRouter, multiProvider };
+  }
+
+  it('derives default and custom salts without the contract getter', async () => {
+    for (const userSalt of [undefined, '0x' + '55'.repeat(32)]) {
+      const { service, destinationRouter } = createService();
+      const data = {
+        ...icaPayload,
+        destinationDomain,
+        ...(userSalt && { userSalt }),
+      };
+
+      const actual = await service.deriveIcaFromConfig(data, mockLogger());
+
+      expect(actual).to.equal(
+        expectedIca({ userSalt: userSalt ?? InterchainAccount.EMPTY_SALT }),
+      );
+      expect(
+        destinationRouter[
+          'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+        ].called,
+      ).to.be.false;
+    }
+  });
+
+  it('matches the deployed Base router golden vector', async () => {
+    const owner = '0x' + '11'.repeat(20);
+    const baseRouter = '0x44647Cd983E80558793780f9a0c7C2aa9F384D07';
+    const ethereumRouter = '0xC00b94c115742f711a6F9EA90373c33e9B72A4A9';
+    const baseBytecodeHash =
+      '0x539ad958a6ba3e4d7d060e7c4eb03f58331e502aa3dcc578f34506ddac8b37e9';
+    const { service } = createService({
+      router: addressToBytes32(ethereumRouter),
+      ism: constants.HashZero,
+      hash: baseBytecodeHash,
+      destinationAddress: baseRouter,
+    });
+
+    const actual = await service.deriveIcaFromConfig(
+      { ...icaPayload, owner, destinationDomain },
+      mockLogger(),
+    );
+
+    expect(actual).to.equal('0xa35B6C3E1604A6da3da2fb1210053Ba876d09CE7');
+  });
+
+  it('preserves a bytes32 owner and normalizes router and ISM like the SDK', async () => {
+    const owner = '0x' + '66'.repeat(32);
+    const rawRouter = `0x${'77'.repeat(12)}${'88'.repeat(20)}`;
+    const rawIsm = `0x${'99'.repeat(12)}${'aa'.repeat(20)}`;
+    const { service } = createService({ router: rawRouter, ism: rawIsm });
+
+    const actual = await service.deriveIcaFromConfig(
+      { ...icaPayload, owner, destinationDomain },
+      mockLogger(),
+    );
+
+    expect(actual).to.equal(
+      expectedIca({ owner, originRouter: rawRouter, ism: rawIsm }),
+    );
+  });
+
+  it('starts independent reads concurrently', async () => {
+    const { service, destinationRouter } = createService();
+    const pending: Array<{
+      promise: Promise<string>;
+      resolve(value: string): void;
+    }> = [];
+    for (const method of ['routers', 'isms', 'bytecodeHash'] as const) {
+      let resolve!: (value: string) => void;
+      const promise = new Promise<string>((complete) => {
+        resolve = complete;
+      });
+      pending.push({ promise, resolve });
+      destinationRouter[method].returns(promise);
+    }
+
+    const derivation = service.deriveIcaFromConfig(
+      { ...icaPayload, destinationDomain },
+      mockLogger(),
+    );
+
+    expect(destinationRouter.routers.calledOnce).to.be.true;
+    expect(destinationRouter.isms.calledOnce).to.be.true;
+    expect(destinationRouter.bytecodeHash.calledOnce).to.be.true;
+    pending[0].resolve(addressToBytes32(originRouterAddress));
+    pending[1].resolve(addressToBytes32(ismAddress));
+    pending[2].resolve(bytecodeHash);
+    expect(await derivation).to.equal(expectedIca());
+  });
+
+  it('uses an ISM override without reading the enrolled ISM', async () => {
+    const override = '0x' + 'aa'.repeat(20);
+    const { service, destinationRouter } = createService();
+
+    const actual = await service.deriveIcaFromConfig(
+      { ...icaPayload, destinationDomain, ismOverride: override },
+      mockLogger(),
+    );
+
+    expect(destinationRouter.isms.called).to.be.false;
+    expect(actual).to.equal(expectedIca({ ism: addressToBytes32(override) }));
+  });
+
+  it('falls back to the contract getter only when bytecodeHash is unavailable', async () => {
+    const missingSelector = Object.assign(new Error('missing selector'), {
+      code: 'CALL_EXCEPTION',
+      data: '0x',
+    });
+    const { service, destinationRouter } = createService({
+      hash: missingSelector,
+    });
+
+    const actual = await service.deriveIcaFromConfig(
+      { ...icaPayload, destinationDomain },
+      mockLogger(),
+    );
+
+    expect(actual).to.equal(expectedIca());
+    expect(
+      destinationRouter[
+        'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+      ].calledOnce,
+    ).to.be.true;
+  });
+
+  it('does not mask a bytecodeHash RPC failure', async () => {
+    const error = new Error('RPC unavailable');
+    const { service, destinationRouter } = createService({ hash: error });
+
+    let caught: unknown;
+    try {
+      await service.deriveIcaFromConfig(
+        { ...icaPayload, destinationDomain },
+        mockLogger(),
+      );
+    } catch (thrown: unknown) {
+      caught = thrown;
+    }
+
+    expect(caught).to.equal(error);
+    expect(
+      destinationRouter[
+        'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+      ].called,
+    ).to.be.false;
+  });
+
+  it('rejects zero or missing origin routing metadata', async () => {
+    const zeroRouter = createService({
+      router: constants.HashZero,
+    });
+    const missingDomain = createService({ origin: 0 });
+
+    for (const { service } of [zeroRouter, missingDomain]) {
+      let caught: unknown;
+      try {
+        await service.deriveIcaFromConfig(
+          { ...icaPayload, destinationDomain },
+          mockLogger(),
+        );
+      } catch (thrown: unknown) {
+        caught = thrown;
+      }
+      expect(caught).to.be.instanceOf(Error);
+    }
   });
 });
 
