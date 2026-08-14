@@ -5,7 +5,7 @@ import { Registry } from 'prom-client';
 import sinon from 'sinon';
 
 import { InterchainAccount, MultiProvider } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, isNullish } from '@hyperlane-xyz/utils';
 
 import { CallCommitmentsService } from '../../src/services/CallCommitmentsService.js';
 import {
@@ -60,7 +60,10 @@ async function startTestServer() {
   const server = app.listen(0);
   await new Promise<void>((resolve) => server.once('listening', resolve));
   const address = server.address();
-  assert(address && typeof address !== 'string', 'Expected TCP server address');
+  assert(
+    !isNullish(address) && typeof address !== 'string',
+    'Expected TCP server address',
+  );
   const { port } = address;
 
   return {
