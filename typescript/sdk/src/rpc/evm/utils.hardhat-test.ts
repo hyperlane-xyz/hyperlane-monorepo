@@ -135,6 +135,51 @@ describe('RPC Utils', () => {
       expect(historicalProbes).to.have.length(1);
     });
 
+    // Characterization, not a specification: this records the gap described in
+    // the caveat on getContractCreationBlockFromRpc's JSDoc, where an endpoint
+    // that prunes without erroring cannot be told apart from one reporting a
+    // genuine pre-deployment state. The behaviour asserted below is wrong and
+    // known to be wrong; when the search learns to detect this, invert the
+    // expectations rather than deleting the case.
+    it('documents that an endpoint pruning silently places the deployment too late', async () => {
+      await mineRandomNumberOfBlocks();
+
+      await deployTestErc20();
+
+      await mineRandomNumberOfBlocks();
+      await mineRandomNumberOfBlocks();
+
+      const provider = multiProvider.getProvider(TestChainName.test1);
+      const realGetCode = provider.getCode.bind(provider);
+
+      // The contract exists from deploymentBlockNumber, but the endpoint only
+      // holds state from a later block and answers below it as though it were
+      // empty.
+      const retentionFloor = deploymentBlockNumber + 5;
+      expect(
+        await realGetCode(testContract.address, deploymentBlockNumber),
+      ).not.to.equal('0x');
+
+      sinon.stub(provider, 'getCode').callsFake(async (address, blockTag) => {
+        if (isNullish(blockTag) || Number(blockTag) >= retentionFloor) {
+          return realGetCode(address, blockTag);
+        }
+        return '0x';
+      });
+
+      const foundBlock = await getContractCreationBlockFromRpc(
+        TestChainName.test1,
+        testContract.address,
+        multiProvider,
+      );
+
+      // The defect: the search settles on the oldest block the endpoint still
+      // holds, so every event between the deployment and that block is below
+      // any scan started here.
+      expect(foundBlock).to.be.greaterThan(deploymentBlockNumber);
+      expect(foundBlock).to.equal(retentionFloor);
+    });
+
     it('should throw an error for non-existing contract address', async () => {
       const nonExistentAddress = randomAddress();
 
