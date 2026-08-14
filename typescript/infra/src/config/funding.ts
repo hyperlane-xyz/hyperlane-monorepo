@@ -42,6 +42,8 @@ export interface KeyFunderConfig<
   desiredStableswapInventoryRebalancerBalancePerChain?: ChainMap<string>;
   igpClaimThresholdPerChain: ChainMap<string>;
   chainsToSkip: ChainName[];
+  // Emergency kill switch for automatic sweeps. Defaults to enabled.
+  sweepEnabled?: boolean;
   // Per-chain overrides for automatic sweep of excess funds
   // Defaults: sweep to 0x5b73A98165778BCCE72979B4EE3faCdb31728b8E when balance > 2x threshold, leave behind 1.5x threshold
   sweepOverrides?: ChainMap<SweepOverrideConfig>;
