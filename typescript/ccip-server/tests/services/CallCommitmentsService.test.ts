@@ -5,10 +5,11 @@ import sinon from 'sinon';
 import {
   PostCallsSchema,
   commitmentFromIcaCalls,
+  encodeIcaCalls,
   isPostCallsIca,
   normalizeCalls,
 } from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
+import { addressToBytes32, formatMessage } from '@hyperlane-xyz/utils';
 
 import { prisma } from '../../src/db.js';
 import { CallCommitmentsService } from '../../src/services/CallCommitmentsService.js';
@@ -481,6 +482,73 @@ describe('CallCommitmentsService.handleCheckCommitment', () => {
     expect(res.set.calledWith('Cache-Control', 'no-store')).to.be.true;
     expect(res.status.calledWith(500)).to.be.true;
     expect(res.json.calledWith({ error: 'Internal server error' })).to.be.true;
+  });
+});
+
+describe('CallCommitmentsService.handleFetchCommitment', () => {
+  function createService() {
+    const service = Object.create(CallCommitmentsService.prototype);
+    service.addLoggerServiceContext = () => mockLogger();
+    return service;
+  }
+
+  const commitment = commitmentFromIcaCalls(baseCalls, salt);
+  const revealBody = utils.solidityPack(
+    ['uint8', 'bytes32', 'bytes32'],
+    [2, salt, commitment],
+  );
+  const message = formatMessage(
+    3,
+    0,
+    1,
+    validAddress,
+    2,
+    validAddress,
+    revealBody,
+  );
+
+  it('authorizes an unpadded EVM relayer stored as bytes32', async () => {
+    const service = createService();
+    service.fetchCommitmentRecord = sinon.stub().resolves({
+      commitment,
+      calls: baseCalls,
+      salt,
+      ica: mockIca,
+      originDomain: 1,
+      relayers: [addressToBytes32(baseRelayers[0])],
+    });
+
+    const result = await service.handleFetchCommitment(
+      message,
+      baseRelayers[0],
+      mockLogger(),
+    );
+
+    expect(result).to.equal(
+      mockIca + encodeIcaCalls(normalizeCalls(baseCalls), salt).slice(2),
+    );
+  });
+
+  it('rejects an unlisted EVM relayer when the allowlist uses bytes32', async () => {
+    const service = createService();
+    service.fetchCommitmentRecord = sinon.stub().resolves({
+      commitment,
+      calls: baseCalls,
+      salt,
+      ica: mockIca,
+      originDomain: 1,
+      relayers: [addressToBytes32(baseRelayers[0])],
+    });
+
+    const result = await service.handleFetchCommitment(
+      message,
+      baseRelayers[1],
+      mockLogger(),
+    );
+
+    expect(JSON.parse(result)).to.deep.equal({
+      error: `Relayer ${baseRelayers[1]} not authorized for this commitment`,
+    });
   });
 });
 

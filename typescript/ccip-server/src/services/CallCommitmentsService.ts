@@ -29,7 +29,6 @@ import {
   addressToBytes32,
   bytes32ToAddress,
   assert,
-  eqAddress,
   parseMessage,
 } from '@hyperlane-xyz/utils';
 
@@ -144,6 +143,14 @@ function normalizedRelayerSet(relayers: string[]): string[] {
       }),
     ),
   ].sort();
+}
+
+function includesRelayer(relayers: string[], relayer: string): boolean {
+  const normalizedRelayer = normalizedRelayerSet([relayer])[0];
+  return (
+    normalizedRelayer !== undefined &&
+    normalizedRelayerSet(relayers).includes(normalizedRelayer)
+  );
 }
 
 function hasMatchingCommitmentMetadata(
@@ -428,7 +435,7 @@ export class CallCommitmentsService extends BaseService {
 
       if (
         record.relayers.length > 0 &&
-        !record.relayers.find((r: string) => eqAddress(r, relayer))
+        !includesRelayer(record.relayers, relayer)
       ) {
         log.warn(
           {
