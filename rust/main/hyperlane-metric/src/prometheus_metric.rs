@@ -46,6 +46,13 @@ pub const REQUEST_DURATION_SECONDS_LABELS: &[&str] = &[
 /// Help string for the metric.
 pub const REQUEST_DURATION_SECONDS_HELP: &str = "Total number of seconds spent making requests";
 
+/// Expected label names for the finalized-block request cache metric.
+pub const REQUEST_CACHE_COUNT_LABELS: &[&str] =
+    &["provider_node", "chain", "method", "result", "rpc_role"];
+/// Help string for the finalized-block request cache metric.
+pub const REQUEST_CACHE_COUNT_HELP: &str =
+    "Logical reads, cache hits, upstream reads, and upstream errors for cached RPC requests";
+
 /// Container for all the relevant rpc client metrics.
 #[derive(Clone, Builder, Default)]
 pub struct PrometheusClientMetrics {
@@ -82,6 +89,15 @@ pub struct PrometheusClientMetrics {
     ///   might still be an "error" but not one with the transport layer.
     #[builder(setter(into, strip_option), default)]
     pub request_duration_seconds: Option<CounterVec>,
+
+    /// Finalized-block request cache events.
+    /// - `provider_node`: node serving the request.
+    /// - `chain`: chain the request was made on.
+    /// - `method`: JSON-RPC method.
+    /// - `result`: `logical_read`, `cache_hit`, `upstream_read`, or `upstream_error`.
+    /// - `rpc_role`: primary or quorum pool.
+    #[builder(setter(into, strip_option), default)]
+    pub request_cache_count: Option<IntCounterVec>,
 }
 
 impl PrometheusClientMetrics {
@@ -128,6 +144,26 @@ impl PrometheusClientMetrics {
                 .with(&labels)
                 .inc_by((Instant::now().saturating_duration_since(start)).as_secs_f64())
         };
+    }
+
+    /// Increment a finalized-block request cache event.
+    pub fn increment_request_cache_metric(
+        &self,
+        config: &PrometheusConfig,
+        method: &str,
+        result: &str,
+    ) {
+        if let Some(counter) = &self.request_cache_count {
+            counter
+                .with_label_values(&[
+                    config.node_host(),
+                    config.chain_name(),
+                    method,
+                    result,
+                    config.rpc_role.as_str(),
+                ])
+                .inc();
+        }
     }
 }
 
