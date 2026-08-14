@@ -69,7 +69,10 @@ export class SvmProtocolProvider implements ProtocolProvider {
         return new AltVMJsonRpcSubmitter(signer, { chain });
       }
       case SubmitterType.ImpersonatedAccount: {
-        const signer = await SvmImpersonatingSigner.connect(chainMetadata);
+        const signer = await SvmImpersonatingSigner.create(
+          chainMetadata,
+          submitterConfig.userAddress,
+        );
         return new AltVMImpersonatedSubmitter(signer, { chain });
       }
       default:
