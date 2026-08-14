@@ -55,7 +55,10 @@ export interface ITransactionSubmitter {
 }
 
 abstract class BaseAltVMJsonRpcSubmitter implements ITransactionSubmitter {
-  public abstract readonly txSubmitterType: TransactionSubmitterType;
+  // Widened to `string` so each concrete leaf can pin its own literal — the
+  // released JsonRpc value is `'jsonRPC'`, which is not a TransactionSubmitterType
+  // member, and must be preserved for external discrimination.
+  public abstract readonly txSubmitterType: string;
 
   protected readonly logger: Logger;
 
@@ -99,8 +102,7 @@ abstract class BaseAltVMJsonRpcSubmitter implements ITransactionSubmitter {
 }
 
 export class AltVMJsonRpcSubmitter extends BaseAltVMJsonRpcSubmitter {
-  public readonly txSubmitterType: typeof SubmitterType.JsonRpc =
-    SubmitterType.JsonRpc;
+  public readonly txSubmitterType = 'jsonRPC' as const;
 }
 
 // Submission behavior is the base's; this subclass only requires an
