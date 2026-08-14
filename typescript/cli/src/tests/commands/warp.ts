@@ -195,12 +195,12 @@ export class HyperlaneE2EWarpTestCommands {
     warpRouteId,
     registry,
   }: {
-    warpRouteId: string;
+    warpRouteId?: string;
     registry?: string;
   }): ProcessPromise {
     return $`${localTestRunCmdPrefix()} hyperlane warp check \
           --registry ${registry ?? this.registryPath} \
-          --warp-route-id ${warpRouteId} \
+          ${warpRouteId ? ['--warp-route-id', warpRouteId] : []} \
           --verbosity debug`;
   }
 

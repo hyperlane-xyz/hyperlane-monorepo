@@ -72,6 +72,7 @@ import {
   PredicateWrapperConfig,
   OftTokenConfig,
   WarpRouteDeployConfig,
+  assertTimelockConfigHasNoProxyAdminOwnerOverride,
   isCctpTokenConfig,
   isCollateralTokenConfig,
   isEverclearCollateralTokenConfig,
@@ -158,6 +159,14 @@ abstract class TokenDeployer<
       contractVerifier,
       concurrentDeploy,
     }); // factories not used in deploy
+  }
+
+  async deployContracts(
+    chain: ChainName,
+    config: HypTokenRouterConfig,
+  ): Promise<HyperlaneContracts<Factories & ProxiedFactories>> {
+    assertTimelockConfigHasNoProxyAdminOwnerOverride(config, chain);
+    return super.deployContracts(chain, config);
   }
 
   async constructorArgs(
@@ -880,6 +889,10 @@ abstract class TokenDeployer<
     configMap: ChainMap<HypTokenRouterConfig>,
     rateLimitedIsms?: ChainMap<IsmConfig>,
   ): Promise<HyperlaneContractsMap<Factories & ProxiedFactories>> {
+    for (const [chain, config] of Object.entries(configMap)) {
+      assertTimelockConfigHasNoProxyAdminOwnerOverride(config, chain);
+    }
+
     // Fail fast if any chain requires a predicate wrapper but lacks the factory.
     // Checked before any on-chain work to avoid partial deployments.
     for (const [chain, config] of Object.entries(configMap)) {

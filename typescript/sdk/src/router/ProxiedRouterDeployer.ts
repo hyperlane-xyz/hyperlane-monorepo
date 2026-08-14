@@ -93,6 +93,17 @@ export abstract class ProxiedRouterDeployer<
         config.proxyAdmin.address,
         this.multiProvider.getSigner(chain),
       );
+      if (config.timelock) {
+        const [owner, signer] = await Promise.all([
+          proxyAdmin.owner(),
+          this.multiProvider.getSignerAddress(chain),
+        ]);
+        if (!eqAddress(owner, signer)) {
+          throw new Error(
+            `Cannot configure timelock with supplied ProxyAdmin ${proxyAdmin.address} on ${chain}: signer ${signer} is not ProxyAdmin owner ${owner}`,
+          );
+        }
+      }
     } else {
       this.logger.debug(
         `A ProxyAdmin config has not been supplied for chain ${chain}, deploying a new contract`,

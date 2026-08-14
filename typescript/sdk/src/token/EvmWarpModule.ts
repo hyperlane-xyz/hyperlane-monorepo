@@ -13,6 +13,7 @@ import {
   ProxyAdmin__factory,
   StaticAggregationHook__factory,
   StaticAggregationHookFactory__factory,
+  TimelockController__factory,
   TokenBridgeCctpV2__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
@@ -51,7 +52,9 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import {
+  contractHasCode,
   isInitialized,
+  isStorageEmpty,
   proxyAdmin,
   proxyAdminUpdateTxs,
 } from '../deploy/proxy.js';
@@ -68,6 +71,13 @@ import { PredicateWrapperDeployer } from '../predicate/PredicateDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
+import {
+  CANCELLER_ROLE,
+  EXECUTOR_ROLE,
+  PROPOSER_ROLE,
+  TIMELOCK_ADMIN_ROLE,
+} from '../timelock/evm/constants.js';
+import { isDeterministicTimelockReadError } from '../timelock/evm/errors.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { scalesEqual } from '../utils/decimals.js';
 import { IsmType } from '../ism/types.js';
@@ -156,6 +166,10 @@ export class EvmWarpModule extends HyperlaneModule<
   HypTokenRouterConfig,
   WarpRouteAddresses
 > {
+  private static readonly deployedTimelockByProvider = new WeakMap<
+    MultiProvider,
+    Map<string, Address>
+  >();
   protected logger = rootLogger.child({
     module: 'EvmWarpModule',
   });
@@ -218,6 +232,168 @@ export class EvmWarpModule extends HyperlaneModule<
     return config;
   }
 
+  private async timelockMatchesConfig(
+    timelockAddress: Address,
+    config: NonNullable<HypTokenRouterConfig['timelock']>,
+    codeAlreadyVerified = false,
+  ): Promise<boolean> {
+    const provider = this.multiProvider.getProvider(this.chainName);
+    if (
+      !codeAlreadyVerified &&
+      isStorageEmpty(await provider.getCode(timelockAddress))
+    ) {
+      this.logger.debug(
+        { chain: this.chainName, timelockAddress },
+        'ProxyAdmin owner has no contract code and is not a TimelockController',
+      );
+      return false;
+    }
+
+    const timelockController = TimelockController__factory.connect(
+      timelockAddress,
+      provider,
+    );
+
+    try {
+      const [delay, hasProposer, hasExecutor, hasCanceller, hasAdminSelf] =
+        await Promise.all([
+          timelockController.getMinDelay(),
+          timelockController.hasRole(PROPOSER_ROLE, config.roles.proposer),
+          timelockController.hasRole(EXECUTOR_ROLE, config.roles.executor),
+          timelockController.hasRole(CANCELLER_ROLE, config.roles.proposer),
+          timelockController.hasRole(TIMELOCK_ADMIN_ROLE, timelockAddress),
+        ]);
+
+      return (
+        delay.eq(config.delay) &&
+        hasProposer &&
+        hasExecutor &&
+        hasCanceller &&
+        hasAdminSelf
+      );
+    } catch (error) {
+      if (!isDeterministicTimelockReadError(error)) throw error;
+      this.logger.debug(
+        { chain: this.chainName, error, timelockAddress },
+        'ProxyAdmin owner does not match the expected timelock config',
+      );
+      return false;
+    }
+  }
+
+  private async cachedTimelockMatchesConfig(
+    timelockAddress: Address,
+    config: NonNullable<HypTokenRouterConfig['timelock']>,
+  ): Promise<boolean> {
+    const provider = this.multiProvider.getProvider(this.chainName);
+    if (!(await contractHasCode(provider, timelockAddress))) {
+      this.logger.debug(
+        { chain: this.chainName, timelockAddress },
+        'Cached TimelockController has no code after visibility retry',
+      );
+      return false;
+    }
+    return this.timelockMatchesConfig(timelockAddress, config, true);
+  }
+
+  private async configWithTimelockProxyAdminOwner(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): Promise<HypTokenRouterConfig> {
+    if (!expectedConfig.timelock) return expectedConfig;
+
+    assert(
+      actualConfig.proxyAdmin?.address && actualConfig.proxyAdmin.owner,
+      `Cannot configure timelock for non-proxied warp route on ${this.chainName}`,
+    );
+    assert(
+      !expectedConfig.proxyAdmin?.address ||
+        eqAddress(
+          expectedConfig.proxyAdmin.address,
+          actualConfig.proxyAdmin.address,
+        ),
+      `Cannot configure timelock while changing ProxyAdmin address on ${this.chainName}`,
+    );
+
+    let timelockControllerAddress: Address | undefined;
+    if (
+      await this.timelockMatchesConfig(
+        actualConfig.proxyAdmin.owner,
+        expectedConfig.timelock,
+      )
+    ) {
+      timelockControllerAddress = actualConfig.proxyAdmin.owner;
+    } else {
+      const timelockCacheKey = this.timelockDeploymentCacheKey(
+        actualConfig.proxyAdmin.address,
+        expectedConfig.timelock,
+      );
+      const deployedTimelockByConfig = EvmWarpModule.deployedTimelockByConfig(
+        this.multiProvider,
+      );
+      const cachedTimelockControllerAddress =
+        deployedTimelockByConfig.get(timelockCacheKey);
+      if (
+        cachedTimelockControllerAddress &&
+        (await this.cachedTimelockMatchesConfig(
+          cachedTimelockControllerAddress,
+          expectedConfig.timelock,
+        ))
+      ) {
+        timelockControllerAddress = cachedTimelockControllerAddress;
+      } else {
+        timelockControllerAddress = (
+          await new HypERC20Deployer(
+            this.multiProvider,
+            undefined,
+            this.contractVerifier,
+          ).deployTimelock(this.chainName, expectedConfig.timelock)
+        ).address;
+        deployedTimelockByConfig.set(
+          timelockCacheKey,
+          timelockControllerAddress,
+        );
+      }
+    }
+
+    return {
+      ...expectedConfig,
+      proxyAdmin: {
+        ...expectedConfig.proxyAdmin,
+        address: actualConfig.proxyAdmin.address,
+        owner: timelockControllerAddress,
+      },
+    };
+  }
+
+  private timelockDeploymentCacheKey(
+    proxyAdminAddress: Address,
+    config: NonNullable<HypTokenRouterConfig['timelock']>,
+  ): string {
+    return JSON.stringify({
+      chainName: this.chainName,
+      delay: config.delay.toString(),
+      executor: normalizeAddressEvm(config.roles.executor),
+      proposer: normalizeAddressEvm(config.roles.proposer),
+      proxyAdminAddress: normalizeAddressEvm(proxyAdminAddress),
+    });
+  }
+
+  private static deployedTimelockByConfig(
+    multiProvider: MultiProvider,
+  ): Map<string, Address> {
+    let deployedTimelockByConfig =
+      EvmWarpModule.deployedTimelockByProvider.get(multiProvider);
+    if (!deployedTimelockByConfig) {
+      deployedTimelockByConfig = new Map();
+      EvmWarpModule.deployedTimelockByProvider.set(
+        multiProvider,
+        deployedTimelockByConfig,
+      );
+    }
+    return deployedTimelockByConfig;
+  }
+
   /**
    * Updates the Warp Route contract with the provided configuration.
    *
@@ -225,6 +401,13 @@ export class EvmWarpModule extends HyperlaneModule<
    * The PredicateRouterWrapper contract is deployed on-chain during planning (before this
    * method returns). If the returned transactions are never submitted, the wrapper is
    * orphaned. See PredicateWrapperDeployer.deployAndConfigure for details.
+   *
+   * IMPORTANT — irreversible side effects when expectedConfig includes `timelock`:
+   * A TimelockController may be deployed on-chain during planning so the returned ownership
+   * transactions can transfer ProxyAdmin ownership to it. The deployment address is cached
+   * per MultiProvider, revalidated, and reused across retries for the same
+   * chain/ProxyAdmin/timelock config, but a declined or externally persisted
+   * transaction plan can still leave an untracked timelock deployment.
    *
    * @param expectedConfig - The configuration for the token router to be updated.
    * @returns `{txs, feeTxs, ownershipTxs}` — main txs (includes router-owner `setFeeRecipient`), fee-contract-owner txs (safe to route to a dedicated feeSubmitter), and ownership/proxyAdmin txs that must execute last.
@@ -235,6 +418,10 @@ export class EvmWarpModule extends HyperlaneModule<
   ): Promise<WarpUpdateResult> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
+    expectedConfig = await this.configWithTimelockProxyAdminOwner(
+      actualConfig,
+      expectedConfig,
+    );
     const transactions = [];
 
     let xerc20Txs: AnnotatedEV5Transaction[] = [];
