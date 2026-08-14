@@ -801,8 +801,9 @@ const FIELDS_TO_IGNORE = new Set<keyof HypTokenRouterConfig>([
 ]);
 
 // Nested LinearFee sub-fee owners are intentionally excluded from the warp
-// check. A LinearFee owner's only lever is setFee (bps), and bps is compared
-// directly, so its owner carries no additional security-relevant authority.
+// check. LinearFee pricing parameters are immutable, and transfer fees accrue
+// at the top-level RoutingFee, so its owner has no live pricing or treasury
+// authority over the route.
 // Collapsing nested LinearFee owners to a fixed sentinel on both sides of the
 // diff makes that owner drift invisible while the top-level RoutingFee owner
 // (which controls setFeeContract routing and claim) still diffs normally.
