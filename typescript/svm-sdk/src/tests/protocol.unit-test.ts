@@ -101,7 +101,9 @@ describe('SvmProtocolProvider', () => {
           privateKey: TEST_PRIVATE_KEY,
         },
         expectedInstance: AltVMJsonRpcSubmitter,
-        expectedSubmitterType: SubmitterType.JsonRpc,
+        // Released label is 'jsonRPC' (capital RPC), distinct from the config
+        // discriminant SubmitterType.JsonRpc; preserved for external consumers.
+        expectedSubmitterType: 'jsonRPC',
       },
       {
         // Keyless: the impersonated submitter pays fees from a fixed fork

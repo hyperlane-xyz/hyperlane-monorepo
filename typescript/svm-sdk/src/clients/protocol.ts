@@ -75,10 +75,14 @@ export class SvmProtocolProvider implements ProtocolProvider {
         );
         return new AltVMImpersonatedSubmitter(signer, { chain });
       }
-      default:
+      case SubmitterType.File:
         throw new Error(
           `File submission is a Node/CLI-layer concern and is not available via the browser-safe Sealevel provider (submitter type: ${submitterConfig.type})`,
         );
+      default: {
+        const _exhaustive: never = submitterConfig;
+        throw new Error(`Unhandled submitter type: ${_exhaustive}`);
+      }
     }
   }
 
