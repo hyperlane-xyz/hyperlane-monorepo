@@ -38,12 +38,16 @@ const MESSAGE_BLACKLISTED_EVENT_SELECTOR = toEventSelector(
  * entries are append-only. Those deployments also emit on re-adds, hence the
  * de-duplication.
  *
- * Throws when the set cannot be established, and never returns a partial list. A
- * truncated set would be diffed as "these IDs are missing on-chain" and could be
- * written back as the complete set, and a Blacklist ISM config without its
- * entries does not describe the deployment it claims to. Errors that are not a
- * missing `values()` selector propagate, so a transient RPC failure is never
- * read as a legacy deployment.
+ * Throws rather than returning a set it can tell is incomplete. A truncated set
+ * would be diffed as "these IDs are missing on-chain" and could be written back
+ * as the complete set, and a Blacklist ISM config without its entries does not
+ * describe the deployment it claims to. Errors that are not a missing `values()`
+ * selector propagate, so a transient RPC failure is never read as a legacy
+ * deployment.
+ *
+ * What it cannot tell is covered by the two caveats at the end of this comment:
+ * a source that answers successfully but incompletely is taken at its word,
+ * because nothing in such a response distinguishes it from a complete one.
  *
  * An empty set is a result, not a failure: a Blacklist ISM that has never
  * blacklisted anything returns [].
