@@ -1,6 +1,8 @@
 import { confirm } from '@inquirer/prompts';
+import type { Signer } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
+import { BaseFee__factory, TokenRouter__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   AltVMJsonRpcSubmitter,
@@ -39,9 +41,12 @@ import {
   CompositeIsmNodeType,
   ContractVerifier,
   EvmWarpModule,
+  EV5JsonRpcSubmissionError,
+  EV5JsonRpcTxSubmitter,
   ExplorerLicenseType,
   HypERC20Deployer,
   IsmType,
+  OnchainTokenFeeType,
   type MultiProvider,
   type MultisigIsmConfig,
   type OpStackIsmConfig,
@@ -52,6 +57,7 @@ import {
   type SubmissionStrategy,
   type SubmitterMetadata,
   type TokenMetadataMap,
+  TokenFeeType,
   TokenType,
   type TrustedRelayerIsmConfig,
   type TxSubmitterBuilder,
@@ -81,6 +87,7 @@ import {
   type Annotated,
   addressToBytes32,
   assert,
+  eqAddress,
   formatError,
   isEVMLike,
   isNullish,
@@ -132,10 +139,11 @@ interface DeployParams {
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
 }
 
-interface WarpApplyParams extends DeployParams {
+export interface WarpApplyParams extends DeployParams {
   warpCoreConfig: WarpCoreConfig;
   strategyUrl?: string;
   receiptsDir: string;
+  feeSigner?: Signer;
   selfRelay?: boolean;
   warpRouteId?: string;
 }
@@ -499,6 +507,8 @@ export async function runWarpRouteApply(
     warpDeployConfig,
   });
 
+  await preflightFeeSigner(params);
+
   const chains = Object.keys(warpDeployConfig);
 
   let apiKeys: ChainMap<string> = {};
@@ -565,6 +575,76 @@ export async function runWarpRouteApply(
     updateTransactions,
     feeUpdateTransactions,
     ownershipTransactions,
+  );
+}
+
+/**
+ * Verifies the dedicated signer can authorize every JSON-RPC fee submission
+ * before warp apply deploys replacement fee contracts.
+ */
+export async function preflightFeeSigner({
+  context,
+  feeSigner,
+  strategyUrl,
+  warpCoreConfig,
+  warpDeployConfig,
+}: WarpApplyParams): Promise<void> {
+  if (!feeSigner) return;
+
+  assert(
+    strategyUrl,
+    'A submission strategy is required when using a dedicated fee signer',
+  );
+  const strategy = readChainSubmissionStrategy(strategyUrl);
+  const signerAddress = await feeSigner.getAddress();
+  const routerAddresses = getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
+  let configuredFeeSubmitter = false;
+
+  for (const [chain, chainStrategy] of Object.entries(strategy)) {
+    if (chainStrategy.feeSubmitter?.type !== TxSubmitterType.JSON_RPC) continue;
+    configuredFeeSubmitter = true;
+
+    assert(
+      context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+      `Dedicated EVM fee signer cannot submit ${chainStrategy.feeSubmitter.type} transactions on non-Ethereum chain ${chain}`,
+    );
+
+    const targetFeeConfig = warpDeployConfig[chain]?.tokenFee;
+    assert(
+      targetFeeConfig?.type === TokenFeeType.RoutingFee,
+      `Dedicated fee signer requires a target RoutingFee config on ${chain}`,
+    );
+    assert(
+      eqAddress(targetFeeConfig.owner, signerAddress),
+      `Dedicated fee signer ${signerAddress} does not match target RoutingFee owner ${targetFeeConfig.owner} on ${chain}`,
+    );
+
+    const routerAddress = routerAddresses[chain];
+    if (!routerAddress) continue;
+
+    const provider = context.multiProvider.getProvider(chain);
+    const feeRecipient = await TokenRouter__factory.connect(
+      routerAddress,
+      provider,
+    ).feeRecipient();
+    const liveFee = BaseFee__factory.connect(feeRecipient, provider);
+    const [feeType, liveOwner] = await Promise.all([
+      liveFee.feeType(),
+      liveFee.owner(),
+    ]);
+    assert(
+      feeType === OnchainTokenFeeType.RoutingFee,
+      `Existing fee recipient ${feeRecipient} on ${chain} is not a RoutingFee`,
+    );
+    assert(
+      eqAddress(liveOwner, signerAddress),
+      `Dedicated fee signer ${signerAddress} does not match live RoutingFee owner ${liveOwner} on ${chain}`,
+    );
+  }
+
+  assert(
+    configuredFeeSubmitter,
+    'Submission strategy has no JSON-RPC feeSubmitter for the dedicated fee signer',
   );
 }
 
@@ -1296,10 +1376,12 @@ function buildAltVmSubmitterFactories({
 async function getFeeSubmitterByStrategy<T extends ProtocolType>({
   chain,
   context,
+  feeSigner,
   strategyUrl,
 }: {
   chain: ChainName;
   context: WriteCommandContext;
+  feeSigner?: Signer;
   strategyUrl?: string;
 }): Promise<TxSubmitterBuilder<T> | undefined> {
   const { multiProvider, altVmSigners, registry } = context;
@@ -1322,6 +1404,24 @@ async function getFeeSubmitterByStrategy<T extends ProtocolType>({
     [ProtocolType.Ethereum]: {
       file: (_multiProvider: MultiProvider, metadata: any) =>
         new EV5FileSubmitter(metadata),
+      ...(feeSigner
+        ? {
+            [TxSubmitterType.JSON_RPC]: (
+              feeMultiProvider: MultiProvider,
+              metadata: SubmitterMetadata,
+            ) => {
+              assert(
+                metadata.type === TxSubmitterType.JSON_RPC,
+                `Invalid fee submitter type ${metadata.type}`,
+              );
+              return new EV5JsonRpcTxSubmitter(
+                feeMultiProvider,
+                metadata,
+                feeSigner,
+              );
+            },
+          }
+        : {}),
     },
   };
 
@@ -1515,13 +1615,14 @@ async function submitChainTransactions(
       // live (so fee txs are kept out of the retried main submit() and isolated
       // here). Intentionally wrapped in try/catch so a fee failure does NOT bubble
       // up to retryAsync and re-run the main submit block (which would rebroadcast
-      // already-submitted main txs); the failure is surfaced as a soft warning via
-      // returnedFeeError instead.
+      // already-submitted main txs). The failure is returned so the caller can
+      // preserve other chain results before exiting nonzero.
       if (!mergeFeeIntoMain && feeTxs.length > 0) {
         try {
           const dedicatedFeeSubmitter = await getFeeSubmitterByStrategy({
             chain,
             context: params.context,
+            feeSigner: params.feeSigner,
             strategyUrl: params.strategyUrl,
           });
           // Fall back to the main submitter when no dedicated feeSubmitter is
@@ -1552,8 +1653,21 @@ async function submitChainTransactions(
             );
           }
         } catch (error) {
+          if (
+            error instanceof EV5JsonRpcSubmissionError &&
+            error.submittedTransactions.length > 0
+          ) {
+            writePartialSubmissionResults(
+              params.receiptsDir,
+              chain,
+              'fee',
+              error,
+            );
+          }
           returnedFeeError =
-            error instanceof Error ? error.message : String(error);
+            error instanceof EV5JsonRpcSubmissionError
+              ? error.message
+              : formatError(error);
           warnYellow(
             `Error when submitting fee transactions for ${chain}`,
             error,
@@ -1655,6 +1769,7 @@ async function submitWarpApplyTransactions(
     );
 
     for (const [chain, error] of rejected) {
+      writePartialSubmissionResults(params.receiptsDir, chain, 'main', error);
       rootLogger.debug(
         `Error in submitWarpApplyTransactions for ${chain}`,
         error,
@@ -1695,17 +1810,35 @@ async function submitWarpApplyTransactions(
   // so a partial success (e.g. chain A ok, chain B failed) doesn't lose chain A's bundle.
   writeCombinedBundles(params.receiptsDir, allPayloads);
 
-  if (failures.length > 0) {
-    throw new Error(
+  const failureMessages: string[] = [];
+  if (failures.length > 0)
+    failureMessages.push(
       `Warp apply transaction submission failed for chain(s): ${failures.join(', ')}`,
     );
-  }
-
-  if (feeFailures.length > 0) {
-    warnYellow(
-      `Fee transaction submission failed for the following chain(s) — main transactions were NOT affected:\n${feeFailures.join('\n')}`,
+  if (feeFailures.length > 0)
+    failureMessages.push(
+      `Fee transaction submission failed; main transactions were not affected:\n${feeFailures.join('\n')}`,
     );
-  }
+  if (failureMessages.length > 0) throw new Error(failureMessages.join('\n'));
+}
+
+function writePartialSubmissionResults(
+  receiptsDir: string,
+  chain: ChainName,
+  bucket: 'fee' | 'main',
+  error: unknown,
+): void {
+  if (
+    !(error instanceof EV5JsonRpcSubmissionError) ||
+    error.submittedTransactions.length === 0
+  )
+    return;
+
+  const partialReceiptPath = `${receiptsDir}/${chain}-${bucket}-partial-${Date.now()}-receipts.json`;
+  writeYamlOrJson(partialReceiptPath, error.submittedTransactions);
+  warnYellow(
+    `Partial ${bucket} transaction results for ${chain} written to ${partialReceiptPath}`,
+  );
 }
 
 function writeCombinedBundles(

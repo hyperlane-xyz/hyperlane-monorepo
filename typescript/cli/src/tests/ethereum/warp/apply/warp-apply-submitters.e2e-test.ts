@@ -1,10 +1,15 @@
+import { generateKeyPairSync } from 'crypto';
 import { expect } from 'chai';
 import { type Signer, Wallet, ethers } from 'ethers';
-import { existsSync, rmSync } from 'fs';
+import { existsSync, rmSync, writeFileSync } from 'fs';
+import { type IncomingMessage, type ServerResponse, createServer } from 'http';
 
 import {
+  BaseFee__factory,
   InterchainAccountRouter__factory,
   MockSafe__factory,
+  RoutingFee__factory,
+  TokenRouter__factory,
   type TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
@@ -95,6 +100,9 @@ describe('hyperlane warp apply with submitters', async function () {
   const FEE_BUCKET_SPLIT_STRATEGY_PATH = `${TEMP_PATH}/fee-bucket-split-strategy.yaml`;
   const FEE_BUCKET_SPLIT_MAIN_OUTPUT_PATH = `${TEMP_PATH}/fee-bucket-split-main-output.json`;
   const FEE_BUCKET_SPLIT_FEE_OUTPUT_PATH = `${TEMP_PATH}/fee-bucket-split-fee-output.json`;
+  const TURNKEY_FEE_STRATEGY_PATH = `${TEMP_PATH}/turnkey-fee-strategy.yaml`;
+  const TURNKEY_FEE_MAIN_OUTPUT_PATH = `${TEMP_PATH}/turnkey-fee-main-output.json`;
+  const TURNKEY_CONFIG_PATH = `${TEMP_PATH}/turnkey-fee-config.json`;
 
   const evmChain2Core = new HyperlaneE2ECoreTestCommands(
     ProtocolType.Ethereum,
@@ -306,6 +314,8 @@ describe('hyperlane warp apply with submitters', async function () {
       FEE_BUCKET_MERGED_OUTPUT_PATH,
       FEE_BUCKET_SPLIT_MAIN_OUTPUT_PATH,
       FEE_BUCKET_SPLIT_FEE_OUTPUT_PATH,
+      TURNKEY_FEE_MAIN_OUTPUT_PATH,
+      TURNKEY_CONFIG_PATH,
     ]) {
       if (existsSync(outputPath)) {
         rmSync(outputPath);
@@ -929,6 +939,130 @@ describe('hyperlane warp apply with submitters', async function () {
       ).to.be.true;
       expect(mainInnerCalls.some(isFeeContractOp)).to.be.false;
     });
+
+    it('deploys fee leaves with the deployer and repoints them with the Turnkey fee signer', async () => {
+      const provider = chain3Signer.provider;
+      assert(provider, 'Expected chain3 provider');
+      const feeWallet = Wallet.createRandom().connect(provider);
+      await (
+        await chain3Signer.sendTransaction({
+          to: feeWallet.address,
+          value: ethers.utils.parseEther('1'),
+        })
+      ).wait();
+      const warpDeployConfig = fixture.getDeployConfig();
+      const chain3Config =
+        warpDeployConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3];
+      chain3Config.owner = chain3IcaAddress;
+      chain3Config.tokenFee = {
+        type: TokenFeeType.RoutingFee,
+        owner: feeWallet.address,
+        feeContracts: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
+            type: TokenFeeType.LinearFee,
+            bps: 50,
+          },
+        },
+      };
+      await deployAndExportWarpRoute();
+
+      const chain3WarpToken = getChain3WarpTokenAddress();
+      const tokenRouter = TokenRouter__factory.connect(
+        chain3WarpToken,
+        provider,
+      );
+      const routingFeeAddress = await tokenRouter.feeRecipient();
+      const routingFee = RoutingFee__factory.connect(
+        routingFeeAddress,
+        provider,
+      );
+      expect(eqAddress(await routingFee.owner(), feeWallet.address)).to.be.true;
+      const oldLeaf = await routingFee.feeContracts(chain2DomainId);
+
+      chain3Config.destinationGas = { [chain2DomainId]: '46000' };
+      chain3Config.tokenFee = {
+        type: TokenFeeType.RoutingFee,
+        owner: feeWallet.address,
+        feeContracts: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
+            type: TokenFeeType.LinearFee,
+            bps: 25,
+          },
+        },
+      };
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+      writeYamlOrJson(TURNKEY_FEE_STRATEGY_PATH, {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
+          submitter: buildIcaFileSubmitter(TURNKEY_FEE_MAIN_OUTPUT_PATH),
+          feeSubmitter: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+          },
+        },
+      });
+
+      const mockTurnkey = await startMockTurnkeyApi(feeWallet);
+      writeFileSync(
+        TURNKEY_CONFIG_PATH,
+        JSON.stringify({
+          ...mockTurnkey.apiKey,
+          organizationId: 'test-organization',
+          privateKeyId: 'test-private-key',
+          publicKey: feeWallet.address,
+          apiBaseUrl: mockTurnkey.url,
+        }),
+        { mode: 0o600 },
+      );
+      const firstApplyBlock = (await provider.getBlockNumber()) + 1;
+
+      try {
+        await evmWarpCommands.applyRaw({
+          warpRouteId: WARP_ROUTE_ID,
+          strategyUrl: TURNKEY_FEE_STRATEGY_PATH,
+          hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+          extraArgs: ['--fee-turnkey-config', TURNKEY_CONFIG_PATH],
+        });
+      } finally {
+        await mockTurnkey.close();
+      }
+
+      const newLeaf = await routingFee.feeContracts(chain2DomainId);
+      expect(eqAddress(newLeaf, oldLeaf)).to.be.false;
+      expect(
+        eqAddress(
+          await BaseFee__factory.connect(newLeaf, provider).owner(),
+          feeWallet.address,
+        ),
+      ).to.be.true;
+
+      const applyTransactions = await getTransactionsSince(
+        provider,
+        firstApplyBlock,
+      );
+      const leafDeployment = applyTransactions.find(
+        ({ receipt }) =>
+          receipt.contractAddress &&
+          eqAddress(receipt.contractAddress, newLeaf),
+      );
+      expect(
+        eqAddress(
+          leafDeployment?.transaction.from ?? ethers.constants.AddressZero,
+          initialOwnerAddress,
+        ),
+      ).to.be.true;
+      const setFeeContractTx = applyTransactions.find(
+        ({ transaction }) =>
+          transaction.to &&
+          eqAddress(transaction.to, routingFeeAddress) &&
+          transaction.data.startsWith(SET_FEE_CONTRACT_SELECTOR),
+      );
+      expect(
+        eqAddress(
+          setFeeContractTx?.transaction.from ?? ethers.constants.AddressZero,
+          feeWallet.address,
+        ),
+      ).to.be.true;
+    });
   });
 
   describe(`${TxSubmitterType.GNOSIS_TX_BUILDER}/${TxSubmitterType.GNOSIS_SAFE}`, () => {
@@ -1047,3 +1181,128 @@ describe('hyperlane warp apply with submitters', async function () {
     });
   });
 });
+
+async function startMockTurnkeyApi(wallet: Wallet): Promise<{
+  url: string;
+  apiKey: { apiPublicKey: string; apiPrivateKey: string };
+  close: () => Promise<void>;
+}> {
+  const keyPair = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  const jwk = keyPair.privateKey.export({ format: 'jwk' });
+  assert(jwk.x && jwk.y && jwk.d, 'Expected complete P-256 JWK');
+  const x = Buffer.from(jwk.x, 'base64url');
+  const y = Buffer.from(jwk.y, 'base64url');
+  assert(y.length > 0, 'Expected P-256 public key bytes');
+  const apiKey = {
+    apiPublicKey: `${y[y.length - 1] & 1 ? '03' : '02'}${x.toString('hex')}`,
+    apiPrivateKey: Buffer.from(jwk.d, 'base64url').toString('hex'),
+  };
+
+  const server = createServer((request, response) => {
+    void handleTurnkeyRequest(wallet, request, response);
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  assert(address && typeof address !== 'string', 'Expected TCP server address');
+
+  return {
+    url: `http://127.0.0.1:${address.port}`,
+    apiKey,
+    close: () =>
+      new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      ),
+  };
+}
+
+async function handleTurnkeyRequest(
+  wallet: Wallet,
+  request: IncomingMessage,
+  response: ServerResponse,
+): Promise<void> {
+  try {
+    const body = JSON.parse(await readRequestBody(request));
+    if (request.url === '/public/v1/query/whoami') {
+      return sendJson(response, { organizationId: 'test-organization' });
+    }
+    if (request.url === '/public/v1/submit/sign_transaction') {
+      const unsignedTransaction = body?.parameters?.unsignedTransaction;
+      assert(
+        typeof unsignedTransaction === 'string',
+        'Expected unsigned transaction',
+      );
+      const signedTransaction = await wallet.signTransaction(
+        parseUnsignedTransaction(`0x${unsignedTransaction}`),
+      );
+      return sendJson(response, {
+        activity: {
+          id: 'test-activity',
+          status: 'ACTIVITY_STATUS_COMPLETED',
+          result: { signTransactionResult: { signedTransaction } },
+        },
+      });
+    }
+    response.writeHead(404).end();
+  } catch (error) {
+    response.writeHead(500).end(error instanceof Error ? error.message : '');
+  }
+}
+
+function parseUnsignedTransaction(
+  serialized: string,
+): ethers.providers.TransactionRequest {
+  const parsed = ethers.utils.parseTransaction(serialized);
+  return {
+    to: parsed.to ?? undefined,
+    nonce: parsed.nonce,
+    gasLimit: parsed.gasLimit,
+    gasPrice: parsed.gasPrice ?? undefined,
+    data: parsed.data,
+    value: parsed.value,
+    chainId: parsed.chainId,
+    type: parsed.type ?? undefined,
+    maxPriorityFeePerGas: parsed.maxPriorityFeePerGas ?? undefined,
+    maxFeePerGas: parsed.maxFeePerGas ?? undefined,
+    accessList: parsed.accessList ?? undefined,
+  };
+}
+
+async function readRequestBody(request: IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+function sendJson(response: ServerResponse, body: unknown): void {
+  response.setHeader('content-type', 'application/json');
+  response.end(JSON.stringify(body));
+}
+
+async function getTransactionsSince(
+  provider: ethers.providers.Provider,
+  firstBlock: number,
+): Promise<
+  Array<{
+    transaction: ethers.providers.TransactionResponse;
+    receipt: ethers.providers.TransactionReceipt;
+  }>
+> {
+  const transactions: Array<{
+    transaction: ethers.providers.TransactionResponse;
+    receipt: ethers.providers.TransactionReceipt;
+  }> = [];
+  const lastBlock = await provider.getBlockNumber();
+  for (let blockNumber = firstBlock; blockNumber <= lastBlock; blockNumber++) {
+    const block = await provider.getBlockWithTransactions(blockNumber);
+    for (const transaction of block.transactions) {
+      transactions.push({
+        transaction,
+        receipt: await provider.getTransactionReceipt(transaction.hash),
+      });
+    }
+  }
+  return transactions;
+}

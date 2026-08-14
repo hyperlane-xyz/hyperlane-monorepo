@@ -25,6 +25,7 @@ import {
   type CommandModuleWithWarpDeployContext,
   type CommandModuleWithWriteContext,
 } from '../context/types.js';
+import { loadTurnkeyEvmSigner } from '../context/turnkey.js';
 import {
   runWarpRouteApply,
   runWarpRouteCombine,
@@ -192,6 +193,7 @@ const balances: CommandModuleWithContext<
 export const apply: CommandModuleWithWarpApplyContext<
   WarpRouteOptions & {
     strategy?: string;
+    feeTurnkeyConfig?: string;
     receiptsDir: string;
     relay?: boolean;
   }
@@ -201,6 +203,11 @@ export const apply: CommandModuleWithWarpApplyContext<
   builder: {
     ...WARP_ROUTE_OPTIONS,
     strategy: { ...strategyCommandOption, demandOption: false },
+    'fee-turnkey-config': {
+      type: 'string',
+      description:
+        'Path to a private Turnkey JSON config used only by JSON-RPC fee submitters',
+    },
     'receipts-dir': {
       type: 'string',
       description: 'The directory to output transaction receipts.',
@@ -217,6 +224,7 @@ export const apply: CommandModuleWithWarpApplyContext<
   handler: async ({
     context,
     strategy: strategyUrl,
+    feeTurnkeyConfig,
     receiptsDir,
     relay,
     warpRouteId,
@@ -225,6 +233,14 @@ export const apply: CommandModuleWithWarpApplyContext<
 
     if (strategyUrl)
       ExtendedChainSubmissionStrategySchema.parse(readYamlOrJson(strategyUrl));
+    assert(
+      !feeTurnkeyConfig || strategyUrl,
+      '--strategy is required with --fee-turnkey-config',
+    );
+
+    const feeSigner = feeTurnkeyConfig
+      ? await loadTurnkeyEvmSigner(feeTurnkeyConfig)
+      : undefined;
 
     await runWarpRouteApply({
       context,
@@ -232,6 +248,7 @@ export const apply: CommandModuleWithWarpApplyContext<
       warpCoreConfig: context.warpCoreConfig,
       strategyUrl,
       receiptsDir,
+      feeSigner,
       selfRelay: relay,
       warpRouteId: context.resolvedWarpRouteId ?? warpRouteId,
     });

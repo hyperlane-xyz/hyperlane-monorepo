@@ -1,4 +1,9 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
 import { expect } from 'chai';
+import { Wallet } from 'ethers';
 import sinon from 'sinon';
 
 import {
@@ -11,14 +16,20 @@ import {
   HyperlaneDeployer,
   IsmType,
   MultiProvider,
+  TestChainName,
+  TokenFeeType,
   TokenStandard,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
 
+import { type WriteCommandContext } from '../context/types.js';
+
 import {
   fullyConnectTokens,
+  type WarpApplyParams,
+  preflightFeeSigner,
   runWarpRouteApply,
   runWarpRouteCombine,
   transformDeployConfigForDisplay,
@@ -68,6 +79,80 @@ describe('fullyConnectTokens', () => {
           ),
         ),
     ).to.equal(false);
+  });
+});
+
+describe('preflightFeeSigner', () => {
+  const chain = TestChainName.test1;
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'hyperlane-fee-signer-'));
+  });
+
+  afterEach(() => {
+    sinon.restore();
+    rmSync(tempDir, { recursive: true });
+  });
+
+  it('rejects an owner mismatch before making live contract reads', async () => {
+    const feeSigner = Wallet.createRandom();
+    const otherOwner = Wallet.createRandom().address;
+    const strategyUrl = join(tempDir, 'strategy.json');
+    writeFileSync(
+      strategyUrl,
+      JSON.stringify({
+        [chain]: {
+          submitter: { type: 'jsonRpc', chain },
+          feeSubmitter: { type: 'jsonRpc', chain },
+        },
+      }),
+    );
+    const multiProvider = MultiProvider.createTestMultiProvider();
+    const getProvider = sinon.stub(multiProvider, 'getProvider');
+    const warpCoreConfig: WarpCoreConfig = {
+      tokens: [
+        {
+          chainName: chain,
+          standard: TokenStandard.EvmHypSynthetic,
+          decimals: 18,
+          symbol: 'TEST',
+          name: 'Test token',
+          addressOrDenom: otherOwner,
+        },
+      ],
+    };
+    const warpDeployConfig: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        type: TokenType.synthetic,
+        owner: otherOwner,
+        mailbox: otherOwner,
+        tokenFee: {
+          type: TokenFeeType.RoutingFee,
+          owner: otherOwner,
+          feeContracts: {},
+        },
+      },
+    };
+
+    const params: WarpApplyParams = {
+      // CAST: focused test context; preflight only consumes multiProvider.
+      context: { multiProvider } as WriteCommandContext,
+      feeSigner,
+      strategyUrl,
+      receiptsDir: tempDir,
+      warpCoreConfig,
+      warpDeployConfig,
+    };
+
+    let error: Error | undefined;
+    try {
+      await preflightFeeSigner(params);
+    } catch (caught) {
+      error = caught instanceof Error ? caught : new Error(String(caught));
+    }
+    expect(error?.message).to.include('does not match target RoutingFee owner');
+    expect(getProvider.called).to.equal(false);
   });
 });
 
