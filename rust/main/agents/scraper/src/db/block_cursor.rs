@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use eyre::Result;
-use sea_orm::{prelude::*, ActiveValue, Insert, Order, QueryOrder, QuerySelect};
+use sea_orm::{prelude::*, ConnectionTrait, Order, QueryOrder, QuerySelect, Statement};
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
@@ -88,15 +88,13 @@ impl BlockCursor {
             inner.last_saved_at = now;
             // prevent any more writes to the inner struct until the write is complete.
             let inner = inner.downgrade();
-            let model = cursor::ActiveModel {
-                id: ActiveValue::NotSet,
-                domain: ActiveValue::Set(self.domain as i32),
-                time_created: ActiveValue::NotSet,
-                height: ActiveValue::Set(height as i64),
-                event_type: ActiveValue::Set(self.event_type.clone()),
-            };
-            debug!(?model, "Inserting cursor");
-            if let Err(e) = Insert::one(model).exec(&self.db).await {
+            debug!(
+                height,
+                domain = self.domain,
+                event_type = self.event_type,
+                "Updating cursor"
+            );
+            if let Err(e) = self.persist_height(height).await {
                 warn!(error = ?e, "Failed to update database with new cursor. When you just started this, ensure that the migrations included this domain.")
             } else {
                 debug!(cursor = ?*inner, "Updated cursor")
@@ -115,18 +113,42 @@ impl BlockCursor {
     pub async fn flush(&self) -> Result<()> {
         let mut inner = self.inner.write().await;
         let height = inner.height;
-        let model = cursor::ActiveModel {
-            id: ActiveValue::NotSet,
-            domain: ActiveValue::Set(self.domain as i32),
-            time_created: ActiveValue::NotSet,
-            height: ActiveValue::Set(height as i64),
-            event_type: ActiveValue::Set(self.event_type.clone()),
-        };
-        debug!(?model, "Flushing cursor to database");
-        Insert::one(model).exec(&self.db).await?;
+        debug!(
+            height,
+            domain = self.domain,
+            event_type = self.event_type,
+            "Flushing cursor to database"
+        );
+        self.persist_height(height).await?;
         inner.last_saved_at = Instant::now();
         let inner = inner.downgrade();
         debug!(cursor = ?*inner, "Flushed cursor");
+        Ok(())
+    }
+
+    async fn persist_height(&self, height: u64) -> Result<()> {
+        self.db
+            .execute(Statement::from_sql_and_values(
+                self.db.get_database_backend(),
+                r#"
+                INSERT INTO "cursor" ("domain", "time_created", "height", "event_type")
+                VALUES ($1, NOW(), $2, $3)
+                ON CONFLICT ("domain", "event_type")
+                DO UPDATE SET
+                    "height" = GREATEST("cursor"."height", EXCLUDED."height"),
+                    "time_created" = CASE
+                        WHEN EXCLUDED."height" >= "cursor"."height"
+                        THEN EXCLUDED."time_created"
+                        ELSE "cursor"."time_created"
+                    END
+                "#,
+                [
+                    (self.domain as i32).into(),
+                    (height as i64).into(),
+                    self.event_type.clone().into(),
+                ],
+            ))
+            .await?;
         Ok(())
     }
 }

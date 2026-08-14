@@ -24,6 +24,7 @@ mod conversions;
 mod date_time;
 mod db;
 mod settings;
+mod shared_chain_indexer;
 mod store;
 
 #[tokio::main(flavor = "current_thread")]

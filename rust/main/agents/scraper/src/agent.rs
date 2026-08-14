@@ -8,23 +8,21 @@ use std::{
 use async_trait::async_trait;
 use derive_more::AsRef;
 use futures::{future::try_join_all, FutureExt};
-use hyperlane_core::{
-    rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, InterchainGasPayment, SameChainCcrSwap, H512,
-};
+use hyperlane_core::{rpc_clients::RPC_RETRY_SLEEP_DURATION, HyperlaneDomain};
 use prometheus::IntGaugeVec;
-use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle, time::sleep};
+use tokio::{task::JoinHandle, time::sleep};
 use tracing::{info, info_span, instrument, trace, warn, Instrument};
 
 use hyperlane_base::{
-    broadcast::BroadcastMpscSender, metrics::AgentMetrics, settings::IndexSettings, AgentMetadata,
-    BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, ContractSyncMetrics, ContractSyncer,
-    CoreMetrics, HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
+    metrics::AgentMetrics, settings::IndexSettings, AgentMetadata, BaseAgent, ChainMetrics,
+    ChainSpecificMetricsUpdater, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
+    RuntimeMetrics,
 };
 
 use crate::{
     db::ScraperDb,
     settings::ScraperSettings,
+    shared_chain_indexer::{ChainEventHandler, SharedChainIndexer, TypedChainEventHandler},
     store::{HyperlaneDbStore, RawDispatchRetryBackoff},
 };
 
@@ -210,41 +208,77 @@ impl Scraper {
         let store = scraper.store.clone();
         let index_settings = scraper.index_settings.clone();
         let domain = scraper.domain.clone();
+        let chain_setup = self.as_ref().settings.chain_setup(&domain)?;
+        let ccr_to_erc20 = self
+            .settings
+            .ccr_routers
+            .get(&domain.id())
+            .cloned()
+            .unwrap_or_default();
+
+        let mut handlers: Vec<Arc<dyn ChainEventHandler>> = Vec::new();
+        let chain_name = domain.name();
+        let message_indexer = chain_setup
+            .build_message_indexer(&self.core_metrics, true)
+            .await?;
+        handlers.push(Arc::new(TypedChainEventHandler::new(
+            "message_dispatch",
+            message_indexer,
+            store.clone(),
+            &self.contract_sync_metrics.stored_events,
+            chain_name,
+        )));
+
+        let delivery_indexer = chain_setup
+            .build_delivery_indexer(&self.core_metrics, true)
+            .await?;
+        handlers.push(Arc::new(TypedChainEventHandler::new(
+            "message_delivery",
+            delivery_indexer,
+            store.clone(),
+            &self.contract_sync_metrics.stored_events,
+            chain_name,
+        )));
+
+        let gas_payment_indexer = chain_setup
+            .build_interchain_gas_payment_indexer(&self.core_metrics, true)
+            .await?;
+        handlers.push(Arc::new(TypedChainEventHandler::new(
+            "gas_payment",
+            gas_payment_indexer,
+            store.clone(),
+            &self.contract_sync_metrics.stored_events,
+            chain_name,
+        )));
+
+        if !ccr_to_erc20.is_empty() {
+            if let Some(ccr_indexer) = chain_setup
+                .build_ccr_swap_indexer(&self.core_metrics, domain.id(), ccr_to_erc20)
+                .await?
+            {
+                handlers.push(Arc::new(TypedChainEventHandler::new(
+                    "ccr_swap",
+                    ccr_indexer,
+                    store.clone(),
+                    &self.contract_sync_metrics.stored_events,
+                    chain_name,
+                )));
+            }
+        }
+
+        let shared_indexer = SharedChainIndexer::new(
+            domain.clone(),
+            store.cursor(),
+            index_settings.clone(),
+            self.contract_sync_metrics.clone(),
+            handlers,
+        )?;
 
         let mut tasks = Vec::with_capacity(2);
-        let (message_indexer, maybe_broadcaster) = self
-            .build_message_indexer(
-                domain.clone(),
-                self.core_metrics.clone(),
-                self.contract_sync_metrics.clone(),
-                store.clone(),
-                index_settings.clone(),
-            )
-            .await?;
-        tasks.push(message_indexer);
-
-        let delivery_indexer = self
-            .build_delivery_indexer(
-                domain.clone(),
-                self.core_metrics.clone(),
-                self.contract_sync_metrics.clone(),
-                store.clone(),
-                index_settings.clone(),
-            )
-            .await?;
-        tasks.push(delivery_indexer);
-
-        let gas_payment_indexer = self
-            .build_interchain_gas_payment_indexer(
-                domain.clone(),
-                self.core_metrics.clone(),
-                self.contract_sync_metrics.clone(),
-                store.clone(),
-                index_settings.clone(),
-                BroadcastMpscSender::<H512>::map_get_receiver(maybe_broadcaster.as_ref()).await,
-            )
-            .await?;
-        tasks.push(gas_payment_indexer);
+        tasks.push(tokio::spawn(
+            async move { shared_indexer.run().await }
+                .instrument(info_span!("SharedChainScraper", chain=%domain.name())),
+        ));
 
         tasks.push(self.build_raw_dispatch_reconciler(
             domain.clone(),
@@ -252,18 +286,6 @@ impl Scraper {
             self.raw_dispatch_unenriched_max_age.clone(),
             store.clone(),
         ));
-
-        if let Some(ccr_task) = self
-            .build_ccr_indexer(
-                domain,
-                self.core_metrics.clone(),
-                store,
-                index_settings.clone(),
-            )
-            .await?
-        {
-            tasks.push(ccr_task);
-        }
 
         Ok(tokio::spawn(
             async move {
@@ -339,48 +361,6 @@ impl Scraper {
             }
         }
         scrapers
-    }
-
-    async fn build_message_indexer(
-        &self,
-        domain: HyperlaneDomain,
-        metrics: Arc<CoreMetrics>,
-        contract_sync_metrics: Arc<ContractSyncMetrics>,
-        store: HyperlaneDbStore,
-        index_settings: IndexSettings,
-    ) -> eyre::Result<(JoinHandle<()>, Option<BroadcastMpscSender<H512>>)> {
-        let label = "message_dispatch";
-        let sync = self
-            .as_ref()
-            .settings
-            .sequenced_contract_sync::<HyperlaneMessage, _>(
-                &domain,
-                &metrics.clone(),
-                &contract_sync_metrics.clone(),
-                store.into(),
-                true,
-                true,
-            )
-            .await
-            .map_err(|err| {
-                tracing::error!(
-                    ?err,
-                    domain = domain.name(),
-                    label,
-                    "Error syncing sequenced contract"
-                );
-                err
-            })?;
-        let cursor = sync.cursor(index_settings.clone()).await.map_err(|err| {
-            tracing::error!(?err, domain = domain.name(), label, "Error getting cursor");
-            err
-        })?;
-        let maybe_broadcaser = sync.get_broadcaster();
-        let task = tokio::spawn(
-            async move { sync.sync(label, cursor.into()).await }
-                .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label)),
-        );
-        Ok((task, maybe_broadcaser))
     }
 
     fn build_raw_dispatch_reconciler(
@@ -474,188 +454,6 @@ impl Scraper {
             }
             .instrument(info_span!("RawDispatchReconciliation", chain=%span_domain_name)),
         )
-    }
-
-    async fn build_delivery_indexer(
-        &self,
-        domain: HyperlaneDomain,
-        metrics: Arc<CoreMetrics>,
-        contract_sync_metrics: Arc<ContractSyncMetrics>,
-        store: HyperlaneDbStore,
-        index_settings: IndexSettings,
-    ) -> eyre::Result<JoinHandle<()>> {
-        let label = "message_delivery";
-        let sync = self
-            .as_ref()
-            .settings
-            .contract_sync::<Delivery, _>(
-                &domain,
-                &metrics.clone(),
-                &contract_sync_metrics.clone(),
-                Arc::new(store.clone()) as _,
-                true,
-                true,
-            )
-            .await
-            .map_err(|err| {
-                tracing::error!(
-                    ?err,
-                    domain = domain.name(),
-                    label,
-                    "Error syncing contract"
-                );
-                err
-            })?;
-        let cursor = sync.cursor(index_settings.clone()).await.map_err(|err| {
-            tracing::error!(?err, domain = domain.name(), label, "Error getting cursor");
-            err
-        })?;
-        // there is no txid receiver for delivery indexing, since delivery txs aren't batched with
-        // other types of indexed txs / events
-        Ok(tokio::spawn(
-            async move { sync.sync(label, SyncOptions::new(Some(cursor), None)).await }
-                .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label)),
-        ))
-    }
-
-    async fn build_interchain_gas_payment_indexer(
-        &self,
-        domain: HyperlaneDomain,
-        metrics: Arc<CoreMetrics>,
-        contract_sync_metrics: Arc<ContractSyncMetrics>,
-        store: HyperlaneDbStore,
-        index_settings: IndexSettings,
-        tx_id_receiver: Option<MpscReceiver<H512>>,
-    ) -> eyre::Result<JoinHandle<()>> {
-        let label = "gas_payment";
-        let sync = self
-            .as_ref()
-            .settings
-            .contract_sync::<InterchainGasPayment, _>(
-                &domain,
-                &metrics.clone(),
-                &contract_sync_metrics.clone(),
-                Arc::new(store.clone()) as _,
-                true,
-                true,
-            )
-            .await
-            .map_err(|err| {
-                tracing::error!(
-                    ?err,
-                    domain = domain.name(),
-                    label,
-                    "Error syncing contract"
-                );
-                err
-            })?;
-        let cursor = sync.cursor(index_settings.clone()).await.map_err(|err| {
-            tracing::error!(?err, domain = domain.name(), label, "Error getting cursor");
-            err
-        })?;
-        Ok(tokio::spawn(
-            async move {
-                sync.sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
-                    .await
-            }
-            .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label)),
-        ))
-    }
-
-    /// Build a CCR swap indexer for the given domain if it has CCR routers configured.
-    /// Returns `None` if the domain has no CCR config.
-    async fn build_ccr_indexer(
-        &self,
-        domain: HyperlaneDomain,
-        metrics: Arc<CoreMetrics>,
-        store: HyperlaneDbStore,
-        index_settings: IndexSettings,
-    ) -> eyre::Result<Option<JoinHandle<()>>> {
-        let ccr_router_map = match self.settings.ccr_routers.get(&domain.id()) {
-            Some(m) if !m.is_empty() => m,
-            _ => return Ok(None),
-        };
-
-        let ccr_to_erc20 = ccr_router_map.clone();
-        let local_domain = domain.id();
-
-        let chain_setup = self.as_ref().settings.chain_setup(&domain)?;
-        let Some(indexer) = chain_setup
-            .build_ccr_swap_indexer(&metrics, local_domain, ccr_to_erc20)
-            .await?
-        else {
-            return Ok(None);
-        };
-
-        let chunk_size = index_settings.chunk_size;
-        if chunk_size == 0 {
-            warn!(?domain, "index.chunk must be > 0 for CCR sync; skipping");
-            return Ok(None);
-        }
-        let default_from = index_settings.from.max(0) as u32;
-
-        // Create a dedicated BlockCursor for CCR swaps keyed by (domain, "ccr_swap").
-        // This is independent of the message/delivery/gas cursor so the two indexers
-        // don't race to read and overwrite each other's watermark.
-        let ccr_cursor = Arc::new(
-            store
-                .db
-                .block_cursor(local_domain, "ccr_swap", default_from.into())
-                .await?,
-        );
-
-        Ok(Some(tokio::spawn(
-            async move {
-                let mut from_block = ccr_cursor.height().await as u32;
-
-                loop {
-                    let tip = match indexer.get_finalized_block_number().await {
-                        Ok(tip) => tip,
-                        Err(err) => {
-                            warn!(?err, "Failed to get finalized block number for CCR indexer");
-                            sleep(RPC_RETRY_SLEEP_DURATION).await;
-                            continue;
-                        }
-                    };
-
-                    if from_block > tip {
-                        sleep(Duration::from_secs(5)).await;
-                        continue;
-                    }
-
-                    let to_block = tip.min(from_block.saturating_add(chunk_size).saturating_sub(1));
-
-                    let logs = match indexer.fetch_logs_in_range(from_block..=to_block).await {
-                        Ok(logs) => logs,
-                        Err(err) => {
-                            warn!(?err, from_block, to_block, "Failed to fetch CCR swap logs");
-                            sleep(RPC_RETRY_SLEEP_DURATION).await;
-                            continue;
-                        }
-                    };
-
-                    if !logs.is_empty() {
-                        if let Err(err) =
-                            HyperlaneLogStore::<SameChainCcrSwap>::store_logs(&store, &logs).await
-                        {
-                            warn!(
-                                ?err,
-                                from_block, to_block, "Failed to store CCR swaps; retrying range"
-                            );
-                            sleep(RPC_RETRY_SLEEP_DURATION).await;
-                            continue;
-                        }
-                    }
-
-                    ccr_cursor.update(to_block.into()).await;
-                    if let Err(e) = ccr_cursor.flush().await {
-                        warn!(?e, from_block, to_block, "Failed to flush CCR cursor; advancing anyway, next flush will catch up");
-                    }
-                    from_block = to_block.saturating_add(1);
-                }
-            }
-            .instrument(info_span!("CcrSwapSync", chain=%domain.name())),
-        )))
     }
 }
 
