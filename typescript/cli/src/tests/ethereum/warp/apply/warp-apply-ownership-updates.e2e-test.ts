@@ -9,6 +9,7 @@ import {
 import {
   CANCELLER_ROLE,
   EXECUTOR_ROLE,
+  type HypTokenRouterConfig,
   PROPOSER_ROLE,
   TokenFeeType,
   TokenType,
@@ -243,7 +244,8 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
     const delay = 259200;
 
     const warpDeployConfig = fixture.getDeployConfig();
-    warpDeployConfig[chain].timelock = {
+    const chainConfig = warpDeployConfig[chain] as HypTokenRouterConfig;
+    chainConfig.timelock = {
       delay,
       roles: {
         executor: expectedOwner,

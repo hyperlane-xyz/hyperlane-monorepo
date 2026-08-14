@@ -149,7 +149,7 @@ function parseJsonRpcErrorBody(body: unknown): {
   }
 }
 
-function getNestedJsonRpcError(error: unknown): {
+export function getNestedJsonRpcError(error: unknown): {
   code?: number | string;
   message?: string;
 } {
