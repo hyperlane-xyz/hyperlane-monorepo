@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use eyre::Result;
-use migration::OnConflict;
+use migration::{Alias, Expr, Func, OnConflict};
 use sea_orm::{prelude::*, ActiveValue::*, Insert, Order, QueryOrder, QuerySelect};
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
@@ -123,7 +123,14 @@ impl BlockCursor {
         Insert::one(model)
             .on_conflict(
                 OnConflict::columns([cursor::Column::Domain, cursor::Column::EventType])
-                    .update_columns([cursor::Column::TimeCreated, cursor::Column::Height])
+                    .update_column(cursor::Column::TimeCreated)
+                    .value(
+                        cursor::Column::Height,
+                        Func::greatest([
+                            Expr::col((Alias::new("cursor"), cursor::Column::Height)).into(),
+                            Expr::col((Alias::new("excluded"), cursor::Column::Height)).into(),
+                        ]),
+                    )
                     .to_owned(),
             )
             .exec(&self.db)

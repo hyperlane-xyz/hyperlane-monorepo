@@ -10,19 +10,21 @@ impl MigrationTrait for Migration {
             .get_connection()
             .execute_unprepared(
                 r#"
-                DELETE FROM "cursor" stale
-                USING "cursor" latest
-                WHERE stale.domain = latest.domain
-                  AND stale.event_type = latest.event_type
-                  AND (
-                    latest.height,
-                    latest.time_created,
-                    latest.id
-                  ) > (
-                    stale.height,
-                    stale.time_created,
-                    stale.id
-                  )
+                CREATE TEMP TABLE cursor_survivors ON COMMIT DROP AS
+                SELECT DISTINCT ON (domain, event_type)
+                  id,
+                  domain,
+                  time_created,
+                  height,
+                  event_type
+                FROM "cursor"
+                ORDER BY domain, event_type, height DESC, time_created DESC, id DESC;
+
+                TRUNCATE TABLE "cursor";
+
+                INSERT INTO "cursor" (id, domain, time_created, height, event_type)
+                SELECT id, domain, time_created, height, event_type
+                FROM cursor_survivors;
                 "#,
             )
             .await?;
