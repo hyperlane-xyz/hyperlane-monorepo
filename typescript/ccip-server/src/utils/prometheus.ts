@@ -30,13 +30,25 @@ let requestCounter: Counter<string> | undefined;
 let unhandledErrorCounter: Counter<string> | undefined;
 let rateLimitedCounter: Counter<string> | undefined;
 
-export type RateLimitedMethod = 'GET' | 'POST' | 'OTHER';
+export const RateLimitedMethod = {
+  GET: 'GET',
+  POST: 'POST',
+  OTHER: 'OTHER',
+} as const;
+
+export type RateLimitedMethod =
+  (typeof RateLimitedMethod)[keyof typeof RateLimitedMethod];
+
+export const RateLimitedRoute = {
+  Calls: '/calls',
+  CallsByCommitment: '/calls/:commitment',
+  Calldata: '/calldata',
+  CalldataByCommitment: '/calldata/:commitment',
+  Unknown: 'unknown',
+} as const;
+
 export type RateLimitedRoute =
-  | '/calls'
-  | '/calls/:commitment'
-  | '/calldata'
-  | '/calldata/:commitment'
-  | 'unknown';
+  (typeof RateLimitedRoute)[keyof typeof RateLimitedRoute];
 
 /**
  * Initializes Prometheus metrics with the given registry.

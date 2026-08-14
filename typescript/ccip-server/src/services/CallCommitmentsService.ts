@@ -37,11 +37,9 @@ import { prisma } from '../db.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
 import {
   PrometheusMetrics,
-  UnhandledErrorReason,
-} from '../utils/prometheus.js';
-import type {
   RateLimitedMethod,
   RateLimitedRoute,
+  UnhandledErrorReason,
 } from '../utils/prometheus.js';
 
 import {
@@ -625,19 +623,16 @@ export class CallCommitmentsService extends BaseService {
    */
   private registerRoutes(router: Router, baseUrl: string): void {
     const toRateLimitedMethod = (method: string): RateLimitedMethod => {
-      if (method === 'GET' || method === 'POST') return method;
-      return 'OTHER';
+      if (method === RateLimitedMethod.GET) return RateLimitedMethod.GET;
+      if (method === RateLimitedMethod.POST) return RateLimitedMethod.POST;
+      return RateLimitedMethod.OTHER;
     };
     const toRateLimitedRoute = (route: string): RateLimitedRoute => {
-      if (
-        route === '/calls' ||
-        route === '/calls/:commitment' ||
-        route === '/calldata' ||
-        route === '/calldata/:commitment'
-      ) {
-        return route;
-      }
-      return 'unknown';
+      return (
+        Object.values(RateLimitedRoute).find(
+          (knownRoute) => knownRoute === route,
+        ) ?? RateLimitedRoute.Unknown
+      );
     };
     const createRateLimit = () =>
       rateLimit({
@@ -656,19 +651,23 @@ export class CallCommitmentsService extends BaseService {
     const writeRateLimit = createRateLimit();
     const readRateLimit = createRateLimit();
 
-    router.post('/calls', writeRateLimit, this.handleCommitment.bind(this));
+    router.post(
+      RateLimitedRoute.Calls,
+      writeRateLimit,
+      this.handleCommitment.bind(this),
+    );
     router.get(
-      '/calls/:commitment',
+      RateLimitedRoute.CallsByCommitment,
       readRateLimit,
       this.handleCheckCommitment.bind(this),
     );
     router.post(
-      '/calldata',
+      RateLimitedRoute.Calldata,
       writeRateLimit,
       this.handleCalldataPost.bind(this),
     );
     router.get(
-      '/calldata/:commitment',
+      RateLimitedRoute.CalldataByCommitment,
       readRateLimit,
       this.handleCalldataGet.bind(this),
     );

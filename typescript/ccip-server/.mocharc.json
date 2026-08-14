@@ -1,3 +1,9 @@
 {
-  "import": ["tsx"]
+  "import": ["tsx"],
+  "spec": [
+    "./tests/**/CallCommitmentsService.test.ts",
+    "./tests/**/RateLimiting.test.ts",
+    "./tests/**/cctpMessageMatcher.test.ts"
+  ],
+  "exit": true
 }
