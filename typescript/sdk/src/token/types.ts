@@ -506,11 +506,31 @@ export const HypTokenConfigSchema = z.preprocess((val) => {
   return val;
 }, AllHypTokenConfigSchema);
 
+const TIMELOCK_PROXY_ADMIN_OWNER_OVERRIDE_ERROR =
+  'Cannot configure timelock with ownerOverrides.proxyAdmin';
+
+type TimelockProxyAdminOwnerOverrideConfig = {
+  ownerOverrides?: { proxyAdmin?: unknown };
+  timelock?: unknown;
+};
+
+function addTimelockProxyAdminOwnerOverrideIssue(
+  config: TimelockProxyAdminOwnerOverrideConfig,
+  ctx: z.RefinementCtx,
+) {
+  if (!config.timelock || !config.ownerOverrides?.proxyAdmin) return;
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path: ['ownerOverrides', 'proxyAdmin'],
+    message: TIMELOCK_PROXY_ADMIN_OWNER_OVERRIDE_ERROR,
+  });
+}
+
 export const HypTokenRouterConfigSchema = z.preprocess(
   preprocessWarpRouteDeployConfig,
-  HypTokenConfigSchema.and(GasRouterConfigSchema).and(
-    HypTokenRouterVirtualConfigSchema.partial(),
-  ),
+  HypTokenConfigSchema.and(GasRouterConfigSchema)
+    .and(HypTokenRouterVirtualConfigSchema.partial())
+    .superRefine(addTimelockProxyAdminOwnerOverrideIssue),
 );
 
 export type HypTokenRouterConfig = z.infer<typeof HypTokenRouterConfigSchema>;
@@ -536,7 +556,9 @@ export const HypTokenRouterConfigMailboxOptionalBaseSchema =
     GasRouterConfigSchema.extend({
       mailbox: z.string().optional(),
     }),
-  ).and(HypTokenRouterVirtualConfigSchema.partial());
+  )
+    .and(HypTokenRouterVirtualConfigSchema.partial())
+    .superRefine(addTimelockProxyAdminOwnerOverrideIssue);
 
 export type HypTokenRouterConfigMailboxOptionalBase = z.infer<
   typeof HypTokenRouterConfigMailboxOptionalBaseSchema
@@ -553,7 +575,6 @@ export type HypTokenRouterConfigMailboxOptional = z.infer<
 
 function preprocessWarpRouteDeployConfig(value: unknown) {
   const mutatedConfig = value as HypTokenRouterConfigMailboxOptionalBase;
-  assertTimelockConfigHasNoProxyAdminOwnerOverride(mutatedConfig);
   return populateFeeOwner({
     tokenConfig: mutatedConfig,
     feeConfig: mutatedConfig.tokenFee,
@@ -561,14 +582,12 @@ function preprocessWarpRouteDeployConfig(value: unknown) {
 }
 
 export function assertTimelockConfigHasNoProxyAdminOwnerOverride(
-  config: Pick<HypTokenRouterConfigMailboxOptionalBase, 'ownerOverrides'> & {
-    timelock?: unknown;
-  },
+  config: TimelockProxyAdminOwnerOverrideConfig,
   chain?: string,
 ) {
   assert(
     !config.timelock || !config.ownerOverrides?.proxyAdmin,
-    `Cannot configure timelock with ownerOverrides.proxyAdmin${chain ? ` on ${chain}` : ''}`,
+    `${TIMELOCK_PROXY_ADMIN_OWNER_OVERRIDE_ERROR}${chain ? ` on ${chain}` : ''}`,
   );
 }
 

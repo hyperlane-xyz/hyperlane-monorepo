@@ -40,7 +40,6 @@ import {
   objMap,
   promiseObjAll,
   rootLogger,
-  sleep,
 } from '@hyperlane-xyz/utils';
 
 import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
@@ -53,7 +52,9 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import {
+  contractHasCode,
   isInitialized,
+  isStorageEmpty,
   proxyAdmin,
   proxyAdminUpdateTxs,
 } from '../deploy/proxy.js';
@@ -234,8 +235,20 @@ export class EvmWarpModule extends HyperlaneModule<
   private async timelockMatchesConfig(
     timelockAddress: Address,
     config: NonNullable<HypTokenRouterConfig['timelock']>,
+    codeAlreadyVerified = false,
   ): Promise<boolean> {
     const provider = this.multiProvider.getProvider(this.chainName);
+    if (
+      !codeAlreadyVerified &&
+      isStorageEmpty(await provider.getCode(timelockAddress))
+    ) {
+      this.logger.debug(
+        { chain: this.chainName, timelockAddress },
+        'ProxyAdmin owner has no contract code and is not a TimelockController',
+      );
+      return false;
+    }
+
     const timelockController = TimelockController__factory.connect(
       timelockAddress,
       provider,
@@ -272,19 +285,15 @@ export class EvmWarpModule extends HyperlaneModule<
     timelockAddress: Address,
     config: NonNullable<HypTokenRouterConfig['timelock']>,
   ): Promise<boolean> {
-    const attempts = 5;
-    const retryDelayMs = 100;
-    for (let attempt = 1; attempt <= attempts; attempt++) {
-      if (await this.timelockMatchesConfig(timelockAddress, config)) {
-        return true;
-      }
-      if (attempt < attempts) await sleep(retryDelayMs);
+    const provider = this.multiProvider.getProvider(this.chainName);
+    if (!(await contractHasCode(provider, timelockAddress))) {
+      this.logger.debug(
+        { chain: this.chainName, timelockAddress },
+        'Cached TimelockController has no code after visibility retry',
+      );
+      return false;
     }
-    this.logger.debug(
-      { attempts, chain: this.chainName, timelockAddress },
-      'Cached TimelockController does not match the expected config after retry',
-    );
-    return false;
+    return this.timelockMatchesConfig(timelockAddress, config, true);
   }
 
   private async configWithTimelockProxyAdminOwner(

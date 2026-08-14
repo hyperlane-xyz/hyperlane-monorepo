@@ -6,6 +6,7 @@ import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ChainId,
+  assert,
   eqAddress,
   isValidAddressEvm,
   retryAsync,
@@ -54,21 +55,41 @@ export function isStorageEmpty(rawValue: string): boolean {
   return rawValue === '0x' || rawValue === '' || rawValue === '0x0';
 }
 
+class MissingContractCodeError extends Error {}
+
+export async function contractHasCode(
+  provider: EthersLikeProvider,
+  contract: Address,
+): Promise<boolean> {
+  // Retry to handle RPC lag where a just-confirmed tx isn't yet visible on
+  // all nodes in a load-balanced pool.
+  try {
+    await retryAsync(
+      async () => {
+        const code = await provider.getCode(contract);
+        if (code === '0x') {
+          throw new MissingContractCodeError(
+            `Contract at ${contract} has no code`,
+          );
+        }
+      },
+      5,
+      500,
+    );
+    return true;
+  } catch (error) {
+    if (error instanceof MissingContractCodeError) return false;
+    throw error;
+  }
+}
+
 async function assertCodeExists(
   provider: EthersLikeProvider,
   contract: Address,
 ): Promise<void> {
-  // Retry to handle RPC lag where a just-confirmed tx isn't yet visible on
-  // all nodes in a load-balanced pool.
-  await retryAsync(
-    async () => {
-      const code = await provider.getCode(contract);
-      if (code === '0x') {
-        throw new Error(`Contract at ${contract} has no code`);
-      }
-    },
-    5,
-    500,
+  assert(
+    await contractHasCode(provider, contract),
+    `Contract at ${contract} has no code`,
   );
 }
 

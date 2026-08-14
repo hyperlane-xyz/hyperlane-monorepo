@@ -46,6 +46,7 @@ type EvmWarpModuleForTest = {
   timelockMatchesConfig(
     timelockAddress: string,
     config: NonNullable<HypTokenRouterConfig['timelock']>,
+    codeAlreadyVerified?: boolean,
   ): Promise<boolean>;
 };
 
@@ -114,6 +115,17 @@ describe('EvmWarpModule', () => {
       );
     }
     return deployStub;
+  }
+
+  function stubContractCode(...codes: string[]) {
+    const provider = multiProvider.getProvider(TestChainName.test1);
+    const getCode = sandbox.stub(provider, 'getCode');
+    for (const [index, code] of codes.entries()) {
+      getCode.onCall(index).resolves(code);
+    }
+    if (codes.length === 1) getCode.resolves(codes[0]);
+    sandbox.stub(multiProvider, 'getProvider').returns(provider);
+    return getCode;
   }
 
   function createModule() {
@@ -217,6 +229,7 @@ describe('EvmWarpModule', () => {
   });
 
   it('does not reuse a timelock missing self-admin', async () => {
+    stubContractCode('0x1234');
     stubTimelockController({ hasAdminSelf: false });
 
     const matches = await createModuleForTest().timelockMatchesConfig(
@@ -227,7 +240,22 @@ describe('EvmWarpModule', () => {
     expect(matches).to.equal(false);
   });
 
+  it('does not call the timelock ABI for an EOA ProxyAdmin owner', async () => {
+    const getCodeStub = stubContractCode('0x');
+    const connectStub = sandbox.stub(TimelockController__factory, 'connect');
+
+    const matches = await createModuleForTest().timelockMatchesConfig(
+      OWNER_ADDRESS,
+      timelockConfig,
+    );
+
+    expect(matches).to.equal(false);
+    expect(getCodeStub.calledOnce).to.equal(true);
+    expect(connectStub.called).to.equal(false);
+  });
+
   it('propagates transient timelock reads without deploying a replacement', async () => {
+    stubContractCode('0x1234');
     const transientError = Object.assign(new Error('rpc timeout'), {
       code: 'SERVER_ERROR',
     });
@@ -263,6 +291,7 @@ describe('EvmWarpModule', () => {
       .resolves(false)
       .onSecondCall()
       .resolves(true);
+    const getCodeStub = stubContractCode('0x', '0x', '0x1234');
     const deployStub = stubDeployTimelocks(TIMELOCK_ADDRESS);
     const actualConfig = proxiedConfig();
     const expectedConfig = configWithTimelock();
@@ -277,9 +306,58 @@ describe('EvmWarpModule', () => {
     );
 
     expect(deployStub.callCount).to.equal(1);
+    expect(getCodeStub.callCount).to.equal(3);
     expect(secondMatchStub.calledTwice).to.equal(true);
     expect(secondConfig.proxyAdmin?.owner).to.equal(TIMELOCK_ADDRESS);
   });
+
+  for (const [name, deploy] of [
+    [
+      'route-wide deploy',
+      (
+        deployer: HypERC20Deployer,
+        config: HypTokenRouterConfig,
+      ): Promise<unknown> => deployer.deploy({ [TestChainName.test1]: config }),
+    ],
+    [
+      'direct deployContracts',
+      (
+        deployer: HypERC20Deployer,
+        config: HypTokenRouterConfig,
+      ): Promise<unknown> =>
+        deployer.deployContracts(TestChainName.test1, config),
+    ],
+  ] as const) {
+    it(`rejects timelock with ownerOverrides.proxyAdmin before ${name} side effects`, async () => {
+      const proxyAdminConnectStub = sandbox.stub(
+        ProxyAdmin__factory,
+        'connect',
+      );
+      const deployTimelockStub = sandbox.stub(
+        HyperlaneDeployer.prototype,
+        'deployTimelock',
+      );
+      const config: HypTokenRouterConfig = {
+        ...configWithTimelock({
+          address: PROXY_ADMIN_ADDRESS,
+          owner: OWNER_ADDRESS,
+        }),
+        ownerOverrides: { proxyAdmin: OTHER_PROXY_ADMIN_ADDRESS },
+      };
+
+      try {
+        await deploy(new HypERC20Deployer(multiProvider), config);
+        expect.fail('expected conflicting ProxyAdmin ownership to reject');
+      } catch (error) {
+        expect(errorMessage(error)).to.include(
+          'Cannot configure timelock with ownerOverrides.proxyAdmin',
+        );
+      }
+
+      expect(proxyAdminConnectStub.called).to.equal(false);
+      expect(deployTimelockStub.called).to.equal(false);
+    });
+  }
 
   it('rejects fresh timelock deploy with foreign-owned supplied ProxyAdmin before deploying', async () => {
     // CAST: ProxyAdmin__factory.connect is stubbed, so the signer object is not inspected.
@@ -329,6 +407,7 @@ describe('EvmWarpModule', () => {
     const secondModule = createModuleForTest();
     sandbox.stub(firstModule, 'timelockMatchesConfig').resolves(false);
     sandbox.stub(secondModule, 'timelockMatchesConfig').resolves(false);
+    stubContractCode('0x1234');
     const deployStub = stubDeployTimelocks(
       TIMELOCK_ADDRESS,
       OTHER_TIMELOCK_ADDRESS,
