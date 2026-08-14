@@ -127,11 +127,18 @@ describe('EvmIsmReader', () => {
   let evmIsmReader: EvmIsmReader;
   let multiProvider: MultiProvider;
   let sandbox: sinon.SinonSandbox;
+  let getContractDeploymentBlockFromExplorer: sinon.SinonStub;
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
     multiProvider = MultiProvider.createTestMultiProvider();
     evmIsmReader = new EvmIsmReader(multiProvider, TestChainName.test1);
+    getContractDeploymentBlockFromExplorer = sandbox
+      .stub(
+        EvmEventLogsReader.prototype,
+        'getContractDeploymentBlockFromExplorer',
+      )
+      .resolves(100);
   });
 
   afterEach(() => {
@@ -365,7 +372,13 @@ describe('EvmIsmReader', () => {
     expect(getLogsByTopic.firstCall.args[0]).to.deep.equal({
       contractAddress: LEGACY_BLACKLIST_ADDRESS,
       eventTopic: MESSAGE_BLACKLISTED_TOPIC,
+      fromBlock: 100,
     });
+    expect(
+      getContractDeploymentBlockFromExplorer.calledOnceWithExactly(
+        LEGACY_BLACKLIST_ADDRESS,
+      ),
+    ).to.be.true;
   });
 
   // The counterpart to the failure cases below: no events is a readable, empty
@@ -528,6 +541,7 @@ describe('EvmIsmReader', () => {
     };
     expect(config).to.deep.equal(expectedConfig);
     expect(getLogsByTopic.notCalled).to.be.true;
+    expect(getContractDeploymentBlockFromExplorer.notCalled).to.be.true;
   });
 
   it('should not classify transient blacklist owner failures as test ISM', async () => {

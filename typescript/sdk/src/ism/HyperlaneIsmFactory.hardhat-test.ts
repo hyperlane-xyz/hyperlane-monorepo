@@ -193,17 +193,27 @@ describe('HyperlaneIsmFactory', async () => {
       const legacyIsm = await new TestLegacyBlacklistIsm__factory(
         multiProvider.getSigner(chain),
       ).deploy(owner);
-      await legacyIsm.deployTransaction.wait();
+      const deploymentReceipt = await legacyIsm.deployTransaction.wait();
+      const deploymentBlockStub = sinon
+        .stub(
+          EvmEventLogsReader.prototype,
+          'getContractDeploymentBlockFromExplorer',
+        )
+        .resolves(deploymentReceipt.blockNumber);
 
-      const matches = await moduleMatchesConfig(
-        chain,
-        legacyIsm.address,
-        { type: IsmType.TEST_ISM },
-        ismFactory.multiProvider,
-        ismFactory.getContracts(chain),
-      );
+      try {
+        const matches = await moduleMatchesConfig(
+          chain,
+          legacyIsm.address,
+          { type: IsmType.TEST_ISM },
+          ismFactory.multiProvider,
+          ismFactory.getContracts(chain),
+        );
 
-      expect(matches).to.be.false;
+        expect(matches).to.be.false;
+      } finally {
+        deploymentBlockStub.restore();
+      }
     });
   });
 
@@ -367,9 +377,24 @@ describe('HyperlaneIsmFactory', async () => {
 
     describe('deployments that predate on-chain enumeration', () => {
       let sandbox: sinon.SinonSandbox;
+      const legacyDeploymentBlocks = new Map<string, number>();
 
       beforeEach(() => {
         sandbox = sinon.createSandbox();
+        legacyDeploymentBlocks.clear();
+        sandbox
+          .stub(
+            EvmEventLogsReader.prototype,
+            'getContractDeploymentBlockFromExplorer',
+          )
+          .callsFake(async (address) => {
+            const block = legacyDeploymentBlocks.get(address.toLowerCase());
+            assert(
+              block !== undefined,
+              `Missing deployment block for ${address}`,
+            );
+            return block;
+          });
         // The test chain metadata declares an Etherscan explorer with a
         // placeholder API key, which would send the log reader to the live
         // Etherscan API before falling back to the RPC.
@@ -387,7 +412,11 @@ describe('HyperlaneIsmFactory', async () => {
         const legacyIsm = await new TestLegacyBlacklistIsm__factory(
           multiProvider.getSigner(chain),
         ).deploy(owner);
-        await legacyIsm.deployTransaction.wait();
+        const deploymentReceipt = await legacyIsm.deployTransaction.wait();
+        legacyDeploymentBlocks.set(
+          legacyIsm.address.toLowerCase(),
+          deploymentReceipt.blockNumber,
+        );
         await multiProvider.handleTx(
           chain,
           legacyIsm.blacklist(blacklistedIds),

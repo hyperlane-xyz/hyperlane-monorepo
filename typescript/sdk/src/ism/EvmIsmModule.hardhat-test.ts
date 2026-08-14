@@ -20,6 +20,7 @@ import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import {
   randomAddress,
   randomIsmConfig,
@@ -60,6 +61,9 @@ describe('EvmIsmModule', async () => {
   const chain = TestChainName.test4;
   let factoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
+  const legacyDeploymentBlocks = new Map<string, number>();
+  let legacyExplorerMetadataStub: sinon.SinonStub | undefined;
+  let legacyDeploymentBlockStub: sinon.SinonStub | undefined;
 
   before(async () => {
     const [signer, funder] = await hre.ethers.getSigners();
@@ -142,17 +146,24 @@ describe('EvmIsmModule', async () => {
 
   // expect that the ISM matches the config after all tests
   afterEach(async () => {
-    const derivedConfiig = await testIsm.read();
+    try {
+      const derivedConfiig = await testIsm.read();
 
-    const normalizedDerivedConfig = normalizeConfig(derivedConfiig);
-    const normalizedConfig = normalizeConfig(testConfig);
+      const normalizedDerivedConfig = normalizeConfig(derivedConfiig);
+      const normalizedConfig = normalizeConfig(testConfig);
 
-    // recipient is a deploy-time constructor arg not returned by read()
-    if (normalizedConfig.type === IsmType.RATE_LIMITED) {
-      delete normalizedConfig.recipient;
+      // recipient is a deploy-time constructor arg not returned by read()
+      if (normalizedConfig.type === IsmType.RATE_LIMITED) {
+        delete normalizedConfig.recipient;
+      }
+
+      assert.deepStrictEqual(normalizedDerivedConfig, normalizedConfig);
+    } finally {
+      legacyExplorerMetadataStub?.restore();
+      legacyDeploymentBlockStub?.restore();
+      legacyExplorerMetadataStub = undefined;
+      legacyDeploymentBlockStub = undefined;
     }
-
-    assert.deepStrictEqual(normalizedDerivedConfig, normalizedConfig);
   });
 
   // create a new ISM and verify that it matches the config
@@ -202,7 +213,11 @@ describe('EvmIsmModule', async () => {
     const legacyIsm = await new TestLegacyBlacklistIsm__factory(
       multiProvider.getSigner(chain),
     ).deploy(owner);
-    await legacyIsm.deployTransaction.wait();
+    const deploymentReceipt = await legacyIsm.deployTransaction.wait();
+    legacyDeploymentBlocks.set(
+      legacyIsm.address.toLowerCase(),
+      deploymentReceipt.blockNumber,
+    );
     for (const blacklistedId of blacklistedIds) {
       await multiProvider.handleTx(chain, legacyIsm.blacklist([blacklistedId]));
     }
@@ -911,19 +926,27 @@ describe('EvmIsmModule', async () => {
     });
 
     describe('blacklist submodule that predates on-chain enumeration', () => {
-      let explorerMetadataStub: sinon.SinonStub;
-
       beforeEach(() => {
+        legacyDeploymentBlocks.clear();
+        legacyDeploymentBlockStub = sinon
+          .stub(
+            EvmEventLogsReader.prototype,
+            'getContractDeploymentBlockFromExplorer',
+          )
+          .callsFake(async (address) => {
+            const block = legacyDeploymentBlocks.get(address.toLowerCase());
+            assert(
+              block !== undefined,
+              `Missing deployment block for ${address}`,
+            );
+            return block;
+          });
         // The test chain metadata declares an Etherscan explorer with a
         // placeholder API key, which would send the log reader to the live
         // Etherscan API before falling back to the RPC.
-        explorerMetadataStub = sinon
+        legacyExplorerMetadataStub = sinon
           .stub(multiProvider, 'tryGetEvmExplorerMetadata')
           .returns(null);
-      });
-
-      afterEach(() => {
-        explorerMetadataStub.restore();
       });
 
       it('derives the submodule as a blacklist ISM with the ids replayed from logs', async () => {

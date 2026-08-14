@@ -398,6 +398,46 @@ describe('EvmEventLogsReader', () => {
   });
 
   describe('retry before fallback', () => {
+    it('should keep the explorer deployment block when logs fall back to RPC', async () => {
+      await deployTestErc20();
+
+      const reader = EvmEventLogsReader.fromConfig(
+        { chain: TestChainName.test1 },
+        multiProvider,
+      );
+      const primaryStrategy = reader['logReaderStrategy'];
+      const fallbackStrategy = reader['fallbackLogReaderStrategy'];
+      assert(
+        primaryStrategy instanceof EvmEtherscanLikeEventLogsReader,
+        'Expected an explorer log reader',
+      );
+      assert(fallbackStrategy, 'Expected an RPC fallback log reader');
+      sinon
+        .stub(primaryStrategy, 'getContractDeploymentBlockNumber')
+        .resolves(deploymentBlockNumber);
+      sinon.stub(primaryStrategy, 'getContractLogs').rejects(
+        Object.assign(new Error('explorer logs unavailable'), {
+          isRecoverable: false,
+        }),
+      );
+      const fallbackGetLogs = sinon.spy(fallbackStrategy, 'getContractLogs');
+
+      const fromBlock = await reader.getContractDeploymentBlockFromExplorer(
+        testContract.address,
+      );
+      const logs = await reader.getLogsByTopic({
+        eventTopic: transferTopic,
+        contractAddress: testContract.address,
+        fromBlock,
+      });
+
+      expect(logs).to.have.length(1);
+      expect(fallbackGetLogs.calledOnce).to.be.true;
+      expect(fallbackGetLogs.firstCall.args[0].fromBlock).to.equal(
+        deploymentBlockNumber,
+      );
+    });
+
     it('should succeed on retry without hitting fallback', async () => {
       await deployTestErc20();
 
@@ -515,6 +555,62 @@ describe('EvmEventLogsReader', () => {
   });
 
   describe('deployment block cache', () => {
+    it('should reject an explorer deployment lookup for an RPC-only reader', async () => {
+      await deployTestErc20();
+
+      const reader = EvmEventLogsReader.fromConfig(
+        { chain: TestChainName.test1, useRPC: true },
+        multiProvider,
+      );
+      const deploymentSpy = sinon.spy(
+        reader['logReaderStrategy'],
+        'getContractDeploymentBlockNumber',
+      );
+
+      await expect(
+        reader.getContractDeploymentBlockFromExplorer(testContract.address),
+      ).to.be.rejectedWith(
+        `No block explorer is configured for chain ${TestChainName.test1}`,
+      );
+      expect(deploymentSpy.notCalled).to.be.true;
+    });
+
+    it('should not use a cached RPC deployment block as an explorer block', async () => {
+      await deployTestErc20();
+
+      const reader = EvmEventLogsReader.fromConfig(
+        { chain: TestChainName.test1 },
+        multiProvider,
+      );
+      const primaryStrategy = reader['logReaderStrategy'];
+      assert(
+        primaryStrategy instanceof EvmEtherscanLikeEventLogsReader,
+        'Expected an explorer log reader',
+      );
+      reader['deploymentBlockCache'].set(
+        testContract.address,
+        deploymentBlockNumber + 1,
+      );
+      const deploymentStub = sinon
+        .stub(primaryStrategy, 'getContractDeploymentBlockNumber')
+        .resolves(deploymentBlockNumber);
+
+      expect(
+        await reader.getContractDeploymentBlockFromExplorer(
+          testContract.address,
+        ),
+      ).to.equal(deploymentBlockNumber);
+      expect(
+        await reader.getContractDeploymentBlockFromExplorer(
+          testContract.address,
+        ),
+      ).to.equal(deploymentBlockNumber);
+      expect(deploymentStub.calledOnce).to.be.true;
+      expect(reader['deploymentBlockCache'].get(testContract.address)).to.equal(
+        deploymentBlockNumber,
+      );
+    });
+
     it('should only look up deployment block once for the same contract', async () => {
       await deployTestErc20();
 

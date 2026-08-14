@@ -160,6 +160,7 @@ export class EvmRpcEventLogsReader implements IEvmEventLogsReaderStrategy {
 
 export class EvmEventLogsReader {
   private deploymentBlockCache: Map<string, number> = new Map();
+  private explorerDeploymentBlockCache: Map<string, number> = new Map();
 
   protected constructor(
     protected readonly config: EvmEventLogsReaderConfig,
@@ -207,6 +208,27 @@ export class EvmEventLogsReader {
       logger,
       fallbackLogReaderSrategy,
     );
+  }
+
+  async getContractDeploymentBlockFromExplorer(
+    contractAddress: Address,
+  ): Promise<number> {
+    assert(
+      this.logReaderStrategy instanceof EvmEtherscanLikeEventLogsReader,
+      `No block explorer is configured for chain ${this.config.chain}`,
+    );
+
+    const cached = this.explorerDeploymentBlockCache.get(contractAddress);
+    if (!isNullish(cached)) return cached;
+
+    // Do not use deploymentBlockCache here: an earlier read may have populated
+    // it from RPC bisection after an explorer failure.
+    const block = await retryAsync(() =>
+      this.logReaderStrategy.getContractDeploymentBlockNumber(contractAddress),
+    );
+    this.explorerDeploymentBlockCache.set(contractAddress, block);
+    this.deploymentBlockCache.set(contractAddress, block);
+    return block;
   }
 
   async getLogsByTopic(
