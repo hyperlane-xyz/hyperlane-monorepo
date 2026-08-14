@@ -768,6 +768,9 @@ impl AdaptsChain for EthereumAdapter {
                     "No transaction found for nonce in reorg range"
                 );
             }
+            if nonce == reorged_nonce_range.end {
+                break;
+            }
             nonce = nonce.saturating_add(U256::one());
         }
 

@@ -34,18 +34,32 @@ async fn test_other_boundary_refresh_cannot_consume_reorg_transition() {
         .set_finalized_nonce_test(&U256::from(100))
         .await
         .unwrap();
-    let tx_uuid = TransactionUuid::random();
-    let tx = dummy_tx(
-        tx_uuid.clone(),
+    let middle_tx_uuid = TransactionUuid::random();
+    let middle_tx = dummy_tx(
+        middle_tx_uuid.clone(),
         TransactionStatus::Finalized,
         Some(U256::from(95)),
         Some(signer),
     );
-    tx_db.store_transaction_by_uuid(&tx).await.unwrap();
+    tx_db.store_transaction_by_uuid(&middle_tx).await.unwrap();
     adapter
         .nonce_manager
         .state
-        .set_tracked_tx_uuid_test(&U256::from(95), &tx_uuid)
+        .set_tracked_tx_uuid_test(&U256::from(95), &middle_tx_uuid)
+        .await
+        .unwrap();
+    let end_tx_uuid = TransactionUuid::random();
+    let end_tx = dummy_tx(
+        end_tx_uuid.clone(),
+        TransactionStatus::Finalized,
+        Some(U256::from(100)),
+        Some(signer),
+    );
+    tx_db.store_transaction_by_uuid(&end_tx).await.unwrap();
+    adapter
+        .nonce_manager
+        .state
+        .set_tracked_tx_uuid_test(&U256::from(100), &end_tx_uuid)
         .await
         .unwrap();
 
@@ -63,10 +77,12 @@ async fn test_other_boundary_refresh_cannot_consume_reorg_transition() {
     let second_reprocess_txs = second_reprocess_txs.unwrap();
     extended_range.unwrap();
 
-    assert_eq!(first_reprocess_txs.len(), 1);
-    assert_eq!(first_reprocess_txs[0].uuid, tx_uuid);
-    assert_eq!(second_reprocess_txs.len(), 1);
-    assert_eq!(second_reprocess_txs[0].uuid, tx_uuid);
+    assert_eq!(first_reprocess_txs.len(), 2);
+    assert_eq!(first_reprocess_txs[0].uuid, middle_tx_uuid);
+    assert_eq!(first_reprocess_txs[1].uuid, end_tx_uuid);
+    assert_eq!(second_reprocess_txs.len(), 2);
+    assert_eq!(second_reprocess_txs[0].uuid, middle_tx_uuid);
+    assert_eq!(second_reprocess_txs[1].uuid, end_tx_uuid);
     let retained_range = adapter
         .nonce_manager
         .state
