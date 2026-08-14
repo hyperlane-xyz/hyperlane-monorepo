@@ -35,10 +35,11 @@ export interface ImpersonatedAccountSubmitterConfig extends BaseSubmitterConfig<
   typeof SubmitterType.ImpersonatedAccount
 > {
   /**
-   * The account being impersonated. Required for parity with the EVM
-   * impersonated submitter, where it is the account anvil impersonates. The
-   * Sealevel implementation pays fees from a fixed fork-only account and leaves
-   * the owner's signature slot empty, so it does not consume this field.
+   * The account being impersonated, mirroring the account anvil impersonates
+   * for the EVM impersonated submitter. The Sealevel implementation pays fees
+   * from a fixed fork-only account and leaves this account's signature slot
+   * empty, but scopes impersonation to it: a transaction requiring a signature
+   * from any other account is rejected.
    */
   userAddress: string;
 }
@@ -53,19 +54,17 @@ export interface ITransactionSubmitter {
   submit(...transactions: AnnotatedTx[]): Promise<TxReceipt[]>;
 }
 
-export class AltVMJsonRpcSubmitter implements ITransactionSubmitter {
-  public readonly txSubmitterType: string = 'jsonRPC';
+abstract class BaseAltVMJsonRpcSubmitter implements ITransactionSubmitter {
+  public abstract readonly txSubmitterType: TransactionSubmitterType;
 
-  protected readonly logger: Logger = rootLogger.child({
-    module: 'AltVMJsonRpcSubmitter',
-  });
+  protected readonly logger: Logger;
 
   constructor(
     public readonly signer: ISigner<AnnotatedTx, TxReceipt>,
     public readonly config: { chain: string },
   ) {
     this.logger = rootLogger.child({
-      module: AltVMJsonRpcSubmitter.name,
+      module: this.constructor.name,
     });
   }
 
@@ -99,17 +98,16 @@ export class AltVMJsonRpcSubmitter implements ITransactionSubmitter {
   }
 }
 
-/**
- * Submits AltVM transactions through an impersonating signer that partially
- * signs (only with the held key) and relies on a fork's disabled signature
- * verification to land transactions whose real authority key is not held.
- *
- * All submission behavior is inherited from {@link AltVMJsonRpcSubmitter}; the
- * impersonation lives entirely in the injected signer. This subclass exists to
- * label the submission accurately.
- */
-export class AltVMImpersonatedSubmitter extends AltVMJsonRpcSubmitter {
-  public override readonly txSubmitterType: string = 'impersonatedAccount';
+export class AltVMJsonRpcSubmitter extends BaseAltVMJsonRpcSubmitter {
+  public readonly txSubmitterType: typeof SubmitterType.JsonRpc =
+    SubmitterType.JsonRpc;
+}
+
+// Submission behavior is the base's; this subclass only requires an
+// impersonating signer and labels itself with the impersonated discriminant.
+export class AltVMImpersonatedSubmitter extends BaseAltVMJsonRpcSubmitter {
+  public readonly txSubmitterType: typeof SubmitterType.ImpersonatedAccount =
+    SubmitterType.ImpersonatedAccount;
 
   constructor(
     signer: IImpersonatingSigner<AnnotatedTx, TxReceipt>,

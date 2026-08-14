@@ -101,20 +101,20 @@ describe('SvmProtocolProvider', () => {
           privateKey: TEST_PRIVATE_KEY,
         },
         expectedInstance: AltVMJsonRpcSubmitter,
-        expectedSubmitterType: 'jsonRPC',
+        expectedSubmitterType: SubmitterType.JsonRpc,
       },
       {
         // Keyless: the impersonated submitter pays fees from a fixed fork
-        // account, so no private key is supplied. userAddress is required for
-        // EVM parity but not consumed by the Sealevel signer.
+        // account, so no private key is supplied. userAddress scopes which
+        // account the Sealevel signer will impersonate.
         name: 'impersonatedAccount',
         config: {
           type: SubmitterType.ImpersonatedAccount,
           chain: FAKE_METADATA.name,
-          userAddress: '11111111111111111111111111111111',
+          userAddress: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9nWLyBpb',
         },
         expectedInstance: AltVMImpersonatedSubmitter,
-        expectedSubmitterType: 'impersonatedAccount',
+        expectedSubmitterType: SubmitterType.ImpersonatedAccount,
       },
     ];
 
@@ -127,11 +127,10 @@ describe('SvmProtocolProvider', () => {
 
         expect(submitter).to.be.instanceOf(c.expectedInstance);
         // txSubmitterType lives on the concrete submitter, not the
-        // ITransactionSubmitter interface — narrow before reading it. The
-        // impersonated submitter extends the jsonRpc one, so the label is what
-        // distinguishes the two.
+        // ITransactionSubmitter interface — narrow before reading it.
         assert(
-          submitter instanceof AltVMJsonRpcSubmitter,
+          submitter instanceof AltVMJsonRpcSubmitter ||
+            submitter instanceof AltVMImpersonatedSubmitter,
           'expected an AltVM submitter instance',
         );
         expect(submitter.txSubmitterType).to.equal(c.expectedSubmitterType);
