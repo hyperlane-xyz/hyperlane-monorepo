@@ -11,14 +11,20 @@ impl MigrationTrait for Migration {
             .execute_unprepared(
                 r#"
                 CREATE TEMP TABLE cursor_survivors ON COMMIT DROP AS
-                SELECT DISTINCT ON (domain, event_type)
-                  id,
-                  domain,
-                  time_created,
-                  height,
-                  event_type
-                FROM "cursor"
-                ORDER BY domain, event_type, height DESC, time_created DESC, id DESC;
+                WITH keys AS (
+                  SELECT DISTINCT domain, event_type
+                  FROM "cursor"
+                )
+                SELECT latest.id, latest.domain, latest.time_created, latest.height, latest.event_type
+                FROM keys
+                CROSS JOIN LATERAL (
+                  SELECT id, domain, time_created, height, event_type
+                  FROM "cursor"
+                  WHERE "cursor".domain = keys.domain
+                    AND "cursor".event_type = keys.event_type
+                  ORDER BY height DESC, time_created DESC, id DESC
+                  LIMIT 1
+                ) latest;
 
                 TRUNCATE TABLE "cursor";
 
