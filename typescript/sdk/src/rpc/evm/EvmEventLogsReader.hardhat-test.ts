@@ -479,12 +479,13 @@ describe('EvmEventLogsReader', () => {
         { chain: TestChainName.test1, useRPC: true },
         multiProvider,
       );
+      const snapshotBlock = deploymentBlockNumber + 100;
       const getBlockNumber = sinon
         .stub(providerChainTest1, 'getBlockNumber')
         .onFirstCall()
-        .resolves(100)
+        .resolves(snapshotBlock)
         .onSecondCall()
-        .resolves(101);
+        .resolves(snapshotBlock + 1);
       const primaryGetLogs = sinon.stub().rejects(
         Object.assign(new Error('primary failed'), {
           isRecoverable: false,
@@ -508,8 +509,8 @@ describe('EvmEventLogsReader', () => {
       });
 
       expect(getBlockNumber.callCount).to.equal(1);
-      expect(primaryGetLogs.firstCall.args[0].toBlock).to.equal(100);
-      expect(fallbackGetLogs.firstCall.args[0].toBlock).to.equal(100);
+      expect(primaryGetLogs.firstCall.args[0].toBlock).to.equal(snapshotBlock);
+      expect(fallbackGetLogs.firstCall.args[0].toBlock).to.equal(snapshotBlock);
     });
   });
 
