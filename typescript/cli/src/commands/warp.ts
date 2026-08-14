@@ -3,11 +3,7 @@ import { stringify as yamlStringify } from 'yaml';
 import { type CommandModule } from 'yargs';
 
 import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
-import {
-  type RawForkedChainConfigByChain,
-  RawForkedChainConfigByChainSchema,
-  checkWarpRouteDeployConfig,
-} from '@hyperlane-xyz/sdk';
+import { checkWarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 import {
   assert,
   difference,
@@ -36,7 +32,11 @@ import {
 } from '../deploy/warp.js';
 import { runWarpRouteBalances } from '../balances/warp.js';
 import { runWarpRouteFees } from '../fees/warp.js';
-import { runForkCommand } from '../fork/fork.js';
+import {
+  type ForkConfigByChain,
+  ForkConfigByChainSchema,
+  runForkCommand,
+} from '../fork/fork.js';
 import {
   errorRed,
   log,
@@ -851,7 +851,8 @@ const fork: CommandModuleWithContext<
   }
 > = {
   command: 'fork',
-  describe: 'Fork a Hyperlane chain on a compatible Anvil/Hardhat node',
+  describe:
+    'Fork the chains of a warp route on a per-protocol local node (Anvil for EVM, surfpool for Sealevel) and replay governance transactions',
   builder: {
     ...forkCommandOptions,
     ...WARP_ROUTE_OPTIONS,
@@ -863,9 +864,9 @@ const fork: CommandModuleWithContext<
     kill,
     forkConfig: forkConfigPath,
   }) => {
-    let forkConfig: RawForkedChainConfigByChain;
+    let forkConfig: ForkConfigByChain;
     if (forkConfigPath) {
-      forkConfig = RawForkedChainConfigByChainSchema.parse(
+      forkConfig = ForkConfigByChainSchema.parse(
         readYamlOrJson(forkConfigPath),
       );
     } else {

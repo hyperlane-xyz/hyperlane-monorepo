@@ -8,7 +8,7 @@
 # Runtime env:
 #   SERVICE_NAME - One of: rebalancer, warp-monitor, ccip-server, keyfunder, relayer, fee-quoting
 
-ARG NODE_VERSION=24
+ARG NODE_VERSION=26
 FROM node:${NODE_VERSION}-slim AS builder
 
 WORKDIR /hyperlane-monorepo
@@ -28,7 +28,7 @@ SHELL ["/bin/sh", "-c"]
 
 # Copy package.json first for corepack to read packageManager field
 COPY package.json ./
-RUN corepack enable && corepack install
+RUN npm install --global corepack@0.35.0 && corepack enable && corepack install
 
 # Copy pnpm config files
 COPY pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -47,6 +47,7 @@ COPY typescript/metrics/package.json ./typescript/metrics/
 COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
 COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/provider-sdk/package.json ./typescript/provider-sdk/
+COPY typescript/forking-sdk/package.json ./typescript/forking-sdk/
 COPY typescript/utils/package.json ./typescript/utils/
 COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
 COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
@@ -100,6 +101,7 @@ COPY typescript/metrics ./typescript/metrics
 COPY typescript/deploy-sdk ./typescript/deploy-sdk
 COPY typescript/cosmos-sdk ./typescript/cosmos-sdk
 COPY typescript/provider-sdk ./typescript/provider-sdk
+COPY typescript/forking-sdk ./typescript/forking-sdk
 COPY typescript/radix-sdk ./typescript/radix-sdk
 COPY typescript/aleo-sdk ./typescript/aleo-sdk
 COPY typescript/starknet-sdk ./typescript/starknet-sdk

@@ -4,7 +4,10 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
-import { getWarpFeeOwner } from '../../governance/utils.js';
+import {
+  WARP_FEES_TURNKEY_OWNER,
+  getWarpFeeOwner,
+} from '../../governance/utils.js';
 import { WarpRouteIds } from '../warpIds.js';
 
 import {
@@ -266,7 +269,9 @@ export async function getEniUsdtWarpConfig(
         maxDecimals,
       ),
       tokenFee: getFixedRoutingFeeConfig(
-        getWarpFeeOwner(chain),
+        // Fee contracts on every leg except tron were rotated to Turnkey
+        // treasury custody; tron still uses its WarpFees ICA.
+        chain === 'tron' ? getWarpFeeOwner(chain) : WARP_FEES_TURNKEY_OWNER,
         allCollateralChains.filter((otherChain) => otherChain !== chain),
         USDT_INTER_COLLATERAL_FEE_BPS,
         undefined,
@@ -288,7 +293,8 @@ export async function getEniUsdtWarpConfig(
       maxDecimals,
     ),
     tokenFee: getFixedRoutingFeeConfig(
-      getWarpFeeOwner('eni'),
+      // eni synthetic fee contract was rotated to Turnkey treasury custody.
+      WARP_FEES_TURNKEY_OWNER,
       allCollateralChains,
       WARP_FEE_BPS,
     ),

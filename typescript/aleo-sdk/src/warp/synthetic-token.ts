@@ -91,7 +91,8 @@ export class AleoSyntheticTokenReader implements ArtifactReader<
 
 export class AleoSyntheticTokenWriter
   extends AleoSyntheticTokenReader
-  implements ArtifactWriter<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
+  implements
+    ArtifactWriter<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
 {
   constructor(
     aleoClient: AnyAleoNetworkClient,

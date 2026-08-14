@@ -76,7 +76,6 @@ export const legacyIgpChains: ChainName[] = Array.from(
     // Keep chains with repeatedly unreliable deployment/proposal execution on
     // legacy IGP for now.
     'krown',
-    'prom',
     'pulsechain',
     'sei',
     'viction',

@@ -27,8 +27,6 @@ export enum WarpRouteIds {
   EthereumLineaTURTLE = 'TURTLE/ethereum-linea',
   EthereumSeiFastUSD = 'FASTUSD/ethereum-sei',
   EthereumSeiPumpBTC = 'pumpBTCsei/ethereum-sei',
-  EthereumVanaETH = 'ETH/ethereum-vana',
-  EthereumVanaVANA = 'VANA/ethereum-vana',
   VictionETH = 'ETH/viction',
   EthereumVictionUSDC = 'USDC/ethereum-viction',
   EthereumVictionUSDT = 'USDT/ethereum-viction',
@@ -44,7 +42,6 @@ export enum WarpRouteIds {
   // scroll/zoramainnet are fully decommissioned from the registry.
   ArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDC = 'USDC/arbitrum-base-ethereum-lisk-optimism-polygon-zeronetwork',
   AppchainBaseUSDC = 'USDC/appchain-base',
-  BsquaredUBTC = 'UBTC/bsquared',
   BaseEthereumSuperseedCBBTC = 'CBBTC/base-ethereum-superseed',
   SuperseedUSDC = 'USDC/superseed',
   EthereumSuperseedUSDT = 'USDT/ethereum-superseed',

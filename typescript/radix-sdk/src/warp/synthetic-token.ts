@@ -90,7 +90,8 @@ export class RadixSyntheticTokenReader implements ArtifactReader<
 
 export class RadixSyntheticTokenWriter
   extends RadixSyntheticTokenReader
-  implements ArtifactWriter<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
+  implements
+    ArtifactWriter<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
 {
   constructor(
     gateway: GatewayApiClient,

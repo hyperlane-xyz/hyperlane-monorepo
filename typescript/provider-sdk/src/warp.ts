@@ -987,8 +987,8 @@ export function computeCCRouterGasConfigUpdates(
   currentDestinationGas: Readonly<Record<number, string>>,
   expectedDestinationGas: Readonly<Record<number, string>>,
   expectedRemoteRouterDomains: ReadonlySet<number>,
-  currentCCRouters: Readonly<Record<number, Set<string>>>,
-  expectedCCRouters: Readonly<Record<number, Set<string>>>,
+  currentCCRouters: Readonly<Partial<Record<number, Set<string>>>>,
+  expectedCCRouters: Readonly<Partial<Record<number, Set<string>>>>,
 ): CCGasConfigDiff {
   const allCCDomains = new Set([
     ...Object.keys(currentCCRouters).map(Number),

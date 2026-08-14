@@ -145,7 +145,7 @@ sea-orm = { version = "1.1.10", features = [
   "with-time",
   "macros",
 ] }
-sea-orm-migration = { version = "1.1.10", features = [
+sea-orm-migration = { version = "1.1.10", default-features = false, features = [
   "sqlx-postgres",
   "runtime-tokio-native-tls",
 ] }
@@ -312,4 +312,3 @@ version = "=0.12.1"
 branch = "hyperlane"
 git = "https://github.com/hyperlane-xyz/parity-common.git"
 version = "=0.5.2"
-

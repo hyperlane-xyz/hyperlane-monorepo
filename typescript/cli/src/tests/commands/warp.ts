@@ -191,6 +191,39 @@ export class HyperlaneE2EWarpTestCommands {
           `;
   }
 
+  public checkRaw({
+    warpRouteId,
+    registry,
+  }: {
+    warpRouteId: string;
+    registry?: string;
+  }): ProcessPromise {
+    return $`${localTestRunCmdPrefix()} hyperlane warp check \
+          --registry ${registry ?? this.registryPath} \
+          --warp-route-id ${warpRouteId} \
+          --verbosity debug`;
+  }
+
+  public fork({
+    warpRouteId,
+    port,
+    forkConfigPath,
+    kill,
+  }: {
+    warpRouteId: string;
+    port: number;
+    forkConfigPath?: string;
+    kill?: boolean;
+  }): ProcessPromise {
+    return $`${localTestRunCmdPrefix()} hyperlane warp fork \
+          --registry ${this.registryPath} \
+          --warp-route-id ${warpRouteId} \
+          --port ${port} \
+          --verbosity debug \
+          ${forkConfigPath ? ['--fork-config', forkConfigPath] : []} \
+          ${kill ? ['--kill'] : []}`;
+  }
+
   private syncWarpDeployConfigToRegistry(
     warpRouteId?: string,
     warpDeployPath?: string,

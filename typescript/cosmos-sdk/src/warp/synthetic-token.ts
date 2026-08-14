@@ -74,7 +74,8 @@ export class CosmosSyntheticTokenReader implements ArtifactReader<
 
 export class CosmosSyntheticTokenWriter
   extends CosmosSyntheticTokenReader
-  implements ArtifactWriter<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
+  implements
+    ArtifactWriter<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
 {
   constructor(
     query: CosmosWarpQueryClient,

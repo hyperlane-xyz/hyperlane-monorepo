@@ -113,9 +113,11 @@ export const keyFunderConfig: KeyFunderConfig<
     soon: '0',
     sonicsvm: '0',
   },
+  // Temporarily disabled while the sweep destination is moved to Turnkey treasury custody.
+  sweepEnabled: false,
   // Low urgency key funder balance thresholds for sweep calculations
-  // Automatic sweep enabled by default for all chains with these thresholds
-  // Defaults: sweep to 0x478be6076f31E9666123B9721D0B6631baD944AF when balance > 2x threshold, leave 1.5x threshold
+  // Used for sweep calculations when automatic sweeping is enabled.
+  // Defaults: sweep to 0x5b73A98165778BCCE72979B4EE3faCdb31728b8E when balance > 2x threshold, leave 1.5x threshold
   lowUrgencyKeyFunderBalances: lowUrgencyKeyFunderBalancePerChain,
   // Per-chain overrides for sweep (optional)
   sweepOverrides: {},

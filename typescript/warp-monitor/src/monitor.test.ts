@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 
-import type { IRegistry } from '@hyperlane-xyz/registry';
 import type { Token, WarpCore } from '@hyperlane-xyz/sdk';
 import type {
   PendingDestinationTransfer,
@@ -13,7 +12,7 @@ import {
   resetPendingDestinationMetrics,
   metricsRegister,
 } from './metrics.js';
-import { WarpMonitor } from './monitor.js';
+import { updatePendingAndInventoryMetrics } from './monitor.js';
 
 function createMockToken({
   collateralized,
@@ -35,60 +34,19 @@ function createMockToken({
   } as Token;
 }
 
-async function invokeUpdatePendingAndInventoryMetrics(
-  monitor: WarpMonitor,
-  warpCore: WarpCore,
-  routerNodes: RouterNodeMetadata[],
-  collateralByNodeId: Map<string, bigint>,
-  warpRouteId: string,
-  pendingTransfersClient?: ExplorerPendingTransfersClient,
-  explorerQueryLimit?: number,
-  inventoryAddress?: string,
-) {
-  const updatePendingAndInventoryMetrics = (monitor as any)
-    .updatePendingAndInventoryMetrics as (
-    warpCore: WarpCore,
-    routerNodes: RouterNodeMetadata[],
-    collateralByNodeId: Map<string, bigint>,
-    warpRouteId: string,
-    pendingTransfersClient?: ExplorerPendingTransfersClient,
-    explorerQueryLimit?: number,
-    inventoryAddress?: string,
-  ) => Promise<void>;
-
-  await updatePendingAndInventoryMetrics.call(
-    monitor,
-    warpCore,
-    routerNodes,
-    collateralByNodeId,
-    warpRouteId,
-    pendingTransfersClient,
-    explorerQueryLimit,
-    inventoryAddress,
-  );
-}
-
-describe('WarpMonitor', () => {
+describe('updatePendingAndInventoryMetrics', () => {
   afterEach(() => {
     resetPendingDestinationMetrics();
     resetInventoryBalanceMetrics();
   });
 
   it('emits projected deficit metrics only for collateralized nodes', async () => {
-    const monitor = new WarpMonitor(
-      {
-        warpRouteId: 'MULTI/deficit-test',
-        checkFrequency: 10_000,
-      },
-      {} as IRegistry,
-    );
-
     const collateralizedNodeId = 'COLLAT|anvil2|0xroutera';
     const nonCollateralizedNodeId = 'SYNTH|anvil2|0xrouterb';
     const routerNodes: RouterNodeMetadata[] = [
       {
         nodeId: collateralizedNodeId,
-        chainName: 'anvil2' as RouterNodeMetadata['chainName'],
+        chainName: 'anvil2',
         domainId: 31337,
         routerAddress: '0xroutera',
         tokenAddress: '0xtokena',
@@ -102,7 +60,7 @@ describe('WarpMonitor', () => {
       },
       {
         nodeId: nonCollateralizedNodeId,
-        chainName: 'anvil2' as RouterNodeMetadata['chainName'],
+        chainName: 'anvil2',
         domainId: 31337,
         routerAddress: '0xrouterb',
         tokenAddress: '0xtokenb',
@@ -149,8 +107,7 @@ describe('WarpMonitor', () => {
       [nonCollateralizedNodeId, 1_000_000n],
     ]);
 
-    await invokeUpdatePendingAndInventoryMetrics(
-      monitor,
+    await updatePendingAndInventoryMetrics(
       { multiProvider: {} } as WarpCore,
       routerNodes,
       collateralByNodeId,
@@ -195,19 +152,11 @@ describe('WarpMonitor', () => {
   });
 
   it('does not emit inventory metrics when balance read fails', async () => {
-    const monitor = new WarpMonitor(
-      {
-        warpRouteId: 'MULTI/inventory-fail-test',
-        checkFrequency: 10_000,
-      },
-      {} as IRegistry,
-    );
-
     const nodeId = 'COLLAT|anvil2|0xroutera';
     const routerNodes: RouterNodeMetadata[] = [
       {
         nodeId,
-        chainName: 'anvil2' as RouterNodeMetadata['chainName'],
+        chainName: 'anvil2',
         domainId: 31337,
         routerAddress: '0xroutera',
         tokenAddress: '0xtokena',
@@ -233,8 +182,7 @@ describe('WarpMonitor', () => {
       },
     };
 
-    await invokeUpdatePendingAndInventoryMetrics(
-      monitor,
+    await updatePendingAndInventoryMetrics(
       { multiProvider: {} } as WarpCore,
       routerNodes,
       new Map([[nodeId, 1_000_000n]]),
@@ -255,20 +203,12 @@ describe('WarpMonitor', () => {
     ).to.equal(false);
   });
 
-  it('resets pending metrics and still updates inventory when explorer query fails', async () => {
-    const monitor = new WarpMonitor(
-      {
-        warpRouteId: 'MULTI/explorer-fail-test',
-        checkFrequency: 10_000,
-      },
-      {} as IRegistry,
-    );
-
+  it('leaves pending series stale (does not publish zeroes) and still updates inventory when explorer query fails', async () => {
     const nodeId = 'COLLAT|anvil2|0xroutera';
     const routerNodes: RouterNodeMetadata[] = [
       {
         nodeId,
-        chainName: 'anvil2' as RouterNodeMetadata['chainName'],
+        chainName: 'anvil2',
         domainId: 31337,
         routerAddress: '0xroutera',
         tokenAddress: '0xtokena',
@@ -292,8 +232,7 @@ describe('WarpMonitor', () => {
       },
     };
 
-    await invokeUpdatePendingAndInventoryMetrics(
-      monitor,
+    await updatePendingAndInventoryMetrics(
       { multiProvider: {} } as WarpCore,
       routerNodes,
       new Map([[nodeId, 2_000_000n]]),
@@ -311,8 +250,10 @@ describe('WarpMonitor', () => {
           line.startsWith('hyperlane_warp_route_pending_destination_amount{') &&
           line.includes(`node_id="${nodeId}"`),
       );
-    expect(pendingAmountLine).to.exist;
-    expect(pendingAmountLine!.trim().endsWith(' 0')).to.equal(true);
+    // A failed explorer query must NOT publish confident zeroes; with no prior
+    // series the pending gauge stays absent for this node rather than reading
+    // "all clear" and silencing deficit alerting during the outage.
+    expect(pendingAmountLine).to.equal(undefined);
 
     const inventoryLine = metrics
       .split('\n')
@@ -323,5 +264,101 @@ describe('WarpMonitor', () => {
       );
     expect(inventoryLine).to.exist;
     expect(inventoryLine!.trim().endsWith(' 1')).to.equal(true);
+  });
+
+  it('preserves last-good inventory for a node whose balance read fails on a later cycle', async () => {
+    const inventoryAddress = '0x1111111111111111111111111111111111111111';
+    const stableNodeId = 'COLLAT|anvil2|0xroutera';
+    const flakyNodeId = 'COLLAT|anvil2|0xrouterb';
+
+    let flakyCalls = 0;
+    const routerNodes: RouterNodeMetadata[] = [
+      {
+        nodeId: stableNodeId,
+        chainName: 'anvil2',
+        domainId: 31337,
+        routerAddress: '0xroutera',
+        tokenAddress: '0xtokena',
+        tokenName: 'Collateral Token A',
+        tokenSymbol: 'COLLAT',
+        tokenDecimals: 6,
+        token: createMockToken({
+          collateralized: true,
+          decimals: 6,
+          getBalance: async () => 5_000_000n,
+        }),
+      },
+      {
+        nodeId: flakyNodeId,
+        chainName: 'anvil2',
+        domainId: 31337,
+        routerAddress: '0xrouterb',
+        tokenAddress: '0xtokenb',
+        tokenName: 'Collateral Token B',
+        tokenSymbol: 'COLLAT',
+        tokenDecimals: 6,
+        token: createMockToken({
+          collateralized: true,
+          decimals: 6,
+          getBalance: async () => {
+            flakyCalls += 1;
+            if (flakyCalls > 1) throw new Error('rpc down');
+            return 7_000_000n;
+          },
+        }),
+      },
+    ];
+
+    const pendingTransfersClient: Pick<
+      ExplorerPendingTransfersClient,
+      'getPendingDestinationTransfers'
+    > = {
+      async getPendingDestinationTransfers() {
+        return [] as PendingDestinationTransfer[];
+      },
+    };
+
+    const collateralByNodeId = new Map<string, bigint>([
+      [stableNodeId, 5_000_000n],
+      [flakyNodeId, 7_000_000n],
+    ]);
+
+    const runCycle = async () =>
+      updatePendingAndInventoryMetrics(
+        { multiProvider: {} } as WarpCore,
+        routerNodes,
+        collateralByNodeId,
+        'MULTI/inventory-stale-test',
+        pendingTransfersClient as ExplorerPendingTransfersClient,
+        200,
+        inventoryAddress,
+      );
+
+    // First cycle: both nodes read successfully. Second cycle: flaky node fails.
+    await runCycle();
+    await runCycle();
+
+    const metrics = await metricsRegister.metrics();
+    const flakyLine = metrics
+      .split('\n')
+      .find(
+        (line) =>
+          line.startsWith('hyperlane_warp_route_inventory_balance{') &&
+          line.includes(`node_id="${flakyNodeId}"`),
+      );
+    // A transient RPC failure must not silence the metric: the flaky node keeps
+    // its last-good value (7) rather than being removed.
+    expect(flakyLine).to.exist;
+    expect(flakyLine!.trim().endsWith(' 7')).to.equal(true);
+
+    const stableLine = metrics
+      .split('\n')
+      .find(
+        (line) =>
+          line.startsWith('hyperlane_warp_route_inventory_balance{') &&
+          line.includes(`node_id="${stableNodeId}"`),
+      );
+    expect(stableLine).to.exist;
+    expect(stableLine!.trim().endsWith(' 5')).to.equal(true);
   });
 });

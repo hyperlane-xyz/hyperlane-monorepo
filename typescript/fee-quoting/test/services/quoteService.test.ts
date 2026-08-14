@@ -778,7 +778,7 @@ describe('QuoteService', () => {
       await service.getQuote(
         'ethereum',
         FeeQuotingCommand.TransferRemote,
-        '0x9999999999999999999999999999999999999999' as Address,
+        '0x9999999999999999999999999999999999999999',
         DESTINATION,
         SALT,
         RECIPIENT,

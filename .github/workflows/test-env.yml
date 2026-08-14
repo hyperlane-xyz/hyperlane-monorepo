@@ -35,7 +35,7 @@ jobs:
             module: core
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -60,7 +60,7 @@ jobs:
     needs: env-test-matrix
     if: always()
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Check env-test matrix status
         uses: ./.github/actions/check-job-status
         with:

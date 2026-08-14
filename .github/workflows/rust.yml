@@ -27,7 +27,7 @@ jobs:
     outputs:
       skip_rust: ${{ steps.decide.outputs.skip_rust }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -77,7 +77,7 @@ jobs:
     if: needs.ts-only.outputs.skip_rust != 'true'
     runs-on: depot-ubuntu-24.04-8
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
@@ -122,7 +122,7 @@ jobs:
     if: needs.ts-only.outputs.skip_rust != 'true'
     runs-on: depot-ubuntu-24.04-8
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
@@ -157,7 +157,7 @@ jobs:
     if: needs.ts-only.outputs.skip_rust != 'true'
     runs-on: depot-ubuntu-24.04-8
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
@@ -227,7 +227,7 @@ jobs:
     needs: [lander-coverage-run]
     if: always()
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Check lander-coverage status
         uses: ./.github/actions/check-job-status
         with:
@@ -239,7 +239,7 @@ jobs:
     needs: [test-rs-run]
     if: always()
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Check test-rs status
         uses: ./.github/actions/check-job-status
         with:
@@ -251,7 +251,7 @@ jobs:
     needs: [lint-rs-run]
     if: always()
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Check lint-rs status
         uses: ./.github/actions/check-job-status
         with:

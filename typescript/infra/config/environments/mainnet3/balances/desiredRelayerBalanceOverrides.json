@@ -12,15 +12,12 @@
   "forma": 5,
   "kyve": 500,
   "mocachain": 727,
-  "morph": 0.05,
   "nesa": 0.25,
   "nexus": 1,
-  "nibiru": 20,
   "paradex": 2,
   "radix": 3000,
   "starknet": 200,
   "subtensor": 0.2,
   "solaxy": 0.05,
-  "tea": 0.2,
-  "vana": 20
+  "tea": 0.2
 }

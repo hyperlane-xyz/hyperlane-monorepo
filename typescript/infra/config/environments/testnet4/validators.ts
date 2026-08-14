@@ -190,16 +190,6 @@ export const validatorChainConfig = (
         'somniatestnet',
       ),
     },
-    cotitestnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('cotitestnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'cotitestnet',
-      ),
-    },
     kyvetestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('kyvetestnet'),

@@ -247,13 +247,13 @@ export const forkCommandOptions: Record<string, Options> = {
   port: {
     type: 'number',
     description:
-      'Port to be used as initial port from which assign port numbers to all anvil instances',
+      'Initial port from which to assign port numbers to all fork node instances',
     default: 8545,
   },
   'fork-config': {
     type: 'string',
     description:
-      'The path to a configuration file that specifies how to build the forked chains',
+      "The path to a configuration file that specifies how to build the forked chains. Sealevel chains fork the datasource's current head (no fork-at-slot)",
   },
   kill: {
     type: 'boolean',

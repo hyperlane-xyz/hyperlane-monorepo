@@ -298,16 +298,6 @@ function normalizeCrossCollateralRouters(
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
-// `collateralDex` is a paradex-only registry annotation for a collateral route
-// that performs a DEX conversion (see registry ETH/paradex & DIME/paradex). It has
-// no matching SDK TokenType, and on-chain the leg is a standard collateral router,
-// so the deriver reports `collateral`. Treat the annotation as its underlying
-// collateral type so the generic altVM diff doesn't false-flag a `type` mismatch.
-const COLLATERAL_DEX_TYPE_ALIAS = 'collateralDex';
-export function normalizeAltVmExpectedTokenType(type: string): string {
-  return type === COLLATERAL_DEX_TYPE_ALIAS ? TokenType.collateral : type;
-}
-
 export function expandedDeployConfigToAltVmCheckConfig(
   chain: ChainName,
   config: WarpRouteDeployConfigMailboxRequired[string],
@@ -365,7 +355,7 @@ export function expandedDeployConfigToAltVmCheckConfig(
   // altVmScaleMismatch (exact bigint fraction compare against the raw expected
   // config.scale), not through this generic diff. See checkWarpRouteDeployConfig.
   const result: AltVmCheckConfig = {
-    type: normalizeAltVmExpectedTokenType(config.type),
+    type: config.type,
     owner: normalizeAddress(config.owner, protocol),
     mailbox: normalizeAddress(config.mailbox, protocol),
     interchainSecurityModule: ismAddress,
@@ -386,7 +376,7 @@ export function expandedDeployConfigToAltVmCheckConfig(
   // core-config decimals is excluded here to keep both sides symmetric.
   if (
     protocol !== ProtocolType.CosmosNative &&
-    normalizeAltVmExpectedTokenType(config.type) !== TokenType.native &&
+    config.type !== TokenType.native &&
     !isNullish(config.decimals)
   ) {
     result.decimals = config.decimals;

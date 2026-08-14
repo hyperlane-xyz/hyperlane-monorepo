@@ -16,7 +16,7 @@ export type TronTransaction = {
     ref_block_hash: string;
     expiration: number;
     timestamp: number;
-    fee_limit?: unknown;
+    fee_limit?: number;
   };
 };
 

@@ -1,0 +1,39 @@
+{
+  "name": "@hyperlane-xyz/forking-sdk",
+  "version": "8.1.0",
+  "description": "VM-agnostic local forking abstraction for the Hyperlane Protocol",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "dev": "tsc --watch",
+    "lint": "oxlint -c ../../oxlint.json",
+    "clean": "rm -rf ./dist",
+    "format": "oxfmt --write .",
+    "test": "mocha --config .mocharc.json",
+    "test:ci": "mocha --config .mocharc.json"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/provider-sdk": "workspace:*",
+    "@hyperlane-xyz/utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "chai": "catalog:",
+    "mocha": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -16,7 +16,7 @@ export function createChainRouter(chainService: ChainService): Router {
   router.get(
     '/:chain/metadata',
     validateRequestParam('chain', ZChainName),
-    async (req: Request, res: Response) => {
+    async (req: Request<{ chain: string }>, res: Response) => {
       const metadata = await chainService.getChainMetadata(req.params.chain);
       res.json(metadata);
     },
@@ -25,7 +25,7 @@ export function createChainRouter(chainService: ChainService): Router {
   router.get(
     '/:chain/addresses',
     validateRequestParam('chain', ZChainName),
-    async (req: Request, res: Response) => {
+    async (req: Request<{ chain: string }>, res: Response) => {
       const addresses = await chainService.getChainAddresses(req.params.chain);
       res.json(addresses);
     },
@@ -35,7 +35,7 @@ export function createChainRouter(chainService: ChainService): Router {
     '/:chain',
     validateRequestParam('chain', ZChainName),
     validateBody(UpdateChainSchema.strict()),
-    async (req: Request, res: Response) => {
+    async (req: Request<{ chain: string }>, res: Response) => {
       await chainService.updateChain({
         chainName: req.params.chain,
         ...req.body,
