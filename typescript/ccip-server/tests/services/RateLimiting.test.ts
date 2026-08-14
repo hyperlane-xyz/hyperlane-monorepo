@@ -1,15 +1,17 @@
-import type { AddressInfo } from 'node:net';
-
 import { expect } from 'chai';
 import express from 'express';
 import type { RequestHandler } from 'express';
 import { Registry } from 'prom-client';
 import sinon from 'sinon';
 
-import type { InterchainAccount, MultiProvider } from '@hyperlane-xyz/sdk';
+import { InterchainAccount, MultiProvider } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { CallCommitmentsService } from '../../src/services/CallCommitmentsService.js';
-import { configureTrustProxy } from '../../src/utils/http.js';
+import {
+  GCE_INGRESS_PROXY_HOPS,
+  configureTrustProxy,
+} from '../../src/utils/http.js';
 import { initializeMetrics } from '../../src/utils/prometheus.js';
 
 const loadBalancerIp = '35.191.0.1';
@@ -40,10 +42,10 @@ function createServiceWithNoopHandlers(): CallCommitmentsService {
     return new CallCommitmentsService(
       {
         serviceName: 'callCommitments',
-        multiProvider: {} as MultiProvider,
+        multiProvider: sinon.createStubInstance(MultiProvider),
         baseUrl: 'https://example.com/callCommitments',
       },
-      {} as InterchainAccount,
+      sinon.createStubInstance(InterchainAccount),
     );
   } finally {
     stubs.forEach((stub) => stub.restore());
@@ -57,7 +59,9 @@ async function startTestServer() {
 
   const server = app.listen(0);
   await new Promise<void>((resolve) => server.once('listening', resolve));
-  const { port } = server.address() as AddressInfo;
+  const address = server.address();
+  assert(address && typeof address !== 'string', 'Expected TCP server address');
+  const { port } = address;
 
   return {
     server,
@@ -77,6 +81,18 @@ async function startTestServer() {
       }),
   };
 }
+
+describe('configureTrustProxy', () => {
+  it('configures the deployed GCE ingress hop count', () => {
+    const app = express();
+    const set = sinon.spy(app, 'set');
+
+    configureTrustProxy(app);
+
+    expect(set.calledWithExactly('trust proxy', GCE_INGRESS_PROXY_HOPS)).to.be
+      .true;
+  });
+});
 
 describe('Call commitments rate limiting', () => {
   let register: Registry;
