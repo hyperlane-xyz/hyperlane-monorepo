@@ -1,5 +1,17 @@
 # @hyperlane-xyz/widgets
 
+## 41.1.0
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@41.1.0
+- @hyperlane-xyz/aleo-sdk@41.1.0
+- @hyperlane-xyz/cosmos-sdk@41.1.0
+- @hyperlane-xyz/radix-sdk@41.1.0
+- @hyperlane-xyz/utils@41.1.0
+- @hyperlane-xyz/provider-sdk@8.0.4
+- @hyperlane-xyz/tron-sdk@24.1.2
+
 ## 41.0.0
 
 ### Patch Changes
