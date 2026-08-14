@@ -34,9 +34,9 @@ const MESSAGE_BLACKLISTED_EVENT_SELECTOR = toEventSelector(
  * Reads the blacklisted message IDs of a Blacklist ISM.
  *
  * Deployments that predate on-chain enumeration expose no `values()`; for those
- * the set is replayed from `MessageBlacklisted` logs, which is exact because
- * entries are append-only. Those deployments also emit on re-adds, hence the
- * de-duplication.
+ * the set is replayed from `MessageBlacklisted` logs. Entries are append-only,
+ * so a complete log sequence defines the current set. Those deployments also
+ * emit on re-adds, hence the de-duplication.
  *
  * Throws rather than returning a set it can tell is incomplete. A truncated set
  * would be diffed as "these IDs are missing on-chain" and could be written back

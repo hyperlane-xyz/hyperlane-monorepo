@@ -95,10 +95,10 @@ describe('RPC Utils', () => {
       expect(contractCode).not.to.equal('0x');
     });
 
-    // A pruned endpoint holds the state of the last few hundred blocks and
-    // errors below that, so there is no history for the bisection to search
-    // even though the same endpoint still serves the logs of those blocks.
-    it('should start from the genesis block when the endpoint cannot serve historical state', async () => {
+    // A pruned endpoint can still serve logs while lacking the historical state
+    // the deployment search needs. That observable failure must stop the read;
+    // scanning from genesis can take an infeasible number of requests.
+    it('should fail when the endpoint cannot serve historical state', async () => {
       await mineRandomNumberOfBlocks();
 
       await deployTestErc20();
@@ -107,6 +107,9 @@ describe('RPC Utils', () => {
 
       const provider = multiProvider.getProvider(TestChainName.test1);
       const codeAtHead = provider.getCode.bind(provider);
+      const historicalStateError = new Error(
+        'missing trie node 8a1c7f (path ) state 0x8a1c7f is not available',
+      );
       const getCode = sinon
         .stub(provider, 'getCode')
         .callsFake(async (address, blockTag) => {
@@ -115,33 +118,27 @@ describe('RPC Utils', () => {
           }
           // How a pruned geth reports state it no longer holds, and what 0g's
           // endpoints answer a historical eth_getCode with at any depth.
-          throw new Error(
-            'missing trie node 8a1c7f (path ) state 0x8a1c7f is not available',
-          );
+          throw historicalStateError;
         });
 
-      const foundBlock = await getContractCreationBlockFromRpc(
-        TestChainName.test1,
-        testContract.address,
-        multiProvider,
-      );
+      await expect(
+        getContractCreationBlockFromRpc(
+          TestChainName.test1,
+          testContract.address,
+          multiProvider,
+        ),
+      ).to.be.rejectedWith(historicalStateError.message);
 
-      expect(foundBlock).to.equal(0);
-      // The first probe that cannot be answered ends the search, rather than
-      // every rung of the bisection failing its way down to the floor.
+      // The first probe that cannot be answered ends the search.
       const historicalProbes = getCode
         .getCalls()
         .filter((call) => !isNullish(call.args[1]));
       expect(historicalProbes).to.have.length(1);
     });
 
-    // Characterization, not a specification: this records the gap described in
-    // the caveat on getContractCreationBlockFromRpc's JSDoc, where an endpoint
-    // that prunes without erroring cannot be told apart from one reporting a
-    // genuine pre-deployment state. The behaviour asserted below is wrong and
-    // known to be wrong; when the search learns to detect this, invert the
-    // expectations rather than deleting the case.
-    it('documents that an endpoint pruning silently places the deployment too late', async () => {
+    // A successful but false response cannot be distinguished locally from
+    // genuine pre-deployment state. This records the data-source trust boundary.
+    it('documents that silent pruning places the deployment too late', async () => {
       await mineRandomNumberOfBlocks();
 
       await deployTestErc20();
@@ -173,9 +170,8 @@ describe('RPC Utils', () => {
         multiProvider,
       );
 
-      // The defect: the search settles on the oldest block the endpoint still
-      // holds, so every event between the deployment and that block is below
-      // any scan started here.
+      // The search trusts the successful response and settles on the oldest
+      // block the endpoint claims has code.
       expect(foundBlock).to.be.greaterThan(deploymentBlockNumber);
       expect(foundBlock).to.equal(retentionFloor);
     });

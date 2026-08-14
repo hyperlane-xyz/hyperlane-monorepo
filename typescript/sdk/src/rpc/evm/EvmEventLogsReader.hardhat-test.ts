@@ -22,6 +22,7 @@ import {
   EvmEventLogsReader,
   EvmRpcEventLogsReader,
 } from './EvmEventLogsReader.js';
+import { GetEventLogsResponse } from './types.js';
 
 chai.use(chaiAsPromised);
 
@@ -53,6 +54,8 @@ describe('EvmEventLogsReader', () => {
     // Get contract factory for ERC20Test
     erc20Factory = new ERC20Test__factory(contractOwner);
   });
+
+  afterEach(() => sinon.restore());
 
   async function deployTestErc20() {
     testContract = await erc20Factory.deploy(
@@ -468,6 +471,46 @@ describe('EvmEventLogsReader', () => {
       expect(logs.length).to.be.greaterThan(0);
       expect(fallbackSpy.callCount).to.equal(1);
     });
+
+    it('should use the same toBlock for primary and fallback reads', async () => {
+      await deployTestErc20();
+
+      const reader = EvmEventLogsReader.fromConfig(
+        { chain: TestChainName.test1, useRPC: true },
+        multiProvider,
+      );
+      const getBlockNumber = sinon
+        .stub(providerChainTest1, 'getBlockNumber')
+        .onFirstCall()
+        .resolves(100)
+        .onSecondCall()
+        .resolves(101);
+      const primaryGetLogs = sinon.stub().rejects(
+        Object.assign(new Error('primary failed'), {
+          isRecoverable: false,
+        }),
+      );
+      const fallbackGetLogs = sinon.stub().resolves([]);
+
+      reader['logReaderStrategy'] = {
+        getContractDeploymentBlockNumber: async () => deploymentBlockNumber,
+        getContractLogs: primaryGetLogs,
+      };
+      reader['fallbackLogReaderStrategy'] = {
+        getContractDeploymentBlockNumber: async () => deploymentBlockNumber,
+        getContractLogs: fallbackGetLogs,
+      };
+
+      await reader.getLogsByTopic({
+        eventTopic: transferTopic,
+        contractAddress: testContract.address,
+        fromBlock: deploymentBlockNumber,
+      });
+
+      expect(getBlockNumber.callCount).to.equal(1);
+      expect(primaryGetLogs.firstCall.args[0].toBlock).to.equal(100);
+      expect(fallbackGetLogs.firstCall.args[0].toBlock).to.equal(100);
+    });
   });
 
   describe('deployment block cache', () => {
@@ -580,6 +623,55 @@ describe('EvmEventLogsReader', () => {
           fromBlock: deploymentBlockNumber,
         }),
       ).to.be.rejectedWith();
+    });
+
+    it('should reject a log outside the requested range', async () => {
+      const toBlock = deploymentBlockNumber + 10;
+      const outOfRangeLog: GetEventLogsResponse = {
+        address: testContract.address,
+        blockNumber: toBlock + 1,
+        data: '0x',
+        logIndex: 0,
+        topics: [transferTopic],
+        transactionHash: ethers.constants.HashZero,
+        transactionIndex: 0,
+      };
+      reader['logReaderStrategy'] = {
+        getContractDeploymentBlockNumber: async () => deploymentBlockNumber,
+        getContractLogs: async () => [outOfRangeLog],
+      };
+
+      await expect(
+        reader.getLogsByTopic({
+          eventTopic: transferTopic,
+          contractAddress: testContract.address,
+          fromBlock: deploymentBlockNumber,
+          toBlock,
+        }),
+      ).to.be.rejectedWith(
+        `Log block ${toBlock + 1} is outside requested range ${deploymentBlockNumber}-${toBlock}`,
+      );
+    });
+
+    it('should reject a deployment block above the snapshotted head', async () => {
+      const headBlock = deploymentBlockNumber;
+      const deploymentBlock = headBlock + 1;
+      sinon.stub(providerChainTest1, 'getBlockNumber').resolves(headBlock);
+      const getContractLogs = sinon.stub().resolves([]);
+      reader['logReaderStrategy'] = {
+        getContractDeploymentBlockNumber: async () => deploymentBlock,
+        getContractLogs,
+      };
+
+      await expect(
+        reader.getLogsByTopic({
+          eventTopic: transferTopic,
+          contractAddress: testContract.address,
+        }),
+      ).to.be.rejectedWith(
+        `Log range start ${deploymentBlock} exceeds end ${headBlock}`,
+      );
+      expect(getContractLogs.notCalled).to.be.true;
     });
   });
 });
