@@ -58,23 +58,28 @@ describe('WarpRouteDeployConfigSchema refine', () => {
   });
 
   it('should reject timelock with ownerOverrides.proxyAdmin', () => {
-    expect(() =>
-      WarpRouteDeployConfigSchema.parse({
-        arbitrum: {
-          ...config.arbitrum,
-          ownerOverrides: {
-            proxyAdmin: SOME_ADDRESS,
-          },
-          timelock: {
-            delay: 259200,
-            roles: {
-              executor: SOME_ADDRESS,
-              proposer: SOME_ADDRESS,
-            },
+    const result = WarpRouteDeployConfigSchema.safeParse({
+      arbitrum: {
+        ...config.arbitrum,
+        ownerOverrides: {
+          proxyAdmin: SOME_ADDRESS,
+        },
+        timelock: {
+          delay: 259200,
+          roles: {
+            executor: SOME_ADDRESS,
+            proposer: SOME_ADDRESS,
           },
         },
-      }),
-    ).to.throw('Cannot configure timelock with ownerOverrides.proxyAdmin');
+      },
+    });
+
+    expect(result.success).to.be.false;
+    if (!result.success) {
+      expect(result.error.issues[0].message).to.equal(
+        'Cannot configure timelock with ownerOverrides.proxyAdmin',
+      );
+    }
   });
 
   it('should accept deposit-address bridge config', () => {
