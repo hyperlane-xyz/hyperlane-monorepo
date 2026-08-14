@@ -1,9 +1,13 @@
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
+import { BigNumber, constants, utils } from 'ethers';
 import sinon from 'sinon';
 
 import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
-import { formatStandardHookMetadata } from '@hyperlane-xyz/utils';
+import {
+  addressToBytes32,
+  bytes32ToAddress,
+  formatStandardHookMetadata,
+} from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
@@ -128,6 +132,265 @@ describe('PostCallsSchema', () => {
       icaPayload({ relayers: ['not-an-address'] }),
     );
     expect(result.success).to.be.false;
+  });
+});
+
+describe('InterchainAccount.getAccount', () => {
+  const origin = TestChainName.test1;
+  const destination = TestChainName.test2;
+  const originDomain = 1;
+  const owner = '0x' + '11'.repeat(20);
+  const originRouterAddress = '0x' + '22'.repeat(20);
+  const destinationRouterAddress = '0x' + '33'.repeat(20);
+  const ismAddress = '0x' + '44'.repeat(20);
+  const bytecodeHash = '0x' + '55'.repeat(32);
+
+  afterEach(() => sinon.restore());
+
+  function expectedAccount({
+    accountOwner = owner,
+    router = addressToBytes32(originRouterAddress),
+    ism = addressToBytes32(ismAddress),
+    salt = InterchainAccount.EMPTY_SALT,
+    domain = originDomain,
+  }: {
+    accountOwner?: string;
+    router?: string;
+    ism?: string;
+    salt?: string;
+    domain?: number;
+  } = {}) {
+    const deploySalt = utils.solidityKeccak256(
+      ['uint32', 'bytes32', 'bytes32', 'bytes32', 'bytes32'],
+      [
+        domain,
+        addressToBytes32(accountOwner),
+        addressToBytes32(bytes32ToAddress(router)),
+        utils.hexZeroPad(bytes32ToAddress(addressToBytes32(ism)), 32),
+        salt,
+      ],
+    );
+    return utils.getCreate2Address(
+      destinationRouterAddress,
+      deploySalt,
+      bytecodeHash,
+    );
+  }
+
+  function createApp({
+    router = addressToBytes32(originRouterAddress),
+    ism = addressToBytes32(ismAddress),
+    hash = bytecodeHash,
+    configuredDestination = true,
+    domain = originDomain,
+  }: {
+    router?: string;
+    ism?: string;
+    hash?: string | Error;
+    configuredDestination?: boolean;
+    domain?: number | null;
+  } = {}) {
+    const destinationRouter = {
+      address: destinationRouterAddress,
+      routers: sinon.stub().resolves(router),
+      isms: sinon.stub().resolves(ism),
+      bytecodeHash:
+        hash instanceof Error
+          ? sinon.stub().rejects(hash)
+          : sinon.stub().resolves(hash),
+      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)': sinon
+        .stub()
+        .resolves(expectedAccount()),
+      'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)':
+        sinon.stub().resolves({ hash: '0x1234' }),
+      estimateGas: {
+        'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)':
+          sinon.stub().resolves(BigNumber.from(100_000)),
+      },
+    };
+    const provider = {
+      getCode: sinon.stub().resolves('0x'),
+    };
+    const multiProvider = {
+      getProvider: sinon.stub().returns(provider),
+      getTransactionOverrides: sinon.stub().returns({}),
+      handleTx: sinon.stub().resolves(),
+      tryGetDomainId: sinon.stub().returns(domain),
+    };
+    const app = Object.assign(Object.create(InterchainAccount.prototype), {
+      contractsMap: configuredDestination
+        ? { [destination]: { interchainAccountRouter: destinationRouter } }
+        : { [destination]: {} },
+      knownAccounts: {},
+      logger: { debug: sinon.stub() },
+      multiProvider,
+    });
+    return { app, destinationRouter, multiProvider };
+  }
+
+  it('matches a deployed router golden vector', async () => {
+    const baseRouter = '0x44647Cd983E80558793780f9a0c7C2aa9F384D07';
+    const ethereumRouter = '0xC00b94c115742f711a6F9EA90373c33e9B72A4A9';
+    const baseBytecodeHash = [
+      '0x539ad958a6ba3e4d7d060e7c4eb03f58',
+      '331e502aa3dcc578f34506ddac8b37e9',
+    ].join('');
+    const { app } = createApp({
+      router: addressToBytes32(ethereumRouter),
+      ism: constants.HashZero,
+      hash: baseBytecodeHash,
+    });
+    app.contractsMap[destination].interchainAccountRouter.address = baseRouter;
+
+    expect(await app.getAccount(destination, { origin, owner })).to.equal(
+      '0xa35B6C3E1604A6da3da2fb1210053Ba876d09CE7',
+    );
+  });
+
+  it('starts independent metadata reads concurrently', async () => {
+    const { app, destinationRouter } = createApp();
+    const pending: Array<{
+      promise: Promise<string>;
+      resolve(value: string): void;
+    }> = [];
+    for (const method of ['routers', 'isms', 'bytecodeHash'] as const) {
+      let resolve!: (value: string) => void;
+      const promise = new Promise<string>((complete) => {
+        resolve = complete;
+      });
+      pending.push({ promise, resolve });
+      destinationRouter[method].returns(promise);
+    }
+
+    const account = app.getAccount(destination, { origin, owner });
+
+    expect(destinationRouter.routers.calledOnce).to.be.true;
+    expect(destinationRouter.isms.calledOnce).to.be.true;
+    expect(destinationRouter.bytecodeHash.calledOnce).to.be.true;
+    pending[0].resolve(addressToBytes32(originRouterAddress));
+    pending[1].resolve(addressToBytes32(ismAddress));
+    pending[2].resolve(bytecodeHash);
+    expect(await account).to.equal(expectedAccount());
+  });
+
+  it('uses routing overrides without redundant reads', async () => {
+    const { app, destinationRouter } = createApp();
+
+    expect(
+      await app.getAccount(destination, {
+        origin,
+        owner,
+        localRouter: originRouterAddress,
+        ismOverride: ismAddress,
+      }),
+    ).to.equal(expectedAccount());
+    expect(destinationRouter.routers.called).to.be.false;
+    expect(destinationRouter.isms.called).to.be.false;
+  });
+
+  it('preserves custom salts and bytes32 normalization', async () => {
+    const accountOwner = '0x' + '66'.repeat(32);
+    const router = `0x${'77'.repeat(12)}${'88'.repeat(20)}`;
+    const ism = `0x${'99'.repeat(12)}${'aa'.repeat(20)}`;
+    const salt = '0x' + 'bb'.repeat(32);
+    const { app } = createApp({ router, ism });
+
+    expect(
+      await app.getAccount(destination, {
+        origin,
+        owner: accountOwner,
+        userSalt: salt,
+      }),
+    ).to.equal(expectedAccount({ accountOwner, router, ism, salt }));
+  });
+
+  it('accepts domain zero and rejects missing domain metadata', async () => {
+    const domainZero = createApp({ domain: 0 });
+    expect(
+      await domainZero.app.getAccount(destination, { origin, owner }),
+    ).to.equal(expectedAccount({ domain: 0 }));
+
+    const missingDomain = createApp({ domain: null });
+    let caught: unknown;
+    try {
+      await missingDomain.app.getAccount(destination, { origin, owner });
+    } catch (error: unknown) {
+      caught = error;
+    }
+    expect(caught).to.be.instanceOf(Error);
+  });
+
+  it('falls back only when bytecodeHash is unavailable', async () => {
+    const missingSelector = Object.assign(new Error('missing selector'), {
+      code: 'CALL_EXCEPTION',
+      data: '0x',
+    });
+    const fallback = createApp({ hash: missingSelector });
+
+    expect(
+      await fallback.app.getAccount(destination, { origin, owner }),
+    ).to.equal(expectedAccount());
+    expect(
+      fallback.destinationRouter[
+        'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+      ].calledOnce,
+    ).to.be.true;
+
+    const rpcError = new Error('RPC unavailable');
+    const failed = createApp({ hash: rpcError });
+    let caught: unknown;
+    try {
+      await failed.app.getAccount(destination, { origin, owner });
+    } catch (error: unknown) {
+      caught = error;
+    }
+    expect(caught).to.equal(rpcError);
+  });
+
+  it('still deploys a locally derived account when requested', async () => {
+    const { app, destinationRouter, multiProvider } = createApp();
+    const config = { origin, owner };
+    const account = expectedAccount();
+
+    expect(await app.deployAccount(destination, config)).to.equal(account);
+    expect(
+      destinationRouter.estimateGas[
+        'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+      ].calledOnce,
+    ).to.be.true;
+    expect(
+      destinationRouter[
+        'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+      ].calledOnce,
+    ).to.be.true;
+    expect(multiProvider.handleTx.calledOnce).to.be.true;
+    expect(app.knownAccounts[account]).to.deep.equal(config);
+  });
+
+  it('rejects a destination without an ICA router', async () => {
+    const { app } = createApp({ configuredDestination: false });
+    let caught: unknown;
+    try {
+      await app.getAccount(destination, { origin, owner });
+    } catch (error: unknown) {
+      caught = error;
+    }
+    if (!(caught instanceof Error))
+      throw new Error('Expected derivation error');
+    expect(caught.message).to.include(
+      `No interchain account router configured for ${destination}`,
+    );
+  });
+
+  it('rejects a zero origin router', async () => {
+    const { app } = createApp({ router: constants.HashZero });
+    let caught: unknown;
+    try {
+      await app.getAccount(destination, { origin, owner });
+    } catch (error: unknown) {
+      caught = error;
+    }
+    expect(caught).to.be.instanceOf(Error);
   });
 });
 

@@ -14,7 +14,6 @@ import {
   InterchainAccount,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { isMissingSelectorCallException } from '@hyperlane-xyz/sdk/utils/contract';
 import {
   PostCallsIcaType,
   PostCallsLegacyType,
@@ -30,7 +29,6 @@ import {
   addressToBytes32,
   bytes32ToAddress,
   assert,
-  isZeroishAddress,
   parseMessage,
 } from '@hyperlane-xyz/utils';
 
@@ -605,65 +603,7 @@ export class CallCommitmentsService extends BaseService {
       'Deriving ICA from config',
     );
 
-    const originDomain = this.multiProvider.tryGetDomainId(
-      accountConfig.origin,
-    );
-    if (!originDomain) {
-      throw new Error(
-        `Origin chain (${accountConfig.origin}) metadata needed for deriving ICA`,
-      );
-    }
-
-    const destinationRouter = this.icaApp.router(
-      this.icaApp.contractsMap[destinationChain],
-    );
-    const bytecodeHashPromise = destinationRouter
-      .bytecodeHash()
-      .then((bytecodeHash) => ({ bytecodeHash }))
-      .catch((error: unknown) => {
-        if (isMissingSelectorCallException(error)) {
-          return { bytecodeHash: null };
-        }
-        throw error;
-      });
-
-    const [rawOriginRouter, rawIsm, { bytecodeHash }] = await Promise.all([
-      destinationRouter.routers(originDomain),
-      accountConfig.ismOverride ?? destinationRouter.isms(originDomain),
-      bytecodeHashPromise,
-    ]);
-    const originRouterAddress = bytes32ToAddress(rawOriginRouter);
-    if (isZeroishAddress(originRouterAddress)) {
-      throw new Error(
-        `Origin router address is zero for ${accountConfig.origin} on ${destinationChain}`,
-      );
-    }
-
-    const destinationIsmAddress = bytes32ToAddress(addressToBytes32(rawIsm));
-    const owner = addressToBytes32(accountConfig.owner);
-    const originRouter = addressToBytes32(originRouterAddress);
-    const ism = utils.hexZeroPad(destinationIsmAddress, 32);
-    const userSalt = accountConfig.userSalt ?? InterchainAccount.EMPTY_SALT;
-
-    if (bytecodeHash === null) {
-      logger.debug(
-        { destinationChain },
-        'Falling back to onchain ICA derivation for legacy router',
-      );
-      return destinationRouter[
-        'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
-      ](originDomain, owner, originRouter, destinationIsmAddress, userSalt);
-    }
-
-    const deploySalt = utils.solidityKeccak256(
-      ['uint32', 'bytes32', 'bytes32', 'bytes32', 'bytes32'],
-      [originDomain, owner, originRouter, ism, userSalt],
-    );
-    return utils.getCreate2Address(
-      destinationRouter.address,
-      deploySalt,
-      bytecodeHash,
-    );
+    return this.icaApp.getAccount(destinationChain, accountConfig);
   }
 
   /**
