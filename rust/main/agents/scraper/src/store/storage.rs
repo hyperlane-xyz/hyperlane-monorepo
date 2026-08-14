@@ -70,11 +70,6 @@ impl HyperlaneDbStore {
         self.stored_events_metric.as_ref()
     }
 
-    /// Cursor shared by scraper event handlers on this chain.
-    pub(crate) fn cursor(&self) -> Arc<BlockCursor> {
-        self.cursor.clone()
-    }
-
     /// Takes a list of txn and block hashes and ensure they are all in the
     /// database. If any are not it will fetch the data and insert them.
     ///

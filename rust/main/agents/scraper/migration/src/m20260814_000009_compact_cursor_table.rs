@@ -6,8 +6,8 @@ pub struct Migration;
 /// Keep only one current cursor row per `(domain, event_type)`.
 ///
 /// Older scraper versions appended cursor samples and restored the latest row by
-/// scanning for the max height. This migration collapses that history and adds a
-/// unique index so new writes can upsert the current watermark.
+/// scanning for the max height. This migration collapses that history while
+/// keeping the schema rollback-compatible with the old append-only writer.
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
@@ -36,14 +36,6 @@ impl MigrationTrait for Migration {
             .drop_index(
                 Index::drop()
                     .table(Cursor::Table)
-                    .name("cursor_domain_event_type_idx")
-                    .to_owned(),
-            )
-            .await?;
-        manager
-            .drop_index(
-                Index::drop()
-                    .table(Cursor::Table)
                     .name("cursor_domain_height_idx")
                     .to_owned(),
             )
@@ -57,30 +49,12 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        manager
-            .create_index(
-                Index::create()
-                    .table(Cursor::Table)
-                    .name("cursor_domain_event_type_idx")
-                    .col(Cursor::Domain)
-                    .col(Cursor::EventType)
-                    .unique()
-                    .index_type(IndexType::BTree)
-                    .to_owned(),
-            )
-            .await
+        Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .drop_index(
-                Index::drop()
-                    .table(Cursor::Table)
-                    .name("cursor_domain_event_type_idx")
-                    .to_owned(),
-            )
-            .await?;
-
+        // The deleted cursor history rows cannot be recovered. Down only
+        // restores the old non-unique indexes.
         manager
             .create_index(
                 Index::create()
@@ -102,17 +76,7 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-        manager
-            .create_index(
-                Index::create()
-                    .table(Cursor::Table)
-                    .name("cursor_domain_event_type_idx")
-                    .col(Cursor::Domain)
-                    .col(Cursor::EventType)
-                    .index_type(IndexType::BTree)
-                    .to_owned(),
-            )
-            .await
+        Ok(())
     }
 }
 
@@ -121,5 +85,4 @@ enum Cursor {
     Table,
     Domain,
     Height,
-    EventType,
 }

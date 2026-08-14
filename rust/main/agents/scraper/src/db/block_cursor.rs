@@ -103,7 +103,7 @@ impl BlockCursor {
     }
 
     /// Persist the current height to the database unconditionally, bypassing the
-    /// time-based throttle.  Call this after committing a write-once batch (e.g.
+    /// time-based throttle. Call this after committing a write-once batch (e.g.
     /// CCR swaps) so a restart never re-plays already-advanced ranges.
     ///
     /// Returns `Err` on DB failure so the caller can decide whether to back off
@@ -131,16 +131,27 @@ impl BlockCursor {
             .execute(Statement::from_sql_and_values(
                 self.db.get_database_backend(),
                 r#"
+                WITH latest AS (
+                    SELECT id
+                    FROM "cursor"
+                    WHERE domain = $1
+                      AND event_type = $3
+                    ORDER BY height DESC, time_created DESC, id DESC
+                    LIMIT 1
+                ),
+                updated AS (
+                    UPDATE "cursor"
+                    SET height = GREATEST(height, $2),
+                        time_created = CASE
+                            WHEN $2 >= height THEN NOW()
+                            ELSE time_created
+                        END
+                    WHERE id IN (SELECT id FROM latest)
+                    RETURNING id
+                )
                 INSERT INTO "cursor" ("domain", "time_created", "height", "event_type")
-                VALUES ($1, NOW(), $2, $3)
-                ON CONFLICT ("domain", "event_type")
-                DO UPDATE SET
-                    "height" = GREATEST("cursor"."height", EXCLUDED."height"),
-                    "time_created" = CASE
-                        WHEN EXCLUDED."height" >= "cursor"."height"
-                        THEN EXCLUDED."time_created"
-                        ELSE "cursor"."time_created"
-                    END
+                SELECT $1, NOW(), $2, $3
+                WHERE NOT EXISTS (SELECT 1 FROM updated)
                 "#,
                 [
                     (self.domain as i32).into(),
