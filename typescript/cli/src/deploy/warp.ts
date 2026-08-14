@@ -126,6 +126,22 @@ interface WarpApplyParams extends DeployParams {
   warpRouteId?: string;
 }
 
+function assertWarpApplyTimelocksSupportedByProtocols({
+  multiProvider,
+  warpDeployConfig,
+}: {
+  multiProvider: MultiProvider;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+}) {
+  for (const [chain, config] of Object.entries(warpDeployConfig)) {
+    const protocol = multiProvider.tryGetProtocol(chain);
+    assert(
+      !config.timelock || (protocol && isEVMLike(protocol)),
+      `Timelock config is not supported on Alt-VM chain '${chain}'.`,
+    );
+  }
+}
+
 export async function runWarpRouteDeploy({
   context,
   warpDeployConfig,
@@ -458,6 +474,10 @@ export async function runWarpRouteApply(
 
   WarpRouteDeployConfigSchema.parse(warpDeployConfig);
   WarpCoreConfigSchema.parse(warpCoreConfig);
+  assertWarpApplyTimelocksSupportedByProtocols({
+    multiProvider,
+    warpDeployConfig,
+  });
 
   const chains = Object.keys(warpDeployConfig);
 

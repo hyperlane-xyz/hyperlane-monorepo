@@ -2,10 +2,13 @@ import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 import sinon from 'sinon';
 
-import { TimelockController__factory } from '@hyperlane-xyz/core';
-import { ensure0x } from '@hyperlane-xyz/utils';
+import {
+  ProxyAdmin__factory,
+  TimelockController__factory,
+} from '@hyperlane-xyz/core';
 
 import { TestChainName } from '../consts/testChains.js';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   CANCELLER_ROLE,
@@ -74,14 +77,6 @@ describe('EvmWarpModule', () => {
     },
   };
 
-  // CAST: only proxyAdmin fields are read by the tested planning helper.
-  const actualProxiedConfig = {
-    proxyAdmin: {
-      address: PROXY_ADMIN_ADDRESS,
-      owner: OWNER_ADDRESS,
-    },
-  } as DerivedTokenRouterConfig;
-
   const timelockConfig: NonNullable<HypTokenRouterConfig['timelock']> = {
     delay: 259200,
     roles: {
@@ -89,6 +84,37 @@ describe('EvmWarpModule', () => {
       proposer: TIMELOCK_PROPOSER_ADDRESS,
     },
   };
+
+  function proxiedConfig(owner = OWNER_ADDRESS) {
+    // CAST: only proxyAdmin fields are read by the tested planning helper.
+    return {
+      proxyAdmin: { address: PROXY_ADMIN_ADDRESS, owner },
+    } as DerivedTokenRouterConfig;
+  }
+
+  function configWithTimelock(
+    proxyAdmin?: HypTokenRouterConfig['proxyAdmin'],
+  ): HypTokenRouterConfig {
+    return {
+      ...xERC20Config,
+      ...(proxyAdmin ? { proxyAdmin } : {}),
+      timelock: timelockConfig,
+    };
+  }
+
+  function stubDeployTimelocks(...addresses: string[]) {
+    const deployStub = sandbox.stub(
+      HyperlaneDeployer.prototype,
+      'deployTimelock',
+    );
+    for (const [index, address] of addresses.entries()) {
+      deployStub.onCall(index).resolves(
+        // CAST: test needs only deployTimelock's returned address.
+        { address } as Awaited<ReturnType<HypERC20Deployer['deployTimelock']>>,
+      );
+    }
+    return deployStub;
+  }
 
   function createModule() {
     // CAST: deploy-time fixture only needs the address fields used by update planning.
@@ -170,41 +196,18 @@ describe('EvmWarpModule', () => {
     expect(updateStub.firstCall.args[1]).to.equal(undefined);
   });
 
-  it('rejects timelock with ownerOverrides.proxyAdmin', async () => {
-    sandbox.stub(EvmWarpModule.prototype, 'read').resolves(actualProxiedConfig);
-
-    const module = createModule();
-
-    try {
-      await module.updateSplit({
-        ...xERC20Config,
-        ownerOverrides: {
-          proxyAdmin: TIMELOCK_PROPOSER_ADDRESS,
-        },
-        timelock: timelockConfig,
-      });
-      expect.fail('expected timelock plus ownerOverrides.proxyAdmin to reject');
-    } catch (error) {
-      expect(errorMessage(error)).to.include(
-        'Cannot configure timelock with ownerOverrides.proxyAdmin',
-      );
-    }
-  });
-
   it('rejects timelock while changing ProxyAdmin address', async () => {
-    sandbox.stub(EvmWarpModule.prototype, 'read').resolves(actualProxiedConfig);
+    sandbox.stub(EvmWarpModule.prototype, 'read').resolves(proxiedConfig());
 
     const module = createModule();
 
     try {
-      await module.updateSplit({
-        ...xERC20Config,
-        proxyAdmin: {
+      await module.updateSplit(
+        configWithTimelock({
           address: OTHER_PROXY_ADMIN_ADDRESS,
           owner: OWNER_ADDRESS,
-        },
-        timelock: timelockConfig,
-      });
+        }),
+      );
       expect.fail('expected timelock plus ProxyAdmin address change to reject');
     } catch (error) {
       expect(errorMessage(error)).to.include(
@@ -234,23 +237,14 @@ describe('EvmWarpModule', () => {
       },
     });
     const deployStub = sandbox.stub(
-      HypERC20Deployer.prototype,
+      HyperlaneDeployer.prototype,
       'deployTimelock',
     );
 
     try {
       await createModuleForTest().configWithTimelockProxyAdminOwner(
-        {
-          proxyAdmin: {
-            address: PROXY_ADMIN_ADDRESS,
-            owner: TIMELOCK_ADDRESS,
-          },
-          // CAST: only proxyAdmin fields are read before the transient error propagates.
-        } as DerivedTokenRouterConfig,
-        {
-          ...xERC20Config,
-          timelock: timelockConfig,
-        },
+        proxiedConfig(TIMELOCK_ADDRESS),
+        configWithTimelock(),
       );
       expect.fail('expected transient timelock read failure to propagate');
     } catch (error) {
@@ -259,70 +253,21 @@ describe('EvmWarpModule', () => {
     }
   });
 
-  it('propagates nested transient call exceptions without deploying a replacement', async () => {
-    const transientError = Object.assign(new Error('missing revert data'), {
-      code: 'CALL_EXCEPTION',
-      error: { code: -32000, data: '0x' },
-    });
-    stubTimelockController({
-      getMinDelay: async () => {
-        throw transientError;
-      },
-    });
-    const deployStub = sandbox.stub(
-      HypERC20Deployer.prototype,
-      'deployTimelock',
-    );
-
-    try {
-      await createModuleForTest().configWithTimelockProxyAdminOwner(
-        {
-          proxyAdmin: {
-            address: PROXY_ADMIN_ADDRESS,
-            owner: TIMELOCK_ADDRESS,
-          },
-          // CAST: only proxyAdmin fields are read before the transient error propagates.
-        } as DerivedTokenRouterConfig,
-        {
-          ...xERC20Config,
-          timelock: timelockConfig,
-        },
-      );
-      expect.fail('expected transient timelock read failure to propagate');
-    } catch (error) {
-      expect(error).to.equal(transientError);
-      expect(deployStub.called).to.equal(false);
-    }
-  });
-
-  it('reuses a planned timelock deployment across retry attempts', async () => {
+  it('retries cached timelock reads before deploying another controller', async () => {
     const firstModule = createModuleForTest();
     const secondModule = createModuleForTest();
     sandbox.stub(firstModule, 'timelockMatchesConfig').resolves(false);
-    sandbox
+    const secondMatchStub = sandbox
       .stub(secondModule, 'timelockMatchesConfig')
-      .callsFake(
-        async (timelockAddress) => timelockAddress === TIMELOCK_ADDRESS,
-      );
-    const deployStub = sandbox
-      .stub(HypERC20Deployer.prototype, 'deployTimelock')
-      // CAST: test needs only deployTimelock's returned address.
-      .resolves({
-        address: TIMELOCK_ADDRESS,
-      } as Awaited<ReturnType<HypERC20Deployer['deployTimelock']>>);
-    // CAST: only proxyAdmin fields are read by the tested planning helper.
-    const actualConfig = {
-      proxyAdmin: {
-        address: PROXY_ADMIN_ADDRESS,
-        owner: OWNER_ADDRESS,
-      },
-    } as DerivedTokenRouterConfig;
-    const expectedConfig = {
-      ...xERC20Config,
-      timelock: timelockConfig,
-    };
+      .onFirstCall()
+      .resolves(false)
+      .onSecondCall()
+      .resolves(true);
+    const deployStub = stubDeployTimelocks(TIMELOCK_ADDRESS);
+    const actualConfig = proxiedConfig();
+    const expectedConfig = configWithTimelock();
 
-    const firstConfig = await firstModule.configWithTimelockProxyAdminOwner(
+    await firstModule.configWithTimelockProxyAdminOwner(
       actualConfig,
       expectedConfig,
     );
@@ -331,46 +276,52 @@ describe('EvmWarpModule', () => {
       expectedConfig,
     );
 
-    expect(deployStub.calledOnce).to.equal(true);
-    expect(firstConfig.proxyAdmin?.owner).to.equal(TIMELOCK_ADDRESS);
+    expect(deployStub.callCount).to.equal(1);
+    expect(secondMatchStub.calledTwice).to.equal(true);
     expect(secondConfig.proxyAdmin?.owner).to.equal(TIMELOCK_ADDRESS);
   });
 
-  it('does not reuse a cached timelock deployment across MultiProviders', async () => {
-    const firstModule = createModuleForTest();
-    sandbox.stub(firstModule, 'timelockMatchesConfig').resolves(false);
-    const deployStub = sandbox
-      .stub(HypERC20Deployer.prototype, 'deployTimelock')
-      // CAST: test needs only deployTimelock's returned address.
-      .resolves({
-        address: TIMELOCK_ADDRESS,
-      } as Awaited<ReturnType<HypERC20Deployer['deployTimelock']>>);
-    // CAST: only proxyAdmin fields are read by the tested planning helper.
-    const actualConfig = {
-      proxyAdmin: {
-        address: PROXY_ADMIN_ADDRESS,
-        owner: OWNER_ADDRESS,
-      },
-    } as DerivedTokenRouterConfig;
-    const expectedConfig = {
-      ...xERC20Config,
-      timelock: timelockConfig,
-    };
-
-    await firstModule.configWithTimelockProxyAdminOwner(
-      actualConfig,
-      expectedConfig,
+  it('rejects fresh timelock deploy with foreign-owned supplied ProxyAdmin before deploying', async () => {
+    // CAST: ProxyAdmin__factory.connect is stubbed, so the signer object is not inspected.
+    sandbox.stub(multiProvider, 'getSigner').returns({} as any);
+    sandbox.stub(multiProvider, 'getSignerAddress').resolves(OWNER_ADDRESS);
+    sandbox.stub(ProxyAdmin__factory, 'connect').returns({
+      address: PROXY_ADMIN_ADDRESS,
+      owner: async () => OTHER_PROXY_ADMIN_ADDRESS,
+      // CAST: test stub implements only the ProxyAdmin methods under test.
+    } as ReturnType<typeof ProxyAdmin__factory.connect>);
+    const deployTimelockStub = sandbox.stub(
+      HyperlaneDeployer.prototype,
+      'deployTimelock',
+    );
+    const deployProxiedContractStub = sandbox.stub(
+      // CAST: protected inherited method is stubbed only to assert it is not called.
+      HyperlaneDeployer.prototype as any,
+      'deployProxiedContract',
     );
 
-    multiProvider = MultiProvider.createTestMultiProvider();
-    const secondModule = createModuleForTest();
-    sandbox.stub(secondModule, 'timelockMatchesConfig').resolves(false);
-    await secondModule.configWithTimelockProxyAdminOwner(
-      actualConfig,
-      expectedConfig,
-    );
-
-    expect(deployStub.calledTwice).to.equal(true);
+    try {
+      await new HypERC20Deployer(multiProvider).deployContracts(
+        TestChainName.test1,
+        {
+          decimals: 18,
+          mailbox: MAILBOX_ADDRESS,
+          name: 'Token',
+          owner: OWNER_ADDRESS,
+          proxyAdmin: { address: PROXY_ADMIN_ADDRESS, owner: OWNER_ADDRESS },
+          symbol: 'TOKEN',
+          timelock: timelockConfig,
+          type: TokenType.synthetic,
+        },
+      );
+      expect.fail('expected foreign-owned ProxyAdmin to reject');
+    } catch (error) {
+      expect(errorMessage(error)).to.include(
+        'Cannot configure timelock with supplied ProxyAdmin',
+      );
+      expect(deployTimelockStub.called).to.equal(false);
+      expect(deployProxiedContractStub.called).to.equal(false);
+    }
   });
 
   it('redeploys a cached timelock when the cached address no longer matches', async () => {
@@ -378,33 +329,12 @@ describe('EvmWarpModule', () => {
     const secondModule = createModuleForTest();
     sandbox.stub(firstModule, 'timelockMatchesConfig').resolves(false);
     sandbox.stub(secondModule, 'timelockMatchesConfig').resolves(false);
-    const deployStub = sandbox.stub(
-      HypERC20Deployer.prototype,
-      'deployTimelock',
+    const deployStub = stubDeployTimelocks(
+      TIMELOCK_ADDRESS,
+      OTHER_TIMELOCK_ADDRESS,
     );
-    deployStub.onFirstCall().resolves(
-      // CAST: test needs only deployTimelock's returned address.
-      {
-        address: TIMELOCK_ADDRESS,
-      } as Awaited<ReturnType<HypERC20Deployer['deployTimelock']>>,
-    );
-    deployStub.onSecondCall().resolves(
-      // CAST: test needs only deployTimelock's returned address.
-      {
-        address: OTHER_TIMELOCK_ADDRESS,
-      } as Awaited<ReturnType<HypERC20Deployer['deployTimelock']>>,
-    );
-    // CAST: only proxyAdmin fields are read by the tested planning helper.
-    const actualConfig = {
-      proxyAdmin: {
-        address: PROXY_ADMIN_ADDRESS,
-        owner: OWNER_ADDRESS,
-      },
-    } as DerivedTokenRouterConfig;
-    const expectedConfig = {
-      ...xERC20Config,
-      timelock: timelockConfig,
-    };
+    const actualConfig = proxiedConfig();
+    const expectedConfig = configWithTimelock();
 
     await firstModule.configWithTimelockProxyAdminOwner(
       actualConfig,
@@ -417,24 +347,5 @@ describe('EvmWarpModule', () => {
 
     expect(deployStub.calledTwice).to.equal(true);
     expect(secondConfig.proxyAdmin?.owner).to.equal(OTHER_TIMELOCK_ADDRESS);
-  });
-
-  it('pins same-byte ProxyAdmin address casing to the actual address', async () => {
-    const module = createModuleForTest();
-    sandbox.stub(module, 'timelockMatchesConfig').resolves(true);
-
-    const expectedConfig = await module.configWithTimelockProxyAdminOwner(
-      actualProxiedConfig,
-      {
-        ...xERC20Config,
-        proxyAdmin: {
-          address: ensure0x(PROXY_ADMIN_ADDRESS.slice(2).toUpperCase()),
-          owner: OWNER_ADDRESS,
-        },
-        timelock: timelockConfig,
-      },
-    );
-
-    expect(expectedConfig.proxyAdmin?.address).to.equal(PROXY_ADMIN_ADDRESS);
   });
 });

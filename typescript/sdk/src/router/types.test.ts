@@ -6,6 +6,13 @@ import { GasRouterConfigSchema } from './types.js';
 const SOME_ADDRESS = ethers.Wallet.createRandom().address;
 const EXECUTOR_ADDRESS = ethers.Wallet.createRandom().address;
 const PROPOSER_ADDRESS = ethers.Wallet.createRandom().address;
+const VALID_TIMELOCK = {
+  delay: 259200,
+  roles: {
+    executor: EXECUTOR_ADDRESS,
+    proposer: PROPOSER_ADDRESS,
+  },
+};
 
 describe('GasRouterConfigSchema', () => {
   const baseConfig = {
@@ -40,13 +47,7 @@ describe('GasRouterConfigSchema', () => {
   it('should accept config with timelock', () => {
     const result = GasRouterConfigSchema.safeParse({
       ...baseConfig,
-      timelock: {
-        delay: 259200,
-        roles: {
-          executor: EXECUTOR_ADDRESS,
-          proposer: PROPOSER_ADDRESS,
-        },
-      },
+      timelock: VALID_TIMELOCK,
     });
 
     expect(result.success).to.be.true;
@@ -57,94 +58,63 @@ describe('GasRouterConfigSchema', () => {
     }
   });
 
-  it('should reject timelock roles with non-EVM hashes', () => {
-    const result = GasRouterConfigSchema.safeParse({
-      ...baseConfig,
-      timelock: {
-        delay: 259200,
+  for (const [name, timelock] of [
+    [
+      'non-EVM executor hash',
+      {
+        ...VALID_TIMELOCK,
         roles: {
+          ...VALID_TIMELOCK.roles,
           executor:
             '0x1111111111111111111111111111111111111111111111111111111111111111',
-          proposer: PROPOSER_ADDRESS,
         },
       },
-    });
-
-    expect(result.success).to.be.false;
-  });
-
-  it('should reject timelock roles with invalid EVM checksum', () => {
-    const result = GasRouterConfigSchema.safeParse({
-      ...baseConfig,
-      timelock: {
-        delay: 259200,
+    ],
+    [
+      'invalid executor checksum',
+      {
+        ...VALID_TIMELOCK,
         roles: {
+          ...VALID_TIMELOCK.roles,
           executor: '0x8Ba1f109551bD432803012645Ac136ddd64DBA72',
-          proposer: PROPOSER_ADDRESS,
         },
       },
-    });
-
-    expect(result.success).to.be.false;
-  });
-
-  it('should reject timelock delay larger than a safe integer', () => {
-    const result = GasRouterConfigSchema.safeParse({
-      ...baseConfig,
-      timelock: {
-        delay: Number.MAX_SAFE_INTEGER + 1,
+    ],
+    ['unsafe delay', { ...VALID_TIMELOCK, delay: Number.MAX_SAFE_INTEGER + 1 }],
+    [
+      'zero-address proposer',
+      {
+        ...VALID_TIMELOCK,
         roles: {
-          executor: EXECUTOR_ADDRESS,
-          proposer: PROPOSER_ADDRESS,
-        },
-      },
-    });
-
-    expect(result.success).to.be.false;
-  });
-
-  it('should reject timelock with zero-address proposer', () => {
-    const result = GasRouterConfigSchema.safeParse({
-      ...baseConfig,
-      timelock: {
-        delay: 259200,
-        roles: {
-          executor: EXECUTOR_ADDRESS,
+          ...VALID_TIMELOCK.roles,
           proposer: ethers.constants.AddressZero,
         },
       },
-    });
+    ],
+    ['zero delay', { ...VALID_TIMELOCK, delay: 0 }],
+  ]) {
+    it(`should reject timelock with ${name}`, () => {
+      const result = GasRouterConfigSchema.safeParse({
+        ...baseConfig,
+        timelock,
+      });
 
-    expect(result.success).to.be.false;
-  });
+      expect(result.success).to.be.false;
+    });
+  }
 
   it('should accept timelock with zero-address executor', () => {
     const result = GasRouterConfigSchema.safeParse({
       ...baseConfig,
       timelock: {
-        delay: 259200,
+        ...VALID_TIMELOCK,
         roles: {
+          ...VALID_TIMELOCK.roles,
           executor: ethers.constants.AddressZero,
-          proposer: PROPOSER_ADDRESS,
         },
       },
     });
 
     expect(result.success).to.be.true;
-  });
-
-  it('should reject timelock with invalid delay', () => {
-    const result = GasRouterConfigSchema.safeParse({
-      ...baseConfig,
-      timelock: {
-        delay: 0,
-        roles: {
-          executor: SOME_ADDRESS,
-          proposer: SOME_ADDRESS,
-        },
-      },
-    });
-
-    expect(result.success).to.be.false;
   });
 });

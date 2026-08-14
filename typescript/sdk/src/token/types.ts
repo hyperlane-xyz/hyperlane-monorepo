@@ -2,7 +2,7 @@ import { compareVersions } from 'compare-versions';
 import { z } from 'zod';
 
 import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
-import { isAddressEvm, objMap } from '@hyperlane-xyz/utils';
+import { assert, isAddressEvm, objMap } from '@hyperlane-xyz/utils';
 
 import { TokenFeeConfigInput, TokenFeeType } from '../fee/types.js';
 import { HookConfig, HookType } from '../hook/types.js';
@@ -553,10 +553,23 @@ export type HypTokenRouterConfigMailboxOptional = z.infer<
 
 function preprocessWarpRouteDeployConfig(value: unknown) {
   const mutatedConfig = value as HypTokenRouterConfigMailboxOptionalBase;
+  assertTimelockConfigHasNoProxyAdminOwnerOverride(mutatedConfig);
   return populateFeeOwner({
     tokenConfig: mutatedConfig,
     feeConfig: mutatedConfig.tokenFee,
   });
+}
+
+export function assertTimelockConfigHasNoProxyAdminOwnerOverride(
+  config: Pick<HypTokenRouterConfigMailboxOptionalBase, 'ownerOverrides'> & {
+    timelock?: unknown;
+  },
+  chain?: string,
+) {
+  assert(
+    !config.timelock || !config.ownerOverrides?.proxyAdmin,
+    `Cannot configure timelock with ownerOverrides.proxyAdmin${chain ? ` on ${chain}` : ''}`,
+  );
 }
 
 function populateFeeOwner(params: {

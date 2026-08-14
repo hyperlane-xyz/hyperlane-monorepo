@@ -70,6 +70,7 @@ import {
   OwnerStatus,
   TokenMetadata,
   WarpRouteDeployConfigMailboxRequired,
+  assertTimelockConfigHasNoProxyAdminOwnerOverride,
   derivedHookAddress,
   derivedIsmAddress,
   isCollateralTokenConfig,
@@ -937,6 +938,7 @@ function assertTimelockSupportedByProtocols({
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
 }) {
   for (const [chain, config] of Object.entries(warpDeployConfig)) {
+    assertTimelockConfigHasNoProxyAdminOwnerOverride(config, chain);
     const protocol = multiProvider.tryGetProtocol(chain);
     assert(
       !config.timelock || (protocol && isEVMLike(protocol)),

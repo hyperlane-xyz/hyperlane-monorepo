@@ -40,6 +40,7 @@ import {
   objMap,
   promiseObjAll,
   rootLogger,
+  sleep,
 } from '@hyperlane-xyz/utils';
 
 import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
@@ -267,6 +268,25 @@ export class EvmWarpModule extends HyperlaneModule<
     }
   }
 
+  private async cachedTimelockMatchesConfig(
+    timelockAddress: Address,
+    config: NonNullable<HypTokenRouterConfig['timelock']>,
+  ): Promise<boolean> {
+    const attempts = 5;
+    const retryDelayMs = 100;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      if (await this.timelockMatchesConfig(timelockAddress, config)) {
+        return true;
+      }
+      if (attempt < attempts) await sleep(retryDelayMs);
+    }
+    this.logger.debug(
+      { attempts, chain: this.chainName, timelockAddress },
+      'Cached TimelockController does not match the expected config after retry',
+    );
+    return false;
+  }
+
   private async configWithTimelockProxyAdminOwner(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
@@ -276,10 +296,6 @@ export class EvmWarpModule extends HyperlaneModule<
     assert(
       actualConfig.proxyAdmin?.address && actualConfig.proxyAdmin.owner,
       `Cannot configure timelock for non-proxied warp route on ${this.chainName}`,
-    );
-    assert(
-      !expectedConfig.ownerOverrides?.proxyAdmin,
-      `Cannot configure timelock with ownerOverrides.proxyAdmin on ${this.chainName}`,
     );
     assert(
       !expectedConfig.proxyAdmin?.address ||
@@ -310,7 +326,7 @@ export class EvmWarpModule extends HyperlaneModule<
         deployedTimelockByConfig.get(timelockCacheKey);
       if (
         cachedTimelockControllerAddress &&
-        (await this.timelockMatchesConfig(
+        (await this.cachedTimelockMatchesConfig(
           cachedTimelockControllerAddress,
           expectedConfig.timelock,
         ))

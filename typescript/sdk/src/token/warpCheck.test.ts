@@ -42,6 +42,13 @@ const TIMELOCK = '0x000000000000000000000000000000000000bEEF';
 const ROUTER_B = '0x2222222222222222222222222222222222222222';
 const TOKEN_A = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const TOKEN_B = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+const TIMELOCK_CONFIG = {
+  delay: 259200,
+  roles: {
+    executor: OWNER,
+    proposer: OWNER,
+  },
+};
 
 type ScaleValidationParams = Parameters<typeof getScaleViolations>[0];
 type ScaleValidationWarpRouteConfig = ScaleValidationParams['warpRouteConfig'];
@@ -52,6 +59,51 @@ function buildMultiProvider(): MultiProvider {
     [test2.name]: test2,
     [testSealevelChain.name]: testSealevelChain,
   });
+}
+
+function errorMessage(error: unknown): string {
+  if (!(error instanceof Error)) throw error;
+  return error.message;
+}
+
+function nativeDeployConfig(
+  chain: string,
+  overrides: {
+    ownerOverrides?: Record<string, string>;
+    timelock?: typeof TIMELOCK_CONFIG;
+  } = {},
+): WarpRouteDeployConfigMailboxRequired {
+  return {
+    [chain]: {
+      mailbox: MAILBOX,
+      owner: OWNER,
+      type: TokenType.native,
+      ...overrides,
+    },
+  };
+}
+
+function warpCoreConfig({
+  chain,
+  decimals,
+  standard,
+}: {
+  chain: string;
+  decimals: number;
+  standard: TokenStandard;
+}) {
+  return {
+    tokens: [
+      {
+        addressOrDenom: TOKEN_A,
+        chainName: chain,
+        decimals,
+        name: 'Token',
+        standard,
+        symbol: 'TOKEN',
+      },
+    ],
+  };
 }
 
 function stubConfiguredRouterMetadata({
@@ -882,13 +934,7 @@ describe('buildWarpRouteDiff', () => {
     };
     const expected = expectedConfig();
     expected[CHAIN].proxyAdmin = { owner: OWNER };
-    expected[CHAIN].timelock = {
-      delay: 259200,
-      roles: {
-        executor: OWNER,
-        proposer: OWNER,
-      },
-    };
+    expected[CHAIN].timelock = TIMELOCK_CONFIG;
 
     const diff = buildWarpRouteDiff({
       onChainWarpConfig: actual,
@@ -902,36 +948,18 @@ describe('buildWarpRouteDiff', () => {
 describe('checkWarpRouteDeployConfig', () => {
   it('rejects timelock config on Alt-VM chains', async () => {
     const chain = testSealevelChain.name;
-    const warpDeployConfig: WarpRouteDeployConfigMailboxRequired = {
-      [chain]: {
-        mailbox: MAILBOX,
-        owner: OWNER,
-        timelock: {
-          delay: 259200,
-          roles: {
-            executor: OWNER,
-            proposer: OWNER,
-          },
-        },
-        type: TokenType.native,
-      },
-    };
+    const warpDeployConfig = nativeDeployConfig(chain, {
+      timelock: TIMELOCK_CONFIG,
+    });
 
     try {
       await checkWarpRouteDeployConfig({
         multiProvider: buildMultiProvider(),
-        warpCoreConfig: {
-          tokens: [
-            {
-              addressOrDenom: TOKEN_A,
-              chainName: chain,
-              decimals: 9,
-              name: 'Token',
-              standard: TokenStandard.SealevelHypNative,
-              symbol: 'TOKEN',
-            },
-          ],
-        },
+        warpCoreConfig: warpCoreConfig({
+          chain,
+          decimals: 9,
+          standard: TokenStandard.SealevelHypNative,
+        }),
         warpDeployConfig,
       });
       expect.fail('expected Alt-VM timelock config to reject');
@@ -939,6 +967,31 @@ describe('checkWarpRouteDeployConfig', () => {
       if (!(error instanceof Error)) throw error;
       expect(error.message).to.equal(
         "Timelock config is not supported on Alt-VM chain 'testsealevel'.",
+      );
+    }
+  });
+
+  it('rejects timelock with ownerOverrides.proxyAdmin at the public check boundary', async () => {
+    const chain = test1.name;
+    const warpDeployConfig = nativeDeployConfig(chain, {
+      ownerOverrides: { proxyAdmin: OWNER },
+      timelock: TIMELOCK_CONFIG,
+    });
+
+    try {
+      await checkWarpRouteDeployConfig({
+        multiProvider: buildMultiProvider(),
+        warpCoreConfig: warpCoreConfig({
+          chain,
+          decimals: 18,
+          standard: TokenStandard.EvmHypNative,
+        }),
+        warpDeployConfig,
+      });
+      expect.fail('expected timelock plus ownerOverrides.proxyAdmin to reject');
+    } catch (error) {
+      expect(errorMessage(error)).to.include(
+        'Cannot configure timelock with ownerOverrides.proxyAdmin',
       );
     }
   });

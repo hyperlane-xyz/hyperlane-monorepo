@@ -76,6 +76,7 @@ import { HypERC20Deployer, HypERC721Deployer } from '../token/deploy.js';
 import {
   HypTokenRouterConfig,
   WarpRouteDeployConfigMailboxRequired,
+  assertTimelockConfigHasNoProxyAdminOwnerOverride,
 } from '../token/types.js';
 import { ChainMap } from '../types.js';
 import {
@@ -263,7 +264,7 @@ export function validateWarpConfigForAltVM(
   }
 }
 
-export function assertWarpConfigTimelocksSupportedByProtocols({
+function assertWarpConfigTimelocksSupportedByProtocols({
   multiProvider,
   warpDeployConfig,
 }: {
@@ -271,6 +272,7 @@ export function assertWarpConfigTimelocksSupportedByProtocols({
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
 }) {
   for (const [chain, config] of Object.entries(warpDeployConfig)) {
+    assertTimelockConfigHasNoProxyAdminOwnerOverride(config, chain);
     const protocol = multiProvider.tryGetProtocol(chain);
     assert(
       !config.timelock || (protocol && isEVMLike(protocol)),
