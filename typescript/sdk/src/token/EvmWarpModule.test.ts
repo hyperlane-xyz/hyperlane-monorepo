@@ -46,6 +46,7 @@ type EvmWarpModuleForTest = {
   timelockMatchesConfig(
     timelockAddress: string,
     config: NonNullable<HypTokenRouterConfig['timelock']>,
+    codeAlreadyVerified?: boolean,
   ): Promise<boolean>;
 };
 
@@ -228,6 +229,7 @@ describe('EvmWarpModule', () => {
   });
 
   it('does not reuse a timelock missing self-admin', async () => {
+    stubContractCode('0x1234');
     stubTimelockController({ hasAdminSelf: false });
 
     const matches = await createModuleForTest().timelockMatchesConfig(
@@ -238,7 +240,22 @@ describe('EvmWarpModule', () => {
     expect(matches).to.equal(false);
   });
 
+  it('does not call the timelock ABI for an EOA ProxyAdmin owner', async () => {
+    const getCodeStub = stubContractCode('0x');
+    const connectStub = sandbox.stub(TimelockController__factory, 'connect');
+
+    const matches = await createModuleForTest().timelockMatchesConfig(
+      OWNER_ADDRESS,
+      timelockConfig,
+    );
+
+    expect(matches).to.equal(false);
+    expect(getCodeStub.calledOnce).to.equal(true);
+    expect(connectStub.called).to.equal(false);
+  });
+
   it('propagates transient timelock reads without deploying a replacement', async () => {
+    stubContractCode('0x1234');
     const transientError = Object.assign(new Error('rpc timeout'), {
       code: 'SERVER_ERROR',
     });

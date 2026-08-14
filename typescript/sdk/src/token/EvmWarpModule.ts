@@ -54,6 +54,7 @@ import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import {
   contractHasCode,
   isInitialized,
+  isStorageEmpty,
   proxyAdmin,
   proxyAdminUpdateTxs,
 } from '../deploy/proxy.js';
@@ -234,8 +235,20 @@ export class EvmWarpModule extends HyperlaneModule<
   private async timelockMatchesConfig(
     timelockAddress: Address,
     config: NonNullable<HypTokenRouterConfig['timelock']>,
+    codeAlreadyVerified = false,
   ): Promise<boolean> {
     const provider = this.multiProvider.getProvider(this.chainName);
+    if (
+      !codeAlreadyVerified &&
+      isStorageEmpty(await provider.getCode(timelockAddress))
+    ) {
+      this.logger.debug(
+        { chain: this.chainName, timelockAddress },
+        'ProxyAdmin owner has no contract code and is not a TimelockController',
+      );
+      return false;
+    }
+
     const timelockController = TimelockController__factory.connect(
       timelockAddress,
       provider,
@@ -280,7 +293,7 @@ export class EvmWarpModule extends HyperlaneModule<
       );
       return false;
     }
-    return this.timelockMatchesConfig(timelockAddress, config);
+    return this.timelockMatchesConfig(timelockAddress, config, true);
   }
 
   private async configWithTimelockProxyAdminOwner(
