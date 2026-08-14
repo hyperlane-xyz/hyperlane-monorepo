@@ -36,6 +36,7 @@ import {
   Address,
   addressToBytes32,
   assert,
+  isEVMLike,
   isNullish,
   isObjEmpty,
   mapAllSettled,
@@ -165,11 +166,10 @@ export function validateWarpConfigForAltVM(
         `Supported token types: ${supportedTypes}.`,
     );
   }
-  if (config.timelock) {
-    throw new Error(
-      `Timelock config is not supported on Alt-VM chain '${chain}'.`,
-    );
-  }
+  assert(
+    !config.timelock,
+    `Timelock config is not supported on Alt-VM chain '${chain}'.`,
+  );
 
   if (config.interchainSecurityModule) {
     validateIsmConfig(
@@ -263,6 +263,22 @@ export function validateWarpConfigForAltVM(
   }
 }
 
+export function assertWarpConfigTimelocksSupportedByProtocols({
+  multiProvider,
+  warpDeployConfig,
+}: {
+  multiProvider: MultiProvider;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+}) {
+  for (const [chain, config] of Object.entries(warpDeployConfig)) {
+    const protocol = multiProvider.tryGetProtocol(chain);
+    assert(
+      !config.timelock || (protocol && isEVMLike(protocol)),
+      `Timelock config is not supported on Alt-VM chain '${chain}'.`,
+    );
+  }
+}
+
 // Subclass that injects rate-limited hook deployment between configureClients and
 // transferOwnership so that setHook() is called while the deployer signer still owns the token.
 class RateLimitedHookERC20Deployer extends HypERC20Deployer {
@@ -293,6 +309,11 @@ export async function executeWarpDeploy(
   registryAddresses: ChainMap<ChainAddresses>,
   apiKeys: ChainMap<string>,
 ): Promise<ChainMap<Address>> {
+  assertWarpConfigTimelocksSupportedByProtocols({
+    multiProvider,
+    warpDeployConfig,
+  });
+
   const contractVerifier = new ContractVerifier(
     multiProvider,
     apiKeys,
@@ -851,6 +872,10 @@ export async function enrollCrossChainRouters(
   deployedContracts: ChainMap<Address>,
 ): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
   rootLogger.info(`Start enrolling cross chain routers`);
+  assertWarpConfigTimelocksSupportedByProtocols({
+    multiProvider,
+    warpDeployConfig,
+  });
 
   const resolvedConfigMap = objMap(warpDeployConfig, (_, config) => ({
     gas: gasOverhead(config.type),

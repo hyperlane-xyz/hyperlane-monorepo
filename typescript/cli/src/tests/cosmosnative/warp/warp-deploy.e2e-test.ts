@@ -196,6 +196,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
           chainName,
         );
       }
+
+      const checkOutput = await hyperlaneWarp.checkRaw({}).nothrow();
+      expect(checkOutput.exitCode).to.equal(0);
     });
 
     it(`should successfully deploy a warp route with a custom warp route id`, async function () {

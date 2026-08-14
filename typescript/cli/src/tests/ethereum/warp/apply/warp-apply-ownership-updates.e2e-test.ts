@@ -244,6 +244,8 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
     const delay = 259200;
 
     const warpDeployConfig = fixture.getDeployConfig();
+    // CAST: fixture returns a route map; this test narrows the known EVM chain
+    // entry to mutate timelock config.
     const chainConfig = warpDeployConfig[chain] as HypTokenRouterConfig;
     chainConfig.timelock = {
       delay,
@@ -300,6 +302,7 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
     ).to.be.true;
 
     await evmWarpCommands.checkRaw({ warpRouteId: DEFAULT_EVM_WARP_ID });
+    await evmWarpCommands.checkRaw({});
 
     const secondApply = await evmWarpCommands.applyRaw({
       warpRouteId: DEFAULT_EVM_WARP_ID,

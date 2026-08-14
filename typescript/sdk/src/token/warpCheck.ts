@@ -938,11 +938,10 @@ function assertTimelockSupportedByProtocols({
 }) {
   for (const [chain, config] of Object.entries(warpDeployConfig)) {
     const protocol = multiProvider.tryGetProtocol(chain);
-    if (config.timelock && (!protocol || !isEVMLike(protocol))) {
-      throw new Error(
-        `Timelock config is not supported on Alt-VM chain '${chain}'.`,
-      );
-    }
+    assert(
+      !config.timelock || (protocol && isEVMLike(protocol)),
+      `Timelock config is not supported on Alt-VM chain '${chain}'.`,
+    );
   }
 }
 

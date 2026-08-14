@@ -164,7 +164,10 @@ export class EvmWarpModule extends HyperlaneModule<
   HypTokenRouterConfig,
   WarpRouteAddresses
 > {
-  private static readonly deployedTimelockByConfig = new Map<string, Address>();
+  private static readonly deployedTimelockByProvider = new WeakMap<
+    MultiProvider,
+    Map<string, Address>
+  >();
   protected logger = rootLogger.child({
     module: 'EvmWarpModule',
   });
@@ -300,9 +303,20 @@ export class EvmWarpModule extends HyperlaneModule<
         actualConfig.proxyAdmin.address,
         expectedConfig.timelock,
       );
-      timelockControllerAddress =
-        EvmWarpModule.deployedTimelockByConfig.get(timelockCacheKey);
-      if (!timelockControllerAddress) {
+      const deployedTimelockByConfig = EvmWarpModule.deployedTimelockByConfig(
+        this.multiProvider,
+      );
+      const cachedTimelockControllerAddress =
+        deployedTimelockByConfig.get(timelockCacheKey);
+      if (
+        cachedTimelockControllerAddress &&
+        (await this.timelockMatchesConfig(
+          cachedTimelockControllerAddress,
+          expectedConfig.timelock,
+        ))
+      ) {
+        timelockControllerAddress = cachedTimelockControllerAddress;
+      } else {
         timelockControllerAddress = (
           await new HypERC20Deployer(
             this.multiProvider,
@@ -310,7 +324,7 @@ export class EvmWarpModule extends HyperlaneModule<
             this.contractVerifier,
           ).deployTimelock(this.chainName, expectedConfig.timelock)
         ).address;
-        EvmWarpModule.deployedTimelockByConfig.set(
+        deployedTimelockByConfig.set(
           timelockCacheKey,
           timelockControllerAddress,
         );
@@ -340,6 +354,21 @@ export class EvmWarpModule extends HyperlaneModule<
     });
   }
 
+  private static deployedTimelockByConfig(
+    multiProvider: MultiProvider,
+  ): Map<string, Address> {
+    let deployedTimelockByConfig =
+      EvmWarpModule.deployedTimelockByProvider.get(multiProvider);
+    if (!deployedTimelockByConfig) {
+      deployedTimelockByConfig = new Map();
+      EvmWarpModule.deployedTimelockByProvider.set(
+        multiProvider,
+        deployedTimelockByConfig,
+      );
+    }
+    return deployedTimelockByConfig;
+  }
+
   /**
    * Updates the Warp Route contract with the provided configuration.
    *
@@ -351,9 +380,9 @@ export class EvmWarpModule extends HyperlaneModule<
    * IMPORTANT — irreversible side effects when expectedConfig includes `timelock`:
    * A TimelockController may be deployed on-chain during planning so the returned ownership
    * transactions can transfer ProxyAdmin ownership to it. The deployment address is cached
-   * in-process and reused across retries for the same chain/ProxyAdmin/timelock config, but
-   * a declined or externally persisted transaction plan can still leave an untracked
-   * timelock deployment.
+   * per MultiProvider, revalidated, and reused across retries for the same
+   * chain/ProxyAdmin/timelock config, but a declined or externally persisted
+   * transaction plan can still leave an untracked timelock deployment.
    *
    * @param expectedConfig - The configuration for the token router to be updated.
    * @returns `{txs, feeTxs, ownershipTxs}` — main txs (includes router-owner `setFeeRecipient`), fee-contract-owner txs (safe to route to a dedicated feeSubmitter), and ownership/proxyAdmin txs that must execute last.

@@ -33,6 +33,7 @@ const OTHER_PROXY_ADMIN_ADDRESS = '0x6666666666666666666666666666666666666666';
 const TIMELOCK_PROPOSER_ADDRESS = '0x7777777777777777777777777777777777777777';
 const TIMELOCK_EXECUTOR_ADDRESS = '0x8888888888888888888888888888888888888888';
 const TIMELOCK_ADDRESS = '0x9999999999999999999999999999999999999999';
+const OTHER_TIMELOCK_ADDRESS = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
 type EvmWarpModuleForTest = {
   configWithTimelockProxyAdminOwner(
@@ -298,7 +299,11 @@ describe('EvmWarpModule', () => {
     const firstModule = createModuleForTest();
     const secondModule = createModuleForTest();
     sandbox.stub(firstModule, 'timelockMatchesConfig').resolves(false);
-    sandbox.stub(secondModule, 'timelockMatchesConfig').resolves(false);
+    sandbox
+      .stub(secondModule, 'timelockMatchesConfig')
+      .callsFake(
+        async (timelockAddress) => timelockAddress === TIMELOCK_ADDRESS,
+      );
     const deployStub = sandbox
       .stub(HypERC20Deployer.prototype, 'deployTimelock')
       // CAST: test needs only deployTimelock's returned address.
@@ -329,6 +334,89 @@ describe('EvmWarpModule', () => {
     expect(deployStub.calledOnce).to.equal(true);
     expect(firstConfig.proxyAdmin?.owner).to.equal(TIMELOCK_ADDRESS);
     expect(secondConfig.proxyAdmin?.owner).to.equal(TIMELOCK_ADDRESS);
+  });
+
+  it('does not reuse a cached timelock deployment across MultiProviders', async () => {
+    const firstModule = createModuleForTest();
+    sandbox.stub(firstModule, 'timelockMatchesConfig').resolves(false);
+    const deployStub = sandbox
+      .stub(HypERC20Deployer.prototype, 'deployTimelock')
+      // CAST: test needs only deployTimelock's returned address.
+      .resolves({
+        address: TIMELOCK_ADDRESS,
+      } as Awaited<ReturnType<HypERC20Deployer['deployTimelock']>>);
+    // CAST: only proxyAdmin fields are read by the tested planning helper.
+    const actualConfig = {
+      proxyAdmin: {
+        address: PROXY_ADMIN_ADDRESS,
+        owner: OWNER_ADDRESS,
+      },
+    } as DerivedTokenRouterConfig;
+    const expectedConfig = {
+      ...xERC20Config,
+      timelock: timelockConfig,
+    };
+
+    await firstModule.configWithTimelockProxyAdminOwner(
+      actualConfig,
+      expectedConfig,
+    );
+
+    multiProvider = MultiProvider.createTestMultiProvider();
+    const secondModule = createModuleForTest();
+    sandbox.stub(secondModule, 'timelockMatchesConfig').resolves(false);
+    await secondModule.configWithTimelockProxyAdminOwner(
+      actualConfig,
+      expectedConfig,
+    );
+
+    expect(deployStub.calledTwice).to.equal(true);
+  });
+
+  it('redeploys a cached timelock when the cached address no longer matches', async () => {
+    const firstModule = createModuleForTest();
+    const secondModule = createModuleForTest();
+    sandbox.stub(firstModule, 'timelockMatchesConfig').resolves(false);
+    sandbox.stub(secondModule, 'timelockMatchesConfig').resolves(false);
+    const deployStub = sandbox.stub(
+      HypERC20Deployer.prototype,
+      'deployTimelock',
+    );
+    deployStub.onFirstCall().resolves(
+      // CAST: test needs only deployTimelock's returned address.
+      {
+        address: TIMELOCK_ADDRESS,
+      } as Awaited<ReturnType<HypERC20Deployer['deployTimelock']>>,
+    );
+    deployStub.onSecondCall().resolves(
+      // CAST: test needs only deployTimelock's returned address.
+      {
+        address: OTHER_TIMELOCK_ADDRESS,
+      } as Awaited<ReturnType<HypERC20Deployer['deployTimelock']>>,
+    );
+    // CAST: only proxyAdmin fields are read by the tested planning helper.
+    const actualConfig = {
+      proxyAdmin: {
+        address: PROXY_ADMIN_ADDRESS,
+        owner: OWNER_ADDRESS,
+      },
+    } as DerivedTokenRouterConfig;
+    const expectedConfig = {
+      ...xERC20Config,
+      timelock: timelockConfig,
+    };
+
+    await firstModule.configWithTimelockProxyAdminOwner(
+      actualConfig,
+      expectedConfig,
+    );
+    const secondConfig = await secondModule.configWithTimelockProxyAdminOwner(
+      actualConfig,
+      expectedConfig,
+    );
+
+    expect(deployStub.calledTwice).to.equal(true);
+    expect(secondConfig.proxyAdmin?.owner).to.equal(OTHER_TIMELOCK_ADDRESS);
   });
 
   it('pins same-byte ProxyAdmin address casing to the actual address', async () => {
