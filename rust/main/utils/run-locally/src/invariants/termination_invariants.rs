@@ -387,11 +387,25 @@ pub fn lander_metrics_invariants_met(
     .iter()
     .sum::<u32>();
 
-    // Checking that some transactions were finalized.
-    // Since we have batching for Ethereum with Lander, we cannot predict the exact number of
-    // finalized transactions.
-    if finalized_transactions == 0 {
-        log!("hyperlane_lander_finalized_transactions is zero, expected at least one",);
+    if dropped_transactions > transaction_submissions {
+        log!(
+            "hyperlane_lander_dropped_transactions {} count, expected <= submissions {}",
+            dropped_transactions,
+            transaction_submissions
+        );
+        return Ok(false);
+    }
+
+    // finalized_transactions can be less than submissions - dropped because
+    // transaction_submissions counts resubmissions while finalized_transactions
+    // counts unique transactions that reached Finalized status.
+    let max_expected_finalized = transaction_submissions - dropped_transactions;
+    if finalized_transactions == 0 || finalized_transactions > max_expected_finalized {
+        log!(
+            "hyperlane_lander_finalized_transactions {} count, expected > 0 and <= {}",
+            finalized_transactions,
+            max_expected_finalized
+        );
         return Ok(false);
     }
     if building_stage_queue_length != 0 {
@@ -464,6 +478,64 @@ pub fn lander_metrics_invariants_met(
         mismatch_nonce_count, 0,
         "Mismatch nonce count should not have incremented"
     );
+
+    Ok(true)
+}
+
+pub fn finalized_transactions_per_destination_invariants_met(
+    relayer_port: &str,
+    destinations: &[&str],
+) -> eyre::Result<bool> {
+    for destination in destinations {
+        let labels = hashmap! {"destination" => *destination};
+        let finalized_transactions = fetch_metric(
+            relayer_port,
+            "hyperlane_lander_finalized_transactions",
+            &labels,
+        )?
+        .iter()
+        .sum::<u32>();
+        let dropped_transactions = fetch_metric(
+            relayer_port,
+            "hyperlane_lander_dropped_transactions",
+            &labels,
+        )?
+        .iter()
+        .sum::<u32>();
+        let transaction_submissions = fetch_metric(
+            relayer_port,
+            "hyperlane_lander_transaction_submissions",
+            &labels,
+        )?
+        .iter()
+        .sum::<u32>();
+
+        // No Lander activity for this destination — skip.
+        if transaction_submissions == 0 {
+            continue;
+        }
+
+        if dropped_transactions > transaction_submissions {
+            log!(
+                "destination {} dropped_transactions {} > transaction_submissions {}",
+                destination,
+                dropped_transactions,
+                transaction_submissions
+            );
+            return Ok(false);
+        }
+
+        let max_expected_finalized = transaction_submissions - dropped_transactions;
+        if finalized_transactions == 0 || finalized_transactions > max_expected_finalized {
+            log!(
+                "destination {} finalized_transactions {} expected > 0 and <= {}",
+                destination,
+                finalized_transactions,
+                max_expected_finalized
+            );
+            return Ok(false);
+        }
+    }
 
     Ok(true)
 }
