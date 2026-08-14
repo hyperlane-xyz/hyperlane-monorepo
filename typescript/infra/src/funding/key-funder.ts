@@ -176,8 +176,7 @@ export class KeyFunderHelmManager extends HelmManager {
 
         const override = this.config.sweepOverrides?.[chain];
         chainConfig.sweep = {
-          // Temporarily disabled; re-enable once sweep destination is confirmed.
-          enabled: false,
+          enabled: true,
           address: override?.sweepAddress ?? DEFAULT_SWEEP_ADDRESS,
           threshold: sweepThreshold,
           targetMultiplier: override?.targetMultiplier ?? 1.5,
