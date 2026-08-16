@@ -131,11 +131,13 @@ export interface EclipseUSDTWarpConfigOptions {
     solanamainnet: string;
   };
   proxyAdmins: ChainMap<{ address?: string; owner: string }>;
+  quoteSigners?: string[];
 }
 
 const getBaseEvmConfig = (
   chain: DeploymentChain,
   proxyAdmins: ChainMap<{ address?: string; owner: string }>,
+  quoteSigners?: string[],
 ) => {
   const proxyAdmin = proxyAdmins[chain];
   assert(proxyAdmin, `Missing proxyAdmin for chain ${chain}`);
@@ -159,6 +161,8 @@ const getBaseEvmConfig = (
       routingFeeOwner,
       destinations,
       destinationFeeBps,
+      undefined,
+      quoteSigners,
     ),
     ...scaleDownConfig(decimals, MESSAGE_DECIMALS),
   };
@@ -168,7 +172,7 @@ export const buildEclipseUSDTWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   options: EclipseUSDTWarpConfigOptions,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const { ownersByChain, programIds, proxyAdmins } = options;
+  const { ownersByChain, programIds, proxyAdmins, quoteSigners } = options;
 
   const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
     rebalanceableCollateralChains,
@@ -189,7 +193,7 @@ export const buildEclipseUSDTWarpConfig = async (
     );
     configs.push([
       chain,
-      { ...baseConfig, ...getBaseEvmConfig(chain, proxyAdmins) },
+      { ...baseConfig, ...getBaseEvmConfig(chain, proxyAdmins, quoteSigners) },
     ]);
   }
 
@@ -201,7 +205,7 @@ export const buildEclipseUSDTWarpConfig = async (
     configs.push([
       chain,
       {
-        ...getBaseEvmConfig(chain, proxyAdmins),
+        ...getBaseEvmConfig(chain, proxyAdmins, quoteSigners),
         type: TokenType.collateral,
         token: usdtToken,
         owner: ownersByChain[chain],
@@ -243,6 +247,13 @@ export const buildEclipseUSDTWarpConfig = async (
   return Object.fromEntries(configs);
 };
 
+// Reuse the CROSS/moonpay quote signers so the stableswap-moonpay rebalancer
+// can be exempted from the eclipse FPWR fee via standing zero-quotes.
+const QUOTE_SIGNERS = [
+  '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
+  '0x6bb7818bbE8d88094Cf3620e58BC6BbEd542B867',
+];
+
 export const getEclipseUSDTWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> =>
@@ -250,6 +261,7 @@ export const getEclipseUSDTWarpConfig = async (
     ownersByChain: productionOwnersByChain,
     programIds: PRODUCTION_PROGRAM_IDS,
     proxyAdmins: awProxyAdmins,
+    quoteSigners: QUOTE_SIGNERS,
   });
 
 // Strategies
