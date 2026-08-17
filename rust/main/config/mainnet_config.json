@@ -3536,7 +3536,7 @@
       "gasCurrencyCoinGeckoId": "celestia",
       "gasPrice": {
         "denom": "utia",
-        "amount": "0.002"
+        "amount": "0.02"
       },
       "grpcUrls": [
         {
