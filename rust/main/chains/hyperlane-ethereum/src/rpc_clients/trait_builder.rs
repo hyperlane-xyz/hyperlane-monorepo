@@ -9,8 +9,8 @@ use ethers::middleware::gas_oracle::{
     GasCategory, GasOracle, GasOracleMiddleware, Polygon, ProviderOracle,
 };
 use ethers::prelude::{
-    Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, QuorumProvider,
-    SignerMiddleware, WeightedProvider, Ws, WsClientError,
+    Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, SignerMiddleware,
+    Ws, WsClientError,
 };
 use ethers::types::Address;
 use ethers_signers::Signer;
@@ -33,7 +33,10 @@ use tracing::instrument;
 
 use crate::signer::Signers;
 use crate::tx::PENDING_TX_TIMEOUT_SECS;
-use crate::{ConnectionConf, EthereumFallbackProvider, RetryingProvider, RpcConnectionConf};
+use crate::{
+    ConnectionConf, DynamicTagQuorumProvider, EthereumFallbackProvider, RetryingProvider,
+    RpcConnectionConf,
+};
 
 // This should be whatever the prometheus scrape interval is
 const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
@@ -102,7 +105,7 @@ pub trait BuildableWithProvider {
     ) -> ChainResult<Self::Output> {
         Ok(match &conn.rpc_connection {
             RpcConnectionConf::HttpQuorum { urls } => {
-                let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
+                let mut providers = Vec::with_capacity(urls.len());
                 for url in urls {
                     let http_provider = build_http_provider(url.clone())?;
                     // Wrap the inner providers as RetryingProviders rather than the QuorumProvider.
@@ -122,10 +125,9 @@ pub trait BuildableWithProvider {
                     );
                     let retrying_provider =
                         RetryingProvider::new(metrics_provider, Some(5), Some(1000));
-                    let weighted_provider = WeightedProvider::new(retrying_provider);
-                    builder = builder.add_provider(weighted_provider);
+                    providers.push(retrying_provider);
                 }
-                let quorum_provider = builder.build();
+                let quorum_provider = DynamicTagQuorumProvider::new(Quorum::Majority, providers);
                 self.build(quorum_provider, conn, locator, signer).await?
             }
             RpcConnectionConf::HttpFallback { urls } => {

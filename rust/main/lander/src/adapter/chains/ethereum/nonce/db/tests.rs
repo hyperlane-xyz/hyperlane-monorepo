@@ -6,6 +6,7 @@ use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::TransactionUuid;
 
 use super::super::super::nonce::status::NonceStatus;
+use super::ReorgedNonceRange;
 
 #[tokio::test]
 async fn test_nonce_db_finalized_and_upper() {
@@ -50,6 +51,63 @@ async fn test_nonce_db_finalized_and_upper() {
             .await
             .unwrap(),
         Some(nonce)
+    );
+}
+
+#[tokio::test]
+async fn test_nonce_db_clear_finalized_nonce() {
+    let (_, _, nonce_db) = tmp_dbs();
+    let signer = Address::random();
+    nonce_db
+        .store_finalized_nonce_by_signer_address(&signer, &U256::from(42))
+        .await
+        .unwrap();
+
+    nonce_db
+        .clear_finalized_nonce_by_signer_address(&signer)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        nonce_db
+            .retrieve_finalized_nonce_by_signer_address(&signer)
+            .await
+            .unwrap(),
+        None
+    );
+}
+
+#[tokio::test]
+async fn test_nonce_db_reorged_range_round_trip_and_clear() {
+    let (_, _, nonce_db) = tmp_dbs();
+    let signer = Address::random();
+    let range = ReorgedNonceRange {
+        start: U256::from(7),
+        end: U256::from(11),
+    };
+
+    nonce_db
+        .store_reorged_nonce_range_by_signer_address(&signer, &range)
+        .await
+        .unwrap();
+    assert_eq!(
+        nonce_db
+            .retrieve_reorged_nonce_range_by_signer_address(&signer)
+            .await
+            .unwrap(),
+        Some(range)
+    );
+
+    nonce_db
+        .clear_reorged_nonce_range_by_signer_address(&signer)
+        .await
+        .unwrap();
+    assert_eq!(
+        nonce_db
+            .retrieve_reorged_nonce_range_by_signer_address(&signer)
+            .await
+            .unwrap(),
+        None
     );
 }
 

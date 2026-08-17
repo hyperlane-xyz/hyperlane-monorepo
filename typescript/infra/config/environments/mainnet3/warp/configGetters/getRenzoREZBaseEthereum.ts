@@ -41,6 +41,15 @@ export const rezEthValidators = {
 const rezEthOwners = pick(ezEthSafes, rezEthChainsToDeploy);
 const rezEthTokenPrices = pick(renzoTokenPrices, rezEthChainsToDeploy);
 
+// Actual onchain protocol fees for the REZ route. These differ from the shared
+// EZETH-derived `chainProtocolFee` snapshot (they follow the ~$0.50 target), so
+// they are supplied as route-specific overrides to avoid a check mismatch.
+const rezProtocolFeeOverrides = {
+  base: '158365200000000',
+  ethereum: '158365200000000',
+  unichain: '192111100000000',
+};
+
 export const getREZBaseEthereumWarpConfig = getRenzoWarpConfigGenerator({
   chainsToDeploy: rezEthChainsToDeploy,
   validators: rezEthValidators,
@@ -48,4 +57,5 @@ export const getREZBaseEthereumWarpConfig = getRenzoWarpConfigGenerator({
   xERC20Addresses: rezEthAddresses,
   xERC20Lockbox: rezProductionLockbox,
   tokenPrices: rezEthTokenPrices,
+  protocolFeeOverrides: rezProtocolFeeOverrides,
 });

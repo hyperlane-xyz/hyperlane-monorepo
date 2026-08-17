@@ -6,7 +6,6 @@ export const testnet4SupportedChainNames = [
   'bsctestnet',
   'celestiatestnet',
   'celosepolia',
-  'cotitestnet',
   'eclipsetestnet',
   'fuji',
   'hyperliquidevmtestnet',

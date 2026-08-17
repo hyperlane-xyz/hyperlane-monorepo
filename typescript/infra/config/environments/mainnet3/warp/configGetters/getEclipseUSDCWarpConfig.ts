@@ -252,6 +252,13 @@ const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
   [WarpRouteIds.MainnetCCTPV2Standard, WarpRouteIds.MainnetCCTPV2Fast],
 );
 
+const DEFAULT_FEE_BPS = 1.5;
+// katana's fee contracts were raised to 10 bps on-chain; pin the expected
+// config so the warp check keeps matching on-chain state.
+const feeBpsByOriginChain: Partial<Record<EvmChain, number>> = {
+  katana: 10,
+};
+
 export const buildEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   options: EclipseUSDCWarpConfigOptions,
@@ -310,7 +317,7 @@ export const buildEclipseUSDCWarpConfig = async (
       const feeConfig = getFixedRoutingFeeConfig(
         WARP_FEES_TURNKEY_OWNER,
         feeDestinations,
-        1.5,
+        feeBpsByOriginChain[currentChain] ?? DEFAULT_FEE_BPS,
         undefined,
         quoteSigners,
       );

@@ -234,6 +234,18 @@ type GetEventLogsOptions = Omit<
   'module' | 'action' | 'page' | 'offset'
 >;
 
+type ExplorerLogRangeOptions = {
+  address?: Address;
+  fromBlock?: number | 'latest';
+  toBlock?: number | 'latest';
+};
+
+type ExplorerLogIdentity = {
+  blockNumber: number | string;
+  transactionHash: string;
+  logIndex: number | string;
+};
+
 // Records per page and pages per block range, both measured against Etherscan
 // V2 on chainid 1: a request that names neither is answered with the first 1000
 // records of the range under a success status, and page 11 is refused whatever
@@ -249,16 +261,16 @@ const MAX_EXPLORER_LOG_PAGES = 10;
  * instead of returned.
  *
  * The ceiling is a property of the endpoint rather than of the moment, so
- * `retryAsync` must not spend attempts on it: `isRecoverable = false` sends
- * `EvmEventLogsReader` to its RPC fallback on the first response, and that
- * fallback paginates by block and so has no equivalent ceiling.
+ * `retryAsync` must not spend attempts on it: `isRecoverable = false` sends a
+ * reader or composite provider to its RPC fallback on the first response, and
+ * that fallback paginates by block and so has no equivalent ceiling.
  */
 class ExplorerLogPageLimitError extends Error {
   readonly isRecoverable = false;
 
-  constructor({ address, fromBlock, toBlock }: GetEventLogsOptions) {
+  constructor(options: ExplorerLogRangeOptions) {
     super(
-      `Explorer served ${MAX_EXPLORER_LOG_PAGES} full pages of ${EXPLORER_LOGS_PAGE_SIZE} logs for contract ${address} between blocks ${fromBlock} and ${toBlock}, which is as far as it pages, so the logs of that range cannot be read in full`,
+      `Explorer served ${MAX_EXPLORER_LOG_PAGES} full pages of ${EXPLORER_LOGS_PAGE_SIZE} logs ${describeExplorerLogRange(options)}, which is as far as it pages, so the logs of that range cannot be read in full`,
     );
     this.name = 'ExplorerLogPageLimitError';
   }
@@ -269,25 +281,30 @@ class ExplorerLogPageLimitError extends Error {
  *
  * The pages before it were served, so asking for the range again would repeat
  * them, and the retries this page is worth have already been spent below. It
- * therefore carries the same `isRecoverable = false` as the ceiling above, so
- * that `EvmEventLogsReader` moves on to its RPC fallback instead of restarting
- * a read that is nine tenths done.
+ * therefore carries the same `isRecoverable = false` as the ceiling above, so a
+ * reader or composite provider moves on to its RPC fallback instead of
+ * restarting a read that is nine tenths done.
  */
 class ExplorerLogPageReadError extends Error {
   readonly isRecoverable = false;
 
-  constructor(
-    page: number,
-    { address, fromBlock, toBlock }: GetEventLogsOptions,
-    cause: unknown,
-  ) {
+  constructor(page: number, options: ExplorerLogRangeOptions, cause: unknown) {
     const reason = cause instanceof Error ? cause.message : String(cause);
     super(
-      `Explorer failed to serve page ${page} of the logs for contract ${address} between blocks ${fromBlock} and ${toBlock}: ${reason}`,
+      `Explorer failed to serve page ${page} of the logs ${describeExplorerLogRange(options)}: ${reason}`,
       { cause },
     );
     this.name = 'ExplorerLogPageReadError';
   }
+}
+
+function describeExplorerLogRange({
+  address,
+  fromBlock,
+  toBlock,
+}: ExplorerLogRangeOptions): string {
+  const addressDescription = address ? `for contract ${address} ` : '';
+  return `${addressDescription}between blocks ${fromBlock ?? 'earliest'} and ${toBlock ?? 'latest'}`;
 }
 
 type RawEtherscanGetEventLogsResponse = {
@@ -326,67 +343,87 @@ function toEventLogsResponse(
 // and again at the start of the next, so concatenating pages would repeat it.
 // The three fields together identify a log whether the explorer scopes
 // logIndex to the block or to the transaction.
-function logIdentity(log: GetEventLogsResponse): string {
-  return `${log.blockNumber}:${log.transactionHash}:${log.logIndex}`;
+function logIdentity(log: ExplorerLogIdentity): string {
+  return `${toNumber(log.blockNumber, 'blockNumber')}:${log.transactionHash.toLowerCase()}:${toNumber(log.logIndex, 'logIndex')}`;
 }
 
 // Retrying the page rather than the read is what keeps a rate limited page from
 // re-requesting the pages already served. Only the request is retried: a
 // response the explorer did serve is judged once, by the caller.
 async function readExplorerLogPage<T>(
-  requestUrl: string,
+  readPage: () => Promise<T>,
   page: number,
-  options: GetEventLogsOptions,
+  options: ExplorerLogRangeOptions,
 ): Promise<T> {
   try {
-    return await retryAsync(async () => {
-      const response = await fetch(requestUrl);
-      return handleEtherscanResponse<T>(response);
-    });
+    return await retryAsync(readPage);
   } catch (error) {
     throw new ExplorerLogPageReadError(page, options, error);
   }
+}
+
+/**
+ * Reads every explorer page for a log range or throws without returning the
+ * prefix collected so far. Both direct explorer reads and explorer providers
+ * use this so a successful getLogs response has the same completeness contract.
+ */
+export async function readPaginatedExplorerLogs<T extends ExplorerLogIdentity>(
+  options: ExplorerLogRangeOptions,
+  readPage: (page: number, offset: number) => Promise<T[]>,
+): Promise<T[]> {
+  const logsByIdentity = new Map<string, T>();
+
+  for (let page = 1; page <= MAX_EXPLORER_LOG_PAGES; page++) {
+    const pageLogs = await readExplorerLogPage(
+      () => readPage(page, EXPLORER_LOGS_PAGE_SIZE),
+      page,
+      options,
+    );
+    assert(
+      Array.isArray(pageLogs),
+      `Explorer did not return a list of logs ${describeExplorerLogRange(options)}`,
+    );
+
+    for (const log of pageLogs) {
+      logsByIdentity.set(logIdentity(log), log);
+    }
+
+    // A page the explorer could not fill is the last one it has.
+    if (pageLogs.length < EXPLORER_LOGS_PAGE_SIZE) {
+      return [...logsByIdentity.values()];
+    }
+  }
+
+  throw new ExplorerLogPageLimitError(options);
 }
 
 export async function getLogsFromEtherscanLikeExplorerAPI(
   { apiUrl, apiKey: apikey }: EtherscanLikeAPIOptions,
   options: GetEventLogsOptions,
 ): Promise<Array<GetEventLogsResponse>> {
-  const logsByIdentity = new Map<string, GetEventLogsResponse>();
+  const rawLogs = await readPaginatedExplorerLogs(
+    options,
+    async (page, offset) => {
+      const data: GetEventLogs = {
+        module: EtherscanLikeExplorerApiModule.LOGS,
+        action: EtherscanLikeExplorerApiAction.GET_LOGS,
+        address: options.address,
+        fromBlock: options.fromBlock,
+        toBlock: options.toBlock,
+        topic0: options.topic0,
+        page,
+        offset,
+      };
 
-  for (let page = 1; page <= MAX_EXPLORER_LOG_PAGES; page++) {
-    const data: GetEventLogs = {
-      module: EtherscanLikeExplorerApiModule.LOGS,
-      action: EtherscanLikeExplorerApiAction.GET_LOGS,
-      address: options.address,
-      fromBlock: options.fromBlock,
-      toBlock: options.toBlock,
-      topic0: options.topic0,
-      page,
-      offset: EXPLORER_LOGS_PAGE_SIZE,
-    };
+      const requestUrl = formatExplorerUrl({ apiUrl, apiKey: apikey }, data);
+      const response = await fetch(requestUrl);
+      return handleEtherscanResponse<RawEtherscanGetEventLogsResponse[]>(
+        response,
+      );
+    },
+  );
 
-    const requestUrl = formatExplorerUrl({ apiUrl, apiKey: apikey }, data);
-
-    const rawLogs: RawEtherscanGetEventLogsResponse[] =
-      await readExplorerLogPage(requestUrl, page, options);
-    assert(
-      Array.isArray(rawLogs),
-      `Explorer did not return a list of logs for contract ${options.address} between blocks ${options.fromBlock} and ${options.toBlock}`,
-    );
-
-    for (const rawLog of rawLogs) {
-      const log = toEventLogsResponse(rawLog);
-      logsByIdentity.set(logIdentity(log), log);
-    }
-
-    // A page the explorer could not fill is the last one it has.
-    if (rawLogs.length < EXPLORER_LOGS_PAGE_SIZE) {
-      return [...logsByIdentity.values()];
-    }
-  }
-
-  throw new ExplorerLogPageLimitError(options);
+  return rawLogs.map(toEventLogsResponse);
 }
 
 interface GetContractVerificationStatus extends BaseEtherscanLikeAPIParams<

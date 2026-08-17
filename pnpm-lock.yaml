@@ -725,6 +725,9 @@ importers:
       '@hyperlane-xyz/deploy-sdk':
         specifier: workspace:*
         version: link:../deploy-sdk
+      '@hyperlane-xyz/forking-sdk':
+        specifier: workspace:*
+        version: link:../forking-sdk
       '@hyperlane-xyz/http-registry-server':
         specifier: workspace:*
         version: link:../http-registry-server
@@ -1134,6 +1137,40 @@ importers:
       supertest:
         specifier: ^7.0.0
         version: 7.2.2(supports-color@10.2.2)
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.1
+      typescript:
+        specifier: 'catalog:'
+        version: '@typescript/typescript6@6.0.2'
+
+  typescript/forking-sdk:
+    dependencies:
+      '@hyperlane-xyz/provider-sdk':
+        specifier: workspace:*
+        version: link:../provider-sdk
+      '@hyperlane-xyz/utils':
+        specifier: workspace:*
+        version: link:../utils
+    devDependencies:
+      '@hyperlane-xyz/tsconfig':
+        specifier: workspace:^
+        version: link:../tsconfig
+      '@types/chai':
+        specifier: 'catalog:'
+        version: 4.3.20
+      '@types/mocha':
+        specifier: 'catalog:'
+        version: 10.0.10
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.2
+      chai:
+        specifier: 'catalog:'
+        version: 4.5.0
+      mocha:
+        specifier: 'catalog:'
+        version: 11.7.6
       tsx:
         specifier: 'catalog:'
         version: 4.23.1
@@ -2427,6 +2464,9 @@ importers:
 
   typescript/svm-sdk:
     dependencies:
+      '@hyperlane-xyz/forking-sdk':
+        specifier: workspace:*
+        version: link:../forking-sdk
       '@hyperlane-xyz/provider-sdk':
         specifier: workspace:*
         version: link:../provider-sdk
@@ -2457,6 +2497,9 @@ importers:
       compare-versions:
         specifier: 'catalog:'
         version: 6.1.1
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
     devDependencies:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
@@ -10627,6 +10670,7 @@ packages:
 
   crypto-js@4.2.0:
     resolution: {integrity: sha512-KALDyEYgpY+Rlob/iriUtjV6d5Eq+Y191A5g4UqLAi8CyGP9N1+FdVbkc1SxKc2r4YAYqG8JzO2KGL+AizD70Q==}
+    deprecated: Active development of CryptoJS has been discontinued. This library is no longer maintained.
 
   crypto-random-string@2.0.0:
     resolution: {integrity: sha512-v1plID3y9r/lPhviJ1wrXpLeyUIGAZ2SHNYTEapm7/8A9nLPoyvVp3RK/EPFqn5kEznyWgYZNsRtYYIWbuG8KA==}

@@ -23,10 +23,6 @@
     "amount": "25.001",
     "decimals": 9
   },
-  "cotitestnet": {
-    "amount": "7.400249936",
-    "decimals": 9
-  },
   "eclipsetestnet": {
     "amount": "0.001",
     "decimals": 9

@@ -39,21 +39,16 @@ export const awIcasLegacy: ChainMap<Address> = {
   // Oct 30, 2024 batch
   // ----------------------------------------------------------
   apechain: '0xe68b0aB6BB8c11D855556A5d3539524f6DB3bdc6',
-  morph: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
 
   // Nov 8, 2024 batch
   // ----------------------------------------------------------
   flowmainnet: '0x65528D447C93CC1A1A7186CB4449d9fE0d5C1928',
   immutablezkevmmainnet: '0x54AF0FCDCD58428f8dF3f825267DfB58f2C710eb',
   metal: '0xf1d25462e1f82BbF25b3ef7A4C94F738a30a968B',
-  prom: '0x1cDd3C143387cD1FaE23e2B66bc3F409D073aC3D',
 
   // Nov 21, 2024 batch
   // ----------------------------------------------------------
-  boba: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
   unichain: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
-  vana: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
-  bsquared: '0xd9564EaaA68A327933f758A54450D3A0531E60BB',
   superseed: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
 
   // Dec 4, 2024 batch
@@ -70,7 +65,6 @@ export const awIcasLegacy: ChainMap<Address> = {
 
   // Jan 13, 2025 batch
   // ----------------------------------------------------------
-  hemi: '0x8D18CBB212920e5ef070b23b813d82F8981cC276',
 
   // Feb 3, 2025 batch
   // ----------------------------------------------------------
@@ -89,13 +83,10 @@ export const awIcasLegacy: ChainMap<Address> = {
 
   // Mar 14, 2025 batch
   // ----------------------------------------------------------
-  plume: '0x61BFbb5FEC57f5470388A80946F0415138630b9c',
 
   // Mar 31, 2025 batch
   // ----------------------------------------------------------
   coti: '0x294589E4913A132A49F7830a2A219363A25c0529',
-  // nibiru: '0x40cD75e80d04663FAe0CE30687504074F163C346', // temporary while looking into decimals
-  reactive: '0x9312B04076efA12D69b95bcE7F4F0EA847073E6a',
 
   // Jun 5, 2025 - oUSDT v2
   // ----------------------------------------------------------
@@ -103,7 +94,6 @@ export const awIcasLegacy: ChainMap<Address> = {
 
   // Jun 21, 2025 - oUSDT v3
   // ----------------------------------------------------------
-  botanix: '0xf06c254d1Df285BC16B2D53A426dC106897CfDf9',
 
   // Jun 30, 2025 - cctp upgrade
   // ----------------------------------------------------------

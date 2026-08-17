@@ -47,6 +47,7 @@ COPY typescript/metrics/package.json ./typescript/metrics/
 COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
 COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/provider-sdk/package.json ./typescript/provider-sdk/
+COPY typescript/forking-sdk/package.json ./typescript/forking-sdk/
 COPY typescript/utils/package.json ./typescript/utils/
 COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
 COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
@@ -100,6 +101,7 @@ COPY typescript/metrics ./typescript/metrics
 COPY typescript/deploy-sdk ./typescript/deploy-sdk
 COPY typescript/cosmos-sdk ./typescript/cosmos-sdk
 COPY typescript/provider-sdk ./typescript/provider-sdk
+COPY typescript/forking-sdk ./typescript/forking-sdk
 COPY typescript/radix-sdk ./typescript/radix-sdk
 COPY typescript/aleo-sdk ./typescript/aleo-sdk
 COPY typescript/starknet-sdk ./typescript/starknet-sdk

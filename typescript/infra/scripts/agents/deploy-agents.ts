@@ -10,7 +10,7 @@ import {
   warnIfPrTag,
 } from '../../src/utils/gcloud.js';
 import { HelmCommand } from '../../src/utils/helm.js';
-import { getArgs, withYes } from '../agent-utils.js';
+import { getArgs, withAgentRolesRequired, withYes } from '../agent-utils.js';
 import { getConfigsBasedOnArgs } from '../core-utils.js';
 
 import { AgentCli } from './utils.js';
@@ -109,12 +109,16 @@ async function main() {
   // whose keys / users are not chain-specific) will be attempted multiple times.
   // While this function still has these side effects, the workaround is to just
   // run the create-keys script first.
-  const { yes: skipConfirmation } = await withYes(getArgs()).argv;
+  const { yes: skipConfirmation, roles } = await withYes(
+    withAgentRolesRequired(getArgs()),
+  ).argv;
 
   const { agentConfig } = await getConfigsBasedOnArgs();
   await checkDockerTagsExist(agentConfig);
 
-  await createAgentKeysIfNotExistsWithPrompt(agentConfig);
+  // Scope key reconciliation to the roles being deployed. Deploying the relayer
+  // or scraper must not require read access to validator KMS keys.
+  await createAgentKeysIfNotExistsWithPrompt(agentConfig, roles);
 
   // Check if current branch is up-to-date with the main branch
   const commitsBehind = await getCommitsBehindMain();

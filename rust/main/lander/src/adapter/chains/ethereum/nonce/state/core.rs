@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use ethers::prelude::Address;
+use tokio::sync::Mutex;
 
 use hyperlane_core::HyperlaneDomain;
 
@@ -14,6 +15,7 @@ pub(crate) struct NonceManagerState {
     pub(super) tx_db: Arc<dyn TransactionDb>,
     pub(super) address: Address,
     pub(super) metrics: EthereumAdapterMetrics,
+    pub(super) boundary_update_lock: Mutex<()>,
 }
 
 impl NonceManagerState {
@@ -28,6 +30,7 @@ impl NonceManagerState {
             tx_db,
             address,
             metrics,
+            boundary_update_lock: Mutex::new(()),
         }
     }
 }

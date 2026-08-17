@@ -116,6 +116,8 @@ jobs:
           - warp-check-4
           - warp-check-5
           - warp-check-ica
+          # fork
+          - warp-fork
           # other
           - warp-init
           - warp-quote
@@ -556,6 +558,7 @@ jobs:
           - warp-cross-collateral
           - warp-fee
           - warp-fee-apply
+          - warp-fork
           - warp-legacy-upgrade-fee
           - warp-quote
           - warp-read
@@ -571,6 +574,22 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
+      - name: Install surfpool
+        if: matrix.test == 'warp-fork'
+        env:
+          # Pinned, checksum-verified download — don't pipe a mutable remote
+          # installer to a shell, and don't expose the Turbo token to this step.
+          TURBO_TOKEN: ''
+          SURFPOOL_VERSION: '1.5.0'
+          SURFPOOL_SHA256: '5b20a3b46e60c4f819af7b4da5c3ea211f76041710617841cc23247d15887ddc'
+        run: |
+          URL="https://github.com/txtx/surfpool/releases/download/v${SURFPOOL_VERSION}/surfpool-linux-x64.tar.gz"
+          curl -sSfL "$URL" -o /tmp/surfpool.tar.gz
+          echo "${SURFPOOL_SHA256}  /tmp/surfpool.tar.gz" | sha256sum -c -
+          mkdir -p "$HOME/.local/bin"
+          tar -xzf /tmp/surfpool.tar.gz -C "$HOME/.local/bin" surfpool
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/surfpool" --version
       - name: CLI sealevel e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:sealevel:e2e
         env:

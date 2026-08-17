@@ -7,7 +7,19 @@ import {
   createWarpTokenWriter,
 } from '@hyperlane-xyz/deploy-sdk';
 import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter';
-import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import {
+  type AltVM,
+  type FileSubmitterConfig,
+  GasAction,
+  type ITransactionSubmitter,
+  ProtocolType,
+  SubmitterType,
+  getProtocolProvider,
+} from '@hyperlane-xyz/provider-sdk';
+import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type WarpArtifactConfig,
@@ -38,6 +50,7 @@ import {
   type ProtocolTransaction,
   type RoutingIsmConfig,
   type SubmissionStrategy,
+  type SubmitterMetadata,
   type TokenMetadataMap,
   type TrustedRelayerIsmConfig,
   type TxSubmitterBuilder,
@@ -124,6 +137,22 @@ interface WarpApplyParams extends DeployParams {
   receiptsDir: string;
   selfRelay?: boolean;
   warpRouteId?: string;
+}
+
+function assertWarpApplyTimelocksSupportedByProtocols({
+  multiProvider,
+  warpDeployConfig,
+}: {
+  multiProvider: MultiProvider;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+}) {
+  for (const [chain, config] of Object.entries(warpDeployConfig)) {
+    const protocol = multiProvider.tryGetProtocol(chain);
+    assert(
+      !config.timelock || (protocol && isEVMLike(protocol)),
+      `Timelock config is not supported on Alt-VM chain '${chain}'.`,
+    );
+  }
 }
 
 export async function runWarpRouteDeploy({
@@ -458,6 +487,10 @@ export async function runWarpRouteApply(
 
   WarpRouteDeployConfigSchema.parse(warpDeployConfig);
   WarpCoreConfigSchema.parse(warpCoreConfig);
+  assertWarpApplyTimelocksSupportedByProtocols({
+    multiProvider,
+    warpDeployConfig,
+  });
 
   const chains = Object.keys(warpDeployConfig);
 
@@ -1204,6 +1237,55 @@ function transformCompositeIsmNodeForDisplay(
   }
 }
 
+type AltVmSubmitterFactories = {
+  jsonRpc: () => AltVMJsonRpcSubmitter;
+  [CustomTxSubmitterType.IMPERSONATED_ACCOUNT]: (
+    multiProvider: MultiProvider,
+    metadata: SubmitterMetadata,
+  ) => Promise<ITransactionSubmitter>;
+  [CustomTxSubmitterType.FILE]: (
+    multiProvider: MultiProvider,
+    metadata: FileSubmitterConfig,
+  ) => AltVMFileSubmitter;
+};
+
+function buildAltVmSubmitterFactories({
+  protocol,
+  chain,
+  multiProvider,
+  signer,
+}: {
+  protocol: ProtocolType;
+  chain: ChainName;
+  multiProvider: MultiProvider;
+  signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
+}): AltVmSubmitterFactories {
+  return {
+    jsonRpc: () => new AltVMJsonRpcSubmitter(signer, { chain }),
+    [CustomTxSubmitterType.IMPERSONATED_ACCOUNT]: (
+      _multiProvider: MultiProvider,
+      metadata: SubmitterMetadata,
+    ) => {
+      assert(
+        metadata.type === CustomTxSubmitterType.IMPERSONATED_ACCOUNT,
+        `Invalid metadata type: ${metadata.type}, expected ${CustomTxSubmitterType.IMPERSONATED_ACCOUNT}`,
+      );
+      return getProtocolProvider(protocol).createSubmitter(
+        multiProvider.getChainMetadata(chain),
+        {
+          type: SubmitterType.ImpersonatedAccount,
+          chain,
+          userAddress: metadata.userAddress,
+        },
+      );
+    },
+    [CustomTxSubmitterType.FILE]: (
+      _multiProvider: MultiProvider,
+      metadata: FileSubmitterConfig,
+    ) => new AltVMFileSubmitter(signer, metadata),
+  };
+}
+
 async function getFeeSubmitterByStrategy<T extends ProtocolType>({
   chain,
   context,
@@ -1238,13 +1320,12 @@ async function getFeeSubmitterByStrategy<T extends ProtocolType>({
 
   if (!isEVMLike(protocol)) {
     const signer = mustGet(altVmSigners, chain);
-    additionalSubmitterFactories[protocol] = {
-      jsonRpc: () => new AltVMJsonRpcSubmitter(signer, { chain }),
-      [CustomTxSubmitterType.FILE]: (
-        _multiProvider: MultiProvider,
-        metadata: any,
-      ) => new AltVMFileSubmitter(signer, metadata),
-    };
+    additionalSubmitterFactories[protocol] = buildAltVmSubmitterFactories({
+      protocol,
+      chain,
+      multiProvider,
+      signer,
+    });
   }
 
   return getSubmitterBuilder<T>({
@@ -1706,19 +1787,12 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
   // Only add non-Ethereum protocol factories if we have an alt VM signer
   if (!isEVMLike(protocol)) {
     const signer = mustGet(altVmSigners, chain);
-    additionalSubmitterFactories[protocol] = {
-      jsonRpc: () => {
-        return new AltVMJsonRpcSubmitter(signer, {
-          chain: chain,
-        });
-      },
-      [CustomTxSubmitterType.FILE]: (
-        _multiProvider: MultiProvider,
-        metadata: any,
-      ) => {
-        return new AltVMFileSubmitter(signer, metadata);
-      },
-    };
+    additionalSubmitterFactories[protocol] = buildAltVmSubmitterFactories({
+      protocol,
+      chain,
+      multiProvider,
+      signer,
+    });
   }
 
   return {

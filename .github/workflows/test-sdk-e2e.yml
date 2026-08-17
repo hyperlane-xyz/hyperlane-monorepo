@@ -190,6 +190,8 @@ jobs:
           - fee-routing
           - fee-cross-collateral-routing
           - fee-offchain-quoted-linear
+          - surfpool-offline
+          - svm-fork-manager
         include:
           - test: read-token
             continue-on-error: true

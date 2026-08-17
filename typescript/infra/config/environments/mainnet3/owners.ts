@@ -79,9 +79,6 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   solaxy: {
     owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
   },
-  noble: {
-    owner: 'TODO: configure noble owner',
-  },
   celestia: {
     owner: 'TODO: configure celestia owner',
   },

@@ -53,6 +53,7 @@ sbor = { workspace = true, features = ["serde"] }
 scrypto = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
 tracing-subscriber.workspace = true
 tracing-test.workspace = true
 mockall.workspace = true
