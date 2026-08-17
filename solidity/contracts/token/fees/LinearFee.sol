@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {BaseFee, FeeType} from "./BaseFee.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title Linear Fee Structure
@@ -43,6 +44,56 @@ contract LinearFee is BaseFee {
         if (maxFee_ == 0 || halfAmount_ == 0) return 0;
         uint256 uncapped = (amount * maxFee_) / (2 * halfAmount_);
         return uncapped > maxFee_ ? maxFee_ : uncapped;
+    }
+
+    function _maxAmountForSpend(
+        uint32 /*_destination*/,
+        bytes32 /*_recipient*/,
+        uint256 _maxSpend
+    ) internal view virtual override returns (uint256) {
+        return _invertCappedLinear(maxFee, halfAmount, _maxSpend);
+    }
+
+    /**
+     * @notice Closed-form inverse of the capped-linear fee curve.
+     * @dev Returns the largest `amount` with `amount + fee(amount) <= maxSpend`,
+     *      where `fee` is `_computeLinearFee(maxFee_, halfAmount_, amount)`.
+     *
+     *      The forward charge `T(a) = a + min(maxFee_, floor(a*maxFee_/D))`,
+     *      with `D = 2*halfAmount_`, is nondecreasing, so the inverse is well
+     *      defined. Two regions:
+     *        - Capped (`a >= D`): `fee == maxFee_`, so `T(a) = a + maxFee_`.
+     *          Solved exactly by `a = maxSpend - maxFee_` when
+     *          `maxSpend >= D + maxFee_`.
+     *        - Uncapped (`a < D`): `T` has slope `(D + maxFee_)/D`. The continuous
+     *          inverse `floor(maxSpend*D/(D+maxFee_))` is always feasible and
+     *          undershoots the true integer answer by at most one (a single
+     *          floor in `fee`), corrected by a bounded +1 fixup.
+     */
+    function _invertCappedLinear(
+        uint256 maxFee_,
+        uint256 halfAmount_,
+        uint256 maxSpend
+    ) internal pure returns (uint256) {
+        // Degenerate curve: fee is always zero, so the whole budget is amount.
+        if (maxFee_ == 0 || halfAmount_ == 0) return maxSpend;
+
+        uint256 D = 2 * halfAmount_;
+
+        // Capped region: fee saturates at maxFee_ once amount >= D.
+        if (maxSpend >= D + maxFee_) {
+            return maxSpend - maxFee_;
+        }
+
+        // Uncapped region. mulDiv avoids intermediate overflow.
+        uint256 amount = Math.mulDiv(maxSpend, D, D + maxFee_);
+        if (
+            amount + 1 + _computeLinearFee(maxFee_, halfAmount_, amount + 1) <=
+            maxSpend
+        ) {
+            amount += 1;
+        }
+        return amount;
     }
 
     function feeType() external pure virtual override returns (FeeType) {
