@@ -2,11 +2,13 @@ import { expect } from 'chai';
 import sinon from 'sinon';
 
 import { StargateClient } from '@cosmjs/stargate';
+import { Keypair, SystemProgram, Transaction } from '@solana/web3.js';
 
 import { ProviderType } from './ProviderType.js';
 import {
   clearCachedStargateClients,
   estimateTransactionFeeCosmJsWasm,
+  estimateTransactionFeeSolanaWeb3,
 } from './transactionFeeEstimators.js';
 
 describe('transactionFeeEstimators', () => {
@@ -44,6 +46,38 @@ describe('transactionFeeEstimators', () => {
       }),
     } as any;
   }
+
+  it('returns the authoritative Solana message fee', async () => {
+    const sender = Keypair.generate();
+    const transaction = new Transaction({
+      feePayer: sender.publicKey,
+      recentBlockhash: '11111111111111111111111111111111',
+    }).add(
+      SystemProgram.transfer({
+        fromPubkey: sender.publicKey,
+        toPubkey: Keypair.generate().publicKey,
+        lamports: 1,
+      }),
+    );
+    const connection = {
+      simulateTransaction: sandbox.stub().resolves({
+        value: { err: null, unitsConsumed: 200_000 },
+      }),
+      getFeeForMessage: sandbox.stub().resolves({ value: 5_123 }),
+    };
+
+    const estimate = await estimateTransactionFeeSolanaWeb3({
+      transaction: { type: ProviderType.SolanaWeb3, transaction },
+      provider: { type: ProviderType.SolanaWeb3, provider: connection } as any,
+    });
+
+    expect(estimate).to.deep.equal({
+      gasUnits: 200_000n,
+      gasPrice: 0n,
+      fee: 5_123n,
+    });
+    expect(connection.getFeeForMessage.calledOnce).to.equal(true);
+  });
 
   function makeStargateClient(
     simulate: sinon.SinonStub,
