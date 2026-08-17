@@ -10,6 +10,7 @@ import {
   TokenFeeConfigInput,
   TokenFeeType,
   TokenType,
+  WarpRouteDeployConfigMailboxRequiredSchema,
   XERC20TokenExtraBridgesLimits,
   XERC20Type,
   XERC20VSLimitConfig,
@@ -17,11 +18,16 @@ import {
 import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { getFixedRoutingFeeConfig } from './utils.js';
 import { warpFeesIcas } from '../../governance/ica/warpFees.js';
 import { warpFeesSafes } from '../../governance/safe/warpFees.js';
 import { awTimelocks } from '../../governance/timelock/aw.js';
 import { DEPLOYER } from '../../owners.js';
+import { usdtTokenAddresses } from '../tokens.js';
+import { WarpRouteIds } from '../warpIds.js';
+import {
+  getFixedRoutingFeeConfig,
+  getRebalancingBridgesConfigFor,
+} from './utils.js';
 
 // Environment-independent configuration
 export const deploymentChains = [
@@ -40,7 +46,7 @@ export const deploymentChains = [
   'metal',
   'bob',
   'zerogravity',
-  // Aug 6, 2026 - oUSDT expansion (new xERC20 legs, 6 decimals)
+  // Aug 6, 2026 - oUSDT expansion (new collateral/xERC20 legs, 6 decimals)
   'tron',
   'bsc',
   'arbitrum',
@@ -53,12 +59,24 @@ const supportedCCIPChains = ['base', 'mode', 'optimism'];
 // `warp apply` upgrade the proxy impl to the current @hyperlane-xyz/core release
 // (via ProxyAdmin.upgrade) so setFeeRecipient/feeRecipient exist for the OQLF fee.
 const contractVersion = '12.0.0';
-const xERC20LockboxChains: oUSDTTokenChainName[] = ['celo', 'ethereum'];
 
 type oUSDTTokenChainName = (typeof deploymentChains)[number];
 type TypedoUSDTTokenChainMap<T> = {
   [Key in oUSDTTokenChainName]: T;
 };
+
+const xERC20LockboxChains: oUSDTTokenChainName[] = ['celo', 'ethereum'];
+const collateralChains = [
+  'arbitrum',
+  'tron',
+] as const satisfies readonly oUSDTTokenChainName[];
+type CollateralChainName = (typeof collateralChains)[number];
+
+function isCollateralChain(
+  chain: oUSDTTokenChainName,
+): chain is CollateralChainName {
+  return collateralChains.includes(chain as CollateralChainName);
+}
 
 // Fee configuration
 // 5 bps OffchainQuotedLinearFee withdrawal fee on collateral + new-chain legs.
@@ -153,20 +171,18 @@ const productionOwnerByChain: TypedoUSDTTokenChainMap<string> =
     return acc;
   }, {} as TypedoUSDTTokenChainMap<string>);
 
-const productionOwnerOverridesByChain: TypedoUSDTTokenChainMap<
-  Record<'collateralToken' | 'collateralProxyAdmin', string>
-> = deploymentChains.reduce(
-  (acc, chain) => {
-    acc[chain] = {
-      collateralToken: productionOwnerByChain[chain],
-      collateralProxyAdmin: productionOwnerByChain[chain],
-    };
-    return acc;
-  },
-  {} as TypedoUSDTTokenChainMap<
-    Record<'collateralToken' | 'collateralProxyAdmin', string>
-  >,
-);
+const productionOwnerOverridesByChain: ChainMap<Record<string, string>> =
+  Object.fromEntries(
+    deploymentChains
+      .filter((chain) => !isCollateralChain(chain))
+      .map((chain) => [
+        chain,
+        {
+          collateralToken: productionOwnerByChain[chain],
+          collateralProxyAdmin: productionOwnerByChain[chain],
+        },
+      ]),
+  );
 
 const productionAmountRoutingThreshold = 250000000000; // 250k = 250 * 10^3 ^ 10^6
 const productionEthereumXERC20LockboxAddress =
@@ -175,11 +191,6 @@ const productionCeloXERC20LockboxAddress =
   '0x5e5F4d6B03db16E7f00dE7C9AFAA53b92C8d1D42';
 const productionXERC20TokenAddress =
   '0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189';
-// Production Tron xERC20 (already deployed; non-deterministic on Tron).
-// TUtpibSKKE43FQNzw2794pcHqDsYsUTKPa in base58; kept as EVM hex to match the
-// rest of this file and the tron chain addresses in the registry.
-const productionTronXERC20Address =
-  '0xcf961fD920a2f49E46dcF78812a5a9De35972748';
 
 const zeroLimits: XERC20VSLimitConfig = {
   type: XERC20Type.Velo,
@@ -269,7 +280,7 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
   ],
 };
 
-const productionXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
+const productionTokenAddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   ethereum: productionEthereumXERC20LockboxAddress,
   celo: productionCeloXERC20LockboxAddress,
   optimism: productionXERC20TokenAddress,
@@ -283,9 +294,9 @@ const productionXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   metal: productionXERC20TokenAddress,
   bob: productionXERC20TokenAddress,
   zerogravity: productionXERC20TokenAddress,
-  tron: productionTronXERC20Address,
+  tron: usdtTokenAddresses.tron,
   bsc: productionXERC20TokenAddress,
-  arbitrum: productionXERC20TokenAddress,
+  arbitrum: usdtTokenAddresses.arbitrum,
   tea: productionXERC20TokenAddress,
 };
 
@@ -315,11 +326,7 @@ const stagingEthereumXERC20LockboxAddress =
 const stagingCeloXERC20LockboxAddress =
   '0x9a3D8d7E931679374448FB2B661F664D42d05057';
 const stagingXERC20TokenAddress = '0x0290B74980C051EB46b84b1236645444e77da0E9';
-// Staging Tron xERC20 (already deployed; non-deterministic on Tron).
-// TUVzhcYfWwAp3qGdgTFDKa7cePLvurvxdA in base58; kept as EVM hex to match the
-// rest of this file and the tron chain addresses in the registry.
-const stagingTronXERC20Address = '0xcB44E40813b21C64BAacB1bC9B9A2272320a22E2';
-const stagingXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
+const stagingTokenAddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   ethereum: stagingEthereumXERC20LockboxAddress,
   celo: stagingCeloXERC20LockboxAddress,
   optimism: stagingXERC20TokenAddress,
@@ -333,9 +340,9 @@ const stagingXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   metal: stagingXERC20TokenAddress,
   bob: stagingXERC20TokenAddress,
   zerogravity: stagingXERC20TokenAddress,
-  tron: stagingTronXERC20Address,
+  tron: usdtTokenAddresses.tron,
   bsc: stagingXERC20TokenAddress,
-  arbitrum: stagingXERC20TokenAddress,
+  arbitrum: usdtTokenAddresses.arbitrum,
   tea: stagingXERC20TokenAddress,
 };
 
@@ -482,7 +489,7 @@ function generateHookConfig(
 function generateoUSDTTokenConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   ownerByChain: ChainMap<Address>,
-  xERC20AddressesByChain: ChainMap<Address>,
+  tokenAddressesByChain: ChainMap<Address>,
   amountRoutingThreshold: number,
   bufferCapPerChain: ChainMap<string>,
   rateLimitPerSecondPerChain: ChainMap<string>,
@@ -491,25 +498,17 @@ function generateoUSDTTokenConfig(
   extraBridges?: ChainMap<XERC20TokenExtraBridgesLimits[]>,
   ownerOverridesByChain?: ChainMap<Record<string, string>>,
 ): ChainMap<HypTokenRouterConfig> {
-  return Object.fromEntries(
-    deploymentChains.map((chain) => [
-      chain,
-      {
+  const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
+    collateralChains,
+    [WarpRouteIds.USDTOftLegacy],
+  );
+
+  const config = Object.fromEntries(
+    deploymentChains.map((chain) => {
+      const commonConfig = {
         ...routerConfig[chain],
         owner: ownerByChain[chain],
         contractVersion,
-        type: xERC20LockboxChains.includes(chain)
-          ? TokenType.XERC20Lockbox
-          : TokenType.XERC20,
-        token: xERC20AddressesByChain[chain],
-        xERC20: {
-          warpRouteLimits: {
-            type: XERC20Type.Velo,
-            rateLimitPerSecond: rateLimitPerSecondPerChain[chain],
-            bufferCap: bufferCapPerChain[chain],
-          },
-          extraBridges: extraBridges ? extraBridges[chain] : undefined,
-        },
         // 5 bps OffchainQuotedLinearFee withdrawal fee on collateral + new legs;
         // undefined (no fee) on the synthetic superswap legs.
         tokenFee: generateTokenFeeConfig(chain, feeOwnerByChain, quoteSigners),
@@ -533,9 +532,44 @@ function generateoUSDTTokenConfig(
         hook: generateHookConfig(chain, ownerByChain, amountRoutingThreshold),
         // This is used to explicitly check the owners of each key (e.g. collateralProxyAdmin).
         ownerOverrides: ownerOverridesByChain?.[chain] ?? undefined,
-      },
-    ]),
+      };
+
+      if (isCollateralChain(chain)) {
+        const rebalancingConfig = rebalancingConfigByChain[chain];
+        assert(rebalancingConfig, `Rebalancing config for ${chain} not found`);
+        return [
+          chain,
+          {
+            ...commonConfig,
+            type: TokenType.collateral,
+            token: tokenAddressesByChain[chain],
+            ...rebalancingConfig,
+          },
+        ];
+      }
+
+      return [
+        chain,
+        {
+          ...commonConfig,
+          type: xERC20LockboxChains.includes(chain)
+            ? TokenType.XERC20Lockbox
+            : TokenType.XERC20,
+          token: tokenAddressesByChain[chain],
+          xERC20: {
+            warpRouteLimits: {
+              type: XERC20Type.Velo,
+              rateLimitPerSecond: rateLimitPerSecondPerChain[chain],
+              bufferCap: bufferCapPerChain[chain],
+            },
+            extraBridges: extraBridges ? extraBridges[chain] : undefined,
+          },
+        },
+      ];
+    }),
   );
+
+  return WarpRouteDeployConfigMailboxRequiredSchema.parse(config);
 }
 
 // ref: https://www.notion.so/hyperlanexyz/Cross-chain-USDT-1926d35200d6804bbdb1dfd2042e1f19?pvs=4#1936d35200d680af9c05f6133d7bb9f7
@@ -545,7 +579,7 @@ export const getoUSDTTokenStagingWarpConfig = async (
   return generateoUSDTTokenConfig(
     routerConfig,
     stagingOwnerByChain,
-    stagingXERC20AddressesByChain,
+    stagingTokenAddressesByChain,
     stagingAmountRoutingThreshold,
     stagingBufferCapByChain,
     stagingRateLimitByChain,
@@ -561,7 +595,7 @@ export const getoUSDTTokenProductionWarpConfig = async (
   return generateoUSDTTokenConfig(
     routerConfig,
     productionOwnerByChain,
-    productionXERC20AddressesByChain,
+    productionTokenAddressesByChain,
     productionAmountRoutingThreshold,
     productionBufferCapByChain,
     productionRateLimitByChain,
