@@ -174,7 +174,7 @@ export async function estimateTransactionFeeSolanaWeb3({
     connection.getFeeForMessage(message),
   ]);
   assert(!value.err, `Solana gas estimation failed: ${JSON.stringify(value)}`);
-  const gasUnits = BigInt(value.unitsConsumed || 0);
+  const gasUnits = BigInt(value.unitsConsumed ?? 0);
   assert(
     feeResponse.value !== null,
     'Solana transaction fee estimation failed',

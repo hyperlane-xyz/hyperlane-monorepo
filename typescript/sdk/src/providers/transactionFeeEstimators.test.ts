@@ -3,6 +3,7 @@ import sinon from 'sinon';
 
 import { StargateClient } from '@cosmjs/stargate';
 import {
+  Connection,
   Keypair,
   SystemProgram,
   Transaction,
@@ -65,19 +66,21 @@ describe('transactionFeeEstimators', () => {
         lamports: 1,
       }),
     );
-    const connection = {
-      simulateTransaction: sandbox.stub().resolves({
-        value: { err: null, unitsConsumed: 200_000 },
-      }),
-      getRecentPrioritizationFees: sandbox
-        .stub()
-        .resolves([{ prioritizationFee: 0 }]),
-      getFeeForMessage: sandbox.stub().resolves({ value: 5_000 }),
-    };
+    const connection = new Connection('http://localhost:8899');
+    sandbox.stub(connection, 'simulateTransaction').resolves({
+      context: { slot: 1 },
+      value: { err: null, logs: null, unitsConsumed: 200_000 },
+    });
+    const getRecentPrioritizationFees = sandbox
+      .stub(connection, 'getRecentPrioritizationFees')
+      .resolves([{ prioritizationFee: 0, slot: 1 }]);
+    const getFeeForMessage = sandbox
+      .stub(connection, 'getFeeForMessage')
+      .resolves({ context: { slot: 1 }, value: 5_000 });
 
     const estimate = await estimateTransactionFeeSolanaWeb3({
       transaction: { type: ProviderType.SolanaWeb3, transaction },
-      provider: { type: ProviderType.SolanaWeb3, provider: connection } as any,
+      provider: { type: ProviderType.SolanaWeb3, provider: connection },
     });
 
     expect(estimate).to.deep.equal({
@@ -85,8 +88,8 @@ describe('transactionFeeEstimators', () => {
       gasPrice: 0n,
       fee: 5_000n,
     });
-    expect(connection.getFeeForMessage.calledOnce).to.equal(true);
-    expect(connection.getRecentPrioritizationFees.notCalled).to.equal(true);
+    expect(getFeeForMessage.calledOnce).to.equal(true);
+    expect(getRecentPrioritizationFees.notCalled).to.equal(true);
   });
 
   it('uses the message fee for versioned Solana transactions', async () => {
@@ -102,25 +105,25 @@ describe('transactionFeeEstimators', () => {
         }),
       ],
     }).compileToV0Message();
-    const connection = {
-      simulateTransaction: sandbox.stub().resolves({
-        value: { err: null, unitsConsumed: 200_000 },
-      }),
-      getFeeForMessage: sandbox.stub().resolves({ value: 5_123 }),
-    };
+    const connection = new Connection('http://localhost:8899');
+    sandbox.stub(connection, 'simulateTransaction').resolves({
+      context: { slot: 1 },
+      value: { err: null, logs: null, unitsConsumed: 200_000 },
+    });
+    const getFeeForMessage = sandbox
+      .stub(connection, 'getFeeForMessage')
+      .resolves({ context: { slot: 1 }, value: 5_123 });
 
     const estimate = await estimateTransactionFeeSolanaWeb3({
       transaction: {
         type: ProviderType.SolanaWeb3,
         transaction: new VersionedTransaction(message),
       },
-      provider: { type: ProviderType.SolanaWeb3, provider: connection } as any,
+      provider: { type: ProviderType.SolanaWeb3, provider: connection },
     });
 
     expect(estimate.fee).to.equal(5_123n);
-    expect(connection.getFeeForMessage.calledOnceWithExactly(message)).to.equal(
-      true,
-    );
+    expect(getFeeForMessage.calledOnceWithExactly(message)).to.equal(true);
   });
 
   function makeStargateClient(
