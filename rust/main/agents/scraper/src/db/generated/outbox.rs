@@ -17,8 +17,8 @@ pub struct Model {
     pub domain: i32,
     pub position: i64,
     pub event_type: String,
+    pub source_table: String,
     pub source_id: i64,
-    pub payload: Json,
     pub time_created: TimeDateTime,
 }
 
@@ -28,8 +28,8 @@ pub enum Column {
     Domain,
     Position,
     EventType,
+    SourceTable,
     SourceId,
-    Payload,
     TimeCreated,
 }
 
@@ -58,8 +58,8 @@ impl ColumnTrait for Column {
             Self::Domain => ColumnType::Integer.def(),
             Self::Position => ColumnType::BigInteger.def(),
             Self::EventType => ColumnType::String(StringLen::N(64)).def(),
+            Self::SourceTable => ColumnType::String(StringLen::N(64)).def(),
             Self::SourceId => ColumnType::BigInteger.def(),
-            Self::Payload => ColumnType::JsonBinary.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
         }
     }

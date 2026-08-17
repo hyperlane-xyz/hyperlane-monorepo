@@ -2,13 +2,10 @@ use eyre::Result;
 use migration::OnConflict;
 use sea_orm::FromQueryResult;
 use sea_orm::{
-    prelude::*, ActiveValue::*, ColumnTrait, EntityTrait, JoinType, Order, QueryFilter, QueryOrder,
+    ActiveValue::*, ColumnTrait, EntityTrait, JoinType, Order, QueryFilter, QueryOrder,
     QuerySelect, RelationTrait, TransactionTrait,
 };
-use serde_json::json;
 use tracing::{debug, instrument};
-
-use hyperlane_core::utils::bytes_to_hex;
 
 use crate::date_time;
 use crate::db::ScraperDb;
@@ -23,63 +20,22 @@ const OUTBOX_MESSAGE_EVENT_TYPE: &str = "message_dispatch";
 const OUTBOX_DELIVERY_EVENT_TYPE: &str = "message_delivery";
 const OUTBOX_GAS_PAYMENT_EVENT_TYPE: &str = "gas_payment";
 const OUTBOX_MERKLE_TREE_INSERTION_EVENT_TYPE: &str = "merkle_tree_insertion";
+const MESSAGE_SOURCE_TABLE: &str = "message";
+const DELIVERED_MESSAGE_SOURCE_TABLE: &str = "delivered_message";
+const GAS_PAYMENT_SOURCE_TABLE: &str = "gas_payment";
+const MERKLE_TREE_INSERTION_SOURCE_TABLE: &str = "merkle_tree_insertion";
+const INDEXING_CHECKPOINT_SOURCE_TABLE: &str = "indexing_checkpoint";
 const MESSAGE_CURSOR_EVENT_TYPE: &str = "hyperlane_message";
 const DELIVERY_CURSOR_EVENT_TYPE: &str = "delivery";
 const GAS_PAYMENT_CURSOR_EVENT_TYPE: &str = "interchain_gas_payment";
 const MERKLE_TREE_INSERTION_CURSOR_EVENT_TYPE: &str = "merkle_tree_insertion";
 const REQUIRED_INDEXING_CHECKPOINT_COUNT: usize = 4;
+const OUTBOX_BUILD_BLOCK_CHUNK: i64 = 10_000;
 
 #[derive(Clone, Debug, FromQueryResult)]
-struct MessageOutboxRow {
+struct OutboxSourceRow {
     id: i64,
     position: i64,
-    msg_id: Vec<u8>,
-    origin: i32,
-    destination: i32,
-    nonce: i32,
-    sender: Vec<u8>,
-    recipient: Vec<u8>,
-    msg_body: Option<Vec<u8>>,
-    origin_mailbox: Vec<u8>,
-    origin_tx_id: i64,
-}
-
-#[derive(Clone, Debug, FromQueryResult)]
-struct DeliveryOutboxRow {
-    id: i64,
-    position: i64,
-    msg_id: Vec<u8>,
-    domain: i32,
-    destination_mailbox: Vec<u8>,
-    destination_tx_id: i64,
-    sequence: Option<i64>,
-}
-
-#[derive(Clone, Debug, FromQueryResult)]
-struct GasPaymentOutboxRow {
-    id: i64,
-    position: i64,
-    domain: i32,
-    msg_id: Vec<u8>,
-    payment: BigDecimal,
-    gas_amount: BigDecimal,
-    tx_id: i64,
-    log_index: i64,
-    origin: i32,
-    destination: i32,
-    interchain_gas_paymaster: Vec<u8>,
-    sequence: Option<i64>,
-}
-
-#[derive(Clone, Debug, FromQueryResult)]
-struct MerkleTreeInsertionOutboxRow {
-    id: i64,
-    position: i64,
-    domain: i32,
-    merkle_tree_hook: Vec<u8>,
-    leaf_index: i32,
-    message_id: Vec<u8>,
-    origin_tx_id: i64,
 }
 
 impl ScraperDb {
@@ -96,18 +52,20 @@ impl ScraperDb {
         if safe_position <= last_position {
             return Ok(0);
         }
+        let target_position =
+            safe_position.min(last_position.saturating_add(OUTBOX_BUILD_BLOCK_CHUNK));
 
         let messages = self
-            .message_outbox_rows(domain, last_position, safe_position)
+            .message_outbox_rows(domain, last_position, target_position)
             .await?;
         let deliveries = self
-            .delivery_outbox_rows(domain, last_position, safe_position)
+            .delivery_outbox_rows(domain, last_position, target_position)
             .await?;
         let gas_payments = self
-            .gas_payment_outbox_rows(domain, last_position, safe_position)
+            .gas_payment_outbox_rows(domain, last_position, target_position)
             .await?;
         let merkle_tree_insertions = self
-            .merkle_tree_insertion_outbox_rows(domain, last_position, safe_position)
+            .merkle_tree_insertion_outbox_rows(domain, last_position, target_position)
             .await?;
 
         let mut models = Vec::with_capacity(
@@ -118,106 +76,48 @@ impl ScraperDb {
                 + usize::from(true),
         );
         for row in messages {
-            models.push(outbox::ActiveModel {
-                id: NotSet,
-                domain: Set(domain as i32),
-                position: Set(row.position),
-                event_type: Set(OUTBOX_MESSAGE_EVENT_TYPE.to_owned()),
-                source_id: Set(row.id),
-                payload: Set(json!({
-                    "type": OUTBOX_MESSAGE_EVENT_TYPE,
-                    "id": row.id,
-                    "position": row.position,
-                    "msgId": bytes_to_hex(&row.msg_id),
-                    "origin": row.origin,
-                    "destination": row.destination,
-                    "nonce": row.nonce,
-                    "sender": bytes_to_hex(&row.sender),
-                    "recipient": bytes_to_hex(&row.recipient),
-                    "body": row.msg_body.as_deref().map(bytes_to_hex),
-                    "originMailbox": bytes_to_hex(&row.origin_mailbox),
-                    "originTxId": row.origin_tx_id,
-                })),
-                time_created: Set(date_time::now()),
-            });
+            models.push(outbox_model(
+                domain,
+                row.position,
+                OUTBOX_MESSAGE_EVENT_TYPE,
+                MESSAGE_SOURCE_TABLE,
+                row.id,
+            ));
         }
         for row in deliveries {
-            models.push(outbox::ActiveModel {
-                id: NotSet,
-                domain: Set(domain as i32),
-                position: Set(row.position),
-                event_type: Set(OUTBOX_DELIVERY_EVENT_TYPE.to_owned()),
-                source_id: Set(row.id),
-                payload: Set(json!({
-                    "type": OUTBOX_DELIVERY_EVENT_TYPE,
-                    "id": row.id,
-                    "position": row.position,
-                    "msgId": bytes_to_hex(&row.msg_id),
-                    "domain": row.domain,
-                    "destinationMailbox": bytes_to_hex(&row.destination_mailbox),
-                    "destinationTxId": row.destination_tx_id,
-                    "sequence": row.sequence,
-                })),
-                time_created: Set(date_time::now()),
-            });
+            models.push(outbox_model(
+                domain,
+                row.position,
+                OUTBOX_DELIVERY_EVENT_TYPE,
+                DELIVERED_MESSAGE_SOURCE_TABLE,
+                row.id,
+            ));
         }
         for row in gas_payments {
-            models.push(outbox::ActiveModel {
-                id: NotSet,
-                domain: Set(domain as i32),
-                position: Set(row.position),
-                event_type: Set(OUTBOX_GAS_PAYMENT_EVENT_TYPE.to_owned()),
-                source_id: Set(row.id),
-                payload: Set(json!({
-                    "type": OUTBOX_GAS_PAYMENT_EVENT_TYPE,
-                    "id": row.id,
-                    "position": row.position,
-                    "domain": row.domain,
-                    "msgId": bytes_to_hex(&row.msg_id),
-                    "payment": row.payment.to_string(),
-                    "gasAmount": row.gas_amount.to_string(),
-                    "txId": row.tx_id,
-                    "logIndex": row.log_index,
-                    "origin": row.origin,
-                    "destination": row.destination,
-                    "interchainGasPaymaster": bytes_to_hex(&row.interchain_gas_paymaster),
-                    "sequence": row.sequence,
-                })),
-                time_created: Set(date_time::now()),
-            });
+            models.push(outbox_model(
+                domain,
+                row.position,
+                OUTBOX_GAS_PAYMENT_EVENT_TYPE,
+                GAS_PAYMENT_SOURCE_TABLE,
+                row.id,
+            ));
         }
         for row in merkle_tree_insertions {
-            models.push(outbox::ActiveModel {
-                id: NotSet,
-                domain: Set(domain as i32),
-                position: Set(row.position),
-                event_type: Set(OUTBOX_MERKLE_TREE_INSERTION_EVENT_TYPE.to_owned()),
-                source_id: Set(row.id),
-                payload: Set(json!({
-                    "type": OUTBOX_MERKLE_TREE_INSERTION_EVENT_TYPE,
-                    "id": row.id,
-                    "position": row.position,
-                    "domain": row.domain,
-                    "merkleTreeHook": bytes_to_hex(&row.merkle_tree_hook),
-                    "leafIndex": row.leaf_index,
-                    "messageId": bytes_to_hex(&row.message_id),
-                    "originTxId": row.origin_tx_id,
-                })),
-                time_created: Set(date_time::now()),
-            });
+            models.push(outbox_model(
+                domain,
+                row.position,
+                OUTBOX_MERKLE_TREE_INSERTION_EVENT_TYPE,
+                MERKLE_TREE_INSERTION_SOURCE_TABLE,
+                row.id,
+            ));
         }
-        models.push(outbox::ActiveModel {
-            id: NotSet,
-            domain: Set(domain as i32),
-            position: Set(safe_position),
-            event_type: Set(OUTBOX_INDEXING_CHECKPOINT_EVENT_TYPE.to_owned()),
-            source_id: Set(safe_position),
-            payload: Set(json!({
-                "type": OUTBOX_INDEXING_CHECKPOINT_EVENT_TYPE,
-                "position": safe_position,
-            })),
-            time_created: Set(date_time::now()),
-        });
+        models.push(outbox_model(
+            domain,
+            target_position,
+            OUTBOX_INDEXING_CHECKPOINT_EVENT_TYPE,
+            INDEXING_CHECKPOINT_SOURCE_TABLE,
+            target_position,
+        ));
 
         let txn = self.0.begin().await?;
         let inserted = models.len() as u64;
@@ -237,7 +137,7 @@ impl ScraperDb {
 
         debug!(
             domain,
-            safe_position, last_position, inserted, "Built outbox"
+            safe_position, target_position, last_position, inserted, "Built outbox"
         );
         Ok(inserted)
     }
@@ -283,26 +183,17 @@ impl ScraperDb {
         domain: u32,
         last_position: i64,
         safe_position: i64,
-    ) -> Result<Vec<MessageOutboxRow>> {
+    ) -> Result<Vec<OutboxSourceRow>> {
         Ok(message::Entity::find()
             .select_only()
             .column_as(message::Column::Id, "id")
             .column_as(block::Column::Height, "position")
-            .column_as(message::Column::MsgId, "msg_id")
-            .column(message::Column::Origin)
-            .column(message::Column::Destination)
-            .column(message::Column::Nonce)
-            .column(message::Column::Sender)
-            .column(message::Column::Recipient)
-            .column(message::Column::MsgBody)
-            .column(message::Column::OriginMailbox)
-            .column(message::Column::OriginTxId)
             .join(JoinType::InnerJoin, message::Relation::Transaction.def())
             .join(JoinType::InnerJoin, transaction::Relation::Block.def())
             .filter(message::Column::Origin.eq(domain))
             .filter(block::Column::Height.gt(last_position))
             .filter(block::Column::Height.lte(safe_position))
-            .into_model::<MessageOutboxRow>()
+            .into_model::<OutboxSourceRow>()
             .all(&self.0)
             .await?)
     }
@@ -312,16 +203,11 @@ impl ScraperDb {
         domain: u32,
         last_position: i64,
         safe_position: i64,
-    ) -> Result<Vec<DeliveryOutboxRow>> {
+    ) -> Result<Vec<OutboxSourceRow>> {
         Ok(delivered_message::Entity::find()
             .select_only()
             .column_as(delivered_message::Column::Id, "id")
             .column_as(block::Column::Height, "position")
-            .column_as(delivered_message::Column::MsgId, "msg_id")
-            .column(delivered_message::Column::Domain)
-            .column(delivered_message::Column::DestinationMailbox)
-            .column(delivered_message::Column::DestinationTxId)
-            .column(delivered_message::Column::Sequence)
             .join(
                 JoinType::InnerJoin,
                 delivered_message::Relation::Transaction.def(),
@@ -330,7 +216,7 @@ impl ScraperDb {
             .filter(delivered_message::Column::Domain.eq(domain))
             .filter(block::Column::Height.gt(last_position))
             .filter(block::Column::Height.lte(safe_position))
-            .into_model::<DeliveryOutboxRow>()
+            .into_model::<OutboxSourceRow>()
             .all(&self.0)
             .await?)
     }
@@ -340,21 +226,11 @@ impl ScraperDb {
         domain: u32,
         last_position: i64,
         safe_position: i64,
-    ) -> Result<Vec<GasPaymentOutboxRow>> {
+    ) -> Result<Vec<OutboxSourceRow>> {
         Ok(gas_payment::Entity::find()
             .select_only()
             .column_as(gas_payment::Column::Id, "id")
             .column_as(block::Column::Height, "position")
-            .column(gas_payment::Column::Domain)
-            .column_as(gas_payment::Column::MsgId, "msg_id")
-            .column(gas_payment::Column::Payment)
-            .column(gas_payment::Column::GasAmount)
-            .column(gas_payment::Column::TxId)
-            .column(gas_payment::Column::LogIndex)
-            .column(gas_payment::Column::Origin)
-            .column(gas_payment::Column::Destination)
-            .column(gas_payment::Column::InterchainGasPaymaster)
-            .column(gas_payment::Column::Sequence)
             .join(
                 JoinType::InnerJoin,
                 gas_payment::Relation::Transaction.def(),
@@ -363,7 +239,7 @@ impl ScraperDb {
             .filter(gas_payment::Column::Domain.eq(domain))
             .filter(block::Column::Height.gt(last_position))
             .filter(block::Column::Height.lte(safe_position))
-            .into_model::<GasPaymentOutboxRow>()
+            .into_model::<OutboxSourceRow>()
             .all(&self.0)
             .await?)
     }
@@ -373,16 +249,11 @@ impl ScraperDb {
         domain: u32,
         last_position: i64,
         safe_position: i64,
-    ) -> Result<Vec<MerkleTreeInsertionOutboxRow>> {
+    ) -> Result<Vec<OutboxSourceRow>> {
         Ok(merkle_tree_insertion::Entity::find()
             .select_only()
             .column_as(merkle_tree_insertion::Column::Id, "id")
             .column_as(block::Column::Height, "position")
-            .column(merkle_tree_insertion::Column::Domain)
-            .column(merkle_tree_insertion::Column::MerkleTreeHook)
-            .column(merkle_tree_insertion::Column::LeafIndex)
-            .column(merkle_tree_insertion::Column::MessageId)
-            .column(merkle_tree_insertion::Column::OriginTxId)
             .join(
                 JoinType::InnerJoin,
                 merkle_tree_insertion::Relation::Transaction.def(),
@@ -391,8 +262,26 @@ impl ScraperDb {
             .filter(merkle_tree_insertion::Column::Domain.eq(domain))
             .filter(block::Column::Height.gt(last_position))
             .filter(block::Column::Height.lte(safe_position))
-            .into_model::<MerkleTreeInsertionOutboxRow>()
+            .into_model::<OutboxSourceRow>()
             .all(&self.0)
             .await?)
+    }
+}
+
+fn outbox_model(
+    domain: u32,
+    position: i64,
+    event_type: &str,
+    source_table: &str,
+    source_id: i64,
+) -> outbox::ActiveModel {
+    outbox::ActiveModel {
+        id: NotSet,
+        domain: Set(domain as i32),
+        position: Set(position),
+        event_type: Set(event_type.to_owned()),
+        source_table: Set(source_table.to_owned()),
+        source_id: Set(source_id),
+        time_created: Set(date_time::now()),
     }
 }

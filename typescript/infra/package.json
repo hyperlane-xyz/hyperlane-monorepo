@@ -17,6 +17,7 @@
     "build": "tsc",
     "check": "tsc --noEmit",
     "clean": "rm -rf ./dist ./cache",
+    "fork-scraper-db": "tsx scripts/scraper/fork-prod-db.ts",
     "deploy-core": "tsx scripts/deploy.ts -e test -m core",
     "deploy-igp": "tsx scripts/deploy.ts -e test -m igp",
     "deploy-ism": "tsx scripts/deploy.ts -e test -m ism",

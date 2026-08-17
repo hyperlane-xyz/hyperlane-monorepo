@@ -21,8 +21,12 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Outbox::Domain).unsigned().not_null())
                     .col(ColumnDef::new(Outbox::Position).big_integer().not_null())
                     .col(ColumnDef::new(Outbox::EventType).string_len(64).not_null())
+                    .col(
+                        ColumnDef::new(Outbox::SourceTable)
+                            .string_len(64)
+                            .not_null(),
+                    )
                     .col(ColumnDef::new(Outbox::SourceId).big_integer().not_null())
-                    .col(ColumnDef::new(Outbox::Payload).json_binary().not_null())
                     .col(ColumnDef::new(Outbox::TimeCreated).date_time().not_null())
                     .foreign_key(
                         ForeignKey::create()
@@ -74,8 +78,8 @@ enum Outbox {
     Domain,
     Position,
     EventType,
+    SourceTable,
     SourceId,
-    Payload,
     TimeCreated,
 }
 
