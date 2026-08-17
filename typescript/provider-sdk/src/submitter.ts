@@ -55,10 +55,12 @@ export interface ITransactionSubmitter {
 }
 
 abstract class BaseAltVMJsonRpcSubmitter implements ITransactionSubmitter {
-  // Widened to `string` so each concrete leaf can pin its own literal — the
-  // released JsonRpc value is `'jsonRPC'`, which is not a TransactionSubmitterType
-  // member, and must be preserved for external discrimination.
-  public abstract readonly txSubmitterType: string;
+  // Each concrete leaf pins its own literal. The union includes the released
+  // JsonRpc value `'jsonRPC'` (not a TransactionSubmitterType member, preserved
+  // for external discrimination) so a subclass can't introduce an arbitrary one.
+  public abstract readonly txSubmitterType:
+    | TransactionSubmitterType
+    | 'jsonRPC';
 
   protected readonly logger: Logger;
 
