@@ -13,7 +13,9 @@ import {
   KNOWN_ETHEREUM_TIMELOCK_CONTRACT,
   TestChainName,
   ethereumTestChain,
+  test1,
 } from '../../consts/testChains.js';
+import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { randomAddress, randomInt } from '../../test/testUtils.js';
 
@@ -21,6 +23,7 @@ import {
   EvmEtherscanLikeEventLogsReader,
   EvmEventLogsReader,
   EvmRpcEventLogsReader,
+  FallbackEvmEventLogsReader,
 } from './EvmEventLogsReader.js';
 import { GetEventLogsResponse } from './types.js';
 
@@ -91,7 +94,7 @@ describe('EvmEventLogsReader', () => {
 
       // Access the private property indirectly
       expect(readerWithRpc['logReaderStrategy']).to.be.instanceOf(
-        EvmEtherscanLikeEventLogsReader,
+        FallbackEvmEventLogsReader,
       );
     });
 
@@ -127,6 +130,51 @@ describe('EvmEventLogsReader', () => {
       expect(reader['logReaderStrategy']).to.be.instanceOf(
         EvmRpcEventLogsReader,
       );
+    });
+
+    it('should allow explorer fallback to be enabled per method', async () => {
+      const firstReader = new EvmEtherscanLikeEventLogsReader(
+        TestChainName.test1,
+        {
+          apiKey: 'first-key',
+          apiUrl: 'https://first.example.com/api',
+          family: ExplorerFamily.Etherscan,
+        },
+        multiProvider,
+      );
+      const secondReader = new EvmEtherscanLikeEventLogsReader(
+        TestChainName.test1,
+        {
+          apiUrl: 'https://second.example.com/api',
+          family: ExplorerFamily.Blockscout,
+        },
+        multiProvider,
+      );
+      const firstGetLogs = sinon
+        .stub(firstReader, 'getContractLogs')
+        .rejects(new Error('first explorer failed'));
+      const secondGetLogs = sinon
+        .stub(secondReader, 'getContractLogs')
+        .resolves([]);
+      const reader = new FallbackEvmEventLogsReader(
+        TestChainName.test1,
+        [firstReader, secondReader],
+        multiProvider.logger,
+        {
+          getContractLogs: true,
+        },
+      );
+
+      expect(
+        await reader.getContractLogs({
+          contractAddress: randomAddress(),
+          eventTopic: ethers.constants.HashZero,
+          fromBlock: 0,
+          toBlock: 0,
+        }),
+      ).to.deep.equal([]);
+      expect(firstGetLogs.calledOnce).to.be.true;
+      expect(secondGetLogs.calledOnce).to.be.true;
     });
   });
 
@@ -408,18 +456,21 @@ describe('EvmEventLogsReader', () => {
       const primaryStrategy = reader['logReaderStrategy'];
       const fallbackStrategy = reader['fallbackLogReaderStrategy'];
       assert(
-        primaryStrategy instanceof EvmEtherscanLikeEventLogsReader,
-        'Expected an explorer log reader',
+        primaryStrategy instanceof FallbackEvmEventLogsReader,
+        'Expected a fallback explorer log reader',
       );
       assert(fallbackStrategy, 'Expected an RPC fallback log reader');
+      const [explorerReader] = primaryStrategy['readers'];
       sinon
-        .stub(primaryStrategy, 'getContractDeploymentBlockNumber')
+        .stub(explorerReader, 'getContractDeploymentBlockNumber')
         .resolves(deploymentBlockNumber);
-      sinon.stub(primaryStrategy, 'getContractLogs').rejects(
-        Object.assign(new Error('explorer logs unavailable'), {
-          isRecoverable: false,
-        }),
-      );
+      const explorerGetLogs = sinon
+        .stub(explorerReader, 'getContractLogs')
+        .rejects(
+          Object.assign(new Error('explorer logs unavailable'), {
+            isRecoverable: false,
+          }),
+        );
       const fallbackGetLogs = sinon.spy(fallbackStrategy, 'getContractLogs');
 
       const fromBlock = await reader.getContractDeploymentBlockFromExplorer(
@@ -432,6 +483,7 @@ describe('EvmEventLogsReader', () => {
       });
 
       expect(logs).to.have.length(1);
+      expect(explorerGetLogs.calledOnce).to.be.true;
       expect(fallbackGetLogs.calledOnce).to.be.true;
       expect(fallbackGetLogs.firstCall.args[0].fromBlock).to.equal(
         deploymentBlockNumber,
@@ -555,6 +607,83 @@ describe('EvmEventLogsReader', () => {
   });
 
   describe('deployment block cache', () => {
+    it('falls back between explorers for deployment blocks and logs', async () => {
+      await deployTestErc20();
+
+      const multiExplorerProvider = new MultiProvider({
+        [TestChainName.test1]: {
+          ...test1,
+          blockExplorers: [
+            {
+              apiKey: 'first-key',
+              apiUrl: 'https://first.example.com/api',
+              family: ExplorerFamily.Etherscan,
+              name: 'First explorer',
+              url: 'https://first.example.com',
+            },
+            {
+              apiUrl: 'https://second.example.com/api',
+              family: ExplorerFamily.Blockscout,
+              name: 'Second explorer',
+              url: 'https://second.example.com',
+            },
+          ],
+        },
+      });
+      multiExplorerProvider.setProvider(
+        TestChainName.test1,
+        providerChainTest1,
+      );
+      const reader = EvmEventLogsReader.fromConfig(
+        { chain: TestChainName.test1 },
+        multiExplorerProvider,
+      );
+      const fallbackExplorerReader = reader['logReaderStrategy'];
+      assert(
+        fallbackExplorerReader instanceof FallbackEvmEventLogsReader,
+        'Expected a fallback explorer log reader',
+      );
+      const [firstExplorer, secondExplorer] = fallbackExplorerReader['readers'];
+      const firstError = Object.assign(new Error('first explorer failed'), {
+        isRecoverable: false,
+      });
+      const firstLookup = sinon
+        .stub(firstExplorer, 'getContractDeploymentBlockNumber')
+        .rejects(firstError);
+      const secondLookup = sinon
+        .stub(secondExplorer, 'getContractDeploymentBlockNumber')
+        .resolves(deploymentBlockNumber);
+      const firstGetLogs = sinon
+        .stub(firstExplorer, 'getContractLogs')
+        .rejects(firstError);
+      const secondGetLogs = sinon
+        .stub(secondExplorer, 'getContractLogs')
+        .resolves([]);
+      const rpcReader = reader['fallbackLogReaderStrategy'];
+      assert(rpcReader, 'Expected an RPC fallback log reader');
+      const rpcGetLogs = sinon.stub(rpcReader, 'getContractLogs').resolves([]);
+
+      expect(
+        await reader.getContractDeploymentBlockFromExplorer(
+          testContract.address,
+        ),
+      ).to.equal(deploymentBlockNumber);
+      expect(firstLookup.calledOnce).to.be.true;
+      expect(secondLookup.calledOnce).to.be.true;
+
+      expect(
+        await reader.getLogsByTopic({
+          contractAddress: testContract.address,
+          eventTopic: transferTopic,
+          fromBlock: deploymentBlockNumber,
+          toBlock: deploymentBlockNumber,
+        }),
+      ).to.deep.equal([]);
+      expect(firstGetLogs.calledOnce).to.be.true;
+      expect(secondGetLogs.calledOnce).to.be.true;
+      expect(rpcGetLogs.notCalled).to.be.true;
+    });
+
     it('should reject an explorer deployment lookup for an RPC-only reader', async () => {
       await deployTestErc20();
 
@@ -584,15 +713,16 @@ describe('EvmEventLogsReader', () => {
       );
       const primaryStrategy = reader['logReaderStrategy'];
       assert(
-        primaryStrategy instanceof EvmEtherscanLikeEventLogsReader,
-        'Expected an explorer log reader',
+        primaryStrategy instanceof FallbackEvmEventLogsReader,
+        'Expected a fallback explorer log reader',
       );
+      const [explorerReader] = primaryStrategy['readers'];
       reader['deploymentBlockCache'].set(
         testContract.address,
         deploymentBlockNumber + 1,
       );
       const deploymentStub = sinon
-        .stub(primaryStrategy, 'getContractDeploymentBlockNumber')
+        .stub(explorerReader, 'getContractDeploymentBlockNumber')
         .resolves(deploymentBlockNumber);
 
       expect(
