@@ -18,7 +18,10 @@ use crate::{
     interfaces::i_validator_announce::{
         IValidatorAnnounce as EthereumValidatorAnnounceInternal, IVALIDATORANNOUNCE_ABI,
     },
-    tx::{fill_tx_gas_params, report_tx, report_tx_with_status, TransactionDispatchOutcome},
+    tx::{
+        fill_tx_gas_params, fill_tx_nonce, report_tx, report_tx_with_status,
+        TransactionDispatchOutcome,
+    },
     BuildableWithProvider, ConnectionConf, EthereumProvider,
 };
 
@@ -116,6 +119,15 @@ where
         )
         .await
     }
+
+    async fn announce_contract_call_with_nonce(
+        &self,
+        announcement: SignedType<Announcement>,
+    ) -> ChainResult<ContractCall<M, bool>> {
+        let mut contract_call = self.announce_contract_call(announcement).await?;
+        fill_tx_nonce(&mut contract_call.tx, self.provider.as_ref()).await?;
+        Ok(contract_call)
+    }
 }
 
 impl<M> HyperlaneChain for EthereumValidatorAnnounce<M>
@@ -189,7 +201,7 @@ where
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
-        let contract_call = self.announce_contract_call(announcement).await?;
+        let contract_call = self.announce_contract_call_with_nonce(announcement).await?;
         let receipt = report_tx(contract_call).await?;
         Ok(receipt.into())
     }
@@ -198,7 +210,7 @@ where
         &self,
         announcement: SignedType<Announcement>,
     ) -> ChainResult<ValidatorAnnounceSubmission> {
-        let contract_call = self.announce_contract_call(announcement).await?;
+        let contract_call = self.announce_contract_call_with_nonce(announcement).await?;
         Ok(match report_tx_with_status(contract_call).await? {
             TransactionDispatchOutcome::Confirmed(receipt) => {
                 ValidatorAnnounceSubmission::Confirmed((*receipt).into())

@@ -68,6 +68,36 @@ pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainRe
 const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
 const EVM_RELAYER_ADDRESS: &str = "0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5";
 
+/// Sets the current signer nonce without caching it locally.
+///
+/// This lets retry owners refetch the pending nonce after a definite initial-send failure while
+/// ensuring inner middleware, such as the gas escalator, receives the nonce used for a successful
+/// broadcast.
+pub(crate) async fn fill_tx_nonce<M>(tx: &mut TypedTransaction, provider: &M) -> ChainResult<()>
+where
+    M: Middleware + 'static,
+{
+    if tx.nonce().is_some() {
+        return Ok(());
+    }
+
+    let sender = tx
+        .from()
+        .copied()
+        .or_else(|| provider.default_sender())
+        .ok_or_else(|| {
+            ChainCommunicationError::from_other_str(
+                "Cannot fill transaction nonce without a sender",
+            )
+        })?;
+    let nonce = provider
+        .get_transaction_count(sender, Some(BlockNumber::Pending.into()))
+        .await
+        .map_err(ChainCommunicationError::from_other)?;
+    tx.set_nonce(nonce);
+    Ok(())
+}
+
 pub(crate) enum TransactionDispatchOutcome {
     Confirmed(Box<TransactionReceipt>),
     BroadcastError {

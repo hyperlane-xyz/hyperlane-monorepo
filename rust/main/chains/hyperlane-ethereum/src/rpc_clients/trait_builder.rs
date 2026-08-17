@@ -425,12 +425,14 @@ mod tests {
         Arc, Mutex as StdMutex,
     };
 
+    use ethers::middleware::gas_escalator::GasEscalator;
     use ethers::providers::HttpClientError;
     use ethers::signers::LocalWallet;
-    use ethers::types::TransactionRequest;
+    use ethers::types::{transaction::eip2718::TypedTransaction, TransactionRequest, U256};
     use serde::{de::DeserializeOwned, Serialize};
 
     use super::*;
+    use crate::tx::fill_tx_nonce;
 
     #[derive(Clone, Debug, Default)]
     struct CountingClient {
@@ -460,6 +462,71 @@ mod tests {
     }
 
     struct SenderBuilder;
+
+    #[derive(Clone, Debug, Default)]
+    struct SuccessfulSendClient {
+        nonce_requests: Arc<AtomicUsize>,
+        raw_transactions: Arc<StdMutex<Vec<serde_json::Value>>>,
+    }
+
+    #[async_trait]
+    impl JsonRpcClient for SuccessfulSendClient {
+        type Error = HttpClientError;
+
+        async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
+        where
+            T: Debug + Serialize + Send + Sync,
+            R: DeserializeOwned,
+        {
+            let response = match method {
+                "eth_chainId" => r#""0x1""#.to_owned(),
+                "eth_getTransactionCount" => {
+                    self.nonce_requests.fetch_add(1, Ordering::Relaxed);
+                    r#""0x7""#.to_owned()
+                }
+                "eth_sendRawTransaction" => {
+                    let params =
+                        serde_json::to_value(params).map_err(|err| HttpClientError::SerdeJson {
+                            err,
+                            text: "failed to serialize raw transaction parameters".to_owned(),
+                        })?;
+                    let send_index = {
+                        let mut raw_transactions = self
+                            .raw_transactions
+                            .lock()
+                            .expect("raw transaction mutex poisoned");
+                        raw_transactions.push(params);
+                        raw_transactions.len()
+                    };
+                    format!(r#""0x{send_index:064x}""#)
+                }
+                "eth_getBlockByNumber" | "eth_getTransactionReceipt" => "null".to_owned(),
+                "eth_gasPrice" => r#""0x1""#.to_owned(),
+                _ => "not valid json".to_owned(),
+            };
+            serde_json::from_str(&response).map_err(|err| HttpClientError::SerdeJson {
+                err,
+                text: response,
+            })
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    struct AlwaysBump;
+
+    impl GasEscalator for AlwaysBump {
+        fn get_gas_price(&self, initial_price: U256, _time_elapsed: u64) -> U256 {
+            initial_price.saturating_add(U256::one())
+        }
+    }
+
+    fn decode_raw_transaction(value: &serde_json::Value) -> TypedTransaction {
+        let raw: ethers::types::Bytes =
+            serde_json::from_value(value[0].clone()).expect("raw transaction is bytes");
+        TypedTransaction::decode_signed(&ethers::utils::rlp::Rlp::new(raw.as_ref()))
+            .expect("raw transaction decodes")
+            .0
+    }
 
     #[async_trait]
     impl BuildableWithProvider for SenderBuilder {
@@ -637,6 +704,57 @@ mod tests {
             .expect("raw transaction mutex poisoned");
         assert_eq!(raw_transactions.len(), 2);
         assert_eq!(raw_transactions[0], raw_transactions[1]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn successful_broadcast_and_gas_escalation_reuse_explicit_nonce(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let client = SuccessfulSendClient::default();
+        let signer = test_signer()?;
+        let provider = Provider::new(client.clone());
+        let signing_provider = wrap_with_signer(provider, signer).await?;
+        let provider = GasEscalatorMiddleware::new_with_initial_send_failure_policy(
+            signing_provider,
+            AlwaysBump,
+            Frequency::Duration(1),
+            InitialSendFailurePolicy::Drop,
+        );
+        let mut tx: TypedTransaction = TransactionRequest::new()
+            .to(Address::zero())
+            .gas(21_000_u64)
+            .gas_price(1_u64)
+            .value(1_u64)
+            .into();
+        fill_tx_nonce(&mut tx, &provider).await?;
+
+        let _pending = provider.send_transaction(tx, None).await?;
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if client
+                    .raw_transactions
+                    .lock()
+                    .expect("raw transaction mutex poisoned")
+                    .len()
+                    >= 2
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await?;
+
+        assert_eq!(client.nonce_requests.load(Ordering::Relaxed), 1);
+        let raw_transactions = client
+            .raw_transactions
+            .lock()
+            .expect("raw transaction mutex poisoned");
+        let initial = decode_raw_transaction(&raw_transactions[0]);
+        let replacement = decode_raw_transaction(&raw_transactions[1]);
+        assert_eq!(initial.nonce(), Some(&U256::from(7_u64)));
+        assert_eq!(replacement.nonce(), initial.nonce());
+        assert!(replacement.gas_price() > initial.gas_price());
         Ok(())
     }
 }
