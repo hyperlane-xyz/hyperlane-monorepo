@@ -49,10 +49,10 @@ impl NonceUpdater {
     }
 
     pub async fn update_boundaries(&self) -> NonceResult<()> {
-        let duration = self.updated.lock().await.elapsed();
-        if duration >= self.block_time {
+        let mut updated = self.updated.lock().await;
+        if updated.elapsed() >= self.block_time {
             self.update_boundaries_immediately().await?;
-            *self.updated.lock().await = Instant::now();
+            *updated = Instant::now();
         }
 
         Ok(())
@@ -66,10 +66,9 @@ impl NonceUpdater {
             .map_err(NonceError::ProviderError)?;
 
         let finalized_nonce = next_nonce.checked_sub(U256::one());
-
-        if let Some(finalized_nonce) = finalized_nonce {
-            self.state.update_boundary_nonces(&finalized_nonce).await?;
-        }
+        self.state
+            .update_boundary_nonces_from_chain(finalized_nonce.as_ref())
+            .await?;
 
         Ok(())
     }

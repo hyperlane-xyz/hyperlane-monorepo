@@ -12,10 +12,54 @@ use crate::transaction::TransactionUuid;
 use super::super::nonce::status::NonceStatus;
 
 const FINALIZED_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX: &str = "finalized_nonce_by_signer_address_";
+const FINALIZED_NONCE_PRESENT_BY_SIGNER_ADDRESS_STORAGE_PREFIX: &str =
+    "finalized_nonce_present_by_signer_address_";
 const UPPER_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX: &str = "upper_nonce_by_signer_address_";
+const REORGED_NONCE_RANGE_BY_SIGNER_ADDRESS_STORAGE_PREFIX: &str =
+    "reorged_nonce_range_by_signer_address_";
 const TRANSACTION_UUID_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX: &str =
     "transaction_uuid_by_nonce_and_signer_address_";
 const EVM_NONCE_BY_TRANSACTION_UUID_PREFIX: &str = "evm_nonce_by_transaction_uuid_";
+
+/// Inclusive range of nonces whose finalized transactions may have been reorged.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ReorgedNonceRange {
+    pub(crate) start: U256,
+    pub(crate) end: U256,
+}
+
+struct StoredReorgedNonceRange(Option<ReorgedNonceRange>);
+
+impl Encode for StoredReorgedNonceRange {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: Write,
+    {
+        let mut written = self.0.is_some().write_to(writer)?;
+        if let Some(range) = self.0 {
+            written = written.saturating_add(range.start.write_to(writer)?);
+            written = written.saturating_add(range.end.write_to(writer)?);
+        }
+        Ok(written)
+    }
+}
+
+impl Decode for StoredReorgedNonceRange {
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
+    where
+        R: Read,
+    {
+        let range = if bool::read_from(reader)? {
+            Some(ReorgedNonceRange {
+                start: U256::read_from(reader)?,
+                end: U256::read_from(reader)?,
+            })
+        } else {
+            None
+        };
+        Ok(Self(range))
+    }
+}
 
 #[async_trait]
 pub trait NonceDb: Send + Sync {
@@ -30,6 +74,11 @@ pub trait NonceDb: Send + Sync {
         nonce: &U256,
     ) -> DbResult<()>;
 
+    async fn clear_finalized_nonce_by_signer_address(
+        &self,
+        signer_address: &Address,
+    ) -> DbResult<()>;
+
     async fn retrieve_upper_nonce_by_signer_address(
         &self,
         signer_address: &Address,
@@ -39,6 +88,22 @@ pub trait NonceDb: Send + Sync {
         &self,
         signer_address: &Address,
         nonce: &U256,
+    ) -> DbResult<()>;
+
+    async fn retrieve_reorged_nonce_range_by_signer_address(
+        &self,
+        signer_address: &Address,
+    ) -> DbResult<Option<ReorgedNonceRange>>;
+
+    async fn store_reorged_nonce_range_by_signer_address(
+        &self,
+        signer_address: &Address,
+        range: &ReorgedNonceRange,
+    ) -> DbResult<()>;
+
+    async fn clear_reorged_nonce_range_by_signer_address(
+        &self,
+        signer_address: &Address,
     ) -> DbResult<()>;
 
     async fn retrieve_transaction_uuid_by_nonce_and_signer_address(
@@ -74,6 +139,13 @@ impl NonceDb for HyperlaneRocksDB {
         &self,
         signer_address: &Address,
     ) -> DbResult<Option<U256>> {
+        let present: Option<bool> = self.retrieve_value_by_key(
+            FINALIZED_NONCE_PRESENT_BY_SIGNER_ADDRESS_STORAGE_PREFIX,
+            &SignerAddress(*signer_address),
+        )?;
+        if present == Some(false) {
+            return Ok(None);
+        }
         self.retrieve_value_by_key(
             FINALIZED_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX,
             &SignerAddress(*signer_address),
@@ -89,6 +161,22 @@ impl NonceDb for HyperlaneRocksDB {
             FINALIZED_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX,
             &SignerAddress(*signer_address),
             nonce,
+        )?;
+        self.store_value_by_key(
+            FINALIZED_NONCE_PRESENT_BY_SIGNER_ADDRESS_STORAGE_PREFIX,
+            &SignerAddress(*signer_address),
+            &true,
+        )
+    }
+
+    async fn clear_finalized_nonce_by_signer_address(
+        &self,
+        signer_address: &Address,
+    ) -> DbResult<()> {
+        self.store_value_by_key(
+            FINALIZED_NONCE_PRESENT_BY_SIGNER_ADDRESS_STORAGE_PREFIX,
+            &SignerAddress(*signer_address),
+            &false,
         )
     }
 
@@ -111,6 +199,40 @@ impl NonceDb for HyperlaneRocksDB {
             UPPER_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX,
             &SignerAddress(*signer_address),
             nonce,
+        )
+    }
+
+    async fn retrieve_reorged_nonce_range_by_signer_address(
+        &self,
+        signer_address: &Address,
+    ) -> DbResult<Option<ReorgedNonceRange>> {
+        let stored: Option<StoredReorgedNonceRange> = self.retrieve_value_by_key(
+            REORGED_NONCE_RANGE_BY_SIGNER_ADDRESS_STORAGE_PREFIX,
+            &SignerAddress(*signer_address),
+        )?;
+        Ok(stored.and_then(|stored| stored.0))
+    }
+
+    async fn store_reorged_nonce_range_by_signer_address(
+        &self,
+        signer_address: &Address,
+        range: &ReorgedNonceRange,
+    ) -> DbResult<()> {
+        self.store_value_by_key(
+            REORGED_NONCE_RANGE_BY_SIGNER_ADDRESS_STORAGE_PREFIX,
+            &SignerAddress(*signer_address),
+            &StoredReorgedNonceRange(Some(*range)),
+        )
+    }
+
+    async fn clear_reorged_nonce_range_by_signer_address(
+        &self,
+        signer_address: &Address,
+    ) -> DbResult<()> {
+        self.store_value_by_key(
+            REORGED_NONCE_RANGE_BY_SIGNER_ADDRESS_STORAGE_PREFIX,
+            &SignerAddress(*signer_address),
+            &StoredReorgedNonceRange(None),
         )
     }
 
