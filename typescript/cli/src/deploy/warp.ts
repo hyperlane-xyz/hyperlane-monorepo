@@ -9,6 +9,7 @@ import {
 import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter';
 import {
   type AltVM,
+  type FileSubmitterConfig,
   GasAction,
   type ITransactionSubmitter,
   ProtocolType,
@@ -1224,7 +1225,7 @@ type AltVmSubmitterFactories = {
   ) => Promise<ITransactionSubmitter>;
   [CustomTxSubmitterType.FILE]: (
     multiProvider: MultiProvider,
-    metadata: any,
+    metadata: FileSubmitterConfig,
   ) => AltVMFileSubmitter;
 };
 
@@ -1260,7 +1261,7 @@ function buildAltVmSubmitterFactories({
     },
     [CustomTxSubmitterType.FILE]: (
       _multiProvider: MultiProvider,
-      metadata: any,
+      metadata: FileSubmitterConfig,
     ) => new AltVMFileSubmitter(signer, metadata),
   };
 }
