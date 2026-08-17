@@ -46,6 +46,29 @@ type RequiredGetLogByTopicOptions = z.infer<
   typeof RequiredGetLogByTopicOptionsSchema
 >;
 
+function assertLogsMatchQuery(
+  logs: GetEventLogsResponse[],
+  query: RequiredGetLogByTopicOptions,
+): void {
+  const expectedAddress = query.contractAddress.toLowerCase();
+  const expectedTopic = query.eventTopic.toLowerCase();
+
+  for (const log of logs) {
+    assert(
+      log.address.toLowerCase() === expectedAddress,
+      `Log address ${log.address} does not match requested contract ${query.contractAddress}`,
+    );
+    assert(
+      log.topics[0]?.toLowerCase() === expectedTopic,
+      `Log topic does not match requested topic ${query.eventTopic}`,
+    );
+    assert(
+      log.blockNumber >= query.fromBlock && log.blockNumber <= query.toBlock,
+      `Log block ${log.blockNumber} is outside requested range ${query.fromBlock}-${query.toBlock}`,
+    );
+  }
+}
+
 interface IEvmEventLogsReaderStrategy {
   getContractDeploymentBlockNumber(address: Address): Promise<number>;
   getContractLogs(
@@ -137,6 +160,7 @@ export class EvmRpcEventLogsReader implements IEvmEventLogsReaderStrategy {
 
 export class EvmEventLogsReader {
   private deploymentBlockCache: Map<string, number> = new Map();
+  private explorerDeploymentBlockCache: Map<string, number> = new Map();
 
   protected constructor(
     protected readonly config: EvmEventLogsReaderConfig,
@@ -186,23 +210,50 @@ export class EvmEventLogsReader {
     );
   }
 
+  async getContractDeploymentBlockFromExplorer(
+    contractAddress: Address,
+  ): Promise<number> {
+    assert(
+      this.logReaderStrategy instanceof EvmEtherscanLikeEventLogsReader,
+      `No block explorer is configured for chain ${this.config.chain}`,
+    );
+
+    const cached = this.explorerDeploymentBlockCache.get(contractAddress);
+    if (!isNullish(cached)) return cached;
+
+    // Do not use deploymentBlockCache here: an earlier read may have populated
+    // it from RPC bisection after an explorer failure.
+    const block = await retryAsync(() =>
+      this.logReaderStrategy.getContractDeploymentBlockNumber(contractAddress),
+    );
+    this.explorerDeploymentBlockCache.set(contractAddress, block);
+    this.deploymentBlockCache.set(contractAddress, block);
+    return block;
+  }
+
   async getLogsByTopic(
     options: GetLogByTopicOptions,
   ): Promise<GetEventLogsResponse[]> {
+    const parsedOptions = GetLogByTopicOptionsSchema.parse(options);
     const provider = this.multiProvider.getProvider(this.config.chain);
     await assertIsContractAddress(
       this.multiProvider,
       this.config.chain,
-      options.contractAddress,
+      parsedOptions.contractAddress,
     );
+
+    // Every retry and fallback must answer the same block range.
+    const resolvedOptions = {
+      ...parsedOptions,
+      toBlock: parsedOptions.toBlock ?? (await provider.getBlockNumber()),
+    };
 
     try {
       // Retry the primary strategy with exponential backoff to handle
       // transient failures like explorer rate limits
       return await retryAsync(() =>
         this.getLogsByTopicWithStrategy(
-          options,
-          provider,
+          resolvedOptions,
           this.logReaderStrategy,
         ),
       );
@@ -216,8 +267,7 @@ export class EvmEventLogsReader {
       );
 
       return this.getLogsByTopicWithStrategy(
-        options,
-        provider,
+        resolvedOptions,
         this.fallbackLogReaderStrategy,
       );
     }
@@ -238,7 +288,6 @@ export class EvmEventLogsReader {
 
   private async getLogsByTopicWithStrategy(
     options: GetLogByTopicOptions,
-    provider: ReturnType<MultiProvider['getProvider']>,
     logReaderStrategy: IEvmEventLogsReaderStrategy,
   ): Promise<GetEventLogsResponse[]> {
     const parsedOptions = GetLogByTopicOptionsSchema.parse(options);
@@ -249,13 +298,23 @@ export class EvmEventLogsReader {
         parsedOptions.contractAddress,
         logReaderStrategy,
       ));
-    const toBlock = parsedOptions.toBlock ?? (await provider.getBlockNumber());
+    assert(
+      !isNullish(parsedOptions.toBlock),
+      'Expected the log range end to be resolved',
+    );
+    assert(
+      fromBlock <= parsedOptions.toBlock,
+      `Log range start ${fromBlock} exceeds end ${parsedOptions.toBlock}`,
+    );
 
-    return logReaderStrategy.getContractLogs({
+    const resolvedOptions = {
       contractAddress: parsedOptions.contractAddress,
       eventTopic: parsedOptions.eventTopic,
       fromBlock,
-      toBlock,
-    });
+      toBlock: parsedOptions.toBlock,
+    };
+    const logs = await logReaderStrategy.getContractLogs(resolvedOptions);
+    assertLogsMatchQuery(logs, resolvedOptions);
+    return logs;
   }
 }

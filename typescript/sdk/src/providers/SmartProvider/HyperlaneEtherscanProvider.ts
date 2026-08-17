@@ -1,7 +1,8 @@
 import { providers } from 'ethers';
 
-import { objFilter, rootLogger, sleep } from '@hyperlane-xyz/utils';
+import { isNullish, objFilter, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
+import { readPaginatedExplorerLogs } from '../../block-explorer/etherscan.js';
 import { BlockExplorer } from '../../metadata/chainMetadataTypes.js';
 
 import {
@@ -117,11 +118,15 @@ export class HyperlaneEtherscanProvider
         'Multi-address getLogs is not supported by explorer providers',
       );
     }
+    const fromBlock = isNullish(params.filter.fromBlock)
+      ? undefined
+      : checkLogTag(params.filter.fromBlock);
+    const toBlock = isNullish(params.filter.toBlock)
+      ? undefined
+      : checkLogTag(params.filter.toBlock);
     const args: Record<string, any> = { action: 'getLogs' };
-    if (params.filter.fromBlock)
-      args.fromBlock = checkLogTag(params.filter.fromBlock);
-    if (params.filter.toBlock)
-      args.toBlock = checkLogTag(params.filter.toBlock);
+    if (!isNullish(fromBlock)) args.fromBlock = fromBlock;
+    if (!isNullish(toBlock)) args.toBlock = toBlock;
     if (params.filter.address) args.address = params.filter.address;
     const topics = params.filter.topics;
     if (topics?.length) {
@@ -136,7 +141,19 @@ export class HyperlaneEtherscanProvider
       }
     }
 
-    return this.fetch('logs', args);
+    return readPaginatedExplorerLogs<providers.Log>(
+      {
+        address: params.filter.address,
+        fromBlock,
+        toBlock,
+      },
+      (page, offset) =>
+        this.fetch('logs', {
+          ...args,
+          page,
+          offset,
+        }),
+    );
   }
 }
 

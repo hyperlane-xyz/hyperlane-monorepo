@@ -7,6 +7,7 @@ import { RATE_LIMIT_DEFAULT_DURATION_SECONDS } from '../types.js';
 
 import {
   AggregationIsmConfigSchema,
+  BlacklistIsmConfigSchema,
   type CompositeIsmConfig,
   CompositeIsmConfigSchema,
   IsmConfigSchema,
@@ -489,6 +490,10 @@ describe('BlacklistIsmConfigSchema composition', () => {
     owner: SOME_ADDRESS,
     blacklistedIds: [],
   };
+  const blacklistWithoutIds = {
+    type: IsmType.BLACKLIST,
+    owner: SOME_ADDRESS,
+  };
   const messageIdMultisig = {
     type: IsmType.MESSAGE_ID_MULTISIG,
     validators: [SOME_ADDRESS],
@@ -748,5 +753,25 @@ describe('BlacklistIsmConfigSchema composition', () => {
     const result = IsmConfigSchema.safeParse(config);
 
     expect(result.success).to.be.true;
+  });
+
+  // A blacklist ISM is its entries; a config without them does not describe the
+  // deployment it names.
+  it('rejects a blacklist without blacklisted ids', () => {
+    const result = BlacklistIsmConfigSchema.safeParse(blacklistWithoutIds);
+
+    expect(result.success).to.be.false;
+  });
+
+  it('rejects a blacklist without blacklisted ids nested in an aggregation', () => {
+    const config = {
+      type: IsmType.AGGREGATION,
+      modules: [messageIdMultisig, blacklistWithoutIds],
+      threshold: 2,
+    };
+
+    const result = IsmConfigSchema.safeParse(config);
+
+    expect(result.success).to.be.false;
   });
 });
