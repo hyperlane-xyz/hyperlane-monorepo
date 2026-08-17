@@ -16,9 +16,7 @@ use hyperlane_cosmos_rs::hyperlane::warp::v1::MsgRemoteTransfer;
 use hyperlane_cosmos_rs::prost::{Message, Name};
 use tonic::async_trait;
 
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Decode, HyperlaneMessage, RawHyperlaneMessage, H256, H512,
-};
+use hyperlane_core::{ChainResult, Decode, HyperlaneMessage, RawHyperlaneMessage, H256, H512};
 
 use crate::GrpcProvider;
 use crate::{BuildableQueryClient, HyperlaneCosmosError};
@@ -42,21 +40,8 @@ impl BuildableQueryClient for ModuleQueryClient {
         Ok(Self { grpc })
     }
 
-    // the tx is either a MsgProcessMessage on the destination or a MsgRemoteTransfer on the origin
-    // we check for both tx types, if both are missing or an error occurred while parsing we return the error
-    fn parse_tx_message_recipient(&self, tx: &Tx, _hash: &H512) -> ChainResult<H256> {
-        // first check for the process message
-        if let Some(recipient) = Self::parse_msg_process_recipient(tx)? {
-            return Ok(recipient);
-        }
-        // if not found check for the remote transfer
-        if let Some(recipient) = Self::parse_msg_remote_transfer_recipient(tx)? {
-            return Ok(recipient);
-        }
-        // if both are missing we return an error
-        Err(HyperlaneCosmosError::ParsingFailed(
-            "transaction does not contain any process message or remote transfer".to_owned(),
-        ))?
+    fn parse_tx_message_recipient(&self, tx: &Tx, _hash: &H512) -> ChainResult<Option<H256>> {
+        Self::message_recipient(tx)
     }
 
     async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
@@ -70,6 +55,18 @@ impl BuildableQueryClient for ModuleQueryClient {
 }
 
 impl ModuleQueryClient {
+    fn message_recipient(tx: &Tx) -> ChainResult<Option<H256>> {
+        // first check for the process message
+        if let Some(recipient) = Self::parse_msg_process_recipient(tx)? {
+            return Ok(Some(recipient));
+        }
+        // if not found check for the remote transfer
+        if let Some(recipient) = Self::parse_msg_remote_transfer_recipient(tx)? {
+            return Ok(Some(recipient));
+        }
+        Ok(None)
+    }
+
     /// parses the message recipient if the transaction contains a MsgProcessMessage
     fn parse_msg_process_recipient(tx: &Tx) -> ChainResult<Option<H256>> {
         // check for all messages processes
@@ -117,9 +114,9 @@ impl ModuleQueryClient {
             Err(HyperlaneCosmosError::ParsingFailed(msg.to_owned()))?
         }
 
-        let msg = remote_transfers.first().ok_or_else(|| {
-            ChainCommunicationError::from_other_str("tx does not contain any remote transfers")
-        })?;
+        let Some(msg) = remote_transfers.first() else {
+            return Ok(None);
+        };
         let result =
             MsgRemoteTransfer::decode(msg.value.as_slice()).map_err(HyperlaneCosmosError::from)?;
         // the recipient is the token id of the transfer, which is the address that the user interacts with
@@ -291,5 +288,69 @@ impl ModuleQueryClient {
                 Box::pin(future)
             })
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use cosmrs::tx::{AuthInfo, Body, Fee};
+
+    use super::*;
+
+    fn tx_with_messages(messages: Vec<Any>) -> Tx {
+        Tx {
+            body: Body::new(messages, "", 0_u8),
+            auth_info: AuthInfo {
+                signer_infos: Vec::new(),
+                fee: Fee {
+                    amount: Vec::new(),
+                    gas_limit: 0,
+                    payer: None,
+                    granter: None,
+                },
+            },
+            signatures: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn unrecognized_native_message_has_no_recipient() {
+        let tx = tx_with_messages(vec![Any {
+            type_url: "/cosmos.bank.v1beta1.MsgSend".to_owned(),
+            value: Vec::new(),
+        }]);
+
+        assert_eq!(
+            ModuleQueryClient::message_recipient(&tx).expect("generic message should parse"),
+            None
+        );
+    }
+
+    #[test]
+    fn malformed_remote_transfer_is_an_error() {
+        let tx = tx_with_messages(vec![Any {
+            type_url: MsgRemoteTransfer::type_url(),
+            value: vec![0xff],
+        }]);
+
+        assert!(ModuleQueryClient::message_recipient(&tx).is_err());
+    }
+
+    #[test]
+    fn remote_transfer_recipient_is_preserved() {
+        let recipient = H256::repeat_byte(0x11);
+        let transfer = MsgRemoteTransfer {
+            token_id: format!("{recipient:#x}"),
+            ..Default::default()
+        };
+        let tx = tx_with_messages(vec![Any {
+            type_url: MsgRemoteTransfer::type_url(),
+            value: transfer.encode_to_vec(),
+        }]);
+
+        assert_eq!(
+            ModuleQueryClient::message_recipient(&tx).expect("remote transfer should parse"),
+            Some(recipient)
+        );
     }
 }
