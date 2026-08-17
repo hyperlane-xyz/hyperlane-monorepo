@@ -367,7 +367,10 @@ impl OriginFactory {
     where
         T: Indexable + Debug,
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
-        S: HyperlaneLogStore<T> + HyperlaneSequenceAwareIndexerStoreReader<T> + 'static,
+        S: HyperlaneLogStore<T>
+            + HyperlaneSequenceAwareIndexerStoreReader<T>
+            + HyperlaneWatermarkedLogStore<T>
+            + 'static,
     {
         // Currently, all indexers are of the `SequenceIndexer` type
         let indexer =

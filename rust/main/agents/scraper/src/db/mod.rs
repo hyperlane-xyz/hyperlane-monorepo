@@ -1,6 +1,6 @@
 pub use block::*;
-pub use block_cursor::BlockCursor;
 use eyre::Result;
+pub use merkle_tree_insertion::*;
 pub use message::*;
 pub use payment::*;
 pub use raw_message_dispatch::*;
@@ -15,7 +15,10 @@ mod generated;
 // These modules implement additional functionality for the ScraperDb
 mod block;
 mod block_cursor;
+mod indexing_checkpoint;
+mod merkle_tree_insertion;
 mod message;
+mod outbox;
 mod payment;
 mod raw_message_dispatch;
 mod same_chain_ccr_swap;

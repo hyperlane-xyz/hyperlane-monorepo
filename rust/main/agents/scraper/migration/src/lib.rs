@@ -17,6 +17,9 @@ mod m20250224_000006_create_table_raw_message_dispatch;
 mod m20250521_000007_add_cursor_event_type;
 mod m20260613_000008_add_msg_body_to_raw_message_dispatch;
 mod m20260814_000009_compact_cursor_table;
+mod m20260817_000010_create_table_outbox;
+mod m20260817_000011_create_table_indexing_checkpoint;
+mod m20260817_000012_create_table_merkle_tree_insertion;
 
 pub struct Migrator;
 
@@ -38,6 +41,9 @@ impl MigratorTrait for Migrator {
             Box::new(m20250521_000007_add_cursor_event_type::Migration),
             Box::new(m20260613_000008_add_msg_body_to_raw_message_dispatch::Migration),
             Box::new(m20260814_000009_compact_cursor_table::Migration),
+            Box::new(m20260817_000010_create_table_outbox::Migration),
+            Box::new(m20260817_000011_create_table_indexing_checkpoint::Migration),
+            Box::new(m20260817_000012_create_table_merkle_tree_insertion::Migration),
         ]
     }
 }

@@ -21,10 +21,8 @@ impl HyperlaneLogStore<Delivery> for HyperlaneDbStore {
             return Ok(0);
         }
         let txns: HashMap<H512, TxnWithId> = self
-            .ensure_blocks_and_txns(deliveries.iter().map(|r| &r.1))
-            .await?
-            .map(|t| (t.hash, t))
-            .collect();
+            .ensure_all_blocks_and_txns(deliveries.iter().map(|r| &r.1))
+            .await?;
         let storable = deliveries
             .iter()
             .filter_map(|(message_id, meta)| {

@@ -3,21 +3,24 @@
 //! This module (and children) are responsible for scraping blockchain data and
 //! keeping things updated.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use async_trait::async_trait;
-use eyre::Result;
+use eyre::{eyre, Result};
 use itertools::Itertools;
 use prometheus::IntCounterVec;
 use tracing::{trace, warn};
 
-use hyperlane_base::settings::IndexSettings;
+use hyperlane_base::{cursors::Indexable, settings::IndexSettings};
 use hyperlane_core::{
     BlockId, BlockInfo, HyperlaneDomain, HyperlaneLogStore, HyperlaneProvider,
     HyperlaneWatermarkedLogStore, LogMeta, H256, H512,
 };
 
-use crate::db::{BasicBlock, BlockCursor, ScraperDb, StorableTxn};
+use crate::db::{BasicBlock, ScraperDb, StorableTxn};
 
 /// Maximum number of records to query at a time. This came about because when a
 /// lot of messages are sent in a short period of time we were ending up with a
@@ -33,8 +36,8 @@ pub struct HyperlaneDbStore {
     pub(crate) domain: HyperlaneDomain,
     pub(crate) mailbox_address: H256,
     pub(crate) interchain_gas_paymaster_address: H256,
+    pub(crate) merkle_tree_hook_address: H256,
     provider: Arc<dyn HyperlaneProvider>,
-    cursor: Arc<BlockCursor>,
     /// Metric for tracking raw message dispatches stored (used for CCTP availability)
     stored_events_metric: Option<IntCounterVec>,
 }
@@ -46,21 +49,18 @@ impl HyperlaneDbStore {
         domain: HyperlaneDomain,
         mailbox_address: H256,
         interchain_gas_paymaster_address: H256,
+        merkle_tree_hook_address: H256,
         provider: Arc<dyn HyperlaneProvider>,
-        index_settings: &IndexSettings,
+        _index_settings: &IndexSettings,
         stored_events_metric: Option<IntCounterVec>,
     ) -> Result<Self> {
-        let cursor = Arc::new(
-            db.block_cursor(domain.id(), "", index_settings.from as u64)
-                .await?,
-        );
         Ok(Self {
             db,
             domain,
             mailbox_address,
             interchain_gas_paymaster_address,
+            merkle_tree_hook_address,
             provider,
-            cursor,
             stored_events_metric,
         })
     }
@@ -183,6 +183,37 @@ impl HyperlaneDbStore {
         Ok(ensured_txns)
     }
 
+    pub(crate) async fn ensure_all_blocks_and_txns(
+        &self,
+        log_meta: impl Iterator<Item = &LogMeta>,
+    ) -> Result<HashMap<H512, TxnWithId>> {
+        let log_meta = log_meta.collect_vec();
+        let requested_txns = log_meta
+            .iter()
+            .map(|meta| meta.transaction_id)
+            .collect::<HashSet<_>>();
+        let txns = self
+            .ensure_blocks_and_txns(log_meta.iter().copied())
+            .await?
+            .map(|txn| (txn.hash, txn))
+            .collect::<HashMap<_, _>>();
+        let indexed_txns = txns.keys().copied().collect();
+        let missing_txns = requested_txns
+            .difference(&indexed_txns)
+            .copied()
+            .collect_vec();
+
+        if !missing_txns.is_empty() {
+            return Err(eyre!(
+                "Missing transaction metadata for {} indexed logs: {:?}",
+                missing_txns.len(),
+                missing_txns
+            ));
+        }
+
+        Ok(txns)
+    }
+
     /// Takes a list of block hashes for each block
     /// if it is in the database already:
     ///     Fetches its associated database id
@@ -292,16 +323,20 @@ impl HyperlaneDbStore {
 #[async_trait]
 impl<T> HyperlaneWatermarkedLogStore<T> for HyperlaneDbStore
 where
+    T: Indexable + Send + Sync,
     HyperlaneDbStore: HyperlaneLogStore<T>,
 {
     /// Gets the block number high watermark
     async fn retrieve_high_watermark(&self) -> Result<Option<u32>> {
-        Ok(Some(self.cursor.height().await.try_into()?))
+        self.db
+            .retrieve_indexing_checkpoint(self.domain.id(), T::name())
+            .await
     }
     /// Stores the block number high watermark
     async fn store_high_watermark(&self, block_number: u32) -> Result<()> {
-        self.cursor.update(block_number.into()).await;
-        Ok(())
+        self.db
+            .store_indexing_checkpoint(self.domain.id(), T::name(), block_number)
+            .await
     }
 }
 

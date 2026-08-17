@@ -6,7 +6,7 @@ use eyre::Result;
 
 use hyperlane_core::{
     ChainCommunicationError, ContractSyncCursor, CursorAction, HyperlaneDomain,
-    HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, SequenceAwareIndexer,
+    HyperlaneSequenceAwareIndexerStore, IndexMode, Indexed, LogMeta, SequenceAwareIndexer,
 };
 
 mod backward;
@@ -91,7 +91,7 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
         domain: &HyperlaneDomain,
         metrics: Arc<CursorMetrics>,
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
-        store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
+        store: Arc<dyn HyperlaneSequenceAwareIndexerStore<T>>,
         chunk_size: u32,
         lowest_block_height_or_sequence: i64,
         mode: IndexMode,
@@ -154,6 +154,7 @@ impl<T: Send + Sync + Clone + Debug + 'static + Indexable> ContractSyncCursor<T>
             self.last_direction = SyncDirection::Backward;
             return Ok((CursorAction::Query(backward_range), eta));
         }
+        self.forward.store_high_watermark().await?;
         return Ok((CursorAction::Sleep(self.idle_sleep_duration), eta));
     }
 
@@ -167,7 +168,13 @@ impl<T: Send + Sync + Clone + Debug + 'static + Indexable> ContractSyncCursor<T>
         range: RangeInclusive<u32>,
     ) -> Result<()> {
         match self.last_direction {
-            SyncDirection::Forward => self.forward.update(logs, range).await,
+            SyncDirection::Forward => {
+                self.forward.update(logs, range).await?;
+                if self.backward.is_synced() {
+                    self.forward.store_high_watermark().await?;
+                }
+                Ok(())
+            }
             SyncDirection::Backward => self.backward.update(logs, range).await,
         }
     }
@@ -178,9 +185,9 @@ mod tests {
     use std::{fmt::Debug, ops::RangeInclusive, sync::Arc, time::Duration};
 
     use hyperlane_core::{
-        ChainResult, HyperlaneDomain, HyperlaneLogStore, HyperlaneSequenceAwareIndexerStoreReader,
-        HyperlaneWatermarkedLogStore, IndexMode, Indexed, Indexer, KnownHyperlaneDomain, LogMeta,
-        SequenceAwareIndexer, H256, H512,
+        ChainResult, HyperlaneDomain, HyperlaneLogStore, HyperlaneSequenceAwareIndexerStore,
+        HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, IndexMode, Indexed,
+        Indexer, KnownHyperlaneDomain, LogMeta, SequenceAwareIndexer, H256, H512,
     };
 
     use crate::cursors::{CursorMetrics, ForwardBackwardSequenceAwareSyncCursor, Indexable};
@@ -286,7 +293,7 @@ mod tests {
         let lowest_block_height_or_sequence: i64 = -10;
         let mode = IndexMode::Sequence;
 
-        let store_arc: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<H256>> = Arc::new(store);
+        let store_arc: Arc<dyn HyperlaneSequenceAwareIndexerStore<H256>> = Arc::new(store);
 
         let cursor = ForwardBackwardSequenceAwareSyncCursor::new(
             &domain,

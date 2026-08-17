@@ -26,10 +26,8 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneDbStore {
             return Ok(0);
         }
         let txns: HashMap<H512, crate::store::storage::TxnWithId> = self
-            .ensure_blocks_and_txns(payments.iter().map(|r| &r.1))
-            .await?
-            .map(|t| (t.hash, t))
-            .collect();
+            .ensure_all_blocks_and_txns(payments.iter().map(|r| &r.1))
+            .await?;
         let storable = payments
             .iter()
             .filter_map(|(payment, meta)| {

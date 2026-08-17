@@ -37,13 +37,18 @@ pub trait HyperlaneSequenceAwareIndexerStoreReader<T>: Send + Sync + Debug {
 /// Extension of HyperlaneLogStore trait for sequence-aware indexer stores.
 #[async_trait]
 pub trait HyperlaneSequenceAwareIndexerStore<T>:
-    HyperlaneLogStore<T> + HyperlaneSequenceAwareIndexerStoreReader<T>
+    HyperlaneLogStore<T> + HyperlaneSequenceAwareIndexerStoreReader<T> + HyperlaneWatermarkedLogStore<T>
 {
 }
 
 /// Auto-impl for HyperlaneSequenceAwareIndexerStore
 impl<T, S> HyperlaneSequenceAwareIndexerStore<T> for S where
-    S: HyperlaneLogStore<T> + HyperlaneSequenceAwareIndexerStoreReader<T> + Send + Sync + Debug
+    S: HyperlaneLogStore<T>
+        + HyperlaneSequenceAwareIndexerStoreReader<T>
+        + HyperlaneWatermarkedLogStore<T>
+        + Send
+        + Sync
+        + Debug
 {
 }
 

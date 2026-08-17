@@ -10,7 +10,7 @@ use derive_more::AsRef;
 use futures::{future::try_join_all, FutureExt};
 use hyperlane_core::{
     rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, InterchainGasPayment, SameChainCcrSwap, H512,
+    HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, SameChainCcrSwap, H512,
 };
 use prometheus::IntGaugeVec;
 use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle, time::sleep};
@@ -32,6 +32,7 @@ const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 const RAW_DISPATCH_RECONCILIATION_BATCH_SIZE: u64 = 100;
 const RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP: Duration = Duration::from_secs(60);
 const RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP: Duration = Duration::from_secs(2);
+const OUTBOX_BUILD_SLEEP: Duration = Duration::from_secs(1);
 
 /// A message explorer scraper agent
 #[derive(Debug, AsRef)]
@@ -246,12 +247,24 @@ impl Scraper {
             .await?;
         tasks.push(gas_payment_indexer);
 
+        let merkle_tree_insertion_indexer = self
+            .build_merkle_tree_insertion_indexer(
+                domain.clone(),
+                self.core_metrics.clone(),
+                self.contract_sync_metrics.clone(),
+                store.clone(),
+                index_settings.clone(),
+            )
+            .await?;
+        tasks.push(merkle_tree_insertion_indexer);
+
         tasks.push(self.build_raw_dispatch_reconciler(
             domain.clone(),
             self.contract_sync_metrics.clone(),
             self.raw_dispatch_unenriched_max_age.clone(),
             store.clone(),
         ));
+        tasks.push(self.build_outbox_builder(domain.clone(), store.clone()));
 
         if let Some(ccr_task) = self
             .build_ccr_indexer(
@@ -275,6 +288,30 @@ impl Scraper {
         ))
     }
 
+    fn build_outbox_builder(
+        &self,
+        domain: HyperlaneDomain,
+        store: HyperlaneDbStore,
+    ) -> JoinHandle<()> {
+        let span_domain = domain.clone();
+        tokio::spawn(
+            async move {
+                loop {
+                    match store.db.build_outbox(domain.id()).await {
+                        Ok(inserted) => {
+                            if inserted > 0 {
+                                trace!(domain = domain.name(), inserted, "Built outbox rows");
+                            }
+                        }
+                        Err(err) => warn!(?err, domain = domain.name(), "Failed to build outbox"),
+                    }
+                    sleep(OUTBOX_BUILD_SLEEP).await;
+                }
+            }
+            .instrument(info_span!("OutboxBuilder", chain=%span_domain.name())),
+        )
+    }
+
     #[instrument(fields(domain=%domain.name()), skip_all)]
     async fn build_chain_scraper(
         domain: &HyperlaneDomain,
@@ -293,6 +330,7 @@ impl Scraper {
             domain.clone(),
             chain_setup.addresses.mailbox,
             chain_setup.addresses.interchain_gas_paymaster,
+            chain_setup.addresses.merkle_tree_hook,
             provider,
             &chain_setup.index.clone(),
             Some(contract_sync_metrics.stored_events.clone()),
@@ -562,6 +600,46 @@ impl Scraper {
         ))
     }
 
+    async fn build_merkle_tree_insertion_indexer(
+        &self,
+        domain: HyperlaneDomain,
+        metrics: Arc<CoreMetrics>,
+        contract_sync_metrics: Arc<ContractSyncMetrics>,
+        store: HyperlaneDbStore,
+        index_settings: IndexSettings,
+    ) -> eyre::Result<JoinHandle<()>> {
+        let label = "merkle_tree_insertion";
+        let sync = self
+            .as_ref()
+            .settings
+            .contract_sync::<MerkleTreeInsertion, _>(
+                &domain,
+                &metrics.clone(),
+                &contract_sync_metrics.clone(),
+                Arc::new(store.clone()) as _,
+                true,
+                false,
+            )
+            .await
+            .map_err(|err| {
+                tracing::error!(
+                    ?err,
+                    domain = domain.name(),
+                    label,
+                    "Error syncing contract"
+                );
+                err
+            })?;
+        let cursor = sync.cursor(index_settings.clone()).await.map_err(|err| {
+            tracing::error!(?err, domain = domain.name(), label, "Error getting cursor");
+            err
+        })?;
+        Ok(tokio::spawn(
+            async move { sync.sync(label, SyncOptions::new(Some(cursor), None)).await }
+                .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label)),
+        ))
+    }
+
     /// Build a CCR swap indexer for the given domain if it has CCR routers configured.
     /// Returns `None` if the domain has no CCR config.
     async fn build_ccr_indexer(
@@ -596,7 +674,7 @@ impl Scraper {
 
         // Create a dedicated BlockCursor for CCR swaps keyed by (domain, "ccr_swap").
         // This is independent of the message/delivery/gas cursor so the two indexers
-        // don't race to read and overwrite each other's watermark.
+        // don't race to read and overwrite each other's progress.
         let ccr_cursor = Arc::new(
             store
                 .db

@@ -13,7 +13,7 @@ use tracing::{debug, instrument, warn};
 
 use hyperlane_core::{
     indexed_to_sequence_indexed_array, ContractSyncCursor, CursorAction, HyperlaneDomain,
-    HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, SequenceAwareIndexer,
+    HyperlaneSequenceAwareIndexerStore, IndexMode, Indexed, LogMeta, SequenceAwareIndexer,
     SequenceIndexed,
 };
 
@@ -32,7 +32,7 @@ pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
     /// establish targets to index towards.
     latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
     /// A store used to check which logs have already been indexed.
-    store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
+    store: Arc<dyn HyperlaneSequenceAwareIndexerStore<T>>,
     /// A snapshot of the last indexed log, or if no indexing has occurred yet,
     /// the initial log to start indexing forward from.
     last_indexed_snapshot: LastIndexedSnapshot,
@@ -71,7 +71,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
     pub fn new(
         chunk_size: u32,
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
-        store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
+        store: Arc<dyn HyperlaneSequenceAwareIndexerStore<T>>,
         next_sequence: u32,
         start_block: u32,
         index_mode: IndexMode,
@@ -463,6 +463,12 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
             .with(&labels)
             .set(max_sequence);
     }
+
+    pub async fn store_high_watermark(&self) -> Result<()> {
+        self.store
+            .store_high_watermark(self.latest_queried_block())
+            .await
+    }
 }
 
 #[async_trait]
@@ -532,7 +538,9 @@ impl<T: Send + Sync + Clone + Debug + Indexable + 'static> ContractSyncCursor<T>
 pub(crate) mod test {
     use derive_new::new;
     use hyperlane_core::{
-        ChainResult, HyperlaneDomainProtocol, HyperlaneLogStore, Indexed, Indexer, Sequenced,
+        ChainResult, HyperlaneDomainProtocol, HyperlaneLogStore,
+        HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, Indexed, Indexer,
+        Sequenced,
     };
 
     use crate::cursors::CursorType;
@@ -607,6 +615,19 @@ pub(crate) mod test {
                 .iter()
                 .find(|(log, _)| log.sequence() == Some(sequence))
                 .map(|(_, meta)| meta.block_number))
+        }
+    }
+
+    #[async_trait]
+    impl<T: Sequenced + Debug + Clone + Send + Sync + Indexable + 'static>
+        HyperlaneWatermarkedLogStore<T> for MockHyperlaneSequenceAwareIndexerStore<T>
+    {
+        async fn retrieve_high_watermark(&self) -> eyre::Result<Option<u32>> {
+            Ok(None)
+        }
+
+        async fn store_high_watermark(&self, _block_number: u32) -> eyre::Result<()> {
+            Ok(())
         }
     }
 

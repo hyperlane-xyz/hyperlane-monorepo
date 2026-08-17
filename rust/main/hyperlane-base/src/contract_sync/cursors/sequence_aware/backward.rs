@@ -11,7 +11,7 @@ use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
     indexed_to_sequence_indexed_array, ContractSyncCursor, CursorAction, HyperlaneDomain,
-    HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, SequenceAwareIndexer,
+    HyperlaneSequenceAwareIndexerStore, IndexMode, Indexed, LogMeta, SequenceAwareIndexer,
     SequenceIndexed,
 };
 
@@ -34,7 +34,7 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     /// The lowest block height or sequence of an entity which should be indexed.
     pub lowest_block_height_or_sequence: i64,
     /// A store used to check which logs have already been indexed.
-    store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
+    store: Arc<dyn HyperlaneSequenceAwareIndexerStore<T>>,
     /// A snapshot of the last log to be indexed, or if no indexing has occurred yet,
     /// the initial log to start indexing backward from.
     last_indexed_snapshot: LastIndexedSnapshot,
@@ -67,7 +67,7 @@ pub struct BackwardSequenceAwareSyncCursorParams<T> {
     pub chunk_size: u32,
     pub latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
     pub lowest_block_height_or_sequence: i64,
-    pub store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
+    pub store: Arc<dyn HyperlaneSequenceAwareIndexerStore<T>>,
     pub current_sequence_count: u32,
     pub start_block: u32,
     pub index_mode: IndexMode,
@@ -125,6 +125,10 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             domain,
             metrics,
         }
+    }
+
+    pub fn is_synced(&self) -> bool {
+        self.current_indexing_snapshot.is_none()
     }
 
     /// Get the last indexed sequence or 0 if no logs have been indexed yet.

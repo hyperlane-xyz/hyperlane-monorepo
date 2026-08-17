@@ -168,7 +168,10 @@ impl Settings {
     where
         T: Indexable + Debug,
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
-        S: HyperlaneLogStore<T> + HyperlaneSequenceAwareIndexerStoreReader<T> + 'static,
+        S: HyperlaneLogStore<T>
+            + HyperlaneSequenceAwareIndexerStoreReader<T>
+            + HyperlaneWatermarkedLogStore<T>
+            + 'static,
     {
         let setup = self.chain_setup(domain)?;
         // Currently, all indexers are of the `SequenceIndexer` type
