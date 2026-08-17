@@ -3,7 +3,8 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 
 use crate::tests::test_utils::{
-    are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them, tmp_dbs, MockAdapter,
+    are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them, dummy_tx, tmp_dbs,
+    MockAdapter,
 };
 use crate::{
     dispatcher::{metrics::DispatcherMetrics, PayloadDb, TransactionDb},
@@ -288,6 +289,39 @@ async fn test_post_finalized_not_called_when_tx_not_finalized() {
     // verify transactions remain in pool (not finalized)
     assert_eq!(txs_removed_from_pool.len(), 0);
     assert!(are_all_txs_in_pool(txs_created.clone(), &pool).await);
+}
+
+#[tokio::test]
+async fn test_successful_post_finalized_notifies_reprocess_poller() {
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter.expect_tx_status().times(0);
+    mock_adapter
+        .expect_reverted_payloads()
+        .returning(|_| Ok(Vec::new()));
+    mock_adapter.expect_post_finalized().returning(|| Ok(()));
+
+    let (payload_db, tx_db, _) = tmp_dbs();
+    let state = DispatcherState::new(
+        payload_db,
+        tx_db,
+        Arc::new(mock_adapter),
+        DispatcherMetrics::dummy_instance(),
+        "test".to_string(),
+    );
+    let tx = dummy_tx(Vec::new(), TransactionStatus::Finalized);
+    let pool = FinalityStagePool::new();
+    pool.insert(tx.clone()).await;
+
+    FinalityStage::try_process_tx(tx, pool, BuildingStageQueue::new(), &state)
+        .await
+        .unwrap();
+
+    tokio::time::timeout(
+        Duration::from_millis(10),
+        state.wait_for_reprocess_txs_activity(),
+    )
+    .await
+    .expect("finalization activity notification was not retained");
 }
 
 async fn set_up_test_and_run_stage(

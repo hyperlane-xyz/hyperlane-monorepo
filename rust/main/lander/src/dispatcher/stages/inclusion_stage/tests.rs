@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 use std::time::Duration;
 
 use tokio::sync::mpsc;
@@ -11,9 +14,221 @@ use crate::dispatcher::{
 use crate::error::LanderError;
 use crate::payload::{DropReason as PayloadDropReason, PayloadStatus};
 use crate::tests::test_utils::{
-    are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them, tmp_dbs, MockAdapter,
+    are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them, dummy_tx, tmp_dbs,
+    MockAdapter,
 };
 use crate::transaction::{DropReason as TxDropReason, Transaction, TransactionStatus};
+
+use super::{MAX_REPROCESS_TXS_POLL_RATE, REPROCESS_TXS_LIVENESS_RATE, STAGE_NAME};
+
+async fn yield_to_reprocess_task() {
+    tokio::task::yield_now().await;
+    tokio::task::yield_now().await;
+}
+
+fn reprocess_test_state(mock_adapter: MockAdapter) -> (DispatcherState, InclusionStagePool) {
+    let (payload_db, tx_db, _) = tmp_dbs();
+    let state = DispatcherState::new(
+        payload_db,
+        tx_db,
+        Arc::new(mock_adapter),
+        DispatcherMetrics::dummy_instance(),
+        "test".to_string(),
+    );
+    (state, Default::default())
+}
+
+#[tokio::test(start_paused = true)]
+async fn test_reprocess_empty_results_back_off_to_bounded_poll_rate() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calls_for_mock = calls.clone();
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_reprocess_txs_poll_rate()
+        .return_const(Some(Duration::from_secs(5)));
+    mock_adapter.expect_get_reprocess_txs().returning(move || {
+        calls_for_mock.fetch_add(1, Ordering::SeqCst);
+        Ok(Vec::new())
+    });
+    let (state, pool) = reprocess_test_state(mock_adapter);
+
+    let task = tokio::spawn(InclusionStage::receive_reprocess_txs(
+        "test".to_string(),
+        pool,
+        state,
+    ));
+    yield_to_reprocess_task().await;
+
+    for (expected_calls, delay) in [5, 10, 20, 40, 80, 160, 300, 300].into_iter().enumerate() {
+        tokio::time::advance(Duration::from_secs(delay - 1)).await;
+        yield_to_reprocess_task().await;
+        assert_eq!(calls.load(Ordering::SeqCst), expected_calls);
+
+        tokio::time::advance(Duration::from_secs(1)).await;
+        yield_to_reprocess_task().await;
+        assert_eq!(calls.load(Ordering::SeqCst), expected_calls + 1);
+    }
+
+    task.abort();
+}
+
+#[tokio::test(start_paused = true)]
+async fn test_reprocess_activity_wakeup_is_coalesced_and_resets_backoff() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calls_for_mock = calls.clone();
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_reprocess_txs_poll_rate()
+        .return_const(Some(Duration::from_secs(5)));
+    mock_adapter.expect_get_reprocess_txs().returning(move || {
+        calls_for_mock.fetch_add(1, Ordering::SeqCst);
+        Ok(Vec::new())
+    });
+    let (state, pool) = reprocess_test_state(mock_adapter);
+
+    // A notification just before the poller waits is retained. Multiple local
+    // activity notifications coalesce into one immediate check.
+    state.notify_reprocess_txs_activity();
+    state.notify_reprocess_txs_activity();
+    let task = tokio::spawn(InclusionStage::receive_reprocess_txs(
+        "test".to_string(),
+        pool,
+        state.clone(),
+    ));
+    yield_to_reprocess_task().await;
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+    tokio::time::advance(Duration::from_secs(10)).await;
+    yield_to_reprocess_task().await;
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+
+    // The poller is now waiting for 20s. Activity wakes it halfway through,
+    // then the successful empty check starts backoff again from the 5s base.
+    tokio::time::advance(Duration::from_secs(10)).await;
+    state.notify_reprocess_txs_activity();
+    yield_to_reprocess_task().await;
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+
+    tokio::time::advance(Duration::from_secs(9)).await;
+    yield_to_reprocess_task().await;
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+    tokio::time::advance(Duration::from_secs(1)).await;
+    yield_to_reprocess_task().await;
+    assert_eq!(calls.load(Ordering::SeqCst), 4);
+
+    task.abort();
+}
+
+#[tokio::test(start_paused = true)]
+async fn test_reprocess_long_idle_wait_keeps_liveness_without_polling() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calls_for_mock = calls.clone();
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_reprocess_txs_poll_rate()
+        .return_const(Some(MAX_REPROCESS_TXS_POLL_RATE));
+    mock_adapter.expect_get_reprocess_txs().returning(move || {
+        calls_for_mock.fetch_add(1, Ordering::SeqCst);
+        Ok(Vec::new())
+    });
+    let (state, pool) = reprocess_test_state(mock_adapter);
+    let metrics = state.metrics.clone();
+    let stage = format!("{STAGE_NAME}::receive_reprocess_txs");
+    let task = tokio::spawn(InclusionStage::receive_reprocess_txs(
+        "test".to_string(),
+        pool,
+        state.clone(),
+    ));
+    yield_to_reprocess_task().await;
+
+    metrics
+        .task_liveness
+        .remove_label_values(&["test", &stage])
+        .unwrap();
+    assert!(!String::from_utf8(metrics.gather().unwrap())
+        .unwrap()
+        .contains(&stage));
+
+    tokio::time::advance(REPROCESS_TXS_LIVENESS_RATE).await;
+    yield_to_reprocess_task().await;
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    assert!(String::from_utf8(metrics.gather().unwrap())
+        .unwrap()
+        .contains(&stage));
+
+    state.notify_reprocess_txs_activity();
+    yield_to_reprocess_task().await;
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+    task.abort();
+}
+
+#[tokio::test(start_paused = true)]
+async fn test_reprocess_nonempty_and_error_results_reset_backoff() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calls_for_mock = calls.clone();
+    let reprocessed_tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+    let tx_for_mock = reprocessed_tx.clone();
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_reprocess_txs_poll_rate()
+        .return_const(Some(Duration::from_secs(5)));
+    mock_adapter.expect_get_reprocess_txs().returning(move || {
+        let call = calls_for_mock.fetch_add(1, Ordering::SeqCst) + 1;
+        match call {
+            2 => Err(LanderError::NetworkError("test error".to_string())),
+            4 => Ok(vec![tx_for_mock.clone()]),
+            _ => Ok(Vec::new()),
+        }
+    });
+    let (state, pool) = reprocess_test_state(mock_adapter);
+    let task = tokio::spawn(InclusionStage::receive_reprocess_txs(
+        "test".to_string(),
+        pool.clone(),
+        state,
+    ));
+    yield_to_reprocess_task().await;
+
+    tokio::time::advance(Duration::from_secs(5)).await;
+    yield_to_reprocess_task().await;
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    tokio::time::advance(Duration::from_secs(10)).await;
+    yield_to_reprocess_task().await;
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+
+    // An error restores the 5s base instead of suppressing retries.
+    tokio::time::advance(Duration::from_secs(5)).await;
+    yield_to_reprocess_task().await;
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+    tokio::time::advance(Duration::from_secs(10)).await;
+    yield_to_reprocess_task().await;
+    assert_eq!(calls.load(Ordering::SeqCst), 4);
+    assert!(pool.lock().await.contains_key(&reprocessed_tx.uuid));
+
+    // Finding work also restores the 5s base.
+    tokio::time::advance(Duration::from_secs(5)).await;
+    yield_to_reprocess_task().await;
+    assert_eq!(calls.load(Ordering::SeqCst), 5);
+
+    task.abort();
+}
+
+#[tokio::test]
+async fn test_successful_submission_notifies_reprocess_poller() {
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter.expect_submit().returning(|_| Ok(()));
+    let (state, _) = reprocess_test_state(mock_adapter);
+    let tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+
+    InclusionStage::submit_tx(&tx, &state).await.unwrap();
+
+    tokio::time::timeout(
+        Duration::from_millis(10),
+        state.wait_for_reprocess_txs_activity(),
+    )
+    .await
+    .expect("submission activity notification was not retained");
+}
 
 #[tokio::test]
 async fn test_processing_included_txs() {
