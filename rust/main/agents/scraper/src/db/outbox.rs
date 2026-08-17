@@ -41,14 +41,16 @@ struct OutboxSourceRow {
 impl ScraperDb {
     /// Build outbox rows up to the current safe indexed position for a domain.
     ///
-    /// If no outbox indexing checkpoint exists yet, this starts from position 0 and
-    /// backfills all currently indexed rows through the safe position.
+    /// If no outbox indexing checkpoint exists yet, this starts from the first
+    /// indexed block for the domain and backfills through the safe position.
     #[instrument(skip(self))]
     pub async fn build_outbox(&self, domain: u32) -> Result<u64> {
         let Some(safe_position) = self.safe_outbox_position(domain).await? else {
             return Ok(0);
         };
-        let last_position = self.last_outbox_position(domain).await?;
+        let Some(last_position) = self.last_outbox_position(domain).await? else {
+            return Ok(0);
+        };
         if safe_position <= last_position {
             return Ok(0);
         }
@@ -164,8 +166,8 @@ impl ScraperDb {
         Ok(heights.into_iter().min())
     }
 
-    async fn last_outbox_position(&self, domain: u32) -> Result<i64> {
-        let position = outbox::Entity::find()
+    async fn last_outbox_position(&self, domain: u32) -> Result<Option<i64>> {
+        if let Some(position) = outbox::Entity::find()
             .filter(outbox::Column::Domain.eq(domain))
             .filter(outbox::Column::EventType.eq(OUTBOX_INDEXING_CHECKPOINT_EVENT_TYPE))
             .order_by(outbox::Column::Position, Order::Desc)
@@ -174,8 +176,25 @@ impl ScraperDb {
             .into_tuple::<i64>()
             .one(&self.0)
             .await?
-            .unwrap_or(0);
-        Ok(position)
+        {
+            return Ok(Some(position));
+        }
+
+        Ok(self
+            .first_indexed_block(domain)
+            .await?
+            .map(|height| height.saturating_sub(1)))
+    }
+
+    async fn first_indexed_block(&self, domain: u32) -> Result<Option<i64>> {
+        Ok(block::Entity::find()
+            .filter(block::Column::Domain.eq(domain))
+            .select_only()
+            .column_as(block::Column::Height.min(), "height")
+            .into_tuple::<Option<i64>>()
+            .one(&self.0)
+            .await?
+            .flatten())
     }
 
     async fn message_outbox_rows(
