@@ -48,9 +48,6 @@ catalogs:
     '@google-cloud/pino-logging-gcp-config':
       specifier: ^1.3.5
       version: 1.3.5
-    '@hyperlane-xyz/registry':
-      specifier: 25.3.0
-      version: 25.3.0
     '@inquirer/prompts':
       specifier: 3.3.2
       version: 3.3.2
@@ -590,8 +587,8 @@ importers:
         specifier: workspace:*
         version: link:../metrics
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
-        version: 25.3.0
+        specifier: 25.5.0
+        version: 25.5.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -741,8 +738,8 @@ importers:
         specifier: workspace:*
         version: link:../rebalancer
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
-        version: 25.3.0
+        specifier: 25.5.0
+        version: 25.5.0
       '@hyperlane-xyz/relayer':
         specifier: workspace:*
         version: link:../relayer
@@ -1062,8 +1059,8 @@ importers:
         specifier: workspace:*
         version: link:../provider-sdk
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
-        version: 25.3.0
+        specifier: 25.5.0
+        version: 25.5.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -1211,8 +1208,8 @@ importers:
         specifier: workspace:*
         version: link:../../solidity
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
-        version: 25.3.0
+        specifier: 25.5.0
+        version: 25.5.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -1323,8 +1320,8 @@ importers:
         specifier: 'catalog:'
         version: 1.3.5(supports-color@10.2.2)
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
-        version: 25.3.0
+        specifier: 25.5.0
+        version: 25.5.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -1465,8 +1462,8 @@ importers:
         specifier: workspace:*
         version: link:../rebalancer
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
-        version: 25.3.0
+        specifier: 25.5.0
+        version: 25.5.0
       '@hyperlane-xyz/relayer':
         specifier: workspace:*
         version: link:../relayer
@@ -1679,8 +1676,8 @@ importers:
         specifier: workspace:*
         version: link:../metrics
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
-        version: 25.3.0
+        specifier: 25.5.0
+        version: 25.5.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -1932,8 +1929,8 @@ importers:
         specifier: workspace:*
         version: link:../provider-sdk
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
-        version: 25.3.0
+        specifier: 25.5.0
+        version: 25.5.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -2059,8 +2056,8 @@ importers:
         specifier: workspace:*
         version: link:../rebalancer
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
-        version: 25.3.0
+        specifier: 25.5.0
+        version: 25.5.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -2129,8 +2126,8 @@ importers:
         specifier: workspace:*
         version: link:../metrics
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
-        version: 25.3.0
+        specifier: 25.5.0
+        version: 25.5.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -2562,8 +2559,8 @@ importers:
         specifier: workspace:*
         version: link:../provider-sdk
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
-        version: 25.3.0
+        specifier: 25.5.0
+        version: 25.5.0
       '@hyperlane-xyz/utils':
         specifier: workspace:*
         version: link:../utils
@@ -2722,8 +2719,8 @@ importers:
         specifier: workspace:*
         version: link:../metrics
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
-        version: 25.3.0
+        specifier: 25.5.0
+        version: 25.5.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -2922,8 +2919,8 @@ importers:
         specifier: ^11.13.0
         version: 11.14.1(@emotion/react@11.14.0(@types/react@18.3.27)(react@18.3.1)(supports-color@10.2.2))(@types/react@18.3.27)(react@18.3.1)(supports-color@10.2.2)
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
-        version: 25.3.0
+        specifier: 25.5.0
+        version: 25.5.0
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
@@ -5121,8 +5118,8 @@ packages:
     resolution: {integrity: sha512-RE815I4arJFtt+FVeU1Tgp9/Xvecacji8w/V6XtXsWWH/wz/eNkNbhb+ny/+PlVZjV0rxQpRSQKNKE3lcktHEA==}
     engines: {node: '>=10.10.0'}
 
-  '@hyperlane-xyz/registry@25.3.0':
-    resolution: {integrity: sha512-LkMxVYj30aoWDs8wLTV1KItBAiwhhlfJ6EYemh5WsQrFrI9Eo4g0Z0qKVMSBlt26Fq2uPRFpK2+2xdpTNSSQ0g==}
+  '@hyperlane-xyz/registry@25.5.0':
+    resolution: {integrity: sha512-U6C8jW548XjdYhAT301gAkl3g8nSY6psFMrZ45sjcNDXG+xkFtiOjuRqd0rjld5K0OSNYs5vUB+kP5BoKuzKUA==}
     engines: {node: '>=24'}
 
   '@img/sharp-darwin-arm64@0.33.5':
@@ -20149,11 +20146,11 @@ snapshots:
 
   '@humanwhocodes/momoa@2.0.4': {}
 
-  '@hyperlane-xyz/registry@25.3.0':
+  '@hyperlane-xyz/registry@25.5.0':
     dependencies:
       jszip: 3.10.1
       pino: 8.21.0
-      yaml: 2.4.5
+      yaml: 2.9.0
       zod: 3.25.76
 
   '@img/sharp-darwin-arm64@0.33.5':
