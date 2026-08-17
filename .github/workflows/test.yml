@@ -530,7 +530,6 @@ jobs:
           CHANGES=$(git status -s . :/rust/main/config)
           if [[ ! -z $CHANGES ]]; then
             echo "Changes found in agent config: $CHANGES"
-            git diff -- . :/rust/main/config
             exit 1
           fi
 
