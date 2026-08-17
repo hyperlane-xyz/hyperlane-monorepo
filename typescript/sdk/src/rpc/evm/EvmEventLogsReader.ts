@@ -29,6 +29,9 @@ export type EvmEventLogsReaderConfig = {
   useRPC?: boolean;
   // Specifies how many blocks can be retrieved to read the logs in a single batch
   paginationBlockRange?: number;
+  // Explorer-to-explorer fallback by strategy method. Missing options enable
+  // fallback; set a method to false to use only the primary explorer.
+  explorerFallback?: ExplorerFallbackConfig;
 };
 
 export const GetLogByTopicOptionsSchema = z.object({
@@ -75,6 +78,10 @@ interface IEvmEventLogsReaderStrategy {
     address: RequiredGetLogByTopicOptions,
   ): Promise<GetEventLogsResponse[]>;
 }
+
+export type ExplorerFallbackConfig = Partial<
+  Record<keyof IEvmEventLogsReaderStrategy, boolean>
+>;
 
 export class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrategy {
   constructor(
@@ -158,6 +165,76 @@ export class EvmRpcEventLogsReader implements IEvmEventLogsReaderStrategy {
   }
 }
 
+class ExplorerFallbackError extends Error {
+  readonly isRecoverable: false | undefined;
+
+  constructor(
+    chain: ChainNameOrId,
+    readonly errors: readonly unknown[],
+  ) {
+    super(`All configured block explorers failed on chain "${chain}"`, {
+      cause: errors.at(-1),
+    });
+    this.isRecoverable = errors.every(
+      (error) =>
+        typeof error === 'object' &&
+        error !== null &&
+        Reflect.get(error, 'isRecoverable') === false,
+    )
+      ? false
+      : undefined;
+  }
+}
+
+export class FallbackEvmEventLogsReader implements IEvmEventLogsReaderStrategy {
+  constructor(
+    protected readonly chain: ChainNameOrId,
+    protected readonly readers: EvmEtherscanLikeEventLogsReader[],
+    protected readonly logger: Logger,
+    protected readonly config: ExplorerFallbackConfig = {},
+  ) {
+    assert(readers.length > 0, 'At least one explorer reader is required');
+  }
+
+  private async executeWithFallback<T>(
+    operation: (reader: EvmEtherscanLikeEventLogsReader) => Promise<T>,
+    fallbackEnabled: boolean,
+  ): Promise<T> {
+    if (!fallbackEnabled) return operation(this.readers[0]);
+
+    const errors: unknown[] = [];
+    for (const [explorerIndex, reader] of this.readers.entries()) {
+      try {
+        return await operation(reader);
+      } catch (error) {
+        errors.push(error);
+        this.logger.debug(
+          { err: error, explorerIndex },
+          `Block explorer request failed on chain "${this.chain}"`,
+        );
+      }
+    }
+
+    throw new ExplorerFallbackError(this.chain, errors);
+  }
+
+  getContractDeploymentBlockNumber(address: Address): Promise<number> {
+    return this.executeWithFallback(
+      (reader) => reader.getContractDeploymentBlockNumber(address),
+      this.config.getContractDeploymentBlockNumber ?? true,
+    );
+  }
+
+  getContractLogs(
+    options: RequiredGetLogByTopicOptions,
+  ): Promise<GetEventLogsResponse[]> {
+    return this.executeWithFallback(
+      (reader) => reader.getContractLogs(options),
+      this.config.getContractLogs ?? true,
+    );
+  }
+}
+
 export class EvmEventLogsReader {
   private deploymentBlockCache: Map<string, number> = new Map();
   private explorerDeploymentBlockCache: Map<string, number> = new Map();
@@ -177,15 +254,26 @@ export class EvmEventLogsReader {
       module: EvmEventLogsReader.name,
     }),
   ) {
-    const explorer = multiProvider.tryGetEvmExplorerMetadata(config.chain);
+    const explorers = config.useRPC
+      ? []
+      : multiProvider.tryGetEvmExplorerMetadataList(config.chain);
+    const explorerReaders = explorers.map(
+      (explorer) =>
+        new EvmEtherscanLikeEventLogsReader(
+          config.chain,
+          explorer,
+          multiProvider,
+        ),
+    );
 
     let logReaderStrategy: IEvmEventLogsReaderStrategy;
     let fallbackLogReaderSrategy: IEvmEventLogsReaderStrategy | undefined;
-    if (explorer && !config.useRPC) {
-      logReaderStrategy = new EvmEtherscanLikeEventLogsReader(
+    if (explorerReaders.length > 0) {
+      logReaderStrategy = new FallbackEvmEventLogsReader(
         config.chain,
-        explorer,
-        multiProvider,
+        explorerReaders,
+        logger,
+        config.explorerFallback,
       );
 
       fallbackLogReaderSrategy = new EvmRpcEventLogsReader(
@@ -213,8 +301,9 @@ export class EvmEventLogsReader {
   async getContractDeploymentBlockFromExplorer(
     contractAddress: Address,
   ): Promise<number> {
+    const explorerReader = this.logReaderStrategy;
     assert(
-      this.logReaderStrategy instanceof EvmEtherscanLikeEventLogsReader,
+      explorerReader instanceof FallbackEvmEventLogsReader,
       `No block explorer is configured for chain ${this.config.chain}`,
     );
 
@@ -224,7 +313,7 @@ export class EvmEventLogsReader {
     // Do not use deploymentBlockCache here: an earlier read may have populated
     // it from RPC bisection after an explorer failure.
     const block = await retryAsync(() =>
-      this.logReaderStrategy.getContractDeploymentBlockNumber(contractAddress),
+      explorerReader.getContractDeploymentBlockNumber(contractAddress),
     );
     this.explorerDeploymentBlockCache.set(contractAddress, block);
     this.deploymentBlockCache.set(contractAddress, block);
