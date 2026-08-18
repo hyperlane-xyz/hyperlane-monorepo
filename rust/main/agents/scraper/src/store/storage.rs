@@ -11,7 +11,7 @@ use itertools::Itertools;
 use prometheus::IntCounterVec;
 use tracing::{trace, warn};
 
-use hyperlane_base::settings::IndexSettings;
+use hyperlane_base::settings::{CoreContractAddresses, IndexSettings};
 use hyperlane_core::{
     BlockId, BlockInfo, HyperlaneDomain, HyperlaneLogStore, HyperlaneProvider,
     HyperlaneWatermarkedLogStore, LogMeta, H256, H512,
@@ -33,6 +33,7 @@ pub struct HyperlaneDbStore {
     pub(crate) domain: HyperlaneDomain,
     pub(crate) mailbox_address: H256,
     pub(crate) interchain_gas_paymaster_address: H256,
+    pub(crate) merkle_tree_hook_address: H256,
     provider: Arc<dyn HyperlaneProvider>,
     cursor: Arc<BlockCursor>,
     /// Metric for tracking raw message dispatches stored (used for CCTP availability)
@@ -44,8 +45,7 @@ impl HyperlaneDbStore {
     pub async fn new(
         db: ScraperDb,
         domain: HyperlaneDomain,
-        mailbox_address: H256,
-        interchain_gas_paymaster_address: H256,
+        addresses: CoreContractAddresses,
         provider: Arc<dyn HyperlaneProvider>,
         index_settings: &IndexSettings,
         stored_events_metric: Option<IntCounterVec>,
@@ -57,8 +57,9 @@ impl HyperlaneDbStore {
         Ok(Self {
             db,
             domain,
-            mailbox_address,
-            interchain_gas_paymaster_address,
+            mailbox_address: addresses.mailbox,
+            interchain_gas_paymaster_address: addresses.interchain_gas_paymaster,
+            merkle_tree_hook_address: addresses.merkle_tree_hook,
             provider,
             cursor,
             stored_events_metric,

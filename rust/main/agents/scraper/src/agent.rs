@@ -10,7 +10,7 @@ use derive_more::AsRef;
 use futures::{future::try_join_all, FutureExt};
 use hyperlane_core::{
     rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, InterchainGasPayment, SameChainCcrSwap, H512,
+    HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, SameChainCcrSwap, H512,
 };
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{
@@ -280,6 +280,17 @@ impl Scraper {
             .await?;
         tasks.push(gas_payment_indexer);
 
+        tasks.push(
+            self.build_merkle_tree_insertion_indexer(
+                domain.clone(),
+                self.core_metrics.clone(),
+                self.contract_sync_metrics.clone(),
+                store.clone(),
+                index_settings.clone(),
+            )
+            .await?,
+        );
+
         tasks.push(self.build_raw_dispatch_reconciler(
             domain.clone(),
             self.contract_sync_metrics.clone(),
@@ -325,8 +336,7 @@ impl Scraper {
         let store = HyperlaneDbStore::new(
             scraper_db,
             domain.clone(),
-            chain_setup.addresses.mailbox,
-            chain_setup.addresses.interchain_gas_paymaster,
+            chain_setup.addresses.clone(),
             provider,
             &chain_setup.index.clone(),
             Some(contract_sync_metrics.stored_events.clone()),
@@ -592,6 +602,33 @@ impl Scraper {
                     .await
             }
             .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label)),
+        ))
+    }
+
+    async fn build_merkle_tree_insertion_indexer(
+        &self,
+        domain: HyperlaneDomain,
+        metrics: Arc<CoreMetrics>,
+        contract_sync_metrics: Arc<ContractSyncMetrics>,
+        store: HyperlaneDbStore,
+        index_settings: IndexSettings,
+    ) -> eyre::Result<JoinHandle<()>> {
+        let label = "merkle_tree_insertion";
+        let sync = self
+            .settings
+            .sequenced_contract_sync::<MerkleTreeInsertion, _>(
+                &domain,
+                &metrics,
+                &contract_sync_metrics,
+                store.into(),
+                false,
+                false,
+            )
+            .await?;
+        let cursor = sync.cursor(index_settings).await?;
+        Ok(tokio::spawn(
+            async move { sync.sync(label, cursor.into()).await }
+                .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label)),
         ))
     }
 
