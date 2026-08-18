@@ -7,7 +7,6 @@ import { Contexts } from '../config/contexts.js';
 import {
   agents as mainnet3Agents,
   hyperlaneContextAgentChainConfig as mainnet3AgentChainConfig,
-  scraperOnlyChains as mainnet3ScraperOnlyChains,
 } from '../config/environments/mainnet3/agent.js';
 import { mainnet3SupportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
 import {
@@ -20,7 +19,6 @@ import {
   AgentChainConfig,
   ensureAgentChainConfigIncludesAllChainNames,
 } from '../src/config/agent/agent.js';
-import { getCombinedChainsToScrape } from '../src/config/agent/scraper.js';
 import { AgentEnvironment } from '../src/config/deploy-environment.js';
 
 const environmentChainConfigs = {
@@ -71,19 +69,11 @@ describe('Agent configs', () => {
         const agentJsonConfigChains = Object.keys(
           config.agentJsonConfig.chains,
         );
-        if (environment === 'mainnet3') {
-          expect(agentJsonConfigChains).to.have.members(
-            getCombinedChainsToScrape(
-              [...config.supportedChainNames],
-              mainnet3ScraperOnlyChains,
-            ),
-          );
-        } else {
-          // testnet may retain chains that are not currently operated by AW.
-          expect(agentJsonConfigChains).to.include.members(
-            config.supportedChainNames,
-          );
-        }
+        // Allow for the agent JSON config to be a superset of the supported
+        // chain names, as AW may not always run agents for all chains.
+        expect(agentJsonConfigChains).to.include.members(
+          config.supportedChainNames,
+        );
       });
     });
   });

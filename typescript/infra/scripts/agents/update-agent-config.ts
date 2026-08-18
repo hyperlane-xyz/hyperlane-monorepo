@@ -273,13 +273,6 @@ export async function writeAgentConfig(
     // Replace ccrRouters with the freshly computed value so removed routers
     // don't persist across regenerations (objMerge would otherwise keep stale entries).
     delete (currentAgentConfig as Record<string, unknown>).ccrRouters;
-    // Mainnet config must drop removed chains. Testnet intentionally retains
-    // historical chains that AW does not currently operate.
-    if (environment === 'mainnet3') {
-      for (const chain of Object.keys(currentAgentConfig.chains)) {
-        if (!fullConfig.chains[chain]) delete currentAgentConfig.chains[chain];
-      }
-    }
     writeAndFormatJsonAtPath(
       filepath,
       objMerge(currentAgentConfig, fullConfig),
