@@ -10,6 +10,7 @@ use std::{
 use async_rwlock::RwLock;
 use async_trait::async_trait;
 use derive_new::new;
+use futures::lock::Mutex;
 use itertools::Itertools;
 use tokio;
 use tracing::{info, warn, warn_span};
@@ -81,6 +82,8 @@ pub struct FallbackProvider<T, B> {
     pub inner: Arc<PrioritizedProviders<T>>,
     max_block_time: Duration,
     call_timeout: Duration,
+    /// Serializes block-height probes for each provider.
+    block_height_probe_locks: Arc<Vec<Mutex<()>>>,
     _phantom: PhantomData<B>,
 }
 
@@ -102,6 +105,7 @@ impl<T, B> Clone for FallbackProvider<T, B> {
             inner: self.inner.clone(),
             max_block_time: self.max_block_time,
             call_timeout: self.call_timeout,
+            block_height_probe_locks: self.block_height_probe_locks.clone(),
             _phantom: PhantomData,
         }
     }
@@ -160,6 +164,19 @@ where
         }
     }
 
+    async fn priority_for_provider(
+        &self,
+        provider_index: usize,
+    ) -> Option<PrioritizedProviderInner> {
+        self.inner
+            .priorities
+            .read()
+            .await
+            .iter()
+            .find(|priority| priority.index == provider_index)
+            .copied()
+    }
+
     /// Used to iterate the providers in a non-blocking way
     pub async fn take_priorities_snapshot(&self) -> Vec<PrioritizedProviderInner> {
         let read_lock = self.inner.priorities.read().await;
@@ -173,8 +190,7 @@ where
         priority: &PrioritizedProviderInner,
         provider: &T,
     ) -> ChainResult<()> {
-        let now = Instant::now();
-        if now
+        if Instant::now()
             .duration_since(priority.last_block_height.1)
             .le(&self.max_block_time)
         {
@@ -182,29 +198,49 @@ where
             return Ok(());
         }
 
+        // Multiple requests can share the same stale priorities snapshot. Only
+        // one of them should probe a provider; the rest re-check current state.
+        let Some(_probe_guard) = self.block_height_probe_locks[priority.index].try_lock() else {
+            return Ok(());
+        };
+        let Some(current_priority) = self.priority_for_provider(priority.index).await else {
+            return Err(crate::ChainCommunicationError::from_other_str(
+                "fallback provider priority is missing",
+            ));
+        };
+        if Instant::now()
+            .duration_since(current_priority.last_block_height.1)
+            .le(&self.max_block_time)
+        {
+            return Ok(());
+        }
+
         let block_getter: B = provider.clone().into();
         let current_block_height =
             match tokio::time::timeout(self.call_timeout, block_getter.get_block_number()).await {
-                Ok(result) => result.unwrap_or(priority.last_block_height.0),
+                Ok(result) => result.unwrap_or(current_priority.last_block_height.0),
                 Err(_) => {
                     return Err(crate::ChainCommunicationError::from_other_str(
                         "fallback provider call timed out",
                     ))
                 }
             };
-        if current_block_height <= priority.last_block_height.0 {
-            let new_priority = priority.reset_failed_count();
+        if current_block_height <= current_priority.last_block_height.0 {
+            let new_priority = PrioritizedProviderInner::from_block_height(
+                current_priority.index,
+                current_priority.last_block_height.0,
+            );
 
             // The `max_block_time` elapsed but the block number returned by the provider has not increased
             self.deprioritize_provider(new_priority).await;
             info!(
-                provider_index=%priority.index,
-                provider=?self.inner.providers[priority.index],
+                provider_index=%current_priority.index,
+                provider=?self.inner.providers[current_priority.index],
                 reason="Block height low",
                 "Deprioritizing an inner provider in FallbackProvider",
             );
         } else {
-            self.update_last_seen_block(priority.index, current_block_height)
+            self.update_last_seen_block(current_priority.index, current_block_height)
                 .await;
         }
         Ok(())
@@ -351,6 +387,9 @@ impl<T, B> FallbackProviderBuilder<T, B> {
             inner: Arc::new(prioritized_providers),
             max_block_time: self.max_block_time,
             call_timeout: self.call_timeout,
+            block_height_probe_locks: Arc::new(
+                (0..provider_count).map(|_| Mutex::new(())).collect(),
+            ),
             _phantom: PhantomData,
         }
     }
@@ -360,7 +399,10 @@ impl<T, B> FallbackProviderBuilder<T, B> {
 pub mod test {
     use std::{
         ops::Deref,
-        sync::{Arc, Mutex},
+        sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc, Mutex,
+        },
     };
 
     use super::*;
@@ -373,6 +415,7 @@ pub mod test {
         // for interior mutability in `JsonRpcClient::request`
         requests: Arc<Mutex<Vec<(String, String)>>>,
         request_sleep: Option<Duration>,
+        block_height_requests: Arc<AtomicUsize>,
     }
 
     impl Default for ProviderMock {
@@ -380,6 +423,7 @@ pub mod test {
             Self {
                 requests: Arc::new(Mutex::new(vec![])),
                 request_sleep: None,
+                block_height_requests: Arc::new(AtomicUsize::new(0)),
             }
         }
     }
@@ -414,6 +458,11 @@ pub mod test {
             self.request_sleep
         }
 
+        /// Get the number of block-height probes.
+        pub fn block_height_requests(&self) -> usize {
+            self.block_height_requests.load(Ordering::Relaxed)
+        }
+
         /// Get how many times each provider was called
         pub async fn get_call_counts<T: Deref<Target = ProviderMock>, B>(
             fallback_provider: &FallbackProvider<T, B>,
@@ -442,6 +491,7 @@ pub mod test {
     #[async_trait::async_trait]
     impl BlockNumberGetter for ProviderMock {
         async fn get_block_number(&self) -> ChainResult<u64> {
+            self.block_height_requests.fetch_add(1, Ordering::Relaxed);
             if let Some(sleep) = self.request_sleep {
                 tokio::time::sleep(sleep).await;
             }
@@ -573,5 +623,107 @@ pub mod test {
             .map(|p| fallback_provider.inner.providers[p.index].requests().len())
             .collect();
         assert_eq!(call_counts[1], 1, "provider2 should have been tried");
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_stale_snapshots_share_block_height_probe() {
+        let provider = ProviderMock::new(Some(Duration::from_millis(50)));
+        let fallback_provider: FallbackProvider<ProviderMock, ProviderMock> =
+            FallbackProvider::builder()
+                .add_provider(provider.clone())
+                .with_max_block_time(Duration::from_secs(60))
+                .build();
+
+        let stale_priority = {
+            let mut priorities = fallback_provider.inner.priorities.write().await;
+            priorities[0].last_block_height.1 = Instant::now() - Duration::from_secs(61);
+            priorities[0]
+        };
+
+        let probes = (0..20)
+            .map(|_| {
+                let fallback_provider = fallback_provider.clone();
+                let provider = provider.clone();
+                tokio::spawn(async move {
+                    fallback_provider
+                        .handle_stalled_provider(&stale_priority, &provider)
+                        .await
+                })
+            })
+            .collect_vec();
+        for probe in probes {
+            probe
+                .await
+                .expect("probe task should complete")
+                .expect("block-height probe should succeed");
+        }
+
+        assert_eq!(provider.block_height_requests(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_low_block_height_probe_observes_cooldown() {
+        let provider1 = ProviderMock::default();
+        let provider2 = ProviderMock::default();
+        let fallback_provider: FallbackProvider<ProviderMock, ProviderMock> =
+            FallbackProvider::builder()
+                .add_providers([provider1.clone(), provider2])
+                .with_max_block_time(Duration::from_secs(60))
+                .build();
+
+        let stale_priority = {
+            let mut priorities = fallback_provider.inner.priorities.write().await;
+            priorities[0].last_block_height = (100, Instant::now() - Duration::from_secs(61));
+            priorities[0]
+        };
+        fallback_provider
+            .handle_stalled_provider(&stale_priority, &provider1)
+            .await
+            .expect("first block-height probe should succeed");
+        fallback_provider
+            .handle_stalled_provider(&stale_priority, &provider1)
+            .await
+            .expect("second block-height check should observe cooldown");
+
+        assert_eq!(provider1.block_height_requests(), 1);
+        let priorities = fallback_provider.take_priorities_snapshot().await;
+        assert_eq!(
+            priorities
+                .iter()
+                .map(|priority| priority.index)
+                .collect_vec(),
+            [1, 0]
+        );
+        assert!(
+            Instant::now().duration_since(priorities[1].last_block_height.1)
+                < Duration::from_secs(60)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_timed_out_block_height_probe_can_be_retried() {
+        let provider = ProviderMock::new(Some(Duration::from_secs(5)));
+        let fallback_provider: FallbackProvider<ProviderMock, ProviderMock> =
+            FallbackProvider::builder()
+                .add_provider(provider.clone())
+                .with_max_block_time(Duration::from_secs(60))
+                .with_call_timeout(Duration::from_millis(10))
+                .build();
+
+        let stale_priority = {
+            let mut priorities = fallback_provider.inner.priorities.write().await;
+            priorities[0].last_block_height.1 = Instant::now() - Duration::from_secs(61);
+            priorities[0]
+        };
+        assert!(fallback_provider
+            .handle_stalled_provider(&stale_priority, &provider)
+            .await
+            .is_err());
+        assert!(fallback_provider
+            .handle_stalled_provider(&stale_priority, &provider)
+            .await
+            .is_err());
+
+        assert_eq!(provider.block_height_requests(), 2);
     }
 }

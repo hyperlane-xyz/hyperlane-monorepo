@@ -54,7 +54,7 @@ uuid = { workspace = true, features = ["v4", "serde"] }
 hyperlane-application = { path = "../applications/hyperlane-application" }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["rt", "time"] }
+tokio = { workspace = true, features = ["macros", "rt", "time"] }
 
 [features]
 default = ["strum"]
