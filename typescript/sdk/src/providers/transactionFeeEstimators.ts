@@ -157,24 +157,34 @@ export async function estimateTransactionFeeSolanaWeb3({
 }): Promise<TransactionFeeEstimate> {
   const connection = provider.provider;
   const inner = transaction.transaction;
+  const message =
+    inner instanceof VersionedTransaction
+      ? inner.message
+      : inner.compileMessage();
   // The two arms are intentionally identical: `Connection.simulateTransaction`
   // has separate overloads for legacy `Transaction` and `VersionedTransaction`
   // and the union satisfies neither, so we branch purely to narrow `inner` to a
   // concrete type and let overload resolution pick the matching signature.
-  const { value } =
+  const simulation =
     inner instanceof VersionedTransaction
-      ? await connection.simulateTransaction(inner)
-      : await connection.simulateTransaction(inner);
+      ? connection.simulateTransaction(inner)
+      : connection.simulateTransaction(inner);
+  const [{ value }, feeResponse] = await Promise.all([
+    simulation,
+    connection.getFeeForMessage(message),
+  ]);
   assert(!value.err, `Solana gas estimation failed: ${JSON.stringify(value)}`);
-  const gasUnits = BigInt(value.unitsConsumed || 0);
-  const recentFees = await connection.getRecentPrioritizationFees();
-  // prioritizationFee is in micro-lamports per compute unit; divide by 1e6 to get lamports
-  const microLamportsPerCu = BigInt(recentFees[0]?.prioritizationFee ?? 0);
-  const fee = (gasUnits * microLamportsPerCu) / 1_000_000n;
+  const gasUnits = BigInt(value.unitsConsumed ?? 0);
+  assert(
+    feeResponse.value !== null,
+    'Solana transaction fee estimation failed',
+  );
   return {
     gasUnits,
-    gasPrice: microLamportsPerCu,
-    fee,
+    // Solana's message fee includes fixed signature and optional priority fees,
+    // so it cannot be represented as one price per consumed compute unit.
+    gasPrice: 0n,
+    fee: BigInt(feeResponse.value),
   };
 }
 

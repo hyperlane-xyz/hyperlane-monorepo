@@ -37,6 +37,7 @@ hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 reqwest.workspace = true
 testcontainers.workspace = true
 testcontainers-modules.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 tokio-test = "0.4"
 tracing-test.workspace = true
 ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }

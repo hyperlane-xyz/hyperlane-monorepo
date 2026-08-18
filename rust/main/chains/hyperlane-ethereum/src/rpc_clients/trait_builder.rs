@@ -4,7 +4,9 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use dashmap::DashMap;
-use ethers::middleware::gas_escalator::{Frequency, GasEscalatorMiddleware, GeometricGasPrice};
+use ethers::middleware::gas_escalator::{
+    Frequency, GasEscalatorMiddleware, GeometricGasPrice, InitialSendFailurePolicy,
+};
 use ethers::middleware::gas_oracle::{
     GasCategory, GasOracle, GasOracleMiddleware, Polygon, ProviderOracle,
 };
@@ -89,6 +91,18 @@ pub trait BuildableWithProvider {
     /// gas escalator, nonce manager. It defaults to true, since it's only Lander
     /// that doesn't require it.
     fn uses_ethers_submission_middleware(&self) -> bool {
+        true
+    }
+
+    /// Controls whether the gas escalator retains a transaction when its initial broadcast
+    /// returned an error and therefore no transaction hash. Most submission paths preserve the
+    /// historical retry behavior; callers with their own bounded retry loop may opt out.
+    fn gas_escalator_initial_send_failure_policy(&self) -> InitialSendFailurePolicy {
+        InitialSendFailurePolicy::Monitor
+    }
+
+    /// Whether to cache and increment transaction nonces locally.
+    fn uses_nonce_manager(&self) -> bool {
         true
     }
 
@@ -265,8 +279,19 @@ pub trait BuildableWithProvider {
         // The signing provider is used for sending txs, which may end up stuck in the mempool due to
         // gas pricing issues. We first wrap the provider in a signer middleware, to sign any new txs sent by the gas escalator middleware.
         // We keep nonce manager as the outermost middleware, so that resubmitting a tx with a higher gas price reuses its initial nonce.
-        let gas_escalator_provider = wrap_with_gas_escalator(signing_provider);
+        let gas_escalator_provider = wrap_with_gas_escalator(
+            signing_provider,
+            self.gas_escalator_initial_send_failure_policy(),
+        );
         let gas_oracle_provider = wrap_with_gas_oracle(gas_escalator_provider, locator.domain)?;
+        if !self.uses_nonce_manager() {
+            // Without a nonce manager, the signer/provider refetches the pending nonce for every
+            // outer retry. This is required when initial send failures are not retained by the gas
+            // escalator: a local increment must not leave an unfillable nonce hole.
+            return Ok(self
+                .build_with_provider(gas_oracle_provider, conn, locator)
+                .await);
+        }
         let nonce_manager_provider = wrap_with_nonce_manager(gas_oracle_provider, signer.address())
             .await
             .map_err(ChainCommunicationError::from_other)?;
@@ -335,7 +360,10 @@ where
     Ok(GasOracleMiddleware::new(provider, gas_oracle))
 }
 
-fn wrap_with_gas_escalator<M>(provider: M) -> GasEscalatorMiddleware<M>
+fn wrap_with_gas_escalator<M>(
+    provider: M,
+    initial_send_failure_policy: InitialSendFailurePolicy,
+) -> GasEscalatorMiddleware<M>
 where
     M: Middleware + 'static,
 {
@@ -352,7 +380,12 @@ where
     // Check the status of sent txs every eth block or so. The alternative is to subscribe to new blocks and check then,
     // which adds unnecessary load on the provider.
     const FREQUENCY: Frequency = Frequency::Duration(Duration::from_secs(12).as_millis() as _);
-    GasEscalatorMiddleware::new(provider, escalator, FREQUENCY)
+    GasEscalatorMiddleware::new_with_initial_send_failure_policy(
+        provider,
+        escalator,
+        FREQUENCY,
+        initial_send_failure_policy,
+    )
 }
 
 /// Builds a new HTTP provider with the given URL.
@@ -391,14 +424,17 @@ fn get_reqwest_client_cache() -> &'static DashMap<Url, Client> {
 mod tests {
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
-        Arc,
+        Arc, Mutex as StdMutex,
     };
 
+    use ethers::middleware::gas_escalator::GasEscalator;
     use ethers::providers::HttpClientError;
     use ethers::signers::LocalWallet;
+    use ethers::types::{transaction::eip2718::TypedTransaction, TransactionRequest, U256};
     use serde::{de::DeserializeOwned, Serialize};
 
     use super::*;
+    use crate::tx::fill_tx_nonce;
 
     #[derive(Clone, Debug, Default)]
     struct CountingClient {
@@ -428,6 +464,71 @@ mod tests {
     }
 
     struct SenderBuilder;
+
+    #[derive(Clone, Debug, Default)]
+    struct SuccessfulSendClient {
+        nonce_requests: Arc<AtomicUsize>,
+        raw_transactions: Arc<StdMutex<Vec<serde_json::Value>>>,
+    }
+
+    #[async_trait]
+    impl JsonRpcClient for SuccessfulSendClient {
+        type Error = HttpClientError;
+
+        async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
+        where
+            T: Debug + Serialize + Send + Sync,
+            R: DeserializeOwned,
+        {
+            let response = match method {
+                "eth_chainId" => r#""0x1""#.to_owned(),
+                "eth_getTransactionCount" => {
+                    self.nonce_requests.fetch_add(1, Ordering::Relaxed);
+                    r#""0x7""#.to_owned()
+                }
+                "eth_sendRawTransaction" => {
+                    let params =
+                        serde_json::to_value(params).map_err(|err| HttpClientError::SerdeJson {
+                            err,
+                            text: "failed to serialize raw transaction parameters".to_owned(),
+                        })?;
+                    let send_index = {
+                        let mut raw_transactions = self
+                            .raw_transactions
+                            .lock()
+                            .expect("raw transaction mutex poisoned");
+                        raw_transactions.push(params);
+                        raw_transactions.len()
+                    };
+                    format!(r#""0x{send_index:064x}""#)
+                }
+                "eth_getBlockByNumber" | "eth_getTransactionReceipt" => "null".to_owned(),
+                "eth_gasPrice" => r#""0x1""#.to_owned(),
+                _ => "not valid json".to_owned(),
+            };
+            serde_json::from_str(&response).map_err(|err| HttpClientError::SerdeJson {
+                err,
+                text: response,
+            })
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    struct AlwaysBump;
+
+    impl GasEscalator for AlwaysBump {
+        fn get_gas_price(&self, initial_price: U256, _time_elapsed: u64) -> U256 {
+            initial_price.saturating_add(U256::one())
+        }
+    }
+
+    fn decode_raw_transaction(value: &serde_json::Value) -> TypedTransaction {
+        let raw: ethers::types::Bytes =
+            serde_json::from_value(value[0].clone()).expect("raw transaction is bytes");
+        TypedTransaction::decode_signed(&ethers::utils::rlp::Rlp::new(raw.as_ref()))
+            .expect("raw transaction decodes")
+            .0
+    }
 
     #[async_trait]
     impl BuildableWithProvider for SenderBuilder {
@@ -465,6 +566,48 @@ mod tests {
             M: Middleware + 'static,
         {
             provider.default_sender()
+        }
+    }
+
+    #[derive(Clone, Debug, Default)]
+    struct FailingSendClient {
+        nonce_requests: Arc<AtomicUsize>,
+        raw_transactions: Arc<StdMutex<Vec<serde_json::Value>>>,
+    }
+
+    #[async_trait]
+    impl JsonRpcClient for FailingSendClient {
+        type Error = HttpClientError;
+
+        async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
+        where
+            T: Debug + Serialize + Send + Sync,
+            R: DeserializeOwned,
+        {
+            let response = match method {
+                "eth_chainId" => r#""0x1""#,
+                "eth_getTransactionCount" => {
+                    self.nonce_requests.fetch_add(1, Ordering::Relaxed);
+                    r#""0x7""#
+                }
+                "eth_sendRawTransaction" => {
+                    let params =
+                        serde_json::to_value(params).map_err(|err| HttpClientError::SerdeJson {
+                            err,
+                            text: "failed to serialize raw transaction parameters".to_owned(),
+                        })?;
+                    self.raw_transactions
+                        .lock()
+                        .expect("raw transaction mutex poisoned")
+                        .push(params);
+                    "initial send failed"
+                }
+                _ => "not valid json",
+            };
+            serde_json::from_str(response).map_err(|err| HttpClientError::SerdeJson {
+                err,
+                text: response.to_owned(),
+            })
         }
     }
 
@@ -533,6 +676,87 @@ mod tests {
 
         assert_eq!(sender, Some(expected_sender));
         assert_eq!(client.chain_id_requests.load(Ordering::Relaxed), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn retries_without_nonce_manager_reuse_pending_nonce_after_initial_send_failure(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let client = FailingSendClient::default();
+        let signer = test_signer()?;
+        let provider = Provider::new(client.clone());
+        let signing_provider = wrap_with_signer(provider, signer).await?;
+        let gas_escalator_provider =
+            wrap_with_gas_escalator(signing_provider, InitialSendFailurePolicy::Drop);
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let provider = wrap_with_gas_oracle(gas_escalator_provider, &domain)?;
+        let tx = TransactionRequest::new()
+            .to(Address::zero())
+            .gas(21_000_u64)
+            .gas_price(1_u64)
+            .value(1_u64);
+
+        assert!(provider.send_transaction(tx.clone(), None).await.is_err());
+        assert!(provider.send_transaction(tx, None).await.is_err());
+
+        assert_eq!(client.nonce_requests.load(Ordering::Relaxed), 2);
+        let raw_transactions = client
+            .raw_transactions
+            .lock()
+            .expect("raw transaction mutex poisoned");
+        assert_eq!(raw_transactions.len(), 2);
+        assert_eq!(raw_transactions[0], raw_transactions[1]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn successful_broadcast_and_gas_escalation_reuse_explicit_nonce(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let client = SuccessfulSendClient::default();
+        let signer = test_signer()?;
+        let provider = Provider::new(client.clone());
+        let signing_provider = wrap_with_signer(provider, signer).await?;
+        let provider = GasEscalatorMiddleware::new_with_initial_send_failure_policy(
+            signing_provider,
+            AlwaysBump,
+            Frequency::Duration(1),
+            InitialSendFailurePolicy::Drop,
+        );
+        let mut tx: TypedTransaction = TransactionRequest::new()
+            .to(Address::zero())
+            .gas(21_000_u64)
+            .gas_price(1_u64)
+            .value(1_u64)
+            .into();
+        fill_tx_nonce(&mut tx, &provider).await?;
+
+        let _pending = provider.send_transaction(tx, None).await?;
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if client
+                    .raw_transactions
+                    .lock()
+                    .expect("raw transaction mutex poisoned")
+                    .len()
+                    >= 2
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await?;
+
+        assert_eq!(client.nonce_requests.load(Ordering::Relaxed), 1);
+        let raw_transactions = client
+            .raw_transactions
+            .lock()
+            .expect("raw transaction mutex poisoned");
+        let initial = decode_raw_transaction(&raw_transactions[0]);
+        let replacement = decode_raw_transaction(&raw_transactions[1]);
+        assert_eq!(initial.nonce(), Some(&U256::from(7_u64)));
+        assert_eq!(replacement.nonce(), initial.nonce());
+        assert!(replacement.gas_price() > initial.gas_price());
         Ok(())
     }
 }

@@ -1,5 +1,19 @@
 # @hyperlane-xyz/fee-quoting
 
+## 27.3.7
+
+### Patch Changes
+
+- Updated dependencies [bd4e5f0]
+- Updated dependencies [e7666ef]
+- Updated dependencies [5fac94d]
+- Updated dependencies [5899416]
+- Updated dependencies [5fac94d]
+  - @hyperlane-xyz/provider-sdk@8.1.0
+  - @hyperlane-xyz/sealevel-sdk@41.2.0
+  - @hyperlane-xyz/sdk@41.2.0
+  - @hyperlane-xyz/utils@41.2.0
+
 ## 27.3.6
 
 ### Patch Changes

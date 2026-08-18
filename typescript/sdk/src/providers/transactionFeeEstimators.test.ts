@@ -2,11 +2,20 @@ import { expect } from 'chai';
 import sinon from 'sinon';
 
 import { StargateClient } from '@cosmjs/stargate';
+import {
+  Connection,
+  Keypair,
+  SystemProgram,
+  Transaction,
+  TransactionMessage,
+  VersionedTransaction,
+} from '@solana/web3.js';
 
 import { ProviderType } from './ProviderType.js';
 import {
   clearCachedStargateClients,
   estimateTransactionFeeCosmJsWasm,
+  estimateTransactionFeeSolanaWeb3,
 } from './transactionFeeEstimators.js';
 
 describe('transactionFeeEstimators', () => {
@@ -44,6 +53,78 @@ describe('transactionFeeEstimators', () => {
       }),
     } as any;
   }
+
+  it('returns the Solana base fee when priority pricing is zero', async () => {
+    const sender = Keypair.generate();
+    const transaction = new Transaction({
+      feePayer: sender.publicKey,
+      recentBlockhash: '11111111111111111111111111111111',
+    }).add(
+      SystemProgram.transfer({
+        fromPubkey: sender.publicKey,
+        toPubkey: Keypair.generate().publicKey,
+        lamports: 1,
+      }),
+    );
+    const connection = new Connection('http://localhost:8899');
+    sandbox.stub(connection, 'simulateTransaction').resolves({
+      context: { slot: 1 },
+      value: { err: null, logs: null, unitsConsumed: 200_000 },
+    });
+    const getRecentPrioritizationFees = sandbox
+      .stub(connection, 'getRecentPrioritizationFees')
+      .resolves([{ prioritizationFee: 0, slot: 1 }]);
+    const getFeeForMessage = sandbox
+      .stub(connection, 'getFeeForMessage')
+      .resolves({ context: { slot: 1 }, value: 5_000 });
+
+    const estimate = await estimateTransactionFeeSolanaWeb3({
+      transaction: { type: ProviderType.SolanaWeb3, transaction },
+      provider: { type: ProviderType.SolanaWeb3, provider: connection },
+    });
+
+    expect(estimate).to.deep.equal({
+      gasUnits: 200_000n,
+      gasPrice: 0n,
+      fee: 5_000n,
+    });
+    expect(getFeeForMessage.calledOnce).to.equal(true);
+    expect(getRecentPrioritizationFees.notCalled).to.equal(true);
+  });
+
+  it('uses the message fee for versioned Solana transactions', async () => {
+    const sender = Keypair.generate();
+    const message = new TransactionMessage({
+      payerKey: sender.publicKey,
+      recentBlockhash: '11111111111111111111111111111111',
+      instructions: [
+        SystemProgram.transfer({
+          fromPubkey: sender.publicKey,
+          toPubkey: Keypair.generate().publicKey,
+          lamports: 1,
+        }),
+      ],
+    }).compileToV0Message();
+    const connection = new Connection('http://localhost:8899');
+    sandbox.stub(connection, 'simulateTransaction').resolves({
+      context: { slot: 1 },
+      value: { err: null, logs: null, unitsConsumed: 200_000 },
+    });
+    const getFeeForMessage = sandbox
+      .stub(connection, 'getFeeForMessage')
+      .resolves({ context: { slot: 1 }, value: 5_123 });
+
+    const estimate = await estimateTransactionFeeSolanaWeb3({
+      transaction: {
+        type: ProviderType.SolanaWeb3,
+        transaction: new VersionedTransaction(message),
+      },
+      provider: { type: ProviderType.SolanaWeb3, provider: connection },
+    });
+
+    expect(estimate.fee).to.equal(5_123n);
+    expect(getFeeForMessage.calledOnceWithExactly(message)).to.equal(true);
+  });
 
   function makeStargateClient(
     simulate: sinon.SinonStub,

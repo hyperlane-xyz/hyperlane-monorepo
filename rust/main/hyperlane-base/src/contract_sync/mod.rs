@@ -10,7 +10,7 @@ use derive_new::new;
 use eyre::Result;
 use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
 use tokio::sync::{mpsc::Receiver as MpscReceiver, Mutex};
-use tokio::time::sleep;
+use tokio::time::{interval, sleep, MissedTickBehavior};
 use tracing::{debug, info, instrument, trace, warn, Instrument};
 
 use hyperlane_core::{
@@ -34,6 +34,7 @@ pub use metrics::ContractSyncMetrics;
 use cursors::ForwardBackwardSequenceAwareSyncCursor;
 
 const SLEEP_DURATION: Duration = Duration::from_secs(5);
+const LIVENESS_UPDATE_INTERVAL: Duration = Duration::from_secs(30);
 
 #[derive(Debug, derive_new::new)]
 #[allow(dead_code)]
@@ -203,9 +204,22 @@ where
         stored_logs_metric: GenericCounter<AtomicU64>,
         liveness_metric: GenericGauge<AtomicI64>,
     ) {
+        let mut liveness_interval = interval(LIVENESS_UPDATE_INTERVAL);
+        liveness_interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        // The task updates liveness immediately at the top of the loop, so consume
+        // the interval's immediate first tick before waiting for a periodic one.
+        liveness_interval.tick().await;
+
         loop {
             Self::update_liveness_metric(&liveness_metric);
-            let tx_id = match recv.recv().await {
+            let tx_id = match loop {
+                tokio::select! {
+                    tx_id = recv.recv() => break tx_id,
+                    _ = liveness_interval.tick() => {
+                        Self::update_liveness_metric(&liveness_metric);
+                    }
+                }
+            } {
                 Some(tx_id) => tx_id,
                 None => {
                     tracing::error!("Error: channel has closed");
@@ -452,6 +466,12 @@ mod tests {
         )]
     }
 
+    async fn run_pending_tasks() {
+        for _ in 0..10 {
+            tokio::task::yield_now().await;
+        }
+    }
+
     #[tokio::test]
     async fn dedupe_and_store_logs_returns_logs_and_updates_metric_on_success() {
         let metric = stored_logs_metric();
@@ -558,6 +578,50 @@ mod tests {
 
         task.abort();
         let _ = task.await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn tx_id_indexer_task_heartbeats_while_receiver_is_idle() {
+        let store_calls = StdArc::new(AtomicUsize::new(0));
+        let (sender, receiver) = tokio::sync::mpsc::channel(1);
+        let liveness = liveness_metric();
+        let task = tokio::spawn(
+            ContractSync::<HyperlaneMessage, StoreResult, MockIndexer>::tx_id_indexer_task(
+                test_domain(),
+                MockIndexer::default(),
+                Arc::new(Mutex::new(StoreResult {
+                    stored: 0,
+                    error: None,
+                    calls: Some(store_calls.clone()),
+                })),
+                receiver,
+                stored_logs_metric(),
+                liveness.clone(),
+            ),
+        );
+
+        run_pending_tasks().await;
+        liveness.set(0);
+        tokio::time::advance(LIVENESS_UPDATE_INTERVAL - Duration::from_secs(1)).await;
+        run_pending_tasks().await;
+        assert_eq!(liveness.get(), 0);
+
+        tokio::time::advance(Duration::from_secs(1)).await;
+        run_pending_tasks().await;
+        assert!(liveness.get() > 0);
+        assert_eq!(store_calls.load(Ordering::SeqCst), 0);
+        assert!(!task.is_finished());
+
+        sender
+            .send(H512::zero())
+            .await
+            .expect("idle receiver should remain connected");
+        run_pending_tasks().await;
+        assert_eq!(store_calls.load(Ordering::SeqCst), 1);
+
+        drop(sender);
+        task.await
+            .expect("task should stop when its channel closes");
     }
 }
 
