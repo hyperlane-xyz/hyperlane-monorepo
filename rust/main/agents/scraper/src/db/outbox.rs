@@ -1,15 +1,19 @@
 use eyre::Result;
 use migration::OnConflict;
+use sea_orm::sea_query::{Cond, Expr, Query, SimpleExpr};
 use sea_orm::{
-    ActiveValue::*, ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, Order, QueryFilter,
-    QueryOrder, QuerySelect, Statement, TransactionTrait,
+    ActiveValue::*, ColumnTrait, EntityTrait, FromQueryResult, JoinType, Order, QueryFilter,
+    QueryOrder, QuerySelect, RelationTrait, TransactionTrait,
 };
 use tracing::{debug, instrument};
 
 use crate::date_time;
 use crate::db::ScraperDb;
 
-use super::generated::{block, indexing_checkpoint, outbox};
+use super::generated::{
+    block, delivered_message, gas_payment, indexing_checkpoint, merkle_tree_insertion, message,
+    outbox, transaction,
+};
 
 const OUTBOX_INDEXING_CHECKPOINT_EVENT_TYPE: &str = "indexing_checkpoint";
 const OUTBOX_MESSAGE_EVENT_TYPE: &str = "message_dispatch";
@@ -219,46 +223,16 @@ impl ScraperDb {
             .flatten())
     }
 
-    async fn source_outbox_rows(
-        &self,
-        domain: u32,
-        target_position: i64,
-        event_type: &str,
-        source_table: &str,
-        domain_column: &str,
-        transaction_column: &str,
-    ) -> Result<OutboxSourceBatch> {
-        let rows = OutboxSourceRow::find_by_statement(Statement::from_sql_and_values(
-            self.0.get_database_backend(),
-            format!(
-                r#"
-                SELECT source.id, block.height AS position
-                FROM "{source_table}" source
-                JOIN "transaction" source_tx
-                  ON source_tx.id = source."{transaction_column}"
-                JOIN block ON block.id = source_tx.block_id
-                LEFT JOIN outbox
-                  ON outbox.domain = $1
-                 AND outbox.event_type = $2
-                 AND outbox.source_id = source.id
-                WHERE source."{domain_column}" = $1
-                  AND block.height <= $3
-                  AND outbox.id IS NULL
-                ORDER BY source.id ASC
-                LIMIT $4
-                "#
-            ),
-            [
-                (domain as i32).into(),
-                event_type.into(),
-                target_position.into(),
-                (OUTBOX_SOURCE_ROW_CHUNK.saturating_add(1) as i64).into(),
-            ],
+    fn not_outboxed(domain: u32, event_type: &str, source_id: SimpleExpr) -> sea_orm::Condition {
+        Cond::all().not().add(Expr::exists(
+            Query::select()
+                .expr(Expr::val(1))
+                .from(outbox::Entity)
+                .and_where(Expr::col(outbox::Column::Domain).eq(domain))
+                .and_where(Expr::col(outbox::Column::EventType).eq(event_type))
+                .and_where(Expr::col(outbox::Column::SourceId).eq(source_id))
+                .to_owned(),
         ))
-        .all(&self.0)
-        .await?;
-
-        Ok(OutboxSourceBatch::from_rows(rows))
     }
 
     async fn message_outbox_rows(
@@ -266,15 +240,25 @@ impl ScraperDb {
         domain: u32,
         safe_position: i64,
     ) -> Result<OutboxSourceBatch> {
-        self.source_outbox_rows(
-            domain,
-            safe_position,
-            OUTBOX_MESSAGE_EVENT_TYPE,
-            MESSAGE_SOURCE_TABLE,
-            "origin",
-            "origin_tx_id",
-        )
-        .await
+        let rows = message::Entity::find()
+            .select_only()
+            .column_as(message::Column::Id, "id")
+            .column_as(block::Column::Height, "position")
+            .join(JoinType::InnerJoin, message::Relation::Transaction.def())
+            .join(JoinType::InnerJoin, transaction::Relation::Block.def())
+            .filter(message::Column::Origin.eq(domain))
+            .filter(block::Column::Height.lte(safe_position))
+            .filter(Self::not_outboxed(
+                domain,
+                OUTBOX_MESSAGE_EVENT_TYPE,
+                Expr::col((message::Entity, message::Column::Id)).into(),
+            ))
+            .order_by_asc(message::Column::Id)
+            .limit(OUTBOX_SOURCE_ROW_CHUNK.saturating_add(1))
+            .into_model::<OutboxSourceRow>()
+            .all(&self.0)
+            .await?;
+        Ok(OutboxSourceBatch::from_rows(rows))
     }
 
     async fn delivery_outbox_rows(
@@ -282,15 +266,28 @@ impl ScraperDb {
         domain: u32,
         safe_position: i64,
     ) -> Result<OutboxSourceBatch> {
-        self.source_outbox_rows(
-            domain,
-            safe_position,
-            OUTBOX_DELIVERY_EVENT_TYPE,
-            DELIVERED_MESSAGE_SOURCE_TABLE,
-            "domain",
-            "destination_tx_id",
-        )
-        .await
+        let rows = delivered_message::Entity::find()
+            .select_only()
+            .column_as(delivered_message::Column::Id, "id")
+            .column_as(block::Column::Height, "position")
+            .join(
+                JoinType::InnerJoin,
+                delivered_message::Relation::Transaction.def(),
+            )
+            .join(JoinType::InnerJoin, transaction::Relation::Block.def())
+            .filter(delivered_message::Column::Domain.eq(domain))
+            .filter(block::Column::Height.lte(safe_position))
+            .filter(Self::not_outboxed(
+                domain,
+                OUTBOX_DELIVERY_EVENT_TYPE,
+                Expr::col((delivered_message::Entity, delivered_message::Column::Id)).into(),
+            ))
+            .order_by_asc(delivered_message::Column::Id)
+            .limit(OUTBOX_SOURCE_ROW_CHUNK.saturating_add(1))
+            .into_model::<OutboxSourceRow>()
+            .all(&self.0)
+            .await?;
+        Ok(OutboxSourceBatch::from_rows(rows))
     }
 
     async fn gas_payment_outbox_rows(
@@ -298,15 +295,28 @@ impl ScraperDb {
         domain: u32,
         safe_position: i64,
     ) -> Result<OutboxSourceBatch> {
-        self.source_outbox_rows(
-            domain,
-            safe_position,
-            OUTBOX_GAS_PAYMENT_EVENT_TYPE,
-            GAS_PAYMENT_SOURCE_TABLE,
-            "domain",
-            "tx_id",
-        )
-        .await
+        let rows = gas_payment::Entity::find()
+            .select_only()
+            .column_as(gas_payment::Column::Id, "id")
+            .column_as(block::Column::Height, "position")
+            .join(
+                JoinType::InnerJoin,
+                gas_payment::Relation::Transaction.def(),
+            )
+            .join(JoinType::InnerJoin, transaction::Relation::Block.def())
+            .filter(gas_payment::Column::Domain.eq(domain))
+            .filter(block::Column::Height.lte(safe_position))
+            .filter(Self::not_outboxed(
+                domain,
+                OUTBOX_GAS_PAYMENT_EVENT_TYPE,
+                Expr::col((gas_payment::Entity, gas_payment::Column::Id)).into(),
+            ))
+            .order_by_asc(gas_payment::Column::Id)
+            .limit(OUTBOX_SOURCE_ROW_CHUNK.saturating_add(1))
+            .into_model::<OutboxSourceRow>()
+            .all(&self.0)
+            .await?;
+        Ok(OutboxSourceBatch::from_rows(rows))
     }
 
     async fn merkle_tree_insertion_outbox_rows(
@@ -314,15 +324,32 @@ impl ScraperDb {
         domain: u32,
         safe_position: i64,
     ) -> Result<OutboxSourceBatch> {
-        self.source_outbox_rows(
-            domain,
-            safe_position,
-            OUTBOX_MERKLE_TREE_INSERTION_EVENT_TYPE,
-            MERKLE_TREE_INSERTION_SOURCE_TABLE,
-            "domain",
-            "origin_tx_id",
-        )
-        .await
+        let rows = merkle_tree_insertion::Entity::find()
+            .select_only()
+            .column_as(merkle_tree_insertion::Column::Id, "id")
+            .column_as(block::Column::Height, "position")
+            .join(
+                JoinType::InnerJoin,
+                merkle_tree_insertion::Relation::Transaction.def(),
+            )
+            .join(JoinType::InnerJoin, transaction::Relation::Block.def())
+            .filter(merkle_tree_insertion::Column::Domain.eq(domain))
+            .filter(block::Column::Height.lte(safe_position))
+            .filter(Self::not_outboxed(
+                domain,
+                OUTBOX_MERKLE_TREE_INSERTION_EVENT_TYPE,
+                Expr::col((
+                    merkle_tree_insertion::Entity,
+                    merkle_tree_insertion::Column::Id,
+                ))
+                .into(),
+            ))
+            .order_by_asc(merkle_tree_insertion::Column::Id)
+            .limit(OUTBOX_SOURCE_ROW_CHUNK.saturating_add(1))
+            .into_model::<OutboxSourceRow>()
+            .all(&self.0)
+            .await?;
+        Ok(OutboxSourceBatch::from_rows(rows))
     }
 }
 
@@ -362,7 +389,7 @@ fn outbox_model(
 mod tests {
     use super::*;
     use migration::MigratorTrait;
-    use sea_orm::{Database, DbErr};
+    use sea_orm::{ConnectionTrait, Database, DbErr, Statement};
     use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::postgres::Postgres;
 
