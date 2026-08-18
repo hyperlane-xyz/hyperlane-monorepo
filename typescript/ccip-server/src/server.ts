@@ -12,6 +12,7 @@ import { CCTPService } from './services/CCTPService.js';
 import { CallCommitmentsService } from './services/CallCommitmentsService.js';
 import { HealthService } from './services/HealthService.js';
 import { OPStackService } from './services/OPStackService.js';
+import { configureTrustProxy } from './utils/http.js';
 import {
   PrometheusMetrics,
   UnhandledErrorReason,
@@ -38,7 +39,7 @@ async function startServer() {
   initializeMetrics(register);
 
   const app = express();
-  app.set('trust proxy', 1);
+  configureTrustProxy(app);
   app.use(cors());
   app.use(express.json({ limit: '10kb' }));
   app.use(pinoHttp({ logger }));

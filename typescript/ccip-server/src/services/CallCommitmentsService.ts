@@ -37,6 +37,8 @@ import { prisma } from '../db.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
 import {
   PrometheusMetrics,
+  RateLimitedMethod,
+  RateLimitedRoute,
   UnhandledErrorReason,
 } from '../utils/prometheus.js';
 
@@ -620,35 +622,53 @@ export class CallCommitmentsService extends BaseService {
    * Register routes onto an Express Router or app.
    */
   private registerRoutes(router: Router, baseUrl: string): void {
-    const commitmentRateLimit = rateLimit({
-      windowMs: 60 * 1000,
-      max: 20,
-      standardHeaders: true,
-      legacyHeaders: false,
-      handler: (_req, res) => {
-        PrometheusMetrics.logRateLimited();
-        res.status(429).json({ error: 'Too many requests' });
-      },
-    });
+    const toRateLimitedMethod = (method: string): RateLimitedMethod => {
+      if (method === RateLimitedMethod.GET) return RateLimitedMethod.GET;
+      if (method === RateLimitedMethod.POST) return RateLimitedMethod.POST;
+      return RateLimitedMethod.OTHER;
+    };
+    const toRateLimitedRoute = (route: string): RateLimitedRoute => {
+      return (
+        Object.values(RateLimitedRoute).find(
+          (knownRoute) => knownRoute === route,
+        ) ?? RateLimitedRoute.Unknown
+      );
+    };
+    const createRateLimit = () =>
+      rateLimit({
+        windowMs: 60 * 1000,
+        max: 20,
+        standardHeaders: true,
+        legacyHeaders: false,
+        handler: (req, res) => {
+          PrometheusMetrics.logRateLimited(
+            toRateLimitedMethod(req.method),
+            toRateLimitedRoute(req.route.path),
+          );
+          res.status(429).json({ error: 'Too many requests' });
+        },
+      });
+    const writeRateLimit = createRateLimit();
+    const readRateLimit = createRateLimit();
 
     router.post(
-      '/calls',
-      commitmentRateLimit,
+      RateLimitedRoute.Calls,
+      writeRateLimit,
       this.handleCommitment.bind(this),
     );
     router.get(
-      '/calls/:commitment',
-      commitmentRateLimit,
+      RateLimitedRoute.CallsByCommitment,
+      readRateLimit,
       this.handleCheckCommitment.bind(this),
     );
     router.post(
-      '/calldata',
-      commitmentRateLimit,
+      RateLimitedRoute.Calldata,
+      writeRateLimit,
       this.handleCalldataPost.bind(this),
     );
     router.get(
-      '/calldata/:commitment',
-      commitmentRateLimit,
+      RateLimitedRoute.CalldataByCommitment,
+      readRateLimit,
       this.handleCalldataGet.bind(this),
     );
     router.post(
