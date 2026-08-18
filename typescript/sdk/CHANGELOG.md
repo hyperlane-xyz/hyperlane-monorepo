@@ -1,5 +1,28 @@
 # @hyperlane-xyz/sdk
 
+## 41.3.0
+
+### Minor Changes
+
+- 4a21153: Added deploy, read, check, and artifact support for `AtomicLocalRebalancingBridge`. ALRB artifacts used a dedicated non-transferable token standard and were excluded from ordinary Warp connections.
+- 4a21153: Added `rebalanceRecipients` deployment, read, validation, and update support for `CrossCollateralRouter` warp configs.
+- 4a21153: Added first-class `rebalanceTargets` deployment, read, validation, and update support for `CrossCollateralRouter` warp configs.
+
+### Patch Changes
+
+- c328efa: Removed deprecated mainnet chains (arcadia, bitlayer, hashkey, lumiaprism, matchain, oortmainnet, ronin, sonic) from the default multisig ISM validator sets and CCIP chain constants.
+- 322a418: Interchain account address derivation was moved into the shared SDK path, with router metadata reads parallelized and modern addresses derived locally. This reduced the valid modern path from three sequential RPC rounds to one.
+- d5d7d1a: Used authoritative Solana message fees, including signature and priority fees, in transaction fee estimates.
+  - @hyperlane-xyz/aleo-sdk@41.3.0
+  - @hyperlane-xyz/starknet-core@41.3.0
+  - @hyperlane-xyz/cosmos-sdk@41.3.0
+  - @hyperlane-xyz/radix-sdk@41.3.0
+  - @hyperlane-xyz/utils@41.3.0
+  - @hyperlane-xyz/deploy-sdk@8.1.1
+  - @hyperlane-xyz/core@12.1.0
+  - @hyperlane-xyz/provider-sdk@8.1.1
+  - @hyperlane-xyz/tron-sdk@24.1.4
+
 ## 41.2.0
 
 ### Minor Changes
