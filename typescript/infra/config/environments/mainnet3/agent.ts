@@ -749,6 +749,10 @@ const blacklist: MatchingList = [
     originDomain: getDomainId('starknet'),
     destinationDomain: getDomainId('starknet'),
   },
+  // SOLX/nitro temporarily blocked [2026-08-18]
+  // Active ATA rent-reclamation drain on Solaxy=>Solana (incident 01M0B3TFB2CBXS1G1SVKFJNXDT).
+  // Blocking all message processing for this route until the drain vector is mitigated.
+  ...warpRouteMatchingList('SOLX/nitro'),
 ];
 
 const ismCacheConfigs: Array<IsmCacheConfig> = [
