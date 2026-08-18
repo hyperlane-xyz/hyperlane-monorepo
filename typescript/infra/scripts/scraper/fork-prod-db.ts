@@ -172,7 +172,7 @@ async function dumpProdDatabase(args: Args) {
 }
 
 function localDatabaseUrl(args: Args): string {
-  return `postgresql://postgres:${args.password}@127.0.0.1:${args.localPort}/${args.localDatabase}`;
+  return `postgresql://postgres:${encodeURIComponent(args.password)}@127.0.0.1:${args.localPort}/${args.localDatabase}`;
 }
 
 function restoreLocalDatabase(args: Args) {
@@ -197,7 +197,7 @@ function restoreLocalDatabase(args: Args) {
       localDatabaseUrl(args),
       args.dumpFile,
     ],
-    { redactions: [args.password] },
+    { redactions: [encodeURIComponent(args.password)] },
   );
 }
 
@@ -220,7 +220,7 @@ function createFastLocalIndexes(args: Args) {
       CREATE INDEX IF NOT EXISTS local_outbox_gas_payment_tx_id_idx ON gas_payment (tx_id);
       `,
     ],
-    { redactions: [args.password] },
+    { redactions: [encodeURIComponent(args.password)] },
   );
 }
 
@@ -234,7 +234,10 @@ function runMigrations(args: Args) {
 }
 
 function redactedLocalDatabaseUrl(args: Args): string {
-  return localDatabaseUrl(args).replace(args.password, '<password>');
+  return localDatabaseUrl(args).replace(
+    encodeURIComponent(args.password),
+    '<password>',
+  );
 }
 
 async function main() {

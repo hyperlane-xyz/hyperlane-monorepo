@@ -30,6 +30,9 @@ pub type InclusionStagePool = Arc<Mutex<HashMap<TransactionUuid, Transaction>>>;
 pub const STAGE_NAME: &str = "InclusionStage";
 
 const MIN_TX_STATUS_CHECK_DELAY: Duration = Duration::from_millis(100);
+const REPROCESS_TXS_LIVENESS_RATE: Duration = Duration::from_secs(5);
+// Bounds idle reorg-detection latency without reducing the liveness heartbeat rate.
+const MAX_REPROCESS_TXS_POLL_RATE: Duration = Duration::from_secs(5 * 60);
 
 pub struct InclusionStage {
     pub(crate) pool: InclusionStagePool,
@@ -196,18 +199,34 @@ impl InclusionStage {
         pool: InclusionStagePool,
         state: DispatcherState,
     ) -> Result<(), LanderError> {
-        let poll_rate = match state.adapter.reprocess_txs_poll_rate() {
+        let base_poll_rate = match state.adapter.reprocess_txs_poll_rate() {
             Some(s) => s,
             // if no poll rate, then that means we don't worry about reprocessing txs
             None => return Ok(()),
         };
+        let max_poll_rate = MAX_REPROCESS_TXS_POLL_RATE.max(base_poll_rate);
+        let mut poll_rate = base_poll_rate;
+        let liveness_stage = format!("{STAGE_NAME}::receive_reprocess_txs");
         loop {
-            state.metrics.update_liveness_metric(
-                format!("{STAGE_NAME}::receive_reprocess_txs").as_str(),
-                &domain,
-            );
+            state
+                .metrics
+                .update_liveness_metric(&liveness_stage, &domain);
 
-            tokio::time::sleep(poll_rate).await;
+            let poll_sleep = tokio::time::sleep(poll_rate);
+            tokio::pin!(poll_sleep);
+            let woke_for_activity = loop {
+                tokio::select! {
+                    biased;
+                    _ = state.wait_for_reprocess_txs_activity() => break true,
+                    _ = &mut poll_sleep => break false,
+                    _ = tokio::time::sleep(REPROCESS_TXS_LIVENESS_RATE) => {
+                        state.metrics.update_liveness_metric(&liveness_stage, &domain);
+                    },
+                }
+            };
+            if woke_for_activity {
+                poll_rate = base_poll_rate;
+            }
             tracing::debug!(
                 domain,
                 "Checking for any transactions that needs reprocessing"
@@ -215,12 +234,21 @@ impl InclusionStage {
 
             let txs = match state.adapter.get_reprocess_txs().await {
                 Ok(s) => s,
-                _ => continue,
+                Err(err) => {
+                    poll_rate = base_poll_rate;
+                    warn!(
+                        ?err,
+                        domain, "Failed to check for transactions that need reprocessing"
+                    );
+                    continue;
+                }
             };
             if txs.is_empty() {
+                poll_rate = poll_rate.saturating_mul(2).min(max_poll_rate);
                 continue;
             }
 
+            poll_rate = base_poll_rate;
             tracing::debug!(?txs, "Reprocessing transactions");
             let mut locked_pool = pool.lock().await;
             for tx in txs {
@@ -401,7 +429,7 @@ impl InclusionStage {
         // by the node.
         // at this point, not all VMs return information about whether the tx was reverted.
         // so dropping reverted payloads has to happen in the finality step
-        call_until_success_or_nonretryable_error(
+        let submitted_tx = call_until_success_or_nonretryable_error(
             || {
                 let tx_shared_clone = tx_shared.clone();
                 async move {
@@ -420,7 +448,10 @@ impl InclusionStage {
             },
             "Submitting transaction",
             state,
-        ).await
+        )
+        .await?;
+        state.notify_reprocess_txs_activity();
+        Ok(submitted_tx)
     }
 
     async fn estimate_tx(

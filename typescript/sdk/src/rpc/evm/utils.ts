@@ -34,25 +34,20 @@ function toStringArray(value: unknown, field: string): string[] {
   return value;
 }
 
-// The block every scan is safe to start from, and what this search answers
-// with when it cannot establish a later one.
+// The lowest block the deployment search probes.
 const GENESIS_BLOCK_NUMBER = 0;
 
 /**
  * Finds the block a contract was deployed in by bisecting `eth_getCode` over
- * the chain's history, falling back to the genesis block where the endpoint
- * cannot serve the state of a past block.
+ * the chain's history.
  *
  * Every probe but the last few is a request for archive state, which an
- * endpoint that prunes answers in one of two ways. Either it fails the probe,
- * which is what the fallback below reads as "this endpoint cannot place the
- * deployment", or it reports no code at a height where the contract did exist.
- * The second is indistinguishable from a genuine pre-deployment answer on a
- * single probe, so nothing here detects it, and the search then converges on a
- * block after the deployment and a scan started there silently omits the events
- * below it. The reliable source of a deployment block is therefore the
- * explorer's getcontractcreation response, and this search is what is left
- * where there is no explorer.
+ * endpoint that prunes answers in one of two ways. If it fails the probe, this
+ * lookup fails rather than widening the subsequent log scan to genesis. If it
+ * reports no code at a height where the contract did exist, that successful
+ * response is indistinguishable from a genuine pre-deployment answer. Like any
+ * other RPC read, this search therefore assumes a successful response describes
+ * the requested block correctly.
  */
 export async function getContractCreationBlockFromRpc(
   chain: ChainNameOrId,
@@ -79,16 +74,11 @@ export async function getContractCreationBlockFromRpc(
         mid,
       );
     } catch (error) {
-      // Reported rather than rethrown because the whole scan reads the same
-      // events wherever it starts below the deployment, so an endpoint that
-      // cannot answer for a past block costs the request count of a full scan
-      // and nothing else. It stays a warning so that the endpoint is visible
-      // as pruned rather than merely slow.
       logger.warn(
         { err: error },
-        `Unable to read the state of block ${mid} on chain ${chain} while searching for the deployment block of ${contractAddress}, starting from block ${GENESIS_BLOCK_NUMBER} instead`,
+        `Unable to read the state of block ${mid} on chain ${chain} while searching for the deployment block of ${contractAddress}`,
       );
-      return GENESIS_BLOCK_NUMBER;
+      throw error;
     }
 
     if (isContract) {

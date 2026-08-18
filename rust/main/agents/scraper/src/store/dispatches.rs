@@ -117,8 +117,10 @@ impl HyperlaneDbStore {
         messages: &[(Indexed<HyperlaneMessage>, LogMeta)],
     ) -> Result<u32> {
         let txns: HashMap<H512, TxnWithId> = self
-            .ensure_all_blocks_and_txns(messages.iter().map(|r| &r.1))
-            .await?;
+            .ensure_blocks_and_txns(messages.iter().map(|r| &r.1))
+            .await?
+            .map(|txn| (txn.hash, txn))
+            .collect();
         let (storable, missing_txns) = storable_messages_for_available_txns(messages, &txns);
         let stored = self
             .db

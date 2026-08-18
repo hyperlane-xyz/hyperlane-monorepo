@@ -34,9 +34,9 @@ pub trait BuildableQueryClient: Sized + std::fmt::Debug + Sync + Send + 'static 
     /// Whether or not the given address is a contract
     async fn is_contract(&self, address: &H256) -> ChainResult<bool>;
 
-    /// Extract the message recipient contract address from the tx
+    /// Extract the optional message recipient contract address from the tx
     /// this is implementation specific
-    fn parse_tx_message_recipient(&self, tx: &Tx, hash: &H512) -> ChainResult<H256>;
+    fn parse_tx_message_recipient(&self, tx: &Tx, hash: &H512) -> ChainResult<Option<H256>>;
 
     /// Returns the Block height of the query client
     async fn get_block_number(&self) -> ChainResult<u64>;
@@ -282,7 +282,7 @@ impl<T: BuildableQueryClient> HyperlaneProvider for CosmosProvider<T> {
         let response = self.rpc.get_tx(hash).await?;
         let tx = Tx::from_bytes(&response.tx)?;
 
-        let contract = self.query.parse_tx_message_recipient(&tx, hash)?;
+        let recipient = self.query.parse_tx_message_recipient(&tx, hash)?;
         let (sender, nonce) = self.sender_and_nonce(&tx)?;
 
         let hash: H256 = H256::from_slice(&h512_to_bytes(hash));
@@ -296,7 +296,7 @@ impl<T: BuildableQueryClient> HyperlaneProvider for CosmosProvider<T> {
             gas_price: Some(gas_price),
             nonce,
             sender,
-            recipient: Some(contract),
+            recipient,
             receipt: Some(TxnReceiptInfo {
                 gas_used: response.tx_result.gas_used.into(),
                 cumulative_gas_used: response.tx_result.gas_used.into(),

@@ -12,8 +12,12 @@ use hyperlane_core::{
     rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneLogStore,
     HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, SameChainCcrSwap, H512,
 };
-use prometheus::IntGaugeVec;
-use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle, time::sleep};
+use prometheus::{IntGauge, IntGaugeVec};
+use tokio::{
+    sync::mpsc::Receiver as MpscReceiver,
+    task::JoinHandle,
+    time::{interval, sleep, MissedTickBehavior},
+};
 use tracing::{info, info_span, instrument, trace, warn, Instrument};
 
 use hyperlane_base::{
@@ -33,6 +37,36 @@ const RAW_DISPATCH_RECONCILIATION_BATCH_SIZE: u64 = 100;
 const RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP: Duration = Duration::from_secs(60);
 const RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP: Duration = Duration::from_secs(2);
 const OUTBOX_BUILD_SLEEP: Duration = Duration::from_secs(1);
+const LIVENESS_UPDATE_INTERVAL: Duration = Duration::from_secs(30);
+
+fn update_liveness_metric(liveness_metric: &IntGauge) {
+    let seconds_since_epoch = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or_default();
+    liveness_metric.set(seconds_since_epoch.try_into().unwrap_or(i64::MAX));
+}
+
+async fn sleep_with_liveness(duration: Duration, liveness_metric: &IntGauge) {
+    if duration <= LIVENESS_UPDATE_INTERVAL {
+        sleep(duration).await;
+        return;
+    }
+
+    let sleep = sleep(duration);
+    tokio::pin!(sleep);
+
+    let mut liveness_interval = interval(LIVENESS_UPDATE_INTERVAL);
+    liveness_interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    liveness_interval.tick().await;
+
+    loop {
+        tokio::select! {
+            _ = &mut sleep => break,
+            _ = liveness_interval.tick() => update_liveness_metric(liveness_metric),
+        }
+    }
+}
 
 /// A message explorer scraper agent
 #[derive(Debug, AsRef)]
@@ -447,12 +481,7 @@ impl Scraper {
                 let mut max_age_seen_this_scan = 0_u64;
 
                 loop {
-                    liveness_metric.set(
-                        SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .map(|duration| duration.as_secs() as i64)
-                            .unwrap_or_default(),
-                    );
+                    update_liveness_metric(&liveness_metric);
 
                     let result = AssertUnwindSafe(store.reconcile_raw_message_dispatches(
                         next_after_id,
@@ -471,7 +500,11 @@ impl Scraper {
                         Ok(Ok(result)) if result.candidate_count == 0 => {
                             max_age_metric.set(0);
                             max_age_seen_this_scan = 0;
-                            sleep(RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP).await;
+                            sleep_with_liveness(
+                                RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP,
+                                &liveness_metric,
+                            )
+                            .await;
                         }
                         Ok(Ok(result)) => {
                             next_after_id = result.next_after_id;
@@ -759,6 +792,41 @@ mod test {
     use hyperlane_ethereum as h_eth;
 
     use super::*;
+
+    async fn run_pending_tasks() {
+        for _ in 0..10 {
+            tokio::task::yield_now().await;
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn reconciliation_idle_sleep_updates_liveness() {
+        let liveness = IntGauge::new("test_reconcile_liveness", "test reconcile liveness")
+            .expect("test gauge should be valid");
+        let liveness_clone = liveness.clone();
+        let task = tokio::spawn(async move {
+            sleep_with_liveness(Duration::from_secs(65), &liveness_clone).await;
+        });
+
+        run_pending_tasks().await;
+        tokio::time::advance(LIVENESS_UPDATE_INTERVAL - Duration::from_secs(1)).await;
+        run_pending_tasks().await;
+        assert_eq!(liveness.get(), 0);
+
+        tokio::time::advance(Duration::from_secs(1)).await;
+        run_pending_tasks().await;
+        assert!(liveness.get() > 0);
+        assert!(!task.is_finished());
+
+        liveness.set(0);
+        tokio::time::advance(LIVENESS_UPDATE_INTERVAL).await;
+        run_pending_tasks().await;
+        assert!(liveness.get() > 0);
+        assert!(!task.is_finished());
+
+        tokio::time::advance(Duration::from_secs(5)).await;
+        task.await.expect("idle sleep should complete");
+    }
 
     fn generate_test_scraper_settings() -> ScraperSettings {
         let chains = [(

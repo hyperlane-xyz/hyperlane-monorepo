@@ -33,6 +33,10 @@ import { type SolanaRpcClient, createRpc } from '../rpc.js';
 import { getComputeBudgetInstructions } from '../tx.js';
 
 import {
+  FORK_IMPERSONATION_AIRDROP_LAMPORTS,
+  FORK_IMPERSONATION_FEE_PAYER,
+} from './impersonation.js';
+import {
   type SvmForkConfig,
   type SvmForkTransaction,
 } from './svm-fork-config.js';
@@ -163,6 +167,35 @@ export async function buildForkReplayTransaction(
   return getBase64EncodedWireTransaction(compileTransaction(recompressed));
 }
 
+/**
+ * Ensures the fork airdrops SOL to the fixed fork-only impersonation fee payer
+ * at boot, so keyless impersonated applies can pay fees. surfpool airdrops a
+ * single amount to every address, so the fee payer is merged into the caller's
+ * address list and the amount is raised to at least the impersonation buffer.
+ */
+export function withImpersonationAirdrop(
+  airdrops: SurfpoolAirdrops | undefined,
+): SurfpoolAirdrops {
+  const feePayer = FORK_IMPERSONATION_FEE_PAYER.address;
+
+  if (!airdrops) {
+    return {
+      addresses: [feePayer],
+      lamports: FORK_IMPERSONATION_AIRDROP_LAMPORTS,
+    };
+  }
+
+  const addresses = airdrops.addresses.includes(feePayer)
+    ? airdrops.addresses
+    : [...airdrops.addresses, feePayer];
+  const lamports =
+    airdrops.lamports > FORK_IMPERSONATION_AIRDROP_LAMPORTS
+      ? airdrops.lamports
+      : FORK_IMPERSONATION_AIRDROP_LAMPORTS;
+
+  return { addresses, lamports };
+}
+
 class RunningSvmFork {
   constructor(
     readonly node: SurfpoolNode,
@@ -182,7 +215,7 @@ async function startSvmFork(
     },
     rpcPort: config.rpcPort,
     wsPort: config.wsPort,
-    airdrops: config.airdrops,
+    airdrops: withImpersonationAirdrop(config.airdrops),
     skipSignatureVerification: true,
     skipBlockhashCheck: true,
     image: config.image,

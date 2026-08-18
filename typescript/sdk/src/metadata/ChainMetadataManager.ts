@@ -10,10 +10,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import {
-  isEtherscanApiCompatibleFamily,
-  isEvmBlockExplorerAndNotEtherscan,
-} from '../block-explorer/utils.js';
+import { isEtherscanApiCompatibleFamily } from '../block-explorer/utils.js';
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
 import {
@@ -422,31 +419,30 @@ export class ChainMetadataManager<MetaExt = {}> {
   tryGetEvmExplorerMetadata(
     chainNameOrId: ChainNameOrId,
   ): ReturnType<ChainMetadataManager['getExplorerApi']> | null {
-    const defaultExplorer = this.tryGetExplorerApi(chainNameOrId);
+    return this.tryGetEvmExplorerMetadataList(chainNameOrId)[0] ?? null;
+  }
 
-    if (!defaultExplorer) {
-      return null;
-    }
+  /**
+   * Get every configured Etherscan-compatible explorer API in registry order.
+   * Etherscan APIs require a key; compatible alternatives do not necessarily.
+   */
+  tryGetEvmExplorerMetadataList(
+    chainNameOrId: ChainNameOrId,
+  ): NonNullable<ReturnType<typeof getExplorerApi>>[] {
+    const chainMetadata = this.tryGetChainMetadata(chainNameOrId);
+    if (!chainMetadata) return [];
 
-    const chainMetadata = this.getChainMetadata(chainNameOrId);
-    const [fallBackExplorer] =
-      chainMetadata.blockExplorers?.filter((blockExplorer) =>
-        isEvmBlockExplorerAndNotEtherscan(blockExplorer),
-      ) ?? [];
+    return (chainMetadata.blockExplorers ?? []).flatMap((_, index) => {
+      const explorer = getExplorerApi(chainMetadata, index);
+      if (!explorer) return [];
 
-    // Fallback to use other block explorers if the default block explorer
-    // is etherscan and an API key is not configured
-    const isExplorerConfiguredCorrectly =
-      defaultExplorer.family === ExplorerFamily.Etherscan
-        ? !!defaultExplorer.apiKey
-        : true;
-    const canUseExplorerApi =
-      isEtherscanApiCompatibleFamily(defaultExplorer.family) &&
-      isExplorerConfiguredCorrectly;
-
-    const explorer = canUseExplorerApi ? defaultExplorer : fallBackExplorer;
-
-    return explorer ?? null;
+      const hasRequiredApiKey =
+        explorer.family !== ExplorerFamily.Etherscan || !!explorer.apiKey;
+      return isEtherscanApiCompatibleFamily(explorer.family) &&
+        hasRequiredApiKey
+        ? [explorer]
+        : [];
+    });
   }
 
   /**

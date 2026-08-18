@@ -173,6 +173,12 @@ describe(ChainMetadataManager.name, () => {
         apiUrl: 'https://tronscan.example.com/#/api',
         family: ExplorerFamily.TronScan,
       };
+      const routescanExplorer: BlockExplorer = {
+        name: 'Routescan',
+        url: 'https://routescan.example.com',
+        apiUrl: 'https://routescan.example.com/api',
+        family: ExplorerFamily.Routescan,
+      };
 
       interface Case {
         description: string;
@@ -227,6 +233,33 @@ describe(ChainMetadataManager.name, () => {
           }
         });
       }
+
+      it('returns all compatible explorers in registry order', () => {
+        const chainManager = new ChainMetadataManager({
+          testchain: {
+            chainId: 12345,
+            domainId: 12345,
+            name: 'testchain',
+            protocol: ProtocolType.Ethereum,
+            rpcUrls: [{ http: 'https://testchain.example.com' }],
+            blockExplorers: [
+              tronScanExplorer,
+              etherscanNoKeyExplorer,
+              routescanExplorer,
+              etherscanExplorer,
+              blockscoutExplorer,
+            ],
+          },
+        });
+
+        const result = chainManager.tryGetEvmExplorerMetadataList('testchain');
+
+        expect(result.map(({ family }) => family)).to.deep.equal([
+          ExplorerFamily.Routescan,
+          ExplorerFamily.Etherscan,
+          ExplorerFamily.Blockscout,
+        ]);
+      });
     },
   );
 });
