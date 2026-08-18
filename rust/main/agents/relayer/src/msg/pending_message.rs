@@ -1249,19 +1249,14 @@ impl PendingMessage {
                 }
                 Ok(metadata)
             }
-            Err(MetadataBuildError::AwaitingValidatorSignatures) => {
-                let observation = self
-                    .ctx
-                    .metrics
-                    .record_metadata_wait(self.message.id(), self.app_context.as_deref());
-                Err(self.on_metadata_wait(observation))
-            }
             Err(err) => {
-                self.ctx.metrics.finish_metadata_wait(
-                    self.message.id(),
-                    self.app_context.as_deref(),
-                    false,
-                );
+                if !matches!(err, MetadataBuildError::AwaitingValidatorSignatures) {
+                    self.ctx.metrics.finish_metadata_wait(
+                        self.message.id(),
+                        self.app_context.as_deref(),
+                        false,
+                    );
+                }
                 let reprepare = match &err {
                     MetadataBuildError::FailedToBuild(_) | MetadataBuildError::FastPathError(_) => {
                         self.on_reprepare(Some(&err), ReprepareReason::ErrorBuildingMetadata)
