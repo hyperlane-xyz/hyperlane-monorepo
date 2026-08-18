@@ -129,6 +129,8 @@ describe('CallCommitmentsService.handleCommitment', () => {
     service.config = { serviceName: 'callCommitments' };
     service.multiProvider = overrides.multiProvider ?? {};
     service.icaApp = overrides.icaApp ?? {};
+    service.deriveIcaFromConfig =
+      overrides.deriveIcaFromConfig ?? sinon.stub().resolves(mockIca);
     return service;
   }
 
@@ -156,14 +158,12 @@ describe('CallCommitmentsService.handleCommitment', () => {
   });
 
   it('routes ICA payload to deriveIcaFromConfig', async () => {
-    const icaApp = {
-      getAccount: sinon.stub().resolves(mockIca),
-    };
+    const deriveIcaFromConfig = sinon.stub().resolves(mockIca);
     const multiProvider = {
       getChainName: sinon.stub().returns('ethereum'),
       getProvider: sinon.stub(),
     };
-    const service = createService({ icaApp, multiProvider });
+    const service = createService({ deriveIcaFromConfig, multiProvider });
     service.upsertCommitmentInDB = sinon.stub().resolves(storedMetadata);
 
     const req = { body: icaPayload, log: mockLogger() };
@@ -171,7 +171,7 @@ describe('CallCommitmentsService.handleCommitment', () => {
 
     await service.handleCommitment(req, res);
 
-    expect(icaApp.getAccount.called).to.be.true;
+    expect(deriveIcaFromConfig.calledOnce).to.be.true;
     expect(res.status.calledWith(200)).to.be.true;
     expect(
       res.json.calledWithMatch({
@@ -296,6 +296,23 @@ describe('CallCommitmentsService.handleCommitment', () => {
     expect(res.json.calledWith({ error: 'Internal server error' })).to.be.true;
   });
 
+  it('does not write when ICA derivation fails', async () => {
+    const deriveIcaFromConfig = sinon
+      .stub()
+      .rejects(new Error('destination RPC unavailable'));
+    const service = createService({ deriveIcaFromConfig });
+    service.upsertCommitmentInDB = sinon.stub();
+    const res = mockRes();
+
+    await service.handleCommitment(
+      { body: icaPayload, log: mockLogger() },
+      res,
+    );
+
+    expect(res.status.calledWith(400)).to.be.true;
+    expect(service.upsertCommitmentInDB.called).to.be.false;
+  });
+
   it('routes legacy payload to deriveIcaFromDispatchTx', async () => {
     const multiProvider = {
       getChainName: sinon.stub().returns('ethereum'),
@@ -417,6 +434,40 @@ describe('CallCommitmentsService.handleCommitment', () => {
 
     expect(caught).to.equal(error);
     expect(findUnique.called).to.be.false;
+  });
+});
+
+describe('CallCommitmentsService.deriveIcaFromConfig', () => {
+  it('delegates the normalized chain config to the SDK', async () => {
+    const getAccount = sinon.stub().resolves(mockIca);
+    const service = Object.create(CallCommitmentsService.prototype);
+    service.multiProvider = {
+      getChainName: sinon
+        .stub()
+        .callsFake((domain: number) =>
+          domain === icaPayload.originDomain ? 'ethereum' : 'optimism',
+        ),
+    };
+    service.icaApp = { getAccount };
+    const data = {
+      ...icaPayload,
+      ismOverride: '0x' + 'bb'.repeat(20),
+      userSalt: '0x' + 'cc'.repeat(32),
+    };
+
+    expect(await service.deriveIcaFromConfig(data, mockLogger())).to.equal(
+      mockIca,
+    );
+    expect(getAccount.calledOnce).to.be.true;
+    expect(getAccount.firstCall.args).to.deep.equal([
+      'optimism',
+      {
+        origin: 'ethereum',
+        owner: data.owner,
+        ismOverride: data.ismOverride,
+        userSalt: data.userSalt,
+      },
+    ]);
   });
 });
 

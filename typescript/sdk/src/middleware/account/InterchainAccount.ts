@@ -8,9 +8,11 @@ import {
   addBufferToGasLimit,
   addressToBytes32,
   arrayToObject,
+  assert,
   bytes32ToAddress,
   eqAddress,
   formatStandardHookMetadata,
+  isNullish,
   isZeroishAddress,
   objFilter,
   objMap,
@@ -28,6 +30,7 @@ import { MultiProvider } from '../../providers/MultiProvider.js';
 import { CallData as SdkCallData } from '../../providers/transactions/types.js';
 import { RouterApp } from '../../router/RouterApps.js';
 import { ChainMap, ChainName } from '../../types.js';
+import { isMissingSelectorCallException } from '../../utils/contract.js';
 import {
   estimateCallGas,
   estimateHandleGasForRecipient,
@@ -103,35 +106,61 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   ): Promise<Address> {
     const userSalt = config.userSalt ?? InterchainAccount.EMPTY_SALT;
     const originDomain = this.multiProvider.tryGetDomainId(config.origin);
-    if (!originDomain) {
+    if (isNullish(originDomain)) {
       throw new Error(
         `Origin chain (${config.origin}) metadata needed for deploying ICAs ...`,
       );
     }
-    const destinationRouter = this.router(this.contractsMap[destinationChain]);
-    const originRouterAddress = config.localRouter
-      ? bytes32ToAddress(config.localRouter)
-      : bytes32ToAddress(await destinationRouter.routers(originDomain));
+    const destinationContracts = this.contractsMap[destinationChain];
+    assert(
+      destinationContracts?.interchainAccountRouter,
+      `No interchain account router configured for ${destinationChain}`,
+    );
+    const destinationRouter = this.router(destinationContracts);
+
+    const bytecodeHashPromise = destinationRouter
+      .bytecodeHash()
+      .catch((error: unknown) => {
+        if (isMissingSelectorCallException(error)) return null;
+        throw error;
+      });
+    const [rawOriginRouter, rawIsm, bytecodeHash] = await Promise.all([
+      config.localRouter ?? destinationRouter.routers(originDomain),
+      config.ismOverride ?? destinationRouter.isms(originDomain),
+      bytecodeHashPromise,
+    ]);
+    const originRouterAddress = bytes32ToAddress(rawOriginRouter);
     if (isZeroishAddress(originRouterAddress)) {
       throw new Error(
         `Origin router address is zero for ${config.origin} on ${destinationChain}`,
       );
     }
 
-    const destinationIsmAddress = bytes32ToAddress(
-      addressToBytes32(
-        config.ismOverride ?? (await destinationRouter.isms(originDomain)),
-      ),
-    );
-    const destinationAccount = await destinationRouter[
-      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
-    ](
-      originDomain,
-      addressToBytes32(config.owner),
-      addressToBytes32(originRouterAddress),
-      destinationIsmAddress,
-      userSalt,
-    );
+    const destinationIsmAddress = bytes32ToAddress(addressToBytes32(rawIsm));
+    const owner = addressToBytes32(config.owner);
+    const originRouter = addressToBytes32(originRouterAddress);
+    let destinationAccount: Address;
+    if (isNullish(bytecodeHash)) {
+      destinationAccount = await destinationRouter[
+        'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+      ](originDomain, owner, originRouter, destinationIsmAddress, userSalt);
+    } else {
+      const deploySalt = ethers.utils.solidityKeccak256(
+        ['uint32', 'bytes32', 'bytes32', 'bytes32', 'bytes32'],
+        [
+          originDomain,
+          owner,
+          originRouter,
+          ethers.utils.hexZeroPad(destinationIsmAddress, 32),
+          userSalt,
+        ],
+      );
+      destinationAccount = ethers.utils.getCreate2Address(
+        destinationRouter.address,
+        deploySalt,
+        bytecodeHash,
+      );
+    }
 
     // If not deploying anything, return the account address.
     if (!deployIfNotExists) {
@@ -150,13 +179,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       // Estimate gas for deployment
       const gasEstimate = await destinationRouter.estimateGas[
         'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
-      ](
-        originDomain,
-        addressToBytes32(config.owner),
-        addressToBytes32(originRouterAddress),
-        destinationIsmAddress,
-        userSalt,
-      );
+      ](originDomain, owner, originRouter, destinationIsmAddress, userSalt);
 
       // Add buffer to gas estimate
       const gasWithBuffer = addBufferToGasLimit(gasEstimate);
@@ -166,17 +189,10 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         destinationChain,
         destinationRouter[
           'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
-        ](
-          originDomain,
-          addressToBytes32(config.owner),
-          addressToBytes32(originRouterAddress),
-          destinationIsmAddress,
-          userSalt,
-          {
-            gasLimit: gasWithBuffer,
-            ...txOverrides,
-          },
-        ),
+        ](originDomain, owner, originRouter, destinationIsmAddress, userSalt, {
+          gasLimit: gasWithBuffer,
+          ...txOverrides,
+        }),
       );
       this.logger.debug(`Interchain account deployed at ${destinationAccount}`);
     } else {
