@@ -248,7 +248,7 @@ impl AggregationIsmMetadataBuilder {
 #[async_trait]
 impl MetadataBuilder for AggregationIsmMetadataBuilder {
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    #[instrument(err, skip(self, message, params))]
+    #[instrument(skip(self, message, params))]
     async fn build(
         &self,
         ism_address: H256,
@@ -275,6 +275,12 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             }
             Err(MetadataBuildError::Refused(reason)) => {
                 return Err(MetadataBuildError::Refused(reason));
+            }
+            Err(err @ MetadataBuildError::AwaitingValidatorSignatures) => {
+                debug!(
+                    ?err,
+                    "Fast path is waiting for signatures; falling back to the other submodules"
+                );
             }
             Err(err) => {
                 warn!(
@@ -545,6 +551,7 @@ mod test {
     }
 
     /// All submodules fail to build → AggregationThresholdNotMet.
+    #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_all_build_failures_returns_threshold_not_met() {
         let agg_addr = H256::from_low_u64_be(1);
@@ -568,6 +575,7 @@ mod test {
             result.unwrap_err(),
             MetadataBuildError::AggregationThresholdNotMet(2)
         );
+        assert!(logs_contain("Metadata submodule build failed"));
     }
 
     /// All submodules build ok but every dry_run returns None → AggregationThresholdNotMet.
