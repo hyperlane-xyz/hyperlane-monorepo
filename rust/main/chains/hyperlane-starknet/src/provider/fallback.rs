@@ -100,7 +100,7 @@ impl JsonRpcTransport for FallbackHttpTransport {
                 // Create log span
                 let provider = &self.inner.providers[priority.index];
 
-                tracing::debug!(
+                tracing::trace!(
                     fallback_count = idx,
                     provider_index = priority.index,
                     "fallback_request"

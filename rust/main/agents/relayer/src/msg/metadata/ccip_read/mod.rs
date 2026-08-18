@@ -382,7 +382,7 @@ impl CcipReadIsmMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for CcipReadIsmMetadataBuilder {
-    #[instrument(err, skip(self, message, params))]
+    #[instrument(skip(self, message, params))]
     async fn build(
         &self,
         ism_address: H256,
