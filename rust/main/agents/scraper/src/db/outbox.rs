@@ -1,9 +1,9 @@
 use eyre::Result;
 use migration::OnConflict;
-use sea_orm::sea_query::{Cond, Expr, Query, SimpleExpr};
+use sea_orm::sea_query::{Alias, Cond, Expr, Func, Query, SimpleExpr};
 use sea_orm::{
-    ActiveValue::*, ColumnTrait, EntityTrait, FromQueryResult, JoinType, Order, QueryFilter,
-    QueryOrder, QuerySelect, RelationTrait, TransactionTrait,
+    ActiveValue::*, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, FromQueryResult,
+    JoinType, Order, QueryFilter, QueryOrder, QuerySelect, RelationTrait, TransactionTrait,
 };
 use tracing::{debug, instrument};
 
@@ -12,7 +12,7 @@ use crate::db::ScraperDb;
 
 use super::generated::{
     block, delivered_message, gas_payment, indexing_checkpoint, merkle_tree_insertion, message,
-    outbox, transaction,
+    outbox, raw_message_dispatch, transaction,
 };
 
 const OUTBOX_INDEXING_CHECKPOINT_EVENT_TYPE: &str = "indexing_checkpoint";
@@ -60,25 +60,35 @@ impl ScraperDb {
     /// indexed block for the domain and backfills through the safe position.
     #[instrument(skip(self))]
     pub async fn build_outbox(&self, domain: u32) -> Result<u64> {
-        let Some(safe_position) = self.safe_outbox_position(domain).await? else {
-            return Ok(0);
-        };
-        let Some(last_position) = self.last_outbox_position(domain).await? else {
-            return Ok(0);
-        };
-        let target_position = if safe_position > last_position {
-            safe_position.min(last_position.saturating_add(OUTBOX_BUILD_BLOCK_CHUNK))
-        } else {
-            safe_position
-        };
+        let txn = self.0.begin().await?;
+        Self::lock_outbox_domain(&txn, domain).await?;
 
-        let messages = self.message_outbox_rows(domain, target_position).await?;
-        let deliveries = self.delivery_outbox_rows(domain, target_position).await?;
+        let Some(safe_position) = self.safe_outbox_position(&txn, domain).await? else {
+            txn.commit().await?;
+            return Ok(0);
+        };
+        let Some(last_position) = self.last_outbox_position(&txn, domain).await? else {
+            txn.commit().await?;
+            return Ok(0);
+        };
+        if safe_position <= last_position {
+            txn.commit().await?;
+            return Ok(0);
+        }
+        let target_position =
+            safe_position.min(last_position.saturating_add(OUTBOX_BUILD_BLOCK_CHUNK));
+
+        let messages = self
+            .message_outbox_rows(&txn, domain, last_position, target_position)
+            .await?;
+        let deliveries = self
+            .delivery_outbox_rows(&txn, domain, last_position, target_position)
+            .await?;
         let gas_payments = self
-            .gas_payment_outbox_rows(domain, target_position)
+            .gas_payment_outbox_rows(&txn, domain, last_position, target_position)
             .await?;
         let merkle_tree_insertions = self
-            .merkle_tree_insertion_outbox_rows(domain, target_position)
+            .merkle_tree_insertion_outbox_rows(&txn, domain, last_position, target_position)
             .await?;
 
         let sources_exhausted = messages.exhausted
@@ -140,10 +150,10 @@ impl ScraperDb {
         });
 
         if models.is_empty() && checkpoint.is_none() {
+            txn.commit().await?;
             return Ok(0);
         }
 
-        let txn = self.0.begin().await?;
         let inserted = u64::try_from(
             models
                 .len()
@@ -170,7 +180,21 @@ impl ScraperDb {
         Ok(inserted)
     }
 
-    async fn safe_outbox_position(&self, domain: u32) -> Result<Option<i64>> {
+    async fn lock_outbox_domain<C: ConnectionTrait>(connection: &C, domain: u32) -> Result<()> {
+        let query = Query::select()
+            .expr(Func::cust(Alias::new("scraper_lock_outbox_domain")).arg(domain as i32))
+            .to_owned();
+        connection
+            .query_one(DbBackend::Postgres.build(&query))
+            .await?;
+        Ok(())
+    }
+
+    async fn safe_outbox_position<C: ConnectionTrait>(
+        &self,
+        connection: &C,
+        domain: u32,
+    ) -> Result<Option<i64>> {
         let heights = indexing_checkpoint::Entity::find()
             .filter(indexing_checkpoint::Column::Domain.eq(domain))
             .filter(indexing_checkpoint::Column::EventType.is_in([
@@ -182,17 +206,29 @@ impl ScraperDb {
             .select_only()
             .column(indexing_checkpoint::Column::Height)
             .into_tuple::<i64>()
-            .all(&self.0)
+            .all(connection)
             .await?;
 
         if heights.len() < REQUIRED_INDEXING_CHECKPOINT_COUNT {
             return Ok(None);
         }
 
-        Ok(heights.into_iter().min())
+        let mut safe_position = heights.into_iter().min();
+        if let Some(unreconciled_position) = self
+            .first_unreconciled_raw_dispatch_position(connection, domain)
+            .await?
+        {
+            safe_position =
+                safe_position.map(|position| position.min(unreconciled_position.saturating_sub(1)));
+        }
+        Ok(safe_position)
     }
 
-    async fn last_outbox_position(&self, domain: u32) -> Result<Option<i64>> {
+    async fn last_outbox_position<C: ConnectionTrait>(
+        &self,
+        connection: &C,
+        domain: u32,
+    ) -> Result<Option<i64>> {
         if let Some(position) = outbox::Entity::find()
             .filter(outbox::Column::Domain.eq(domain))
             .filter(outbox::Column::EventType.eq(OUTBOX_INDEXING_CHECKPOINT_EVENT_TYPE))
@@ -200,25 +236,74 @@ impl ScraperDb {
             .select_only()
             .column(outbox::Column::Position)
             .into_tuple::<i64>()
-            .one(&self.0)
+            .one(connection)
             .await?
         {
             return Ok(Some(position));
         }
 
         Ok(self
-            .first_indexed_block(domain)
+            .first_indexed_block(connection, domain)
             .await?
             .map(|height| height.saturating_sub(1)))
     }
 
-    async fn first_indexed_block(&self, domain: u32) -> Result<Option<i64>> {
+    async fn first_indexed_block<C: ConnectionTrait>(
+        &self,
+        connection: &C,
+        domain: u32,
+    ) -> Result<Option<i64>> {
         Ok(block::Entity::find()
             .filter(block::Column::Domain.eq(domain))
             .select_only()
             .column_as(block::Column::Height.min(), "height")
             .into_tuple::<Option<i64>>()
-            .one(&self.0)
+            .one(connection)
+            .await?
+            .flatten())
+    }
+
+    async fn first_unreconciled_raw_dispatch_position<C: ConnectionTrait>(
+        &self,
+        connection: &C,
+        domain: u32,
+    ) -> Result<Option<i64>> {
+        let has_no_message = Cond::all().not().add(Expr::exists(
+            Query::select()
+                .expr(Expr::val(1))
+                .from(message::Entity)
+                .and_where(
+                    Expr::col((message::Entity, message::Column::Origin)).equals((
+                        raw_message_dispatch::Entity,
+                        raw_message_dispatch::Column::OriginDomain,
+                    )),
+                )
+                .and_where(
+                    Expr::col((message::Entity, message::Column::OriginMailbox)).equals((
+                        raw_message_dispatch::Entity,
+                        raw_message_dispatch::Column::OriginMailbox,
+                    )),
+                )
+                .and_where(
+                    Expr::col((message::Entity, message::Column::Nonce)).equals((
+                        raw_message_dispatch::Entity,
+                        raw_message_dispatch::Column::Nonce,
+                    )),
+                )
+                .to_owned(),
+        ));
+
+        Ok(raw_message_dispatch::Entity::find()
+            .filter(raw_message_dispatch::Column::OriginDomain.eq(domain))
+            .filter(raw_message_dispatch::Column::MsgBody.is_not_null())
+            .filter(has_no_message)
+            .select_only()
+            .column_as(
+                raw_message_dispatch::Column::OriginBlockHeight.min(),
+                "height",
+            )
+            .into_tuple::<Option<i64>>()
+            .one(connection)
             .await?
             .flatten())
     }
@@ -235,9 +320,11 @@ impl ScraperDb {
         ))
     }
 
-    async fn message_outbox_rows(
+    async fn message_outbox_rows<C: ConnectionTrait>(
         &self,
+        connection: &C,
         domain: u32,
+        last_position: i64,
         safe_position: i64,
     ) -> Result<OutboxSourceBatch> {
         let rows = message::Entity::find()
@@ -247,6 +334,7 @@ impl ScraperDb {
             .join(JoinType::InnerJoin, message::Relation::Transaction.def())
             .join(JoinType::InnerJoin, transaction::Relation::Block.def())
             .filter(message::Column::Origin.eq(domain))
+            .filter(block::Column::Height.gt(last_position))
             .filter(block::Column::Height.lte(safe_position))
             .filter(Self::not_outboxed(
                 domain,
@@ -256,14 +344,16 @@ impl ScraperDb {
             .order_by_asc(message::Column::Id)
             .limit(OUTBOX_SOURCE_ROW_CHUNK.saturating_add(1))
             .into_model::<OutboxSourceRow>()
-            .all(&self.0)
+            .all(connection)
             .await?;
         Ok(OutboxSourceBatch::from_rows(rows))
     }
 
-    async fn delivery_outbox_rows(
+    async fn delivery_outbox_rows<C: ConnectionTrait>(
         &self,
+        connection: &C,
         domain: u32,
+        last_position: i64,
         safe_position: i64,
     ) -> Result<OutboxSourceBatch> {
         let rows = delivered_message::Entity::find()
@@ -276,6 +366,7 @@ impl ScraperDb {
             )
             .join(JoinType::InnerJoin, transaction::Relation::Block.def())
             .filter(delivered_message::Column::Domain.eq(domain))
+            .filter(block::Column::Height.gt(last_position))
             .filter(block::Column::Height.lte(safe_position))
             .filter(Self::not_outboxed(
                 domain,
@@ -285,14 +376,16 @@ impl ScraperDb {
             .order_by_asc(delivered_message::Column::Id)
             .limit(OUTBOX_SOURCE_ROW_CHUNK.saturating_add(1))
             .into_model::<OutboxSourceRow>()
-            .all(&self.0)
+            .all(connection)
             .await?;
         Ok(OutboxSourceBatch::from_rows(rows))
     }
 
-    async fn gas_payment_outbox_rows(
+    async fn gas_payment_outbox_rows<C: ConnectionTrait>(
         &self,
+        connection: &C,
         domain: u32,
+        last_position: i64,
         safe_position: i64,
     ) -> Result<OutboxSourceBatch> {
         let rows = gas_payment::Entity::find()
@@ -305,6 +398,7 @@ impl ScraperDb {
             )
             .join(JoinType::InnerJoin, transaction::Relation::Block.def())
             .filter(gas_payment::Column::Domain.eq(domain))
+            .filter(block::Column::Height.gt(last_position))
             .filter(block::Column::Height.lte(safe_position))
             .filter(Self::not_outboxed(
                 domain,
@@ -314,14 +408,16 @@ impl ScraperDb {
             .order_by_asc(gas_payment::Column::Id)
             .limit(OUTBOX_SOURCE_ROW_CHUNK.saturating_add(1))
             .into_model::<OutboxSourceRow>()
-            .all(&self.0)
+            .all(connection)
             .await?;
         Ok(OutboxSourceBatch::from_rows(rows))
     }
 
-    async fn merkle_tree_insertion_outbox_rows(
+    async fn merkle_tree_insertion_outbox_rows<C: ConnectionTrait>(
         &self,
+        connection: &C,
         domain: u32,
+        last_position: i64,
         safe_position: i64,
     ) -> Result<OutboxSourceBatch> {
         let rows = merkle_tree_insertion::Entity::find()
@@ -334,6 +430,7 @@ impl ScraperDb {
             )
             .join(JoinType::InnerJoin, transaction::Relation::Block.def())
             .filter(merkle_tree_insertion::Column::Domain.eq(domain))
+            .filter(block::Column::Height.gt(last_position))
             .filter(block::Column::Height.lte(safe_position))
             .filter(Self::not_outboxed(
                 domain,
@@ -347,7 +444,7 @@ impl ScraperDb {
             .order_by_asc(merkle_tree_insertion::Column::Id)
             .limit(OUTBOX_SOURCE_ROW_CHUNK.saturating_add(1))
             .into_model::<OutboxSourceRow>()
-            .all(&self.0)
+            .all(connection)
             .await?;
         Ok(OutboxSourceBatch::from_rows(rows))
     }
@@ -387,6 +484,8 @@ fn outbox_model(
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
     use crate::db::generated::cursor;
     use migration::MigratorTrait;
@@ -394,6 +493,7 @@ mod tests {
     use sea_orm::{ActiveModelTrait, Database, DbErr, PaginatorTrait};
     use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::postgres::Postgres;
+    use tokio::time::timeout;
 
     fn test_message(nonce: i32, transaction_id: i64) -> message::ActiveModel {
         message::ActiveModel {
@@ -437,7 +537,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_outbox_exhaustion_and_reversed_commit_order_real_postgres() -> Result<(), DbErr> {
+    async fn test_outbox_exhaustion_and_atomic_source_order_real_postgres() -> Result<(), DbErr> {
         let postgres_container = Postgres::default()
             .start()
             .await
@@ -454,19 +554,26 @@ mod tests {
             domain: Set(1),
             time_created: Set(date_time::now()),
             height: Set(9),
-            event_type: Set("hyperlane_message".to_owned()),
+            event_type: Set(String::new()),
         }
         .insert(&db)
         .await?;
-        migration::Migrator::up(&db, None).await?;
-        let bootstrapped_height = indexing_checkpoint::Entity::find()
-            .filter(indexing_checkpoint::Column::Domain.eq(1))
-            .filter(indexing_checkpoint::Column::EventType.eq("hyperlane_message"))
-            .one(&db)
-            .await?
-            .expect("bootstrapped checkpoint should exist")
-            .height;
-        assert_eq!(bootstrapped_height, 9);
+        migration::Migrator::up(&db, Some(3)).await?;
+        for event_type in [
+            "hyperlane_message",
+            "delivery",
+            "interchain_gas_payment",
+            "merkle_tree_insertion",
+        ] {
+            let bootstrapped_height = indexing_checkpoint::Entity::find()
+                .filter(indexing_checkpoint::Column::Domain.eq(1))
+                .filter(indexing_checkpoint::Column::EventType.eq(event_type))
+                .one(&db)
+                .await?
+                .expect("bootstrapped checkpoint should exist")
+                .height;
+            assert_eq!(bootstrapped_height, 9);
+        }
 
         let block = block::ActiveModel {
             id: NotSet,
@@ -521,6 +628,7 @@ mod tests {
         )
         .exec(&db)
         .await?;
+        migration::Migrator::up(&db, None).await?;
 
         let scraper_db = ScraperDb::with_connection(Database::connect(&postgres_url).await?);
         scraper_db
@@ -542,35 +650,72 @@ mod tests {
 
         outbox::Entity::delete_many().exec(&db).await?;
         message::Entity::delete_many().exec(&db).await?;
+        raw_message_dispatch::ActiveModel {
+            id: NotSet,
+            time_created: Set(date_time::now()),
+            time_updated: Set(date_time::now()),
+            msg_id: Set(1_i32.to_be_bytes().to_vec()),
+            origin_tx_hash: Set(vec![7; 64]),
+            origin_block_hash: Set(vec![1; 32]),
+            origin_block_height: Set(10),
+            nonce: Set(1),
+            origin_domain: Set(1),
+            destination_domain: Set(1),
+            sender: Set(vec![4; 32]),
+            recipient: Set(vec![5; 32]),
+            origin_mailbox: Set(vec![6; 32]),
+            msg_body: Set(Some(vec![8])),
+        }
+        .insert(&db)
+        .await?;
+        scraper_db
+            .build_outbox(1)
+            .await
+            .expect("unreconciled raw dispatch should safely block the checkpoint");
+        assert_eq!(
+            outbox::Entity::find()
+                .filter(outbox::Column::EventType.eq(OUTBOX_INDEXING_CHECKPOINT_EVENT_TYPE))
+                .count(&db)
+                .await?,
+            0
+        );
+
         let first = db.begin().await?;
         let first_message = test_message(1, source_transaction.id)
             .insert(&first)
             .await?;
         let second = db.begin().await?;
-        let second_message = test_message(2, source_transaction.id)
-            .insert(&second)
-            .await?;
+        let second_message = {
+            let insert = test_message(2, source_transaction.id).insert(&second);
+            tokio::pin!(insert);
+            assert!(timeout(Duration::from_millis(100), insert.as_mut())
+                .await
+                .is_err());
+            first.commit().await?;
+            insert.await?
+        };
         second.commit().await?;
 
         scraper_db
             .build_outbox(1)
             .await
-            .expect("outbox pass before the lower ID commits should succeed");
-        first.commit().await?;
-        scraper_db
-            .build_outbox(1)
-            .await
-            .expect("outbox pass after the lower ID commits should succeed");
+            .expect("outbox pass after atomic source writes should succeed");
 
-        let source_ids = outbox::Entity::find()
-            .filter(outbox::Column::EventType.eq(OUTBOX_MESSAGE_EVENT_TYPE))
-            .order_by_asc(outbox::Column::SourceId)
-            .select_only()
-            .column(outbox::Column::SourceId)
-            .into_tuple::<i64>()
+        let rows = outbox::Entity::find()
+            .filter(outbox::Column::EventType.is_in([
+                OUTBOX_MESSAGE_EVENT_TYPE,
+                OUTBOX_INDEXING_CHECKPOINT_EVENT_TYPE,
+            ]))
+            .order_by_asc(outbox::Column::Id)
             .all(&db)
             .await?;
-        assert_eq!(source_ids, vec![first_message.id, second_message.id]);
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0].source_id, first_message.id);
+        assert_eq!(rows[1].source_id, second_message.id);
+        assert_eq!(rows[2].event_type, OUTBOX_INDEXING_CHECKPOINT_EVENT_TYPE);
+        assert!(rows[..2].iter().all(|row| row.position <= rows[2].position));
+
+        migration::Migrator::down(&db, None).await?;
 
         Ok(())
     }

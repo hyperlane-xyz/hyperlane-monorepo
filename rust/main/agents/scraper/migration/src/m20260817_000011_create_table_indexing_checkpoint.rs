@@ -65,7 +65,8 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // Preserve existing indexer progress when switching watermark storage.
+        // Preserve explicitly keyed cursors and fan the legacy shared cursor
+        // out to each event-specific watermark.
         manager
             .get_connection()
             .execute_unprepared(
@@ -74,6 +75,21 @@ impl MigrationTrait for Migration {
                     (domain, event_type, height, time_created, time_updated)
                 SELECT domain, event_type, height, time_created, time_created
                 FROM cursor
+                WHERE event_type <> ''
+                ON CONFLICT (domain, event_type) DO NOTHING;
+
+                INSERT INTO indexing_checkpoint
+                    (domain, event_type, height, time_created, time_updated)
+                SELECT cursor.domain, event_type.name, cursor.height,
+                       cursor.time_created, cursor.time_created
+                FROM cursor
+                CROSS JOIN (VALUES
+                    ('hyperlane_message'),
+                    ('delivery'),
+                    ('interchain_gas_payment'),
+                    ('merkle_tree_insertion')
+                ) AS event_type(name)
+                WHERE cursor.event_type = ''
                 ON CONFLICT (domain, event_type) DO NOTHING
                 "#,
             )
