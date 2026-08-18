@@ -63,7 +63,23 @@ impl MigrationTrait for Migration {
                     .index_type(IndexType::BTree)
                     .to_owned(),
             )
-            .await
+            .await?;
+
+        // Preserve existing indexer progress when switching watermark storage.
+        manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                INSERT INTO indexing_checkpoint
+                    (domain, event_type, height, time_created, time_updated)
+                SELECT domain, event_type, height, time_created, time_created
+                FROM cursor
+                ON CONFLICT (domain, event_type) DO NOTHING
+                "#,
+            )
+            .await?;
+
+        Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {

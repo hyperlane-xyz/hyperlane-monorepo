@@ -1,5 +1,6 @@
 use sea_orm_migration::prelude::*;
 
+use crate::m20230309_000004_create_table_delivered_message::DeliveredMessage;
 use crate::m20230309_000004_create_table_gas_payment::GasPayment;
 use crate::m20230309_000005_create_table_message::Message;
 use crate::m20260817_000012_create_table_merkle_tree_insertion::MerkleTreeInsertion;
@@ -22,6 +23,17 @@ impl MigrationTrait for Migration {
                     .index_type(IndexType::BTree)
                     .to_owned(),
             )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(MerkleTreeInsertion::Table)
+                    .name("merkle_tree_insertion_domain_id_idx")
+                    .col(MerkleTreeInsertion::Domain)
+                    .col(MerkleTreeInsertion::Id)
+                    .index_type(IndexType::BTree)
+                    .to_owned(),
+            )
             .await
     }
 
@@ -30,7 +42,33 @@ impl MigrationTrait for Migration {
             .drop_index(
                 Index::drop()
                     .table(MerkleTreeInsertion::Table)
+                    .name("merkle_tree_insertion_domain_id_idx")
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .drop_index(
+                Index::drop()
+                    .table(MerkleTreeInsertion::Table)
                     .name("merkle_tree_insertion_origin_tx_id_idx")
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .drop_index(
+                Index::drop()
+                    .table(DeliveredMessage::Table)
+                    .name("delivered_message_domain_id_idx")
+                    .if_exists()
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .drop_index(
+                Index::drop()
+                    .table(Message::Table)
+                    .name("message_origin_id_idx")
+                    .if_exists()
                     .to_owned(),
             )
             .await?;

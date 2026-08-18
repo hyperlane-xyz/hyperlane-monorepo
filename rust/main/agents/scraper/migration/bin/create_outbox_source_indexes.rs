@@ -20,6 +20,22 @@ async fn main() -> Result<(), DbErr> {
 
     db.execute_unprepared(
         r#"
+        CREATE INDEX CONCURRENTLY IF NOT EXISTS message_origin_id_idx
+        ON message (origin, id)
+        "#,
+    )
+    .await?;
+
+    db.execute_unprepared(
+        r#"
+        CREATE INDEX CONCURRENTLY IF NOT EXISTS delivered_message_domain_id_idx
+        ON delivered_message (domain, id)
+        "#,
+    )
+    .await?;
+
+    db.execute_unprepared(
+        r#"
         CREATE INDEX CONCURRENTLY IF NOT EXISTS gas_payment_tx_id_idx
         ON gas_payment (tx_id)
         "#,
