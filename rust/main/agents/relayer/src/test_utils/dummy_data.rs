@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::{sync::Arc, time::Duration};
 
-use prometheus::{CounterVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry};
+use prometheus::Registry;
 use tokio::sync::RwLock;
 
 use hyperlane_base::{
@@ -10,7 +10,7 @@ use hyperlane_base::{
     settings::{ChainConf, ChainConnectionConf, Settings},
     CoreMetrics,
 };
-use hyperlane_core::{HyperlaneDomain, H256};
+use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, H256};
 use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
 
 use crate::{
@@ -97,22 +97,12 @@ pub fn dummy_metadata_builder(
 }
 
 pub fn dummy_submission_metrics() -> MessageSubmissionMetrics {
-    MessageSubmissionMetrics {
-        origin: "".to_string(),
-        destination: "".to_string(),
-        last_known_nonce: IntGauge::new("last_known_nonce_gauge", "help string").unwrap(),
-        messages_processed: IntCounter::new("message_processed_gauge", "help string").unwrap(),
-        metadata_build_count: IntCounterVec::new(
-            Opts::new("metadata_build_count", "help string"),
-            &["app_context", "origin", "remote", "status"],
-        )
-        .unwrap(),
-        metadata_build_duration: CounterVec::new(
-            Opts::new("metadata_build_duration", "help string"),
-            &["app_context", "origin", "remote", "status"],
-        )
-        .unwrap(),
-    }
+    let core_metrics = CoreMetrics::new("dummy_relayer", 37582, Registry::new()).unwrap();
+    MessageSubmissionMetrics::new(
+        &core_metrics,
+        &HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        &HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+    )
 }
 
 pub fn dummy_message_context(

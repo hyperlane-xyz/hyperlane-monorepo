@@ -227,7 +227,7 @@ where
                 if resp.is_err() {
                     self.handle_failed_provider(priority).await;
                 }
-                tracing::debug!(
+                tracing::trace!(
                     fallback_count = idx,
                     provider_index = priority.index,
                     provider_host = provider_host.as_str(),
