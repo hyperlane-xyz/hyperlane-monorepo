@@ -37,9 +37,13 @@ function getOracleConfigWithOverrides(origin: ChainName) {
       tokenExchangeRate: '15000000000000000000',
       tokenDecimals: 6,
     };
+    // tokenExchangeRate raised 12.65x (1.5e19 -> 1.898e20) to price the
+    // solaxy->solanamainnet IGP quote at ~$0.40/msg (from ~$0.032) at current
+    // SOLX price, deterring the ATA rent-harvest drain on the SOLX synthetic
+    // ata-payer. Fee = 664000 gas * rate/1e19 * 10^3 microSOLX (INC-34604).
     oracleConfig.solanamainnet = {
       gasPrice: '1',
-      tokenExchangeRate: '15000000000000000000',
+      tokenExchangeRate: '189800000000000000000',
       tokenDecimals: 6,
     };
   }
