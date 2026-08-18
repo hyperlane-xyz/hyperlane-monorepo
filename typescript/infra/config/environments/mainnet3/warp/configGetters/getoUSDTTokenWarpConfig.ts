@@ -58,7 +58,7 @@ const supportedCCIPChains = ['base', 'mode', 'optimism'];
 // core 6.1.0, which predates FungibleTokenRouter fee support; setting this makes
 // `warp apply` upgrade the proxy impl to the current @hyperlane-xyz/core release
 // (via ProxyAdmin.upgrade) so setFeeRecipient/feeRecipient exist for the OQLF fee.
-const contractVersion = '12.0.0';
+const contractVersion = '12.1.0';
 
 type oUSDTTokenChainName = (typeof deploymentChains)[number];
 type TypedoUSDTTokenChainMap<T> = {
