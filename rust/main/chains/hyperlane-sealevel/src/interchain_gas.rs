@@ -7,7 +7,7 @@ use hyperlane_sealevel_igp::{
     igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
 };
 use solana_sdk::{account::Account, clock::Slot, pubkey::Pubkey};
-use tracing::{info, instrument};
+use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
     config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator,
@@ -175,6 +175,16 @@ impl SealevelInterchainGasPaymasterIndexer {
             gas_amount: gas_payment_account.gas_amount.into(),
         };
 
+        let basic_log_meta = LogMeta {
+            address: self.igp.program_id.to_bytes().into(),
+            block_number: gas_payment_account.slot,
+            // TODO: get these when building out scraper support.
+            // It's inconvenient to get these :|
+            block_hash: H256::zero(),
+            transaction_id: H512::zero(),
+            transaction_index: 0,
+            log_index: sequence_number.into(),
+        };
         let log_meta = if self.advanced_log_meta {
             self.interchain_payment_log_meta(
                 U256::from(sequence_number),
@@ -182,17 +192,9 @@ impl SealevelInterchainGasPaymasterIndexer {
                 &gas_payment_account.slot,
             )
             .await?
+            .unwrap_or(basic_log_meta)
         } else {
-            LogMeta {
-                address: self.igp.program_id.to_bytes().into(),
-                block_number: gas_payment_account.slot,
-                // TODO: get these when building out scraper support.
-                // It's inconvenient to get these :|
-                block_hash: H256::zero(),
-                transaction_id: H512::zero(),
-                transaction_index: 0,
-                log_index: sequence_number.into(),
-            }
+            basic_log_meta
         };
 
         Ok(SealevelGasPayment::new(
@@ -227,16 +229,35 @@ impl SealevelInterchainGasPaymasterIndexer {
         log_index: U256,
         payment_pda_pubkey: &Pubkey,
         payment_pda_slot: &Slot,
-    ) -> ChainResult<LogMeta> {
+    ) -> ChainResult<Option<LogMeta>> {
         let block = self
             .provider
             .rpc_client()
             .get_block(*payment_pda_slot)
             .await?;
 
-        self.log_meta_composer
-            .log_meta(block, log_index, payment_pda_pubkey, payment_pda_slot)
-            .map_err(Into::<ChainCommunicationError>::into)
+        match self.log_meta_composer.log_meta(
+            block,
+            log_index,
+            payment_pda_pubkey,
+            payment_pda_slot,
+        ) {
+            Ok(log_meta) => Ok(Some(log_meta)),
+            // The block will never contain the expected transaction after filtering, so falling
+            // back to basic log meta lets the sequence-aware cursor advance instead of rewinding
+            // on the same sequence forever.
+            Err(err) if err.is_log_meta_unresolvable() => {
+                warn!(
+                    ?err,
+                    ?payment_pda_pubkey,
+                    ?payment_pda_slot,
+                    "Could not resolve advanced log meta for interchain gas payment, \
+                     falling back to basic log meta",
+                );
+                Ok(None)
+            }
+            Err(err) => Err(err.into()),
+        }
     }
 }
 

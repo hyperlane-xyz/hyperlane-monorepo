@@ -50,8 +50,41 @@ pub enum HyperlaneSealevelError {
     NoNonNativePrograms(Box<H512>),
 }
 
+impl HyperlaneSealevelError {
+    /// Whether this error means a specific event's log meta could not be
+    /// resolved from the block recorded on its storage account (the block does
+    /// not contain the expected transaction after filtering, or contains more
+    /// than one). These are non-retryable: the block will never contain the
+    /// transaction, so sequence-aware indexing should fall back to basic log
+    /// meta and advance rather than rewinding on the same sequence forever.
+    pub fn is_log_meta_unresolvable(&self) -> bool {
+        matches!(self, Self::NoTransactions(_) | Self::TooManyTransactions(_))
+    }
+}
+
 impl From<HyperlaneSealevelError> for ChainCommunicationError {
     fn from(value: HyperlaneSealevelError) -> Self {
         ChainCommunicationError::from_other(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn log_meta_unresolvable_errors_are_non_retryable() {
+        assert!(HyperlaneSealevelError::NoTransactions("x".into()).is_log_meta_unresolvable());
+        assert!(HyperlaneSealevelError::TooManyTransactions("x".into()).is_log_meta_unresolvable());
+    }
+
+    #[test]
+    fn other_errors_are_not_log_meta_unresolvable() {
+        assert!(!HyperlaneSealevelError::EmptyMetadata.is_log_meta_unresolvable());
+        assert!(!HyperlaneSealevelError::EmptyComputeUnitsConsumed.is_log_meta_unresolvable());
+        assert!(
+            !HyperlaneSealevelError::UnsignedTransaction(Box::new(H512::zero()))
+                .is_log_meta_unresolvable()
+        );
     }
 }
