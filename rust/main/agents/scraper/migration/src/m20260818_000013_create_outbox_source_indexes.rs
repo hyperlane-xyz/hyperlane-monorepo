@@ -39,6 +39,7 @@ impl MigrationTrait for Migration {
                 Index::drop()
                     .table(GasPayment::Table)
                     .name("gas_payment_tx_id_idx")
+                    .if_exists()
                     .to_owned(),
             )
             .await?;
@@ -47,6 +48,7 @@ impl MigrationTrait for Migration {
                 Index::drop()
                     .table(Message::Table)
                     .name("message_origin_tx_id_idx")
+                    .if_exists()
                     .to_owned(),
             )
             .await
