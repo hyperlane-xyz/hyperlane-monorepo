@@ -95,7 +95,7 @@ export abstract class HyperlaneDeployer<
     protected readonly icaAddresses = {},
   ) {
     this.logger = options?.logger ?? rootLogger.child({ module: 'deployer' });
-    this.chainTimeoutMs = options?.chainTimeoutMs ?? 15 * 60 * 1000; // 15 minute timeout per chain
+    this.chainTimeoutMs = options?.chainTimeoutMs ?? 45 * 60 * 1000; // 45 minute timeout per chain
     if (Object.keys(icaAddresses).length > 0) {
       this.options.icaApp = InterchainAccount.fromAddressesMap(
         icaAddresses,
