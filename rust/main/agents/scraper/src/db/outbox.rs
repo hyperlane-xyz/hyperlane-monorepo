@@ -95,11 +95,12 @@ impl ScraperDb {
             .await?;
 
         let mut models = Vec::with_capacity(
-            messages.len()
-                + deliveries.len()
-                + gas_payments.len()
-                + merkle_tree_insertions.len()
-                + usize::from(true),
+            messages
+                .len()
+                .saturating_add(deliveries.len())
+                .saturating_add(gas_payments.len())
+                .saturating_add(merkle_tree_insertions.len())
+                .saturating_add(1),
         );
         for row in messages {
             models.push(outbox_model(
@@ -210,7 +211,9 @@ impl ScraperDb {
             .all(connection)
             .await?;
 
-        if heights.len() < REQUIRED_INDEXING_CHECKPOINT_COUNT + usize::from(require_ccr) {
+        if heights.len()
+            < REQUIRED_INDEXING_CHECKPOINT_COUNT.saturating_add(usize::from(require_ccr))
+        {
             return Ok(None);
         }
 
