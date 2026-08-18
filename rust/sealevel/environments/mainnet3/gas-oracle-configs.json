@@ -488,7 +488,7 @@
     },
     "solanamainnet": {
       "oracleConfig": {
-        "gasPrice": "1",
+        "gasPrice": "25000",
         "tokenExchangeRate": "15000000000000000000",
         "tokenDecimals": 6
       },
