@@ -7,6 +7,11 @@ import type {
   SignerConfig,
   TransactionSubmitterConfig,
 } from '@hyperlane-xyz/provider-sdk';
+import {
+  AltVMImpersonatedSubmitter,
+  AltVMJsonRpcSubmitter,
+  SubmitterType,
+} from '@hyperlane-xyz/provider-sdk';
 import type { IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
 import type { IRawHookArtifactManager } from '@hyperlane-xyz/provider-sdk/hook';
 import type { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
@@ -32,6 +37,7 @@ import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { createRpc } from '../rpc.js';
 import { SvmWarpArtifactManager } from '../warp/warp-artifact-manager.js';
+import { SvmImpersonatingSigner } from './impersonating-signer.js';
 import { SvmProvider, WARP_DEPLOY_BASE_LAMPORTS } from './provider.js';
 import { SvmSigner } from './signer.js';
 
@@ -47,11 +53,37 @@ export class SvmProtocolProvider implements ProtocolProvider {
     return SvmSigner.connectWithSigner(chainMetadata, config.privateKey);
   }
 
-  createSubmitter<TConfig extends TransactionSubmitterConfig>(
-    _chainMetadata: ChainMetadataForAltVM,
-    _config: TConfig,
+  async createSubmitter<TConfig extends TransactionSubmitterConfig>(
+    chainMetadata: ChainMetadataForAltVM,
+    config: TConfig,
   ): Promise<ITransactionSubmitter> {
-    throw new Error('Transaction submitter not yet implemented for Sealevel');
+    const submitterConfig: TransactionSubmitterConfig = config;
+    const { chain } = submitterConfig;
+
+    switch (submitterConfig.type) {
+      case SubmitterType.JsonRpc: {
+        const signer = await SvmSigner.connectWithSigner(
+          chainMetadata,
+          submitterConfig.privateKey,
+        );
+        return new AltVMJsonRpcSubmitter(signer, { chain });
+      }
+      case SubmitterType.ImpersonatedAccount: {
+        const signer = await SvmImpersonatingSigner.create(
+          chainMetadata,
+          submitterConfig.userAddress,
+        );
+        return new AltVMImpersonatedSubmitter(signer, { chain });
+      }
+      case SubmitterType.File:
+        throw new Error(
+          `File submission is a Node/CLI-layer concern and is not available via the browser-safe Sealevel provider (submitter type: ${submitterConfig.type})`,
+        );
+      default: {
+        const _exhaustive: never = submitterConfig;
+        throw new Error(`Unhandled submitter type: ${_exhaustive}`);
+      }
+    }
   }
 
   createIsmArtifactManager(

@@ -1,6 +1,6 @@
 ---
 name: warp-fork
-description: Fork a warp route from the local HTTP registry for development and testing. Use when the goal is try to simulate transactions on a set of anvil forks.
+description: Fork a warp route from the local HTTP registry for development and testing. Forks each chain with the right local node per protocol — anvil for EVM chains, surfpool (Solana mainnet fork) for Sealevel chains. Use when the goal is to simulate transactions on a set of local forks before submitting them on-chain.
 ---
 
 # Warp Fork
@@ -32,6 +32,12 @@ Fork a warp route using the local HTTP registry.
 **Prerequisites:**
 
 - The http-registry server must be running on port 3333. If not, start it first with `/start-http-registry`.
+- Forking is per-protocol: EVM chains need Foundry `anvil` on `PATH`; Sealevel chains need a locally-installed `surfpool` binary (`>= 1.5.0`) on `PATH` — there is **no Docker fallback** in the CLI. Install the pinned, checksum-verified `surfpool` release the way CI does — see the `Install surfpool` step in `.github/workflows/test-cli-e2e.yml` (a pinned `v1.5.0` release tarball verified against its SHA-256); do **not** pipe the mutable `run.surfpool.run` installer to a shell. If the binary is missing, `warp fork` aborts with a "surfpool 1.5.0+ is required" error before forking.
+
+**Related skills:**
+
+- `/warp-simulate-safe-txs` — EVM fork → replay a Safe batch → check.
+- `/warp-simulate-svm-txs` — Sealevel fork → replay SVM/Squads governance txs → check.
 
 **Example output:**
 

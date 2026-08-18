@@ -1350,6 +1350,44 @@ describe('EvmWarpModule', async () => {
       expect(txs.length).to.equal(0);
     });
 
+    it('should reuse a configured ProxyAdmin timelock', async () => {
+      const config: HypTokenRouterConfig = {
+        ...baseConfig,
+        type: TokenType.native,
+      };
+      const evmWarpModule = await EvmWarpModule.create({
+        chain,
+        config: {
+          ...config,
+          interchainSecurityModule: ismAddress,
+        },
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+      const timelockConfig = {
+        delay: 259_200,
+        roles: {
+          proposer: signer.address,
+          executor: signer.address,
+        },
+      };
+
+      const firstUpdate = await evmWarpModule.updateSplit({
+        ...config,
+        timelock: timelockConfig,
+      });
+      expect(firstUpdate.ownershipTxs.length).to.equal(1);
+      await sendTxs(firstUpdate.ownershipTxs);
+
+      const secondUpdate = await evmWarpModule.updateSplit({
+        ...config,
+        timelock: timelockConfig,
+      });
+      expect(secondUpdate.txs).to.be.empty;
+      expect(secondUpdate.feeTxs).to.be.empty;
+      expect(secondUpdate.ownershipTxs).to.be.empty;
+    });
+
     it('should update the destination gas', async () => {
       const domain = 3;
       const config: HypTokenRouterConfig = {

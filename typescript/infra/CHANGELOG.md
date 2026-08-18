@@ -1,5 +1,75 @@
 # @hyperlane-xyz/infra
 
+## 41.2.0
+
+### Patch Changes
+
+- Updated dependencies [bd4e5f0]
+- Updated dependencies [e7666ef]
+- Updated dependencies [5fac94d]
+- Updated dependencies [5899416]
+- Updated dependencies [5fac94d]
+  - @hyperlane-xyz/provider-sdk@8.1.0
+  - @hyperlane-xyz/sealevel-sdk@41.2.0
+  - @hyperlane-xyz/deploy-sdk@8.1.0
+  - @hyperlane-xyz/sdk@41.2.0
+  - @hyperlane-xyz/core@12.1.0
+  - @hyperlane-xyz/rebalancer@27.3.15
+  - @hyperlane-xyz/tron-sdk@24.1.3
+  - @hyperlane-xyz/http-registry-server@41.2.0
+  - @hyperlane-xyz/keyfunder@0.1.43
+  - @hyperlane-xyz/metrics@0.2.36
+  - @hyperlane-xyz/relayer@1.1.43
+  - @hyperlane-xyz/utils@41.2.0
+
+## 41.1.0
+
+### Patch Changes
+
+- Updated dependencies [0adcbb2]
+  - @hyperlane-xyz/sealevel-sdk@41.1.0
+  - @hyperlane-xyz/http-registry-server@41.1.0
+  - @hyperlane-xyz/deploy-sdk@8.0.4
+  - @hyperlane-xyz/sdk@41.1.0
+  - @hyperlane-xyz/keyfunder@0.1.42
+  - @hyperlane-xyz/metrics@0.2.35
+  - @hyperlane-xyz/rebalancer@27.3.14
+  - @hyperlane-xyz/relayer@1.1.42
+  - @hyperlane-xyz/utils@41.1.0
+  - @hyperlane-xyz/core@12.0.0
+  - @hyperlane-xyz/provider-sdk@8.0.4
+  - @hyperlane-xyz/tron-sdk@24.1.2
+
+## 41.0.0
+
+### Patch Changes
+
+- Updated dependencies [0057c5d]
+- Updated dependencies [fa19409]
+- Updated dependencies [1a32515]
+- Updated dependencies [1ba623d]
+- Updated dependencies [fcb4331]
+- Updated dependencies [eb24243]
+- Updated dependencies [72738e2]
+- Updated dependencies [fa19409]
+- Updated dependencies [7846658]
+- Updated dependencies [0765fe0]
+- Updated dependencies [b1c6b7e]
+- Updated dependencies [a09ba71]
+- Updated dependencies [d9426bc]
+  - @hyperlane-xyz/sdk@41.0.0
+  - @hyperlane-xyz/utils@41.0.0
+  - @hyperlane-xyz/relayer@1.1.41
+  - @hyperlane-xyz/deploy-sdk@8.0.3
+  - @hyperlane-xyz/http-registry-server@41.0.0
+  - @hyperlane-xyz/keyfunder@0.1.41
+  - @hyperlane-xyz/metrics@0.2.34
+  - @hyperlane-xyz/rebalancer@27.3.13
+  - @hyperlane-xyz/core@12.0.0
+  - @hyperlane-xyz/provider-sdk@8.0.3
+  - @hyperlane-xyz/sealevel-sdk@41.0.0
+  - @hyperlane-xyz/tron-sdk@24.1.1
+
 ## 40.0.0
 
 ### Patch Changes

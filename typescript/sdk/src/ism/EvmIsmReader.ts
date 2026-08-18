@@ -36,6 +36,7 @@ import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { DispatchedMessage } from '../core/types.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { ChainMap, ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 import {
@@ -47,6 +48,7 @@ import {
 import {
   AggregationIsmConfig,
   ArbL2ToL1IsmConfig,
+  BlacklistIsmConfig,
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
   IsmConfig,
@@ -57,6 +59,7 @@ import {
   OffchainLookupIsmConfig,
   RoutingIsmConfig,
 } from './types.js';
+import { readBlacklistedIds } from './blacklist.js';
 
 const INCREMENTAL_REVERT_STRING =
   'IncrementalDomainRoutingIsm: removal not supported';
@@ -92,6 +95,7 @@ const NON_REDEPLOYABLE_ISM_TYPES = new Set<IsmType>([
 export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   protected readonly logger = rootLogger.child({ module: 'EvmIsmReader' });
   protected isZkSyncChain: boolean;
+  protected readonly evmLogReader: EvmEventLogsReader;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -108,6 +112,11 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       this.chain,
     ).technicalStack;
     this.isZkSyncChain = chainTechnicalStack === ChainTechnicalStack.ZkSync;
+
+    this.evmLogReader = EvmEventLogsReader.fromConfig(
+      { chain: this.chain },
+      multiProvider,
+    );
   }
 
   async deriveIsmConfigFromAddress(
@@ -680,22 +689,9 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       );
     }
 
-    const blacklistIsm = BlacklistIsm__factory.connect(address, this.provider);
-    try {
-      await blacklistIsm.blacklistedIds(ethers.constants.HashZero);
-      const owner = await blacklistIsm.owner();
-      return {
-        address,
-        type: IsmType.BLACKLIST,
-        owner,
-        blacklistedIds: await blacklistIsm.values(),
-      };
-    } catch (error) {
-      throwIfNotMissingSelector(error);
-      this.logger.debug(
-        'Error accessing "blacklistedIds" property, implying this is not a Blacklist ISM.',
-        address,
-      );
+    const blacklistConfig = await this.deriveBlacklistConfig(address);
+    if (blacklistConfig) {
+      return blacklistConfig;
     }
 
     // no specific properties, must be Test ISM
@@ -703,6 +699,43 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       address,
       type: IsmType.TEST_ISM,
     };
+  }
+
+  /**
+   * Returns undefined when the contract is not a Blacklist ISM.
+   *
+   * Detection and enumeration are separate probes: deployments that predate
+   * `values()` expose the same `blacklistedIds(bytes32)` getter, so a missing
+   * `values()` selector falls back to replaying the entries from logs rather
+   * than disqualifying the contract. That replay either yields the entries or
+   * throws; it never yields a config without them.
+   */
+  private async deriveBlacklistConfig(
+    address: Address,
+  ): Promise<WithAddress<BlacklistIsmConfig> | undefined> {
+    const blacklistIsm = BlacklistIsm__factory.connect(address, this.provider);
+
+    let owner: Address;
+    try {
+      await blacklistIsm.blacklistedIds(ethers.constants.HashZero);
+      owner = await blacklistIsm.owner();
+    } catch (error) {
+      throwIfNotMissingSelector(error);
+      this.logger.debug(
+        'Error accessing "blacklistedIds" property, implying this is not a Blacklist ISM.',
+        address,
+      );
+      return undefined;
+    }
+
+    const blacklistedIds = await readBlacklistedIds(
+      this.chain,
+      address,
+      this.multiProvider,
+      this.evmLogReader,
+    );
+
+    return { address, type: IsmType.BLACKLIST, owner, blacklistedIds };
   }
 
   async deriveArbL2ToL1Config(

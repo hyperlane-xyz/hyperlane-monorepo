@@ -168,6 +168,7 @@ export class HyperlaneE2EWarpTestCommands {
     hypKey,
     extraArgs,
     skipConfirmationPrompts,
+    registry,
   }: {
     strategyUrl?: string;
     warpRouteId?: string;
@@ -176,11 +177,12 @@ export class HyperlaneE2EWarpTestCommands {
     relay?: boolean;
     skipConfirmationPrompts?: boolean;
     extraArgs?: string[];
+    registry?: string;
   }): ProcessPromise {
     return $` ${
       hypKey ? [`${this.hypKeyEnvName}=${hypKey}`] : []
     } ${localTestRunCmdPrefix()} hyperlane warp apply \
-          --registry ${this.registryPath} \
+          --registry ${registry ?? this.registryPath} \
           ${strategyUrl ? ['--strategy', strategyUrl] : []} \
           ${warpRouteId ? ['--warp-route-id', warpRouteId] : []} \
           ${privateKey ? [this.privateKeyFlag, privateKey] : []} \
@@ -189,6 +191,39 @@ export class HyperlaneE2EWarpTestCommands {
           ${skipConfirmationPrompts ? ['--yes'] : []} \
           ${extraArgs ? extraArgs : []}
           `;
+  }
+
+  public checkRaw({
+    warpRouteId,
+    registry,
+  }: {
+    warpRouteId?: string;
+    registry?: string;
+  }): ProcessPromise {
+    return $`${localTestRunCmdPrefix()} hyperlane warp check \
+          --registry ${registry ?? this.registryPath} \
+          ${warpRouteId ? ['--warp-route-id', warpRouteId] : []} \
+          --verbosity debug`;
+  }
+
+  public fork({
+    warpRouteId,
+    port,
+    forkConfigPath,
+    kill,
+  }: {
+    warpRouteId: string;
+    port: number;
+    forkConfigPath?: string;
+    kill?: boolean;
+  }): ProcessPromise {
+    return $`${localTestRunCmdPrefix()} hyperlane warp fork \
+          --registry ${this.registryPath} \
+          --warp-route-id ${warpRouteId} \
+          --port ${port} \
+          --verbosity debug \
+          ${forkConfigPath ? ['--fork-config', forkConfigPath] : []} \
+          ${kill ? ['--kill'] : []}`;
   }
 
   private syncWarpDeployConfigToRegistry(

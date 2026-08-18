@@ -1,4 +1,5 @@
 import express, { Express, Request, Response } from 'express';
+import type { Server } from 'node:http';
 import type { Logger } from 'pino';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
@@ -78,6 +79,7 @@ export class HttpServer {
       );
     }
 
+    let server: Server | undefined;
     try {
       this.registryService = new RegistryService(
         this.getRegistry,
@@ -119,14 +121,13 @@ export class HttpServer {
       this.app.use(createErrorHandler(this.logger));
 
       const host = process.env.HOST || ServerConstants.DEFAULT_HOST;
-      const server = this.app.listen(port, host, () =>
-        this.logger.info({ port }, 'Server running'),
-      );
+      const listeningServer = await this.listen(port, host);
+      server = listeningServer;
 
-      server.on('request', (req, _res) =>
+      listeningServer.on('request', (req, _res) =>
         this.logger.info({ url: req.url }, 'Request received'),
       );
-      server.on('error', (error) =>
+      listeningServer.on('error', (error) =>
         this.logger.error({ error }, 'Server error'),
       );
 
@@ -134,13 +135,39 @@ export class HttpServer {
       const shutdown = () => {
         this.logger.info('Shutting down…');
         this.registryService?.stop();
-        server.close(() => process.exit(0));
+        listeningServer.close(() => process.exit(0));
       };
       process.on('SIGTERM', shutdown);
       process.on('SIGINT', shutdown);
     } catch (error) {
       this.logger.error({ error }, 'Error starting server');
-      process.exit(1);
+      // initialize() may have already started the registry's filesystem watcher,
+      // whose active handle would keep the event loop alive after callers give up
+      // on this failed start. Stop it (and any partially-set-up server) before
+      // rethrowing so a bind failure cannot orphan a lingering watcher.
+      this.registryService?.stop();
+      this.registryService = null;
+      server?.close();
+      throw error;
     }
+  }
+
+  /**
+   * Resolves once the server is listening and rejects if binding fails (e.g.
+   * EADDRINUSE) before it starts listening, so callers can observe a bind
+   * failure instead of a silently orphaned server. Runtime errors after
+   * listening are logged rather than surfaced here.
+   */
+  private listen(port: number, host: string): Promise<Server> {
+    return new Promise((resolve, reject) => {
+      const server = this.app.listen(port, host);
+      const onError = (error: Error) => reject(error);
+      server.once('error', onError);
+      server.once('listening', () => {
+        server.removeListener('error', onError);
+        this.logger.info({ port }, 'Server running');
+        resolve(server);
+      });
+    });
   }
 }

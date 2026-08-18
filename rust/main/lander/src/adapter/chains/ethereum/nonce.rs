@@ -14,4 +14,4 @@ pub(crate) use db::NonceDb;
 pub(crate) use state::NonceManagerState;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

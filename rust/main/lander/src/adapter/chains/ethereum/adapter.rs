@@ -739,33 +739,20 @@ impl AdaptsChain for EthereumAdapter {
     }
 
     async fn get_reprocess_txs(&self) -> Result<Vec<Transaction>, LanderError> {
-        let old_finalized_nonce = self
-            .nonce_manager
-            .state
-            .get_finalized_nonce()
-            .await?
-            .unwrap_or_default();
         self.nonce_manager.nonce_updater.update_boundaries().await?;
-        let new_finalized_nonce = self
-            .nonce_manager
-            .state
-            .get_finalized_nonce()
-            .await?
-            .unwrap_or_default();
-
-        if new_finalized_nonce >= old_finalized_nonce {
+        let Some(reorged_nonce_range) = self.nonce_manager.state.get_reorged_nonce_range().await?
+        else {
             return Ok(Vec::new());
-        }
+        };
 
         warn!(
-            ?old_finalized_nonce,
-            ?new_finalized_nonce,
-            "New finalized nonce is lower than old finalized nonce"
+            ?reorged_nonce_range,
+            "Reprocessing transactions from a persisted finalized nonce regression"
         );
 
         let mut txs = Vec::new();
-        let mut nonce = new_finalized_nonce.saturating_add(U256::one());
-        while nonce <= old_finalized_nonce {
+        let mut nonce = reorged_nonce_range.start;
+        while nonce <= reorged_nonce_range.end {
             let tx_uuid = self.nonce_manager.state.get_tracked_tx_uuid(&nonce).await?;
             if tx_uuid == TransactionUuid::default() {
                 debug!(
@@ -781,8 +768,12 @@ impl AdaptsChain for EthereumAdapter {
                     "No transaction found for nonce in reorg range"
                 );
             }
+            if nonce == reorged_nonce_range.end {
+                break;
+            }
             nonce = nonce.saturating_add(U256::one());
         }
+
         Ok(txs)
     }
 

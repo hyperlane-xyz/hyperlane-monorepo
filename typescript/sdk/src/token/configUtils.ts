@@ -796,6 +796,8 @@ const FIELDS_TO_IGNORE = new Set<keyof HypTokenRouterConfig>([
   // the warp route works
   'symbol',
   'name',
+  // Timelocks are validated by warpCheck against the actual ProxyAdmin owner.
+  'timelock',
 ]);
 
 // Nested LinearFee sub-fee owners are intentionally excluded from the warp

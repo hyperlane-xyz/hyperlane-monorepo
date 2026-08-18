@@ -222,6 +222,17 @@ export interface ISigner<T, R> extends IProvider<T> {
   sendAndConfirmBatchTransactions(transactions: T[]): Promise<R>;
 }
 
+/**
+ * An {@link ISigner} that impersonates an account against a fork (it does not
+ * hold the impersonated key and relies on the fork's disabled signature
+ * verification). The `impersonatesAccount` marker makes this a nominal subtype,
+ * so a submitter that requires impersonation cannot be handed an ordinary live
+ * signer.
+ */
+export interface IImpersonatingSigner<T, R> extends ISigner<T, R> {
+  readonly impersonatesAccount: true;
+}
+
 export interface IProviderConnect {
   connect(
     _metadata: ChainMetadataForAltVM,

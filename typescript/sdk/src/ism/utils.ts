@@ -34,8 +34,11 @@ import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
+import { throwIfNotMissingSelector } from '../utils/contract.js';
 import { normalizeConfig } from '../utils/ism.js';
 
+import { EvmIsmReader } from './EvmIsmReader.js';
+import { normalizeBlacklistedIds, readBlacklistedIds } from './blacklist.js';
 import {
   DomainRoutingIsmConfig,
   InterchainAccountRouterIsm,
@@ -432,8 +435,15 @@ export async function moduleMatchesConfig(
       break;
     }
     case IsmType.TEST_ISM: {
-      // This is just a TestISM
-      matches = true;
+      // A NULL module type alone does not make this a Test ISM; every other
+      // NULL ISM shares it. Defer to the reader, which reaches TEST_ISM only
+      // after every distinguishing selector has missed, so the checker and the
+      // reader classify a given address the same way.
+      const derived = await new EvmIsmReader(
+        multiProvider,
+        chain,
+      ).deriveNullConfig(moduleAddress);
+      matches &&= derived.type === IsmType.TEST_ISM;
       break;
     }
     case IsmType.TRUSTED_RELAYER: {
@@ -514,18 +524,34 @@ export async function moduleMatchesConfig(
         moduleAddress,
         provider,
       );
-      const [owner, onChainIds] = await Promise.all([
-        blacklistIsm.owner(),
-        blacklistIsm.values(),
-      ]);
+
+      // Detection before enumeration, the same order the reader uses. Without
+      // it any Ownable NULL-type ISM whose owner happens to match would report
+      // as an empty blacklist, since a missing `values()` selector falls
+      // through to a log replay that finds nothing.
+      let owner: Address;
+      try {
+        await blacklistIsm.blacklistedIds(ethers.constants.HashZero);
+        owner = await blacklistIsm.owner();
+      } catch (error) {
+        throwIfNotMissingSelector(error);
+        return false;
+      }
       matches &&= eqAddress(owner, config.owner);
+
+      // Same enumeration the reader uses, so a deployment that reads back as
+      // matching here also converges to zero transactions in EvmIsmModule.
+      const onChainIds = await readBlacklistedIds(
+        chain,
+        moduleAddress,
+        multiProvider,
+      );
+
       // Entries are append-only on-chain, so any on-chain ID missing from the
       // config makes the config unreachable: require exact set equality.
-      const normalizeIds = (ids: readonly string[]) =>
-        [...new Set(ids.map((id) => id.toLowerCase()))].sort();
       matches &&= deepEquals(
-        normalizeIds(onChainIds),
-        normalizeIds(config.blacklistedIds),
+        onChainIds,
+        normalizeBlacklistedIds(config.blacklistedIds),
       );
       break;
     }

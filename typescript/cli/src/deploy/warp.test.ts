@@ -7,6 +7,8 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 import {
+  EvmWarpModule,
+  HyperlaneDeployer,
   IsmType,
   MultiProvider,
   TokenStandard,
@@ -17,6 +19,7 @@ import {
 
 import {
   fullyConnectTokens,
+  runWarpRouteApply,
   runWarpRouteCombine,
   transformDeployConfigForDisplay,
 } from './warp.js';
@@ -437,6 +440,77 @@ describe('runWarpRouteCombine', () => {
     expect(thrown?.message).to.include('scale=3/2');
     expect(thrown?.message).to.include('scale=1');
     expect(thrown?.message).to.not.include('[object Object]');
+  });
+});
+
+describe('runWarpRouteApply', () => {
+  const OWNER = '0x3333333333333333333333333333333333333333';
+  const MAILBOX = '0x2222222222222222222222222222222222222222';
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('rejects mixed AltVM timelock config before extension or update planning', async () => {
+    const registryGetAddresses = sinon.stub().resolves({});
+    const updateSplitSpy = sinon.spy(EvmWarpModule.prototype, 'updateSplit');
+    const deployTimelockSpy = sinon.spy(
+      HyperlaneDeployer.prototype,
+      'deployTimelock',
+    );
+    const multiProvider = {
+      tryGetProtocol: (chain: string) =>
+        chain === 'solana' ? ProtocolType.Sealevel : ProtocolType.Ethereum,
+    };
+    const warpDeployConfig: WarpRouteDeployConfigMailboxRequired = {
+      ethereum: {
+        mailbox: MAILBOX,
+        owner: OWNER,
+        type: TokenType.native,
+      },
+      solana: {
+        mailbox: MAILBOX,
+        owner: OWNER,
+        timelock: {
+          delay: 259200,
+          roles: {
+            executor: OWNER,
+            proposer: OWNER,
+          },
+        },
+        type: TokenType.native,
+      },
+    };
+    const warpCoreConfig: WarpCoreConfig = {
+      tokens: [],
+    };
+
+    try {
+      await runWarpRouteApply({
+        context: {
+          altVmSigners: {},
+          chainMetadata: {},
+          // CAST: runWarpRouteApply rejects after the protocol guard, before using the full MultiProvider surface.
+          multiProvider,
+          registry: {
+            getAddresses: registryGetAddresses,
+          },
+          skipConfirmation: true,
+        },
+        warpCoreConfig,
+        warpDeployConfig,
+        // CAST: runWarpRouteApply rejects before reading the remaining DeployParams fields.
+      } as unknown as Parameters<typeof runWarpRouteApply>[0]);
+      expect.fail('expected AltVM timelock config to reject');
+    } catch (error) {
+      if (!(error instanceof Error)) throw error;
+      expect(error.message).to.include(
+        "Timelock config is not supported on Alt-VM chain 'solana'",
+      );
+      expect(registryGetAddresses.called).to.equal(false);
+      expect(updateSplitSpy.called).to.equal(false);
+      expect(deployTimelockSpy.called).to.equal(false);
+    }
   });
 });
 

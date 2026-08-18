@@ -1,6 +1,21 @@
 import { expect } from 'chai';
+import { ethers } from 'ethers';
 
-import { TokenFeeType, TokenType, randomAddress } from '@hyperlane-xyz/sdk';
+import {
+  ProxyAdmin__factory,
+  TimelockController__factory,
+  TokenRouter__factory,
+} from '@hyperlane-xyz/core';
+import {
+  CANCELLER_ROLE,
+  EXECUTOR_ROLE,
+  type HypTokenRouterConfig,
+  PROPOSER_ROLE,
+  TokenFeeType,
+  TokenType,
+  proxyAdmin,
+  randomAddress,
+} from '@hyperlane-xyz/sdk';
 import {
   type Address,
   ProtocolType,
@@ -221,5 +236,88 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
     });
 
     expect(secondApply.exitCode).to.equal(0);
+  });
+
+  it('should apply timelock config to the ProxyAdmin only and reuse it', async function () {
+    const chain = TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
+    const expectedOwner = HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum;
+    const delay = 259200;
+
+    const warpDeployConfig = fixture.getDeployConfig();
+    // CAST: fixture returns a route map; this test narrows the known EVM chain
+    // entry to mutate timelock config.
+    const chainConfig = warpDeployConfig[chain] as HypTokenRouterConfig;
+    chainConfig.timelock = {
+      delay,
+      roles: {
+        executor: expectedOwner,
+        proposer: expectedOwner,
+      },
+    };
+    writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, warpDeployConfig);
+
+    const firstApply = await evmWarpCommands.applyRaw({
+      warpRouteId: DEFAULT_EVM_WARP_ID,
+      hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+    });
+    expect(firstApply.exitCode).to.equal(0);
+
+    const provider = new ethers.providers.JsonRpcProvider(
+      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2.rpcUrl,
+    );
+    const routerAddress = evmWarpCommands.getDeployedWarpAddress(
+      chain,
+      DEFAULT_EVM_WARP_CORE_PATH,
+    );
+    const proxyAdminAddress = await proxyAdmin(provider, routerAddress);
+    const proxyAdminOwner = await ProxyAdmin__factory.connect(
+      proxyAdminAddress,
+      provider,
+    ).owner();
+    const routerOwner = await TokenRouter__factory.connect(
+      routerAddress,
+      provider,
+    ).owner();
+
+    expect(normalizeAddress(routerOwner)).to.equal(
+      normalizeAddress(expectedOwner),
+    );
+    expect(normalizeAddress(proxyAdminOwner)).to.not.equal(
+      normalizeAddress(expectedOwner),
+    );
+
+    const timelock = TimelockController__factory.connect(
+      proxyAdminOwner,
+      provider,
+    );
+    expect((await timelock.getMinDelay()).toNumber()).to.equal(delay);
+    expect(await timelock.hasRole(PROPOSER_ROLE, expectedOwner)).to.be.true;
+    expect(await timelock.hasRole(EXECUTOR_ROLE, expectedOwner)).to.be.true;
+    expect(await timelock.hasRole(CANCELLER_ROLE, expectedOwner)).to.be.true;
+    expect(
+      await timelock.hasRole(
+        await timelock.TIMELOCK_ADMIN_ROLE(),
+        timelock.address,
+      ),
+    ).to.be.true;
+
+    await evmWarpCommands.checkRaw({ warpRouteId: DEFAULT_EVM_WARP_ID });
+    await evmWarpCommands.checkRaw({});
+
+    const secondApply = await evmWarpCommands.applyRaw({
+      warpRouteId: DEFAULT_EVM_WARP_ID,
+      hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+    });
+    expect(secondApply.text()).to.include(
+      'Warp config is the same as target. No updates needed.',
+    );
+
+    const secondProxyAdminOwner = await ProxyAdmin__factory.connect(
+      proxyAdminAddress,
+      provider,
+    ).owner();
+    expect(normalizeAddress(secondProxyAdminOwner)).to.equal(
+      normalizeAddress(proxyAdminOwner),
+    );
   });
 });

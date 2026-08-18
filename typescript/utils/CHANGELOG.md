@@ -1,5 +1,15 @@
 # @hyperlane-xyz/utils
 
+## 41.2.0
+
+## 41.1.0
+
+## 41.0.0
+
+### Patch Changes
+
+- fa19409: Exported an EVM-specific zeroish address helper.
+
 ## 40.0.0
 
 ## 39.1.0
