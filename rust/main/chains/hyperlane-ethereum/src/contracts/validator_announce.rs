@@ -4,11 +4,13 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
+use ethers::middleware::gas_escalator::InitialSendFailurePolicy;
 use ethers::providers::Middleware;
 use ethers_contract::builders::ContractCall;
 use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
+    HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce,
+    ValidatorAnnounceSubmission, H160, H256, U256,
 };
 use tracing::{instrument, trace};
 
@@ -16,7 +18,10 @@ use crate::{
     interfaces::i_validator_announce::{
         IValidatorAnnounce as EthereumValidatorAnnounceInternal, IVALIDATORANNOUNCE_ABI,
     },
-    tx::{fill_tx_gas_params, report_tx},
+    tx::{
+        fill_tx_gas_params, fill_tx_nonce, report_tx, report_tx_with_status,
+        TransactionDispatchOutcome,
+    },
     BuildableWithProvider, ConnectionConf, EthereumProvider,
 };
 
@@ -35,6 +40,17 @@ pub struct ValidatorAnnounceBuilder {}
 impl BuildableWithProvider for ValidatorAnnounceBuilder {
     type Output = Box<dyn ValidatorAnnounce>;
     const NEEDS_SIGNER: bool = true;
+
+    // Validator announcement retries are controlled by the validator. Do not create an
+    // independent retry stream for transactions whose initial send returned no hash. Successfully
+    // broadcast transactions remain monitored and fee-escalated as normal.
+    fn gas_escalator_initial_send_failure_policy(&self) -> InitialSendFailurePolicy {
+        InitialSendFailurePolicy::Drop
+    }
+
+    fn uses_nonce_manager(&self) -> bool {
+        false
+    }
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -102,6 +118,15 @@ where
             Default::default(),
         )
         .await
+    }
+
+    async fn announce_contract_call_with_nonce(
+        &self,
+        announcement: SignedType<Announcement>,
+    ) -> ChainResult<ContractCall<M, bool>> {
+        let mut contract_call = self.announce_contract_call(announcement).await?;
+        fill_tx_nonce(&mut contract_call.tx, self.provider.as_ref()).await?;
+        Ok(contract_call)
     }
 }
 
@@ -176,9 +201,27 @@ where
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
-        let contract_call = self.announce_contract_call(announcement).await?;
+        let contract_call = self.announce_contract_call_with_nonce(announcement).await?;
         let receipt = report_tx(contract_call).await?;
         Ok(receipt.into())
+    }
+
+    async fn announce_with_status(
+        &self,
+        announcement: SignedType<Announcement>,
+    ) -> ChainResult<ValidatorAnnounceSubmission> {
+        let contract_call = self.announce_contract_call_with_nonce(announcement).await?;
+        Ok(match report_tx_with_status(contract_call).await? {
+            TransactionDispatchOutcome::Confirmed(receipt) => {
+                ValidatorAnnounceSubmission::Confirmed((*receipt).into())
+            }
+            TransactionDispatchOutcome::BroadcastError { tx_hash, error } => {
+                ValidatorAnnounceSubmission::BroadcastError {
+                    tx_id: tx_hash.into(),
+                    error,
+                }
+            }
+        })
     }
 }
 
@@ -189,5 +232,20 @@ impl HyperlaneAbi for EthereumValidatorAnnounceAbi {
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
         crate::extract_fn_map(&IVALIDATORANNOUNCE_ABI)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validator_announcements_only_escalate_successfully_broadcast_transactions() {
+        assert_eq!(
+            ValidatorAnnounceBuilder {}.gas_escalator_initial_send_failure_policy(),
+            InitialSendFailurePolicy::Drop
+        );
+        assert!(ValidatorAnnounceBuilder {}.uses_ethers_submission_middleware());
+        assert!(!ValidatorAnnounceBuilder {}.uses_nonce_manager());
     }
 }

@@ -68,8 +68,70 @@ pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainRe
 const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
 const EVM_RELAYER_ADDRESS: &str = "0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5";
 
+/// Sets the current signer nonce without caching it locally.
+///
+/// This lets retry owners refetch the pending nonce after a definite initial-send failure while
+/// ensuring inner middleware, such as the gas escalator, receives the nonce used for a successful
+/// broadcast.
+pub(crate) async fn fill_tx_nonce<M>(tx: &mut TypedTransaction, provider: &M) -> ChainResult<()>
+where
+    M: Middleware + 'static,
+{
+    if tx.nonce().is_some() {
+        return Ok(());
+    }
+
+    let sender = tx
+        .from()
+        .copied()
+        .or_else(|| provider.default_sender())
+        .ok_or_else(|| {
+            ChainCommunicationError::from_other_str(
+                "Cannot fill transaction nonce without a sender",
+            )
+        })?;
+    let nonce = provider
+        .get_transaction_count(sender, Some(BlockNumber::Pending.into()))
+        .await
+        .map_err(ChainCommunicationError::from_other)?;
+    tx.set_nonce(nonce);
+    Ok(())
+}
+
+pub(crate) enum TransactionDispatchOutcome {
+    Confirmed(Box<TransactionReceipt>),
+    BroadcastError {
+        tx_hash: H256,
+        error: ChainCommunicationError,
+    },
+}
+
+fn classify_broadcast_result(
+    tx_hash: H256,
+    result: ChainResult<TransactionReceipt>,
+) -> TransactionDispatchOutcome {
+    match result {
+        Ok(receipt) => TransactionDispatchOutcome::Confirmed(Box::new(receipt)),
+        Err(error) => TransactionDispatchOutcome::BroadcastError { tx_hash, error },
+    }
+}
+
 /// Dispatches a transaction, logs the tx id, and returns the result
 pub(crate) async fn report_tx<M, D>(tx: ContractCall<M, D>) -> ChainResult<TransactionReceipt>
+where
+    M: Middleware + 'static,
+    D: Detokenize,
+{
+    match report_tx_with_status(tx).await? {
+        TransactionDispatchOutcome::Confirmed(receipt) => Ok(*receipt),
+        TransactionDispatchOutcome::BroadcastError { error, .. } => Err(error),
+    }
+}
+
+/// Dispatches a transaction while preserving whether a failure occurred after broadcast.
+pub(crate) async fn report_tx_with_status<M, D>(
+    tx: ContractCall<M, D>,
+) -> ChainResult<TransactionDispatchOutcome>
 where
     M: Middleware + 'static,
     D: Detokenize,
@@ -85,7 +147,11 @@ where
     let dispatched = dispatch_fut
         .await?
         .interval(PENDING_TRANSACTION_POLLING_INTERVAL);
-    track_pending_tx(dispatched).await
+    let tx_hash = (*dispatched).into();
+    Ok(classify_broadcast_result(
+        tx_hash,
+        track_pending_tx(dispatched).await,
+    ))
 }
 
 #[instrument(skip(pending_tx))]
@@ -114,6 +180,50 @@ pub(crate) async fn track_pending_tx<P: JsonRpcClient>(
         Err(x) => {
             error!(?tx_hash, error = ?x, "waiting for receipt timed out");
             Err(ChainCommunicationError::TransactionTimeout)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dropped_transaction_retains_broadcast_stage_and_hash() {
+        let tx_hash = H256::from_low_u64_be(7);
+        let outcome = classify_broadcast_result(
+            tx_hash,
+            Err(ChainCommunicationError::TransactionDropped(tx_hash)),
+        );
+
+        assert!(matches!(
+            outcome,
+            TransactionDispatchOutcome::BroadcastError {
+                tx_hash: observed_hash,
+                error: ChainCommunicationError::TransactionDropped(dropped_hash),
+            } if observed_hash == tx_hash && dropped_hash == tx_hash
+        ));
+    }
+
+    #[test]
+    fn receipt_provider_error_retains_broadcast_stage_and_original_error() {
+        let tx_hash = H256::from_low_u64_be(8);
+        let outcome = classify_broadcast_result(
+            tx_hash,
+            Err(ChainCommunicationError::from_other_str(
+                "receipt provider failed",
+            )),
+        );
+
+        match outcome {
+            TransactionDispatchOutcome::BroadcastError {
+                tx_hash: observed_hash,
+                error,
+            } => {
+                assert_eq!(observed_hash, tx_hash);
+                assert_eq!(error.to_string(), "receipt provider failed");
+            }
+            TransactionDispatchOutcome::Confirmed(_) => panic!("expected broadcast error"),
         }
     }
 }
