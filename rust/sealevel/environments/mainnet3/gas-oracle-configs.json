@@ -112,6 +112,14 @@
       },
       "overhead": 166887
     },
+    "flowmainnet": {
+      "oracleConfig": {
+        "tokenExchangeRate": "6472163454775636",
+        "gasPrice": "20041879688128",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
     "fluent": {
       "oracleConfig": {
         "tokenExchangeRate": "368201575467716978478",
@@ -488,8 +496,8 @@
     },
     "solanamainnet": {
       "oracleConfig": {
-        "gasPrice": "25000",
-        "tokenExchangeRate": "15000000000000000000",
+        "gasPrice": "1",
+        "tokenExchangeRate": "375000000000000000000000",
         "tokenDecimals": 6
       },
       "overhead": 600000

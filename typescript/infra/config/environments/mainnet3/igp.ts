@@ -37,9 +37,15 @@ function getOracleConfigWithOverrides(origin: ChainName) {
       tokenExchangeRate: '15000000000000000000',
       tokenDecimals: 6,
     };
+    // solaxy -> solanamainnet must quote above the ~0.00204 SOL ATA rent the
+    // relayer fronts per delivery, otherwise it can be drained via ATA-rent
+    // reclaim. The min-USD-cost floor does not reach this hardcoded override, so
+    // the fee is raised here via the exchange rate (the SOLX-price proxy) rather
+    // than gasPrice, keeping gasPrice='1' as the true solana gas signal and
+    // isolating the change to this leg. 25000x the base rate -> ~$0.72.
     oracleConfig.solanamainnet = {
       gasPrice: '1',
-      tokenExchangeRate: '15000000000000000000',
+      tokenExchangeRate: '375000000000000000000000',
       tokenDecimals: 6,
     };
   }
