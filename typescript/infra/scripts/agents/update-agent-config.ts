@@ -273,6 +273,11 @@ export async function writeAgentConfig(
     // Replace ccrRouters with the freshly computed value so removed routers
     // don't persist across regenerations (objMerge would otherwise keep stale entries).
     delete (currentAgentConfig as Record<string, unknown>).ccrRouters;
+    // Prune removed chains before merging so stale entries do not persist while
+    // preserving the existing generated-file ordering.
+    for (const chain of Object.keys(currentAgentConfig.chains)) {
+      if (!fullConfig.chains[chain]) delete currentAgentConfig.chains[chain];
+    }
     writeAndFormatJsonAtPath(
       filepath,
       objMerge(currentAgentConfig, fullConfig),
