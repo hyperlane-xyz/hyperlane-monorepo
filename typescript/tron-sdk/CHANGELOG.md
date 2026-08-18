@@ -1,5 +1,13 @@
 # @hyperlane-xyz/tron-sdk
 
+## 24.1.4
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@41.3.0
+- @hyperlane-xyz/core@12.1.0
+- @hyperlane-xyz/provider-sdk@8.1.1
+
 ## 24.1.3
 
 ### Patch Changes

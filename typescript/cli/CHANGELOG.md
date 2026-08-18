@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 41.3.0
+
+### Minor Changes
+
+- 4a21153: Added deploy, read, check, and artifact support for `AtomicLocalRebalancingBridge`. ALRB artifacts used a dedicated non-transferable token standard and were excluded from ordinary Warp connections.
+
 ## 41.2.0
 
 ### Minor Changes
