@@ -10,7 +10,7 @@ use derive_more::AsRef;
 use futures::{future::try_join_all, FutureExt};
 use hyperlane_core::{
     rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, SameChainCcrSwap, H512,
+    HyperlaneMessage, IndexMode, InterchainGasPayment, MerkleTreeInsertion, SameChainCcrSwap, H512,
 };
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{
@@ -625,6 +625,10 @@ impl Scraper {
                 false,
             )
             .await?;
+        let mut index_settings = index_settings;
+        if matches!(index_settings.mode, IndexMode::Sequence) {
+            index_settings.from = 0;
+        }
         let cursor = sync.cursor(index_settings).await?;
         Ok(tokio::spawn(
             async move { sync.sync(label, cursor.into()).await }
