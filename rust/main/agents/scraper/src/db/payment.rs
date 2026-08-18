@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use eyre::{eyre, Result};
 use itertools::Itertools;
 use sea_orm::{prelude::*, ActiveValue::*, Insert, QuerySelect};
@@ -17,8 +19,10 @@ pub struct StorablePayment<'a> {
     pub payment: &'a InterchainGasPayment,
     pub sequence: Option<i64>,
     pub meta: &'a LogMeta,
-    /// The database id of the transaction the payment was made in
-    pub txn_id: i64,
+    /// The database id of the transaction the payment was made in, or `None`
+    /// if the transaction could not be resolved on-chain (e.g. Sealevel basic
+    /// log meta fallback).
+    pub txn_id: Option<i64>,
 }
 
 impl ScraperDb {
@@ -53,6 +57,8 @@ impl ScraperDb {
     }
 
     /// Get the transaction id of the gas payment associated with a sequence.
+    /// Also returns `None` for payments stored with a NULL transaction id
+    /// (unresolvable log meta fallback).
     #[instrument(skip(self))]
     pub async fn retrieve_payment_tx_id(
         &self,
@@ -70,8 +76,7 @@ impl ScraperDb {
             .one(&self.0)
             .await?
         {
-            let txn_id = payment.tx_id;
-            Ok(Some(txn_id))
+            Ok(payment.tx_id)
         } else {
             Ok(None)
         }
@@ -87,9 +92,57 @@ impl ScraperDb {
         let latest_id_before = self.latest_payment_id(domain).await?;
         let interchain_gas_paymaster = address_to_bytes(interchain_gas_paymaster);
 
+        // Postgres unique indexes treat NULLs as distinct, so the
+        // (msg_id, tx_id, log_index) ON CONFLICT clause below never matches
+        // payments whose transaction could not be resolved (tx_id IS NULL).
+        // Dedupe those fallback payments explicitly so re-scrapes stay
+        // idempotent.
+        let existing_fallback_payments: HashSet<(Vec<u8>, i64)> = {
+            let fallback_msg_ids = payments
+                .iter()
+                .filter(|storable| storable.txn_id.is_none())
+                .map(|storable| h256_to_bytes(&storable.payment.message_id))
+                .collect_vec();
+            if fallback_msg_ids.is_empty() {
+                HashSet::new()
+            } else {
+                gas_payment::Entity::find()
+                    .filter(gas_payment::Column::Domain.eq(domain))
+                    .filter(
+                        gas_payment::Column::InterchainGasPaymaster
+                            .eq(interchain_gas_paymaster.clone()),
+                    )
+                    .filter(gas_payment::Column::TxId.is_null())
+                    .filter(gas_payment::Column::MsgId.is_in(fallback_msg_ids))
+                    .select_only()
+                    .column(gas_payment::Column::MsgId)
+                    .column(gas_payment::Column::LogIndex)
+                    .into_tuple::<(Vec<u8>, i64)>()
+                    .all(&self.0)
+                    .await?
+                    .into_iter()
+                    .collect()
+            }
+        };
+
+        // Known limitation: if a payment is first stored with a NULL tx_id and
+        // the same sequence is later re-scraped with resolvable log meta, the
+        // re-scraped row does not conflict with the fallback row, so both
+        // coexist and `total_gas_payment` double-counts. Accepted because the
+        // fallback is only taken for permanently unresolvable log meta (see
+        // `is_log_meta_unresolvable` in hyperlane-sealevel), so a
+        // fallback-then-resolved transition is not expected.
+
         // we have a race condition where a message may not have been scraped yet even
         let models = payments
             .iter()
+            .filter(|storable| {
+                storable.txn_id.is_some()
+                    || !existing_fallback_payments.contains(&(
+                        h256_to_bytes(&storable.payment.message_id),
+                        storable.meta.log_index.as_u64() as i64,
+                    ))
+            })
             .map(|storable| gas_payment::ActiveModel {
                 id: NotSet,
                 time_created: Set(date_time::now()),

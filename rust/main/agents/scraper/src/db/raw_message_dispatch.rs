@@ -34,7 +34,7 @@ pub struct RawDispatchForEnrichment {
 }
 
 impl RawDispatchForEnrichment {
-    pub fn storable_message(&self, txn_id: i64) -> StorableMessage<'_> {
+    pub fn storable_message(&self, txn_id: Option<i64>) -> StorableMessage<'_> {
         StorableMessage {
             msg: self.msg.clone(),
             meta: &self.meta,
@@ -411,7 +411,7 @@ mod tests {
         };
 
         let candidate = raw_dispatch_to_candidate(raw).unwrap();
-        let storable = candidate.storable_message(7);
+        let storable = candidate.storable_message(Some(7));
 
         assert_eq!(candidate.msg_id, msg_id);
         assert_eq!(candidate.raw_id, 1);
@@ -421,7 +421,7 @@ mod tests {
         assert_eq!(candidate.meta.block_hash, block_hash);
         assert_eq!(candidate.meta.transaction_id, tx_hash);
         assert_eq!(storable.id_override, Some(msg_id));
-        assert_eq!(storable.txn_id, 7);
+        assert_eq!(storable.txn_id, Some(7));
     }
 
     #[tokio::test]
@@ -728,7 +728,7 @@ mod tests {
                 [StorableMessage {
                     msg: messages[1].clone(),
                     meta: &metas[1],
-                    txn_id,
+                    txn_id: Some(txn_id),
                     id_override: None,
                 }]
                 .into_iter(),
