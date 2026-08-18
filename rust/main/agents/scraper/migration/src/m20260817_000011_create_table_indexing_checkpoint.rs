@@ -80,14 +80,25 @@ impl MigrationTrait for Migration {
 
                 INSERT INTO indexing_checkpoint
                     (domain, event_type, height, time_created, time_updated)
+                SELECT domain, 'ccr_swap_outbox', height, time_created, time_created
+                FROM cursor
+                WHERE event_type = 'ccr_swap'
+                ON CONFLICT (domain, event_type) DO NOTHING;
+
+                INSERT INTO indexing_checkpoint
+                    (domain, event_type, height, time_created, time_updated)
                 SELECT cursor.domain, event_type.name, cursor.height,
                        cursor.time_created, cursor.time_created
                 FROM cursor
                 CROSS JOIN (VALUES
                     ('hyperlane_message'),
+                    ('hyperlane_message_outbox'),
                     ('delivery'),
+                    ('delivery_outbox'),
                     ('interchain_gas_payment'),
-                    ('merkle_tree_insertion')
+                    ('interchain_gas_payment_outbox'),
+                    ('merkle_tree_insertion'),
+                    ('merkle_tree_insertion_outbox')
                 ) AS event_type(name)
                 WHERE cursor.event_type = ''
                 ON CONFLICT (domain, event_type) DO NOTHING

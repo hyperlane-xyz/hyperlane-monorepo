@@ -26,14 +26,15 @@ raw dispatch inserts fail closed and stalls the message cursor until the column
 exists.
 
 After running migrations and before deploying the scraper binary, create the
-reconciliation index concurrently:
+populated-table indexes concurrently:
 
 ```
 cargo run --package migration --bin create-raw-dispatch-reconciliation-index
+cargo run --package migration --bin create-outbox-source-indexes
 ```
 
-Then run `EXPLAIN` on the reconciliation query and confirm it uses
-`raw_message_dispatch_reconciliation_idx`.
+Both commands must finish successfully before starting the scraper; the outbox
+index command fails unless every index is present and valid.
 
 For rollback, stop or roll back scraper binaries that reference a new column
 before dropping that column.

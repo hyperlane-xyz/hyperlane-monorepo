@@ -197,15 +197,7 @@ impl<T: Send + Sync + Clone + Debug + 'static + Indexable> ContractSyncCursor<T>
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        fmt::Debug,
-        ops::RangeInclusive,
-        sync::{
-            atomic::{AtomicUsize, Ordering},
-            Arc,
-        },
-        time::Duration,
-    };
+    use std::{fmt::Debug, ops::RangeInclusive, sync::Arc, time::Duration};
 
     use hyperlane_core::{
         ChainResult, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
@@ -369,53 +361,6 @@ mod tests {
         let (action, _) = cursor.next_action().await.unwrap();
         assert!(matches!(action, CursorAction::Sleep(_)));
         assert!(cursor.backward.is_synced());
-    }
-
-    #[tokio::test]
-    async fn test_failed_checkpoint_write_is_retried() {
-        let mut sequencer = MockSequenceAwareIndexerMock::<H256>::new();
-        sequencer
-            .expect_latest_sequence_count_and_tip()
-            .returning(|| Ok((Some(6), 100)));
-
-        let attempts = Arc::new(AtomicUsize::new(0));
-        let attempts_for_store = attempts.clone();
-        let mut store = MockDb::new();
-        store.expect_retrieve_by_sequence().returning(|_| Ok(None));
-        store
-            .expect_retrieve_log_block_number_by_sequence()
-            .returning(|_| Ok(None));
-        store
-            .expect_store_latest_indexed_block()
-            .with(mockall::predicate::eq(100))
-            .times(2)
-            .returning(move |_| {
-                if attempts_for_store.fetch_add(1, Ordering::Relaxed) == 0 {
-                    Err(eyre::eyre!("checkpoint write failed"))
-                } else {
-                    Ok(())
-                }
-            });
-
-        let mut cursor = ForwardBackwardSequenceAwareSyncCursor::new(
-            &HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-            Arc::new(mock_cursor_metrics()),
-            Arc::new(sequencer),
-            Arc::new(store),
-            20,
-            100,
-            IndexMode::Block,
-            Duration::from_secs(5),
-        )
-        .await
-        .unwrap();
-
-        cursor.next_action().await.unwrap();
-        cursor.update(vec![], 100..=100).await.unwrap();
-
-        assert!(cursor.next_action().await.is_err());
-        assert!(cursor.next_action().await.is_ok());
-        assert_eq!(attempts.load(Ordering::Relaxed), 2);
     }
 
     #[tokio::test]

@@ -11,29 +11,35 @@ async fn create_concurrent_index(
     name: &str,
     create_statement: &str,
 ) -> Result<(), DbErr> {
-    let is_valid = db
-        .query_one(Statement::from_sql_and_values(
+    async fn is_valid(db: &DatabaseConnection, name: &str) -> Result<Option<bool>, DbErr> {
+        db.query_one(Statement::from_sql_and_values(
             db.get_database_backend(),
             "SELECT indisvalid FROM pg_index WHERE indexrelid = to_regclass($1)",
             [name.into()],
         ))
         .await?
         .map(|row| row.try_get::<bool>("", "indisvalid"))
-        .transpose()?;
+        .transpose()
+    }
+
+    let validity = is_valid(db, name).await?;
 
     println!(
         "Index {name}: {}",
-        match is_valid {
+        match validity {
             Some(true) => "valid",
             Some(false) => "invalid",
             None => "absent",
         }
     );
-    if is_valid == Some(false) {
+    if validity == Some(false) {
         db.execute_unprepared(&format!(r#"DROP INDEX CONCURRENTLY "{name}""#))
             .await?;
     }
     db.execute_unprepared(create_statement).await?;
+    if is_valid(db, name).await? != Some(true) {
+        return Err(DbErr::Custom(format!("index {name} is not valid")));
+    }
     Ok(())
 }
 
@@ -47,26 +53,6 @@ async fn main() -> Result<(), DbErr> {
         r#"
         CREATE INDEX CONCURRENTLY IF NOT EXISTS message_origin_tx_id_idx
         ON message (origin_tx_id)
-        "#,
-    )
-    .await?;
-
-    create_concurrent_index(
-        &db,
-        "message_origin_id_idx",
-        r#"
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS message_origin_id_idx
-        ON message (origin, id)
-        "#,
-    )
-    .await?;
-
-    create_concurrent_index(
-        &db,
-        "delivered_message_domain_id_idx",
-        r#"
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS delivered_message_domain_id_idx
-        ON delivered_message (domain, id)
         "#,
     )
     .await?;

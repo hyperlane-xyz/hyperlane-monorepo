@@ -19,6 +19,7 @@ mod indexing_checkpoint;
 mod merkle_tree_insertion;
 mod message;
 mod outbox;
+pub(crate) use outbox::CCR_CURSOR_EVENT_TYPE;
 mod payment;
 mod raw_message_dispatch;
 mod same_chain_ccr_swap;

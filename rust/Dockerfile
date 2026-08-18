@@ -54,11 +54,13 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
     RUSTFLAGS="--cfg tokio_unstable" \
-    cargo build --release --features aleo --bin validator --bin relayer --bin scraper && \
+    cargo build --release --features aleo --bin validator --bin relayer --bin scraper \
+      --bin create-outbox-source-indexes && \
     mkdir -p /release && \
     cp target/release/validator /release && \
     cp target/release/relayer /release && \
-    cp target/release/scraper /release
+    cp target/release/scraper /release && \
+    cp target/release/create-outbox-source-indexes /release
 
 # -------- Runtime Image --------
 # Minimal runtime image containing config, binaries, and runtime dependencies

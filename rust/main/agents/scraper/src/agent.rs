@@ -298,17 +298,16 @@ impl Scraper {
             self.raw_dispatch_unenriched_max_age.clone(),
             store.clone(),
         ));
-        tasks.push(self.build_outbox_builder(domain.clone(), store.clone()));
-
-        if let Some(ccr_task) = self
+        let ccr_task = self
             .build_ccr_indexer(
-                domain,
+                domain.clone(),
                 self.core_metrics.clone(),
-                store,
+                store.clone(),
                 index_settings.clone(),
             )
-            .await?
-        {
+            .await?;
+        tasks.push(self.build_outbox_builder(domain, store, ccr_task.is_some()));
+        if let Some(ccr_task) = ccr_task {
             tasks.push(ccr_task);
         }
 
@@ -326,12 +325,13 @@ impl Scraper {
         &self,
         domain: HyperlaneDomain,
         store: HyperlaneDbStore,
+        require_ccr: bool,
     ) -> JoinHandle<()> {
         let span_domain = domain.clone();
         tokio::spawn(
             async move {
                 loop {
-                    match store.db.build_outbox(domain.id()).await {
+                    match store.db.build_outbox(domain.id(), require_ccr).await {
                         Ok(inserted) => {
                             if inserted > 0 {
                                 trace!(domain = domain.name(), inserted, "Built outbox rows");
@@ -756,6 +756,20 @@ impl Scraper {
                             sleep(RPC_RETRY_SLEEP_DURATION).await;
                             continue;
                         }
+                    }
+
+                    if let Err(err) = store
+                        .db
+                        .store_indexing_checkpoint(
+                            local_domain,
+                            crate::db::CCR_CURSOR_EVENT_TYPE,
+                            to_block,
+                        )
+                        .await
+                    {
+                        warn!(?err, from_block, to_block, "Failed to store CCR outbox checkpoint");
+                        sleep(RPC_RETRY_SLEEP_DURATION).await;
+                        continue;
                     }
 
                     ccr_cursor.update(to_block.into()).await;
