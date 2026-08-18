@@ -125,6 +125,39 @@ mod tests {
         assert!(!encoded.contains(&format!("{first_id:?}")));
         assert!(!encoded.contains(&format!("{second_id:?}")));
     }
+
+    #[test]
+    fn metadata_wait_oldest_uses_tracker_as_source_of_truth() {
+        let metrics = test_metrics();
+        let app_context = "test-app";
+        let first_id = H256::from_low_u64_be(1);
+        let second_id = H256::from_low_u64_be(2);
+        let labels = [app_context, "ethereum", "arbitrum"];
+
+        metrics.record_metadata_wait(first_id, Some(app_context));
+        metrics.record_metadata_wait(second_id, Some(app_context));
+        let expected_oldest = metrics
+            .metadata_wait_oldest_timestamp_seconds
+            .with_label_values(&labels)
+            .get();
+
+        // The gauge is an exported view, not authoritative tracker state.
+        metrics
+            .metadata_wait_oldest_timestamp_seconds
+            .with_label_values(&labels)
+            .set(i64::MAX);
+        assert!(metrics
+            .finish_metadata_wait(second_id, Some(app_context), false)
+            .is_some());
+
+        assert_eq!(
+            metrics
+                .metadata_wait_oldest_timestamp_seconds
+                .with_label_values(&labels)
+                .get(),
+            expected_oldest
+        );
+    }
 }
 
 #[derive(Debug, Default)]
@@ -281,33 +314,27 @@ impl MessageSubmissionMetrics {
     ) -> Option<Duration> {
         let app_context = app_context.unwrap_or(UNKNOWN_APP_CONTEXT);
         let labels = [app_context, self.origin.as_str(), self.destination.as_str()];
-        let oldest = self
-            .metadata_wait_oldest_timestamp_seconds
-            .with_label_values(&labels);
         let mut waits = self
             .metadata_wait_tracker
             .by_app_context
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let current_oldest = oldest.get();
         let app_waits = waits.get_mut(app_context)?;
         let removed = app_waits.remove(&message_id)?;
-        let next_oldest = if removed.unix_timestamp_seconds == current_oldest {
-            app_waits
-                .values()
-                .map(|start| start.unix_timestamp_seconds)
-                .min()
-                .unwrap_or_default()
-        } else {
-            current_oldest
-        };
+        let next_oldest = app_waits
+            .values()
+            .map(|start| start.unix_timestamp_seconds)
+            .min()
+            .unwrap_or_default();
         let remove_app_context = app_waits.is_empty();
         if remove_app_context {
             waits.remove(app_context);
         }
 
         self.metadata_wait_active.with_label_values(&labels).dec();
-        oldest.set(next_oldest);
+        self.metadata_wait_oldest_timestamp_seconds
+            .with_label_values(&labels)
+            .set(next_oldest);
         self.metadata_wait_event_count
             .with_label_values(&[
                 app_context,
