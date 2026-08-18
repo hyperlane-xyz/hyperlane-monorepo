@@ -52,6 +52,7 @@ import {
   type SubmissionStrategy,
   type SubmitterMetadata,
   type TokenMetadataMap,
+  TokenType,
   type TrustedRelayerIsmConfig,
   type TxSubmitterBuilder,
   TxSubmitterType,
@@ -456,12 +457,18 @@ function generateTokenConfigs(
  * Assumes full interconnectivity between all tokens for now b.c. that's
  * what the deployers do by default.
  */
-function fullyConnectTokens(
+export function fullyConnectTokens(
   warpCoreConfig: WarpCoreConfig,
   multiProvider: MultiProvider,
 ): void {
   for (const token1 of warpCoreConfig.tokens) {
     for (const token2 of warpCoreConfig.tokens) {
+      if (
+        token1.tokenType === TokenType.atomicLocalRebalancing ||
+        token2.tokenType === TokenType.atomicLocalRebalancing
+      ) {
+        continue;
+      }
       if (
         token1.chainName === token2.chainName &&
         token1.addressOrDenom === token2.addressOrDenom

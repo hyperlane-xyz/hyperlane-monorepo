@@ -1034,6 +1034,146 @@ describe('EvmWarpModule', async () => {
       );
     });
 
+    it('preserves canonical bytes32 rebalance targets and recipients', () => {
+      const localDomain = multiProvider.getDomainId(chain);
+      const target = addressToBytes32(
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      );
+      const recipient = addressToBytes32(
+        '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      );
+      const module = new EvmWarpModule(multiProvider, {
+        chain,
+        config: {
+          ...baseConfig,
+          type: TokenType.crossCollateral,
+          token: token.address,
+        } satisfies HypTokenRouterConfig,
+        addresses: {
+          ...ismFactoryAddresses,
+          deployedTokenRoute: randomAddress(),
+        },
+      });
+      const actualConfig = {
+        ...baseConfig,
+        hook: ethers.constants.AddressZero,
+        interchainSecurityModule: ethers.constants.AddressZero,
+        type: TokenType.crossCollateral,
+        token: token.address,
+        tokenFee: undefined,
+        rebalanceTargets: {},
+        rebalanceRecipients: {},
+      } satisfies DerivedTokenRouterConfig;
+      const expectedConfig = {
+        ...baseConfig,
+        type: TokenType.crossCollateral,
+        token: token.address,
+        rebalanceTargets: { [localDomain]: [target] },
+        rebalanceRecipients: { [localDomain]: recipient },
+      } satisfies HypTokenRouterConfig;
+
+      const [targetTx] = module.createAddRebalanceTargetsUpdateTxs(
+        actualConfig,
+        expectedConfig,
+      );
+      assert(targetTx.data, 'Expected rebalance target calldata');
+      const [, decodedTarget] =
+        CrossCollateralRouter__factory.createInterface().decodeFunctionData(
+          'addRebalanceTarget(uint32,bytes32)',
+          targetTx.data,
+        );
+      expect(decodedTarget.toLowerCase()).to.equal(target);
+
+      const [recipientTx] = module.createSetRecipientsUpdateTxs(
+        actualConfig,
+        expectedConfig,
+      );
+      assert(recipientTx.data, 'Expected rebalance recipient calldata');
+      const [, decodedRecipient] =
+        CrossCollateralRouter__factory.createInterface().decodeFunctionData(
+          'setRecipient(uint32,bytes32)',
+          recipientTx.data,
+        );
+      expect(decodedRecipient.toLowerCase()).to.equal(recipient);
+    });
+
+    it('rejects rebalance domains that cannot be read back', () => {
+      const localDomain = multiProvider.getDomainId(chain);
+      const unknownDomain = localDomain + 1000;
+      const module = new EvmWarpModule(multiProvider, {
+        chain,
+        config: {
+          ...baseConfig,
+          type: TokenType.crossCollateral,
+          token: token.address,
+        } satisfies HypTokenRouterConfig,
+        addresses: {
+          ...ismFactoryAddresses,
+          deployedTokenRoute: randomAddress(),
+        },
+      });
+      const actualConfig = {
+        ...baseConfig,
+        hook: ethers.constants.AddressZero,
+        interchainSecurityModule: ethers.constants.AddressZero,
+        type: TokenType.crossCollateral,
+        token: token.address,
+        tokenFee: undefined,
+      } satisfies DerivedTokenRouterConfig;
+      const expectedConfig = {
+        ...baseConfig,
+        type: TokenType.crossCollateral,
+        token: token.address,
+        rebalanceTargets: {
+          [unknownDomain]: [addressToBytes32(randomAddress())],
+        },
+      } satisfies HypTokenRouterConfig;
+
+      expect(() =>
+        module.createAddRebalanceTargetsUpdateTxs(actualConfig, expectedConfig),
+      ).to.throw(`Rebalance domain ${unknownDomain}`);
+    });
+
+    it('removes stale rebalance config when expected fields are omitted', () => {
+      const localDomain = multiProvider.getDomainId(chain);
+      const target = addressToBytes32(randomAddress());
+      const recipient = addressToBytes32(randomAddress());
+      const module = new EvmWarpModule(multiProvider, {
+        chain,
+        config: {
+          ...baseConfig,
+          type: TokenType.crossCollateral,
+          token: token.address,
+        } satisfies HypTokenRouterConfig,
+        addresses: {
+          ...ismFactoryAddresses,
+          deployedTokenRoute: randomAddress(),
+        },
+      });
+      const actualConfig = {
+        ...baseConfig,
+        hook: ethers.constants.AddressZero,
+        interchainSecurityModule: ethers.constants.AddressZero,
+        type: TokenType.crossCollateral,
+        token: token.address,
+        tokenFee: undefined,
+        rebalanceTargets: { [localDomain]: [target] },
+        rebalanceRecipients: { [localDomain]: recipient },
+      } satisfies DerivedTokenRouterConfig;
+      const expectedConfig = {
+        ...baseConfig,
+        type: TokenType.crossCollateral,
+        token: token.address,
+      } satisfies HypTokenRouterConfig;
+
+      expect(
+        module.createRemoveRebalanceTargetsTxs(actualConfig, expectedConfig),
+      ).to.have.length(1);
+      expect(
+        module.createRemoveRecipientsTxs(actualConfig, expectedConfig),
+      ).to.have.length(1);
+    });
+
     it('includes MC crossCollateralRouters domains in destination gas txs', async () => {
       const destinationDomain = multiProvider.getDomainId(TestChainName.test2);
       const enrolledRouter = addressToBytes32(

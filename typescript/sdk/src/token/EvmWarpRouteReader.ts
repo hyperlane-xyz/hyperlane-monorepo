@@ -2,6 +2,7 @@ import { compareVersions } from 'compare-versions';
 import { BigNumber, Contract, constants } from 'ethers';
 
 import {
+  AtomicLocalRebalancingBridge__factory,
   CrossCollateralRouter__factory,
   EverclearTokenBridge,
   EverclearTokenBridge__factory,
@@ -70,6 +71,7 @@ import {
   fetchPackageVersion as fetchContractPackageVersion,
   isMissingSelectorCallException,
   throwIfNotMissingSelector,
+  throwIfNotMissingSelectorRevert,
 } from '../utils/contract.js';
 import { NormalizedScale } from '../utils/decimals.js';
 
@@ -81,6 +83,7 @@ import {
 } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
+  AtomicLocalRebalancingBridgeTokenConfig,
   CctpTokenConfig,
   CollateralTokenConfig,
   ContractVerificationStatus,
@@ -115,6 +118,9 @@ const SCALE_FRACTION_VERSION = '11.0.0';
 // version that introduced the legacy scale interface
 // https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/tag/%40hyperlane-xyz%2Fcore%406.0.0
 const SCALE_VERSION = '6.0.0';
+
+// Version that introduced CrossCollateralRouter.rebalanceTargets().
+const REBALANCE_TARGETS_CONTRACT_VERSION = '12.0.0';
 
 // Version that first introduced ppm precision for CCTP V2 fee storage (was bps before)
 export const CCTP_PPM_STORAGE_VERSION = '10.2.0';
@@ -190,6 +196,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveHypCollateralDepositAddressTokenConfig.bind(this),
       [TokenType.collateralOft]:
         this.deriveHypCollateralOftTokenConfig.bind(this),
+      [TokenType.atomicLocalRebalancing]:
+        this.deriveAtomicLocalRebalancingBridgeTokenConfig.bind(this),
       [TokenType.crossCollateral]:
         this.deriveCrossCollateralTokenConfig.bind(this),
     };
@@ -218,9 +226,11 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const type = await this.deriveTokenType(warpRouteAddress);
     const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
     const isDepositAddressBridge = type === TokenType.collateralDepositAddress;
-    // OFT and deposit-address bridges don't expose Router/MailboxClient interfaces.
+    // Bare bridges don't expose Router/MailboxClient interfaces.
     const isOft = type === TokenType.collateralOft;
-    const usesSentinelRouterConfig = isDepositAddressBridge || isOft;
+    const isAtomicLocalRebalancing = type === TokenType.atomicLocalRebalancing;
+    const usesSentinelRouterConfig =
+      isDepositAddressBridge || isOft || isAtomicLocalRebalancing;
     const routerConfig = usesSentinelRouterConfig
       ? {
           mailbox: constants.AddressZero,
@@ -233,6 +243,16 @@ export class EvmWarpRouteReader extends EvmRouterReader {
           remoteRouters: {},
         }
       : await this.readRouterConfig(warpRouteAddress);
+    // ALRB is a bare ITokenBridge adapter rather than a TokenRouter. Its full
+    // readable surface is covered by tokenConfig plus the sentinel router
+    // fields above, so avoid probing proxy, fee, hook, and destination-gas
+    // interfaces that it intentionally does not implement.
+    if (isAtomicLocalRebalancing) {
+      return {
+        ...routerConfig,
+        ...tokenConfig,
+      };
+    }
     // if the token has not been deployed as a proxy do not derive the config
     // inevm warp routes are an example
     const proxyAdmin = (await isProxy(this.provider, warpRouteAddress))
@@ -269,6 +289,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         tokenConfig.contractVersion,
         REBALANCING_CONTRACT_VERSION,
       ) >= 0;
+    const selfDomainId = this.multiProvider.getDomainId(this.chain);
 
     let allowedRebalancers: Address[] | undefined;
     let allowedRebalancingBridges: MovableTokenConfig['allowedRebalancingBridges'];
@@ -299,9 +320,15 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
       try {
         domains = await movableToken.domains();
+        // CrossCollateralRouter can enroll a same-domain atomic bridge even
+        // though Router.domains() only returns remote domains. Include the
+        // local domain so warp check/apply observes that bridge and converges.
+        const bridgeDomains = isCrossCollateralTokenConfig(tokenConfig)
+          ? [...new Set([...domains, selfDomainId])]
+          : domains;
         const allowedBridgesByDomain = await promiseObjAll(
           objMap(
-            arrayToObject(domains.map((domain) => domain.toString())),
+            arrayToObject(bridgeDomains.map((domain) => domain.toString())),
             (domain) => movableToken.allowedBridges(domain),
           ),
         );
@@ -334,7 +361,6 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     // fee entry keyed under a normal router and reports false-positive diffs.
     // remoteRouters omits the local domain, so add this router's own address as
     // the key for self-domain (same-chain CCR swap) fee entries.
-    const selfDomainId = this.multiProvider.getDomainId(this.chain);
     const feeRouterKeys = isCrossCollateralTokenConfig(tokenConfig)
       ? mergeCrossCollateralRouters(
           tokenConfig.crossCollateralRouters,
@@ -691,6 +717,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       [TokenType.collateralOft]: {
         factory: TokenBridgeOft__factory,
         method: 'oft',
+      },
+      [TokenType.atomicLocalRebalancing]: {
+        factory: AtomicLocalRebalancingBridge__factory,
+        method: 'allowedSourceRouter',
       },
       [TokenType.collateralCctp]: {
         factory: TokenBridgeCctpBase__factory,
@@ -1219,6 +1249,35 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     };
   }
 
+  private async deriveAtomicLocalRebalancingBridgeTokenConfig(
+    bridgeAddress: Address,
+  ): Promise<AtomicLocalRebalancingBridgeTokenConfig> {
+    const bridge = AtomicLocalRebalancingBridge__factory.connect(
+      bridgeAddress,
+      this.provider,
+    );
+    const [sourceRouter, localDomain] = await Promise.all([
+      bridge.allowedSourceRouter(),
+      bridge.localDomain(),
+    ]);
+    const expectedLocalDomain = this.multiProvider.getDomainId(this.chain);
+    assert(
+      BigNumber.from(localDomain).toNumber() === expectedLocalDomain,
+      `AtomicLocalRebalancingBridge localDomain ${localDomain} does not match ${expectedLocalDomain} for ${this.chain}`,
+    );
+    const sourceToken = await MovableCollateralRouter__factory.connect(
+      sourceRouter,
+      this.provider,
+    ).token();
+
+    return {
+      ...(await this.fetchERC20Metadata(sourceToken)),
+      type: TokenType.atomicLocalRebalancing,
+      sourceRouter,
+      scale: await this.fetchScale(sourceRouter),
+    };
+  }
+
   private async deriveHypCollateralTokenConfig(
     hypToken: Address,
   ): Promise<CollateralTokenConfig> {
@@ -1547,6 +1606,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       ]),
     ];
     const crossCollateralRouters: Record<string, string[]> = {};
+    const rebalanceTargets: Record<string, string[]> = {};
+    const rebalanceRecipients: Record<string, string> = {};
 
     await Promise.all(
       allDomains.map(async (domain) => {
@@ -1558,6 +1619,51 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       }),
     );
 
+    // `rebalanceTargets()` only exists on the #8894+ CrossCollateralRouter.
+    // Gate the read on PACKAGE_VERSION so legacy routers can be read before an
+    // upgrade without relying on how a particular RPC represents empty return
+    // data for a missing selector.
+    const supportsRebalanceTargets =
+      compareVersions(
+        await this.fetchPackageVersion(hypTokenAddress),
+        REBALANCE_TARGETS_CONTRACT_VERSION,
+      ) >= 0;
+
+    if (supportsRebalanceTargets) {
+      await Promise.all(
+        allDomains.map(async (domain) => {
+          const targets = await crossCollateralRouter.rebalanceTargets(domain);
+          if (targets.length > 0) {
+            rebalanceTargets[domain.toString()] = targets.map((target) =>
+              target.toLowerCase(),
+            );
+          }
+        }),
+      );
+    }
+
+    // `allowedRecipient()` may not exist on older deployed implementations.
+    // Probe once so deriving a pre-upgrade router does not fail.
+    let supportsRebalanceRecipients = true;
+    try {
+      await crossCollateralRouter.allowedRecipient(localDomain);
+    } catch (error: unknown) {
+      throwIfNotMissingSelectorRevert(error);
+      supportsRebalanceRecipients = false;
+    }
+
+    if (supportsRebalanceRecipients) {
+      await Promise.all(
+        allDomains.map(async (domain) => {
+          const recipient =
+            await crossCollateralRouter.allowedRecipient(domain);
+          if (!isZeroishAddress(recipient)) {
+            rebalanceRecipients[domain.toString()] = recipient.toLowerCase();
+          }
+        }),
+      );
+    }
+
     return {
       ...erc20TokenMetadata,
       type: TokenType.crossCollateral,
@@ -1566,6 +1672,12 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       crossCollateralRouters:
         Object.keys(crossCollateralRouters).length > 0
           ? crossCollateralRouters
+          : undefined,
+      rebalanceTargets:
+        Object.keys(rebalanceTargets).length > 0 ? rebalanceTargets : undefined,
+      rebalanceRecipients:
+        Object.keys(rebalanceRecipients).length > 0
+          ? rebalanceRecipients
           : undefined,
     };
   }
