@@ -154,7 +154,9 @@ impl<T: Send + Sync + Clone + Debug + 'static + Indexable> ContractSyncCursor<T>
             self.last_direction = SyncDirection::Backward;
             return Ok((CursorAction::Query(backward_range), eta));
         }
-        self.forward.store_high_watermark().await?;
+        if self.backward.is_synced() {
+            self.forward.store_latest_indexed_block().await?;
+        }
         return Ok((CursorAction::Sleep(self.idle_sleep_duration), eta));
     }
 
@@ -171,7 +173,7 @@ impl<T: Send + Sync + Clone + Debug + 'static + Indexable> ContractSyncCursor<T>
             SyncDirection::Forward => {
                 self.forward.update(logs, range).await?;
                 if self.backward.is_synced() {
-                    self.forward.store_high_watermark().await?;
+                    self.forward.store_latest_indexed_block().await?;
                 }
                 Ok(())
             }

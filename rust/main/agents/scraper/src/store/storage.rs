@@ -44,6 +44,7 @@ pub struct HyperlaneDbStore {
 
 #[allow(unused)]
 impl HyperlaneDbStore {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         db: ScraperDb,
         domain: HyperlaneDomain,
@@ -336,6 +337,16 @@ where
     async fn store_high_watermark(&self, block_number: u32) -> Result<()> {
         self.db
             .store_indexing_checkpoint(self.domain.id(), T::name(), block_number)
+            .await
+    }
+
+    async fn store_latest_indexed_block(&self, block_number: u32) -> Result<()> {
+        self.db
+            .store_indexing_checkpoint(
+                self.domain.id(),
+                &format!("{}_outbox", T::name()),
+                block_number,
+            )
             .await
     }
 }

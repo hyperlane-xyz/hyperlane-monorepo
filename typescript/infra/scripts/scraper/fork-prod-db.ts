@@ -96,7 +96,7 @@ function startPostgres(args: Args) {
       '-e',
       `POSTGRES_DB=${args.localDatabase}`,
       '-p',
-      `${args.localPort}:5432`,
+      `127.0.0.1:${args.localPort}:5432`,
       '-d',
       args.postgresImage,
     ],
@@ -172,7 +172,7 @@ async function dumpProdDatabase(args: Args) {
 }
 
 function localDatabaseUrl(args: Args): string {
-  return `postgresql://postgres:${args.password}@localhost:${args.localPort}/${args.localDatabase}`;
+  return `postgresql://postgres:${args.password}@127.0.0.1:${args.localPort}/${args.localDatabase}`;
 }
 
 function restoreLocalDatabase(args: Args) {
@@ -240,7 +240,7 @@ function redactedLocalDatabaseUrl(args: Args): string {
 async function main() {
   const rawArgs = process.argv.slice(2);
   const cliArgs = rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs;
-  const args = (await yargs(cliArgs)
+  const args = await yargs(cliArgs)
     .scriptName('pnpm -C typescript/infra fork-scraper-db --')
     .usage(
       '$0 --password <local-password> [--replace] [--refreshDump]\n\nFork the production scraper Postgres DB into a local Docker Postgres on localhost:5432. Reuses the local dump file by default when it already exists.',
@@ -342,7 +342,7 @@ async function main() {
     })
     .wrap(null)
     .strict()
-    .parse()) as Args;
+    .parse();
 
   startPostgres(args);
   if (!args.skipDump) {

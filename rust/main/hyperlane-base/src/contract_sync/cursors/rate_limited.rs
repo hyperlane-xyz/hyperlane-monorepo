@@ -261,6 +261,7 @@ where
                     .saturating_sub(self.sync_state.chunk_size),
             ))
             .await?;
+        self.store.store_latest_indexed_block(*range.end()).await?;
         self.sync_state.update_range(range);
 
         match self.indexer.get_finalized_block_number().await {
@@ -347,6 +348,7 @@ pub(crate) mod test {
         impl<T: Indexable + Send + Sync> HyperlaneWatermarkedLogStore<T> for Db<T> {
             async fn retrieve_high_watermark(&self) -> Result<Option<u32>>;
             async fn store_high_watermark(&self, block_number: u32) -> Result<()>;
+            async fn store_latest_indexed_block(&self, block_number: u32) -> Result<()>;
         }
     }
 
@@ -412,6 +414,9 @@ pub(crate) mod test {
         let mut db = MockDb::new();
         let metrics = mock_cursor_metrics();
         db.expect_store_high_watermark().returning(|_| Ok(()));
+        db.expect_store_latest_indexed_block()
+            .with(mockall::predicate::eq(CHUNK_SIZE))
+            .returning(|_| Ok(()));
         let chunk_size = CHUNK_SIZE;
         let initial_height = INITIAL_HEIGHT;
         RateLimitedContractSyncCursor::new(

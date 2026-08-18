@@ -464,9 +464,9 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
             .set(max_sequence);
     }
 
-    pub async fn store_high_watermark(&self) -> Result<()> {
+    pub async fn store_latest_indexed_block(&self) -> Result<()> {
         self.store
-            .store_high_watermark(self.latest_queried_block())
+            .store_latest_indexed_block(self.latest_queried_block())
             .await
     }
 }

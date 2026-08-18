@@ -61,4 +61,13 @@ pub trait HyperlaneWatermarkedLogStore<T>: HyperlaneLogStore<T> {
 
     /// Stores the block number high watermark
     async fn store_high_watermark(&self, block_number: u32) -> Result<()>;
+
+    /// Stores the exact end of a successfully indexed range, when supported.
+    ///
+    /// This is distinct from the conservative restart watermark, which may be
+    /// shared by multiple cursors. Stores that do not need an exact completion
+    /// checkpoint can leave the default no-op implementation.
+    async fn store_latest_indexed_block(&self, _block_number: u32) -> Result<()> {
+        Ok(())
+    }
 }

@@ -25,12 +25,13 @@ const DELIVERED_MESSAGE_SOURCE_TABLE: &str = "delivered_message";
 const GAS_PAYMENT_SOURCE_TABLE: &str = "gas_payment";
 const MERKLE_TREE_INSERTION_SOURCE_TABLE: &str = "merkle_tree_insertion";
 const INDEXING_CHECKPOINT_SOURCE_TABLE: &str = "indexing_checkpoint";
-const MESSAGE_CURSOR_EVENT_TYPE: &str = "hyperlane_message";
-const DELIVERY_CURSOR_EVENT_TYPE: &str = "delivery";
-const GAS_PAYMENT_CURSOR_EVENT_TYPE: &str = "interchain_gas_payment";
-const MERKLE_TREE_INSERTION_CURSOR_EVENT_TYPE: &str = "merkle_tree_insertion";
+const MESSAGE_CURSOR_EVENT_TYPE: &str = "hyperlane_message_outbox";
+const DELIVERY_CURSOR_EVENT_TYPE: &str = "delivery_outbox";
+const GAS_PAYMENT_CURSOR_EVENT_TYPE: &str = "interchain_gas_payment_outbox";
+const MERKLE_TREE_INSERTION_CURSOR_EVENT_TYPE: &str = "merkle_tree_insertion_outbox";
 const REQUIRED_INDEXING_CHECKPOINT_COUNT: usize = 4;
 const OUTBOX_BUILD_BLOCK_CHUNK: i64 = 10_000;
+const OUTBOX_INSERT_ROW_CHUNK: usize = 10_000;
 
 #[derive(Clone, Debug, FromQueryResult)]
 struct OutboxSourceRow {
@@ -70,13 +71,12 @@ impl ScraperDb {
             .merkle_tree_insertion_outbox_rows(domain, last_position, target_position)
             .await?;
 
-        let mut models = Vec::with_capacity(
-            messages.len()
-                + deliveries.len()
-                + gas_payments.len()
-                + merkle_tree_insertions.len()
-                + usize::from(true),
-        );
+        let capacity = messages
+            .len()
+            .saturating_add(deliveries.len())
+            .saturating_add(gas_payments.len())
+            .saturating_add(merkle_tree_insertions.len());
+        let mut models = Vec::with_capacity(capacity);
         for row in messages {
             models.push(outbox_model(
                 domain,
@@ -113,26 +113,24 @@ impl ScraperDb {
                 row.id,
             ));
         }
-        models.push(outbox_model(
+        let checkpoint = outbox_model(
             domain,
             target_position,
             OUTBOX_INDEXING_CHECKPOINT_EVENT_TYPE,
             INDEXING_CHECKPOINT_SOURCE_TABLE,
             target_position,
-        ));
+        );
 
         let txn = self.0.begin().await?;
-        let inserted = models.len() as u64;
-        outbox::Entity::insert_many(models)
-            .on_conflict(
-                OnConflict::columns([
-                    outbox::Column::Domain,
-                    outbox::Column::EventType,
-                    outbox::Column::SourceId,
-                ])
-                .do_nothing()
-                .to_owned(),
-            )
+        let inserted = u64::try_from(models.len().saturating_add(1))?;
+        for chunk in outbox_insert_chunks(&models) {
+            outbox::Entity::insert_many(chunk.iter().cloned())
+                .on_conflict(outbox_conflict_clause())
+                .exec(&txn)
+                .await?;
+        }
+        outbox::Entity::insert(checkpoint)
+            .on_conflict(outbox_conflict_clause())
             .exec(&txn)
             .await?;
         txn.commit().await?;
@@ -287,6 +285,20 @@ impl ScraperDb {
     }
 }
 
+fn outbox_conflict_clause() -> OnConflict {
+    OnConflict::columns([
+        outbox::Column::Domain,
+        outbox::Column::EventType,
+        outbox::Column::SourceId,
+    ])
+    .do_nothing()
+    .to_owned()
+}
+
+fn outbox_insert_chunks<T>(rows: &[T]) -> std::slice::Chunks<'_, T> {
+    rows.chunks(OUTBOX_INSERT_ROW_CHUNK)
+}
+
 fn outbox_model(
     domain: u32,
     position: i64,
@@ -302,5 +314,20 @@ fn outbox_model(
         source_table: Set(source_table.to_owned()),
         source_id: Set(source_id),
         time_created: Set(date_time::now()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chunks_batches_above_postgres_parameter_limit() {
+        let rows = vec![(); 10_923];
+        let chunk_lengths = outbox_insert_chunks(&rows)
+            .map(|chunk| chunk.len())
+            .collect::<Vec<_>>();
+
+        assert_eq!(chunk_lengths, vec![10_000, 923]);
     }
 }

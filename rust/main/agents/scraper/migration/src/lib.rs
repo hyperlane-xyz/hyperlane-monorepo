@@ -20,6 +20,7 @@ mod m20260814_000009_compact_cursor_table;
 mod m20260817_000010_create_table_outbox;
 mod m20260817_000011_create_table_indexing_checkpoint;
 mod m20260817_000012_create_table_merkle_tree_insertion;
+mod m20260818_000013_create_outbox_source_indexes;
 
 pub struct Migrator;
 
@@ -44,6 +45,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260817_000010_create_table_outbox::Migration),
             Box::new(m20260817_000011_create_table_indexing_checkpoint::Migration),
             Box::new(m20260817_000012_create_table_merkle_tree_insertion::Migration),
+            Box::new(m20260818_000013_create_outbox_source_indexes::Migration),
         ]
     }
 }
