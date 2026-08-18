@@ -3412,12 +3412,7 @@
         "from": 42656210
       },
       "gnosisSafeTransactionServiceUrl": "https://safe-transaction-ronin.safe.onchainden.com",
-      "quotedCalls": "0x0b2d429acccAA411b867d57703F88Ed208eC35E4",
-      "transactionOverrides": {
-        "minGasPrice": 20000000000,
-        "minFeePerGas": 20000000000,
-        "minPriorityFeePerGas": 20000000000
-      }
+      "quotedCalls": "0x0b2d429acccAA411b867d57703F88Ed208eC35E4"
     },
     "subtensor": {
       "blockExplorers": [
@@ -5686,10 +5681,10 @@
     "kiichain": {
       "blockExplorers": [
         {
-          "apiUrl": "https://mainnet.explorer.kiichain.io/api",
-          "family": "other",
+          "apiUrl": "https://blockscout.kiichain.io/api",
+          "family": "blockscout",
           "name": "KiiChain Explorer",
-          "url": "https://mainnet.explorer.kiichain.io"
+          "url": "https://blockscout.kiichain.io"
         }
       ],
       "blocks": {

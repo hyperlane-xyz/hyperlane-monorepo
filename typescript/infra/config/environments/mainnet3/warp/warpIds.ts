@@ -32,7 +32,6 @@ export enum WarpRouteIds {
   EthereumVictionUSDT = 'USDT/ethereum-viction',
   BerachainEthereumSwellUnichainZircuitPZETH = 'PZETH/berachain-ethereum-swell-unichain-zircuit',
   BerachainEthereumSwellUnichainZircuitPZETHSTAGE = 'PZETHSTAGE/berachain-ethereum-swell-unichain-zircuit',
-  ArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIA = 'LUMIA/arbitrum-avalanche-base-bsc-ethereum-lumiaprism-optimism-polygon',
   BaseEthereumREZ = 'REZ/base-ethereum-unichain',
   BaseEthereumREZSTAGING = 'REZSTAGING/base-ethereum-unichain',
   // Removed here: ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet
@@ -64,7 +63,6 @@ export enum WarpRouteIds {
   oXAUT = 'oXAUT/production',
   HyperevmSolanaSOL = 'SOL/hyperevm-solanamainnet',
   EthereumUnichainPumpBTC = 'pumpBTCuni/ethereum-unichain',
-  ArbitrumBaseEthereumLumiaprismOptimismPolygonETH = 'ETH/arbitrum-base-ethereum-lumiaprism-optimism-polygon',
   BscHyperevmEnzoBTC = 'enzoBTC/bsc-hyperevm',
   BscHyperevmSTBTC = 'stBTC/bsc-hyperevm',
   MitosisMITO = 'MITO/mitosis',
@@ -79,8 +77,6 @@ export enum WarpRouteIds {
   SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 
-  LumiaUSDC = 'USDC/lumia',
-  MatchainUSDC = 'USDC/matchain',
   SubtensorUSDC = 'USDC/subtensor',
   ParadexUSDC = 'USDC/paradex',
 
