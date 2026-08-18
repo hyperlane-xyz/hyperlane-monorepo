@@ -388,10 +388,28 @@ fn outbox_model(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::generated::cursor;
     use migration::MigratorTrait;
-    use sea_orm::{ConnectionTrait, Database, DbErr, Statement};
+    use sea_orm::prelude::BigDecimal;
+    use sea_orm::{ActiveModelTrait, Database, DbErr, PaginatorTrait};
     use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::postgres::Postgres;
+
+    fn test_message(nonce: i32, transaction_id: i64) -> message::ActiveModel {
+        message::ActiveModel {
+            id: NotSet,
+            time_created: Set(date_time::now()),
+            msg_id: Set(nonce.to_be_bytes().to_vec()),
+            origin: Set(1),
+            destination: Set(2),
+            nonce: Set(nonce),
+            sender: Set(vec![4; 32]),
+            recipient: Set(vec![5; 32]),
+            msg_body: Set(None),
+            origin_mailbox: Set(vec![6; 32]),
+            origin_tx_id: Set(transaction_id),
+        }
+    }
 
     #[test]
     fn chunks_batches_above_postgres_parameter_limit() {
@@ -431,49 +449,77 @@ mod tests {
         let postgres_url = format!("postgresql://postgres:postgres@127.0.0.1:{host_port}/postgres");
         let db = Database::connect(&postgres_url).await?;
         migration::Migrator::up(&db, Some(11)).await?;
-        db.execute_unprepared(
-            r#"
-            INSERT INTO cursor (domain, time_created, height, event_type)
-            VALUES (1, NOW(), 9, 'hyperlane_message')
-            "#,
-        )
+        cursor::ActiveModel {
+            id: NotSet,
+            domain: Set(1),
+            time_created: Set(date_time::now()),
+            height: Set(9),
+            event_type: Set("hyperlane_message".to_owned()),
+        }
+        .insert(&db)
         .await?;
         migration::Migrator::up(&db, None).await?;
-        let bootstrapped_height: i64 = db
-            .query_one(Statement::from_string(
-                db.get_database_backend(),
-                "SELECT height FROM indexing_checkpoint WHERE domain = 1 AND event_type = 'hyperlane_message'",
-            ))
+        let bootstrapped_height = indexing_checkpoint::Entity::find()
+            .filter(indexing_checkpoint::Column::Domain.eq(1))
+            .filter(indexing_checkpoint::Column::EventType.eq("hyperlane_message"))
+            .one(&db)
             .await?
             .expect("bootstrapped checkpoint should exist")
-            .try_get("", "height")?;
+            .height;
         assert_eq!(bootstrapped_height, 9);
-        db.execute_unprepared(
-            r#"
-            INSERT INTO block (domain, hash, height, timestamp)
-            VALUES (1, decode(repeat('01', 32), 'hex'), 10, NOW());
-            INSERT INTO "transaction"
-                (hash, block_id, gas_limit, nonce, sender, gas_used, cumulative_gas_used)
-            VALUES
-                (decode(repeat('02', 32), 'hex'), 1, 1, 1,
-                 decode(repeat('03', 32), 'hex'), 1, 1);
-            INSERT INTO indexing_checkpoint
-                (domain, event_type, height, time_created, time_updated)
-            VALUES
-                (1, 'hyperlane_message_outbox', 10, NOW(), NOW()),
-                (1, 'delivery_outbox', 10, NOW(), NOW()),
-                (1, 'interchain_gas_payment_outbox', 10, NOW(), NOW()),
-                (1, 'merkle_tree_insertion_outbox', 10, NOW(), NOW());
-            INSERT INTO message
-                (msg_id, origin, destination, nonce, sender, recipient,
-                 origin_mailbox, origin_tx_id)
-            SELECT
-                decode(lpad(to_hex(value), 64, '0'), 'hex'), 1, 2, value,
-                decode(repeat('04', 32), 'hex'), decode(repeat('05', 32), 'hex'),
-                decode(repeat('06', 32), 'hex'), 1
-            FROM generate_series(1, 5001) AS value;
-            "#,
+
+        let block = block::ActiveModel {
+            id: NotSet,
+            time_created: Set(date_time::now()),
+            domain: Set(1),
+            hash: Set(vec![1; 32]),
+            height: Set(10),
+            timestamp: Set(date_time::now()),
+        }
+        .insert(&db)
+        .await?;
+        let source_transaction = transaction::ActiveModel {
+            id: NotSet,
+            time_created: Set(date_time::now()),
+            hash: Set(vec![2; 32]),
+            block_id: Set(block.id),
+            gas_limit: Set(BigDecimal::from(1)),
+            max_priority_fee_per_gas: Set(None),
+            max_fee_per_gas: Set(None),
+            gas_price: Set(None),
+            effective_gas_price: Set(None),
+            nonce: Set(1),
+            sender: Set(vec![3; 32]),
+            recipient: Set(None),
+            gas_used: Set(BigDecimal::from(1)),
+            cumulative_gas_used: Set(BigDecimal::from(1)),
+            raw_input_data: Set(None),
+        }
+        .insert(&db)
+        .await?;
+        let checkpoint_time = date_time::now();
+        indexing_checkpoint::Entity::insert_many(
+            [
+                MESSAGE_CURSOR_EVENT_TYPE,
+                DELIVERY_CURSOR_EVENT_TYPE,
+                GAS_PAYMENT_CURSOR_EVENT_TYPE,
+                MERKLE_TREE_INSERTION_CURSOR_EVENT_TYPE,
+            ]
+            .map(|event_type| indexing_checkpoint::ActiveModel {
+                id: NotSet,
+                domain: Set(1),
+                event_type: Set(event_type.to_owned()),
+                height: Set(10),
+                time_created: Set(checkpoint_time),
+                time_updated: Set(checkpoint_time),
+            }),
         )
+        .exec(&db)
+        .await?;
+        message::Entity::insert_many(
+            (1..=5_001).map(|nonce| test_message(nonce, source_transaction.id)),
+        )
+        .exec(&db)
         .await?;
 
         let scraper_db = ScraperDb::with_connection(Database::connect(&postgres_url).await?);
@@ -481,59 +527,28 @@ mod tests {
             .build_outbox(1)
             .await
             .expect("first outbox pass should succeed");
-        let checkpoint_count: i64 = db
-            .query_one(Statement::from_string(
-                db.get_database_backend(),
-                "SELECT COUNT(*) AS count FROM outbox WHERE event_type = 'indexing_checkpoint'",
-            ))
-            .await?
-            .expect("checkpoint count query should return a row")
-            .try_get("", "count")?;
+        let checkpoint_count = outbox::Entity::find()
+            .filter(outbox::Column::EventType.eq(OUTBOX_INDEXING_CHECKPOINT_EVENT_TYPE))
+            .count(&db)
+            .await?;
         assert_eq!(checkpoint_count, 0);
 
         scraper_db
             .build_outbox(1)
             .await
             .expect("second outbox pass should succeed");
-        let outbox_count: i64 = db
-            .query_one(Statement::from_string(
-                db.get_database_backend(),
-                "SELECT COUNT(*) AS count FROM outbox",
-            ))
-            .await?
-            .expect("outbox count query should return a row")
-            .try_get("", "count")?;
+        let outbox_count = outbox::Entity::find().count(&db).await?;
         assert_eq!(outbox_count, 5_002);
 
-        db.execute_unprepared("TRUNCATE outbox, message RESTART IDENTITY")
-            .await?;
+        outbox::Entity::delete_many().exec(&db).await?;
+        message::Entity::delete_many().exec(&db).await?;
         let first = db.begin().await?;
-        first
-            .execute_unprepared(
-                r#"
-                INSERT INTO message
-                    (msg_id, origin, destination, nonce, sender, recipient,
-                     origin_mailbox, origin_tx_id)
-                VALUES
-                    (decode(repeat('07', 32), 'hex'), 1, 2, 1,
-                     decode(repeat('04', 32), 'hex'), decode(repeat('05', 32), 'hex'),
-                     decode(repeat('06', 32), 'hex'), 1)
-                "#,
-            )
+        let first_message = test_message(1, source_transaction.id)
+            .insert(&first)
             .await?;
         let second = db.begin().await?;
-        second
-            .execute_unprepared(
-                r#"
-                INSERT INTO message
-                    (msg_id, origin, destination, nonce, sender, recipient,
-                     origin_mailbox, origin_tx_id)
-                VALUES
-                    (decode(repeat('08', 32), 'hex'), 1, 2, 2,
-                     decode(repeat('04', 32), 'hex'), decode(repeat('05', 32), 'hex'),
-                     decode(repeat('06', 32), 'hex'), 1)
-                "#,
-            )
+        let second_message = test_message(2, source_transaction.id)
+            .insert(&second)
             .await?;
         second.commit().await?;
 
@@ -555,7 +570,7 @@ mod tests {
             .into_tuple::<i64>()
             .all(&db)
             .await?;
-        assert_eq!(source_ids, vec![1, 2]);
+        assert_eq!(source_ids, vec![first_message.id, second_message.id]);
 
         Ok(())
     }
