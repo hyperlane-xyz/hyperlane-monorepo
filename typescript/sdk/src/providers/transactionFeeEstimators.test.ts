@@ -15,6 +15,7 @@ import { ProviderType } from './ProviderType.js';
 import {
   clearCachedStargateClients,
   estimateTransactionFeeCosmJsWasm,
+  estimateTransactionFeeEthersV5ForGasUnits,
   estimateTransactionFeeSolanaWeb3,
 } from './transactionFeeEstimators.js';
 
@@ -39,6 +40,25 @@ describe('transactionFeeEstimators', () => {
   afterEach(() => {
     clearCachedStargateClients();
     sandbox.restore();
+  });
+
+  it('uses the EIP-1559 max fee as the total gas price cap', async () => {
+    const estimate = await estimateTransactionFeeEthersV5ForGasUnits({
+      provider: {
+        getFeeData: sandbox.stub().resolves({
+          gasPrice: 1n,
+          maxFeePerGas: 2n,
+          maxPriorityFeePerGas: 1n,
+        }),
+      } as any,
+      gasUnits: 600_000n,
+    });
+
+    expect(estimate).to.deep.equal({
+      gasUnits: 600_000n,
+      gasPrice: 2n,
+      fee: 1_200_000n,
+    });
   });
 
   function makeProvider(url: string) {

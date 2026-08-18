@@ -98,9 +98,6 @@ export async function estimateTransactionFeeEthersV5ForGasUnits({
     gasUnits,
     feeData.gasPrice ? BigInt(feeData.gasPrice.toString()) : undefined,
     feeData.maxFeePerGas ? BigInt(feeData.maxFeePerGas.toString()) : undefined,
-    feeData.maxPriorityFeePerGas
-      ? BigInt(feeData.maxPriorityFeePerGas.toString())
-      : undefined,
   );
 }
 
@@ -119,23 +116,17 @@ export async function estimateTransactionFeeViem({
     account: sender as `0x${string}`,
   } as any); // Cast to silence overly-protective type enforcement from viem here
   const feeData = await provider.provider.estimateFeesPerGas();
-  return computeEvmTxFee(
-    gasUnits,
-    feeData.gasPrice,
-    feeData.maxFeePerGas,
-    feeData.maxPriorityFeePerGas,
-  );
+  return computeEvmTxFee(gasUnits, feeData.gasPrice, feeData.maxFeePerGas);
 }
 
 function computeEvmTxFee(
   gasUnits: bigint,
   gasPrice?: bigint,
   maxFeePerGas?: bigint,
-  maxPriorityFeePerGas?: bigint,
 ): TransactionFeeEstimate {
   let estGasPrice: bigint;
-  if (maxFeePerGas && maxPriorityFeePerGas) {
-    estGasPrice = maxFeePerGas + maxPriorityFeePerGas;
+  if (maxFeePerGas) {
+    estGasPrice = maxFeePerGas;
   } else if (gasPrice) {
     estGasPrice = gasPrice;
   } else {
