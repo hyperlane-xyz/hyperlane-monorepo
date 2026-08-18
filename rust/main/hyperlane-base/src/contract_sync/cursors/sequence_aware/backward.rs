@@ -21,6 +21,12 @@ use super::{CursorMetrics, LastIndexedSnapshot, MetricsData, TargetSnapshot};
 
 const MAX_BACKWARD_SYNC_BLOCKING_TIME: Duration = Duration::from_secs(5);
 
+enum BackwardRange {
+    Query(RangeInclusive<u32>),
+    Complete,
+    Unavailable,
+}
+
 /// A sequence-aware cursor that syncs backward until there are no earlier logs to index.
 pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     /// The max chunk size to query for logs.
@@ -159,7 +165,14 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
                             .await
                     }
                 };
-                Ok(range)
+                match range {
+                    BackwardRange::Query(range) => Ok(Some(range)),
+                    BackwardRange::Complete => {
+                        self.current_indexing_snapshot = None;
+                        Ok(None)
+                    }
+                    BackwardRange::Unavailable => Ok(None),
+                }
             }
             None => Ok(None),
         }
@@ -170,8 +183,12 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     async fn get_next_block_range(
         &self,
         current_indexing_snapshot: &TargetSnapshot,
-    ) -> Option<RangeInclusive<u32>> {
-        let lowest_block_height_or_sequence = self.get_lowest_block_height_or_sequence().await?;
+    ) -> BackwardRange {
+        let Some(lowest_block_height_or_sequence) =
+            self.get_lowest_block_height_or_sequence().await
+        else {
+            return BackwardRange::Unavailable;
+        };
 
         // Query the block height range ending at the current_indexing_snapshot's at_block.
         // When current block equals lowest block, we still need to index it
@@ -185,7 +202,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
                 "Current indexing snapshot's block height is less than the lowest block height, \
                 not indexing anything below the lowest block height"
             );
-            return None;
+            return BackwardRange::Complete;
         }
         // Query the block range ending at the current_indexing_snapshot's at_block.
         let low = current_indexing_snapshot
@@ -194,7 +211,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             // Use the lowest block height as the low bound of the range
             // if the calculated low is less than the lowest block height.
             .max(lowest_block_height_or_sequence);
-        Some(low..=current_indexing_snapshot.at_block)
+        BackwardRange::Query(low..=current_indexing_snapshot.at_block)
     }
 
     /// Gets the next sequence range to index.
@@ -202,8 +219,12 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     async fn get_next_sequence_range(
         &self,
         current_indexing_snapshot: &TargetSnapshot,
-    ) -> Option<RangeInclusive<u32>> {
-        let lowest_block_height_or_sequence = self.get_lowest_block_height_or_sequence().await?;
+    ) -> BackwardRange {
+        let Some(lowest_block_height_or_sequence) =
+            self.get_lowest_block_height_or_sequence().await
+        else {
+            return BackwardRange::Unavailable;
+        };
 
         // Query the sequence range ending at the current_indexing_snapshot's sequence.
         // When current sequence equals lowest sequence, we still need to index it
@@ -217,7 +238,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
                 "Current indexing snapshot's sequence is less than the lowest sequence, \
                 not indexing anything below the lowest sequence"
             );
-            return None;
+            return BackwardRange::Complete;
         }
         let low = current_indexing_snapshot
             .sequence
@@ -225,7 +246,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             // Use the lowest sequence as the low bound of the range
             // if the calculated low is less than the lowest sequence.
             .max(lowest_block_height_or_sequence);
-        Some(low..=current_indexing_snapshot.sequence)
+        BackwardRange::Query(low..=current_indexing_snapshot.sequence)
     }
 
     /// Get the lowest block height or sequence.

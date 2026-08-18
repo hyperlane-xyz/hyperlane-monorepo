@@ -7,29 +7,12 @@ use crate::m20260817_000012_create_table_merkle_tree_insertion::MerkleTreeInsert
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
+/// The indexes on populated source tables are created by the
+/// `create-outbox-source-indexes` bin because Postgres requires
+/// `CREATE INDEX CONCURRENTLY` to run outside a transaction.
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .create_index(
-                Index::create()
-                    .table(Message::Table)
-                    .name("message_origin_tx_id_idx")
-                    .col(Message::OriginTxId)
-                    .index_type(IndexType::BTree)
-                    .to_owned(),
-            )
-            .await?;
-        manager
-            .create_index(
-                Index::create()
-                    .table(GasPayment::Table)
-                    .name("gas_payment_tx_id_idx")
-                    .col(GasPayment::TxId)
-                    .index_type(IndexType::BTree)
-                    .to_owned(),
-            )
-            .await?;
         manager
             .create_index(
                 Index::create()

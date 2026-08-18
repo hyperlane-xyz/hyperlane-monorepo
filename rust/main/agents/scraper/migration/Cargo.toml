@@ -52,5 +52,9 @@ path = "bin/generate_entities.rs"
 name = "create-raw-dispatch-reconciliation-index"
 path = "bin/create_raw_dispatch_reconciliation_index.rs"
 
+[[bin]]
+name = "create-outbox-source-indexes"
+path = "bin/create_outbox_source_indexes.rs"
+
 [features]
 default = []

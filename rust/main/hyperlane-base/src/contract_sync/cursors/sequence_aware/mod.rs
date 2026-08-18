@@ -187,9 +187,10 @@ mod tests {
     use std::{fmt::Debug, ops::RangeInclusive, sync::Arc, time::Duration};
 
     use hyperlane_core::{
-        ChainResult, HyperlaneDomain, HyperlaneLogStore, HyperlaneSequenceAwareIndexerStore,
-        HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, IndexMode, Indexed,
-        Indexer, KnownHyperlaneDomain, LogMeta, SequenceAwareIndexer, H256, H512,
+        ChainResult, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
+        HyperlaneSequenceAwareIndexerStore, HyperlaneSequenceAwareIndexerStoreReader,
+        HyperlaneWatermarkedLogStore, IndexMode, Indexed, Indexer, KnownHyperlaneDomain, LogMeta,
+        SequenceAwareIndexer, H256, H512,
     };
 
     use crate::cursors::{CursorMetrics, ForwardBackwardSequenceAwareSyncCursor, Indexable};
@@ -210,6 +211,7 @@ mod tests {
         impl<T: Indexable + Send + Sync> HyperlaneWatermarkedLogStore<T> for Db<T> {
             async fn retrieve_high_watermark(&self) -> eyre::Result<Option<u32>>;
             async fn store_high_watermark(&self, block_number: u32) -> eyre::Result<()>;
+            async fn store_latest_indexed_block(&self, block_number: u32) -> eyre::Result<()>;
         }
 
         #[async_trait::async_trait]
@@ -269,6 +271,80 @@ mod tests {
             )
             .unwrap(),
         }
+    }
+
+    async fn cursor_with_positive_lower_bound(
+        mode: IndexMode,
+        lower_bound: i64,
+    ) -> ForwardBackwardSequenceAwareSyncCursor<H256> {
+        let mut sequencer = MockSequenceAwareIndexerMock::new();
+        sequencer
+            .expect_latest_sequence_count_and_tip()
+            .returning(|| Ok((Some(6), 100)));
+
+        let mut store = MockDb::new();
+        store.expect_retrieve_by_sequence().returning(|_| Ok(None));
+        store
+            .expect_retrieve_log_block_number_by_sequence()
+            .returning(|_| Ok(None));
+        store
+            .expect_store_latest_indexed_block()
+            .with(mockall::predicate::eq(100))
+            .times(1)
+            .returning(|_| Ok(()));
+
+        ForwardBackwardSequenceAwareSyncCursor::new(
+            &HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            Arc::new(mock_cursor_metrics()),
+            Arc::new(sequencer),
+            Arc::new(store),
+            20,
+            lower_bound,
+            mode,
+            Duration::from_secs(5),
+        )
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_block_lower_bound_completes_backward_sync() {
+        let mut cursor = cursor_with_positive_lower_bound(IndexMode::Block, 100).await;
+
+        let (action, _) = cursor.next_action().await.unwrap();
+        assert!(matches!(action, CursorAction::Query(range) if range == (100..=100)));
+
+        cursor.update(vec![], 100..=100).await.unwrap();
+
+        let (action, _) = cursor.next_action().await.unwrap();
+        assert!(matches!(action, CursorAction::Sleep(_)));
+        assert!(cursor.backward.is_synced());
+    }
+
+    #[tokio::test]
+    async fn test_sequence_lower_bound_completes_backward_sync() {
+        let mut cursor = cursor_with_positive_lower_bound(IndexMode::Sequence, 5).await;
+
+        let (action, _) = cursor.next_action().await.unwrap();
+        assert!(matches!(action, CursorAction::Query(range) if range == (5..=5)));
+
+        cursor
+            .update(
+                vec![(
+                    Indexed::new(H256::zero()).with_sequence(5),
+                    LogMeta {
+                        block_number: 100,
+                        ..Default::default()
+                    },
+                )],
+                5..=5,
+            )
+            .await
+            .unwrap();
+
+        let (action, _) = cursor.next_action().await.unwrap();
+        assert!(matches!(action, CursorAction::Sleep(_)));
+        assert!(cursor.backward.is_synced());
     }
 
     #[tokio::test]
