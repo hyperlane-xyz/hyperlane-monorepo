@@ -726,6 +726,8 @@ export function generateWarpConfigs(
     TokenType.collateralDepositAddress,
     // Forward-compatibility placeholder, not deployable
     TokenType.unknown,
+    // Non-transferable dedicated standard, excluded from ordinary warp connections
+    TokenType.atomicLocalRebalancing,
   ]);
 
   const allowedWarpTokenTypes = Object.values(TokenType).filter(
