@@ -640,15 +640,17 @@ pub mod test {
             priorities[0]
         };
 
-        let probes = (0..20).map(|_| {
-            let fallback_provider = fallback_provider.clone();
-            let provider = provider.clone();
-            tokio::spawn(async move {
-                fallback_provider
-                    .handle_stalled_provider(&stale_priority, &provider)
-                    .await
+        let probes = (0..20)
+            .map(|_| {
+                let fallback_provider = fallback_provider.clone();
+                let provider = provider.clone();
+                tokio::spawn(async move {
+                    fallback_provider
+                        .handle_stalled_provider(&stale_priority, &provider)
+                        .await
+                })
             })
-        });
+            .collect_vec();
         for probe in probes {
             probe
                 .await
