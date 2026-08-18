@@ -489,7 +489,7 @@
     "solanamainnet": {
       "oracleConfig": {
         "gasPrice": "1",
-        "tokenExchangeRate": "15000000000000000000",
+        "tokenExchangeRate": "189800000000000000000",
         "tokenDecimals": 6
       },
       "overhead": 600000
