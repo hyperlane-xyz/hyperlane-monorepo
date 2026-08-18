@@ -7,7 +7,11 @@ import {
   InterchainAccount,
   TestChainName,
 } from '@hyperlane-xyz/sdk';
-import { Address, formatStandardHookMetadata } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  formatStandardHookMetadata,
+  parseStandardHookMetadata,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneHaasGovernor } from './HyperlaneHaasGovernor.js';
 import { HyperlaneICAChecker } from './HyperlaneICAChecker.js';
@@ -27,6 +31,7 @@ describe('HyperlaneHaasGovernor', () => {
 
       // Create mock InterchainAccount
       mockIca = {
+        estimateIcaHandleGas: sandbox.stub().resolves(BigNumber.from(150_000)),
         getCallRemote: sandbox.stub(),
       } as any;
 
@@ -266,6 +271,73 @@ describe('HyperlaneHaasGovernor', () => {
         data: call3.data,
         value: '300',
       });
+    });
+
+    it('should combine calls with different gas limits and re-estimate the batch', async () => {
+      const refundAddress =
+        '0x1111111111111111111111111111111111111111' as Address;
+      const callRemoteArgs = {
+        chain: TestChainName.test1,
+        destination: TestChainName.test2,
+        config: {
+          origin: TestChainName.test1,
+          owner: refundAddress,
+        },
+        innerCalls: [],
+        hookMetadata: formatStandardHookMetadata({
+          gasLimit: 100_000n,
+          refundAddress,
+        }),
+      };
+      const calls: AnnotatedCallData[] = [
+        {
+          to: '0x2222222222222222222222222222222222222222' as Address,
+          data: '0x1111',
+          value: BigNumber.from(0),
+          description: 'First ICA call',
+          callRemoteArgs,
+        },
+        {
+          to: '0x3333333333333333333333333333333333333333' as Address,
+          data: '0x2222',
+          value: BigNumber.from(0),
+          description: 'Second ICA call',
+          callRemoteArgs: {
+            ...callRemoteArgs,
+            hookMetadata: formatStandardHookMetadata({
+              gasLimit: 200_000n,
+              refundAddress,
+            }),
+          },
+        },
+      ];
+      (governor as any).calls = { [TestChainName.test1]: calls };
+      mockGetCallRemote.resolves({
+        to: '0x9999999999999999999999999999999999999999',
+        data: '0xcombined',
+        value: BigNumber.from(100),
+      });
+
+      await governor.batchIcaCalls();
+
+      expect((governor as any).calls[TestChainName.test1]).to.have.length(1);
+      const estimateIcaHandleGas =
+        mockIca.estimateIcaHandleGas as sinon.SinonStub;
+      expect(estimateIcaHandleGas.calledOnce).to.be.true;
+      expect(estimateIcaHandleGas.firstCall.args[0]).to.deep.equal({
+        origin: TestChainName.test1,
+        destination: TestChainName.test2,
+        innerCalls: [
+          { to: calls[0].to, data: calls[0].data, value: '0' },
+          { to: calls[1].to, data: calls[1].data, value: '0' },
+        ],
+        config: callRemoteArgs.config,
+      });
+      const combinedMetadata = parseStandardHookMetadata(
+        mockGetCallRemote.firstCall.args[0].hookMetadata,
+      );
+      expect(combinedMetadata?.gasLimit).to.equal(150_000n);
+      expect(combinedMetadata?.refundAddress).to.equal(refundAddress);
     });
 
     it('should apply 2x buffer when hookMetadata includes refund address', async () => {
