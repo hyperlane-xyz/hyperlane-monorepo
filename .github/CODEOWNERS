@@ -1,15 +1,15 @@
 # Package owners
 
 ## Contracts
-solidity/ @yorhodes @nambrot
-starknet/ @yorhodes @troykessler
+solidity/ @nambrot
+starknet/ @troykessler
 
 ## Agents
-rust/ @tkporter
+rust/ @troykessler @paulbalaji
 
 ## SDK
-typescript/sdk @yorhodes @paulbalaji @xaroz @xeno097
-typescript/utils @yorhodes @paulbalaji @xaroz @xeno097
+typescript/sdk @paulbalaji @xaroz @xeno097
+typescript/utils @paulbalaji @xaroz @xeno097
 typescript/widgets @xaroz @xeno097
 
 ## Multi-VM SDK
@@ -22,22 +22,22 @@ typescript/radix-sdk @xeno097 @troykessler
 typescript/tron-sdk @xeno097 @troykessler
 
 ## CLI
-typescript/cli @yorhodes @xeno097
+typescript/cli @xeno097
 
 ## Infra
-typescript/infra @paulbalaji @Mo-Hussain @tkporter
-typescript/github-proxy @paulbalaji @Mo-Hussain @tkporter
-typescript/helloworld @paulbalaji @Mo-Hussain @tkporter
-typescript/http-registry-server @paulbalaji @Mo-Hussain @tkporter
-typescript/keyfunder @paulbalaji @Mo-Hussain @tkporter
-typescript/metrics @paulbalaji @Mo-Hussain @tkporter
-typescript/warp-monitor @paulbalaji @Mo-Hussain @tkporter @xeno097
+typescript/infra @paulbalaji @Mo-Hussain
+typescript/github-proxy @paulbalaji @Mo-Hussain
+typescript/helloworld @paulbalaji @Mo-Hussain
+typescript/http-registry-server @paulbalaji @Mo-Hussain
+typescript/keyfunder @paulbalaji @Mo-Hussain
+typescript/metrics @paulbalaji @Mo-Hussain
+typescript/warp-monitor @paulbalaji @Mo-Hussain @xeno097
 
 ## Relayer & Rebalancer
 typescript/ccip-server @Mo-Hussain @nambrot
 typescript/rebalancer @Mo-Hussain @nambrot @paulbalaji
 typescript/rebalancer-sim @Mo-Hussain @nambrot @paulbalaji
-typescript/relayer @Mo-Hussain @yorhodes @paulbalaji
+typescript/relayer @Mo-Hussain @paulbalaji
 
 ## Shared Tooling
 oxlint.json @xeno097 @paulbalaji
