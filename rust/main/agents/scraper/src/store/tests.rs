@@ -11,7 +11,7 @@ use testcontainers_modules::postgres::Postgres;
 
 use migration::MigratorTrait;
 
-use hyperlane_base::settings::IndexSettings;
+use hyperlane_base::settings::{CoreContractAddresses, IndexSettings};
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, Delivery, HyperlaneChain, HyperlaneDomain,
     HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack, HyperlaneDomainType, HyperlaneLogStore,
@@ -109,8 +109,11 @@ async fn build_store(postgres_url: &str, mailbox: H256, igp: H256) -> HyperlaneD
             .await
             .expect("connect to test postgres"),
         domain,
-        mailbox,
-        igp,
+        CoreContractAddresses {
+            mailbox,
+            interchain_gas_paymaster: igp,
+            ..Default::default()
+        },
         provider,
         &IndexSettings::default(),
         None,
