@@ -201,6 +201,40 @@ describe('preflightFeeSigner', () => {
     expect(error.message).to.include(`for ${chain} targets ${destination}`);
   });
 
+  it('does not treat nested JSON-RPC as a dedicated fee submitter', async () => {
+    const feeSigner = Wallet.createRandom();
+    const multiProvider = MultiProvider.createTestMultiProvider();
+    const getProvider = sinon.spy(multiProvider, 'getProvider');
+    const chainConfig = targetFeeConfig(feeSigner.address)[chain];
+
+    await preflightFeeSigner(
+      buildPreflightParams({
+        feeSigner,
+        multiProvider,
+        strategyUrl: writeStrategy({
+          [chain]: jsonRpcStrategy(chain),
+          [destination]: {
+            submitter: { type: 'jsonRpc', chain: destination },
+            feeSubmitter: {
+              type: 'interchainAccount',
+              chain,
+              destinationChain: destination,
+              owner: feeSigner.address,
+              originInterchainAccountRouter: Wallet.createRandom().address,
+              internalSubmitter: { type: 'jsonRpc', chain },
+            },
+          },
+        }),
+        warpDeployConfig: {
+          [chain]: chainConfig,
+          [destination]: { ...chainConfig, mailbox: feeSigner.address },
+        },
+      }),
+    );
+
+    expect(getProvider.called).to.equal(false);
+  });
+
   it('allows replacing a zero fee recipient', async () => {
     const feeSigner = Wallet.createRandom();
     const routerAddress = Wallet.createRandom().address;
@@ -346,11 +380,13 @@ describe('preflightFeeSigner', () => {
     multiProvider,
     strategyUrl,
     routerAddress,
+    warpDeployConfig,
   }: {
     feeSigner: Wallet;
     multiProvider: MultiProvider;
     strategyUrl: string;
     routerAddress?: string;
+    warpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
   }): WarpApplyParams {
     const warpCoreConfig: WarpCoreConfig = {
       tokens: routerAddress
@@ -373,7 +409,7 @@ describe('preflightFeeSigner', () => {
       strategyUrl,
       receiptsDir: tempDir,
       warpCoreConfig,
-      warpDeployConfig: targetFeeConfig(feeSigner.address),
+      warpDeployConfig: warpDeployConfig ?? targetFeeConfig(feeSigner.address),
     };
   }
 
