@@ -7,10 +7,6 @@ import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { WarpRouteIds } from '../warpIds.js';
 
-// Kept outside WarpRouteIds until the independent registry PR is merged.
-export const CROSS_MOONPAY_LOCAL_BRIDGE_USDT_ROUTE_ID =
-  'CROSS/moonpay-localbridge-usdt';
-
 const DEPLOYMENT_CHAINS = [
   'arbitrum',
   'base',

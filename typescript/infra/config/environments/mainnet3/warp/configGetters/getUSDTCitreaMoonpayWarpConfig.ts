@@ -26,7 +26,6 @@ import {
 } from '../../../../../src/config/warp.js';
 import { getDomainId, getRegistry } from '../../../../registry.js';
 import { WarpRouteIds } from '../warpIds.js';
-import { CROSS_MOONPAY_LOCAL_BRIDGE_USDT_ROUTE_ID } from './getCrossMoonpayLocalBridgeWarpConfig.js';
 import {
   getCrossCollateralTargetRoutersByChain,
   getRebalancingBridgesConfigFor,
@@ -138,7 +137,7 @@ function getAtomicLocalRebalancingConfig(
 ): ChainMap<AtomicLocalRebalancingConfig> {
   const registry = getRegistry();
   const localBridgeRoute = registry.getWarpRoute(
-    CROSS_MOONPAY_LOCAL_BRIDGE_USDT_ROUTE_ID,
+    WarpRouteIds.CROSSMoonpayLocalBridgeUSDT,
   );
   assert(localBridgeRoute, 'Moonpay local USDT bridge route not found');
 
