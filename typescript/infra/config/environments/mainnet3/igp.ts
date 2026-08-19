@@ -27,16 +27,25 @@ const tokenPrices: ChainMap<string> = rawTokenPrices;
 function getOracleConfigWithOverrides(origin: ChainName) {
   const oracleConfig = getStorageGasOracleConfig()[origin];
 
-  // WORKAROUND for Sealevel IGP decimal bug (solaxy-specific):
-  // The Rust Sealevel IGP code hardcodes local SOL_DECIMALS = 9, but solaxy's
-  // native SOLX has 6 decimals, so convert_decimals over-scales by 10^(9-6)=1000.
-  // These values mirror what is set on-chain and are the values tollkeeper's
-  // (decimal-compensated, min-USD-floored) IGP logic recommends: gasPrice is the
-  // true remote gas signal, tokenExchangeRate carries the SOLX-price proxy plus
-  // the 10^(D-9) decimal compensation, and tokenDecimals is the REMOTE token's
-  // decimals (9 for solana, 18 for ethereum). Keep this block in sync with any
-  // on-chain change (see scripts/sealevel-helpers/update-gas-oracles.ts and the
-  // svm-igp-gas-oracle-update skill's two-signer path).
+  // INTENTION: correct the two underpriced solaxy IGP legs (they were drained via
+  // ATA-rent reclaim) while isolating the change to the solaxy origin only. We do
+  // NOT touch gasPrices.json or tokenPrices.json, so no sibling lane and no other
+  // origin->solanamainnet rate moves; the fix lives entirely in this per-origin
+  // override.
+  //
+  // WHY A HARDCODED PER-LEG BLOCK (not a solaxy token-price bump): the deployed
+  // Rust Sealevel IGP hardcodes local SOL_DECIMALS = 9, but solaxy's native SOLX
+  // has 6 decimals, so convert_decimals over-scales every solaxy leg by
+  // 10^(9-6)=1000. A plain token-price change would be 1000x off and could not
+  // encode the per-leg remote tokenDecimals. So each leg carries: gasPrice = the
+  // true remote gas signal; tokenExchangeRate = SOLX-price proxy x the 10^(D-9)
+  // decimal compensation; tokenDecimals = the REMOTE token's decimals (9 solana /
+  // 18 ethereum).
+  //
+  // These are exactly the values tollkeeper's (decimal-compensated, min-USD-
+  // floored) IGP logic recommends and that are set on-chain. This block MUST stay
+  // in sync with on-chain (see scripts/sealevel-helpers/update-gas-oracles.ts and
+  // the svm-igp-gas-oracle-update skill's two-signer path).
   if (origin === 'solaxy') {
     oracleConfig.ethereum = {
       gasPrice: '51695712',
