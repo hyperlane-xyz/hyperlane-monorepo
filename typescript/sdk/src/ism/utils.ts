@@ -5,12 +5,15 @@ import {
   AmountRoutingIsm__factory,
   BlacklistIsm__factory,
   CCIPIsm__factory,
+  DefaultIsm__factory,
+  DelayedFlowRouterHookIsm__factory,
   DomainRoutingIsm__factory,
   IAggregationIsm__factory,
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
   IRoutingIsm__factory,
   MailboxClient__factory,
+  NetFlowRateLimitedHookIsm__factory,
   OPStackIsm__factory,
   PausableIsm__factory,
   RateLimitedIsm__factory,
@@ -29,16 +32,19 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { getChainNameFromCCIPSelector } from '../ccip/utils.js';
+import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { HyperlaneContracts } from '../contracts/types.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { OnchainHookType } from '../hook/types.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 import { throwIfNotMissingSelector } from '../utils/contract.js';
-import { normalizeConfig } from '../utils/ism.js';
+import { canonicalizeRemoteIsms, normalizeConfig } from '../utils/ism.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
 import { normalizeBlacklistedIds, readBlacklistedIds } from './blacklist.js';
+import { readDelayedFlowEnrollments } from './delayedFlow.js';
 import {
   DomainRoutingIsmConfig,
   InterchainAccountRouterIsm,
@@ -237,6 +243,20 @@ export async function moduleCanCertainlyVerify(
           (id) => id.toLowerCase() === sampleId,
         );
       }
+      case IsmType.NET_FLOW_RATE_LIMITED:
+      case IsmType.DELAYED_FLOW_ROUTER:
+        // Verification depends on state this helper cannot read: the flow
+        // bucket's remaining capacity, and for DELAYED_FLOW_ROUTER also
+        // whether `readyAt` has elapsed. This function must never return a
+        // false positive, so both report "cannot verify". Consequence: an
+        // aggregation containing a hybrid also reports false, because an
+        // aggregation counts sub-results against its threshold. That follows
+        // from the no-false-positive contract and is not a regression.
+        return false;
+      case IsmType.MAILBOX_DEFAULT:
+        // The routed-to mailbox default ISM cannot be resolved from the config
+        // alone (no address), so err toward a false negative
+        return false;
       default:
         throw new Error(`Unsupported module type: ${(destModule as any).type}`);
     }
@@ -553,6 +573,110 @@ export async function moduleMatchesConfig(
         onChainIds,
         normalizeBlacklistedIds(config.blacklistedIds),
       );
+      break;
+    }
+    case IsmType.MAILBOX_DEFAULT: {
+      // A DefaultIsm matches if it defers to the expected mailbox
+      const defaultIsm = DefaultIsm__factory.connect(moduleAddress, provider);
+      const onChainMailbox = await defaultIsm.mailbox();
+      matches = mailbox !== undefined && eqAddress(onChainMailbox, mailbox);
+      break;
+    }
+    case IsmType.NET_FLOW_RATE_LIMITED: {
+      const netFlowIsm = NetFlowRateLimitedHookIsm__factory.connect(
+        moduleAddress,
+        provider,
+      );
+      let onChainHookType: number;
+      try {
+        onChainHookType = await netFlowIsm.hookType();
+      } catch (error) {
+        throwIfNotMissingSelector(error);
+        return false;
+      }
+      if (onChainHookType !== OnchainHookType.RATE_LIMITED) return false;
+
+      const [onChainWarpRouter, onChainThresholdBps, onChainDuration] =
+        await Promise.all([
+          netFlowIsm.warpRouter(),
+          netFlowIsm.thresholdBps(),
+          netFlowIsm.DURATION(),
+        ]);
+      if (config.warpRouter) {
+        matches &&= eqAddress(onChainWarpRouter, config.warpRouter);
+      }
+      matches &&= onChainThresholdBps.eq(config.thresholdBps);
+      matches &&= onChainDuration.toBigInt() === BigInt(config.duration);
+      if (config.owner) {
+        const onChainOwner = await netFlowIsm.owner();
+        matches &&= eqAddress(onChainOwner, config.owner);
+      }
+      break;
+    }
+    case IsmType.DELAYED_FLOW_ROUTER: {
+      const delayedIsm = DelayedFlowRouterHookIsm__factory.connect(
+        moduleAddress,
+        provider,
+      );
+      const [
+        onChainWarpRouter,
+        onChainThresholdBps,
+        onChainMaxDelay,
+        onChainDuration,
+        onChainOwner,
+      ] = await Promise.all([
+        delayedIsm.warpRouter(),
+        delayedIsm.thresholdBps(),
+        delayedIsm.maxDelay(),
+        delayedIsm.DURATION(),
+        delayedIsm.owner(),
+      ]);
+      if (config.warpRouter) {
+        matches &&= eqAddress(onChainWarpRouter, config.warpRouter);
+      }
+      matches &&= onChainThresholdBps.eq(config.thresholdBps);
+      matches &&= onChainMaxDelay === config.maxDelay;
+      matches &&= onChainDuration.toBigInt() === BigInt(config.duration);
+      matches &&= eqAddress(onChainOwner, config.owner);
+      if (matches && config.remoteIsms !== undefined) {
+        // Strict set equality between configured and enrolled counterparts,
+        // scoped by the same chain<->domain resolution the reader uses so that
+        // a derived config always matches the instance it was derived from.
+        const { named, unnamedDomains } = await readDelayedFlowEnrollments(
+          delayedIsm,
+          multiProvider,
+          multiProvider.tryGetRpcConcurrency(chain) ??
+            DEFAULT_CONTRACT_READ_CONCURRENCY,
+          logger,
+        );
+        if (unnamedDomains.length > 0) {
+          // No config can name these, so they can never be an expected
+          // enrollment — and an enrolled counterpart may preverify arbitrary
+          // message ids, so they must not be invisible to `warp check`.
+          logger.warn(
+            `DelayedFlowRouterHookIsm at ${moduleAddress} on ${chain} has enrollments on unnameable domain(s) ${unnamedDomains.join(', ')}, which no config can express`,
+          );
+        }
+        matches &&= unnamedDomains.length === 0;
+        const enrolledByChain = new Map(
+          named.map(({ chainName, router }) => [chainName, router]),
+        );
+        // Same canonical representation the deploy and update paths use, so a
+        // config keyed by domain id compares against the enrollment it
+        // actually describes instead of always reading as drift.
+        const configEntries = Object.entries(
+          canonicalizeRemoteIsms(
+            config.remoteIsms,
+            multiProvider,
+            `DelayedFlowRouterHookIsm at ${moduleAddress} on ${chain}`,
+          ),
+        );
+        matches &&= named.length === configEntries.length;
+        for (const [chainName, router] of configEntries) {
+          if (!matches) break;
+          matches &&= enrolledByChain.get(chainName) === router;
+        }
+      }
       break;
     }
     default: {
