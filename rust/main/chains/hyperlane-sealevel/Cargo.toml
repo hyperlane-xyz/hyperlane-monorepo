@@ -72,4 +72,5 @@ serializable-account-meta = { path = "../../../sealevel/libraries/serializable-a
 
 [dev-dependencies]
 hex.workspace = true
+mockall.workspace = true
 rstest.workspace = true

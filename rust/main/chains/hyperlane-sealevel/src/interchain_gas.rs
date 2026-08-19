@@ -7,7 +7,7 @@ use hyperlane_sealevel_igp::{
     igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
 };
 use solana_sdk::{account::Account, clock::Slot, pubkey::Pubkey};
-use tracing::{info, instrument, warn};
+use tracing::{info, instrument};
 
 use hyperlane_core::{
     config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator,
@@ -16,8 +16,6 @@ use hyperlane_core::{
 };
 
 use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
-use crate::error::is_get_block_unresolvable_after_retries;
-use crate::fallback::SubmitSealevelRpc;
 use crate::log_meta_composer::{is_interchain_payment_instruction, LogMetaComposer};
 use crate::SealevelProvider;
 
@@ -231,48 +229,14 @@ impl SealevelInterchainGasPaymasterIndexer {
         payment_pda_pubkey: &Pubkey,
         payment_pda_slot: &Slot,
     ) -> ChainResult<Option<LogMeta>> {
-        let block = match self
-            .provider
-            .rpc_client()
-            .get_block(*payment_pda_slot)
+        self.log_meta_composer
+            .resolve_log_meta(
+                self.provider.rpc_client(),
+                log_index,
+                payment_pda_pubkey,
+                *payment_pda_slot,
+            )
             .await
-        {
-            Ok(block) => block,
-            Err(err) if is_get_block_unresolvable_after_retries(&err) => {
-                warn!(
-                    ?err,
-                    ?payment_pda_pubkey,
-                    ?payment_pda_slot,
-                    "Block for interchain gas payment is unavailable after provider retries; \
-                     falling back to basic log meta",
-                );
-                return Ok(None);
-            }
-            Err(err) => return Err(err),
-        };
-
-        match self.log_meta_composer.log_meta(
-            block,
-            log_index,
-            payment_pda_pubkey,
-            payment_pda_slot,
-        ) {
-            Ok(log_meta) => Ok(Some(log_meta)),
-            // The block will never contain the expected transaction after filtering, so falling
-            // back to basic log meta lets the sequence-aware cursor advance instead of rewinding
-            // on the same sequence forever.
-            Err(err) if err.is_log_meta_unresolvable() => {
-                warn!(
-                    ?err,
-                    ?payment_pda_pubkey,
-                    ?payment_pda_slot,
-                    "Could not resolve advanced log meta for interchain gas payment, \
-                     falling back to basic log meta",
-                );
-                Ok(None)
-            }
-            Err(err) => Err(err.into()),
-        }
     }
 }
 
