@@ -55,6 +55,9 @@ impl MigrationTrait for Migration {
                   AFTER INSERT ON merkle_tree_insertion
                   FOR EACH ROW
                   EXECUTE FUNCTION notify_scraper_event('merkle_tree_insertion', 'domain');
+
+                CREATE INDEX IF NOT EXISTS raw_message_dispatch_native_sequence_idx
+                  ON raw_message_dispatch (origin_domain, origin_mailbox, nonce);
                 "#,
             )
             .await?;
@@ -70,6 +73,7 @@ impl MigrationTrait for Migration {
                 DROP TRIGGER IF EXISTS scraper_event_notify ON delivered_message;
                 DROP TRIGGER IF EXISTS scraper_event_notify ON gas_payment;
                 DROP TRIGGER IF EXISTS scraper_event_notify ON merkle_tree_insertion;
+                DROP INDEX IF EXISTS raw_message_dispatch_native_sequence_idx;
                 DROP FUNCTION IF EXISTS notify_scraper_event();
                 "#,
             )

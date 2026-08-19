@@ -7,8 +7,14 @@ export const EVENT_TYPES = [
 
 export type EventType = (typeof EVENT_TYPES)[number];
 
+export type SequenceCursor = {
+  address: string;
+  afterSequence?: bigint;
+  domain: number;
+};
+
 export type StreamRequest = {
-  afterId?: bigint;
+  cursors?: SequenceCursor[];
   domains?: Set<number>;
   eventType: EventType;
 };
@@ -57,7 +63,7 @@ export function parseCursor(value: unknown): bigint {
   ) {
     return BigInt(value);
   }
-  throw new Error('afterId must be a non-negative integer string');
+  throw new Error('id must be a non-negative integer string');
 }
 
 export function parseEventNotification(
@@ -98,6 +104,9 @@ function parseStreamRequest(value: unknown): StreamRequest {
   if (!isRecord(value) || !isEventType(value.eventType)) {
     throw new Error('Invalid eventType');
   }
+  if (value.afterId !== undefined) {
+    throw new Error('afterId is unsupported; use native sequence cursors');
+  }
 
   let domains: Set<number> | undefined;
   if (value.domains !== undefined) {
@@ -111,12 +120,76 @@ function parseStreamRequest(value: unknown): StreamRequest {
     domains = new Set(value.domains);
   }
 
+  let cursors: SequenceCursor[] | undefined;
+  if (value.cursors !== undefined) {
+    if (
+      value.eventType !== 'dispatch' &&
+      value.eventType !== 'merkle_tree_insertion'
+    ) {
+      throw new Error('cursors are only supported for sequenced streams');
+    }
+    if (!Array.isArray(value.cursors) || value.cursors.length === 0) {
+      throw new Error('cursors must be a non-empty array');
+    }
+    cursors = value.cursors.map(parseSequenceCursor);
+    const keys = cursors.map(({ address, domain }) => `${domain}:${address}`);
+    if (new Set(keys).size !== keys.length) {
+      throw new Error('Duplicate sequence cursor');
+    }
+    if (domains) {
+      const subscribedDomains = domains;
+      if (cursors.some(({ domain }) => !subscribedDomains.has(domain))) {
+        throw new Error('Cursor domain must be included in domains');
+      }
+    }
+    domains ??= new Set(cursors.map(({ domain }) => domain));
+  }
+
   return {
-    afterId:
-      value.afterId === undefined ? undefined : parseCursor(value.afterId),
+    cursors,
     domains,
     eventType: value.eventType,
   };
+}
+
+function parseSequenceCursor(value: unknown): SequenceCursor {
+  if (!isRecord(value) || !isDomain(value.domain)) {
+    throw new Error('Invalid sequence cursor domain');
+  }
+  if (
+    typeof value.address !== 'string' ||
+    !/^(?:0x|\\x)?[0-9a-fA-F]{2,64}$/.test(value.address)
+  ) {
+    throw new Error('Invalid sequence cursor address');
+  }
+
+  let afterSequence: bigint | undefined;
+  if (value.afterSequence !== undefined) {
+    if (
+      (typeof value.afterSequence === 'number' &&
+        Number.isSafeInteger(value.afterSequence) &&
+        value.afterSequence >= -1) ||
+      (typeof value.afterSequence === 'string' &&
+        /^(?:-1|\d+)$/.test(value.afterSequence))
+    ) {
+      afterSequence = BigInt(value.afterSequence);
+    } else {
+      throw new Error(
+        'afterSequence must be an integer string greater than or equal to -1',
+      );
+    }
+  }
+
+  return {
+    address: normalizeAddress(value.address),
+    afterSequence,
+    domain: value.domain,
+  };
+}
+
+function normalizeAddress(value: string): string {
+  const hex = value.replace(/^(?:0x|\\x)/, '').toLowerCase();
+  return `\\x${hex}`;
 }
 
 function isEventType(value: unknown): value is EventType {

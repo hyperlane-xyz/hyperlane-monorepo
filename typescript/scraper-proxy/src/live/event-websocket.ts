@@ -9,11 +9,13 @@ import { quoteIdentifier } from '../scraperdb/tables.js';
 import {
   type ClientMessage,
   EVENT_TYPES,
+  type EventNotification,
   type EventType,
   isDomain,
   parseClientMessage,
   parseCursor,
   parseEventNotification,
+  type SequenceCursor,
   type StreamRequest,
 } from './protocol.js';
 
@@ -25,12 +27,17 @@ const MAX_PENDING_EVENTS = 5_000;
 const MAX_BUFFERED_BYTES = 1_048_576;
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const LISTENER_RETRY_MS = 1_000;
+const NOTIFICATION_BATCH_INTERVAL_MS = 100;
+const NOTIFICATION_BATCH_SIZE = 1_000;
 
-type EventRow = Record<string, unknown> & { id: number | string };
+type EventRow = Record<string, unknown>;
+type NotifiedEventRow = EventRow & { notification_id: number | string };
 
 type StreamDefinition = {
+  addressColumn?: string;
   columns: readonly string[];
   domainColumn: string;
+  sequenceColumn?: string;
   table: string;
 };
 
@@ -38,8 +45,9 @@ const STREAMS: Record<EventType, StreamDefinition> = {
   dispatch: {
     table: 'raw_message_dispatch',
     domainColumn: 'origin_domain',
+    addressColumn: 'origin_mailbox',
+    sequenceColumn: 'nonce',
     columns: [
-      'id',
       'time_created',
       'msg_id',
       'origin_tx_hash',
@@ -58,7 +66,6 @@ const STREAMS: Record<EventType, StreamDefinition> = {
     table: 'delivered_message',
     domainColumn: 'domain',
     columns: [
-      'id',
       'time_created',
       'msg_id',
       'domain',
@@ -71,7 +78,6 @@ const STREAMS: Record<EventType, StreamDefinition> = {
     table: 'gas_payment',
     domainColumn: 'domain',
     columns: [
-      'id',
       'time_created',
       'domain',
       'msg_id',
@@ -88,8 +94,9 @@ const STREAMS: Record<EventType, StreamDefinition> = {
   merkle_tree_insertion: {
     table: 'merkle_tree_insertion',
     domainColumn: 'domain',
+    addressColumn: 'merkle_tree_hook',
+    sequenceColumn: 'leaf_index',
     columns: [
-      'id',
       'domain',
       'merkle_tree_hook',
       'leaf_index',
@@ -101,10 +108,9 @@ const STREAMS: Record<EventType, StreamDefinition> = {
 
 type Subscription = {
   catchingUp: boolean;
-  cursor: bigint;
   domains?: Set<number>;
   pending: EventRow[];
-  pendingMaxCursor: bigint;
+  sequenceCursors: Map<string, bigint>;
 };
 
 type ClientState = {
@@ -120,6 +126,12 @@ export class EventWebSocketServer {
   private heartbeatTimer?: NodeJS.Timeout;
   private listenerReady = false;
   private listenerRetryTimer?: NodeJS.Timeout;
+  private notificationBatchTimer?: NodeJS.Timeout;
+  private notificationDrainRunning = false;
+  private readonly pendingNotifications = new Map<
+    EventType,
+    Map<string, EventNotification>
+  >();
   private stopped = false;
   private stopListening?: () => Promise<void>;
   private webSocketServer?: WebSocketServer;
@@ -152,6 +164,8 @@ export class EventWebSocketServer {
     this.stopped = true;
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     if (this.listenerRetryTimer) clearTimeout(this.listenerRetryTimer);
+    if (this.notificationBatchTimer) clearTimeout(this.notificationBatchTimer);
+    this.pendingNotifications.clear();
     await this.stopListening?.();
     for (const socket of this.clients.keys())
       socket.close(1001, 'Server stopping');
@@ -229,11 +243,10 @@ export class EventWebSocketServer {
     state.subscriptions.clear();
     for (const request of message.streams) {
       state.subscriptions.set(request.eventType, {
-        catchingUp: true,
-        cursor: request.afterId ?? 0n,
+        catchingUp: request.cursors !== undefined,
         domains: request.domains,
         pending: [],
-        pendingMaxCursor: 0n,
+        sequenceCursors: new Map(),
       });
     }
 
@@ -243,18 +256,20 @@ export class EventWebSocketServer {
     });
 
     await Promise.all(
-      message.streams.map((request) =>
-        this.catchUp(socket, state, request).catch((error) => {
-          state.subscriptions.delete(request.eventType);
-          this.logger.warn(
-            `websocket catch-up failed eventType=${request.eventType}: ${errorMessage(error)}`,
-          );
-          this.sendError(
-            socket,
-            `Failed to catch up ${request.eventType}: ${errorMessage(error)}`,
-          );
-        }),
-      ),
+      message.streams
+        .filter((request) => request.cursors)
+        .map((request) =>
+          this.catchUp(socket, state, request).catch((error) => {
+            state.subscriptions.delete(request.eventType);
+            this.logger.warn(
+              `websocket catch-up failed eventType=${request.eventType}: ${errorMessage(error)}`,
+            );
+            this.sendError(
+              socket,
+              `Failed to catch up ${request.eventType}: ${errorMessage(error)}`,
+            );
+          }),
+        ),
     );
   }
 
@@ -265,56 +280,76 @@ export class EventWebSocketServer {
   ): Promise<void> {
     const subscription = state.subscriptions.get(request.eventType);
     if (!subscription) return;
-
-    const upper = await this.maxId(request.eventType);
-    if (request.afterId !== undefined && request.afterId > upper) {
-      throw new Error(
-        `Cursor ${request.afterId} is ahead of current ${request.eventType} cursor ${upper}`,
+    for (const cursor of request.cursors ?? []) {
+      await this.catchUpSequenceCursor(
+        socket,
+        state,
+        request.eventType,
+        subscription,
+        cursor,
       );
     }
 
-    if (request.afterId === undefined) {
-      subscription.cursor = upper;
-    } else {
-      while (subscription.cursor < upper) {
-        if (state.subscriptions.get(request.eventType) !== subscription) return;
-        const rows = await this.fetchRows(
-          request.eventType,
-          subscription.cursor,
-          upper,
-          request.domains,
-        );
-        for (const row of rows) {
-          this.deliverRow(socket, request.eventType, subscription, row);
-        }
-        if (rows.length < config.EVENT_STREAM_BATCH_SIZE) break;
-      }
-      subscription.cursor = upper;
-    }
-
-    if (state.subscriptions.get(request.eventType) !== subscription) return;
-    this.send(socket, {
-      cursor: upper.toString(),
-      eventType: request.eventType,
-      type: 'caught_up',
-    });
-
     const pending = subscription.pending.sort((left, right) =>
-      compareCursor(cursorFromRow(left), cursorFromRow(right)),
+      compareEventRows(request.eventType, left, right),
     );
     subscription.pending = [];
     for (const row of pending) {
-      this.deliverRow(socket, request.eventType, subscription, row, true);
+      if (!this.deliverRow(socket, request.eventType, subscription, row))
+        return;
     }
-    subscription.cursor = maxBigInt(
-      subscription.cursor,
-      subscription.pendingMaxCursor,
-    );
     subscription.catchingUp = false;
   }
 
+  private async catchUpSequenceCursor(
+    socket: WebSocket,
+    state: ClientState,
+    eventType: EventType,
+    subscription: Subscription,
+    cursor: SequenceCursor,
+  ): Promise<void> {
+    const key = sequenceCursorKey(cursor.domain, cursor.address);
+    const { first, last } = await this.sequenceBounds(eventType, cursor);
+    const after =
+      cursor.afterSequence === -1n
+        ? first - 1n
+        : (cursor.afterSequence ?? last);
+    if (after > last) {
+      throw new Error(
+        `Sequence ${after} is ahead of current ${eventType} sequence ${last}`,
+      );
+    }
+    subscription.sequenceCursors.set(key, after);
+
+    while ((subscription.sequenceCursors.get(key) ?? -1n) < last) {
+      if (state.subscriptions.get(eventType) !== subscription) return;
+      const current = subscription.sequenceCursors.get(key) ?? -1n;
+      const rows = await this.fetchSequenceRows(
+        eventType,
+        cursor,
+        current,
+        last,
+      );
+      if (rows.length === 0) {
+        throw new Error(`Missing ${eventType} sequence ${current + 1n}`);
+      }
+      for (const row of rows) {
+        if (!this.deliverRow(socket, eventType, subscription, row)) {
+          throw new Error(`Gap in ${eventType} sequence after ${current}`);
+        }
+      }
+    }
+
+    this.send(socket, {
+      address: displayAddress(cursor.address),
+      domain: cursor.domain,
+      eventType,
+      sequence: last.toString(),
+      type: 'caught_up',
+    });
+  }
+
   private publishRow(eventType: EventType, row: EventRow): void {
-    const rowCursor = cursorFromRow(row);
     const domain = domainFromRow(row, STREAMS[eventType].domainColumn);
 
     for (const [socket, state] of this.clients) {
@@ -322,10 +357,6 @@ export class EventWebSocketServer {
       if (!subscription) continue;
 
       if (subscription.catchingUp) {
-        subscription.pendingMaxCursor = maxBigInt(
-          subscription.pendingMaxCursor,
-          rowCursor,
-        );
         if (matchesDomain(subscription, domain)) {
           subscription.pending.push(row);
           if (subscription.pending.length > MAX_PENDING_EVENTS) {
@@ -335,7 +366,7 @@ export class EventWebSocketServer {
         continue;
       }
 
-      this.deliverRow(socket, eventType, subscription, row, true);
+      this.deliverRow(socket, eventType, subscription, row);
     }
   }
 
@@ -344,63 +375,93 @@ export class EventWebSocketServer {
     eventType: EventType,
     subscription: Subscription,
     row: EventRow,
-    allowOlder = false,
-  ): void {
-    const rowCursor = cursorFromRow(row);
-    if (!allowOlder && rowCursor <= subscription.cursor) return;
-
+  ): boolean {
     const domain = domainFromRow(row, STREAMS[eventType].domainColumn);
-    if (matchesDomain(subscription, domain)) {
-      this.send(socket, {
-        cursor: rowCursor.toString(),
-        data: row,
-        domain,
-        eventType,
-        type: 'event',
-      });
+    if (!matchesDomain(subscription, domain)) return true;
+
+    const sequence = sequenceFromRow(eventType, row);
+    if (sequence) {
+      const key = sequenceCursorKey(domain, sequence.address);
+      const current = subscription.sequenceCursors.get(key);
+      if (current !== undefined) {
+        if (sequence.value <= current) return true;
+        if (sequence.value !== current + 1n) {
+          socket.close(
+            1013,
+            `${eventType} sequence gap: expected ${current + 1n}, received ${sequence.value}`,
+          );
+          return false;
+        }
+        subscription.sequenceCursors.set(key, sequence.value);
+      }
     }
-    subscription.cursor = maxBigInt(subscription.cursor, rowCursor);
+
+    this.send(socket, {
+      data: row,
+      domain,
+      eventType,
+      sequence: sequence?.value.toString(),
+      type: 'event',
+    });
+    return true;
   }
 
-  private async fetchRows(
+  private async fetchSequenceRows(
     eventType: EventType,
+    cursor: SequenceCursor,
     after: bigint,
-    through?: bigint,
-    domains?: Set<number>,
+    through: bigint,
   ): Promise<EventRow[]> {
     const stream = STREAMS[eventType];
-    const values: unknown[] = [after.toString()];
-    const predicates = [`${quoteIdentifier('id')} > $1::bigint`];
-
-    if (through !== undefined) {
-      values.push(through.toString());
-      predicates.push(`${quoteIdentifier('id')} <= $${values.length}::bigint`);
-    }
-    if (domains) {
-      values.push([...domains]);
-      predicates.push(
-        `${quoteIdentifier(stream.domainColumn)} = ANY($${values.length}::integer[])`,
-      );
-    }
-    values.push(config.EVENT_STREAM_BATCH_SIZE);
+    const sequenceColumn = requiredSequenceColumn(stream);
+    const addressColumn = requiredAddressColumn(stream);
 
     const columns = stream.columns
       .map((column) => quoteIdentifier(column))
       .join(', ');
     return this.db.queryLive<EventRow>(
-      `SELECT ${columns} FROM ${quoteIdentifier(stream.table)} WHERE ${predicates.join(
-        ' AND ',
-      )} ORDER BY ${quoteIdentifier('id')} ASC LIMIT $${values.length}`,
-      values,
+      `SELECT ${columns} FROM ${quoteIdentifier(stream.table)} WHERE ${quoteIdentifier(
+        stream.domainColumn,
+      )} = $1 AND ${quoteIdentifier(addressColumn)} = $2::bytea AND ${quoteIdentifier(
+        sequenceColumn,
+      )} > $3::bigint AND ${quoteIdentifier(
+        sequenceColumn,
+      )} <= $4::bigint ORDER BY ${quoteIdentifier(
+        sequenceColumn,
+      )} ASC LIMIT $5`,
+      [
+        cursor.domain,
+        cursor.address,
+        after.toString(),
+        through.toString(),
+        config.EVENT_STREAM_BATCH_SIZE,
+      ],
     );
   }
 
-  private async maxId(eventType: EventType): Promise<bigint> {
-    const table = STREAMS[eventType].table;
-    const [row] = await this.db.queryLive<{ id: string }>(
-      `SELECT COALESCE(MAX(${quoteIdentifier('id')}), 0)::text AS id FROM ${quoteIdentifier(table)}`,
+  private async sequenceBounds(
+    eventType: EventType,
+    cursor: SequenceCursor,
+  ): Promise<{ first: bigint; last: bigint }> {
+    const stream = STREAMS[eventType];
+    const sequenceColumn = requiredSequenceColumn(stream);
+    const addressColumn = requiredAddressColumn(stream);
+    const [row] = await this.db.queryLive<{ first: string; last: string }>(
+      `SELECT COALESCE(MIN(${quoteIdentifier(
+        sequenceColumn,
+      )}), 0)::text AS first, COALESCE(MAX(${quoteIdentifier(
+        sequenceColumn,
+      )}), -1)::text AS last FROM ${quoteIdentifier(
+        stream.table,
+      )} WHERE ${quoteIdentifier(stream.domainColumn)} = $1 AND ${quoteIdentifier(
+        addressColumn,
+      )} = $2::bytea`,
+      [cursor.domain, cursor.address],
     );
-    return parseCursor(row?.id ?? '0');
+    return {
+      first: parseSequence(row?.first ?? '0'),
+      last: parseSequence(row?.last ?? '-1'),
+    };
   }
 
   private async connectListener(): Promise<void> {
@@ -418,61 +479,118 @@ export class EventWebSocketServer {
   }
 
   private onNotification(payload: string | undefined): void {
-    let notification: {
-      domain: number;
-      eventType: EventType;
-      id: bigint;
-    };
+    let notification: EventNotification;
     try {
       notification = parseEventNotification(payload);
     } catch (error) {
       this.failStream(error);
       return;
     }
-    void this.handleEventNotification(notification).catch((error) =>
-      this.failStream(error),
-    );
-  }
+    if (!this.hasMatchingSubscriber(notification)) return;
 
-  private async handleEventNotification(notification: {
-    domain: number;
-    eventType: EventType;
-    id: bigint;
-  }): Promise<void> {
-    const row = await this.fetchNotifiedRow(
+    let eventNotifications = this.pendingNotifications.get(
       notification.eventType,
-      notification.id,
     );
-    const domain = domainFromRow(
-      row,
-      STREAMS[notification.eventType].domainColumn,
-    );
-    if (domain !== notification.domain) {
-      throw new Error(
-        `Incorrect domain in ${notification.eventType} notification`,
-      );
+    if (!eventNotifications) {
+      eventNotifications = new Map();
+      this.pendingNotifications.set(notification.eventType, eventNotifications);
     }
-    this.publishRow(notification.eventType, row);
+    eventNotifications.set(notification.id.toString(), notification);
+    this.scheduleNotificationDrain();
   }
 
-  private async fetchNotifiedRow(
+  private hasMatchingSubscriber(notification: EventNotification): boolean {
+    for (const state of this.clients.values()) {
+      const subscription = state.subscriptions.get(notification.eventType);
+      if (subscription && matchesDomain(subscription, notification.domain)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private scheduleNotificationDrain(): void {
+    if (this.notificationBatchTimer || this.notificationDrainRunning) return;
+    this.notificationBatchTimer = setTimeout(() => {
+      this.notificationBatchTimer = undefined;
+      void this.drainNotifications().catch((error) => this.failStream(error));
+    }, NOTIFICATION_BATCH_INTERVAL_MS);
+  }
+
+  private async drainNotifications(): Promise<void> {
+    if (this.notificationDrainRunning) return;
+    this.notificationDrainRunning = true;
+    try {
+      while (this.pendingNotifications.size > 0) {
+        for (const eventType of EVENT_TYPES) {
+          const notifications = this.takeNotificationBatch(eventType);
+          if (notifications.length > 0) {
+            await this.publishNotificationBatch(eventType, notifications);
+          }
+        }
+      }
+    } finally {
+      this.notificationDrainRunning = false;
+      if (this.pendingNotifications.size > 0) this.scheduleNotificationDrain();
+    }
+  }
+
+  private takeNotificationBatch(eventType: EventType): EventNotification[] {
+    const queued = this.pendingNotifications.get(eventType);
+    if (!queued) return [];
+
+    const batch: EventNotification[] = [];
+    for (const [id, notification] of queued) {
+      queued.delete(id);
+      if (this.hasMatchingSubscriber(notification)) batch.push(notification);
+      if (batch.length >= NOTIFICATION_BATCH_SIZE) break;
+    }
+    if (queued.size === 0) this.pendingNotifications.delete(eventType);
+    return batch;
+  }
+
+  private async publishNotificationBatch(
     eventType: EventType,
-    id: bigint,
-  ): Promise<EventRow> {
+    notifications: EventNotification[],
+  ): Promise<void> {
+    const byId = new Map(
+      notifications.map((notification) => [
+        notification.id.toString(),
+        notification,
+      ]),
+    );
     const stream = STREAMS[eventType];
     const columns = stream.columns
       .map((column) => quoteIdentifier(column))
       .join(', ');
-    const rows = await this.db.queryLive<EventRow>(
-      `SELECT ${columns} FROM ${quoteIdentifier(stream.table)} WHERE ${quoteIdentifier(
+    const rows = await this.db.queryLive<NotifiedEventRow>(
+      `SELECT ${quoteIdentifier('id')} AS ${quoteIdentifier(
+        'notification_id',
+      )}, ${columns} FROM ${quoteIdentifier(
+        stream.table,
+      )} WHERE ${quoteIdentifier(
         'id',
-      )} = $1::bigint`,
-      [id.toString()],
+      )} = ANY($1::bigint[]) ORDER BY ${quoteIdentifier('id')} ASC`,
+      [[...byId.keys()]],
     );
-    if (rows.length !== 1) {
-      throw new Error(`Missing notified ${eventType} row ${id}`);
+    if (rows.length !== byId.size) {
+      throw new Error(
+        `Missing notified ${eventType} rows: expected ${byId.size}, received ${rows.length}`,
+      );
     }
-    return rows[0];
+
+    const eventRows = rows.map(({ notification_id: rawId, ...row }) => {
+      const id = parseCursor(rawId).toString();
+      const notification = byId.get(id);
+      if (!notification) throw new Error(`Unexpected notified row ${id}`);
+      const domain = domainFromRow(row, stream.domainColumn);
+      if (domain !== notification.domain) {
+        throw new Error(`Incorrect domain in ${eventType} notification`);
+      }
+      return row;
+    });
+    eventRows.sort((left, right) => compareEventRows(eventType, left, right));
+    for (const row of eventRows) this.publishRow(eventType, row);
   }
 
   private onListenerDisconnect(error?: Error): void {
@@ -536,7 +654,11 @@ export class EventWebSocketServer {
 
 function subscriptionResponse(request: StreamRequest): Record<string, unknown> {
   return {
-    afterId: request.afterId?.toString(),
+    cursors: request.cursors?.map(({ address, afterSequence, domain }) => ({
+      address: displayAddress(address),
+      afterSequence: afterSequence?.toString(),
+      domain,
+    })),
     domains: request.domains ? [...request.domains] : undefined,
     eventType: request.eventType,
   };
@@ -557,10 +679,6 @@ function matchesDomain(subscription: Subscription, domain: number): boolean {
   return !subscription.domains || subscription.domains.has(domain);
 }
 
-function cursorFromRow(row: EventRow): bigint {
-  return parseCursor(row.id);
-}
-
 function domainFromRow(row: EventRow, column: string): number {
   const value = row[column];
   const domain = typeof value === 'string' ? Number(value) : value;
@@ -568,12 +686,69 @@ function domainFromRow(row: EventRow, column: string): number {
   return domain;
 }
 
-function compareCursor(left: bigint, right: bigint): number {
-  return left < right ? -1 : left > right ? 1 : 0;
+function sequenceFromRow(
+  eventType: EventType,
+  row: EventRow,
+): { address: string; value: bigint } | undefined {
+  const stream = STREAMS[eventType];
+  if (!stream.sequenceColumn || !stream.addressColumn) return undefined;
+
+  const address = row[stream.addressColumn];
+  if (typeof address !== 'string') {
+    throw new Error(`Invalid ${stream.addressColumn} in event row`);
+  }
+  return {
+    address: normalizeDatabaseAddress(address),
+    value: parseSequence(row[stream.sequenceColumn]),
+  };
 }
 
-function maxBigInt(left: bigint, right: bigint): bigint {
-  return left > right ? left : right;
+function parseSequence(value: unknown): bigint {
+  if (
+    (typeof value === 'number' && Number.isSafeInteger(value) && value >= -1) ||
+    (typeof value === 'string' && /^(?:-1|\d+)$/.test(value))
+  ) {
+    return BigInt(value);
+  }
+  throw new Error('Invalid event sequence');
+}
+
+function sequenceCursorKey(domain: number, address: string): string {
+  return `${domain}:${normalizeDatabaseAddress(address)}`;
+}
+
+function normalizeDatabaseAddress(address: string): string {
+  const hex = address.replace(/^(?:0x|\\x)/, '').toLowerCase();
+  return `\\x${hex}`;
+}
+
+function displayAddress(address: string): string {
+  return `0x${normalizeDatabaseAddress(address).slice(2)}`;
+}
+
+function requiredSequenceColumn(stream: StreamDefinition): string {
+  if (!stream.sequenceColumn) throw new Error('Stream has no native sequence');
+  return stream.sequenceColumn;
+}
+
+function requiredAddressColumn(stream: StreamDefinition): string {
+  if (!stream.addressColumn) throw new Error('Stream has no sequence scope');
+  return stream.addressColumn;
+}
+
+function compareEventRows(
+  eventType: EventType,
+  left: EventRow,
+  right: EventRow,
+): number {
+  const leftSequence = sequenceFromRow(eventType, left)?.value;
+  const rightSequence = sequenceFromRow(eventType, right)?.value;
+  if (leftSequence === undefined || rightSequence === undefined) return 0;
+  return leftSequence < rightSequence
+    ? -1
+    : leftSequence > rightSequence
+      ? 1
+      : 0;
 }
 
 function errorMessage(error: unknown): string {

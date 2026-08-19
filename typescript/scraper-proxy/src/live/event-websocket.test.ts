@@ -4,15 +4,24 @@ import { describe, it } from 'node:test';
 import { parseClientMessage, parseEventNotification } from './protocol.js';
 
 describe('event websocket protocol', () => {
-  it('parses multiplexed resumable subscriptions', () => {
+  it('parses native sequence catch-up cursors', () => {
     const message = parseClientMessage(
       JSON.stringify({
         type: 'subscribe',
         streams: [
           {
             eventType: 'dispatch',
-            domains: [1, 42161, 1],
-            afterId: '9007199254740993',
+            cursors: [
+              {
+                address: '0x0000000000000000000000000000000000000001',
+                afterSequence: '9007199254740993',
+                domain: 1,
+              },
+              {
+                address: '\\x0000000000000000000000000000000000000002',
+                domain: 42161,
+              },
+            ],
           },
           { eventType: 'merkle_tree_insertion' },
         ],
@@ -21,9 +30,16 @@ describe('event websocket protocol', () => {
 
     assert.equal(message.type, 'subscribe');
     if (message.type !== 'subscribe') return;
-    assert.equal(message.streams[0]?.afterId, 9_007_199_254_740_993n);
+    assert.equal(
+      message.streams[0]?.cursors?.[0]?.afterSequence,
+      9_007_199_254_740_993n,
+    );
+    assert.equal(
+      message.streams[0]?.cursors?.[0]?.address,
+      '\\x0000000000000000000000000000000000000001',
+    );
     assert.deepEqual(message.streams[0]?.domains, new Set([1, 42161]));
-    assert.equal(message.streams[1]?.afterId, undefined);
+    assert.equal(message.streams[1]?.cursors, undefined);
   });
 
   it('accepts application pings', () => {
@@ -43,22 +59,26 @@ describe('event websocket protocol', () => {
     );
   });
 
-  it('rejects unsafe numeric cursors', () => {
-    assert.throws(
-      () =>
+  it('rejects row ID cursors and cursors on unsequenced streams', () => {
+    for (const stream of [
+      { eventType: 'dispatch', afterId: '1' },
+      {
+        eventType: 'gas_payment',
+        cursors: [
+          {
+            address: '0x0000000000000000000000000000000000000001',
+            afterSequence: '1',
+            domain: 1,
+          },
+        ],
+      },
+    ]) {
+      assert.throws(() =>
         parseClientMessage(
-          JSON.stringify({
-            type: 'subscribe',
-            streams: [
-              {
-                eventType: 'gas_payment',
-                afterId: Number.MAX_SAFE_INTEGER + 1,
-              },
-            ],
-          }),
+          JSON.stringify({ type: 'subscribe', streams: [stream] }),
         ),
-      /afterId/,
-    );
+      );
+    }
   });
 
   it('rejects unknown event types and invalid domains', () => {
