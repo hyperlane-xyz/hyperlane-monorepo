@@ -10,7 +10,7 @@ use tracing::{debug, instrument, trace};
 use hyperlane_core::{
     address_to_bytes, bytes_to_address, h256_to_bytes, Delivery, HyperlaneMessage, LogMeta, H256,
 };
-use migration::OnConflict;
+use migration::{Alias, Expr, Func, OnConflict};
 
 use crate::date_time;
 use crate::db::ScraperDb;
@@ -22,15 +22,19 @@ pub struct StorableDelivery<'a> {
     pub message_id: H256,
     pub sequence: Option<i64>,
     pub meta: &'a LogMeta,
-    /// The database id of the transaction the delivery event occurred in
-    pub txn_id: i64,
+    /// The database id of the transaction the delivery event occurred in, or
+    /// `None` if the transaction could not be resolved on-chain (e.g. Sealevel
+    /// basic log meta fallback).
+    pub txn_id: Option<i64>,
 }
 
 pub struct StorableMessage<'a> {
     pub msg: HyperlaneMessage,
     pub meta: &'a LogMeta,
-    /// The database id of the transaction the message was sent in
-    pub txn_id: i64,
+    /// The database id of the transaction the message was sent in, or `None`
+    /// if the transaction could not be resolved on-chain (e.g. Sealevel basic
+    /// log meta fallback).
+    pub txn_id: Option<i64>,
     /// Override for the stored message ID. When `None`, uses `msg.id()`.
     /// Used by synthetic messages (e.g. same-chain CCR swaps) that need a
     /// recognizable ID format distinct from real keccak256 message hashes.
@@ -72,6 +76,8 @@ impl ScraperDb {
     }
 
     /// Get the tx id of a delivered message associated with a sequence.
+    /// Also returns `None` for deliveries stored with a NULL transaction id
+    /// (unresolvable log meta fallback).
     #[instrument(skip(self))]
     pub async fn retrieve_delivered_message_tx_id(
         &self,
@@ -89,8 +95,7 @@ impl ScraperDb {
             .one(&self.0)
             .await?
         {
-            let txn_id = delivery.destination_tx_id;
-            Ok(Some(txn_id))
+            Ok(delivery.destination_tx_id)
         } else {
             Ok(None)
         }
@@ -166,10 +171,22 @@ impl ScraperDb {
         Insert::many(models)
             .on_conflict(
                 OnConflict::columns([delivered_message::Column::MsgId])
-                    .update_columns([
-                        delivered_message::Column::TimeCreated,
+                    // A fallback replay must not discard transaction metadata
+                    // that was resolved by an earlier scrape. This still lets
+                    // a later resolved scrape enrich an existing NULL row.
+                    .value(
                         delivered_message::Column::DestinationTxId,
-                    ])
+                        Func::if_null(
+                            Expr::col((
+                                Alias::new("excluded"),
+                                delivered_message::Column::DestinationTxId,
+                            )),
+                            Expr::col((
+                                Alias::new("delivered_message"),
+                                delivered_message::Column::DestinationTxId,
+                            )),
+                        ),
+                    )
                     .to_owned(),
             )
             .exec(&self.0)
@@ -221,6 +238,8 @@ impl ScraperDb {
     }
 
     /// Get the tx id associated with a dispatched message.
+    /// Also returns `None` for messages stored with a NULL transaction id
+    /// (unresolvable log meta fallback).
     #[instrument(skip(self))]
     pub async fn retrieve_dispatched_tx_id(
         &self,
@@ -240,10 +259,12 @@ impl ScraperDb {
             .select_only()
             .column_as(message::Column::OriginTxId.max(), QueryAs::Nonce)
             .group_by(message::Column::Origin)
-            .into_values::<i64, QueryAs>()
+            // `origin_tx_id` is nullable (unresolvable on-chain transaction),
+            // so the MAX aggregate can be NULL even when a message row exists.
+            .into_values::<Option<i64>, QueryAs>()
             .one(&self.0)
             .await?;
-        Ok(tx_id)
+        Ok(tx_id.flatten())
     }
 
     async fn latest_dispatched_id(&self, domain: u32, origin_mailbox: Vec<u8>) -> Result<i64> {
@@ -338,13 +359,26 @@ impl ScraperDb {
                                     message::Column::Nonce,
                                 ])
                                 .update_columns([
-                                    message::Column::TimeCreated,
                                     message::Column::Destination,
                                     message::Column::Sender,
                                     message::Column::Recipient,
                                     message::Column::MsgBody,
-                                    message::Column::OriginTxId,
                                 ])
+                                // Prefer resolved transaction metadata over a
+                                // NULL value from a later fallback replay.
+                                .value(
+                                    message::Column::OriginTxId,
+                                    Func::if_null(
+                                        Expr::col((
+                                            Alias::new("excluded"),
+                                            message::Column::OriginTxId,
+                                        )),
+                                        Expr::col((
+                                            Alias::new("message"),
+                                            message::Column::OriginTxId,
+                                        )),
+                                    ),
+                                )
                                 .to_owned(),
                             )
                             .exec(txn)
@@ -396,7 +430,7 @@ mod tests {
                 recipient: vec![],
                 msg_body: None,
                 origin_mailbox: vec![],
-                origin_tx_id: 0,
+                origin_tx_id: Some(0),
             })
             .collect::<Vec<_>>()
             .chunks(ScraperDb::STORE_MESSAGE_CHUNK_SIZE)
@@ -421,7 +455,7 @@ mod tests {
                 recipient: vec![],
                 msg_body: None,
                 origin_mailbox: vec![],
-                origin_tx_id: 0,
+                origin_tx_id: Some(0),
             }]])
             .append_query_results(query_results)
             .append_query_results([[mock_result.clone()]])
@@ -433,7 +467,7 @@ mod tests {
             .map(|i| StorableMessage {
                 msg: HyperlaneMessage::default(),
                 meta: &logs_meta[i],
-                txn_id: i as i64,
+                txn_id: Some(i as i64),
                 id_override: None,
             })
             .collect();
@@ -461,7 +495,7 @@ mod tests {
                 recipient: vec![],
                 msg_body: None,
                 origin_mailbox: vec![],
-                origin_tx_id: 0,
+                origin_tx_id: Some(0),
             })
             .collect::<Vec<_>>()
             .chunks(ScraperDb::STORE_MESSAGE_CHUNK_SIZE)
@@ -480,7 +514,7 @@ mod tests {
                 recipient: vec![],
                 msg_body: None,
                 origin_mailbox: vec![],
-                origin_tx_id: 0,
+                origin_tx_id: Some(0),
             }]])
             .append_query_results(query_results)
             // fail halfway through the transaction
@@ -495,7 +529,7 @@ mod tests {
             .map(|i| StorableMessage {
                 msg: HyperlaneMessage::default(),
                 meta: &logs_meta[i],
-                txn_id: i as i64,
+                txn_id: Some(i as i64),
                 id_override: None,
             })
             .collect();
@@ -525,7 +559,7 @@ mod tests {
                 StorableMessage {
                     msg,
                     meta: &logs_meta[i],
-                    txn_id: 0_i64,
+                    txn_id: Some(0_i64),
                     id_override: None,
                 }
             })

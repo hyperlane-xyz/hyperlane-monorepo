@@ -10,7 +10,7 @@ use time::OffsetDateTime;
 use tracing::warn;
 
 use crate::db::{StorableMessage, StorableRawMessageDispatch};
-use crate::store::storage::{HyperlaneDbStore, TxnWithId};
+use crate::store::storage::{txn_id_for_meta, HyperlaneDbStore, TxnWithId};
 
 /// Label for raw message dispatch metrics
 const RAW_MESSAGE_DISPATCH_LABEL: &str = "raw_message_dispatch";
@@ -208,10 +208,10 @@ impl HyperlaneDbStore {
         let storable = raw_dispatches_to_attempt
             .iter()
             .filter_map(
-                |raw_dispatch| match txns.get(&raw_dispatch.meta.transaction_id) {
-                    Some(txn) => {
+                |raw_dispatch| match txn_id_for_meta(&txns, &raw_dispatch.meta) {
+                    Some(txn_id) => {
                         stored_raw_ids.push(raw_dispatch.raw_id);
-                        Some(raw_dispatch.storable_message(txn.id))
+                        Some(raw_dispatch.storable_message(txn_id))
                     }
                     None => {
                         let attempts = retry_backoff.record_missing(raw_dispatch.raw_id, now);
@@ -293,7 +293,7 @@ fn storable_messages_for_available_txns<'a>(
     let mut storable = Vec::with_capacity(messages.len());
 
     for (message, meta) in messages {
-        let Some(txn) = txns.get(&meta.transaction_id) else {
+        let Some(txn_id) = txn_id_for_meta(txns, meta) else {
             missing_dispatches = missing_dispatches.saturating_add(1);
             if unique_missing_tx_hashes.insert(meta.transaction_id) {
                 missing_tx_hashes.push(meta.transaction_id);
@@ -304,7 +304,7 @@ fn storable_messages_for_available_txns<'a>(
         storable.push(StorableMessage {
             msg: message.inner().clone(),
             meta,
-            txn_id: txn.id,
+            txn_id,
             id_override: None,
         });
     }
@@ -376,7 +376,7 @@ mod tests {
 
         assert!(missing_txns.is_none());
         assert_eq!(storable.len(), messages.len());
-        assert!(storable.iter().all(|message| message.txn_id == 7));
+        assert!(storable.iter().all(|message| message.txn_id == Some(7)));
     }
 
     #[test]
@@ -410,9 +410,9 @@ mod tests {
 
         assert_eq!(storable.len(), 2);
         assert_eq!(storable[0].msg.nonce, 0);
-        assert_eq!(storable[0].txn_id, 7);
+        assert_eq!(storable[0].txn_id, Some(7));
         assert_eq!(storable[1].msg.nonce, 2);
-        assert_eq!(storable[1].txn_id, 8);
+        assert_eq!(storable[1].txn_id, Some(8));
         assert_eq!(
             missing_txns,
             Some(MissingDispatchTxns {
@@ -452,6 +452,24 @@ mod tests {
 
         assert!(storable.is_empty());
         assert!(missing_txns.is_none());
+    }
+
+    #[test]
+    fn storable_messages_for_available_txns_zero_txn_hash_stored_with_null_txn() {
+        // Zero transaction ids are produced by indexers that cannot resolve
+        // the on-chain transaction (e.g. Sealevel basic log meta fallback);
+        // they must be stored with a NULL transaction relation, not dropped.
+        let messages = vec![
+            (indexed_message(0), log_meta(H512::zero())),
+            (indexed_message(1), log_meta(H512::zero())),
+        ];
+        let txns = HashMap::new();
+
+        let (storable, missing_txns) = storable_messages_for_available_txns(&messages, &txns);
+
+        assert!(missing_txns.is_none());
+        assert_eq!(storable.len(), messages.len());
+        assert!(storable.iter().all(|message| message.txn_id.is_none()));
     }
 
     #[test]

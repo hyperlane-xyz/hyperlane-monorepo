@@ -9,13 +9,15 @@ use hyperlane_core::{
 };
 
 use crate::db::StorableDelivery;
-use crate::store::storage::{HyperlaneDbStore, TxnWithId};
+use crate::store::storage::{txn_id_for_meta, HyperlaneDbStore, TxnWithId};
 
 #[async_trait]
 impl HyperlaneLogStore<Delivery> for HyperlaneDbStore {
     /// Store delivered message ids from the destination mailbox into the database.
-    /// We store only delivered messages ids from blocks and transaction which we could successfully
-    /// insert into database.
+    /// Deliveries whose transaction could not be resolved on-chain (zero block
+    /// and transaction hashes, e.g. Sealevel basic log meta fallback) are
+    /// stored with a NULL transaction relation; other unavailable transactions
+    /// are skipped (and retried later).
     async fn store_logs(&self, deliveries: &[(Indexed<Delivery>, LogMeta)]) -> Result<u32> {
         if deliveries.is_empty() {
             return Ok(0);
@@ -28,12 +30,12 @@ impl HyperlaneLogStore<Delivery> for HyperlaneDbStore {
         let storable = deliveries
             .iter()
             .filter_map(|(message_id, meta)| {
-                txns.get(&meta.transaction_id).map(|txn| {
+                txn_id_for_meta(&txns, meta).map(|txn_id| {
                     (
                         *message_id.inner(),
                         message_id.sequence.map(|v| v as i64),
                         meta,
-                        txn.id,
+                        txn_id,
                     )
                 })
             })

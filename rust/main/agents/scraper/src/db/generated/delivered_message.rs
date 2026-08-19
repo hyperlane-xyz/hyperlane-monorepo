@@ -18,7 +18,7 @@ pub struct Model {
     pub msg_id: Vec<u8>,
     pub domain: i32,
     pub destination_mailbox: Vec<u8>,
-    pub destination_tx_id: i64,
+    pub destination_tx_id: Option<i64>,
     pub sequence: Option<i64>,
 }
 
@@ -60,7 +60,7 @@ impl ColumnTrait for Column {
             Self::MsgId => ColumnType::VarBinary(StringLen::None).def().unique(),
             Self::Domain => ColumnType::Integer.def(),
             Self::DestinationMailbox => ColumnType::VarBinary(StringLen::None).def(),
-            Self::DestinationTxId => ColumnType::BigInteger.def(),
+            Self::DestinationTxId => ColumnType::BigInteger.def().null(),
             Self::Sequence => ColumnType::BigInteger.def().null(),
         }
     }

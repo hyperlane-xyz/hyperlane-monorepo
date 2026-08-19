@@ -16,6 +16,7 @@ use hyperlane_core::{
 };
 
 use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
+use crate::error::is_get_block_unresolvable_after_retries;
 use crate::fallback::SubmitSealevelRpc;
 use crate::log_meta_composer::{is_interchain_payment_instruction, LogMetaComposer};
 use crate::SealevelProvider;
@@ -230,11 +231,25 @@ impl SealevelInterchainGasPaymasterIndexer {
         payment_pda_pubkey: &Pubkey,
         payment_pda_slot: &Slot,
     ) -> ChainResult<Option<LogMeta>> {
-        let block = self
+        let block = match self
             .provider
             .rpc_client()
             .get_block(*payment_pda_slot)
-            .await?;
+            .await
+        {
+            Ok(block) => block,
+            Err(err) if is_get_block_unresolvable_after_retries(&err) => {
+                warn!(
+                    ?err,
+                    ?payment_pda_pubkey,
+                    ?payment_pda_slot,
+                    "Block for interchain gas payment is unavailable after provider retries; \
+                     falling back to basic log meta",
+                );
+                return Ok(None);
+            }
+            Err(err) => return Err(err),
+        };
 
         match self.log_meta_composer.log_meta(
             block,
