@@ -5,7 +5,6 @@ import { type RawData, WebSocket } from 'ws';
 import { EVENT_TYPES, type EventType, isDomain } from '../live/protocol.js';
 
 const DEFAULT_URL = 'ws://localhost:8383/ws';
-
 const HELP = `Usage: pnpm debug:websocket [options]
 
 Connect to the scraper proxy event WebSocket and print every server message.
@@ -31,66 +30,57 @@ Examples:
     --cursor merkle_tree_insertion:1:0x48e6c30b97748d1e2e03bf3e9fbe3890ca5f8cca:-1
 `;
 
-type NativeCursor = {
+type Cursor = {
   address: string;
   afterSequence: string;
   domain: number;
   eventType: 'dispatch' | 'merkle_tree_insertion';
 };
-
 type Options = {
-  cursors: NativeCursor[];
+  cursors: Cursor[];
   domains?: number[];
-  eventTypes: EventType[];
+  events: EventType[];
   url: string;
 };
 
-function readList(values: string[] | undefined): string[] | undefined {
+function list(values?: string[]): string[] | undefined {
   if (!values) return undefined;
-  const items = values
-    .flatMap((value) => value.split(','))
-    .map((v) => v.trim());
-  if (items.some((item) => item.length === 0)) {
+  const items = [
+    ...new Set(
+      values.flatMap((value) => value.split(',')).map((v) => v.trim()),
+    ),
+  ];
+  if (items.some((item) => !item))
     throw new Error('List values cannot be empty');
-  }
-  return [...new Set(items)];
+  return items;
 }
 
-function parseCursor(value: string): NativeCursor {
-  const [eventType, rawDomain, address, afterSequence, ...extra] =
-    value.split(':');
-  if (
-    extra.length > 0 ||
-    !eventType ||
-    !rawDomain ||
-    !address ||
-    afterSequence === undefined
-  ) {
+function cursor(value: string): Cursor {
+  const parts = value.split(':');
+  if (parts.length !== 4) {
     throw new Error(
       `Invalid cursor "${value}". Expected eventType:domain:address:afterSequence`,
     );
   }
+  const [eventType, rawDomain, address, afterSequence] = parts;
   if (eventType !== 'dispatch' && eventType !== 'merkle_tree_insertion') {
     throw new Error(
       `Cursor event type must be dispatch or merkle_tree_insertion: ${eventType}`,
     );
   }
-
   const domain = Number(rawDomain);
   if (!isDomain(domain)) throw new Error(`Invalid cursor domain: ${rawDomain}`);
-  if (!/^(?:0x|\\x)?[0-9a-fA-F]{2,64}$/.test(address)) {
+  if (!address || !/^(?:0x|\\x)?[\da-fA-F]{2,64}$/.test(address)) {
     throw new Error(`Invalid cursor address: ${address}`);
   }
-  if (!/^(?:-1|\d+)$/.test(afterSequence)) {
+  if (!afterSequence || !/^(?:-1|\d+)$/.test(afterSequence)) {
     throw new Error(`Invalid cursor sequence: ${afterSequence}`);
   }
-
   return { address, afterSequence, domain, eventType };
 }
 
-function parseOptions(): Options | undefined {
+function options(): Options | undefined {
   const { values } = parseArgs({
-    allowPositionals: false,
     options: {
       cursor: { multiple: true, short: 'c', type: 'string' },
       domains: { multiple: true, short: 'd', type: 'string' },
@@ -100,116 +90,106 @@ function parseOptions(): Options | undefined {
     },
     strict: true,
   });
-
   if (values.help) {
     console.log(HELP);
     return undefined;
   }
 
-  const requestedEvents = readList(values.events);
+  const requestedEvents = list(values.events);
   const invalidEvents = requestedEvents?.filter(
-    (eventType) => !EVENT_TYPES.includes(eventType as EventType),
+    (event) => !EVENT_TYPES.includes(event as EventType),
   );
   if (invalidEvents?.length) {
     throw new Error(
       `Unknown event type(s): ${invalidEvents.join(', ')}. Expected: ${EVENT_TYPES.join(', ')}`,
     );
   }
-
-  const requestedDomains = readList(values.domains);
-  const domains = requestedDomains?.map((domain) => Number(domain));
-  const invalidDomains = requestedDomains?.filter(
+  const events = (requestedEvents ?? EVENT_TYPES) as EventType[];
+  const rawDomains = list(values.domains);
+  const domains = rawDomains?.map(Number);
+  const invalidDomains = rawDomains?.filter(
     (_, index) => !isDomain(domains?.[index]),
   );
   if (invalidDomains?.length) {
     throw new Error(`Invalid domain ID(s): ${invalidDomains.join(', ')}`);
   }
-
-  const eventTypes = (requestedEvents ?? EVENT_TYPES) as EventType[];
-  const cursors = (values.cursor ?? []).map(parseCursor);
-  for (const cursor of cursors) {
-    if (!eventTypes.includes(cursor.eventType)) {
+  const cursors = (values.cursor ?? []).map(cursor);
+  for (const item of cursors) {
+    if (!events.includes(item.eventType)) {
       throw new Error(
-        `Cursor event type ${cursor.eventType} is not included in --events`,
+        `Cursor event type ${item.eventType} is not included in --events`,
       );
     }
-    if (domains && !domains.includes(cursor.domain)) {
+    if (domains && !domains.includes(item.domain)) {
       throw new Error(
-        `Cursor domain ${cursor.domain} is not included in --domains`,
+        `Cursor domain ${item.domain} is not included in --domains`,
       );
     }
   }
-
-  return {
-    cursors,
-    domains,
-    eventTypes,
-    url: values.url,
-  };
+  return { cursors, domains, events, url: values.url };
 }
 
-function rawDataToString(data: RawData): string {
-  if (Array.isArray(data)) return Buffer.concat(data).toString('utf8');
-  if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
-  return data.toString('utf8');
-}
-
-function main(options: Options): void {
-  const socket = new WebSocket(options.url);
+function run({ cursors, domains, events, url }: Options): void {
+  const socket = new WebSocket(url);
   let subscribed = false;
-
   socket.on('message', (data) => {
-    const raw = rawDataToString(data);
-
+    const raw = rawData(data);
     let message: unknown;
     try {
       message = JSON.parse(raw);
+      process.stdout.write(`${JSON.stringify(message, null, 2)}\n`);
     } catch {
       process.stdout.write(`${raw}\n`);
       return;
     }
-    process.stdout.write(`${JSON.stringify(message, null, 2)}\n`);
-    if (
-      subscribed ||
-      typeof message !== 'object' ||
-      message === null ||
-      !('type' in message) ||
-      message.type !== 'ready'
-    ) {
-      return;
-    }
-
-    const subscription = {
-      streams: options.eventTypes.map((eventType) => {
-        const cursors = options.cursors
-          .filter((cursor) => cursor.eventType === eventType)
-          .map(({ address, afterSequence, domain }) => ({
-            address,
-            afterSequence,
-            domain,
-          }));
-        return {
-          ...(cursors.length > 0 ? { cursors } : {}),
-          ...(options.domains ? { domains: options.domains } : {}),
-          eventType,
-        };
+    if (subscribed || !isReady(message)) return;
+    socket.send(
+      JSON.stringify({
+        streams: events.map((eventType) => {
+          const positions = cursors
+            .filter((item) => item.eventType === eventType)
+            .map(({ address, afterSequence, domain }) => ({
+              address,
+              afterSequence,
+              domain,
+            }));
+          return {
+            ...(positions.length ? { cursors: positions } : {}),
+            ...(domains ? { domains } : {}),
+            eventType,
+          };
+        }),
+        type: 'subscribe',
       }),
-      type: 'subscribe',
-    };
-    const payload = JSON.stringify(subscription);
-    socket.send(payload);
+    );
     subscribed = true;
   });
   socket.on('error', (error) =>
     console.error(`WebSocket error: ${error.message}`),
   );
-  process.once('SIGINT', () => socket.close(1000, 'SIGINT'));
-  process.once('SIGTERM', () => socket.close(1000, 'SIGTERM'));
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    process.once(signal, () => socket.close(1000, signal));
+  }
+}
+
+function isReady(value: unknown): value is { type: 'ready' } {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    'type' in value &&
+    value.type === 'ready'
+  );
+}
+
+function rawData(data: RawData): string {
+  if (Array.isArray(data)) return Buffer.concat(data).toString('utf8');
+  if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
+  return data.toString('utf8');
 }
 
 try {
-  const options = parseOptions();
-  if (options) main(options);
+  const parsed = options();
+  if (parsed) run(parsed);
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   console.error('\nRun with --help for usage.');

@@ -4,17 +4,14 @@ import {
   DEFAULT_CACHE_TTL_SECONDS,
 } from './cache-config.js';
 
-type GraphqlRequestPayload = {
-  query?: unknown;
-};
+type Payload = { query?: unknown };
 
 export function normalizeGraphqlRequestBody(body: unknown): void {
-  if (Array.isArray(body)) {
-    body.forEach(normalizeGraphqlPayload);
-    return;
-  }
-
-  normalizeGraphqlPayload(body);
+  (Array.isArray(body) ? body : [body]).forEach((payload) => {
+    if (isPayload(payload) && typeof payload.query === 'string') {
+      payload.query = stripUnusedVariableDefinitions(payload.query);
+    }
+  });
 }
 
 export function stripUnusedVariableDefinitions(query: string): string {
@@ -23,32 +20,28 @@ export function stripUnusedVariableDefinitions(query: string): string {
     (
       match,
       operation: string,
-      operationName = '',
+      name = '',
       definitions: string,
       offset: number,
       source: string,
     ) => {
-      const remainingOperation = source.slice(offset + match.length);
-      const usedVariables = new Set(
-        [...remainingOperation.matchAll(/\$([_A-Za-z][_0-9A-Za-z]*)/g)].map(
-          ([, name]) => name,
-        ),
+      const used = new Set(
+        [
+          ...source
+            .slice(offset + match.length)
+            .matchAll(/\$([_A-Za-z][_0-9A-Za-z]*)/g),
+        ].map(([, variable]) => variable),
       );
-      const keptDefinitions = definitions
+      const kept = definitions
         .split(',')
         .map((definition) => definition.trim())
         .filter((definition) => {
-          const variableName = definition.match(
-            /^\$([_A-Za-z][_0-9A-Za-z]*)/,
-          )?.[1];
-          return variableName ? usedVariables.has(variableName) : true;
+          const variable = definition.match(/^\$([_A-Za-z][_0-9A-Za-z]*)/)?.[1];
+          return !variable || used.has(variable);
         });
-
-      if (keptDefinitions.length === 0) {
-        return `${operation}${operationName}`;
-      }
-
-      return `${operation}${operationName} (${keptDefinitions.join(', ')})`;
+      return kept.length
+        ? `${operation}${name} (${kept.join(', ')})`
+        : `${operation}${name}`;
     },
   );
 }
@@ -56,42 +49,16 @@ export function stripUnusedVariableDefinitions(query: string): string {
 export function cacheControlHeaderForGraphqlRequestBody(
   body: unknown,
 ): string | null {
-  if (Array.isArray(body)) {
+  if (Array.isArray(body) || !isPayload(body) || typeof body.query !== 'string')
     return null;
-  }
-
-  if (!isGraphqlRequestPayload(body) || typeof body.query !== 'string') {
-    return null;
-  }
-
-  const ttl = cacheTtlFromQuery(body.query);
-  return ttl === null ? null : cacheControlHeader(ttl);
+  const directive = body.query.match(/@cached(?:\(([^)]*)\))?/);
+  if (!directive) return null;
+  const ttl = directive[1]?.match(/\bttl\s*:\s*(\d+)/)?.[1];
+  return cacheControlHeader(
+    ttl ? clampCacheTtl(Number(ttl)) : DEFAULT_CACHE_TTL_SECONDS,
+  );
 }
 
-function normalizeGraphqlPayload(payload: unknown): void {
-  if (!isGraphqlRequestPayload(payload) || typeof payload.query !== 'string') {
-    return;
-  }
-
-  payload.query = stripUnusedVariableDefinitions(payload.query);
-}
-
-function isGraphqlRequestPayload(
-  payload: unknown,
-): payload is GraphqlRequestPayload {
-  return typeof payload === 'object' && payload !== null && 'query' in payload;
-}
-
-function cacheTtlFromQuery(query: string): number | null {
-  const cachedDirective = query.match(/@cached(?:\(([^)]*)\))?/);
-  if (!cachedDirective) {
-    return null;
-  }
-
-  const ttlMatch = cachedDirective[1]?.match(/\bttl\s*:\s*(\d+)/);
-  if (!ttlMatch) {
-    return DEFAULT_CACHE_TTL_SECONDS;
-  }
-
-  return clampCacheTtl(Number(ttlMatch[1]));
+function isPayload(value: unknown): value is Payload {
+  return typeof value === 'object' && value !== null && 'query' in value;
 }

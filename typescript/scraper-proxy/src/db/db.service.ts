@@ -1,211 +1,185 @@
 import {
   Injectable,
   Logger,
-  OnModuleDestroy,
-  OnModuleInit,
+  type OnModuleDestroy,
+  type OnModuleInit,
 } from '@nestjs/common';
 import pg from 'pg';
 
 import { config } from '../config.js';
 import { quoteIdentifier } from '../scraperdb/tables.js';
 
-const POSTGRES_TIMESTAMP_OID = 1114;
 const MIN_POOL_CLIENTS = 5;
-const DB_STATS_INTERVAL_MS = 60_000;
+const STATS_INTERVAL_MS = 60_000;
+const IDLE_TIMEOUT_MS = 300_000;
 
-pg.types.setTypeParser(POSTGRES_TIMESTAMP_OID, (value: string) => value);
+pg.types.setTypeParser(1114, (value: string) => value);
+
+type Stats = {
+  errors: number;
+  maxMs: number;
+  queries: number;
+  rows: number;
+  totalMs: number;
+};
 
 @Injectable()
 export class DbService implements OnModuleDestroy, OnModuleInit {
   private readonly logger = new Logger(DbService.name);
-  private readonly listenerClients = new Set<pg.Client>();
-  private stats: DbStats = emptyDbStats();
-  private statsTimer?: NodeJS.Timeout;
+  private readonly listeners = new Set<pg.Client>();
+  private mainPool?: pg.Pool;
   private livePool?: pg.Pool;
-  private pool?: pg.Pool;
+  private stats = newStats();
+  private statsTimer?: NodeJS.Timeout;
+
+  async onModuleInit(): Promise<void> {
+    const started = Date.now();
+    const clients = await Promise.all(
+      Array.from({ length: MIN_POOL_CLIENTS }, () => this.pool().connect()),
+    );
+    clients.forEach((client) => client.release());
+    this.logger.log(
+      `warmed ${MIN_POOL_CLIENTS} db connections in ${Date.now() - started}ms`,
+    );
+    this.statsTimer = setInterval(() => this.logStats(), STATS_INTERVAL_MS);
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    if (this.statsTimer) clearInterval(this.statsTimer);
+    await Promise.all([...this.listeners].map((client) => client.end()));
+    this.listeners.clear();
+    await this.livePool?.end();
+    await this.mainPool?.end();
+  }
+
+  query<T extends pg.QueryResultRow>(
+    text: string,
+    values: unknown[] = [],
+  ): Promise<T[]> {
+    return this.run(this.pool(), text, values);
+  }
+
+  queryLive<T extends pg.QueryResultRow>(
+    text: string,
+    values: unknown[] = [],
+  ): Promise<T[]> {
+    return this.run(this.live(), text, values);
+  }
 
   async listen(
     channels: readonly string[],
     handler: (channel: string, payload: string | undefined) => void,
     onDisconnect: (error?: Error) => void,
   ): Promise<() => Promise<void>> {
-    const connectionString = normalizeConnectionString(
-      config.LISTEN_DATABASE_URL ?? config.DATABASE_URL,
+    const client = new pg.Client(
+      databaseOptions(config.LISTEN_DATABASE_URL ?? config.DATABASE_URL),
     );
-    const client = new pg.Client({
-      connectionString,
-      ssl: connectionString.startsWith('postgres')
-        ? { rejectUnauthorized: false }
-        : undefined,
-    });
     let stopped = false;
     let disconnected = false;
     const disconnect = (error?: Error): void => {
       if (stopped || disconnected) return;
       disconnected = true;
-      this.listenerClients.delete(client);
+      this.listeners.delete(client);
       onDisconnect(error);
     };
-
     client.on('notification', ({ channel, payload }) =>
       handler(channel, payload),
     );
     client.on('error', disconnect);
-    client.on('end', () => disconnect());
+    client.on('end', disconnect);
     try {
       await client.connect();
-      for (const channel of channels) {
-        await client.query(`LISTEN ${quoteIdentifier(channel)}`);
-      }
+      await Promise.all(
+        channels.map((channel) =>
+          client.query(`LISTEN ${quoteIdentifier(channel)}`),
+        ),
+      );
     } catch (error) {
       stopped = true;
       await client.end().catch(() => undefined);
       throw error;
     }
-    this.listenerClients.add(client);
+    this.listeners.add(client);
     this.logger.log(`listening on ${channels.join(', ')}`);
-
     return async () => {
       stopped = true;
-      this.listenerClients.delete(client);
+      this.listeners.delete(client);
       await client.end();
     };
   }
 
-  async query<T extends pg.QueryResultRow>(
-    text: string,
-    values: unknown[] = [],
-  ): Promise<T[]> {
-    return this.queryPool(this.getPool(), text, values);
-  }
-
-  async queryLive<T extends pg.QueryResultRow>(
-    text: string,
-    values: unknown[] = [],
-  ): Promise<T[]> {
-    return this.queryPool(this.getLivePool(), text, values);
-  }
-
-  private async queryPool<T extends pg.QueryResultRow>(
-    pool: pg.Pool,
-    text: string,
-    values: unknown[],
-  ): Promise<T[]> {
-    const startedAt = Date.now();
-    try {
-      const result = await pool.query<T>(text, values);
-      const durationMs = Date.now() - startedAt;
-      this.recordQueryStats(durationMs, result.rowCount ?? 0, false);
-      this.logger.debug(`query ${durationMs}ms rows=${result.rowCount}`);
-      return result.rows.map(normalizeRow) as T[];
-    } catch (error) {
-      this.recordQueryStats(Date.now() - startedAt, 0, true);
-      throw error;
-    }
-  }
-
-  async onModuleDestroy(): Promise<void> {
-    if (this.statsTimer) clearInterval(this.statsTimer);
-    await Promise.all(
-      [...this.listenerClients].map(async (client) => client.end()),
-    );
-    this.listenerClients.clear();
-    await this.livePool?.end();
-    await this.pool?.end();
-  }
-
-  async onModuleInit(): Promise<void> {
-    const startedAt = Date.now();
-    const clients = await Promise.all(
-      Array.from({ length: MIN_POOL_CLIENTS }, () => this.getPool().connect()),
-    );
-    clients.forEach((client) => client.release());
-    this.logger.log(
-      `warmed ${MIN_POOL_CLIENTS} db connections in ${Date.now() - startedAt}ms`,
-    );
-    this.statsTimer = setInterval(() => this.logStats(), DB_STATS_INTERVAL_MS);
-  }
-
-  private getPool(): pg.Pool {
-    const connectionString = normalizeConnectionString(config.DATABASE_URL);
-    this.pool ??= new pg.Pool({
-      connectionString,
-      idleTimeoutMillis: 300_000,
+  private pool(): pg.Pool {
+    this.mainPool ??= new pg.Pool({
+      ...databaseOptions(config.DATABASE_URL),
+      idleTimeoutMillis: IDLE_TIMEOUT_MS,
       min: MIN_POOL_CLIENTS,
-      ssl: connectionString.startsWith('postgres')
-        ? { rejectUnauthorized: false }
-        : undefined,
     });
-    return this.pool;
+    return this.mainPool;
   }
 
-  private getLivePool(): pg.Pool {
-    if (!config.LISTEN_DATABASE_URL) return this.getPool();
-
-    const connectionString = normalizeConnectionString(
-      config.LISTEN_DATABASE_URL,
-    );
+  private live(): pg.Pool {
+    if (!config.LISTEN_DATABASE_URL) return this.pool();
     this.livePool ??= new pg.Pool({
-      connectionString,
-      idleTimeoutMillis: 300_000,
-      ssl: connectionString.startsWith('postgres')
-        ? { rejectUnauthorized: false }
-        : undefined,
+      ...databaseOptions(config.LISTEN_DATABASE_URL),
+      idleTimeoutMillis: IDLE_TIMEOUT_MS,
     });
     return this.livePool;
   }
 
-  private recordQueryStats(
-    durationMs: number,
-    rowCount: number,
-    failed: boolean,
-  ): void {
-    this.stats.queries += 1;
-    this.stats.rows += rowCount;
-    this.stats.totalDurationMs += durationMs;
-    this.stats.maxDurationMs = Math.max(this.stats.maxDurationMs, durationMs);
-    if (failed) this.stats.errors += 1;
+  private async run<T extends pg.QueryResultRow>(
+    pool: pg.Pool,
+    text: string,
+    values: unknown[],
+  ): Promise<T[]> {
+    const started = Date.now();
+    try {
+      const result = await pool.query<T>(text, values);
+      const duration = Date.now() - started;
+      this.record(duration, result.rowCount ?? 0);
+      this.logger.debug(`query ${duration}ms rows=${result.rowCount}`);
+      return result.rows.map(normalizeRow) as T[];
+    } catch (error) {
+      this.record(Date.now() - started, 0, true);
+      throw error;
+    }
+  }
+
+  private record(duration: number, rows: number, failed = false): void {
+    this.stats.queries++;
+    this.stats.rows += rows;
+    this.stats.totalMs += duration;
+    this.stats.maxMs = Math.max(this.stats.maxMs, duration);
+    if (failed) this.stats.errors++;
   }
 
   private logStats(): void {
-    const stats = this.stats;
-    this.stats = emptyDbStats();
-    const pool = this.pool;
-    const averageDurationMs = stats.queries
-      ? Math.round(stats.totalDurationMs / stats.queries)
-      : 0;
+    const { errors, maxMs, queries, rows, totalMs } = this.stats;
+    this.stats = newStats();
     this.logger.log(
-      `db stats queries=${stats.queries} errors=${stats.errors} rows=${stats.rows} avgMs=${averageDurationMs} maxMs=${stats.maxDurationMs} poolTotal=${pool?.totalCount ?? 0} poolIdle=${pool?.idleCount ?? 0} poolWaiting=${pool?.waitingCount ?? 0}`,
+      `db stats queries=${queries} errors=${errors} rows=${rows} avgMs=${queries ? Math.round(totalMs / queries) : 0} maxMs=${maxMs} poolTotal=${this.mainPool?.totalCount ?? 0} poolIdle=${this.mainPool?.idleCount ?? 0} poolWaiting=${this.mainPool?.waitingCount ?? 0}`,
     );
   }
 }
 
-type DbStats = {
-  errors: number;
-  maxDurationMs: number;
-  queries: number;
-  rows: number;
-  totalDurationMs: number;
-};
-
-function emptyDbStats(): DbStats {
+function databaseOptions(connection: string): pg.ClientConfig {
+  const connectionString = normalizeUrl(connection);
   return {
-    errors: 0,
-    maxDurationMs: 0,
-    queries: 0,
-    rows: 0,
-    totalDurationMs: 0,
+    connectionString,
+    ssl: connectionString.startsWith('postgres')
+      ? { rejectUnauthorized: false }
+      : undefined,
   };
 }
 
-function normalizeConnectionString(connectionString: string): string {
-  if (!connectionString.startsWith('postgres')) {
-    return connectionString;
-  }
-
-  const url = new URL(connectionString);
+function normalizeUrl(connection: string): string {
+  if (!connection.startsWith('postgres')) return connection;
+  const url = new URL(connection);
   url.searchParams.delete('sslmode');
   return url.toString();
+}
+
+function newStats(): Stats {
+  return { errors: 0, maxMs: 0, queries: 0, rows: 0, totalMs: 0 };
 }
 
 function normalizeRow(row: pg.QueryResultRow): pg.QueryResultRow {

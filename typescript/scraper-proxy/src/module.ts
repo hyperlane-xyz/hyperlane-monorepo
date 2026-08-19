@@ -15,51 +15,50 @@ import type { GraphQLFormattedError } from 'graphql';
 import { DbModule } from './db/db.module.js';
 import { DbService } from './db/db.service.js';
 import { scraperDbCachePlugin } from './scraperdb/cache-plugin.js';
-import { ScraperDbService } from './scraperdb/scraperdb.service.js';
 import {
   cacheControlHeaderForGraphqlRequestBody,
   normalizeGraphqlRequestBody,
 } from './scraperdb/request-compatibility.js';
 import { buildResolvers } from './scraperdb/resolver-map.js';
 import { sanitizeScraperDbSchema } from './scraperdb/schema.js';
+import { ScraperDbService } from './scraperdb/scraperdb.service.js';
 import { scraperProxyValidationRule } from './scraperdb/validation.js';
 
-type RequestWithBody = {
+type Request = {
   body?: unknown;
   method?: string;
   originalUrl?: string;
   url?: string;
 };
-
-type ResponseWithFinish = {
+type Response = {
   on(event: 'finish', listener: () => void): void;
   setHeader?(name: string, value: number | readonly string[] | string): unknown;
   statusCode?: number;
 };
+type Stats = {
+  errors: number;
+  maxMs: number;
+  requests: number;
+  status4xx: number;
+  status5xx: number;
+  totalMs: number;
+};
 
-const graphqlLogger = new Logger('GraphQL');
-const GRAPHQL_STATS_INTERVAL_MS = 60_000;
-let graphqlStats = emptyGraphqlStats();
-
-setInterval(() => {
-  const stats = graphqlStats;
-  graphqlStats = emptyGraphqlStats();
-  const averageDurationMs = stats.requests
-    ? Math.round(stats.totalDurationMs / stats.requests)
-    : 0;
-  graphqlLogger.log(
-    `graphql stats requests=${stats.requests} errors=${stats.errors} status4xx=${stats.status4xx} status5xx=${stats.status5xx} avgMs=${averageDurationMs} maxMs=${stats.maxDurationMs}`,
-  );
-}, GRAPHQL_STATS_INTERVAL_MS);
-
+const logger = new Logger('GraphQL');
 const schemaPath = [
   join(import.meta.dirname, 'graphql/scraperdb-schema.graphql'),
   join(import.meta.dirname, '../src/graphql/scraperdb-schema.graphql'),
-].find((path) => existsSync(path));
+].find(existsSync);
+if (!schemaPath) throw new Error('Missing scraper DB GraphQL schema');
 
-if (!schemaPath) {
-  throw new Error('Missing scraper DB GraphQL schema');
-}
+let stats = newStats();
+setInterval(() => {
+  const current = stats;
+  stats = newStats();
+  logger.log(
+    `graphql stats requests=${current.requests} errors=${current.errors} status4xx=${current.status4xx} status5xx=${current.status5xx} avgMs=${current.requests ? Math.round(current.totalMs / current.requests) : 0} maxMs=${current.maxMs}`,
+  );
+}, 60_000);
 
 @Module({
   imports: [
@@ -67,113 +66,84 @@ if (!schemaPath) {
       driver: ApolloDriver,
       imports: [DbModule],
       inject: [DbService],
-      useFactory: (db: DbService) => {
-        const scraperDb = new ScraperDbService(db);
-        return {
-          csrfPrevention: false,
-          plugins: [
-            ApolloServerPluginLandingPageLocalDefault(),
-            scraperDbCachePlugin(),
-          ] as ApolloDriverConfig['plugins'],
-          playground: false,
-          formatError: formatGraphqlError,
-          resolvers: buildResolvers(
-            scraperDb,
-          ) as ApolloDriverConfig['resolvers'],
-          typeDefs: sanitizeScraperDbSchema(readFileSync(schemaPath, 'utf8')),
-          validationRules: [scraperProxyValidationRule],
-        };
-      },
+      useFactory: (db: DbService) => ({
+        csrfPrevention: false,
+        formatError,
+        playground: false,
+        plugins: [
+          ApolloServerPluginLandingPageLocalDefault(),
+          scraperDbCachePlugin(),
+        ] as ApolloDriverConfig['plugins'],
+        resolvers: buildResolvers(
+          new ScraperDbService(db),
+        ) as ApolloDriverConfig['resolvers'],
+        typeDefs: sanitizeScraperDbSchema(readFileSync(schemaPath, 'utf8')),
+        validationRules: [scraperProxyValidationRule],
+      }),
     }),
     DbModule,
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(graphqlRequestMiddleware).forRoutes('graphql');
+    consumer.apply(graphqlMiddleware).forRoutes('graphql');
   }
 }
 
-function graphqlRequestMiddleware(
-  req: RequestWithBody,
-  res: ResponseWithFinish,
+function graphqlMiddleware(
+  req: Request,
+  res: Response,
   next: () => void,
 ): void {
-  const startedAt = Date.now();
+  const started = Date.now();
   normalizeGraphqlRequestBody(req.body);
-  applyCacheControlCompatibility(req.body, res);
+  applyCacheHeader(req.body, res);
   res.on('finish', () => {
-    const durationMs = Date.now() - startedAt;
-    const statusCode = res.statusCode ?? 0;
-    recordGraphqlRequestStats(durationMs, statusCode);
-    graphqlLogger.debug(
-      `${req.method ?? 'REQUEST'} ${req.originalUrl ?? req.url ?? '/graphql'} ${statusCode} ${durationMs}ms`,
+    const duration = Date.now() - started;
+    const status = res.statusCode ?? 0;
+    stats.requests++;
+    stats.totalMs += duration;
+    stats.maxMs = Math.max(stats.maxMs, duration);
+    if (status >= 400 && status < 500) stats.status4xx++;
+    if (status >= 500) stats.status5xx++;
+    logger.debug(
+      `${req.method ?? 'REQUEST'} ${req.originalUrl ?? req.url ?? '/graphql'} ${status} ${duration}ms`,
     );
   });
   next();
 }
 
-function applyCacheControlCompatibility(
-  body: unknown,
-  res: ResponseWithFinish,
-): void {
+function applyCacheHeader(body: unknown, res: Response): void {
   const cacheControl = cacheControlHeaderForGraphqlRequestBody(body);
-  if (!cacheControl || !res.setHeader) {
-    return;
-  }
-
+  if (!cacheControl || !res.setHeader) return;
   const setHeader = res.setHeader.bind(res);
-  res.setHeader = (name, value) => {
-    if (
+  res.setHeader = (name, value) =>
+    setHeader(
+      name,
       name.toLowerCase() === 'cache-control' &&
-      String(value).toLowerCase() === 'no-store'
-    ) {
-      return setHeader(name, cacheControl);
-    }
-
-    return setHeader(name, value);
-  };
+        String(value).toLowerCase() === 'no-store'
+        ? cacheControl
+        : value,
+    );
 }
 
-function formatGraphqlError(
-  error: GraphQLFormattedError,
-): GraphQLFormattedError {
+function formatError(error: GraphQLFormattedError): GraphQLFormattedError {
   const code =
     typeof error.extensions?.code === 'string'
       ? ` code=${error.extensions.code}`
       : '';
-  graphqlStats.errors += 1;
-  graphqlLogger.warn(`error${code}: ${error.message}`);
+  stats.errors++;
+  logger.warn(`error${code}: ${error.message}`);
   return error;
 }
 
-type GraphqlStats = {
-  errors: number;
-  maxDurationMs: number;
-  requests: number;
-  status4xx: number;
-  status5xx: number;
-  totalDurationMs: number;
-};
-
-function emptyGraphqlStats(): GraphqlStats {
+function newStats(): Stats {
   return {
     errors: 0,
-    maxDurationMs: 0,
+    maxMs: 0,
     requests: 0,
     status4xx: 0,
     status5xx: 0,
-    totalDurationMs: 0,
+    totalMs: 0,
   };
-}
-
-function recordGraphqlRequestStats(
-  durationMs: number,
-  statusCode: number,
-): void {
-  graphqlStats.requests += 1;
-  graphqlStats.totalDurationMs += durationMs;
-  graphqlStats.maxDurationMs = Math.max(graphqlStats.maxDurationMs, durationMs);
-  if (statusCode >= 400 && statusCode < 500) graphqlStats.status4xx += 1;
-  if (statusCode >= 500) graphqlStats.status5xx += 1;
 }
