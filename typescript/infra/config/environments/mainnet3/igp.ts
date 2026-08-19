@@ -28,25 +28,28 @@ function getOracleConfigWithOverrides(origin: ChainName) {
   const oracleConfig = getStorageGasOracleConfig()[origin];
 
   // WORKAROUND for Sealevel IGP decimal bug (solaxy-specific):
-  // The Rust Sealevel IGP code hardcodes SOL_DECIMALS = 9, but solaxy has 6 decimals.
-  // Rather than trying to calculate the correct workaround values, we hardcode
-  // the values that are already set on-chain and known to work.
+  // The Rust Sealevel IGP code hardcodes local SOL_DECIMALS = 9, but solaxy's
+  // native SOLX has 6 decimals, so convert_decimals over-scales by 10^(9-6)=1000.
+  // These values mirror what is set on-chain and are the values tollkeeper's
+  // (decimal-compensated, min-USD-floored) IGP logic recommends: gasPrice is the
+  // true remote gas signal, tokenExchangeRate carries the SOLX-price proxy plus
+  // the 10^(D-9) decimal compensation, and tokenDecimals is the REMOTE token's
+  // decimals (9 for solana, 18 for ethereum). Keep this block in sync with any
+  // on-chain change (see scripts/sealevel-helpers/update-gas-oracles.ts and the
+  // svm-igp-gas-oracle-update skill's two-signer path).
   if (origin === 'solaxy') {
     oracleConfig.ethereum = {
-      gasPrice: '9',
-      tokenExchangeRate: '15000000000000000000',
-      tokenDecimals: 6,
+      gasPrice: '51695712',
+      tokenExchangeRate: '691771710368053885013231',
+      tokenDecimals: 18,
     };
     // solaxy -> solanamainnet must quote above the ~0.00204 SOL ATA rent the
     // relayer fronts per delivery, otherwise it can be drained via ATA-rent
-    // reclaim. The min-USD-cost floor does not reach this hardcoded override, so
-    // the fee is raised here via the exchange rate (the SOLX-price proxy) rather
-    // than gasPrice, keeping gasPrice='1' as the true solana gas signal and
-    // isolating the change to this leg. 25000x the base rate -> ~$0.72.
+    // reclaim. Quotes ~$0.45 (above rent + delivery gas).
     oracleConfig.solanamainnet = {
-      gasPrice: '1',
-      tokenExchangeRate: '375000000000000000000000',
-      tokenDecimals: 6,
+      gasPrice: '6',
+      tokenExchangeRate: '2784941063266778928',
+      tokenDecimals: 9,
     };
   }
 
