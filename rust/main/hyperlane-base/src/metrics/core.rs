@@ -64,6 +64,9 @@ pub struct CoreMetrics {
     // metadata building metrics
     metadata_build_count: IntCounterVec,
     metadata_build_duration: CounterVec,
+    metadata_wait_event_count: IntCounterVec,
+    metadata_wait_active: IntGaugeVec,
+    metadata_wait_oldest_timestamp_seconds: IntGaugeVec,
 
     // ism building metrics
     ism_build_count: IntCounterVec,
@@ -304,6 +307,36 @@ impl CoreMetrics {
             registry
         )?;
 
+        let metadata_wait_event_count = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("metadata_wait_event_count"),
+                "Metadata validator-signature wait attempts and lifecycle transitions; event=wait counts attempts",
+                const_labels_ref
+            ),
+            &["app_context", "origin", "remote", "event"],
+            registry
+        )?;
+
+        let metadata_wait_active = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("metadata_wait_active"),
+                "Messages currently waiting for validator signatures",
+                const_labels_ref
+            ),
+            &["app_context", "origin", "remote"],
+            registry
+        )?;
+
+        let metadata_wait_oldest_timestamp_seconds = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("metadata_wait_oldest_timestamp_seconds"),
+                "Unix timestamp when the oldest active validator-signature wait began; zero when none are active",
+                const_labels_ref
+            ),
+            &["app_context", "origin", "remote"],
+            registry
+        )?;
+
         let ism_build_count = register_int_counter_vec_with_registry!(
             opts!(
                 namespaced!("ism_build_count"),
@@ -355,6 +388,9 @@ impl CoreMetrics {
 
             metadata_build_count,
             metadata_build_duration,
+            metadata_wait_event_count,
+            metadata_wait_active,
+            metadata_wait_oldest_timestamp_seconds,
 
             ism_build_count,
 
@@ -692,6 +728,21 @@ impl CoreMetrics {
     /// - `status`: success or failure
     pub fn metadata_build_duration(&self) -> CounterVec {
         self.metadata_build_duration.clone()
+    }
+
+    /// Bounded wait-attempt and lifecycle events for validator-signature waits.
+    pub fn metadata_wait_event_count(&self) -> IntCounterVec {
+        self.metadata_wait_event_count.clone()
+    }
+
+    /// Number of messages currently waiting for validator signatures.
+    pub fn metadata_wait_active(&self) -> IntGaugeVec {
+        self.metadata_wait_active.clone()
+    }
+
+    /// Unix timestamp when the oldest active validator-signature wait began.
+    pub fn metadata_wait_oldest_timestamp_seconds(&self) -> IntGaugeVec {
+        self.metadata_wait_oldest_timestamp_seconds.clone()
     }
 
     /// The number of ism built by this process during its
