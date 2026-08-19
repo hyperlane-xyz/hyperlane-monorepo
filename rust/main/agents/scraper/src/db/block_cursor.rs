@@ -1,11 +1,12 @@
 use std::time::{Duration, Instant};
 
 use eyre::Result;
-use sea_orm::{prelude::*, ActiveValue, Insert, Order, QueryOrder, QuerySelect};
+use migration::{Alias, Expr, Func, OnConflict};
+use sea_orm::{prelude::*, ActiveValue::*, Insert, Order, QueryOrder, QuerySelect};
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
-use crate::db::ScraperDb;
+use crate::{date_time, db::ScraperDb};
 
 use super::generated::cursor;
 
@@ -84,22 +85,12 @@ impl BlockCursor {
 
         let now = Instant::now();
         let time_since_last_save = now.duration_since(inner.last_saved_at);
-        if height > old_height && time_since_last_save > MAX_WRITE_BACK_FREQUENCY {
-            inner.last_saved_at = now;
-            // prevent any more writes to the inner struct until the write is complete.
-            let inner = inner.downgrade();
-            let model = cursor::ActiveModel {
-                id: ActiveValue::NotSet,
-                domain: ActiveValue::Set(self.domain as i32),
-                time_created: ActiveValue::NotSet,
-                height: ActiveValue::Set(height as i64),
-                event_type: ActiveValue::Set(self.event_type.clone()),
-            };
-            debug!(?model, "Inserting cursor");
-            if let Err(e) = Insert::one(model).exec(&self.db).await {
+        let should_flush = height > old_height && time_since_last_save > MAX_WRITE_BACK_FREQUENCY;
+        drop(inner);
+
+        if should_flush {
+            if let Err(e) = self.flush().await {
                 warn!(error = ?e, "Failed to update database with new cursor. When you just started this, ensure that the migrations included this domain.")
-            } else {
-                debug!(cursor = ?*inner, "Updated cursor")
             }
         }
     }
@@ -115,15 +106,35 @@ impl BlockCursor {
     pub async fn flush(&self) -> Result<()> {
         let mut inner = self.inner.write().await;
         let height = inner.height;
+        debug!(
+            height,
+            domain = self.domain,
+            event_type = self.event_type,
+            "Flushing cursor to database"
+        );
         let model = cursor::ActiveModel {
-            id: ActiveValue::NotSet,
-            domain: ActiveValue::Set(self.domain as i32),
-            time_created: ActiveValue::NotSet,
-            height: ActiveValue::Set(height as i64),
-            event_type: ActiveValue::Set(self.event_type.clone()),
+            id: NotSet,
+            domain: Set(self.domain as i32),
+            time_created: Set(date_time::now()),
+            height: Set(height as i64),
+            event_type: Set(self.event_type.clone()),
         };
-        debug!(?model, "Flushing cursor to database");
-        Insert::one(model).exec(&self.db).await?;
+
+        Insert::one(model)
+            .on_conflict(
+                OnConflict::columns([cursor::Column::Domain, cursor::Column::EventType])
+                    .update_column(cursor::Column::TimeCreated)
+                    .value(
+                        cursor::Column::Height,
+                        Func::greatest([
+                            Expr::col((Alias::new("cursor"), cursor::Column::Height)).into(),
+                            Expr::col((Alias::new("excluded"), cursor::Column::Height)).into(),
+                        ]),
+                    )
+                    .to_owned(),
+            )
+            .exec(&self.db)
+            .await?;
         inner.last_saved_at = Instant::now();
         let inner = inner.downgrade();
         debug!(cursor = ?*inner, "Flushed cursor");

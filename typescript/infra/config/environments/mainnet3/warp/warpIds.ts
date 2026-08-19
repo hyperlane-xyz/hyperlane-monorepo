@@ -4,7 +4,6 @@ export enum WarpRouteIds {
   RadixUSDC = 'USDC/radix',
   ArbitrumEthereumZircuitAMPHRETH = 'AMPHRETH/arbitrum-ethereum-zircuit',
   ArbitrumTIA = 'TIA/arbitrum',
-  BscEthereumLumiaPrismPNDR = 'PNDR/bsc-ethereum-lumiaprism',
   BaseSolanamainnetTONY = 'TONY/base-solanamainnet',
   CarrChainCARR = 'CARR/carrchain',
   ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP = 'TRUMP/arbitrum-avalanche-base-flowmainnet-form-optimism-solanamainnet-worldchain',
@@ -27,14 +26,11 @@ export enum WarpRouteIds {
   EthereumLineaTURTLE = 'TURTLE/ethereum-linea',
   EthereumSeiFastUSD = 'FASTUSD/ethereum-sei',
   EthereumSeiPumpBTC = 'pumpBTCsei/ethereum-sei',
-  EthereumVanaETH = 'ETH/ethereum-vana',
-  EthereumVanaVANA = 'VANA/ethereum-vana',
   VictionETH = 'ETH/viction',
   EthereumVictionUSDC = 'USDC/ethereum-viction',
   EthereumVictionUSDT = 'USDT/ethereum-viction',
   BerachainEthereumSwellUnichainZircuitPZETH = 'PZETH/berachain-ethereum-swell-unichain-zircuit',
   BerachainEthereumSwellUnichainZircuitPZETHSTAGE = 'PZETHSTAGE/berachain-ethereum-swell-unichain-zircuit',
-  ArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIA = 'LUMIA/arbitrum-avalanche-base-bsc-ethereum-lumiaprism-optimism-polygon',
   BaseEthereumREZ = 'REZ/base-ethereum-unichain',
   BaseEthereumREZSTAGING = 'REZSTAGING/base-ethereum-unichain',
   // Removed here: ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet
@@ -44,7 +40,6 @@ export enum WarpRouteIds {
   // scroll/zoramainnet are fully decommissioned from the registry.
   ArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDC = 'USDC/arbitrum-base-ethereum-lisk-optimism-polygon-zeronetwork',
   AppchainBaseUSDC = 'USDC/appchain-base',
-  BsquaredUBTC = 'UBTC/bsquared',
   BaseEthereumSuperseedCBBTC = 'CBBTC/base-ethereum-superseed',
   SuperseedUSDC = 'USDC/superseed',
   EthereumSuperseedUSDT = 'USDT/ethereum-superseed',
@@ -67,7 +62,6 @@ export enum WarpRouteIds {
   oXAUT = 'oXAUT/production',
   HyperevmSolanaSOL = 'SOL/hyperevm-solanamainnet',
   EthereumUnichainPumpBTC = 'pumpBTCuni/ethereum-unichain',
-  ArbitrumBaseEthereumLumiaprismOptimismPolygonETH = 'ETH/arbitrum-base-ethereum-lumiaprism-optimism-polygon',
   BscHyperevmEnzoBTC = 'enzoBTC/bsc-hyperevm',
   BscHyperevmSTBTC = 'stBTC/bsc-hyperevm',
   MitosisMITO = 'MITO/mitosis',
@@ -82,8 +76,6 @@ export enum WarpRouteIds {
   SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 
-  LumiaUSDC = 'USDC/lumia',
-  MatchainUSDC = 'USDC/matchain',
   SubtensorUSDC = 'USDC/subtensor',
   ParadexUSDC = 'USDC/paradex',
 
@@ -145,7 +137,6 @@ export enum WarpRouteIds {
   USDCCitreaMoonpaySTAGING = 'USDC/moonpay-staging',
   USDTCitreaMoonpaySTAGING = 'USDT/moonpay-staging',
   CROSSCitreaMoonpay = 'CROSS/moonpay',
-
   // TODO: uncomment when USDTOft warp routes are in the registry
   // USDT OFT
   USDTOft = 'USDT/oft',

@@ -16,9 +16,11 @@ import {
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
+import { TokenStandard } from './TokenStandard.js';
 import { TokenType } from './config.js';
 import {
   type DerivedWarpRouteDeployConfig,
+  HypTokenConfigSchema,
   OwnerStatus,
   type WarpRouteDeployConfigMailboxRequired,
 } from './types.js';
@@ -27,18 +29,26 @@ import {
   applyAcceptedInactiveOwnerStatus,
   buildAltVmWarpRouteDiff,
   buildWarpRouteDiff,
+  checkWarpRouteDeployConfig,
   derivedWarpConfigToCheckConfig,
   expandedDeployConfigToAltVmCheckConfig,
   getScaleViolations,
   normalizeAltVmDestinationGas,
-  normalizeAltVmExpectedTokenType,
 } from './warpCheck.js';
 
 const MAILBOX = '0x000000000000000000000000000000000000b001';
 const OWNER = '0x000000000000000000000000000000000000dEaD';
+const TIMELOCK = '0x000000000000000000000000000000000000bEEF';
 const ROUTER_B = '0x2222222222222222222222222222222222222222';
 const TOKEN_A = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const TOKEN_B = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+const TIMELOCK_CONFIG = {
+  delay: 259200,
+  roles: {
+    executor: OWNER,
+    proposer: OWNER,
+  },
+};
 
 type ScaleValidationParams = Parameters<typeof getScaleViolations>[0];
 type ScaleValidationWarpRouteConfig = ScaleValidationParams['warpRouteConfig'];
@@ -49,6 +59,51 @@ function buildMultiProvider(): MultiProvider {
     [test2.name]: test2,
     [testSealevelChain.name]: testSealevelChain,
   });
+}
+
+function errorMessage(error: unknown): string {
+  if (!(error instanceof Error)) throw error;
+  return error.message;
+}
+
+function nativeDeployConfig(
+  chain: string,
+  overrides: {
+    ownerOverrides?: Record<string, string>;
+    timelock?: typeof TIMELOCK_CONFIG;
+  } = {},
+): WarpRouteDeployConfigMailboxRequired {
+  return {
+    [chain]: {
+      mailbox: MAILBOX,
+      owner: OWNER,
+      type: TokenType.native,
+      ...overrides,
+    },
+  };
+}
+
+function warpCoreConfig({
+  chain,
+  decimals,
+  standard,
+}: {
+  chain: string;
+  decimals: number;
+  standard: TokenStandard;
+}) {
+  return {
+    tokens: [
+      {
+        addressOrDenom: TOKEN_A,
+        chainName: chain,
+        decimals,
+        name: 'Token',
+        standard,
+        symbol: 'TOKEN',
+      },
+    ],
+  };
 }
 
 function stubConfiguredRouterMetadata({
@@ -499,26 +554,49 @@ describe('expandedDeployConfigToAltVmCheckConfig', () => {
   });
 });
 
-describe('normalizeAltVmExpectedTokenType', () => {
+describe("HypTokenConfigSchema 'collateralDex' normalization", () => {
   it("maps the paradex-only 'collateralDex' annotation to collateral", () => {
     // collateralDex is a registry-only annotation with no SDK TokenType; the leg
-    // is a standard collateral router on-chain, so the checker must treat the two
-    // as equivalent instead of false-flagging a `type` ConfigMismatch.
-    expect(normalizeAltVmExpectedTokenType('collateralDex')).to.equal(
-      TokenType.collateral,
-    );
+    // is a standard collateral router on-chain, so the schema normalizes it to
+    // collateral instead of falling through to unknown (which would false-flag a
+    // `type` ConfigMismatch against the derived config).
+    const parsed = HypTokenConfigSchema.parse({
+      type: 'collateralDex',
+      token: TOKEN_A,
+      name: 'ETH',
+      symbol: 'ETH',
+      decimals: 18,
+    });
+    expect(parsed.type).to.equal(TokenType.collateral);
+  });
+
+  it('coerces genuinely unknown token types to unknown', () => {
+    const parsed = HypTokenConfigSchema.parse({
+      type: 'somethingBogus',
+      name: 'ETH',
+      symbol: 'ETH',
+      decimals: 18,
+    });
+    expect(parsed.type).to.equal(TokenType.unknown);
   });
 
   it('leaves known token types unchanged', () => {
-    expect(normalizeAltVmExpectedTokenType(TokenType.collateral)).to.equal(
-      TokenType.collateral,
-    );
-    expect(normalizeAltVmExpectedTokenType(TokenType.synthetic)).to.equal(
-      TokenType.synthetic,
-    );
-    expect(normalizeAltVmExpectedTokenType(TokenType.native)).to.equal(
-      TokenType.native,
-    );
+    const collateral = HypTokenConfigSchema.parse({
+      type: TokenType.collateral,
+      token: TOKEN_A,
+      name: 'ETH',
+      symbol: 'ETH',
+      decimals: 18,
+    });
+    expect(collateral.type).to.equal(TokenType.collateral);
+
+    const native = HypTokenConfigSchema.parse({
+      type: TokenType.native,
+      name: 'ETH',
+      symbol: 'ETH',
+      decimals: 18,
+    });
+    expect(native.type).to.equal(TokenType.native);
   });
 });
 
@@ -846,6 +924,76 @@ describe('buildWarpRouteDiff', () => {
     });
 
     expect(diff[CHAIN]).to.have.nested.property('hook.actual');
+  });
+
+  it('treats the actual ProxyAdmin owner as expected when timelock config is present', () => {
+    const actual = onChainConfig(zeroAddress);
+    actual[CHAIN].proxyAdmin = {
+      address: '0x3333333333333333333333333333333333333333',
+      owner: TIMELOCK,
+    };
+    const expected = expectedConfig();
+    expected[CHAIN].proxyAdmin = { owner: OWNER };
+    expected[CHAIN].timelock = TIMELOCK_CONFIG;
+
+    const diff = buildWarpRouteDiff({
+      onChainWarpConfig: actual,
+      warpRouteConfig: expected,
+    });
+
+    expect(diff).to.deep.equal({});
+  });
+});
+
+describe('checkWarpRouteDeployConfig', () => {
+  it('rejects timelock config on Alt-VM chains', async () => {
+    const chain = testSealevelChain.name;
+    const warpDeployConfig = nativeDeployConfig(chain, {
+      timelock: TIMELOCK_CONFIG,
+    });
+
+    try {
+      await checkWarpRouteDeployConfig({
+        multiProvider: buildMultiProvider(),
+        warpCoreConfig: warpCoreConfig({
+          chain,
+          decimals: 9,
+          standard: TokenStandard.SealevelHypNative,
+        }),
+        warpDeployConfig,
+      });
+      expect.fail('expected Alt-VM timelock config to reject');
+    } catch (error) {
+      if (!(error instanceof Error)) throw error;
+      expect(error.message).to.equal(
+        "Timelock config is not supported on Alt-VM chain 'testsealevel'.",
+      );
+    }
+  });
+
+  it('rejects timelock with ownerOverrides.proxyAdmin at the public check boundary', async () => {
+    const chain = test1.name;
+    const warpDeployConfig = nativeDeployConfig(chain, {
+      ownerOverrides: { proxyAdmin: OWNER },
+      timelock: TIMELOCK_CONFIG,
+    });
+
+    try {
+      await checkWarpRouteDeployConfig({
+        multiProvider: buildMultiProvider(),
+        warpCoreConfig: warpCoreConfig({
+          chain,
+          decimals: 18,
+          standard: TokenStandard.EvmHypNative,
+        }),
+        warpDeployConfig,
+      });
+      expect.fail('expected timelock plus ownerOverrides.proxyAdmin to reject');
+    } catch (error) {
+      expect(errorMessage(error)).to.include(
+        'Cannot configure timelock with ownerOverrides.proxyAdmin',
+      );
+    }
   });
 });
 

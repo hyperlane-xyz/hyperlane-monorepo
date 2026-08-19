@@ -7,6 +7,7 @@ use hyperlane_core::{HyperlaneDomain, U256};
 use crate::tests::test_utils::tmp_dbs;
 
 use super::super::super::super::metrics::EthereumAdapterMetrics;
+use super::super::super::db::ReorgedNonceRange;
 use super::super::NonceManagerState;
 
 #[tokio::test]
@@ -35,6 +36,100 @@ async fn test_update_boundary_nonces_sets_finalized_and_upper_when_upper_missing
     assert_eq!(
         state.metrics.get_upper_nonce() as u64,
         (finalized + 1).as_u64()
+    );
+}
+
+#[tokio::test]
+async fn test_update_boundary_nonces_persists_and_merges_regressions() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let state = Arc::new(NonceManagerState::new(
+        nonce_db.clone(),
+        tx_db.clone(),
+        address,
+        EthereumAdapterMetrics::dummy_instance(),
+    ));
+
+    state
+        .update_boundary_nonces(&U256::from(100))
+        .await
+        .unwrap();
+    state.update_boundary_nonces(&U256::from(90)).await.unwrap();
+    state.update_boundary_nonces(&U256::from(95)).await.unwrap();
+    state.update_boundary_nonces(&U256::from(80)).await.unwrap();
+
+    let restarted_state = NonceManagerState::new(
+        nonce_db,
+        tx_db,
+        address,
+        EthereumAdapterMetrics::dummy_instance(),
+    );
+    assert_eq!(
+        restarted_state.get_reorged_nonce_range().await.unwrap(),
+        Some(ReorgedNonceRange {
+            start: U256::from(81),
+            end: U256::from(100),
+        })
+    );
+}
+
+#[tokio::test]
+async fn test_new_regression_extends_pending_range_until_boundary_recovers() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let state = NonceManagerState::new(
+        nonce_db,
+        tx_db,
+        address,
+        EthereumAdapterMetrics::dummy_instance(),
+    );
+
+    state
+        .update_boundary_nonces(&U256::from(100))
+        .await
+        .unwrap();
+    state.update_boundary_nonces(&U256::from(90)).await.unwrap();
+    state.update_boundary_nonces(&U256::from(80)).await.unwrap();
+
+    assert_eq!(
+        state.get_reorged_nonce_range().await.unwrap(),
+        Some(ReorgedNonceRange {
+            start: U256::from(81),
+            end: U256::from(100),
+        })
+    );
+
+    state.update_boundary_nonces(&U256::from(99)).await.unwrap();
+    assert!(state.get_reorged_nonce_range().await.unwrap().is_some());
+
+    state
+        .update_boundary_nonces(&U256::from(100))
+        .await
+        .unwrap();
+    assert_eq!(state.get_reorged_nonce_range().await.unwrap(), None);
+}
+
+#[tokio::test]
+async fn test_update_boundary_nonces_captures_regression_to_no_transactions() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let state = NonceManagerState::new(
+        nonce_db,
+        tx_db,
+        address,
+        EthereumAdapterMetrics::dummy_instance(),
+    );
+    state.update_boundary_nonces(&U256::from(3)).await.unwrap();
+
+    state.update_boundary_nonces_from_chain(None).await.unwrap();
+
+    assert_eq!(state.get_finalized_nonce().await.unwrap(), None);
+    assert_eq!(
+        state.get_reorged_nonce_range().await.unwrap(),
+        Some(ReorgedNonceRange {
+            start: U256::zero(),
+            end: U256::from(3),
+        })
     );
 }
 

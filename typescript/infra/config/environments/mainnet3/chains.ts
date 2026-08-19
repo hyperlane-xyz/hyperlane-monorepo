@@ -17,13 +17,6 @@ export const ethereumChainNames = supportedChainNames.filter(
 export const agentSpecificChainMetadataOverrides: ChainMap<
   Partial<ChainMetadata>
 > = {
-  ronin: {
-    transactionOverrides: {
-      minGasPrice: 20 * 10 ** 9, // 20 gwei
-      minFeePerGas: 20 * 10 ** 9, // 20 gwei
-      minPriorityFeePerGas: 20 * 10 ** 9, // 20 gwei
-    },
-  },
   ink: {
     transactionOverrides: {
       minGasPrice: 1, // 1 wei
@@ -69,12 +62,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       denom: 'ukyve',
     },
   },
-  noble: {
-    gasPrice: {
-      amount: '0.1',
-      denom: 'uusdn',
-    },
-  },
   bsc: {
     transactionOverrides: {
       gasPrice: 1 * 10 ** 8, // 0.1 gwei
@@ -86,11 +73,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
     // A minimum fee of 100 gwei is imposed https://seitrace.com/proposal/83?chain=pacific-1
     transactionOverrides: {
       gasPrice: 101 * 10 ** 9, // 101 gwei
-    },
-  },
-  morph: {
-    transactionOverrides: {
-      gasPrice: 1 * 10 ** 6, // 0.001 gwei
     },
   },
   // nexus: {
@@ -132,11 +114,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   // optimism: {
   //   blocks: {
   //     confirmations: 5,
-  //   },
-  // },
-  // prom: {
-  //   blocks: {
-  //     confirmations: 3,
   //   },
   // },
 };

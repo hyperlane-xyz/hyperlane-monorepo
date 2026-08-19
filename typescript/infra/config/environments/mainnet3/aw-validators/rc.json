@@ -8,9 +8,6 @@
   "base": {
     "validators": ["0xf2028e9b93249c4a4310aeefae5c60d4915725af"]
   },
-  "bitlayer": {
-    "validators": ["0xf2028e9b93249c4a4310aeefae5c60d4915725af"]
-  },
   "blast": {
     "validators": ["0xf2028e9b93249c4a4310aeefae5c60d4915725af"]
   },
@@ -48,9 +45,6 @@
     "validators": ["0xf2028e9b93249c4a4310aeefae5c60d4915725af"]
   },
   "mode": {
-    "validators": ["0xf2028e9b93249c4a4310aeefae5c60d4915725af"]
-  },
-  "oortmainnet": {
     "validators": ["0xf2028e9b93249c4a4310aeefae5c60d4915725af"]
   },
   "optimism": {

@@ -1,5 +1,127 @@
 # @hyperlane-xyz/sdk
 
+## 41.3.0
+
+### Minor Changes
+
+- 4a21153: Added deploy, read, check, and artifact support for `AtomicLocalRebalancingBridge`. ALRB artifacts used a dedicated non-transferable token standard and were excluded from ordinary Warp connections.
+- 4a21153: Added `rebalanceRecipients` deployment, read, validation, and update support for `CrossCollateralRouter` warp configs.
+- 4a21153: Added first-class `rebalanceTargets` deployment, read, validation, and update support for `CrossCollateralRouter` warp configs.
+
+### Patch Changes
+
+- c328efa: Removed deprecated mainnet chains (arcadia, bitlayer, hashkey, lumiaprism, matchain, oortmainnet, ronin, sonic) from the default multisig ISM validator sets and CCIP chain constants.
+- 322a418: Interchain account address derivation was moved into the shared SDK path, with router metadata reads parallelized and modern addresses derived locally. This reduced the valid modern path from three sequential RPC rounds to one.
+- d5d7d1a: Used authoritative Solana message fees, including signature and priority fees, in transaction fee estimates.
+  - @hyperlane-xyz/aleo-sdk@41.3.0
+  - @hyperlane-xyz/starknet-core@41.3.0
+  - @hyperlane-xyz/cosmos-sdk@41.3.0
+  - @hyperlane-xyz/radix-sdk@41.3.0
+  - @hyperlane-xyz/utils@41.3.0
+  - @hyperlane-xyz/deploy-sdk@8.1.1
+  - @hyperlane-xyz/core@12.1.0
+  - @hyperlane-xyz/provider-sdk@8.1.1
+  - @hyperlane-xyz/tron-sdk@24.1.4
+
+## 41.2.0
+
+### Minor Changes
+
+- e7666ef: EVM event reads were made resilient by trying each compatible configured block explorer before falling back to RPC.
+- 5899416: Support was added for Blacklist ISM deployments that predate on-chain enumeration.
+
+  - `EvmIsmReader` now probes `blacklistedIds(bytes32)` and `values()` separately, so a deployment without `values()` is derived as a `blacklistIsm` rather than falling through to `testIsm`.
+  - Enumeration was shared by the reader and `moduleMatchesConfig` through `readBlacklistedIds`, so both reached the same verdict for the same deployment. When `values()` was unavailable, the set was replayed from `MessageBlacklisted` logs, de-duplicated and sorted; entries are append-only, so a complete log sequence defined the current set.
+  - Reading was made to fail on detectable incompleteness rather than yielding a known partial set, since a Blacklist ISM config without its entries did not describe the deployment it named. Legacy replay required an explorer- or receipt-derived deployment block instead of relying on RPC bisection over historical state. Successful log responses continued to be trusted to describe the exact ranges requested. A deployment that had never blacklisted anything was read as an empty set, which remained a result and not a failure.
+  - Explorer-backed `getLogs` calls were made to page to completion or fail over without returning a prefix, and RPC deployment-block discovery was made to fail rather than start an infeasible scan from genesis when historical state was unavailable.
+  - `EvmIsmModule` redeploys a fresh Blacklist ISM instead of appending in place when the deployed one predates on-chain enumeration, so entries are never appended to a contract that is being phased out.
+  - Blacklist ISM and Test ISM config checks no longer accept a deployment purely on its module type. A Blacklist ISM config is checked against `blacklistedIds(bytes32)` before its entries are read, and a Test ISM config is confirmed by deriving the deployed module rather than matching any address whose module type is NULL. A deployment that cannot be shown to be one of those two configured types is now reported as a mismatch instead of passing. Checks for other ISM types are unchanged.
+  - `TestLegacyBlacklistIsm` was added as a test fixture reproducing the pre-audit contract, renamed from `BlacklistIsm` and compiled with a raised `>=0.8.18` pragma for its named mapping parameters; it is otherwise unchanged.
+
+- 5fac94d: Warp apply support was added for warp route timelock deploy config.
+
+### Patch Changes
+
+- 5fac94d: Warp timelock validation and controller RPC handling were hardened to prevent ignored ownership overrides, invalid ABI probes, and duplicate deployments.
+- Updated dependencies [bd4e5f0]
+- Updated dependencies [5899416]
+  - @hyperlane-xyz/provider-sdk@8.1.0
+  - @hyperlane-xyz/deploy-sdk@8.1.0
+  - @hyperlane-xyz/core@12.1.0
+  - @hyperlane-xyz/aleo-sdk@41.2.0
+  - @hyperlane-xyz/cosmos-sdk@41.2.0
+  - @hyperlane-xyz/radix-sdk@41.2.0
+  - @hyperlane-xyz/tron-sdk@24.1.3
+  - @hyperlane-xyz/starknet-core@41.2.0
+  - @hyperlane-xyz/utils@41.2.0
+
+## 41.1.0
+
+### Patch Changes
+
+- @hyperlane-xyz/deploy-sdk@8.0.4
+- @hyperlane-xyz/aleo-sdk@41.1.0
+- @hyperlane-xyz/starknet-core@41.1.0
+- @hyperlane-xyz/cosmos-sdk@41.1.0
+- @hyperlane-xyz/radix-sdk@41.1.0
+- @hyperlane-xyz/utils@41.1.0
+- @hyperlane-xyz/core@12.0.0
+- @hyperlane-xyz/provider-sdk@8.0.4
+- @hyperlane-xyz/tron-sdk@24.1.2
+
+## 41.0.0
+
+### Major Changes
+
+- 1a32515: The agent config schema is updated as part of migrating validators from AWS to GCP:
+
+  - Added a GCP Cloud KMS signer config surface (`AgentSignerKeyType.Gcp`, `{ type: 'gcp', keyVersionName }`), alongside the existing AWS KMS signer, for validators and other agents that sign with a GCP-managed key.
+  - Renamed the GCS checkpoint syncer's `service_account_key` and `user_secrets` fields to `serviceAccountKey` and `userSecrets`, matching the camelCase convention used by the syncer's other fields, and added `useApplicationDefault` to support ambient GKE Workload Identity credentials. Hand-written agent configs using the old snake_case field names must be updated.
+  - Fixed the Ethereum/Tron protocol-signer refinement, which compared `signerType` against boolean expressions instead of the `AgentSignerKeyType` enum values and therefore never actually validated the AWS or Node signer types.
+  - Reduced the default multisig ISM validator sets for `bsctestnet`, `fuji`, and `sepolia` from 3 validators (threshold 2) to a single GCP-based validator (threshold 1), matching the new default validator agent config for these testnets during the migration rollout.
+
+- eb24243: The SDK fee-token resolution now supports xERC20 and xERC20Lockbox warp routes. Previously `getFeeTokenAddress` threw `Unsupported token type for fee resolution` for these types, which blocked applying a `tokenFee` (including OQLF) to xERC20 routes via `warp deploy`/`warp apply`. Fee-token resolution now reads the router's immutable `wrappedToken()` on-chain for both xERC20 variants so the deployed fee contract's token matches the router's runtime `fee must match token` check (for xERC20Lockbox this is the underlying wrapped ERC20, not the stored lockbox address). `wrappedToken()` is used rather than `token()` because it is an immutable getter present across router versions: on legacy routers (e.g. 6.1.0) `token()` reverts, and fee resolution runs at plan time before the router is upgraded, so a single `warp apply` that both upgrades the contract and adds a fee would otherwise fail. As part of this the exported `resolveTokenFeeAddress` (subpath `@hyperlane-xyz/sdk/token`) is now async and takes an additional `provider` argument, which is a breaking change for downstream callers. Added SDK unit and hardhat tests (including an xERC20Lockbox deploy regression and a legacy-router `token()`-reverts regression) plus CLI e2e tests asserting xERC20 and xERC20Lockbox routes can be deployed with fees and updated.
+- d9426bc: Three things break. The explorerUrl and apiKey fields are dropped from the GetExtraLockboxesOptions type. HyperlaneJsonRpcProvider refuses an eth_getLogs request it cannot serve in full rather than answering it over a narrower window: LogBlockRangeTooLargeError above the sub-queries it issues for one request, and LogBlockHistoryUnavailableError below the pagination.minBlockNumber or pagination.maxBlockAge history floors, where the start block used to be raised, so SmartProvider fails the request on that RPC instead of returning a truncated log set.
+
+  getExtraLockBoxConfigs and EvmXERC20Reader.readOnChainBridges are routed through EvmEventLogsReader, so a chain without a usable explorer scans ConfigurationChanged logs over the RPC instead of reporting no extra bridges, and starts at the xERC20's deployment block, or at genesis where the RPC cannot serve the state of a past block. Both share latestConfigurationPerBridge, which breaks a tie within a block by log index; getExtraLockBoxConfigs kept the first configuration of a bridge instead of the last. The RPC read halves its block range when a provider rejects a chunk and retries one whose failure names no span, and HyperlaneSmartProvider stops retrying a request every provider reported as unrecoverable, taking a block range rejection among those refusals as the combined error's cause so that the read halves its chunk rather than being decided by which provider was tried first.
+
+  The explorer log read pages through a block range instead of stopping at the first 1000 records, retries a page rather than the whole read, and falls back to the RPC for a range it cannot page through in full. Its log fields are parsed rather than read through Number, which reported the bare "0x" of a zero valued field as NaN. The deployment block comes from the explorer's getcontractcreation response where it reports one, rather than from the deployment receipt.
+
+### Minor Changes
+
+- 72738e2: Added SDK support for the Blacklist ISM:
+
+  - Blacklist ISM configs can now be deployed, derived from on-chain state (including the full list of blacklisted message IDs) and matched against existing deployments using exact set equality.
+  - Updates that only add message IDs are applied in-place by submitting a single `blacklist` transaction with the missing IDs.
+  - Updates that drop a currently blacklisted message ID redeploy a fresh ISM, since on-chain entries are append-only and cannot be removed.
+  - Blacklisted message IDs are validated as 32-byte hex strings and normalized to lowercase at config parse time.
+  - The relayer now treats the blacklist ISM as a null-metadata ISM when building message metadata.
+  - `moduleCanCertainlyVerify` reports that a Blacklist ISM cannot certainly verify a message whose ID is in the blacklisted set.
+  - Blacklist ISM configs are validated at parse time to require a mandatory composition: they must be a member of an aggregation whose threshold equals its module count, and are rejected when used standalone, as a routing target, or under a non-exhaustive aggregation.
+
+- b1c6b7e: Added a Turnkey signer (EVM signer + Turnkey client) to the SDK for warp-route propose automation, exported from the package entrypoint. The EVM signer's EIP-712 typed-data signing submitted the full typed-data payload to Turnkey (PAYLOAD_ENCODING_EIP712) so Turnkey policies could inspect the domain and message fields rather than an opaque digest, and resolved ENS names in address-typed fields via the configured provider before encoding, mirroring ethers v5's own signer. The signer assembled Turnkey's raw signature response by accepting r/s as bare 32-byte hex (re-prefixed with 0x) and lifting the recovery-id v ("00"/"01") into the 27/28 space before joining, and rejected an unsupported or malformed recovery id instead of silently producing an unrecoverable signature.
+
+### Patch Changes
+
+- 0057c5d: Removed deprecated mainnet chains (boba, botanix, bsquared, hemi, morph, nibiru, noble, peaq, plume, prom, reactive, vana) from the default multisig ISM validator sets, CCIP chain constants, and the domain routing gas special-cases.
+- 1ba623d: Moved the zkSync contract deployer behind the existing zkSync deployment path. This prevented browser consumers from loading deployment artifacts during startup.
+- fcb4331: `MultiProvider.handleTx` was updated to return an included receipt for successful transactions when zero confirmations are configured, without waiting for ethers' default confirmation polling interval.
+- fa19409: Renounced ownership when a zero address was provided
+- 7846658: The `collateralDex` registry token-type annotation (used by paradex collateral warp routes such as ETH/paradex and DIME/paradex) is now normalized to `TokenType.collateral` in the `HypTokenConfigSchema` preprocessor. Previously it fell through to `TokenType.unknown`, which false-flagged a `type` ConfigMismatch in check-warp-deploy against the on-chain-derived `collateral` type. The now-redundant `normalizeAltVmExpectedTokenType` helper was removed since the schema normalizes the annotation before the altVM diff runs.
+- 0765fe0: The EVM warp route check was updated to ignore nested immutable `LinearFee` sub-fee (per-destination) owners when comparing `tokenFee` configs. `normalizeTokenFeeForCheck` collapses nested `LinearFee` owners to a fixed sentinel on both sides of the diff — their only authority is `setFee`, and `bps` is already compared — so that owner drift no longer produces a `check-warp-deploy` violation. `OffchainQuotedLinearFee` sub-fee owners are still compared, since that owner additionally controls quote-signer management. The top-level RoutingFee owner (which controls `setFeeContract` routing and fee claiming), fee parameters, and `quoteSigners` are still compared normally.
+- a09ba71: CoinGeckoTokenPriceGetter now sends the API key as an `x-cg-pro-api-key` header against the pro host (`pro-api.coingecko.com`) instead of an `x-cg-pro-api-key` query parameter against the public host. The query-parameter form returned 401, and the public host rejects the pro key with HTTP 400; the header-against-pro-host form authenticates correctly and also keeps the secret out of logged URLs. The inter-request delay is now only applied when a request actually hits the network rather than on cache hits. A batched, fault-tolerant prefetchTokenPrices method and a cache-only getCachedTokenPrice reader were added so callers can warm many token prices in one chunked pass and then read individual prices without issuing a request per token.
+- Updated dependencies [178614d]
+- Updated dependencies [fa19409]
+  - @hyperlane-xyz/aleo-sdk@41.0.0
+  - @hyperlane-xyz/utils@41.0.0
+  - @hyperlane-xyz/deploy-sdk@8.0.3
+  - @hyperlane-xyz/core@12.0.0
+  - @hyperlane-xyz/cosmos-sdk@41.0.0
+  - @hyperlane-xyz/provider-sdk@8.0.3
+  - @hyperlane-xyz/radix-sdk@41.0.0
+  - @hyperlane-xyz/tron-sdk@24.1.1
+  - @hyperlane-xyz/starknet-core@41.0.0
+
 ## 40.0.0
 
 ### Major Changes

@@ -111,7 +111,6 @@ const domainRoutingInitializationSize = (destination: ChainName) => {
     destination === 'sei' ||
     destination === 'xlayer' ||
     destination === 'flowmainnet' ||
-    destination === 'nibiru' ||
     destination === 'eni' ||
     destination === 'megaeth' ||
     destination === 'pulsechain'
@@ -500,6 +499,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     destination: ChainName,
     config: BlacklistIsmConfig,
   ): Promise<DeployedIsmType[typeof IsmType.BLACKLIST]> {
+    const { blacklistedIds } = config;
+
     const signer = this.multiProvider.getSigner(destination);
     const signerAddress = await signer.getAddress();
     const overrides = this.multiProvider.getTransactionOverrides(destination);
@@ -509,8 +510,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       [signerAddress],
     );
 
-    if (config.blacklistedIds.length > 0) {
-      const tx = await contract.blacklist(config.blacklistedIds, overrides);
+    if (blacklistedIds.length > 0) {
+      const tx = await contract.blacklist(blacklistedIds, overrides);
       await this.multiProvider.handleTx(destination, tx);
     }
 

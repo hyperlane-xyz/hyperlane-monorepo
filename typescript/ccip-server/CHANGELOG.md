@@ -1,5 +1,67 @@
 # @hyperlane-xyz/ccip-server
 
+## 41.3.0
+
+### Patch Changes
+
+- 1599fe8: Hardened calls commitment reconciliation by rejecting conflicting retries, returning stored ICA metadata, and atomically persisting EVM calldata with its legacy commitment.
+- 36ae434: The CCIP server rate limits were isolated by client and request class behind the GCE ingress, with endpoint-specific rejection metrics added.
+- 322a418: Interchain account address derivation was moved into the shared SDK path, with router metadata reads parallelized and modern addresses derived locally. This reduced the valid modern path from three sequential RPC rounds to one.
+- Updated dependencies [4a21153]
+- Updated dependencies [c328efa]
+- Updated dependencies [4a21153]
+- Updated dependencies [4a21153]
+- Updated dependencies [322a418]
+- Updated dependencies [d5d7d1a]
+  - @hyperlane-xyz/sdk@41.3.0
+  - @hyperlane-xyz/metrics@0.2.37
+  - @hyperlane-xyz/utils@41.3.0
+  - @hyperlane-xyz/core@12.1.0
+
+## 41.2.0
+
+### Patch Changes
+
+- Updated dependencies [e7666ef]
+- Updated dependencies [5fac94d]
+- Updated dependencies [5899416]
+- Updated dependencies [5fac94d]
+  - @hyperlane-xyz/sdk@41.2.0
+  - @hyperlane-xyz/core@12.1.0
+  - @hyperlane-xyz/metrics@0.2.36
+  - @hyperlane-xyz/utils@41.2.0
+
+## 41.1.0
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@41.1.0
+- @hyperlane-xyz/metrics@0.2.35
+- @hyperlane-xyz/utils@41.1.0
+- @hyperlane-xyz/core@12.0.0
+
+## 41.0.0
+
+### Patch Changes
+
+- Updated dependencies [0057c5d]
+- Updated dependencies [fa19409]
+- Updated dependencies [1a32515]
+- Updated dependencies [1ba623d]
+- Updated dependencies [fcb4331]
+- Updated dependencies [eb24243]
+- Updated dependencies [72738e2]
+- Updated dependencies [fa19409]
+- Updated dependencies [7846658]
+- Updated dependencies [0765fe0]
+- Updated dependencies [b1c6b7e]
+- Updated dependencies [a09ba71]
+- Updated dependencies [d9426bc]
+  - @hyperlane-xyz/sdk@41.0.0
+  - @hyperlane-xyz/utils@41.0.0
+  - @hyperlane-xyz/metrics@0.2.34
+  - @hyperlane-xyz/core@12.0.0
+
 ## 40.0.0
 
 ### Patch Changes

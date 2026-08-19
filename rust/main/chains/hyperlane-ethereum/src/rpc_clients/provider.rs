@@ -1,3 +1,4 @@
+use std::error::Error as StdError;
 use std::fmt::Debug;
 use std::future::Future;
 use std::marker::PhantomData;
@@ -7,7 +8,9 @@ use std::time::Duration;
 use async_trait::async_trait;
 use derive_new::new;
 use ethers::prelude::Middleware;
-use ethers::types::{Block, TransactionReceipt, H160, H256 as EthersH256};
+use ethers::types::{
+    Block, Bytes, Transaction, TransactionReceipt, H160, H256 as EthersH256, U64 as EthersU64,
+};
 use ethers_contract::{builders::ContractCall, Multicall, MulticallResult};
 use ethers_core::abi::{Address, Function};
 use ethers_core::types::transaction::eip2718::TypedTransaction;
@@ -44,6 +47,110 @@ pub struct ZksyncEstimateFeeResponse {
     pub max_priority_fee_per_gas: EthersU256,
     /// Gas per pubdata limit
     pub gas_per_pubdata_limit: EthersU256,
+}
+
+const ZKSYNC_PRIORITY_OPERATION_TRANSACTION_TYPE: u64 = 0x71;
+
+/// Read-only fields returned for zkSync priority operations.
+///
+/// Priority operations are unsigned L1-originated transactions, so their RPC
+/// representation legitimately omits the `v`, `r`, and `s` fields required by
+/// ethers' generic [`Transaction`] type.
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ZkSyncPriorityOperation {
+    hash: EthersH256,
+    from: H160,
+    to: Option<H160>,
+    gas: EthersU256,
+    gas_price: Option<EthersU256>,
+    max_fee_per_gas: Option<EthersU256>,
+    max_priority_fee_per_gas: Option<EthersU256>,
+    nonce: EthersU256,
+    input: Bytes,
+    #[serde(rename = "type")]
+    transaction_type: EthersU64,
+}
+
+enum TransactionForInfo {
+    Signed(Box<Transaction>),
+    ZkSyncPriorityOperation(Box<ZkSyncPriorityOperation>),
+}
+
+impl TransactionForInfo {
+    fn into_txn_info(
+        self,
+        requested_hash: H512,
+        receipt: Option<TxnReceiptInfo>,
+    ) -> ChainResult<TxnInfo> {
+        match self {
+            Self::Signed(txn) => Ok(TxnInfo {
+                hash: requested_hash,
+                max_fee_per_gas: txn.max_fee_per_gas.map(Into::into),
+                max_priority_fee_per_gas: txn.max_priority_fee_per_gas.map(Into::into),
+                gas_price: txn.gas_price.map(Into::into),
+                gas_limit: txn.gas.into(),
+                nonce: txn.nonce.as_u64(),
+                sender: txn.from.into(),
+                recipient: txn.to.map(Into::into),
+                receipt,
+                raw_input_data: Some(txn.input.to_vec()),
+            }),
+            Self::ZkSyncPriorityOperation(txn) => {
+                if txn.transaction_type.as_u64() != ZKSYNC_PRIORITY_OPERATION_TRANSACTION_TYPE {
+                    return Err(ChainCommunicationError::InvalidRequest {
+                        msg: format!(
+                            "unsigned zkSync transaction has unexpected type {:#x}",
+                            txn.transaction_type
+                        ),
+                    });
+                }
+
+                let response_hash = H512::from(txn.hash);
+                if response_hash != requested_hash {
+                    return Err(ChainCommunicationError::InvalidRequest {
+                        msg: format!(
+                            "requested transaction {requested_hash:?}, received {response_hash:?}"
+                        ),
+                    });
+                }
+
+                Ok(TxnInfo {
+                    hash: requested_hash,
+                    max_fee_per_gas: txn.max_fee_per_gas.map(Into::into),
+                    max_priority_fee_per_gas: txn.max_priority_fee_per_gas.map(Into::into),
+                    gas_price: txn.gas_price.map(Into::into),
+                    gas_limit: txn.gas.into(),
+                    nonce: txn.nonce.as_u64(),
+                    sender: txn.from.into(),
+                    recipient: txn.to.map(Into::into),
+                    receipt,
+                    raw_input_data: Some(txn.input.to_vec()),
+                })
+            }
+        }
+    }
+}
+
+fn caused_by_missing_signature_v(error: &(dyn StdError + 'static)) -> bool {
+    let mut source = Some(error);
+    while let Some(error) = source {
+        // `ProviderError::SerdeJson` does not expose its serde error as a
+        // source, so retain the exact serde diagnostic across wrappers.
+        if error.to_string().starts_with("missing field `v`") {
+            return true;
+        }
+        if let Some(ethers::providers::ProviderError::SerdeJson(error)) =
+            error.downcast_ref::<ethers::providers::ProviderError>()
+        {
+            return error.to_string().starts_with("missing field `v`");
+        }
+        if let Some(error) = error.downcast_ref::<serde_json::Error>() {
+            return error.to_string().starts_with("missing field `v`");
+        }
+        source = error.source();
+    }
+    false
 }
 
 /// Connection to an ethereum provider. Useful for querying information about
@@ -391,12 +498,31 @@ where
     #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
-        let txn = get_with_retry_on_none(
+        let txn = match get_with_retry_on_none(
             hash,
             |h| self.provider.get_transaction(*h),
             |h| HyperlaneProviderError::CouldNotFindTransactionByHash(*h),
         )
-        .await?;
+        .await
+        {
+            Ok(txn) => TransactionForInfo::Signed(Box::new(txn)),
+            Err(error)
+                if self.domain.is_zksync_stack() && caused_by_missing_signature_v(&error) =>
+            {
+                let txn = get_with_retry_on_none(
+                    hash,
+                    |h| {
+                        self.provider
+                            .provider()
+                            .request("eth_getTransactionByHash", [EthersH256::from(*h)])
+                    },
+                    |h| HyperlaneProviderError::CouldNotFindTransactionByHash(*h),
+                )
+                .await?;
+                TransactionForInfo::ZkSyncPriorityOperation(Box::new(txn))
+            }
+            Err(error) => return Err(error),
+        };
 
         let receipt = self
             .provider
@@ -412,20 +538,7 @@ where
             })
             .transpose()?;
 
-        let txn_info = TxnInfo {
-            hash: *hash,
-            max_fee_per_gas: txn.max_fee_per_gas.map(Into::into),
-            max_priority_fee_per_gas: txn.max_priority_fee_per_gas.map(Into::into),
-            gas_price: txn.gas_price.map(Into::into),
-            gas_limit: txn.gas.into(),
-            nonce: txn.nonce.as_u64(),
-            sender: txn.from.into(),
-            recipient: txn.to.map(Into::into),
-            receipt,
-            raw_input_data: Some(txn.input.to_vec()),
-        };
-
-        Ok(txn_info)
+        txn.into_txn_info(*hash, receipt)
     }
 
     #[instrument(err, skip(self))]
@@ -561,4 +674,168 @@ where
         };
     }
     Err(not_found_error(id).into())
+}
+
+#[cfg(test)]
+mod tests {
+    use ethers::providers::{MockProvider, Provider, ProviderError};
+    use hyperlane_core::KnownHyperlaneDomain;
+
+    use super::*;
+
+    const ABSTRACT_PRIORITY_OPERATION: &str =
+        include_str!("fixtures/abstract_priority_operation.json");
+
+    #[test]
+    fn parses_unsigned_abstract_priority_operation_for_txn_info() {
+        let standard_error =
+            serde_json::from_str::<Transaction>(ABSTRACT_PRIORITY_OPERATION).unwrap_err();
+        assert!(caused_by_missing_signature_v(&standard_error));
+
+        let wrapped_error =
+            ChainCommunicationError::from_other(ProviderError::SerdeJson(standard_error));
+        assert!(caused_by_missing_signature_v(&wrapped_error));
+
+        let txn = serde_json::from_str::<ZkSyncPriorityOperation>(ABSTRACT_PRIORITY_OPERATION)
+            .expect("fixture should decode as a zkSync priority operation");
+        let requested_hash = H512::from(EthersH256::from_slice(
+            &hex::decode("189f97ad488ed5ea0c5c7eaff458b01c06bd3bb40f4a0132a0405744317f44d0")
+                .expect("fixture hash should be valid hex"),
+        ));
+        let info = TransactionForInfo::ZkSyncPriorityOperation(Box::new(txn))
+            .into_txn_info(requested_hash, None)
+            .expect("fixture should convert to transaction info");
+
+        assert_eq!(info.hash, requested_hash);
+        assert_eq!(info.nonce, 11);
+        assert_eq!(info.gas_limit, U256::from(0x4765c_u64));
+        assert_eq!(
+            info.sender,
+            H256::from(H160::from_slice(
+                &hex::decode("ccf60863035a3845a2432424000e42146a21e75f")
+                    .expect("fixture sender should be valid hex"),
+            ))
+        );
+        assert_eq!(
+            info.recipient,
+            Some(H256::from(H160::from_slice(
+                &hex::decode("9bbdf86b272d224323136e15594fdce487f40ce7")
+                    .expect("fixture recipient should be valid hex"),
+            )))
+        );
+        assert_eq!(
+            info.raw_input_data.as_deref().map(|input| &input[..4]),
+            Some([0xfa, 0x31, 0xde, 0x01].as_slice())
+        );
+    }
+
+    #[test]
+    fn rejects_wrong_type_or_hash_from_unsigned_transaction_fallback() {
+        let mut value: serde_json::Value = serde_json::from_str(ABSTRACT_PRIORITY_OPERATION)
+            .expect("fixture should be valid JSON");
+        value["type"] = serde_json::Value::String("0x2".to_owned());
+        let txn = serde_json::from_value::<ZkSyncPriorityOperation>(value)
+            .expect("mutated fixture should still decode");
+        let requested_hash = H512::from(EthersH256::zero());
+        assert!(TransactionForInfo::ZkSyncPriorityOperation(Box::new(txn))
+            .into_txn_info(requested_hash, None)
+            .is_err());
+
+        let txn = serde_json::from_str::<ZkSyncPriorityOperation>(ABSTRACT_PRIORITY_OPERATION)
+            .expect("fixture should decode");
+        assert!(TransactionForInfo::ZkSyncPriorityOperation(Box::new(txn))
+            .into_txn_info(requested_hash, None)
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn fetches_abstract_priority_operation_through_narrow_fallback() {
+        let mock_provider = Arc::new(MockProvider::new());
+        let provider = EthereumProvider::new(
+            Arc::new(Provider::new(mock_provider.clone())),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Abstract),
+        );
+        let fixture: serde_json::Value = serde_json::from_str(ABSTRACT_PRIORITY_OPERATION)
+            .expect("fixture should be valid JSON");
+        let requested_hash = H512::from(EthersH256::from_slice(
+            &hex::decode("189f97ad488ed5ea0c5c7eaff458b01c06bd3bb40f4a0132a0405744317f44d0")
+                .expect("fixture hash should be valid hex"),
+        ));
+        let receipt = TransactionReceipt {
+            gas_used: Some(EthersU256::from(0x23b8d_u64)),
+            cumulative_gas_used: EthersU256::zero(),
+            effective_gas_price: Some(EthersU256::from(0x2b275d0_u64)),
+            ..Default::default()
+        };
+
+        // Mock responses are consumed in LIFO order: generic decode, narrow
+        // retry, then receipt.
+        mock_provider.push(receipt).expect("push receipt response");
+        mock_provider
+            .push(fixture.clone())
+            .expect("push narrow transaction response");
+        mock_provider
+            .push(fixture)
+            .expect("push generic transaction response");
+
+        let info = provider
+            .get_txn_by_hash(&requested_hash)
+            .await
+            .expect("priority operation should be available for enrichment");
+
+        assert_eq!(info.hash, requested_hash);
+        assert_eq!(
+            info.receipt.expect("receipt should be present").gas_used,
+            U256::from(0x23b8d_u64)
+        );
+    }
+
+    #[tokio::test]
+    async fn does_not_fallback_for_unsigned_transaction_on_non_zksync_domain() {
+        let mock_provider = Arc::new(MockProvider::new());
+        let provider = EthereumProvider::new(
+            Arc::new(Provider::new(mock_provider.clone())),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        );
+        let fixture: serde_json::Value = serde_json::from_str(ABSTRACT_PRIORITY_OPERATION)
+            .expect("fixture should be valid JSON");
+        let requested_hash = H512::from(EthersH256::from_slice(
+            &hex::decode("189f97ad488ed5ea0c5c7eaff458b01c06bd3bb40f4a0132a0405744317f44d0")
+                .expect("fixture hash should be valid hex"),
+        ));
+        mock_provider
+            .push(fixture)
+            .expect("push generic transaction response");
+
+        assert!(provider.get_txn_by_hash(&requested_hash).await.is_err());
+        let params = [EthersH256::from(requested_hash)];
+        mock_provider
+            .assert_request("eth_getTransactionByHash", params)
+            .expect("generic transaction request should be issued");
+        assert!(mock_provider
+            .assert_request("eth_getTransactionByHash", params)
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn does_not_fallback_for_unrelated_decode_error_on_zksync_domain() {
+        let mock_provider = Arc::new(MockProvider::new());
+        let provider = EthereumProvider::new(
+            Arc::new(Provider::new(mock_provider.clone())),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Abstract),
+        );
+        let requested_hash = H512::from(EthersH256::zero());
+        mock_provider
+            .push(serde_json::json!("not a transaction"))
+            .expect("push malformed transaction response");
+
+        assert!(provider.get_txn_by_hash(&requested_hash).await.is_err());
+        let params = [EthersH256::from(requested_hash)];
+        mock_provider
+            .assert_request("eth_getTransactionByHash", params)
+            .expect("generic transaction request should be issued");
+        assert!(mock_provider
+            .assert_request("eth_getTransactionByHash", params)
+            .is_err());
+    }
 }

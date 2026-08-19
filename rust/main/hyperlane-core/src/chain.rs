@@ -131,18 +131,13 @@ pub enum KnownHyperlaneDomain {
     AppChain = 466,
     ApeChain = 33139,
     Arbitrum = 42161,
-    Arcadia = 4278608,
     Avalanche = 43114,
     Base = 8453,
     BeraChain = 80094,
     #[cfg_attr(feature = "strum", strum(serialize = "bsc"))]
     BinanceSmartChain = 56,
     Blast = 81457,
-    Bitlayer = 200901,
     Bob = 60808,
-    Boba = 288,
-    Botanix = 3637,
-    BSquared = 223,
     Celo = 42220,
     Corn = 21000000,
     Coti = 2632500,
@@ -157,8 +152,6 @@ pub enum KnownHyperlaneDomain {
     Glue = 1300,
     Gnosis = 100,
     Guru = 260,
-    HashKey = 177,
-    Hemi = 43111,
     HyperEvm = 999,
     ImmutableZkEvmMainnet = 1000013371,
     Ink = 57073,
@@ -167,32 +160,20 @@ pub enum KnownHyperlaneDomain {
     Linea = 59144,
     Lisk = 1135,
     Lukso = 42,
-    LumiaPrism = 1000073017,
     Mantle = 5000,
-    Matchain = 698,
     Metal = 1000001750,
     Metis = 1088,
     Mode = 34443,
-    Morph = 2818,
-    Nibiru = 6900,
-    Noble = 1313817164,
-    OortMainnet = 970,
     Optimism = 10,
     Paradex = 514051890,
-    Peaq = 3338,
-    Plume = 98866,
     Polygon = 137,
-    Prom = 227,
     Radix = 1633970780,
-    Ronin = 2020,
-    Reactive = 1597,
     Sei = 1329,
     SolanaMainnet = 1399811149,
     Solaxy = 1936682104,
     Soneium = 1868,
     SonicSvm = 507150715,
     Soon = 50075007,
-    Sonic = 146,
     Starknet = 358974494,
     SubTensor = 964,
     Superseed = 5330,
@@ -200,7 +181,6 @@ pub enum KnownHyperlaneDomain {
     Taiko = 167000,
     Treasure = 61166,
     Unichain = 130,
-    Vana = 1480,
     Viction = 88,
     Worldchain = 480,
     StarknetMainnet = 23448592,
@@ -404,8 +384,7 @@ impl KnownHyperlaneDomain {
             | CosmosTestNative1
             | CosmosTestNative2
             | Kyve
-            | KyveTestnet
-            | Noble => HyperlaneDomainProtocol::CosmosNative,
+            | KyveTestnet => HyperlaneDomainProtocol::CosmosNative,
             EclipseMainnet
             | EclipseTestnet
             | SolanaMainnet
@@ -434,14 +413,14 @@ impl KnownHyperlaneDomain {
     pub const fn domain_technical_stack(self) -> HyperlaneDomainTechnicalStack {
         use KnownHyperlaneDomain::*;
         match self {
-            ApeChain | AppChain | Arbitrum | ArbitrumSepolia | Corn | Galactica | Plume => {
+            ApeChain | AppChain | Arbitrum | ArbitrumSepolia | Corn | Galactica => {
                 HyperlaneDomainTechnicalStack::ArbitrumNitro
             }
-            Base | Blast | Bob | Boba | Celo | Fraxtal | Guru | Ink | Lisk | Mantle | Matchain
-            | Metal | Metis | Mode | ModeTestnet | Optimism | Soneium | Superseed | Unichain
-            | Worldchain => HyperlaneDomainTechnicalStack::OpStack,
-            LumiaPrism | Katana | Prom | Xlayer => HyperlaneDomainTechnicalStack::PolygonCDK,
-            Peaq => HyperlaneDomainTechnicalStack::PolkadotSubstrate,
+            Base | Blast | Bob | Celo | Fraxtal | Guru | Ink | Lisk | Mantle | Metal | Metis
+            | Mode | ModeTestnet | Optimism | Soneium | Superseed | Unichain | Worldchain => {
+                HyperlaneDomainTechnicalStack::OpStack
+            }
+            Katana | Xlayer => HyperlaneDomainTechnicalStack::PolygonCDK,
             StarknetMainnet | StarknetTest23448593 | StarknetTest23448594 => {
                 HyperlaneDomainTechnicalStack::Starknet
             }

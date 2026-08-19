@@ -1,5 +1,40 @@
 # @hyperlane-xyz/tron-sdk
 
+## 24.1.4
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@41.3.0
+- @hyperlane-xyz/core@12.1.0
+- @hyperlane-xyz/provider-sdk@8.1.1
+
+## 24.1.3
+
+### Patch Changes
+
+- Updated dependencies [bd4e5f0]
+- Updated dependencies [5899416]
+  - @hyperlane-xyz/provider-sdk@8.1.0
+  - @hyperlane-xyz/core@12.1.0
+  - @hyperlane-xyz/utils@41.2.0
+
+## 24.1.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@41.1.0
+- @hyperlane-xyz/core@12.0.0
+- @hyperlane-xyz/provider-sdk@8.0.4
+
+## 24.1.1
+
+### Patch Changes
+
+- Updated dependencies [fa19409]
+  - @hyperlane-xyz/utils@41.0.0
+  - @hyperlane-xyz/core@12.0.0
+  - @hyperlane-xyz/provider-sdk@8.0.3
+
 ## 24.1.0
 
 ### Minor Changes

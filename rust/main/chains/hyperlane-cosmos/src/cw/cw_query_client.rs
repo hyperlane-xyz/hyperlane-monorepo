@@ -67,8 +67,8 @@ impl BuildableQueryClient for CwQueryClient {
 
     // extract the message recipient contract address from the tx
     // this is implementation specific
-    fn parse_tx_message_recipient(&self, tx: &Tx, tx_hash: &H512) -> ChainResult<H256> {
-        Self::contract(tx, tx_hash)
+    fn parse_tx_message_recipient(&self, tx: &Tx, tx_hash: &H512) -> ChainResult<Option<H256>> {
+        Self::contract(tx, tx_hash).map(Some)
     }
 
     /// Returns the Block height of the query client

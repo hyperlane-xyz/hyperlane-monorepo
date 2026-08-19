@@ -375,30 +375,6 @@ export const validatorChainConfig = (
         'metis',
       ),
     },
-    bitlayer: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('bitlayer'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [''],
-          [Contexts.Neutron]: [],
-        },
-        'bitlayer',
-      ),
-    },
-    oortmainnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('oortmainnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [''],
-          [Contexts.Neutron]: [],
-        },
-        'oortmainnet',
-      ),
-    },
     zksync: {
       interval: 5,
       reorgPeriod: getReorgPeriod('zksync'),
@@ -417,16 +393,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'apechain',
-      ),
-    },
-    morph: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('morph'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'morph',
       ),
     },
     flowmainnet: {
@@ -459,26 +425,6 @@ export const validatorChainConfig = (
         'metal',
       ),
     },
-    prom: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('prom'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'prom',
-      ),
-    },
-    boba: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('boba'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'boba',
-      ),
-    },
     superseed: {
       interval: 5,
       reorgPeriod: getReorgPeriod('superseed'),
@@ -497,36 +443,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'unichain',
-      ),
-    },
-    vana: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('vana'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'vana',
-      ),
-    },
-    bsquared: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('bsquared'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'bsquared',
-      ),
-    },
-    lumiaprism: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('lumiaprism'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'lumiaprism',
       ),
     },
     appchain: {
@@ -559,16 +475,6 @@ export const validatorChainConfig = (
         'soneium',
       ),
     },
-    sonic: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('sonic'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'sonic',
-      ),
-    },
     soon: {
       interval: 5,
       reorgPeriod: getReorgPeriod('soon'),
@@ -579,16 +485,6 @@ export const validatorChainConfig = (
         'soon',
       ),
     },
-    hemi: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('hemi'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'hemi',
-      ),
-    },
     abstract: {
       interval: 5,
       reorgPeriod: getReorgPeriod('abstract'),
@@ -597,16 +493,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'abstract',
-      ),
-    },
-    matchain: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('matchain'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'matchain',
       ),
     },
     sonicsvm: {
@@ -627,26 +513,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'berachain',
-      ),
-    },
-    arcadia: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('arcadia'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'arcadia',
-      ),
-    },
-    ronin: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('ronin'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'ronin',
       ),
     },
     starknet: {
@@ -680,16 +546,6 @@ export const validatorChainConfig = (
         'hyperevm',
       ),
     },
-    plume: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('plume'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'plume',
-      ),
-    },
     coti: {
       interval: 5,
       reorgPeriod: getReorgPeriod('coti'),
@@ -700,46 +556,6 @@ export const validatorChainConfig = (
         'coti',
       ),
     },
-    nibiru: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('nibiru'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'nibiru',
-      ),
-    },
-    reactive: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('reactive'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'reactive',
-      ),
-    },
-    hashkey: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('hashkey'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'hashkey',
-      ),
-    },
-    peaq: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('peaq'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'peaq',
-      ),
-    },
     kyve: {
       interval: 5,
       reorgPeriod: getReorgPeriod('kyve'),
@@ -748,16 +564,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'kyve',
-      ),
-    },
-    botanix: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('botanix'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'botanix',
       ),
     },
     katana: {
@@ -799,16 +605,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'galactica',
-      ),
-    },
-    noble: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('noble'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'noble',
       ),
     },
     celestia: {

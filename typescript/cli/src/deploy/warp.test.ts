@@ -7,7 +7,10 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 import {
+  EvmWarpModule,
+  HyperlaneDeployer,
   IsmType,
+  MultiProvider,
   TokenStandard,
   TokenType,
   type WarpCoreConfig,
@@ -15,9 +18,58 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import {
+  fullyConnectTokens,
+  runWarpRouteApply,
   runWarpRouteCombine,
   transformDeployConfigForDisplay,
 } from './warp.js';
+
+describe('fullyConnectTokens', () => {
+  it('does not connect operational ALRB entries', () => {
+    const warpCoreConfig: WarpCoreConfig = {
+      tokens: [
+        buildCrossCollateralToken({
+          chainName: 'anvil2',
+          symbol: 'USDC',
+          address: '0x1111111111111111111111111111111111111111',
+          decimals: 6,
+        }),
+        buildCrossCollateralToken({
+          chainName: 'anvil3',
+          symbol: 'USDT',
+          address: '0x2222222222222222222222222222222222222222',
+          decimals: 6,
+        }),
+        {
+          chainName: 'anvil4',
+          standard: TokenStandard.EvmAtomicLocalRebalancingBridge,
+          tokenType: TokenType.atomicLocalRebalancing,
+          decimals: 6,
+          symbol: 'ALRB',
+          name: 'Atomic Local Rebalancing Bridge',
+          addressOrDenom: '0x3333333333333333333333333333333333333333',
+        },
+      ],
+    };
+    const multiProvider = sinon.createStubInstance(MultiProvider);
+    multiProvider.getProtocol.returns(ProtocolType.Ethereum);
+
+    fullyConnectTokens(warpCoreConfig, multiProvider);
+
+    expect(warpCoreConfig.tokens[0].connections).to.have.length(1);
+    expect(warpCoreConfig.tokens[1].connections).to.have.length(1);
+    expect(warpCoreConfig.tokens[2].connections).to.equal(undefined);
+    expect(
+      warpCoreConfig.tokens
+        .flatMap((token) => token.connections ?? [])
+        .some((connection) =>
+          connection.token.endsWith(
+            '0x3333333333333333333333333333333333333333',
+          ),
+        ),
+    ).to.equal(false);
+  });
+});
 
 const DOMAIN_BY_CHAIN: Record<string, number> = {
   anvil2: 31337,
@@ -388,6 +440,77 @@ describe('runWarpRouteCombine', () => {
     expect(thrown?.message).to.include('scale=3/2');
     expect(thrown?.message).to.include('scale=1');
     expect(thrown?.message).to.not.include('[object Object]');
+  });
+});
+
+describe('runWarpRouteApply', () => {
+  const OWNER = '0x3333333333333333333333333333333333333333';
+  const MAILBOX = '0x2222222222222222222222222222222222222222';
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('rejects mixed AltVM timelock config before extension or update planning', async () => {
+    const registryGetAddresses = sinon.stub().resolves({});
+    const updateSplitSpy = sinon.spy(EvmWarpModule.prototype, 'updateSplit');
+    const deployTimelockSpy = sinon.spy(
+      HyperlaneDeployer.prototype,
+      'deployTimelock',
+    );
+    const multiProvider = {
+      tryGetProtocol: (chain: string) =>
+        chain === 'solana' ? ProtocolType.Sealevel : ProtocolType.Ethereum,
+    };
+    const warpDeployConfig: WarpRouteDeployConfigMailboxRequired = {
+      ethereum: {
+        mailbox: MAILBOX,
+        owner: OWNER,
+        type: TokenType.native,
+      },
+      solana: {
+        mailbox: MAILBOX,
+        owner: OWNER,
+        timelock: {
+          delay: 259200,
+          roles: {
+            executor: OWNER,
+            proposer: OWNER,
+          },
+        },
+        type: TokenType.native,
+      },
+    };
+    const warpCoreConfig: WarpCoreConfig = {
+      tokens: [],
+    };
+
+    try {
+      await runWarpRouteApply({
+        context: {
+          altVmSigners: {},
+          chainMetadata: {},
+          // CAST: runWarpRouteApply rejects after the protocol guard, before using the full MultiProvider surface.
+          multiProvider,
+          registry: {
+            getAddresses: registryGetAddresses,
+          },
+          skipConfirmation: true,
+        },
+        warpCoreConfig,
+        warpDeployConfig,
+        // CAST: runWarpRouteApply rejects before reading the remaining DeployParams fields.
+      } as unknown as Parameters<typeof runWarpRouteApply>[0]);
+      expect.fail('expected AltVM timelock config to reject');
+    } catch (error) {
+      if (!(error instanceof Error)) throw error;
+      expect(error.message).to.include(
+        "Timelock config is not supported on Alt-VM chain 'solana'",
+      );
+      expect(registryGetAddresses.called).to.equal(false);
+      expect(updateSplitSpy.called).to.equal(false);
+      expect(deployTimelockSpy.called).to.equal(false);
+    }
   });
 });
 

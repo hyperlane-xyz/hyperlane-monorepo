@@ -13,6 +13,7 @@ import {
   ProxyAdmin__factory,
   StaticAggregationHook__factory,
   StaticAggregationHookFactory__factory,
+  TimelockController__factory,
   TokenBridgeCctpV2__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
@@ -51,7 +52,9 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import {
+  contractHasCode,
   isInitialized,
+  isStorageEmpty,
   proxyAdmin,
   proxyAdminUpdateTxs,
 } from '../deploy/proxy.js';
@@ -68,6 +71,13 @@ import { PredicateWrapperDeployer } from '../predicate/PredicateDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
+import {
+  CANCELLER_ROLE,
+  EXECUTOR_ROLE,
+  PROPOSER_ROLE,
+  TIMELOCK_ADMIN_ROLE,
+} from '../timelock/evm/constants.js';
+import { isDeterministicTimelockReadError } from '../timelock/evm/errors.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { scalesEqual } from '../utils/decimals.js';
 import { IsmType } from '../ism/types.js';
@@ -83,10 +93,14 @@ import {
 } from './EvmWarpRouteReader.js';
 import { EvmXERC20Module } from './EvmXERC20Module.js';
 import { DeployableTokenType, TokenType } from './config.js';
-import { resolveTokenFeeAddress } from './configUtils.js';
+import {
+  resolveAndValidateRebalanceConfig,
+  resolveTokenFeeAddress,
+} from './configUtils.js';
 import { hypERC20contracts } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
+  CrossCollateralTokenConfig,
   DerivedTokenRouterConfig,
   EverclearCollateralTokenConfig,
   HypTokenRouterConfig,
@@ -151,11 +165,36 @@ export type WarpUpdateResult = {
   ownershipTxs: AnnotatedEV5Transaction[];
 };
 
+const getRebalanceTargetsByDomain = (
+  rebalanceTargetsByDomain: NonNullable<
+    CrossCollateralTokenConfig['rebalanceTargets']
+  >,
+): Record<string, Set<Address>> => {
+  return objMap(
+    rebalanceTargetsByDomain,
+    (_domainId, targets) =>
+      new Set(targets.map((target) => addressToBytes32(target).toLowerCase())),
+  );
+};
+
+const getRebalanceRecipientsByDomain = (
+  rebalanceRecipientsByDomain: NonNullable<
+    CrossCollateralTokenConfig['rebalanceRecipients']
+  >,
+): Record<string, Address> => {
+  return objMap(rebalanceRecipientsByDomain, (_domainId, recipient) =>
+    addressToBytes32(recipient).toLowerCase(),
+  );
+};
 export class EvmWarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   HypTokenRouterConfig,
   WarpRouteAddresses
 > {
+  private static readonly deployedTimelockByProvider = new WeakMap<
+    MultiProvider,
+    Map<string, Address>
+  >();
   protected logger = rootLogger.child({
     module: 'EvmWarpModule',
   });
@@ -218,6 +257,168 @@ export class EvmWarpModule extends HyperlaneModule<
     return config;
   }
 
+  private async timelockMatchesConfig(
+    timelockAddress: Address,
+    config: NonNullable<HypTokenRouterConfig['timelock']>,
+    codeAlreadyVerified = false,
+  ): Promise<boolean> {
+    const provider = this.multiProvider.getProvider(this.chainName);
+    if (
+      !codeAlreadyVerified &&
+      isStorageEmpty(await provider.getCode(timelockAddress))
+    ) {
+      this.logger.debug(
+        { chain: this.chainName, timelockAddress },
+        'ProxyAdmin owner has no contract code and is not a TimelockController',
+      );
+      return false;
+    }
+
+    const timelockController = TimelockController__factory.connect(
+      timelockAddress,
+      provider,
+    );
+
+    try {
+      const [delay, hasProposer, hasExecutor, hasCanceller, hasAdminSelf] =
+        await Promise.all([
+          timelockController.getMinDelay(),
+          timelockController.hasRole(PROPOSER_ROLE, config.roles.proposer),
+          timelockController.hasRole(EXECUTOR_ROLE, config.roles.executor),
+          timelockController.hasRole(CANCELLER_ROLE, config.roles.proposer),
+          timelockController.hasRole(TIMELOCK_ADMIN_ROLE, timelockAddress),
+        ]);
+
+      return (
+        delay.eq(config.delay) &&
+        hasProposer &&
+        hasExecutor &&
+        hasCanceller &&
+        hasAdminSelf
+      );
+    } catch (error) {
+      if (!isDeterministicTimelockReadError(error)) throw error;
+      this.logger.debug(
+        { chain: this.chainName, error, timelockAddress },
+        'ProxyAdmin owner does not match the expected timelock config',
+      );
+      return false;
+    }
+  }
+
+  private async cachedTimelockMatchesConfig(
+    timelockAddress: Address,
+    config: NonNullable<HypTokenRouterConfig['timelock']>,
+  ): Promise<boolean> {
+    const provider = this.multiProvider.getProvider(this.chainName);
+    if (!(await contractHasCode(provider, timelockAddress))) {
+      this.logger.debug(
+        { chain: this.chainName, timelockAddress },
+        'Cached TimelockController has no code after visibility retry',
+      );
+      return false;
+    }
+    return this.timelockMatchesConfig(timelockAddress, config, true);
+  }
+
+  private async configWithTimelockProxyAdminOwner(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): Promise<HypTokenRouterConfig> {
+    if (!expectedConfig.timelock) return expectedConfig;
+
+    assert(
+      actualConfig.proxyAdmin?.address && actualConfig.proxyAdmin.owner,
+      `Cannot configure timelock for non-proxied warp route on ${this.chainName}`,
+    );
+    assert(
+      !expectedConfig.proxyAdmin?.address ||
+        eqAddress(
+          expectedConfig.proxyAdmin.address,
+          actualConfig.proxyAdmin.address,
+        ),
+      `Cannot configure timelock while changing ProxyAdmin address on ${this.chainName}`,
+    );
+
+    let timelockControllerAddress: Address | undefined;
+    if (
+      await this.timelockMatchesConfig(
+        actualConfig.proxyAdmin.owner,
+        expectedConfig.timelock,
+      )
+    ) {
+      timelockControllerAddress = actualConfig.proxyAdmin.owner;
+    } else {
+      const timelockCacheKey = this.timelockDeploymentCacheKey(
+        actualConfig.proxyAdmin.address,
+        expectedConfig.timelock,
+      );
+      const deployedTimelockByConfig = EvmWarpModule.deployedTimelockByConfig(
+        this.multiProvider,
+      );
+      const cachedTimelockControllerAddress =
+        deployedTimelockByConfig.get(timelockCacheKey);
+      if (
+        cachedTimelockControllerAddress &&
+        (await this.cachedTimelockMatchesConfig(
+          cachedTimelockControllerAddress,
+          expectedConfig.timelock,
+        ))
+      ) {
+        timelockControllerAddress = cachedTimelockControllerAddress;
+      } else {
+        timelockControllerAddress = (
+          await new HypERC20Deployer(
+            this.multiProvider,
+            undefined,
+            this.contractVerifier,
+          ).deployTimelock(this.chainName, expectedConfig.timelock)
+        ).address;
+        deployedTimelockByConfig.set(
+          timelockCacheKey,
+          timelockControllerAddress,
+        );
+      }
+    }
+
+    return {
+      ...expectedConfig,
+      proxyAdmin: {
+        ...expectedConfig.proxyAdmin,
+        address: actualConfig.proxyAdmin.address,
+        owner: timelockControllerAddress,
+      },
+    };
+  }
+
+  private timelockDeploymentCacheKey(
+    proxyAdminAddress: Address,
+    config: NonNullable<HypTokenRouterConfig['timelock']>,
+  ): string {
+    return JSON.stringify({
+      chainName: this.chainName,
+      delay: config.delay.toString(),
+      executor: normalizeAddressEvm(config.roles.executor),
+      proposer: normalizeAddressEvm(config.roles.proposer),
+      proxyAdminAddress: normalizeAddressEvm(proxyAdminAddress),
+    });
+  }
+
+  private static deployedTimelockByConfig(
+    multiProvider: MultiProvider,
+  ): Map<string, Address> {
+    let deployedTimelockByConfig =
+      EvmWarpModule.deployedTimelockByProvider.get(multiProvider);
+    if (!deployedTimelockByConfig) {
+      deployedTimelockByConfig = new Map();
+      EvmWarpModule.deployedTimelockByProvider.set(
+        multiProvider,
+        deployedTimelockByConfig,
+      );
+    }
+    return deployedTimelockByConfig;
+  }
+
   /**
    * Updates the Warp Route contract with the provided configuration.
    *
@@ -225,6 +426,13 @@ export class EvmWarpModule extends HyperlaneModule<
    * The PredicateRouterWrapper contract is deployed on-chain during planning (before this
    * method returns). If the returned transactions are never submitted, the wrapper is
    * orphaned. See PredicateWrapperDeployer.deployAndConfigure for details.
+   *
+   * IMPORTANT — irreversible side effects when expectedConfig includes `timelock`:
+   * A TimelockController may be deployed on-chain during planning so the returned ownership
+   * transactions can transfer ProxyAdmin ownership to it. The deployment address is cached
+   * per MultiProvider, revalidated, and reused across retries for the same
+   * chain/ProxyAdmin/timelock config, but a declined or externally persisted
+   * transaction plan can still leave an untracked timelock deployment.
    *
    * @param expectedConfig - The configuration for the token router to be updated.
    * @returns `{txs, feeTxs, ownershipTxs}` — main txs (includes router-owner `setFeeRecipient`), fee-contract-owner txs (safe to route to a dedicated feeSubmitter), and ownership/proxyAdmin txs that must execute last.
@@ -235,6 +443,10 @@ export class EvmWarpModule extends HyperlaneModule<
   ): Promise<WarpUpdateResult> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
+    expectedConfig = await this.configWithTimelockProxyAdminOwner(
+      actualConfig,
+      expectedConfig,
+    );
     const transactions = [];
 
     let xerc20Txs: AnnotatedEV5Transaction[] = [];
@@ -313,6 +525,10 @@ export class EvmWarpModule extends HyperlaneModule<
         expectedConfig,
       )),
       ...this.createRemoveBridgesTxs(actualConfig, expectedConfig),
+      ...this.createAddRebalanceTargetsUpdateTxs(actualConfig, expectedConfig),
+      ...this.createRemoveRebalanceTargetsTxs(actualConfig, expectedConfig),
+      ...this.createSetRecipientsUpdateTxs(actualConfig, expectedConfig),
+      ...this.createRemoveRecipientsTxs(actualConfig, expectedConfig),
       ...(await this.createRevokeStaleBridgeAllowancesTxs(
         actualConfig,
         expectedConfig,
@@ -889,6 +1105,185 @@ export class EvmWarpModule extends HyperlaneModule<
     );
   }
 
+  createAddRebalanceTargetsUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isCrossCollateralTokenConfig(expectedConfig) ||
+      !isCrossCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    if (!expectedConfig.rebalanceTargets) {
+      return [];
+    }
+
+    const actualTargets = getRebalanceTargetsByDomain(
+      resolveRouterMapConfig(
+        this.multiProvider,
+        actualConfig.rebalanceTargets ?? {},
+      ),
+    );
+    const { rebalanceTargets } = resolveAndValidateRebalanceConfig(
+      this.multiProvider,
+      this.chainName,
+      expectedConfig,
+    );
+    const expectedTargets = getRebalanceTargetsByDomain(rebalanceTargets);
+
+    const targetsToAddByDomain = objMap(expectedTargets, (domain, targets) => {
+      const actual = actualTargets[domain] ?? new Set();
+      return Array.from(difference(targets, actual));
+    });
+
+    return Object.entries(targetsToAddByDomain).flatMap(([domain, toAdd]) =>
+      toAdd.map((target) => ({
+        chainId: this.chainId,
+        annotation: `Adding rebalance target "${target}" for domain ${domain} on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: CrossCollateralRouter__factory.createInterface().encodeFunctionData(
+          'addRebalanceTarget(uint32,bytes32)',
+          [domain, target],
+        ),
+      })),
+    );
+  }
+
+  createRemoveRebalanceTargetsTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isCrossCollateralTokenConfig(expectedConfig) ||
+      !isCrossCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    const actualTargets = getRebalanceTargetsByDomain(
+      resolveRouterMapConfig(
+        this.multiProvider,
+        actualConfig.rebalanceTargets ?? {},
+      ),
+    );
+    const { rebalanceTargets } = resolveAndValidateRebalanceConfig(
+      this.multiProvider,
+      this.chainName,
+      expectedConfig,
+    );
+    const expectedTargets = getRebalanceTargetsByDomain(rebalanceTargets);
+
+    const targetsToRemoveByDomain = objMap(actualTargets, (domain, targets) => {
+      const expected = expectedTargets[domain] ?? new Set();
+      return Array.from(difference(targets, expected));
+    });
+
+    return Object.entries(targetsToRemoveByDomain).flatMap(
+      ([domain, toRemove]) =>
+        toRemove.map((target) => ({
+          chainId: this.chainId,
+          annotation: `Removing rebalance target "${target}" for domain ${domain} on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+          to: this.args.addresses.deployedTokenRoute,
+          data: CrossCollateralRouter__factory.createInterface().encodeFunctionData(
+            'removeRebalanceTarget(uint32,bytes32)',
+            [domain, target],
+          ),
+        })),
+    );
+  }
+
+  createSetRecipientsUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isCrossCollateralTokenConfig(expectedConfig) ||
+      !isCrossCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    if (!expectedConfig.rebalanceRecipients) {
+      return [];
+    }
+
+    const actualRecipients = getRebalanceRecipientsByDomain(
+      resolveRouterMapConfig(
+        this.multiProvider,
+        actualConfig.rebalanceRecipients ?? {},
+      ),
+    );
+    const { rebalanceRecipients } = resolveAndValidateRebalanceConfig(
+      this.multiProvider,
+      this.chainName,
+      expectedConfig,
+    );
+    const expectedRecipients =
+      getRebalanceRecipientsByDomain(rebalanceRecipients);
+
+    const recipientsToSetByDomain = objDiff(
+      expectedRecipients,
+      actualRecipients,
+    );
+
+    return Object.entries(recipientsToSetByDomain).map(
+      ([domain, recipient]) => ({
+        chainId: this.chainId,
+        annotation: `Setting rebalance recipient "${recipient}" for domain ${domain} on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: CrossCollateralRouter__factory.createInterface().encodeFunctionData(
+          'setRecipient(uint32,bytes32)',
+          [domain, recipient],
+        ),
+      }),
+    );
+  }
+
+  createRemoveRecipientsTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isCrossCollateralTokenConfig(expectedConfig) ||
+      !isCrossCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    const actualRecipients = getRebalanceRecipientsByDomain(
+      resolveRouterMapConfig(
+        this.multiProvider,
+        actualConfig.rebalanceRecipients ?? {},
+      ),
+    );
+    const { rebalanceRecipients } = resolveAndValidateRebalanceConfig(
+      this.multiProvider,
+      this.chainName,
+      expectedConfig,
+    );
+    const expectedRecipients =
+      getRebalanceRecipientsByDomain(rebalanceRecipients);
+
+    const recipientDomainsToRemove = Array.from(
+      difference(
+        new Set(Object.keys(actualRecipients)),
+        new Set(Object.keys(expectedRecipients)),
+      ),
+    );
+
+    return recipientDomainsToRemove.map((domain) => ({
+      chainId: this.chainId,
+      annotation: `Removing rebalance recipient for domain ${domain} on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+      to: this.args.addresses.deployedTokenRoute,
+      data: CrossCollateralRouter__factory.createInterface().encodeFunctionData(
+        'removeRecipient(uint32)',
+        [domain],
+      ),
+    }));
+  }
+
   /**
    * Revokes legacy standing ERC20 allowances for bridges that remain allowlisted
    * after an in-place upgrade.
@@ -1437,8 +1832,16 @@ export class EvmWarpModule extends HyperlaneModule<
     // mailbox default — the user who removed predicateWrapper without supplying a
     // replacement hook wants the default behavior restored, not the underlying sub-hook
     // silently preserved.
+    const actualPredicateWrapper =
+      'predicateWrapper' in actualConfig
+        ? actualConfig.predicateWrapper
+        : undefined;
+    const expectedPredicateWrapper =
+      'predicateWrapper' in expectedConfig
+        ? expectedConfig.predicateWrapper
+        : undefined;
     const needsPredicateRemoval =
-      actualConfig.predicateWrapper != null && !expectedConfig.predicateWrapper;
+      actualPredicateWrapper != null && !expectedPredicateWrapper;
 
     // Treat a zero-address hook the same as "no explicit hook": expandWarpDeployConfig
     // sets hook: zeroAddress as a default when the user config omits the hook field.
@@ -1463,7 +1866,7 @@ export class EvmWarpModule extends HyperlaneModule<
       // hook (e.g. IGP) on both sides and doesn't generate a spurious setHook.
       // The needsPredicateRemoval block below then fires to clear the hook to zero.
       const shouldStripHookForComparison =
-        !!expectedConfig.predicateWrapper || needsPredicateRemoval;
+        !!expectedPredicateWrapper || needsPredicateRemoval;
       const actualHookForComparison = shouldStripHookForComparison
         ? stripPredicateSubHook(actualHook)
         : actualHook;

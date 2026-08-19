@@ -12,7 +12,7 @@ import {
 } from '../testing/solana-container.js';
 
 const SETUP_TIMEOUT_MS = 150_000;
-const TESTS_WITHOUT_VALIDATOR = new Set(['read-token']);
+const TESTS_WITHOUT_VALIDATOR = new Set(['read-token', 'surfpool-offline']);
 const SKIP_VALIDATOR = TESTS_WITHOUT_VALIDATOR.has(
   process.env.SVM_SDK_E2E_TEST ?? '',
 );

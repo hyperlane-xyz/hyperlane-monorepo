@@ -3,6 +3,9 @@ import type { Address, Commitment } from '@solana/kit';
 
 import type { SvmRpc } from '../types.js';
 
+/** Minimal RPC surface for reading an account: all this module requires. */
+export type AccountInfoRpc = Pick<SvmRpc, 'getAccountInfo'>;
+
 /**
  * Decoded address-lookup-table account state, normalized for SDK use:
  * the on-chain `Option<authority>` field is collapsed into a nullable
@@ -28,7 +31,7 @@ export interface AddressLookupTableState {
  * tx is built immediately after `create()`.
  */
 export async function fetchAddressLookupTableState(
-  rpc: SvmRpc,
+  rpc: AccountInfoRpc,
   address: Address,
   commitment: Commitment = 'confirmed',
 ): Promise<AddressLookupTableState> {

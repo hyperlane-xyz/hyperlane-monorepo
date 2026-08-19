@@ -2,7 +2,7 @@ import { compareVersions } from 'compare-versions';
 import { z } from 'zod';
 
 import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
-import { isAddressEvm, objMap } from '@hyperlane-xyz/utils';
+import { assert, isAddressEvm, objMap } from '@hyperlane-xyz/utils';
 
 import { TokenFeeConfigInput, TokenFeeType } from '../fee/types.js';
 import { HookConfig, HookType } from '../hook/types.js';
@@ -330,6 +330,26 @@ export const OftTokenConfigSchema = TokenMetadataSchema.partial().extend({
 export type OftTokenConfig = z.infer<typeof OftTokenConfigSchema>;
 export const isOftTokenConfig = isCompliant(OftTokenConfigSchema);
 
+/**
+ * Configuration for AtomicLocalRebalancingBridge — a bare ITokenBridge adapter
+ * (no mailbox, no proxy/initialize) that performs same-chain rebalances by
+ * pulling collateral from an immutable source router, running swap calls, and
+ * funding a validated destination router. Deployed unproxied like OFT/DepositAddress.
+ */
+export const AtomicLocalRebalancingBridgeTokenConfigSchema =
+  TokenMetadataSchema.partial().extend({
+    type: z.literal(TokenType.atomicLocalRebalancing),
+    sourceRouter: ZHash.describe(
+      'Source collateral router the bridge is immutably bound to (rebalances pull collateral from it)',
+    ),
+  });
+export type AtomicLocalRebalancingBridgeTokenConfig = z.infer<
+  typeof AtomicLocalRebalancingBridgeTokenConfigSchema
+>;
+export const isAtomicLocalRebalancingBridgeTokenConfig = isCompliant(
+  AtomicLocalRebalancingBridgeTokenConfigSchema,
+);
+
 export const CollateralRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.collateralVaultRebase),
@@ -372,6 +392,22 @@ export const CrossCollateralTokenConfigSchema =
     /** Map of domain → router addresses to enroll */
     crossCollateralRouters: z
       .record(RemoteRouterDomainOrChainNameSchema, z.array(ZHash))
+      .optional(),
+    /**
+     * Map of domain → rebalance target router addresses (beyond the enrolled
+     * remote router), authorized via `addRebalanceTarget`. Used e.g. to let a
+     * same-chain AtomicLocalRebalancingBridge fund a sibling collateral router.
+     */
+    rebalanceTargets: z
+      .record(RemoteRouterDomainOrChainNameSchema, z.array(ZHash))
+      .optional(),
+    /**
+     * Map of domain → the rebalance recipient router address applied via
+     * `setRecipient()`; e.g. the same-chain sibling CrossCollateralRouter for an
+     * AtomicLocalRebalancingBridge escrow.
+     */
+    rebalanceRecipients: z
+      .record(RemoteRouterDomainOrChainNameSchema, ZHash)
       .optional(),
     ...BaseMovableTokenConfigSchema.shape,
     predicateWrapper: PredicateWrapperConfigSchema.optional(),
@@ -460,6 +496,13 @@ const KnownTokenTypes: string[] = Object.values(TokenType).filter(
   (t) => t !== TokenType.unknown,
 );
 
+// `collateralDex` is a paradex-only registry annotation for a collateral route
+// that performs a DEX conversion (see registry ETH/paradex & DIME/paradex). It has
+// no dedicated SDK TokenType, but on-chain the leg is a standard collateral router,
+// so normalize it to `collateral` instead of letting it fall through to `unknown`
+// (which would false-flag a `type` ConfigMismatch against the derived config).
+export const COLLATERAL_DEX_TYPE_ALIAS = 'collateralDex';
+
 const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   NativeTokenConfigSchema,
   OpL2TokenConfigSchema,
@@ -473,6 +516,7 @@ const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   EverclearCollateralTokenConfigSchema,
   EverclearEthBridgeTokenConfigSchema,
   DepositAddressTokenConfigSchema,
+  AtomicLocalRebalancingBridgeTokenConfigSchema,
   CrossCollateralTokenConfigSchema,
   UnknownTokenConfigSchema,
 ]);
@@ -487,21 +531,43 @@ export type HypTokenConfig = z.infer<typeof AllHypTokenConfigSchema>;
 export const HypTokenConfigSchema = z.preprocess((val) => {
   if (typeof val === 'object' && val !== null && 'type' in val) {
     const obj = val as { type: unknown };
-    if (
-      typeof obj.type === 'string' &&
-      !KnownTokenTypes.includes(obj.type as TokenType)
-    ) {
-      return { ...obj, type: TokenType.unknown };
+    if (typeof obj.type === 'string') {
+      if (obj.type === COLLATERAL_DEX_TYPE_ALIAS) {
+        return { ...obj, type: TokenType.collateral };
+      }
+      if (!KnownTokenTypes.includes(obj.type as TokenType)) {
+        return { ...obj, type: TokenType.unknown };
+      }
     }
   }
   return val;
 }, AllHypTokenConfigSchema);
 
+const TIMELOCK_PROXY_ADMIN_OWNER_OVERRIDE_ERROR =
+  'Cannot configure timelock with ownerOverrides.proxyAdmin';
+
+type TimelockProxyAdminOwnerOverrideConfig = {
+  ownerOverrides?: { proxyAdmin?: unknown };
+  timelock?: unknown;
+};
+
+function addTimelockProxyAdminOwnerOverrideIssue(
+  config: TimelockProxyAdminOwnerOverrideConfig,
+  ctx: z.RefinementCtx,
+) {
+  if (!config.timelock || !config.ownerOverrides?.proxyAdmin) return;
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path: ['ownerOverrides', 'proxyAdmin'],
+    message: TIMELOCK_PROXY_ADMIN_OWNER_OVERRIDE_ERROR,
+  });
+}
+
 export const HypTokenRouterConfigSchema = z.preprocess(
   preprocessWarpRouteDeployConfig,
-  HypTokenConfigSchema.and(GasRouterConfigSchema).and(
-    HypTokenRouterVirtualConfigSchema.partial(),
-  ),
+  HypTokenConfigSchema.and(GasRouterConfigSchema)
+    .and(HypTokenRouterVirtualConfigSchema.partial())
+    .superRefine(addTimelockProxyAdminOwnerOverrideIssue),
 );
 
 export type HypTokenRouterConfig = z.infer<typeof HypTokenRouterConfigSchema>;
@@ -527,7 +593,9 @@ export const HypTokenRouterConfigMailboxOptionalBaseSchema =
     GasRouterConfigSchema.extend({
       mailbox: z.string().optional(),
     }),
-  ).and(HypTokenRouterVirtualConfigSchema.partial());
+  )
+    .and(HypTokenRouterVirtualConfigSchema.partial())
+    .superRefine(addTimelockProxyAdminOwnerOverrideIssue);
 
 export type HypTokenRouterConfigMailboxOptionalBase = z.infer<
   typeof HypTokenRouterConfigMailboxOptionalBaseSchema
@@ -548,6 +616,16 @@ function preprocessWarpRouteDeployConfig(value: unknown) {
     tokenConfig: mutatedConfig,
     feeConfig: mutatedConfig.tokenFee,
   });
+}
+
+export function assertTimelockConfigHasNoProxyAdminOwnerOverride(
+  config: TimelockProxyAdminOwnerOverrideConfig,
+  chain?: string,
+) {
+  assert(
+    !config.timelock || !config.ownerOverrides?.proxyAdmin,
+    `${TIMELOCK_PROXY_ADMIN_OWNER_OVERRIDE_ERROR}${chain ? ` on ${chain}` : ''}`,
+  );
 }
 
 function populateFeeOwner(params: {
@@ -599,6 +677,7 @@ export const WarpRouteDeployConfigSchema = z
           isEverclearTokenBridgeConfig(config) ||
           isDepositAddressTokenConfig(config) ||
           isCrossCollateralTokenConfig(config) ||
+          isAtomicLocalRebalancingBridgeTokenConfig(config) ||
           isOftTokenConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );

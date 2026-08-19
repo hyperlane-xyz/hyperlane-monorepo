@@ -181,6 +181,110 @@ describe('SmartProvider', () => {
     provider = new TestableSmartProvider([MockProvider.success('success')]);
   });
 
+  describe('explorer getLogs pagination', () => {
+    const address = '0x0000000000000000000000000000000000000001';
+    const topic = `0x${'2'.repeat(64)}`;
+
+    afterEach(() => sinon.restore());
+
+    function rawLog(blockNumber: number) {
+      return {
+        address,
+        blockHash: utils.hexZeroPad(utils.hexValue(blockNumber), 32),
+        blockNumber: utils.hexValue(blockNumber),
+        data: '0x',
+        logIndex: '0x0',
+        removed: false,
+        topics: [topic],
+        transactionHash: utils.hexZeroPad(utils.hexValue(blockNumber), 32),
+        transactionIndex: '0x0',
+      };
+    }
+
+    it('returns records past the first explorer page through a composite provider', async () => {
+      const firstPage = Array.from({ length: 1_000 }, (_, index) =>
+        rawLog(index + 1),
+      );
+      const secondPage = [rawLog(1_001)];
+      const fetchStub = sinon
+        .stub(HyperlaneEtherscanProvider.prototype, 'fetch')
+        .onFirstCall()
+        .resolves(firstPage)
+        .onSecondCall()
+        .resolves(secondPage);
+
+      const smartProvider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: 'http://provider' }],
+        [
+          {
+            name: 'test explorer',
+            url: 'https://explorer.test',
+            apiUrl: 'https://explorer.test/api',
+          },
+        ],
+      );
+
+      const logs = await smartProvider.getLogs({
+        address,
+        fromBlock: 1,
+        toBlock: 2_000,
+        topics: [topic],
+      });
+
+      expect(logs).to.have.length(1_001);
+      expect(fetchStub.callCount).to.equal(2);
+      expect(fetchStub.firstCall.args[1]).to.include({
+        page: 1,
+        offset: 1_000,
+      });
+      expect(fetchStub.secondCall.args[1]).to.include({
+        page: 2,
+        offset: 1_000,
+      });
+    });
+
+    it('falls back to RPC rather than return an explorer page-ceiling prefix', async () => {
+      const fullPage = Array.from({ length: 1_000 }, (_, index) =>
+        rawLog(index + 1),
+      );
+      const fetchStub = sinon
+        .stub(HyperlaneEtherscanProvider.prototype, 'fetch')
+        .resolves(fullPage);
+      const rpcLog = rawLog(2_000);
+      const rpcPerform = sinon
+        .stub(providers.JsonRpcProvider.prototype, 'perform')
+        .callsFake(async (method: string) => {
+          if (method === ProviderMethod.GetLogs) return [rpcLog];
+          throw new Error(`Unexpected RPC method ${method}`);
+        });
+
+      const smartProvider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: 'http://provider' }],
+        [
+          {
+            name: 'test explorer',
+            url: 'https://explorer.test',
+            apiUrl: 'https://explorer.test/api',
+          },
+        ],
+      );
+
+      const logs = await smartProvider.getLogs({
+        address,
+        fromBlock: 1,
+        toBlock: 2_000,
+        topics: [topic],
+      });
+
+      expect(fetchStub.callCount).to.equal(10);
+      expect(rpcPerform.calledOnce).to.be.true;
+      expect(logs).to.have.length(1);
+      expect(logs[0].blockNumber).to.equal(2_000);
+    });
+  });
+
   describe('custom_rpc_header handling', () => {
     it('merges custom headers into existing connection and preserves fields', () => {
       const rawUrl =

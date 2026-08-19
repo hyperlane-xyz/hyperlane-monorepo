@@ -29,12 +29,10 @@ export const tokenMessengerV2Addresses = {
   polygon: '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d',
   unichain: '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d',
   linea: '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d',
-  sonic: '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d',
   worldchain: '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d',
   sei: '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d',
   hyperevm: '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d',
   ink: '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d',
-  plume: '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d',
 } as const;
 
 export const messageTransmitterV2Addresses = {
@@ -46,12 +44,10 @@ export const messageTransmitterV2Addresses = {
   polygon: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
   unichain: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
   linea: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
-  sonic: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
   worldchain: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
   sei: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
   hyperevm: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
   ink: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
-  plume: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
 } as const;
 
 // https://developers.circle.com/cctp/concepts/fees
@@ -66,7 +62,6 @@ export const FAST_TRANSFER_FEE_BPS: Partial<
   ink: 2,
   linea: 13,
   optimism: 1.3,
-  plume: 2,
   unichain: 2,
   worldchain: 1.3,
 };
@@ -97,9 +92,7 @@ export const usdcTokenAddresses = {
   optimism: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
   polkadotassethub: '1337',
   polygon: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
-  plume: '0x222365EF19F7947e5484218551B56bb3965Aa7aF',
   sei: '0xe15fC38F6D8c56aF07bbCBe3BAf5708A2Bf42392',
-  sonic: '0x29219dd400f2Bf60E5a23d13Be72B486D4038894',
   stellar: 'USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
   sui: '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
   tron: 'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8',

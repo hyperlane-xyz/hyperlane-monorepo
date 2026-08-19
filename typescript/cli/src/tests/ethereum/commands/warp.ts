@@ -337,21 +337,45 @@ export function hyperlaneWarpCheckRaw({
   origin,
   originOwner,
   chains,
+  registry,
 }: {
   warpRouteId?: string;
   ica?: boolean;
   origin?: string;
   originOwner?: string;
   chains?: string[];
+  registry?: string;
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp check \
-        --registry ${REGISTRY_PATH} \
+        --registry ${registry ?? REGISTRY_PATH} \
         --verbosity debug \
         ${warpRouteId ? ['--warp-route-id', warpRouteId] : []} \
         ${ica ? ['--ica'] : []} \
         ${origin ? ['--origin', origin] : []} \
         ${originOwner ? ['--originOwner', originOwner] : []} \
         ${chains?.length ? chains.flatMap((d) => ['--chains', d]) : []}`;
+}
+
+export function hyperlaneWarpForkRaw({
+  warpRouteId,
+  port,
+  forkConfigPath,
+  kill,
+  registry,
+}: {
+  warpRouteId: string;
+  port: number;
+  forkConfigPath?: string;
+  kill?: boolean;
+  registry?: string;
+}): ProcessPromise {
+  return $`${localTestRunCmdPrefix()} hyperlane warp fork \
+        --registry ${registry ?? REGISTRY_PATH} \
+        --warp-route-id ${warpRouteId} \
+        --port ${port} \
+        --verbosity debug \
+        ${forkConfigPath ? ['--fork-config', forkConfigPath] : []} \
+        ${kill ? ['--kill'] : []}`;
 }
 
 export function hyperlaneWarpCheck(warpRouteId: string): ProcessPromise {
@@ -702,6 +726,8 @@ export function generateWarpConfigs(
     TokenType.collateralDepositAddress,
     // Forward-compatibility placeholder, not deployable
     TokenType.unknown,
+    // Non-transferable dedicated standard, excluded from ordinary warp connections
+    TokenType.atomicLocalRebalancing,
   ]);
 
   const allowedWarpTokenTypes = Object.values(TokenType).filter(

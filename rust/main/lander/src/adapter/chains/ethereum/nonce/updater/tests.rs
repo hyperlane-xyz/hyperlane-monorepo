@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use ethers_core::types::Address;
 
+use futures_util::future::join_all;
 use hyperlane_core::{ChainCommunicationError, U256};
 use hyperlane_ethereum::EthereumReorgPeriod;
 
@@ -138,4 +139,31 @@ async fn test_update_boundaries_waits_for_block_time() {
     // Should now be updated to 2 again
     let finalized = state.get_finalized_nonce_test().await.unwrap();
     assert_eq!(finalized, Some(U256::from(2)));
+}
+
+#[tokio::test]
+async fn test_concurrent_update_boundaries_coalesces_provider_refresh() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+    let mut mock = MockEvmProvider::new();
+    mock.expect_get_next_nonce_on_finalized_block()
+        .times(1)
+        .returning(|_, _| Ok(U256::from(5)));
+    let updater = NonceUpdater::new(
+        address,
+        EthereumReorgPeriod::Blocks(1),
+        Duration::from_secs(60),
+        Arc::new(mock),
+        state.clone(),
+    );
+
+    let results = join_all((0..16).map(|_| updater.update_boundaries())).await;
+
+    assert!(results.into_iter().all(|result| result.is_ok()));
+    assert_eq!(
+        state.get_finalized_nonce_test().await.unwrap(),
+        Some(U256::from(4))
+    );
 }

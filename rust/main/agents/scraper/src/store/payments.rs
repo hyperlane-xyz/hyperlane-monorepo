@@ -11,13 +11,15 @@ use hyperlane_core::{
 };
 
 use crate::db::StorablePayment;
-use crate::store::storage::HyperlaneDbStore;
+use crate::store::storage::{txn_id_for_meta, HyperlaneDbStore};
 
 #[async_trait]
 impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneDbStore {
     /// Store interchain gas payments into the database.
-    /// We store only interchain gas payments from blocks and transaction which we could
-    /// successfully insert into database.
+    /// Payments whose transaction could not be resolved on-chain (zero block
+    /// and transaction hashes, e.g. Sealevel basic log meta fallback) are
+    /// stored with a NULL transaction relation; other unavailable transactions
+    /// are skipped (and retried later).
     async fn store_logs(
         &self,
         payments: &[(Indexed<InterchainGasPayment>, LogMeta)],
@@ -33,12 +35,12 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneDbStore {
         let storable = payments
             .iter()
             .filter_map(|(payment, meta)| {
-                txns.get(&meta.transaction_id).map(|txn| {
+                txn_id_for_meta(&txns, meta).map(|txn_id| {
                     (
                         payment.inner(),
                         payment.sequence.map(|v| v as i64),
                         meta,
-                        txn.id,
+                        txn_id,
                     )
                 })
             })

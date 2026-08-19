@@ -63,7 +63,6 @@ async function main() {
 
   for (const chain of chains) {
     if (
-      chain === 'arcadia' ||
       chain === originChain ||
       !icaChainAddresses[chain] ||
       legacyIcaChainRouters[chain] ||

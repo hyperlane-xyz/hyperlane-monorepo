@@ -7,9 +7,9 @@ use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
     address_to_bytes, bytes_to_address, bytes_to_h512, h256_to_bytes, h512_to_bytes,
-    HyperlaneMessage, LogMeta, H256, U256,
+    HyperlaneMessage, LogMeta, H256, H512, U256,
 };
-use migration::OnConflict;
+use migration::{Alias, Expr, OnConflict};
 
 use crate::date_time;
 use crate::db::ScraperDb;
@@ -34,7 +34,7 @@ pub struct RawDispatchForEnrichment {
 }
 
 impl RawDispatchForEnrichment {
-    pub fn storable_message(&self, txn_id: i64) -> StorableMessage<'_> {
+    pub fn storable_message(&self, txn_id: Option<i64>) -> StorableMessage<'_> {
         StorableMessage {
             msg: self.msg.clone(),
             meta: &self.meta,
@@ -146,14 +146,74 @@ impl ScraperDb {
                                 OnConflict::column(raw_message_dispatch::Column::MsgId)
                                     .update_columns([
                                         raw_message_dispatch::Column::TimeUpdated,
-                                        raw_message_dispatch::Column::OriginTxHash,
-                                        raw_message_dispatch::Column::OriginBlockHash,
-                                        raw_message_dispatch::Column::OriginBlockHeight,
                                         raw_message_dispatch::Column::DestinationDomain,
                                         raw_message_dispatch::Column::Sender,
                                         raw_message_dispatch::Column::Recipient,
                                         raw_message_dispatch::Column::MsgBody,
                                     ])
+                                    // Preserve resolved hashes across a later
+                                    // basic-meta fallback, while still updating
+                                    // the body and other fields on legacy rows.
+                                    .value(
+                                        raw_message_dispatch::Column::OriginTxHash,
+                                        Expr::case(
+                                            Expr::col((
+                                                Alias::new("excluded"),
+                                                raw_message_dispatch::Column::OriginTxHash,
+                                            ))
+                                            .ne(h512_to_bytes(&H512::zero())),
+                                            Expr::col((
+                                                Alias::new("excluded"),
+                                                raw_message_dispatch::Column::OriginTxHash,
+                                            )),
+                                        )
+                                        .finally(
+                                            Expr::col((
+                                                Alias::new("raw_message_dispatch"),
+                                                raw_message_dispatch::Column::OriginTxHash,
+                                            )),
+                                        ),
+                                    )
+                                    .value(
+                                        raw_message_dispatch::Column::OriginBlockHash,
+                                        Expr::case(
+                                            Expr::col((
+                                                Alias::new("excluded"),
+                                                raw_message_dispatch::Column::OriginBlockHash,
+                                            ))
+                                            .ne(h256_to_bytes(&H256::zero())),
+                                            Expr::col((
+                                                Alias::new("excluded"),
+                                                raw_message_dispatch::Column::OriginBlockHash,
+                                            )),
+                                        )
+                                        .finally(
+                                            Expr::col((
+                                                Alias::new("raw_message_dispatch"),
+                                                raw_message_dispatch::Column::OriginBlockHash,
+                                            )),
+                                        ),
+                                    )
+                                    .value(
+                                        raw_message_dispatch::Column::OriginBlockHeight,
+                                        Expr::case(
+                                            Expr::col((
+                                                Alias::new("excluded"),
+                                                raw_message_dispatch::Column::OriginBlockHash,
+                                            ))
+                                            .ne(h256_to_bytes(&H256::zero())),
+                                            Expr::col((
+                                                Alias::new("excluded"),
+                                                raw_message_dispatch::Column::OriginBlockHeight,
+                                            )),
+                                        )
+                                        .finally(
+                                            Expr::col((
+                                                Alias::new("raw_message_dispatch"),
+                                                raw_message_dispatch::Column::OriginBlockHeight,
+                                            )),
+                                        ),
+                                    )
                                     .to_owned(),
                             )
                             .exec(txn)
@@ -411,7 +471,7 @@ mod tests {
         };
 
         let candidate = raw_dispatch_to_candidate(raw).unwrap();
-        let storable = candidate.storable_message(7);
+        let storable = candidate.storable_message(Some(7));
 
         assert_eq!(candidate.msg_id, msg_id);
         assert_eq!(candidate.raw_id, 1);
@@ -421,7 +481,7 @@ mod tests {
         assert_eq!(candidate.meta.block_hash, block_hash);
         assert_eq!(candidate.meta.transaction_id, tx_hash);
         assert_eq!(storable.id_override, Some(msg_id));
-        assert_eq!(storable.txn_id, 7);
+        assert_eq!(storable.txn_id, Some(7));
     }
 
     #[tokio::test]
@@ -728,7 +788,7 @@ mod tests {
                 [StorableMessage {
                     msg: messages[1].clone(),
                     meta: &metas[1],
-                    txn_id,
+                    txn_id: Some(txn_id),
                     id_override: None,
                 }]
                 .into_iter(),

@@ -11,10 +11,11 @@ use derive_more::AsRef;
 use ethers::utils::keccak256;
 use eyre::{eyre, Result};
 use futures_util::future::{join_all, try_join_all};
+use rand::Rng;
 use serde::Serialize;
 use tokio::{
     task::JoinHandle,
-    time::{sleep, timeout},
+    time::{sleep, timeout, Instant},
 };
 use tracing::{debug, error, info, info_span, warn, Instrument};
 use url::Url;
@@ -33,7 +34,7 @@ use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, Checkpoint, CheckpointAtBlock,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt,
     IncrementalMerkleAtBlock, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
-    ValidatorAnnounce, H256, U256,
+    ValidatorAnnounce, ValidatorAnnounceSubmission, H256, U256,
 };
 use hyperlane_ethereum::{RpcConnectionConf, Signers, SingletonSigner, SingletonSignerHandle};
 use hyperlane_metric::prometheus_metric::RpcRole;
@@ -48,6 +49,125 @@ use crate::{
 };
 
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
+
+const ANNOUNCEMENT_RETRY_MIN_DELAY: Duration = Duration::from_secs(30);
+const ANNOUNCEMENT_RETRY_MAX_DELAY: Duration = Duration::from_secs(900);
+const ANNOUNCEMENT_FUNDING_POLL_INTERVAL: Duration = Duration::from_secs(30);
+const ANNOUNCEMENT_RETRY_MIN_JITTER_PERMILLE: u32 = 800;
+const ANNOUNCEMENT_RETRY_MAX_JITTER_PERMILLE: u32 = 1000;
+
+/// Keeps announcement submission and unfunded warnings off the validator's hot poll loop while
+/// still allowing that loop to observe funding and on-chain announcement progress promptly.
+#[derive(Debug, Default)]
+struct AnnouncementRetryBackoff {
+    consecutive_failures: u32,
+    next_attempt_at: Option<Instant>,
+    next_funding_check_at: Option<Instant>,
+    last_tokens_needed: Option<U256>,
+    consecutive_unfunded_observations: u8,
+    funding_reset_armed: bool,
+    submission_in_flight: bool,
+}
+
+impl AnnouncementRetryBackoff {
+    fn ready(&self, now: Instant) -> bool {
+        !self.submission_in_flight
+            && self
+                .next_attempt_at
+                .is_none_or(|next_attempt_at| now >= next_attempt_at)
+    }
+
+    fn next_failure_delay(&self) -> Duration {
+        let multiplier = 2_u32.saturating_pow(self.consecutive_failures.min(31));
+        ANNOUNCEMENT_RETRY_MIN_DELAY
+            .saturating_mul(multiplier)
+            .min(ANNOUNCEMENT_RETRY_MAX_DELAY)
+    }
+
+    fn funding_check_due(&self, now: Instant) -> bool {
+        self.next_funding_check_at
+            .is_none_or(|next_funding_check_at| now >= next_funding_check_at)
+    }
+
+    /// Poll funding between attempts only when the last successful preflight proved the signer is
+    /// unfunded. If preflight is unavailable (for example, an RPC does not support `feeHistory`),
+    /// retrying it on a separate timer cannot detect funding and only creates more failed calls.
+    fn should_check_funding(&self, now: Instant) -> bool {
+        if self.submission_in_flight {
+            return false;
+        }
+
+        self.ready(now)
+            || (self
+                .last_tokens_needed
+                .is_some_and(|tokens_needed| !tokens_needed.is_zero())
+                && self.funding_check_due(now))
+    }
+
+    fn record_funding_check(&mut self, now: Instant) {
+        self.next_funding_check_at = now.checked_add(ANNOUNCEMENT_FUNDING_POLL_INTERVAL);
+    }
+
+    fn jittered(delay: Duration, jitter_permille: u32) -> Duration {
+        let bounded_jitter = jitter_permille.clamp(
+            ANNOUNCEMENT_RETRY_MIN_JITTER_PERMILLE,
+            ANNOUNCEMENT_RETRY_MAX_JITTER_PERMILLE,
+        );
+        let millis = delay
+            .as_millis()
+            .saturating_mul(u128::from(bounded_jitter))
+            .checked_div(u128::from(ANNOUNCEMENT_RETRY_MAX_JITTER_PERMILLE))
+            .unwrap_or_default();
+        Duration::from_millis(u64::try_from(millis).unwrap_or(u64::MAX))
+    }
+
+    fn record_failure(&mut self, now: Instant, delay: Duration) {
+        self.consecutive_failures = self.consecutive_failures.saturating_add(1);
+        self.next_attempt_at = now.checked_add(delay);
+    }
+
+    fn mark_submission_in_flight(&mut self) {
+        self.consecutive_failures = 0;
+        self.next_attempt_at = None;
+        self.submission_in_flight = true;
+    }
+
+    /// A transition to a preflight-confirmed funded state is actionable progress: allow an
+    /// immediate attempt even if earlier failures were cooling down. Missing preflight data does
+    /// not erase the last known state, preventing intermittent RPC errors from defeating backoff.
+    fn observe_tokens_needed(&mut self, tokens_needed: Option<U256>) -> bool {
+        let Some(tokens_needed) = tokens_needed else {
+            return false;
+        };
+
+        let became_funded = if tokens_needed.is_zero() {
+            self.consecutive_unfunded_observations = 0;
+            let became_funded = self.funding_reset_armed;
+            self.funding_reset_armed = false;
+            became_funded
+        } else {
+            self.consecutive_unfunded_observations =
+                self.consecutive_unfunded_observations.saturating_add(1);
+            if self.consecutive_unfunded_observations >= 2 {
+                self.funding_reset_armed = true;
+            }
+            false
+        };
+        self.last_tokens_needed = Some(tokens_needed);
+        if became_funded {
+            self.consecutive_failures = 0;
+            self.next_attempt_at = None;
+        }
+        became_funded
+    }
+
+    /// Use the last successful preflight result when the current preflight is unavailable. In
+    /// particular, a transient estimation failure must not turn a known-unfunded signer into a
+    /// submission attempt.
+    fn effective_tokens_needed(&self, current: Option<U256>) -> Option<U256> {
+        current.or(self.last_tokens_needed)
+    }
+}
 
 /// Caps how long any single quorum/base-hook RPC call can take, so one hanging endpoint
 /// can't stall a safety-critical read (and therefore checkpoint signing) indefinitely.
@@ -1074,6 +1194,18 @@ impl Validator {
         }
     }
 
+    fn announcement_submission_may_be_in_flight(
+        result: &ChainResult<ValidatorAnnounceSubmission>,
+    ) -> bool {
+        matches!(
+            result,
+            Ok(ValidatorAnnounceSubmission::Confirmed(outcome)) if outcome.executed
+        ) || matches!(
+            result,
+            Ok(ValidatorAnnounceSubmission::BroadcastError { .. })
+        )
+    }
+
     async fn metadata(&self) -> Result<()> {
         let serialized_metadata = serde_json::to_string_pretty(&self.agent_metadata)?;
         self.checkpoint_syncer
@@ -1111,6 +1243,7 @@ impl Validator {
         // which the validator is signing checkpoints but has not announced
         // their locations, which makes them functionally unusable.
         let validators: [H256; 1] = [address.into()];
+        let mut retry_backoff = AnnouncementRetryBackoff::default();
         loop {
             info!("Checking for validator announcement");
             if let Some(locations) = self
@@ -1141,27 +1274,92 @@ impl Validator {
                 {
                     let chain_signer_string = chain_signer.address_string();
                     let chain_signer_h256 = chain_signer.address_h256();
-                    info!(eth_validator_address=?announcement.validator, ?chain_signer_string, ?chain_signer_h256, "Attempting self announce");
+                    let now = Instant::now();
+                    if !retry_backoff.should_check_funding(now) {
+                        sleep(self.interval).await;
+                        continue;
+                    }
+                    retry_backoff.record_funding_check(now);
 
                     let balance_delta = self
                         .validator_announce
                         .announce_tokens_needed(signed_announcement.clone(), chain_signer_h256)
-                        .await
-                        .unwrap_or_default();
-                    if balance_delta > U256::zero() {
-                        warn!(
-                            tokens_needed=%balance_delta,
+                        .await;
+                    if retry_backoff.observe_tokens_needed(balance_delta) {
+                        info!(
                             eth_validator_address=?announcement.validator,
                             ?chain_signer_string,
                             ?chain_signer_h256,
-                            "Please send tokens to your chain signer address to announce",
+                            "Validator chain signer is funded; resetting announcement retry backoff",
                         );
-                    } else {
-                        let result = self
-                            .validator_announce
-                            .announce(signed_announcement.clone())
-                            .await;
-                        Self::log_on_announce_failure(result, &chain_signer_string);
+                    }
+
+                    let effective_balance_delta =
+                        retry_backoff.effective_tokens_needed(balance_delta);
+                    if retry_backoff.ready(Instant::now()) {
+                        if let Some(balance_delta) =
+                            effective_balance_delta.filter(|balance_delta| !balance_delta.is_zero())
+                        {
+                            let delay = Self::jittered_announcement_retry_delay(
+                                retry_backoff.next_failure_delay(),
+                            );
+                            warn!(
+                                tokens_needed=%balance_delta,
+                                eth_validator_address=?announcement.validator,
+                                ?chain_signer_string,
+                                ?chain_signer_h256,
+                                retry_delay_ms=delay.as_millis(),
+                                consecutive_failures=retry_backoff.consecutive_failures.saturating_add(1),
+                                "Please send tokens to your chain signer address to announce",
+                            );
+                            retry_backoff.record_failure(Instant::now(), delay);
+                        } else {
+                            info!(eth_validator_address=?announcement.validator, ?chain_signer_string, ?chain_signer_h256, "Attempting self announce");
+                            let result = self
+                                .validator_announce
+                                .announce_with_status(signed_announcement.clone())
+                                .await;
+                            let submission_may_be_in_flight =
+                                Self::announcement_submission_may_be_in_flight(&result);
+                            match result {
+                                Ok(ValidatorAnnounceSubmission::Confirmed(outcome)) => {
+                                    Self::log_on_announce_failure(
+                                        Ok(outcome),
+                                        &chain_signer_string,
+                                    );
+                                }
+                                Ok(ValidatorAnnounceSubmission::BroadcastError {
+                                    tx_id,
+                                    error,
+                                }) => {
+                                    error!(
+                                        ?tx_id,
+                                        ?error,
+                                        chain_signer=?chain_signer_string,
+                                        "Failed to track broadcast validator announcement; gas escalator retains ownership",
+                                    );
+                                }
+                                Err(error) => {
+                                    Self::log_on_announce_failure(Err(error), &chain_signer_string);
+                                }
+                            }
+                            if submission_may_be_in_flight {
+                                // Any error after receiving a transaction hash leaves the gas
+                                // escalator responsible for replacement with the same nonce.
+                                retry_backoff.mark_submission_in_flight();
+                            } else {
+                                let delay = Self::jittered_announcement_retry_delay(
+                                    retry_backoff.next_failure_delay(),
+                                );
+                                info!(
+                                    retry_delay_ms = delay.as_millis(),
+                                    consecutive_failures =
+                                        retry_backoff.consecutive_failures.saturating_add(1),
+                                    "Scheduled validator announcement retry",
+                                );
+                                retry_backoff.record_failure(Instant::now(), delay);
+                            }
+                        }
                     }
                 } else {
                     warn!(origin_chain=%self.origin_chain, "Cannot announce validator without a signer; make sure a signer is set for the origin chain");
@@ -1171,6 +1369,13 @@ impl Validator {
             }
         }
         Ok(())
+    }
+
+    fn jittered_announcement_retry_delay(delay: Duration) -> Duration {
+        let jitter_permille = rand::thread_rng().gen_range(
+            ANNOUNCEMENT_RETRY_MIN_JITTER_PERMILLE..=ANNOUNCEMENT_RETRY_MAX_JITTER_PERMILLE,
+        );
+        AnnouncementRetryBackoff::jittered(delay, jitter_permille)
     }
 
     async fn report_latest_checkpoints_from_each_endpoint(
@@ -1235,6 +1440,192 @@ mod tests {
     use prometheus::Registry;
 
     use super::*;
+
+    #[tokio::test(start_paused = true)]
+    async fn announcement_retry_backoff_grows_and_caps() {
+        let mut backoff = AnnouncementRetryBackoff::default();
+        let expected_delays = [
+            Duration::from_secs(30),
+            Duration::from_secs(60),
+            Duration::from_secs(120),
+            Duration::from_secs(240),
+            Duration::from_secs(480),
+            Duration::from_secs(900),
+            Duration::from_secs(900),
+        ];
+
+        for expected_delay in expected_delays {
+            let now = Instant::now();
+            assert!(backoff.ready(now));
+            assert_eq!(backoff.next_failure_delay(), expected_delay);
+            backoff.record_failure(now, expected_delay);
+            assert!(!backoff.ready(now));
+
+            let before_deadline = expected_delay
+                .checked_sub(Duration::from_millis(1))
+                .expect("retry delays exceed one millisecond");
+            tokio::time::advance(before_deadline).await;
+            assert!(!backoff.ready(Instant::now()));
+            tokio::time::advance(Duration::from_millis(1)).await;
+            assert!(backoff.ready(Instant::now()));
+        }
+    }
+
+    #[test]
+    fn announcement_retry_jitter_stays_bounded() {
+        assert_eq!(
+            AnnouncementRetryBackoff::jittered(Duration::from_secs(30), 0),
+            Duration::from_secs(24)
+        );
+        assert_eq!(
+            AnnouncementRetryBackoff::jittered(Duration::from_secs(30), 900),
+            Duration::from_secs(27)
+        );
+        assert_eq!(
+            AnnouncementRetryBackoff::jittered(Duration::from_secs(30), u32::MAX),
+            Duration::from_secs(30)
+        );
+        assert_eq!(
+            AnnouncementRetryBackoff::jittered(
+                ANNOUNCEMENT_RETRY_MAX_DELAY,
+                ANNOUNCEMENT_RETRY_MAX_JITTER_PERMILLE,
+            ),
+            ANNOUNCEMENT_RETRY_MAX_DELAY
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn sustained_unfunded_then_confirmed_funding_resets_retry_immediately() {
+        let mut backoff = AnnouncementRetryBackoff::default();
+        let now = Instant::now();
+        backoff.record_failure(now, ANNOUNCEMENT_RETRY_MAX_DELAY);
+        assert!(!backoff.observe_tokens_needed(None));
+        assert!(!backoff.ready(now));
+
+        assert!(!backoff.observe_tokens_needed(Some(U256::from(10_u64))));
+        assert!(!backoff.observe_tokens_needed(Some(U256::from(10_u64))));
+        assert!(backoff.observe_tokens_needed(Some(U256::zero())));
+        assert!(backoff.ready(now));
+        assert_eq!(backoff.consecutive_failures, 0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn funding_preflight_uses_bounded_polling_while_submission_backs_off() {
+        let mut backoff = AnnouncementRetryBackoff::default();
+        let now = Instant::now();
+        assert!(!backoff.observe_tokens_needed(Some(U256::from(1_u64))));
+        backoff.record_failure(now, ANNOUNCEMENT_RETRY_MAX_DELAY);
+        assert!(backoff.should_check_funding(now));
+        backoff.record_funding_check(now);
+        assert!(!backoff.should_check_funding(now));
+
+        let before_poll = ANNOUNCEMENT_FUNDING_POLL_INTERVAL
+            .checked_sub(Duration::from_millis(1))
+            .expect("funding poll interval exceeds one millisecond");
+        tokio::time::advance(before_poll).await;
+        assert!(!backoff.should_check_funding(Instant::now()));
+        tokio::time::advance(Duration::from_millis(1)).await;
+        assert!(backoff.should_check_funding(Instant::now()));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn unavailable_funding_preflight_waits_for_submission_retry_deadline() {
+        let mut backoff = AnnouncementRetryBackoff::default();
+        let now = Instant::now();
+        backoff.record_funding_check(now);
+        backoff.record_failure(now, ANNOUNCEMENT_RETRY_MAX_DELAY);
+
+        assert_eq!(backoff.last_tokens_needed, None);
+        assert!(!backoff.should_check_funding(now));
+        tokio::time::advance(ANNOUNCEMENT_RETRY_MAX_DELAY).await;
+        assert!(backoff.should_check_funding(Instant::now()));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn funded_preflight_waits_for_submission_retry_deadline() {
+        let mut backoff = AnnouncementRetryBackoff::default();
+        let now = Instant::now();
+        assert!(!backoff.observe_tokens_needed(Some(U256::zero())));
+        backoff.record_funding_check(now);
+        backoff.record_failure(now, ANNOUNCEMENT_RETRY_MAX_DELAY);
+
+        assert!(!backoff.should_check_funding(now));
+        tokio::time::advance(ANNOUNCEMENT_RETRY_MAX_DELAY).await;
+        assert!(backoff.should_check_funding(Instant::now()));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn in_flight_announcement_never_creates_a_second_submission_stream() {
+        let mut backoff = AnnouncementRetryBackoff::default();
+        let now = Instant::now();
+        backoff.record_failure(now, Duration::from_secs(30));
+        backoff.record_failure(now, Duration::from_secs(60));
+
+        backoff.mark_submission_in_flight();
+        assert_eq!(backoff.consecutive_failures, 0);
+        assert!(!backoff.ready(now));
+        assert!(!backoff.should_check_funding(now));
+        tokio::time::advance(ANNOUNCEMENT_RETRY_MAX_DELAY.saturating_mul(10)).await;
+        assert!(!backoff.ready(Instant::now()));
+        assert!(!backoff.should_check_funding(Instant::now()));
+
+        // Delayed zero preflight or a transient unfunded/funded flap cannot erase in-flight state.
+        assert!(!backoff.observe_tokens_needed(Some(U256::from(1_u64))));
+        assert!(!backoff.observe_tokens_needed(Some(U256::zero())));
+        assert!(!backoff.ready(Instant::now()));
+    }
+
+    #[test]
+    fn every_post_broadcast_error_suppresses_outer_resubmission() {
+        let tx_id = hyperlane_core::H512::from_low_u64_be(9);
+        let dropped_tx_id = H256::from_low_u64_be(9);
+        let post_broadcast_errors = [
+            ChainCommunicationError::TransactionDropped(dropped_tx_id),
+            ChainCommunicationError::TransactionTimeout,
+            ChainCommunicationError::from_other_str("receipt provider failed"),
+        ];
+
+        for error in post_broadcast_errors {
+            let result = Ok(ValidatorAnnounceSubmission::BroadcastError { tx_id, error });
+            assert!(Validator::announcement_submission_may_be_in_flight(&result));
+        }
+    }
+
+    #[test]
+    fn pre_broadcast_error_remains_retryable() {
+        let result = Err(ChainCommunicationError::from_other_str(
+            "initial send failed",
+        ));
+        assert!(!Validator::announcement_submission_may_be_in_flight(
+            &result
+        ));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn transient_preflight_failure_preserves_known_unfunded_gate_and_backoff() {
+        let mut backoff = AnnouncementRetryBackoff::default();
+        let now = Instant::now();
+        let unfunded = U256::from(25_u64);
+        assert!(!backoff.observe_tokens_needed(Some(unfunded)));
+        backoff.record_failure(now, ANNOUNCEMENT_RETRY_MIN_DELAY);
+
+        assert!(!backoff.observe_tokens_needed(None));
+        assert_eq!(backoff.effective_tokens_needed(None), Some(unfunded));
+        tokio::time::advance(ANNOUNCEMENT_RETRY_MIN_DELAY).await;
+        assert!(backoff.ready(Instant::now()));
+        assert_eq!(backoff.effective_tokens_needed(None), Some(unfunded));
+    }
+
+    #[test]
+    fn single_unfunded_funded_flap_does_not_reset_failed_submission_backoff() {
+        let mut backoff = AnnouncementRetryBackoff::default();
+        let now = Instant::now();
+        backoff.record_failure(now, ANNOUNCEMENT_RETRY_MAX_DELAY);
+
+        assert!(!backoff.observe_tokens_needed(Some(U256::from(1_u64))));
+        assert!(!backoff.observe_tokens_needed(Some(U256::zero())));
+        assert!(!backoff.ready(now));
+    }
 
     fn dummy_ethereum_chain_conf(rpc_urls: Vec<Url>) -> ChainConf {
         ChainConf {
