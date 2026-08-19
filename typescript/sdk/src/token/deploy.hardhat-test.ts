@@ -4,6 +4,8 @@ import { ethers } from 'ethers';
 import hre from 'hardhat';
 
 import {
+  AtomicLocalRebalancingBridge__factory,
+  CrossCollateralRouter__factory,
   ERC20Test,
   ERC20Test__factory,
   GasRouter__factory,
@@ -25,6 +27,7 @@ import {
   Address,
   ProtocolType,
   assert,
+  addressToBytes32,
   deepCopy,
   eqAddress,
   isZeroishAddress,
@@ -35,6 +38,7 @@ import { TestChainName } from '../consts/testChains.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
+import { executeWarpDeploy } from '../deploy/warp.js';
 import { TokenFeeType } from '../fee/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import {
@@ -46,12 +50,14 @@ import {
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
+import { TokenStandard } from './TokenStandard.js';
 import { TokenType } from './config.js';
 import { checkWarpRouteDeployConfig } from './warpCheck.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
   SyntheticTokenConfig,
   WarpRouteDeployConfigMailboxRequired,
+  isAtomicLocalRebalancingBridgeTokenConfig,
   isDepositAddressTokenConfig,
 } from './types.js';
 import { WarpCoreConfig } from '../warp/types.js';
@@ -193,6 +199,174 @@ describe('TokenDeployer', async () => {
         },
       },
     });
+  });
+
+  it('deploys an atomic local rebalancing bridge with its immutable source and configured owner', async () => {
+    const bridgeOwner = ethers.Wallet.createRandom().address;
+    const sourceRouter = await new CrossCollateralRouter__factory(
+      signer,
+    ).deploy(erc20.address, 1, 1, config[chain].mailbox);
+    await sourceRouter.initialize(
+      ethers.constants.AddressZero,
+      ethers.constants.AddressZero,
+      signer.address,
+    );
+    const atomicConfig: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        mailbox: config[chain].mailbox,
+        type: TokenType.atomicLocalRebalancing,
+        sourceRouter: sourceRouter.address,
+        owner: bridgeOwner,
+      },
+    };
+
+    const contracts = await deployer.deploy(atomicConfig);
+    const bridgeAddress =
+      contracts[chain][TokenType.atomicLocalRebalancing].address;
+    const bridge = AtomicLocalRebalancingBridge__factory.connect(
+      bridgeAddress,
+      signer,
+    );
+
+    expect(await bridge.localDomain()).to.equal(
+      multiProvider.getDomainId(chain),
+    );
+    expect(await bridge.allowedSourceRouter()).to.equal(sourceRouter.address);
+    expect(await bridge.owner()).to.equal(bridgeOwner);
+
+    const reader = new EvmWarpRouteReader(multiProvider, chain);
+    const derivedConfig = await reader.deriveWarpRouteConfig(bridgeAddress);
+    expect(derivedConfig.type).to.equal(TokenType.atomicLocalRebalancing);
+    if (!isAtomicLocalRebalancingBridgeTokenConfig(derivedConfig)) {
+      throw new Error('Expected atomic local rebalancing bridge config');
+    }
+    expect(derivedConfig.sourceRouter).to.equal(sourceRouter.address);
+    expect(derivedConfig.name).to.equal(await erc20.name());
+    expect(derivedConfig.symbol).to.equal(await erc20.symbol());
+    expect(derivedConfig.decimals).to.equal(await erc20.decimals());
+    expect(derivedConfig.owner).to.equal(bridgeOwner);
+    expect(derivedConfig.mailbox).to.equal(ethers.constants.AddressZero);
+    expect(derivedConfig.remoteRouters).to.deep.equal({});
+
+    const warpCoreConfig: WarpCoreConfig = {
+      tokens: [
+        {
+          chainName: chain,
+          addressOrDenom: bridgeAddress,
+          decimals: await erc20.decimals(),
+          name: await erc20.name(),
+          standard: TokenStandard.EvmAtomicLocalRebalancingBridge,
+          symbol: await erc20.symbol(),
+          tokenType: TokenType.atomicLocalRebalancing,
+        },
+      ],
+    };
+    const checkResult = await checkWarpRouteDeployConfig({
+      multiProvider,
+      warpCoreConfig,
+      warpDeployConfig: atomicConfig,
+    });
+    expect(checkResult.isValid, JSON.stringify(checkResult, null, 2)).to.equal(
+      true,
+    );
+    expect(checkResult.violations).to.deep.equal([]);
+  });
+
+  it('rejects an atomic bridge deployed for the wrong local domain', async () => {
+    const sourceRouter = await new CrossCollateralRouter__factory(
+      signer,
+    ).deploy(erc20.address, 1, 1, config[chain].mailbox);
+    const wrongDomain = multiProvider.getDomainId(chain) + 1;
+    const bridge = await new AtomicLocalRebalancingBridge__factory(
+      signer,
+    ).deploy(wrongDomain, sourceRouter.address, signer.address);
+
+    const reader = new EvmWarpRouteReader(multiProvider, chain);
+    let error: unknown;
+    try {
+      await reader.deriveWarpRouteConfig(bridge.address);
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).to.be.instanceOf(Error);
+    if (!(error instanceof Error)) {
+      throw new Error('Expected local domain mismatch error');
+    }
+    expect(error.message).to.include(
+      `localDomain ${wrongDomain} does not match`,
+    );
+  });
+
+  it('transfers an atomic local rebalancing bridge to its configured owner through executeWarpDeploy', async () => {
+    const bridgeOwner = ethers.Wallet.createRandom().address;
+    const sourceRouter = await new CrossCollateralRouter__factory(
+      signer,
+    ).deploy(erc20.address, 1, 1, config[chain].mailbox);
+    await sourceRouter.initialize(
+      ethers.constants.AddressZero,
+      ethers.constants.AddressZero,
+      signer.address,
+    );
+    const atomicConfig: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...config[chain],
+        type: TokenType.atomicLocalRebalancing,
+        sourceRouter: sourceRouter.address,
+        owner: bridgeOwner,
+      },
+    };
+
+    const deployedContracts = await executeWarpDeploy(
+      atomicConfig,
+      multiProvider,
+      {},
+      { [chain]: coreApp.getAddresses(chain) },
+      {},
+    );
+    const bridge = AtomicLocalRebalancingBridge__factory.connect(
+      deployedContracts[chain],
+      signer,
+    );
+
+    expect(await bridge.owner()).to.equal(bridgeOwner);
+  });
+
+  it('applies rebalance targets and recipients during fresh deployment', async () => {
+    const localDomain = multiProvider.getDomainId(chain);
+    const localRouter = addressToBytes32(
+      '0x1111111111111111111111111111111111111111',
+    );
+    const target = addressToBytes32(
+      '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    );
+    const recipient = addressToBytes32(
+      '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    );
+    const crossCollateralConfig: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...config[chain],
+        type: TokenType.crossCollateral,
+        token: erc20.address,
+        crossCollateralRouters: { [localDomain]: [localRouter] },
+        rebalanceTargets: { [localDomain]: [target] },
+        rebalanceRecipients: { [localDomain]: recipient },
+      },
+    };
+
+    const contracts = await deployer.deploy(crossCollateralConfig);
+    const router = CrossCollateralRouter__factory.connect(
+      contracts[chain][TokenType.crossCollateral].address,
+      signer,
+    );
+
+    expect(
+      (await router.rebalanceTargets(localDomain)).map((value) =>
+        value.toLowerCase(),
+      ),
+    ).to.deep.equal([target]);
+    expect((await router.allowedRecipient(localDomain)).toLowerCase()).to.equal(
+      recipient,
+    );
   });
 
   it('deploys mixed deposit-address and router configs', async () => {

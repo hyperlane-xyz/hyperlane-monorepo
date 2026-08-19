@@ -6,9 +6,7 @@ export const regularIcasLegacy: ChainMap<Address> = {
   // ----------------------------------------------------------
   apechain: '0x9422838f6fA763354756a3Aba18f34015cB4bF74',
   appchain: '0x8A4E9b5B445504727D7a9377eA329Bb38700F8FA',
-  arcadia: '0x32879753603c140E34D46375F43Db8BdC9a8c545',
   avalanche: '0x3a1014df0202477a1222999c72bD36395904e8AB',
-  bitlayer: '0x39EBb0D2b62D623BBEB874505079a21d05A7Ab9d',
   bob: '0x4FB145Da6407F4F485A209332a38A5327B61f83e',
   celo: '0x20D701Ac137BB131e735B403e0471b101423dDeC',
   // corn: '0x4BAe702C0D1cC7d6d343594735812b5723041528',
@@ -20,16 +18,11 @@ export const regularIcasLegacy: ChainMap<Address> = {
   ink: '0xf36dC13eE34034709390b6dF3de7305eA298BFec',
   lisk: '0xF01B503E5cC884f0EB6eF062F704A610FD69842D',
   lukso: '0xBd887119d776f0c990e9a03B1A157A107CD45033',
-  lumiaprism: '0x60a51cB66CF6012A2adF27090fb7D51aE17369CF',
   mantle: '0x9652721a385AF5B410AA0865Df959255a798F761',
-  matchain: '0x262E9A3eDA180fCb84846BaBa2aEB9EDa88e9BeF',
   metal: '0x9E359Bd54B59D28218a47E4C9a1e84568f09aFb4',
   metis: '0x319aB070390C8f2A914a61f8DE366f3295bb44fF',
-  oortmainnet: '0xBc2cc7372C018C2a0b1F78E29D8B49d21bc5f3bA',
   polygon: '0xff5b2F0Ae1FFBf6b92Ea9B5851D7643C81102064',
-  ronin: '0xa3EC6913675e9686bfC458F02a0F737EdD0362c8',
   soneium: '0x4BAe702C0D1cC7d6d343594735812b5723041528',
-  sonic: '0x4BAe702C0D1cC7d6d343594735812b5723041528',
   subtensor: '0xB9d20ea5f3bB574C923F0af67b06b8D87F111819',
   superseed: '0xEc65c06c606006Db682197230bF8E7740C2BcFF9',
   unichain: '0xEc65c06c606006Db682197230bF8E7740C2BcFF9',
@@ -39,7 +32,6 @@ export const regularIcasLegacy: ChainMap<Address> = {
 
   // May 18, 2025 batch
   // ----------------------------------------------------------
-  hashkey: '0x51e43Fe2Db5B950e115a9f5ad7603E07c656fBe9',
   blast: '0xeA45A1031cA2Eb20Ffa729d3AD6f2F92789DCF3F',
 
   // Jun 4, 2025 batch

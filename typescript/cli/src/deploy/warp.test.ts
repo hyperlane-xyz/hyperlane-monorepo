@@ -10,6 +10,7 @@ import {
   EvmWarpModule,
   HyperlaneDeployer,
   IsmType,
+  MultiProvider,
   TokenStandard,
   TokenType,
   type WarpCoreConfig,
@@ -17,10 +18,58 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import {
+  fullyConnectTokens,
   runWarpRouteApply,
   runWarpRouteCombine,
   transformDeployConfigForDisplay,
 } from './warp.js';
+
+describe('fullyConnectTokens', () => {
+  it('does not connect operational ALRB entries', () => {
+    const warpCoreConfig: WarpCoreConfig = {
+      tokens: [
+        buildCrossCollateralToken({
+          chainName: 'anvil2',
+          symbol: 'USDC',
+          address: '0x1111111111111111111111111111111111111111',
+          decimals: 6,
+        }),
+        buildCrossCollateralToken({
+          chainName: 'anvil3',
+          symbol: 'USDT',
+          address: '0x2222222222222222222222222222222222222222',
+          decimals: 6,
+        }),
+        {
+          chainName: 'anvil4',
+          standard: TokenStandard.EvmAtomicLocalRebalancingBridge,
+          tokenType: TokenType.atomicLocalRebalancing,
+          decimals: 6,
+          symbol: 'ALRB',
+          name: 'Atomic Local Rebalancing Bridge',
+          addressOrDenom: '0x3333333333333333333333333333333333333333',
+        },
+      ],
+    };
+    const multiProvider = sinon.createStubInstance(MultiProvider);
+    multiProvider.getProtocol.returns(ProtocolType.Ethereum);
+
+    fullyConnectTokens(warpCoreConfig, multiProvider);
+
+    expect(warpCoreConfig.tokens[0].connections).to.have.length(1);
+    expect(warpCoreConfig.tokens[1].connections).to.have.length(1);
+    expect(warpCoreConfig.tokens[2].connections).to.equal(undefined);
+    expect(
+      warpCoreConfig.tokens
+        .flatMap((token) => token.connections ?? [])
+        .some((connection) =>
+          connection.token.endsWith(
+            '0x3333333333333333333333333333333333333333',
+          ),
+        ),
+    ).to.equal(false);
+  });
+});
 
 const DOMAIN_BY_CHAIN: Record<string, number> = {
   anvil2: 31337,

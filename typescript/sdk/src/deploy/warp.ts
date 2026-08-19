@@ -470,7 +470,14 @@ export async function executeWarpDeploy(
         const intermediateOwnerConfig = await promiseObjAll(
           objMap(protocolSpecificConfig, async (chain, config) => ({
             ...config,
-            owner: await multiProvider.getSigner(chain).getAddress(),
+            // ALRBs have no post-deploy router enrollment. Preserve their
+            // configured owner here so TokenDeployer can deploy with the
+            // signer as the constructor owner and then perform the final
+            // ownership transfer before returning.
+            owner:
+              config.type === TokenType.atomicLocalRebalancing
+                ? config.owner
+                : await multiProvider.getSigner(chain).getAddress(),
           })),
         );
         const evmContracts = await deployer.deploy(
@@ -889,7 +896,10 @@ export async function enrollCrossChainRouters(
       resolvedConfigMap,
       (_, config: any): config is any =>
         !config.foreignDeployment &&
-        config.type !== TokenType.collateralDepositAddress,
+        config.type !== TokenType.collateralDepositAddress &&
+        // Bare same-chain ITokenBridge adapter: not a cross-chain router, has no
+        // on-chain warp config to derive, so it is never enrolled (like deposit-address).
+        config.type !== TokenType.atomicLocalRebalancing,
     ),
   );
 

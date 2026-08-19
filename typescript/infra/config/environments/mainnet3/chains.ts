@@ -17,13 +17,6 @@ export const ethereumChainNames = supportedChainNames.filter(
 export const agentSpecificChainMetadataOverrides: ChainMap<
   Partial<ChainMetadata>
 > = {
-  ronin: {
-    transactionOverrides: {
-      minGasPrice: 20 * 10 ** 9, // 20 gwei
-      minFeePerGas: 20 * 10 ** 9, // 20 gwei
-      minPriorityFeePerGas: 20 * 10 ** 9, // 20 gwei
-    },
-  },
   ink: {
     transactionOverrides: {
       minGasPrice: 1, // 1 wei

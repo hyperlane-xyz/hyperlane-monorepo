@@ -17,9 +17,6 @@
   "arbitrum": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
-  "arcadia": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
   "avalanche": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
@@ -27,9 +24,6 @@
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "berachain": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
-  "bitlayer": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "blast": {
@@ -86,9 +80,6 @@
   "gnosis": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
-  "hashkey": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
   "hyperevm": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
@@ -125,16 +116,10 @@
   "lukso": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
-  "lumiaprism": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
   "mantle": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "mantra": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
-  "matchain": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "megaeth": {
@@ -164,9 +149,6 @@
   "nexus": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
-  "oortmainnet": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
   "optimism": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
@@ -188,9 +170,6 @@
   "robinhood": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
-  "ronin": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
   "sei": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
@@ -204,9 +183,6 @@
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "soneium": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
-  "sonic": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "sonicsvm": {
