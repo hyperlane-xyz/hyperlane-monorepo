@@ -114,17 +114,9 @@ type ClientState = {
   subscriptions: Map<EventType, Subscription>;
 };
 
-type Tip = {
-  domain: number;
-  eventType: 'scraper';
-  height: string;
-  recordedAt: unknown;
-};
-
 export class EventWebSocketServer {
   private readonly logger = new Logger(EventWebSocketServer.name);
   private readonly clients = new Map<WebSocket, ClientState>();
-  private readonly tips = new Map<number, Tip>();
   private heartbeatTimer?: NodeJS.Timeout;
   private listenerReady = false;
   private listenerRetryTimer?: NodeJS.Timeout;
@@ -136,7 +128,6 @@ export class EventWebSocketServer {
 
   async start(server: Server): Promise<void> {
     await this.connectListener();
-    await this.refreshTips();
 
     this.webSocketServer = new WebSocketServer({
       maxPayload: 4_096,
@@ -365,7 +356,6 @@ export class EventWebSocketServer {
         data: row,
         domain,
         eventType,
-        tip: this.tips.get(domain),
         type: 'event',
       });
     }
@@ -413,32 +403,6 @@ export class EventWebSocketServer {
     return parseCursor(row?.id ?? '0');
   }
 
-  private async refreshTips(): Promise<void> {
-    type TipRow = {
-      domain: number;
-      height: string;
-      time_created: unknown;
-    };
-    const sql = `SELECT ${quoteIdentifier('domain')}, ${quoteIdentifier(
-      'height',
-    )}::text AS ${quoteIdentifier('height')}, ${quoteIdentifier(
-      'time_created',
-    )} FROM ${quoteIdentifier('cursor')} WHERE ${quoteIdentifier(
-      'event_type',
-    )} = ''`;
-    const rows = await this.db.queryLive<TipRow>(sql);
-
-    for (const row of rows) {
-      const tip: Tip = {
-        domain: Number(row.domain),
-        eventType: 'scraper',
-        height: row.height,
-        recordedAt: row.time_created,
-      };
-      this.tips.set(tip.domain, tip);
-    }
-  }
-
   private async connectListener(): Promise<void> {
     try {
       this.stopListening = await this.db.listen(
@@ -475,10 +439,10 @@ export class EventWebSocketServer {
     eventType: EventType;
     id: bigint;
   }): Promise<void> {
-    const [row, tip] = await Promise.all([
-      this.fetchNotifiedRow(notification.eventType, notification.id),
-      this.fetchTip(notification.domain),
-    ]);
+    const row = await this.fetchNotifiedRow(
+      notification.eventType,
+      notification.id,
+    );
     const domain = domainFromRow(
       row,
       STREAMS[notification.eventType].domainColumn,
@@ -487,9 +451,6 @@ export class EventWebSocketServer {
       throw new Error(
         `Incorrect domain in ${notification.eventType} notification`,
       );
-    }
-    if (tip) {
-      this.tips.set(tip.domain, tip);
     }
     this.publishRow(notification.eventType, row);
   }
@@ -512,31 +473,6 @@ export class EventWebSocketServer {
       throw new Error(`Missing notified ${eventType} row ${id}`);
     }
     return rows[0];
-  }
-
-  private async fetchTip(domain: number): Promise<Tip | null> {
-    const rows = await this.db.queryLive<{
-      height: string;
-      time_created: unknown;
-    }>(
-      `SELECT ${quoteIdentifier('height')}::text AS ${quoteIdentifier(
-        'height',
-      )}, ${quoteIdentifier('time_created')} FROM ${quoteIdentifier(
-        'cursor',
-      )} WHERE ${quoteIdentifier('domain')} = $1 AND ${quoteIdentifier(
-        'event_type',
-      )} = ''`,
-      [domain],
-    );
-    const row = rows[0];
-    return row
-      ? {
-          domain,
-          eventType: 'scraper',
-          height: row.height,
-          recordedAt: row.time_created,
-        }
-      : null;
   }
 
   private onListenerDisconnect(error?: Error): void {

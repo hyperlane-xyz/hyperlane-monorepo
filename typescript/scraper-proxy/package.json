@@ -19,6 +19,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf ./dist",
+    "debug:websocket": "tsx src/scripts/debug-event-websocket.ts",
     "dev": "NODE_ENV=development LOG_FORMAT=pretty tsx watch src/main.ts",
     "format": "oxfmt --write ./src",
     "lint": "oxlint -c ../../oxlint.json",
