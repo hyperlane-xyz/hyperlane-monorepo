@@ -58,7 +58,7 @@ setInterval(() => {
   logger.log(
     `graphql stats requests=${current.requests} errors=${current.errors} status4xx=${current.status4xx} status5xx=${current.status5xx} avgMs=${current.requests ? Math.round(current.totalMs / current.requests) : 0} maxMs=${current.maxMs}`,
   );
-}, 60_000);
+}, 60_000).unref();
 
 @Module({
   imports: [

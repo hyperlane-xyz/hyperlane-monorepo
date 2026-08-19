@@ -150,7 +150,9 @@ function bool(
 ): string {
   if (value === null || value === undefined) return '';
   if (key === '_and' || key === '_or') {
-    const rendered = (Array.isArray(value) ? value : [value])
+    const children = Array.isArray(value) ? value : [value];
+    if (key === '_or' && !children.length) return 'FALSE';
+    const rendered = children
       .map((item) => where(table, item as BoolExp, values))
       .filter(Boolean);
     return rendered.length

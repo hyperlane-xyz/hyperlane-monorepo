@@ -20,6 +20,7 @@ export function scraperDbCachePlugin(): ApolloServerPlugin {
   return {
     async requestDidStart() {
       let directive: CacheDirective | null = null;
+      let hit = false;
       let key: string | null = null;
       return {
         async responseForOperation(context) {
@@ -44,10 +45,11 @@ export function scraperDbCachePlugin(): ApolloServerPlugin {
           }
           cache.delete(key);
           cache.set(key, entry);
+          hit = true;
           return cachedResponse(entry);
         },
         async willSendResponse(context) {
-          if (!directive) return;
+          if (!directive || hit) return;
           context.response.http.headers.set(
             'cache-control',
             cacheControlHeader(directive.ttl),

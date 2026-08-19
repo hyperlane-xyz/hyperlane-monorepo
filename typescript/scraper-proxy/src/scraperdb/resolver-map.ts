@@ -5,8 +5,6 @@ import { ScraperDbService } from './scraperdb.service.js';
 import type { CountArgs, SelectArgs } from './sql.js';
 import type { TableName } from './tables.js';
 
-type ResolverArgs = SelectArgs & { id?: number | string };
-
 export function buildResolvers(db: ScraperDbService): Record<string, unknown> {
   const select =
     (table: TableName) =>
@@ -48,43 +46,6 @@ export function buildResolvers(db: ScraperDbService): Record<string, unknown> {
       message_view_aggregate: aggregate,
       raw_message_dispatch: select('raw_message_dispatch'),
       raw_message_dispatch_by_pk: byPk('raw_message_dispatch'),
-    },
-    subscription_root: {
-      domain: subscription((args) => db.select('domain', args)),
-      domain_by_pk: subscription(({ id }) => db.byPk('domain', id)),
-      domain_stream: subscription((args) => db.select('domain', args)),
-      message_view: subscription((args) => db.select('message_view', args)),
-      message_view_aggregate: subscription((args, info) =>
-        db.aggregate('message_view', args, nestedColumns(info, 'nodes')),
-      ),
-      message_view_stream: subscription((args) =>
-        db.select('message_view', args),
-      ),
-      raw_message_dispatch: subscription((args) =>
-        db.select('raw_message_dispatch', args),
-      ),
-      raw_message_dispatch_by_pk: subscription(({ id }) =>
-        db.byPk('raw_message_dispatch', id),
-      ),
-      raw_message_dispatch_stream: subscription((args) =>
-        db.select('raw_message_dispatch', args),
-      ),
-    },
-  };
-}
-
-function subscription<T>(
-  load: (args: ResolverArgs, info: GraphQLResolveInfo) => Promise<T>,
-) {
-  return {
-    resolve: (payload: T) => payload,
-    subscribe: async function* (
-      _parent: unknown,
-      args: ResolverArgs,
-      _context: unknown,
-      info: GraphQLResolveInfo,
-    ) {
-      yield await load(args, info);
     },
   };
 }

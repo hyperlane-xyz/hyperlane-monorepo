@@ -28,6 +28,7 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
   private readonly logger = new Logger(DbService.name);
   private readonly listeners = new Set<pg.Client>();
   private mainPool?: pg.Pool;
+  private nextQueryId = 0;
   private livePool?: pg.Pool;
   private stats = newStats();
   private statsTimer?: NodeJS.Timeout;
@@ -131,15 +132,25 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
     text: string,
     values: unknown[],
   ): Promise<T[]> {
+    const id = ++this.nextQueryId;
     const started = Date.now();
+    this.logger.debug(
+      `query id=${id} start sql=${text.replaceAll(/\s+/g, ' ').trim()} values=${json(values)}`,
+    );
     try {
       const result = await pool.query<T>(text, values);
       const duration = Date.now() - started;
       this.record(duration, result.rowCount ?? 0);
-      this.logger.debug(`query ${duration}ms rows=${result.rowCount}`);
+      this.logger.debug(
+        `query id=${id} completed ${duration}ms rows=${result.rowCount}`,
+      );
       return result.rows.map(normalizeRow) as T[];
     } catch (error) {
-      this.record(Date.now() - started, 0, true);
+      const duration = Date.now() - started;
+      this.record(duration, 0, true);
+      this.logger.debug(
+        `query id=${id} failed ${duration}ms error=${error instanceof Error ? error.message : String(error)}`,
+      );
       throw error;
     }
   }
@@ -161,21 +172,8 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
   }
 }
 
-function databaseOptions(connection: string): pg.ClientConfig {
-  const connectionString = normalizeUrl(connection);
-  return {
-    connectionString,
-    ssl: connectionString.startsWith('postgres')
-      ? { rejectUnauthorized: false }
-      : undefined,
-  };
-}
-
-function normalizeUrl(connection: string): string {
-  if (!connection.startsWith('postgres')) return connection;
-  const url = new URL(connection);
-  url.searchParams.delete('sslmode');
-  return url.toString();
+function databaseOptions(connectionString: string): pg.ClientConfig {
+  return { connectionString };
 }
 
 function newStats(): Stats {
@@ -188,5 +186,11 @@ function normalizeRow(row: pg.QueryResultRow): pg.QueryResultRow {
       key,
       Buffer.isBuffer(value) ? `\\x${value.toString('hex')}` : value,
     ]),
+  );
+}
+
+function json(value: unknown): string {
+  return JSON.stringify(value, (_key, item) =>
+    typeof item === 'bigint' ? item.toString() : item,
   );
 }

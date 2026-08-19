@@ -74,7 +74,6 @@ impl MigrationTrait for Migration {
                 DROP TRIGGER IF EXISTS scraper_event_notify ON delivered_message;
                 DROP TRIGGER IF EXISTS scraper_event_notify ON gas_payment;
                 DROP TRIGGER IF EXISTS scraper_event_notify ON merkle_tree_insertion;
-                DROP INDEX IF EXISTS raw_message_dispatch_native_sequence_idx;
                 DROP FUNCTION IF EXISTS notify_scraper_event();
                 "#,
             )

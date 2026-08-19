@@ -110,6 +110,11 @@ void describe('scraper database SQL', () => {
       assert.deepEqual(query.values, ['eth%', 500]);
     }
   });
+
+  void it('treats an empty OR as false', () => {
+    const query = buildSelect('domain', { where: { _or: [] } });
+    assert.match(query.sql, /WHERE \(FALSE\)/);
+  });
 });
 
 void describe('GraphQL request compatibility', () => {
