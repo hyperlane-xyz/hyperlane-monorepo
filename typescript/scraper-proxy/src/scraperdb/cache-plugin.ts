@@ -72,6 +72,7 @@ export function scraperDbCachePlugin(): ApolloServerPlugin {
             'cache-control',
             cacheControlHeader(directive.ttl),
           );
+          if (directive.ttl === 0) return;
           const body = JSON.stringify(context.response.body.singleResult);
           const bytes = Buffer.byteLength(body);
           if (bytes > MAX_ENTRY_BYTES) return;
@@ -140,8 +141,20 @@ function cachedResponse(entry: Entry): GraphQLResponse {
   return {
     body: {
       kind: 'single',
-      singleResult: JSON.parse(entry.body) as Record<string, unknown>,
+      singleResult: parseCachedBody(entry.body),
     },
     http: { headers },
   };
+}
+
+function parseCachedBody(body: string): Record<string, unknown> {
+  const value: unknown = JSON.parse(body);
+  if (!isRecord(value)) {
+    throw new Error('Invalid cached GraphQL response');
+  }
+  return value;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }

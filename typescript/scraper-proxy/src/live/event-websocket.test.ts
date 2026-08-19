@@ -122,6 +122,30 @@ void describe('event websocket protocol', () => {
     }
   });
 
+  void it('rejects malformed sequence cursor addresses', () => {
+    for (const address of [
+      '0xabc',
+      `0x${'ab'.repeat(19)}`,
+      `0x${'ab'.repeat(21)}`,
+    ]) {
+      assert.throws(
+        () =>
+          parseClientMessage(
+            JSON.stringify({
+              streams: [
+                {
+                  cursors: [{ address, domain: 1 }],
+                  eventType: 'dispatch',
+                },
+              ],
+              type: 'subscribe',
+            }),
+          ),
+        /Invalid sequence cursor address/,
+      );
+    }
+  });
+
   void it('accepts more than 100 domains', () => {
     const message = parseClientMessage(
       JSON.stringify({

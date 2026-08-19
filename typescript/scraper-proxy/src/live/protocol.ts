@@ -171,7 +171,7 @@ function parseSequenceCursor(value: unknown): SequenceCursor {
   }
   if (
     typeof value.address !== 'string' ||
-    !/^(?:0x|\\x)?[\da-fA-F]{2,64}$/.test(value.address)
+    !/^(?:0x|\\x)?(?:[\da-fA-F]{40}|[\da-fA-F]{64})$/.test(value.address)
   ) {
     throw new Error('Invalid sequence cursor address');
   }
@@ -202,8 +202,8 @@ function parseInteger(value: unknown, min: number, error: string): bigint {
   throw new Error(error);
 }
 
-function isEventType(value: unknown): value is EventType {
-  return EVENT_TYPES.includes(value as EventType);
+export function isEventType(value: unknown): value is EventType {
+  return EVENT_TYPES.some((eventType) => eventType === value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

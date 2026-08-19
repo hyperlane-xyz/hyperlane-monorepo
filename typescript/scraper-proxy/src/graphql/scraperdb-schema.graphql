@@ -508,26 +508,6 @@ input String_comparison_exp {
   _lte: String
   _neq: String
   _nin: [String!]
-  "does the column NOT match the given POSIX regular expression, case insensitive"
-  _niregex: String
-  "does the column NOT match the given POSIX regular expression, case sensitive"
-  _nregex: String
-  "does the column NOT match the given SQL regular expression"
-  _nsimilar: String
-  "does the column NOT match the given case-insensitive pattern"
-  _nilike: String
-  "does the column NOT match the given pattern"
-  _nlike: String
-  "does the column match the given POSIX regular expression, case insensitive"
-  _iregex: String
-  "does the column match the given POSIX regular expression, case sensitive"
-  _regex: String
-  "does the column match the given SQL regular expression"
-  _similar: String
-  "does the column match the given case-insensitive pattern"
-  _ilike: String
-  "does the column match the given pattern"
-  _like: String
 }
 
 "Boolean expression to compare columns of type \"bigint\". All fields are combined with logical 'AND'."

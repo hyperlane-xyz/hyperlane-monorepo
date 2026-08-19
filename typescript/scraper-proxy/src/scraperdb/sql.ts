@@ -154,7 +154,7 @@ function bool(
     if (key === '_or' && !children.length) return 'FALSE';
     const valueCount = values.length;
     const rendered = children
-      .map((item) => where(table, item as BoolExp, values))
+      .map((item) => where(table, boolExpression(item), values))
       .filter(Boolean);
     if (key === '_or' && rendered.length < children.length) {
       values.length = valueCount;
@@ -165,11 +165,11 @@ function bool(
       : '';
   }
   if (key === '_not') {
-    const rendered = where(table, value as BoolExp, values);
+    const rendered = where(table, boolExpression(value), values);
     return rendered ? `NOT ${rendered}` : 'FALSE';
   }
   assertColumn(table, key);
-  const rendered = Object.entries(value as Record<string, unknown>)
+  const rendered = Object.entries(boolExpression(value) ?? {})
     .map(([operator, operand]) => comparison(q(key), operator, operand, values))
     .filter(Boolean);
   return rendered.length ? `(${rendered.join(' AND ')})` : '';
@@ -198,22 +198,20 @@ const OPERATORS: Record<string, string> = {
   _eq: '=',
   _gt: '>',
   _gte: '>=',
-  _ilike: 'ILIKE',
   _in: 'IN',
-  _iregex: '~*',
   _lt: '<',
   _lte: '<=',
-  _like: 'LIKE',
   _neq: '<>',
-  _nilike: 'NOT ILIKE',
   _nin: 'NOT IN',
-  _niregex: '!~*',
-  _nlike: 'NOT LIKE',
-  _nregex: '!~',
-  _nsimilar: 'NOT SIMILAR TO',
-  _regex: '~',
-  _similar: 'SIMILAR TO',
 };
+
+function boolExpression(value: unknown): BoolExp | undefined {
+  return isRecord(value) ? value : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
 
 function cursorWhere(
   table: TableName,

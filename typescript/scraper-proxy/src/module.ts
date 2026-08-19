@@ -13,6 +13,7 @@ import {
 import { GraphQLModule } from '@nestjs/graphql';
 import type { GraphQLFormattedError } from 'graphql';
 
+import { config } from './config.js';
 import { DbModule } from './db/db.module.js';
 import { DbService } from './db/db.service.js';
 import { scraperDbCachePlugin } from './scraperdb/cache-plugin.js';
@@ -29,7 +30,9 @@ type Request = {
   url?: string;
 };
 type Response = {
-  on(event: 'finish', listener: () => void): void;
+  end(body?: string): void;
+  on(event: 'close' | 'finish', listener: () => void): void;
+  setHeader(name: string, value: string): void;
   statusCode?: number;
 };
 type Stats = {
@@ -42,6 +45,11 @@ type Stats = {
 };
 
 const logger = new Logger('GraphQL');
+const plugins = [
+  ApolloServerPluginLandingPageLocalDefault(),
+  ApolloServerPluginCacheControl({ calculateHttpHeaders: false }),
+  scraperDbCachePlugin(),
+];
 const schemaPath = [
   join(import.meta.dirname, 'graphql/scraperdb-schema.graphql'),
   join(import.meta.dirname, '../src/graphql/scraperdb-schema.graphql'),
@@ -49,6 +57,8 @@ const schemaPath = [
 if (!schemaPath) throw new Error('Missing scraper DB GraphQL schema');
 
 let stats = newStats();
+let activeRequests = 0;
+let requestWindow = { count: 0, startedAt: Date.now() };
 setInterval(() => {
   const current = stats;
   stats = newStats();
@@ -67,14 +77,10 @@ setInterval(() => {
         csrfPrevention: false,
         formatError,
         playground: false,
-        plugins: [
-          ApolloServerPluginLandingPageLocalDefault(),
-          ApolloServerPluginCacheControl({ calculateHttpHeaders: false }),
-          scraperDbCachePlugin(),
-        ] as ApolloDriverConfig['plugins'],
-        resolvers: buildResolvers(
-          new ScraperDbService(db),
-        ) as ApolloDriverConfig['resolvers'],
+        // CAST: Nest and Apollo expose the same plugin API through distinct
+        // CJS/ESM declarations, which TypeScript treats as nominally different.
+        plugins: plugins as ApolloDriverConfig['plugins'],
+        resolvers: buildResolvers(new ScraperDbService(db)),
         typeDefs: sanitizeScraperDbSchema(readFileSync(schemaPath, 'utf8')),
         validationRules: [scraperProxyValidationRule],
       }),
@@ -94,8 +100,26 @@ function graphqlMiddleware(
   next: () => void,
 ): void {
   const started = Date.now();
+  const now = Date.now();
+  if (now - requestWindow.startedAt >= 1_000) {
+    requestWindow = { count: 0, startedAt: now };
+  }
+  if (
+    activeRequests >= config.GRAPHQL_MAX_ACTIVE_REQUESTS ||
+    ++requestWindow.count > config.GRAPHQL_REQUESTS_PER_SECOND
+  ) {
+    res.statusCode = 503;
+    res.setHeader('retry-after', '1');
+    res.end('GraphQL request capacity exceeded');
+    return;
+  }
+  activeRequests++;
   normalizeGraphqlRequestBody(req.body);
-  res.on('finish', () => {
+  let completed = false;
+  const complete = (): void => {
+    if (completed) return;
+    completed = true;
+    activeRequests--;
     const duration = Date.now() - started;
     const status = res.statusCode ?? 0;
     stats.requests++;
@@ -106,7 +130,9 @@ function graphqlMiddleware(
     logger.debug(
       `${req.method ?? 'REQUEST'} ${req.originalUrl ?? req.url ?? '/graphql'} ${status} ${duration}ms`,
     );
-  });
+  };
+  res.on('finish', complete);
+  res.on('close', complete);
   next();
 }
 

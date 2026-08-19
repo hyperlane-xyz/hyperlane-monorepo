@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { after, before, it } from 'node:test';
 
 import { WebSocket } from 'ws';
+import type { QueryResultRow } from 'pg';
 
 import { type EventDatabase, EventWebSocketServer } from './event-websocket.js';
 
@@ -21,25 +22,35 @@ const db: EventDatabase = {
     return async () => undefined;
   },
   async queryLive<T>(sql, values = []) {
-    if (sql.includes('MIN(')) return [{ first: '0', last: '0' }] as T[];
+    if (sql.includes('MIN(')) return queryRows<T>([{ first: '0', last: '0' }]);
     if (sql.includes('"message_view"')) {
-      return (values[0] as string[]).map((messageId) => ({
-        id: '42',
-        is_delivered: false,
-        msg_id: messageId,
-        origin_domain_id: 1,
-      })) as T[];
+      return queryRows<T>(
+        stringArray(values[0]).map((messageId) => ({
+          id: '42',
+          is_delivered: false,
+          msg_id: messageId,
+          origin_domain_id: 1,
+        })),
+      );
     }
+    if (sql.includes('ORDER BY "leaf_index"'))
+      return queryRows<T>([row(hookA)]);
     if (!sql.includes('notification_id')) return [];
-    return (values[0] as string[]).map((id) => ({
-      notification_id: id,
-      ...rows.get(id),
-    })) as T[];
+    return queryRows<T>(
+      stringArray(values[0]).map((id) => ({
+        notification_id: id,
+        ...rows.get(id),
+      })),
+    );
   },
 };
 
 const http = createServer();
-const events = new EventWebSocketServer(db, true);
+const events = new EventWebSocketServer(db, true, {
+  maxAgentClients: 1,
+  maxCatchUpRows: 0,
+  maxExplorerClients: 1,
+});
 let url: string;
 let explorerUrl: string;
 
@@ -59,11 +70,58 @@ after(async () => {
   );
 });
 
+void it('keeps agent capacity independent from Explorer capacity', async () => {
+  const explorer = new WebSocket(explorerUrl);
+  const agent = new WebSocket(url);
+  const explorerMessages: Record<string, unknown>[] = [];
+  const agentMessages: Record<string, unknown>[] = [];
+  explorer.on('message', (data) =>
+    explorerMessages.push(parseRecord(rawData(data))),
+  );
+  agent.on('message', (data) => agentMessages.push(parseRecord(rawData(data))));
+  await Promise.all([
+    waitFor(explorerMessages, 'ready'),
+    waitFor(agentMessages, 'ready'),
+  ]);
+  explorer.close();
+  agent.close();
+  await Promise.all([
+    new Promise<void>((resolve) => explorer.once('close', resolve)),
+    new Promise<void>((resolve) => agent.once('close', resolve)),
+  ]);
+});
+
+void it('enforces the historical replay row budget', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [{ address: hookA, afterSequence: '-1', domain: 1 }],
+              eventType: 'merkle_tree_insertion',
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+  const message = await waitFor(messages, 'error');
+  assert.match(String(message.error), /row limit exceeded/);
+  socket.close();
+  await new Promise<void>((resolve) => socket.once('close', resolve));
+});
+
 void it('only emits addresses named by sequence cursors', async () => {
   const socket = new WebSocket(url);
   const messages: Record<string, unknown>[] = [];
   socket.on('message', (data) => {
-    const message = JSON.parse(rawData(data)) as Record<string, unknown>;
+    const message = parseRecord(rawData(data));
     messages.push(message);
     if (message.type === 'ready') {
       socket.send(
@@ -83,7 +141,7 @@ void it('only emits addresses named by sequence cursors', async () => {
   notify('scraper_event', notification('1'));
   notify('scraper_event', notification('2'));
   const event = await waitFor(messages, 'event');
-  assert.equal((event.data as Record<string, unknown>).merkle_tree_hook, hookA);
+  assert.equal(record(event.data).merkle_tree_hook, hookA);
   assert.equal(messages.filter(({ type }) => type === 'event').length, 1);
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', () => resolve()));
@@ -92,9 +150,7 @@ void it('only emits addresses named by sequence cursors', async () => {
 void it('emits normalized message upserts to Explorer', async () => {
   const socket = new WebSocket(explorerUrl);
   const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) =>
-    messages.push(JSON.parse(rawData(data)) as Record<string, unknown>),
-  );
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
   await waitFor(messages, 'ready');
   notify(
     'scraper_explorer_event',
@@ -145,4 +201,25 @@ function rawData(data: WebSocket.RawData): string {
   if (Array.isArray(data)) return Buffer.concat(data).toString('utf8');
   if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
   return data.toString('utf8');
+}
+
+function parseRecord(value: string): Record<string, unknown> {
+  return record(JSON.parse(value));
+}
+
+function record(value: unknown): Record<string, unknown> {
+  assert(value && typeof value === 'object' && !Array.isArray(value));
+  return value;
+}
+
+function stringArray(value: unknown): string[] {
+  assert(
+    Array.isArray(value) && value.every((item) => typeof item === 'string'),
+  );
+  return value;
+}
+
+function queryRows<T extends QueryResultRow>(rows: QueryResultRow[]): T[] {
+  // CAST: This SQL-aware fake returns the row shape requested by each known query.
+  return rows as T[];
 }

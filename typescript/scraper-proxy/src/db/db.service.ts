@@ -16,6 +16,7 @@ const IDLE_TIMEOUT_MS = 300_000;
 [1114, 1186].forEach((oid) =>
   pg.types.setTypeParser(oid, (value: string) => value),
 );
+pg.types.setTypeParser(17, (value: string) => value);
 
 type Stats = {
   errors: number;
@@ -112,21 +113,26 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
   }
 
   private pool(): pg.Pool {
-    this.mainPool ??= new pg.Pool({
-      ...databaseOptions(config.DATABASE_URL),
-      idleTimeoutMillis: IDLE_TIMEOUT_MS,
-      min: MIN_POOL_CLIENTS,
-    });
+    this.mainPool ??= this.createPool(config.DATABASE_URL, MIN_POOL_CLIENTS);
     return this.mainPool;
   }
 
   private live(): pg.Pool {
     if (!config.LISTEN_DATABASE_URL) return this.pool();
-    this.livePool ??= new pg.Pool({
-      ...databaseOptions(config.LISTEN_DATABASE_URL),
-      idleTimeoutMillis: IDLE_TIMEOUT_MS,
-    });
+    this.livePool ??= this.createPool(config.LISTEN_DATABASE_URL);
     return this.livePool;
+  }
+
+  private createPool(connectionString: string, min?: number): pg.Pool {
+    const pool = new pg.Pool({
+      ...databaseOptions(connectionString),
+      idleTimeoutMillis: IDLE_TIMEOUT_MS,
+      min,
+    });
+    pool.on('error', (error) =>
+      this.logger.error(`idle database connection failed: ${error.message}`),
+    );
+    return pool;
   }
 
   private async run<T extends pg.QueryResultRow>(
@@ -146,7 +152,7 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
       this.logger.debug(
         `query id=${id} completed ${duration}ms rows=${result.rowCount}`,
       );
-      return result.rows.map(normalizeRow) as T[];
+      return result.rows;
     } catch (error) {
       const duration = Date.now() - started;
       this.record(duration, 0, true);
@@ -175,20 +181,15 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
 }
 
 function databaseOptions(connectionString: string): pg.ClientConfig {
-  return { connectionString };
+  return {
+    connectionString,
+    query_timeout: config.DATABASE_QUERY_TIMEOUT_MS,
+    statement_timeout: config.DATABASE_STATEMENT_TIMEOUT_MS,
+  };
 }
 
 function newStats(): Stats {
   return { errors: 0, maxMs: 0, queries: 0, rows: 0, totalMs: 0 };
-}
-
-function normalizeRow(row: pg.QueryResultRow): pg.QueryResultRow {
-  return Object.fromEntries(
-    Object.entries(row).map(([key, value]) => [
-      key,
-      Buffer.isBuffer(value) ? `\\x${value.toString('hex')}` : value,
-    ]),
-  );
 }
 
 function json(value: unknown): string {

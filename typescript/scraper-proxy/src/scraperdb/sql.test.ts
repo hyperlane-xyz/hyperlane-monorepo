@@ -85,28 +85,15 @@ void describe('scraper database SQL', () => {
     );
   });
 
-  void it('supports every advertised string comparison', () => {
-    const operators = {
-      _ilike: 'ILIKE',
-      _iregex: '~*',
-      _like: 'LIKE',
-      _nilike: 'NOT ILIKE',
-      _niregex: '!~*',
-      _nlike: 'NOT LIKE',
-      _nregex: '!~',
-      _nsimilar: 'NOT SIMILAR TO',
-      _regex: '~',
-      _similar: 'SIMILAR TO',
-    };
-    for (const [operator, sqlOperator] of Object.entries(operators)) {
-      const query = buildSelect('domain', {
-        where: { name: { [operator]: 'eth%' } },
-      });
-      assert.match(
-        query.sql,
-        new RegExp(`"name" ${sqlOperator.replace('*', '\\*')} \\$1`),
+  void it('rejects expensive public pattern operators', () => {
+    for (const operator of ['_like', '_ilike', '_regex', '_similar']) {
+      assert.throws(
+        () =>
+          buildSelect('domain', {
+            where: { name: { [operator]: 'eth%' } },
+          }),
+        /Unsupported comparison operator/,
       );
-      assert.deepEqual(query.values, ['eth%', 500]);
     }
   });
 

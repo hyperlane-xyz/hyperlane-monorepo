@@ -12,6 +12,9 @@ import {
 const LIMITS = { rootFields: 10, fields: 250, aliases: 10, depth: 6 } as const;
 type Stat = keyof typeof LIMITS;
 type Stats = Record<Stat, number>;
+const STAT_NAMES: Stat[] = ['rootFields', 'fields', 'aliases', 'depth'];
+const MAX_WORK = 1_000;
+type WalkState = { work: number };
 
 export const scraperProxyValidationRule: ValidationRule = (context) => ({
   Document: (document) => validate(context, document),
@@ -44,14 +47,21 @@ function validate(context: ValidationContext, document: DocumentNode): void {
       continue;
     }
     const stats: Stats = { aliases: 0, depth: 0, fields: 0, rootFields: 0 };
-    walk(operation.selectionSet, fragments, stats, 0, true, new Set());
-    for (const [name, max] of Object.entries(LIMITS) as [Stat, number][]) {
+    const state: WalkState = { work: 0 };
+    walk(operation.selectionSet, fragments, stats, state, 0, true, new Set());
+    for (const name of STAT_NAMES) {
+      const max = LIMITS[name];
       if (stats[name] > max) {
         const label = name === 'rootFields' ? 'root fields' : name;
         context.reportError(
           new GraphQLError(`GraphQL query ${label} exceeds maximum of ${max}`),
         );
       }
+    }
+    if (state.work > MAX_WORK) {
+      context.reportError(
+        new GraphQLError(`GraphQL query work exceeds maximum of ${MAX_WORK}`),
+      );
     }
   }
 }
@@ -60,11 +70,13 @@ function walk(
   set: SelectionSetNode,
   fragments: Map<string, FragmentDefinitionNode>,
   stats: Stats,
+  state: WalkState,
   depth: number,
   root: boolean,
   visited: Set<string>,
 ): void {
   for (const selection of set.selections) {
+    if (++state.work > MAX_WORK || overBudget(stats)) return;
     if (selection.kind === Kind.FIELD) {
       if (
         selection.name.value === '__schema' ||
@@ -82,6 +94,7 @@ function walk(
           selection.selectionSet,
           fragments,
           stats,
+          state,
           depth + 1,
           false,
           visited,
@@ -90,14 +103,26 @@ function walk(
       continue;
     }
     if (selection.kind === Kind.INLINE_FRAGMENT) {
-      walk(selection.selectionSet, fragments, stats, depth, root, visited);
+      walk(
+        selection.selectionSet,
+        fragments,
+        stats,
+        state,
+        depth,
+        root,
+        visited,
+      );
       continue;
     }
     const name = selection.name.value;
     const fragment = fragments.get(name);
     if (!fragment || visited.has(name)) continue;
     visited.add(name);
-    walk(fragment.selectionSet, fragments, stats, depth, root, visited);
+    walk(fragment.selectionSet, fragments, stats, state, depth, root, visited);
     visited.delete(name);
   }
+}
+
+function overBudget(stats: Stats): boolean {
+  return STAT_NAMES.some((name) => stats[name] > LIMITS[name]);
 }

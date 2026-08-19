@@ -30,7 +30,8 @@ const HEARTBEAT_MS = 30_000;
 const LISTENER_RETRY_MS = 1_000;
 const NOTIFICATION_BATCH_MS = 100;
 const NOTIFICATION_BATCH_SIZE = 1_000;
-const MAX_CLIENTS = 500;
+const MAX_AGENT_CLIENTS = 100;
+const MAX_EXPLORER_CLIENTS = 400;
 const MAX_CLIENT_MESSAGES = 30;
 const MAX_PENDING_EVENTS = 5_000;
 const MAX_BUFFERED_BYTES = 1_048_576;
@@ -44,6 +45,8 @@ type Stream = {
   table: string;
 };
 type Subscription = {
+  catchUpRows: number;
+  catchUpStartedAt: number;
   catchingUp: boolean;
   cursorKeys?: Set<string>;
   domains?: Set<number>;
@@ -55,6 +58,13 @@ type Client = {
   messages: number;
   messageWindow: number;
   subscriptions: Map<EventType, Subscription>;
+};
+type Limits = {
+  maxAgentClients: number;
+  maxCatchUpMs: number;
+  maxCatchUpRows: number;
+  maxConcurrentCatchUps: number;
+  maxExplorerClients: number;
 };
 export type EventDatabase = Pick<DbService, 'listen' | 'queryLive'>;
 
@@ -110,17 +120,29 @@ export class EventWebSocketServer {
   private listenerRetryTimer?: NodeJS.Timeout;
   private notificationTimer?: NodeJS.Timeout;
   private draining = false;
+  private catchUps = 0;
   private listenerReady = false;
   private stopped = false;
   private stopListening?: () => Promise<void>;
   private httpServer?: Server;
   private agentServer?: WebSocketServer;
   private explorerServer?: WebSocketServer;
+  private readonly limits: Limits;
 
   constructor(
     private readonly db: EventDatabase,
     private readonly historyEnabled = config.EVENT_STREAM_HISTORY_ENABLED,
-  ) {}
+    limits: Partial<Limits> = {},
+  ) {
+    this.limits = {
+      maxAgentClients: MAX_AGENT_CLIENTS,
+      maxCatchUpMs: config.EVENT_STREAM_HISTORY_MAX_MS,
+      maxCatchUpRows: config.EVENT_STREAM_HISTORY_MAX_ROWS,
+      maxConcurrentCatchUps: config.EVENT_STREAM_HISTORY_MAX_CONCURRENT,
+      maxExplorerClients: MAX_EXPLORER_CLIENTS,
+      ...limits,
+    };
+  }
 
   async start(server: Server): Promise<void> {
     await this.connectListener();
@@ -170,7 +192,7 @@ export class EventWebSocketServer {
   }
 
   private connectAgent(socket: WebSocket): void {
-    if (!this.accept(socket)) return;
+    if (!this.accept(socket, 'agent')) return;
     this.clients.set(socket, {
       alive: true,
       messages: 0,
@@ -182,7 +204,7 @@ export class EventWebSocketServer {
       historicalStreaming: this.historyEnabled,
       type: 'ready',
     });
-    this.watch(socket, this.clients);
+    this.watch(socket, this.clients, (client) => client.subscriptions.clear());
     socket.on('message', (data) => void this.onMessage(socket, rawData(data)));
   }
 
@@ -208,7 +230,7 @@ export class EventWebSocketServer {
   };
 
   private connectExplorer(socket: WebSocket): void {
-    if (!this.accept(socket)) return;
+    if (!this.accept(socket, 'explorer')) return;
     this.explorerClients.set(socket, { alive: true });
     this.send(socket, {
       eventTypes: ['message_upsert'],
@@ -217,15 +239,16 @@ export class EventWebSocketServer {
     this.watch(socket, this.explorerClients);
   }
 
-  private accept(socket: WebSocket): boolean {
-    if (
-      !this.listenerReady ||
-      this.clients.size + this.explorerClients.size >= MAX_CLIENTS
-    ) {
+  private accept(socket: WebSocket, route: 'agent' | 'explorer'): boolean {
+    const full =
+      route === 'agent'
+        ? this.clients.size >= this.limits.maxAgentClients
+        : this.explorerClients.size >= this.limits.maxExplorerClients;
+    if (!this.listenerReady || full) {
       socket.close(
         1013,
         this.listenerReady
-          ? 'Maximum websocket clients reached'
+          ? `Maximum ${route} websocket clients reached`
           : 'Database event listener unavailable',
       );
       return false;
@@ -236,15 +259,21 @@ export class EventWebSocketServer {
   private watch<T extends { alive: boolean }>(
     socket: WebSocket,
     clients: Map<WebSocket, T>,
+    removed?: (client: T) => void,
   ): void {
     socket.on('pong', () => {
       const client = clients.get(socket);
       if (client) client.alive = true;
     });
-    socket.on('close', () => clients.delete(socket));
+    const remove = (): void => {
+      const client = clients.get(socket);
+      if (client) removed?.(client);
+      clients.delete(socket);
+    };
+    socket.on('close', remove);
     socket.on('error', (error) => {
       this.logger.warn(`websocket error: ${error.message}`);
-      clients.delete(socket);
+      remove();
     });
   }
 
@@ -282,6 +311,8 @@ export class EventWebSocketServer {
 
     for (const request of message.streams) {
       client.subscriptions.set(request.eventType, {
+        catchUpRows: 0,
+        catchUpStartedAt: Date.now(),
         catchingUp: !!request.cursors,
         cursorKeys: request.cursors
           ? new Set(
@@ -313,6 +344,12 @@ export class EventWebSocketServer {
   ): Promise<void> {
     const subscription = client.subscriptions.get(request.eventType);
     if (!subscription) return;
+    if (this.catchUps >= this.limits.maxConcurrentCatchUps) {
+      client.subscriptions.delete(request.eventType);
+      this.sendError(socket, 'Historical streaming capacity exceeded');
+      return;
+    }
+    this.catchUps++;
     try {
       for (const cursor of request.cursors ?? []) {
         await this.catchUpCursor(
@@ -341,6 +378,8 @@ export class EventWebSocketServer {
         socket,
         `Failed to catch up ${request.eventType}: ${reason}`,
       );
+    } finally {
+      this.catchUps--;
     }
   }
 
@@ -372,7 +411,10 @@ export class EventWebSocketServer {
         return;
       }
       const current = subscription.sequences.get(key) ?? -1n;
+      this.assertCatchUpBudget(subscription);
       const rows = await this.sequenceRows(eventType, cursor, current, last);
+      subscription.catchUpRows += rows.length;
+      this.assertCatchUpBudget(subscription);
       if (!rows.length)
         throw new Error(`Missing ${eventType} sequence ${current + 1n}`);
       for (const row of rows) {
@@ -381,13 +423,16 @@ export class EventWebSocketServer {
         }
       }
     }
-    this.send(socket, {
-      address: displayAddress(cursor.address),
-      domain: cursor.domain,
-      eventType,
-      sequence: last.toString(),
-      type: 'caught_up',
-    });
+    if (
+      !this.send(socket, {
+        address: displayAddress(cursor.address),
+        domain: cursor.domain,
+        eventType,
+        sequence: last.toString(),
+        type: 'caught_up',
+      })
+    )
+      throw new Error('Websocket closed during catch-up');
   }
 
   private publish(eventType: EventType, row: Row): void {
@@ -429,14 +474,26 @@ export class EventWebSocketServer {
         subscription.sequences.set(sequenceCursorKey, sequence.value);
       }
     }
-    this.send(socket, {
+    return this.send(socket, {
       data: row,
       domain,
       eventType,
       sequence: sequence?.value.toString(),
       type: 'event',
     });
-    return true;
+  }
+
+  private assertCatchUpBudget(subscription: Subscription): void {
+    if (subscription.catchUpRows > this.limits.maxCatchUpRows) {
+      throw new Error(
+        `Historical streaming row limit exceeded (${this.limits.maxCatchUpRows})`,
+      );
+    }
+    if (Date.now() - subscription.catchUpStartedAt > this.limits.maxCatchUpMs) {
+      throw new Error(
+        `Historical streaming time limit exceeded (${this.limits.maxCatchUpMs}ms)`,
+      );
+    }
   }
 
   private sequenceRows(
@@ -667,6 +724,10 @@ export class EventWebSocketServer {
   private send(socket: WebSocket, message: Record<string, unknown>): boolean {
     if (socket.readyState !== WebSocket.OPEN) return false;
     if (socket.bufferedAmount > MAX_BUFFERED_BYTES) {
+      const client = this.clients.get(socket);
+      client?.subscriptions.clear();
+      this.clients.delete(socket);
+      this.explorerClients.delete(socket);
       socket.close(1013, 'Slow websocket consumer');
       return false;
     }

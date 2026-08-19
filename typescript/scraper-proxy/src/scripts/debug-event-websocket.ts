@@ -2,7 +2,12 @@ import { parseArgs } from 'node:util';
 
 import { type RawData, WebSocket } from 'ws';
 
-import { EVENT_TYPES, type EventType, isDomain } from '../live/protocol.js';
+import {
+  EVENT_TYPES,
+  type EventType,
+  isDomain,
+  isEventType,
+} from '../live/protocol.js';
 
 const DEFAULT_URL = 'ws://localhost:8383/agents';
 const HELP = `Usage: pnpm debug:websocket [options]
@@ -72,7 +77,10 @@ function cursor(value: string): Cursor {
   }
   const domain = Number(rawDomain);
   if (!isDomain(domain)) throw new Error(`Invalid cursor domain: ${rawDomain}`);
-  if (!address || !/^(?:0x|\\x)?[\da-fA-F]{2,64}$/.test(address)) {
+  if (
+    !address ||
+    !/^(?:0x|\\x)?(?:[\da-fA-F]{40}|[\da-fA-F]{64})$/.test(address)
+  ) {
     throw new Error(`Invalid cursor address: ${address}`);
   }
   if (!afterSequence || !/^(?:-1|\d+)$/.test(afterSequence)) {
@@ -98,15 +106,15 @@ function options(): Options | undefined {
   }
 
   const requestedEvents = list(values.events);
-  const invalidEvents = requestedEvents?.filter(
-    (event) => !EVENT_TYPES.includes(event as EventType),
-  );
+  const invalidEvents = requestedEvents?.filter((event) => !isEventType(event));
   if (invalidEvents?.length) {
     throw new Error(
       `Unknown event type(s): ${invalidEvents.join(', ')}. Expected: ${EVENT_TYPES.join(', ')}`,
     );
   }
-  const events = (requestedEvents ?? EVENT_TYPES) as EventType[];
+  const events: EventType[] = requestedEvents
+    ? requestedEvents.filter(isEventType)
+    : [...EVENT_TYPES];
   const rawDomains = list(values.domains);
   const domains = rawDomains?.map(Number);
   const invalidDomains = rawDomains?.filter(
