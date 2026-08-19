@@ -146,7 +146,6 @@ impl ScraperDb {
                                 OnConflict::column(raw_message_dispatch::Column::MsgId)
                                     .update_columns([
                                         raw_message_dispatch::Column::TimeUpdated,
-                                        raw_message_dispatch::Column::OriginBlockHeight,
                                         raw_message_dispatch::Column::DestinationDomain,
                                         raw_message_dispatch::Column::Sender,
                                         raw_message_dispatch::Column::Recipient,
@@ -192,6 +191,26 @@ impl ScraperDb {
                                             Expr::col((
                                                 Alias::new("raw_message_dispatch"),
                                                 raw_message_dispatch::Column::OriginBlockHash,
+                                            )),
+                                        ),
+                                    )
+                                    .value(
+                                        raw_message_dispatch::Column::OriginBlockHeight,
+                                        Expr::case(
+                                            Expr::col((
+                                                Alias::new("excluded"),
+                                                raw_message_dispatch::Column::OriginBlockHash,
+                                            ))
+                                            .ne(h256_to_bytes(&H256::zero())),
+                                            Expr::col((
+                                                Alias::new("excluded"),
+                                                raw_message_dispatch::Column::OriginBlockHeight,
+                                            )),
+                                        )
+                                        .finally(
+                                            Expr::col((
+                                                Alias::new("raw_message_dispatch"),
+                                                raw_message_dispatch::Column::OriginBlockHeight,
                                             )),
                                         ),
                                     )

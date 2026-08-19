@@ -120,6 +120,7 @@ async fn build_store(postgres_url: &str, mailbox: H256, igp: H256) -> HyperlaneD
 }
 
 async fn seed_resolved_transaction(store: &HyperlaneDbStore) -> eyre::Result<(LogMeta, i64)> {
+    const RESOLVED_BLOCK_NUMBER: u64 = 20_000;
     let block_hash = H256::from_low_u64_be(333);
     let transaction_id = H512::from_low_u64_be(444);
     store
@@ -129,7 +130,7 @@ async fn seed_resolved_transaction(store: &HyperlaneDbStore) -> eyre::Result<(Lo
             [BlockInfo {
                 hash: block_hash,
                 timestamp: 1_700_000_000,
-                number: 10_000,
+                number: RESOLVED_BLOCK_NUMBER,
             }]
             .into_iter(),
         )
@@ -177,7 +178,7 @@ async fn seed_resolved_transaction(store: &HyperlaneDbStore) -> eyre::Result<(Lo
     Ok((
         LogMeta {
             address: H256::zero(),
-            block_number: 10_000,
+            block_number: RESOLVED_BLOCK_NUMBER,
             block_hash,
             transaction_id,
             transaction_index: 0,
@@ -216,6 +217,26 @@ async fn delivery_time_created(store: &HyperlaneDbStore, message_id: H256) -> ey
         .await?
         .expect("stored delivery");
     Ok(row.try_get("", "time_created")?)
+}
+
+async fn payment_row_counts(store: &HyperlaneDbStore, sequence: u32) -> eyre::Result<(i64, i64)> {
+    let row = store
+        .db
+        .clone_connection()
+        .query_one(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT COUNT(*)::bigint AS row_count, COUNT(*) FILTER (WHERE tx_id IS NULL)::bigint AS null_count FROM gas_payment WHERE domain = $1 AND sequence = $2",
+            [
+                i32::try_from(TEST_DOMAIN_ID)?.into(),
+                i64::from(sequence).into(),
+            ],
+        ))
+        .await?
+        .expect("stored payment");
+    Ok((
+        row.try_get("", "row_count")?,
+        row.try_get("", "null_count")?,
+    ))
 }
 
 async fn assert_retrievable_by_sequence(
@@ -354,6 +375,11 @@ async fn test_fallback_events_persist_and_survive_restart() -> eyre::Result<()> 
     assert_eq!(
         stored, 1,
         "duplicate fallback payments in one batch must be idempotent"
+    );
+    assert_eq!(
+        payment_row_counts(&store, SEQUENCE).await?,
+        (1, 1),
+        "fallback payment must have exactly one NULL-tx row"
     );
 
     let stored = HyperlaneLogStore::<Delivery>::store_logs(
@@ -564,6 +590,16 @@ async fn test_fallback_events_persist_and_survive_restart() -> eyre::Result<()> 
         hyperlane_core::h512_to_bytes(&resolved_meta.transaction_id)
     );
     assert_eq!(raw.origin_block_hash, resolved_meta.block_hash.as_bytes());
+    assert_eq!(
+        raw.origin_block_height,
+        i64::try_from(resolved_meta.block_number)?,
+        "fallback replay must keep the height paired with the resolved block hash"
+    );
+    assert_eq!(
+        payment_row_counts(&store, SEQUENCE).await?,
+        (1, 0),
+        "resolved payment must replace its NULL-tx fallback row"
+    );
 
     // No `Migrator::down` teardown: the test data intentionally contains NULL
     // transaction relations, which `down` (SET NOT NULL) rejects, and the
