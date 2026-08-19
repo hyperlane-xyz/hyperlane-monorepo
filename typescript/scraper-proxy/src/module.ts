@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
+import { ApolloServerPluginCacheControl } from '@apollo/server/plugin/cacheControl';
 import { ApolloDriver, type ApolloDriverConfig } from '@nestjs/apollo';
 import {
   Logger,
@@ -15,10 +16,7 @@ import type { GraphQLFormattedError } from 'graphql';
 import { DbModule } from './db/db.module.js';
 import { DbService } from './db/db.service.js';
 import { scraperDbCachePlugin } from './scraperdb/cache-plugin.js';
-import {
-  cacheControlHeaderForGraphqlRequestBody,
-  normalizeGraphqlRequestBody,
-} from './scraperdb/request-compatibility.js';
+import { normalizeGraphqlRequestBody } from './scraperdb/request-compatibility.js';
 import { buildResolvers } from './scraperdb/resolver-map.js';
 import { sanitizeScraperDbSchema } from './scraperdb/schema.js';
 import { ScraperDbService } from './scraperdb/scraperdb.service.js';
@@ -32,7 +30,6 @@ type Request = {
 };
 type Response = {
   on(event: 'finish', listener: () => void): void;
-  setHeader?(name: string, value: number | readonly string[] | string): unknown;
   statusCode?: number;
 };
 type Stats = {
@@ -72,6 +69,7 @@ setInterval(() => {
         playground: false,
         plugins: [
           ApolloServerPluginLandingPageLocalDefault(),
+          ApolloServerPluginCacheControl({ calculateHttpHeaders: false }),
           scraperDbCachePlugin(),
         ] as ApolloDriverConfig['plugins'],
         resolvers: buildResolvers(
@@ -97,7 +95,6 @@ function graphqlMiddleware(
 ): void {
   const started = Date.now();
   normalizeGraphqlRequestBody(req.body);
-  applyCacheHeader(req.body, res);
   res.on('finish', () => {
     const duration = Date.now() - started;
     const status = res.statusCode ?? 0;
@@ -111,20 +108,6 @@ function graphqlMiddleware(
     );
   });
   next();
-}
-
-function applyCacheHeader(body: unknown, res: Response): void {
-  const cacheControl = cacheControlHeaderForGraphqlRequestBody(body);
-  if (!cacheControl || !res.setHeader) return;
-  const setHeader = res.setHeader.bind(res);
-  res.setHeader = (name, value) =>
-    setHeader(
-      name,
-      name.toLowerCase() === 'cache-control' &&
-        String(value).toLowerCase() === 'no-store'
-        ? cacheControl
-        : value,
-    );
 }
 
 function formatError(error: GraphQLFormattedError): GraphQLFormattedError {

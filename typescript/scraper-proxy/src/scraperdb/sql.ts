@@ -152,9 +152,14 @@ function bool(
   if (key === '_and' || key === '_or') {
     const children = Array.isArray(value) ? value : [value];
     if (key === '_or' && !children.length) return 'FALSE';
+    const valueCount = values.length;
     const rendered = children
       .map((item) => where(table, item as BoolExp, values))
       .filter(Boolean);
+    if (key === '_or' && rendered.length < children.length) {
+      values.length = valueCount;
+      return '';
+    }
     return rendered.length
       ? `(${rendered.join(key === '_and' ? ' AND ' : ' OR ')})`
       : '';

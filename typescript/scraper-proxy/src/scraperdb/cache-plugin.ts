@@ -14,11 +14,19 @@ import {
 import { stripUnusedVariableDefinitions } from './request-compatibility.js';
 
 const MAX_ENTRIES = 1_000;
-const MAX_BYTES = 1_000_000;
-type Entry = { body: string; expires: number };
-const cache = new Map<string, Entry>();
+const MAX_ENTRY_BYTES = 1_000_000;
+const MAX_TOTAL_BYTES = 16_000_000;
+type Entry = { body: string; bytes: number; expires: number };
 
 export function scraperDbCachePlugin(): ApolloServerPlugin {
+  const cache = new Map<string, Entry>();
+  let cacheBytes = 0;
+  const remove = (key: string): void => {
+    const entry = cache.get(key);
+    if (!entry) return;
+    cache.delete(key);
+    cacheBytes -= entry.bytes;
+  };
   return {
     async requestDidStart() {
       let directive: CacheDirective | null = null;
@@ -37,12 +45,12 @@ export function scraperDbCachePlugin(): ApolloServerPlugin {
             context.request.variables ?? {},
           );
           if (directive.refresh) {
-            cache.delete(key);
+            remove(key);
             return null;
           }
           const entry = cache.get(key);
           if (!entry || entry.expires <= Date.now()) {
-            if (entry) cache.delete(key);
+            if (entry) remove(key);
             return null;
           }
           cache.delete(key);
@@ -52,24 +60,32 @@ export function scraperDbCachePlugin(): ApolloServerPlugin {
         },
         async willSendResponse(context) {
           if (!directive || hit) return;
-          context.response.http.headers.set(
-            'cache-control',
-            cacheControlHeader(directive.ttl),
-          );
           if (
             !key ||
             context.response.body.kind !== 'single' ||
             context.response.body.singleResult.errors?.length
           ) {
+            context.response.http.headers.set('cache-control', 'no-store');
             return;
           }
+          context.response.http.headers.set(
+            'cache-control',
+            cacheControlHeader(directive.ttl),
+          );
           const body = JSON.stringify(context.response.body.singleResult);
-          if (Buffer.byteLength(body) > MAX_BYTES) return;
-          cache.set(key, { body, expires: Date.now() + directive.ttl * 1_000 });
-          while (cache.size > MAX_ENTRIES) {
+          const bytes = Buffer.byteLength(body);
+          if (bytes > MAX_ENTRY_BYTES) return;
+          remove(key);
+          cache.set(key, {
+            body,
+            bytes,
+            expires: Date.now() + directive.ttl * 1_000,
+          });
+          cacheBytes += bytes;
+          while (cache.size > MAX_ENTRIES || cacheBytes > MAX_TOTAL_BYTES) {
             const oldest = cache.keys().next().value;
             if (!oldest) break;
-            cache.delete(oldest);
+            remove(oldest);
           }
         },
       };

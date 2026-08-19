@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  cacheControlHeaderForGraphqlRequestBody,
   normalizeGraphqlRequestBody,
   stripUnusedVariableDefinitions,
 } from './request-compatibility.js';
@@ -116,6 +115,14 @@ void describe('scraper database SQL', () => {
     assert.match(query.sql, /WHERE \(FALSE\)/);
   });
 
+  void it('treats an empty OR child as true', () => {
+    const query = buildSelect('domain', {
+      where: { _or: [{ id: { _eq: 1 } }, {}] },
+    });
+    assert.doesNotMatch(query.sql, /WHERE/);
+    assert.deepEqual(query.values, [500]);
+  });
+
   void it('preserves empty NOT and null comparison semantics', () => {
     assert.match(
       buildSelect('domain', { where: { _not: {} } }).sql,
@@ -160,31 +167,5 @@ void describe('GraphQL request compatibility', () => {
     `);
     assert.match(query, /\$used: String = "\)"/);
     assert.doesNotMatch(query, /unused/);
-  });
-
-  void it('derives bounded cache headers', () => {
-    assert.equal(
-      cacheControlHeaderForGraphqlRequestBody({
-        query: 'query @cached(ttl: 999) { domain { id } }',
-      }),
-      'max-age=300, public',
-    );
-    assert.equal(
-      cacheControlHeaderForGraphqlRequestBody({ query: '{ domain { id } }' }),
-      null,
-    );
-    assert.equal(
-      cacheControlHeaderForGraphqlRequestBody({
-        query: 'query { domain(where: {name: {_eq: "@cached"}}) { id } }',
-      }),
-      null,
-    );
-    assert.equal(
-      cacheControlHeaderForGraphqlRequestBody({
-        query: 'query Cached($ttl: Int!) @cached(ttl: $ttl) { domain { id } }',
-        variables: { ttl: 7 },
-      }),
-      'max-age=7, public',
-    );
   });
 });

@@ -1,13 +1,4 @@
-import {
-  type DocumentNode,
-  Kind,
-  type OperationDefinitionNode,
-  parse,
-  print,
-  visit,
-} from 'graphql';
-
-import { cacheControlHeader, cacheDirective } from './cache-config.js';
+import { type DocumentNode, Kind, parse, print, visit } from 'graphql';
 
 type Payload = {
   operationName?: unknown;
@@ -51,33 +42,6 @@ export function stripUnusedVariableDefinitions(query: string): string {
       }),
     }),
   );
-}
-
-export function cacheControlHeaderForGraphqlRequestBody(
-  body: unknown,
-): string | null {
-  if (Array.isArray(body) || !isPayload(body) || typeof body.query !== 'string')
-    return null;
-  let document: DocumentNode;
-  try {
-    document = parse(body.query);
-  } catch {
-    return null;
-  }
-  const operation = document.definitions.find(
-    (node): node is OperationDefinitionNode =>
-      node.kind === Kind.OPERATION_DEFINITION &&
-      (typeof body.operationName !== 'string' ||
-        node.name?.value === body.operationName),
-  );
-  const directive = operation && cacheDirective(operation, variables(body));
-  return directive ? cacheControlHeader(directive.ttl) : null;
-}
-
-function variables(payload: Payload): Record<string, unknown> | undefined {
-  return payload.variables && typeof payload.variables === 'object'
-    ? (payload.variables as Record<string, unknown>)
-    : undefined;
 }
 
 function isPayload(value: unknown): value is Payload {

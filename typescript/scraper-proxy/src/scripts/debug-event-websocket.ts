@@ -120,9 +120,21 @@ function options(): Options | undefined {
         `Cursor event type ${item.eventType} is not included in --events`,
       );
     }
-    if (domains && !domains.includes(item.domain)) {
+  }
+  for (const eventType of events) {
+    const cursorDomains = new Set(
+      cursors
+        .filter((item) => item.eventType === eventType)
+        .map((item) => item.domain),
+    );
+    if (
+      domains &&
+      cursorDomains.size &&
+      (domains.length !== cursorDomains.size ||
+        domains.some((domain) => !cursorDomains.has(domain)))
+    ) {
       throw new Error(
-        `Cursor domain ${item.domain} is not included in --domains`,
+        `--domains must exactly match cursor domains for ${eventType}`,
       );
     }
   }
