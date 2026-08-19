@@ -112,6 +112,30 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}
 
+      - name: Generate image tags output
+        id: image-tags
+        if: always()
+        run: |
+          TAG_SHA_DATE="${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}"
+          IMAGE="ghcr.io/hyperlane-xyz/hyperlane-agent:${TAG_SHA_DATE}"
+
+          echo "tags<<EOF" >> $GITHUB_OUTPUT
+          echo "$IMAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## Rust Agent Docker Image
+
+          | Image | Tag |
+          |-------|-----|
+          | hyperlane-agent | \`${TAG_SHA_DATE}\` |
+
+          **Full image path:**
+          \`\`\`
+          ${IMAGE}
+          \`\`\`
+          EOF
+
       - name: Comment image tags on PR
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && always()
         uses: ./.github/actions/docker-image-comment
@@ -119,7 +143,7 @@ jobs:
           comment_tag: rust-agent-docker-image
           image_name: Rust Agent Docker Image
           emoji: 🦀
-          image_tags: ${{ steps.meta.outputs.tags }}
+          image_tags: ${{ steps.image-tags.outputs.tags }}
           pr_number: ${{ github.event.pull_request.number }}
           github_token: ${{ steps.generate-token.outputs.token }}
           job_status: ${{ job.status }}
