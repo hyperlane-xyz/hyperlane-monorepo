@@ -23,6 +23,7 @@ import {
   ProtocolType,
   assert,
   convertToProtocolAddress,
+  isNullish,
 } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
@@ -96,8 +97,12 @@ export async function estimateTransactionFeeEthersV5ForGasUnits({
   const feeData = await provider.getFeeData();
   return computeEvmTxFee(
     gasUnits,
-    feeData.gasPrice ? BigInt(feeData.gasPrice.toString()) : undefined,
-    feeData.maxFeePerGas ? BigInt(feeData.maxFeePerGas.toString()) : undefined,
+    !isNullish(feeData.gasPrice)
+      ? BigInt(feeData.gasPrice.toString())
+      : undefined,
+    !isNullish(feeData.maxFeePerGas)
+      ? BigInt(feeData.maxFeePerGas.toString())
+      : undefined,
   );
 }
 
@@ -125,9 +130,9 @@ function computeEvmTxFee(
   maxFeePerGas?: bigint,
 ): TransactionFeeEstimate {
   let estGasPrice: bigint;
-  if (maxFeePerGas) {
+  if (!isNullish(maxFeePerGas)) {
     estGasPrice = maxFeePerGas;
-  } else if (gasPrice) {
+  } else if (!isNullish(gasPrice)) {
     estGasPrice = gasPrice;
   } else {
     throw new Error('Invalid fee data, neither 1559 nor legacy');
