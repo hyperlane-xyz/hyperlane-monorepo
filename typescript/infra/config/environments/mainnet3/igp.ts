@@ -44,6 +44,36 @@ function getOracleConfigWithOverrides(origin: ChainName) {
     };
   }
 
+  // Price-elasticity experiment: +20% on two price-insensitive bsc lanes
+  // (bsc→ethereum, bsc→base). Scales the market-derived exchange rate by 1.2 so
+  // the bump tracks live prices and stays isolated to these origin→remote pairs.
+  // Revert to end the test.
+  if (origin === 'bsc') {
+    for (const remote of ['ethereum', 'base'] as const) {
+      const laneConfig = oracleConfig[remote];
+      if (laneConfig) {
+        oracleConfig[remote] = {
+          ...laneConfig,
+          tokenExchangeRate: (
+            (BigInt(laneConfig.tokenExchangeRate.toString()) * 6n) /
+            5n
+          ).toString(),
+          // Keep the derived typicalCost metadata in sync with the +20% bump so
+          // dry-run/monitoring output matches the on-chain quote (gas amounts
+          // are unchanged; only the USD cost scales).
+          ...(laneConfig.typicalCost
+            ? {
+                typicalCost: {
+                  ...laneConfig.typicalCost,
+                  totalUsdCost: (laneConfig.typicalCost.totalUsdCost * 6) / 5,
+                },
+              }
+            : {}),
+        };
+      }
+    }
+  }
+
   return oracleConfig;
 }
 
