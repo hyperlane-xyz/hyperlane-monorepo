@@ -26,10 +26,11 @@ raw dispatch inserts fail closed and stalls the message cursor until the column
 exists.
 
 After running migrations and before deploying the scraper binary, create the
-reconciliation index concurrently:
+large raw-dispatch indexes concurrently:
 
 ```
 cargo run --package migration --bin create-raw-dispatch-reconciliation-index
+cargo run --package migration --bin create-raw-dispatch-native-sequence-index
 ```
 
 Then run `EXPLAIN` on the reconciliation query and confirm it uses

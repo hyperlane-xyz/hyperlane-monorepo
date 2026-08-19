@@ -52,5 +52,9 @@ path = "bin/generate_entities.rs"
 name = "create-raw-dispatch-reconciliation-index"
 path = "bin/create_raw_dispatch_reconciliation_index.rs"
 
+[[bin]]
+name = "create-raw-dispatch-native-sequence-index"
+path = "bin/create_raw_dispatch_native_sequence_index.rs"
+
 [features]
 default = []

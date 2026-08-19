@@ -3,8 +3,8 @@ import { describe, it } from 'node:test';
 
 import { parseClientMessage, parseEventNotification } from './protocol.js';
 
-describe('event websocket protocol', () => {
-  it('parses native sequence catch-up cursors', () => {
+void describe('event websocket protocol', () => {
+  void it('parses native sequence catch-up cursors', () => {
     const message = parseClientMessage(
       JSON.stringify({
         type: 'subscribe',
@@ -42,11 +42,11 @@ describe('event websocket protocol', () => {
     assert.equal(message.streams[1]?.cursors, undefined);
   });
 
-  it('accepts application pings', () => {
+  void it('accepts application pings', () => {
     assert.deepEqual(parseClientMessage('{"type":"ping"}'), { type: 'ping' });
   });
 
-  it('rejects duplicate streams', () => {
+  void it('rejects duplicate streams', () => {
     assert.throws(
       () =>
         parseClientMessage(
@@ -59,7 +59,7 @@ describe('event websocket protocol', () => {
     );
   });
 
-  it('rejects row ID cursors and cursors on unsequenced streams', () => {
+  void it('rejects row ID cursors and cursors on unsequenced streams', () => {
     for (const stream of [
       { eventType: 'dispatch', afterId: '1' },
       {
@@ -81,7 +81,7 @@ describe('event websocket protocol', () => {
     }
   });
 
-  it('rejects unknown event types and invalid domains', () => {
+  void it('rejects unknown event types and invalid domains', () => {
     for (const stream of [
       { eventType: 'message' },
       { eventType: 'dispatch', domains: [-1] },
@@ -94,7 +94,7 @@ describe('event websocket protocol', () => {
     }
   });
 
-  it('accepts more than 100 domains', () => {
+  void it('accepts more than 100 domains', () => {
     const message = parseClientMessage(
       JSON.stringify({
         type: 'subscribe',
@@ -113,7 +113,7 @@ describe('event websocket protocol', () => {
     }
   });
 
-  it('parses exact-row database notifications', () => {
+  void it('parses exact-row database notifications', () => {
     assert.deepEqual(
       parseEventNotification(
         '{"eventType":"merkle_tree_insertion","id":"123","domain":42161}',

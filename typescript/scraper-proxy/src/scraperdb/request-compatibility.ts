@@ -1,10 +1,19 @@
 import {
-  cacheControlHeader,
-  clampCacheTtl,
-  DEFAULT_CACHE_TTL_SECONDS,
-} from './cache-config.js';
+  type DocumentNode,
+  Kind,
+  type OperationDefinitionNode,
+  parse,
+  print,
+  visit,
+} from 'graphql';
 
-type Payload = { query?: unknown };
+import { cacheControlHeader, cacheDirective } from './cache-config.js';
+
+type Payload = {
+  operationName?: unknown;
+  query?: unknown;
+  variables?: unknown;
+};
 
 export function normalizeGraphqlRequestBody(body: unknown): void {
   (Array.isArray(body) ? body : [body]).forEach((payload) => {
@@ -15,34 +24,32 @@ export function normalizeGraphqlRequestBody(body: unknown): void {
 }
 
 export function stripUnusedVariableDefinitions(query: string): string {
-  return query.replace(
-    /\b(query|mutation|subscription)(\s+[_A-Za-z][_0-9A-Za-z]*)?\s*\(([^)]*)\)/g,
-    (
-      match,
-      operation: string,
-      name = '',
-      definitions: string,
-      offset: number,
-      source: string,
-    ) => {
-      const used = new Set(
-        [
-          ...source
-            .slice(offset + match.length)
-            .matchAll(/\$([_A-Za-z][_0-9A-Za-z]*)/g),
-        ].map(([, variable]) => variable),
-      );
-      const kept = definitions
-        .split(',')
-        .map((definition) => definition.trim())
-        .filter((definition) => {
-          const variable = definition.match(/^\$([_A-Za-z][_0-9A-Za-z]*)/)?.[1];
-          return !variable || used.has(variable);
-        });
-      return kept.length
-        ? `${operation}${name} (${kept.join(', ')})`
-        : `${operation}${name}`;
+  let document: DocumentNode;
+  try {
+    document = parse(query);
+  } catch {
+    return query;
+  }
+  const used = new Set<string>();
+  visit(document, {
+    Variable: ({ name }, _key, parent) => {
+      if (
+        !parent ||
+        !('kind' in parent) ||
+        parent.kind !== Kind.VARIABLE_DEFINITION
+      )
+        used.add(name.value);
     },
+  });
+  return print(
+    visit(document, {
+      OperationDefinition: (node) => ({
+        ...node,
+        variableDefinitions: node.variableDefinitions?.filter(({ variable }) =>
+          used.has(variable.name.value),
+        ),
+      }),
+    }),
   );
 }
 
@@ -51,12 +58,26 @@ export function cacheControlHeaderForGraphqlRequestBody(
 ): string | null {
   if (Array.isArray(body) || !isPayload(body) || typeof body.query !== 'string')
     return null;
-  const directive = body.query.match(/@cached(?:\(([^)]*)\))?/);
-  if (!directive) return null;
-  const ttl = directive[1]?.match(/\bttl\s*:\s*(\d+)/)?.[1];
-  return cacheControlHeader(
-    ttl ? clampCacheTtl(Number(ttl)) : DEFAULT_CACHE_TTL_SECONDS,
+  let document: DocumentNode;
+  try {
+    document = parse(body.query);
+  } catch {
+    return null;
+  }
+  const operation = document.definitions.find(
+    (node): node is OperationDefinitionNode =>
+      node.kind === Kind.OPERATION_DEFINITION &&
+      (typeof body.operationName !== 'string' ||
+        node.name?.value === body.operationName),
   );
+  const directive = operation && cacheDirective(operation, variables(body));
+  return directive ? cacheControlHeader(directive.ttl) : null;
+}
+
+function variables(payload: Payload): Record<string, unknown> | undefined {
+  return payload.variables && typeof payload.variables === 'object'
+    ? (payload.variables as Record<string, unknown>)
+    : undefined;
 }
 
 function isPayload(value: unknown): value is Payload {

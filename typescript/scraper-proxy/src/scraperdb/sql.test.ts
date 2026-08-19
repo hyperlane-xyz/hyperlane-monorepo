@@ -8,8 +8,8 @@ import {
 } from './request-compatibility.js';
 import { buildByPk, buildCount, buildSelect } from './sql.js';
 
-describe('scraper database SQL', () => {
-  it('builds bounded parameterized selects', () => {
+void describe('scraper database SQL', () => {
+  void it('builds bounded parameterized selects', () => {
     const query = buildSelect('domain', {
       columns: ['id', 'name', 'unknown'],
       limit: 5,
@@ -24,7 +24,7 @@ describe('scraper database SQL', () => {
     assert.deepEqual(query.values, [1, 'ethereum', 5, 2]);
   });
 
-  it('builds cursor ordering and windowed counts', () => {
+  void it('builds cursor ordering and windowed counts', () => {
     const select = buildSelect('raw_message_dispatch', {
       cursor: [{ initial_value: { nonce: 10 }, ordering: 'DESC' }],
     });
@@ -46,7 +46,29 @@ describe('scraper database SQL', () => {
     assert.deepEqual(count.values, [2, 1]);
   });
 
-  it('builds primary-key queries and rejects unsafe inputs', () => {
+  void it('builds column and distinct aggregate counts', () => {
+    assert.equal(
+      buildCount(
+        'message_view',
+        {},
+        {
+          columns: ['origin_domain'],
+          distinct: true,
+        },
+      ).sql,
+      'SELECT COUNT(DISTINCT "origin_domain")::int AS count FROM "message_view"',
+    );
+    assert.equal(
+      buildCount(
+        'message_view',
+        { limit: 10, order_by: { nonce: 'desc' } },
+        { columns: ['origin_domain', 'destination_domain'], distinct: true },
+      ).sql,
+      'SELECT COUNT(DISTINCT ("origin_domain", "destination_domain"))::int AS count FROM (SELECT "origin_domain", "destination_domain" FROM "message_view" ORDER BY "nonce" DESC LIMIT $1) AS rows',
+    );
+  });
+
+  void it('builds primary-key queries and rejects unsafe inputs', () => {
     assert.equal(
       buildByPk('domain', 1, ['name']).sql,
       'SELECT "name" FROM "domain" WHERE "id" = $1 LIMIT 1',
@@ -63,22 +85,59 @@ describe('scraper database SQL', () => {
       /Unsupported comparison operator/,
     );
   });
+
+  void it('supports every advertised string comparison', () => {
+    const operators = {
+      _ilike: 'ILIKE',
+      _iregex: '~*',
+      _like: 'LIKE',
+      _nilike: 'NOT ILIKE',
+      _niregex: '!~*',
+      _nlike: 'NOT LIKE',
+      _nregex: '!~',
+      _nsimilar: 'NOT SIMILAR TO',
+      _regex: '~',
+      _similar: 'SIMILAR TO',
+    };
+    for (const [operator, sqlOperator] of Object.entries(operators)) {
+      const query = buildSelect('domain', {
+        where: { name: { [operator]: 'eth%' } },
+      });
+      assert.match(
+        query.sql,
+        new RegExp(`"name" ${sqlOperator.replace('*', '\\*')} \\$1`),
+      );
+      assert.deepEqual(query.values, ['eth%', 500]);
+    }
+  });
 });
 
-describe('GraphQL request compatibility', () => {
-  it('removes unused variable definitions', () => {
-    assert.equal(
-      stripUnusedVariableDefinitions(
-        'query Test($used: Int!, $unused: String) { domain(limit: $used) { id } }',
-      ),
-      'query Test ($used: Int!) { domain(limit: $used) { id } }',
+void describe('GraphQL request compatibility', () => {
+  void it('removes unused variable definitions', () => {
+    const normalized = stripUnusedVariableDefinitions(
+      'query Test($used: Int!, $unused: String) { domain(limit: $used) { id } }',
     );
+    assert.match(normalized, /\$used: Int!/);
+    assert.doesNotMatch(normalized, /unused/);
     const body = { query: 'query Test($unused: Int) { domain { id } }' };
     normalizeGraphqlRequestBody(body);
-    assert.equal(body.query, 'query Test { domain { id } }');
+    assert.doesNotMatch(body.query, /unused/);
   });
 
-  it('derives bounded cache headers', () => {
+  void it('parses variable definitions and fragment usage as GraphQL', () => {
+    const query = stripUnusedVariableDefinitions(`
+      query Test($used: String = ")", $unused: String) {
+        ...Domains
+      }
+      fragment Domains on query_root {
+        domain(where: {name: {_eq: $used}}) { id }
+      }
+    `);
+    assert.match(query, /\$used: String = "\)"/);
+    assert.doesNotMatch(query, /unused/);
+  });
+
+  void it('derives bounded cache headers', () => {
     assert.equal(
       cacheControlHeaderForGraphqlRequestBody({
         query: 'query @cached(ttl: 999) { domain { id } }',
@@ -88,6 +147,19 @@ describe('GraphQL request compatibility', () => {
     assert.equal(
       cacheControlHeaderForGraphqlRequestBody({ query: '{ domain { id } }' }),
       null,
+    );
+    assert.equal(
+      cacheControlHeaderForGraphqlRequestBody({
+        query: 'query { domain(where: {name: {_eq: "@cached"}}) { id } }',
+      }),
+      null,
+    );
+    assert.equal(
+      cacheControlHeaderForGraphqlRequestBody({
+        query: 'query Cached($ttl: Int!) @cached(ttl: $ttl) { domain { id } }',
+        variables: { ttl: 7 },
+      }),
+      'max-age=7, public',
     );
   });
 });

@@ -4,28 +4,29 @@ import {
   type GraphQLResponse,
 } from '@apollo/server';
 import { createHash } from 'node:crypto';
-import { type OperationDefinitionNode, valueFromASTUntyped } from 'graphql';
 
 import {
   cacheControlHeader,
-  clampCacheTtl,
-  DEFAULT_CACHE_TTL_SECONDS,
+  cacheDirective,
+  type CacheDirective,
 } from './cache-config.js';
 
 const MAX_ENTRIES = 1_000;
 const MAX_BYTES = 1_000_000;
 type Entry = { body: string; expires: number };
-type Directive = { refresh: boolean; ttl: number };
 const cache = new Map<string, Entry>();
 
 export function scraperDbCachePlugin(): ApolloServerPlugin {
   return {
     async requestDidStart() {
-      let directive: Directive | null = null;
+      let directive: CacheDirective | null = null;
       let key: string | null = null;
       return {
         async responseForOperation(context) {
-          directive = cacheDirective(context.operation);
+          directive = cacheDirective(
+            context.operation,
+            context.request.variables,
+          );
           if (!directive) return null;
           key = cacheKey(
             context.operationName,
@@ -69,27 +70,6 @@ export function scraperDbCachePlugin(): ApolloServerPlugin {
         },
       };
     },
-  };
-}
-
-function cacheDirective(operation: OperationDefinitionNode): Directive | null {
-  if (operation.operation !== 'query') return null;
-  const node = operation.directives?.find(
-    ({ name }) => name.value === 'cached',
-  );
-  if (!node) return null;
-  const args = Object.fromEntries(
-    node.arguments?.map(({ name, value }) => [
-      name.value,
-      valueFromASTUntyped(value),
-    ]) ?? [],
-  );
-  return {
-    refresh: args.refresh === true,
-    ttl:
-      typeof args.ttl === 'number'
-        ? clampCacheTtl(args.ttl)
-        : DEFAULT_CACHE_TTL_SECONDS,
   };
 }
 

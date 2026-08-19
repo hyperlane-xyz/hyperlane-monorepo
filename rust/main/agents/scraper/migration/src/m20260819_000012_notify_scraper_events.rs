@@ -3,6 +3,9 @@ use sea_orm_migration::prelude::*;
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
+/// The native-sequence index is created separately by
+/// `create-raw-dispatch-native-sequence-index`: SeaORM wraps migrations in a
+/// transaction, while production tables require `CREATE INDEX CONCURRENTLY`.
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
@@ -56,8 +59,6 @@ impl MigrationTrait for Migration {
                   FOR EACH ROW
                   EXECUTE FUNCTION notify_scraper_event('merkle_tree_insertion', 'domain');
 
-                CREATE INDEX IF NOT EXISTS raw_message_dispatch_native_sequence_idx
-                  ON raw_message_dispatch (origin_domain, origin_mailbox, nonce);
                 "#,
             )
             .await?;

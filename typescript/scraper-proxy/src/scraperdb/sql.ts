@@ -19,6 +19,11 @@ type Cursor = {
 type BoolExp = Record<string, unknown>;
 type Sql = { sql: string; values: unknown[] };
 
+export interface CountArgs {
+  columns?: string[];
+  distinct?: boolean;
+}
+
 export interface SelectArgs {
   batch_size?: number;
   columns?: string[];
@@ -54,8 +59,14 @@ export function buildSelect(table: TableName, args: SelectArgs = {}): Sql {
   };
 }
 
-export function buildCount(table: TableName, args: SelectArgs = {}): Sql {
+export function buildCount(
+  table: TableName,
+  args: SelectArgs = {},
+  count: CountArgs = {},
+): Sql {
   validate(args);
+  const countColumns = [...new Set(count.columns ?? [])];
+  countColumns.forEach((column) => assertColumn(table, column));
   const values: unknown[] = [];
   const distinctClause = distinct(table, args.distinct_on);
   const filters = [
@@ -69,13 +80,21 @@ export function buildCount(table: TableName, args: SelectArgs = {}): Sql {
       : limit(args.limit ?? args.batch_size, values);
   const offsetClause = offset(args.offset, values);
   const source = `${q(table)}${whereClause}`;
+  const expression = countExpression(countColumns, count.distinct);
   return {
     sql:
       distinctClause || limitClause || offsetClause
-        ? `SELECT COUNT(*)::int AS count FROM (SELECT ${distinctClause}1 FROM ${source}${limitClause}${offsetClause}) AS rows`
-        : `SELECT COUNT(*)::int AS count FROM ${source}`,
+        ? `SELECT ${expression}::int AS count FROM (SELECT ${distinctClause}${countColumns.length ? countColumns.map(q).join(', ') : '1'} FROM ${source}${orderBy(table, args.order_by)}${limitClause}${offsetClause}) AS rows`
+        : `SELECT ${expression}::int AS count FROM ${source}`,
     values,
   };
+}
+
+function countExpression(columns: string[], distinct = false): string {
+  if (!columns.length) return 'COUNT(*)';
+  const value =
+    columns.length === 1 ? q(columns[0]) : `(${columns.map(q).join(', ')})`;
+  return `COUNT(${distinct ? 'DISTINCT ' : ''}${value})`;
 }
 
 export function buildByPk(
@@ -171,11 +190,21 @@ const OPERATORS: Record<string, string> = {
   _eq: '=',
   _gt: '>',
   _gte: '>=',
+  _ilike: 'ILIKE',
   _in: 'IN',
+  _iregex: '~*',
   _lt: '<',
   _lte: '<=',
+  _like: 'LIKE',
   _neq: '<>',
+  _nilike: 'NOT ILIKE',
   _nin: 'NOT IN',
+  _niregex: '!~*',
+  _nlike: 'NOT LIKE',
+  _nregex: '!~',
+  _nsimilar: 'NOT SIMILAR TO',
+  _regex: '~',
+  _similar: 'SIMILAR TO',
 };
 
 function cursorWhere(

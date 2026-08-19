@@ -4,7 +4,7 @@ import { Logger } from '@nestjs/common';
 import { type RawData, WebSocket, WebSocketServer } from 'ws';
 
 import { config } from '../config.js';
-import { DbService } from '../db/db.service.js';
+import type { DbService } from '../db/db.service.js';
 import { quoteIdentifier as q } from '../scraperdb/tables.js';
 import {
   displayAddress,
@@ -41,6 +41,7 @@ type Stream = {
 };
 type Subscription = {
   catchingUp: boolean;
+  cursorKeys?: Set<string>;
   domains?: Set<number>;
   pending: Row[];
   sequences: Map<string, bigint>;
@@ -51,6 +52,7 @@ type Client = {
   messageWindow: number;
   subscriptions: Map<EventType, Subscription>;
 };
+export type EventDatabase = Pick<DbService, 'listen' | 'queryLive'>;
 
 function stream(
   table: string,
@@ -107,7 +109,7 @@ export class EventWebSocketServer {
   private stopListening?: () => Promise<void>;
   private server?: WebSocketServer;
 
-  constructor(private readonly db: DbService) {}
+  constructor(private readonly db: EventDatabase) {}
 
   async start(server: Server): Promise<void> {
     await this.connectListener();
@@ -195,6 +197,13 @@ export class EventWebSocketServer {
     for (const request of message.streams) {
       client.subscriptions.set(request.eventType, {
         catchingUp: !!request.cursors,
+        cursorKeys: request.cursors
+          ? new Set(
+              request.cursors.map(({ address, domain }) =>
+                sequenceKey(domain, address),
+              ),
+            )
+          : undefined,
         domains: request.domains,
         pending: [],
         sequences: new Map(),
@@ -297,9 +306,10 @@ export class EventWebSocketServer {
 
   private publish(eventType: EventType, row: Row): void {
     const domain = rowDomain(row, STREAMS[eventType].domain);
+    const key = rowSequenceKey(eventType, domain, row);
     for (const [socket, client] of this.clients) {
       const subscription = client.subscriptions.get(eventType);
-      if (!subscription || !matches(subscription, domain)) continue;
+      if (!subscription || !matches(subscription, domain, key)) continue;
       if (!subscription.catchingUp) {
         this.deliver(socket, eventType, subscription, row);
       } else if (subscription.pending.push(row) > MAX_PENDING_EVENTS) {
@@ -315,11 +325,12 @@ export class EventWebSocketServer {
     row: Row,
   ): boolean {
     const domain = rowDomain(row, STREAMS[eventType].domain);
-    if (!matches(subscription, domain)) return true;
+    const key = rowSequenceKey(eventType, domain, row);
+    if (!matches(subscription, domain, key)) return true;
     const sequence = rowSequence(eventType, row);
     if (sequence) {
-      const key = sequenceKey(domain, sequence.address);
-      const current = subscription.sequences.get(key);
+      const sequenceCursorKey = sequenceKey(domain, sequence.address);
+      const current = subscription.sequences.get(sequenceCursorKey);
       if (current !== undefined) {
         if (sequence.value <= current) return true;
         if (sequence.value !== current + 1n) {
@@ -329,7 +340,7 @@ export class EventWebSocketServer {
           );
           return false;
         }
-        subscription.sequences.set(key, sequence.value);
+        subscription.sequences.set(sequenceCursorKey, sequence.value);
       }
     }
     this.send(socket, {
@@ -475,7 +486,7 @@ export class EventWebSocketServer {
   private hasSubscriber({ domain, eventType }: EventNotification): boolean {
     for (const client of this.clients.values()) {
       const subscription = client.subscriptions.get(eventType);
-      if (subscription && matches(subscription, domain)) return true;
+      if (subscription && matchesDomain(subscription, domain)) return true;
     }
     return false;
   }
@@ -560,7 +571,19 @@ function consumeMessage(client: Client): boolean {
   return ++client.messages <= MAX_CLIENT_MESSAGES;
 }
 
-function matches(subscription: Subscription, domain: number): boolean {
+function matches(
+  subscription: Subscription,
+  domain: number,
+  cursorKey?: string,
+): boolean {
+  return (
+    matchesDomain(subscription, domain) &&
+    (!subscription.cursorKeys ||
+      (cursorKey !== undefined && subscription.cursorKeys.has(cursorKey)))
+  );
+}
+
+function matchesDomain(subscription: Subscription, domain: number): boolean {
   return !subscription.domains || subscription.domains.has(domain);
 }
 
@@ -608,6 +631,15 @@ function parseSequence(value: unknown): bigint {
 
 function sequenceKey(domain: number, address: string): string {
   return `${domain}:${normalizeAddress(address)}`;
+}
+
+function rowSequenceKey(
+  eventType: EventType,
+  domain: number,
+  row: Row,
+): string | undefined {
+  const sequence = rowSequence(eventType, row);
+  return sequence && sequenceKey(domain, sequence.address);
 }
 
 function compareRows(eventType: EventType, a: Row, b: Row): number {

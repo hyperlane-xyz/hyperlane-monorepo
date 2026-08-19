@@ -2,7 +2,7 @@ import { Kind, type GraphQLResolveInfo, type SelectionNode } from 'graphql';
 
 import { scalarResolvers } from './scalars.js';
 import { ScraperDbService } from './scraperdb.service.js';
-import type { SelectArgs } from './sql.js';
+import type { CountArgs, SelectArgs } from './sql.js';
 import type { TableName } from './tables.js';
 
 type ResolverArgs = SelectArgs & { id?: number | string };
@@ -35,6 +35,12 @@ export function buildResolvers(db: ScraperDbService): Record<string, unknown> {
 
   return {
     ...scalarResolvers,
+    message_view_aggregate_fields: {
+      count: (
+        { args, table }: { args: SelectArgs; table: TableName },
+        count: CountArgs,
+      ) => db.count(table, args, count),
+    },
     query_root: {
       domain: select('domain'),
       domain_by_pk: byPk('domain'),

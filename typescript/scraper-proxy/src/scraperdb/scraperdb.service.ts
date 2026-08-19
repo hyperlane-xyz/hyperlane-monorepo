@@ -1,14 +1,18 @@
 import { Injectable } from '@nestjs/common';
 
 import { DbService } from '../db/db.service.js';
-import { buildByPk, buildCount, buildSelect, type SelectArgs } from './sql.js';
+import {
+  buildByPk,
+  buildCount,
+  buildSelect,
+  type CountArgs,
+  type SelectArgs,
+} from './sql.js';
 import type { TableName } from './tables.js';
 
 type Row = Record<string, unknown>;
 type AggregateResult = {
-  aggregate: {
-    count: number;
-  };
+  aggregate: { args: SelectArgs; table: TableName };
   nodes: Row[];
 };
 
@@ -36,14 +40,23 @@ export class ScraperDbService {
     args: SelectArgs,
     columns?: string[],
   ): Promise<AggregateResult> {
-    const count = buildCount(table, args);
-    const select = columns ? buildSelect(table, { ...args, columns }) : null;
-    const [[row], nodes] = await Promise.all([
-      this.db.query<{ count: number }>(count.sql, count.values),
-      select
-        ? this.db.query<Row>(select.sql, select.values)
-        : Promise.resolve([]),
-    ]);
-    return { aggregate: { count: row?.count ?? 0 }, nodes };
+    const select = columns && buildSelect(table, { ...args, columns });
+    return {
+      aggregate: { args, table },
+      nodes: select ? await this.db.query<Row>(select.sql, select.values) : [],
+    };
+  }
+
+  async count(
+    table: TableName,
+    selectArgs: SelectArgs,
+    countArgs: CountArgs,
+  ): Promise<number> {
+    const query = buildCount(table, selectArgs, countArgs);
+    const [row] = await this.db.query<{ count: number }>(
+      query.sql,
+      query.values,
+    );
+    return row?.count ?? 0;
   }
 }
