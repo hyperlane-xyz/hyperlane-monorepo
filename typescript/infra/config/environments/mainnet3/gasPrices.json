@@ -251,6 +251,10 @@
     "amount": "0.001999792",
     "decimals": 9
   },
+  "sonic": {
+    "amount": "55.0",
+    "decimals": 9
+  },
   "sonicsvm": {
     "amount": "0.1",
     "decimals": 1

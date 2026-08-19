@@ -45,6 +45,7 @@ export const awSafes: ChainMap<Address> = {
   // sei: '0xCed197FBc360C26C19889745Cf73511b71D03d5D',
   // solana: 'EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3',
   // soneium: '0xD97F1bc0d49f994137Acf36baE2aEd9b2E4F239a',
+  // sonic: '0x7f56412491D8E77331Ff0300d3C8E42A6D233FdC',
   // superseed: '0x2915Ff7B025bc65bBFfD1621F6B3d4E4295dB4F6',
   // taiko: '0xa4864301d3fa2a3e68256309F9F0F570270a1BD0',
   // unichain: '0x028C71E99e23fD393DE4207486D1aF7FA2b26b33',

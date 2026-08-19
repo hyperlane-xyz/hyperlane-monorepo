@@ -1290,6 +1290,27 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  sonic: {
+    threshold: 4,
+    validators: [
+      {
+        address: '0xa313d72dbbd3fa51a2ed1611ea50c37946fa42f7',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
+      {
+        address: '0x7f0e75c5151d0938eaa9ab8a30f9ddbd74c4ebef',
+        alias: 'Luganodes',
+      },
+      {
+        address: '0x4e3d1c926843dcc8ff47061bbd7143a2755899f3',
+        alias: 'Enigma',
+      },
+    ],
+  },
+
   sonicsvm: {
     threshold: 3,
     validators: [
