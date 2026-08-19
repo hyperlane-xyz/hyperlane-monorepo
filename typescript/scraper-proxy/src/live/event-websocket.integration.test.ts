@@ -5,7 +5,7 @@ import { after, before, it } from 'node:test';
 import { WebSocket } from 'ws';
 import type { QueryResultRow } from 'pg';
 
-import { type EventDatabase, EventWebSocketServer } from './event-websocket.js';
+import type { EventDatabase, EventWebSocketServer } from './event-websocket.js';
 
 const hookA = '\\xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const hookB = '\\xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -46,15 +46,18 @@ const db: EventDatabase = {
 };
 
 const http = createServer();
-const events = new EventWebSocketServer(db, true, {
-  maxAgentClients: 1,
-  maxCatchUpRows: 0,
-  maxExplorerClients: 1,
-});
+let events: EventWebSocketServer;
 let url: string;
 let explorerUrl: string;
 
 before(async () => {
+  process.env.DATABASE_URL ??= 'postgresql://unused:unused@localhost/unused';
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  events = new EventWebSocketServer(db, true, {
+    maxAgentClients: 1,
+    maxCatchUpRows: 0,
+    maxExplorerClients: 1,
+  });
   await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve));
   const address = http.address();
   assert(address && typeof address !== 'string');
