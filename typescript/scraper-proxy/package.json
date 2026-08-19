@@ -18,6 +18,7 @@
   "types": "dist/main.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "bundle": "rm -rf ./bundle && ncc build ./dist/main.js -o bundle && mkdir -p bundle/graphql && cp src/graphql/scraperdb-schema.graphql bundle/graphql/ && node ../../scripts/ncc.post-bundle.mjs",
     "clean": "rm -rf ./dist",
     "debug:websocket": "tsx src/scripts/debug-event-websocket.ts",
     "dev": "NODE_ENV=development LOG_FORMAT=pretty tsx watch src/main.ts",
@@ -49,6 +50,7 @@
     "@types/node": "catalog:",
     "@types/pg": "^8.16.0",
     "@types/ws": "catalog:",
+    "@vercel/ncc": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
   },

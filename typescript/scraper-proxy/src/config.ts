@@ -11,6 +11,10 @@ const ConfigSchema = z.object({
     .min(1)
     .max(5_000)
     .default(500),
+  EVENT_STREAM_HISTORY_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
   LISTEN_DATABASE_URL: z.string().min(1).optional(),
   PORT: z.coerce.number().int().positive().default(8383),
 });

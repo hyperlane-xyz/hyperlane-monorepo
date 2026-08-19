@@ -2304,6 +2304,9 @@ importers:
       '@types/ws':
         specifier: 'catalog:'
         version: 8.18.1
+      '@vercel/ncc':
+        specifier: 'catalog:'
+        version: 0.38.4
       tsx:
         specifier: 'catalog:'
         version: 4.23.1

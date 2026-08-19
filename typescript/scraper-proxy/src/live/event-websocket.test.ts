@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { parseClientMessage, parseEventNotification } from './protocol.js';
+import {
+  parseClientMessage,
+  parseEventNotification,
+  parseExplorerNotification,
+} from './protocol.js';
 
 void describe('event websocket protocol', () => {
   void it('parses native sequence catch-up cursors', () => {
@@ -149,5 +153,13 @@ void describe('event websocket protocol', () => {
         '{"eventType":"unknown","id":"123","domain":42161}',
       ),
     );
+  });
+
+  void it('parses Explorer message notifications', () => {
+    assert.deepEqual(
+      parseExplorerNotification(`{"messageId":"${'ab'.repeat(32)}"}`),
+      { messageId: `\\x${'ab'.repeat(32)}` },
+    );
+    assert.throws(() => parseExplorerNotification('{"messageId":"ab"}'));
   });
 });

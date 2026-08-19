@@ -24,6 +24,7 @@ export type EventNotification = {
   eventType: EventType;
   id: bigint;
 };
+export type ExplorerNotification = { messageId: string };
 
 export function parseClientMessage(raw: string): ClientMessage {
   let value: unknown;
@@ -72,6 +73,27 @@ export function parseEventNotification(
     eventType: value.eventType,
     id: parseId(value.id),
   };
+}
+
+export function parseExplorerNotification(
+  payload: string | undefined,
+): ExplorerNotification {
+  if (!payload)
+    throw new Error('Missing scraper Explorer notification payload');
+  let value: unknown;
+  try {
+    value = JSON.parse(payload);
+  } catch {
+    throw new Error('Invalid scraper Explorer notification JSON');
+  }
+  if (
+    !isRecord(value) ||
+    typeof value.messageId !== 'string' ||
+    !/^[\da-fA-F]{64}$/.test(value.messageId)
+  ) {
+    throw new Error('Invalid scraper Explorer notification');
+  }
+  return { messageId: normalizeAddress(value.messageId) };
 }
 
 export function parseId(value: unknown): bigint {

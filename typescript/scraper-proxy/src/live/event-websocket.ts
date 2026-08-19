@@ -1,11 +1,12 @@
-import type { Server } from 'node:http';
+import type { IncomingMessage, Server } from 'node:http';
+import type { Duplex } from 'node:stream';
 
 import { Logger } from '@nestjs/common';
 import { type RawData, WebSocket, WebSocketServer } from 'ws';
 
 import { config } from '../config.js';
 import type { DbService } from '../db/db.service.js';
-import { quoteIdentifier as q } from '../scraperdb/tables.js';
+import { quoteIdentifier as q, tables } from '../scraperdb/tables.js';
 import {
   displayAddress,
   EVENT_TYPES,
@@ -15,13 +16,16 @@ import {
   normalizeAddress,
   parseClientMessage,
   parseEventNotification,
+  parseExplorerNotification,
   parseId,
   type SequenceCursor,
   type StreamRequest,
 } from './protocol.js';
 
-const WS_PATH = '/ws';
+const AGENT_PATH = '/agents';
+const EXPLORER_PATH = '/explorer';
 const EVENT_CHANNEL = 'scraper_event';
+const EXPLORER_CHANNEL = 'scraper_explorer_event';
 const HEARTBEAT_MS = 30_000;
 const LISTENER_RETRY_MS = 1_000;
 const NOTIFICATION_BATCH_MS = 100;
@@ -99,6 +103,8 @@ const STREAMS: Record<EventType, Stream> = {
 export class EventWebSocketServer {
   private readonly logger = new Logger(EventWebSocketServer.name);
   private readonly clients = new Map<WebSocket, Client>();
+  private readonly explorerClients = new Map<WebSocket, { alive: boolean }>();
+  private readonly explorerNotifications = new Set<string>();
   private readonly notifications = new Map<string, EventNotification>();
   private heartbeatTimer?: NodeJS.Timeout;
   private listenerRetryTimer?: NodeJS.Timeout;
@@ -107,21 +113,34 @@ export class EventWebSocketServer {
   private listenerReady = false;
   private stopped = false;
   private stopListening?: () => Promise<void>;
-  private server?: WebSocketServer;
+  private httpServer?: Server;
+  private agentServer?: WebSocketServer;
+  private explorerServer?: WebSocketServer;
 
-  constructor(private readonly db: EventDatabase) {}
+  constructor(
+    private readonly db: EventDatabase,
+    private readonly historyEnabled = config.EVENT_STREAM_HISTORY_ENABLED,
+  ) {}
 
   async start(server: Server): Promise<void> {
     await this.connectListener();
-    this.server = new WebSocketServer({
+    this.agentServer = new WebSocketServer({
       maxPayload: 4_096,
-      path: WS_PATH,
-      server,
+      noServer: true,
     });
-    this.server.on('connection', (socket) => this.connect(socket));
+    this.explorerServer = new WebSocketServer({
+      maxPayload: 4_096,
+      noServer: true,
+    });
+    this.httpServer = server;
+    server.on('upgrade', this.handleUpgrade);
+    this.agentServer.on('connection', (socket) => this.connectAgent(socket));
+    this.explorerServer.on('connection', (socket) =>
+      this.connectExplorer(socket),
+    );
     this.heartbeatTimer = setInterval(() => this.heartbeat(), HEARTBEAT_MS);
     this.logger.log(
-      `event websocket listening on ${WS_PATH} batchSize=${config.EVENT_STREAM_BATCH_SIZE}`,
+      `event websockets listening on ${AGENT_PATH}, ${EXPLORER_PATH} batchSize=${config.EVENT_STREAM_BATCH_SIZE} historyEnabled=${this.historyEnabled}`,
     );
   }
 
@@ -132,40 +151,100 @@ export class EventWebSocketServer {
       this.listenerRetryTimer,
       this.notificationTimer,
     ].forEach((timer) => timer && clearTimeout(timer));
+    this.explorerNotifications.clear();
     this.notifications.clear();
     await this.stopListening?.();
+    this.httpServer?.off('upgrade', this.handleUpgrade);
     this.closeClients('Server stopping', 1001);
-    if (this.server) {
-      await new Promise<void>((resolve) => this.server?.close(() => resolve()));
-    }
+    await Promise.all(
+      [this.agentServer, this.explorerServer].map((websocketServer) =>
+        websocketServer
+          ? new Promise<void>((resolve, reject) =>
+              websocketServer.close((error) =>
+                error ? reject(error) : resolve(),
+              ),
+            )
+          : Promise.resolve(),
+      ),
+    );
   }
 
-  private connect(socket: WebSocket): void {
-    if (!this.listenerReady || this.clients.size >= MAX_CLIENTS) {
-      socket.close(
-        1013,
-        this.listenerReady
-          ? 'Maximum websocket clients reached'
-          : 'Database event listener unavailable',
-      );
-      return;
-    }
+  private connectAgent(socket: WebSocket): void {
+    if (!this.accept(socket)) return;
     this.clients.set(socket, {
       alive: true,
       messages: 0,
       messageWindow: Date.now(),
       subscriptions: new Map(),
     });
-    this.send(socket, { eventTypes: EVENT_TYPES, type: 'ready' });
+    this.send(socket, {
+      eventTypes: EVENT_TYPES,
+      historicalStreaming: this.historyEnabled,
+      type: 'ready',
+    });
+    this.watch(socket, this.clients);
+    socket.on('message', (data) => void this.onMessage(socket, rawData(data)));
+  }
+
+  private readonly handleUpgrade = (
+    request: IncomingMessage,
+    socket: Duplex,
+    head: Buffer,
+  ): void => {
+    const path = request.url?.split('?', 1)[0];
+    const websocketServer =
+      path === AGENT_PATH
+        ? this.agentServer
+        : path === EXPLORER_PATH
+          ? this.explorerServer
+          : undefined;
+    if (!websocketServer) {
+      socket.destroy();
+      return;
+    }
+    websocketServer.handleUpgrade(request, socket, head, (websocket) =>
+      websocketServer.emit('connection', websocket, request),
+    );
+  };
+
+  private connectExplorer(socket: WebSocket): void {
+    if (!this.accept(socket)) return;
+    this.explorerClients.set(socket, { alive: true });
+    this.send(socket, {
+      eventTypes: ['message_upsert'],
+      type: 'ready',
+    });
+    this.watch(socket, this.explorerClients);
+  }
+
+  private accept(socket: WebSocket): boolean {
+    if (
+      !this.listenerReady ||
+      this.clients.size + this.explorerClients.size >= MAX_CLIENTS
+    ) {
+      socket.close(
+        1013,
+        this.listenerReady
+          ? 'Maximum websocket clients reached'
+          : 'Database event listener unavailable',
+      );
+      return false;
+    }
+    return true;
+  }
+
+  private watch<T extends { alive: boolean }>(
+    socket: WebSocket,
+    clients: Map<WebSocket, T>,
+  ): void {
     socket.on('pong', () => {
-      const client = this.clients.get(socket);
+      const client = clients.get(socket);
       if (client) client.alive = true;
     });
-    socket.on('message', (data) => void this.onMessage(socket, rawData(data)));
-    socket.on('close', () => this.clients.delete(socket));
+    socket.on('close', () => clients.delete(socket));
     socket.on('error', (error) => {
       this.logger.warn(`websocket error: ${error.message}`);
-      this.clients.delete(socket);
+      clients.delete(socket);
     });
   }
 
@@ -187,6 +266,13 @@ export class EventWebSocketServer {
     }
     if (message.type === 'ping') {
       this.send(socket, { type: 'pong' });
+      return;
+    }
+    if (
+      !this.historyEnabled &&
+      message.streams.some(({ cursors }) => cursors)
+    ) {
+      this.sendError(socket, 'Historical streaming is temporarily disabled');
       return;
     }
     if (client.subscriptions.size) {
@@ -392,8 +478,8 @@ export class EventWebSocketServer {
   private async connectListener(): Promise<void> {
     try {
       this.stopListening = await this.db.listen(
-        [EVENT_CHANNEL],
-        (_channel, payload) => this.queueNotification(payload),
+        [EVENT_CHANNEL, EXPLORER_CHANNEL],
+        (channel, payload) => this.queueNotification(channel, payload),
         (error) => this.listenerDisconnected(error),
       );
       this.listenerReady = true;
@@ -403,19 +489,28 @@ export class EventWebSocketServer {
     }
   }
 
-  private queueNotification(payload: string | undefined): void {
-    let notification: EventNotification;
+  private queueNotification(
+    channel: string,
+    payload: string | undefined,
+  ): void {
     try {
-      notification = parseEventNotification(payload);
+      if (channel === EXPLORER_CHANNEL) {
+        if (!this.explorerClients.size) return;
+        this.explorerNotifications.add(
+          parseExplorerNotification(payload).messageId,
+        );
+      } else {
+        const notification = parseEventNotification(payload);
+        if (!this.hasSubscriber(notification)) return;
+        this.notifications.set(
+          `${notification.eventType}:${notification.id}`,
+          notification,
+        );
+      }
     } catch (error) {
       this.fail(error);
       return;
     }
-    if (!this.hasSubscriber(notification)) return;
-    this.notifications.set(
-      `${notification.eventType}:${notification.id}`,
-      notification,
-    );
     if (!this.notificationTimer && !this.draining) {
       this.notificationTimer = setTimeout(() => {
         this.notificationTimer = undefined;
@@ -428,7 +523,7 @@ export class EventWebSocketServer {
     if (this.draining) return;
     this.draining = true;
     try {
-      while (this.notifications.size) {
+      while (this.notifications.size || this.explorerNotifications.size) {
         const batch = [...this.notifications.entries()].slice(
           0,
           NOTIFICATION_BATCH_SIZE,
@@ -443,6 +538,16 @@ export class EventWebSocketServer {
         }
         for (const [eventType, notifications] of grouped) {
           await this.publishNotifications(eventType, notifications);
+        }
+        if (this.explorerNotifications.size) {
+          const messageIds = [...this.explorerNotifications].slice(
+            0,
+            NOTIFICATION_BATCH_SIZE,
+          );
+          messageIds.forEach((messageId) =>
+            this.explorerNotifications.delete(messageId),
+          );
+          await this.publishExplorer(messageIds);
         }
       }
     } finally {
@@ -483,6 +588,19 @@ export class EventWebSocketServer {
     events.forEach((row) => this.publish(eventType, row));
   }
 
+  private async publishExplorer(messageIds: string[]): Promise<void> {
+    if (!this.explorerClients.size) return;
+    const rows = await this.db.queryLive<Row>(
+      `SELECT ${tables.message_view.columns.map(q).join(', ')} FROM ${q('message_view')} WHERE ${q('msg_id')} = ANY($1::bytea[])`,
+      [messageIds],
+    );
+    for (const row of rows) {
+      this.explorerClients.forEach((_client, socket) =>
+        this.send(socket, { data: row, type: 'message_upsert' }),
+      );
+    }
+  }
+
   private hasSubscriber({ domain, eventType }: EventNotification): boolean {
     for (const client of this.clients.values()) {
       const subscription = client.subscriptions.get(eventType);
@@ -516,13 +634,24 @@ export class EventWebSocketServer {
 
   private closeClients(reason: string, code = 1013): void {
     this.clients.forEach((_client, socket) => socket.close(code, reason));
+    this.explorerClients.forEach((_client, socket) =>
+      socket.close(code, reason),
+    );
     this.clients.clear();
+    this.explorerClients.clear();
   }
 
   private heartbeat(): void {
-    for (const [socket, client] of this.clients) {
+    this.heartbeatClients(this.clients);
+    this.heartbeatClients(this.explorerClients);
+  }
+
+  private heartbeatClients<T extends { alive: boolean }>(
+    clients: Map<WebSocket, T>,
+  ): void {
+    for (const [socket, client] of clients) {
       if (!client.alive) {
-        this.clients.delete(socket);
+        clients.delete(socket);
         socket.terminate();
         continue;
       }

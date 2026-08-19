@@ -37,6 +37,7 @@ interface MainnetDockerTags extends BaseDockerTags {
   validatorMonitor: string;
   warpMonitor: string;
   rebalancer: string;
+  scraperProxy: string;
   feeQuoting: string;
 }
 
@@ -56,6 +57,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   keyFunder: 'b0c3c5d-20260804-175736',
   warpMonitor: '744b3bb-20260521-215958',
   rebalancer: 'da26d9a-20260703-122943',
+  scraperProxy: 'main',
   feeQuoting: '12d899d-20260325-184337',
 };
 
