@@ -450,8 +450,8 @@ async fn test_fallback_events_persist_and_survive_restart() -> eyre::Result<()> 
 
     assert_retrievable_by_sequence(&store, &message, &payment, SEQUENCE).await;
 
-    // Separate scraper processes can overlap during rollout. Their fallback
-    // payment read/reconcile/write sections must serialize across connections.
+    // Separate #9284 scraper processes can overlap. Their fallback payment
+    // read/reconcile/write sections must serialize across connections.
     let concurrent_payment = InterchainGasPayment {
         message_id: H256::from_low_u64_be(999),
         ..payment.clone()
