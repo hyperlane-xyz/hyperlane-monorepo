@@ -14,10 +14,10 @@ use crate::store::storage::{txn_id_for_meta, HyperlaneDbStore, TxnWithId};
 #[async_trait]
 impl HyperlaneLogStore<Delivery> for HyperlaneDbStore {
     /// Store delivered message ids from the destination mailbox into the database.
-    /// Deliveries whose transaction could not be resolved on-chain (zero
-    /// transaction id, e.g. Sealevel basic log meta fallback) are stored with
-    /// a NULL transaction relation; only deliveries whose non-zero transaction
-    /// failed to be fetched are skipped (and retried later).
+    /// Deliveries whose transaction could not be resolved on-chain (zero block
+    /// and transaction hashes, e.g. Sealevel basic log meta fallback) are
+    /// stored with a NULL transaction relation; other unavailable transactions
+    /// are skipped (and retried later).
     async fn store_logs(&self, deliveries: &[(Indexed<Delivery>, LogMeta)]) -> Result<u32> {
         if deliveries.is_empty() {
             return Ok(0);

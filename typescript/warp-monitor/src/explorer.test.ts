@@ -59,6 +59,7 @@ describe('Explorer Pending Transfers', () => {
   });
 
   it('maps explorer inflight messages to destination nodes', async () => {
+    const fallbackScrapedAt = '2026-08-18T20:00:00.000Z';
     const router = '0x00000000000000000000000000000000000000aa';
     const nodes: RouterNodeMetadata[] = [
       {
@@ -84,7 +85,7 @@ describe('Explorer Pending Transfers', () => {
     const messageBody = `0x${recipientBytes32}${amountHex}`;
     const malformedRecipientBody = `0x${malformedRecipientBytes32}${amountHex}`;
 
-    sinon.stub(globalThis, 'fetch' as any).resolves({
+    const fetchStub = sinon.stub(globalThis, 'fetch' as any).resolves({
       ok: true,
       json: async () => ({
         data: {
@@ -98,7 +99,8 @@ describe('Explorer Pending Transfers', () => {
               recipient:
                 '\\x00000000000000000000000000000000000000000000000000000000000000aa',
               message_body: messageBody,
-              send_occurred_at: new Date(Date.now() - 60_000).toISOString(),
+              send_occurred_at: null,
+              send_scraped_at: fallbackScrapedAt,
             },
             // wrong destination router, should be ignored
             {
@@ -142,7 +144,13 @@ describe('Explorer Pending Transfers', () => {
     expect(transfers[0].destinationDomainId).to.equal(8453);
     expect(transfers[0].destinationRouter).to.equal(router);
     expect(transfers[0].amountBaseUnits).to.equal(1234567n);
-    expect(transfers[0].sendOccurredAtMs).to.be.a('number');
+    expect(transfers[0].sendOccurredAtMs).to.equal(
+      Date.parse(fallbackScrapedAt),
+    );
+
+    const request = JSON.parse(fetchStub.firstCall.args[1].body);
+    expect(request.query).to.contain('order_by: { id: desc }');
+    expect(request.query).to.contain('send_scraped_at');
   });
 
   it('throws when explorer returns GraphQL errors', async () => {

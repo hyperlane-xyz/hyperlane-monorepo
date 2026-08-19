@@ -10,7 +10,7 @@ use tracing::{debug, instrument, trace};
 use hyperlane_core::{
     address_to_bytes, bytes_to_address, h256_to_bytes, Delivery, HyperlaneMessage, LogMeta, H256,
 };
-use migration::OnConflict;
+use migration::{Alias, Expr, Func, OnConflict};
 
 use crate::date_time;
 use crate::db::ScraperDb;
@@ -171,10 +171,22 @@ impl ScraperDb {
         Insert::many(models)
             .on_conflict(
                 OnConflict::columns([delivered_message::Column::MsgId])
-                    .update_columns([
-                        delivered_message::Column::TimeCreated,
+                    // A fallback replay must not discard transaction metadata
+                    // that was resolved by an earlier scrape. This still lets
+                    // a later resolved scrape enrich an existing NULL row.
+                    .value(
                         delivered_message::Column::DestinationTxId,
-                    ])
+                        Func::if_null(
+                            Expr::col((
+                                Alias::new("excluded"),
+                                delivered_message::Column::DestinationTxId,
+                            )),
+                            Expr::col((
+                                Alias::new("delivered_message"),
+                                delivered_message::Column::DestinationTxId,
+                            )),
+                        ),
+                    )
                     .to_owned(),
             )
             .exec(&self.0)
@@ -347,13 +359,26 @@ impl ScraperDb {
                                     message::Column::Nonce,
                                 ])
                                 .update_columns([
-                                    message::Column::TimeCreated,
                                     message::Column::Destination,
                                     message::Column::Sender,
                                     message::Column::Recipient,
                                     message::Column::MsgBody,
-                                    message::Column::OriginTxId,
                                 ])
+                                // Prefer resolved transaction metadata over a
+                                // NULL value from a later fallback replay.
+                                .value(
+                                    message::Column::OriginTxId,
+                                    Func::if_null(
+                                        Expr::col((
+                                            Alias::new("excluded"),
+                                            message::Column::OriginTxId,
+                                        )),
+                                        Expr::col((
+                                            Alias::new("message"),
+                                            message::Column::OriginTxId,
+                                        )),
+                                    ),
+                                )
                                 .to_owned(),
                             )
                             .exec(txn)

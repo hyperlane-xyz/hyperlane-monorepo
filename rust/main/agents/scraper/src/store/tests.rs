@@ -3,9 +3,9 @@
 //! log meta fallback). Such events must be durably persisted with a NULL
 //! transaction relation and remain retrievable by sequence across restarts.
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
-use sea_orm::Database;
+use sea_orm::{ConnectionTrait, Database, DatabaseBackend, Statement};
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
 
@@ -15,14 +15,19 @@ use hyperlane_base::settings::IndexSettings;
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, Delivery, HyperlaneChain, HyperlaneDomain,
     HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack, HyperlaneDomainType, HyperlaneLogStore,
-    HyperlaneMessage, HyperlaneProvider, HyperlaneSequenceAwareIndexerStoreReader,
-    HyperlaneWatermarkedLogStore, Indexed, InterchainGasPayment, LogMeta, TxnInfo, H256, H512,
-    U256,
+    HyperlaneMessage, HyperlaneProvider, HyperlaneSequenceAwareIndexerStoreReader, Indexed,
+    InterchainGasPayment, LogMeta, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 
-use crate::db::ScraperDb;
+use crate::db::{
+    ScraperDb, StorableDelivery, StorableMessage, StorablePayment, StorableRawMessageDispatch,
+    StorableTxn,
+};
 
-use super::HyperlaneDbStore;
+use super::{
+    storage::{txn_id_for_meta, TxnWithId},
+    HyperlaneDbStore,
+};
 
 /// Domain id seeded by the domain table migration (`sealeveltest1`).
 const TEST_DOMAIN_ID: u32 = 13375;
@@ -114,6 +119,105 @@ async fn build_store(postgres_url: &str, mailbox: H256, igp: H256) -> HyperlaneD
     .expect("build HyperlaneDbStore")
 }
 
+async fn seed_resolved_transaction(store: &HyperlaneDbStore) -> eyre::Result<(LogMeta, i64)> {
+    let block_hash = H256::from_low_u64_be(333);
+    let transaction_id = H512::from_low_u64_be(444);
+    store
+        .db
+        .store_blocks(
+            TEST_DOMAIN_ID,
+            [BlockInfo {
+                hash: block_hash,
+                timestamp: 1_700_000_000,
+                number: 10_000,
+            }]
+            .into_iter(),
+        )
+        .await?;
+    let block_id = store
+        .db
+        .get_block_basic([&block_hash].into_iter())
+        .await?
+        .pop()
+        .expect("seeded block")
+        .id;
+    store
+        .db
+        .store_txns(
+            [StorableTxn {
+                info: TxnInfo {
+                    hash: transaction_id,
+                    gas_limit: U256::one(),
+                    max_priority_fee_per_gas: None,
+                    max_fee_per_gas: None,
+                    gas_price: None,
+                    nonce: 1,
+                    sender: H256::from_low_u64_be(1),
+                    recipient: Some(H256::from_low_u64_be(2)),
+                    receipt: Some(TxnReceiptInfo {
+                        gas_used: U256::one(),
+                        cumulative_gas_used: U256::one(),
+                        effective_gas_price: None,
+                    }),
+                    raw_input_data: None,
+                },
+                block_id,
+            }]
+            .into_iter(),
+        )
+        .await?;
+    let transaction_db_id = store
+        .db
+        .get_txn_ids([&transaction_id].into_iter())
+        .await?
+        .get(&transaction_id)
+        .copied()
+        .expect("seeded transaction");
+
+    Ok((
+        LogMeta {
+            address: H256::zero(),
+            block_number: 10_000,
+            block_hash,
+            transaction_id,
+            transaction_index: 0,
+            log_index: U256::zero(),
+        },
+        transaction_db_id,
+    ))
+}
+
+async fn message_time_created(store: &HyperlaneDbStore, nonce: u32) -> eyre::Result<String> {
+    let row = store
+        .db
+        .clone_connection()
+        .query_one(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT time_created::text AS time_created FROM message WHERE origin = $1 AND nonce = $2",
+            [
+                i32::try_from(TEST_DOMAIN_ID)?.into(),
+                i32::try_from(nonce)?.into(),
+            ],
+        ))
+        .await?
+        .expect("stored message");
+    Ok(row.try_get("", "time_created")?)
+}
+
+async fn delivery_time_created(store: &HyperlaneDbStore, message_id: H256) -> eyre::Result<String> {
+    let row = store
+        .db
+        .clone_connection()
+        .query_one(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT time_created::text AS time_created FROM delivered_message WHERE msg_id = $1",
+            [message_id.as_bytes().to_vec().into()],
+        ))
+        .await?
+        .expect("stored delivery");
+    Ok(row.try_get("", "time_created")?)
+}
+
 async fn assert_retrievable_by_sequence(
     store: &HyperlaneDbStore,
     message: &HyperlaneMessage,
@@ -156,6 +260,36 @@ async fn assert_retrievable_by_sequence(
         HyperlaneSequenceAwareIndexerStoreReader::<Delivery>::retrieve_log_block_number_by_sequence(store, sequence).await.unwrap(),
         None
     );
+}
+
+#[test]
+fn null_transaction_relation_requires_exact_fallback_sentinel() {
+    let fallback = fallback_log_meta(H256::zero(), 1);
+    assert_eq!(txn_id_for_meta(&HashMap::new(), &fallback), Some(None));
+
+    // Cosmos block-level events have no transaction but retain a real block
+    // hash. They are not the Sealevel basic-meta fallback and must keep their
+    // pre-existing retry/skip behavior until block-backed storage is modeled.
+    let block_event = LogMeta {
+        block_hash: H256::from_low_u64_be(1),
+        ..fallback
+    };
+    assert_eq!(txn_id_for_meta(&HashMap::new(), &block_event), None);
+
+    let tx_hash = H512::from_low_u64_be(2);
+    let resolved = LogMeta {
+        transaction_id: tx_hash,
+        block_hash: H256::from_low_u64_be(1),
+        ..fallback
+    };
+    let txns = HashMap::from([(
+        tx_hash,
+        TxnWithId {
+            hash: tx_hash,
+            id: 7,
+        },
+    )]);
+    assert_eq!(txn_id_for_meta(&txns, &resolved), Some(Some(7)));
 }
 
 /// Fallback dispatch/payment/delivery events (zero block/transaction hashes)
@@ -208,15 +342,19 @@ async fn test_fallback_events_persist_and_survive_restart() -> eyre::Result<()> 
     .await?;
     assert_eq!(stored, 1, "fallback dispatch must be stored");
 
+    let fallback_payment = (
+        Indexed::new(payment.clone()).with_sequence(SEQUENCE),
+        fallback_log_meta(igp, 10_001),
+    );
     let stored = HyperlaneLogStore::<InterchainGasPayment>::store_logs(
         &store,
-        &[(
-            Indexed::new(payment.clone()).with_sequence(SEQUENCE),
-            fallback_log_meta(igp, 10_001),
-        )],
+        &[fallback_payment.clone(), fallback_payment],
     )
     .await?;
-    assert_eq!(stored, 1, "fallback payment must be stored");
+    assert_eq!(
+        stored, 1,
+        "duplicate fallback payments in one batch must be idempotent"
+    );
 
     let stored = HyperlaneLogStore::<Delivery>::store_logs(
         &store,
@@ -228,16 +366,24 @@ async fn test_fallback_events_persist_and_survive_restart() -> eyre::Result<()> 
     .await?;
     assert_eq!(stored, 1, "fallback delivery must be stored");
 
-    // The cursor advances from the returned logs regardless of storage (see
-    // `dedupe_and_store_logs`), so durability must not depend on it.
-    HyperlaneWatermarkedLogStore::<HyperlaneMessage>::store_high_watermark(&store, 10_002).await?;
-
     assert_retrievable_by_sequence(&store, &message, &payment, SEQUENCE).await;
+    let first_scraped_at = message_time_created(&store, SEQUENCE).await?;
+    let first_delivery_scraped_at = delivery_time_created(&store, message.id()).await?;
 
     // Simulate a restart: a brand new store over the same database.
     drop(store);
     let store = build_store(&postgres_url, mailbox, igp).await;
     assert_retrievable_by_sequence(&store, &message, &payment, SEQUENCE).await;
+    assert_eq!(
+        message_time_created(&store, SEQUENCE).await?,
+        first_scraped_at,
+        "fallback replays must preserve the first scrape time used for age alerts"
+    );
+    assert_eq!(
+        delivery_time_created(&store, message.id()).await?,
+        first_delivery_scraped_at,
+        "fallback replays must preserve the first delivery scrape time"
+    );
 
     // Re-storing the same fallback events (e.g. the cursor re-querying the
     // sequence after a restart) must be idempotent.
@@ -274,6 +420,150 @@ async fn test_fallback_events_persist_and_survive_restart() -> eyre::Result<()> 
     }
 
     assert_retrievable_by_sequence(&store, &message, &payment, SEQUENCE).await;
+
+    // Separate scraper processes can overlap during rollout. Their fallback
+    // payment read/reconcile/write sections must serialize across connections.
+    let concurrent_payment = InterchainGasPayment {
+        message_id: H256::from_low_u64_be(999),
+        ..payment.clone()
+    };
+    let second_store = build_store(&postgres_url, mailbox, igp).await;
+    let first_payment = [(
+        Indexed::new(concurrent_payment.clone()).with_sequence(SEQUENCE + 1),
+        fallback_log_meta(igp, 10_003),
+    )];
+    let second_payment = [(
+        Indexed::new(concurrent_payment).with_sequence(SEQUENCE + 1),
+        fallback_log_meta(igp, 10_003),
+    )];
+    let (first, second) = tokio::join!(
+        HyperlaneLogStore::<InterchainGasPayment>::store_logs(&store, &first_payment,),
+        HyperlaneLogStore::<InterchainGasPayment>::store_logs(&second_store, &second_payment,),
+    );
+    assert_eq!(
+        first? + second?,
+        1,
+        "concurrent fallback payment stores must be idempotent"
+    );
+
+    // Enrichment is monotonic: once hashes/FKs are resolved, a later fallback
+    // replay must not erase them. A resolved payment replaces its fallback row
+    // instead of coexisting and double-counting.
+    let (resolved_meta, transaction_db_id) = seed_resolved_transaction(&store).await?;
+    store
+        .db
+        .store_raw_message_dispatches(
+            TEST_DOMAIN_ID,
+            &mailbox,
+            [StorableRawMessageDispatch {
+                msg: &message,
+                meta: &resolved_meta,
+            }]
+            .into_iter(),
+        )
+        .await?;
+    store
+        .db
+        .store_dispatched_messages(
+            TEST_DOMAIN_ID,
+            &mailbox,
+            [StorableMessage {
+                msg: message.clone(),
+                meta: &resolved_meta,
+                txn_id: Some(transaction_db_id),
+                id_override: None,
+            }]
+            .into_iter(),
+        )
+        .await?;
+    store
+        .db
+        .store_deliveries(
+            TEST_DOMAIN_ID,
+            mailbox,
+            [StorableDelivery {
+                message_id: message.id(),
+                sequence: Some(i64::from(SEQUENCE)),
+                meta: &resolved_meta,
+                txn_id: Some(transaction_db_id),
+            }]
+            .into_iter(),
+        )
+        .await?;
+    store
+        .db
+        .store_payments(
+            TEST_DOMAIN_ID,
+            &igp,
+            &[StorablePayment {
+                payment: &payment,
+                sequence: Some(i64::from(SEQUENCE)),
+                meta: &resolved_meta,
+                txn_id: Some(transaction_db_id),
+            }],
+        )
+        .await?;
+
+    for stored in [
+        HyperlaneLogStore::<HyperlaneMessage>::store_logs(
+            &store,
+            &[(
+                Indexed::new(message.clone()).with_sequence(SEQUENCE),
+                fallback_log_meta(mailbox, 10_000),
+            )],
+        )
+        .await?,
+        HyperlaneLogStore::<Delivery>::store_logs(
+            &store,
+            &[(
+                Indexed::new(message.id()).with_sequence(SEQUENCE),
+                fallback_log_meta(mailbox, 10_002),
+            )],
+        )
+        .await?,
+        HyperlaneLogStore::<InterchainGasPayment>::store_logs(
+            &store,
+            &[(
+                Indexed::new(payment.clone()).with_sequence(SEQUENCE),
+                fallback_log_meta(igp, 10_001),
+            )],
+        )
+        .await?,
+    ] {
+        assert_eq!(stored, 0, "fallback replay must remain idempotent");
+    }
+
+    assert_eq!(
+        store
+            .db
+            .retrieve_dispatched_tx_id(TEST_DOMAIN_ID, &mailbox, SEQUENCE)
+            .await?,
+        Some(transaction_db_id)
+    );
+    assert_eq!(
+        store
+            .db
+            .retrieve_delivered_message_tx_id(TEST_DOMAIN_ID, &mailbox, SEQUENCE)
+            .await?,
+        Some(transaction_db_id)
+    );
+    assert_eq!(
+        store
+            .db
+            .retrieve_payment_tx_id(TEST_DOMAIN_ID, &igp, SEQUENCE)
+            .await?,
+        Some(transaction_db_id)
+    );
+    let raw = store
+        .db
+        .retrieve_raw_message_dispatch_by_id(&message.id())
+        .await?
+        .expect("raw dispatch");
+    assert_eq!(
+        raw.origin_tx_hash,
+        hyperlane_core::h512_to_bytes(&resolved_meta.transaction_id)
+    );
+    assert_eq!(raw.origin_block_hash, resolved_meta.block_hash.as_bytes());
 
     // No `Migrator::down` teardown: the test data intentionally contains NULL
     // transaction relations, which `down` (SET NOT NULL) rejects, and the

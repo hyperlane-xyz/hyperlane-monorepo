@@ -21,6 +21,7 @@ use hyperlane_core::{
 };
 
 use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
+use crate::error::is_get_block_unresolvable_after_retries;
 use crate::fallback::SubmitSealevelRpc;
 use crate::log_meta_composer::{
     is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
@@ -161,12 +162,26 @@ impl SealevelMailboxIndexer {
         message_storage_pda_pubkey: &Pubkey,
         message_account_slot: &Slot,
     ) -> ChainResult<Option<LogMeta>> {
-        let block = self
+        let block = match self
             .mailbox
             .provider
             .rpc_client()
             .get_block(*message_account_slot)
-            .await?;
+            .await
+        {
+            Ok(block) => block,
+            Err(err) if is_get_block_unresolvable_after_retries(&err) => {
+                warn!(
+                    ?err,
+                    ?message_storage_pda_pubkey,
+                    slot = message_account_slot,
+                    "Block for message dispatch is unavailable after provider retries; \
+                     falling back to basic log meta",
+                );
+                return Ok(None);
+            }
+            Err(err) => return Err(err),
+        };
 
         match self.dispatch_message_log_meta_composer.log_meta(
             block,
@@ -272,12 +287,26 @@ impl SealevelMailboxIndexer {
         message_storage_pda_pubkey: &Pubkey,
         message_account_slot: &Slot,
     ) -> ChainResult<Option<LogMeta>> {
-        let block = self
+        let block = match self
             .mailbox
             .provider
             .rpc_client()
             .get_block(*message_account_slot)
-            .await?;
+            .await
+        {
+            Ok(block) => block,
+            Err(err) if is_get_block_unresolvable_after_retries(&err) => {
+                warn!(
+                    ?err,
+                    ?message_storage_pda_pubkey,
+                    slot = message_account_slot,
+                    "Block for message delivery is unavailable after provider retries; \
+                     falling back to basic log meta",
+                );
+                return Ok(None);
+            }
+            Err(err) => return Err(err),
+        };
 
         match self.delivery_message_log_meta_composer.log_meta(
             block,
