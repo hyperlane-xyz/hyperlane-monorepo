@@ -259,6 +259,7 @@ type message_view {
 type raw_message_dispatch {
   destination_domain: Int!
   id: bigint!
+  msg_body: bytea
   msg_id: bytea!
   nonce: Int!
   origin_block_hash: bytea!
@@ -446,6 +447,8 @@ enum raw_message_dispatch_select_column {
   destination_domain
   "column name"
   id
+  "column name"
+  msg_body
   "column name"
   msg_id
   "column name"
@@ -676,6 +679,7 @@ input raw_message_dispatch_bool_exp {
   _or: [raw_message_dispatch_bool_exp!]
   destination_domain: Int_comparison_exp
   id: bigint_comparison_exp
+  msg_body: bytea_comparison_exp
   msg_id: bytea_comparison_exp
   nonce: Int_comparison_exp
   origin_block_hash: bytea_comparison_exp
@@ -763,6 +767,7 @@ input message_view_stream_cursor_value_input {
 input raw_message_dispatch_stream_cursor_value_input {
   destination_domain: Int
   id: bigint
+  msg_body: bytea
   msg_id: bytea
   nonce: Int
   origin_block_hash: bytea
@@ -850,6 +855,7 @@ input message_view_order_by {
 input raw_message_dispatch_order_by {
   destination_domain: order_by
   id: order_by
+  msg_body: order_by
   msg_id: order_by
   nonce: order_by
   origin_block_hash: order_by

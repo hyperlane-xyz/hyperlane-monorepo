@@ -7,6 +7,7 @@ import {
 import pg from 'pg';
 
 import { config } from '../config.js';
+import { quoteIdentifier } from '../scraperdb/tables.js';
 
 const POSTGRES_TIMESTAMP_OID = 1114;
 const MIN_POOL_CLIENTS = 5;
@@ -20,15 +21,79 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
   private readonly listenerClients = new Set<pg.Client>();
   private stats: DbStats = emptyDbStats();
   private statsTimer?: NodeJS.Timeout;
+  private livePool?: pg.Pool;
   private pool?: pg.Pool;
+
+  async listen(
+    channels: readonly string[],
+    handler: (channel: string, payload: string | undefined) => void,
+    onDisconnect: (error?: Error) => void,
+  ): Promise<() => Promise<void>> {
+    const connectionString = normalizeConnectionString(
+      config.LISTEN_DATABASE_URL ?? config.DATABASE_URL,
+    );
+    const client = new pg.Client({
+      connectionString,
+      ssl: connectionString.startsWith('postgres')
+        ? { rejectUnauthorized: false }
+        : undefined,
+    });
+    let stopped = false;
+    let disconnected = false;
+    const disconnect = (error?: Error): void => {
+      if (stopped || disconnected) return;
+      disconnected = true;
+      this.listenerClients.delete(client);
+      onDisconnect(error);
+    };
+
+    client.on('notification', ({ channel, payload }) =>
+      handler(channel, payload),
+    );
+    client.on('error', disconnect);
+    client.on('end', () => disconnect());
+    try {
+      await client.connect();
+      for (const channel of channels) {
+        await client.query(`LISTEN ${quoteIdentifier(channel)}`);
+      }
+    } catch (error) {
+      stopped = true;
+      await client.end().catch(() => undefined);
+      throw error;
+    }
+    this.listenerClients.add(client);
+    this.logger.log(`listening on ${channels.join(', ')}`);
+
+    return async () => {
+      stopped = true;
+      this.listenerClients.delete(client);
+      await client.end();
+    };
+  }
 
   async query<T extends pg.QueryResultRow>(
     text: string,
     values: unknown[] = [],
   ): Promise<T[]> {
+    return this.queryPool(this.getPool(), text, values);
+  }
+
+  async queryLive<T extends pg.QueryResultRow>(
+    text: string,
+    values: unknown[] = [],
+  ): Promise<T[]> {
+    return this.queryPool(this.getLivePool(), text, values);
+  }
+
+  private async queryPool<T extends pg.QueryResultRow>(
+    pool: pg.Pool,
+    text: string,
+    values: unknown[],
+  ): Promise<T[]> {
     const startedAt = Date.now();
     try {
-      const result = await this.getPool().query<T>(text, values);
+      const result = await pool.query<T>(text, values);
       const durationMs = Date.now() - startedAt;
       this.recordQueryStats(durationMs, result.rowCount ?? 0, false);
       this.logger.debug(`query ${durationMs}ms rows=${result.rowCount}`);
@@ -44,6 +109,8 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
     await Promise.all(
       [...this.listenerClients].map(async (client) => client.end()),
     );
+    this.listenerClients.clear();
+    await this.livePool?.end();
     await this.pool?.end();
   }
 
@@ -72,43 +139,20 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
     return this.pool;
   }
 
-  async listen(
-    channel: string,
-    handler: (payload: string | undefined) => void,
-  ): Promise<() => Promise<void>> {
-    const client = new pg.Client(
-      this.connectionOptions(config.LISTEN_DATABASE_URL),
-    );
-    client.on('notification', (message) => {
-      if (message.channel === channel) {
-        handler(message.payload);
-      }
-    });
+  private getLivePool(): pg.Pool {
+    if (!config.LISTEN_DATABASE_URL) return this.getPool();
 
-    await client.connect();
-    await client.query(`LISTEN ${quoteIdentifier(channel)}`);
-    this.listenerClients.add(client);
-    this.logger.log(`listening on ${channel}`);
-
-    return async () => {
-      this.listenerClients.delete(client);
-      await client.query(`UNLISTEN ${quoteIdentifier(channel)}`);
-      await client.end();
-    };
-  }
-
-  private connectionOptions(
-    connectionStringOverride?: string,
-  ): pg.ClientConfig | pg.PoolConfig {
     const connectionString = normalizeConnectionString(
-      connectionStringOverride ?? config.DATABASE_URL,
+      config.LISTEN_DATABASE_URL,
     );
-    return {
+    this.livePool ??= new pg.Pool({
       connectionString,
+      idleTimeoutMillis: 300_000,
       ssl: connectionString.startsWith('postgres')
         ? { rejectUnauthorized: false }
         : undefined,
-    };
+    });
+    return this.livePool;
   }
 
   private recordQueryStats(
@@ -171,8 +215,4 @@ function normalizeRow(row: pg.QueryResultRow): pg.QueryResultRow {
       Buffer.isBuffer(value) ? `\\x${value.toString('hex')}` : value,
     ]),
   );
-}
-
-function quoteIdentifier(identifier: string): string {
-  return `"${identifier.replaceAll('"', '""')}"`;
 }

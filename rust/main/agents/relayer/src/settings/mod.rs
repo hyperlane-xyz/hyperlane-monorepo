@@ -28,9 +28,6 @@ use crate::{
 
 pub mod matching_list;
 
-const DEFAULT_SCRAPER_PROXY_MESSAGE_INDEXER_RECONNECT_DELAY_SECS: u64 = 5;
-const DEFAULT_SCRAPER_PROXY_MESSAGE_INDEXER_STALE_TIMEOUT_SECS: u64 = 120;
-
 /// Settings for `Relayer`
 #[derive(Debug, AsRef, AsMut, Deref, DerefMut)]
 pub struct RelayerSettings {
@@ -76,16 +73,6 @@ pub struct RelayerSettings {
     pub tx_id_indexing_enabled: bool,
     /// Whether to enable IGP indexing.
     pub igp_indexing_enabled: bool,
-    /// Scraper-proxy WebSocket URL for centralized safe message indexing.
-    /// When set, the relayer consumes messages from this stream instead of
-    /// locally polling mailbox dispatch logs, falling back to local sync if the
-    /// WebSocket task exits.
-    pub scraper_proxy_message_indexer_url: Option<String>,
-    /// Delay between scraper-proxy WebSocket reconnect attempts.
-    pub scraper_proxy_message_indexer_reconnect_delay_secs: u64,
-    /// Fall back to local message indexing after this many seconds without any
-    /// WebSocket progress.
-    pub scraper_proxy_message_indexer_stale_timeout_secs: u64,
     /// Whether to enable the relay API endpoint (default: false)
     ///
     /// # Deployment requirement
@@ -419,25 +406,6 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_bool()
             .unwrap_or(true);
 
-        let scraper_proxy_message_indexer_url = p
-            .chain(&mut err)
-            .get_opt_key("scraperProxyMessageIndexerUrl")
-            .parse_string()
-            .end()
-            .map(str::to_owned);
-
-        let scraper_proxy_message_indexer_reconnect_delay_secs = p
-            .chain(&mut err)
-            .get_opt_key("scraperProxyMessageIndexerReconnectDelaySecs")
-            .parse_u64()
-            .unwrap_or(DEFAULT_SCRAPER_PROXY_MESSAGE_INDEXER_RECONNECT_DELAY_SECS);
-
-        let scraper_proxy_message_indexer_stale_timeout_secs = p
-            .chain(&mut err)
-            .get_opt_key("scraperProxyMessageIndexerStaleTimeoutSecs")
-            .parse_u64()
-            .unwrap_or(DEFAULT_SCRAPER_PROXY_MESSAGE_INDEXER_STALE_TIMEOUT_SECS);
-
         let relay_api_enabled = p
             .chain(&mut err)
             .get_opt_key("relayApiEnabled")
@@ -514,9 +482,6 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             max_retries: max_message_retries,
             tx_id_indexing_enabled,
             igp_indexing_enabled,
-            scraper_proxy_message_indexer_url,
-            scraper_proxy_message_indexer_reconnect_delay_secs,
-            scraper_proxy_message_indexer_stale_timeout_secs,
             relay_api_enabled,
             relay_api_port,
             relay_api_rate_limit_max_requests,

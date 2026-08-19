@@ -81,6 +81,7 @@ export const tables: Record<TableName, TableConfig> = {
     [
       'destination_domain',
       'id',
+      'msg_body',
       'msg_id',
       'nonce',
       'origin_block_hash',

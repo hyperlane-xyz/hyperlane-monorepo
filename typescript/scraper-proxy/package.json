@@ -24,7 +24,7 @@
     "lint": "oxlint -c ../../oxlint.json",
     "start": "node dist/main.js",
     "start:dev": "NODE_ENV=development LOG_FORMAT=pretty node dist/main.js",
-    "test": "echo \"No scraper-proxy tests configured\"",
+    "test": "tsx --test src/**/*.test.ts",
     "test:ci": "pnpm test"
   },
   "dependencies": {

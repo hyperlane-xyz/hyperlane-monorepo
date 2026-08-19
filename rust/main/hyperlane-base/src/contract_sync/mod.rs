@@ -1,6 +1,6 @@
 use std::{
-    any::Any, collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc,
-    time::Duration, time::UNIX_EPOCH,
+    collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration,
+    time::UNIX_EPOCH,
 };
 
 use async_trait::async_trait;
@@ -15,7 +15,7 @@ use tracing::{debug, info, instrument, trace, warn, Instrument};
 
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, HyperlaneSequenceAwareIndexerStore, HyperlaneWatermarkedLogStore, Indexer,
+    HyperlaneSequenceAwareIndexerStore, HyperlaneWatermarkedLogStore, Indexer,
     SequenceAwareIndexer,
 };
 use hyperlane_core::{Indexed, LogMeta, H512};
@@ -167,7 +167,6 @@ where
                             stored_logs_metric,
                             indexed_height_metric,
                             liveness_metric,
-                            label,
                         )
                         .await
                     }
@@ -274,7 +273,6 @@ where
         stored_logs_metric: GenericCounter<AtomicU64>,
         indexed_height_metric: GenericGauge<AtomicI64>,
         liveness_metric: GenericGauge<AtomicI64>,
-        label: &'static str,
     ) {
         loop {
             Self::update_liveness_metric(&liveness_metric);
@@ -337,21 +335,6 @@ where
                 cursor = ?cursor,
                 "Found log(s) in index range"
             );
-            if label == "dispatched_messages" {
-                for (log, meta) in logs.iter() {
-                    let message_id = (log.inner() as &dyn Any)
-                        .downcast_ref::<HyperlaneMessage>()
-                        .map(HyperlaneMessage::id);
-                    info!(
-                        domain = domain.name(),
-                        sequence = log.sequence,
-                        message_id = ?message_id,
-                        tx_hash = ?meta.transaction_id,
-                        block_number = meta.block_number,
-                        "[WS] classic message indexing pulled message"
-                    );
-                }
-            }
 
             if let Some(tx) = broadcast_sender.as_ref() {
                 // If multiple logs occur in the same transaction they'll have the same transaction_id.
@@ -580,7 +563,6 @@ mod tests {
                 stored_logs_metric(),
                 indexed_height_metric(),
                 liveness_metric(),
-                "dispatched_messages",
             ),
         );
 
