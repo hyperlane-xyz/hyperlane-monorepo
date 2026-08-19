@@ -69,6 +69,42 @@ describe('EV5JsonRpcTxSubmitter', () => {
     ).to.equal(true);
   });
 
+  it('uses the MultiProvider signer when no explicit signer is supplied', async () => {
+    const response = transactionResponse('0x05');
+    const receipt = transactionReceipt('0x05', 1);
+    const mainSend = sinon
+      .stub(mainSigner, 'sendTransaction')
+      .resolves(response);
+    sinon.stub(multiProvider, 'handleTx').resolves(receipt);
+
+    const submitter = new EV5JsonRpcTxSubmitter(multiProvider, props);
+
+    expect(await submitter.submit(tx)).to.deep.equal([receipt]);
+    expect(mainSend.calledOnce).to.equal(true);
+    expect(
+      prepareTx.calledWith(chain, sinon.match.object, mainSigner.address),
+    ).to.equal(true);
+  });
+
+  it('validates the complete batch before broadcasting', async () => {
+    const explicitSend = sinon.stub(connectedExplicitSigner, 'sendTransaction');
+    const submitter = new EV5JsonRpcTxSubmitter(
+      multiProvider,
+      props,
+      explicitSigner,
+    );
+
+    let error: Error | undefined;
+    try {
+      await submitter.submit(tx, { ...tx, chainId: chainId + 1 });
+    } catch (caught) {
+      error = caught instanceof Error ? caught : new Error(String(caught));
+    }
+
+    expect(error?.message).to.include('does not match submitter chainId');
+    expect(explicitSend.called).to.equal(false);
+  });
+
   it('fails when a receipt has status zero', async () => {
     const response = transactionResponse('0x02');
     const receipt = transactionReceipt('0x02', 0);

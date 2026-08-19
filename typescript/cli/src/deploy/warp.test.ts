@@ -3,7 +3,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { BigNumber, Wallet, constants, utils } from 'ethers';
 import sinon from 'sinon';
 
 import {
@@ -13,6 +13,8 @@ import {
 } from '@hyperlane-xyz/utils';
 import {
   EvmWarpModule,
+  type DerivedTokenFeeConfig,
+  EvmTokenFeeReader,
   HyperlaneDeployer,
   IsmType,
   MultiProvider,
@@ -28,6 +30,7 @@ import { type WriteCommandContext } from '../context/types.js';
 
 import {
   fullyConnectTokens,
+  assertLiveFeeOwners,
   type WarpApplyParams,
   preflightFeeSigner,
   runWarpRouteApply,
@@ -84,6 +87,7 @@ describe('fullyConnectTokens', () => {
 
 describe('preflightFeeSigner', () => {
   const chain = TestChainName.test1;
+  const destination = TestChainName.test2;
   let tempDir: string;
 
   beforeEach(() => {
@@ -154,7 +158,264 @@ describe('preflightFeeSigner', () => {
     expect(error?.message).to.include('does not match target RoutingFee owner');
     expect(getProvider.called).to.equal(false);
   });
+
+  it('ignores JSON-RPC fee submitters outside the apply scope', async () => {
+    const feeSigner = Wallet.createRandom();
+    const multiProvider = MultiProvider.createTestMultiProvider();
+    const getProvider = sinon.spy(multiProvider, 'getProvider');
+    const strategyUrl = writeStrategy({
+      [chain]: jsonRpcStrategy(chain),
+      [destination]: jsonRpcStrategy(destination),
+    });
+
+    await preflightFeeSigner(
+      buildPreflightParams({
+        feeSigner,
+        multiProvider,
+        strategyUrl,
+      }),
+    );
+
+    expect(getProvider.called).to.equal(false);
+  });
+
+  it('rejects a JSON-RPC fee submitter targeting another chain', async () => {
+    const feeSigner = Wallet.createRandom();
+    const multiProvider = MultiProvider.createTestMultiProvider();
+
+    const error = await captureError(
+      preflightFeeSigner(
+        buildPreflightParams({
+          feeSigner,
+          multiProvider,
+          strategyUrl: writeStrategy({
+            [chain]: {
+              ...jsonRpcStrategy(chain),
+              feeSubmitter: { type: 'jsonRpc', chain: destination },
+            },
+          }),
+        }),
+      ),
+    );
+
+    expect(error.message).to.include(`for ${chain} targets ${destination}`);
+  });
+
+  it('allows replacing a zero fee recipient', async () => {
+    const feeSigner = Wallet.createRandom();
+    const routerAddress = Wallet.createRandom().address;
+    const multiProvider = MultiProvider.createTestMultiProvider();
+    const provider = multiProvider.getProvider(chain);
+    sinon
+      .stub(provider, 'call')
+      .resolves(
+        utils.defaultAbiCoder.encode(['address'], [constants.AddressZero]),
+      );
+    const getGasPrice = sinon.spy(provider, 'getGasPrice');
+
+    await preflightFeeSigner(
+      buildPreflightParams({
+        feeSigner,
+        multiProvider,
+        routerAddress,
+        strategyUrl: writeStrategy({ [chain]: jsonRpcStrategy(chain) }),
+      }),
+    );
+
+    expect(getGasPrice.called).to.equal(false);
+  });
+
+  it('allows replacing a non-RoutingFee recipient', async () => {
+    const feeSigner = Wallet.createRandom();
+    const routerAddress = Wallet.createRandom().address;
+    const feeRecipient = Wallet.createRandom().address;
+    const multiProvider = MultiProvider.createTestMultiProvider();
+    const provider = multiProvider.getProvider(chain);
+    sinon
+      .stub(provider, 'call')
+      .resolves(utils.defaultAbiCoder.encode(['address'], [feeRecipient]));
+    const getGasPrice = sinon.spy(provider, 'getGasPrice');
+    sinon
+      .stub(EvmTokenFeeReader.prototype, 'deriveTokenFeeConfig')
+      .resolves(linearFeeConfig(Wallet.createRandom().address, feeRecipient));
+
+    await preflightFeeSigner(
+      buildPreflightParams({
+        feeSigner,
+        multiProvider,
+        routerAddress,
+        strategyUrl: writeStrategy({ [chain]: jsonRpcStrategy(chain) }),
+      }),
+    );
+
+    expect(getGasPrice.called).to.equal(false);
+  });
+
+  it('rejects an unfunded fee signer before planning', async () => {
+    const feeSigner = Wallet.createRandom();
+    const routerAddress = Wallet.createRandom().address;
+    const feeRecipient = Wallet.createRandom().address;
+    const multiProvider = MultiProvider.createTestMultiProvider();
+    const provider = multiProvider.getProvider(chain);
+    sinon
+      .stub(provider, 'call')
+      .resolves(utils.defaultAbiCoder.encode(['address'], [feeRecipient]));
+    sinon.stub(provider, 'getGasPrice').resolves(BigNumber.from(1));
+    sinon.stub(provider, 'getBalance').resolves(BigNumber.from(0));
+    sinon
+      .stub(EvmTokenFeeReader.prototype, 'deriveTokenFeeConfig')
+      .resolves(routingFeeConfig(feeSigner.address, feeRecipient));
+
+    const error = await captureError(
+      preflightFeeSigner(
+        buildPreflightParams({
+          feeSigner,
+          multiProvider,
+          routerAddress,
+          strategyUrl: writeStrategy({ [chain]: jsonRpcStrategy(chain) }),
+        }),
+      ),
+    );
+
+    expect(error.message).to.include('has insufficient gas balance');
+  });
+
+  it('rejects a matching live child owned by another signer', () => {
+    const feeSigner = Wallet.createRandom();
+    const feeRecipient = Wallet.createRandom().address;
+    const targetConfig = targetFeeConfig(feeSigner.address)[chain].tokenFee;
+    if (targetConfig?.type !== TokenFeeType.RoutingFee) {
+      throw new Error('Expected RoutingFee test fixture');
+    }
+    const liveConfig = routingFeeConfig(feeSigner.address, feeRecipient);
+    const liveChild = liveConfig.feeContracts[destination];
+    if (liveChild.type !== TokenFeeType.LinearFee) {
+      throw new Error('Expected LinearFee test fixture');
+    }
+    liveConfig.feeContracts[destination] = {
+      ...liveChild,
+      type: TokenFeeType.OffchainQuotedLinearFee,
+      owner: Wallet.createRandom().address,
+      quoteSigners: [],
+    };
+
+    expect(() =>
+      assertLiveFeeOwners(targetConfig, liveConfig, feeSigner.address, chain),
+    ).to.throw('does not match live fee owner');
+  });
+
+  function writeStrategy(strategy: Record<string, unknown>): string {
+    const strategyUrl = join(tempDir, 'strategy.json');
+    writeFileSync(strategyUrl, JSON.stringify(strategy));
+    return strategyUrl;
+  }
+
+  function jsonRpcStrategy(strategyChain: string) {
+    return {
+      submitter: { type: 'jsonRpc', chain: strategyChain },
+      feeSubmitter: { type: 'jsonRpc', chain: strategyChain },
+    };
+  }
+
+  function targetFeeConfig(
+    owner: string,
+  ): WarpRouteDeployConfigMailboxRequired {
+    return {
+      [chain]: {
+        type: TokenType.synthetic,
+        owner,
+        mailbox: owner,
+        tokenFee: {
+          type: TokenFeeType.RoutingFee,
+          owner,
+          feeContracts: {
+            [destination]: {
+              type: TokenFeeType.OffchainQuotedLinearFee,
+              owner,
+              bps: 1,
+              quoteSigners: [],
+            },
+          },
+        },
+      },
+    };
+  }
+
+  function buildPreflightParams({
+    feeSigner,
+    multiProvider,
+    strategyUrl,
+    routerAddress,
+  }: {
+    feeSigner: Wallet;
+    multiProvider: MultiProvider;
+    strategyUrl: string;
+    routerAddress?: string;
+  }): WarpApplyParams {
+    const warpCoreConfig: WarpCoreConfig = {
+      tokens: routerAddress
+        ? [
+            {
+              chainName: chain,
+              standard: TokenStandard.EvmHypSynthetic,
+              decimals: 18,
+              symbol: 'TEST',
+              name: 'Test token',
+              addressOrDenom: routerAddress,
+            },
+          ]
+        : [],
+    };
+    return {
+      // CAST: focused test context; preflight only consumes multiProvider.
+      context: { multiProvider } as WriteCommandContext,
+      feeSigner,
+      strategyUrl,
+      receiptsDir: tempDir,
+      warpCoreConfig,
+      warpDeployConfig: targetFeeConfig(feeSigner.address),
+    };
+  }
+
+  function routingFeeConfig(
+    owner: string,
+    address: string,
+  ): Extract<DerivedTokenFeeConfig, { type: 'RoutingFee' }> {
+    return {
+      type: TokenFeeType.RoutingFee,
+      owner,
+      address,
+      token: Wallet.createRandom().address,
+      feeContracts: {
+        [destination]: linearFeeConfig(owner, Wallet.createRandom().address),
+      },
+    };
+  }
+
+  function linearFeeConfig(
+    owner: string,
+    address: string,
+  ): Extract<DerivedTokenFeeConfig, { type: 'LinearFee' }> {
+    return {
+      type: TokenFeeType.LinearFee,
+      owner,
+      address,
+      token: Wallet.createRandom().address,
+      maxFee: 1n,
+      halfAmount: 1n,
+      bps: 1,
+    };
+  }
 });
+
+async function captureError(promise: Promise<unknown>): Promise<Error> {
+  try {
+    await promise;
+  } catch (error) {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+  throw new Error('Expected promise to reject');
+}
 
 const DOMAIN_BY_CHAIN: Record<string, number> = {
   anvil2: 31337,

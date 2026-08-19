@@ -2,7 +2,7 @@ import { confirm } from '@inquirer/prompts';
 import type { Signer } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
-import { BaseFee__factory, TokenRouter__factory } from '@hyperlane-xyz/core';
+import { TokenRouter__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   AltVMJsonRpcSubmitter,
@@ -40,13 +40,14 @@ import {
   type CompositeIsmNodeConfig,
   CompositeIsmNodeType,
   ContractVerifier,
+  type DerivedTokenFeeConfig,
+  EvmTokenFeeReader,
   EvmWarpModule,
   EV5JsonRpcSubmissionError,
   EV5JsonRpcTxSubmitter,
   ExplorerLicenseType,
   HypERC20Deployer,
   IsmType,
-  OnchainTokenFeeType,
   type MultiProvider,
   type MultisigIsmConfig,
   type OpStackIsmConfig,
@@ -57,10 +58,11 @@ import {
   type SubmissionStrategy,
   type SubmitterMetadata,
   type TokenMetadataMap,
+  type TokenFeeConfigInput,
   TokenFeeType,
   TokenType,
   type TrustedRelayerIsmConfig,
-  type TxSubmitterBuilder,
+  TxSubmitterBuilder,
   TxSubmitterType,
   type TypedAnnotatedTransaction,
   type WarpCoreConfig,
@@ -91,6 +93,7 @@ import {
   formatError,
   isEVMLike,
   isNullish,
+  isZeroishAddress,
   mapAllSettled,
   mustGet,
   objFilter,
@@ -147,6 +150,10 @@ export interface WarpApplyParams extends DeployParams {
   selfRelay?: boolean;
   warpRouteId?: string;
 }
+
+// Conservative budget for one owner-gated fee update (setFeeContract or a
+// nested mutable-fee update). This is checked before planning can deploy fees.
+const FEE_UPDATE_GAS_PER_DESTINATION = 100_000;
 
 function assertWarpApplyTimelocksSupportedByProtocols({
   multiProvider,
@@ -600,13 +607,20 @@ export async function preflightFeeSigner({
   const routerAddresses = getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
   let configuredFeeSubmitter = false;
 
-  for (const [chain, chainStrategy] of Object.entries(strategy)) {
-    if (chainStrategy.feeSubmitter?.type !== TxSubmitterType.JSON_RPC) continue;
+  for (const chain of Object.keys(warpDeployConfig)) {
+    const chainStrategy = strategy[chain];
+    if (chainStrategy?.feeSubmitter?.type !== TxSubmitterType.JSON_RPC)
+      continue;
     configuredFeeSubmitter = true;
 
     assert(
       context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
       `Dedicated EVM fee signer cannot submit ${chainStrategy.feeSubmitter.type} transactions on non-Ethereum chain ${chain}`,
+    );
+    assert(
+      context.multiProvider.getChainId(chainStrategy.feeSubmitter.chain) ===
+        context.multiProvider.getChainId(chain),
+      `JSON-RPC feeSubmitter for ${chain} targets ${chainStrategy.feeSubmitter.chain}`,
     );
 
     const targetFeeConfig = warpDeployConfig[chain]?.tokenFee;
@@ -618,6 +632,7 @@ export async function preflightFeeSigner({
       eqAddress(targetFeeConfig.owner, signerAddress),
       `Dedicated fee signer ${signerAddress} does not match target RoutingFee owner ${targetFeeConfig.owner} on ${chain}`,
     );
+    assertTargetFeeOwners(targetFeeConfig, signerAddress, chain);
 
     const routerAddress = routerAddresses[chain];
     if (!routerAddress) continue;
@@ -627,18 +642,40 @@ export async function preflightFeeSigner({
       routerAddress,
       provider,
     ).feeRecipient();
-    const liveFee = BaseFee__factory.connect(feeRecipient, provider);
-    const [feeType, liveOwner] = await Promise.all([
-      liveFee.feeType(),
-      liveFee.owner(),
-    ]);
-    assert(
-      feeType === OnchainTokenFeeType.RoutingFee,
-      `Existing fee recipient ${feeRecipient} on ${chain} is not a RoutingFee`,
+    if (isZeroishAddress(feeRecipient)) continue;
+
+    const routingDestinations = Object.keys(targetFeeConfig.feeContracts).map(
+      (destination) => context.multiProvider.getDomainId(destination),
     );
+    const liveFeeConfig = await new EvmTokenFeeReader(
+      context.multiProvider,
+      chain,
+    ).deriveTokenFeeConfig({
+      address: feeRecipient,
+      routingDestinations,
+    });
+
+    // Replacing a non-RoutingFee only requires the router owner. The new
+    // RoutingFee is deployed directly and setFeeRecipient stays in the main
+    // transaction bucket.
+    if (liveFeeConfig.type !== TokenFeeType.RoutingFee) continue;
+
+    assertLiveFeeOwners(targetFeeConfig, liveFeeConfig, signerAddress, chain);
+
+    const feeUpdateCount = Math.max(
+      1,
+      Object.keys(targetFeeConfig.feeContracts).length,
+    );
+    const [gasPrice, signerBalance] = await Promise.all([
+      provider.getGasPrice(),
+      provider.getBalance(signerAddress),
+    ]);
+    const requiredBalance = gasPrice
+      .mul(FEE_UPDATE_GAS_PER_DESTINATION)
+      .mul(feeUpdateCount);
     assert(
-      eqAddress(liveOwner, signerAddress),
-      `Dedicated fee signer ${signerAddress} does not match live RoutingFee owner ${liveOwner} on ${chain}`,
+      signerBalance.gte(requiredBalance),
+      `Dedicated fee signer ${signerAddress} has insufficient gas balance on ${chain}: requires at least ${requiredBalance.toString()} wei for ${feeUpdateCount} fee updates, found ${signerBalance.toString()} wei`,
     );
   }
 
@@ -646,6 +683,137 @@ export async function preflightFeeSigner({
     configuredFeeSubmitter,
     'Submission strategy has no JSON-RPC feeSubmitter for the dedicated fee signer',
   );
+}
+
+function assertTargetFeeOwners(
+  targetConfig: TokenFeeConfigInput,
+  signerAddress: string,
+  feePath: string,
+): void {
+  assert(
+    eqAddress(targetConfig.owner, signerAddress),
+    `Dedicated fee signer ${signerAddress} does not match target fee owner ${targetConfig.owner} at ${feePath}`,
+  );
+
+  if (targetConfig.type === TokenFeeType.RoutingFee) {
+    for (const [destination, childConfig] of Object.entries(
+      targetConfig.feeContracts,
+    )) {
+      assertTargetFeeOwners(
+        childConfig,
+        signerAddress,
+        `${feePath}.${destination}`,
+      );
+    }
+  }
+
+  if (targetConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
+    for (const [destination, routerConfigs] of Object.entries(
+      targetConfig.feeContracts,
+    )) {
+      for (const [router, childConfig] of Object.entries(routerConfigs)) {
+        assertTargetFeeOwners(
+          childConfig,
+          signerAddress,
+          `${feePath}.${destination}.${router}`,
+        );
+      }
+    }
+  }
+}
+
+export function assertLiveFeeOwners(
+  targetConfig: TokenFeeConfigInput,
+  liveConfig: DerivedTokenFeeConfig,
+  signerAddress: string,
+  feePath: string,
+): void {
+  if (feeConfigWillRedeploy(targetConfig, liveConfig)) return;
+
+  assert(
+    eqAddress(liveConfig.owner, signerAddress),
+    `Dedicated fee signer ${signerAddress} does not match live fee owner ${liveConfig.owner} at ${feePath}`,
+  );
+
+  if (
+    targetConfig.type === TokenFeeType.RoutingFee &&
+    liveConfig.type === TokenFeeType.RoutingFee
+  ) {
+    for (const [destination, childTarget] of Object.entries(
+      targetConfig.feeContracts,
+    )) {
+      const childLive = liveConfig.feeContracts[destination];
+      if (childLive) {
+        assertLiveFeeOwners(
+          childTarget,
+          childLive,
+          signerAddress,
+          `${feePath}.${destination}`,
+        );
+      }
+    }
+  }
+
+  if (
+    targetConfig.type === TokenFeeType.CrossCollateralRoutingFee &&
+    liveConfig.type === TokenFeeType.CrossCollateralRoutingFee
+  ) {
+    for (const [destination, targetRouterConfigs] of Object.entries(
+      targetConfig.feeContracts,
+    )) {
+      const liveRouterConfigs = liveConfig.feeContracts[destination];
+      if (!liveRouterConfigs) continue;
+      for (const [router, childTarget] of Object.entries(targetRouterConfigs)) {
+        const childLive = liveRouterConfigs[router];
+        if (childLive) {
+          assertLiveFeeOwners(
+            childTarget,
+            childLive,
+            signerAddress,
+            `${feePath}.${destination}.${router}`,
+          );
+        }
+      }
+    }
+  }
+}
+
+function feeConfigWillRedeploy(
+  targetConfig: TokenFeeConfigInput,
+  liveConfig: DerivedTokenFeeConfig,
+): boolean {
+  if (targetConfig.type !== liveConfig.type) return true;
+  if (
+    targetConfig.type === TokenFeeType.RoutingFee ||
+    targetConfig.type === TokenFeeType.CrossCollateralRoutingFee
+  ) {
+    return false;
+  }
+
+  if (
+    'bps' in targetConfig &&
+    'bps' in liveConfig &&
+    targetConfig.bps !== liveConfig.bps
+  ) {
+    return true;
+  }
+  if (
+    'maxFee' in targetConfig &&
+    'maxFee' in liveConfig &&
+    targetConfig.maxFee !== undefined &&
+    BigInt(targetConfig.maxFee) !== BigInt(liveConfig.maxFee)
+  ) {
+    return true;
+  }
+  if (
+    'halfAmount' in targetConfig &&
+    'halfAmount' in liveConfig &&
+    targetConfig.halfAmount !== undefined &&
+    BigInt(targetConfig.halfAmount) !== BigInt(liveConfig.halfAmount)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -1373,7 +1541,7 @@ function buildAltVmSubmitterFactories({
   };
 }
 
-async function getFeeSubmitterByStrategy<T extends ProtocolType>({
+async function getFeeSubmitterByStrategy({
   chain,
   context,
   feeSigner,
@@ -1383,7 +1551,7 @@ async function getFeeSubmitterByStrategy<T extends ProtocolType>({
   context: WriteCommandContext;
   feeSigner?: Signer;
   strategyUrl?: string;
-}): Promise<TxSubmitterBuilder<T> | undefined> {
+}): Promise<TxSubmitterBuilder<ProtocolType> | undefined> {
   const { multiProvider, altVmSigners, registry } = context;
 
   if (!strategyUrl) return undefined;
@@ -1396,6 +1564,23 @@ async function getFeeSubmitterByStrategy<T extends ProtocolType>({
   };
 
   const protocol = multiProvider.getProtocol(chain);
+  if (
+    feeSigner &&
+    submissionStrategy.feeSubmitter.type === TxSubmitterType.JSON_RPC
+  ) {
+    assert(
+      protocol === ProtocolType.Ethereum,
+      `Dedicated EVM fee signer cannot submit JSON-RPC transactions on ${protocol} chain ${chain}`,
+    );
+    return new TxSubmitterBuilder<ProtocolType>(
+      new EV5JsonRpcTxSubmitter(
+        multiProvider,
+        submissionStrategy.feeSubmitter,
+        feeSigner,
+      ),
+    );
+  }
+
   const additionalSubmitterFactories: any = {
     [ProtocolType.Tron]: {
       file: (_multiProvider: MultiProvider, metadata: any) =>
@@ -1404,24 +1589,6 @@ async function getFeeSubmitterByStrategy<T extends ProtocolType>({
     [ProtocolType.Ethereum]: {
       file: (_multiProvider: MultiProvider, metadata: any) =>
         new EV5FileSubmitter(metadata),
-      ...(feeSigner
-        ? {
-            [TxSubmitterType.JSON_RPC]: (
-              feeMultiProvider: MultiProvider,
-              metadata: SubmitterMetadata,
-            ) => {
-              assert(
-                metadata.type === TxSubmitterType.JSON_RPC,
-                `Invalid fee submitter type ${metadata.type}`,
-              );
-              return new EV5JsonRpcTxSubmitter(
-                feeMultiProvider,
-                metadata,
-                feeSigner,
-              );
-            },
-          }
-        : {}),
     },
   };
 
@@ -1435,7 +1602,7 @@ async function getFeeSubmitterByStrategy<T extends ProtocolType>({
     });
   }
 
-  return getSubmitterBuilder<T>({
+  return getSubmitterBuilder<ProtocolType>({
     submissionStrategy: feeStrategy as SubmissionStrategy,
     multiProvider,
     coreAddressesByChain: await registry.getAddresses(),

@@ -28,7 +28,7 @@ export class EV5JsonRpcSubmissionError extends Error {
     message: string,
     public readonly submittedTransactions: EV5SubmittedTransaction[],
     public readonly cause: unknown,
-    isRecoverable = submittedTransactions.length === 0,
+    isRecoverable: boolean,
   ) {
     super(message);
     this.isRecoverable = isRecoverable;
@@ -54,6 +54,15 @@ export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
     const receipts: TransactionReceipt[] = [];
     const submittedTransactions: EV5SubmittedTransaction[] = [];
     const submitterChainId = this.multiProvider.getChainId(this.props.chain);
+
+    for (const tx of txs) {
+      assert(tx.chainId, 'Invalid PopulatedTransaction: Missing chainId field');
+      assert(
+        tx.chainId === submitterChainId,
+        `Transaction chainId ${tx.chainId} does not match submitter chainId ${submitterChainId}`,
+      );
+    }
+
     const provider = this.multiProvider.getProvider(this.props.chain);
     const signer = this.signer
       ? this.signer.provider === provider
@@ -63,12 +72,6 @@ export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
     const signerAddress = await signer.getAddress();
 
     for (const tx of txs) {
-      assert(tx.chainId, 'Invalid PopulatedTransaction: Missing chainId field');
-      assert(
-        tx.chainId === submitterChainId,
-        `Transaction chainId ${tx.chainId} does not match submitter chainId ${submitterChainId}`,
-      );
-
       let broadcastAttempted = false;
       try {
         const { annotation, ...populatedTx } = tx;

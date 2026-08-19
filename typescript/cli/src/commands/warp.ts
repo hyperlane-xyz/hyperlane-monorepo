@@ -206,7 +206,7 @@ export const apply: CommandModuleWithWarpApplyContext<
     'fee-turnkey-config': {
       type: 'string',
       description:
-        'Path to a private Turnkey JSON config used only by JSON-RPC fee submitters',
+        'Path to a private Turnkey JSON config used only by JSON-RPC fee submitters on Ethereum chains. Requires --strategy',
     },
     'receipts-dir': {
       type: 'string',
