@@ -1,5 +1,7 @@
 # @hyperlane-xyz/cosmos-types
 
+## 41.3.1
+
 ## 41.3.0
 
 ## 41.2.0
