@@ -9,6 +9,7 @@ import {
 import {
   EvmWarpModule,
   HyperlaneDeployer,
+  HookType,
   IsmType,
   MultiProvider,
   TokenStandard,
@@ -21,7 +22,9 @@ import {
   fullyConnectTokens,
   runWarpRouteApply,
   runWarpRouteCombine,
+  runWarpUpdatePlanning,
   transformDeployConfigForDisplay,
+  withIntermediateWarpOwner,
 } from './warp.js';
 
 describe('fullyConnectTokens', () => {
@@ -68,6 +71,67 @@ describe('fullyConnectTokens', () => {
           ),
         ),
     ).to.equal(false);
+  });
+});
+
+describe('withIntermediateWarpOwner', () => {
+  it('rewrites the router and nested hybrid owners for extension deployment', () => {
+    const finalOwner = '0x1111111111111111111111111111111111111111';
+    const intermediateOwner = '0x2222222222222222222222222222222222222222';
+    const config: WarpRouteDeployConfigMailboxRequired[string] = {
+      type: TokenType.synthetic,
+      mailbox: '0x3333333333333333333333333333333333333333',
+      owner: finalOwner,
+      interchainSecurityModule: {
+        type: IsmType.AGGREGATION,
+        threshold: 2,
+        modules: [
+          {
+            type: IsmType.TRUSTED_RELAYER,
+            relayer: '0x4444444444444444444444444444444444444444',
+          },
+          {
+            type: IsmType.NET_FLOW_RATE_LIMITED,
+            thresholdBps: 500,
+            duration: 86400n,
+            owner: finalOwner,
+          },
+        ],
+      },
+      hook: {
+        type: HookType.NET_FLOW_RATE_LIMITED,
+        thresholdBps: 500,
+        duration: 86400n,
+        owner: finalOwner,
+      },
+    };
+
+    expect(withIntermediateWarpOwner(config, intermediateOwner)).to.deep.equal({
+      ...config,
+      owner: intermediateOwner,
+      interchainSecurityModule: {
+        type: IsmType.AGGREGATION,
+        threshold: 2,
+        modules: [
+          {
+            type: IsmType.TRUSTED_RELAYER,
+            relayer: '0x4444444444444444444444444444444444444444',
+          },
+          {
+            type: IsmType.NET_FLOW_RATE_LIMITED,
+            thresholdBps: 500,
+            duration: 86400n,
+            owner: intermediateOwner,
+          },
+        ],
+      },
+      hook: {
+        type: HookType.NET_FLOW_RATE_LIMITED,
+        thresholdBps: 500,
+        duration: 86400n,
+        owner: intermediateOwner,
+      },
+    });
   });
 });
 
@@ -511,6 +575,37 @@ describe('runWarpRouteApply', () => {
       expect(updateSplitSpy.called).to.equal(false);
       expect(deployTimelockSpy.called).to.equal(false);
     }
+  });
+});
+
+describe('runWarpUpdatePlanning', () => {
+  for (const protocolType of [ProtocolType.Ethereum, ProtocolType.Tron]) {
+    it(`does not retry ${protocolType} planning after a deployment followed by failure`, async () => {
+      const runner = sinon
+        .stub()
+        .rejects(new Error('failure after deployment'));
+
+      let message = '';
+      try {
+        await runWarpUpdatePlanning(protocolType, runner);
+      } catch (error) {
+        message = error instanceof Error ? error.message : String(error);
+      }
+
+      expect(message).to.equal('failure after deployment');
+      expect(runner.calledOnce).to.equal(true);
+    });
+  }
+
+  it('retains retries for AltVM planning', async () => {
+    const runner = sinon.stub();
+    runner.onFirstCall().rejects(new Error('transient read failure'));
+    runner.onSecondCall().resolves('planned');
+
+    expect(await runWarpUpdatePlanning(ProtocolType.Sealevel, runner)).to.equal(
+      'planned',
+    );
+    expect(runner.callCount).to.equal(2);
   });
 });
 
