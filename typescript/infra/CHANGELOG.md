@@ -1,5 +1,23 @@
 # @hyperlane-xyz/infra
 
+## 41.3.1
+
+### Patch Changes
+
+- Updated dependencies [c201794]
+  - @hyperlane-xyz/sdk@41.3.1
+  - @hyperlane-xyz/http-registry-server@41.3.1
+  - @hyperlane-xyz/keyfunder@0.1.45
+  - @hyperlane-xyz/metrics@0.2.38
+  - @hyperlane-xyz/rebalancer@27.3.17
+  - @hyperlane-xyz/relayer@1.1.45
+  - @hyperlane-xyz/sealevel-sdk@41.3.1
+  - @hyperlane-xyz/utils@41.3.1
+  - @hyperlane-xyz/deploy-sdk@8.1.2
+  - @hyperlane-xyz/core@12.1.0
+  - @hyperlane-xyz/provider-sdk@8.1.2
+  - @hyperlane-xyz/tron-sdk@24.1.5
+
 ## 41.3.0
 
 ### Patch Changes
