@@ -52,6 +52,7 @@ export const warpFeesIcas: ChainMap<Address> = {
   sei: '0x488Ad6e16C624c18D6451d9A6Ce4F0EBfE163291',
   somnia: '0xddD12a915e9C479Ad24e97a6C77426f6D45c8A27',
   soneium: '0xbC983fa0270eD10a0FCFb3252fEefB41A56d840a',
+  sonic: '0xa84eaFd11c6E3ce97a9481aDc8962658f40bF81D',
   stable: '0xfa53734dBf1d9826b41Ea6A816396f0750ecD1a5',
   subtensor: '0xAF4bEd592d14b495bD22410C29df588BA089Ed37',
   superseed: '0xfdF8BbbbD2254230Ea1effB70D29F91F469bA3a4',

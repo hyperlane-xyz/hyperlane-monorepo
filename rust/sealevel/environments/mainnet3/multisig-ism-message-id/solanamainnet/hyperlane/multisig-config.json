@@ -579,6 +579,18 @@
       "0x5450447aee7b544c462c9352bef7cad049b0c2dc"
     ]
   },
+  "sonic": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 4,
+    "validators": [
+      "0xa313d72dbbd3fa51a2ed1611ea50c37946fa42f7",
+      "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36",
+      "0x5450447aee7b544c462c9352bef7cad049b0c2dc",
+      "0x7f0e75c5151d0938eaa9ab8a30f9ddbd74c4ebef",
+      "0x4e3d1c926843dcc8ff47061bbd7143a2755899f3"
+    ]
+  },
   "sonicsvm": {
     "type": "messageIdMultisigIsm",
     "threshold": 3,
