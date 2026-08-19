@@ -43,7 +43,7 @@ COPY typescript/ccip-server/package.json ./typescript/ccip-server/
 COPY typescript/keyfunder/package.json ./typescript/keyfunder/
 COPY typescript/relayer/package.json ./typescript/relayer/
 COPY typescript/fee-quoting/package.json ./typescript/fee-quoting/
-COPY typescript/scraper-proxy/package.json ./typescript/scraper-proxy/
+COPY typescript/scraper-proxy/package.json ./typescript/scraper-proxy/package.json
 COPY typescript/metrics/package.json ./typescript/metrics/
 COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
 COPY typescript/sdk/package.json ./typescript/sdk/

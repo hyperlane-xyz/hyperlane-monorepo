@@ -44,6 +44,7 @@ COPY typescript/tron-sdk/package.json ./typescript/tron-sdk/
 COPY typescript/rebalancer/package.json ./typescript/rebalancer/
 COPY typescript/rebalancer-sim/package.json ./typescript/rebalancer-sim/
 COPY typescript/relayer/package.json ./typescript/relayer/
+COPY typescript/scraper-proxy/package.json ./typescript/scraper-proxy/package.json
 COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/svm-sdk/package.json ./typescript/svm-sdk/
 COPY typescript/starknet-sdk/package.json ./typescript/starknet-sdk/
