@@ -18,6 +18,7 @@ import type { WarpCoreConfig } from '../warp/types.js';
 import { TokenType } from './config.js';
 import {
   canonicalizeAllowedRebalancingBridges,
+  completeHybridHookNodesFromIsm,
   filterWarpCoreConfigMapByChains,
   getDefaultRemoteRouterAndDestinationGasConfig,
   getChainsFromWarpCoreConfig,
@@ -68,6 +69,49 @@ describe('configUtils', () => {
 
       expect(remoteRouters).to.deep.equal({});
       expect(destinationGas).to.deep.equal({});
+    });
+  });
+
+  describe(completeHybridHookNodesFromIsm.name, () => {
+    it('completes an explicit delayed-flow hook leaf from the ISM leaf', () => {
+      const owner = '0x1111111111111111111111111111111111111111';
+      const warpRouter = '0x2222222222222222222222222222222222222222';
+      const remoteIsm = utils.hexZeroPad(
+        '0x3333333333333333333333333333333333333333',
+        32,
+      );
+      const hook = {
+        type: HookType.AGGREGATION,
+        hooks: [
+          {
+            type: HookType.DELAYED_FLOW_ROUTER,
+            thresholdBps: 10000,
+            maxDelay: 5,
+            duration: 86400n,
+            owner,
+          },
+        ],
+      };
+      const ism = {
+        type: IsmType.AGGREGATION,
+        threshold: 1,
+        modules: [
+          {
+            type: IsmType.DELAYED_FLOW_ROUTER,
+            warpRouter,
+            thresholdBps: 10000,
+            maxDelay: 5,
+            duration: 86400n,
+            owner,
+            remoteIsms: { [test2.name]: remoteIsm },
+          },
+        ],
+      };
+
+      expect(completeHybridHookNodesFromIsm(hook, ism)).to.deep.equal({
+        ...hook,
+        hooks: [ism.modules[0]],
+      });
     });
   });
 

@@ -43,8 +43,12 @@ import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { ProxiedFactories, resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
+import { hookTreeContainsHybridHookIsm } from '../hook/utils.js';
 import { normalizeScale } from '../utils/decimals.js';
-import { setRateLimitedIsmRecipient } from '../utils/ism.js';
+import {
+  ismTreeContainsHybridHookIsm,
+  setRateLimitedIsmRecipient,
+} from '../utils/ism.js';
 import {
   CCTP_PPM_PRECISION_VERSION,
   CCTP_PPM_STORAGE_VERSION,
@@ -894,11 +898,17 @@ abstract class TokenDeployer<
     );
   }
 
-  // Wire rate-limited ISMs BEFORE ownership transfer so that
-  // setInterchainSecurityModule succeeds regardless of config.owner.
-  // Handles both top-level RateLimitedIsm and ISMs nested inside composites
+  // Wire RATE_LIMITED ISMs BEFORE ownership transfer so that
+  // setInterchainSecurityModule succeeds regardless of config.owner. Handles
+  // both a top-level RateLimitedIsm and ones nested inside composites
   // (aggregation, routing, etc.) by setting `recipient` on every RATE_LIMITED
   // node in the tree before deploying.
+  //
+  // The warp-route hybrid hook/ISMs are deliberately NOT handled here. They
+  // occupy the router's hook as well as its ISM, and the two installs have to
+  // be ordered against every other chain of the route, so they are staged by
+  // deploy/warp.ts (wireHybridHookIsms) around a router this deployer leaves
+  // bare.
   protected async setRateLimitedIsms(
     rateLimitedIsms: ChainMap<IsmConfig>,
     configMap: ChainMap<HypTokenRouterConfig>,
@@ -946,6 +956,7 @@ abstract class TokenDeployer<
   async deploy(
     configMap: ChainMap<HypTokenRouterConfig>,
     rateLimitedIsms?: ChainMap<IsmConfig>,
+    options: { deferRouterEnrollment?: boolean } = {},
   ): Promise<HyperlaneContractsMap<Factories & ProxiedFactories>> {
     for (const [chain, config] of Object.entries(configMap)) {
       assertTimelockConfigHasNoProxyAdminOwnerOverride(config, chain);
@@ -969,6 +980,23 @@ abstract class TokenDeployer<
       assert(
         this.options.ismFactory,
         'ismFactory is required to deploy RateLimitedIsm — pass it to the deployer constructor',
+      );
+    }
+
+    // A hybrid hook/ISM cannot be wired by this deployer: it has to occupy the
+    // router's hook, which deployPredicateWrappers and setFeeHooks below both
+    // write, and its install has to be ordered against the rest of the route.
+    // Rejected here as well as in the planner because this method is a public
+    // entry point of its own — a direct caller must not be able to reach a
+    // half-wired router through it.
+    for (const [chain, config] of Object.entries(configMap)) {
+      const declaresHybrid =
+        ismTreeContainsHybridHookIsm(config.interchainSecurityModule) ||
+        hookTreeContainsHybridHookIsm(config.hook) ||
+        ismTreeContainsHybridHookIsm(rateLimitedIsms?.[chain]);
+      assert(
+        !declaresHybrid,
+        `A hybrid hook/ISM is configured on ${chain}. It is installed as both the router's hook and its ISM, in an order that spans the whole route, so it cannot be deployed through TokenDeployer.deploy — use executeWarpDeploy (or executeWarpRouteExtensionDeploy), which deploys the router bare and stages the wiring.`,
       );
     }
 
@@ -1045,7 +1073,7 @@ abstract class TokenDeployer<
 
     const deployedContractsMap =
       Object.keys(resolvedConfigMap).length > 0
-        ? await super.deploy(resolvedConfigMap)
+        ? await super.deploy(resolvedConfigMap, options)
         : // CAST: with no router-style deploys, the accumulated in-memory deploy state already
           // matches the public return shape even though the base field is declared less precisely.
           (this.deployedContracts as HyperlaneContractsMap<
