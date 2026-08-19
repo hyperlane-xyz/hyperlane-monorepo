@@ -4,12 +4,14 @@ import {
   type GraphQLResponse,
 } from '@apollo/server';
 import { createHash } from 'node:crypto';
+import { print, visit, type DocumentNode } from 'graphql';
 
 import {
   cacheControlHeader,
   cacheDirective,
   type CacheDirective,
 } from './cache-config.js';
+import { stripUnusedVariableDefinitions } from './request-compatibility.js';
 
 const MAX_ENTRIES = 1_000;
 const MAX_BYTES = 1_000_000;
@@ -31,7 +33,7 @@ export function scraperDbCachePlugin(): ApolloServerPlugin {
           if (!directive) return null;
           key = cacheKey(
             context.operationName,
-            context.source,
+            context.document,
             context.request.variables ?? {},
           );
           if (directive.refresh) {
@@ -77,15 +79,28 @@ export function scraperDbCachePlugin(): ApolloServerPlugin {
 
 function cacheKey(
   operation: string | null,
-  query: string,
+  document: DocumentNode,
   variables: Record<string, unknown>,
 ): string {
+  const query = stripUnusedVariableDefinitions(
+    print(
+      visit(document, {
+        Directive: (node) => (node.name.value === 'cached' ? null : undefined),
+      }),
+    ),
+  );
+  const usedVariables = new Set(
+    [...query.matchAll(/\$([_A-Za-z][_0-9A-Za-z]*)/g)].map((match) => match[1]),
+  );
+  const dataVariables = Object.fromEntries(
+    Object.entries(variables).filter(([name]) => usedVariables.has(name)),
+  );
   return createHash('sha256')
     .update(operation ?? '')
     .update('\0')
     .update(query)
     .update('\0')
-    .update(stableJson(variables))
+    .update(stableJson(dataVariables))
     .digest('hex');
 }
 

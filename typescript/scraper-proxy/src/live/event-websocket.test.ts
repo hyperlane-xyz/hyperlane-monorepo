@@ -81,6 +81,30 @@ void describe('event websocket protocol', () => {
     }
   });
 
+  void it('requires explicit domains to match cursor domains', () => {
+    assert.throws(
+      () =>
+        parseClientMessage(
+          JSON.stringify({
+            type: 'subscribe',
+            streams: [
+              {
+                eventType: 'dispatch',
+                domains: [1, 42161],
+                cursors: [
+                  {
+                    address: '0x0000000000000000000000000000000000000001',
+                    domain: 1,
+                  },
+                ],
+              },
+            ],
+          }),
+        ),
+      /exactly match/,
+    );
+  });
+
   void it('rejects unknown event types and invalid domains', () => {
     for (const stream of [
       { eventType: 'message' },

@@ -161,7 +161,7 @@ function bool(
   }
   if (key === '_not') {
     const rendered = where(table, value as BoolExp, values);
-    return rendered ? `NOT ${rendered}` : '';
+    return rendered ? `NOT ${rendered}` : 'FALSE';
   }
   assertColumn(table, key);
   const rendered = Object.entries(value as Record<string, unknown>)
@@ -176,6 +176,7 @@ function comparison(
   value: unknown,
   values: unknown[],
 ): string {
+  if (value === null || value === undefined) return '';
   if (operator === '_is_null') return `${column} IS ${value ? '' : 'NOT '}NULL`;
   const sqlOperator = OPERATORS[operator];
   if (!sqlOperator)
@@ -183,7 +184,7 @@ function comparison(
   if (operator === '_in' || operator === '_nin') {
     const items = Array.isArray(value) ? value : [];
     if (!items.length) return operator === '_in' ? 'FALSE' : 'TRUE';
-    return `${column} ${sqlOperator} (${items.map((item) => bind(item, values)).join(', ')})`;
+    return `${column} ${operator === '_in' ? '= ANY' : '<> ALL'}(${bind(items, values)})`;
   }
   return `${column} ${sqlOperator} ${bind(value, values)}`;
 }

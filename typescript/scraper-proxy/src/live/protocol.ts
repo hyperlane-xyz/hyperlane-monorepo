@@ -130,14 +130,15 @@ function parseStream(value: unknown): StreamRequest {
     const keys = cursors.map(({ address, domain }) => `${domain}:${address}`);
     if (new Set(keys).size < keys.length)
       throw new Error('Duplicate sequence cursor');
-    const selectedDomains = domains;
+    const cursorDomains = new Set(cursors.map(({ domain }) => domain));
     if (
-      selectedDomains &&
-      cursors.some(({ domain }) => !selectedDomains.has(domain))
+      domains &&
+      (domains.size !== cursorDomains.size ||
+        [...domains].some((domain) => !cursorDomains.has(domain)))
     ) {
-      throw new Error('Cursor domain must be included in domains');
+      throw new Error('domains must exactly match cursor domains');
     }
-    domains ??= new Set(cursors.map(({ domain }) => domain));
+    domains ??= cursorDomains;
   }
   return { cursors, domains, eventType: value.eventType };
 }

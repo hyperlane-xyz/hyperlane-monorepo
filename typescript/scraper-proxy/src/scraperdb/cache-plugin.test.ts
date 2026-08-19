@@ -27,6 +27,44 @@ void it('does not extend cache expiry on hits', async (context) => {
   await server.stop();
 });
 
+void it('refreshes the same cache entry', async () => {
+  let calls = 0;
+  const server = new ApolloServer({
+    plugins: [scraperDbCachePlugin()],
+    resolvers: { Query: { value: () => ++calls } },
+    typeDefs: `
+      directive @cached(ttl: Int, refresh: Boolean) on QUERY
+      type Query { value: Int! }
+    `,
+  });
+  await server.start();
+  assert.equal(
+    value(
+      await server.executeOperation({
+        query: 'query @cached(ttl: 10) { value }',
+      }),
+    ),
+    1,
+  );
+  assert.equal(
+    value(
+      await server.executeOperation({
+        query: 'query @cached(ttl: 20, refresh: true) { value }',
+      }),
+    ),
+    2,
+  );
+  assert.equal(
+    value(
+      await server.executeOperation({
+        query: 'query @cached(ttl: 10) { value }',
+      }),
+    ),
+    2,
+  );
+  await server.stop();
+});
+
 function value(
   response: Awaited<ReturnType<ApolloServer['executeOperation']>>,
 ): unknown {

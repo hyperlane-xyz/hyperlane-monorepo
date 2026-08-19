@@ -13,7 +13,9 @@ const MIN_POOL_CLIENTS = 5;
 const STATS_INTERVAL_MS = 60_000;
 const IDLE_TIMEOUT_MS = 300_000;
 
-pg.types.setTypeParser(1114, (value: string) => value);
+[1114, 1186].forEach((oid) =>
+  pg.types.setTypeParser(oid, (value: string) => value),
+);
 
 type Stats = {
   errors: number;
@@ -190,7 +192,25 @@ function normalizeRow(row: pg.QueryResultRow): pg.QueryResultRow {
 }
 
 function json(value: unknown): string {
-  return JSON.stringify(value, (_key, item) =>
-    typeof item === 'bigint' ? item.toString() : item,
-  );
+  return JSON.stringify(logValue(value));
+}
+
+function logValue(value: unknown): unknown {
+  if (typeof value === 'bigint') return value.toString();
+  if (typeof value === 'string' && value.length > 500)
+    return `${value.slice(0, 500)}… (${value.length} chars)`;
+  if (Buffer.isBuffer(value)) return logValue(`\\x${value.toString('hex')}`);
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) {
+    const items = value.map(logValue);
+    return items.length <= 10
+      ? items
+      : { count: items.length, sample: [...items.slice(0, 8), '…'] };
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, logValue(item)]),
+    );
+  }
+  return value;
 }

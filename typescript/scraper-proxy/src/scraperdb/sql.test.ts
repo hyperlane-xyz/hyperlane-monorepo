@@ -115,6 +115,26 @@ void describe('scraper database SQL', () => {
     const query = buildSelect('domain', { where: { _or: [] } });
     assert.match(query.sql, /WHERE \(FALSE\)/);
   });
+
+  void it('preserves empty NOT and null comparison semantics', () => {
+    assert.match(
+      buildSelect('domain', { where: { _not: {} } }).sql,
+      /WHERE \(FALSE\)/,
+    );
+    assert.doesNotMatch(
+      buildSelect('domain', { where: { id: { _is_null: null } } }).sql,
+      /WHERE/,
+    );
+  });
+
+  void it('binds IN lists as PostgreSQL arrays', () => {
+    const query = buildSelect('domain', {
+      where: { id: { _in: [1, 2, 3], _nin: [4, 5] } },
+    });
+    assert.match(query.sql, /"id" = ANY\(\$1\)/);
+    assert.match(query.sql, /"id" <> ALL\(\$2\)/);
+    assert.deepEqual(query.values, [[1, 2, 3], [4, 5], 500]);
+  });
 });
 
 void describe('GraphQL request compatibility', () => {
