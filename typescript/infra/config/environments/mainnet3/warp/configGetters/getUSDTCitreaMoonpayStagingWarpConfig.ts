@@ -8,7 +8,7 @@ import {
 import { getDomainId, getRegistry } from '../../../../registry.js';
 import { DEPLOYER } from '../../owners.js';
 import { WarpRouteIds } from '../warpIds.js';
-import { getRebalancingBridgesConfigFor, MOONPAY_REBALANCER } from './utils.js';
+import { getRebalancingBridgesConfigFor, REBALANCER } from './utils.js';
 
 // Staging mimic of the production CROSS/moonpay USDT route (getUSDTCitreaMoonpayWarpConfig).
 // Same simplifications as the USDC staging getter: deployer-owned, default ISM, default hook,
@@ -22,7 +22,7 @@ import { getRebalancingBridgesConfigFor, MOONPAY_REBALANCER } from './utils.js';
 const DEPLOYER_EVM = DEPLOYER;
 
 const EXTRA_REBALANCER = '0x2cB236403574301029c7bDDfda133c6e0338a857';
-const ALLOWED_REBALANCERS = [MOONPAY_REBALANCER, EXTRA_REBALANCER];
+const ALLOWED_REBALANCERS = [REBALANCER, EXTRA_REBALANCER];
 
 const EVM_CHAINS = ['arbitrum', 'base', 'ethereum', 'polygon'] as const;
 

@@ -23,7 +23,7 @@ import { usdcTokenAddresses } from '../cctp.js';
 import { usdtTokenAddresses } from '../tokens.js';
 import { WarpRouteIds } from '../warpIds.js';
 
-export const MOONPAY_REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
+export const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
 
 export type RebalancingConfig = Required<
   Pick<MovableTokenConfig, 'allowedRebalancingBridges' | 'allowedRebalancers'>
@@ -84,7 +84,7 @@ export function getUSDCRebalancingBridgesConfigFor(
       );
 
       return {
-        allowedRebalancers: [MOONPAY_REBALANCER],
+        allowedRebalancers: [REBALANCER],
         allowedRebalancingBridges,
       };
     },
@@ -181,7 +181,7 @@ export function getRebalancingBridgesConfigFor(
       );
 
       return {
-        allowedRebalancers: [MOONPAY_REBALANCER],
+        allowedRebalancers: [REBALANCER],
         allowedRebalancingBridges,
       };
     },

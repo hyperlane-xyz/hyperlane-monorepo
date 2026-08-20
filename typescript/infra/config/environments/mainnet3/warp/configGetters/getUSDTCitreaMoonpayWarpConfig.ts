@@ -28,7 +28,7 @@ import { WarpRouteIds } from '../warpIds.js';
 import {
   getCrossCollateralTargetRoutersByChain,
   getRebalancingBridgesConfigFor,
-  MOONPAY_REBALANCER,
+  REBALANCER,
   type RebalancingConfig,
 } from './utils.js';
 
@@ -165,7 +165,7 @@ function getAtomicLocalRebalancingConfig(
           allowedRebalancers: [
             ...new Set([
               ...(existing?.allowedRebalancers ?? []),
-              MOONPAY_REBALANCER,
+              REBALANCER,
               bridge,
             ]),
           ],

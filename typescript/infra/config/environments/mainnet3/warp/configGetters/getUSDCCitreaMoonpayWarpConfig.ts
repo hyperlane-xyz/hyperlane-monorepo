@@ -30,7 +30,7 @@ import {
   getRebalancingBridgesConfigFor,
   getUSDCRebalancingBridgesConfigFor,
   mergeAllowedBridges,
-  MOONPAY_REBALANCER,
+  REBALANCER,
 } from './utils.js';
 
 const FASTPATH_CHAINS = [
@@ -395,7 +395,7 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       token: tokens.citrea.ctUSD,
       mailbox: routerConfig.citrea.mailbox,
       owner: citreaOwner,
-      allowedRebalancers: [MOONPAY_REBALANCER],
+      allowedRebalancers: [REBALANCER],
       allowedRebalancingBridges: Object.fromEntries(
         EVM_CHAINS.map((dest) => [dest, [{ bridge: tbda.citrea }]]),
       ),
