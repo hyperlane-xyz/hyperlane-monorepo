@@ -20,6 +20,7 @@ import {
   KubernetesResources,
   RootAgentConfig,
 } from '../config/agent/agent.js';
+import { blockedQuorumRpcUrlHosts } from '../config/rpcBlocklist.js';
 import {
   RelayerConfigHelper,
   RelayerConfigMapConfig,
@@ -436,6 +437,15 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
       originChain.publicRpcUrls = getChain(cfg.originChainName).rpcUrls.map(
         (rpc) => rpc.http,
       );
+    }
+
+    // Strip chronically-erroring hosts from the validator's Quorum pool only.
+    // Only the validator fans every request out to all providers, so these are
+    // excluded from its CUSTOMRPCURLS at render time (see external-secret.yaml)
+    // without touching the shared secret or general config (see rpcBlocklist.ts).
+    const blockedRpcHosts = blockedQuorumRpcUrlHosts[cfg.originChainName];
+    if (blockedRpcHosts?.length) {
+      originChain.blockedRpcHosts = blockedRpcHosts;
     }
 
     helmValues.hyperlane.validator = {

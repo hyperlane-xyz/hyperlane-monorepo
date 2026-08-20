@@ -74,6 +74,12 @@ export interface HelmAgentChainOverride extends DeepPartial<AgentChainMetadata> 
   // already votes in the same quorum group, so this is public-only. Not part of
   // AgentChainMetadata itself — consumed only by the external-secret Helm template.
   publicRpcUrls?: string[];
+  // Validator only: hostnames to strip from the validator's CUSTOMRPCURLS at
+  // render time (see rpcBlocklist.ts). Only the validator's Quorum consensus
+  // hits every provider, so chronically-erroring endpoints are excluded from
+  // its quorum pool without touching the shared secret or the general config.
+  // Consumed only by the external-secret Helm template.
+  blockedRpcHosts?: string[];
 }
 
 export interface RootAgentConfig extends AgentContextConfig {

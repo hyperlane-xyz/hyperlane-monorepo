@@ -1,47 +1,21 @@
-import { ChainMap, ChainName, parseCustomRpcHeaders } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { ChainMap } from '@hyperlane-xyz/sdk';
 
-// Hostnames of RPC providers to exclude from agent RPC pools (both Quorum and
-// Fallback consensus), even when present in registry metadata or the per-chain
-// RPC secret. Use this for chronically unreliable public endpoints — e.g. ones
-// that repeatedly trip the "Validator RPC Quorum Risk" alert by erroring on the
-// majority of requests. Match is by hostname so URLs with paths, API keys, or
-// custom header syntax are handled uniformly.
-export const blockedRpcUrlHosts: ChainMap<string[]> = {
-  // Chronic high-error public RPCs on arbitrum (see Linear AW-735). These sit
-  // in the validator Quorum pool and count against reaching majority.
+// Hostnames of RPC providers to exclude from the validator's Quorum RPC pool,
+// even when present in the shared per-chain RPC secret. Only the validator's
+// Quorum consensus fans every request out to all providers, so a chronically
+// erroring endpoint counts against reaching majority and trips the "Validator
+// RPC Quorum Risk" alert. Relayer/scraper use Fallback consensus and never
+// reach these endpoints, so this list is intentionally NOT applied to the
+// general agent config or the shared RPC secret — only to the validator's
+// CUSTOMRPCURLS at Helm render time (see hyperlane-agent/templates/
+// external-secret.yaml, which filters the secret URL list by these hosts).
+//
+// Match is a substring test against the full URL performed in the Helm/
+// external-secrets template. Use bare hostnames (no scheme/path); these are
+// public endpoints with no API keys, so they cannot collide with private URLs.
+export const blockedQuorumRpcUrlHosts: ChainMap<string[]> = {
+  // Chronic high-error public RPCs on arbitrum (see Linear AW-735). In the
+  // validator Quorum pool these erred on the merkle-root eth_call ~97% (drpc)
+  // and ~55% (arb1) of requests, counting against reaching majority.
   arbitrum: ['arbitrum.drpc.org', 'arb1.arbitrum.io'],
 };
-
-function hostOf(url: string): string | undefined {
-  // RPC URLs may carry custom headers appended after the URL; strip them first.
-  const { url: cleanUrl } = parseCustomRpcHeaders(url);
-  try {
-    return new URL(cleanUrl).hostname.toLowerCase();
-  } catch {
-    return undefined;
-  }
-}
-
-export function isRpcUrlBlocked(chain: ChainName, url: string): boolean {
-  const blocked = blockedRpcUrlHosts[chain];
-  if (!blocked?.length) return false;
-  const host = hostOf(url);
-  if (!host) return false;
-  return blocked.some((blockedHost) => host === blockedHost.toLowerCase());
-}
-
-// Returns `urls` with any blocked hosts removed. Logs each dropped URL so the
-// removal is visible in config-generation and RPC-set flows.
-export function filterBlockedRpcUrls(
-  chain: ChainName,
-  urls: string[],
-): string[] {
-  return urls.filter((url) => {
-    if (isRpcUrlBlocked(chain, url)) {
-      rootLogger.warn(`Dropping blocked RPC URL for ${chain}: ${hostOf(url)}`);
-      return false;
-    }
-    return true;
-  });
-}

@@ -18,10 +18,6 @@ import {
   setSecretRpcEndpoints,
 } from '../agents/index.js';
 import { DeployEnvironment } from '../config/deploy-environment.js';
-import {
-  filterBlockedRpcUrls,
-  isRpcUrlBlocked,
-} from '../config/rpcBlocklist.js';
 import { KeyFunderHelmManager } from '../funding/key-funder.js';
 import { RebalancerHelmManager } from '../rebalancer/helm.js';
 import { TollkeeperHelmManager } from '../tollkeeper/helm.js';
@@ -138,12 +134,6 @@ async function inputRpcUrls(
   }
 
   const pushSelectedUrl = async (newUrl: string) => {
-    if (isRpcUrlBlocked(chain, newUrl)) {
-      console.log(
-        `Skipping ${newUrl}: blocked by the RPC blocklist for ${chain}`,
-      );
-      return;
-    }
     const providerHealthy = await testProvider(chain, newUrl);
     if (!providerHealthy) {
       const yes = await confirm({
@@ -665,14 +655,6 @@ export async function setRpcUrls(
   options?: { refreshK8s?: boolean },
 ): Promise<void> {
   assert(rpcUrls.length > 0, 'rpcUrls must be non-empty');
-
-  // Strip any blocklisted providers before persisting, so they can't be
-  // reintroduced into the agent RPC pool via the secret.
-  rpcUrls = filterBlockedRpcUrls(chain, rpcUrls);
-  assert(
-    rpcUrls.length > 0,
-    `All provided rpcUrls for ${chain} are blocked by the RPC blocklist`,
-  );
 
   // Validate all URLs in parallel
   const healthChecks = await Promise.all(

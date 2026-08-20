@@ -12,7 +12,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
-  assert,
   inCIMode,
   inKubernetes,
   isEVMLike,
@@ -31,7 +30,6 @@ import { fetchExplorerApiKeys } from '../deployment/verify.js';
 import { getSafeApiKey } from '../utils/safeApiKey.js';
 
 import { DeployEnvironment } from './deploy-environment.js';
-import { blockedRpcUrlHosts, filterBlockedRpcUrls } from './rpcBlocklist.js';
 
 // V2 ICAs are not supported on these chains, due to the block gas limit being
 // lower than the amount required to deploy the new InterchainAccountRouter
@@ -146,39 +144,6 @@ export function getChainMetadatas(chains: Array<ChainName>) {
 }
 
 /**
- * Removes blocked RPC URLs (see rpcBlocklist.ts) from the effective rpcUrls of
- * each chain, whether those URLs come from a secret override or from registry
- * metadata defaults. Produces a final rpcUrls override that wins over both
- * (objMerge replaces arrays), so agent config generation and every infra
- * MultiProvider consistently exclude blocked providers.
- */
-function applyRpcBlocklist(
-  chains: ChainName[],
-  overrides: ChainMap<Partial<ChainMetadata>>,
-): ChainMap<Partial<ChainMetadata>> {
-  for (const chain of chains) {
-    if (!blockedRpcUrlHosts[chain]?.length) continue;
-
-    const effectiveRpcUrls =
-      overrides[chain]?.rpcUrls ?? getChain(chain)?.rpcUrls ?? [];
-    const effectiveHttpUrls = effectiveRpcUrls.map((rpc) => rpc.http);
-    const filtered = filterBlockedRpcUrls(chain, effectiveHttpUrls);
-
-    if (filtered.length === effectiveHttpUrls.length) continue;
-    assert(
-      filtered.length > 0,
-      `All RPC URLs for ${chain} are blocked by the RPC blocklist`,
-    );
-
-    overrides[chain] = {
-      ...overrides[chain],
-      rpcUrls: filtered.map((http) => ({ http })),
-    };
-  }
-  return overrides;
-}
-
-/**
  * Gets the registry for the given environment, with optional overrides and
  * the ability to get overrides from secrets.
  * @param deployEnv The deploy environment.
@@ -204,7 +169,6 @@ export async function getRegistryForEnvironment(
         : await getSecretMetadataOverridesFromGitHubSecrets(deployEnv, chains),
     );
   }
-  overrides = applyRpcBlocklist(chains, overrides);
   const registry = getRegistryWithOverrides(overrides);
   return registry;
 }

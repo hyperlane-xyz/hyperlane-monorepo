@@ -49,6 +49,12 @@
       "proxyAdmin": "0x80Cebd56A65e46c474a1A101e89E76C4c51D179c",
       "rpcUrls": [
         {
+          "http": "https://arb1.arbitrum.io/rpc"
+        },
+        {
+          "http": "https://arbitrum.drpc.org"
+        },
+        {
           "http": "https://arbitrum-one-rpc.publicnode.com"
         }
       ],
