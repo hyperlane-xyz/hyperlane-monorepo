@@ -72,6 +72,7 @@ export type BaseTokenFeeConfig = z.infer<typeof BaseFeeConfigSchema>;
 
 // For input configs - token is NOT specified by user, resolved at deploy time based on token type
 export const BaseFeeConfigInputSchema = z.object({
+  address: ZHash.optional(),
   owner: ZHash,
   beneficiary: ZHash.optional(),
 });

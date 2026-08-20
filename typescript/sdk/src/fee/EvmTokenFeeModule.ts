@@ -622,10 +622,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       for (const [chainName, targetSubFee] of Object.entries(
         targetConfig.feeContracts,
       )) {
-        if (
-          'address' in targetSubFee &&
-          typeof targetSubFee.address === 'string'
-        ) {
+        if (typeof targetSubFee.address === 'string') {
           const mergedSubFee = mergedConfig.feeContracts[chainName];
           assert(mergedSubFee, `Missing target fee config for ${chainName}`);
           mergedSubFee.address = targetSubFee.address;

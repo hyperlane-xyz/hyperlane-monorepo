@@ -464,6 +464,38 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       );
     });
 
+    it('should preserve an addressed nested fee contract', () => {
+      const feeAddress = ethers.Wallet.createRandom().address;
+      const parseResults = WarpRouteDeployConfigSchema.safeParse({
+        arbitrum: {
+          type: TokenType.synthetic,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+          name: 'Test Token',
+          symbol: 'TEST',
+          tokenFee: {
+            type: TokenFeeType.RoutingFee,
+            feeContracts: {
+              ethereum: {
+                type: TokenFeeType.OffchainQuotedLinearFee,
+                address: feeAddress,
+                bps: 100,
+                quoteSigners: [SOME_ADDRESS],
+              },
+            },
+          },
+        },
+      });
+
+      assert(parseResults.success, 'must be true');
+      const tokenFee = parseResults.data.arbitrum.tokenFee;
+      assert(
+        tokenFee?.type === TokenFeeType.RoutingFee,
+        `must be ${TokenFeeType.RoutingFee}`,
+      );
+      expect(tokenFee.feeContracts.ethereum.address).to.equal(feeAddress);
+    });
+
     it('should accept tokenFee for collateral tokens', () => {
       const parseResults = WarpRouteDeployConfigSchema.safeParse({
         ethereum: {
