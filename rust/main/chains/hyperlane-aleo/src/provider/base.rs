@@ -20,11 +20,34 @@ use crate::HyperlaneAleoError;
 pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 
+fn append_path(base_url: &Url, path: &str) -> ChainResult<Url> {
+    let mut url = base_url.clone();
+    url.path_segments_mut()
+        .map_err(|_| HyperlaneAleoError::Other(format!("Invalid base URL: {base_url}")))?
+        .pop_if_empty()
+        .extend(path.split('/'));
+
+    // `Url` leaves square brackets unescaped in path segments, but Aleo RPC
+    // gateways reject bracketed plaintext mapping keys unless they are encoded.
+    let encoded_url = url.as_str().replace('[', "%5B").replace(']', "%5D");
+    Url::parse(&encoded_url).map_err(|error| HyperlaneAleoError::Other(error.to_string()).into())
+}
+
+fn append_network(base_url: Url, network: u16) -> ChainResult<Url> {
+    let network = match network {
+        0 => "mainnet",
+        1 => "testnet",
+        2 => "canary",
+        id => return Err(HyperlaneAleoError::UnknownNetwork(id).into()),
+    };
+    append_path(&base_url, network)
+}
+
 /// Base Http client that performs REST-ful queries
 #[derive(Clone, Debug)]
 pub struct BaseHttpClient {
     client: ReqwestClient,
-    base_url: String,
+    base_url: Url,
 }
 
 impl BaseHttpClient {
@@ -37,15 +60,9 @@ impl BaseHttpClient {
             .default_headers(headers)
             .build()
             .map_err(HyperlaneAleoError::from)?;
-        let suffix = match network {
-            0 => "mainnet",
-            1 => "testnet",
-            2 => "canary",
-            id => return Err(HyperlaneAleoError::UnknownNetwork(id).into()),
-        };
         Ok(Self {
             client,
-            base_url: url.to_string().trim_end_matches("/").to_string() + "/" + suffix,
+            base_url: append_network(url, network)?,
         })
     }
 }
@@ -58,11 +75,11 @@ impl HttpClient for BaseHttpClient {
         path: &str,
         query: impl Into<Option<serde_json::Value>> + Send,
     ) -> ChainResult<T> {
-        let url = format!("{}/{}", self.base_url, path);
+        let url = append_path(&self.base_url, path)?;
         let query: serde_json::Value = query.into().unwrap_or_default();
         let response = self
             .client
-            .get(&url)
+            .get(url)
             .query(&query)
             .send()
             .await
@@ -107,8 +124,7 @@ impl HttpClientBuilder for BaseHttpClient {
 #[derive(Clone, Debug)]
 pub struct JWTBaseHttpClient {
     client: ReqwestClient,
-    base_url: String,
-    suffix: String,
+    base_url: Url,
     auth_url: String,
     auth_token: Arc<RwLock<Option<(HeaderValue, Instant)>>>,
 }
@@ -130,17 +146,10 @@ impl JWTBaseHttpClient {
             .cookie_store(true)
             .build()
             .map_err(HyperlaneAleoError::from)?;
-        let suffix = match network {
-            0 => "mainnet",
-            1 => "testnet",
-            2 => "canary",
-            id => return Err(HyperlaneAleoError::UnknownNetwork(id).into()),
-        };
         Ok(Self {
             client,
-            base_url: url.to_string().trim_end_matches("/").to_string(),
+            base_url: append_network(url, network)?,
             auth_token: Default::default(),
-            suffix: suffix.to_string(),
             auth_url,
         })
     }
@@ -189,12 +198,12 @@ impl HttpClient for JWTBaseHttpClient {
         path: &str,
         query: impl Into<Option<serde_json::Value>> + Send,
     ) -> ChainResult<T> {
-        let url = format!("{}/{}/{}", self.base_url, self.suffix, path);
+        let url = append_path(&self.base_url, path)?;
         let query: serde_json::Value = query.into().unwrap_or_default();
         let auth = self.get_auth_token().await?;
         let response = self
             .client
-            .get(&url)
+            .get(url)
             .header(AUTHORIZATION, auth)
             .query(&query)
             .send()
@@ -220,11 +229,11 @@ impl HttpClient for JWTBaseHttpClient {
         path: &str,
         body: &serde_json::Value,
     ) -> ChainResult<T> {
-        let url = format!("{}/{}/{}", self.base_url, self.suffix, path);
+        let url = append_path(&self.base_url, path)?;
         let auth = self.get_auth_token().await?;
         let response = self
             .client
-            .post(&url)
+            .post(url)
             .header(AUTHORIZATION, auth)
             .json(body)
             .send()
@@ -248,5 +257,30 @@ impl HttpClientBuilder for JWTBaseHttpClient {
 
     fn build(url: Url, network: u16) -> ChainResult<Self::Client> {
         JWTBaseHttpClient::new(url, network)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{append_network, append_path};
+    use url::Url;
+
+    #[test]
+    fn appends_and_encodes_path_segments() {
+        let base_url = append_network(
+            Url::parse("https://api.explorer.provable.com/v2/").unwrap(),
+            0,
+        )
+        .unwrap();
+        let url = append_path(
+            &base_url,
+            "program/hyp_validator_announce.aleo/mapping/storage_sequences/{ bytes: [79u8, 151u8] }",
+        )
+        .unwrap();
+
+        assert_eq!(
+            url.as_str(),
+            "https://api.explorer.provable.com/v2/mainnet/program/hyp_validator_announce.aleo/mapping/storage_sequences/%7B%20bytes:%20%5B79u8,%20151u8%5D%20%7D"
+        );
     }
 }
