@@ -29,8 +29,9 @@ fn append_path(base_url: &Url, path: &str) -> ChainResult<Url> {
 
     // `Url` leaves square brackets unescaped in path segments, but Aleo RPC
     // gateways reject bracketed plaintext mapping keys unless they are encoded.
-    let encoded_url = url.as_str().replace('[', "%5B").replace(']', "%5D");
-    Url::parse(&encoded_url).map_err(|error| HyperlaneAleoError::Other(error.to_string()).into())
+    let encoded_path = url.path().replace('[', "%5B").replace(']', "%5D");
+    url.set_path(&encoded_path);
+    Ok(url)
 }
 
 fn append_network(base_url: Url, network: u16) -> ChainResult<Url> {
@@ -281,6 +282,17 @@ mod tests {
         assert_eq!(
             url.as_str(),
             "https://api.explorer.provable.com/v2/mainnet/program/hyp_validator_announce.aleo/mapping/storage_sequences/%7B%20bytes:%20%5B79u8,%20151u8%5D%20%7D"
+        );
+    }
+
+    #[test]
+    fn appends_path_to_ipv6_base_url() {
+        let base_url = Url::parse("http://[::1]:3030/v2").unwrap();
+        let url = append_path(&base_url, "mapping/{ bytes: [79u8] }").unwrap();
+
+        assert_eq!(
+            url.as_str(),
+            "http://[::1]:3030/v2/mapping/%7B%20bytes:%20%5B79u8%5D%20%7D"
         );
     }
 }
