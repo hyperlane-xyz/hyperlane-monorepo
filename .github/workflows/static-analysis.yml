@@ -6,16 +6,16 @@ on:
     branches: [main]
     paths:
       - 'solidity/**'
-      - '.depot/workflows/static-analysis.yml'
+      - '.github/workflows/static-analysis.yml'
   # Triggers the workflow on pull request
   pull_request:
     paths:
       - 'solidity/**'
-      - '.depot/workflows/static-analysis.yml'
+      - '.github/workflows/static-analysis.yml'
 
 jobs:
   slither:
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v7
