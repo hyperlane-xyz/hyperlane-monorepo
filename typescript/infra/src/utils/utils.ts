@@ -226,6 +226,7 @@ export function assertFundableRole(roleStr: string): FundableRole {
     role !== Role.Relayer &&
     role !== Role.Rebalancer &&
     role !== Role.InventoryRebalancer &&
+    role !== Role.QuoteSubmitter &&
     role !== Role.StableswapInventoryRebalancer
   ) {
     throw Error(`Invalid fundable role ${role}`);

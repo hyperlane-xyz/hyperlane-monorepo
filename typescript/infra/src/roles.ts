@@ -6,6 +6,10 @@ export enum Role {
   Rebalancer = 'rebalancer',
   InventoryRebalancer = 'inventoryrebalancer',
   QuoteSigner = 'quotesigner',
+  // Funding-only role: the CROSS/moonpay standing fee quote submitter.
+  // The key is externally provisioned in GCP; keyfunder only needs its address.
+  // Do NOT add to ALL_KEY_ROLES / ALL_AGENT_ROLES / rolesWithKeys.
+  QuoteSubmitter = 'quotesubmitter',
   // Funding-only role: the stableswap rebalancer's EVM inventory
   // signer. Has no managed agent key — keyfunder only needs the address to
   // send gas to it. Do NOT add to ALL_KEY_ROLES / ALL_AGENT_ROLES / rolesWithKeys.
@@ -16,6 +20,7 @@ export type FundableRole =
   | Role.Relayer
   | Role.Rebalancer
   | Role.InventoryRebalancer
+  | Role.QuoteSubmitter
   | Role.StableswapInventoryRebalancer;
 
 export const ALL_KEY_ROLES = [
