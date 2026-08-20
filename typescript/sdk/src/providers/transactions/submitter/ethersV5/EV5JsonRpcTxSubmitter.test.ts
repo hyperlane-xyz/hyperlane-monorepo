@@ -134,6 +134,24 @@ describe('EV5JsonRpcTxSubmitter', () => {
       { transactionHash: secondResponse.hash },
     ]);
   });
+
+  it('retains a reverted receipt', async () => {
+    const response = transactionResponse('0x05');
+    const receipt = transactionReceipt('0x05', 0);
+    sinon.stub(connectedExplicitSigner, 'sendTransaction').resolves(response);
+    sinon.stub(multiProvider, 'handleTx').resolves(receipt);
+
+    const error = await captureSubmissionError(
+      new EV5JsonRpcTxSubmitter(multiProvider, props, explicitSigner).submit(
+        tx,
+      ),
+    );
+
+    expect(error.message).to.include(`Transaction ${response.hash} reverted`);
+    expect(error.submittedTransactions).to.deep.equal([
+      { transactionHash: response.hash, receipt },
+    ]);
+  });
 });
 
 async function captureSubmissionError(
