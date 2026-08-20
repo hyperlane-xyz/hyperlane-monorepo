@@ -331,7 +331,11 @@ export {
   RateLimitedHookSchema,
   SafeParseHookConfigSchema,
 } from './hook/types.js';
-export { hookTreeContainsRateLimited, isHookCompatible } from './hook/utils.js';
+export {
+  collectHybridHookNodes,
+  hookTreeContainsRateLimited,
+  isHookCompatible,
+} from './hook/utils.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 // Note: MetadataBuilder types are now exported from @hyperlane-xyz/relayer

@@ -213,9 +213,9 @@ describe('hyperlane warp deploy with DelayedFlowRouterHookIsm e2e tests', async 
       ).to.equal(addressToBytes32(dfrByChain[remote].address).toLowerCase());
     }
 
-    // Restrict the relayer to the route's chains, but allow every sender and
-    // recipient on them so both token and DFR-to-DFR messages are relayed.
-    const relayer = hyperlaneRelayer([CHAIN_NAME_2, CHAIN_NAME_3]);
+    // Route-scoped relaying must include both token-router messages and the
+    // DFR-to-DFR preverification messages they dispatch.
+    const relayer = hyperlaneRelayer([CHAIN_NAME_2, CHAIN_NAME_3], WARP_ID);
     try {
       const queuedOnChain3Before = await countQueuedMessages(
         dfrByChain[CHAIN_NAME_3],
