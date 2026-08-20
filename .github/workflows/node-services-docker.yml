@@ -1,24 +1,25 @@
-name: Build and Push Monorepo Image
+name: Build and Push Node Services Image
+
 on:
   push:
     branches: [main]
     paths:
-      - 'Dockerfile'
-      - 'docker-entrypoint.sh'
+      - 'typescript/Dockerfile'
+      - 'typescript/docker-entrypoint.sh'
       - '.dockerignore'
       - '.nvmrc'
-      - '.registryrc'
-      - '.depot/workflows/monorepo-docker.yml'
+      - '.github/workflows/node-services-docker.yml'
       - 'pnpm-lock.yaml'
+      - 'typescript/scraper-proxy/**'
   pull_request:
     paths:
-      - 'Dockerfile'
-      - 'docker-entrypoint.sh'
+      - 'typescript/Dockerfile'
+      - 'typescript/docker-entrypoint.sh'
       - '.dockerignore'
       - '.nvmrc'
-      - '.registryrc'
-      - '.depot/workflows/monorepo-docker.yml'
+      - '.github/workflows/node-services-docker.yml'
       - 'pnpm-lock.yaml'
+      - 'typescript/scraper-proxy/**'
   workflow_dispatch:
     inputs:
       include_arm64:
@@ -27,22 +28,33 @@ on:
         default: 'false'
 
 concurrency:
-  group: build-push-monorepo-${{ github.ref }}
+  group: build-push-node-services-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build-and-push:
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+      pull-requests: write
 
     steps:
+      - name: Generate GitHub App Token
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
+          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
+
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           persist-credentials: false
+          fetch-depth: 0
+
       - name: Generate tag data
         id: taggen
         run: |
@@ -54,7 +66,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/hyperlane-xyz/hyperlane-monorepo
+            ghcr.io/hyperlane-xyz/hyperlane-node-services
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -70,20 +82,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Read .registryrc
-        shell: bash
-        run: |
-          REGISTRY_VERSION=$(cat .registryrc)
-          echo "REGISTRY_VERSION=$REGISTRY_VERSION" >> $GITHUB_ENV
-
       - name: Read Foundry version
-        shell: bash
         run: |
           FOUNDRY_VERSION=$(cat solidity/.foundryrc)
           echo "FOUNDRY_VERSION=$FOUNDRY_VERSION" >> $GITHUB_ENV
 
       - name: Read Node version
-        shell: bash
         run: |
           NODE_VERSION=$(cat .nvmrc)
           echo "NODE_VERSION=${NODE_VERSION#v}" >> $GITHUB_ENV
@@ -101,9 +105,9 @@ jobs:
         id: build
         uses: depot/build-push-action@v1
         with:
-          project: 3cpjhx94qv
+          project: 057xstl4t6
           context: ./
-          file: ./Dockerfile
+          file: ./typescript/Dockerfile
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           provenance: false
           tags: ${{ steps.meta.outputs.tags }}
@@ -111,24 +115,44 @@ jobs:
           build-args: |
             NODE_VERSION=${{ env.NODE_VERSION }}
             FOUNDRY_VERSION=${{ env.FOUNDRY_VERSION }}
-            REGISTRY_COMMIT=${{ env.REGISTRY_VERSION }}
+            SERVICE_VERSION=${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}
 
-      - name: Generate job summary
+      - name: Generate image tags output
+        id: image-tags
         if: always()
         run: |
           TAG_SHA_DATE="${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}"
           REGISTRY="ghcr.io/hyperlane-xyz"
+          TAGS="${REGISTRY}/hyperlane-node-services:${TAG_SHA_DATE}"
+
+          echo "tags<<EOF" >> $GITHUB_OUTPUT
+          echo "$TAGS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
           cat >> $GITHUB_STEP_SUMMARY << EOF
-          ## 📦 Monorepo Docker Image
+          ## Node Services Docker Image
 
-          | Service | Tag |
-          |---------|-----|
-          | 📦 monorepo | \`${TAG_SHA_DATE}\` |
+          | Image | Tag |
+          |-------|-----|
+          | hyperlane-node-services | \`${TAG_SHA_DATE}\` |
+
+          **Services included:** rebalancer, warp-monitor, ccip-server, keyfunder, relayer, fee-quoting, scraper-proxy
 
           **Full image path:**
           \`\`\`
-          ${REGISTRY}/hyperlane-monorepo:${TAG_SHA_DATE}
+          ${TAGS}
           \`\`\`
           EOF
+
+      - name: Comment image tags on PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && always()
+        uses: ./.depot/actions/docker-image-comment
+        with:
+          comment_tag: typescript-docker-images
+          image_name: Node Services Docker Image
+          emoji: ''
+          image_tags: ${{ steps.image-tags.outputs.tags }}
+          pr_number: ${{ github.event.pull_request.number }}
+          github_token: ${{ steps.generate-token.outputs.token }}
+          job_status: ${{ job.status }}
