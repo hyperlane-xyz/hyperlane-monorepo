@@ -8,7 +8,6 @@ import {
   HypTokenRouterConfig,
   IsmConfig,
   IsmType,
-  MovableTokenConfig,
   TokenFeeConfigInput,
   TokenFeeType,
   TokenType,
@@ -29,6 +28,8 @@ import { WarpRouteIds } from '../warpIds.js';
 import {
   getCrossCollateralTargetRoutersByChain,
   getRebalancingBridgesConfigFor,
+  MOONPAY_REBALANCER,
+  type RebalancingConfig,
 } from './utils.js';
 
 const FASTPATH_CHAINS = [
@@ -64,7 +65,6 @@ const QUOTE_SIGNERS = [
   '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
   '0x6bb7818bbE8d88094Cf3620e58BC6BbEd542B867',
 ];
-const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
 const AUDITED_CONTRACT_VERSION = '12.0.0';
 
 const LOCAL_REBALANCE_CHAINS = [
@@ -73,19 +73,18 @@ const LOCAL_REBALANCE_CHAINS = [
   'bsc',
   'ethereum',
   'polygon',
-] as const satisfies readonly ChainName[];
+] as const;
 
-type RebalancingConfig = Required<
-  Pick<MovableTokenConfig, 'allowedRebalancingBridges' | 'allowedRebalancers'>
+type CrossCollateralLocalRebalancingConfig = Required<
+  Pick<
+    CrossCollateralTokenConfig,
+    | 'allowedRebalancingBridges'
+    | 'allowedRebalancers'
+    | 'contractVersion'
+    | 'rebalanceRecipients'
+    | 'rebalanceTargets'
+  >
 >;
-
-type AtomicLocalRebalancingConfig = RebalancingConfig &
-  Required<
-    Pick<
-      CrossCollateralTokenConfig,
-      'contractVersion' | 'rebalanceRecipients' | 'rebalanceTargets'
-    >
-  >;
 
 const ROUTE_CHAINS = [
   'solanamainnet',
@@ -134,7 +133,7 @@ function getUsdcCrossCollateralRouters(): Record<string, string[]> {
 
 function getAtomicLocalRebalancingConfig(
   existingByChain: ChainMap<RebalancingConfig>,
-): ChainMap<AtomicLocalRebalancingConfig> {
+): ChainMap<CrossCollateralLocalRebalancingConfig> {
   const registry = getRegistry();
   const localBridgeRoute = registry.getWarpRoute(
     WarpRouteIds.CROSSMoonpayLocalBridgeUSDT,
@@ -166,7 +165,7 @@ function getAtomicLocalRebalancingConfig(
           allowedRebalancers: [
             ...new Set([
               ...(existing?.allowedRebalancers ?? []),
-              REBALANCER,
+              MOONPAY_REBALANCER,
               bridge,
             ]),
           ],
