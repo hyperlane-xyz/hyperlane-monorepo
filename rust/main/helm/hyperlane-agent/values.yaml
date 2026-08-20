@@ -151,7 +151,7 @@ hyperlane:
       port: 8383
       historyEnabled: false
       tunnel:
-        image: cloudflare/cloudflared:2025.4.0
+        image: cloudflare/cloudflared:2026.8.2
       resources:
         requests:
           cpu: 250m

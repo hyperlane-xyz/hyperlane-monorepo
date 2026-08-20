@@ -26,7 +26,7 @@ export interface ScraperProxyConfig {
   historyEnabled?: boolean;
   port?: number;
   resources?: KubernetesResources;
-  tunnel: { image: string };
+  tunnel?: { image: string };
 }
 
 export interface HelmScraperProxyValues extends Omit<

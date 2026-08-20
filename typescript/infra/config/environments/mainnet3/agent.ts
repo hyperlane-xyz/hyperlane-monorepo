@@ -851,7 +851,6 @@ const hyperlane: RootAgentConfig = {
       resources: {
         requests: { cpu: '250m', memory: '512Mi' },
       },
-      tunnel: { image: 'cloudflare/cloudflared:2025.4.0' },
     },
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
