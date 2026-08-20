@@ -93,6 +93,20 @@ function addOverridesToConfig(
     }),
   );
 }
+
+function assertEvmTransaction(
+  transaction: TypedAnnotatedTransaction,
+  chain: string,
+): asserts transaction is AnnotatedEV5Transaction {
+  assert(
+    'to' in transaction &&
+      typeof transaction.to === 'string' &&
+      'data' in transaction &&
+      typeof transaction.data === 'string',
+    `Expected an EVM transaction for ${chain}`,
+  );
+}
+
 describe('TokenDeployer', async () => {
   let signer: SignerWithAddress;
   let deployer: HypERC20Deployer;
@@ -1345,16 +1359,11 @@ describe('TokenDeployer', async () => {
         { [chain]: routerAddress },
       );
       for (const rawTx of enrollmentTxs[chain] ?? []) {
-        // CAST: this route contains only an EVM test chain.
-        const tx = rawTx as AnnotatedEV5Transaction;
-        assert(
-          typeof tx.to === 'string' && typeof tx.data === 'string',
-          `Expected an EVM transaction for ${chain}`,
-        );
+        assertEvmTransaction(rawTx, chain);
         await multiProvider.sendTransaction(chain, {
-          to: tx.to,
-          data: tx.data,
-          value: tx.value,
+          to: rawTx.to,
+          data: rawTx.data,
+          value: rawTx.value,
         });
       }
 
@@ -1444,16 +1453,11 @@ describe('TokenDeployer', async () => {
         { [chain]: routerAddress },
       );
       for (const rawTx of enrollmentTxs[chain] ?? []) {
-        // CAST: this route contains only an EVM test chain.
-        const tx = rawTx as AnnotatedEV5Transaction;
-        assert(
-          typeof tx.to === 'string' && typeof tx.data === 'string',
-          `Expected an EVM transaction for ${chain}`,
-        );
+        assertEvmTransaction(rawTx, chain);
         await multiProvider.sendTransaction(chain, {
-          to: tx.to,
-          data: tx.data,
-          value: tx.value,
+          to: rawTx.to,
+          data: rawTx.data,
+          value: rawTx.value,
         });
       }
 
@@ -1510,18 +1514,13 @@ describe('TokenDeployer', async () => {
       );
       for (const [txChain, txs] of Object.entries(enrollTxs)) {
         for (const rawTx of txs) {
-          // enrollCrossChainRouters only emits EVM txs for these test chains
-          const tx = rawTx as AnnotatedEV5Transaction;
-          assert(
-            typeof tx.to === 'string' && typeof tx.data === 'string',
-            `Expected an EVM transaction for ${txChain}`,
-          );
+          assertEvmTransaction(rawTx, txChain);
           // drop the annotated chainId: every hardhat test chain shares one
           // node (chainId 31337) while test-chain metadata carries fake ids
           await multiProvider.sendTransaction(txChain, {
-            to: tx.to,
-            data: tx.data,
-            value: tx.value,
+            to: rawTx.to,
+            data: rawTx.data,
+            value: rawTx.value,
           });
         }
       }
@@ -1612,15 +1611,11 @@ describe('TokenDeployer', async () => {
       const submit = async (txs: ChainMap<TypedAnnotatedTransaction[]>) => {
         for (const [txChain, chainTxs] of Object.entries(txs)) {
           for (const rawTx of chainTxs) {
-            const tx = rawTx as AnnotatedEV5Transaction;
-            assert(
-              typeof tx.to === 'string' && typeof tx.data === 'string',
-              `Expected an EVM transaction for ${txChain}`,
-            );
+            assertEvmTransaction(rawTx, txChain);
             await multiProvider.sendTransaction(txChain, {
-              to: tx.to,
-              data: tx.data,
-              value: tx.value,
+              to: rawTx.to,
+              data: rawTx.data,
+              value: rawTx.value,
             });
           }
         }

@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import type { providers } from 'ethers';
 
 import {
   DelayedFlowRouterHookIsmConfig,
@@ -19,6 +18,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { decodeIsmMetadata } from './decode.js';
+import { testTransactionReceipt } from './testUtils.js';
 import type { MetadataContext } from './types.js';
 
 const ISM_ADDRESS = '0x1111111111111111111111111111111111111111';
@@ -50,8 +50,7 @@ describe('decodeIsmMetadata', () => {
   function contextFor<T>(ism: T): MetadataContext<T> {
     return {
       message: dispatchedMessage(),
-      // not read while decoding — placeholder receipt double
-      dispatchTx: {} as unknown as providers.TransactionReceipt,
+      dispatchTx: testTransactionReceipt(),
       ism,
       hook: { type: HookType.MERKLE_TREE, address: HOOK_ADDRESS },
     };

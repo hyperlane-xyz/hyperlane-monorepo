@@ -42,6 +42,7 @@ import {
   networkError,
   wrappedError,
 } from '../test/errors.js';
+import { contractDouble } from '../test/contractDouble.js';
 import { randomAddress } from '../test/testUtils.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
@@ -453,10 +454,10 @@ describe('EvmHookReader', () => {
     };
     sandbox
       .stub(NetFlowRateLimitedHookIsm__factory, 'connect')
-      .returns(mockContract as unknown as NetFlowRateLimitedHookIsm);
+      .returns(contractDouble<NetFlowRateLimitedHookIsm>(mockContract));
     sandbox
       .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+      .returns(contractDouble<IPostDispatchHook>(mockContract));
 
     const expectedConfig: WithAddress<NetFlowRateLimitedHookConfig> = {
       address: mockAddress,
@@ -485,12 +486,10 @@ describe('EvmHookReader', () => {
     };
     sandbox
       .stub(NetFlowRateLimitedHookIsm__factory, 'connect')
-      // CAST: The reader test double implements only the getters used here.
-      .returns(mockContract as unknown as NetFlowRateLimitedHookIsm);
+      .returns(contractDouble<NetFlowRateLimitedHookIsm>(mockContract));
     sandbox
       .stub(IPostDispatchHook__factory, 'connect')
-      // CAST: Both factories connect to the same deliberately partial double.
-      .returns(mockContract as unknown as IPostDispatchHook);
+      .returns(contractDouble<IPostDispatchHook>(mockContract));
 
     const hookConfig = await evmHookReader.deriveHookConfig({
       type: HookType.AGGREGATION,
@@ -525,13 +524,13 @@ describe('EvmHookReader', () => {
     };
     sandbox
       .stub(NetFlowRateLimitedHookIsm__factory, 'connect')
-      .returns(mockContract as unknown as NetFlowRateLimitedHookIsm);
+      .returns(contractDouble<NetFlowRateLimitedHookIsm>(mockContract));
     sandbox
       .stub(RateLimitedHook__factory, 'connect')
-      .returns(mockContract as unknown as RateLimitedHook);
+      .returns(contractDouble<RateLimitedHook>(mockContract));
     sandbox
       .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+      .returns(contractDouble<IPostDispatchHook>(mockContract));
 
     const expectedConfig: WithAddress<RateLimitedHookConfig> = {
       address: mockAddress,
@@ -563,10 +562,10 @@ describe('EvmHookReader', () => {
     };
     sandbox
       .stub(DelayedFlowRouterHookIsm__factory, 'connect')
-      .returns(mockContract as unknown as DelayedFlowRouterHookIsm);
+      .returns(contractDouble<DelayedFlowRouterHookIsm>(mockContract));
     sandbox
       .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+      .returns(contractDouble<IPostDispatchHook>(mockContract));
 
     const expectedConfig: WithAddress<DelayedFlowRouterHookConfig> = {
       address: mockAddress,
@@ -595,13 +594,13 @@ describe('EvmHookReader', () => {
     };
     sandbox
       .stub(DelayedFlowRouterHookIsm__factory, 'connect')
-      .returns(mockContract as unknown as DelayedFlowRouterHookIsm);
+      .returns(contractDouble<DelayedFlowRouterHookIsm>(mockContract));
     sandbox
       .stub(DomainRoutingHook__factory, 'connect')
-      .returns(mockContract as unknown as DomainRoutingHook);
+      .returns(contractDouble<DomainRoutingHook>(mockContract));
     sandbox
       .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+      .returns(contractDouble<IPostDispatchHook>(mockContract));
 
     const hookConfig = await evmHookReader.deriveHookConfig(mockAddress);
     expect(hookConfig).to.deep.equal({

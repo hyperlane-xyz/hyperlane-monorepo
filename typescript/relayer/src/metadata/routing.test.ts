@@ -1,8 +1,7 @@
 import { expect } from 'chai';
-import type { providers } from 'ethers';
 import sinon from 'sinon';
 
-import { IRoutingIsm, IRoutingIsm__factory } from '@hyperlane-xyz/core';
+import { IRoutingIsm__factory } from '@hyperlane-xyz/core';
 import {
   DispatchedMessage,
   EvmIsmReader,
@@ -15,13 +14,15 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   WithAddress,
+  assert,
   formatMessage,
   messageId,
   parseMessage,
 } from '@hyperlane-xyz/utils';
 
-import type { BaseMetadataBuilder } from './builder.js';
+import { BaseMetadataBuilder } from './builder.js';
 import { DynamicRoutingMetadataBuilder } from './routing.js';
+import { testTransactionReceipt } from './testUtils.js';
 import type { MetadataContext, NullMetadataBuildResult } from './types.js';
 
 const ISM_ADDRESS = '0x1111111111111111111111111111111111111111';
@@ -61,10 +62,12 @@ describe('DynamicRoutingMetadataBuilder', () => {
       parsed: parseMessage(rawMessage),
     };
 
-    const routeStub = sandbox.stub().resolves(ROUTED_ISM_ADDRESS);
-    sandbox.stub(IRoutingIsm__factory, 'connect').returns({
-      route: routeStub,
-    } as unknown as IRoutingIsm);
+    const routingIsmInterface = IRoutingIsm__factory.createInterface();
+    const routeCallStub = sandbox
+      .stub(multiProvider.getProvider(TestChainName.test2), 'call')
+      .resolves(
+        routingIsmInterface.encodeFunctionResult('route', [ROUTED_ISM_ADDRESS]),
+      );
 
     const derivedRoutedIsm: WithAddress<TrustedRelayerIsmConfig> = {
       type: IsmType.TRUSTED_RELAYER,
@@ -80,11 +83,9 @@ describe('DynamicRoutingMetadataBuilder', () => {
       ismAddress: ROUTED_ISM_ADDRESS,
       metadata: '0x',
     };
-    const buildStub = sandbox.stub().resolves(routedIsmResult);
-    const baseMetadataBuilder = {
-      multiProvider,
-      build: buildStub,
-    } as unknown as BaseMetadataBuilder;
+    const baseMetadataBuilder = sinon.createStubInstance(BaseMetadataBuilder);
+    baseMetadataBuilder.multiProvider = multiProvider;
+    const buildStub = baseMetadataBuilder.build.resolves(routedIsmResult);
 
     const ism: WithAddress<MailboxDefaultIsmConfig> = {
       type: IsmType.MAILBOX_DEFAULT,
@@ -92,8 +93,7 @@ describe('DynamicRoutingMetadataBuilder', () => {
     };
     const context: MetadataContext<WithAddress<MailboxDefaultIsmConfig>> = {
       message,
-      // not read by the routing builder — placeholder receipt double
-      dispatchTx: {} as unknown as providers.TransactionReceipt,
+      dispatchTx: testTransactionReceipt(),
       ism,
       hook: { type: HookType.MERKLE_TREE, address: HOOK_ADDRESS },
     };
@@ -103,7 +103,12 @@ describe('DynamicRoutingMetadataBuilder', () => {
 
     // the mailbox default ism has no domains table: it must be resolved via
     // the on-chain route(message) call with the raw dispatched message
-    expect(routeStub.calledOnceWith(rawMessage)).to.be.true;
+    expect(routeCallStub.calledOnce).to.be.true;
+    const routeCallData = routeCallStub.firstCall.args[0].data;
+    assert(typeof routeCallData === 'string', 'Expected encoded route call');
+    expect(
+      routingIsmInterface.decodeFunctionData('route', routeCallData)[0],
+    ).to.equal(rawMessage);
     expect(deriveStub.calledOnceWith(ROUTED_ISM_ADDRESS)).to.be.true;
     expect(buildStub.calledOnce).to.be.true;
     expect(buildStub.firstCall.args[0].ism).to.deep.equal(derivedRoutedIsm);

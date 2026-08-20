@@ -8,6 +8,7 @@ import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { IsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RemoteRouters } from '../router/types.js';
+import { contractDouble } from '../test/contractDouble.js';
 import { randomAddress } from '../test/testUtils.js';
 import { TokenType } from '../token/config.js';
 import { HypERC20Deployer } from '../token/deploy.js';
@@ -87,9 +88,9 @@ describe('delayed flow route preconditions', () => {
   });
 
   function stubMailboxNonce(nonce: number) {
-    const mailboxDouble = {
+    const mailboxDouble = contractDouble<Mailbox>({
       nonce: sandbox.stub().resolves(nonce),
-    } as unknown as Mailbox;
+    });
     return sandbox.stub(Mailbox__factory, 'connect').returns(mailboxDouble);
   }
 
