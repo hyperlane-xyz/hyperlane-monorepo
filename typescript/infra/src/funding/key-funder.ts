@@ -28,6 +28,10 @@ import { getInfraPath, isEthereumProtocolChain } from '../utils/utils.js';
 const RC_FUNDING_DISCOUNT_NUMERATOR = BigNumber.from(2);
 const RC_FUNDING_DISCOUNT_DENOMINATOR = BigNumber.from(10);
 
+type RoleAddresses = Partial<
+  Record<DeployEnvironment, Partial<Record<Contexts, string>>>
+>;
+
 // Chains to sweep excess funds from (must match fund-keys-from-deployer.ts)
 const CHAINS_TO_SWEEP = new Set([
   'arbitrum',
@@ -282,35 +286,18 @@ export class KeyFunderHelmManager extends HelmManager {
     return envAddresses?.[environment]?.[context];
   }
 
-  private getRoleAddresses(
-    role: FundableRole,
-  ): Record<DeployEnvironment, Record<Contexts, string>> | undefined {
+  private getRoleAddresses(role: FundableRole): RoleAddresses | undefined {
     switch (role) {
       case Role.Relayer:
-        return relayerAddresses as Record<
-          DeployEnvironment,
-          Record<Contexts, string>
-        >;
+        return relayerAddresses;
       case Role.Rebalancer:
-        return rebalancerAddresses as Record<
-          DeployEnvironment,
-          Record<Contexts, string>
-        >;
+        return rebalancerAddresses;
       case Role.InventoryRebalancer:
-        return inventoryRebalancerAddresses as Record<
-          DeployEnvironment,
-          Record<Contexts, string>
-        >;
+        return inventoryRebalancerAddresses;
       case Role.QuoteSubmitter:
-        return quoteSubmitterAddresses as Record<
-          DeployEnvironment,
-          Record<Contexts, string>
-        >;
+        return quoteSubmitterAddresses;
       case Role.StableswapInventoryRebalancer:
-        return stableswapInventoryRebalancerAddresses as Record<
-          DeployEnvironment,
-          Record<Contexts, string>
-        >;
+        return stableswapInventoryRebalancerAddresses;
       default:
         return undefined;
     }
