@@ -192,6 +192,13 @@ jobs:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
 
+      - name: Radix localnet diagnostics
+        if: ${{ failure() && matrix.e2e-type == 'radix' }}
+        working-directory: ./rust/main/utils/run-locally/src/radix
+        run: |
+          docker compose --profile fullnode --profile network-gateway-image ps --all
+          docker compose --profile fullnode --profile network-gateway-image logs --no-color
+
       - name: agent tests (EVM)
         if: ${{ matrix.e2e-type == 'evm' && steps.check-conditions.outputs.skip-e2e != 'true' }}
         run: cargo run --release --bin run-locally --features test-utils

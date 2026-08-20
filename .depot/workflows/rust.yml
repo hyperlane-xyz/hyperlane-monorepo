@@ -75,7 +75,7 @@ jobs:
   lander-coverage-run:
     needs: [ts-only]
     if: needs.ts-only.outputs.skip_rust != 'true'
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: depot-ubuntu-24.04-16
     steps:
       - uses: actions/checkout@v7
         with:

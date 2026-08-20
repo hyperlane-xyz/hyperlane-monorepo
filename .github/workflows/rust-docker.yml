@@ -1,39 +1,32 @@
-name: Build and Push Node Services Image
-
+name: Build and Push Agent Image
 on:
   push:
     branches: [main]
     paths:
-      - 'typescript/Dockerfile'
-      - 'typescript/docker-entrypoint.sh'
+      - 'rust/Dockerfile'
       - '.dockerignore'
-      - '.nvmrc'
-      - '.depot/workflows/node-services-docker.yml'
-      - 'pnpm-lock.yaml'
-      - 'typescript/scraper-proxy/**'
+      - '.github/workflows/rust-docker.yml'
+      - 'rust/main/Cargo.lock'
+    tags:
+      - 'agents-*'
   pull_request:
     paths:
-      - 'typescript/Dockerfile'
-      - 'typescript/docker-entrypoint.sh'
+      - 'rust/Dockerfile'
       - '.dockerignore'
-      - '.nvmrc'
-      - '.depot/workflows/node-services-docker.yml'
-      - 'pnpm-lock.yaml'
-      - 'typescript/scraper-proxy/**'
+      - '.github/workflows/rust-docker.yml'
+      - 'rust/main/Cargo.lock'
   workflow_dispatch:
     inputs:
       include_arm64:
         description: 'Include arm64 in the build'
         required: false
         default: 'false'
-
 concurrency:
-  group: build-push-node-services-${{ github.ref }}
+  group: build-push-agents-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   build-and-push:
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
@@ -51,47 +44,52 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-          persist-credentials: false
-          fetch-depth: 0
-
       - name: Generate tag data
         id: taggen
         run: |
+          set -euo pipefail
           echo "TAG_DATE=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
           echo "TAG_SHA=$(echo '${{ github.event.pull_request.head.sha || github.sha }}' | cut -b 1-7)" >> $GITHUB_OUTPUT
-
+          # For tag events, derive pure semver:
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            NAME="${{ github.ref_name }}"
+            # Strip agents- prefix and any leading v
+            NAME="${NAME#agents-}"
+            NAME="${NAME#v}"
+            # Basic semver guard (allows prerelease/build metadata)
+            if echo "$NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+'; then
+              echo "SEMVER=$NAME" >> $GITHUB_OUTPUT
+              # Check if this is a stable release (no prerelease suffix like -beta, -rc, -alpha)
+              if echo "$NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+                echo "IS_STABLE=true" >> $GITHUB_OUTPUT
+              else
+                echo "IS_STABLE=false" >> $GITHUB_OUTPUT
+              fi
+            fi
+          fi
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
         with:
+          # list of Docker images to use as base name for tags
           images: |
-            ghcr.io/hyperlane-xyz/hyperlane-node-services
+            ghcr.io/hyperlane-xyz/hyperlane-agent
+          # generate Docker tags based on the following events/attributes
           tags: |
             type=ref,event=branch
             type=ref,event=pr
+            type=ref,event=tag
+            type=semver,pattern={{version}},value=${{ steps.taggen.outputs.SEMVER }},enable=${{ github.ref_type == 'tag' && steps.taggen.outputs.SEMVER != '' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.taggen.outputs.SEMVER }},enable=${{ github.ref_type == 'tag' && steps.taggen.outputs.IS_STABLE == 'true' }}
             type=raw,value=${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}
-
       - name: Set up Depot CLI
         uses: depot/setup-action@v1
-
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Read Foundry version
-        run: |
-          FOUNDRY_VERSION=$(cat solidity/.foundryrc)
-          echo "FOUNDRY_VERSION=$FOUNDRY_VERSION" >> $GITHUB_ENV
-
-      - name: Read Node version
-        run: |
-          NODE_VERSION=$(cat .nvmrc)
-          echo "NODE_VERSION=${NODE_VERSION#v}" >> $GITHUB_ENV
-
       - name: Determine platforms
         id: determine-platforms
         run: |
@@ -100,22 +98,17 @@ jobs:
           else
             echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
           fi
-
       - name: Build and push
         id: build
         uses: depot/build-push-action@v1
         with:
-          project: 057xstl4t6
-          context: ./
-          file: ./typescript/Dockerfile
+          project: czmkmn2km1
+          context: .
+          file: ./rust/Dockerfile
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           provenance: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            NODE_VERSION=${{ env.NODE_VERSION }}
-            FOUNDRY_VERSION=${{ env.FOUNDRY_VERSION }}
-            SERVICE_VERSION=${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}
 
       - name: Generate image tags output
@@ -123,25 +116,22 @@ jobs:
         if: always()
         run: |
           TAG_SHA_DATE="${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}"
-          REGISTRY="ghcr.io/hyperlane-xyz"
-          TAGS="${REGISTRY}/hyperlane-node-services:${TAG_SHA_DATE}"
+          IMAGE="ghcr.io/hyperlane-xyz/hyperlane-agent:${TAG_SHA_DATE}"
 
           echo "tags<<EOF" >> $GITHUB_OUTPUT
-          echo "$TAGS" >> $GITHUB_OUTPUT
+          echo "$IMAGE" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
           cat >> $GITHUB_STEP_SUMMARY << EOF
-          ## Node Services Docker Image
+          ## Rust Agent Docker Image
 
           | Image | Tag |
           |-------|-----|
-          | hyperlane-node-services | \`${TAG_SHA_DATE}\` |
-
-          **Services included:** rebalancer, warp-monitor, ccip-server, keyfunder, relayer, fee-quoting, scraper-proxy
+          | hyperlane-agent | \`${TAG_SHA_DATE}\` |
 
           **Full image path:**
           \`\`\`
-          ${TAGS}
+          ${IMAGE}
           \`\`\`
           EOF
 
@@ -149,9 +139,9 @@ jobs:
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && always()
         uses: ./.depot/actions/docker-image-comment
         with:
-          comment_tag: typescript-docker-images
-          image_name: Node Services Docker Image
-          emoji: ''
+          comment_tag: rust-agent-docker-image
+          image_name: Rust Agent Docker Image
+          emoji: 🦀
           image_tags: ${{ steps.image-tags.outputs.tags }}
           pr_number: ${{ github.event.pull_request.number }}
           github_token: ${{ steps.generate-token.outputs.token }}
