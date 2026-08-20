@@ -34,7 +34,6 @@ import {
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
 import {
-  EvmIsmModule,
   HookConfig,
   HookType,
   HyperlaneAddresses,
@@ -66,6 +65,7 @@ import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDe
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { deriveDelayedFlowEnrollmentTargets } from '../deploy/warp.js';
 import { DerivedHookConfig } from '../hook/types.js';
+import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -4101,6 +4101,7 @@ describe('EvmWarpModule', async () => {
 
       await sendTxs([
         ...phases.upgradeTxs,
+        ...phases.instanceTxs,
         ...phases.hookTxs,
         ...phases.ismTxs,
         ...phases.txs,
@@ -4117,6 +4118,47 @@ describe('EvmWarpModule', async () => {
       );
       expect(hybrid.owner && eqAddress(hybrid.owner, newOwner)).to.be.true;
       expect(hybrid.maxDelay).to.equal(7200);
+    });
+
+    it('returns hybrid instance mutations before installation and ownership', async () => {
+      const warpModule = await createPlainRoute();
+      const initialConfig: HypTokenRouterConfig = {
+        ...(await warpModule.read()),
+        interchainSecurityModule: delayedFlowIsm(signer.address),
+        hook: delayedFlowHookNode(signer.address),
+      };
+      await sendTxs(await warpModule.update(initialConfig));
+
+      const instanceTx: AnnotatedEV5Transaction = {
+        chainId: Number(multiProvider.getChainId(chain)),
+        to: randomAddress(),
+        data: '0x1234',
+      };
+      const updateStub = sinon
+        .stub(EvmIsmModule.prototype, 'updateDeployedInstance')
+        .resolves([instanceTx]);
+
+      try {
+        const currentConfig = await warpModule.read();
+        const currentHybrid = collectHybridIsmNodes(
+          currentConfig.interchainSecurityModule,
+        )[0];
+        assert(
+          currentHybrid && 'address' in currentHybrid,
+          'Expected an installed delayed-flow hybrid',
+        );
+        const targetConfig: HypTokenRouterConfig = {
+          ...currentConfig,
+          interchainSecurityModule: delayedFlowIsm(signer.address),
+          hook: delayedFlowHookNode(signer.address),
+        };
+        const phases = await warpModule.updatePhases(targetConfig);
+        expect(updateStub.calledOnce).to.be.true;
+        expect(phases.instanceTxs).to.deep.equal([instanceTx]);
+        expect(phases.ownershipTxs).not.to.include(instanceTx);
+      } finally {
+        updateStub.restore();
+      }
     });
 
     it('resumes after hybrid ownership transfers but router ownership does not', async () => {

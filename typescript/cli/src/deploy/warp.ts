@@ -891,6 +891,7 @@ async function updateExistingWarpRoute(
   const ownershipTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
   const ismUpdateTransactions: ChainMap<TypedAnnotatedTransaction[]> = {};
   const upgradeTransactions: ChainMap<TypedAnnotatedTransaction[]> = {};
+  const instanceTransactions: ChainMap<TypedAnnotatedTransaction[]> = {};
   const hookTransactions: ChainMap<TypedAnnotatedTransaction[]> = {};
   const routerIsmTransactions: ChainMap<TypedAnnotatedTransaction[]> = {};
   const removingHybridChains = new Set<ChainName>();
@@ -943,6 +944,7 @@ async function updateExistingWarpRoute(
             );
             const {
               upgradeTxs,
+              instanceTxs,
               hookTxs,
               ismTxs,
               txs,
@@ -955,6 +957,7 @@ async function updateExistingWarpRoute(
             feeUpdateTransactions[chain] = feeTxs;
             ownershipTransactions[chain] = ownershipTxs;
             upgradeTransactions[chain] = upgradeTxs;
+            instanceTransactions[chain] = instanceTxs;
             hookTransactions[chain] = hookTxs;
             routerIsmTransactions[chain] = ismTxs;
             if (hybridIsm) updatedHybridAddresses[chain] = hybridIsm;
@@ -1023,6 +1026,7 @@ async function updateExistingWarpRoute(
 
   const chains = new Set([
     ...Object.keys(upgradeTransactions),
+    ...Object.keys(instanceTransactions),
     ...Object.keys(ismUpdateTransactions),
     ...Object.keys(hookTransactions),
     ...Object.keys(routerIsmTransactions),
@@ -1032,6 +1036,7 @@ async function updateExistingWarpRoute(
     const removingHybrid = removingHybridChains.has(chain);
     updateTransactions[chain] = [
       ...(upgradeTransactions[chain] ?? []),
+      ...(instanceTransactions[chain] ?? []),
       ...(ismUpdateTransactions[chain] ?? []),
       ...(removingHybrid ? (routerIsmTransactions[chain] ?? []) : []),
       ...(hookTransactions[chain] ?? []),

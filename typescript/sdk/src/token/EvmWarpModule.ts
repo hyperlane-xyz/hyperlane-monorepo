@@ -214,6 +214,8 @@ const getRebalanceRecipientsByDomain = (
 export type WarpUpdatePhases = {
   /** Proxy implementation upgrades. Must precede everything else. */
   upgradeTxs: AnnotatedEV5Transaction[];
+  /** Shared hybrid instance mutations. Must precede its router installation. */
+  instanceTxs: AnnotatedEV5Transaction[];
   /** Installs the router's hook (and any predicate wrapper). */
   hookTxs: AnnotatedEV5Transaction[];
   /** Installs the router's ISM; runs first only when removing delayed flow. */
@@ -659,7 +661,7 @@ export class EvmWarpModule extends HyperlaneModule<
     // Ownership/proxyAdmin must always execute last; returned separately so callers
     // can place feeTxs between main txs and ownership (see update() below).
     const ownershipTxs = [
-      ...(hybrid?.txs ?? []),
+      ...(hybrid?.ownershipTxs ?? []),
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
       ...proxyAdminUpdateTxs(
         this.chainId,
@@ -671,6 +673,7 @@ export class EvmWarpModule extends HyperlaneModule<
 
     return {
       upgradeTxs,
+      instanceTxs: hybrid?.instanceTxs ?? [],
       hookTxs,
       ismTxs,
       txs: transactions,
@@ -690,6 +693,7 @@ export class EvmWarpModule extends HyperlaneModule<
   ): Promise<WarpUpdateResult> {
     const {
       upgradeTxs,
+      instanceTxs,
       hookTxs,
       ismTxs,
       txs,
@@ -699,8 +703,8 @@ export class EvmWarpModule extends HyperlaneModule<
     } = await this.updatePhases(expectedConfig, tokenReaderParams);
     return {
       txs: removesDelayedFlowRouter
-        ? [...upgradeTxs, ...ismTxs, ...hookTxs, ...txs]
-        : [...upgradeTxs, ...hookTxs, ...ismTxs, ...txs],
+        ? [...upgradeTxs, ...instanceTxs, ...ismTxs, ...hookTxs, ...txs]
+        : [...upgradeTxs, ...instanceTxs, ...hookTxs, ...ismTxs, ...txs],
       feeTxs,
       ownershipTxs,
     };
@@ -796,7 +800,8 @@ export class EvmWarpModule extends HyperlaneModule<
         address: Address;
         ismTree: IsmConfig;
         hookTree: HookConfig;
-        txs: AnnotatedEV5Transaction[];
+        instanceTxs: AnnotatedEV5Transaction[];
+        ownershipTxs: AnnotatedEV5Transaction[];
       }
     | undefined
   > {
@@ -888,7 +893,8 @@ export class EvmWarpModule extends HyperlaneModule<
           address: currentAddress,
           ismTree: plan.ismTree,
           hookTree: plan.hookTree,
-          txs: [],
+          instanceTxs: [],
+          ownershipTxs: [],
         };
       }
       const module = new EvmIsmModule(
@@ -922,7 +928,8 @@ export class EvmWarpModule extends HyperlaneModule<
         address: deployedIsm,
         ismTree: plan.ismTree,
         hookTree: plan.hookTree,
-        txs: [...txs, ...ownershipTxs],
+        instanceTxs: txs,
+        ownershipTxs,
       };
     }
 
@@ -948,7 +955,8 @@ export class EvmWarpModule extends HyperlaneModule<
       address: deployed.address,
       ismTree: plan.ismTree,
       hookTree: plan.hookTree,
-      txs: ownershipTxs,
+      instanceTxs: [],
+      ownershipTxs,
     };
   }
 
