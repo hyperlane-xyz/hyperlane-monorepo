@@ -11,7 +11,7 @@ env:
 
 jobs:
   check-solidity-changes:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     outputs:
       has_solidity_changes: ${{ steps.check-solidity.outputs.has_changes }}
     steps:
@@ -25,7 +25,7 @@ jobs:
 
       - name: Check for Solidity changes
         id: check-solidity
-        uses: ./.github/actions/check-path-changes
+        uses: ./.depot/actions/check-path-changes
         with:
           base_sha: ${{ steps.determine-sha.outputs.base_sha }}
           head_sha: ${{ steps.determine-sha.outputs.current_sha }}
@@ -45,7 +45,7 @@ jobs:
           node-version-file: .nvmrc
 
       - name: pnpm-build
-        uses: ./.github/actions/pnpm-build-with-cache
+        uses: ./.depot/actions/pnpm-build-with-cache
 
       - name: Run tests with coverage
         run: pnpm run coverage
@@ -58,7 +58,7 @@ jobs:
           fail_ci_if_error: true
 
   coverage:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [check-solidity-changes, coverage-run]
     if: always()
     steps:

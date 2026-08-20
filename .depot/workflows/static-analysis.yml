@@ -6,16 +6,16 @@ on:
     branches: [main]
     paths:
       - 'solidity/**'
-      - '.github/workflows/static-analysis.yml'
+      - '.depot/workflows/static-analysis.yml'
   # Triggers the workflow on pull request
   pull_request:
     paths:
       - 'solidity/**'
-      - '.github/workflows/static-analysis.yml'
+      - '.depot/workflows/static-analysis.yml'
 
 jobs:
   slither:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v7
@@ -29,7 +29,7 @@ jobs:
           node-version-file: .nvmrc
 
       - name: pnpm-cache
-        uses: ./.github/actions/pnpm-cache
+        uses: ./.depot/actions/pnpm-cache
         with:
           cache-provider: buildjet
 
@@ -37,7 +37,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Setup Foundry
-        uses: ./.github/actions/setup-foundry
+        uses: ./.depot/actions/setup-foundry
 
       - name: forge-build
         run: cd solidity && forge build --build-info

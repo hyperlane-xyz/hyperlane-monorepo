@@ -185,7 +185,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Setup Foundry
-        uses: ./.github/actions/setup-foundry
+        uses: ./.depot/actions/setup-foundry
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -261,7 +261,7 @@ jobs:
 
       # Need to install foundry for the build step. `hardhat-foundry` expects foundry to be installed.
       - name: Setup Foundry
-        uses: ./.github/actions/setup-foundry
+        uses: ./.depot/actions/setup-foundry
 
       # Build BEFORE snapshot versioning so turbo cache hits are preserved.
       # Snapshot versioning rewrites every package.json, which invalidates turbo hashes.
