@@ -40,6 +40,7 @@ export interface KeyFunderConfig<
   desiredRebalancerBalancePerChain: ChainMap<string>;
   desiredInventoryRebalancerBalancePerChain?: ChainMap<string>;
   desiredStableswapInventoryRebalancerBalancePerChain?: ChainMap<string>;
+  desiredQuoteSubmitterBalancePerChain?: ChainMap<string>;
   igpClaimThresholdPerChain: ChainMap<string>;
   chainsToSkip: ChainName[];
   // Emergency kill switch for automatic sweeps. Defaults to enabled.

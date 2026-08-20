@@ -7,6 +7,7 @@ import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
 
 import desiredRebalancerBalances from './balances/desiredRebalancerBalances.json' with { type: 'json' };
 import desiredInventoryRebalancerBalances from './balances/desiredInventoryRebalancerBalances.json' with { type: 'json' };
+import desiredQuoteSubmitterBalances from './balances/desiredQuoteSubmitterBalances.json' with { type: 'json' };
 import desiredStableswapInventoryRebalancerBalances from './balances/desiredStableswapInventoryRebalancerBalances.json' with { type: 'json' };
 import desiredRelayerBalances from './balances/desiredRelayerBalances.json' with { type: 'json' };
 import lowUrgencyKeyFunderBalances from './balances/lowUrgencyKeyFunderBalance.json' with { type: 'json' };
@@ -33,6 +34,13 @@ const desiredInventoryRebalancerBalancePerChain = objMap(
   desiredInventoryRebalancerBalances,
   (_, balance) => balance.toString(),
 ) as Record<DesiredInventoryRebalancerBalanceChains, string>;
+
+type DesiredQuoteSubmitterBalanceChains =
+  keyof typeof desiredQuoteSubmitterBalances;
+const desiredQuoteSubmitterBalancePerChain = objMap(
+  desiredQuoteSubmitterBalances,
+  (_, balance) => balance.toString(),
+) as Record<DesiredQuoteSubmitterBalanceChains, string>;
 
 type DesiredStableswapInventoryRebalancerBalanceChains =
   keyof typeof desiredStableswapInventoryRebalancerBalances;
@@ -68,6 +76,7 @@ export const keyFunderConfig: KeyFunderConfig<
       Role.Relayer,
       Role.Rebalancer,
       Role.InventoryRebalancer,
+      Role.QuoteSubmitter,
       Role.StableswapInventoryRebalancer,
     ],
     [Contexts.ReleaseCandidate]: [Role.Relayer],
@@ -80,6 +89,8 @@ export const keyFunderConfig: KeyFunderConfig<
   desiredRebalancerBalancePerChain,
   // desired inventory rebalancer balance config
   desiredInventoryRebalancerBalancePerChain,
+  // desired quote submitter balance config
+  desiredQuoteSubmitterBalancePerChain,
   // desired stableswap inventory rebalancer balance config
   desiredStableswapInventoryRebalancerBalancePerChain,
   // if not set, keyfunder defaults to using desired balance * 0.2 as the threshold
