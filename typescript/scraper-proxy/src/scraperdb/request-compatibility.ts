@@ -7,11 +7,11 @@ type Payload = {
 };
 
 export function normalizeGraphqlRequestBody(body: unknown): void {
-  (Array.isArray(body) ? body : [body]).forEach((payload) => {
+  for (const payload of Array.isArray(body) ? body : [body]) {
     if (isPayload(payload) && typeof payload.query === 'string') {
       payload.query = stripUnusedVariableDefinitions(payload.query);
     }
-  });
+  }
 }
 
 export function stripUnusedVariableDefinitions(query: string): string {

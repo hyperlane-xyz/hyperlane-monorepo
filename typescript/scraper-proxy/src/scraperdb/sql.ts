@@ -222,7 +222,7 @@ function cursorWhere(
   const rendered = cursors.flatMap((cursor) =>
     Object.entries(cursor.initial_value).map(([column, value]) => {
       assertColumn(table, column);
-      return `${q(column)} ${cursor.ordering === 'DESC' ? '<=' : '>='} ${bind(value, values)}`;
+      return `${q(column)} ${cursor.ordering === 'DESC' ? '<' : '>'} ${bind(value, values)}`;
     }),
   );
   return rendered.length ? `(${rendered.join(' AND ')})` : '';
@@ -291,6 +291,7 @@ function validate(args: SelectArgs): void {
     'order_by',
     MAX.orderColumns,
   );
+  validateDistinctOrder(args.distinct_on, orders);
   boundedColumns(
     args.cursor?.reduce(
       (total, item) => total + Object.keys(item.initial_value).length,
@@ -301,6 +302,19 @@ function validate(args: SelectArgs): void {
   );
   const state = { predicates: 0 };
   validateWhere(args.where, 0, state);
+}
+
+function validateDistinctOrder(
+  distinctColumns: string[] | undefined,
+  orders: Record<string, Direction>[],
+): void {
+  if (!distinctColumns?.length || !orders.length) return;
+  const orderColumns = orders.flatMap(Object.keys);
+  if (distinctColumns.some((column, index) => orderColumns[index] !== column)) {
+    throw new Error(
+      'distinct_on columns must match the leftmost order_by columns',
+    );
+  }
 }
 
 function boundedInteger(

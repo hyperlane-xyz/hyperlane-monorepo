@@ -4,8 +4,15 @@ export const EVENT_TYPES = [
   'gas_payment',
   'merkle_tree_insertion',
 ] as const;
+export const SEQUENCED_EVENT_TYPES = [
+  'dispatch',
+  'merkle_tree_insertion',
+] as const;
+
+const CURSOR_ADDRESS = /^(?:0x|\\x)?(?:[\da-fA-F]{40}|[\da-fA-F]{64})$/;
 
 export type EventType = (typeof EVENT_TYPES)[number];
+export type SequencedEventType = (typeof SEQUENCED_EVENT_TYPES)[number];
 export type SequenceCursor = {
   address: string;
   afterSequence?: bigint;
@@ -139,10 +146,7 @@ function parseStream(value: unknown): StreamRequest {
 
   let cursors: SequenceCursor[] | undefined;
   if (value.cursors !== undefined) {
-    if (
-      value.eventType !== 'dispatch' &&
-      value.eventType !== 'merkle_tree_insertion'
-    ) {
+    if (!isSequencedEventType(value.eventType)) {
       throw new Error('cursors are only supported for sequenced streams');
     }
     if (!Array.isArray(value.cursors) || !value.cursors.length) {
@@ -169,10 +173,7 @@ function parseSequenceCursor(value: unknown): SequenceCursor {
   if (!isRecord(value) || !isDomain(value.domain)) {
     throw new Error('Invalid sequence cursor domain');
   }
-  if (
-    typeof value.address !== 'string' ||
-    !/^(?:0x|\\x)?(?:[\da-fA-F]{40}|[\da-fA-F]{64})$/.test(value.address)
-  ) {
+  if (!isCursorAddress(value.address)) {
     throw new Error('Invalid sequence cursor address');
   }
   return {
@@ -189,7 +190,11 @@ function parseSequenceCursor(value: unknown): SequenceCursor {
   };
 }
 
-function parseInteger(value: unknown, min: number, error: string): bigint {
+export function parseInteger(
+  value: unknown,
+  min: number,
+  error: string,
+): bigint {
   if (
     (typeof value === 'number' &&
       Number.isSafeInteger(value) &&
@@ -204,6 +209,16 @@ function parseInteger(value: unknown, min: number, error: string): bigint {
 
 export function isEventType(value: unknown): value is EventType {
   return EVENT_TYPES.some((eventType) => eventType === value);
+}
+
+export function isSequencedEventType(
+  value: unknown,
+): value is SequencedEventType {
+  return SEQUENCED_EVENT_TYPES.some((eventType) => eventType === value);
+}
+
+export function isCursorAddress(value: unknown): value is string {
+  return typeof value === 'string' && CURSOR_ADDRESS.test(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

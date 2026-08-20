@@ -50,10 +50,23 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
 
   async onModuleDestroy(): Promise<void> {
     if (this.statsTimer) clearInterval(this.statsTimer);
-    await Promise.all([...this.listeners].map((client) => client.end()));
+    const { livePool, mainPool } = this;
+    const shutdowns = [
+      ...[...this.listeners].map((client) => () => client.end()),
+      ...(livePool ? [() => livePool.end()] : []),
+      ...(mainPool ? [() => mainPool.end()] : []),
+    ];
     this.listeners.clear();
-    await this.livePool?.end();
-    await this.mainPool?.end();
+    const results = await Promise.allSettled(
+      shutdowns.map((shutdown) => Promise.resolve().then(shutdown)),
+    );
+    const failures = results.flatMap((result) =>
+      result.status === 'rejected' ? [result.reason] : [],
+    );
+    failures.forEach((error) =>
+      this.logger.error(`database shutdown failed: ${errorMessage(error)}`),
+    );
+    if (failures.length) throw failures[0];
   }
 
   query<T extends pg.QueryResultRow>(
@@ -178,6 +191,10 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
       `db stats queries=${queries} errors=${errors} rows=${rows} avgMs=${queries ? Math.round(totalMs / queries) : 0} maxMs=${maxMs} poolTotal=${this.mainPool?.totalCount ?? 0} poolIdle=${this.mainPool?.idleCount ?? 0} poolWaiting=${this.mainPool?.waitingCount ?? 0}`,
     );
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function databaseOptions(connectionString: string): pg.ClientConfig {

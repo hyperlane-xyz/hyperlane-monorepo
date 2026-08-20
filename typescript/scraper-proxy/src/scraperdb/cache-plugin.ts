@@ -4,7 +4,7 @@ import {
   type GraphQLResponse,
 } from '@apollo/server';
 import { createHash } from 'node:crypto';
-import { print, visit, type DocumentNode } from 'graphql';
+import { parse, print, visit, type DocumentNode } from 'graphql';
 
 import {
   cacheControlHeader,
@@ -72,7 +72,10 @@ export function scraperDbCachePlugin(): ApolloServerPlugin {
             'cache-control',
             cacheControlHeader(directive.ttl),
           );
-          if (directive.ttl === 0) return;
+          if (directive.ttl === 0) {
+            context.response.http.headers.set('cache-control', 'no-store');
+            return;
+          }
           const body = JSON.stringify(context.response.body.singleResult);
           const bytes = Buffer.byteLength(body);
           if (bytes > MAX_ENTRY_BYTES) return;
@@ -106,9 +109,12 @@ function cacheKey(
       }),
     ),
   );
-  const usedVariables = new Set(
-    [...query.matchAll(/\$([_A-Za-z][_0-9A-Za-z]*)/g)].map((match) => match[1]),
-  );
+  const usedVariables = new Set<string>();
+  visit(parse(query), {
+    Variable: ({ name }) => {
+      usedVariables.add(name.value);
+    },
+  });
   const dataVariables = Object.fromEntries(
     Object.entries(variables).filter(([name]) => usedVariables.has(name)),
   );

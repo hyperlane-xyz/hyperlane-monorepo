@@ -1,5 +1,7 @@
+import { OperationTypeNode, parse, print, visit } from 'graphql';
+
 export function sanitizeScraperDbSchema(schema: string): string {
-  return `directive @cached(ttl: Int, refresh: Boolean) on QUERY
+  const document = parse(`directive @cached(ttl: Int, refresh: Boolean) on QUERY
 
 extend type query_root {
   message_view_aggregate(
@@ -20,14 +22,22 @@ type message_view_aggregate_fields {
   count(columns: [message_view_select_column!], distinct: Boolean): Int!
 }
 
-${schema}`
-    .replace('\n  subscription: subscription_root', '')
-    .replace(/\ntype subscription_root \{[\s\S]*?\n\}\n/g, '\n')
-    .replace(/\ntype __Directive \{[\s\S]*?\n\}\n/g, '\n')
-    .replace(/\ntype __EnumValue \{[\s\S]*?\n\}\n/g, '\n')
-    .replace(/\ntype __Field \{[\s\S]*?\n\}\n/g, '\n')
-    .replace(/\ntype __InputValue \{[\s\S]*?\n\}\n/g, '\n')
-    .replace(/\ntype __Schema \{[\s\S]*?\n\}\n/g, '\n')
-    .replace(/\ntype __Type \{[\s\S]*?\n\}\n/g, '\n')
-    .replace(/\nenum __TypeKind \{[\s\S]*?\n\}\n/g, '\n');
+${schema}`);
+  return print(
+    visit(document, {
+      EnumTypeDefinition: (node) =>
+        node.name.value.startsWith('__') ? null : undefined,
+      ObjectTypeDefinition: (node) =>
+        node.name.value === 'subscription_root' ||
+        node.name.value.startsWith('__')
+          ? null
+          : undefined,
+      SchemaDefinition: (node) => ({
+        ...node,
+        operationTypes: node.operationTypes.filter(
+          ({ operation }) => operation !== OperationTypeNode.SUBSCRIPTION,
+        ),
+      }),
+    }),
+  );
 }

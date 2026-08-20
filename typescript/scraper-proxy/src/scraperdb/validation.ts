@@ -14,7 +14,7 @@ type Stat = keyof typeof LIMITS;
 type Stats = Record<Stat, number>;
 const STAT_NAMES: Stat[] = ['rootFields', 'fields', 'aliases', 'depth'];
 const MAX_WORK = 1_000;
-type WalkState = { work: number };
+type WalkState = { introspection: boolean; work: number };
 
 export const scraperProxyValidationRule: ValidationRule = (context) => ({
   Document: (document) => validate(context, document),
@@ -47,7 +47,7 @@ function validate(context: ValidationContext, document: DocumentNode): void {
       continue;
     }
     const stats: Stats = { aliases: 0, depth: 0, fields: 0, rootFields: 0 };
-    const state: WalkState = { work: 0 };
+    const state: WalkState = { introspection: false, work: 0 };
     walk(operation.selectionSet, fragments, stats, state, 0, true, new Set());
     for (const name of STAT_NAMES) {
       const max = LIMITS[name];
@@ -62,6 +62,9 @@ function validate(context: ValidationContext, document: DocumentNode): void {
       context.reportError(
         new GraphQLError(`GraphQL query work exceeds maximum of ${MAX_WORK}`),
       );
+    }
+    if (state.introspection) {
+      context.reportError(new GraphQLError('Introspection is not allowed'));
     }
   }
 }
@@ -82,7 +85,7 @@ function walk(
         selection.name.value === '__schema' ||
         selection.name.value === '__type'
       ) {
-        stats.fields = LIMITS.fields + 1;
+        state.introspection = true;
         continue;
       }
       stats.fields++;

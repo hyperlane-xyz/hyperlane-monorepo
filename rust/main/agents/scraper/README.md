@@ -28,7 +28,7 @@ exists.
 After running migrations and before deploying the scraper binary, create the
 large raw-dispatch indexes concurrently:
 
-```
+```bash
 cargo run --package migration --bin create-raw-dispatch-reconciliation-index
 cargo run --package migration --bin create-raw-dispatch-native-sequence-index
 ```

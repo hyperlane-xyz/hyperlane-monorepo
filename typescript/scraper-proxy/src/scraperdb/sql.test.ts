@@ -1,10 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import {
-  normalizeGraphqlRequestBody,
-  stripUnusedVariableDefinitions,
-} from './request-compatibility.js';
 import { buildByPk, buildCount, buildSelect } from './sql.js';
 
 void describe('scraper database SQL', () => {
@@ -29,7 +25,7 @@ void describe('scraper database SQL', () => {
     });
     assert.match(
       select.sql,
-      /WHERE \("nonce" <= \$1\) ORDER BY "nonce" DESC LIMIT \$2$/,
+      /WHERE \("nonce" < \$1\) ORDER BY "nonce" DESC LIMIT \$2$/,
     );
     assert.deepEqual(select.values, [10, 500]);
 
@@ -64,6 +60,23 @@ void describe('scraper database SQL', () => {
         { columns: ['origin_domain', 'destination_domain'], distinct: true },
       ).sql,
       'SELECT COUNT(DISTINCT ("origin_domain", "destination_domain"))::int AS count FROM (SELECT "origin_domain", "destination_domain" FROM "message_view" ORDER BY "nonce" DESC LIMIT $1) AS rows',
+    );
+  });
+
+  void it('rejects distinct_on ordering mismatches', () => {
+    assert.throws(
+      () =>
+        buildSelect('message_view', {
+          distinct_on: ['origin_domain'],
+          order_by: { nonce: 'desc' },
+        }),
+      /leftmost order_by/,
+    );
+    assert.doesNotThrow(() =>
+      buildSelect('message_view', {
+        distinct_on: ['origin_domain'],
+        order_by: [{ origin_domain: 'asc' }, { nonce: 'desc' }],
+      }),
     );
   });
 
@@ -128,31 +141,5 @@ void describe('scraper database SQL', () => {
     assert.match(query.sql, /"id" = ANY\(\$1\)/);
     assert.match(query.sql, /"id" <> ALL\(\$2\)/);
     assert.deepEqual(query.values, [[1, 2, 3], [4, 5], 500]);
-  });
-});
-
-void describe('GraphQL request compatibility', () => {
-  void it('removes unused variable definitions', () => {
-    const normalized = stripUnusedVariableDefinitions(
-      'query Test($used: Int!, $unused: String) { domain(limit: $used) { id } }',
-    );
-    assert.match(normalized, /\$used: Int!/);
-    assert.doesNotMatch(normalized, /unused/);
-    const body = { query: 'query Test($unused: Int) { domain { id } }' };
-    normalizeGraphqlRequestBody(body);
-    assert.doesNotMatch(body.query, /unused/);
-  });
-
-  void it('parses variable definitions and fragment usage as GraphQL', () => {
-    const query = stripUnusedVariableDefinitions(`
-      query Test($used: String = ")", $unused: String) {
-        ...Domains
-      }
-      fragment Domains on query_root {
-        domain(where: {name: {_eq: $used}}) { id }
-      }
-    `);
-    assert.match(query, /\$used: String = "\)"/);
-    assert.doesNotMatch(query, /unused/);
   });
 });

@@ -1,4 +1,4 @@
-import { GraphQLScalarType, Kind } from 'graphql';
+import { GraphQLError, GraphQLScalarType, Kind } from 'graphql';
 
 const passThroughScalar = (name: string) =>
   new GraphQLScalarType({
@@ -12,7 +12,8 @@ const passThroughScalar = (name: string) =>
       ) {
         return ast.value;
       }
-      return null;
+      if (ast.kind === Kind.NULL) return null;
+      throw new GraphQLError(`${name} cannot represent literal ${ast.kind}`);
     },
     parseValue(value) {
       return value;

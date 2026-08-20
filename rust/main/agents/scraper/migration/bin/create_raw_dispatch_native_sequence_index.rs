@@ -1,12 +1,12 @@
 //! Build the WebSocket catch-up index without blocking scraper inserts.
 
-use common::{init, DbErr};
+use common::init;
 use migration::sea_orm::ConnectionTrait;
 
 mod common;
 
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), DbErr> {
+async fn main() -> eyre::Result<()> {
     init()
         .await?
         .execute_unprepared(

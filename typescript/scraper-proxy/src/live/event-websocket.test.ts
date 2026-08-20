@@ -123,10 +123,26 @@ void describe('event websocket protocol', () => {
   });
 
   void it('rejects malformed sequence cursor addresses', () => {
+    const valid32ByteAddress = `0x${'ab'.repeat(32)}`;
+    assert.doesNotThrow(() =>
+      parseClientMessage(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [{ address: valid32ByteAddress, domain: 1 }],
+              eventType: 'dispatch',
+            },
+          ],
+          type: 'subscribe',
+        }),
+      ),
+    );
     for (const address of [
       '0xabc',
       `0x${'ab'.repeat(19)}`,
       `0x${'ab'.repeat(21)}`,
+      `0x${'ab'.repeat(31)}`,
+      `0x${'ab'.repeat(33)}`,
     ]) {
       assert.throws(
         () =>

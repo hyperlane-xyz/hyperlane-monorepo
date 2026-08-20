@@ -13,6 +13,7 @@ name = "migration"
 path = "src/lib.rs"
 
 [dependencies]
+eyre.workspace = true
 sea-orm.workspace = true
 sea-orm-migration.workspace = true
 serde.workspace = true

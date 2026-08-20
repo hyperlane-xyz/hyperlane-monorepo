@@ -1,13 +1,18 @@
 import { parseArgs } from 'node:util';
 
-import { type RawData, WebSocket } from 'ws';
+import { WebSocket } from 'ws';
 
 import {
   EVENT_TYPES,
   type EventType,
+  type SequencedEventType,
+  isCursorAddress,
   isDomain,
   isEventType,
+  isSequencedEventType,
+  parseInteger,
 } from '../live/protocol.js';
+import { rawData } from '../live/websocket-data.js';
 
 const DEFAULT_URL = 'ws://localhost:8383/agents';
 const HELP = `Usage: pnpm debug:websocket [options]
@@ -41,7 +46,7 @@ type Cursor = {
   address: string;
   afterSequence: string;
   domain: number;
-  eventType: 'dispatch' | 'merkle_tree_insertion';
+  eventType: SequencedEventType;
 };
 type Options = {
   cursors: Cursor[];
@@ -70,21 +75,20 @@ function cursor(value: string): Cursor {
     );
   }
   const [eventType, rawDomain, address, afterSequence] = parts;
-  if (eventType !== 'dispatch' && eventType !== 'merkle_tree_insertion') {
+  if (!isSequencedEventType(eventType)) {
     throw new Error(
       `Cursor event type must be dispatch or merkle_tree_insertion: ${eventType}`,
     );
   }
   const domain = Number(rawDomain);
   if (!isDomain(domain)) throw new Error(`Invalid cursor domain: ${rawDomain}`);
-  if (
-    !address ||
-    !/^(?:0x|\\x)?(?:[\da-fA-F]{40}|[\da-fA-F]{64})$/.test(address)
-  ) {
-    throw new Error(`Invalid cursor address: ${address}`);
+  if (!isCursorAddress(address)) {
+    throw new Error(`Invalid cursor address: ${String(address)}`);
   }
-  if (!afterSequence || !/^(?:-1|\d+)$/.test(afterSequence)) {
-    throw new Error(`Invalid cursor sequence: ${afterSequence}`);
+  try {
+    parseInteger(afterSequence, -1, 'Invalid cursor sequence');
+  } catch {
+    throw new Error(`Invalid cursor sequence: ${String(afterSequence)}`);
   }
   return { address, afterSequence, domain, eventType };
 }
@@ -186,8 +190,12 @@ function run({ cursors, domains, events, url }: Options): void {
     );
     subscribed = true;
   });
-  socket.on('error', (error) =>
-    console.error(`WebSocket error: ${error.message}`),
+  socket.on('error', (error) => {
+    console.error(`WebSocket error: ${error.message}`);
+    process.exitCode = 1;
+  });
+  socket.on('close', (code, reason) =>
+    console.error(`WebSocket closed: ${code} ${reason.toString('utf8')}`),
   );
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.once(signal, () => socket.close(1000, signal));
@@ -201,12 +209,6 @@ function isReady(value: unknown): value is { type: 'ready' } {
     'type' in value &&
     value.type === 'ready'
   );
-}
-
-function rawData(data: RawData): string {
-  if (Array.isArray(data)) return Buffer.concat(data).toString('utf8');
-  if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
-  return data.toString('utf8');
 }
 
 try {

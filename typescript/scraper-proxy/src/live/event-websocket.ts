@@ -2,7 +2,7 @@ import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
 
 import { Logger } from '@nestjs/common';
-import { type RawData, WebSocket, WebSocketServer } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 
 import { config } from '../config.js';
 import type { DbService } from '../db/db.service.js';
@@ -13,14 +13,17 @@ import {
   type EventNotification,
   type EventType,
   isDomain,
+  isSequencedEventType,
   normalizeAddress,
   parseClientMessage,
   parseEventNotification,
   parseExplorerNotification,
   parseId,
+  parseInteger,
   type SequenceCursor,
   type StreamRequest,
 } from './protocol.js';
+import { rawData } from './websocket-data.js';
 
 const AGENT_PATH = '/agents';
 const EXPLORER_PATH = '/explorer';
@@ -40,6 +43,7 @@ type NotifiedRow = Row & { notification_id: number | string };
 type Stream = {
   columns: readonly string[];
   domain: string;
+  projection: string;
   sequence?: { address: string; value: string };
   table: string;
 };
@@ -73,13 +77,14 @@ export type EventDatabase = Pick<DbService, 'listen' | 'queryLive'>;
 function stream(
   table: string,
   domain: string,
-  columns: string,
+  columns: readonly string[],
   address?: string,
   sequence?: string,
 ): Stream {
   return {
-    columns: columns.split(' '),
+    columns,
     domain,
+    projection: columns.map(q).join(', '),
     sequence: address && sequence ? { address, value: sequence } : undefined,
     table,
   };
@@ -89,24 +94,28 @@ const STREAMS: Record<EventType, Stream> = {
   dispatch: stream(
     'raw_message_dispatch',
     'origin_domain',
-    'time_created msg_id origin_tx_hash origin_block_hash origin_block_height nonce origin_domain destination_domain sender recipient origin_mailbox msg_body',
+    tables.raw_message_dispatch.columns,
     'origin_mailbox',
     'nonce',
   ),
   delivery: stream(
     'delivered_message',
     'domain',
-    'time_created msg_id domain destination_mailbox destination_tx_id sequence',
+    'time_created msg_id domain destination_mailbox destination_tx_id sequence'.split(
+      ' ',
+    ),
   ),
   gas_payment: stream(
     'gas_payment',
     'domain',
-    'time_created domain msg_id payment gas_amount tx_id log_index origin destination interchain_gas_paymaster sequence',
+    'time_created domain msg_id payment gas_amount tx_id log_index origin destination interchain_gas_paymaster sequence'.split(
+      ' ',
+    ),
   ),
   merkle_tree_insertion: stream(
     'merkle_tree_insertion',
     'domain',
-    'domain merkle_tree_hook leaf_index message_id block_number',
+    'domain merkle_tree_hook leaf_index message_id block_number'.split(' '),
     'merkle_tree_hook',
     'leaf_index',
   ),
@@ -449,6 +458,7 @@ export class EventWebSocketServer {
       if (!subscription.catchingUp) {
         this.deliver(socket, eventType, subscription, row);
       } else if (subscription.pending.push(row) > MAX_PENDING_EVENTS) {
+        this.disconnect(socket);
         socket.close(1013, 'Event catch-up buffer exceeded');
       }
     }
@@ -570,7 +580,9 @@ export class EventWebSocketServer {
         );
       }
     } catch (error) {
-      this.fail(error);
+      this.logger.warn(
+        `skipping invalid database notification: ${errorMessage(error)}`,
+      );
       return;
     }
     if (!this.notificationTimer && !this.draining) {
@@ -632,19 +644,37 @@ export class EventWebSocketServer {
       `SELECT ${q('id')} AS ${q('notification_id')}, ${columns(stream)} FROM ${q(stream.table)} WHERE ${q('id')} = ANY($1::bigint[]) ORDER BY ${q('id')} ASC`,
       [[...expected.keys()]],
     );
-    if (rows.length !== expected.size) {
-      throw new Error(
-        `Missing notified ${eventType} rows: expected ${expected.size}, received ${rows.length}`,
+    const returned = new Set<string>();
+    for (const { notification_id } of rows) {
+      try {
+        returned.add(parseId(notification_id).toString());
+      } catch (error) {
+        this.logger.warn(
+          `invalid notified ${eventType} row ID: ${errorMessage(error)}`,
+        );
+      }
+    }
+    const missing = [...expected.keys()].filter((id) => !returned.has(id));
+    if (missing.length) {
+      this.logger.warn(
+        `missing notified ${eventType} row IDs: ${missing.join(', ')}`,
       );
     }
-    const events = rows.map(({ notification_id, ...row }) => {
-      const notification = expected.get(parseId(notification_id).toString());
-      if (!notification)
-        throw new Error(`Unexpected notified ${eventType} row`);
-      if (rowDomain(row, stream.domain) !== notification.domain) {
-        throw new Error(`Incorrect domain in ${eventType} notification`);
+    const events = rows.flatMap(({ notification_id, ...row }) => {
+      try {
+        const notification = expected.get(parseId(notification_id).toString());
+        if (!notification)
+          throw new Error(`Unexpected notified ${eventType} row`);
+        if (rowDomain(row, stream.domain) !== notification.domain) {
+          throw new Error(`Incorrect domain in ${eventType} notification`);
+        }
+        return [row];
+      } catch (error) {
+        this.logger.warn(
+          `skipping invalid notified ${eventType} row: ${errorMessage(error)}`,
+        );
+        return [];
       }
-      return row;
     });
     events.sort((a, b) => compareRows(eventType, a, b));
     events.forEach((row) => this.publish(eventType, row));
@@ -818,7 +848,7 @@ function matchesDomain(subscription: Subscription, domain: number): boolean {
 }
 
 function columns(stream: Stream): string {
-  return stream.columns.map(q).join(', ');
+  return stream.projection;
 }
 
 function sequenceConfig(stream: Stream): NonNullable<Stream['sequence']> {
@@ -837,8 +867,8 @@ function rowSequence(
   eventType: EventType,
   row: Row,
 ): { address: string; value: bigint } | undefined {
-  const sequence = STREAMS[eventType].sequence;
-  if (!sequence) return undefined;
+  if (!isSequencedEventType(eventType)) return undefined;
+  const sequence = sequenceConfig(STREAMS[eventType]);
   const address = row[sequence.address];
   if (typeof address !== 'string') {
     throw new Error(`Invalid ${sequence.address} in event row`);
@@ -850,13 +880,7 @@ function rowSequence(
 }
 
 function parseSequence(value: unknown): bigint {
-  if (
-    (typeof value === 'number' && Number.isSafeInteger(value) && value >= -1) ||
-    (typeof value === 'string' && /^(?:-1|\d+)$/.test(value))
-  ) {
-    return BigInt(value);
-  }
-  throw new Error('Invalid event sequence');
+  return parseInteger(value, -1, 'Invalid event sequence');
 }
 
 function sequenceKey(domain: number, address: string): string {
@@ -884,10 +908,4 @@ function compareRows(eventType: EventType, a: Row, b: Row): number {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function rawData(data: RawData): string {
-  if (Array.isArray(data)) return Buffer.concat(data).toString('utf8');
-  if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
-  return data.toString('utf8');
 }

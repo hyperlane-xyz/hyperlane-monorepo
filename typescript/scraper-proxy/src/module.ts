@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
+import { ApolloServerPluginLandingPageDisabled } from '@apollo/server/plugin/disabled';
 import { ApolloServerPluginCacheControl } from '@apollo/server/plugin/cacheControl';
 import { ApolloDriver, type ApolloDriverConfig } from '@nestjs/apollo';
 import {
@@ -47,7 +47,7 @@ type Stats = {
 
 const logger = new Logger('GraphQL');
 const plugins = [
-  ApolloServerPluginLandingPageLocalDefault(),
+  ApolloServerPluginLandingPageDisabled(),
   ApolloServerPluginCacheControl({ calculateHttpHeaders: false }),
   scraperDbCachePlugin(),
 ];
@@ -74,7 +74,6 @@ setInterval(() => {
       imports: [DbModule],
       inject: [DbService],
       useFactory: (db: DbService) => ({
-        csrfPrevention: false,
         formatError,
         playground: false,
         // CAST: Nest and Apollo expose the same plugin API through distinct
@@ -108,7 +107,6 @@ function graphqlMiddleware(
     return;
   }
   activeRequests++;
-  normalizeGraphqlRequestBody(req.body);
   let completed = false;
   const complete = (): void => {
     if (completed) return;
@@ -123,6 +121,7 @@ function graphqlMiddleware(
   };
   res.on('finish', complete);
   res.on('close', complete);
+  normalizeGraphqlRequestBody(req.body);
   next();
 }
 

@@ -1,4 +1,8 @@
-import { type OperationDefinitionNode, valueFromASTUntyped } from 'graphql';
+import {
+  OperationTypeNode,
+  type OperationDefinitionNode,
+  valueFromASTUntyped,
+} from 'graphql';
 
 export const DEFAULT_CACHE_TTL_SECONDS = 60;
 export const MAX_CACHE_TTL_SECONDS = 300;
@@ -16,7 +20,7 @@ export function cacheDirective(
   operation: OperationDefinitionNode,
   variables?: Record<string, unknown>,
 ): CacheDirective | null {
-  if (operation.operation !== 'query') return null;
+  if (operation.operation !== OperationTypeNode.QUERY) return null;
   const node = operation.directives?.find(
     ({ name }) => name.value === 'cached',
   );
