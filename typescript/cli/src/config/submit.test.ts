@@ -15,7 +15,11 @@ import {
 
 import { readYamlOrJson } from '../utils/files.js';
 
-import { prepareExternalSubmission, runExternalSubmit } from './submit.js';
+import {
+  prepareExternalSubmission,
+  runExternalSubmit,
+  validateExternalTransactions,
+} from './submit.js';
 
 describe('external submission', () => {
   const tempDirs: string[] = [];
@@ -138,6 +142,30 @@ describe('external submission', () => {
   });
 
   describe('runExternalSubmit', () => {
+    it('validates the complete external batch before submission', async () => {
+      const submit = sinon.stub(EV5JsonRpcTxSubmitter.prototype, 'submit');
+      const receiptsPath = mkdtempSync(
+        join(tmpdir(), 'hyperlane-external-receipts-'),
+      );
+      tempDirs.push(receiptsPath);
+
+      let error: Error | undefined;
+      try {
+        await runExternalSubmit({
+          context: { multiProvider, skipConfirmation: true },
+          signer,
+          transactions: [tx, { ...tx, maxFeePerGas: '-1' }],
+          receiptsFilepath: receiptsPath,
+        });
+      } catch (caught) {
+        error = caught instanceof Error ? caught : new Error(String(caught));
+      }
+
+      expect(error?.message).to.include('Invalid');
+      expect(submit.called).to.equal(false);
+      expect(getFeeData.called).to.equal(false);
+    });
+
     it('writes partial submission progress before rethrowing', async () => {
       // CAST: minimal ethers receipt fixture; serialization is the behavior under test.
       const receipt = {
@@ -178,6 +206,40 @@ describe('external submission', () => {
         { transactionHash: '0x01', receipt },
         { transactionHash: '0x02' },
       ]);
+    });
+  });
+
+  describe('validateExternalTransactions', () => {
+    it('normalizes supported numeric and access-list fields', () => {
+      const [validated] = validateExternalTransactions([
+        {
+          ...tx,
+          accessList: {
+            [Wallet.createRandom().address]: [`0x${'00'.repeat(32)}`],
+          },
+          gasLimit: '0x5208',
+          maxFeePerGas: '3',
+          maxPriorityFeePerGas: 1,
+          type: 2,
+          value: BigNumber.from(0),
+        },
+      ]);
+
+      expect(BigNumber.isBigNumber(validated.gasLimit)).to.equal(true);
+      expect(validated.gasLimit?.toString()).to.equal('21000');
+      expect(validated.accessList).to.have.length(1);
+    });
+
+    it('rejects unsupported transaction fields', () => {
+      expect(() =>
+        validateExternalTransactions([{ ...tx, ccipReadEnabled: true }]),
+      ).to.throw('Unrecognized key');
+    });
+
+    it('rejects incompatible fee fields', () => {
+      expect(() =>
+        validateExternalTransactions([{ ...tx, gasPrice: 1, maxFeePerGas: 2 }]),
+      ).to.throw('gasPrice cannot be combined');
     });
   });
 });

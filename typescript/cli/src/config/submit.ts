@@ -1,6 +1,7 @@
 import { confirm } from '@inquirer/prompts';
-import { BigNumber, type Signer } from 'ethers';
+import { BigNumber, type Signer, utils as ethersUtils } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
+import { z } from 'zod';
 
 import {
   type AnnotatedEV5Transaction,
@@ -13,6 +14,7 @@ import {
   assert,
   eqAddress,
   errorToString,
+  isValidAddressEvm,
 } from '@hyperlane-xyz/utils';
 
 import {
@@ -75,6 +77,116 @@ interface ExternalSubmissionPlan {
   requiredBalance: BigNumber;
 }
 
+const ExternalBigNumberSchema = z
+  .union([
+    z.custom<BigNumber>(BigNumber.isBigNumber),
+    z.number().int().safe().nonnegative(),
+    z.string().regex(/^(?:0x[0-9a-fA-F]+|[0-9]+)$/),
+  ])
+  .transform((value) => BigNumber.from(value));
+
+const EvmAddressSchema = z
+  .string()
+  .refine(isValidAddressEvm, 'Invalid EVM address');
+const EvmDataSchema = z
+  .string()
+  .regex(/^0x(?:[0-9a-fA-F]{2})*$/, 'Invalid EVM transaction data');
+const StorageKeySchema = z
+  .string()
+  .regex(/^0x[0-9a-fA-F]{64}$/, 'Invalid access-list storage key');
+const AccessListRecordSchema = z
+  .record(z.array(StorageKeySchema))
+  .refine(
+    (accessList) => Object.keys(accessList).every(isValidAddressEvm),
+    'Invalid access-list address',
+  );
+const AccessListSchema = z
+  .union([
+    z.array(
+      z
+        .object({
+          address: EvmAddressSchema,
+          storageKeys: z.array(StorageKeySchema),
+        })
+        .strict(),
+    ),
+    z.array(z.tuple([EvmAddressSchema, z.array(StorageKeySchema)])),
+    AccessListRecordSchema,
+  ])
+  .transform((accessList) => ethersUtils.accessListify(accessList));
+
+const ExternalTransactionSchema = z
+  .object({
+    accessList: AccessListSchema.optional(),
+    annotation: z.string().optional(),
+    chainId: z.number().int().safe().positive(),
+    data: EvmDataSchema.optional(),
+    from: EvmAddressSchema.optional(),
+    gasLimit: ExternalBigNumberSchema.optional(),
+    gasPrice: ExternalBigNumberSchema.optional(),
+    maxFeePerGas: ExternalBigNumberSchema.optional(),
+    maxPriorityFeePerGas: ExternalBigNumberSchema.optional(),
+    nonce: z.number().int().safe().nonnegative().optional(),
+    to: EvmAddressSchema.optional(),
+    type: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
+    value: ExternalBigNumberSchema.optional(),
+  })
+  .strict()
+  .superRefine((transaction, context) => {
+    if (
+      transaction.gasPrice !== undefined &&
+      (transaction.maxFeePerGas !== undefined ||
+        transaction.maxPriorityFeePerGas !== undefined)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'gasPrice cannot be combined with EIP-1559 fee fields',
+      });
+    }
+    if (
+      transaction.maxFeePerGas !== undefined &&
+      transaction.maxPriorityFeePerGas?.gt(transaction.maxFeePerGas)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'maxPriorityFeePerGas cannot exceed maxFeePerGas',
+      });
+    }
+    if (
+      transaction.type === 0 &&
+      (transaction.accessList !== undefined ||
+        transaction.maxFeePerGas !== undefined ||
+        transaction.maxPriorityFeePerGas !== undefined)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Type 0 transactions cannot use access lists or EIP-1559 fees',
+      });
+    }
+    if (
+      transaction.type === 1 &&
+      (transaction.maxFeePerGas !== undefined ||
+        transaction.maxPriorityFeePerGas !== undefined)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Type 1 transactions cannot use EIP-1559 fee fields',
+      });
+    }
+    if (transaction.type === 2 && transaction.gasPrice !== undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Type 2 transactions cannot use gasPrice',
+      });
+    }
+  });
+
+export function validateExternalTransactions(
+  transactions: unknown[],
+): AnnotatedEV5Transaction[] {
+  return z.array(ExternalTransactionSchema).min(1).parse(transactions);
+}
+
 export async function runExternalSubmit({
   context,
   signer,
@@ -83,13 +195,14 @@ export async function runExternalSubmit({
 }: {
   context: Pick<CommandContext, 'multiProvider' | 'skipConfirmation'>;
   signer: Signer;
-  transactions: AnnotatedEV5Transaction[];
+  transactions: unknown[];
   receiptsFilepath: string;
 }): Promise<void> {
+  const validatedTransactions = validateExternalTransactions(transactions);
   const plans = await prepareExternalSubmission({
     context,
     signer,
-    transactions,
+    transactions: validatedTransactions,
   });
 
   logGray('External signer submission plan');
@@ -110,7 +223,7 @@ export async function runExternalSubmit({
 
   if (!context.skipConfirmation) {
     const confirmed = await confirm({
-      message: `Submit ${transactions.length} transaction(s) with the external signer?`,
+      message: `Submit ${validatedTransactions.length} transaction(s) with the external signer?`,
       default: false,
     });
     assert(confirmed, 'Transaction submission cancelled');
