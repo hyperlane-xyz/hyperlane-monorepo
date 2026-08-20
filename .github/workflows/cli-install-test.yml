@@ -32,7 +32,7 @@ jobs:
 
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.sha }}
           no-cache: true

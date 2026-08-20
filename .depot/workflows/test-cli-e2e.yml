@@ -56,11 +56,11 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
       - name: CLI e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:ethereum:e2e
         env:
@@ -135,11 +135,11 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
       - name: CLI e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:ethereum:e2e
         env:
@@ -165,11 +165,11 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
       - name: CLI cosmosnative e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:cosmosnative:e2e
         env:
@@ -203,11 +203,11 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
       - name: CLI cosmosnative e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:cosmosnative:e2e
         env:
@@ -232,11 +232,11 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
       - name: CLI radix e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:radix:e2e
         env:
@@ -268,11 +268,11 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
       - name: CLI radix e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:radix:e2e
         env:
@@ -297,11 +297,11 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
       - name: CLI starknet e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:starknet:e2e
         env:
@@ -344,11 +344,11 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
       - name: CLI starknet e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:starknet:e2e
         env:
@@ -375,11 +375,11 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
       - name: CLI tron e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:tron:e2e
         env:
@@ -407,11 +407,11 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
       - name: CLI cross chain e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:cross-chain:e2e
         env:
@@ -434,11 +434,11 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
       - name: CLI cross chain e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:cross-chain:e2e
         env:
@@ -464,11 +464,11 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
       - name: CLI aleo e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:aleo:e2e
         env:
@@ -504,11 +504,11 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
       - name: CLI aleo e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:aleo:e2e
         env:
@@ -533,11 +533,11 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
       - name: CLI sealevel e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:sealevel:e2e
         env:
@@ -570,11 +570,11 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
       - name: Install surfpool
         if: matrix.test == 'warp-fork'
         env:
@@ -611,11 +611,11 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
       - name: CLI relayer e2e test
         run: pnpm -C typescript/cli test:ethereum:e2e
         env:
@@ -632,11 +632,11 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
       - name: CLI rebalancer e2e test
         run: pnpm -C typescript/cli test:ethereum:e2e
         env:

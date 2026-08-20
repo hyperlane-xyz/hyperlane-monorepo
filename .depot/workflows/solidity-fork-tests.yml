@@ -7,7 +7,7 @@ on:
   pull_request:
     paths:
       - 'solidity/**'
-      - '.github/workflows/solidity-fork-tests.yml'
+      - '.depot/workflows/solidity-fork-tests.yml'
   schedule:
     # Run daily at 6:00 UTC
     - cron: '0 6 * * *'
@@ -48,7 +48,7 @@ jobs:
           echo "RPC_URL_BASE=${MAINNET3_BASE_RPC_URLS%%,*}" >> $GITHUB_ENV
 
       - name: pnpm-build
-        uses: ./.github/actions/pnpm-build-with-cache
+        uses: ./.depot/actions/pnpm-build-with-cache
 
       - name: Run Fork Tests
         working-directory: ./solidity

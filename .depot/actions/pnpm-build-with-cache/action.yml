@@ -14,11 +14,11 @@ runs:
         node-version-file: .nvmrc
 
     - name: Setup Foundry
-      uses: ./.github/actions/setup-foundry
+      uses: ./.depot/actions/setup-foundry
 
     - name: pnpm-cache
       id: pnpm-cache
-      uses: ./.github/actions/pnpm-cache
+      uses: ./.depot/actions/pnpm-cache
 
     - name: Cache Hardhat compilers
       uses: actions/cache@v6
