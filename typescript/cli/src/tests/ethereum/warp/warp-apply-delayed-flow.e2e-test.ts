@@ -396,7 +396,7 @@ describe('hyperlane warp apply with DelayedFlowRouterHookIsm e2e tests', async f
     );
   });
 
-  it('removes delayed-flow ISMs route-wide before removing their hooks', async () => {
+  it('removes each delayed-flow ISM before its hook', async () => {
     await deployPlainRoute();
 
     const delayedFlowConfig: WarpRouteDeployConfig = {
@@ -627,7 +627,7 @@ describe('hyperlane warp apply with DelayedFlowRouterHookIsm e2e tests', async f
       registryPath: REGISTRY_PATH,
     });
 
-    // One apply executes enrollment, hook, and ISM phases route-wide in order.
+    // One apply executes enrollment, hook, and ISM updates in each chain's batch.
     await hyperlaneWarpApply(WARP_ID);
 
     // Both instances exist, are paired with their router, and are mutually

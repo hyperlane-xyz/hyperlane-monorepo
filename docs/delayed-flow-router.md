@@ -101,12 +101,11 @@ an amount that produces no delay.
 
 Introducing, replacing, or removing a hybrid hook/ISM changes two independently
 delivered message streams: warp transfers and DFR preverifies. `warp apply`
-orders hybrid enrollment before hooks, and hooks before ISMs, when introducing
-or replacing a DFR. When removing a DFR, it removes the ISM on every route chain
-before removing any DFR hook. This reverse order lets destinations stop requiring
-preverifies while origins may still send harmless extra ones. The CLI does not
-pause to drain in-flight messages, so every DFR lifecycle change needs an
-operator gate before apply:
+orders enrollment before hooks and hooks before ISMs within each chain's batch
+when introducing or replacing a DFR. When removing one, each chain's batch
+removes the ISM before the hook so destination verification stops before origin
+preverification. The CLI does not pause to drain in-flight messages, so every
+DFR lifecycle change needs an operator gate before apply:
 
 1. Prevent new warp transfers on every leg while leaving relayers running.
 2. Wait for all previously dispatched warp and preverify messages to be

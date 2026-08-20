@@ -210,7 +210,7 @@ const getRebalanceRecipientsByDomain = (
   );
 };
 
-/** Route-wide ordering details used by warp apply. */
+/** Per-chain transaction groups used by warp apply. */
 export type WarpUpdatePhases = {
   /** Proxy implementation upgrades. Must precede everything else. */
   upgradeTxs: AnnotatedEV5Transaction[];
@@ -224,8 +224,8 @@ export type WarpUpdatePhases = {
   ownershipTxs: AnnotatedEV5Transaction[];
   /**
    * The shared hybrid hook/ISM instance this update installs on both surfaces,
-   * when the config declares one. Callers use it for route-wide counterpart
-   * enrollment before installing either router surface.
+   * when the config declares one. Callers use it for cross-chain counterpart
+   * enrollment before either router surface changes in this chain's batch.
    */
   hybridIsm?: Address;
   /** An installed delayed-flow router is absent from the target config. */
@@ -465,7 +465,7 @@ export class EvmWarpModule extends HyperlaneModule<
   }
 
   /**
-   * Plans a Warp Route update as route-wide execution phases.
+   * Plans a Warp Route update as per-chain transaction groups.
    *
    * IMPORTANT — irreversible side effects when expectedConfig includes `predicateWrapper`:
    * The PredicateRouterWrapper contract is deployed on-chain during planning (before this
@@ -480,8 +480,7 @@ export class EvmWarpModule extends HyperlaneModule<
    * transaction plan can still leave an untracked timelock deployment.
    *
    * @param expectedConfig - The configuration for the token router to be updated.
-   * Used by warp apply, which must execute each phase across every chain before
-   * moving to the next one.
+   * Used by warp apply to assemble one ordered batch for this chain.
    */
   async updatePhases(
     expectedConfig: HypTokenRouterConfig,
@@ -601,8 +600,8 @@ export class EvmWarpModule extends HyperlaneModule<
     // hook/ISM gating delivery while nothing drives its postDispatch — no
     // preverification is ever sent for the messages dispatched in that window,
     // and none can be sent afterwards, so they are permanently undeliverable.
-    // Returned in their own buckets so callers can hold that order across every
-    // chain of the route, not just within one batch.
+    // Returned in their own buckets so callers can choose the safe order within
+    // this chain's batch, including reversing it when removing delayed flow.
     const hookTxs = await this.createHookAndPredicateUpdateTxs(
       actualConfig,
       resolvedConfig,
@@ -785,8 +784,8 @@ export class EvmWarpModule extends HyperlaneModule<
   /**
    * Reuses or deploys the one hybrid leaf declared on both config surfaces.
    * Parent trees only ever receive the returned address, preventing duplicate
-   * bucket state. Instance mutations are returned separately so route-wide
-   * enrollment completes before either router surface changes.
+   * bucket state. Instance mutations are returned separately so counterpart
+   * enrollment can precede either router-surface change in this chain's batch.
    */
   private async resolveHybridInstance(
     actualConfig: DerivedTokenRouterConfig,
@@ -833,9 +832,9 @@ export class EvmWarpModule extends HyperlaneModule<
       hookNodes.length <= 1 && ismNodes.length <= 1,
       `Expected at most one installed hybrid hook/ISM on each surface of ${this.chainName}, found ${hookNodes.length} under hook and ${ismNodes.length} under interchainSecurityModule`,
     );
-    // Prefer the hook: submission can be interrupted after the route-wide hook
-    // phase, leaving the new leaf installed while the ISM still has the old
-    // tree. A later apply must reuse that new leaf.
+    // Prefer the hook: submission can be interrupted after its update but before
+    // the ISM update, leaving the new leaf installed while the ISM still has the
+    // old tree. A later apply must reuse that new leaf.
     const candidate = hookNodes[0] ?? ismNodes[0];
     const currentAddress =
       candidate &&
