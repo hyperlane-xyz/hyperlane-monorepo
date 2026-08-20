@@ -42,6 +42,7 @@ export interface ContextSettings extends BaseContext {
   registryUris: string[];
   disableProxy?: boolean;
   authToken?: string;
+  skipLocalSigner?: boolean;
 }
 
 export interface CommandContext extends Omit<

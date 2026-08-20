@@ -86,7 +86,13 @@ function toOptionalSignerKey(value: unknown): ContextSettings['key'] {
 }
 
 export async function contextMiddleware(argv: ContextMiddlewareArgv) {
-  const requiresKey = isSignCommand(argv);
+  const signerConfig = toOptionalString(argv.signerConfig);
+  assert(
+    !(signerConfig && toOptionalString(argv.strategy)),
+    '--strategy cannot be combined with --signer-config',
+  );
+  const skipLocalSigner = Boolean(signerConfig);
+  const requiresKey = isSignCommand(argv) && !skipLocalSigner;
 
   const settings: ContextSettings = {
     registryUris: parseRegistryUris(argv.registry),
@@ -96,6 +102,7 @@ export async function contextMiddleware(argv: ContextMiddlewareArgv) {
     skipConfirmation: toOptionalBoolean(argv.yes),
     strategyPath: toOptionalString(argv.strategy),
     authToken: toOptionalString(argv.authToken),
+    skipLocalSigner,
   };
 
   argv.context = await getContext(settings);
@@ -123,6 +130,16 @@ export async function signerMiddleware(argv: ContextMiddlewareArgv) {
    * Resolves chains based on the command type.
    */
   const chains = await resolveChains(argv);
+
+  if (toOptionalString(argv.signerConfig)) {
+    for (const chain of chains) {
+      assert(
+        argv.context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+        `External EVM signers cannot submit transactions on ${chain}`,
+      );
+    }
+    return;
+  }
 
   /**
    * Load and create AltVM Providers
@@ -205,6 +222,7 @@ export async function getContext({
   disableProxy = false,
   strategyPath,
   authToken,
+  skipLocalSigner = false,
 }: ContextSettings): Promise<CommandContext> {
   const registry = getRegistry({
     registryUris,
@@ -213,10 +231,12 @@ export async function getContext({
     authToken,
   });
 
-  const { keyMap, ethereumSignerAddress } = await getSignerKeyMap(
-    key,
-    !!skipConfirmation,
-  );
+  const { keyMap, ethereumSignerAddress } = skipLocalSigner
+    ? {
+        keyMap: SignerKeyProtocolMapSchema.parse({}),
+        ethereumSignerAddress: undefined,
+      }
+    : await getSignerKeyMap(key, !!skipConfirmation);
 
   const multiProvider = await getMultiProvider(registry);
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
