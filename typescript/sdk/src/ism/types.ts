@@ -480,6 +480,13 @@ export const NetFlowRateLimitedHookIsmConfigSchema = z
     path: ['duration'],
   });
 
+/**
+ * Operational bound for DelayedFlowRouterHookIsm waits. The contract adds the
+ * delay to a uint48 Unix timestamp; uint32 seconds (~136 years) exceeds any
+ * practical delay while leaving ample timestamp headroom.
+ */
+export const MAX_SAFE_UINT48 = 2 ** 32 - 1;
+
 export const DelayedFlowRouterHookIsmConfigSchema = OwnableSchema.extend({
   type: z.literal(IsmType.DELAYED_FLOW_ROUTER),
   /**
@@ -491,9 +498,8 @@ export const DelayedFlowRouterHookIsmConfigSchema = OwnableSchema.extend({
   warpRouter: ZHash.optional(),
   /** Bucket size per `duration` window, in bps of live TVL (delay mode permits 100%). */
   thresholdBps: z.number().int().min(0).max(10000),
-  /** Cap on any single message's wait time, in seconds (uint48). */
-  /** Cap on any single message's wait, in seconds. uint48 on-chain. */
-  maxDelay: z.number().int().nonnegative().max(281474976710655),
+  /** Cap on any single message's wait, in seconds. */
+  maxDelay: z.number().int().nonnegative().max(MAX_SAFE_UINT48),
   /** Refill window in seconds — must match the on-chain immutable `DURATION`. */
   duration: ZBigNumberish,
   /**

@@ -137,11 +137,11 @@ first set `feeHook` explicitly to the zero address and apply that change without
 changing the hook tree. After the zero address is confirmed on-chain, apply the
 DFR config in a second operation.
 
-### Keep `maxDelay` within a practical bound
+### `maxDelay` operational bound
 
 `readyAt` and `maxDelay` are `uint48`, and readiness is calculated as the
-current timestamp plus the selected delay. Do not configure `maxDelay` near
-`uint48` max: adding it to a positive block timestamp can overflow and prevent
-preverify processing. Operational delay values measured in seconds, minutes,
-hours, or days leave ample headroom. A zero `thresholdBps` makes every positive
-withdrawal select `maxDelay`, so combine it only with a safely bounded delay.
+current timestamp plus the selected delay. The SDK limits `maxDelay` to
+`2**32 - 1` seconds (about 136 years), preventing operational configs near
+`uint48` max from overflowing that addition. A zero `thresholdBps` makes every
+positive withdrawal select `maxDelay`, so choose an operationally useful value
+even though the schema permits this conservative upper bound.

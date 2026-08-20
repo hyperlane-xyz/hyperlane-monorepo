@@ -13,7 +13,7 @@ import {
   ProtocolAgnositicGasOracleConfigSchema,
   ProtocolAgnositicGasOracleConfigWithTypicalCostSchema,
 } from '../gas/oracle/types.js';
-import { ZRouterBytes32 } from '../ism/types.js';
+import { MAX_SAFE_UINT48, ZRouterBytes32 } from '../ism/types.js';
 import {
   ZBigNumberish,
   ZChainName,
@@ -415,8 +415,8 @@ export const DelayedFlowRouterHookConfigSchema = OwnableSchema.extend({
   type: z.literal(HookType.DELAYED_FLOW_ROUTER),
   warpRouter: ZHash.optional(),
   thresholdBps: z.number().int().min(0).max(10000),
-  /** Cap on any single message's wait, in seconds. uint48 on-chain. */
-  maxDelay: z.number().int().nonnegative().max(281474976710655),
+  /** Cap on any single message's wait, in seconds. */
+  maxDelay: z.number().int().nonnegative().max(MAX_SAFE_UINT48),
   duration: ZBigNumberish,
   /**
    * Enrolled remote counterparts, keyed by chain name; values are the remote

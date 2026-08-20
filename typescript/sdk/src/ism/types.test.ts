@@ -13,6 +13,7 @@ import {
   DelayedFlowRouterHookIsmConfigSchema,
   IsmConfigSchema,
   IsmType,
+  MAX_SAFE_UINT48,
   ModuleType,
   RateLimitedIsmConfigSchema,
   NetFlowRateLimitedHookIsmConfigSchema,
@@ -470,16 +471,19 @@ describe('DelayedFlowRouterHookIsmConfigSchema', () => {
       .true;
   });
 
-  it('rejects a maxDelay above uint48', () => {
-    const tooLarge = { ...valid, maxDelay: 2 ** 48 };
-    expect(DelayedFlowRouterHookIsmConfigSchema.safeParse(tooLarge).success).to
-      .be.false;
+  it('enforces the operational maxDelay bound', () => {
     expect(
       DelayedFlowRouterHookIsmConfigSchema.safeParse({
         ...valid,
-        maxDelay: 2 ** 48 - 1,
+        maxDelay: MAX_SAFE_UINT48,
       }).success,
     ).to.be.true;
+    expect(
+      DelayedFlowRouterHookIsmConfigSchema.safeParse({
+        ...valid,
+        maxDelay: MAX_SAFE_UINT48 + 1,
+      }).success,
+    ).to.be.false;
   });
 
   it('parses a DELAYED_FLOW_ROUTER without warpRouter (injected by the warp deploy machinery)', () => {
