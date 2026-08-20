@@ -13,6 +13,7 @@ import {
   getRebalancingBridgesConfigFor,
   getUSDCRebalancingBridgesConfigFor,
   mergeAllowedBridges,
+  REBALANCER,
 } from './utils.js';
 
 // Staging mimic of the production CROSS/moonpay USDC route (getUSDCCitreaMoonpayWarpConfig).
@@ -36,7 +37,6 @@ const SOLANA_XO_TOKEN_MINT = 'xoUSDq85Rjsb6SbUwJyreFgeWQvxdkT7R3c3g7s6p5Y';
 const SOLANA_XO_NAME = 'XO Cash';
 const SOLANA_XO_SYMBOL = 'XO';
 
-const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
 const EXTRA_REBALANCER = '0x2cB236403574301029c7bDDfda133c6e0338a857';
 const ALLOWED_REBALANCERS = [REBALANCER, EXTRA_REBALANCER];
 const EVM_CHAINS = ['arbitrum', 'base', 'ethereum', 'polygon'] as const;

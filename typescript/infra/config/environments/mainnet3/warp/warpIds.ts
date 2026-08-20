@@ -134,6 +134,7 @@ export enum WarpRouteIds {
   USDCCitreaMoonpay = 'USDC/moonpay',
   USDCCitreaIronBridge = 'CROSS/ctusd-usdc-ironbridge',
   USDTCitreaMoonpay = 'USDT/moonpay',
+  CROSSMoonpayLocalBridgeUSDT = 'CROSS/moonpay-localbridge-usdt',
   USDCCitreaMoonpaySTAGING = 'USDC/moonpay-staging',
   USDTCitreaMoonpaySTAGING = 'USDT/moonpay-staging',
   CROSSCitreaMoonpay = 'CROSS/moonpay',
