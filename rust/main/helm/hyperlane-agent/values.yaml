@@ -109,7 +109,7 @@ hyperlane:
       enabled: false
       port: 8900
       tunnel:
-        image: cloudflare/cloudflared:2025.4.0
+        image: cloudflare/cloudflared:2026.8.2
     podAnnotations:
       prometheus.io/port: '9090'
       prometheus.io/scrape: 'true'
