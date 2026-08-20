@@ -1,14 +1,14 @@
 import { ChainMap } from '@hyperlane-xyz/sdk';
 
-// Full public RPC URLs to exclude from the validator's Quorum RPC pool, matched
-// exactly against the URLs in the shared per-chain RPC secret. Only the
-// validator's Quorum consensus fans every request out to all providers, so a
-// chronically-erroring endpoint counts against reaching majority and trips the
-// "Validator RPC Quorum Risk" alert. Relayer/scraper use Fallback consensus and
-// never reach these endpoints, so this list is intentionally NOT applied to the
-// general agent config or the shared RPC secret — only to the validator's
-// CUSTOMRPCURLS at Helm render time (see hyperlane-agent/templates/
-// external-secret.yaml, which drops these exact URLs from the secret list).
+// Full public RPC URLs to exclude from the validator's additional quorum RPC
+// pool (CUSTOMADDITIONALQUORUMRPCURLS), matched exactly against the public
+// registry rpcUrls. Only the validator fans every request out to all providers
+// in this pool, so a chronically-erroring endpoint counts against reaching
+// majority and trips the "Validator RPC Quorum Risk" alert. Relayer/scraper use
+// Fallback consensus and never reach these endpoints, so this list is
+// intentionally NOT applied to the general agent config or the shared RPC secret
+// — only to the validator's publicRpcUrls at Helm-values build time (see
+// ValidatorHelmManager in src/agents/index.ts).
 //
 // Match is an exact full-URL equality: list only the public URLs, so private
 // URLs that happen to share a host (but carry an API key) are never blocked.
