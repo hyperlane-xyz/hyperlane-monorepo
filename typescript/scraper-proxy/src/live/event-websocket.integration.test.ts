@@ -10,6 +10,7 @@ import type { EventDatabase, EventWebSocketServer } from './event-websocket.js';
 const hookA = '\\xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const hookB = '\\xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const msgId = `\\x${'01'.repeat(32)}`;
+const msgBody = 'x'.repeat(300);
 const rows = new Map([
   ['1', row(hookB)],
   ['2', row(hookA)],
@@ -28,6 +29,7 @@ const db: EventDatabase = {
         stringArray(values[0]).map((messageId) => ({
           id: '42',
           is_delivered: false,
+          msg_body: msgBody,
           msg_id: messageId,
           origin_domain_id: 1,
         })),
@@ -56,7 +58,8 @@ before(async () => {
   events = new EventWebSocketServer(db, true, {
     maxAgentClients: 1,
     maxCatchUpRows: 0,
-    maxExplorerClients: 1,
+    maxExplorerClients: 4,
+    maxTotalBufferedBytes: 512,
   });
   await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve));
   const address = http.address();
@@ -163,11 +166,39 @@ void it('emits normalized message upserts to Explorer', async () => {
   assert.deepEqual(event.data, {
     id: '42',
     is_delivered: false,
+    msg_body: msgBody,
     msg_id: msgId,
     origin_domain_id: 1,
   });
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', () => resolve()));
+});
+
+void it('bounds aggregate Explorer outbound buffering', async () => {
+  const sockets = Array.from({ length: 4 }, () => new WebSocket(explorerUrl));
+  const messages: Record<string, unknown>[][] = sockets.map(() => []);
+  const closeCodes: number[] = [];
+  sockets.forEach((socket, index) => {
+    socket.on('message', (data) =>
+      messages[index]?.push(parseRecord(rawData(data))),
+    );
+    socket.on('close', (code) => closeCodes.push(code));
+  });
+  await Promise.all(messages.map((items) => waitFor(items, 'ready')));
+  notify(
+    'scraper_explorer_event',
+    JSON.stringify({ messageId: msgId.slice(2) }),
+  );
+  await waitUntil(
+    () =>
+      messages.flat().filter(({ type }) => type === 'message_upsert').length ===
+        1 && closeCodes.length === 3,
+  );
+  assert.deepEqual(closeCodes, [1006, 1006, 1006]);
+  sockets.forEach((socket) => socket.close());
+  await waitUntil(() =>
+    sockets.every(({ readyState }) => readyState === WebSocket.CLOSED),
+  );
 });
 
 function row(merkle_tree_hook: string): Record<string, unknown> {
@@ -198,6 +229,14 @@ async function waitFor(
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error(`Timed out waiting for ${type}`);
+}
+
+async function waitUntil(predicate: () => boolean): Promise<void> {
+  for (let attempts = 0; attempts < 100; attempts++) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('Timed out waiting for condition');
 }
 
 function rawData(data: WebSocket.RawData): string {

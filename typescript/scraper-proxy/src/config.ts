@@ -37,8 +37,17 @@ const ConfigSchema = z.object({
     .int()
     .min(1)
     .default(1_000_000),
+  EVENT_STREAM_MAX_BUFFERED_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1_024)
+    .default(1_048_576),
+  EVENT_STREAM_MAX_TOTAL_BUFFERED_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1_024)
+    .default(33_554_432),
   GRAPHQL_MAX_ACTIVE_REQUESTS: z.coerce.number().int().min(1).default(25),
-  GRAPHQL_REQUESTS_PER_SECOND: z.coerce.number().int().min(1).default(100),
   LISTEN_DATABASE_URL: z.string().min(1).optional(),
   PORT: z.coerce.number().int().positive().default(8383),
 });

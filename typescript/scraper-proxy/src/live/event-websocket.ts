@@ -34,7 +34,6 @@ const MAX_AGENT_CLIENTS = 100;
 const MAX_EXPLORER_CLIENTS = 400;
 const MAX_CLIENT_MESSAGES = 30;
 const MAX_PENDING_EVENTS = 5_000;
-const MAX_BUFFERED_BYTES = 1_048_576;
 
 type Row = Record<string, unknown>;
 type NotifiedRow = Row & { notification_id: number | string };
@@ -61,11 +60,14 @@ type Client = {
 };
 type Limits = {
   maxAgentClients: number;
+  maxBufferedBytes: number;
   maxCatchUpMs: number;
   maxCatchUpRows: number;
   maxConcurrentCatchUps: number;
   maxExplorerClients: number;
+  maxTotalBufferedBytes: number;
 };
+type SerializedMessage = { bytes: number; text: string };
 export type EventDatabase = Pick<DbService, 'listen' | 'queryLive'>;
 
 function stream(
@@ -121,6 +123,7 @@ export class EventWebSocketServer {
   private notificationTimer?: NodeJS.Timeout;
   private draining = false;
   private catchUps = 0;
+  private pendingBytes = 0;
   private listenerReady = false;
   private stopped = false;
   private stopListening?: () => Promise<void>;
@@ -136,10 +139,12 @@ export class EventWebSocketServer {
   ) {
     this.limits = {
       maxAgentClients: MAX_AGENT_CLIENTS,
+      maxBufferedBytes: config.EVENT_STREAM_MAX_BUFFERED_BYTES,
       maxCatchUpMs: config.EVENT_STREAM_HISTORY_MAX_MS,
       maxCatchUpRows: config.EVENT_STREAM_HISTORY_MAX_ROWS,
       maxConcurrentCatchUps: config.EVENT_STREAM_HISTORY_MAX_CONCURRENT,
       maxExplorerClients: MAX_EXPLORER_CLIENTS,
+      maxTotalBufferedBytes: config.EVENT_STREAM_MAX_TOTAL_BUFFERED_BYTES,
       ...limits,
     };
   }
@@ -162,7 +167,7 @@ export class EventWebSocketServer {
     );
     this.heartbeatTimer = setInterval(() => this.heartbeat(), HEARTBEAT_MS);
     this.logger.log(
-      `event websockets listening on ${AGENT_PATH}, ${EXPLORER_PATH} batchSize=${config.EVENT_STREAM_BATCH_SIZE} historyEnabled=${this.historyEnabled}`,
+      `event websockets listening on ${AGENT_PATH}, ${EXPLORER_PATH} batchSize=${config.EVENT_STREAM_BATCH_SIZE} historyEnabled=${this.historyEnabled} maxBufferedBytes=${this.limits.maxBufferedBytes} maxTotalBufferedBytes=${this.limits.maxTotalBufferedBytes}`,
     );
   }
 
@@ -652,8 +657,9 @@ export class EventWebSocketServer {
       [messageIds],
     );
     for (const row of rows) {
+      const message = serialize({ data: row, type: 'message_upsert' });
       this.explorerClients.forEach((_client, socket) =>
-        this.send(socket, { data: row, type: 'message_upsert' }),
+        this.sendSerialized(socket, message),
       );
     }
   }
@@ -722,22 +728,56 @@ export class EventWebSocketServer {
   }
 
   private send(socket: WebSocket, message: Record<string, unknown>): boolean {
+    return this.sendSerialized(socket, serialize(message));
+  }
+
+  private sendSerialized(
+    socket: WebSocket,
+    message: SerializedMessage,
+  ): boolean {
     if (socket.readyState !== WebSocket.OPEN) return false;
-    if (socket.bufferedAmount > MAX_BUFFERED_BYTES) {
-      const client = this.clients.get(socket);
-      client?.subscriptions.clear();
-      this.clients.delete(socket);
-      this.explorerClients.delete(socket);
-      socket.close(1013, 'Slow websocket consumer');
+    if (
+      socket.bufferedAmount + message.bytes > this.limits.maxBufferedBytes ||
+      this.pendingBytes + message.bytes > this.limits.maxTotalBufferedBytes
+    ) {
+      this.disconnect(socket);
+      this.logger.warn('terminating websocket: outbound buffer limit exceeded');
+      socket.terminate();
       return false;
     }
-    socket.send(JSON.stringify(message));
+    this.pendingBytes += message.bytes;
+    try {
+      socket.send(message.text, (error) => {
+        this.pendingBytes = Math.max(0, this.pendingBytes - message.bytes);
+        if (!error) return;
+        this.logger.warn(`websocket send failed: ${error.message}`);
+        this.disconnect(socket);
+        socket.terminate();
+      });
+    } catch (error) {
+      this.pendingBytes -= message.bytes;
+      this.logger.warn(`websocket send failed: ${errorMessage(error)}`);
+      this.disconnect(socket);
+      socket.terminate();
+      return false;
+    }
     return true;
+  }
+
+  private disconnect(socket: WebSocket): void {
+    this.clients.get(socket)?.subscriptions.clear();
+    this.clients.delete(socket);
+    this.explorerClients.delete(socket);
   }
 
   private sendError(socket: WebSocket, error: string): void {
     this.send(socket, { error, type: 'error' });
   }
+}
+
+function serialize(message: Record<string, unknown>): SerializedMessage {
+  const text = JSON.stringify(message);
+  return { bytes: Buffer.byteLength(text), text };
 }
 
 function subscriptionResponse(request: StreamRequest): Record<string, unknown> {

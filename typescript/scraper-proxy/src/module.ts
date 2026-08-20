@@ -38,6 +38,7 @@ type Response = {
 type Stats = {
   errors: number;
   maxMs: number;
+  rejected: number;
   requests: number;
   status4xx: number;
   status5xx: number;
@@ -58,12 +59,11 @@ if (!schemaPath) throw new Error('Missing scraper DB GraphQL schema');
 
 let stats = newStats();
 let activeRequests = 0;
-let requestWindow = { count: 0, startedAt: Date.now() };
 setInterval(() => {
   const current = stats;
   stats = newStats();
   logger.log(
-    `graphql stats requests=${current.requests} errors=${current.errors} status4xx=${current.status4xx} status5xx=${current.status5xx} avgMs=${current.requests ? Math.round(current.totalMs / current.requests) : 0} maxMs=${current.maxMs}`,
+    `graphql stats requests=${current.requests} rejected=${current.rejected} errors=${current.errors} status4xx=${current.status4xx} status5xx=${current.status5xx} avgMs=${current.requests ? Math.round(current.totalMs / current.requests) : 0} maxMs=${current.maxMs}`,
   );
 }, 60_000).unref();
 
@@ -100,17 +100,11 @@ function graphqlMiddleware(
   next: () => void,
 ): void {
   const started = Date.now();
-  const now = Date.now();
-  if (now - requestWindow.startedAt >= 1_000) {
-    requestWindow = { count: 0, startedAt: now };
-  }
-  if (
-    activeRequests >= config.GRAPHQL_MAX_ACTIVE_REQUESTS ||
-    ++requestWindow.count > config.GRAPHQL_REQUESTS_PER_SECOND
-  ) {
+  if (activeRequests >= config.GRAPHQL_MAX_ACTIVE_REQUESTS) {
     res.statusCode = 503;
     res.setHeader('retry-after', '1');
     res.end('GraphQL request capacity exceeded');
+    recordRequest(started, 503, true);
     return;
   }
   activeRequests++;
@@ -120,20 +114,32 @@ function graphqlMiddleware(
     if (completed) return;
     completed = true;
     activeRequests--;
-    const duration = Date.now() - started;
-    const status = res.statusCode ?? 0;
-    stats.requests++;
-    stats.totalMs += duration;
-    stats.maxMs = Math.max(stats.maxMs, duration);
-    if (status >= 400 && status < 500) stats.status4xx++;
-    if (status >= 500) stats.status5xx++;
-    logger.debug(
-      `${req.method ?? 'REQUEST'} ${req.originalUrl ?? req.url ?? '/graphql'} ${status} ${duration}ms`,
+    recordRequest(
+      started,
+      res.statusCode ?? 0,
+      false,
+      `${req.method ?? 'REQUEST'} ${req.originalUrl ?? req.url ?? '/graphql'}`,
     );
   };
   res.on('finish', complete);
   res.on('close', complete);
   next();
+}
+
+function recordRequest(
+  started: number,
+  status: number,
+  rejected: boolean,
+  request = 'REQUEST /graphql',
+): void {
+  const duration = Date.now() - started;
+  stats.requests++;
+  stats.totalMs += duration;
+  stats.maxMs = Math.max(stats.maxMs, duration);
+  if (rejected) stats.rejected++;
+  if (status >= 400 && status < 500) stats.status4xx++;
+  if (status >= 500) stats.status5xx++;
+  logger.debug(`${request} ${status} ${duration}ms`);
 }
 
 function formatError(error: GraphQLFormattedError): GraphQLFormattedError {
@@ -150,6 +156,7 @@ function newStats(): Stats {
   return {
     errors: 0,
     maxMs: 0,
+    rejected: 0,
     requests: 0,
     status4xx: 0,
     status5xx: 0,

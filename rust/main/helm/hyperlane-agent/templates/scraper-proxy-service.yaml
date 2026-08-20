@@ -1,0 +1,18 @@
+{{- if and .Values.hyperlane.scraper.enabled .Values.hyperlane.scraper.proxy.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agent-common.fullname" . }}-scraper-proxy
+  labels:
+    {{- include "agent-common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scraper3
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "agent-common.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: scraper3
+  ports:
+  - name: websocket
+    port: {{ .Values.hyperlane.scraper.proxy.port }}
+    targetPort: scraper-proxy
+{{- end }}
