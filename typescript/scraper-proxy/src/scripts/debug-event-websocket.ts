@@ -27,7 +27,7 @@ Options:
   -d, --domains <domains>    Domain IDs, comma-separated or repeated
   -c, --cursor <cursor>      Native cursor, repeatable:
                              eventType:domain:address:afterSequence
-                             Use -1 for the earliest sequence stored in the DB
+                             Use -1 to request from sequence 0
   -h, --help                 Show this help
 
 Event types: ${EVENT_TYPES.join(', ')}

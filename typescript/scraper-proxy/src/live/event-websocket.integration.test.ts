@@ -10,6 +10,10 @@ import { rawData } from './websocket-data.js';
 
 const hookA = '\\xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const hookB = '\\xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+const emptyHook = '\\xcccccccccccccccccccccccccccccccccccccccc';
+const budgetHook = '\\xdddddddddddddddddddddddddddddddddddddddd';
+const historyHook = '\\xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+const pacedHook = '\\xffffffffffffffffffffffffffffffffffffffff';
 const msgId = `\\x${'01'.repeat(32)}`;
 const msgBody = 'x'.repeat(300);
 const rows = new Map([
@@ -17,6 +21,7 @@ const rows = new Map([
   ['2', row(hookA)],
 ]);
 let notify: (channel: string, payload?: string) => void;
+let explorerQuery = '';
 
 const db: EventDatabase = {
   async listen(_channels, handler) {
@@ -24,8 +29,20 @@ const db: EventDatabase = {
     return async () => undefined;
   },
   async queryLive<T>(sql, values = []) {
-    if (sql.includes('MIN(')) return queryRows<T>([{ first: '0', last: '0' }]);
+    if (sql.includes('MIN('))
+      return queryRows<T>([
+        values[1] === emptyHook
+          ? { first: '0', last: '-1' }
+          : values[1] === budgetHook
+            ? { first: '0', last: '2' }
+            : values[1] === historyHook
+              ? { first: '5', last: '5' }
+              : values[1] === pacedHook
+                ? { first: '0', last: '1' }
+                : { first: '0', last: '0' },
+      ]);
     if (sql.includes('"message_view"')) {
+      explorerQuery = sql;
       return queryRows<T>(
         stringArray(values[0]).map((messageId) => ({
           id: '42',
@@ -36,8 +53,18 @@ const db: EventDatabase = {
         })),
       );
     }
-    if (sql.includes('ORDER BY "leaf_index"'))
-      return queryRows<T>([row(hookA)]);
+    if (sql.includes('ORDER BY "leaf_index"')) {
+      if (values[1] === budgetHook)
+        return queryRows<T>([
+          row(budgetHook, 0),
+          row(budgetHook, 1),
+          row(budgetHook, 2),
+        ]);
+      if (values[1] === historyHook) return queryRows<T>([row(historyHook, 5)]);
+      if (values[1] === pacedHook)
+        return queryRows<T>([row(pacedHook, 0), row(pacedHook, 1)]);
+      return queryRows<T>([row(hookA, 0)]);
+    }
     if (!sql.includes('notification_id')) return [];
     return queryRows<T>(
       stringArray(values[0]).map((id) => ({
@@ -56,10 +83,10 @@ let messagesUrl: string;
 before(async () => {
   process.env.DATABASE_URL ??= 'postgresql://unused:unused@localhost/unused';
   const { EventWebSocketServer } = await import('./event-websocket.js');
-  events = new EventWebSocketServer(db, true, {
+  events = new EventWebSocketServer(db, {
     maxAgentClients: 1,
-    maxCatchUpRows: 0,
-    maxExplorerClients: 4,
+    maxCatchUpRows: 2,
+    maxExplorerClients: 8,
     maxTotalBufferedBytes: 512,
   });
   await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve));
@@ -78,7 +105,9 @@ after(async () => {
 });
 
 void it('keeps agent capacity independent from Explorer capacity', async () => {
-  const explorers = Array.from({ length: 4 }, () => new WebSocket(messagesUrl));
+  const explorers = Array.from({ length: 8 }, (_, index) =>
+    explorerSocket(`203.0.113.${index + 10}`),
+  );
   const agent = new WebSocket(url);
   const explorerMessages: Record<string, unknown>[][] = explorers.map(() => []);
   const agentMessages: Record<string, unknown>[] = [];
@@ -100,6 +129,74 @@ void it('keeps agent capacity independent from Explorer capacity', async () => {
   );
 });
 
+void it('requires the Cloudflare client IP in production', async () => {
+  const nodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'production';
+  try {
+    const socket = new WebSocket(messagesUrl);
+    const [code, reason] = await new Promise<[number, string]>((resolve) =>
+      socket.once('close', (code, reason) =>
+        resolve([code, reason.toString()]),
+      ),
+    );
+    assert.equal(code, 1008);
+    assert.match(reason, /Missing or invalid client IP/);
+  } finally {
+    if (nodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = nodeEnv;
+  }
+});
+
+void it('limits Explorer connections to five per IP and releases capacity', async () => {
+  const ip = '203.0.113.1';
+  const sockets = Array.from({ length: 5 }, () => explorerSocket(ip));
+  const messages: Record<string, unknown>[][] = sockets.map(() => []);
+  sockets.forEach((socket, index) =>
+    socket.on('message', (data) =>
+      messages[index]?.push(parseRecord(rawData(data))),
+    ),
+  );
+  await Promise.all(messages.map((items) => waitFor(items, 'ready')));
+
+  const rejected = explorerSocket(ip);
+  const [code, reason] = await new Promise<[number, string]>((resolve) =>
+    rejected.once('close', (code, reason) =>
+      resolve([code, reason.toString()]),
+    ),
+  );
+  assert.equal(code, 1008);
+  assert.match(reason, /Maximum connections per client reached/);
+
+  const closed = new Promise<void>((resolve) =>
+    sockets[0]?.once('close', () => resolve()),
+  );
+  sockets[0]?.close();
+  await closed;
+
+  const replacement = explorerSocket(ip);
+  const replacementMessages: Record<string, unknown>[] = [];
+  replacement.on('message', (data) =>
+    replacementMessages.push(parseRecord(rawData(data))),
+  );
+  await waitFor(replacementMessages, 'ready');
+
+  const otherIp = explorerSocket('203.0.113.2');
+  const otherIpMessages: Record<string, unknown>[] = [];
+  otherIp.on('message', (data) =>
+    otherIpMessages.push(parseRecord(rawData(data))),
+  );
+  await waitFor(otherIpMessages, 'ready');
+
+  [...sockets.slice(1), replacement, otherIp].forEach((socket) =>
+    socket.close(),
+  );
+  await waitUntil(() =>
+    [...sockets.slice(1), replacement, otherIp].every(
+      ({ readyState }) => readyState === WebSocket.CLOSED,
+    ),
+  );
+});
+
 void it('enforces the historical replay row budget', async () => {
   const socket = new WebSocket(url);
   const messages: Record<string, unknown>[] = [];
@@ -111,7 +208,9 @@ void it('enforces the historical replay row budget', async () => {
         JSON.stringify({
           streams: [
             {
-              cursors: [{ address: hookA, afterSequence: '-1', domain: 1 }],
+              cursors: [
+                { address: budgetHook, afterSequence: '-1', domain: 1 },
+              ],
               eventType: 'merkle_tree_insertion',
             },
           ],
@@ -122,6 +221,93 @@ void it('enforces the historical replay row budget', async () => {
   });
   const message = await waitFor(messages, 'error');
   assert.match(String(message.error), /row limit exceeded/);
+  socket.close();
+  await new Promise<void>((resolve) => socket.once('close', resolve));
+});
+
+void it('treats a missing sequence zero as a gap for -1 cursors', async () => {
+  const socket = new WebSocket(url);
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [
+                { address: historyHook, afterSequence: '-1', domain: 1 },
+              ],
+              eventType: 'merkle_tree_insertion',
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+  const reason = await new Promise<string>((resolve) =>
+    socket.once('close', (_code, reason) => resolve(reason.toString())),
+  );
+  assert.match(reason, /sequence gap: expected 0, received 5/);
+});
+
+void it('paces historical sends within outbound buffer limits', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [{ address: pacedHook, afterSequence: '-1', domain: 1 }],
+              eventType: 'merkle_tree_insertion',
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+  await waitFor(messages, 'caught_up');
+  assert.deepEqual(
+    messages
+      .filter(({ type }) => type === 'event')
+      .map(({ sequence }) => sequence),
+    ['0', '1'],
+  );
+  socket.close();
+  await new Promise<void>((resolve) => socket.once('close', resolve));
+});
+
+void it('rejects an empty historical cursor instead of reporting caught up', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [{ address: emptyHook, afterSequence: '-1', domain: 1 }],
+              eventType: 'merkle_tree_insertion',
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+  const message = await waitFor(messages, 'error');
+  assert.match(String(message.error), /No merkle_tree_insertion history/);
+  assert.equal(
+    messages.some(({ type }) => type === 'caught_up'),
+    false,
+  );
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
 });
@@ -166,6 +352,7 @@ void it('emits normalized message upserts to Explorer', async () => {
     JSON.stringify({ messageId: msgId.slice(2) }),
   );
   const event = await waitFor(messages, 'message_upsert');
+  assert.match(explorerQuery, /"send_occurred_at" IS NOT NULL/);
   assert.deepEqual(event.data, {
     id: '42',
     is_delivered: false,
@@ -204,14 +391,23 @@ void it('bounds aggregate Explorer outbound buffering', async () => {
   );
 });
 
-function row(merkle_tree_hook: string): Record<string, unknown> {
+function row(
+  merkle_tree_hook: string,
+  leaf_index = 1,
+): Record<string, unknown> {
   return {
     block_number: '1',
     domain: 1,
-    leaf_index: 1,
+    leaf_index,
     merkle_tree_hook,
     message_id: msgId,
   };
+}
+
+function explorerSocket(ip: string): WebSocket {
+  return new WebSocket(messagesUrl, {
+    headers: { 'cf-connecting-ip': ip },
+  });
 }
 
 function notification(id: string): string {

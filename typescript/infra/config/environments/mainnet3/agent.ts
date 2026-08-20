@@ -846,10 +846,9 @@ const hyperlane: RootAgentConfig = {
       // Enable after publishing an immutable node-services image and creating
       // the scraper-proxy Cloudflare tunnel token secret.
       enabled: true,
-      historyEnabled: false,
       port: 8383,
       resources: {
-        requests: { cpu: '250m', memory: '512Mi' },
+        requests: { cpu: '500m', memory: '1Gi' },
       },
     },
     rpcConsensusType: RpcConsensusType.Fallback,

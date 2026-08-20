@@ -1,4 +1,5 @@
 import type { IncomingMessage, Server } from 'node:http';
+import { isIP } from 'node:net';
 import type { Duplex } from 'node:stream';
 
 import { Logger } from '@nestjs/common';
@@ -14,7 +15,7 @@ import {
   type EventType,
   isDomain,
   isSequencedEventType,
-  normalizeAddress,
+  normalizeSequenceAddress,
   parseClientMessage,
   parseEventNotification,
   parseExplorerNotification,
@@ -35,6 +36,7 @@ const NOTIFICATION_BATCH_MS = 100;
 const NOTIFICATION_BATCH_SIZE = 1_000;
 const MAX_AGENT_CLIENTS = 100;
 const MAX_EXPLORER_CLIENTS = 400;
+const MAX_EXPLORER_CLIENTS_PER_IP = 5;
 const MAX_CLIENT_MESSAGES = 30;
 const MAX_PENDING_EVENTS = 5_000;
 
@@ -62,6 +64,7 @@ type Client = {
   messageWindow: number;
   subscriptions: Map<EventType, Subscription>;
 };
+type ExplorerClient = { alive: boolean; ip: string };
 type Limits = {
   maxAgentClients: number;
   maxBufferedBytes: number;
@@ -124,7 +127,9 @@ const STREAMS: Record<EventType, Stream> = {
 export class EventWebSocketServer {
   private readonly logger = new Logger(EventWebSocketServer.name);
   private readonly clients = new Map<WebSocket, Client>();
-  private readonly explorerClients = new Map<WebSocket, { alive: boolean }>();
+  private readonly failedSockets = new WeakSet<WebSocket>();
+  private readonly explorerClients = new Map<WebSocket, ExplorerClient>();
+  private readonly explorerClientsByIp = new Map<string, number>();
   private readonly explorerNotifications = new Set<string>();
   private readonly notifications = new Map<string, EventNotification>();
   private heartbeatTimer?: NodeJS.Timeout;
@@ -143,7 +148,6 @@ export class EventWebSocketServer {
 
   constructor(
     private readonly db: EventDatabase,
-    private readonly historyEnabled = config.EVENT_STREAM_HISTORY_ENABLED,
     limits: Partial<Limits> = {},
   ) {
     this.limits = {
@@ -171,12 +175,12 @@ export class EventWebSocketServer {
     this.httpServer = server;
     server.on('upgrade', this.handleUpgrade);
     this.agentServer.on('connection', (socket) => this.connectAgent(socket));
-    this.explorerServer.on('connection', (socket) =>
-      this.connectExplorer(socket),
+    this.explorerServer.on('connection', (socket, request) =>
+      this.connectExplorer(socket, request),
     );
     this.heartbeatTimer = setInterval(() => this.heartbeat(), HEARTBEAT_MS);
     this.logger.log(
-      `event websockets listening on ${AGENT_PATH}, ${MESSAGE_PATH} batchSize=${config.EVENT_STREAM_BATCH_SIZE} historyEnabled=${this.historyEnabled} maxBufferedBytes=${this.limits.maxBufferedBytes} maxTotalBufferedBytes=${this.limits.maxTotalBufferedBytes}`,
+      `event websockets listening on ${AGENT_PATH}, ${MESSAGE_PATH} batchSize=${config.EVENT_STREAM_BATCH_SIZE} maxBufferedBytes=${this.limits.maxBufferedBytes} maxTotalBufferedBytes=${this.limits.maxTotalBufferedBytes}`,
     );
   }
 
@@ -215,7 +219,7 @@ export class EventWebSocketServer {
     });
     this.send(socket, {
       eventTypes: EVENT_TYPES,
-      historicalStreaming: this.historyEnabled,
+      historicalStreaming: true,
       type: 'ready',
     });
     this.watch(socket, this.clients, (client) => client.subscriptions.clear());
@@ -243,14 +247,27 @@ export class EventWebSocketServer {
     );
   };
 
-  private connectExplorer(socket: WebSocket): void {
+  private connectExplorer(socket: WebSocket, request: IncomingMessage): void {
     if (!this.accept(socket, 'explorer')) return;
-    this.explorerClients.set(socket, { alive: true });
+    const ip = clientIp(request);
+    if (!ip) {
+      socket.close(1008, 'Missing or invalid client IP');
+      return;
+    }
+    const connections = this.explorerClientsByIp.get(ip) ?? 0;
+    if (connections >= MAX_EXPLORER_CLIENTS_PER_IP) {
+      socket.close(1008, 'Maximum connections per client reached');
+      return;
+    }
+    this.explorerClientsByIp.set(ip, connections + 1);
+    this.explorerClients.set(socket, { alive: true, ip });
     this.send(socket, {
       eventTypes: ['message_upsert'],
       type: 'ready',
     });
-    this.watch(socket, this.explorerClients);
+    this.watch(socket, this.explorerClients, ({ ip }) =>
+      this.releaseExplorerClient(ip),
+    );
   }
 
   private accept(socket: WebSocket, route: 'agent' | 'explorer'): boolean {
@@ -309,13 +326,6 @@ export class EventWebSocketServer {
     }
     if (message.type === 'ping') {
       this.send(socket, { type: 'pong' });
-      return;
-    }
-    if (
-      !this.historyEnabled &&
-      message.streams.some(({ cursors }) => cursors)
-    ) {
-      this.sendError(socket, 'Historical streaming is temporarily disabled');
       return;
     }
     if (client.subscriptions.size) {
@@ -379,7 +389,15 @@ export class EventWebSocketServer {
       );
       subscription.pending = [];
       for (const row of pending) {
-        if (!this.deliver(socket, request.eventType, subscription, row)) return;
+        if (
+          !(await this.deliverAndWait(
+            socket,
+            request.eventType,
+            subscription,
+            row,
+          ))
+        )
+          return;
       }
       subscription.catchingUp = false;
     } catch (error) {
@@ -406,10 +424,12 @@ export class EventWebSocketServer {
   ): Promise<void> {
     const key = sequenceKey(cursor.domain, cursor.address);
     const { first, last } = await this.sequenceBounds(eventType, cursor);
-    const after =
-      cursor.afterSequence === -1n
-        ? first - 1n
-        : (cursor.afterSequence ?? last);
+    if (last < first) {
+      throw new Error(
+        `No ${eventType} history for domain ${cursor.domain} address ${displayAddress(cursor.address)}`,
+      );
+    }
+    const after = cursor.afterSequence ?? last;
     if (after > last) {
       throw new Error(
         `Sequence ${after} is ahead of current ${eventType} sequence ${last}`,
@@ -432,19 +452,21 @@ export class EventWebSocketServer {
       if (!rows.length)
         throw new Error(`Missing ${eventType} sequence ${current + 1n}`);
       for (const row of rows) {
-        if (!this.deliver(socket, eventType, subscription, row)) {
+        if (
+          !(await this.deliverAndWait(socket, eventType, subscription, row))
+        ) {
           throw new Error(`Gap in ${eventType} sequence after ${current}`);
         }
       }
     }
     if (
-      !this.send(socket, {
+      !(await this.sendAndWait(socket, {
         address: displayAddress(cursor.address),
         domain: cursor.domain,
         eventType,
         sequence: last.toString(),
         type: 'caught_up',
-      })
+      }))
     )
       throw new Error('Websocket closed during catch-up');
   }
@@ -470,15 +492,41 @@ export class EventWebSocketServer {
     subscription: Subscription,
     row: Row,
   ): boolean {
+    const message = this.eventForDelivery(socket, eventType, subscription, row);
+    if (message === false) return false;
+    return message === undefined || this.send(socket, message);
+  }
+
+  private async deliverAndWait(
+    socket: WebSocket,
+    eventType: EventType,
+    subscription: Subscription,
+    row: Row,
+  ): Promise<boolean> {
+    const message = this.eventForDelivery(socket, eventType, subscription, row);
+    if (message === false) return false;
+    if (message === undefined) return true;
+    if (!(await this.sendAndWait(socket, message))) {
+      throw new Error('Websocket closed during catch-up');
+    }
+    return true;
+  }
+
+  private eventForDelivery(
+    socket: WebSocket,
+    eventType: EventType,
+    subscription: Subscription,
+    row: Row,
+  ): Record<string, unknown> | false | undefined {
     const domain = rowDomain(row, STREAMS[eventType].domain);
     const key = rowSequenceKey(eventType, domain, row);
-    if (!matches(subscription, domain, key)) return true;
+    if (!matches(subscription, domain, key)) return undefined;
     const sequence = rowSequence(eventType, row);
     if (sequence) {
       const sequenceCursorKey = sequenceKey(domain, sequence.address);
       const current = subscription.sequences.get(sequenceCursorKey);
       if (current !== undefined) {
-        if (sequence.value <= current) return true;
+        if (sequence.value <= current) return undefined;
         if (sequence.value !== current + 1n) {
           socket.close(
             1013,
@@ -489,13 +537,13 @@ export class EventWebSocketServer {
         subscription.sequences.set(sequenceCursorKey, sequence.value);
       }
     }
-    return this.send(socket, {
+    return {
       data: row,
       domain,
       eventType,
       sequence: sequence?.value.toString(),
       type: 'event',
-    });
+    };
   }
 
   private assertCatchUpBudget(subscription: Subscription): void {
@@ -683,7 +731,7 @@ export class EventWebSocketServer {
   private async publishExplorer(messageIds: string[]): Promise<void> {
     if (!this.explorerClients.size) return;
     const rows = await this.db.queryLive<Row>(
-      `SELECT ${tables.message_view.columns.map(q).join(', ')} FROM ${q('message_view')} WHERE ${q('msg_id')} = ANY($1::bytea[])`,
+      `SELECT ${tables.message_view.columns.map(q).join(', ')} FROM ${q('message_view')} WHERE ${q('msg_id')} = ANY($1::bytea[]) AND ${q('send_occurred_at')} IS NOT NULL`,
       [messageIds],
     );
     for (const row of rows) {
@@ -732,6 +780,7 @@ export class EventWebSocketServer {
     );
     this.clients.clear();
     this.explorerClients.clear();
+    this.explorerClientsByIp.clear();
   }
 
   private heartbeat(): void {
@@ -761,43 +810,68 @@ export class EventWebSocketServer {
     return this.sendSerialized(socket, serialize(message));
   }
 
+  private sendAndWait(
+    socket: WebSocket,
+    message: Record<string, unknown>,
+  ): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (!this.sendSerialized(socket, serialize(message), resolve)) {
+        resolve(false);
+      }
+    });
+  }
+
   private sendSerialized(
     socket: WebSocket,
     message: SerializedMessage,
+    completed?: (sent: boolean) => void,
   ): boolean {
-    if (socket.readyState !== WebSocket.OPEN) return false;
+    if (this.failedSockets.has(socket) || socket.readyState !== WebSocket.OPEN)
+      return false;
     if (
       socket.bufferedAmount + message.bytes > this.limits.maxBufferedBytes ||
       this.pendingBytes + message.bytes > this.limits.maxTotalBufferedBytes
     ) {
-      this.disconnect(socket);
-      this.logger.warn('terminating websocket: outbound buffer limit exceeded');
-      socket.terminate();
+      this.failSocket(socket, 'outbound buffer limit exceeded');
       return false;
     }
     this.pendingBytes += message.bytes;
     try {
       socket.send(message.text, (error) => {
         this.pendingBytes = Math.max(0, this.pendingBytes - message.bytes);
-        if (!error) return;
-        this.logger.warn(`websocket send failed: ${error.message}`);
-        this.disconnect(socket);
-        socket.terminate();
+        completed?.(!error);
+        if (error) this.failSocket(socket, `send failed: ${error.message}`);
       });
     } catch (error) {
-      this.pendingBytes -= message.bytes;
-      this.logger.warn(`websocket send failed: ${errorMessage(error)}`);
-      this.disconnect(socket);
-      socket.terminate();
+      this.pendingBytes = Math.max(0, this.pendingBytes - message.bytes);
+      completed?.(false);
+      this.failSocket(socket, `send failed: ${errorMessage(error)}`);
       return false;
     }
     return true;
   }
 
+  private failSocket(socket: WebSocket, reason: string): void {
+    if (this.failedSockets.has(socket)) return;
+    this.failedSockets.add(socket);
+    this.logger.warn(`terminating websocket: ${reason}`);
+    this.disconnect(socket);
+    socket.terminate();
+  }
+
   private disconnect(socket: WebSocket): void {
     this.clients.get(socket)?.subscriptions.clear();
     this.clients.delete(socket);
+    const explorerClient = this.explorerClients.get(socket);
+    if (explorerClient) this.releaseExplorerClient(explorerClient.ip);
     this.explorerClients.delete(socket);
+  }
+
+  private releaseExplorerClient(ip: string): void {
+    const connections = this.explorerClientsByIp.get(ip);
+    if (!connections) return;
+    if (connections === 1) this.explorerClientsByIp.delete(ip);
+    else this.explorerClientsByIp.set(ip, connections - 1);
   }
 
   private sendError(socket: WebSocket, error: string): void {
@@ -874,7 +948,7 @@ function rowSequence(
     throw new Error(`Invalid ${sequence.address} in event row`);
   }
   return {
-    address: normalizeAddress(address),
+    address: normalizeSequenceAddress(address),
     value: parseSequence(row[sequence.value]),
   };
 }
@@ -884,7 +958,7 @@ function parseSequence(value: unknown): bigint {
 }
 
 function sequenceKey(domain: number, address: string): string {
-  return `${domain}:${normalizeAddress(address)}`;
+  return `${domain}:${normalizeSequenceAddress(address)}`;
 }
 
 function rowSequenceKey(
@@ -908,4 +982,18 @@ function compareRows(eventType: EventType, a: Row, b: Row): number {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function clientIp(request: IncomingMessage): string | undefined {
+  const cloudflareIp = request.headers['cf-connecting-ip'];
+  if (cloudflareIp !== undefined) {
+    return typeof cloudflareIp === 'string' && isIP(cloudflareIp)
+      ? cloudflareIp
+      : undefined;
+  }
+  if (process.env.NODE_ENV === 'production') return undefined;
+  const remoteIp = request.socket.remoteAddress;
+  if (!remoteIp) return undefined;
+  const ipv4 = remoteIp.startsWith('::ffff:') ? remoteIp.slice(7) : remoteIp;
+  return isIP(ipv4) ? ipv4 : undefined;
 }

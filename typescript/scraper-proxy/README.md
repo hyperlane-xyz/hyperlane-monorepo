@@ -38,10 +38,10 @@ cluster-only Kubernetes Service.
 
 `/messages` automatically streams `message_upsert` events containing normalized
 `message_view` rows. It does not emit gas payments or Merkle tree insertions.
+Production requests must arrive through Cloudflare with a valid
+`CF-Connecting-IP` header; at most five connections are accepted per client IP.
 
-Historical WebSocket catch-up is disabled by default. Set
-`scraper.proxy.historyEnabled` to `true` only when the database is provisioned
-for catch-up traffic.
+The private `/agents` endpoint always supports historical WebSocket catch-up.
 
 Outbound WebSocket buffering is limited to 1 MiB per socket and 32 MiB across
 all sockets. GraphQL is limited to 25 concurrent requests; Cloudflare owns
