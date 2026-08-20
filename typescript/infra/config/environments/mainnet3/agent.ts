@@ -136,7 +136,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: false, // disabled — RPC unavailable
+    soon: true,
     stable: true,
     starknet: true,
     subtensor: true,
@@ -219,7 +219,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: false, // disabled — RPC unavailable
+    soon: true,
     stable: true,
     starknet: true,
     subtensor: true,
@@ -302,7 +302,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: false, // disabled — RPC unavailable
+    soon: true,
     stable: true,
     starknet: true,
     subtensor: true,
