@@ -433,20 +433,17 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
     // external-secret.yaml emits CUSTOMADDITIONALQUORUMRPCURLS whenever
     // publicRpcUrls is non-empty, so leaving this unset keeps quorum verification
     // off until a chain deliberately enables it.
+    //
+    // Chronically-erroring public RPCs are stripped here (see rpcBlocklist.ts).
+    // These are the validator's additional quorum pool, where every request is
+    // fanned out to all providers, so a bad endpoint counts against reaching
+    // majority. Matched by exact full-URL equality, so private URLs that share a
+    // host (but carry an API key) are never dropped.
     if (this.config.quorumVerificationEnabled) {
-      originChain.publicRpcUrls = getChain(cfg.originChainName).rpcUrls.map(
-        (rpc) => rpc.http,
-      );
-    }
-
-    // Strip chronically-erroring public RPC URLs from the validator's Quorum
-    // pool only. Only the validator fans every request out to all providers, so
-    // these are excluded from its CUSTOMRPCURLS at render time (see
-    // external-secret.yaml) without touching the shared secret or general config
-    // (see rpcBlocklist.ts).
-    const blockedRpcUrls = blockedQuorumRpcUrls[cfg.originChainName];
-    if (blockedRpcUrls?.length) {
-      originChain.blockedRpcUrls = blockedRpcUrls;
+      const blocked = new Set(blockedQuorumRpcUrls[cfg.originChainName] ?? []);
+      originChain.publicRpcUrls = getChain(cfg.originChainName)
+        .rpcUrls.map((rpc) => rpc.http)
+        .filter((url) => !blocked.has(url));
     }
 
     helmValues.hyperlane.validator = {
