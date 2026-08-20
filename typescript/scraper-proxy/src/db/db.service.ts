@@ -88,9 +88,7 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
     handler: (channel: string, payload: string | undefined) => void,
     onDisconnect: (error?: Error) => void,
   ): Promise<() => Promise<void>> {
-    const client = new pg.Client(
-      databaseOptions(config.LISTEN_DATABASE_URL ?? config.DATABASE_URL),
-    );
+    const client = new pg.Client(databaseOptions(config.DATABASE_URL));
     let stopped = false;
     let disconnected = false;
     const disconnect = (error?: Error): void => {
@@ -131,8 +129,7 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
   }
 
   private live(): pg.Pool {
-    if (!config.LISTEN_DATABASE_URL) return this.pool();
-    this.livePool ??= this.createPool(config.LISTEN_DATABASE_URL);
+    this.livePool ??= this.createPool(config.DATABASE_URL);
     return this.livePool;
   }
 

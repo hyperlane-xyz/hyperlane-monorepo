@@ -1,8 +1,7 @@
 # Scraper proxy
 
 Exposes the scraper PostgreSQL database through GraphQL at `/graphql`, protocol
-events for agents at `/agents`, and enriched message updates for Explorer at
-`/explorer`.
+events for agents at `/agents`, and enriched message updates at `/messages`.
 
 ## Deployment
 
@@ -15,7 +14,7 @@ Before enabling the deployment:
 1. Build and publish `hyperlane-node-services`, then set the immutable tag in
    `mainnetDockerTags.scraperProxy`.
 2. Create a remotely managed Cloudflare tunnel whose public hostname routes
-   only `/graphql*` and `/explorer*` to `http://localhost:8383`, followed by a
+   only `/graphql*` and `/messages*` to `http://localhost:8383`, followed by a
    catch-all HTTP 404 rule. Configure Cloudflare per-client rate limits for
    both public routes.
 3. Store its token in GCP Secret Manager as
@@ -31,13 +30,13 @@ Before enabling the deployment:
 The public endpoints are then:
 
 - `https://<hostname>/graphql`
-- `wss://<hostname>/explorer`
+- `wss://<hostname>/messages`
 
 `/agents` is not public. Pods use
 `ws://<scraper-proxy-service>.<namespace>.svc:8383/agents` through the
 cluster-only Kubernetes Service.
 
-`/explorer` automatically streams `message_upsert` events containing normalized
+`/messages` automatically streams `message_upsert` events containing normalized
 `message_view` rows. It does not emit gas payments or Merkle tree insertions.
 
 Historical WebSocket catch-up is disabled by default. Set

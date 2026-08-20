@@ -19,7 +19,7 @@ const HELP = `Usage: pnpm debug:websocket [options]
 
 Connect to the scraper proxy event WebSocket and print every server message.
 By default, subscribes to every event type on every domain.
-The /explorer endpoint streams automatically without a subscription.
+The /messages endpoint streams automatically without a subscription.
 
 Options:
   -u, --url <url>            WebSocket URL (default: ${DEFAULT_URL})
@@ -37,7 +37,7 @@ Examples:
   pnpm debug:websocket --events dispatch,delivery
   pnpm debug:websocket -e gas_payment -d 1,42161
   pnpm debug:websocket --url ws://localhost:9000/agents --domains 1
-  pnpm debug:websocket --url ws://localhost:8383/explorer
+  pnpm debug:websocket --url ws://localhost:8383/messages
   pnpm debug:websocket -e merkle_tree_insertion \\
     --cursor merkle_tree_insertion:1:0x48e6c30b97748d1e2e03bf3e9fbe3890ca5f8cca:-1
 `;
@@ -157,7 +157,7 @@ function options(): Options | undefined {
 
 function run({ cursors, domains, events, url }: Options): void {
   const socket = new WebSocket(url);
-  let subscribed = new URL(url).pathname === '/explorer';
+  let subscribed = new URL(url).pathname === '/messages';
   socket.on('message', (data) => {
     const raw = rawData(data);
     let message: unknown;

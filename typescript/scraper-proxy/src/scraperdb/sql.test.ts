@@ -98,6 +98,17 @@ void describe('scraper database SQL', () => {
     );
   });
 
+  void it('treats nullable optional arguments as omitted', () => {
+    const query = buildSelect('domain', {
+      limit: null,
+      offset: null,
+      order_by: { id: null },
+    });
+    assert.doesNotMatch(query.sql, /ORDER BY|OFFSET/);
+    assert.match(query.sql, /LIMIT \$1$/);
+    assert.deepEqual(query.values, [500]);
+  });
+
   void it('rejects expensive public pattern operators', () => {
     for (const operator of ['_like', '_ilike', '_regex', '_similar']) {
       assert.throws(

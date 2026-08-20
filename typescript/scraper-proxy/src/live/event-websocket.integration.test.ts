@@ -51,7 +51,7 @@ const db: EventDatabase = {
 const http = createServer();
 let events: EventWebSocketServer;
 let url: string;
-let explorerUrl: string;
+let messagesUrl: string;
 
 before(async () => {
   process.env.DATABASE_URL ??= 'postgresql://unused:unused@localhost/unused';
@@ -66,7 +66,7 @@ before(async () => {
   const address = http.address();
   assert(address && typeof address !== 'string');
   url = `ws://127.0.0.1:${address.port}/agents`;
-  explorerUrl = `ws://127.0.0.1:${address.port}/explorer`;
+  messagesUrl = `ws://127.0.0.1:${address.port}/messages`;
   await events.start(http);
 });
 
@@ -78,7 +78,7 @@ after(async () => {
 });
 
 void it('keeps agent capacity independent from Explorer capacity', async () => {
-  const explorers = Array.from({ length: 4 }, () => new WebSocket(explorerUrl));
+  const explorers = Array.from({ length: 4 }, () => new WebSocket(messagesUrl));
   const agent = new WebSocket(url);
   const explorerMessages: Record<string, unknown>[][] = explorers.map(() => []);
   const agentMessages: Record<string, unknown>[] = [];
@@ -157,7 +157,7 @@ void it('only emits addresses named by sequence cursors', async () => {
 });
 
 void it('emits normalized message upserts to Explorer', async () => {
-  const socket = new WebSocket(explorerUrl);
+  const socket = new WebSocket(messagesUrl);
   const messages: Record<string, unknown>[] = [];
   socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
   await waitFor(messages, 'ready');
@@ -178,7 +178,7 @@ void it('emits normalized message upserts to Explorer', async () => {
 });
 
 void it('bounds aggregate Explorer outbound buffering', async () => {
-  const sockets = Array.from({ length: 4 }, () => new WebSocket(explorerUrl));
+  const sockets = Array.from({ length: 4 }, () => new WebSocket(messagesUrl));
   const messages: Record<string, unknown>[][] = sockets.map(() => []);
   const closeCodes: number[] = [];
   sockets.forEach((socket, index) => {

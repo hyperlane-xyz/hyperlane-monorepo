@@ -26,7 +26,7 @@ import {
 import { rawData } from './websocket-data.js';
 
 const AGENT_PATH = '/agents';
-const EXPLORER_PATH = '/explorer';
+const MESSAGE_PATH = '/messages';
 const EVENT_CHANNEL = 'scraper_event';
 const EXPLORER_CHANNEL = 'scraper_explorer_event';
 const HEARTBEAT_MS = 30_000;
@@ -176,7 +176,7 @@ export class EventWebSocketServer {
     );
     this.heartbeatTimer = setInterval(() => this.heartbeat(), HEARTBEAT_MS);
     this.logger.log(
-      `event websockets listening on ${AGENT_PATH}, ${EXPLORER_PATH} batchSize=${config.EVENT_STREAM_BATCH_SIZE} historyEnabled=${this.historyEnabled} maxBufferedBytes=${this.limits.maxBufferedBytes} maxTotalBufferedBytes=${this.limits.maxTotalBufferedBytes}`,
+      `event websockets listening on ${AGENT_PATH}, ${MESSAGE_PATH} batchSize=${config.EVENT_STREAM_BATCH_SIZE} historyEnabled=${this.historyEnabled} maxBufferedBytes=${this.limits.maxBufferedBytes} maxTotalBufferedBytes=${this.limits.maxTotalBufferedBytes}`,
     );
   }
 
@@ -231,7 +231,7 @@ export class EventWebSocketServer {
     const websocketServer =
       path === AGENT_PATH
         ? this.agentServer
-        : path === EXPLORER_PATH
+        : path === MESSAGE_PATH
           ? this.explorerServer
           : undefined;
     if (!websocketServer) {

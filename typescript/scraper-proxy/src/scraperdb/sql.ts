@@ -12,6 +12,7 @@ type Direction =
   | 'desc'
   | 'desc_nulls_first'
   | 'desc_nulls_last';
+type Order = Record<string, Direction | null | undefined>;
 type Cursor = {
   initial_value: Record<string, unknown>;
   ordering?: 'ASC' | 'DESC';
@@ -20,19 +21,19 @@ type BoolExp = Record<string, unknown>;
 type Sql = { sql: string; values: unknown[] };
 
 export interface CountArgs {
-  columns?: string[];
-  distinct?: boolean;
+  columns?: string[] | null;
+  distinct?: boolean | null;
 }
 
 export interface SelectArgs {
-  batch_size?: number;
+  batch_size?: number | null;
   columns?: string[];
   cursor?: Cursor[];
-  distinct_on?: string[];
-  limit?: number;
-  offset?: number;
-  order_by?: Record<string, Direction> | Record<string, Direction>[];
-  where?: BoolExp;
+  distinct_on?: string[] | null;
+  limit?: number | null;
+  offset?: number | null;
+  order_by?: Order | Order[] | null;
+  where?: BoolExp | null;
 }
 
 const MAX = {
@@ -75,12 +76,12 @@ export function buildCount(
   ].filter(Boolean);
   const whereClause = filters.length ? ` WHERE ${filters.join(' AND ')}` : '';
   const limitClause =
-    args.limit === undefined && args.batch_size === undefined
+    args.limit == null && args.batch_size == null
       ? ''
       : limit(args.limit ?? args.batch_size, values);
   const offsetClause = offset(args.offset, values);
   const source = `${q(table)}${whereClause}`;
-  const expression = countExpression(countColumns, count.distinct);
+  const expression = countExpression(countColumns, count.distinct ?? false);
   return {
     sql:
       distinctClause || limitClause || offsetClause
@@ -124,7 +125,7 @@ function columns(table: TableName, selected = tables[table].columns): string {
     .join(', ');
 }
 
-function distinct(table: TableName, selected?: string[]): string {
+function distinct(table: TableName, selected?: string[] | null): string {
   if (!selected?.length) return '';
   selected.forEach((column) => assertColumn(table, column));
   return `DISTINCT ON (${selected.map(q).join(', ')}) `;
@@ -132,7 +133,7 @@ function distinct(table: TableName, selected?: string[]): string {
 
 function where(
   table: TableName,
-  expression: BoolExp | undefined,
+  expression: BoolExp | null | undefined,
   values: unknown[],
 ): string {
   if (!expression) return '';
@@ -239,8 +240,8 @@ function orderBy(
       ? [requested]
       : [];
   const rendered = items.flatMap((item) =>
-    Object.entries(item).map(([column, direction]) =>
-      order(table, column, direction),
+    Object.entries(item).flatMap(([column, direction]) =>
+      direction == null ? [] : [order(table, column, direction)],
     ),
   );
   if (!rendered.length) {
@@ -261,14 +262,14 @@ function order(table: TableName, column: string, direction: Direction): string {
   return `${q(column)} ${sort.toUpperCase()}${nulls ? ` NULLS ${nulls.toUpperCase()}` : ''}`;
 }
 
-function limit(value: number | undefined, values: unknown[]): string {
-  return value === undefined
+function limit(value: number | null | undefined, values: unknown[]): string {
+  return value == null
     ? ''
     : ` LIMIT ${bind(Math.min(value, MAX.limit), values)}`;
 }
 
-function offset(value: number | undefined, values: unknown[]): string {
-  return value === undefined ? '' : ` OFFSET ${bind(value, values)}`;
+function offset(value: number | null | undefined, values: unknown[]): string {
+  return value == null ? '' : ` OFFSET ${bind(value, values)}`;
 }
 
 function bind(value: unknown, values: unknown[]): string {
@@ -287,7 +288,11 @@ function validate(args: SelectArgs): void {
       ? [args.order_by]
       : [];
   boundedColumns(
-    orders.reduce((total, item) => total + Object.keys(item).length, 0),
+    orders.reduce(
+      (total, item) =>
+        total + Object.values(item).filter((value) => value != null).length,
+      0,
+    ),
     'order_by',
     MAX.orderColumns,
   );
@@ -305,11 +310,15 @@ function validate(args: SelectArgs): void {
 }
 
 function validateDistinctOrder(
-  distinctColumns: string[] | undefined,
-  orders: Record<string, Direction>[],
+  distinctColumns: string[] | null | undefined,
+  orders: Order[],
 ): void {
   if (!distinctColumns?.length || !orders.length) return;
-  const orderColumns = orders.flatMap(Object.keys);
+  const orderColumns = orders.flatMap((order) =>
+    Object.entries(order).flatMap(([column, direction]) =>
+      direction == null ? [] : [column],
+    ),
+  );
   if (distinctColumns.some((column, index) => orderColumns[index] !== column)) {
     throw new Error(
       'distinct_on columns must match the leftmost order_by columns',
@@ -318,11 +327,11 @@ function validateDistinctOrder(
 }
 
 function boundedInteger(
-  value: number | undefined,
+  value: number | null | undefined,
   name: string,
   max: number,
 ): void {
-  if (value === undefined) return;
+  if (value == null) return;
   if (!Number.isInteger(value) || value < 0) {
     throw new Error(`${name} must be a non-negative integer`);
   }

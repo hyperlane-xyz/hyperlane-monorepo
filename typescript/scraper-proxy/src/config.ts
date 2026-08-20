@@ -48,7 +48,6 @@ const ConfigSchema = z.object({
     .min(1_024)
     .default(33_554_432),
   GRAPHQL_MAX_ACTIVE_REQUESTS: z.coerce.number().int().min(1).default(25),
-  LISTEN_DATABASE_URL: z.string().min(1).optional(),
   PORT: z.coerce.number().int().positive().default(8383),
 });
 
