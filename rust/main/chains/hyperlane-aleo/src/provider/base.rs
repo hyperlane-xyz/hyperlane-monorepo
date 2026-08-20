@@ -98,10 +98,10 @@ impl HttpClient for BaseHttpClient {
         path: &str,
         body: &serde_json::Value,
     ) -> ChainResult<T> {
-        let url = format!("{}/{}", self.base_url, path);
+        let url = append_path(&self.base_url, path)?;
         let response = self
             .client
-            .post(&url)
+            .post(url)
             .json(body)
             .send()
             .await
@@ -263,8 +263,17 @@ impl HttpClientBuilder for JWTBaseHttpClient {
 
 #[cfg(test)]
 mod tests {
-    use super::{append_network, append_path};
+    use std::{
+        io::{Read, Write},
+        net::TcpListener,
+        sync::mpsc,
+        thread,
+    };
+
+    use serde_json::{json, Value};
     use url::Url;
+
+    use super::{append_network, append_path, BaseHttpClient, HttpClient};
 
     #[test]
     fn appends_and_encodes_path_segments() {
@@ -294,5 +303,40 @@ mod tests {
             url.as_str(),
             "http://[::1]:3030/v2/mapping/%7B%20bytes:%20%5B79u8%5D%20%7D"
         );
+    }
+
+    #[tokio::test]
+    async fn standard_client_post_encodes_bracketed_mapping_keys() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let (request_tx, request_rx) = mpsc::channel();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buffer = [0; 4096];
+            let length = stream.read(&mut buffer).unwrap();
+            let request = String::from_utf8_lossy(&buffer[..length]);
+            request_tx
+                .send(request.lines().next().unwrap().to_owned())
+                .unwrap();
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 11\r\nConnection: close\r\n\r\n{\"ok\":true}",
+                )
+                .unwrap();
+        });
+        let client =
+            BaseHttpClient::new(Url::parse(&format!("http://{address}/v2")).unwrap(), 0).unwrap();
+
+        let response: Value = client
+            .request_post("mapping/{bytes:[1u8]}", &json!({}))
+            .await
+            .unwrap();
+
+        assert_eq!(response, json!({ "ok": true }));
+        assert_eq!(
+            request_rx.recv().unwrap(),
+            "POST /v2/mainnet/mapping/%7Bbytes:%5B1u8%5D%7D HTTP/1.1"
+        );
+        server.join().unwrap();
     }
 }
