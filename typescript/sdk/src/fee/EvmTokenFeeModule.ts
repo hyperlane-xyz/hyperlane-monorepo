@@ -31,7 +31,7 @@ import {
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainNameOrId } from '../types.js';
+import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
@@ -51,6 +51,7 @@ import { EvmTokenFeeFactories } from './contracts.js';
 import {
   ResolvedCrossCollateralRoutingFeeConfigInput,
   ResolvedTokenFeeConfigInput,
+  RoutingFeeConfig,
   TokenFeeConfig,
   TokenFeeConfigInput,
   TokenFeeConfigInputSchema,
@@ -61,6 +62,10 @@ import { convertToBps } from './utils.js';
 
 type TokenFeeModuleAddresses = {
   deployedFee: Address;
+};
+
+type RoutingFeeUpdateConfig = Omit<RoutingFeeConfig, 'feeContracts'> & {
+  feeContracts: Record<ChainName, TokenFeeConfig & { address?: Address }>;
 };
 
 function getDeployedFeeAddress(
@@ -604,17 +609,31 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     // Routing fee: update sub-fee contracts
     if (
       normalizedTargetConfig.type === TokenFeeType.RoutingFee &&
-      normalizedActualConfig.type === TokenFeeType.RoutingFee
+      normalizedActualConfig.type === TokenFeeType.RoutingFee &&
+      actualConfig.type === TokenFeeType.RoutingFee &&
+      targetConfig.type === TokenFeeType.RoutingFee
     ) {
+      const mergedConfig = objMerge<RoutingFeeUpdateConfig>(
+        actualConfig,
+        normalizedTargetConfig,
+        10,
+        true,
+      );
+      for (const [chainName, targetSubFee] of Object.entries(
+        targetConfig.feeContracts,
+      )) {
+        if (
+          'address' in targetSubFee &&
+          typeof targetSubFee.address === 'string'
+        ) {
+          const mergedSubFee = mergedConfig.feeContracts[chainName];
+          assert(mergedSubFee, `Missing target fee config for ${chainName}`);
+          mergedSubFee.address = targetSubFee.address;
+        }
+      }
+
       return [
-        ...(await this.updateRoutingFee(
-          objMerge(
-            actualConfig,
-            normalizedTargetConfig,
-            10,
-            true,
-          ) as DerivedRoutingFeeConfig,
-        )),
+        ...(await this.updateRoutingFee(mergedConfig, actualConfig)),
         ...this.createOwnershipUpdateTxs(
           normalizedActualConfig,
           normalizedTargetConfig,
@@ -787,7 +806,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     return updateTransactions;
   }
 
-  private async updateRoutingFee(targetConfig: DerivedRoutingFeeConfig) {
+  private async updateRoutingFee(
+    targetConfig: RoutingFeeUpdateConfig,
+    currentConfig: DerivedRoutingFeeConfig,
+  ) {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
 
     if (!targetConfig.feeContracts) return [];
@@ -796,6 +818,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       targetConfig.feeContracts,
     )) {
       const address = config.address;
+      const currentAddress = currentConfig.feeContracts[chainName]?.address;
 
       let subFeeModule: EvmTokenFeeModule;
       let deployedSubFee: string;
@@ -844,8 +867,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
         updateTransactions.push(...subFeeUpdateTransactions);
 
-        if (!eqAddress(deployedSubFee, address)) {
-          const annotation = `Sub fee contract redeployed on chain ${this.chainName}. Updating fee contract for destination ${chainName} to ${deployedSubFee}`;
+        if (!currentAddress || !eqAddress(deployedSubFee, currentAddress)) {
+          const annotation = `Updating fee contract for destination ${chainName} to ${deployedSubFee}`;
           this.logger.debug(annotation);
           updateTransactions.push({
             annotation: annotation,

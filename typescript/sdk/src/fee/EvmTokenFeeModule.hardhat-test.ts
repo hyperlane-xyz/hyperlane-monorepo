@@ -7,6 +7,7 @@ import {
   CrossCollateralRoutingFee__factory,
   ERC20Test,
   ERC20Test__factory,
+  RoutingFee__factory,
 } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -30,6 +31,7 @@ import {
   ResolvedTokenFeeConfigInput,
   RoutingFeeConfig,
   TokenFeeConfig,
+  TokenFeeConfigInput,
   TokenFeeConfigSchema,
   TokenFeeType,
 } from './types.js';
@@ -239,6 +241,65 @@ describe('EvmTokenFeeModule', () => {
         `Must be ${TokenFeeType.RoutingFee}`,
       );
       expect(onchainConfig.feeContracts[test4Chain]?.bps).to.equal(BPS + 1);
+    });
+
+    it('should reuse an explicitly addressed routing fee contract', async () => {
+      const routingFeeConfig: RoutingFeeConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [test4Chain]: config,
+        },
+      };
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: routingFeeConfig,
+      });
+      const reusableConfig: OffchainQuotedLinearFeeConfig = {
+        ...config,
+        type: TokenFeeType.OffchainQuotedLinearFee,
+        quoteSigners: [signer.address],
+      };
+      const reusableModule = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: reusableConfig,
+      });
+      const reusableAddress = reusableModule.serialize().deployedFee;
+      const addressedReusableConfig = {
+        ...reusableConfig,
+        address: reusableAddress,
+      };
+      const targetConfig: TokenFeeConfigInput = {
+        ...routingFeeConfig,
+        feeContracts: {
+          [test4Chain]: addressedReusableConfig,
+        },
+      };
+
+      const txs = await module.update(targetConfig);
+
+      expect(txs).to.have.lengthOf(1);
+      expect(txs[0].to).to.equal(module.serialize().deployedFee);
+      expect(txs[0].data).to.equal(
+        RoutingFee__factory.createInterface().encodeFunctionData(
+          'setFeeContract(uint32,address)',
+          [multiProvider.getDomainId(test4Chain), reusableAddress],
+        ),
+      );
+      await multiProvider.sendTransaction(test4Chain, txs[0]);
+      const onchainConfig = await module.read({
+        routingDestinations: [multiProvider.getDomainId(test4Chain)],
+      });
+      assert(
+        onchainConfig.type === TokenFeeType.RoutingFee,
+        `Must be ${TokenFeeType.RoutingFee}`,
+      );
+      expect(onchainConfig.feeContracts[test4Chain]?.address).to.equal(
+        reusableAddress,
+      );
     });
 
     it('should transfer ownership if they are different', async () => {
