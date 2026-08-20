@@ -190,7 +190,13 @@ describe('external submission', () => {
         await runExternalSubmit({
           context: { multiProvider, skipConfirmation: true },
           signer,
-          transactions: [tx, { ...tx, maxFeePerGas: '-1' }],
+          transactions: [
+            tx,
+            {
+              ...tx,
+              maxFeePerGas: { _isBigNumber: true, _hex: '-0x01' },
+            },
+          ],
           receiptsFilepath: receiptsPath,
         });
       } catch (caught) {
@@ -257,7 +263,7 @@ describe('external submission', () => {
           maxFeePerGas: '3',
           maxPriorityFeePerGas: 1,
           type: 2,
-          value: BigNumber.from(0),
+          value: '0',
         },
       ]);
 
@@ -276,6 +282,12 @@ describe('external submission', () => {
       expect(() =>
         validateExternalTransactions([{ ...tx, gasPrice: 1, maxFeePerGas: 2 }]),
       ).to.throw('gasPrice cannot be combined');
+    });
+
+    it('rejects negative serialized values', () => {
+      expect(() =>
+        validateExternalTransactions([{ ...tx, maxFeePerGas: '-1' }]),
+      ).to.throw('Invalid');
     });
   });
 });

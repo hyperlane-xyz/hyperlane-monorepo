@@ -79,11 +79,11 @@ interface ExternalSubmissionPlan {
 
 const ExternalBigNumberSchema = z
   .union([
-    z.custom<BigNumber>(BigNumber.isBigNumber),
     z.number().int().safe().nonnegative(),
     z.string().regex(/^(?:0x[0-9a-fA-F]+|[0-9]+)$/),
   ])
-  .transform((value) => BigNumber.from(value));
+  .transform((value) => BigNumber.from(value))
+  .refine((value) => !value.isNegative(), 'Value must be non-negative');
 
 const EvmAddressSchema = z
   .string()
