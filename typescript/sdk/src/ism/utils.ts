@@ -1,4 +1,4 @@
-import { ethers, utils } from 'ethers';
+import { BigNumber, ethers, utils } from 'ethers';
 
 import {
   AbstractStorageMultisigIsm__factory,
@@ -473,7 +473,13 @@ export async function moduleMatchesConfig(
       );
       const type = await trustedRelayerIsm.moduleType();
       matches &&= type === ModuleType.NULL;
-      const relayer = await trustedRelayerIsm.trustedRelayer();
+      let relayer: Address;
+      try {
+        relayer = await trustedRelayerIsm.trustedRelayer();
+      } catch (error) {
+        throwIfNotMissingSelector(error);
+        return false;
+      }
       matches &&= eqAddress(relayer, config.relayer);
       break;
     }
@@ -618,19 +624,26 @@ export async function moduleMatchesConfig(
         moduleAddress,
         provider,
       );
+      let onChainConfig: [Address, BigNumber, number, BigNumber, Address];
+      try {
+        onChainConfig = await Promise.all([
+          delayedIsm.warpRouter(),
+          delayedIsm.thresholdBps(),
+          delayedIsm.maxDelay(),
+          delayedIsm.DURATION(),
+          delayedIsm.owner(),
+        ]);
+      } catch (error) {
+        throwIfNotMissingSelector(error);
+        return false;
+      }
       const [
         onChainWarpRouter,
         onChainThresholdBps,
         onChainMaxDelay,
         onChainDuration,
         onChainOwner,
-      ] = await Promise.all([
-        delayedIsm.warpRouter(),
-        delayedIsm.thresholdBps(),
-        delayedIsm.maxDelay(),
-        delayedIsm.DURATION(),
-        delayedIsm.owner(),
-      ]);
+      ] = onChainConfig;
       if (config.warpRouter) {
         matches &&= eqAddress(onChainWarpRouter, config.warpRouter);
       }

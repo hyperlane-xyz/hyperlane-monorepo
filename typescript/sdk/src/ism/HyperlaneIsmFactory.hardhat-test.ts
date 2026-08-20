@@ -172,7 +172,7 @@ describe('HyperlaneIsmFactory', async () => {
   function compliantAggregationOf(
     hybrid: IsmConfig,
     owner: Address,
-  ): IsmConfig {
+  ): AggregationIsmConfig {
     return {
       type: IsmType.AGGREGATION,
       threshold: 2,
@@ -354,6 +354,38 @@ describe('HyperlaneIsmFactory', async () => {
       mailboxAddress,
     );
     expect(matchesWithoutWarpRouter).to.be.true;
+  });
+
+  it('matches a delayed flow aggregation with a NULL authenticating sibling', async () => {
+    const owner = await multiProvider.getSignerAddress(chain);
+    const config = compliantAggregationOf(
+      {
+        type: IsmType.DELAYED_FLOW_ROUTER,
+        warpRouter: warpRouterAddress,
+        thresholdBps: 10000,
+        maxDelay: 3600,
+        duration: 86400n,
+        owner,
+        remoteIsms: {},
+      },
+      owner,
+    );
+    const ism = await ismFactory.deploy({
+      destination: chain,
+      config,
+      mailbox: mailboxAddress,
+    });
+
+    expect(
+      await moduleMatchesConfig(
+        chain,
+        ism.address,
+        config,
+        ismFactory.multiProvider,
+        ismFactory.getContracts(chain),
+        mailboxAddress,
+      ),
+    ).to.be.true;
   });
 
   it('does not match a delayed flow router as a net flow limiter', async () => {
