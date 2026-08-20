@@ -481,7 +481,14 @@ export async function expandWarpDeployConfig(params: {
         );
         chainConfig.interchainSecurityModule = completedIsm;
 
-        if (
+        if (config.hook === undefined) {
+          const completedHybridNodes = collectHybridIsmNodes(completedIsm);
+          assert(
+            completedHybridNodes.length === 1,
+            `Expected exactly one hybrid hook/ISM node on ${chain}, found ${completedHybridNodes.length}`,
+          );
+          chainConfig.hook = completedHybridNodes[0];
+        } else if (
           typeof config.hook === 'object' &&
           collectHybridHookNodes(config.hook).length > 0
         ) {
