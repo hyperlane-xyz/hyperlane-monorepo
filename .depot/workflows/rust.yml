@@ -23,7 +23,7 @@ env:
 
 jobs:
   ts-only:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     outputs:
       skip_rust: ${{ steps.decide.outputs.skip_rust }}
     steps:
@@ -33,7 +33,7 @@ jobs:
 
       - name: Check CI context
         id: context
-        uses: ./.github/actions/ci-context-check
+        uses: ./.depot/actions/ci-context-check
 
       - name: Decide whether to skip rust jobs
         id: decide
@@ -66,7 +66,7 @@ jobs:
 
           # Filter out sealevel deployment config paths that don't affect build/tests
           RUST_CODE_CHANGES=$(echo "$CHANGED_FILES" | grep -vE '^rust/sealevel/(environments/(mainnet3|testnet4)/|\.vscode/)' || true)
-          if echo "$RUST_CODE_CHANGES" | grep -qE '^(rust/|\.github/workflows/(rust\.|test\.yml|test-rust)|\.github/actions/)'; then
+          if echo "$RUST_CODE_CHANGES" | grep -qE '^(rust/|\.depot/workflows/(rust\.|test\.yml|test-rust)|\.depot/actions/)'; then
             echo "skip_rust=false" >> $GITHUB_OUTPUT
           else
             echo "skip_rust=true" >> $GITHUB_OUTPUT
@@ -88,7 +88,7 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
       - name: Setup sccache
-        uses: ./.github/actions/setup-sccache
+        uses: ./.depot/actions/setup-sccache
 
       - name: Install cargo-llvm-cov
         run: |
@@ -137,7 +137,7 @@ jobs:
       - name: Install mold linker
         uses: rui314/setup-mold@v1
       - name: Setup sccache
-        uses: ./.github/actions/setup-sccache
+        uses: ./.depot/actions/setup-sccache
       - name: Install Solana toolchain
         run: |
           sh -c "$(curl -sSfL https://release.anza.xyz/v3.0.14/install)"
@@ -173,7 +173,7 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
       - name: Setup sccache
-        uses: ./.github/actions/setup-sccache
+        uses: ./.depot/actions/setup-sccache
       - name: Check for main workspace
         run: cargo check --release --all-features --all-targets
         working-directory: ./rust/main
@@ -223,37 +223,37 @@ jobs:
 
   # Wrapper jobs for required status checks (report success when skipped)
   lander-coverage:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [lander-coverage-run]
     if: always()
     steps:
       - uses: actions/checkout@v7
       - name: Check lander-coverage status
-        uses: ./.github/actions/check-job-status
+        uses: ./.depot/actions/check-job-status
         with:
           job_name: 'Lander Coverage'
           result: ${{ needs.lander-coverage-run.result }}
 
   test-rs:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [test-rs-run]
     if: always()
     steps:
       - uses: actions/checkout@v7
       - name: Check test-rs status
-        uses: ./.github/actions/check-job-status
+        uses: ./.depot/actions/check-job-status
         with:
           job_name: 'Rust Tests'
           result: ${{ needs.test-rs-run.result }}
 
   lint-rs:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [lint-rs-run]
     if: always()
     steps:
       - uses: actions/checkout@v7
       - name: Check lint-rs status
-        uses: ./.github/actions/check-job-status
+        uses: ./.depot/actions/check-job-status
         with:
           job_name: 'Rust Lint'
           result: ${{ needs.lint-rs-run.result }}

@@ -40,10 +40,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: pnpm-build
-        uses: ./.github/actions/pnpm-build-with-cache
+        uses: ./.depot/actions/pnpm-build-with-cache
 
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
 
       - name: Fork test ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }} deployment with retries
         uses: nick-fields/retry@v3
@@ -56,13 +56,13 @@ jobs:
             echo "Test failed, waiting before retry..."
 
   env-test:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: env-test-matrix
     if: always()
     steps:
       - uses: actions/checkout@v7
       - name: Check env-test matrix status
-        uses: ./.github/actions/check-job-status
+        uses: ./.depot/actions/check-job-status
         with:
           job_name: 'Env Test'
           result: ${{ needs.env-test-matrix.result }}

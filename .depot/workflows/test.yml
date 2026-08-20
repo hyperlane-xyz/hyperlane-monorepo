@@ -37,7 +37,7 @@ jobs:
           node-version-file: .nvmrc
 
       - name: pnpm-cache
-        uses: ./.github/actions/pnpm-cache
+        uses: ./.depot/actions/pnpm-cache
 
       - name: pnpm-install
         run: pnpm install --frozen-lockfile
@@ -62,7 +62,7 @@ jobs:
 
       # Build required before linting or the intra-monorepo package cycle checking won't work
       - name: pnpm-build
-        uses: ./.github/actions/pnpm-build-with-cache
+        uses: ./.depot/actions/pnpm-build-with-cache
 
       - name: oxlint
         run: pnpm run lint
@@ -118,19 +118,19 @@ jobs:
           rm -f changed_files.txt
 
   lint-prettier:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [lint-prettier-run]
     if: always()
     steps:
       - uses: actions/checkout@v7
       - name: Check lint-prettier status
-        uses: ./.github/actions/check-job-status
+        uses: ./.depot/actions/check-job-status
         with:
           job_name: 'Lint Prettier'
           result: ${{ needs.lint-prettier-run.result }}
 
   set-base-sha:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     outputs:
       base_sha: ${{ steps.determine-sha.outputs.base_sha }}
       current_sha: ${{ steps.determine-sha.outputs.current_sha }}
@@ -144,7 +144,7 @@ jobs:
 
       - name: Determine BASE_SHA
         id: determine-sha
-        uses: ./.github/actions/determine-base-sha
+        uses: ./.depot/actions/determine-base-sha
 
   change-detection:
     needs: [set-base-sha]
@@ -161,7 +161,7 @@ jobs:
       has_relayer: ${{ steps.decide.outputs.has_relayer }}
       has_rebalancer: ${{ steps.decide.outputs.has_rebalancer }}
       has_svm: ${{ steps.decide.outputs.has_svm }}
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
         with:
@@ -170,14 +170,14 @@ jobs:
 
       - name: Check CI context
         id: context
-        uses: ./.github/actions/ci-context-check
+        uses: ./.depot/actions/ci-context-check
 
       # skip_ts: no TypeScript code at all — skip all TS jobs
       # Note: typescript/infra/ is NOT included because infra-test and agent-configs
       # exist specifically to validate infra changes
       - name: Check if changes are only in non-TS paths
         id: check-skip-ts
-        uses: ./.github/actions/check-path-changes
+        uses: ./.depot/actions/check-path-changes
         with:
           base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
           head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
@@ -186,7 +186,7 @@ jobs:
 
       - name: Check if workflow files changed
         id: check-github
-        uses: ./.github/actions/check-path-changes
+        uses: ./.depot/actions/check-path-changes
         with:
           base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
           head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
@@ -333,22 +333,22 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: pnpm-build
-        uses: ./.github/actions/pnpm-build-with-cache
+        uses: ./.depot/actions/pnpm-build-with-cache
 
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
 
       - name: Unit Tests
         run: pnpm run test:ci
 
   pnpm-test:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [pnpm-test-run]
     if: always()
     steps:
       - uses: actions/checkout@v7
       - name: Check pnpm-test status
-        uses: ./.github/actions/check-job-status
+        uses: ./.depot/actions/check-job-status
         with:
           job_name: 'PNPM Test'
           result: ${{ needs.pnpm-test-run.result }}
@@ -388,10 +388,10 @@ jobs:
           fi
 
       - name: pnpm-build
-        uses: ./.github/actions/pnpm-build-with-cache
+        uses: ./.depot/actions/pnpm-build-with-cache
 
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
 
       - name: GitLeaks Tests
         if: steps.gitleaks-install.outcome != 'skipped'
@@ -416,7 +416,7 @@ jobs:
 
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
-        uses: ./.github/actions/install-cli
+        uses: ./.depot/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -424,13 +424,13 @@ jobs:
         run: hyperlane --version
 
   cli-install-test:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [cli-install-test-run]
     if: always()
     steps:
       - uses: actions/checkout@v7
       - name: Check cli-install-test status
-        uses: ./.github/actions/check-job-status
+        uses: ./.depot/actions/check-job-status
         with:
           job_name: 'CLI Install Test'
           result: ${{ needs.cli-install-test-run.result }}
@@ -439,7 +439,7 @@ jobs:
 
   cli-e2e-tests:
     needs: [change-detection]
-    uses: ./.github/workflows/test-cli-e2e.yml
+    uses: ./.depot/workflows/test-cli-e2e.yml
     secrets: inherit
     with:
       run_cli_e2e: ${{ needs.change-detection.outputs.run_cli_e2e }}
@@ -454,20 +454,20 @@ jobs:
       has_svm: ${{ needs.change-detection.outputs.has_svm }}
 
   cli-e2e:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [cli-e2e-tests]
     if: always()
     steps:
       - uses: actions/checkout@v7
       - name: Check CLI E2E status
-        uses: ./.github/actions/check-job-status
+        uses: ./.depot/actions/check-job-status
         with:
           job_name: 'CLI E2E'
           result: ${{ needs.cli-e2e-tests.result }}
 
   sdk-e2e-tests:
     needs: [change-detection]
-    uses: ./.github/workflows/test-sdk-e2e.yml
+    uses: ./.depot/workflows/test-sdk-e2e.yml
     secrets: inherit
     with:
       has_cosmos: ${{ needs.change-detection.outputs.has_cosmos }}
@@ -478,19 +478,19 @@ jobs:
       has_svm: ${{ needs.change-detection.outputs.has_svm }}
 
   sdk-e2e:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [sdk-e2e-tests]
     if: always()
     steps:
       - uses: actions/checkout@v7
       - name: Check SDK E2E status
-        uses: ./.github/actions/check-job-status
+        uses: ./.depot/actions/check-job-status
         with:
           job_name: 'SDK E2E'
           result: ${{ needs.sdk-e2e-tests.result }}
 
   rust-e2e-tests:
-    uses: ./.github/workflows/test-rust-e2e.yml
+    uses: ./.depot/workflows/test-rust-e2e.yml
     secrets: inherit
     with:
       event_name: ${{ github.event_name }}
@@ -498,7 +498,7 @@ jobs:
 
   coverage-tests:
     needs: [set-base-sha]
-    uses: ./.github/workflows/test-coverage.yml
+    uses: ./.depot/workflows/test-coverage.yml
     secrets: inherit
     with:
       base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
@@ -518,10 +518,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: pnpm-build
-        uses: ./.github/actions/pnpm-build-with-cache
+        uses: ./.depot/actions/pnpm-build-with-cache
 
       - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
 
       - name: Generate ${{ matrix.environment }} agent config
         run: |
@@ -534,7 +534,7 @@ jobs:
           fi
 
   svm-program-bytes:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.has_svm == 'true'
     steps:
@@ -551,7 +551,7 @@ jobs:
 
   env-tests:
     needs: [change-detection]
-    uses: ./.github/workflows/test-env.yml
+    uses: ./.depot/workflows/test-env.yml
     secrets: inherit
     with:
       skip_ts: ${{ needs.change-detection.outputs.skip_ts }}

@@ -15,7 +15,7 @@ on:
 
 jobs:
   diff-check:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     steps:
       # Checkout the PR branch
       - name: Checkout PR branch
@@ -29,7 +29,7 @@ jobs:
           node-version-file: .nvmrc
 
       - name: pnpm-cache
-        uses: ./.github/actions/pnpm-cache
+        uses: ./.depot/actions/pnpm-cache
         with:
           cache-provider: buildjet
 
@@ -37,7 +37,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Setup Foundry
-        uses: ./.github/actions/setup-foundry
+        uses: ./.depot/actions/setup-foundry
 
       # Run the command on PR branch
       - name: Run command on PR branch

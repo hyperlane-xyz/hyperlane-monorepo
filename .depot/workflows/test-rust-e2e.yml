@@ -52,7 +52,7 @@ jobs:
 
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             PARENT_SHA=$(git rev-parse HEAD^)
-            CHANGES=$(git diff --name-only $PARENT_SHA HEAD -- ./rust ./.github/workflows/test.yml ./.github/workflows/test-rust-e2e.yml ./.github/actions/)
+            CHANGES=$(git diff --name-only $PARENT_SHA HEAD -- ./rust ./.depot/workflows/test.yml ./.depot/workflows/test-rust-e2e.yml ./.depot/actions/)
             # Filter out sealevel deployment config paths that don't affect build/tests
             CHANGES=$(echo "$CHANGES" | grep -vE '^rust/sealevel/(environments/(mainnet3|testnet4)/|\.vscode/)' || true)
 
@@ -66,7 +66,7 @@ jobs:
           elif [[ "${{ inputs.event_name }}" == "pull_request" ]]; then
             # For PRs, use GitHub CLI to check changes
             PR_NUMBER=${{ github.event.pull_request.number }}
-            CHANGES=$(gh pr view $PR_NUMBER --json files -q '.files[].path | select(startswith("rust/") or . == ".github/workflows/test.yml" or . == ".github/workflows/test-rust-e2e.yml" or test("^\\.github/workflows/rust\\.") or startswith(".github/actions/"))')
+            CHANGES=$(gh pr view $PR_NUMBER --json files -q '.files[].path | select(startswith("rust/") or . == ".depot/workflows/test.yml" or . == ".depot/workflows/test-rust-e2e.yml" or test("^\\.depot/workflows/rust\\.") or startswith(".depot/actions/"))')
             # Filter out sealevel deployment config paths that don't affect build/tests
             CHANGES=$(echo "$CHANGES" | grep -vE '^rust/sealevel/(environments/(mainnet3|testnet4)/|\.vscode/)' || true)
 
@@ -81,7 +81,7 @@ jobs:
             # For merge queue, check changes between base and head
             BASE_SHA="${{ github.event.merge_group.base_sha }}"
             HEAD_SHA="${{ github.event.merge_group.head_sha }}"
-            CHANGES=$(git diff --name-only "$BASE_SHA"..."$HEAD_SHA" -- ./rust ./.github/workflows/test.yml ./.github/workflows/test-rust-e2e.yml ./.github/actions/)
+            CHANGES=$(git diff --name-only "$BASE_SHA"..."$HEAD_SHA" -- ./rust ./.depot/workflows/test.yml ./.depot/workflows/test-rust-e2e.yml ./.depot/actions/)
             # Filter out sealevel deployment config paths that don't affect build/tests
             CHANGES=$(echo "$CHANGES" | grep -vE '^rust/sealevel/(environments/(mainnet3|testnet4)/|\.vscode/)' || true)
 
@@ -138,7 +138,7 @@ jobs:
 
       - name: pnpm-build
         if: (matrix.e2e-type == 'evm' || matrix.e2e-type == 'tron') && steps.check-conditions.outputs.skip-e2e != 'true'
-        uses: ./.github/actions/pnpm-build-with-cache
+        uses: ./.depot/actions/pnpm-build-with-cache
 
       - name: Install system dependencies
         if: steps.check-conditions.outputs.skip-e2e != 'true'
@@ -154,11 +154,11 @@ jobs:
 
       - name: Checkout registry
         if: steps.check-conditions.outputs.skip-e2e != 'true'
-        uses: ./.github/actions/checkout-registry
+        uses: ./.depot/actions/checkout-registry
 
       - name: Setup sccache
         if: steps.check-conditions.outputs.skip-e2e != 'true'
-        uses: ./.github/actions/setup-sccache
+        uses: ./.depot/actions/setup-sccache
 
       - name: agent tests (Tron)
         if: ${{ matrix.e2e-type == 'tron' && steps.check-conditions.outputs.skip-e2e != 'true' }}
@@ -219,13 +219,13 @@ jobs:
           RUST_BACKTRACE: 'full'
 
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: e2e-matrix
     if: always()
     steps:
       - uses: actions/checkout@v7
       - name: Check e2e matrix status
-        uses: ./.github/actions/check-job-status
+        uses: ./.depot/actions/check-job-status
         with:
           job_name: 'E2E'
           result: ${{ needs.e2e-matrix.result }}
