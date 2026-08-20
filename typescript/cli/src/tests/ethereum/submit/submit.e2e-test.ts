@@ -4,7 +4,7 @@ import {
   Wallet,
   ethers,
 } from 'ethers';
-import { readdirSync, writeFileSync } from 'fs';
+import { readdirSync, rmSync, writeFileSync } from 'fs';
 
 import { type XERC20VSTest, XERC20VSTest__factory } from '@hyperlane-xyz/core';
 import { TxSubmitterType, randomAddress } from '@hyperlane-xyz/sdk';
@@ -181,6 +181,7 @@ describe('hyperlane submit', function () {
         value: ethers.utils.parseEther('1'),
       })
     ).wait();
+    const originalOwner = await xerc20Chain2.owner();
     await (await xerc20Chain2.transferOwnership(feeWallet.address)).wait();
 
     const mintAmount = randomInt(1, 1000);
@@ -218,7 +219,14 @@ describe('hyperlane submit', function () {
         receiptsPath,
       });
     } finally {
-      await mockTurnkey.close();
+      try {
+        await (
+          await xerc20Chain2.connect(feeWallet).transferOwnership(originalOwner)
+        ).wait();
+      } finally {
+        rmSync(signerConfigPath, { force: true });
+        await mockTurnkey.close();
+      }
     }
 
     expect(await xerc20Chain2.balanceOf(ALICE)).to.eql(
