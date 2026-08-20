@@ -19,6 +19,7 @@ import { TokenType } from './config.js';
 import {
   canonicalizeAllowedRebalancingBridges,
   completeHybridHookNodesFromIsm,
+  expandWarpDeployConfig,
   filterWarpCoreConfigMapByChains,
   getDefaultRemoteRouterAndDestinationGasConfig,
   getChainsFromWarpCoreConfig,
@@ -112,6 +113,45 @@ describe('configUtils', () => {
         ...hook,
         hooks: [ism.modules[0]],
       });
+    });
+  });
+
+  describe(expandWarpDeployConfig.name, () => {
+    it('rejects a hybrid config without a deployed router address', async () => {
+      const owner = '0x1111111111111111111111111111111111111111';
+      let thrown: unknown;
+
+      try {
+        await expandWarpDeployConfig({
+          multiProvider: buildMultiProvider(),
+          warpDeployConfig: {
+            [test1.name]: {
+              type: TokenType.synthetic,
+              name: 'Test',
+              symbol: 'TEST',
+              decimals: 18,
+              owner,
+              mailbox: '0x2222222222222222222222222222222222222222',
+              interchainSecurityModule: {
+                type: IsmType.DELAYED_FLOW_ROUTER,
+                thresholdBps: 10000,
+                maxDelay: 60,
+                duration: 86400n,
+                owner,
+              },
+            },
+          },
+          deployedRoutersAddresses: {},
+        });
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).to.be.instanceOf(Error);
+      assert(thrown instanceof Error, 'Expected expansion to fail');
+      expect(thrown.message).to.equal(
+        `Missing deployed router address for ${test1.name}, which declares a hybrid hook/ISM`,
+      );
     });
   });
 

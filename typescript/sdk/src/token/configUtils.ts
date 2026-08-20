@@ -461,12 +461,17 @@ export async function expandWarpDeployConfig(params: {
         typeof config.interchainSecurityModule === 'object' &&
         ismTreeContainsHybridHookIsm(config.interchainSecurityModule)
       ) {
+        const routerAddress = deployedRoutersAddresses[chain];
+        assert(
+          routerAddress,
+          `Missing deployed router address for ${chain}, which declares a hybrid hook/ISM`,
+        );
         const remoteDelayedFlowIsms = expandedOnChainWarpConfig
           ? collectRemoteDelayedFlowIsms(chain, expandedOnChainWarpConfig)
           : undefined;
         const completedIsm = completeHybridIsmNodes(
           config.interchainSecurityModule,
-          deployedRoutersAddresses[chain],
+          routerAddress,
           {
             type: DelayedFlowRemoteIsmsSourceType.Resolved,
             derived: remoteDelayedFlowIsms,
