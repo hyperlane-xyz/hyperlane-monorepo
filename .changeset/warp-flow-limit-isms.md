@@ -1,5 +1,5 @@
 ---
-'@hyperlane-xyz/sdk': minor
+'@hyperlane-xyz/sdk': major
 '@hyperlane-xyz/relayer': major
 ---
 
