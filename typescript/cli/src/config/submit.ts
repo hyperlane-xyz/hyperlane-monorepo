@@ -1,14 +1,26 @@
+import { confirm } from '@inquirer/prompts';
+import { BigNumber, type Signer } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
   type AnnotatedEV5Transaction,
   type ChainName,
+  EV5JsonRpcSubmissionError,
+  EV5JsonRpcTxSubmitter,
 } from '@hyperlane-xyz/sdk';
-import { type ProtocolType, errorToString } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  eqAddress,
+  errorToString,
+} from '@hyperlane-xyz/utils';
 
-import { type WriteCommandContext } from '../context/types.js';
+import {
+  type CommandContext,
+  type WriteCommandContext,
+} from '../context/types.js';
 import { getSubmitterByStrategy } from '../deploy/warp.js';
-import { logGray, logRed } from '../logger.js';
+import { logGray, logRed, logTable } from '../logger.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
@@ -55,8 +67,214 @@ export async function runSubmit({
   }
 }
 
+interface ExternalSubmissionPlan {
+  chain: ChainName;
+  transactions: AnnotatedEV5Transaction[];
+  signerAddress: string;
+  balance: BigNumber;
+  requiredBalance: BigNumber;
+}
+
+export async function runExternalSubmit({
+  context,
+  signer,
+  transactions,
+  receiptsFilepath,
+}: {
+  context: Pick<CommandContext, 'multiProvider' | 'skipConfirmation'>;
+  signer: Signer;
+  transactions: AnnotatedEV5Transaction[];
+  receiptsFilepath: string;
+}): Promise<void> {
+  const plans = await prepareExternalSubmission({
+    context,
+    signer,
+    transactions,
+  });
+
+  logGray('External signer submission plan');
+  logTable(
+    plans.flatMap((plan) =>
+      plan.transactions.map((tx) => ({
+        chain: plan.chain,
+        signer: plan.signerAddress,
+        target: tx.to ?? '(contract creation)',
+        selector:
+          typeof tx.data === 'string' && tx.data.length >= 10
+            ? tx.data.slice(0, 10)
+            : '(none)',
+        value: BigNumber.from(tx.value ?? 0).toString(),
+      })),
+    ),
+  );
+
+  if (!context.skipConfirmation) {
+    const confirmed = await confirm({
+      message: `Submit ${transactions.length} transaction(s) with the external signer?`,
+      default: false,
+    });
+    assert(confirmed, 'Transaction submission cancelled');
+  }
+
+  for (const plan of plans) {
+    const submitter = new EV5JsonRpcTxSubmitter(
+      context.multiProvider,
+      { chain: plan.chain },
+      signer,
+    );
+
+    try {
+      const receipts = await submitter.submit(...plan.transactions);
+      writeSubmissionResults(receiptsFilepath, plan.chain, 'jsonRpc', receipts);
+    } catch (error) {
+      if (
+        error instanceof EV5JsonRpcSubmissionError &&
+        error.submittedTransactions.length > 0
+      ) {
+        writeSubmissionResults(
+          receiptsFilepath,
+          plan.chain,
+          'jsonRpc-partial',
+          error.submittedTransactions,
+        );
+      }
+      throw error;
+    }
+  }
+}
+
+export async function prepareExternalSubmission({
+  context,
+  signer,
+  transactions,
+}: {
+  context: Pick<CommandContext, 'multiProvider'>;
+  signer: Signer;
+  transactions: AnnotatedEV5Transaction[];
+}): Promise<ExternalSubmissionPlan[]> {
+  assert(transactions.length > 0, 'No transactions found in file');
+  const signerAddress = await signer.getAddress();
+  const transactionsByChain = new Map<ChainName, AnnotatedEV5Transaction[]>();
+
+  // Resolve and validate the complete input before any RPC preflight or send.
+  for (const transaction of transactions) {
+    assert(
+      transaction.chainId !== undefined,
+      'Invalid transaction: missing chainId',
+    );
+    const chain = context.multiProvider.getChainName(transaction.chainId);
+    assert(
+      context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+      `External EVM signers cannot submit transactions on ${chain}`,
+    );
+    if (transaction.from) {
+      assert(
+        eqAddress(transaction.from, signerAddress),
+        `Transaction sender ${transaction.from} does not match external signer ${signerAddress} on ${chain}`,
+      );
+    }
+
+    const chainTransactions = transactionsByChain.get(chain) ?? [];
+    chainTransactions.push(transaction);
+    transactionsByChain.set(chain, chainTransactions);
+  }
+
+  return Promise.all(
+    Array.from(transactionsByChain, async ([chain, chainTransactions]) => {
+      const provider = context.multiProvider.getProvider(chain);
+      const [feeData, balance] = await Promise.all([
+        provider.getFeeData(),
+        provider.getBalance(signerAddress),
+      ]);
+
+      let requiredBalance = BigNumber.from(0);
+      for (const transaction of chainTransactions) {
+        const { annotation: _annotation, ...populatedTransaction } =
+          transaction;
+        const preparedTransaction = await context.multiProvider.prepareTx(
+          chain,
+          populatedTransaction,
+          signerAddress,
+        );
+        const estimatedGas = await context.multiProvider.estimateGas(
+          chain,
+          populatedTransaction,
+          signerAddress,
+        );
+        if (preparedTransaction.gasLimit !== undefined) {
+          assert(
+            BigNumber.from(preparedTransaction.gasLimit).gte(estimatedGas),
+            `Transaction gas limit is below the estimate on ${chain}`,
+          );
+        }
+        const gasLimit = preparedTransaction.gasLimit ?? estimatedGas;
+        const maxFeePerGas =
+          preparedTransaction.maxFeePerGas ??
+          preparedTransaction.gasPrice ??
+          feeData.maxFeePerGas ??
+          feeData.gasPrice;
+        assert(maxFeePerGas, `Could not determine gas price for ${chain}`);
+        requiredBalance = requiredBalance
+          .add(BigNumber.from(gasLimit).mul(maxFeePerGas))
+          .add(preparedTransaction.value ?? 0);
+      }
+
+      assert(
+        balance.gte(requiredBalance),
+        `External signer ${signerAddress} has insufficient balance on ${chain}: requires at least ${requiredBalance.toString()} wei, found ${balance.toString()} wei`,
+      );
+
+      return {
+        chain,
+        transactions: chainTransactions,
+        signerAddress,
+        balance,
+        requiredBalance,
+      };
+    }),
+  );
+}
+
+function writeSubmissionResults(
+  receiptsFilepath: string,
+  chain: ChainName,
+  label: string,
+  results: unknown[],
+): void {
+  logGray(
+    '🧾 Transaction results:\n\n',
+    indentYamlOrJson(yamlStringify(results, null, 2), 4),
+  );
+  const receiptPath = `${receiptsFilepath}/${chain}-${label}-${Date.now()}-receipts.json`;
+  writeYamlOrJson(receiptPath, results, 'json');
+}
+
 export function getTransactions(
   transactionsFilepath: string,
 ): AnnotatedEV5Transaction[] {
-  return readYamlOrJson<AnnotatedEV5Transaction[]>(transactionsFilepath.trim());
+  const transactions = readYamlOrJson<unknown>(transactionsFilepath.trim());
+  assert(
+    Array.isArray(transactions),
+    'Transactions file must contain an array',
+  );
+  assert(
+    transactions.every(isAnnotatedEvmTransaction),
+    'Transactions file contains an invalid EVM transaction',
+  );
+  return transactions;
+}
+
+function isAnnotatedEvmTransaction(
+  value: unknown,
+): value is AnnotatedEV5Transaction {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    return false;
+  if (!('chainId' in value) || typeof value.chainId !== 'number') return false;
+  if ('from' in value && value.from != null && typeof value.from !== 'string')
+    return false;
+  if ('to' in value && value.to != null && typeof value.to !== 'string')
+    return false;
+  if ('data' in value && value.data != null && typeof value.data !== 'string')
+    return false;
+  return true;
 }
