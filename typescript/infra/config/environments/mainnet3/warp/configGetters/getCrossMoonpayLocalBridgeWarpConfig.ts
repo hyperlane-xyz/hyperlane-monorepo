@@ -23,35 +23,28 @@ const OWNERS_BY_CHAIN = {
   polygon: awIcas.polygon,
 } as const;
 
-const DECIMALS_BY_CHAIN = {
-  arbitrum: 6,
-  base: 6,
-  bsc: 18,
-  ethereum: 6,
-  polygon: 6,
-} as const;
-
-function getSourceRouters(): ChainMap<string> {
+function getSourceTokens() {
   const route = getRegistry().getWarpRoute(WarpRouteIds.USDTCitreaMoonpay);
   assert(route, 'USDT/moonpay route not found in registry');
 
-  return Object.fromEntries(
-    route.tokens.map(({ chainName, addressOrDenom }): [string, string] => {
-      assert(addressOrDenom, `Missing Moonpay USDT router for ${chainName}`);
-      return [chainName, addressOrDenom];
-    }),
+  return new Map(
+    route.tokens.map((token) => [token.chainName, token] as const),
   );
 }
 
 export async function getCrossMoonpayLocalBridgeWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
-  const sourceRouters = getSourceRouters();
+  const sourceTokens = getSourceTokens();
 
   return Object.fromEntries(
     DEPLOYMENT_CHAINS.map((chain) => {
-      const sourceRouter = sourceRouters[chain];
-      assert(sourceRouter, `Missing Moonpay USDT router for ${chain}`);
+      const sourceToken = sourceTokens.get(chain);
+      assert(sourceToken, `Missing Moonpay USDT token for ${chain}`);
+      assert(
+        sourceToken.addressOrDenom,
+        `Missing Moonpay USDT router for ${chain}`,
+      );
 
       return [
         chain,
@@ -59,11 +52,9 @@ export async function getCrossMoonpayLocalBridgeWarpConfig(
           ...routerConfig[chain],
           owner: OWNERS_BY_CHAIN[chain],
           type: TokenType.atomicLocalRebalancing,
-          sourceRouter,
-          decimals: DECIMALS_BY_CHAIN[chain],
-          ...(chain === 'bsc'
-            ? { scale: { numerator: 1, denominator: 1_000_000_000_000 } }
-            : {}),
+          sourceRouter: sourceToken.addressOrDenom,
+          decimals: sourceToken.decimals,
+          ...(sourceToken.scale ? { scale: sourceToken.scale } : {}),
           name: 'Moonpay Local Rebalancing Bridge',
           symbol: 'mpALRB',
         },
