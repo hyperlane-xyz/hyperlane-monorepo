@@ -3822,14 +3822,12 @@ describe('EvmWarpModule', async () => {
       await expect(warpModule.update(expectedConfig)).to.be.fulfilled;
     });
 
-    it('explains a router whose hook is not a hybrid instance during enrollment', async () => {
+    it('explains a router whose ISM tree has no hybrid instance during enrollment', async () => {
       const warpModule = await createPlainRoute();
       const { deployedTokenRoute } = warpModule.serialize();
 
-      // No hybrid was ever wired, so the router's hook is the zero address and
-      // the enrollment pass cannot resolve a DelayedFlowRouterHookIsm from it.
-      // Unguarded, the getters revert inside the provider and the operator
-      // sees a raw call exception instead of this explanation.
+      // No hybrid was ever wired, so the enrollment pass cannot resolve a
+      // DelayedFlowRouterHookIsm from the router's ISM tree.
       const deployConfig: WarpRouteDeployConfigMailboxRequired = {
         [chain]: {
           ...baseConfig,
@@ -3843,7 +3841,7 @@ describe('EvmWarpModule', async () => {
         deriveDelayedFlowEnrollmentTargets(multiProvider, deployConfig, {
           [chain]: deployedTokenRoute,
         }),
-      ).to.be.rejectedWith('does not expose maxDelay()');
+      ).to.be.rejectedWith('no instance was resolved');
     });
 
     it('rejects a NetFlowRateLimitedHookIsm as a delayed-flow enrollment target', async () => {
@@ -3922,6 +3920,33 @@ describe('EvmWarpModule', async () => {
             hook.type === HookType.DELAYED_FLOW_ROUTER,
         ),
       ).to.be.true;
+
+      const { deployedTokenRoute } = warpModule.serialize();
+      const deployConfig: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: {
+          ...baseConfig,
+          type: TokenType.collateral,
+          token: token.address,
+          interchainSecurityModule: delayedFlowIsm(signer.address),
+        },
+      };
+      const targets = await deriveDelayedFlowEnrollmentTargets(
+        multiProvider,
+        deployConfig,
+        { [chain]: deployedTokenRoute },
+      );
+      const delayedHook = readConfig.hook.hooks.find(
+        (hook) =>
+          typeof hook === 'object' &&
+          hook.type === HookType.DELAYED_FLOW_ROUTER,
+      );
+      assert(
+        delayedHook &&
+          typeof delayedHook === 'object' &&
+          'address' in delayedHook,
+        'Expected the delayed-flow hook address',
+      );
+      expect(targets[chain].ismAddress).to.equal(delayedHook.address);
       expect(await warpModule.update(readConfig)).to.deep.equal([]);
     });
 

@@ -1715,14 +1715,7 @@ export async function deriveDelayedFlowEnrollmentTargets(
 ): Promise<ChainMap<DelayedFlowEnrollmentTarget>> {
   const resolvedHybridAddresses =
     hybridIsmAddresses ??
-    (await promiseObjAll(
-      objMap(deployedContracts, async (chain, router) =>
-        MailboxClient__factory.connect(
-          router,
-          multiProvider.getProvider(chain),
-        ).hook(),
-      ),
-    ));
+    (await readInstalledHybridIsmAddresses(multiProvider, deployedContracts));
   const targets: ChainMap<DelayedFlowEnrollmentTarget> = {};
   for (const [chain, config] of Object.entries(warpDeployConfig)) {
     if (config.foreignDeployment) continue;
