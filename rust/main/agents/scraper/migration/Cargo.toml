@@ -13,6 +13,7 @@ name = "migration"
 path = "src/lib.rs"
 
 [dependencies]
+eyre.workspace = true
 sea-orm.workspace = true
 sea-orm-migration.workspace = true
 serde.workspace = true
@@ -51,6 +52,10 @@ path = "bin/generate_entities.rs"
 [[bin]]
 name = "create-raw-dispatch-reconciliation-index"
 path = "bin/create_raw_dispatch_reconciliation_index.rs"
+
+[[bin]]
+name = "create-raw-dispatch-native-sequence-index"
+path = "bin/create_raw_dispatch_native_sequence_index.rs"
 
 [features]
 default = []

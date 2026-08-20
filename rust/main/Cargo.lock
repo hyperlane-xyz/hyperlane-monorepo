@@ -7890,6 +7890,7 @@ dependencies = [
 name = "migration"
 version = "2.3.0"
 dependencies = [
+ "eyre",
  "sea-orm",
  "sea-orm-migration",
  "serde",

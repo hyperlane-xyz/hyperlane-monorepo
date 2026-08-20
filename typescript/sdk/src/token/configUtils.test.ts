@@ -18,8 +18,10 @@ import type { WarpCoreConfig } from '../warp/types.js';
 import { TokenType } from './config.js';
 import {
   canonicalizeAllowedRebalancingBridges,
+  canonicalizeDomainKeyedMap,
   completeHybridHookNodesFromIsm,
   expandWarpDeployConfig,
+  mergeRebalanceTargets,
   filterWarpCoreConfigMapByChains,
   getDefaultRemoteRouterAndDestinationGasConfig,
   getChainsFromWarpCoreConfig,
@@ -1391,6 +1393,62 @@ describe('configUtils', () => {
         resolveDomainId,
       );
       expect(result).to.deep.equal({ unknownchain: [{ bridge: BRIDGE_A }] });
+    });
+  });
+
+  describe(canonicalizeDomainKeyedMap.name, () => {
+    const TARGET_A = '0x1111111111111111111111111111111111111111';
+    const TARGET_B = '0x2222222222222222222222222222222222222222';
+    const TEST1_DOMAIN = test1.domainId.toString();
+
+    // Only test1 resolves; everything else is treated as unknown.
+    const resolveDomainId = (key: string): number | undefined =>
+      key === test1.name ? test1.domainId : undefined;
+
+    it('canonicalizes chain-name keys to domain ids for rebalanceTargets', () => {
+      const result = canonicalizeDomainKeyedMap(
+        { [test1.name]: [TARGET_A] },
+        resolveDomainId,
+        mergeRebalanceTargets,
+      );
+      expect(result).to.deep.equal({ [TEST1_DOMAIN]: [TARGET_A] });
+    });
+
+    it('unions targets when chain name and domain id collapse to one key', () => {
+      const result = canonicalizeDomainKeyedMap(
+        { [test1.name]: [TARGET_A], [TEST1_DOMAIN]: [TARGET_B] },
+        resolveDomainId,
+        mergeRebalanceTargets,
+      );
+      expect(result[TEST1_DOMAIN]).to.have.deep.members([TARGET_A, TARGET_B]);
+    });
+
+    it('deduplicates a target keyed by both chain name and domain id', () => {
+      const targetMixedCase = '0x' + TARGET_A.slice(2).toUpperCase();
+      const result = canonicalizeDomainKeyedMap(
+        { [test1.name]: [TARGET_A], [TEST1_DOMAIN]: [targetMixedCase] },
+        resolveDomainId,
+        mergeRebalanceTargets,
+      );
+      expect(result[TEST1_DOMAIN]).to.have.lengthOf(1);
+    });
+
+    it('canonicalizes rebalanceRecipients with a last-write merge', () => {
+      const result = canonicalizeDomainKeyedMap<string>(
+        { [test1.name]: TARGET_A },
+        resolveDomainId,
+        (_existing, incoming) => incoming,
+      );
+      expect(result).to.deep.equal({ [TEST1_DOMAIN]: TARGET_A });
+    });
+
+    it('preserves keys the resolver does not recognize', () => {
+      const result = canonicalizeDomainKeyedMap(
+        { unknownchain: [TARGET_A] },
+        resolveDomainId,
+        mergeRebalanceTargets,
+      );
+      expect(result).to.deep.equal({ unknownchain: [TARGET_A] });
     });
   });
 });

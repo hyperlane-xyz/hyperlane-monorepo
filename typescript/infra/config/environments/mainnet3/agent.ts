@@ -136,7 +136,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: false, // disabled — RPC unavailable
+    soon: true,
     stable: true,
     starknet: true,
     subtensor: true,
@@ -219,7 +219,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: false, // disabled — RPC unavailable
+    soon: true,
     stable: true,
     starknet: true,
     subtensor: true,
@@ -302,7 +302,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: false, // disabled — RPC unavailable
+    soon: true,
     stable: true,
     starknet: true,
     subtensor: true,
@@ -838,6 +838,20 @@ const hyperlane: RootAgentConfig = {
   },
   scraper: {
     scraperOnlyChains,
+    proxy: {
+      docker: {
+        repo: DockerImageRepos.NODE_SERVICES,
+        tag: mainnetDockerTags.scraperProxy,
+      },
+      // Enable after publishing an immutable node-services image and creating
+      // the scraper-proxy Cloudflare tunnel token secret.
+      enabled: true,
+      historyEnabled: false,
+      port: 8383,
+      resources: {
+        requests: { cpu: '250m', memory: '512Mi' },
+      },
+    },
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo: DockerImageRepos.AGENT,

@@ -39646,6 +39646,10 @@
       ]
     },
     {
+      "name": "CROSS/moonpay-localbridge-usdt",
+      "matchingList": []
+    },
+    {
       "name": "USDC/moonpay-staging",
       "matchingList": [
         {

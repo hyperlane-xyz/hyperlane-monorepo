@@ -659,7 +659,11 @@ export {
 export { EV5GnosisSafeTxBuilder } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxBuilder.js';
 export { EV5GnosisSafeTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxSubmitter.js';
 export { EV5ImpersonatedAccountTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
-export { EV5JsonRpcTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5JsonRpcTxSubmitter.js';
+export {
+  EV5JsonRpcSubmissionError,
+  EV5JsonRpcTxSubmitter,
+  EV5SubmittedTransaction,
+} from './providers/transactions/submitter/ethersV5/EV5JsonRpcTxSubmitter.js';
 export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethersV5/EV5TxSubmitterInterface.js';
 export { EvmIcaTxSubmitter } from './providers/transactions/submitter/IcaTxSubmitter.js';
 export {

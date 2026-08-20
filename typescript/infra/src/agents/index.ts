@@ -20,6 +20,7 @@ import {
   KubernetesResources,
   RootAgentConfig,
 } from '../config/agent/agent.js';
+import { blockedQuorumRpcUrls } from '../config/rpcBlocklist.js';
 import {
   RelayerConfigHelper,
   RelayerConfigMapConfig,
@@ -371,9 +372,17 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
 
   async helmValues(): Promise<HelmRootAgentValues> {
     const values = await super.helmValues();
+    const proxy = this.config.rawConfig.scraper?.proxy;
     values.hyperlane.scraper = {
       enabled: true,
       config: await this.config.buildConfig(),
+      proxy: proxy && {
+        ...proxy,
+        docker: {
+          repository: proxy.docker.repo,
+          tag: proxy.docker.tag,
+        },
+      },
       resources: this.kubernetesResources(),
     };
     // scraper never requires aws credentials
@@ -432,10 +441,17 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
     // external-secret.yaml emits CUSTOMADDITIONALQUORUMRPCURLS whenever
     // publicRpcUrls is non-empty, so leaving this unset keeps quorum verification
     // off until a chain deliberately enables it.
+    //
+    // Chronically-erroring public RPCs are stripped here (see rpcBlocklist.ts).
+    // These are the validator's additional quorum pool, where every request is
+    // fanned out to all providers, so a bad endpoint counts against reaching
+    // majority. Matched by exact full-URL equality, so private URLs that share a
+    // host (but carry an API key) are never dropped.
     if (this.config.quorumVerificationEnabled) {
-      originChain.publicRpcUrls = getChain(cfg.originChainName).rpcUrls.map(
-        (rpc) => rpc.http,
-      );
+      const blocked = new Set(blockedQuorumRpcUrls[cfg.originChainName] ?? []);
+      originChain.publicRpcUrls = getChain(cfg.originChainName)
+        .rpcUrls.map((rpc) => rpc.http)
+        .filter((url) => !blocked.has(url));
     }
 
     helmValues.hyperlane.validator = {

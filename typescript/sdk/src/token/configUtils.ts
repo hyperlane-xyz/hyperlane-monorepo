@@ -319,6 +319,42 @@ export function canonicalizeAllowedRebalancingBridges(
 }
 
 /**
+ * Canonicalizes the keys of a domain-or-chain-name keyed map to domain ids,
+ * mirroring canonicalizeAllowedRebalancingBridges, so a name-keyed source
+ * config does not read as drift against the domain-id-keyed on-chain state.
+ * When two source keys collapse to the same domain their values are combined
+ * via `merge`. Keys the resolver does not recognize are kept as-is rather than
+ * erroring the whole route check.
+ */
+export function canonicalizeDomainKeyedMap<V>(
+  map: Record<string, V>,
+  resolveDomainId: (domainOrChain: string) => number | undefined,
+  merge: (existing: V | undefined, incoming: V) => V,
+): Record<string, V> {
+  const canonicalized: Record<string, V> = {};
+  for (const [domainOrChain, value] of Object.entries(map)) {
+    const canonicalKey =
+      resolveDomainId(domainOrChain)?.toString() ?? domainOrChain;
+    canonicalized[canonicalKey] = merge(canonicalized[canonicalKey], value);
+  }
+  return canonicalized;
+}
+
+export function mergeRebalanceTargets(
+  existing: string[] | undefined,
+  incoming: string[],
+): string[] {
+  const byTarget = new Map<string, string>();
+  for (const target of [...(existing ?? []), ...incoming]) {
+    const key = target.toLowerCase();
+    if (!byTarget.has(key)) {
+      byTarget.set(key, target);
+    }
+  }
+  return Array.from(byTarget.values());
+}
+
+/**
  * Expands a Warp deploy config with additional data
  *
  * @param multiProvider
@@ -569,6 +605,29 @@ export async function expandWarpDeployConfig(params: {
             (domainOrChain) =>
               multiProvider.tryGetDomainId(domainOrChain) ?? undefined,
           );
+      }
+
+      // rebalanceTargets/rebalanceRecipients keys likewise accept a chain name
+      // or a domain id (RemoteRouterDomainOrChainNameSchema) while the on-chain
+      // reader emits domain-id keys, so canonicalize them the same way to avoid
+      // a false ConfigMismatch on a name-keyed source config.
+      if (isCrossCollateralTokenConfig(chainConfig)) {
+        const resolveDomainId = (domainOrChain: string) =>
+          multiProvider.tryGetDomainId(domainOrChain) ?? undefined;
+        if (chainConfig.rebalanceTargets) {
+          chainConfig.rebalanceTargets = canonicalizeDomainKeyedMap(
+            chainConfig.rebalanceTargets,
+            resolveDomainId,
+            mergeRebalanceTargets,
+          );
+        }
+        if (chainConfig.rebalanceRecipients) {
+          chainConfig.rebalanceRecipients = canonicalizeDomainKeyedMap(
+            chainConfig.rebalanceRecipients,
+            resolveDomainId,
+            (_existing, incoming) => incoming,
+          );
+        }
       }
 
       const protocol = multiProvider.getProtocol(chain);

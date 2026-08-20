@@ -1,5 +1,7 @@
+import { generateKeyPairSync } from 'crypto';
 import { ethers } from 'ethers';
 import http from 'http';
+import { type IncomingMessage, type ServerResponse } from 'http';
 import path from 'path';
 import { $, type ProcessPromise } from 'zx';
 
@@ -486,10 +488,14 @@ async function snapshotBaseCall<T>(
 export async function hyperlaneSubmit({
   transactionsPath,
   strategyPath,
+  signerConfigPath,
+  receiptsPath,
   hypKey,
 }: {
   transactionsPath: string;
   strategyPath?: string;
+  signerConfigPath?: string;
+  receiptsPath?: string;
   hypKey?: string;
 }) {
   return $`${
@@ -497,10 +503,123 @@ export async function hyperlaneSubmit({
   } ${localTestRunCmdPrefix()} hyperlane submit \
         --registry ${REGISTRY_PATH} \
         --transactions ${transactionsPath} \
-        --key ${ANVIL_KEY} \
+        ${
+          signerConfigPath
+            ? ['--signer-config', signerConfigPath]
+            : ['--key', ANVIL_KEY]
+        } \
         --verbosity debug \
         ${strategyPath ? ['--strategy', strategyPath] : []} \
+        ${receiptsPath ? ['--receipts', receiptsPath] : []} \
         --yes`;
+}
+
+export async function startMockTurnkeyApi(wallet: ethers.Wallet): Promise<{
+  url: string;
+  apiKey: { apiPublicKey: string; apiPrivateKey: string };
+  close: () => Promise<void>;
+}> {
+  const keyPair = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  const jwk = keyPair.privateKey.export({ format: 'jwk' });
+  assert(jwk.x && jwk.y && jwk.d, 'Expected complete P-256 JWK');
+  const x = Buffer.from(jwk.x, 'base64url');
+  const y = Buffer.from(jwk.y, 'base64url');
+  assert(y.length > 0, 'Expected P-256 public key bytes');
+  const apiKey = {
+    apiPublicKey: `${y[y.length - 1] & 1 ? '03' : '02'}${x.toString('hex')}`,
+    apiPrivateKey: Buffer.from(jwk.d, 'base64url').toString('hex'),
+  };
+
+  const server = http.createServer((request, response) => {
+    void handleTurnkeyRequest(wallet, request, response);
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  assert(address && typeof address !== 'string', 'Expected TCP server address');
+
+  return {
+    url: `http://127.0.0.1:${address.port}`,
+    apiKey,
+    close: () =>
+      new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      ),
+  };
+}
+
+async function handleTurnkeyRequest(
+  wallet: ethers.Wallet,
+  request: IncomingMessage,
+  response: ServerResponse,
+): Promise<void> {
+  try {
+    if (request.url === '/public/v1/query/whoami') {
+      sendJson(response, { organizationId: 'test-organization' });
+      return;
+    }
+    if (request.url === '/public/v1/submit/sign_transaction') {
+      const body: unknown = JSON.parse(await readRequestBody(request));
+      assert(isRecord(body), 'Expected request body');
+      const parameters = body.parameters;
+      assert(isRecord(parameters), 'Expected request parameters');
+      const unsignedTransaction = parameters.unsignedTransaction;
+      assert(
+        typeof unsignedTransaction === 'string',
+        'Expected unsigned transaction',
+      );
+      const signedTransaction = await wallet.signTransaction(
+        parseUnsignedTransaction(`0x${unsignedTransaction}`),
+      );
+      sendJson(response, {
+        activity: {
+          id: 'test-activity',
+          status: 'ACTIVITY_STATUS_COMPLETED',
+          result: { signTransactionResult: { signedTransaction } },
+        },
+      });
+      return;
+    }
+    response.writeHead(404).end();
+  } catch (error) {
+    response.writeHead(500).end(error instanceof Error ? error.message : '');
+  }
+}
+
+function parseUnsignedTransaction(
+  serialized: string,
+): ethers.providers.TransactionRequest {
+  const parsed = ethers.utils.parseTransaction(serialized);
+  return {
+    to: parsed.to ?? undefined,
+    nonce: parsed.nonce,
+    gasLimit: parsed.gasLimit,
+    gasPrice: parsed.gasPrice ?? undefined,
+    data: parsed.data,
+    value: parsed.value,
+    chainId: parsed.chainId,
+    type: parsed.type ?? undefined,
+    maxPriorityFeePerGas: parsed.maxPriorityFeePerGas ?? undefined,
+    maxFeePerGas: parsed.maxFeePerGas ?? undefined,
+    accessList: parsed.accessList ?? undefined,
+  };
+}
+
+async function readRequestBody(request: IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+function sendJson(response: ServerResponse, body: unknown): void {
+  response.setHeader('content-type', 'application/json');
+  response.end(JSON.stringify(body));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**

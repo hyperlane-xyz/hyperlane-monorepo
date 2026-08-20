@@ -23,9 +23,9 @@ import { usdcTokenAddresses } from '../cctp.js';
 import { usdtTokenAddresses } from '../tokens.js';
 import { WarpRouteIds } from '../warpIds.js';
 
-const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
+export const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
 
-type RebalancingConfig = Required<
+export type RebalancingConfig = Required<
   Pick<MovableTokenConfig, 'allowedRebalancingBridges' | 'allowedRebalancers'>
 >;
 

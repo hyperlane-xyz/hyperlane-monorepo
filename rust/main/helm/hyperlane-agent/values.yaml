@@ -109,7 +109,7 @@ hyperlane:
       enabled: false
       port: 8900
       tunnel:
-        image: cloudflare/cloudflared:2025.4.0
+        image: cloudflare/cloudflared:2026.8.2
     podAnnotations:
       prometheus.io/port: '9090'
       prometheus.io/scrape: 'true'
@@ -143,6 +143,19 @@ hyperlane:
 
   scraper:
     enabled: false
+    proxy:
+      enabled: false
+      docker:
+        repository: ghcr.io/hyperlane-xyz/hyperlane-node-services
+        tag: main
+      port: 8383
+      historyEnabled: false
+      tunnel:
+        image: cloudflare/cloudflared:2026.8.2
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
     podAnnotations:
       prometheus.io/port: '9090'
       prometheus.io/scrape: 'true'
