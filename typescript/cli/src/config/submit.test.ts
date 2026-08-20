@@ -35,6 +35,7 @@ describe('external submission', () => {
   let provider: providers.JsonRpcProvider;
   let getBalance: sinon.SinonStub;
   let getFeeData: sinon.SinonStub;
+  let estimateGas: sinon.SinonStub;
 
   beforeEach(() => {
     provider = new providers.JsonRpcProvider('http://127.0.0.1:8545');
@@ -48,7 +49,9 @@ describe('external submission', () => {
     getBalance = sinon
       .stub(provider, 'getBalance')
       .resolves(BigNumber.from(1_000_000));
-    sinon.stub(multiProvider, 'estimateGas').resolves(BigNumber.from(21_000));
+    estimateGas = sinon
+      .stub(multiProvider, 'estimateGas')
+      .resolves(BigNumber.from(21_000));
   });
 
   afterEach(() => {
@@ -142,6 +145,39 @@ describe('external submission', () => {
   });
 
   describe('runExternalSubmit', () => {
+    it('rejects transactions that do not estimate independently', async () => {
+      estimateGas
+        .onFirstCall()
+        .resolves(BigNumber.from(21_000))
+        .onSecondCall()
+        .rejects(new Error('execution reverted'));
+      const submit = sinon.stub(EV5JsonRpcTxSubmitter.prototype, 'submit');
+      const receiptsPath = mkdtempSync(
+        join(tmpdir(), 'hyperlane-external-receipts-'),
+      );
+      tempDirs.push(receiptsPath);
+
+      let error: Error | undefined;
+      try {
+        await runExternalSubmit({
+          context: { multiProvider, skipConfirmation: true },
+          signer,
+          transactions: [tx, tx],
+          receiptsFilepath: receiptsPath,
+        });
+      } catch (caught) {
+        error = caught instanceof Error ? caught : new Error(String(caught));
+      }
+
+      expect(error?.message).to.include(
+        'Transaction 2 on test1 cannot be estimated independently',
+      );
+      expect(error?.message).to.include(
+        'Split state-dependent transactions into separate submit runs',
+      );
+      expect(submit.called).to.equal(false);
+    });
+
     it('validates the complete external batch before submission', async () => {
       const submit = sinon.stub(EV5JsonRpcTxSubmitter.prototype, 'submit');
       const receiptsPath = mkdtempSync(

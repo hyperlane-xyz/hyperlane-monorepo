@@ -39,7 +39,7 @@ export const submitCommand: CommandModuleWithWriteContext<{
     'signer-config': {
       type: 'string',
       description:
-        'Path to a private external signer JSON config. Submits directly on EVM chains and cannot be combined with --strategy',
+        'Path to a private external signer JSON config. Submits directly on EVM chains; cannot be combined with --strategy. Each transaction must estimate independently against current state; split dependent sequences into separate runs',
     },
     receipts: outputFileCommandOption(
       './generated/transactions/receipts',

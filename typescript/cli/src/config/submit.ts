@@ -301,7 +301,10 @@ export async function prepareExternalSubmission({
       ]);
 
       let requiredBalance = BigNumber.from(0);
-      for (const transaction of chainTransactions) {
+      for (const [
+        transactionIndex,
+        transaction,
+      ] of chainTransactions.entries()) {
         const { annotation: _annotation, ...populatedTransaction } =
           transaction;
         const preparedTransaction = await context.multiProvider.prepareTx(
@@ -309,11 +312,20 @@ export async function prepareExternalSubmission({
           populatedTransaction,
           signerAddress,
         );
-        const estimatedGas = await context.multiProvider.estimateGas(
-          chain,
-          populatedTransaction,
-          signerAddress,
-        );
+        let estimatedGas: BigNumber;
+        try {
+          // Preflight does not mutate state; every transaction must stand alone.
+          estimatedGas = await context.multiProvider.estimateGas(
+            chain,
+            populatedTransaction,
+            signerAddress,
+          );
+        } catch (error) {
+          throw new Error(
+            `Transaction ${transactionIndex + 1} on ${chain} cannot be estimated independently against current on-chain state. Split state-dependent transactions into separate submit runs: ${errorToString(error)}`,
+            { cause: error },
+          );
+        }
         if (preparedTransaction.gasLimit !== undefined) {
           assert(
             BigNumber.from(preparedTransaction.gasLimit).gte(estimatedGas),
