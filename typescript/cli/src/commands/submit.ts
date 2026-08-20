@@ -4,8 +4,14 @@ import {
   type SubmissionStrategy,
   SubmissionStrategySchema,
 } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
-import { getTransactions, runSubmit } from '../config/submit.js';
+import {
+  getTransactions,
+  runExternalSubmit,
+  runSubmit,
+} from '../config/submit.js';
+import { loadExternalEvmSigner } from '../context/externalSigner.js';
 import { type CommandModuleWithWriteContext } from '../context/types.js';
 import { logBlue, logGray, logRed } from '../logger.js';
 import { isFile, readYamlOrJson } from '../utils/files.js';
@@ -21,7 +27,8 @@ import {
  */
 export const submitCommand: CommandModuleWithWriteContext<{
   transactions: string;
-  strategy: string;
+  strategy?: string;
+  signerConfig?: string;
   receipts: string;
 }> = {
   command: 'submit',
@@ -29,6 +36,11 @@ export const submitCommand: CommandModuleWithWriteContext<{
   builder: {
     transactions: transactionsCommandOption,
     strategy: strategyCommandOption,
+    'signer-config': {
+      type: 'string',
+      description:
+        'Path to a private external signer JSON config. Submits directly on EVM chains; cannot be combined with --strategy. Each transaction must estimate independently against current state; split dependent sequences into separate runs',
+    },
     receipts: outputFileCommandOption(
       './generated/transactions/receipts',
       false,
@@ -39,6 +51,7 @@ export const submitCommand: CommandModuleWithWriteContext<{
     context,
     transactions: transactionsPath,
     strategy: strategyPath,
+    signerConfig: signerConfigPath,
     receipts: receiptsFilepath,
   }) => {
     logGray(`Hyperlane Submit`);
@@ -52,10 +65,25 @@ export const submitCommand: CommandModuleWithWriteContext<{
       process.exit(1);
     }
 
-    const chainTransactions = groupBy(
-      getTransactions(transactionsPath),
-      'chainId',
+    assert(
+      !(strategyPath && signerConfigPath),
+      '--strategy cannot be combined with --signer-config',
     );
+    const transactions = getTransactions(transactionsPath);
+
+    if (signerConfigPath) {
+      const signer = await loadExternalEvmSigner(signerConfigPath);
+      await runExternalSubmit({
+        context,
+        signer,
+        transactions,
+        receiptsFilepath,
+      });
+      logBlue('✅ External signer submission complete');
+      process.exit(0);
+    }
+
+    const chainTransactions = groupBy(transactions, 'chainId');
 
     for (const [chainId, transactions] of Object.entries(chainTransactions)) {
       const chain = context.multiProvider.getChainName(chainId);

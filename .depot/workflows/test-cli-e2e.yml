@@ -156,6 +156,7 @@ jobs:
       matrix:
         test:
           - core-deploy
+          - submit
           - warp-deploy
     steps:
       - uses: actions/checkout@v7
