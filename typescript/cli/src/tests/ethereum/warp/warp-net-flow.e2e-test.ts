@@ -35,8 +35,10 @@ import {
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
+  IS_TRON_TEST,
   REGISTRY_PATH,
   TEMP_PATH,
+  TRON_KEY_1,
 } from '../consts.js';
 
 const SYMBOL = 'NFR';
@@ -64,9 +66,10 @@ describe('hyperlane warp deploy with NetFlowRateLimitedHookIsm e2e tests', async
   const addressesByChain: Record<string, ChainAddresses> = {};
 
   before(async () => {
+    const chain3Key = IS_TRON_TEST ? TRON_KEY_1 : ANVIL_KEY;
     const [chain2Addresses, chain3Addresses] = await Promise.all([
       deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, chain3Key),
     ]);
     addressesByChain[CHAIN_NAME_2] = chain2Addresses;
     addressesByChain[CHAIN_NAME_3] = chain3Addresses;
@@ -172,13 +175,18 @@ describe('hyperlane warp deploy with NetFlowRateLimitedHookIsm e2e tests', async
 
     const chain3Addresses = addressesByChain[CHAIN_NAME_3];
     assert(chain3Addresses, `Missing addresses for ${CHAIN_NAME_3}`);
+    const sourceNativeToken = METADATA_BY_CHAIN[CHAIN_NAME_2].nativeToken;
+    assert(
+      sourceNativeToken,
+      `Missing native token metadata for ${CHAIN_NAME_2}`,
+    );
     const extendedConfig: WarpRouteDeployConfig = {
       ...plainConfig,
       [CHAIN_NAME_3]: {
         type: TokenType.synthetic,
-        name: 'Ether',
+        name: sourceNativeToken.name,
         symbol: EXTENSION_SYMBOL,
-        decimals: 18,
+        decimals: sourceNativeToken.decimals,
         mailbox: chain3Addresses.mailbox,
         owner: finalOwner,
         interchainSecurityModule: netFlowIsmConfig(),
