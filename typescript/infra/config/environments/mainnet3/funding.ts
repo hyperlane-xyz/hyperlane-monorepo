@@ -35,12 +35,10 @@ const desiredInventoryRebalancerBalancePerChain = objMap(
   (_, balance) => balance.toString(),
 ) as Record<DesiredInventoryRebalancerBalanceChains, string>;
 
-type DesiredQuoteSubmitterBalanceChains =
-  keyof typeof desiredQuoteSubmitterBalances;
 const desiredQuoteSubmitterBalancePerChain = objMap(
   desiredQuoteSubmitterBalances,
   (_, balance) => balance.toString(),
-) as Record<DesiredQuoteSubmitterBalanceChains, string>;
+);
 
 type DesiredStableswapInventoryRebalancerBalanceChains =
   keyof typeof desiredStableswapInventoryRebalancerBalances;
