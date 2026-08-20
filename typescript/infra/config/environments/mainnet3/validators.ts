@@ -475,6 +475,16 @@ export const validatorChainConfig = (
         'soneium',
       ),
     },
+    sonic: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('sonic'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'sonic',
+      ),
+    },
     soon: {
       interval: 5,
       reorgPeriod: getReorgPeriod('soon'),

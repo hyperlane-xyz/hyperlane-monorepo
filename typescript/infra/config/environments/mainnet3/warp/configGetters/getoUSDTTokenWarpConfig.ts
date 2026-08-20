@@ -32,6 +32,7 @@ export const deploymentChains = [
   'superseed',
   'lisk',
   'worldchain',
+  'sonic',
   'mantle',
   'metis',
   'linea',
@@ -67,6 +68,7 @@ const productionBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   superseed: lowerBufferCap,
   lisk: lowerBufferCap,
   worldchain: '0',
+  sonic: middleBufferCap,
   mantle: middleBufferCap,
   metis: lowerBufferCap,
   linea: lowerBufferCap,
@@ -91,6 +93,7 @@ const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   superseed: lowerRateLimitPerSecond,
   lisk: lowerRateLimitPerSecond,
   worldchain: '0',
+  sonic: middleRateLimitPerSecond,
   mantle: middleRateLimitPerSecond,
   metis: lowerRateLimitPerSecond,
   linea: lowerRateLimitPerSecond,
@@ -164,6 +167,10 @@ const productionOwnerOverridesByChain: TypedoUSDTTokenChainMap<
     collateralToken: productionOwnerByChain.worldchain,
     collateralProxyAdmin: productionOwnerByChain.worldchain,
   },
+  sonic: {
+    collateralToken: productionOwnerByChain.sonic,
+    collateralProxyAdmin: productionOwnerByChain.sonic,
+  },
   mantle: {
     collateralToken: productionOwnerByChain.mantle,
     collateralProxyAdmin: productionOwnerByChain.mantle,
@@ -212,6 +219,7 @@ const productionCCIPTokenPoolAddresses: ChainMap<Address> = {
   ethereum: '0xa3532633401AbFfbd15e6be825a45FB7F141469B',
   celo: '0x47Db76c9c97F4bcFd54D8872FDb848Cab696092d',
   base: '0xa760D20a91C076A57b270D3F7a3150421ab40591',
+  sonic: '0x6a21a19aD44542d83F7f7FF45Aa31A62a36200de',
   optimism: '0x6a21a19aD44542d83F7f7FF45Aa31A62a36200de',
   bob: '0xAFEd606Bd2CAb6983fC6F10167c98aaC2173D77f',
   zerogravity: '0xd7502CaBdb70c79382deF58FB6df3CdA69cb2A1b',
@@ -260,6 +268,12 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
       limits: productionCCIPTokenPoolLimits,
     },
   ],
+  sonic: [
+    {
+      lockbox: productionCCIPTokenPoolAddresses.sonic,
+      limits: productionCCIPTokenPoolLimits,
+    },
+  ],
   optimism: [
     {
       // usdc
@@ -303,6 +317,7 @@ const productionXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   superseed: productionXERC20TokenAddress,
   lisk: productionXERC20TokenAddress,
   worldchain: productionXERC20TokenAddress,
+  sonic: productionXERC20TokenAddress,
   mantle: productionXERC20TokenAddress,
   metis: productionXERC20TokenAddress,
   linea: productionXERC20TokenAddress,
@@ -327,6 +342,7 @@ const stagingBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   superseed: stagingDefaultBufferCap,
   lisk: stagingDefaultBufferCap,
   worldchain: stagingDefaultBufferCap,
+  sonic: stagingDefaultBufferCap,
   mantle: stagingDefaultBufferCap,
   metis: stagingDefaultBufferCap,
   linea: stagingDefaultBufferCap,
@@ -349,6 +365,7 @@ const stagingRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   superseed: stagingDefaultRateLimitPerSecond,
   lisk: stagingDefaultRateLimitPerSecond,
   worldchain: stagingDefaultRateLimitPerSecond,
+  sonic: stagingDefaultRateLimitPerSecond,
   mantle: stagingDefaultRateLimitPerSecond,
   metis: stagingDefaultRateLimitPerSecond,
   linea: stagingDefaultRateLimitPerSecond,
@@ -383,6 +400,7 @@ const stagingXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   superseed: stagingXERC20TokenAddress,
   lisk: stagingXERC20TokenAddress,
   worldchain: stagingXERC20TokenAddress,
+  sonic: stagingXERC20TokenAddress,
   mantle: stagingXERC20TokenAddress,
   metis: stagingXERC20TokenAddress,
   linea: stagingXERC20TokenAddress,

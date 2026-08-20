@@ -1,5 +1,20 @@
 # @hyperlane-xyz/sdk
 
+## 41.3.1
+
+### Patch Changes
+
+- c201794: Used the EIP-1559 maximum fee directly as the total gas price cap in transaction fee estimates.
+  - @hyperlane-xyz/aleo-sdk@41.3.1
+  - @hyperlane-xyz/starknet-core@41.3.1
+  - @hyperlane-xyz/cosmos-sdk@41.3.1
+  - @hyperlane-xyz/radix-sdk@41.3.1
+  - @hyperlane-xyz/utils@41.3.1
+  - @hyperlane-xyz/deploy-sdk@8.1.2
+  - @hyperlane-xyz/core@12.1.0
+  - @hyperlane-xyz/provider-sdk@8.1.2
+  - @hyperlane-xyz/tron-sdk@24.1.5
+
 ## 41.3.0
 
 ### Minor Changes

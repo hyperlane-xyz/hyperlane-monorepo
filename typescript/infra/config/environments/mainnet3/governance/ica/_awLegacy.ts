@@ -58,6 +58,7 @@ export const awIcasLegacy: ChainMap<Address> = {
   // corn: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
   ink: '0xDde4Ce691d1c0579d48BCdd3491aA71472b6cC38',
   soneium: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  sonic: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
 
   // Jan 13, 2025 batch
   // ----------------------------------------------------------

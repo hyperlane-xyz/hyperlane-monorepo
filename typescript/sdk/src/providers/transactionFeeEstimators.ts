@@ -23,6 +23,7 @@ import {
   ProtocolType,
   assert,
   convertToProtocolAddress,
+  isNullish,
 } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
@@ -96,10 +97,11 @@ export async function estimateTransactionFeeEthersV5ForGasUnits({
   const feeData = await provider.getFeeData();
   return computeEvmTxFee(
     gasUnits,
-    feeData.gasPrice ? BigInt(feeData.gasPrice.toString()) : undefined,
-    feeData.maxFeePerGas ? BigInt(feeData.maxFeePerGas.toString()) : undefined,
-    feeData.maxPriorityFeePerGas
-      ? BigInt(feeData.maxPriorityFeePerGas.toString())
+    !isNullish(feeData.gasPrice)
+      ? BigInt(feeData.gasPrice.toString())
+      : undefined,
+    !isNullish(feeData.maxFeePerGas)
+      ? BigInt(feeData.maxFeePerGas.toString())
       : undefined,
   );
 }
@@ -119,24 +121,18 @@ export async function estimateTransactionFeeViem({
     account: sender as `0x${string}`,
   } as any); // Cast to silence overly-protective type enforcement from viem here
   const feeData = await provider.provider.estimateFeesPerGas();
-  return computeEvmTxFee(
-    gasUnits,
-    feeData.gasPrice,
-    feeData.maxFeePerGas,
-    feeData.maxPriorityFeePerGas,
-  );
+  return computeEvmTxFee(gasUnits, feeData.gasPrice, feeData.maxFeePerGas);
 }
 
 function computeEvmTxFee(
   gasUnits: bigint,
   gasPrice?: bigint,
   maxFeePerGas?: bigint,
-  maxPriorityFeePerGas?: bigint,
 ): TransactionFeeEstimate {
   let estGasPrice: bigint;
-  if (maxFeePerGas && maxPriorityFeePerGas) {
-    estGasPrice = maxFeePerGas + maxPriorityFeePerGas;
-  } else if (gasPrice) {
+  if (!isNullish(maxFeePerGas)) {
+    estGasPrice = maxFeePerGas;
+  } else if (!isNullish(gasPrice)) {
     estGasPrice = gasPrice;
   } else {
     throw new Error('Invalid fee data, neither 1559 nor legacy');

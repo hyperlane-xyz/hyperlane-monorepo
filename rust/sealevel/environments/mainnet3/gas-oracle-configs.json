@@ -480,17 +480,17 @@
   "solaxy": {
     "ethereum": {
       "oracleConfig": {
-        "gasPrice": "9",
-        "tokenExchangeRate": "15000000000000000000",
-        "tokenDecimals": 6
+        "gasPrice": "51695712",
+        "tokenExchangeRate": "691771710368053885013231",
+        "tokenDecimals": 18
       },
       "overhead": 159337
     },
     "solanamainnet": {
       "oracleConfig": {
-        "gasPrice": "1",
-        "tokenExchangeRate": "15000000000000000000",
-        "tokenDecimals": 6
+        "gasPrice": "6",
+        "tokenExchangeRate": "2784941063266778928",
+        "tokenDecimals": 9
       },
       "overhead": 600000
     }

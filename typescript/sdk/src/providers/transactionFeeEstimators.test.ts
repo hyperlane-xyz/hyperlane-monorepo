@@ -10,13 +10,20 @@ import {
   TransactionMessage,
   VersionedTransaction,
 } from '@solana/web3.js';
+import { BigNumber, providers as EthersV5Providers } from 'ethers';
+import { createPublicClient, custom } from 'viem';
 
-import { ProviderType } from './ProviderType.js';
+import { ProviderType, type ViemTransaction } from './ProviderType.js';
 import {
   clearCachedStargateClients,
   estimateTransactionFeeCosmJsWasm,
+  estimateTransactionFeeEthersV5ForGasUnits,
   estimateTransactionFeeSolanaWeb3,
+  estimateTransactionFeeViem,
 } from './transactionFeeEstimators.js';
+
+const EVM_ADDRESS = '0x0000000000000000000000000000000000000001';
+const EVM_HASH = `0x${'01'.repeat(32)}` as const;
 
 describe('transactionFeeEstimators', () => {
   const sender = 'cosmos1sender';
@@ -39,6 +46,91 @@ describe('transactionFeeEstimators', () => {
   afterEach(() => {
     clearCachedStargateClients();
     sandbox.restore();
+  });
+
+  function makeEthersFeeProvider({
+    gasPrice,
+    maxFeePerGas,
+  }: {
+    gasPrice: bigint | null;
+    maxFeePerGas: bigint | null;
+  }): EthersV5Providers.Provider {
+    const provider = new EthersV5Providers.JsonRpcProvider();
+    sandbox.stub(provider, 'getFeeData').resolves({
+      gasPrice: gasPrice === null ? null : BigNumber.from(gasPrice),
+      lastBaseFeePerGas: null,
+      maxFeePerGas: maxFeePerGas === null ? null : BigNumber.from(maxFeePerGas),
+      maxPriorityFeePerGas: null,
+    });
+    return provider;
+  }
+
+  it('uses the EIP-1559 max fee as the total gas price cap', async () => {
+    const estimate = await estimateTransactionFeeEthersV5ForGasUnits({
+      provider: makeEthersFeeProvider({ gasPrice: 1n, maxFeePerGas: 2n }),
+      gasUnits: 600_000n,
+    });
+
+    expect(estimate).to.deep.equal({
+      gasUnits: 600_000n,
+      gasPrice: 2n,
+      fee: 1_200_000n,
+    });
+  });
+
+  it('keeps zero-valued Ethers fee data as present', async () => {
+    const estimate = await estimateTransactionFeeEthersV5ForGasUnits({
+      provider: makeEthersFeeProvider({ gasPrice: 0n, maxFeePerGas: 0n }),
+      gasUnits: 600_000n,
+    });
+
+    expect(estimate).to.deep.equal({
+      gasUnits: 600_000n,
+      gasPrice: 0n,
+      fee: 0n,
+    });
+  });
+
+  it('keeps zero-valued Viem fee data as present', async () => {
+    const client = createPublicClient({
+      transport: custom({
+        request: async () => {
+          throw new Error('Unexpected RPC request');
+        },
+      }),
+    });
+    sandbox.stub(client, 'estimateGas').resolves(21_000n);
+    sandbox.stub(client, 'estimateFeesPerGas').resolves({ gasPrice: 0n });
+    const transaction = {
+      blockHash: EVM_HASH,
+      blockNumber: 1n,
+      from: EVM_ADDRESS,
+      gas: 21_000n,
+      gasPrice: 0n,
+      hash: EVM_HASH,
+      input: '0x',
+      nonce: 0,
+      r: '0x',
+      s: '0x',
+      to: EVM_ADDRESS,
+      transactionIndex: 0,
+      type: 'legacy',
+      typeHex: '0x0',
+      v: 27n,
+      value: 0n,
+    } satisfies ViemTransaction['transaction'];
+
+    const estimate = await estimateTransactionFeeViem({
+      transaction: { type: ProviderType.Viem, transaction },
+      provider: { type: ProviderType.Viem, provider: client },
+      sender: EVM_ADDRESS,
+    });
+
+    expect(estimate).to.deep.equal({
+      gasUnits: 21_000n,
+      gasPrice: 0n,
+      fee: 0n,
+    });
   });
 
   function makeProvider(url: string) {

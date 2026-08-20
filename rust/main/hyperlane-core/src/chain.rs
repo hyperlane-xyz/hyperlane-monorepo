@@ -174,6 +174,7 @@ pub enum KnownHyperlaneDomain {
     Soneium = 1868,
     SonicSvm = 507150715,
     Soon = 50075007,
+    Sonic = 146,
     Starknet = 358974494,
     SubTensor = 964,
     Superseed = 5330,

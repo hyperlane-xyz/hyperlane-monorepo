@@ -27,21 +27,69 @@ const tokenPrices: ChainMap<string> = rawTokenPrices;
 function getOracleConfigWithOverrides(origin: ChainName) {
   const oracleConfig = getStorageGasOracleConfig()[origin];
 
-  // WORKAROUND for Sealevel IGP decimal bug (solaxy-specific):
-  // The Rust Sealevel IGP code hardcodes SOL_DECIMALS = 9, but solaxy has 6 decimals.
-  // Rather than trying to calculate the correct workaround values, we hardcode
-  // the values that are already set on-chain and known to work.
+  // INTENTION: correct the two underpriced solaxy IGP legs (they were drained via
+  // ATA-rent reclaim) while isolating the change to the solaxy origin only. We do
+  // NOT touch gasPrices.json or tokenPrices.json, so no sibling lane and no other
+  // origin->solanamainnet rate moves; the fix lives entirely in this per-origin
+  // override.
+  //
+  // WHY A HARDCODED PER-LEG BLOCK (not a solaxy token-price bump): the deployed
+  // Rust Sealevel IGP hardcodes local SOL_DECIMALS = 9, but solaxy's native SOLX
+  // has 6 decimals, so convert_decimals over-scales every solaxy leg by
+  // 10^(9-6)=1000. A plain token-price change would be 1000x off and could not
+  // encode the per-leg remote tokenDecimals. So each leg carries: gasPrice = the
+  // true remote gas signal; tokenExchangeRate = SOLX-price proxy x the 10^(D-9)
+  // decimal compensation; tokenDecimals = the REMOTE token's decimals (9 solana /
+  // 18 ethereum).
+  //
+  // These are exactly the values tollkeeper's (decimal-compensated, min-USD-
+  // floored) IGP logic recommends and that are set on-chain. This block MUST stay
+  // in sync with on-chain (see scripts/sealevel-helpers/update-gas-oracles.ts and
+  // the svm-igp-gas-oracle-update skill's two-signer path).
   if (origin === 'solaxy') {
     oracleConfig.ethereum = {
-      gasPrice: '9',
-      tokenExchangeRate: '15000000000000000000',
-      tokenDecimals: 6,
+      gasPrice: '51695712',
+      tokenExchangeRate: '691771710368053885013231',
+      tokenDecimals: 18,
     };
+    // solaxy -> solanamainnet must quote above the ~0.00204 SOL ATA rent the
+    // relayer fronts per delivery, otherwise it can be drained via ATA-rent
+    // reclaim. Quotes ~$0.45 (above rent + delivery gas).
     oracleConfig.solanamainnet = {
-      gasPrice: '1',
-      tokenExchangeRate: '15000000000000000000',
-      tokenDecimals: 6,
+      gasPrice: '6',
+      tokenExchangeRate: '2784941063266778928',
+      tokenDecimals: 9,
     };
+  }
+
+  // Price-elasticity experiment: +20% on two price-insensitive bsc lanes
+  // (bsc→ethereum, bsc→base). Scales the market-derived exchange rate by 1.2 so
+  // the bump tracks live prices and stays isolated to these origin→remote pairs.
+  // Revert to end the test.
+  if (origin === 'bsc') {
+    for (const remote of ['ethereum', 'base'] as const) {
+      const laneConfig = oracleConfig[remote];
+      if (laneConfig) {
+        oracleConfig[remote] = {
+          ...laneConfig,
+          tokenExchangeRate: (
+            (BigInt(laneConfig.tokenExchangeRate.toString()) * 6n) /
+            5n
+          ).toString(),
+          // Keep the derived typicalCost metadata in sync with the +20% bump so
+          // dry-run/monitoring output matches the on-chain quote (gas amounts
+          // are unchanged; only the USD cost scales).
+          ...(laneConfig.typicalCost
+            ? {
+                typicalCost: {
+                  ...laneConfig.typicalCost,
+                  totalUsdCost: (laneConfig.typicalCost.totalUsdCost * 6) / 5,
+                },
+              }
+            : {}),
+        };
+      }
+    }
   }
 
   return oracleConfig;

@@ -64,6 +64,7 @@ export const mainnet3SupportedChainNames = [
   'solaxy',
   'somnia',
   'soneium',
+  'sonic',
   'sonicsvm',
   'soon',
   'stable',
