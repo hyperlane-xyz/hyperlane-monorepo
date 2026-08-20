@@ -5,7 +5,8 @@ services:
     profiles: ['fullnode']
     init: true
     ports:
-      - '127.0.0.1:${RADIX_CORE_PORT:-3333}:3333'
+      - target: 3333
+        host_ip: 127.0.0.1
     cap_add:
       - NET_ADMIN
     deploy:
@@ -89,7 +90,8 @@ services:
     image: 'radixdlt/babylon-ng-gateway-api:v1.10.3'
     profiles: ['NONE']
     ports:
-      - '127.0.0.1:${RADIX_GATEWAY_PORT:-5308}:8080'
+      - target: 8080
+        host_ip: 127.0.0.1
     deploy:
       restart_policy:
         condition: on-failure
