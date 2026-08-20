@@ -77,3 +77,71 @@ sequenceDiagram
 `message.nonce > lastCreditedNonce`. Combined with `TimelockRouter`'s
 `_isLatestDispatched` check, this prevents the same message from
 double-crediting the bucket or re-sending a preverify.
+
+## Operator requirements
+
+### The Mailbox default ISM protects preverify messages
+
+The preverify is a separate Hyperlane message addressed to the destination
+`DelayedFlowRouterHookIsm`. The contract does not configure its own recipient
+ISM, so the destination Mailbox verifies that message with its `defaultIsm`.
+The DFR's remote-router enrollment then checks that the verified message came
+from the expected origin domain and remote DFR address; enrollment does not
+replace Mailbox authentication.
+
+Every destination Mailbox default ISM must therefore be an acceptable security
+boundary for delayed flow. In particular, it must not be materially weaker
+than the authenticating branch composed with the DFR on the warp router. Review
+this invariant when deploying the route and before changing a Mailbox default
+ISM. If an attacker can forge a preverify message that passes the default ISM,
+they can bind a real warp-message ID to an attacker-selected amount, including
+an amount that produces no delay.
+
+### Quiesce and drain when changing DFR instances
+
+Introducing, replacing, or removing a hybrid hook/ISM changes two independently
+delivered message streams: warp transfers and DFR preverifies. `warp apply`
+orders enrollment before hooks and hooks before ISMs within each chain's batch
+when introducing or replacing a DFR. When removing one, each chain's batch
+removes the ISM before the hook so destination verification stops before origin
+preverification. The CLI does not pause to drain in-flight messages, so every
+DFR lifecycle change needs an operator gate before apply:
+
+1. Prevent new warp transfers on every leg while leaving relayers running.
+2. Wait for all previously dispatched warp and preverify messages to be
+   processed on every destination.
+3. Run `warp apply`. To remove delayed flow, remove it from both the hook and
+   ISM configs. The CLI places enrollment, hook, ISM, and router updates in one
+   ordered batch per chain. Execute every chain's batch before resuming
+   transfers.
+4. Run `hyperlane warp check` against the target config, then resume transfers.
+
+Safe, ICA, timelock, and file submitters preserve transaction order inside each
+chain's batch but cannot make execution atomic across chains. Quiescing the
+route is therefore the safety boundary; do not resume transfers until every
+chain has executed its batch and `warp check` passes.
+
+### ERC20 fee hooks are incompatible with delayed flow
+
+A non-zero `TokenRouter.feeHook` makes the router quote and charge its hook fee
+in ERC20. A DFR hook's quote includes the native fee for its nested Mailbox
+preverify dispatch. The current transfer API cannot represent both
+denominations, so a standard caller can pay the ERC20 quote while supplying no
+native value for the preverify. This applies to a top-level DFR and to one
+nested under an aggregation hook. `warp deploy` and `warp apply` reject this
+configuration before deploying contracts. `NetFlowRateLimitedHookIsm` remains
+compatible because it does not perform a nested dispatch.
+
+To introduce, replace, or recompose a DFR on a route with an existing fee hook,
+first set `feeHook` explicitly to the zero address and apply that change without
+changing the hook tree. After the zero address is confirmed on-chain, apply the
+DFR config in a second operation.
+
+### `maxDelay` operational bound
+
+`readyAt` and `maxDelay` are `uint48`, and readiness is calculated as the
+current timestamp plus the selected delay. The SDK limits `maxDelay` to
+`2**32 - 1` seconds (about 136 years), preventing operational configs near
+`uint48` max from overflowing that addition. A zero `thresholdBps` makes every
+positive withdrawal select `maxDelay`, so choose an operationally useful value
+even though the schema permits this conservative upper bound.

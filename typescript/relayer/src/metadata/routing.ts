@@ -8,6 +8,7 @@ import {
   DomainRoutingIsmConfig,
   EvmIsmReader,
   IsmType,
+  MailboxDefaultIsmConfig,
   RoutingIsmConfig,
   isDynamicallyRoutedIsmType,
 } from '@hyperlane-xyz/sdk';
@@ -22,7 +23,7 @@ import type {
 } from './types.js';
 
 export type RoutingMetadata<T> = {
-  type: typeof IsmType.ROUTING;
+  type: typeof IsmType.ROUTING | typeof IsmType.MAILBOX_DEFAULT;
   origin: ChainName;
   metadata: T;
 };
@@ -91,7 +92,9 @@ export class DynamicRoutingMetadataBuilder extends StaticRoutingMetadataBuilder 
   }
 
   public async build(
-    context: MetadataContext<WithAddress<RoutingIsmConfig>>,
+    context: MetadataContext<
+      WithAddress<RoutingIsmConfig | MailboxDefaultIsmConfig>
+    >,
     maxDepth = 10,
   ): Promise<RoutingMetadataBuildResult> {
     const { message, ism } = context;
@@ -153,5 +156,24 @@ export class DynamicRoutingMetadataBuilder extends StaticRoutingMetadataBuilder 
     throw new Error(
       `DefaultFallbackRoutingMetadataBuilder: unexpected ISM type ${ism.type}`,
     );
+  }
+
+  /**
+   * The mailbox default ISM picks its sub-module through an on-chain
+   * `route(message)` call (see build), which a synchronous decode cannot make.
+   * The sub-module's metadata is therefore surfaced as raw bytes instead of
+   * being decoded against a module that may not be the one that verified.
+   */
+  static decodeMailboxDefault(
+    metadata: string,
+    context: MetadataContext<WithAddress<MailboxDefaultIsmConfig>>,
+  ): RoutingMetadata<string> {
+    assert(context.message.parsed.originChain, 'originChain is required');
+
+    return {
+      type: IsmType.MAILBOX_DEFAULT,
+      origin: context.message.parsed.originChain,
+      metadata,
+    };
   }
 }

@@ -19,6 +19,8 @@ import { TokenType } from './config.js';
 import {
   canonicalizeAllowedRebalancingBridges,
   canonicalizeDomainKeyedMap,
+  completeHybridHookNodesFromIsm,
+  expandWarpDeployConfig,
   mergeRebalanceTargets,
   filterWarpCoreConfigMapByChains,
   getDefaultRemoteRouterAndDestinationGasConfig,
@@ -70,6 +72,143 @@ describe('configUtils', () => {
 
       expect(remoteRouters).to.deep.equal({});
       expect(destinationGas).to.deep.equal({});
+    });
+  });
+
+  describe(completeHybridHookNodesFromIsm.name, () => {
+    it('completes an explicit delayed-flow hook leaf from the ISM leaf', () => {
+      const owner = '0x1111111111111111111111111111111111111111';
+      const warpRouter = '0x2222222222222222222222222222222222222222';
+      const remoteIsm = utils.hexZeroPad(
+        '0x3333333333333333333333333333333333333333',
+        32,
+      );
+      const hook = {
+        type: HookType.AGGREGATION,
+        hooks: [
+          {
+            type: HookType.DELAYED_FLOW_ROUTER,
+            thresholdBps: 10000,
+            maxDelay: 5,
+            duration: 86400n,
+            owner,
+          },
+        ],
+      };
+      const ism = {
+        type: IsmType.AGGREGATION,
+        threshold: 1,
+        modules: [
+          {
+            type: IsmType.DELAYED_FLOW_ROUTER,
+            warpRouter,
+            thresholdBps: 10000,
+            maxDelay: 5,
+            duration: 86400n,
+            owner,
+            remoteIsms: { [test2.name]: remoteIsm },
+          },
+        ],
+      };
+
+      expect(completeHybridHookNodesFromIsm(hook, ism)).to.deep.equal({
+        ...hook,
+        hooks: [ism.modules[0]],
+      });
+    });
+  });
+
+  describe(expandWarpDeployConfig.name, () => {
+    it('rejects a hybrid config without a deployed router address', async () => {
+      const owner = '0x1111111111111111111111111111111111111111';
+      let thrown: unknown;
+
+      try {
+        await expandWarpDeployConfig({
+          multiProvider: buildMultiProvider(),
+          warpDeployConfig: {
+            [test1.name]: {
+              type: TokenType.synthetic,
+              name: 'Test',
+              symbol: 'TEST',
+              decimals: 18,
+              owner,
+              mailbox: '0x2222222222222222222222222222222222222222',
+              interchainSecurityModule: {
+                type: IsmType.DELAYED_FLOW_ROUTER,
+                thresholdBps: 10000,
+                maxDelay: 60,
+                duration: 86400n,
+                owner,
+              },
+            },
+          },
+          deployedRoutersAddresses: {},
+        });
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).to.be.instanceOf(Error);
+      assert(thrown instanceof Error, 'Expected expansion to fail');
+      expect(thrown.message).to.equal(
+        `Missing deployed router address for ${test1.name}, which declares a hybrid hook/ISM`,
+      );
+    });
+
+    it('defaults an omitted hook to the completed hybrid ISM node', async () => {
+      const owner = '0x1111111111111111111111111111111111111111';
+      const router = '0x2222222222222222222222222222222222222222';
+      const multiProvider = buildMultiProvider();
+      const provider = multiProvider.getProvider(test1.name);
+      const getCodeStub = sinon.stub(provider, 'getCode').resolves('0x01');
+      const getStorageAtStub = sinon
+        .stub(provider, 'getStorageAt')
+        .resolves('0x0');
+
+      try {
+        const expanded = await expandWarpDeployConfig({
+          multiProvider,
+          warpDeployConfig: {
+            [test1.name]: {
+              type: TokenType.synthetic,
+              name: 'Test',
+              symbol: 'TEST',
+              decimals: 18,
+              owner,
+              mailbox: '0x3333333333333333333333333333333333333333',
+              interchainSecurityModule: {
+                type: IsmType.AGGREGATION,
+                threshold: 2,
+                modules: [
+                  { type: IsmType.TRUSTED_RELAYER, relayer: owner },
+                  {
+                    type: IsmType.DELAYED_FLOW_ROUTER,
+                    thresholdBps: 10000,
+                    maxDelay: 60,
+                    duration: 86400n,
+                    owner,
+                  },
+                ],
+              },
+            },
+          },
+          deployedRoutersAddresses: { [test1.name]: router },
+        });
+
+        expect(expanded[test1.name].hook).to.deep.equal({
+          type: IsmType.DELAYED_FLOW_ROUTER,
+          warpRouter: router,
+          thresholdBps: 10000,
+          maxDelay: 60,
+          duration: 86400n,
+          owner,
+          remoteIsms: undefined,
+        });
+      } finally {
+        getCodeStub.restore();
+        getStorageAtStub.restore();
+      }
     });
   });
 

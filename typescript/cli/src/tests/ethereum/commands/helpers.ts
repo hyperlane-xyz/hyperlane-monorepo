@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import http from 'http';
 import { type IncomingMessage, type ServerResponse } from 'http';
 import path from 'path';
-import { $ } from 'zx';
+import { $, type ProcessPromise } from 'zx';
 
 import {
   type AbstractCcipReadIsm,
@@ -424,6 +424,30 @@ export function hyperlaneRelayer(chains: string[], warpRouteId?: string) {
         --key ${ANVIL_KEY} \
         --verbosity debug \
         --yes`;
+}
+
+/**
+ * True for the two ways a relayer process can already be gone by the time it is
+ * signalled: zx refusing to signal a settled process, and the OS reporting no
+ * such process.
+ */
+function isAlreadyExitedError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (error.message.includes('Too late to kill the process')) return true;
+  return 'code' in error && error.code === 'ESRCH';
+}
+
+/**
+ * Stops a relayer started with hyperlaneRelayer. Only an already-exited process
+ * is tolerated: any other failure means the relayer may still be running and
+ * would poison the rest of the suite, so it is surfaced.
+ */
+export async function stopRelayer(relayer: ProcessPromise): Promise<void> {
+  try {
+    await relayer.kill('SIGINT');
+  } catch (error) {
+    if (!isAlreadyExitedError(error)) throw error;
+  }
 }
 
 export function createSnapshot(rpcUrl: string) {

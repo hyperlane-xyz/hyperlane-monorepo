@@ -46,6 +46,20 @@ export function decodeIsmMetadata(
         ism,
       });
 
+    // Both hybrids are NULL-module-type: they gate on flow state rather than on
+    // metadata, so BaseMetadataBuilder submits empty metadata for them.
+    case IsmType.NET_FLOW_RATE_LIMITED:
+    case IsmType.DELAYED_FLOW_ROUTER:
+      return NullMetadataBuilder.decode(ism);
+
+    case IsmType.MAILBOX_DEFAULT:
+      return DynamicRoutingMetadataBuilder.decodeMailboxDefault(metadata, {
+        message: context.message,
+        dispatchTx: context.dispatchTx,
+        hook: context.hook,
+        ism,
+      });
+
     default:
       throw new Error(`Unsupported ISM type: ${ism.type}`);
   }

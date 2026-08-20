@@ -100,9 +100,14 @@ describe('hyperlane warp check e2e tests', async function () {
   // Removing the blacklist ism because it cannot be a standalone/top-level ISM
   // (mandatory-composition invariant), so it is not exercised by this
   // owner-diff test.
+  // Removing the warp-route hybrid hook/ISMs because their constructors
+  // require a live paired TokenRouter, which randomIsmConfig cannot generate.
   for (const ismType of MUTABLE_ISM_TYPE.filter(
     (ismType) =>
-      ismType !== IsmType.OFFCHAIN_LOOKUP && ismType !== IsmType.BLACKLIST,
+      ismType !== IsmType.OFFCHAIN_LOOKUP &&
+      ismType !== IsmType.BLACKLIST &&
+      ismType !== IsmType.NET_FLOW_RATE_LIMITED &&
+      ismType !== IsmType.DELAYED_FLOW_ROUTER,
   )) {
     it(`should find owner differences between the local config and the on chain config for ism of type ${ismType}`, async function () {
       warpConfig[CHAIN_NAME_3].interchainSecurityModule =

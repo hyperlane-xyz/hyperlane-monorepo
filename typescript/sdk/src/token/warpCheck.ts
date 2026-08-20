@@ -3,6 +3,7 @@ import type { BigNumber } from 'ethers';
 
 import {
   CrossCollateralRouter__factory,
+  DelayedFlowRouterHookIsm__factory,
   IERC4626__factory,
   IXERC20Lockbox__factory,
   Ownable__factory,
@@ -38,6 +39,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
+import { IsmType } from '../ism/types.js';
 import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { resolveRouterMapConfig } from '../router/types.js';
@@ -53,6 +55,7 @@ import {
   scalesEqual,
   verifyScale,
 } from '../utils/decimals.js';
+import { collectHybridIsmNodes } from '../utils/ism.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
@@ -854,6 +857,13 @@ export async function checkWarpRouteDeployConfig({
     warpRouteConfig: evmExpandedWarpDeployConfig,
   });
 
+  await addUnknownDelayedFlowDomainDiffs({
+    multiProvider,
+    diff: rawEvmDiff,
+    onChainWarpConfig: expandedOnChainWarpConfig,
+    warpRouteConfig: evmExpandedWarpDeployConfig,
+  });
+
   await addOwnerOverrideDiffs({
     multiProvider,
     diff: rawEvmDiff,
@@ -928,6 +938,60 @@ export async function checkWarpRouteDeployConfig({
     scaleViolations,
     violations: [...diffViolations, ...scaleViolations],
   };
+}
+
+async function addUnknownDelayedFlowDomainDiffs({
+  multiProvider,
+  diff,
+  onChainWarpConfig,
+  warpRouteConfig,
+}: {
+  multiProvider: MultiProvider;
+  diff: Record<string, ObjectDiff>;
+  onChainWarpConfig: DerivedWarpRouteDeployConfig &
+    Record<string, Partial<HypTokenRouterVirtualConfig>>;
+  warpRouteConfig: WarpRouteDeployConfigMailboxRequired &
+    Record<string, Partial<HypTokenRouterVirtualConfig>>;
+}): Promise<void> {
+  for (const [chain, expectedConfig] of Object.entries(warpRouteConfig)) {
+    if (
+      typeof expectedConfig.interchainSecurityModule !== 'object' ||
+      !collectHybridIsmNodes(expectedConfig.interchainSecurityModule).some(
+        (node) =>
+          node.type === IsmType.DELAYED_FLOW_ROUTER &&
+          node.remoteIsms !== undefined,
+      )
+    ) {
+      continue;
+    }
+
+    const actualIsm = onChainWarpConfig[chain]?.interchainSecurityModule;
+    if (typeof actualIsm !== 'object') continue;
+
+    const actualNodes = collectHybridIsmNodes(actualIsm).filter(
+      (node) => node.type === IsmType.DELAYED_FLOW_ROUTER,
+    );
+    for (const node of actualNodes) {
+      if (!('address' in node) || typeof node.address !== 'string') continue;
+      const delayedIsm = DelayedFlowRouterHookIsm__factory.connect(
+        node.address,
+        multiProvider.getProvider(chain),
+      );
+      for (const domainValue of await delayedIsm.domains()) {
+        const domain = Number(domainValue);
+        if (multiProvider.tryGetChainName(domain) !== null) continue;
+        addNestedDiff(
+          diff,
+          chain,
+          ['interchainSecurityModule', 'remoteIsms', String(domain)],
+          {
+            actual: (await delayedIsm.routers(domain)).toLowerCase(),
+            expected: 'not enrolled',
+          },
+        );
+      }
+    }
+  }
 }
 
 function assertTimelockSupportedByProtocols({
