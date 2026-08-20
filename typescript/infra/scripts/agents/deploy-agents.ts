@@ -7,6 +7,7 @@ import { RootAgentConfig } from '../../src/config/agent/agent.js';
 import {
   checkAgentImageExists,
   checkMonorepoImageExists,
+  checkNodeServicesImageExists,
   warnIfPrTag,
 } from '../../src/utils/gcloud.js';
 import { HelmCommand } from '../../src/utils/helm.js';
@@ -91,6 +92,20 @@ async function checkDockerTagsExist(agentConfig: RootAgentConfig) {
       console.log(
         chalk.green(
           `Agent ${chalk.bold(agent)} is configured with a valid Docker image tag: ${chalk.bold(tag)}.`,
+        ),
+      );
+    }
+  }
+
+  const proxy = agentConfig.scraper?.proxy;
+  if (proxy?.enabled) {
+    const tag = proxy.docker.tag;
+    warnIfPrTag('scraper-proxy', tag);
+    if (!(await checkNodeServicesImageExists(tag))) {
+      errors = true;
+      console.log(
+        chalk.red(
+          `Scraper proxy is configured with an invalid node-services image tag: ${chalk.bold(tag)}.`,
         ),
       );
     }

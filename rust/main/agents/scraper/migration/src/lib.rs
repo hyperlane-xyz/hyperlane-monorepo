@@ -19,6 +19,7 @@ mod m20260613_000008_add_msg_body_to_raw_message_dispatch;
 mod m20260814_000009_compact_cursor_table;
 mod m20260818_000010_create_table_merkle_tree_insertion;
 mod m20260819_000011_nullable_event_tx_ids;
+mod m20260819_000012_notify_scraper_events;
 
 pub struct Migrator;
 
@@ -42,6 +43,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260814_000009_compact_cursor_table::Migration),
             Box::new(m20260818_000010_create_table_merkle_tree_insertion::Migration),
             Box::new(m20260819_000011_nullable_event_tx_ids::Migration),
+            Box::new(m20260819_000012_notify_scraper_events::Migration),
         ]
     }
 }

@@ -372,9 +372,17 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
 
   async helmValues(): Promise<HelmRootAgentValues> {
     const values = await super.helmValues();
+    const proxy = this.config.rawConfig.scraper?.proxy;
     values.hyperlane.scraper = {
       enabled: true,
       config: await this.config.buildConfig(),
+      proxy: proxy && {
+        ...proxy,
+        docker: {
+          repository: proxy.docker.repo,
+          tag: proxy.docker.tag,
+        },
+      },
       resources: this.kubernetesResources(),
     };
     // scraper never requires aws credentials
