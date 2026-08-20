@@ -110,6 +110,7 @@ async function getPrometheusConfig(
                 // Application metrics
                 'ethereum.*',
                 'hyperlane.*',
+                'tollkeeper.*',
                 // Kubernetes metrics
                 'kube_pod_status_phase',
                 'kube_pod_container_status_restarts_total',
