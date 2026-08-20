@@ -29,6 +29,7 @@ describe('external submission', () => {
 
   let multiProvider: MultiProvider;
   let provider: providers.JsonRpcProvider;
+  let getBalance: sinon.SinonStub;
   let getFeeData: sinon.SinonStub;
 
   beforeEach(() => {
@@ -40,7 +41,9 @@ describe('external submission', () => {
       maxPriorityFeePerGas: BigNumber.from(1),
       lastBaseFeePerGas: BigNumber.from(1),
     });
-    sinon.stub(provider, 'getBalance').resolves(BigNumber.from(1_000_000));
+    getBalance = sinon
+      .stub(provider, 'getBalance')
+      .resolves(BigNumber.from(1_000_000));
     sinon.stub(multiProvider, 'estimateGas').resolves(BigNumber.from(21_000));
   });
 
@@ -117,15 +120,7 @@ describe('external submission', () => {
     });
 
     it('rejects an insufficient signer balance', async () => {
-      sinon.restore();
-      sinon.stub(provider, 'getFeeData').resolves({
-        gasPrice: BigNumber.from(2),
-        maxFeePerGas: BigNumber.from(3),
-        maxPriorityFeePerGas: BigNumber.from(1),
-        lastBaseFeePerGas: BigNumber.from(1),
-      });
-      sinon.stub(provider, 'getBalance').resolves(BigNumber.from(1));
-      sinon.stub(multiProvider, 'estimateGas').resolves(BigNumber.from(21_000));
+      getBalance.resolves(BigNumber.from(1));
 
       let error: Error | undefined;
       try {
