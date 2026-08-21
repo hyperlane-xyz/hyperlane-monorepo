@@ -25,6 +25,10 @@ import type {
 } from './relayer.js';
 import type { BaseScraperConfig, HelmScraperValues } from './scraper.js';
 import type {
+  HelmScraperProxyValues,
+  ScraperProxyConfig,
+} from './scraper-proxy.js';
+import type {
   HelmValidatorValues,
   ValidatorBaseChainConfigMap,
 } from './validator.js';
@@ -38,6 +42,7 @@ export type DeepPartial<T> = T extends object
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
 // This is the root object in the values file.
 export interface HelmRootAgentValues {
+  fullnameOverride?: string;
   image: HelmImageValues;
   hyperlane: HelmHyperlaneValues;
   nameOverride?: string;
@@ -63,6 +68,7 @@ interface HelmHyperlaneValues {
   relayer?: HelmRelayerValues;
   relayerChains?: HelmRelayerChainValues[];
   scraper?: HelmScraperValues;
+  scraperProxy?: HelmScraperProxyValues;
 }
 
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
@@ -83,6 +89,7 @@ export interface RootAgentConfig extends AgentContextConfig {
     chains: ValidatorBaseChainConfigMap;
   };
   scraper?: AgentRoleConfig & BaseScraperConfig;
+  scraperProxy?: ScraperProxyConfig;
 }
 
 interface AgentEnvConfig {

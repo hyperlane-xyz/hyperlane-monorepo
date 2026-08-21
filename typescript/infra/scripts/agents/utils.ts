@@ -4,9 +4,9 @@ import chalk from 'chalk';
 import { concurrentMap, mapAllSettled, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
-  AgentHelmManager,
   RelayerHelmManager,
   ScraperHelmManager,
+  ScraperProxyHelmManager,
   ValidatorHelmManager,
 } from '../../src/agents/index.js';
 import { RootAgentConfig } from '../../src/config/agent/agent.js';
@@ -14,6 +14,7 @@ import { EnvironmentConfig } from '../../src/config/environment.js';
 import { Role } from '../../src/roles.js';
 import {
   HelmCommand,
+  HelmManager,
   PreflightDiff,
   buildHelmChartDependencies,
 } from '../../src/utils/helm.js';
@@ -149,7 +150,7 @@ export class AgentCli {
   }
 
   private async runPreflightChecks(
-    managers: Record<string, AgentHelmManager>,
+    managers: Record<string, HelmManager<any>>,
   ): Promise<boolean> {
     console.log(chalk.cyan.bold('🔍 Running pre-flight checks...\n'));
 
@@ -209,8 +210,8 @@ export class AgentCli {
     });
   }
 
-  private managers(): Record<string, AgentHelmManager> {
-    const managers: Record<string, AgentHelmManager> = {};
+  private managers(): Record<string, HelmManager<any>> {
+    const managers: Record<string, HelmManager<any>> = {};
     for (const role of this.roles) {
       switch (role) {
         case Role.Validator: {
@@ -236,6 +237,9 @@ export class AgentCli {
           break;
         case Role.Scraper:
           managers[role] = new ScraperHelmManager(this.agentConfig);
+          break;
+        case Role.ScraperProxy:
+          managers[role] = new ScraperProxyHelmManager(this.agentConfig);
           break;
         default:
           throw new Error(`Invalid role ${role}`);

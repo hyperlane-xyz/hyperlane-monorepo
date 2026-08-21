@@ -838,25 +838,23 @@ const hyperlane: RootAgentConfig = {
   },
   scraper: {
     scraperOnlyChains,
-    proxy: {
-      docker: {
-        repo: DockerImageRepos.NODE_SERVICES,
-        tag: mainnetDockerTags.scraperProxy,
-      },
-      // Enable after publishing an immutable node-services image and creating
-      // the scraper-proxy Cloudflare tunnel token secret.
-      enabled: true,
-      port: 8383,
-      resources: {
-        requests: { cpu: '500m', memory: '1Gi' },
-      },
-    },
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.scraper,
     },
     resources: scraperResources,
+  },
+  scraperProxy: {
+    docker: {
+      repo: DockerImageRepos.NODE_SERVICES,
+      tag: mainnetDockerTags.scraperProxy,
+    },
+    enabled: true,
+    port: 8383,
+    resources: {
+      requests: { cpu: '500m', memory: '1Gi' },
+    },
   },
 };
 

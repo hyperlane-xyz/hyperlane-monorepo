@@ -372,22 +372,47 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
 
   async helmValues(): Promise<HelmRootAgentValues> {
     const values = await super.helmValues();
-    const proxy = this.config.rawConfig.scraper?.proxy;
     values.hyperlane.scraper = {
       enabled: true,
       config: await this.config.buildConfig(),
-      proxy: proxy && {
-        ...proxy,
-        docker: {
-          repository: proxy.docker.repo,
-          tag: proxy.docker.tag,
-        },
-      },
       resources: this.kubernetesResources(),
     };
     // scraper never requires aws credentials
     values.hyperlane.aws = false;
     return values;
+  }
+}
+
+export class ScraperProxyHelmManager extends HelmManager<HelmRootAgentValues> {
+  readonly helmChartPath: string = HELM_CHART_PATH;
+  readonly helmReleaseName = 'scraper-proxy';
+
+  constructor(private readonly config: RootAgentConfig) {
+    super();
+    if (!config.scraperProxy)
+      throw new Error('Scraper proxy is not defined for this context');
+  }
+
+  get namespace(): string {
+    return this.config.namespace;
+  }
+
+  async helmValues(): Promise<HelmRootAgentValues> {
+    const { docker, ...scraperProxy } = this.config.scraperProxy!;
+    return {
+      fullnameOverride: 'scraper-proxy',
+      image: {
+        repository: docker.repo,
+        tag: docker.tag,
+      },
+      hyperlane: {
+        runEnv: this.config.runEnv,
+        context: this.config.context,
+        aws: false,
+        chains: [],
+        scraperProxy,
+      },
+    };
   }
 }
 

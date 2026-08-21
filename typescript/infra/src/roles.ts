@@ -2,6 +2,7 @@ export enum Role {
   Validator = 'validator',
   Relayer = 'relayer',
   Scraper = 'scraper',
+  ScraperProxy = 'scraper-proxy',
   Deployer = 'deployer',
   Rebalancer = 'rebalancer',
   InventoryRebalancer = 'inventoryrebalancer',
