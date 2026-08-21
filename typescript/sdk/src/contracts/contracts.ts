@@ -372,12 +372,16 @@ export async function isAddressActive(
   address: Address,
 ): Promise<boolean> {
   if (canCheckActivation(provider)) {
-    const [code, isActive] = await Promise.all([
-      provider.getCode(address),
-      provider.isAccountActive(address),
-    ]);
+    // Deliberately sequential: non-empty code is by itself conclusive, so a
+    // contract must not be put at the mercy of an activation endpoint it never
+    // needed. Issuing both in parallel would propagate an activation failure
+    // for an address we had already proven active.
+    const code = await provider.getCode(address);
+    if (code !== '0x') {
+      return true;
+    }
 
-    return code !== '0x' || isActive;
+    return provider.isAccountActive(address);
   }
 
   const [code, txnCount] = await Promise.all([

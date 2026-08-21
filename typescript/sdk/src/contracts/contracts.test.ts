@@ -90,10 +90,23 @@ describe('isAddressActive', () => {
       expect(calls.isAccountActive).to.equal(1);
     });
 
-    it('returns true for a contract even when it reports unactivated', async () => {
-      const { provider } = activationProvider(CONTRACT_CODE, false);
+    it('returns true for a contract without consulting the activation check', async () => {
+      const { provider, calls } = activationProvider(CONTRACT_CODE, false);
 
       expect(await isAddressActive(provider, ADDRESS)).to.be.true;
+      expect(calls.isAccountActive).to.equal(0);
+    });
+
+    it('returns true for a contract even when the activation check would fail', async () => {
+      const { provider, calls } = activationProvider(
+        CONTRACT_CODE,
+        async () => {
+          throw new Error('the method wallet/getaccount is not available');
+        },
+      );
+
+      expect(await isAddressActive(provider, ADDRESS)).to.be.true;
+      expect(calls.isAccountActive).to.equal(0);
     });
 
     it('propagates an activation-check failure instead of reporting inactive', async () => {
