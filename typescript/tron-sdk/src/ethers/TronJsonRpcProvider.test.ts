@@ -11,6 +11,9 @@ chai.use(chaiAsPromised);
 const CONTRACT = '0x19335987d77120c462ca7df51cf29f68a38e6d6c';
 const CONTRACT_HEX = '4119335987d77120c462ca7df51cf29f68a38e6d6c';
 const SELECTOR = '0x7f5a7c7b';
+// Real mainnet EOA and its base58 form (TRH7XVrd…LXaBG).
+const EOA = '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba';
+const EOA_BASE58 = 'TRH7XVrdZk2P5DA8aVaufMNkUZBd8LXaBG';
 
 interface CapturedRequest {
   url: string;
@@ -26,16 +29,34 @@ interface ConstantCallResponse {
   constant_result?: string[];
 }
 
+/** Subset of the raw `wallet/getaccount` response the provider reads. */
+interface AccountResponse {
+  Error?: string;
+  address?: string;
+  balance?: number;
+  create_time?: number;
+  type?: string;
+}
+
+type StubResponse = ConstantCallResponse | AccountResponse;
+
+// Deliberately looser than TronWeb's optimistic `request<T>` declaration: the
+// transport can answer with no body at all, and the provider guards for it.
+type RequestImpl = (
+  url: string,
+  payload: Record<string, unknown>,
+  method?: string,
+) => Promise<StubResponse | undefined>;
+
 /** Minimal TronWeb surface the provider invokes on the injected instance. */
 interface TronWebStub {
-  address: { toHex: (address: string) => string };
+  address: {
+    toHex: (address: string) => string;
+    fromHex: (address: string) => string;
+  };
   toUtf8: (hex: string) => string;
   fullNode: {
-    request: (
-      url: string,
-      payload: Record<string, unknown>,
-      method?: string,
-    ) => Promise<ConstantCallResponse>;
+    request: RequestImpl;
   };
 }
 
@@ -43,44 +64,55 @@ interface TronWebStub {
 // provider invokes on the injected instance; only fullNode.request is stubbed.
 const realTronWeb = new TronWeb({ fullHost: 'https://api.trongrid.io' });
 
-function makeProvider(): TronJsonRpcProvider {
+function makeProvider(maxRetries = 1): TronJsonRpcProvider {
   return new TronJsonRpcProvider(
     'https://node.example.com/jsonrpc',
     728126428,
-    1,
+    maxRetries,
     0,
   );
 }
 
 /**
- * Injects a tronWeb double whose fullNode.request returns `response` (and
- * records the request). Delegates address/utf8 helpers to a real TronWeb.
+ * Injects a tronWeb double whose fullNode.request runs `request`. Delegates
+ * address/utf8 helpers to a real TronWeb.
  */
-function stubFullNode(
+function stubFullNodeRequest(
   provider: TronJsonRpcProvider,
-  response: ConstantCallResponse,
-  captured?: { value?: CapturedRequest; calls: number },
+  request: RequestImpl,
 ): void {
   const tronWeb: TronWebStub = {
-    address: { toHex: (a: string) => realTronWeb.address.toHex(a) },
-    toUtf8: (hex: string) => realTronWeb.toUtf8(hex),
-    fullNode: {
-      request: async (
-        url: string,
-        payload: Record<string, unknown>,
-        method?: string,
-      ) => {
-        if (captured) {
-          captured.value = { url, payload, method };
-          captured.calls += 1;
-        }
-        return response;
-      },
+    address: {
+      toHex: (a: string) => realTronWeb.address.toHex(a),
+      fromHex: (a: string) => realTronWeb.address.fromHex(a),
     },
+    toUtf8: (hex: string) => realTronWeb.toUtf8(hex),
+    fullNode: { request },
   };
   // CAST: inject the minimal fullNode double into the provider's private
   // `tronWeb` field.
   (provider as unknown as { tronWeb: TronWebStub }).tronWeb = tronWeb;
+}
+
+/**
+ * Injects a tronWeb double whose fullNode.request returns `response` (and
+ * records the request).
+ */
+function stubFullNode(
+  provider: TronJsonRpcProvider,
+  response: StubResponse,
+  captured?: { value?: CapturedRequest; calls: number },
+): void {
+  stubFullNodeRequest(
+    provider,
+    async (url: string, payload: Record<string, unknown>, method?: string) => {
+      if (captured) {
+        captured.value = { url, payload, method };
+        captured.calls += 1;
+      }
+      return response;
+    },
+  );
 }
 
 type SendImpl = (method: string, params: unknown[]) => Promise<unknown>;
@@ -129,6 +161,27 @@ function throwingSend(error: Error): SendImpl {
     throw error;
   };
 }
+
+function throwingRequest(error: Error): RequestImpl {
+  return async () => {
+    throw error;
+  };
+}
+
+// `wallet/getaccount` bodies as mainnet returns them for `visible: true`. A
+// contract account omits `create_time` entirely, which is why activation keys
+// off the body being non-empty rather than off that field.
+const ACTIVE_EOA_ACCOUNT: AccountResponse = {
+  address: EOA_BASE58,
+  balance: 2_543_000_000,
+  create_time: 1_773_619_200_000,
+};
+
+const ACTIVE_CONTRACT_ACCOUNT: AccountResponse = {
+  address: 'TCGTQhMDW82v8Ls93zVeq9pFV2JVkdxDuq',
+  balance: 0,
+  type: 'Contract',
+};
 
 async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
   let thrown: unknown;
@@ -401,6 +454,92 @@ describe('TronJsonRpcProvider', () => {
       expect(captured.value?.payload.owner_address).to.equal(
         toTronHex(realTronWeb, from),
       );
+    });
+  });
+
+  describe('isAccountActive', () => {
+    it('posts the base58 address to the raw account endpoint', async () => {
+      const provider = makeProvider();
+      const captured: Captured = { calls: 0 };
+      stubFullNode(provider, ACTIVE_EOA_ACCOUNT, captured);
+
+      await provider.isAccountActive(EOA);
+
+      expect(captured.value?.url).to.equal('wallet/getaccount');
+      expect(captured.value?.method).to.equal('post');
+      expect(captured.value?.payload.address).to.equal(EOA_BASE58);
+      expect(captured.value?.payload.visible).to.equal(true);
+    });
+
+    it('returns true for an activated account', async () => {
+      const provider = makeProvider();
+      stubFullNode(provider, ACTIVE_EOA_ACCOUNT);
+
+      expect(await provider.isAccountActive(EOA)).to.be.true;
+    });
+
+    it('returns true for a contract account, which carries no create_time', async () => {
+      const provider = makeProvider();
+      stubFullNode(provider, ACTIVE_CONTRACT_ACCOUNT);
+
+      expect(await provider.isAccountActive(CONTRACT)).to.be.true;
+    });
+
+    it('returns false for an unactivated account (empty response)', async () => {
+      const provider = makeProvider();
+      stubFullNode(provider, {});
+
+      expect(await provider.isAccountActive(EOA)).to.be.false;
+    });
+
+    it('throws on a missing response body', async () => {
+      const provider = makeProvider();
+      // The node answered with no JSON body at all, which must not read as a
+      // missing account.
+      stubFullNodeRequest(provider, async () => undefined);
+
+      const thrown = await rejectionOf(provider.isAccountActive(EOA));
+
+      expect(thrown).to.have.property(
+        'message',
+        `Tron account lookup returned no response body for ${EOA_BASE58}`,
+      );
+    });
+
+    it('throws on a node-level error response', async () => {
+      const provider = makeProvider();
+      stubFullNode(provider, { Error: 'Invalid address' });
+
+      const thrown = await rejectionOf(provider.isAccountActive(EOA));
+
+      expect(thrown).to.have.property(
+        'message',
+        'Tron account lookup failed: Invalid address',
+      );
+    });
+
+    it('rejects on a transport failure instead of reporting inactive', async () => {
+      const provider = makeProvider();
+      stubFullNodeRequest(provider, throwingRequest(TRANSPORT_ERROR));
+
+      const thrown = await rejectionOf(provider.isAccountActive(EOA));
+
+      expect(thrown).to.equal(TRANSPORT_ERROR);
+    });
+
+    it('retries a transient failure before resolving', async () => {
+      const provider = makeProvider(2);
+      let calls = 0;
+      stubFullNodeRequest(provider, async () => {
+        calls += 1;
+        if (calls === 1) {
+          throw TRANSPORT_ERROR;
+        }
+        return ACTIVE_EOA_ACCOUNT;
+      });
+
+      expect(await provider.isAccountActive(EOA)).to.be.true;
+      expect(calls).to.equal(2);
     });
   });
 });
