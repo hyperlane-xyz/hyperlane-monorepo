@@ -211,9 +211,14 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     // We need to normalize the current and target configs to compare.
-    let normalizedTargetConfig: IsmConfig = normalizeConfig(
-      await this.reader.deriveIsmConfig(parsedTargetConfig),
-    );
+    const derivedTargetConfig =
+      await this.reader.deriveIsmConfig(parsedTargetConfig);
+    let normalizedTargetConfig: IsmConfig =
+      typeof parsedTargetConfig === 'string' &&
+      (derivedTargetConfig.type === IsmType.WORMHOLE_EXECUTOR ||
+        derivedTargetConfig.type === IsmType.WORMHOLE_VAA)
+        ? parsedTargetConfig
+        : normalizeConfig(derivedTargetConfig);
     for (const address of opaqueHybridAddresses) {
       normalizedTargetConfig = resolveHybridIsmNodesToAddress(
         normalizedTargetConfig,
