@@ -26,7 +26,7 @@
     "lint": "oxlint -c ../../oxlint.json",
     "start": "node dist/main.js",
     "start:dev": "NODE_ENV=development LOG_FORMAT=pretty node dist/main.js",
-    "test": "tsx --test src/**/*.test.ts",
+    "test": "tsx --test src/*.test.ts src/**/*.test.ts",
     "test:ci": "pnpm test"
   },
   "dependencies": {
