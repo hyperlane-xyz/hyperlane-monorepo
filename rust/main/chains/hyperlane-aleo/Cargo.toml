@@ -43,6 +43,7 @@ reqwest = { workspace = true, features = ["json", "blocking", "cookies"] }
 anyhow.workspace = true
 futures.workspace = true
 url.workspace = true
+percent-encoding.workspace = true
 num-traits.workspace = true
 derive-new = { workspace = true }
 hex.workspace = true

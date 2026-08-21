@@ -3,6 +3,7 @@ use std::ops::Deref;
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_new::new;
+use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use serde::de::DeserializeOwned;
 use snarkvm::ledger::query::QueryTrait;
 use snarkvm::ledger::{Block, ConfirmedTransaction};
@@ -69,6 +70,22 @@ pub struct RpcClient<Client: HttpClient>(Client);
 struct MappingValueWithMeta {
     data: Plaintext<CurrentNetwork>,
     height: u32,
+}
+
+/// Everything except the RFC 3986 unreserved set (`ALPHA / DIGIT / - . _ ~`).
+const MAPPING_KEY_ENCODE_SET: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'_')
+    .remove(b'~');
+
+/// Percent-encodes an Aleo mapping key for safe inclusion in a URL path segment.
+///
+/// Aleo serializes struct/array keys with literal `{ } [ ] , :` and whitespace. RFC 3986-strict
+/// gateways (e.g. Apigee) reject those unencoded characters with HTTP 400, so every non-unreserved
+/// character is percent-encoded.
+fn encode_mapping_key(key: &str) -> String {
+    utf8_percent_encode(key, MAPPING_KEY_ENCODE_SET).to_string()
 }
 
 impl<T: HttpClient> Deref for RpcClient<T> {
@@ -165,9 +182,10 @@ impl<Client: HttpClient> RpcClient<Client> {
         let plaintext_key = mapping_key
             .to_plaintext()
             .map_err(HyperlaneAleoError::from)?;
+        let encoded_key = encode_mapping_key(&plaintext_key.to_string());
         let plain_text: Plaintext<N> = self
             .request(
-                &format!("program/{program_id}/mapping/{mapping_name}/{plaintext_key}"),
+                &format!("program/{program_id}/mapping/{mapping_name}/{encoded_key}"),
                 None,
             )
             .await?;
@@ -188,9 +206,10 @@ impl<Client: HttpClient> RpcClient<Client> {
         let plaintext_key = mapping_key
             .to_plaintext()
             .map_err(HyperlaneAleoError::from)?;
+        let encoded_key = encode_mapping_key(&plaintext_key.to_string());
         let plain_text: Option<Plaintext<CurrentNetwork>> = self
             .request(
-                &format!("program/{program_id}/mapping/{mapping_name}/{plaintext_key}"),
+                &format!("program/{program_id}/mapping/{mapping_name}/{encoded_key}"),
                 None,
             )
             .await?;
@@ -210,9 +229,10 @@ impl<Client: HttpClient> RpcClient<Client> {
         mapping_name: &str,
         mapping_key: &str,
     ) -> ChainResult<(T, u32)> {
+        let encoded_key = encode_mapping_key(mapping_key);
         let response: MappingValueWithMeta = self
             .request(
-                &format!("program/{program_id}/mapping/{mapping_name}/{mapping_key}"),
+                &format!("program/{program_id}/mapping/{mapping_name}/{encoded_key}"),
                 Some(serde_json::json!({ "metadata": true })),
             )
             .await?;
@@ -374,5 +394,28 @@ impl<Client: HttpClient, N: Network> QueryTrait<N> for RpcClient<Client> {
     /// Returns the current block height
     async fn current_block_height_async(&self) -> Result<u32> {
         Ok(self.get_latest_height().await?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::encode_mapping_key;
+
+    #[test]
+    fn encodes_reserved_characters() {
+        // Struct/array keys with brackets, braces, colons, commas and whitespace must be encoded
+        // so RFC 3986-strict gateways (Apigee) accept the path.
+        let key = "{validator:[0u8, 1u8],index:0u8}";
+        assert_eq!(
+            encode_mapping_key(key),
+            "%7Bvalidator%3A%5B0u8%2C%201u8%5D%2Cindex%3A0u8%7D",
+        );
+    }
+
+    #[test]
+    fn preserves_unreserved_characters() {
+        // Aleo addresses and the RFC 3986 unreserved set must pass through unchanged.
+        let key = "aleo1qkjr490qe7p9v45qrd5pjemmqn4vmgqt8vzc8j0jfwhc7mf5f5zqly7vze-._~";
+        assert_eq!(encode_mapping_key(key), key);
     }
 }

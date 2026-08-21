@@ -79,6 +79,9 @@ impl HttpClient for MockHttpClient {
         path: &str,
         _query: impl Into<Option<Value>> + Send,
     ) -> ChainResult<T> {
+        // Simulate the server-side decode so registered endpoints stay human-readable while the
+        // client percent-encodes mapping-key path segments.
+        let path = percent_encoding::percent_decode_str(path).decode_utf8_lossy();
         let path = path
             .trim()
             .chars()
