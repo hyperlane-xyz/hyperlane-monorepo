@@ -12,6 +12,7 @@ import { CCTPService } from './services/CCTPService.js';
 import { CallCommitmentsService } from './services/CallCommitmentsService.js';
 import { HealthService } from './services/HealthService.js';
 import { OPStackService } from './services/OPStackService.js';
+import { WormholeVaaService } from './services/WormholeVaaService.js';
 import { configureTrustProxy } from './utils/http.js';
 import {
   PrometheusMetrics,
@@ -23,6 +24,7 @@ export const moduleRegistry: Record<string, ServiceFactory> = {
   callCommitments: CallCommitmentsService,
   cctp: CCTPService,
   opstack: OPStackService,
+  wormhole: WormholeVaaService,
 };
 
 async function startServer() {
