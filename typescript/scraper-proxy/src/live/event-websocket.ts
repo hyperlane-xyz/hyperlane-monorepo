@@ -390,6 +390,7 @@ export class EventWebSocketServer {
         );
         subscription.pending = [];
         for (const row of pending) {
+          this.assertCatchUpBudget(subscription);
           if (
             !(await this.deliverAndWait(
               socket,
@@ -454,6 +455,7 @@ export class EventWebSocketServer {
       if (!rows.length)
         throw new Error(`Missing ${eventType} sequence ${current + 1n}`);
       for (const row of rows) {
+        this.assertCatchUpBudget(subscription);
         if (
           !(await this.deliverAndWait(socket, eventType, subscription, row))
         ) {

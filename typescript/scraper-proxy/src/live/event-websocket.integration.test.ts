@@ -355,6 +355,89 @@ void it('drains live events arriving while the pending buffer is sent', async (c
   await new Promise<void>((resolve) => socket.once('close', resolve));
 });
 
+void it('enforces the catch-up deadline while pending rows replenish', async (context) => {
+  let now = 0;
+  context.mock.method(Date, 'now', () => now);
+  const completions = delayServerSendCompletions(context);
+  let deadlineNotify: (channel: string, payload?: string) => void;
+  const deadlineDb: EventDatabase = {
+    ...db,
+    async listen(_channels, handler) {
+      deadlineNotify = handler;
+      return async () => undefined;
+    },
+  };
+  const deadlineHttp = createServer();
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  const deadlineEvents = new EventWebSocketServer(deadlineDb, {
+    maxCatchUpMs: 10,
+    maxCatchUpRows: 10,
+  });
+  await new Promise<void>((resolve) =>
+    deadlineHttp.listen(0, '127.0.0.1', resolve),
+  );
+  const address = deadlineHttp.address();
+  assert(address && typeof address !== 'string');
+  await deadlineEvents.start(deadlineHttp);
+
+  const socket = new WebSocket(`ws://127.0.0.1:${address.port}/agents`);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [{ address: pacedHook, afterSequence: '-1', domain: 1 }],
+              eventType: 'merkle_tree_insertion',
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+
+  try {
+    await waitUntil(() => eventSequences(messages).includes('0'));
+    await waitUntil(() => completions.length === 1);
+    rows.set('5', row(pacedHook, 2));
+    deadlineNotify('scraper_event', notification('5'));
+    await waitUntil(() => notifiedIds.has('5'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    completions.shift()?.();
+    await waitUntil(() => eventSequences(messages).includes('1'));
+    await waitUntil(() => completions.length === 1);
+    completions.shift()?.();
+    await waitFor(messages, 'caught_up');
+    await waitUntil(() => completions.length === 1);
+    completions.shift()?.();
+
+    await waitUntil(() => eventSequences(messages).includes('2'));
+    await waitUntil(() => completions.length === 1);
+    rows.set('6', row(pacedHook, 3));
+    deadlineNotify('scraper_event', notification('6'));
+    await waitUntil(() => notifiedIds.has('6'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    now = 11;
+    completions.shift()?.();
+
+    const error = await waitFor(messages, 'error');
+    assert.match(String(error.error), /time limit exceeded \(10ms\)/);
+    assert.deepEqual(eventSequences(messages), ['0', '1', '2']);
+  } finally {
+    socket.close();
+    await new Promise<void>((resolve) => socket.once('close', resolve));
+    await deadlineEvents.stop();
+    await new Promise<void>((resolve, reject) =>
+      deadlineHttp.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
+
 void it('rejects an empty historical cursor instead of reporting caught up', async () => {
   const socket = new WebSocket(url);
   const messages: Record<string, unknown>[] = [];
