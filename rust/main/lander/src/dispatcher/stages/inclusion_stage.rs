@@ -297,7 +297,13 @@ impl InclusionStage {
                 // transactions that may never confirm, while still polling them
                 // occasionally in case they eventually do.
                 let base = max(base_interval, MIN_TX_STATUS_CHECK_DELAY);
-                let steps = ((tx_age.num_seconds() - 300) / 300).clamp(0, 16) as u32;
+                let steps = tx_age
+                    .num_seconds()
+                    .saturating_sub(300)
+                    .checked_div(300)
+                    .unwrap_or_default()
+                    .clamp(0, 16);
+                let steps = u32::try_from(steps).expect("backoff steps are clamped to u32 range");
                 base.saturating_mul(2u32.saturating_pow(steps))
                     .min(MAX_TX_STATUS_CHECK_DELAY)
             };

@@ -951,6 +951,22 @@ fn test_aged_pending_tx_backoff_is_escalated_and_capped() {
     let base_interval = Duration::from_secs(1);
     let now = chrono::Utc::now();
 
+    // At 10 minutes old, the interval has doubled from one to two seconds.
+    let mut escalating = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+    escalating.creation_timestamp = now - chrono::Duration::minutes(10);
+    escalating.last_status_check = Some(now - chrono::Duration::seconds(1));
+    assert!(!InclusionStage::tx_ready_for_processing(
+        base_interval,
+        now,
+        &escalating
+    ));
+    escalating.last_status_check = Some(now - chrono::Duration::seconds(2));
+    assert!(InclusionStage::tx_ready_for_processing(
+        base_interval,
+        now,
+        &escalating
+    ));
+
     // A long-pending tx (1h old, e.g. one that never landed on-chain) checked
     // 30s ago must be skipped: the aged backoff has escalated far past a single
     // block time and is capped at MAX_TX_STATUS_CHECK_DELAY (5 min), so
@@ -966,7 +982,9 @@ fn test_aged_pending_tx_backoff_is_escalated_and_capped() {
     ));
 
     // Once the capped interval elapses, the aged tx is polled again.
-    let past_cap = MAX_TX_STATUS_CHECK_DELAY.as_secs() as i64 + 1;
+    let past_cap = i64::try_from(MAX_TX_STATUS_CHECK_DELAY.as_secs())
+        .expect("maximum delay fits in i64")
+        .saturating_add(1);
     aged.last_status_check = Some(now - chrono::Duration::seconds(past_cap));
     assert!(InclusionStage::tx_ready_for_processing(
         base_interval,
