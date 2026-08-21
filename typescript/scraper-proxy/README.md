@@ -7,8 +7,8 @@ Prometheus metrics at `/metrics`.
 ## Deployment
 
 The proxy is bundled into `hyperlane-node-services` as `scraper-proxy`. The
-mainnet scraper Helm release runs it next to the scraper with a `cloudflared`
-sidecar. The existing scraper database secret supplies `DATABASE_URL`.
+dedicated scraper-proxy Helm release runs it with a `cloudflared` sidecar. Its
+ExternalSecret reads the scraper database's read-only URL into `DATABASE_URL`.
 
 Before enabling the deployment:
 
@@ -20,12 +20,12 @@ Before enabling the deployment:
    both public routes.
 3. Store its token in GCP Secret Manager as
    `hyperlane-mainnet3-scraper-proxy-cloudflared-tunnel-token`.
-4. Set `scraper.proxy.enabled` to `true` in the mainnet agent config.
-5. Deploy the scraper role:
+4. Set `scraperProxy.enabled` to `true` in the mainnet agent config.
+5. Deploy the scraper-proxy role:
 
    ```sh
    pnpm -C typescript/infra tsx scripts/agents/deploy-agents.ts \
-     --environment mainnet3 --roles scraper
+     --environment mainnet3 --roles scraper-proxy
    ```
 
 The public endpoints are then:

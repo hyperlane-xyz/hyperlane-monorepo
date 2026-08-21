@@ -143,18 +143,6 @@ hyperlane:
 
   scraper:
     enabled: false
-    proxy:
-      enabled: false
-      docker:
-        repository: ghcr.io/hyperlane-xyz/hyperlane-node-services
-        tag: main
-      port: 8383
-      tunnel:
-        image: cloudflare/cloudflared:2026.8.2
-      resources:
-        requests:
-          cpu: 500m
-          memory: 1Gi
     podAnnotations:
       prometheus.io/port: '9090'
       prometheus.io/scrape: 'true'
@@ -170,6 +158,17 @@ hyperlane:
         memory: 256Mi
     config:
       chainsToScrape: ''
+
+  scraperProxy:
+    enabled: false
+    port: 8383
+    replicas: 1
+    tunnel:
+      image: cloudflare/cloudflared:2026.8.2
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
 
   kathy:
     enabled: false

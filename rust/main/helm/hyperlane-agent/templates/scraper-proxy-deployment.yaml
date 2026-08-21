@@ -1,0 +1,84 @@
+{{- if .Values.hyperlane.scraperProxy.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agent-common.fullname" . }}
+  labels:
+    {{- include "agent-common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scraper-proxy
+spec:
+  replicas: {{ .Values.hyperlane.scraperProxy.replicas }}
+  selector:
+    matchLabels:
+      {{- include "agent-common.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scraper-proxy
+  template:
+    metadata:
+      annotations:
+        checksum/scraper-proxy-external-secret: {{ include (print $.Template.BasePath "/scraper-proxy-external-secret.yaml") . | sha256sum }}
+        checksum/scraper-proxy-cloudflared-external-secret: {{ include (print $.Template.BasePath "/scraper-proxy-cloudflared-external-secret.yaml") . | sha256sum }}
+      labels:
+        {{- include "agent-common.labels" . | nindent 8 }}
+        app.kubernetes.io/component: scraper-proxy
+        {{- with .Values.podCommonLabels }}
+        {{ toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.hyperlane.scraper.podLabels }}
+        {{ toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: scraper-proxy
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: SERVICE_NAME
+          value: scraper-proxy
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "agent-common.fullname" . }}-secret
+              key: DATABASE_URL
+        - name: PORT
+          value: {{ .Values.hyperlane.scraperProxy.port | quote }}
+        ports:
+        - name: scraper-proxy
+          containerPort: {{ .Values.hyperlane.scraperProxy.port }}
+        readinessProbe:
+          tcpSocket:
+            port: scraper-proxy
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          {{- toYaml .Values.hyperlane.scraperProxy.resources | nindent 10 }}
+      - name: cloudflared
+        image: {{ .Values.hyperlane.scraperProxy.tunnel.image }}
+        args: ["tunnel", "--no-autoupdate", "run"]
+        envFrom:
+        - secretRef:
+            name: {{ include "agent-common.fullname" . }}-cloudflared-secret
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      tolerations:
+        - key: "dedicated"
+          operator: "Equal"
+          value: "scraper"
+          effect: "NoSchedule"
+{{- end }}

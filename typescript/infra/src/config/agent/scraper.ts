@@ -8,35 +8,11 @@ import { isAddress } from '@hyperlane-xyz/utils';
 
 import { getDomainId, getRegistry } from '../../../config/registry.js';
 import { Role } from '../../roles.js';
-import type {
-  HelmImageValues,
-  HelmStatefulSetValues,
-} from '../infrastructure.js';
+import type { HelmStatefulSetValues } from '../infrastructure.js';
 
-import {
-  AgentConfigHelper,
-  type DockerConfig,
-  type KubernetesResources,
-  RootAgentConfig,
-} from './agent.js';
-
-export interface ScraperProxyConfig {
-  docker: DockerConfig;
-  enabled: boolean;
-  port?: number;
-  resources?: KubernetesResources;
-  tunnel?: { image: string };
-}
-
-export interface HelmScraperProxyValues extends Omit<
-  ScraperProxyConfig,
-  'docker'
-> {
-  docker: HelmImageValues;
-}
+import { AgentConfigHelper, RootAgentConfig } from './agent.js';
 
 export interface BaseScraperConfig {
-  proxy?: ScraperProxyConfig;
   scraperOnlyChains?: ChainMap<boolean>;
 }
 
@@ -45,7 +21,6 @@ export type ScraperConfig = Omit<ScraperAgentConfig, keyof AgentConfig | 'db'>;
 
 export interface HelmScraperValues extends HelmStatefulSetValues {
   config?: ScraperConfig;
-  proxy?: HelmScraperProxyValues;
 }
 
 /**

@@ -1,3 +1,4 @@
+{{- if .Values.hyperlane.relayer.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -7,3 +8,4 @@ metadata:
 data:
   relayer-config.json: |
 {{- toJson .Values.hyperlane.relayer.configMapConfig | nindent 4 }}
+{{- end }}
