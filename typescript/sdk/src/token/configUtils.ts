@@ -916,6 +916,17 @@ const transformWarpDeployConfigToCheck: TransformObjectTransformer = (
   const parentObjectKey = propPath[propPath.length - 2];
   const parentKey = propPath[propPath.length - 1];
 
+  // Derived Wormhole hook/ISM leaves include their complete enrollment table
+  // for diagnostics. Compare that trust anchor through the dedicated Wormhole
+  // mesh check, where the expected remote router addresses can first be
+  // resolved from the deployed peer contracts.
+  if (
+    parentKey === 'remoteRouters' &&
+    propPath.some((key) => key === 'hook' || key === 'interchainSecurityModule')
+  ) {
+    return undefined;
+  }
+
   // Remove the address and ownerOverrides fields if we are not inside the
   // remoteRouters property
   if (

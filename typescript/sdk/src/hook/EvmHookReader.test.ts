@@ -33,7 +33,7 @@ import {
   StorageGasOracle,
   StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
-import { WithAddress, addressToBytes32 } from '@hyperlane-xyz/utils';
+import { WithAddress, addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName, test1 } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -44,6 +44,9 @@ import {
 } from '../test/errors.js';
 import { contractDouble } from '../test/contractDouble.js';
 import { randomAddress } from '../test/testUtils.js';
+import { EvmWormholeHookIsmReader } from '../wormhole/EvmWormholeHookIsmReader.js';
+import { WormholeConsistencyType } from '../wormhole/consistency.js';
+import { WormholeVariant } from '../wormhole/types.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
 import {
@@ -60,6 +63,7 @@ import {
   PausableHookConfig,
   ProtocolFeeHookConfig,
   RateLimitedHookConfig,
+  WormholeHookConfig,
 } from './types.js';
 
 // Message HyperlaneJsonRpcProvider emits for an empty eth_call result, which
@@ -163,6 +167,124 @@ describe('EvmHookReader', () => {
     // should get same result if we call the specific method for the hook type
     const config = await evmHookReader.deriveProtocolFeeConfig(mockAddress);
     expect(config).to.deep.equal(hookConfig);
+  });
+
+  describe('nested Wormhole hooks', () => {
+    const wormholeAddress = randomAddress();
+    const derivedWormholeHook = {
+      address: wormholeAddress,
+      type: HookType.WORMHOLE_EXECUTOR,
+      executorQuoterRouter: randomAddress(),
+      routes: {},
+    } as const;
+
+    it('preserves the address for deployment readers', async () => {
+      sandbox
+        .stub(evmHookReader, 'deriveHookConfigFromAddress')
+        .resolves(derivedWormholeHook);
+
+      const config = await evmHookReader.deriveHookConfig({
+        type: HookType.AGGREGATION,
+        hooks: [wormholeAddress],
+      });
+
+      assert(
+        config.type === HookType.AGGREGATION,
+        'Expected aggregation hook config',
+      );
+      expect(config.hooks).to.deep.equal([wormholeAddress]);
+    });
+
+    it('preserves an undeployed Wormhole config object', async () => {
+      const wormholeConfig: WormholeHookConfig = {
+        type: HookType.WORMHOLE_EXECUTOR,
+        executorQuoterRouter: randomAddress(),
+        routes: {},
+      };
+
+      const config = await evmHookReader.deriveHookConfig({
+        type: HookType.AGGREGATION,
+        hooks: [wormholeConfig],
+      });
+
+      assert(
+        config.type === HookType.AGGREGATION,
+        'Expected aggregation hook config',
+      );
+      expect(config.hooks).to.deep.equal([wormholeConfig]);
+    });
+
+    it('expands the config when requested for diagnostics', async () => {
+      const diagnosticReader = new EvmHookReader(
+        multiProvider,
+        TestChainName.test1,
+        undefined,
+        undefined,
+        { expandWormhole: true },
+      );
+      sandbox
+        .stub(diagnosticReader, 'deriveHookConfigFromAddress')
+        .resolves(derivedWormholeHook);
+
+      const config = await diagnosticReader.deriveHookConfig({
+        type: HookType.AGGREGATION,
+        hooks: [wormholeAddress],
+      });
+
+      assert(
+        config.type === HookType.AGGREGATION,
+        'Expected aggregation hook config',
+      );
+      expect(config.hooks).to.deep.equal([derivedWormholeHook]);
+    });
+  });
+
+  it('includes remote-router trust configuration in Wormhole diagnostics', async () => {
+    const router = randomAddress();
+    const remoteRouter = randomAddress();
+    const executorQuoterRouter = randomAddress();
+    const quoter = randomAddress();
+    sandbox.stub(IPostDispatchHook__factory, 'connect').returns({
+      hookType: sandbox.stub().resolves(OnchainHookType.WORMHOLE),
+    } as unknown as IPostDispatchHook);
+    sandbox
+      .stub(EvmWormholeHookIsmReader.prototype, 'deriveWormholeConfig')
+      .resolves({
+        address: router,
+        type: WormholeVariant.Executor,
+        owner: randomAddress(),
+        mailbox: randomAddress(),
+        core: randomAddress(),
+        wormholeChainId: 2,
+        consistencyLevel: { type: WormholeConsistencyType.Finalized },
+        executorQuoterRouter,
+        remoteRouters: {
+          [TestChainName.test2]: {
+            router: remoteRouter,
+            wormholeChainId: 30,
+            expectedConsistencyLevel: 202,
+            quoter,
+            callbackGasLimit: 300_000n,
+          },
+        },
+      });
+
+    const config = await new EvmHookReader(
+      multiProvider,
+      TestChainName.test1,
+      undefined,
+      undefined,
+      { expandWormhole: true },
+    ).deriveHookConfigFromAddress(router);
+
+    expect(config).to.have.nested.property(
+      `remoteRouters.${TestChainName.test2}.router`,
+      remoteRouter,
+    );
+    expect(config).to.have.nested.property(
+      `remoteRouters.${TestChainName.test2}.expectedConsistencyLevel`,
+      202,
+    );
   });
 
   it('should derive pausable config correctly', async () => {
