@@ -7,6 +7,10 @@ import { AppModule } from './module.js';
 import { config } from './config.js';
 import { DbService } from './db/db.service.js';
 import { EventWebSocketServer } from './live/event-websocket.js';
+import {
+  setDatabaseMetricsProvider,
+  setWebSocketMetricsProvider,
+} from './metrics.js';
 
 const logger = new Logger('Shutdown');
 
@@ -17,8 +21,11 @@ async function bootstrap(): Promise<void> {
     credentials: false,
     origin: true,
   });
+  const db = app.get(DbService);
+  const eventWebSocketServer = new EventWebSocketServer(db);
+  setDatabaseMetricsProvider(() => db.metricsSnapshot());
+  setWebSocketMetricsProvider(() => eventWebSocketServer.metricsSnapshot());
   const server = await app.listen(config.PORT);
-  const eventWebSocketServer = new EventWebSocketServer(app.get(DbService));
   await eventWebSocketServer.start(server);
   let stopping = false;
   const stop = async (): Promise<void> => {

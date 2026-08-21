@@ -7,6 +7,14 @@ import { WebSocket, WebSocketServer } from 'ws';
 
 import { config } from '../config.js';
 import type { DbService } from '../db/db.service.js';
+import {
+  type WebSocketMetricsSnapshot,
+  websocketCatchUps,
+  websocketClientMessageRejections,
+  websocketConnectionRejections,
+  websocketConnections,
+  websocketSendFailures,
+} from '../metrics.js';
 import { quoteIdentifier as q, tables } from '../scraperdb/tables.js';
 import {
   displayAddress,
@@ -209,6 +217,79 @@ export class EventWebSocketServer {
     );
   }
 
+  metricsSnapshot(): WebSocketMetricsSnapshot {
+    const subscriptions: WebSocketMetricsSnapshot['subscriptions'] = {
+      delivery: { catchingUp: 0, live: 0 },
+      dispatch: { catchingUp: 0, live: 0 },
+      gas_payment: { catchingUp: 0, live: 0 },
+      merkle_tree_insertion: { catchingUp: 0, live: 0 },
+    };
+    const now = Date.now();
+    let maxCatchUpDurationMs = 0;
+    let maxCatchUpRows = 0;
+    let maxPendingCatchUpEvents = 0;
+    let pendingCatchUpEvents = 0;
+    for (const client of this.clients.values()) {
+      for (const [eventType, subscription] of client.subscriptions) {
+        subscriptions[eventType][
+          subscription.catchingUp ? 'catchingUp' : 'live'
+        ]++;
+        pendingCatchUpEvents += subscription.pending.length;
+        maxPendingCatchUpEvents = Math.max(
+          maxPendingCatchUpEvents,
+          subscription.pending.length,
+        );
+        if (subscription.catchingUp) {
+          maxCatchUpDurationMs = Math.max(
+            maxCatchUpDurationMs,
+            now - subscription.catchUpStartedAt,
+          );
+          maxCatchUpRows = Math.max(maxCatchUpRows, subscription.catchUpRows);
+        }
+      }
+    }
+    const sockets = [...this.clients.keys(), ...this.explorerClients.keys()];
+    return {
+      catchUps: this.catchUps,
+      connections: {
+        agent: this.clients.size,
+        messages: this.explorerClients.size,
+      },
+      messageClientIps: this.explorerClientsByIp.size,
+      messageMaxConnectionsPerIp: Math.max(
+        0,
+        ...this.explorerClientsByIp.values(),
+      ),
+      limits: {
+        agentConnections: this.limits.maxAgentClients,
+        catchUpMs: this.limits.maxCatchUpMs,
+        catchUpRows: this.limits.maxCatchUpRows,
+        clientMessagesPerMinute: MAX_CLIENT_MESSAGES,
+        concurrentCatchUps: this.limits.maxConcurrentCatchUps,
+        messageConnections: this.limits.maxExplorerClients,
+        messageConnectionsPerIp: MAX_EXPLORER_CLIENTS_PER_IP,
+        pendingEvents: MAX_PENDING_EVENTS,
+        socketBufferedBytes: this.limits.maxBufferedBytes,
+        totalPendingBytes: this.limits.maxTotalBufferedBytes,
+      },
+      listenerReady: this.listenerReady,
+      maxCatchUpDurationMs,
+      maxCatchUpRows,
+      maxClientBufferedBytes: sockets.reduce(
+        (max, socket) => Math.max(max, socket.bufferedAmount),
+        0,
+      ),
+      notificationQueue: {
+        agent: this.notifications.size,
+        messages: this.explorerNotifications.size,
+      },
+      outboundPendingBytes: this.pendingBytes,
+      maxPendingCatchUpEvents,
+      pendingCatchUpEvents,
+      subscriptions,
+    };
+  }
+
   private connectAgent(socket: WebSocket): void {
     if (!this.accept(socket, 'agent')) return;
     this.clients.set(socket, {
@@ -217,6 +298,7 @@ export class EventWebSocketServer {
       messageWindow: Date.now(),
       subscriptions: new Map(),
     });
+    websocketConnections.inc({ route: 'agent' });
     this.send(socket, {
       eventTypes: EVENT_TYPES,
       historicalStreaming: true,
@@ -251,16 +333,25 @@ export class EventWebSocketServer {
     if (!this.accept(socket, 'explorer')) return;
     const ip = clientIp(request);
     if (!ip) {
+      websocketConnectionRejections.inc({
+        reason: 'invalid_client_ip',
+        route: 'messages',
+      });
       socket.close(1008, 'Missing or invalid client IP');
       return;
     }
     const connections = this.explorerClientsByIp.get(ip) ?? 0;
     if (connections >= MAX_EXPLORER_CLIENTS_PER_IP) {
+      websocketConnectionRejections.inc({
+        reason: 'per_ip_limit',
+        route: 'messages',
+      });
       socket.close(1008, 'Maximum connections per client reached');
       return;
     }
     this.explorerClientsByIp.set(ip, connections + 1);
     this.explorerClients.set(socket, { alive: true, ip });
+    websocketConnections.inc({ route: 'messages' });
     this.send(socket, {
       eventTypes: ['message_upsert'],
       type: 'ready',
@@ -276,6 +367,10 @@ export class EventWebSocketServer {
         ? this.clients.size >= this.limits.maxAgentClients
         : this.explorerClients.size >= this.limits.maxExplorerClients;
     if (!this.listenerReady || full) {
+      websocketConnectionRejections.inc({
+        reason: full ? 'connection_limit' : 'listener_unavailable',
+        route: route === 'explorer' ? 'messages' : route,
+      });
       socket.close(
         1013,
         this.listenerReady
@@ -312,6 +407,7 @@ export class EventWebSocketServer {
     const client = this.clients.get(socket);
     if (!client) return;
     if (!consumeMessage(client)) {
+      websocketClientMessageRejections.inc();
       this.sendError(socket, 'Client message rate limit exceeded');
       socket.close(1008, 'Client message rate limit exceeded');
       return;
@@ -369,6 +465,7 @@ export class EventWebSocketServer {
     const subscription = client.subscriptions.get(request.eventType);
     if (!subscription) return;
     if (this.catchUps >= this.limits.maxConcurrentCatchUps) {
+      websocketCatchUps.inc({ outcome: 'capacity_rejected' });
       client.subscriptions.delete(request.eventType);
       this.sendError(socket, 'Historical streaming capacity exceeded');
       return;
@@ -376,15 +473,33 @@ export class EventWebSocketServer {
     this.catchUps++;
     try {
       for (const cursor of request.cursors ?? []) {
-        await this.catchUpCursor(
+        if (
+          this.clients.get(socket) !== client ||
+          client.subscriptions.get(request.eventType) !== subscription
+        ) {
+          websocketCatchUps.inc({ outcome: 'aborted' });
+          return;
+        }
+        const completed = await this.catchUpCursor(
           socket,
           client,
           request.eventType,
           subscription,
           cursor,
         );
+        if (!completed) {
+          websocketCatchUps.inc({ outcome: 'aborted' });
+          return;
+        }
       }
       while (subscription.pending.length) {
+        if (
+          this.clients.get(socket) !== client ||
+          client.subscriptions.get(request.eventType) !== subscription
+        ) {
+          websocketCatchUps.inc({ outcome: 'aborted' });
+          return;
+        }
         const pending = subscription.pending.sort((a, b) =>
           compareRows(request.eventType, a, b),
         );
@@ -398,12 +513,23 @@ export class EventWebSocketServer {
               subscription,
               row,
             ))
-          )
+          ) {
+            websocketCatchUps.inc({ outcome: 'failure' });
             return;
+          }
         }
       }
       subscription.catchingUp = false;
+      websocketCatchUps.inc({ outcome: 'success' });
     } catch (error) {
+      const active =
+        this.clients.get(socket) === client &&
+        client.subscriptions.get(request.eventType) === subscription;
+      if (!active) {
+        websocketCatchUps.inc({ outcome: 'aborted' });
+        return;
+      }
+      websocketCatchUps.inc({ outcome: 'failure' });
       client.subscriptions.delete(request.eventType);
       const reason = errorMessage(error);
       this.logger.warn(
@@ -424,7 +550,7 @@ export class EventWebSocketServer {
     eventType: EventType,
     subscription: Subscription,
     cursor: SequenceCursor,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const key = sequenceKey(cursor.domain, cursor.address);
     const { first, last } = await this.sequenceBounds(eventType, cursor);
     if (last < first) {
@@ -445,7 +571,7 @@ export class EventWebSocketServer {
         this.clients.get(socket) !== client ||
         client.subscriptions.get(eventType) !== subscription
       ) {
-        return;
+        return false;
       }
       const current = subscription.sequences.get(key) ?? -1n;
       this.assertCatchUpBudget(subscription);
@@ -473,6 +599,7 @@ export class EventWebSocketServer {
       }))
     )
       throw new Error('Websocket closed during catch-up');
+    return true;
   }
 
   private publish(eventType: EventType, row: Row): void {
@@ -836,6 +963,7 @@ export class EventWebSocketServer {
       socket.bufferedAmount + message.bytes > this.limits.maxBufferedBytes ||
       this.pendingBytes + message.bytes > this.limits.maxTotalBufferedBytes
     ) {
+      websocketSendFailures.inc({ reason: 'buffer_limit' });
       this.failSocket(socket, 'outbound buffer limit exceeded');
       return false;
     }
@@ -844,11 +972,15 @@ export class EventWebSocketServer {
       socket.send(message.text, (error) => {
         this.pendingBytes = Math.max(0, this.pendingBytes - message.bytes);
         completed?.(!error);
-        if (error) this.failSocket(socket, `send failed: ${error.message}`);
+        if (error) {
+          websocketSendFailures.inc({ reason: 'send_error' });
+          this.failSocket(socket, `send failed: ${error.message}`);
+        }
       });
     } catch (error) {
       this.pendingBytes = Math.max(0, this.pendingBytes - message.bytes);
       completed?.(false);
+      websocketSendFailures.inc({ reason: 'send_error' });
       this.failSocket(socket, `send failed: ${errorMessage(error)}`);
       return false;
     }

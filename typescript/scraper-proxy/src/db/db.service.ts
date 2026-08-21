@@ -7,9 +7,11 @@ import {
 import pg from 'pg';
 
 import { config } from '../config.js';
+import type { DatabaseMetricsSnapshot } from '../metrics.js';
 import { quoteIdentifier } from '../scraperdb/tables.js';
 
 const MIN_POOL_CLIENTS = 5;
+const MAX_POOL_CLIENTS = 10;
 const STATS_INTERVAL_MS = 60_000;
 const IDLE_TIMEOUT_MS = 300_000;
 
@@ -67,6 +69,16 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
       this.logger.error(`database shutdown failed: ${errorMessage(error)}`),
     );
     if (failures.length) throw failures[0];
+  }
+
+  metricsSnapshot(): DatabaseMetricsSnapshot {
+    return {
+      listeners: this.listeners.size,
+      pools: {
+        live: poolMetrics(this.livePool),
+        main: poolMetrics(this.mainPool),
+      },
+    };
   }
 
   query<T extends pg.QueryResultRow>(
@@ -137,6 +149,7 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
     const pool = new pg.Pool({
       ...databaseOptions(connectionString),
       idleTimeoutMillis: IDLE_TIMEOUT_MS,
+      max: MAX_POOL_CLIENTS,
       min,
     });
     pool.on('error', (error) =>
@@ -188,6 +201,15 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
       `db stats queries=${queries} errors=${errors} rows=${rows} avgMs=${queries ? Math.round(totalMs / queries) : 0} maxMs=${maxMs} poolTotal=${this.mainPool?.totalCount ?? 0} poolIdle=${this.mainPool?.idleCount ?? 0} poolWaiting=${this.mainPool?.waitingCount ?? 0}`,
     );
   }
+}
+
+function poolMetrics(pool?: pg.Pool): DatabaseMetricsSnapshot['pools']['main'] {
+  return {
+    idle: pool?.idleCount ?? 0,
+    limit: MAX_POOL_CLIENTS,
+    total: pool?.totalCount ?? 0,
+    waiting: pool?.waitingCount ?? 0,
+  };
 }
 
 function errorMessage(error: unknown): string {

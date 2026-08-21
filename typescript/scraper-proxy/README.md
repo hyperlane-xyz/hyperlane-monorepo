@@ -1,7 +1,8 @@
 # Scraper proxy
 
 Exposes the scraper PostgreSQL database through GraphQL at `/graphql`, protocol
-events for agents at `/agents`, and enriched message updates at `/messages`.
+events for agents at `/agents`, enriched message updates at `/messages`, and
+Prometheus metrics at `/metrics`.
 
 ## Deployment
 
@@ -46,3 +47,8 @@ The private `/agents` endpoint always supports historical WebSocket catch-up.
 Outbound WebSocket buffering is limited to 1 MiB per socket and 32 MiB across
 all sockets. GraphQL is limited to 25 concurrent requests; Cloudflare owns
 public per-client request-rate enforcement.
+
+`/metrics` reports GraphQL request usage and latency; WebSocket connections,
+subscriptions, catch-ups, notification queues, outbound buffering, limits and
+rejections; database pool pressure and listener readiness; and standard Node.js
+process metrics.
