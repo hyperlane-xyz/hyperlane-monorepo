@@ -5,6 +5,7 @@ import { after, before, it, type TestContext } from 'node:test';
 import { WebSocket } from 'ws';
 import type { QueryResultRow } from 'pg';
 
+import { websocketCatchUps } from '../metrics.js';
 import type { EventDatabase, EventWebSocketServer } from './event-websocket.js';
 import { rawData } from './websocket-data.js';
 
@@ -123,6 +124,13 @@ void it('keeps agent capacity independent from Explorer capacity', async () => {
   await Promise.all(explorerMessages.map((items) => waitFor(items, 'ready')));
   const ready = await waitFor(agentMessages, 'ready');
   assert.equal(ready.type, 'ready');
+  assert.deepEqual(events.metricsSnapshot().connections, {
+    agent: 1,
+    messages: 8,
+  });
+  assert.equal(events.metricsSnapshot().messageClientIps, 8);
+  assert.equal(events.metricsSnapshot().limits.agentConnections, 1);
+  assert.equal(events.metricsSnapshot().limits.messageConnections, 8);
   explorers.forEach((socket) => socket.close());
   agent.close();
   await waitUntil(() =>
@@ -300,6 +308,44 @@ void it('paces historical sends by send completion', async (context) => {
   assert.deepEqual(eventSequences(messages), ['0', '1']);
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
+});
+
+void it('records a disconnected historical replay as aborted', async (context) => {
+  const abortedBefore = await catchUpOutcome('aborted');
+  const successesBefore = await catchUpOutcome('success');
+  const completions = delayServerSendCompletions(context);
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [{ address: pacedHook, afterSequence: '-1', domain: 1 }],
+              eventType: 'merkle_tree_insertion',
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+
+  await waitUntil(() => eventSequences(messages).includes('0'));
+  await waitUntil(() => completions.length === 1);
+  const closed = new Promise<void>((resolve) => socket.once('close', resolve));
+  socket.close();
+  await closed;
+  await waitUntil(() => events.metricsSnapshot().connections.agent === 0);
+  completions.shift()?.();
+
+  await waitUntil(
+    async () => (await catchUpOutcome('aborted')) === abortedBefore + 1,
+  );
+  assert.equal(await catchUpOutcome('success'), successesBefore);
 });
 
 void it('drains live events arriving while the pending buffer is sent', async (context) => {
@@ -626,12 +672,21 @@ async function waitFor(
   throw new Error(`Timed out waiting for ${type}`);
 }
 
-async function waitUntil(predicate: () => boolean): Promise<void> {
+async function waitUntil(
+  predicate: () => boolean | Promise<boolean>,
+): Promise<void> {
   for (let attempts = 0; attempts < 100; attempts++) {
-    if (predicate()) return;
+    if (await predicate()) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error('Timed out waiting for condition');
+}
+
+async function catchUpOutcome(outcome: string): Promise<number> {
+  const metric = await websocketCatchUps.get();
+  return (
+    metric.values.find(({ labels }) => labels.outcome === outcome)?.value ?? 0
+  );
 }
 
 function parseRecord(value: string): Record<string, unknown> {

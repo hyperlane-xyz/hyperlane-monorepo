@@ -40,6 +40,7 @@
     "dotenv-flow": "^4.1.0",
     "graphql": "catalog:",
     "pg": "^8.17.2",
+    "prom-client": "catalog:",
     "reflect-metadata": "catalog:",
     "rxjs": "catalog:",
     "ws": "^8.21.1",
