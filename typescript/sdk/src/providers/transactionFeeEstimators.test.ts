@@ -14,8 +14,11 @@ import { BigNumber, providers as EthersV5Providers } from 'ethers';
 import { createPublicClient, custom } from 'viem';
 
 import { ProviderType, type ViemTransaction } from './ProviderType.js';
+import { HyperlaneJsonRpcProvider } from './SmartProvider/HyperlaneJsonRpcProvider.js';
+import { HyperlaneSmartProvider } from './SmartProvider/SmartProvider.js';
 import {
   clearCachedStargateClients,
+  estimateTransactionFeeEthersV5,
   estimateTransactionFeeCosmJsWasm,
   estimateTransactionFeeEthersV5ForGasUnits,
   estimateTransactionFeeSolanaWeb3,
@@ -54,7 +57,7 @@ describe('transactionFeeEstimators', () => {
   }: {
     gasPrice: bigint | null;
     maxFeePerGas: bigint | null;
-  }): EthersV5Providers.Provider {
+  }): EthersV5Providers.JsonRpcProvider {
     const provider = new EthersV5Providers.JsonRpcProvider();
     sandbox.stub(provider, 'getFeeData').resolves({
       gasPrice: gasPrice === null ? null : BigNumber.from(gasPrice),
@@ -89,6 +92,101 @@ describe('transactionFeeEstimators', () => {
       gasPrice: 0n,
       fee: 0n,
     });
+  });
+
+  it('overrides the Ethers sender balance only when requested', async () => {
+    const provider = makeEthersFeeProvider({
+      gasPrice: 2n,
+      maxFeePerGas: null,
+    });
+    const estimateGas = sandbox
+      .stub(provider, 'estimateGas')
+      .resolves(BigNumber.from(21_000));
+    const send = sandbox.stub(provider, 'send').resolves('0x5208');
+
+    await estimateTransactionFeeEthersV5({
+      transaction: { to: EVM_ADDRESS, value: BigNumber.from(1) },
+      provider,
+      sender: EVM_ADDRESS,
+    });
+
+    expect(estimateGas.calledOnce).to.equal(true);
+    expect(send.notCalled).to.equal(true);
+    estimateGas.resetHistory();
+
+    const estimate = await estimateTransactionFeeEthersV5({
+      transaction: { to: EVM_ADDRESS, value: BigNumber.from(1) },
+      provider,
+      sender: EVM_ADDRESS,
+      ignoreSenderBalance: true,
+    });
+
+    expect(estimate).to.deep.equal({
+      gasUnits: 21_000n,
+      gasPrice: 2n,
+      fee: 42_000n,
+    });
+    expect(estimateGas.notCalled).to.equal(true);
+    expect(send.calledOnce).to.equal(true);
+    expect(send.firstCall.args).to.deep.equal([
+      'eth_estimateGas',
+      [
+        { from: EVM_ADDRESS, to: EVM_ADDRESS, value: '0x1' },
+        'latest',
+        { [EVM_ADDRESS]: { balance: `0x${'f'.repeat(64)}` } },
+      ],
+    ]);
+  });
+
+  it('routes Ethers balance overrides through the smart provider', async () => {
+    const provider = new HyperlaneSmartProvider(1, [
+      { http: 'http://provider' },
+    ]);
+    const perform = sandbox.stub(provider, 'perform').resolves('0x5208');
+    sandbox.stub(provider, 'getFeeData').resolves({
+      gasPrice: BigNumber.from(1),
+      lastBaseFeePerGas: null,
+      maxFeePerGas: null,
+      maxPriorityFeePerGas: null,
+    });
+
+    await estimateTransactionFeeEthersV5({
+      transaction: { to: EVM_ADDRESS, value: BigNumber.from(1) },
+      provider,
+      sender: EVM_ADDRESS,
+      ignoreSenderBalance: true,
+    });
+
+    expect(perform.calledOnce).to.equal(true);
+    expect(perform.firstCall.args[0]).to.equal('estimateGas');
+    expect(perform.firstCall.args[1]).to.deep.equal({
+      transaction: { from: EVM_ADDRESS, to: EVM_ADDRESS, value: '0x1' },
+      stateOverride: {
+        [EVM_ADDRESS]: { balance: `0x${'f'.repeat(64)}` },
+      },
+    });
+  });
+
+  it('serializes Ethers balance overrides for JSON-RPC', () => {
+    const provider = new HyperlaneJsonRpcProvider(
+      { http: 'http://provider' },
+      { chainId: 1, name: 'test' },
+    );
+    const stateOverride = {
+      [EVM_ADDRESS]: { balance: '0xffff' },
+    };
+
+    const [method, params] = provider.prepareRequest('estimateGas', {
+      transaction: { from: EVM_ADDRESS, to: EVM_ADDRESS },
+      stateOverride,
+    });
+
+    expect(method).to.equal('eth_estimateGas');
+    expect(params).to.deep.equal([
+      { from: EVM_ADDRESS, to: EVM_ADDRESS },
+      'latest',
+      stateOverride,
+    ]);
   });
 
   it('keeps zero-valued Viem fee data as present', async () => {
@@ -131,6 +229,51 @@ describe('transactionFeeEstimators', () => {
       gasPrice: 0n,
       fee: 0n,
     });
+  });
+
+  it('overrides the Viem sender balance only when requested', async () => {
+    const client = createPublicClient({
+      transport: custom({
+        request: async () => {
+          throw new Error('Unexpected RPC request');
+        },
+      }),
+    });
+    const estimateGas = sandbox.stub(client, 'estimateGas').resolves(21_000n);
+    sandbox.stub(client, 'estimateFeesPerGas').resolves({ gasPrice: 1n });
+    const transaction = {
+      blockHash: EVM_HASH,
+      blockNumber: 1n,
+      from: EVM_ADDRESS,
+      gas: 21_000n,
+      gasPrice: 1n,
+      hash: EVM_HASH,
+      input: '0x',
+      nonce: 0,
+      r: '0x',
+      s: '0x',
+      to: EVM_ADDRESS,
+      transactionIndex: 0,
+      type: 'legacy',
+      typeHex: '0x0',
+      v: 27n,
+      value: 1n,
+    } satisfies ViemTransaction['transaction'];
+
+    await estimateTransactionFeeViem({
+      transaction: { type: ProviderType.Viem, transaction },
+      provider: { type: ProviderType.Viem, provider: client },
+      sender: EVM_ADDRESS,
+      ignoreSenderBalance: true,
+    });
+
+    expect(estimateGas.calledOnce).to.equal(true);
+    expect(estimateGas.firstCall.args[0]).to.include({
+      account: EVM_ADDRESS,
+    });
+    expect(estimateGas.firstCall.args[0].stateOverride).to.deep.equal([
+      { address: EVM_ADDRESS, balance: (1n << 256n) - 1n },
+    ]);
   });
 
   function makeProvider(url: string) {
@@ -216,6 +359,38 @@ describe('transactionFeeEstimators', () => {
 
     expect(estimate.fee).to.equal(5_123n);
     expect(getFeeForMessage.calledOnceWithExactly(message)).to.equal(true);
+  });
+
+  it('gets the Solana message fee without simulating when requested', async () => {
+    const sender = Keypair.generate();
+    const transaction = new Transaction({
+      feePayer: sender.publicKey,
+      recentBlockhash: '11111111111111111111111111111111',
+    }).add(
+      SystemProgram.transfer({
+        fromPubkey: sender.publicKey,
+        toPubkey: Keypair.generate().publicKey,
+        lamports: 1,
+      }),
+    );
+    const connection = new Connection('http://localhost:8899');
+    const simulateTransaction = sandbox.stub(connection, 'simulateTransaction');
+    sandbox
+      .stub(connection, 'getFeeForMessage')
+      .resolves({ context: { slot: 1 }, value: 5_000 });
+
+    const estimate = await estimateTransactionFeeSolanaWeb3({
+      transaction: { type: ProviderType.SolanaWeb3, transaction },
+      provider: { type: ProviderType.SolanaWeb3, provider: connection },
+      ignoreSenderBalance: true,
+    });
+
+    expect(estimate).to.deep.equal({
+      gasUnits: 0n,
+      gasPrice: 0n,
+      fee: 5_000n,
+    });
+    expect(simulateTransaction.notCalled).to.equal(true);
   });
 
   function makeStargateClient(
