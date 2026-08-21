@@ -1,6 +1,7 @@
 import { constants } from 'ethers';
 
 import { Ownable, Ownable__factory } from '@hyperlane-xyz/core';
+import type { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 import {
   Address,
   EvmChainId,
@@ -346,10 +347,39 @@ export function transferOwnershipTransactions(
   ];
 }
 
+/**
+ * Providers for chains whose account model has no nonce (Tron) answer liveness
+ * directly instead of leaving it to be inferred from `getTransactionCount`.
+ *
+ * The shape is derived from the Tron provider rather than declared
+ * independently so that renaming or removing `isAccountActive` in
+ * @hyperlane-xyz/tron-sdk breaks this build, instead of silently reverting the
+ * structural check below to the always-zero nonce path.
+ */
+type AccountActivationProvider = Pick<TronJsonRpcProvider, 'isAccountActive'>;
+
+function canCheckActivation(
+  provider: EthersLikeProvider,
+): provider is EthersLikeProvider & AccountActivationProvider {
+  return (
+    'isAccountActive' in provider &&
+    typeof provider.isAccountActive === 'function'
+  );
+}
+
 export async function isAddressActive(
   provider: EthersLikeProvider,
   address: Address,
 ): Promise<boolean> {
+  if (canCheckActivation(provider)) {
+    const [code, isActive] = await Promise.all([
+      provider.getCode(address),
+      provider.isAccountActive(address),
+    ]);
+
+    return code !== '0x' || isActive;
+  }
+
   const [code, txnCount] = await Promise.all([
     provider.getCode(address),
     provider.getTransactionCount(address),
