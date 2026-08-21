@@ -19,7 +19,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 // ============ Internal Imports ============
 import {AbstractWormholeHookIsm} from "./AbstractWormholeHookIsm.sol";
 import {RelayInstructionLib, RequestLib} from "./libs/ExecutorRequest.sol";
-import {WormholeMessage} from "./WormholeMessage.sol";
+import {WormholeMessage} from "../../libs/WormholeMessage.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {CoreBridgeVM} from "../../interfaces/wormhole/ICoreBridge.sol";
 import {IExecutorQuoterRouter, IVaaV1Receiver} from "../../interfaces/wormhole/IExecutor.sol";

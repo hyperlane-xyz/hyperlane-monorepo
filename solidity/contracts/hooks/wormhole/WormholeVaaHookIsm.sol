@@ -15,7 +15,7 @@ pragma solidity >=0.8.19;
 
 // ============ Internal Imports ============
 import {AbstractWormholeHookIsm} from "./AbstractWormholeHookIsm.sol";
-import {WormholeMessage} from "./WormholeMessage.sol";
+import {WormholeMessage} from "../../libs/WormholeMessage.sol";
 import {AbstractCcipReadIsm} from "../../isms/ccip-read/AbstractCcipReadIsm.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IWormholeVaaService} from "../../interfaces/wormhole/IWormholeVaaService.sol";
