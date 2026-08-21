@@ -9,7 +9,10 @@ import {
   ScraperProxyHelmManager,
   ValidatorHelmManager,
 } from '../../src/agents/index.js';
-import { RootAgentConfig } from '../../src/config/agent/agent.js';
+import {
+  HelmRootAgentValues,
+  RootAgentConfig,
+} from '../../src/config/agent/agent.js';
 import { EnvironmentConfig } from '../../src/config/environment.js';
 import { Role } from '../../src/roles.js';
 import {
@@ -45,11 +48,21 @@ export class AgentCli {
   public async restartAgents() {
     await this.init();
     const managers = this.managers();
-    await refreshK8sResources(
-      Object.values(managers),
-      K8sResourceType.POD,
-      this.envConfig.environment,
+    const statefulSetManagers = Object.values(managers).filter(
+      (manager) => !(manager instanceof ScraperProxyHelmManager),
     );
+    if (statefulSetManagers.length > 0) {
+      await refreshK8sResources(
+        statefulSetManagers,
+        K8sResourceType.POD,
+        this.envConfig.environment,
+      );
+    }
+
+    const scraperProxyManager = managers[Role.ScraperProxy];
+    if (scraperProxyManager instanceof ScraperProxyHelmManager) {
+      await scraperProxyManager.restartDeployment();
+    }
   }
 
   public async runHelmCommand(command: HelmCommand) {
@@ -150,7 +163,7 @@ export class AgentCli {
   }
 
   private async runPreflightChecks(
-    managers: Record<string, HelmManager<any>>,
+    managers: Record<string, HelmManager<HelmRootAgentValues>>,
   ): Promise<boolean> {
     console.log(chalk.cyan.bold('🔍 Running pre-flight checks...\n'));
 
@@ -210,8 +223,8 @@ export class AgentCli {
     });
   }
 
-  private managers(): Record<string, HelmManager<any>> {
-    const managers: Record<string, HelmManager<any>> = {};
+  private managers(): Record<string, HelmManager<HelmRootAgentValues>> {
+    const managers: Record<string, HelmManager<HelmRootAgentValues>> = {};
     for (const role of this.roles) {
       switch (role) {
         case Role.Validator: {

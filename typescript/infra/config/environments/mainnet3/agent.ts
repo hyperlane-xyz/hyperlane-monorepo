@@ -852,6 +852,7 @@ const hyperlane: RootAgentConfig = {
     },
     enabled: true,
     port: 8383,
+    replicas: 2,
     resources: {
       requests: { cpu: '500m', memory: '1Gi' },
     },

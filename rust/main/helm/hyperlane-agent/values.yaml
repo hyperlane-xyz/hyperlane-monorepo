@@ -162,6 +162,7 @@ hyperlane:
   scraperProxy:
     enabled: false
     port: 8383
+    replicas: 1
     tunnel:
       image: cloudflare/cloudflared:2026.8.2
     resources:

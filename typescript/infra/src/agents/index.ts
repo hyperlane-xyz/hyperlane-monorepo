@@ -28,6 +28,7 @@ import {
   RelayerEnvConfig,
 } from '../config/agent/relayer.js';
 import { ScraperConfigHelper } from '../config/agent/scraper.js';
+import type { ScraperProxyConfig } from '../config/agent/scraper-proxy.js';
 import { ValidatorConfigHelper } from '../config/agent/validator.js';
 import { DeployEnvironment } from '../config/deploy-environment.js';
 import { AgentRole, Role } from '../roles.js';
@@ -386,11 +387,14 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
 export class ScraperProxyHelmManager extends HelmManager<HelmRootAgentValues> {
   readonly helmChartPath: string = HELM_CHART_PATH;
   readonly helmReleaseName = 'scraper-proxy';
+  private readonly scraperProxy: ScraperProxyConfig;
 
   constructor(private readonly config: RootAgentConfig) {
     super();
-    if (!config.scraperProxy)
+    const scraperProxy = config.scraperProxy;
+    if (!scraperProxy)
       throw new Error('Scraper proxy is not defined for this context');
+    this.scraperProxy = scraperProxy;
   }
 
   get namespace(): string {
@@ -398,7 +402,7 @@ export class ScraperProxyHelmManager extends HelmManager<HelmRootAgentValues> {
   }
 
   async helmValues(): Promise<HelmRootAgentValues> {
-    const { docker, ...scraperProxy } = this.config.scraperProxy!;
+    const { docker, ...scraperProxy } = this.scraperProxy;
     return {
       fullnameOverride: 'scraper-proxy',
       image: {
@@ -413,6 +417,19 @@ export class ScraperProxyHelmManager extends HelmManager<HelmRootAgentValues> {
         scraperProxy,
       },
     };
+  }
+
+  async restartDeployment(): Promise<void> {
+    await this.runCommand(
+      `kubectl rollout restart deployment/${this.helmReleaseName} -n ${this.namespace}`,
+    );
+    await this.runCommand(
+      `kubectl rollout status deployment/${this.helmReleaseName} -n ${this.namespace} --timeout=180s`,
+    );
+  }
+
+  protected async runCommand(command: string): Promise<void> {
+    await execCmd(command);
   }
 }
 
