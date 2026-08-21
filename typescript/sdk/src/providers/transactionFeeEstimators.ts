@@ -528,6 +528,8 @@ export function estimateTransactionFee({
     provider.type === ProviderType.Tron
   ) {
     // Tron is EVM-compatible; its typed transaction/provider use EthersV5 underlying types
+    // Tron does not support EVM state overrides. TronJsonRpcProvider.estimateGas
+    // already falls back to a balance-independent energy limit when estimation fails.
     sender = convertToProtocolAddress(sender, ProtocolType.Ethereum);
     return estimateTransactionFeeEthersV5({
       transaction: transaction.transaction,

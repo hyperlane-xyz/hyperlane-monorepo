@@ -57,7 +57,7 @@ describe('transactionFeeEstimators', () => {
   }: {
     gasPrice: bigint | null;
     maxFeePerGas: bigint | null;
-  }): EthersV5Providers.Provider {
+  }): EthersV5Providers.JsonRpcProvider {
     const provider = new EthersV5Providers.JsonRpcProvider();
     sandbox.stub(provider, 'getFeeData').resolves({
       gasPrice: gasPrice === null ? null : BigNumber.from(gasPrice),
@@ -98,7 +98,7 @@ describe('transactionFeeEstimators', () => {
     const provider = makeEthersFeeProvider({
       gasPrice: 2n,
       maxFeePerGas: null,
-    }) as EthersV5Providers.JsonRpcProvider;
+    });
     const estimateGas = sandbox
       .stub(provider, 'estimateGas')
       .resolves(BigNumber.from(21_000));
