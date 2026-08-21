@@ -26,7 +26,7 @@ import {ICustomConsistencyLevel} from "../../interfaces/wormhole/ICustomConsiste
 import {IWormholeHookIsm, RemoteRouterEnrollment} from "../../interfaces/wormhole/IWormholeHookIsm.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
-import {WormholeMessage} from "./WormholeMessage.sol";
+import {WormholeMessage} from "../../libs/WormholeMessage.sol";
 import {CustomConsistencyLevelLib, WormholeConsistencyLevelConfig} from "./libs/CustomConsistencyLevel.sol";
 
 /**
