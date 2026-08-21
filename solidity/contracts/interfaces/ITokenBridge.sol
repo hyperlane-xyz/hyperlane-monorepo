@@ -24,6 +24,26 @@ interface ITokenFee {
     ) external view returns (Quote[] memory quotes);
 }
 
+interface IExactInFee {
+    /**
+     * @notice Given a maximum spend budget, return the largest transfer amount
+     *         whose amount + fee fits within that budget (exact-in quoting).
+     * @param _destination The destination domain of the message
+     * @param _recipient The message recipient address on `destination`
+     * @param _maxSpend The maximum amount of `token` the sender is willing to
+     *        spend on amount + fee combined (gas is quoted separately).
+     * @return _amount The largest deliverable amount such that
+     *         `_amount + fee(_amount) <= _maxSpend`.
+     * @dev Inverse of `ITokenFee.quoteTransferRemote`. Only supported by fee
+     *      contracts backed by a monotonic, invertible fee curve.
+     */
+    function quoteTransferRemoteFrom(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _maxSpend
+    ) external view returns (uint256 _amount);
+}
+
 interface ITokenBridge is ITokenFee {
     /**
      * @notice Transfer value to another domain
