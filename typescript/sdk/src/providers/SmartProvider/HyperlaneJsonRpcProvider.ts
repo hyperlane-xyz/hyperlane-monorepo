@@ -135,6 +135,10 @@ export class HyperlaneJsonRpcProvider
         ],
       ];
     }
+    if (method === ProviderMethod.EstimateGas && params?.stateOverride) {
+      const [rpcMethod, rpcParams] = super.prepareRequest(method, params);
+      return [rpcMethod, [...rpcParams, 'latest', params.stateOverride]];
+    }
     return super.prepareRequest(method, params);
   }
 
