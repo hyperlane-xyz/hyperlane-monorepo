@@ -196,7 +196,7 @@ export async function getDomainId(
  * Set the appropriate signer type on the MultiProvider based on the chain's
  * technical stack (TronWallet for Tron chains, ethers.Wallet otherwise).
  */
-function setSignerForChain(
+export function setSignerForChain(
   multiProvider: MultiProvider,
   chain: string,
   privateKey: string,
