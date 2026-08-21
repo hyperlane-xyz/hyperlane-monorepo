@@ -1639,6 +1639,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         amount: inputRequired,
         type: 'inventory_movement',
         txHash: result.txHash,
+        externalBridgeTransferId: result.transferId,
         externalBridgeId: externalBridgeType,
       });
 
