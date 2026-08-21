@@ -149,13 +149,12 @@ hyperlane:
         repository: ghcr.io/hyperlane-xyz/hyperlane-node-services
         tag: main
       port: 8383
-      historyEnabled: false
       tunnel:
         image: cloudflare/cloudflared:2026.8.2
       resources:
         requests:
-          cpu: 250m
-          memory: 512Mi
+          cpu: 500m
+          memory: 1Gi
     podAnnotations:
       prometheus.io/port: '9090'
       prometheus.io/scrape: 'true'

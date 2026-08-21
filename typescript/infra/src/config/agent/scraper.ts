@@ -23,7 +23,6 @@ import {
 export interface ScraperProxyConfig {
   docker: DockerConfig;
   enabled: boolean;
-  historyEnabled?: boolean;
   port?: number;
   resources?: KubernetesResources;
   tunnel?: { image: string };

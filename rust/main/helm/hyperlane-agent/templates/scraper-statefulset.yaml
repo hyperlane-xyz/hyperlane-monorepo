@@ -82,8 +82,6 @@ spec:
               key: DATABASE_URL
         - name: PORT
           value: {{ .Values.hyperlane.scraper.proxy.port | quote }}
-        - name: EVENT_STREAM_HISTORY_ENABLED
-          value: {{ .Values.hyperlane.scraper.proxy.historyEnabled | quote }}
         ports:
         - name: scraper-proxy
           containerPort: {{ .Values.hyperlane.scraper.proxy.port }}

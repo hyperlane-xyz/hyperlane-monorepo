@@ -46,6 +46,31 @@ void describe('event websocket protocol', () => {
     assert.equal(message.streams[1]?.cursors, undefined);
   });
 
+  void it('canonicalizes padded 20-byte sequence cursor addresses for every VM', () => {
+    const hook = '48e6c30b97748d1e2e03bf3e9fbe3890ca5f8cca';
+    const message = parseClientMessage(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: [
+          {
+            eventType: 'merkle_tree_insertion',
+            cursors: [
+              {
+                address: `0x${'00'.repeat(12)}${hook}`,
+                afterSequence: '-1',
+                domain: 1,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    assert.equal(message.type, 'subscribe');
+    if (message.type !== 'subscribe') return;
+    assert.equal(message.streams[0]?.cursors?.[0]?.address, `\\x${hook}`);
+  });
+
   void it('accepts application pings', () => {
     assert.deepEqual(parseClientMessage('{"type":"ping"}'), { type: 'ping' });
   });
