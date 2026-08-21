@@ -123,6 +123,12 @@ impl SealevelRpcClient {
         let config = RpcBlockConfig {
             commitment: Some(commitment),
             max_supported_transaction_version: Some(0),
+            // Rewards are never consumed (only blockhash, block_time, and
+            // transactions are read). Requesting them makes getBlock fail to
+            // deserialize when a block carries a reward_type our solana crates
+            // don't know (e.g. `DeactivatedStake`), permanently stalling the
+            // sequence-aware cursor since SerdeJson errors aren't skippable.
+            rewards: Some(false),
             ..Default::default()
         };
         self.0
