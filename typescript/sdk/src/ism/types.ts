@@ -34,6 +34,8 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { WormholeConsistencyLevelFields } from '../wormhole/consistency.js';
+
 import {
   ZBigNumberish,
   ZBytes32String,
@@ -105,6 +107,14 @@ export const IsmType = {
   // ISM config surface; the hook side is referenced by address.
   NET_FLOW_RATE_LIMITED: 'netFlowRateLimitedHookIsm',
   DELAYED_FLOW_ROUTER: 'delayedFlowRouterHookIsm',
+  /**
+   * Combined Wormhole hook/ISM router, Executor delivery. Excluded from
+   * `DeployableIsmType`: one contract serves as both hook and ISM, so it is
+   * deployed by `EvmWormholeHookIsmModule`, never by `HyperlaneIsmFactory`.
+   */
+  WORMHOLE_EXECUTOR: 'wormholeExecutorIsm',
+  /** Combined Wormhole hook/ISM router, CCIP-read VAA delivery. */
+  WORMHOLE_VAA: 'wormholeVaaIsm',
   UNKNOWN: 'unknownIsm',
 } as const;
 
@@ -112,7 +122,10 @@ export type IsmType = (typeof IsmType)[keyof typeof IsmType];
 
 export type DeployableIsmType = Exclude<
   IsmType,
-  typeof IsmType.CUSTOM | typeof IsmType.UNKNOWN
+  | typeof IsmType.CUSTOM
+  | typeof IsmType.UNKNOWN
+  | typeof IsmType.WORMHOLE_EXECUTOR
+  | typeof IsmType.WORMHOLE_VAA
 >;
 
 // ISM types that can be updated in-place on EVM chains (consumed by
@@ -188,6 +201,9 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.BLACKLIST:
     case IsmType.NET_FLOW_RATE_LIMITED:
     case IsmType.DELAYED_FLOW_ROUTER:
+    // The Executor router is preauthorized before process, so Hyperlane
+    // supplies no metadata.
+    case IsmType.WORMHOLE_EXECUTOR:
       return ModuleType.NULL;
     case IsmType.ARB_L2_TO_L1:
       return ModuleType.ARB_L2_TO_L1;
@@ -196,6 +212,8 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
       return ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG;
     case IsmType.OFFCHAIN_LOOKUP:
+    // The direct-VAA router receives its VAA through the generic CCIP-read path.
+    case IsmType.WORMHOLE_VAA:
       return ModuleType.CCIP_READ;
     case IsmType.COMPOSITE:
       return ModuleType.COMPOSITE;
@@ -326,6 +344,7 @@ export type IsmConfig =
   | ArbL2ToL1IsmConfig
   | OffchainLookupIsmConfig
   | InterchainAccountRouterIsm
+  | WormholeIsmConfig
   | UnknownIsmConfig;
 
 export type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
@@ -357,6 +376,10 @@ export type DeployedIsmType = {
   [IsmType.MAILBOX_DEFAULT]: DefaultIsm;
   [IsmType.NET_FLOW_RATE_LIMITED]: NetFlowRateLimitedHookIsm;
   [IsmType.DELAYED_FLOW_ROUTER]: DelayedFlowRouterHookIsm;
+  // Deployed by EvmWormholeHookIsmModule, never by HyperlaneIsmFactory, so the
+  // generic interface is all this map needs to express.
+  [IsmType.WORMHOLE_EXECUTOR]: IInterchainSecurityModule;
+  [IsmType.WORMHOLE_VAA]: IInterchainSecurityModule;
   [IsmType.UNKNOWN]: IInterchainSecurityModule;
 };
 
@@ -393,6 +416,30 @@ export const TrustedRelayerIsmConfigSchema = z.object({
   type: z.literal(IsmType.TRUSTED_RELAYER),
   relayer: z.string(),
 });
+
+const BaseWormholeIsmConfigSchema = OwnableSchema.extend({
+  ...WormholeConsistencyLevelFields,
+  /** Official Wormhole Core proxy on this chain. */
+  core: ZHash,
+  /** Expected value returned by the configured Core proxy. */
+  wormholeChainId: z.number().int().positive().max(65_535),
+});
+
+export const WormholeExecutorIsmConfigSchema =
+  BaseWormholeIsmConfigSchema.extend({
+    type: z.literal(IsmType.WORMHOLE_EXECUTOR),
+  });
+
+export const WormholeVaaIsmConfigSchema = BaseWormholeIsmConfigSchema.extend({
+  type: z.literal(IsmType.WORMHOLE_VAA),
+  urls: z.array(z.string().url()).min(1),
+});
+
+export const WormholeIsmConfigSchema = z.union([
+  WormholeExecutorIsmConfigSchema,
+  WormholeVaaIsmConfigSchema,
+]);
+export type WormholeIsmConfig = z.infer<typeof WormholeIsmConfigSchema>;
 
 export const BlacklistIsmConfigSchema = OwnableSchema.extend({
   type: z.literal(IsmType.BLACKLIST),
@@ -972,12 +1019,20 @@ export const CompositeIsmConfigSchema: z.ZodSchema<CompositeIsmConfig> =
     );
   });
 
-export const UnknownIsmConfigSchema = z
+export type UnknownIsmConfig = {
+  type: typeof IsmType.UNKNOWN;
+  [key: string]: unknown;
+};
+
+export const UnknownIsmConfigSchema: z.ZodType<
+  UnknownIsmConfig,
+  z.ZodTypeDef,
+  unknown
+> = z
   .object({
     type: z.literal(IsmType.UNKNOWN),
   })
   .passthrough();
-export type UnknownIsmConfig = z.infer<typeof UnknownIsmConfigSchema>;
 
 const KnownIsmTypes: string[] = Object.values(IsmType).filter(
   (t) => t !== IsmType.UNKNOWN,
@@ -1040,6 +1095,7 @@ export const BaseIsmConfigSchema: z.ZodType<IsmConfig, z.ZodTypeDef, unknown> =
     ArbL2ToL1IsmConfigSchema,
     OffchainLookupIsmConfigSchema,
     InterchainAccountRouterIsmSchema,
+    WormholeIsmConfigSchema,
     UnknownIsmConfigSchema,
   ]);
 

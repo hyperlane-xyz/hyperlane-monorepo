@@ -47,6 +47,7 @@ export enum OnchainHookType {
   CCTP,
   TIMELOCK_ROUTING,
   PREDICATE_ROUTER_WRAPPER,
+  WORMHOLE,
 }
 
 export const HookType = {
@@ -93,6 +94,14 @@ export const HookType = {
    * IsmType.DELAYED_FLOW_ROUTER). Excluded from `DeployableHookType`.
    */
   DELAYED_FLOW_ROUTER: 'delayedFlowRouterHookIsm',
+  /**
+   * Combined Wormhole hook/ISM router, Executor delivery. Excluded from
+   * `DeployableHookType`: one contract serves as both hook and ISM, so it is
+   * deployed by `EvmWormholeHookIsmModule`, never by the generic hook deployer.
+   */
+  WORMHOLE_EXECUTOR: 'wormholeExecutorHook',
+  /** Combined Wormhole hook/ISM router, CCIP-read VAA delivery. */
+  WORMHOLE_VAA: 'wormholeVaaHook',
   UNKNOWN: 'unknownHook',
   PREDICATE: 'predicateHook',
 } as const;
@@ -107,6 +116,8 @@ export type DeployableHookType = Exclude<
   | typeof HookType.CCTP
   | typeof HookType.NET_FLOW_RATE_LIMITED
   | typeof HookType.DELAYED_FLOW_ROUTER
+  | typeof HookType.WORMHOLE_EXECUTOR
+  | typeof HookType.WORMHOLE_VAA
 >;
 
 export const HookTypeToContractNameMap: Record<DeployableHookType, string> = {
@@ -186,6 +197,7 @@ export type HookConfig =
   | RateLimitedHookConfig
   | NetFlowRateLimitedHookConfig
   | DelayedFlowRouterHookConfig
+  | WormholeHookConfig
   | UnknownHookConfig
   | PredicateHookConfig;
 
@@ -352,12 +364,51 @@ export const CctpHookSchema = z.object({
 });
 export type CctpHookConfig = z.infer<typeof CctpHookSchema>;
 
-export const UnknownHookSchema = z
+export const WormholeExecutorRouteSchema = z.object({
+  /** Executor provider quoter registered in the local Quoter Router. */
+  quoter: ZHash,
+  /** Destination gas purchased for executeVAAv1. */
+  callbackGasLimit: ZBigNumberish.refine((value) => value > 0n, {
+    message: 'callbackGasLimit must be greater than zero',
+  }),
+});
+
+/**
+ * Outbound half of a combined Wormhole Executor hook/ISM. The Warp prepass
+ * pairs this leaf with the local Wormhole ISM leaf, deploys one contract, and
+ * replaces both leaves with that same address before generic deployment.
+ */
+export const WormholeExecutorHookSchema = z.object({
+  type: z.literal(HookType.WORMHOLE_EXECUTOR),
+  executorQuoterRouter: ZHash,
+  routes: z.record(ZChainName, WormholeExecutorRouteSchema),
+});
+
+/** Direct-VAA publication has no hook-only configuration. */
+export const WormholeVaaHookSchema = z.object({
+  type: z.literal(HookType.WORMHOLE_VAA),
+});
+
+export const WormholeHookSchema = z.union([
+  WormholeExecutorHookSchema,
+  WormholeVaaHookSchema,
+]);
+export type WormholeHookConfig = z.infer<typeof WormholeHookSchema>;
+
+export type UnknownHookConfig = {
+  type: typeof HookType.UNKNOWN;
+  [key: string]: unknown;
+};
+
+export const UnknownHookSchema: z.ZodType<
+  UnknownHookConfig,
+  z.ZodTypeDef,
+  unknown
+> = z
   .object({
     type: z.literal(HookType.UNKNOWN),
   })
   .passthrough();
-export type UnknownHookConfig = z.infer<typeof UnknownHookSchema>;
 
 export const RateLimitedHookSchema = OwnableSchema.extend({
   type: z.literal(HookType.RATE_LIMITED),
@@ -492,6 +543,7 @@ export const HookConfigSchema: z.ZodType<HookConfig, z.ZodTypeDef, unknown> =
     RateLimitedHookSchema,
     NetFlowRateLimitedHookConfigSchema,
     DelayedFlowRouterHookConfigSchema,
+    WormholeHookSchema,
     UnknownHookSchema,
     PredicateHookSchema,
   ]);

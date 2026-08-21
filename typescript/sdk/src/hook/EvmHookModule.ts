@@ -223,9 +223,14 @@ export class EvmHookModule extends HyperlaneModule<
     }
 
     // We need to normalize the current and target configs to compare.
-    let normalizedTargetConfig: HookConfig = normalizeConfig(
-      await this.reader.deriveHookConfig(targetConfig),
-    );
+    const derivedTargetConfig =
+      await this.reader.deriveHookConfig(targetConfig);
+    let normalizedTargetConfig: HookConfig =
+      typeof targetConfig === 'string' &&
+      (derivedTargetConfig.type === HookType.WORMHOLE_EXECUTOR ||
+        derivedTargetConfig.type === HookType.WORMHOLE_VAA)
+        ? targetConfig
+        : normalizeConfig(derivedTargetConfig);
     for (const address of opaqueHybridAddresses) {
       normalizedTargetConfig = resolveHybridHookNodesToAddress(
         normalizedTargetConfig,
