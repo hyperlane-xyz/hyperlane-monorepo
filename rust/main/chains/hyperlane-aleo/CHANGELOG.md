@@ -1,3 +1,7 @@
+## [3.0.0] - 2026-08-21
+
+* fix(aleo): encode mapping keys in RPC URLs (#9293)
+
 ## [2.3.0] - 2026-07-20
 
 * feat: aleo ARC-20 v2 tokens + mainnet USDC/USDT/ETH/WBTC/SOL rollout (#8969)

@@ -1,3 +1,11 @@
+## [3.0.0] - 2026-08-21
+
+* feat(scraper): index merkle tree insertions (#9276)
+* feat: add scraper DB GraphQL proxy (#9238)
+* fix(rust): heartbeat idle contract sync tasks (#9222)
+* fix(scraper)!: compact scraper cursor table (#9258)
+* fix(scraper): persist events with unresolvable log meta (#9284)
+
 ## [2.3.0] - 2026-07-20
 
 * chore: jun 5 deprecations (21 chains) (#8860)

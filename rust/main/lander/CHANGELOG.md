@@ -1,3 +1,9 @@
+## [3.0.0] - 2026-08-21
+
+* fix(lander): escalate inclusion-stage confirmation backoff for aged txs (#9308)
+* fix(rust): persist Lander finalized nonce regressions (#9219)
+* perf(rust): back off idle Lander reorg polling (#9223)
+
 ## [2.3.0] - 2026-07-20
 
 * feat(tron): migrate Tron agents from gRPC to HTTP API (#8370)
