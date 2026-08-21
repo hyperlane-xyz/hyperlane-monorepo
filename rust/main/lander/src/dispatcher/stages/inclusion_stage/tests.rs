@@ -19,7 +19,9 @@ use crate::tests::test_utils::{
 };
 use crate::transaction::{DropReason as TxDropReason, Transaction, TransactionStatus};
 
-use super::{MAX_REPROCESS_TXS_POLL_RATE, REPROCESS_TXS_LIVENESS_RATE, STAGE_NAME};
+use super::{
+    MAX_REPROCESS_TXS_POLL_RATE, MAX_TX_STATUS_CHECK_DELAY, REPROCESS_TXS_LIVENESS_RATE, STAGE_NAME,
+};
 
 async fn yield_to_reprocess_task() {
     tokio::task::yield_now().await;
@@ -942,4 +944,43 @@ async fn test_processing_reprocess_txs() {
     };
 
     assert!(are_all_txs_in_pool(txs_created.clone(), &pool).await);
+}
+
+#[test]
+fn test_aged_pending_tx_backoff_is_escalated_and_capped() {
+    let base_interval = Duration::from_secs(1);
+    let now = chrono::Utc::now();
+
+    // A long-pending tx (1h old, e.g. one that never landed on-chain) checked
+    // 30s ago must be skipped: the aged backoff has escalated far past a single
+    // block time and is capped at MAX_TX_STATUS_CHECK_DELAY (5 min), so
+    // 30s < cap => not ready. Under the previous flat `base_interval` backoff
+    // this tx would have been re-polled every second, spamming the RPC.
+    let mut aged = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+    aged.creation_timestamp = now - chrono::Duration::seconds(3600);
+    aged.last_status_check = Some(now - chrono::Duration::seconds(30));
+    assert!(!InclusionStage::tx_ready_for_processing(
+        base_interval,
+        now,
+        &aged
+    ));
+
+    // Once the capped interval elapses, the aged tx is polled again.
+    let past_cap = MAX_TX_STATUS_CHECK_DELAY.as_secs() as i64 + 1;
+    aged.last_status_check = Some(now - chrono::Duration::seconds(past_cap));
+    assert!(InclusionStage::tx_ready_for_processing(
+        base_interval,
+        now,
+        &aged
+    ));
+
+    // A fresh tx stays responsive: quarter-block backoff, checked 30s ago => ready.
+    let mut fresh = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+    fresh.creation_timestamp = now - chrono::Duration::seconds(5);
+    fresh.last_status_check = Some(now - chrono::Duration::seconds(30));
+    assert!(InclusionStage::tx_ready_for_processing(
+        base_interval,
+        now,
+        &fresh
+    ));
 }

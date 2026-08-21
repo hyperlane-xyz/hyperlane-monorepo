@@ -30,6 +30,10 @@ pub type InclusionStagePool = Arc<Mutex<HashMap<TransactionUuid, Transaction>>>;
 pub const STAGE_NAME: &str = "InclusionStage";
 
 const MIN_TX_STATUS_CHECK_DELAY: Duration = Duration::from_millis(100);
+// Upper bound on how rarely a long-pending tx is re-checked. Caps the
+// exponential backoff so a tx that never lands on-chain stops spamming the RPC
+// while still being polled occasionally in case it eventually confirms.
+const MAX_TX_STATUS_CHECK_DELAY: Duration = Duration::from_secs(5 * 60);
 const REPROCESS_TXS_LIVENESS_RATE: Duration = Duration::from_secs(5);
 // Bounds idle reorg-detection latency without reducing the liveness heartbeat rate.
 const MAX_REPROCESS_TXS_POLL_RATE: Duration = Duration::from_secs(5 * 60);
@@ -286,8 +290,16 @@ impl InclusionStage {
                     MIN_TX_STATUS_CHECK_DELAY.div_f64(2.0),
                 )
             } else {
-                // Old transactions: check every full block time
-                max(base_interval, MIN_TX_STATUS_CHECK_DELAY)
+                // Old transactions (likely stuck, e.g. a tx that never landed
+                // on-chain): exponentially back off from one block time, doubling
+                // every 5 minutes of age, capped at MAX_TX_STATUS_CHECK_DELAY.
+                // This stops us from hammering the RPC's confirmation endpoint for
+                // transactions that may never confirm, while still polling them
+                // occasionally in case they eventually do.
+                let base = max(base_interval, MIN_TX_STATUS_CHECK_DELAY);
+                let steps = ((tx_age.num_seconds() - 300) / 300).clamp(0, 16) as u32;
+                base.saturating_mul(2u32.saturating_pow(steps))
+                    .min(MAX_TX_STATUS_CHECK_DELAY)
             };
 
             // Skip this transaction if we checked it too recently
