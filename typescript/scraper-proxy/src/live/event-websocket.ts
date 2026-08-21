@@ -384,20 +384,22 @@ export class EventWebSocketServer {
           cursor,
         );
       }
-      const pending = subscription.pending.sort((a, b) =>
-        compareRows(request.eventType, a, b),
-      );
-      subscription.pending = [];
-      for (const row of pending) {
-        if (
-          !(await this.deliverAndWait(
-            socket,
-            request.eventType,
-            subscription,
-            row,
-          ))
-        )
-          return;
+      while (subscription.pending.length) {
+        const pending = subscription.pending.sort((a, b) =>
+          compareRows(request.eventType, a, b),
+        );
+        subscription.pending = [];
+        for (const row of pending) {
+          if (
+            !(await this.deliverAndWait(
+              socket,
+              request.eventType,
+              subscription,
+              row,
+            ))
+          )
+            return;
+        }
       }
       subscription.catchingUp = false;
     } catch (error) {
@@ -793,7 +795,7 @@ export class EventWebSocketServer {
   ): void {
     for (const [socket, client] of clients) {
       if (!client.alive) {
-        clients.delete(socket);
+        this.disconnect(socket);
         socket.terminate();
         continue;
       }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { after, before, it } from 'node:test';
+import { after, before, it, type TestContext } from 'node:test';
 
 import { WebSocket } from 'ws';
 import type { QueryResultRow } from 'pg';
@@ -22,6 +22,7 @@ const rows = new Map([
 ]);
 let notify: (channel: string, payload?: string) => void;
 let explorerQuery = '';
+const notifiedIds = new Set<string>();
 
 const db: EventDatabase = {
   async listen(_channels, handler) {
@@ -66,8 +67,10 @@ const db: EventDatabase = {
       return queryRows<T>([row(hookA, 0)]);
     }
     if (!sql.includes('notification_id')) return [];
+    const ids = stringArray(values[0]);
+    ids.forEach((id) => notifiedIds.add(id));
     return queryRows<T>(
-      stringArray(values[0]).map((id) => ({
+      ids.map((id) => ({
         notification_id: id,
         ...rows.get(id),
       })),
@@ -251,7 +254,8 @@ void it('treats a missing sequence zero as a gap for -1 cursors', async () => {
   assert.match(reason, /sequence gap: expected 0, received 5/);
 });
 
-void it('paces historical sends within outbound buffer limits', async () => {
+void it('paces historical sends by send completion', async (context) => {
+  const completions = delayServerSendCompletions(context);
   const socket = new WebSocket(url);
   const messages: Record<string, unknown>[] = [];
   socket.on('message', (data) => {
@@ -271,13 +275,82 @@ void it('paces historical sends within outbound buffer limits', async () => {
       );
     }
   });
-  await waitFor(messages, 'caught_up');
-  assert.deepEqual(
-    messages
-      .filter(({ type }) => type === 'event')
-      .map(({ sequence }) => sequence),
-    ['0', '1'],
+
+  await waitUntil(() => eventSequences(messages).includes('0'));
+  await waitUntil(() => completions.length === 1);
+  assert.deepEqual(eventSequences(messages), ['0']);
+  assert.equal(
+    messages.some(({ type }) => type === 'caught_up'),
+    false,
   );
+  completions.shift()?.();
+
+  await waitUntil(() => eventSequences(messages).includes('1'));
+  await waitUntil(() => completions.length === 1);
+  assert.deepEqual(eventSequences(messages), ['0', '1']);
+  assert.equal(
+    messages.some(({ type }) => type === 'caught_up'),
+    false,
+  );
+  completions.shift()?.();
+
+  await waitFor(messages, 'caught_up');
+  await waitUntil(() => completions.length === 1);
+  completions.shift()?.();
+  assert.deepEqual(eventSequences(messages), ['0', '1']);
+  socket.close();
+  await new Promise<void>((resolve) => socket.once('close', resolve));
+});
+
+void it('drains live events arriving while the pending buffer is sent', async (context) => {
+  const completions = delayServerSendCompletions(context);
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [{ address: pacedHook, afterSequence: '-1', domain: 1 }],
+              eventType: 'merkle_tree_insertion',
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+
+  await waitUntil(() => eventSequences(messages).includes('0'));
+  await waitUntil(() => completions.length === 1);
+  rows.set('3', row(pacedHook, 2));
+  notify('scraper_event', notification('3'));
+  await waitUntil(() => notifiedIds.has('3'));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  completions.shift()?.();
+  await waitUntil(() => eventSequences(messages).includes('1'));
+  await waitUntil(() => completions.length === 1);
+  completions.shift()?.();
+  await waitFor(messages, 'caught_up');
+  await waitUntil(() => completions.length === 1);
+  completions.shift()?.();
+
+  await waitUntil(() => eventSequences(messages).includes('2'));
+  await waitUntil(() => completions.length === 1);
+  rows.set('4', row(pacedHook, 3));
+  notify('scraper_event', notification('4'));
+  await waitUntil(() => notifiedIds.has('4'));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  completions.shift()?.();
+
+  await waitUntil(() => eventSequences(messages).includes('3'));
+  await waitUntil(() => completions.length === 1);
+  completions.shift()?.();
+  assert.deepEqual(eventSequences(messages), ['0', '1', '2', '3']);
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
 });
@@ -408,6 +481,46 @@ function explorerSocket(ip: string): WebSocket {
   return new WebSocket(messagesUrl, {
     headers: { 'cf-connecting-ip': ip },
   });
+}
+
+function delayServerSendCompletions(context: TestContext): Array<() => void> {
+  const completions: Array<() => void> = [];
+  // oxlint-disable-next-line typescript/unbound-method -- called with the socket receiver below.
+  const originalSend = WebSocket.prototype.send;
+  context.mock.method(
+    WebSocket.prototype,
+    'send',
+    function (
+      this: WebSocket,
+      data: Parameters<WebSocket['send']>[0],
+      optionsOrCallback?:
+        | Parameters<WebSocket['send']>[1]
+        | ((error?: Error) => void),
+      callback?: (error?: Error) => void,
+    ): void {
+      const completion =
+        typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
+      const message = typeof data === 'string' ? parseRecord(data) : undefined;
+      const delay =
+        completion &&
+        (message?.type === 'event' || message?.type === 'caught_up');
+      const completed = delay
+        ? (error?: Error) => completions.push(() => completion(error))
+        : completion;
+      if (typeof optionsOrCallback === 'function' || !optionsOrCallback) {
+        originalSend.call(this, data, completed);
+      } else {
+        originalSend.call(this, data, optionsOrCallback, completed);
+      }
+    },
+  );
+  return completions;
+}
+
+function eventSequences(messages: Record<string, unknown>[]): unknown[] {
+  return messages
+    .filter(({ type }) => type === 'event')
+    .map(({ sequence }) => sequence);
 }
 
 function notification(id: string): string {
