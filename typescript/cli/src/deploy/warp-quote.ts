@@ -261,6 +261,7 @@ export function resolveTargetRouterForVariant(args: {
     case TokenFeeType.RegressiveFee:
     case TokenFeeType.ProgressiveFee:
     case TokenFeeType.OffchainQuotedLinearFee:
+    case TokenFeeType.OffchainQuotedPiecewiseLinearFee:
     case TokenFeeType.RoutingFee:
       return WARP_TARGET_ROUTER_NONE;
 

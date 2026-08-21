@@ -5,6 +5,7 @@ import {
   CrossCollateralRoutingFee__factory,
   LinearFee__factory,
   OffchainQuotedLinearFee__factory,
+  OffchainQuotedPiecewiseLinearFee__factory,
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -35,7 +36,11 @@ import {
 } from './crossCollateralUtils.js';
 import { bpsToRawFeeParams } from '@hyperlane-xyz/provider-sdk/fee';
 
-import { ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY, convertToBps } from './utils.js';
+import {
+  ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY,
+  BPS_PRECISION,
+  convertToBps,
+} from './utils.js';
 
 export type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
 type DerivedCrossCollateralFeeContracts = Record<
@@ -96,6 +101,10 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         break;
       case OnchainTokenFeeType.OffchainQuotedLinearFee:
         derivedConfig = await this.deriveOffchainQuotedLinearFeeConfig(address);
+        break;
+      case OnchainTokenFeeType.OffchainQuotedPiecewiseLinearFee:
+        derivedConfig =
+          await this.deriveOffchainQuotedPiecewiseLinearFeeConfig(address);
         break;
       case OnchainTokenFeeType.CrossCollateralRoutingFee:
         derivedConfig = await this.deriveCrossCollateralRoutingFeeConfig({
@@ -163,6 +172,41 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       token,
       owner,
       quoteSigners: [...quoteSigners],
+    };
+  }
+
+  private async deriveOffchainQuotedPiecewiseLinearFeeConfig(
+    address: Address,
+  ): Promise<DerivedTokenFeeConfig> {
+    const tokenFee = OffchainQuotedPiecewiseLinearFee__factory.connect(
+      address,
+      this.provider,
+    );
+    const [token, owner, fallbackCurve, maxBands, quoteSigners] =
+      await Promise.all([
+        tokenFee.token(),
+        tokenFee.owner(),
+        tokenFee.getFallbackCurve(),
+        tokenFee.maxBands(),
+        tokenFee.quoteSigners(),
+      ]);
+
+    return {
+      type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+      maxBands,
+      address,
+      token,
+      owner,
+      quoteSigners: [...quoteSigners],
+      fallbackCurve: {
+        breakpoints: fallbackCurve.breakpoints.map((breakpoint) =>
+          BigInt(breakpoint.toString()),
+        ),
+        marginalBps: fallbackCurve.marginalBpsX1e4.map(
+          (marginalBps) => Number(marginalBps) / Number(BPS_PRECISION),
+        ),
+        issuedAt: Number(fallbackCurve.issuedAt),
+      },
     };
   }
 

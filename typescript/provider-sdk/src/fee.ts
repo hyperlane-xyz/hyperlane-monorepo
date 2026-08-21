@@ -30,6 +30,7 @@ export const FeeStrategyType = {
   regressive: 'RegressiveFee',
   progressive: 'ProgressiveFee',
   offchainQuotedLinear: 'OffchainQuotedLinearFee',
+  offchainQuotedPiecewiseLinear: 'OffchainQuotedPiecewiseLinearFee',
 } as const;
 
 export type FeeStrategyType =
@@ -72,17 +73,38 @@ export interface OffchainQuotedLinearFeeStrategy {
   quoteSigners: string[];
 }
 
+/** Piecewise curve amounts are serialized atomic token units. */
+export interface PiecewiseCurveConfig {
+  breakpoints: string[];
+  marginalBps: number[];
+}
+
+export interface DerivedPiecewiseFallback {
+  breakpoints: bigint[];
+  marginalBps: number[];
+  issuedAt: number;
+}
+
+export interface OffchainQuotedPiecewiseLinearFeeStrategy {
+  type: typeof FeeStrategyType.offchainQuotedPiecewiseLinear;
+  quoteSigners: string[];
+  maxBands: number;
+  initialFallback: PiecewiseCurveConfig;
+}
+
 export type FeeStrategy =
   | LinearFeeStrategy
   | RegressiveFeeStrategy
   | ProgressiveFeeStrategy
-  | OffchainQuotedLinearFeeStrategy;
+  | OffchainQuotedLinearFeeStrategy
+  | OffchainQuotedPiecewiseLinearFeeStrategy;
 
 export const FeeType = {
   linear: 'LinearFee',
   regressive: 'RegressiveFee',
   progressive: 'ProgressiveFee',
   offchainQuotedLinear: 'OffchainQuotedLinearFee',
+  offchainQuotedPiecewiseLinear: 'OffchainQuotedPiecewiseLinearFee',
   routing: 'RoutingFee',
   crossCollateralRouting: 'CrossCollateralRoutingFee',
 } as const;
@@ -129,6 +151,13 @@ export interface OffchainQuotedLinearFeeConfig extends BaseFeeConfig {
   quoteSigners: string[];
 }
 
+export interface OffchainQuotedPiecewiseLinearFeeConfig extends BaseFeeConfig {
+  type: typeof FeeType.offchainQuotedPiecewiseLinear;
+  quoteSigners: string[];
+  maxBands: number;
+  initialFallback: PiecewiseCurveConfig;
+}
+
 export interface RoutingFeeConfig extends BaseFeeConfig {
   type: typeof FeeType.routing;
   routes: Record<string, FeeStrategy>;
@@ -144,6 +173,7 @@ export type FeeConfig =
   | RegressiveFeeConfig
   | ProgressiveFeeConfig
   | OffchainQuotedLinearFeeConfig
+  | OffchainQuotedPiecewiseLinearFeeConfig
   | RoutingFeeConfig
   | CrossCollateralRoutingFeeConfig;
 
@@ -179,6 +209,17 @@ export interface DerivedOffchainQuotedLinearFeeConfig {
   address: string;
 }
 
+export interface DerivedOffchainQuotedPiecewiseLinearFeeConfig {
+  type: typeof FeeType.offchainQuotedPiecewiseLinear;
+  token: string;
+  owner: string;
+  beneficiary: string;
+  quoteSigners: string[];
+  maxBands: number;
+  fallbackCurve: DerivedPiecewiseFallback;
+  address: string;
+}
+
 export interface DerivedRoutingFeeConfig {
   type: typeof FeeType.routing;
   token: string;
@@ -199,6 +240,7 @@ export interface DerivedCrossCollateralRoutingFeeConfig {
 export type DerivedFeeConfig =
   | DerivedLeafFeeConfig
   | DerivedOffchainQuotedLinearFeeConfig
+  | DerivedOffchainQuotedPiecewiseLinearFeeConfig
   | DerivedRoutingFeeConfig
   | DerivedCrossCollateralRoutingFeeConfig;
 
@@ -221,6 +263,7 @@ export type FeeArtifactConfigs = {
   [FeeType.regressive]: RegressiveFeeConfig;
   [FeeType.progressive]: ProgressiveFeeConfig;
   [FeeType.offchainQuotedLinear]: OffchainQuotedLinearFeeConfig;
+  [FeeType.offchainQuotedPiecewiseLinear]: OffchainQuotedPiecewiseLinearFeeConfig;
   [FeeType.routing]: RoutingFeeArtifactConfig;
   [FeeType.crossCollateralRouting]: CrossCollateralRoutingFeeArtifactConfig;
 };
@@ -342,6 +385,23 @@ function strategyToDerivedFeeConfig(
   beneficiary: string,
   address: string,
 ): DerivedFeeConfig {
+  if (strategy.type === FeeStrategyType.offchainQuotedPiecewiseLinear) {
+    return {
+      type: strategy.type,
+      token,
+      owner,
+      beneficiary,
+      quoteSigners: strategy.quoteSigners,
+      maxBands: strategy.maxBands,
+      fallbackCurve: {
+        breakpoints: strategy.initialFallback.breakpoints.map(BigInt),
+        marginalBps: strategy.initialFallback.marginalBps,
+        issuedAt: 0,
+      },
+      address,
+    };
+  }
+
   const { maxFee, halfAmount } = resolveRawParams(strategy.params);
   const base = {
     token,
@@ -471,6 +531,7 @@ export function feeConfigToArtifact(
     case FeeType.regressive:
     case FeeType.progressive:
     case FeeType.offchainQuotedLinear:
+    case FeeType.offchainQuotedPiecewiseLinear:
       return {
         artifactState: ArtifactState.NEW,
         config,
@@ -552,6 +613,23 @@ export function feeArtifactToDerivedConfig(
         halfAmount,
         bps: computeBps(maxFee, halfAmount),
         quoteSigners: config.quoteSigners,
+        address,
+      };
+    }
+
+    case FeeType.offchainQuotedPiecewiseLinear: {
+      return {
+        type: config.type,
+        token,
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        quoteSigners: config.quoteSigners,
+        maxBands: config.maxBands,
+        fallbackCurve: {
+          breakpoints: config.initialFallback.breakpoints.map(BigInt),
+          marginalBps: config.initialFallback.marginalBps,
+          issuedAt: 0,
+        },
         address,
       };
     }
@@ -659,8 +737,10 @@ function isLeafFeeConfig(
  * A change of fee type always requires a fresh deployment (different program
  * semantics). For matching leaf types, only `params` divergence forces a
  * redeploy — EVM fee contracts have constructor-set immutable params, so a
- * params change cannot be applied in place. All other leaf fields
- * (`owner`, `beneficiary`, `token`, `quoteSigners`) are settable
+ * params change cannot be applied in place. The piecewise fee instead
+ * redeploys only for immutable token or maxBands changes; signer-managed
+ * fallback changes are deliberately ignored here. Other leaf fields
+ * (`owner`, `beneficiary`, `quoteSigners`) are settable
  * post-deploy on both SVM (UpdateFeeParams/SetBeneficiary/TransferOwnership/
  * AddWildcardQuoteSigner) and EVM (transferOwnership/setBeneficiary), so
  * they go through the writer's update path rather than triggering a
@@ -680,6 +760,13 @@ export function shouldDeployNewFee(
       // actual.type === expected.type already; narrow actual via guard.
       if (!isLeafFeeConfig(actual)) return true;
       return !feeParamsEqual(actual.params, expected.params);
+    }
+
+    case FeeType.offchainQuotedPiecewiseLinear: {
+      if (actual.type !== FeeType.offchainQuotedPiecewiseLinear) return true;
+      return (
+        actual.maxBands !== expected.maxBands || actual.token !== expected.token
+      );
     }
 
     case FeeType.routing:
@@ -723,6 +810,16 @@ export function withFeeAssetConfig(
         beneficiary: config.beneficiary,
         params: config.params,
         quoteSigners: config.quoteSigners,
+        token,
+      };
+    case FeeType.offchainQuotedPiecewiseLinear:
+      return {
+        type: config.type,
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        quoteSigners: config.quoteSigners,
+        maxBands: config.maxBands,
+        initialFallback: config.initialFallback,
         token,
       };
     case FeeType.routing:
