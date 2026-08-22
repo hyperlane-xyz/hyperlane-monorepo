@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "A pnpm workspace of core Hyperlane packages",
+  "license": "Apache-2.0 AND BUSL-1.1",
   "scripts": {
     "agent-configs": "pnpm -C typescript/infra update-agent-config:mainnet3 && pnpm -C typescript/infra update-agent-config:testnet4",
     "build": "turbo run build",
