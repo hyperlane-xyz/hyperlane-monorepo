@@ -63,6 +63,7 @@ export enum TurnkeyRole {
   EvmIgpClaimer = 'evm-igp-claimer',
   EvmIgpUpdater = 'evm-igp-updater',
   EvmWarpFeesOwner = 'evm-warp-fees-owner',
+  EvmPauser = 'evm-pauser',
 }
 
 export const TURNKEY_SIGNER_PROTOCOLS = [
@@ -82,6 +83,7 @@ export const TURNKEY_ROLE_PROTOCOL: Record<TurnkeyRole, TurnkeySignerProtocol> =
     [TurnkeyRole.EvmIgpClaimer]: ProtocolType.Ethereum,
     [TurnkeyRole.EvmIgpUpdater]: ProtocolType.Ethereum,
     [TurnkeyRole.EvmWarpFeesOwner]: ProtocolType.Ethereum,
+    [TurnkeyRole.EvmPauser]: ProtocolType.Ethereum,
   };
 
 export function getTurnkeyRolesForProtocol(

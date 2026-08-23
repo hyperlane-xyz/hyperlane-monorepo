@@ -13,9 +13,9 @@ export const regularSafes: ChainMap<Address> = {
   abstract: '0xcd81ccFe7D9306849136Fa96397113345a32ECf3',
   zksync: '0xcd81ccFe7D9306849136Fa96397113345a32ECf3',
 
-  // Jan 29, 2026 - Migrating Viction to Safes
+  // Viction still uses its legacy ICA router; the Safe migration is incomplete.
   // ----------------------------------------------------------
-  viction: '0x6a4aA5e0E732Fd4EA096FaFcB80F1a993aD01B91',
+  // viction: '0x6a4aA5e0E732Fd4EA096FaFcB80F1a993aD01B91',
 
   // Not in use after ICA 2.0 migration
   // berachain: '0x7379D7bB2ccA68982E467632B6554fD4e72e9431',
