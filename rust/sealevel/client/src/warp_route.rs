@@ -10,6 +10,7 @@ use solana_client::{
 use std::{
     collections::HashMap,
     fmt::Debug,
+    path::PathBuf,
     process::{Command, Stdio},
 };
 
@@ -292,9 +293,6 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             remote_decimals: app_config.decimal_metadata.remote_decimals(),
         };
 
-        let home_path = std::env::var("HOME").unwrap();
-        let spl_token_binary_path = format!("{home_path}/.cargo/bin/spl-token");
-
         match &app_config.token_type {
             TokenType::Native => ctx.new_txn().add(
                 hyperlane_sealevel_token_native::instruction::init_instruction(
@@ -307,6 +305,14 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             TokenType::Synthetic(_token_metadata) => {
                 let decimals = init.decimals;
 
+                // Derive mint PDA before building transaction
+                let (mint_account, _mint_bump) =
+                    Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
+
+                // Bundle all mint initialization in ONE atomic transaction to prevent
+                // race condition where attacker closes uninitialized mint account.
+                // Order matters: init creates account, metadata_pointer sets extension,
+                // initialize_mint2 finalizes the mint (after which only authority can close).
                 ctx.new_txn()
                     .add(
                         hyperlane_sealevel_token::instruction::init_instruction(
@@ -314,50 +320,27 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                             ctx.payer_pubkey,
                             init,
                         )
-                        .unwrap(),
+                        .expect("Failed to create init instruction"),
                     )
-                    .with_client(client)
-                    .send_with_payer();
-
-                let (mint_account, _mint_bump) =
-                    Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
-
-                let mut cmd = Command::new(spl_token_binary_path.clone());
-                cmd.args([
-                    "create-token",
-                    mint_account.to_string().as_str(),
-                    "--enable-metadata",
-                    "-p",
-                    spl_token_2022::id().to_string().as_str(),
-                    "--url",
-                    client.url().as_str(),
-                    "--with-compute-unit-limit",
-                    "500000",
-                    "--mint-authority",
-                    &ctx.payer_pubkey.to_string(),
-                    "--fee-payer",
-                    ctx.payer_keypair_path(),
-                ]);
-
-                println!("running command: {:?}", cmd);
-                let status = cmd
-                    .stdout(Stdio::inherit())
-                    .stderr(Stdio::inherit())
-                    .status()
-                    .expect("Failed to run command");
-
-                println!("initialized metadata pointer. Status: {status}");
-
-                ctx.new_txn().add(
-                    spl_token_2022::instruction::initialize_mint2(
-                        &spl_token_2022::id(),
-                        &mint_account,
-                        &ctx.payer_pubkey,
-                        None,
-                        decimals,
+                    .add(
+                        spl_token_2022::extension::metadata_pointer::instruction::initialize(
+                            &spl_token_2022::id(),
+                            &mint_account,
+                            Some(ctx.payer_pubkey),
+                            Some(mint_account),
+                        )
+                        .expect("Failed to create metadata pointer instruction"),
                     )
-                    .unwrap(),
-                )
+                    .add(
+                        spl_token_2022::instruction::initialize_mint2(
+                            &spl_token_2022::id(),
+                            &mint_account,
+                            &ctx.payer_pubkey,
+                            None,
+                            decimals,
+                        )
+                        .expect("Failed to create initialize_mint2 instruction"),
+                    )
             }
             TokenType::Collateral(collateral_info) => {
                 let collateral_mint = collateral_info.mint.parse().expect("Invalid mint address");
@@ -382,6 +365,9 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         .send_with_payer();
 
         if let TokenType::Synthetic(token_metadata) = &app_config.token_type {
+            let spl_token_binary_path = find_spl_token_binary().expect(
+                "Could not find spl-token binary on PATH, in CARGO_HOME/bin, or in HOME/.cargo/bin",
+            );
             let (mint_account, _mint_bump) =
                 Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
 
@@ -740,6 +726,33 @@ pub fn parse_token_account_data(token_type: FlatTokenType, data: &mut &[u8]) {
             print_data_or_err(res);
         }
     }
+}
+
+fn find_spl_token_binary() -> Option<PathBuf> {
+    // 1. Check PATH via `which`
+    if let Ok(output) = Command::new("which").arg("spl-token").output() {
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path.is_empty() {
+                return Some(PathBuf::from(path));
+            }
+        }
+    }
+    // 2. Check CARGO_HOME/bin
+    if let Ok(cargo_home) = std::env::var("CARGO_HOME") {
+        let path = PathBuf::from(cargo_home).join("bin/spl-token");
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    // 3. Fall back to HOME/.cargo/bin
+    if let Ok(home) = std::env::var("HOME") {
+        let path = PathBuf::from(home).join(".cargo/bin/spl-token");
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    None
 }
 
 pub fn install_spl_token_cli() {
