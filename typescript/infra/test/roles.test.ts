@@ -17,6 +17,7 @@ describe('getTurnkeyRolesForProtocol', () => {
       TurnkeyRole.EvmIgpClaimer,
       TurnkeyRole.EvmIgpUpdater,
       TurnkeyRole.EvmWarpFeesOwner,
+      TurnkeyRole.EvmPauser,
     ]);
     expect(roles).not.to.include(TurnkeyRole.SealevelDeployer);
   });
