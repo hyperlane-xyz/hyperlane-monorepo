@@ -24,6 +24,7 @@ describe('ValidatorHelmManager', () => {
       },
       validators: {
         rpcConsensusType: RpcConsensusType.Fallback,
+        index: { from: -10_000 },
         docker: {
           repo: 'ghcr.io/hyperlane-xyz/hyperlane-agent',
           tag: 'test',
@@ -56,6 +57,7 @@ describe('ValidatorHelmManager', () => {
     // Set from the validator's own chain config, independent of any relayer config
     // (there is none in this RootAgentConfig).
     expect(values.hyperlane.chains[0].index?.interval).to.equal(1);
+    expect(values.hyperlane.chains[0].index?.from).to.equal(-10_000);
     expect(values.hyperlane.validator?.configs).to.have.lengthOf(1);
     expect(values.hyperlane.validator?.configs?.[0].interval).to.equal(1);
   });

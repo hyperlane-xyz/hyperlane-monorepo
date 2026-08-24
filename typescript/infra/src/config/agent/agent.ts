@@ -165,10 +165,7 @@ export type KeyConfig =
   | CosmosKeyConfig
   | StarknetKeyConfig
   | RadixKeyConfig;
-interface IndexingConfig {
-  from: number;
-  chunk: number;
-}
+type IndexingConfig = NonNullable<AgentChainMetadata['index']>;
 
 export interface AwsConfig {
   region: string;
