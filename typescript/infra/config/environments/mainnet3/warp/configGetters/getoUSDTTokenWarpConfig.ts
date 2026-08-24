@@ -58,7 +58,10 @@ const supportedCCIPChains = ['base', 'mode', 'optimism'];
 // core 6.1.0, which predates FungibleTokenRouter fee support; setting this makes
 // `warp apply` upgrade the proxy impl to the current @hyperlane-xyz/core release
 // (via ProxyAdmin.upgrade) so setFeeRecipient/feeRecipient exist for the OQLF fee.
-const contractVersion = '12.1.0';
+// Staging is pinned a minor behind production: the two impls are equivalent for
+// this route, so there is no reason to churn the staging proxies.
+const stagingContractVersion = '12.0.0';
+const productionContractVersion = '12.1.0';
 
 type oUSDTTokenChainName = (typeof deploymentChains)[number];
 type TypedoUSDTTokenChainMap<T> = {
@@ -192,11 +195,25 @@ const productionCeloXERC20LockboxAddress =
 const productionXERC20TokenAddress =
   '0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189';
 
+// Bridges that were deactivated by zeroing their limits on chain. They are kept
+// in the tables below as a record of what was once registered, but are filtered
+// out of the generated config so it reflects only the live bridges.
 const zeroLimits: XERC20VSLimitConfig = {
   type: XERC20Type.Velo,
   bufferCap: '0',
   rateLimitPerSecond: '0',
 };
+
+function isActiveBridge({ limits }: XERC20TokenExtraBridgesLimits): boolean {
+  assert(
+    limits.type === XERC20Type.Velo,
+    `Expected Velo xERC20 limits, got ${limits.type}`,
+  );
+  return (
+    limits.bufferCap !== zeroLimits.bufferCap ||
+    limits.rateLimitPerSecond !== zeroLimits.rateLimitPerSecond
+  );
+}
 
 const productionCCIPTokenPoolAddresses: ChainMap<Address> = {
   ethereum: '0xa3532633401AbFfbd15e6be825a45FB7F141469B',
@@ -495,6 +512,7 @@ function generateoUSDTTokenConfig(
   rateLimitPerSecondPerChain: ChainMap<string>,
   feeOwnerByChain: ChainMap<Address>,
   quoteSigners: Address[],
+  contractVersion: string,
   extraBridges?: ChainMap<XERC20TokenExtraBridgesLimits[]>,
   ownerOverridesByChain?: ChainMap<Record<string, string>>,
 ): ChainMap<HypTokenRouterConfig> {
@@ -562,7 +580,7 @@ function generateoUSDTTokenConfig(
               rateLimitPerSecond: rateLimitPerSecondPerChain[chain],
               bufferCap: bufferCapPerChain[chain],
             },
-            extraBridges: extraBridges ? extraBridges[chain] : undefined,
+            extraBridges: extraBridges?.[chain]?.filter(isActiveBridge),
           },
         },
       ];
@@ -585,6 +603,7 @@ export const getoUSDTTokenStagingWarpConfig = async (
     stagingRateLimitByChain,
     stagingFeeOwnerByChain,
     stagingQuoteSigners,
+    stagingContractVersion,
     stagingExtraBridges,
   );
 };
@@ -601,6 +620,7 @@ export const getoUSDTTokenProductionWarpConfig = async (
     productionRateLimitByChain,
     productionFeeOwnerByChain,
     productionQuoteSigners,
+    productionContractVersion,
     productionExtraBridges,
     productionOwnerOverridesByChain,
   );
