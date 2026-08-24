@@ -16,8 +16,9 @@ import {
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
   XERC20Type,
+  isXERC20TokenConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address } from '@hyperlane-xyz/utils';
+import { type Address, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
@@ -40,7 +41,7 @@ import {
   deployXERC20VSToken,
   localTestRunCmdPrefix,
 } from './helpers.js';
-import { hyperlaneWarpDeploy } from './warp.js';
+import { hyperlaneWarpDeploy, readWarpConfig } from './warp.js';
 
 $.verbose = true;
 
@@ -404,6 +405,42 @@ describe('xerc20 e2e tests', function () {
 
       const output = result.stdout;
       expect(output).to.include(CHAIN_NAME_2);
+    });
+  });
+
+  describe('warp read', function () {
+    // A bridge that is neither a lockbox nor the route's own router used to be
+    // dropped from the derived config, which reported a token carrying extra
+    // bridges as carrying none.
+    it('reports an extra bridge that is not a lockbox', async function () {
+      const extraBridge = tokenChain2.address;
+      await xERC20VS2
+        .addBridge({ bridge: extraBridge, ...BRIDGE_LIMITS })
+        .then((tx) => tx.wait());
+
+      try {
+        const config = await readWarpConfig(
+          CHAIN_NAME_2,
+          XERC20_VS_CORE_PATH,
+          `${TEMP_PATH}/xerc20-vs-extra-bridge-read.yaml`,
+        );
+
+        const chainConfig = config[CHAIN_NAME_2];
+        assert(
+          isXERC20TokenConfig(chainConfig),
+          `Expected an xERC20 config for ${CHAIN_NAME_2}`,
+        );
+        expect(chainConfig.xERC20?.extraBridges).to.deep.equal([
+          {
+            lockbox: extraBridge,
+            limits: { type: XERC20Type.Velo, ...BRIDGE_LIMITS },
+          },
+        ]);
+      } finally {
+        // The token is deployed once for the whole suite, so a bridge left
+        // behind would make the later apply runs emit a removeBridge.
+        await xERC20VS2.removeBridge(extraBridge).then((tx) => tx.wait());
+      }
     });
   });
 });
