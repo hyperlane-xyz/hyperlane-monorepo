@@ -145,9 +145,15 @@ export type CCIPHookConfig = z.infer<typeof CCIPHookSchema>;
 export type AggregationHookConfig = {
   type: typeof HookType.AGGREGATION;
   hooks: Array<HookConfig>;
+  // Optional address of an already-deployed hook to recover instead of
+  // redeploying (mirrors the ISM derived-config schemas in ../ism/types.ts).
+  address?: Address;
 };
 export type RoutingHookConfig = OwnableConfig & {
   domains: ChainMap<HookConfig>;
+  // Optional address of an already-deployed hook to recover instead of
+  // redeploying (mirrors the ISM derived-config schemas in ../ism/types.ts).
+  address?: Address;
 };
 export type DomainRoutingHookConfig = RoutingHookConfig & {
   type: typeof HookType.ROUTING;
@@ -226,6 +232,9 @@ export const ProtocolFeeSchema = OwnableSchema.extend({
 
 export const MerkleTreeSchema = z.object({
   type: z.literal(HookType.MERKLE_TREE),
+  // Optional address of an already-deployed hook to recover instead of
+  // redeploying (mirrors the ISM derived-config schemas in ../ism/types.ts).
+  address: ZHash.optional(),
 });
 
 export const PredicateHookSchema = z.object({
@@ -236,6 +245,9 @@ export type PredicateHookConfig = z.infer<typeof PredicateHookSchema>;
 
 export const PausableHookSchema = PausableSchema.extend({
   type: z.literal(HookType.PAUSABLE),
+  // Optional address of an already-deployed hook to recover instead of
+  // redeploying (mirrors the ISM derived-config schemas in ../ism/types.ts).
+  address: ZHash.optional(),
 });
 
 export const MailboxDefaultHookSchema = z.object({
@@ -302,6 +314,7 @@ export const DomainRoutingHookConfigSchema: z.ZodType<
   OwnableSchema.extend({
     type: z.literal(HookType.ROUTING),
     domains: z.record(HookConfigSchema),
+    address: ZHash.optional(),
   }),
 );
 
@@ -314,6 +327,7 @@ export const FallbackRoutingHookConfigSchema: z.ZodType<
     type: z.literal(HookType.FALLBACK_ROUTING),
     domains: z.record(HookConfigSchema),
     fallback: HookConfigSchema,
+    address: ZHash.optional(),
   }),
 );
 
@@ -338,6 +352,7 @@ export const AggregationHookConfigSchema: z.ZodType<
   z.object({
     type: z.literal(HookType.AGGREGATION),
     hooks: z.array(HookConfigSchema),
+    address: ZHash.optional(),
   }),
 );
 
