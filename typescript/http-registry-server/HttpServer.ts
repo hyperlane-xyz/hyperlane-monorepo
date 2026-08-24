@@ -36,6 +36,12 @@ export class HttpServer {
     this.writeMode = options.writeMode ?? false;
     this.app = express();
     this.app.set('trust proxy', true); // trust proxy for x-forwarded-for header
+    this.app.use((req, res, next) => {
+      if (req.method === 'GET' || req.method === 'HEAD') {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
+      next();
+    });
     this.app.use(express.json());
   }
 

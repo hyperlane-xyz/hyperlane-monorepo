@@ -5,6 +5,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sinon from 'sinon';
+import request from 'supertest';
 
 import { PartialRegistry } from '@hyperlane-xyz/registry';
 import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
@@ -13,6 +14,21 @@ import { HttpServer } from '../HttpServer.js';
 import { RegistryService } from '../src/services/registryService.js';
 
 chaiUse(chaiAsPromised);
+
+describe('HttpServer CORS', () => {
+  it('allows cross-origin reads without allowing cross-origin writes', async () => {
+    const httpServer = await HttpServer.create(
+      async () => new PartialRegistry({}),
+    );
+
+    const readResponse = await request(httpServer.app).get('/anything');
+    const writeResponse = await request(httpServer.app).post('/anything');
+
+    expect(readResponse.headers['access-control-allow-origin']).to.equal('*');
+    expect(writeResponse.headers['access-control-allow-origin']).to.be
+      .undefined;
+  });
+});
 
 async function bindPort(): Promise<{
   port: number;
