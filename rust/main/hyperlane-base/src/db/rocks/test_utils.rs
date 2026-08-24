@@ -37,7 +37,8 @@ where
 #[cfg(test)]
 mod test {
     use hyperlane_core::{
-        HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, Indexed, LogMeta,
+        BackwardCursorProgress, HyperlaneBackwardCursorStore, HyperlaneDomain, HyperlaneLogStore,
+        HyperlaneMessage, Indexed, InterchainGasPayment, LogMeta, MerkleTreeInsertion,
         RawHyperlaneMessage, H256, H512, U256,
     };
 
@@ -120,6 +121,62 @@ mod test {
                 .unwrap()
                 .unwrap();
             assert_eq!(retrieved, tx_hash);
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn backward_cursors_are_durable_and_event_specific() {
+        run_test_db(|db| async move {
+            let domain = HyperlaneDomain::new_test_domain("backward_cursor_progress");
+            let store = HyperlaneRocksDB::new(&domain, db.clone());
+            let message_progress = BackwardCursorProgress {
+                sequence: 12,
+                block: 34,
+            };
+            let payment_progress = BackwardCursorProgress {
+                sequence: 56,
+                block: 78,
+            };
+
+            HyperlaneBackwardCursorStore::<HyperlaneMessage>::store_backward_cursor(
+                &store,
+                message_progress,
+            )
+            .await
+            .unwrap();
+            HyperlaneBackwardCursorStore::<InterchainGasPayment>::store_backward_cursor(
+                &store,
+                payment_progress,
+            )
+            .await
+            .unwrap();
+
+            let reopened = HyperlaneRocksDB::new(&domain, db);
+            assert_eq!(
+                HyperlaneBackwardCursorStore::<HyperlaneMessage>::retrieve_backward_cursor(
+                    &reopened
+                )
+                .await
+                .unwrap(),
+                Some(message_progress)
+            );
+            assert_eq!(
+                HyperlaneBackwardCursorStore::<InterchainGasPayment>::retrieve_backward_cursor(
+                    &reopened
+                )
+                .await
+                .unwrap(),
+                Some(payment_progress)
+            );
+            assert_eq!(
+                HyperlaneBackwardCursorStore::<MerkleTreeInsertion>::retrieve_backward_cursor(
+                    &reopened
+                )
+                .await
+                .unwrap(),
+                None
+            );
         })
         .await;
     }

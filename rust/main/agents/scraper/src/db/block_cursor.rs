@@ -6,6 +6,8 @@ use sea_orm::{prelude::*, ActiveValue::*, Insert, Order, QueryOrder, QuerySelect
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
+use hyperlane_core::BackwardCursorProgress;
+
 use crate::{date_time, db::ScraperDb};
 
 use super::generated::cursor;
@@ -150,5 +152,145 @@ impl ScraperDb {
         default_height: u64,
     ) -> Result<BlockCursor> {
         BlockCursor::new(self.clone_connection(), domain, event_type, default_height).await
+    }
+
+    pub async fn retrieve_backward_cursor(
+        &self,
+        domain: u32,
+        event_type: &str,
+    ) -> Result<Option<BackwardCursorProgress>> {
+        let event_type = format!("backward_{event_type}");
+        // Keep the pair atomic by packing both u32s into the cursor table's
+        // signed i64. Flipping the sign bit preserves unsigned ordering under
+        // PostgreSQL's signed LEAST comparison.
+        let packed = cursor::Entity::find()
+            .filter(cursor::Column::Domain.eq(domain))
+            .filter(cursor::Column::EventType.eq(event_type))
+            .one(&self.0)
+            .await?
+            .map(|model| (model.height as u64) ^ (1 << 63));
+        Ok(packed.map(|packed| BackwardCursorProgress {
+            sequence: (packed >> 32) as u32,
+            block: packed as u32,
+        }))
+    }
+
+    pub async fn store_backward_cursor(
+        &self,
+        domain: u32,
+        event_type: &str,
+        progress: BackwardCursorProgress,
+    ) -> Result<()> {
+        let packed = ((progress.sequence as u64) << 32) | progress.block as u64;
+        let model = cursor::ActiveModel {
+            id: NotSet,
+            domain: Set(domain as i32),
+            time_created: Set(date_time::now()),
+            height: Set((packed ^ (1 << 63)) as i64),
+            event_type: Set(format!("backward_{event_type}")),
+        };
+        Insert::one(model)
+            .on_conflict(
+                OnConflict::columns([cursor::Column::Domain, cursor::Column::EventType])
+                    .update_column(cursor::Column::TimeCreated)
+                    .value(
+                        cursor::Column::Height,
+                        Func::least([
+                            Expr::col((Alias::new("cursor"), cursor::Column::Height)).into(),
+                            Expr::col((Alias::new("excluded"), cursor::Column::Height)).into(),
+                        ]),
+                    )
+                    .to_owned(),
+            )
+            .exec(&self.0)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn reset_backward_cursor(
+        &self,
+        domain: u32,
+        event_type: &str,
+        progress: BackwardCursorProgress,
+    ) -> Result<()> {
+        let packed = ((progress.sequence as u64) << 32) | progress.block as u64;
+        let model = cursor::ActiveModel {
+            id: NotSet,
+            domain: Set(domain as i32),
+            time_created: Set(date_time::now()),
+            height: Set((packed ^ (1 << 63)) as i64),
+            event_type: Set(format!("backward_{event_type}")),
+        };
+        Insert::one(model)
+            .on_conflict(
+                OnConflict::columns([cursor::Column::Domain, cursor::Column::EventType])
+                    .update_columns([cursor::Column::Height, cursor::Column::TimeCreated])
+                    .to_owned(),
+            )
+            .exec(&self.0)
+            .await?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hyperlane_core::BackwardCursorProgress;
+    use migration::MigratorTrait;
+    use sea_orm::Database;
+    use testcontainers::runners::AsyncRunner;
+    use testcontainers_modules::postgres::Postgres;
+
+    use super::ScraperDb;
+
+    #[tokio::test]
+    async fn backward_cursors_are_durable_and_event_specific() -> eyre::Result<()> {
+        let postgres = Postgres::default().start().await?;
+        let port = postgres.get_host_port_ipv4(5432).await?;
+        let url = format!("postgresql://postgres:postgres@127.0.0.1:{port}/postgres");
+        let connection = Database::connect(&url).await?;
+        migration::Migrator::up(&connection, None).await?;
+
+        let db = ScraperDb::connect(&url).await?;
+        let message = BackwardCursorProgress {
+            sequence: u32::MAX,
+            block: 34,
+        };
+        let payment = BackwardCursorProgress {
+            sequence: 56,
+            block: u32::MAX,
+        };
+        db.store_backward_cursor(13375, "message", message).await?;
+        db.store_backward_cursor(13375, "gas_payment", payment)
+            .await?;
+        let updated_message = BackwardCursorProgress {
+            sequence: 12,
+            block: 34,
+        };
+        db.store_backward_cursor(13375, "message", updated_message)
+            .await?;
+        db.store_backward_cursor(13375, "message", message).await?;
+        let rewind = BackwardCursorProgress {
+            sequence: 12,
+            block: 500,
+        };
+        db.reset_backward_cursor(13375, "message", rewind).await?;
+
+        let reopened = ScraperDb::connect(&url).await?;
+        assert_eq!(
+            reopened.retrieve_backward_cursor(13375, "message").await?,
+            Some(rewind)
+        );
+        assert_eq!(
+            reopened
+                .retrieve_backward_cursor(13375, "gas_payment")
+                .await?,
+            Some(payment)
+        );
+        assert_eq!(
+            reopened.retrieve_backward_cursor(13375, "delivery").await?,
+            None
+        );
+        Ok(())
     }
 }
