@@ -149,7 +149,7 @@ impl MerkleTreeHookWebSocketSync {
         Ok(sequence)
     }
 
-    /// Prefers scraper-proxy, running local RPC indexing only while the WebSocket is unavailable.
+    /// Prefers scraper-proxy once it has reached the validator's current cursor.
     pub(crate) async fn run(
         self,
         next_sequence: u32,
@@ -178,7 +178,10 @@ impl MerkleTreeHookWebSocketSync {
         retry_delay: Duration,
         mut start_fallback: impl FnMut() -> RpcFallback,
     ) {
-        let mut fallback = None;
+        // Keep local indexing active until the WebSocket proves it has reached the
+        // validator's cursor. A connected socket may still be queued for catch-up or
+        // backed by a lagging scraper.
+        let mut fallback = Some(start_fallback());
         loop {
             match self
                 .stream_with_timeout(&mut next_sequence, &mut fallback, read_timeout)
@@ -237,7 +240,6 @@ impl MerkleTreeHookWebSocketSync {
                         subscribed = true;
                     }
                     ServerMessage::Subscribed => {
-                        self.websocket_active.set(1);
                         info!(
                             domain = self.domain,
                             next_sequence = *next_sequence,
@@ -250,23 +252,33 @@ impl MerkleTreeHookWebSocketSync {
                         event_type,
                         sequence,
                     } => {
-                        self.validate_caught_up(
+                        let reached_cursor = self.validate_caught_up(
                             &address,
                             domain,
                             &event_type,
                             &sequence,
                             *next_sequence,
                         )?;
-                        self.stop_fallback(fallback).await;
-                        info!(
-                            domain = self.domain,
-                            next_sequence = *next_sequence,
-                            "Caught up Merkle tree hook WebSocket"
-                        );
+                        if reached_cursor {
+                            self.activate_websocket(fallback).await;
+                            info!(
+                                domain = self.domain,
+                                next_sequence = *next_sequence,
+                                "Caught up Merkle tree hook WebSocket"
+                            );
+                        } else {
+                            warn!(
+                                domain = self.domain,
+                                next_sequence = *next_sequence,
+                                scraper_sequence = sequence,
+                                "Scraper-proxy is behind validator cursor; keeping RPC fallback active"
+                            );
+                        }
                     }
                     ServerMessage::Event(event) => {
-                        self.stop_fallback(fallback).await;
-                        self.process_event(event, next_sequence)?;
+                        if self.process_event(event, next_sequence)? {
+                            self.activate_websocket(fallback).await;
+                        }
                     }
                     ServerMessage::Error { error } => {
                         bail!("Scraper-proxy rejected Merkle tree hook stream: {error}")
@@ -296,6 +308,11 @@ impl MerkleTreeHookWebSocketSync {
         }
     }
 
+    async fn activate_websocket(&self, fallback: &mut Option<RpcFallback>) {
+        self.stop_fallback(fallback).await;
+        self.websocket_active.set(1);
+    }
+
     fn subscription(&self, next_sequence: u32) -> Result<String> {
         let after_sequence = next_sequence.checked_sub(1).map(i64::from).unwrap_or(-1);
         serde_json::to_string(&SubscribeMessage {
@@ -314,7 +331,8 @@ impl MerkleTreeHookWebSocketSync {
         .context("Serializing Merkle tree hook WebSocket subscription")
     }
 
-    fn process_event(&self, event: EventMessage, next_sequence: &mut u32) -> Result<()> {
+    /// Processes an event and returns whether it advanced the WebSocket cursor.
+    fn process_event(&self, event: EventMessage, next_sequence: &mut u32) -> Result<bool> {
         if event.event_type != EVENT_TYPE {
             bail!("Unexpected WebSocket event type {}", event.event_type);
         }
@@ -377,8 +395,9 @@ impl MerkleTreeHookWebSocketSync {
                 .ok_or_else(|| eyre!("Merkle tree insertion sequence exhausted"))?;
             self.db
                 .store_value_by_key(NEXT_SEQUENCE_KEY, &false, next_sequence)?;
+            return Ok(true);
         }
-        Ok(())
+        Ok(false)
     }
 
     fn validate_caught_up(
@@ -388,7 +407,7 @@ impl MerkleTreeHookWebSocketSync {
         event_type: &str,
         sequence: &str,
         next_sequence: u32,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         if domain != self.domain
             || event_type != EVENT_TYPE
             || parse_address(address)? != self.merkle_tree_hook
@@ -401,7 +420,7 @@ impl MerkleTreeHookWebSocketSync {
         if sequence >= next_sequence {
             bail!("Caught-up marker skipped Merkle tree insertions");
         }
-        Ok(())
+        Ok(sequence.checked_add(1) == Some(next_sequence))
     }
 }
 
@@ -590,8 +609,9 @@ mod tests {
             sequence: "0".to_owned(),
         };
 
-        sync.process_event(event, &mut next_sequence)
-            .expect("valid event");
+        assert!(sync
+            .process_event(event, &mut next_sequence)
+            .expect("valid event"));
         assert_eq!(next_sequence, 1);
         assert_eq!(
             sync.db
@@ -599,22 +619,23 @@ mod tests {
                 .expect("retrieve insertion"),
             Some(MerkleTreeInsertion::new(0, H256::from_low_u64_be(4)))
         );
-        sync.process_event(
-            EventMessage {
-                data: EventData {
-                    block_number: StringOrNumber::Number(13),
+        assert!(!sync
+            .process_event(
+                EventMessage {
+                    data: EventData {
+                        block_number: StringOrNumber::Number(13),
+                        domain: 1,
+                        leaf_index: StringOrNumber::Number(0),
+                        merkle_tree_hook: format!("{:#x}", sync.merkle_tree_hook),
+                        message_id: format!("{:#x}", H256::from_low_u64_be(4)),
+                    },
                     domain: 1,
-                    leaf_index: StringOrNumber::Number(0),
-                    merkle_tree_hook: format!("{:#x}", sync.merkle_tree_hook),
-                    message_id: format!("{:#x}", H256::from_low_u64_be(4)),
+                    event_type: EVENT_TYPE.to_owned(),
+                    sequence: "0".to_owned(),
                 },
-                domain: 1,
-                event_type: EVENT_TYPE.to_owned(),
-                sequence: "0".to_owned(),
-            },
-            &mut next_sequence,
-        )
-        .expect("matching fallback insertion");
+                &mut next_sequence,
+            )
+            .expect("matching fallback insertion"));
         assert_eq!(next_sequence, 1);
         assert_eq!(
             sync.db
@@ -638,30 +659,54 @@ mod tests {
         assert!(sync.process_event(gap, &mut next_sequence).is_err());
     }
 
+    #[test]
+    fn only_accepts_caught_up_marker_at_validator_cursor() {
+        let (sync, _temp_dir) = test_sync();
+        let hook = format!("{:#x}", sync.merkle_tree_hook);
+
+        assert!(sync
+            .validate_caught_up(&hook, 1, EVENT_TYPE, "1", 2)
+            .expect("marker at cursor"));
+        assert!(!sync
+            .validate_caught_up(&hook, 1, EVENT_TYPE, "0", 2)
+            .expect("stale marker"));
+        assert!(sync
+            .validate_caught_up(&hook, 1, EVENT_TYPE, "2", 2)
+            .is_err());
+    }
+
     #[tokio::test]
     async fn falls_back_after_timeout_and_recovers() {
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .expect("test listener");
         let (mut sync, _temp_dir) = test_sync();
-        sync.url = Url::parse(&format!("ws://{}", listener.local_addr().unwrap())).unwrap();
+        sync.url = Url::parse(&format!(
+            "ws://{}",
+            listener.local_addr().expect("test listener address")
+        ))
+        .expect("test WebSocket URL");
         let hook = format!("{:#x}", sync.merkle_tree_hook);
         tokio::spawn(async move {
-            let (stream, _) = listener.accept().await.unwrap();
-            let _silent = accept_async(stream).await.unwrap();
-            let (stream, _) = listener.accept().await.unwrap();
-            let mut socket = accept_async(stream).await.unwrap();
+            let (stream, _) = listener.accept().await.expect("first connection");
+            let _silent = accept_async(stream).await.expect("first WebSocket");
+            let (stream, _) = listener.accept().await.expect("second connection");
+            let mut socket = accept_async(stream).await.expect("second WebSocket");
             socket
                 .send(Message::Text(r#"{"type":"ready"}"#.into()))
                 .await
-                .unwrap();
-            socket.next().await.unwrap().unwrap();
+                .expect("send ready message");
+            socket
+                .next()
+                .await
+                .expect("subscription message")
+                .expect("read subscription message");
             socket
                 .send(Message::Text(format!(
                     r#"{{"type":"caught_up","address":"{hook}","domain":1,"eventType":"merkle_tree_insertion","sequence":"0"}}"#
                 )))
                 .await
-                .unwrap();
+                .expect("send caught-up message");
             pending::<()>().await;
         });
 
@@ -669,6 +714,8 @@ mod tests {
         let starts_in_fallback = starts.clone();
         let active = sync.fallback_active.clone();
         let active_in_fallback = active.clone();
+        let websocket_active = sync.websocket_active.clone();
+        let websocket_active_after_recovery = websocket_active.clone();
         let task = tokio::spawn(async move {
             sync.run_loop(
                 1,
@@ -687,7 +734,10 @@ mod tests {
         });
 
         timeout(Duration::from_secs(1), async {
-            while starts.load(Ordering::SeqCst) != 1 || active.get() != 0 {
+            while starts.load(Ordering::SeqCst) != 1
+                || active.get() != 0
+                || websocket_active_after_recovery.get() != 1
+            {
                 tokio::task::yield_now().await;
             }
         })
@@ -696,5 +746,6 @@ mod tests {
         task.abort();
         assert_eq!(starts.load(Ordering::SeqCst), 1);
         assert_eq!(active.get(), 0);
+        assert_eq!(websocket_active.get(), 1);
     }
 }
