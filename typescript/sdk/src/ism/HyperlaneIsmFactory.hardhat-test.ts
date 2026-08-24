@@ -651,6 +651,61 @@ describe('HyperlaneIsmFactory', async () => {
     ).to.be.rejectedWith('Warp router address is required');
   });
 
+  it('deploys a pausable ism with the configured initial state and owner', async () => {
+    const owner = randomAddress();
+
+    for (const paused of [false, true]) {
+      const deployed = await ismFactory.deploy({
+        destination: chain,
+        config: {
+          type: IsmType.PAUSABLE,
+          owner,
+          paused,
+        },
+      });
+      const pausable = PausableIsm__factory.connect(
+        deployed.address,
+        multiProvider.getProvider(chain),
+      );
+
+      expect(await pausable.paused()).to.equal(paused);
+      expect((await pausable.owner()).toLowerCase()).to.equal(
+        owner.toLowerCase(),
+      );
+    }
+  });
+
+  it('deploys an aggregation with its pausable submodule initially paused', async () => {
+    const owner = randomAddress();
+    const config: AggregationIsmConfig = {
+      type: IsmType.AGGREGATION,
+      modules: [
+        randomMultisigIsmConfig(3, 5),
+        {
+          type: IsmType.PAUSABLE,
+          owner,
+          paused: true,
+        },
+      ],
+      threshold: 2,
+    };
+
+    const deployed = await ismFactory.deploy({
+      destination: chain,
+      config,
+    });
+
+    expect(
+      await moduleMatchesConfig(
+        chain,
+        deployed.address,
+        config,
+        multiProvider,
+        ismFactory.getContracts(chain),
+      ),
+    ).to.be.true;
+  });
+
   it('recovers an address-bearing pausable ism config', async () => {
     const config: PausableIsmConfig = {
       type: IsmType.PAUSABLE,
