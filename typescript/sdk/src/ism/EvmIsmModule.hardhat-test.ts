@@ -11,6 +11,7 @@ import {
   DelayedFlowRouterHookIsm__factory,
   HypERC20__factory,
   NetFlowRateLimitedHookIsm__factory,
+  PausableIsm__factory,
   RateLimitedIsm__factory,
   StaticAggregationIsm__factory,
   TestLegacyBlacklistIsm__factory,
@@ -57,6 +58,7 @@ import {
   ModuleType,
   MultisigIsmConfig,
   NetFlowRateLimitedHookIsmConfig,
+  PausableIsmConfig,
   RateLimitedIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
@@ -501,6 +503,55 @@ describe('EvmIsmModule', async () => {
   });
 
   describe('update', async () => {
+    it('applies a pausable state change when the signer is the owner', async () => {
+      const config: PausableIsmConfig = {
+        type: IsmType.PAUSABLE,
+        owner: await multiProvider.getSignerAddress(chain),
+        paused: false,
+      };
+      const { ism, initialIsmAddress } = await createIsm(config);
+      const pausable = PausableIsm__factory.connect(
+        initialIsmAddress,
+        multiProvider.getProvider(chain),
+      );
+
+      const target = { ...config, paused: true };
+      const txs = await ism.update(target);
+      testConfig = target;
+
+      expect(txs).to.be.empty;
+      expect(await pausable.paused()).to.be.true;
+    });
+
+    it('returns a pausable state change when the signer is not the owner', async () => {
+      const owner = randomAddress();
+      const config: PausableIsmConfig = {
+        type: IsmType.PAUSABLE,
+        owner,
+        paused: false,
+      };
+      const { ism, initialIsmAddress } = await createIsm(config);
+      const pausable = PausableIsm__factory.connect(
+        initialIsmAddress,
+        multiProvider.getProvider(chain),
+      );
+
+      const target = { ...config, paused: true };
+      const txs = await ism.update(target);
+
+      expect(txs).to.have.length(1);
+      expect(txs[0].to).to.equal(initialIsmAddress);
+      expect(txs[0].data).to.equal(
+        PausableIsm__factory.createInterface().encodeFunctionData('pause'),
+      );
+      expect(await pausable.paused()).to.be.false;
+
+      const ownerMultiProvider = await impersonateAccount(owner);
+      await ownerMultiProvider.sendTransaction(chain, txs[0]);
+      testConfig = target;
+      expect(await pausable.paused()).to.be.true;
+    });
+
     for (const type of [IsmType.ROUTING, IsmType.FALLBACK_ROUTING]) {
       beforeEach(() => {
         exampleRoutingConfig.type = type;
