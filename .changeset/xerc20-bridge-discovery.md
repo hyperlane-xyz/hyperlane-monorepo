@@ -6,4 +6,4 @@ xERC20 bridge discovery reports the bridges a token actually holds limits for. A
 
 `GetExtraLockboxesOptions` gained the optional `warpRouteAddress` and `type`, `EvmEventLogsReader` gained the read-only `getContractDeploymentBlock`, and `deriveXERC20TokenType` throws the new exported `UnknownXERC20TypeError`.
 
-Operators of Standard (non-Velodrome) xERC20 routes must add the token's current `mint` and `burn` to any deploy config that omits `xERC20.warpRouteLimits`, which are now derived and otherwise report a `warp check` violation.
+Operators of Standard (non-Velodrome) xERC20 routes must add the token's current `mint` and `burn` to any deploy config that omits `xERC20.warpRouteLimits`, which are now derived and otherwise report a `warp check` violation. Extra bridges are compared as a set, so listing them in a different order to the token's no longer reports a violation.

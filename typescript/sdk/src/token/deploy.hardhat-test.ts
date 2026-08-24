@@ -889,11 +889,13 @@ describe('TokenDeployer', async () => {
 
   describe('checkWarpRouteDeployConfig for a Velodrome xERC20', () => {
     // The values the CLI e2e uses, which XERC20VSTest accepts for addBridge.
-    const BRIDGE_LIMITS = {
-      bufferCap: '1000000000000000000000',
-      rateLimitPerSecond: '1000000000000000000',
+    const BUFFER_CAP = '1000000000000000000000';
+    const RATE_LIMIT_PER_SECOND = '1000000000000000000';
+    const VELO_LIMITS = {
+      type: XERC20Type.Velo,
+      bufferCap: BUFFER_CAP,
+      rateLimitPerSecond: RATE_LIMIT_PER_SECOND,
     };
-    const VELO_LIMITS = { type: XERC20Type.Velo, ...BRIDGE_LIMITS };
 
     let sandbox: sinon.SinonSandbox;
     let veloToken: XERC20VSTest;
@@ -957,7 +959,11 @@ describe('TokenDeployer', async () => {
         extraBridge,
       ]) {
         await veloToken
-          .addBridge({ bridge, ...BRIDGE_LIMITS })
+          .addBridge({
+            bridge,
+            bufferCap: BUFFER_CAP,
+            rateLimitPerSecond: RATE_LIMIT_PER_SECOND,
+          })
           .then((tx) => tx.wait());
       }
     });
@@ -971,6 +977,34 @@ describe('TokenDeployer', async () => {
         multiProvider,
         warpCoreConfig: getWarpCoreConfig(),
         warpDeployConfig: veloConfig([
+          { lockbox: extraBridge, limits: VELO_LIMITS },
+        ]),
+      });
+
+      expect(result.diff).to.deep.equal({});
+      expect(result.violations).to.deep.equal([]);
+      expect(result.isValid).to.equal(true);
+    });
+
+    // Discovery follows the order the token announced its bridges in and the
+    // deploy config follows whoever wrote it. Comparing the two index by index
+    // reports the same set of bridges in two orders as drift.
+    it('reports no violations when the deploy config names the bridges in another order', async () => {
+      const laterBridge = randomAddress();
+      await veloToken
+        .addBridge({
+          bridge: laterBridge,
+          bufferCap: BUFFER_CAP,
+          rateLimitPerSecond: RATE_LIMIT_PER_SECOND,
+        })
+        .then((tx) => tx.wait());
+
+      const result = await checkWarpRouteDeployConfig({
+        multiProvider,
+        warpCoreConfig: getWarpCoreConfig(),
+        // Announced extraBridge first, so name it last.
+        warpDeployConfig: veloConfig([
+          { lockbox: laterBridge, limits: VELO_LIMITS },
           { lockbox: extraBridge, limits: VELO_LIMITS },
         ]),
       });
