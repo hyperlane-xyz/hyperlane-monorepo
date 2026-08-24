@@ -4,7 +4,7 @@ use eyre::{eyre, Context, Result};
 use futures_util::future::join_all;
 
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneLogStore, HyperlaneProvider,
+    HyperlaneBackwardCursorStore, HyperlaneDomain, HyperlaneLogStore, HyperlaneProvider,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPaymaster,
     MerkleTreeHook, MultisigIsm, SequenceAwareIndexer, ValidatorAnnounce, H256,
 };
@@ -168,7 +168,10 @@ impl Settings {
     where
         T: Indexable + Debug,
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
-        S: HyperlaneLogStore<T> + HyperlaneSequenceAwareIndexerStoreReader<T> + 'static,
+        S: HyperlaneLogStore<T>
+            + HyperlaneSequenceAwareIndexerStoreReader<T>
+            + HyperlaneBackwardCursorStore<T>
+            + 'static,
     {
         let setup = self.chain_setup(domain)?;
         // Currently, all indexers are of the `SequenceIndexer` type
@@ -227,6 +230,7 @@ impl Settings {
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
         S: HyperlaneLogStore<T>
             + HyperlaneSequenceAwareIndexerStoreReader<T>
+            + HyperlaneBackwardCursorStore<T>
             + HyperlaneWatermarkedLogStore<T>
             + 'static,
     {
@@ -265,6 +269,7 @@ impl Settings {
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
         S: HyperlaneLogStore<T>
             + HyperlaneSequenceAwareIndexerStoreReader<T>
+            + HyperlaneBackwardCursorStore<T>
             + HyperlaneWatermarkedLogStore<T>
             + 'static,
     {

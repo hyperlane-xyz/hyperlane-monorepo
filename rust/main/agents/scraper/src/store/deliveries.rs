@@ -74,3 +74,32 @@ impl HyperlaneSequenceAwareIndexerStoreReader<Delivery> for HyperlaneDbStore {
             .await
     }
 }
+
+#[async_trait]
+impl hyperlane_core::HyperlaneBackwardCursorStore<Delivery> for HyperlaneDbStore {
+    async fn retrieve_backward_cursor(
+        &self,
+    ) -> Result<Option<hyperlane_core::BackwardCursorProgress>> {
+        self.db
+            .retrieve_backward_cursor(self.domain.id(), "delivery")
+            .await
+    }
+
+    async fn store_backward_cursor(
+        &self,
+        progress: hyperlane_core::BackwardCursorProgress,
+    ) -> Result<()> {
+        self.db
+            .store_backward_cursor(self.domain.id(), "delivery", progress)
+            .await
+    }
+
+    async fn reset_backward_cursor(
+        &self,
+        progress: hyperlane_core::BackwardCursorProgress,
+    ) -> Result<()> {
+        self.db
+            .reset_backward_cursor(self.domain.id(), "delivery", progress)
+            .await
+    }
+}
