@@ -53,6 +53,8 @@ pub struct ValidatorSettings {
     /// via `interval`, or via `chains.<originChainName>.index.interval` if
     /// `interval` is unset.
     pub interval: Duration,
+    /// Preferred Merkle tree insertion source; local RPC indexing is used while unavailable.
+    pub websocket_url: Option<url::Url>,
     /// A list of RPCs that the validator uses
     pub rpcs: Vec<RpcConfig>,
     /// Additional RPCs that vote together with `rpcs` (2/3 majority, combined) on the
@@ -213,6 +215,20 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .parse_u64()
             .unwrap_or(50) as usize;
 
+        let websocket_url: Option<url::Url> = p
+            .chain(&mut err)
+            .get_opt_key("websocketUrl")
+            .parse_from_str("Expected a valid Merkle tree hook WebSocket URL")
+            .end();
+        if let Some(url) = &websocket_url {
+            if !matches!(url.scheme(), "ws" | "wss") {
+                err.push(
+                    cwp.clone(),
+                    eyre::eyre!("`websocketUrl` must use ws:// or wss://"),
+                );
+            }
+        }
+
         let mut rpcs = get_rpc_urls(&chain, "rpcUrls", "customRpcUrls", &mut err);
         // this is only relevant for cosmos
         rpcs.extend(get_rpc_urls(&chain, "grpcUrls", "customGrpcUrls", &mut err));
@@ -259,6 +275,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             checkpoint_syncer,
             reorg_period,
             interval,
+            websocket_url,
             rpcs,
             additional_quorum_rpcs,
             allow_public_rpcs,

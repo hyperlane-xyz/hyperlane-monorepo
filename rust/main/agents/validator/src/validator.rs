@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use axum::Router;
 use derive_more::AsRef;
 use ethers::utils::keccak256;
-use eyre::{eyre, Result};
+use eyre::{eyre, Context, Result};
 use futures_util::future::{join_all, try_join_all};
 use rand::Rng;
 use serde::Serialize;
@@ -39,6 +39,7 @@ use hyperlane_core::{
 use hyperlane_ethereum::{RpcConnectionConf, Signers, SingletonSigner, SingletonSignerHandle};
 use hyperlane_metric::prometheus_metric::RpcRole;
 
+use crate::merkle_tree_hook_sync::MerkleTreeHookWebSocketSync;
 use crate::reorg_reporter::{
     LatestCheckpointReorgReporter, LatestCheckpointReorgReporterWithStorageWriter, ReorgReporter,
 };
@@ -49,6 +50,15 @@ use crate::{
 };
 
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
+
+#[derive(Debug)]
+enum MerkleTreeHookSync {
+    Rpc(Arc<SequencedDataContractSync<MerkleTreeInsertion>>),
+    WebSocket {
+        fallback: Arc<SequencedDataContractSync<MerkleTreeInsertion>>,
+        websocket: Box<MerkleTreeHookWebSocketSync>,
+    },
+}
 
 const ANNOUNCEMENT_RETRY_MIN_DELAY: Duration = Duration::from_secs(30);
 const ANNOUNCEMENT_RETRY_MAX_DELAY: Duration = Duration::from_secs(900);
@@ -518,7 +528,7 @@ pub struct Validator {
     #[as_ref]
     core: HyperlaneAgentCore,
     db: HyperlaneRocksDB,
-    merkle_tree_hook_sync: Arc<SequencedDataContractSync<MerkleTreeInsertion>>,
+    merkle_tree_hook_sync: MerkleTreeHookSync,
     mailbox: Arc<dyn Mailbox>,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     base_merkle_tree_hook: Arc<dyn MerkleTreeHook>,
@@ -731,8 +741,7 @@ impl BaseAgent for Validator {
             .await?;
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
-
-        let merkle_tree_hook_sync = settings
+        let rpc_sync = settings
             .sequenced_contract_sync::<MerkleTreeInsertion, _>(
                 &settings.origin_chain,
                 &metrics,
@@ -742,6 +751,26 @@ impl BaseAgent for Validator {
                 false,
             )
             .await?;
+        let merkle_tree_hook_sync = if let Some(url) = settings.websocket_url.clone() {
+            let source = metrics.new_int_gauge(
+                "merkle_tree_hook_sync_source_active",
+                "Whether a Merkle tree hook indexing source is active",
+                &["origin", "source"],
+            )?;
+            MerkleTreeHookSync::WebSocket {
+                fallback: rpc_sync,
+                websocket: Box::new(MerkleTreeHookWebSocketSync::new(
+                    msg_db.clone(),
+                    settings.origin_chain.id(),
+                    origin_chain_conf.addresses.merkle_tree_hook,
+                    url,
+                    source.with_label_values(&[settings.origin_chain.name(), "websocket"]),
+                    source.with_label_values(&[settings.origin_chain.name(), "rpc"]),
+                )),
+            }
+        } else {
+            MerkleTreeHookSync::Rpc(rpc_sync)
+        };
 
         Ok(Self {
             origin_chain: settings.origin_chain,
@@ -837,7 +866,7 @@ impl BaseAgent for Validator {
         self.announce().await.expect("Failed to announce validator");
 
         // wait for the first message before submitting checkpoints
-        loop {
+        let tree = loop {
             match self.merkle_tree_hook.tree(&self.reorg_period).await {
                 Err(err) => {
                     error!(?err, "Error getting merkle tree");
@@ -847,14 +876,19 @@ impl BaseAgent for Validator {
                     info!("Waiting for first message in merkle tree hook");
                     sleep(self.interval).await;
                 }
-                Ok(_) => {
-                    break;
+                Ok(tree) => {
+                    break tree;
                 }
             }
-        }
+        };
 
         let merkle_tree_hook_sync = match self
-            .try_n_times_to_run_merkle_tree_hook_sync(CURSOR_INSTANTIATION_ATTEMPTS)
+            .try_n_times_to_run_merkle_tree_hook_sync(
+                CURSOR_INSTANTIATION_ATTEMPTS,
+                tree.count()
+                    .try_into()
+                    .expect("Merkle tree leaf count must fit in u32"),
+            )
             .await
         {
             Ok(s) => s,
@@ -1067,9 +1101,10 @@ impl Validator {
     async fn try_n_times_to_run_merkle_tree_hook_sync(
         &self,
         attempts: usize,
+        next_sequence_hint: u32,
     ) -> eyre::Result<JoinHandle<()>> {
         for i in 0..attempts {
-            let task = match self.run_merkle_tree_hook_sync().await {
+            let task = match self.run_merkle_tree_hook_sync(next_sequence_hint).await {
                 Ok(s) => s,
                 Err(err) => {
                     error!(
@@ -1094,27 +1129,56 @@ impl Validator {
         ))
     }
 
-    async fn run_merkle_tree_hook_sync(&self) -> eyre::Result<JoinHandle<()>> {
-        let index_settings = self
-            .as_ref()
-            .settings
-            .chains
-            .get(&self.origin_chain)
-            .map(|chain| chain.index_settings())
-            .ok_or_else(|| eyre::eyre!("No index setting found"))?;
-        let contract_sync = self.merkle_tree_hook_sync.clone();
-        let cursor = contract_sync.cursor(index_settings).await?;
+    async fn run_merkle_tree_hook_sync(
+        &self,
+        next_sequence_hint: u32,
+    ) -> eyre::Result<JoinHandle<()>> {
         let origin = self.origin_chain.name().to_string();
-
-        let handle = tokio::spawn(
-            async move {
-                let label = "merkle_tree_hook";
-                contract_sync.clone().sync(label, cursor.into()).await;
-                info!(chain = origin, label, "contract sync task exit");
+        match &self.merkle_tree_hook_sync {
+            MerkleTreeHookSync::Rpc(contract_sync) => {
+                let index_settings = self
+                    .as_ref()
+                    .settings
+                    .chains
+                    .get(&self.origin_chain)
+                    .map(|chain| chain.index_settings())
+                    .ok_or_else(|| eyre::eyre!("No index setting found"))?;
+                let contract_sync = contract_sync.clone();
+                let cursor = contract_sync.cursor(index_settings).await?;
+                Ok(tokio::spawn(
+                    async move {
+                        let label = "merkle_tree_hook";
+                        contract_sync.clone().sync(label, cursor.into()).await;
+                        info!(chain = origin, label, "contract sync task exit");
+                    }
+                    .instrument(info_span!("MerkleTreeHookSyncer")),
+                ))
             }
-            .instrument(info_span!("MerkleTreeHookSyncer")),
-        );
-        Ok(handle)
+            MerkleTreeHookSync::WebSocket {
+                fallback,
+                websocket,
+            } => {
+                let index_settings = self
+                    .as_ref()
+                    .settings
+                    .chains
+                    .get(&self.origin_chain)
+                    .map(|chain| chain.index_settings())
+                    .ok_or_else(|| eyre::eyre!("No index setting found"))?;
+                let websocket = websocket.clone();
+                let cursor_sync = websocket.clone();
+                let next_sequence = tokio::task::spawn_blocking(move || {
+                    cursor_sync.next_sequence(next_sequence_hint)
+                })
+                .await
+                .context("Finding the next Merkle tree insertion sequence")??;
+                let fallback = fallback.clone();
+                Ok(tokio::spawn(
+                    async move { websocket.run(next_sequence, fallback, index_settings).await }
+                        .instrument(info_span!("MerkleTreeHookWebSocketSyncer")),
+                ))
+            }
+        }
     }
 
     async fn run_checkpoint_submitters(&self) -> Vec<JoinHandle<()>> {
