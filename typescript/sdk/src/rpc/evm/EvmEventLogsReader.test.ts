@@ -12,7 +12,11 @@ import {
 import { TestChainName } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 
-import { EvmEtherscanLikeEventLogsReader } from './EvmEventLogsReader.js';
+import {
+  EvmEtherscanLikeEventLogsReader,
+  EvmEventLogsReader,
+  EvmRpcEventLogsReader,
+} from './EvmEventLogsReader.js';
 
 const EXPLORER_BLOCK_NUMBER = 5755676;
 const RECEIPT_BLOCK_NUMBER = 22216691;
@@ -120,5 +124,85 @@ describe('EvmEtherscanLikeEventLogsReader.getContractDeploymentBlockNumber', () 
 
     expect(blockNumber).to.equal(RECEIPT_BLOCK_NUMBER);
     expect(receiptStub.calledOnceWithExactly(DEPLOYMENT_TX_HASH)).to.be.true;
+  });
+});
+
+describe('EvmEventLogsReader.getContractDeploymentBlock', () => {
+  const RPC_BLOCK_NUMBER = 132196375;
+
+  let sandbox: sinon.SinonSandbox;
+  let multiProvider: MultiProvider;
+  let explorerDeploymentBlock: sinon.SinonStub;
+  let rpcDeploymentBlock: sinon.SinonStub;
+
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
+    multiProvider = MultiProvider.createTestMultiProvider();
+
+    explorerDeploymentBlock = sandbox
+      .stub(
+        EvmEtherscanLikeEventLogsReader.prototype,
+        'getContractDeploymentBlockNumber',
+      )
+      .resolves(EXPLORER_BLOCK_NUMBER);
+    rpcDeploymentBlock = sandbox
+      .stub(EvmRpcEventLogsReader.prototype, 'getContractDeploymentBlockNumber')
+      .resolves(RPC_BLOCK_NUMBER);
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  function reader(): EvmEventLogsReader {
+    return EvmEventLogsReader.fromConfig(
+      { chain: TestChainName.test1 },
+      multiProvider,
+    );
+  }
+
+  it('resolves over the block explorer where the chain has one', async () => {
+    expect(
+      await reader().getContractDeploymentBlock(CONTRACT_ADDRESS),
+    ).to.equal(EXPLORER_BLOCK_NUMBER);
+    expect(rpcDeploymentBlock.called).to.be.false;
+  });
+
+  it('resolves it once per instance', async () => {
+    const logsReader = reader();
+
+    expect(
+      await logsReader.getContractDeploymentBlock(CONTRACT_ADDRESS),
+    ).to.equal(EXPLORER_BLOCK_NUMBER);
+    expect(
+      await logsReader.getContractDeploymentBlock(CONTRACT_ADDRESS),
+    ).to.equal(EXPLORER_BLOCK_NUMBER);
+
+    expect(explorerDeploymentBlock.calledOnce).to.be.true;
+  });
+
+  it('falls back to the RPC when the explorer cannot answer', async () => {
+    explorerDeploymentBlock.rejects(new Error('NOTOK'));
+
+    expect(
+      await reader().getContractDeploymentBlock(CONTRACT_ADDRESS),
+    ).to.equal(RPC_BLOCK_NUMBER);
+  });
+
+  it('raises when neither can answer', async () => {
+    explorerDeploymentBlock.rejects(new Error('NOTOK'));
+    rpcDeploymentBlock.rejects(new Error('missing trie node'));
+
+    let thrown: unknown;
+    try {
+      await reader().getContractDeploymentBlock(CONTRACT_ADDRESS);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).to.be.instanceOf(Error);
+    expect(thrown)
+      .to.have.property('message')
+      .that.includes('missing trie node');
   });
 });
