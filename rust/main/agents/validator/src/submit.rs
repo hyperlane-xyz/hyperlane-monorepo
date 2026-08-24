@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use std::vec;
 
 use futures::future::join_all;
-use prometheus::{Gauge, IntGauge};
+use prometheus::IntGauge;
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 
@@ -92,7 +92,7 @@ impl ValidatorSubmitter {
     /// Runs idly forever once the target checkpoint is reached to avoid exiting the task.
     pub(crate) async fn backfill_checkpoint_submitter(self, target_checkpoint: CheckpointAtBlock) {
         let mut tree = IncrementalMerkle::default();
-        self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint, true)
+        self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint)
             .await;
 
         info!(
@@ -196,7 +196,6 @@ impl ValidatorSubmitter {
                 self.submit_checkpoints_until_correctness_checkpoint(
                     &mut tree,
                     &correctness_checkpoint,
-                    false,
                 )
                 .await;
 
@@ -242,12 +241,8 @@ impl ValidatorSubmitter {
                 sleep(self.interval).await;
                 continue;
             }
-            self.submit_checkpoints_until_correctness_checkpoint(
-                &mut tree,
-                &latest_checkpoint,
-                false,
-            )
-            .await;
+            self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &latest_checkpoint)
+                .await;
 
             self.metrics
                 .latest_checkpoint_processed
@@ -266,7 +261,6 @@ impl ValidatorSubmitter {
         &self,
         tree: &mut IncrementalMerkle,
         correctness_checkpoint: &CheckpointAtBlock,
-        track_backfill: bool,
     ) {
         let start = Instant::now();
         // This should never be called with a tree that is ahead of the correctness checkpoint.
@@ -381,8 +375,7 @@ impl ValidatorSubmitter {
                 queue_len = checkpoint_queue.len(),
                 "Reached tree consistency"
             );
-            self.sign_and_submit_checkpoints(checkpoint_queue, track_backfill)
-                .await;
+            self.sign_and_submit_checkpoints(checkpoint_queue).await;
 
             info!(
                 index = checkpoint.index,
@@ -475,18 +468,12 @@ impl ValidatorSubmitter {
     }
 
     /// Signs and submits any previously unsubmitted checkpoints.
-    async fn sign_and_submit_checkpoints(
-        &self,
-        mut checkpoints: Vec<CheckpointWithMessageId>,
-        track_backfill: bool,
-    ) {
+    async fn sign_and_submit_checkpoints(&self, mut checkpoints: Vec<CheckpointWithMessageId>) {
         // The checkpoints are ordered by index, so the last one is the highest index.
         let last_checkpoint_index = match checkpoints.last() {
             Some(c) => c.index,
             None => return,
         };
-        let checkpoint_count = checkpoints.len();
-
         let arc_self = Arc::new(self.clone());
 
         let mut first_chunk = true;
@@ -540,16 +527,6 @@ impl ValidatorSubmitter {
                 remaining_checkpoints = checkpoints.len(),
                 "Signed and submitted checkpoint chunk",
             );
-            if track_backfill {
-                self.metrics.backfill_progress.set(
-                    checkpoint_count
-                        .checked_sub(checkpoints.len())
-                        .expect("remaining checkpoints cannot exceed initial count")
-                        as f64
-                        / checkpoint_count as f64,
-                );
-            }
-
             // If it's the first chunk, update the latest index
             if first_chunk {
                 call_and_retry_indefinitely(|| {
@@ -592,7 +569,6 @@ pub(crate) struct ValidatorSubmitterMetrics {
     latest_checkpoint_observed: IntGauge,
     latest_checkpoint_processed: IntGauge,
     backfill_complete: IntGauge,
-    backfill_progress: Gauge,
     reached_initial_consistency: IntGauge,
 }
 
@@ -607,7 +583,6 @@ impl ValidatorSubmitterMetrics {
                 .latest_checkpoint()
                 .with_label_values(&["validator_processed", chain_name]),
             backfill_complete: metrics.backfill_complete().with_label_values(&[chain_name]),
-            backfill_progress: metrics.backfill_progress().with_label_values(&[chain_name]),
             reached_initial_consistency: metrics
                 .reached_initial_consistency()
                 .with_label_values(&[chain_name]),

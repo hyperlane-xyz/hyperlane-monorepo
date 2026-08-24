@@ -751,12 +751,15 @@ impl BaseAgent for Validator {
                 false,
             )
             .await?;
+        let sync_source = metrics.new_int_gauge(
+            "merkle_tree_hook_sync_source_active",
+            "Whether a Merkle tree hook indexing source is active",
+            &["origin", "source"],
+        )?;
+        let websocket_active =
+            sync_source.with_label_values(&[settings.origin_chain.name(), "websocket"]);
+        let rpc_active = sync_source.with_label_values(&[settings.origin_chain.name(), "rpc"]);
         let merkle_tree_hook_sync = if let Some(url) = settings.websocket_url.clone() {
-            let source = metrics.new_int_gauge(
-                "merkle_tree_hook_sync_source_active",
-                "Whether a Merkle tree hook indexing source is active",
-                &["origin", "source"],
-            )?;
             MerkleTreeHookSync::WebSocket {
                 fallback: rpc_sync,
                 websocket: Box::new(MerkleTreeHookWebSocketSync::new(
@@ -764,11 +767,13 @@ impl BaseAgent for Validator {
                     settings.origin_chain.id(),
                     origin_chain_conf.addresses.merkle_tree_hook,
                     url,
-                    source.with_label_values(&[settings.origin_chain.name(), "websocket"]),
-                    source.with_label_values(&[settings.origin_chain.name(), "rpc"]),
+                    websocket_active,
+                    rpc_active,
                 )),
             }
         } else {
+            websocket_active.set(0);
+            rpc_active.set(1);
             MerkleTreeHookSync::Rpc(rpc_sync)
         };
 
