@@ -1002,6 +1002,7 @@ export {
   isPredicateWrapperConfig,
 } from './token/types.js';
 export {
+  UnknownXERC20TypeError,
   deriveBridgesConfig,
   deriveStandardBridgesConfig,
   deriveXERC20TokenType,
