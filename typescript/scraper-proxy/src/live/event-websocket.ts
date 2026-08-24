@@ -75,6 +75,7 @@ type Subscription = {
   domains?: Set<number>;
   pending: Row[];
   sequences: Map<string, bigint>;
+  waiting: boolean;
 };
 type Client = {
   alive: boolean;
@@ -88,6 +89,10 @@ type ExplorerClient = {
   queuedBytes: number;
   queue: SerializedMessage[];
   sending: boolean;
+};
+type CatchUpWaiter = {
+  resolve: (reserved: boolean) => void;
+  socket: WebSocket;
 };
 type Limits = {
   heartbeatMs: number;
@@ -155,6 +160,7 @@ export class EventWebSocketServer {
   private readonly terminatedSockets = new WeakSet<WebSocket>();
   private readonly explorerClients = new Map<WebSocket, ExplorerClient>();
   private readonly explorerClientsByIp = new Map<string, number>();
+  private readonly catchUpWaiters: CatchUpWaiter[] = [];
   private readonly explorerNotifications = new Set<string>();
   private readonly notifications = new Map<string, EventNotification>();
   private heartbeatTimer?: NodeJS.Timeout;
@@ -359,7 +365,10 @@ export class EventWebSocketServer {
       historicalStreaming: true,
       type: 'ready',
     });
-    this.watch(socket, this.clients, (client) => client.subscriptions.clear());
+    this.watch(socket, this.clients, (client) => {
+      client.subscriptions.clear();
+      this.cancelCatchUp(socket);
+    });
     socket.on('message', (data) => void this.onMessage(socket, rawData(data)));
   }
 
@@ -506,6 +515,7 @@ export class EventWebSocketServer {
         domains: request.domains,
         pending: [],
         sequences: new Map(),
+        waiting: !!request.cursors,
       });
     }
     this.send(socket, {
@@ -526,13 +536,9 @@ export class EventWebSocketServer {
   ): Promise<void> {
     const subscription = client.subscriptions.get(request.eventType);
     if (!subscription) return;
-    if (this.catchUps >= this.limits.maxConcurrentCatchUps) {
-      websocketCatchUps.inc({ outcome: 'capacity_rejected' });
-      client.subscriptions.delete(request.eventType);
-      this.sendError(socket, 'Historical streaming capacity exceeded');
-      return;
-    }
-    this.catchUps++;
+    if (!(await this.reserveCatchUp(socket))) return;
+    subscription.catchUpStartedAt = Date.now();
+    subscription.waiting = false;
     try {
       for (const cursor of request.cursors ?? []) {
         if (
@@ -599,7 +605,33 @@ export class EventWebSocketServer {
       );
       this.sendError(socket, `Failed to catch up ${request.eventType}`);
     } finally {
-      this.catchUps--;
+      this.releaseCatchUp();
+    }
+  }
+
+  private reserveCatchUp(socket: WebSocket): Promise<boolean> {
+    if (this.catchUps < this.limits.maxConcurrentCatchUps) {
+      this.catchUps++;
+      return Promise.resolve(true);
+    }
+    return new Promise((resolve) =>
+      this.catchUpWaiters.push({ resolve, socket }),
+    );
+  }
+
+  private releaseCatchUp(): void {
+    this.catchUps--;
+    const waiter = this.catchUpWaiters.shift();
+    if (!waiter) return;
+    this.catchUps++;
+    waiter.resolve(true);
+  }
+
+  private cancelCatchUp(socket: WebSocket): void {
+    for (let index = this.catchUpWaiters.length - 1; index >= 0; index--) {
+      if (this.catchUpWaiters[index]?.socket === socket) {
+        this.catchUpWaiters.splice(index, 1)[0]?.resolve(false);
+      }
     }
   }
 
@@ -617,12 +649,13 @@ export class EventWebSocketServer {
         `No ${eventType} history for domain ${cursor.domain} address ${displayAddress(cursor.address)}`,
       );
     }
-    const after = cursor.afterSequence ?? last;
-    if (after > last) {
+    const requestedAfter = cursor.afterSequence ?? last;
+    if (requestedAfter > last && !cursor.allowReplay) {
       throw new Error(
-        `Sequence ${after} is ahead of current ${eventType} sequence ${last}`,
+        `Sequence ${requestedAfter} is ahead of current ${eventType} sequence ${last}`,
       );
     }
+    const after = requestedAfter > last ? last : requestedAfter;
     subscription.sequences.set(key, after);
 
     while ((subscription.sequences.get(key) ?? -1n) < last) {
@@ -669,7 +702,10 @@ export class EventWebSocketServer {
       if (!subscription || !matches(subscription, domain, key)) continue;
       if (!subscription.catchingUp) {
         this.deliver(socket, eventType, subscription, row);
-      } else if (subscription.pending.push(row) > MAX_PENDING_EVENTS) {
+      } else if (
+        !subscription.waiting &&
+        subscription.pending.push(row) > MAX_PENDING_EVENTS
+      ) {
         this.disconnect(socket);
         socket.close(1013, 'Event catch-up buffer exceeded');
       }

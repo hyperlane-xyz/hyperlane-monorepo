@@ -55,6 +55,7 @@ export interface ValidatorBaseConfig {
 
 export interface ValidatorConfig {
   interval: number;
+  websocketUrl?: string;
   originChainName: ChainName;
   reorgPeriod: string | number;
   validators: Array<{
@@ -71,6 +72,7 @@ export interface HelmValidatorValues extends HelmStatefulSetValues {
     // only keep configs specific to the validator agent and then replace
     // the validator signing key with the version helm needs.
     Omit<AgentValidatorConfig, keyof AgentConfig | 'validator'> & {
+      websocketUrl?: string;
       validator: KeyConfig;
     }
   >;
@@ -112,6 +114,7 @@ export type GcsCheckpointSyncerConfig = {
 
 export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
   readonly #validatorsConfig: ValidatorBaseChainConfigMap;
+  readonly #websocketUrl?: string;
 
   constructor(
     agentConfig: RootAgentConfig,
@@ -121,11 +124,13 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
       throw Error('Validator is not defined for this context');
     super(agentConfig, agentConfig.validators);
     this.#validatorsConfig = agentConfig.validators.chains;
+    this.#websocketUrl = agentConfig.validators.websocketUrl;
   }
 
   async buildConfig(): Promise<ValidatorConfig> {
     return {
       interval: this.#chainConfig.interval,
+      websocketUrl: this.#websocketUrl,
       originChainName: this.chainName!,
       reorgPeriod: this.#chainConfig.reorgPeriod,
       validators: await Promise.all(

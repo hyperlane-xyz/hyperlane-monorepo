@@ -773,6 +773,16 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       `Maximum number of checkpoints signed concurrently. Defaults to 50; maximum ${MAX_SIGN_CONCURRENCY}.`,
     ),
+  websocketUrl: z
+    .string()
+    .url()
+    .refine((url) => /^wss?:\/\//i.test(url), {
+      message: 'Must use ws:// or wss://',
+    })
+    .optional()
+    .describe(
+      'Preferred Merkle tree insertion source; local RPC indexing is used while unavailable.',
+    ),
 });
 
 export type ValidatorConfig = z.infer<typeof ValidatorAgentConfigSchema>;

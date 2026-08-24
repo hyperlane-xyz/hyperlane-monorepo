@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use std::vec;
 
 use futures::future::join_all;
-use prometheus::IntGauge;
+use prometheus::{Gauge, IntGauge};
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 
@@ -124,7 +124,7 @@ impl ValidatorSubmitter {
             .restored_snapshot_tree(target_checkpoint.index)
             .await
             .unwrap_or_default();
-        self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint)
+        self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint, true)
             .await;
 
         match MerkleTreeSnapshot::capture(&tree) {
@@ -247,6 +247,7 @@ impl ValidatorSubmitter {
                 self.submit_checkpoints_until_correctness_checkpoint(
                     &mut tree,
                     &correctness_checkpoint,
+                    false,
                 )
                 .await;
 
@@ -292,8 +293,12 @@ impl ValidatorSubmitter {
                 sleep(self.interval).await;
                 continue;
             }
-            self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &latest_checkpoint)
-                .await;
+            self.submit_checkpoints_until_correctness_checkpoint(
+                &mut tree,
+                &latest_checkpoint,
+                false,
+            )
+            .await;
 
             self.metrics
                 .latest_checkpoint_processed
@@ -312,6 +317,7 @@ impl ValidatorSubmitter {
         &self,
         tree: &mut IncrementalMerkle,
         correctness_checkpoint: &CheckpointAtBlock,
+        track_backfill: bool,
     ) {
         let start = Instant::now();
         // This should never be called with a tree that is ahead of the correctness checkpoint.
@@ -441,6 +447,7 @@ impl ValidatorSubmitter {
                 checkpoint_queue
                     .into_iter()
                     .map(move |queued| queued.into_checkpoint(checkpoint)),
+                track_backfill,
             )
             .await;
 
@@ -640,7 +647,7 @@ impl ValidatorSubmitter {
     }
 
     /// Signs and submits any previously unsubmitted checkpoints.
-    async fn sign_and_submit_checkpoints<I>(&self, checkpoints: I)
+    async fn sign_and_submit_checkpoints<I>(&self, checkpoints: I, track_backfill: bool)
     where
         I: IntoIterator<Item = CheckpointWithMessageId>,
         I::IntoIter: DoubleEndedIterator + ExactSizeIterator,
@@ -652,6 +659,7 @@ impl ValidatorSubmitter {
             Some(c) => Some(c.index),
             None => return,
         };
+        let checkpoint_count = checkpoints.len();
 
         let arc_self = Arc::new(self.clone());
 
@@ -734,6 +742,15 @@ impl ValidatorSubmitter {
                     "Checkpoint chunk already existed",
                 );
             }
+            if track_backfill {
+                self.metrics.backfill_progress.set(
+                    checkpoint_count
+                        .checked_sub(checkpoints.len())
+                        .expect("remaining checkpoints cannot exceed initial count")
+                        as f64
+                        / checkpoint_count as f64,
+                );
+            }
 
             // Pace storage/signing bursts between chunks without delaying the latest-index
             // update, throttling all-existing backfills, or adding a final-chunk tail.
@@ -756,6 +773,7 @@ pub(crate) struct ValidatorSubmitterMetrics {
     latest_checkpoint_observed: IntGauge,
     latest_checkpoint_processed: IntGauge,
     backfill_complete: IntGauge,
+    backfill_progress: Gauge,
     reached_initial_consistency: IntGauge,
 }
 
@@ -770,6 +788,7 @@ impl ValidatorSubmitterMetrics {
                 .latest_checkpoint()
                 .with_label_values(&["validator_processed", chain_name]),
             backfill_complete: metrics.backfill_complete().with_label_values(&[chain_name]),
+            backfill_progress: metrics.backfill_progress().with_label_values(&[chain_name]),
             reached_initial_consistency: metrics
                 .reached_initial_consistency()
                 .with_label_values(&[chain_name]),

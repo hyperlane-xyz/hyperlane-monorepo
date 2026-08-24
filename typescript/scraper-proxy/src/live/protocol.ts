@@ -17,6 +17,7 @@ export type EventType = (typeof EVENT_TYPES)[number];
 export type SequencedEventType = (typeof SEQUENCED_EVENT_TYPES)[number];
 export type SequenceCursor = {
   address: string;
+  allowReplay?: boolean;
   afterSequence?: bigint;
   domain: number;
 };
@@ -182,8 +183,15 @@ function parseSequenceCursor(value: unknown): SequenceCursor {
   if (!isCursorAddress(value.address)) {
     throw new Error('Invalid sequence cursor address');
   }
+  if (
+    value.allowReplay !== undefined &&
+    typeof value.allowReplay !== 'boolean'
+  ) {
+    throw new Error('allowReplay must be a boolean');
+  }
   return {
     address: normalizeSequenceAddress(value.address),
+    allowReplay: value.allowReplay,
     afterSequence:
       value.afterSequence === undefined
         ? undefined

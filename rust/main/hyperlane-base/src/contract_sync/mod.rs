@@ -10,6 +10,7 @@ use derive_new::new;
 use eyre::Result;
 use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
 use tokio::sync::{mpsc::Receiver as MpscReceiver, Mutex};
+use tokio::task::JoinHandle;
 use tokio::time::{interval, sleep, Instant, MissedTickBehavior};
 use tracing::{debug, info, instrument, trace, warn, Instrument};
 
@@ -110,6 +111,18 @@ impl FetchRetryBackoff {
             .min(MAX_FETCH_RETRY_BACKOFF);
         self.retry_at = Instant::now().checked_add(delay);
         delay
+    }
+}
+
+struct ContractSyncTasks {
+    cursor: JoinHandle<()>,
+    tx_id: JoinHandle<()>,
+}
+
+impl Drop for ContractSyncTasks {
+    fn drop(&mut self) {
+        self.cursor.abort();
+        self.tx_id.abort();
     }
 }
 
@@ -267,7 +280,11 @@ where
             None => tokio::task::spawn(async {}),
         };
 
-        let res = tokio::join!(tx_id_task, cursor_task);
+        let mut tasks = ContractSyncTasks {
+            cursor: cursor_task,
+            tx_id: tx_id_task,
+        };
+        let res = tokio::join!(&mut tasks.tx_id, &mut tasks.cursor);
 
         // we should never reach this because the 2 tasks should never end
         tracing::error!(chain = chain_name, label, ?res, "contract sync loop exit");
@@ -508,9 +525,10 @@ where
 mod tests {
     use std::{
         collections::VecDeque,
+        future::pending,
         ops::RangeInclusive,
         sync::{
-            atomic::{AtomicUsize, Ordering},
+            atomic::{AtomicBool, AtomicUsize, Ordering},
             Arc as StdArc,
         },
     };
@@ -604,6 +622,41 @@ mod tests {
         for _ in 0..10 {
             tokio::task::yield_now().await;
         }
+    }
+
+    struct DropFlag(StdArc<AtomicBool>);
+
+    impl Drop for DropFlag {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::SeqCst);
+        }
+    }
+
+    #[tokio::test]
+    async fn contract_sync_tasks_abort_children_on_drop() {
+        let cursor_dropped = StdArc::new(AtomicBool::new(false));
+        let tx_id_dropped = StdArc::new(AtomicBool::new(false));
+        let cursor = tokio::spawn({
+            let cursor_dropped = cursor_dropped.clone();
+            async move {
+                let _flag = DropFlag(cursor_dropped);
+                pending::<()>().await;
+            }
+        });
+        let tx_id = tokio::spawn({
+            let tx_id_dropped = tx_id_dropped.clone();
+            async move {
+                let _flag = DropFlag(tx_id_dropped);
+                pending::<()>().await;
+            }
+        });
+        run_pending_tasks().await;
+
+        drop(ContractSyncTasks { cursor, tx_id });
+        run_pending_tasks().await;
+
+        assert!(cursor_dropped.load(Ordering::SeqCst));
+        assert!(tx_id_dropped.load(Ordering::SeqCst));
     }
 
     #[tokio::test]
