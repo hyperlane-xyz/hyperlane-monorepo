@@ -4,7 +4,7 @@ import { AgentConfig } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
-import { Contexts } from '../config/contexts.js';
+import { Contexts, RELEASE_CANDIDATE_INDEX_FROM } from '../config/contexts.js';
 import {
   agents as mainnet3Agents,
   hyperlaneContextAgentChainConfig as mainnet3AgentChainConfig,
@@ -157,6 +157,19 @@ describe('Agent configs', () => {
       testnet4Agents[Contexts.FastPath].relayer?.interval,
       'testnet4 fastpath interval',
     ).to.equal(2);
+  });
+
+  it('bounds release candidate relayer cold-start indexing', () => {
+    expect(mainnet3Agents[Contexts.Hyperlane].relayer?.index?.from).to.be
+      .undefined;
+    expect(testnet4Agents[Contexts.Hyperlane].relayer?.index?.from).to.be
+      .undefined;
+    expect(
+      mainnet3Agents[Contexts.ReleaseCandidate].relayer?.index?.from,
+    ).to.equal(RELEASE_CANDIDATE_INDEX_FROM);
+    expect(
+      testnet4Agents[Contexts.ReleaseCandidate].relayer?.index?.from,
+    ).to.equal(RELEASE_CANDIDATE_INDEX_FROM);
   });
 
   Object.entries(environmentChainConfigs).forEach(([environment, config]) => {

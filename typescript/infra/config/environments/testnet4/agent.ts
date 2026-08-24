@@ -20,7 +20,7 @@ import {
   MetricAppContext,
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
-import { Contexts } from '../../contexts.js';
+import { Contexts, RELEASE_CANDIDATE_INDEX_FROM } from '../../contexts.js';
 import { DockerImageRepos, testnetDockerTags } from '../../docker.js';
 import { getDomainId } from '../../registry.js';
 import { fallbackHedgeConfig } from '../utils.js';
@@ -371,6 +371,7 @@ const releaseCandidate: RootAgentConfig = {
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
+    index: { from: RELEASE_CANDIDATE_INDEX_FROM },
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.relayerRC,
