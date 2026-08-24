@@ -186,6 +186,7 @@ time = "0.3"
 tiny-keccak = "2.0.2"
 tokio = { version = "1.42.0", features = ["parking_lot", "tracing"] }
 tokio-metrics = { version = "0.4.0" }
+tokio-tungstenite = { version = "0.20.1", features = ["rustls-tls-webpki-roots"] }
 tokio-test = "0.4"
 toml_edit = "0.19.14"
 tonic = "0.12.3"

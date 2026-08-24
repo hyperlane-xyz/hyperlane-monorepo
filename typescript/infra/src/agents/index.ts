@@ -502,6 +502,7 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
         ...c,
         originChainName: cfg.originChainName,
         interval: cfg.interval,
+        websocketUrl: cfg.websocketUrl,
       })),
       resources: this.config.resourcesForChain(this.chainName),
     };

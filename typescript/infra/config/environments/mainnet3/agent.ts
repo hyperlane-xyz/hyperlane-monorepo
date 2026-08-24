@@ -837,6 +837,7 @@ const hyperlane: RootAgentConfig = {
     // is opt-in per chain (quorumVerificationEnabled) and no chain has enabled it
     // yet, so rpcUrls itself must stay on Quorum consensus for now.
     rpcConsensusType: RpcConsensusType.Quorum,
+    websocketUrl: 'ws://scraper-proxy.mainnet3.svc.cluster.local:8383/agents',
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
     chainResourceOverrides: validatorChainResourceOverrides,

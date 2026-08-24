@@ -962,6 +962,7 @@ async fn reorg_is_detected_and_persisted_to_checkpoint_storage() {
         .submit_checkpoints_until_correctness_checkpoint(
             &mut IncrementalMerkle::default(),
             &mock_onchain_checkpoint,
+            false,
         )
         .await;
 }

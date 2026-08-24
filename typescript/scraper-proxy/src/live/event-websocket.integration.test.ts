@@ -99,8 +99,9 @@ before(async () => {
   process.env.DATABASE_URL ??= 'postgresql://unused:unused@localhost/unused';
   const { EventWebSocketServer } = await import('./event-websocket.js');
   events = new EventWebSocketServer(db, {
-    maxAgentClients: 1,
+    maxAgentClients: 2,
     maxCatchUpRows: 2,
+    maxConcurrentCatchUps: 1,
     maxExplorerClients: 8,
     maxTotalBufferedBytes: 1_024,
   });
@@ -140,7 +141,7 @@ void it('keeps agent capacity independent from Explorer capacity', async () => {
     messages: 8,
   });
   assert.equal(events.metricsSnapshot().messageClientIps, 8);
-  assert.equal(events.metricsSnapshot().limits.agentConnections, 1);
+  assert.equal(events.metricsSnapshot().limits.agentConnections, 2);
   assert.equal(events.metricsSnapshot().limits.messageConnections, 8);
   explorers.forEach((socket) => socket.close());
   agent.close();
@@ -319,6 +320,53 @@ void it('paces historical sends by send completion', async (context) => {
   assert.deepEqual(eventSequences(messages), ['0', '1']);
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
+});
+
+void it('queues catch-ups at the concurrency limit', async (context) => {
+  let now = 0;
+  context.mock.method(Date, 'now', () => now);
+  const completions = delayServerSendCompletions(context);
+  const sockets = [new WebSocket(url), new WebSocket(url)];
+  const messages: Record<string, unknown>[][] = [[], []];
+  sockets.forEach((socket, index) =>
+    socket.on('message', (data) => {
+      const message = parseRecord(rawData(data));
+      messages[index]?.push(message);
+      if (message.type === 'ready') {
+        socket.send(
+          JSON.stringify({
+            streams: [
+              {
+                cursors: [{ address: hookA, afterSequence: '-1', domain: 1 }],
+                eventType: 'merkle_tree_insertion',
+              },
+            ],
+            type: 'subscribe',
+          }),
+        );
+      }
+    }),
+  );
+
+  await waitUntil(
+    () => messages.flat().filter(({ type }) => type === 'event').length === 1,
+  );
+  assert.equal(events.metricsSnapshot().catchUps, 1);
+  for (let sent = 1; sent <= 4; sent++) {
+    await waitUntil(() => completions.length === 1);
+    if (sent === 2) now = 1_800_001;
+    completions.shift()?.();
+    if (sent === 2)
+      await waitUntil(
+        () =>
+          messages.flat().filter(({ type }) => type === 'event').length === 2,
+      );
+  }
+  await Promise.all(messages.map((items) => waitFor(items, 'caught_up')));
+  sockets.forEach((socket) => socket.close());
+  await waitUntil(() =>
+    sockets.every(({ readyState }) => readyState === WebSocket.CLOSED),
+  );
 });
 
 void it('records a disconnected historical replay as aborted', async (context) => {
@@ -521,6 +569,64 @@ void it('rejects an empty historical cursor instead of reporting caught up', asy
     messages.some(({ type }) => type === 'caught_up'),
     false,
   );
+  socket.close();
+  await new Promise<void>((resolve) => socket.once('close', resolve));
+});
+
+void it('requires replay opt-in for a cursor ahead of scraper history', async () => {
+  const rejected = new WebSocket(url);
+  const rejectedMessages: Record<string, unknown>[] = [];
+  rejected.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    rejectedMessages.push(message);
+    if (message.type === 'ready') {
+      rejected.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [{ address: hookA, afterSequence: '10', domain: 1 }],
+              eventType: 'merkle_tree_insertion',
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+  const error = await waitFor(rejectedMessages, 'error');
+  assert.match(String(error.error), /ahead of current/);
+  rejected.close();
+  await new Promise<void>((resolve) => rejected.once('close', resolve));
+
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [
+                {
+                  address: hookA,
+                  afterSequence: '10',
+                  allowReplay: true,
+                  domain: 1,
+                },
+              ],
+              eventType: 'merkle_tree_insertion',
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+  const caughtUp = await waitFor(messages, 'caught_up');
+  assert.equal(caughtUp.sequence, '0');
+  assert.deepEqual(eventSequences(messages), []);
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
 });

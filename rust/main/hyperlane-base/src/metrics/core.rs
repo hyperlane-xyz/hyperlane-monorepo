@@ -59,6 +59,7 @@ pub struct CoreMetrics {
 
     announced: IntGaugeVec,
     backfill_complete: IntGaugeVec,
+    backfill_progress: GaugeVec,
     reached_initial_consistency: IntGaugeVec,
 
     // metadata building metrics
@@ -244,6 +245,16 @@ impl CoreMetrics {
             registry
         )?;
 
+        let backfill_progress = register_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("backfill_progress"),
+                "Checkpoint backfill progress from 0 to 1",
+                const_labels_ref
+            ),
+            &["chain"],
+            registry
+        )?;
+
         let reached_initial_consistency = register_int_gauge_vec_with_registry!(
             opts!(
                 namespaced!("reached_initial_consistency"),
@@ -351,6 +362,7 @@ impl CoreMetrics {
 
             announced,
             backfill_complete,
+            backfill_progress,
             reached_initial_consistency,
 
             metadata_build_count,
@@ -569,6 +581,11 @@ impl CoreMetrics {
     /// - `chain`: Chain the operation was submitted to.
     pub fn backfill_complete(&self) -> IntGaugeVec {
         self.backfill_complete.clone()
+    }
+
+    /// Checkpoint backfill progress from 0 to 1.
+    pub fn backfill_progress(&self) -> GaugeVec {
+        self.backfill_progress.clone()
     }
 
     /// Whether the validator has ever synced to the tip of the chain.

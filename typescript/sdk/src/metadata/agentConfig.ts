@@ -728,6 +728,16 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
   interval: ZNzUint.optional().describe(
     'How long to wait between checking for new checkpoints in seconds. Defaults to 2s, falling back to the origin chain’s index.interval if set and this is unset.',
   ),
+  websocketUrl: z
+    .string()
+    .url()
+    .refine((url) => /^wss?:\/\//i.test(url), {
+      message: 'Must use ws:// or wss://',
+    })
+    .optional()
+    .describe(
+      'Preferred Merkle tree insertion source; local RPC indexing is used while unavailable.',
+    ),
 });
 
 export type ValidatorConfig = z.infer<typeof ValidatorAgentConfigSchema>;
