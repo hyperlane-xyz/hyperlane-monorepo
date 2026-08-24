@@ -5,7 +5,7 @@ strategy:
     base:
       minAmount:
         min: 5000
-        target: 15000
+        target: 11250
         type: 'absolute'
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 3000
@@ -23,7 +23,7 @@ strategy:
     polygon:
       minAmount:
         min: 5000
-        target: 15000
+        target: 11250
         type: 'absolute'
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 3000
@@ -32,7 +32,7 @@ strategy:
     arbitrum:
       minAmount:
         min: 5000
-        target: 15000
+        target: 11250
         type: 'absolute'
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 3000
@@ -41,7 +41,7 @@ strategy:
     unichain:
       minAmount:
         min: 5000
-        target: 15000
+        target: 11250
         type: 'absolute'
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 3000
