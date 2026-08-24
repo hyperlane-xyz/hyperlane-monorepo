@@ -19,6 +19,18 @@ import { FileSystemRegistryWatcher } from './src/services/watcherService.js';
 
 export interface HttpServerOptions {
   writeMode?: boolean;
+  corsAllowedOrigins?: string[];
+}
+
+export function parseCorsAllowedOrigins(
+  value = process.env.CORS_ALLOWED_ORIGINS,
+): string[] {
+  return value
+    ? value
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean)
+    : [];
 }
 
 export class HttpServer {
@@ -26,6 +38,7 @@ export class HttpServer {
   protected readonly logger: Logger;
   private registryService: RegistryService | null = null;
   protected readonly writeMode: boolean;
+  protected readonly corsAllowedOrigins: Set<string>;
 
   private constructor(
     protected getRegistry: () => Promise<IRegistry>,
@@ -34,11 +47,26 @@ export class HttpServer {
   ) {
     this.logger = logger;
     this.writeMode = options.writeMode ?? false;
+    this.corsAllowedOrigins = new Set(
+      options.corsAllowedOrigins ?? parseCorsAllowedOrigins(),
+    );
     this.app = express();
     this.app.set('trust proxy', true); // trust proxy for x-forwarded-for header
     this.app.use((req, res, next) => {
-      if (req.method === 'GET' || req.method === 'HEAD') {
-        res.setHeader('Access-Control-Allow-Origin', '*');
+      const origin = req.get('origin');
+      if (origin && (req.method === 'GET' || req.method === 'HEAD')) {
+        res.vary('Origin');
+      }
+      if (
+        origin &&
+        (req.method === 'GET' || req.method === 'HEAD') &&
+        (this.corsAllowedOrigins.has('*') ||
+          this.corsAllowedOrigins.has(origin))
+      ) {
+        res.setHeader(
+          'Access-Control-Allow-Origin',
+          this.corsAllowedOrigins.has('*') ? '*' : origin,
+        );
       }
       next();
     });
