@@ -16,9 +16,17 @@ import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
+import { RateLimitMidPoint, xERC20Limits } from './adapters/ITokenAdapter.js';
 import { XERC20Type } from './types.js';
 import { CONFIGURATION_CHANGED_EVENT_SELECTOR } from './xerc20-abi.js';
-import { XERC20LimitsMap, readXERC20Limits } from './xerc20-limits.js';
+import {
+  StandardXERC20Limits,
+  VeloXERC20Limits,
+  XERC20LimitsMap,
+  readXERC20Limits,
+  toStandardLimits,
+  toVeloLimits,
+} from './xerc20-limits.js';
 import {
   XERC20_LOG_SCAN_BLOCK_RANGE,
   deriveXERC20TokenType,
@@ -68,6 +76,12 @@ export class EvmXERC20Reader extends HyperlaneReader {
       xERC20Address,
       bridges,
       type,
+      // Bound rather than passed by reference so a subclass overriding either
+      // still decides what its reader reports.
+      converters: {
+        toStandardLimits: (limits) => this.toStandardLimits(limits),
+        toVeloLimits: (rateLimits) => this.toVeloLimits(rateLimits),
+      },
     });
   }
 
@@ -167,5 +181,13 @@ export class EvmXERC20Reader extends HyperlaneReader {
       address: normalizeAddress(proxyAdminAddress),
       owner: normalizeAddress(owner),
     };
+  }
+
+  protected toStandardLimits(limits: xERC20Limits): StandardXERC20Limits {
+    return toStandardLimits(limits);
+  }
+
+  protected toVeloLimits(rateLimits: RateLimitMidPoint): VeloXERC20Limits {
+    return toVeloLimits(rateLimits);
   }
 }
