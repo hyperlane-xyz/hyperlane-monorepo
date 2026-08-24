@@ -22,9 +22,11 @@ describe('HttpServer CORS', () => {
     );
 
     const readResponse = await request(httpServer.app).get('/anything');
+    const headResponse = await request(httpServer.app).head('/anything');
     const writeResponse = await request(httpServer.app).post('/anything');
 
     expect(readResponse.headers['access-control-allow-origin']).to.equal('*');
+    expect(headResponse.headers['access-control-allow-origin']).to.equal('*');
     expect(writeResponse.headers['access-control-allow-origin']).to.be
       .undefined;
   });

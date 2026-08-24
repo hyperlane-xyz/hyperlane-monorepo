@@ -114,7 +114,9 @@ export class HttpServer {
       );
       this.app.use(
         '/chain',
-        createChainRouter(new ChainService(this.registryService)),
+        createChainRouter(new ChainService(this.registryService), {
+          writeMode: this.writeMode,
+        }),
       );
       this.app.use(
         '/warp-route',
