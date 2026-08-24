@@ -643,7 +643,7 @@ export class EvmIsmModule extends HyperlaneModule<
       ? ismInterface.encodeFunctionData('pause')
       : ismInterface.encodeFunctionData('unpause');
 
-    const tx = {
+    const tx: AnnotatedEV5Transaction = {
       annotation: `${target.paused ? 'Pausing' : 'Unpausing'} Pausable ISM on chain "${this.chain}" and address "${this.args.addresses.deployedIsm}"`,
       chainId: this.multiProvider.getEvmChainId(this.chain),
       to: this.args.addresses.deployedIsm,

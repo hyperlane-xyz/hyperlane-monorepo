@@ -2,4 +2,4 @@
 '@hyperlane-xyz/sdk': patch
 ---
 
-Pausable ISM deployments respected their configured initial state, and signer-owned state changes were applied directly.
+Pausable ISMs now respect the configured `paused` state. Signer-owned changes are applied directly; all others are returned as transactions.
