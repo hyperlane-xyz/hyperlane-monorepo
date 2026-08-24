@@ -79,6 +79,10 @@ impl ValidatorSubmitter {
         reorg_reporter: Arc<dyn ReorgReporter>,
         readiness: Arc<ValidatorReadiness>,
     ) -> Self {
+        assert!(
+            max_sign_concurrency > 0,
+            "maxSignConcurrency must be greater than zero"
+        );
         Self {
             reorg_period,
             interval,
@@ -375,11 +379,6 @@ impl ValidatorSubmitter {
             .last()
             .map(|checkpoint| checkpoint.root)
             .unwrap_or_else(|| tree.root());
-        info!(
-            ?root,
-            queue_length = checkpoint_queue.len(),
-            "Ingested leaves into in-memory merkle tree"
-        );
 
         // At this point we know that correctness_checkpoint.index == tree.index().
         assert_eq!(
@@ -431,17 +430,12 @@ impl ValidatorSubmitter {
             panic!("{panic_message}");
         }
 
-        tracing::info!(
-            elapsed=?start.elapsed(),
-            checkpoint_queue_len = checkpoint_queue.len(),
-            "Checkpoint submitter reached correctness checkpoint"
-        );
-
         if !checkpoint_queue.is_empty() {
             info!(
-                index = checkpoint.index,
-                queue_len = checkpoint_queue.len(),
-                "Reached tree consistency"
+                ?root,
+                queue_length = checkpoint_queue.len(),
+                elapsed = ?start.elapsed(),
+                "Checkpoint submitter reached correctness checkpoint"
             );
             self.sign_and_submit_checkpoints(
                 checkpoint_queue
@@ -704,7 +698,7 @@ impl ValidatorSubmitter {
                                     return Err(error);
                                 }
                             };
-                            tracing::info!(
+                            tracing::trace!(
                                 index = checkpoint_index,
                                 wrote_checkpoint,
                                 elapsed=?start.elapsed(),
@@ -725,12 +719,21 @@ impl ValidatorSubmitter {
 
             let wrote_checkpoint = join_all(futures).await.into_iter().any(|wrote| wrote);
 
-            tracing::info!(
-                elapsed=?start.elapsed(),
-                chunk_len,
-                remaining_checkpoints = checkpoints.len(),
-                "Signed and submitted checkpoint chunk",
-            );
+            if wrote_checkpoint {
+                tracing::info!(
+                    elapsed=?start.elapsed(),
+                    chunk_len,
+                    remaining_checkpoints = checkpoints.len(),
+                    "Signed and submitted checkpoint chunk",
+                );
+            } else {
+                tracing::trace!(
+                    elapsed=?start.elapsed(),
+                    chunk_len,
+                    remaining_checkpoints = checkpoints.len(),
+                    "Checkpoint chunk already existed",
+                );
+            }
 
             // Pace storage/signing bursts between chunks without delaying the latest-index
             // update, throttling all-existing backfills, or adding a final-chunk tail.

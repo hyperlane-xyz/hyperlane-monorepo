@@ -115,6 +115,12 @@ impl From<Rocks> for DB {
 
 type Result<T> = std::result::Result<T, DbError>;
 
+// RocksDB keeps 1,000 archived info logs by default and does not roll the current
+// log by size. Agent databases live on persistent volumes, so routine restarts can
+// otherwise retain years of diagnostics alongside a comparatively small database.
+const ROCKSDB_INFO_LOG_FILE_COUNT: usize = 10;
+const ROCKSDB_INFO_LOG_FILE_SIZE: usize = 16 * 1024 * 1024;
+
 impl DB {
     /// Opens db at `db_path` and creates if missing
     #[tracing::instrument(err)]
@@ -153,6 +159,8 @@ impl DB {
             opts.set_wal_ttl_seconds(ROLLBACK_WAL_RETENTION_SECONDS);
             opts.set_wal_size_limit_mb(ROLLBACK_WAL_SIZE_LIMIT_MB);
         }
+        opts.set_keep_log_file_num(ROCKSDB_INFO_LOG_FILE_COUNT);
+        opts.set_max_log_file_size(ROCKSDB_INFO_LOG_FILE_SIZE);
 
         let rocks = Rocks::open(&opts, &path).map_err(|e| DbError::OpeningError {
             source: Box::new(e),
@@ -430,5 +438,34 @@ mod tests {
 
         assert!(!archive_path.join("000001.log").exists());
         assert!(archive_path.join("keep.txt").exists());
+    }
+
+    #[test]
+    fn bounds_info_logs() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path().join("db");
+
+        for iteration in 0..ROCKSDB_INFO_LOG_FILE_COUNT + 5 {
+            let db = DB::from_path(&db_path).unwrap();
+            db.store(b"key", &iteration.to_be_bytes()).unwrap();
+        }
+
+        let db = DB::from_path(&db_path).unwrap();
+        assert_eq!(
+            db.retrieve(b"key").unwrap(),
+            Some((ROCKSDB_INFO_LOG_FILE_COUNT + 4).to_be_bytes().to_vec())
+        );
+        drop(db);
+
+        let info_log_count = fs::read_dir(db_path)
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.file_name().to_string_lossy().starts_with("LOG"))
+            .count();
+
+        assert!(
+            info_log_count <= ROCKSDB_INFO_LOG_FILE_COUNT,
+            "expected at most {ROCKSDB_INFO_LOG_FILE_COUNT} RocksDB info logs, found {info_log_count}"
+        );
     }
 }

@@ -23,6 +23,8 @@ use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
 
+const DEFAULT_MAX_SIGN_CONCURRENCY: usize = 50;
+
 /// Settings for RPCs
 #[derive(Debug, Clone)]
 pub struct RpcConfig {
@@ -207,11 +209,13 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
                 config_err
             })?;
 
-        let max_sign_concurrency = p
+        let configured_max_sign_concurrency = p
             .chain(&mut err)
             .get_opt_key("maxSignConcurrency")
             .parse_u64()
-            .unwrap_or(50) as usize;
+            .end();
+        let max_sign_concurrency =
+            parse_max_sign_concurrency(configured_max_sign_concurrency, cwp, &mut err);
 
         let mut rpcs = get_rpc_urls(&chain, "rpcUrls", "customRpcUrls", &mut err);
         // this is only relevant for cosmos
@@ -265,6 +269,24 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             skip_announce,
             max_sign_concurrency,
         })
+    }
+}
+
+fn parse_max_sign_concurrency(
+    configured: Option<u64>,
+    cwp: &ConfigPath,
+    err: &mut ConfigParsingError,
+) -> usize {
+    let configured = configured.unwrap_or(DEFAULT_MAX_SIGN_CONCURRENCY as u64);
+    match usize::try_from(configured) {
+        Ok(value @ 1..) => value,
+        _ => {
+            err.push(
+                cwp.add("max_sign_concurrency"),
+                eyre::eyre!("`maxSignConcurrency` must be greater than zero"),
+            );
+            DEFAULT_MAX_SIGN_CONCURRENCY
+        }
     }
 }
 
@@ -419,6 +441,28 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn max_sign_concurrency_is_positive() {
+        let cwp = ConfigPath::default();
+
+        for (configured, expected) in [(None, DEFAULT_MAX_SIGN_CONCURRENCY), (Some(1), 1)] {
+            let mut err = ConfigParsingError::default();
+            assert_eq!(
+                parse_max_sign_concurrency(configured, &cwp, &mut err),
+                expected
+            );
+            assert!(err.is_ok());
+        }
+
+        let mut err = ConfigParsingError::default();
+        assert_eq!(
+            parse_max_sign_concurrency(Some(0), &cwp, &mut err),
+            DEFAULT_MAX_SIGN_CONCURRENCY
+        );
+        assert!(!err.is_ok());
+        assert!(err.to_string().contains("maxSignConcurrency"));
+    }
 
     #[test]
     fn test_get_rpc_urls_explicit() {
