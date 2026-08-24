@@ -25,6 +25,8 @@ import {
   XERC20LockboxTest__factory,
   XERC20Test,
   XERC20Test__factory,
+  XERC20VSTest,
+  XERC20VSTest__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -33,6 +35,7 @@ import {
   assert,
   deepCopy,
   eqAddress,
+  isNullish,
   isZeroishAddress,
   objMap,
 } from '@hyperlane-xyz/utils';
@@ -70,6 +73,8 @@ import { HypERC20Deployer } from './deploy.js';
 import {
   SyntheticTokenConfig,
   WarpRouteDeployConfigMailboxRequired,
+  XERC20TokenExtraBridgesLimits,
+  XERC20Type,
   isAtomicLocalRebalancingBridgeTokenConfig,
   isDepositAddressTokenConfig,
 } from './types.js';
@@ -480,12 +485,28 @@ describe('TokenDeployer', async () => {
           })),
         }) as WarpCoreConfig;
 
+      // XERC20Test answers mintingMaxLimitOf/burningMaxLimitOf with the uint256
+      // max for every bridge, so a deploy config declaring no limits reads as
+      // drift against what the token holds.
+      const MAX_UINT256 =
+        '115792089237316195423570985008687907853269984665640564039457584007913129639935';
+
       beforeEach(async () => {
         // @ts-expect-error - Test assigns varying token types to config
         config[chain] = {
           ...config[chain],
           type,
           token: token(),
+          xERC20:
+            type === TokenType.XERC20
+              ? {
+                  warpRouteLimits: {
+                    type: XERC20Type.Standard,
+                    mint: MAX_UINT256,
+                    burn: MAX_UINT256,
+                  },
+                }
+              : undefined,
         };
 
         contractsMap = await deployer.deploy(config);
@@ -865,6 +886,155 @@ describe('TokenDeployer', async () => {
       });
     });
   }
+
+  describe('checkWarpRouteDeployConfig for a Velodrome xERC20', () => {
+    // The values the CLI e2e uses, which XERC20VSTest accepts for addBridge.
+    const BRIDGE_LIMITS = {
+      bufferCap: '1000000000000000000000',
+      rateLimitPerSecond: '1000000000000000000',
+    };
+    const VELO_LIMITS = { type: XERC20Type.Velo, ...BRIDGE_LIMITS };
+
+    let sandbox: sinon.SinonSandbox;
+    let veloToken: XERC20VSTest;
+    let extraBridge: Address;
+    let contractsMap: Awaited<ReturnType<HypERC20Deployer['deploy']>>;
+
+    const veloConfig = (
+      extraBridges?: XERC20TokenExtraBridgesLimits[],
+    ): WarpRouteDeployConfigMailboxRequired => ({
+      ...config,
+      [chain]: {
+        ...config[chain],
+        type: TokenType.XERC20,
+        token: veloToken.address,
+        xERC20: { warpRouteLimits: VELO_LIMITS, extraBridges },
+      },
+    });
+
+    // CAST: the check only reads chainName and addressOrDenom off each token,
+    // and filling in the rest of WarpCoreConfig's token metadata would state
+    // things about the deployment this test does not know.
+    const getWarpCoreConfig = (): WarpCoreConfig =>
+      ({
+        tokens: Object.keys(config).map((currentChain) => ({
+          addressOrDenom:
+            contractsMap[currentChain][
+              currentChain === chain
+                ? TokenType.XERC20
+                : config[currentChain].type
+            ].address,
+          chainName: currentChain,
+        })),
+      }) as WarpCoreConfig;
+
+    beforeEach(async () => {
+      sandbox = sinon.createSandbox();
+      // The test chains declare a placeholder Etherscan explorer, and the bridge
+      // scan would spend a network round trip on it before falling through. The
+      // RPC is the path this exercises.
+      sandbox.stub(multiProvider, 'tryGetEvmExplorerMetadataList').returns([]);
+
+      const { name, decimals, symbol } = config[chain];
+      assert(
+        name && symbol && !isNullish(decimals),
+        `Missing token metadata for ${chain}`,
+      );
+      veloToken = await new XERC20VSTest__factory(signer).deploy(
+        name,
+        symbol,
+        totalSupply,
+        decimals,
+      );
+
+      contractsMap = await deployer.deploy(veloConfig());
+
+      // The route's own router is a bridge of the token like any other, and the
+      // extra bridge is an address nothing but the token's events knows about.
+      extraBridge = randomAddress();
+      for (const bridge of [
+        contractsMap[chain][TokenType.XERC20].address,
+        extraBridge,
+      ]) {
+        await veloToken
+          .addBridge({ bridge, ...BRIDGE_LIMITS })
+          .then((tx) => tx.wait());
+      }
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it('reports no violations for a bridge discovered from the token', async () => {
+      const result = await checkWarpRouteDeployConfig({
+        multiProvider,
+        warpCoreConfig: getWarpCoreConfig(),
+        warpDeployConfig: veloConfig([
+          { lockbox: extraBridge, limits: VELO_LIMITS },
+        ]),
+      });
+
+      expect(result.diff).to.deep.equal({});
+      expect(result.violations).to.deep.equal([]);
+      expect(result.isValid).to.equal(true);
+    });
+
+    // Guards the assertion above against passing because the declared limits
+    // were echoed back rather than read: declare the same bridge with limits
+    // the token does not hold and the check has to report it.
+    it('reports drift when the declared limits are not the ones the token holds', async () => {
+      const result = await checkWarpRouteDeployConfig({
+        multiProvider,
+        warpCoreConfig: getWarpCoreConfig(),
+        warpDeployConfig: veloConfig([
+          {
+            lockbox: extraBridge,
+            limits: {
+              type: XERC20Type.Velo,
+              bufferCap: '1',
+              rateLimitPerSecond: '1',
+            },
+          },
+        ]),
+      });
+
+      expect(result.isValid).to.equal(false);
+      expect(
+        result.violations.map(({ chain: violationChain, name }) => ({
+          chain: violationChain,
+          name,
+        })),
+      ).to.deep.equal([
+        { chain, name: 'xERC20.extraBridges.0.limits.bufferCap' },
+        { chain, name: 'xERC20.extraBridges.0.limits.rateLimitPerSecond' },
+      ]);
+    });
+
+    // A bridge on chain that the deploy config does not name is drift the check
+    // exists to surface, and it is only visible because the bridge set is read
+    // from the token rather than from the config.
+    it('reports a bridge the deploy config does not name', async () => {
+      const result = await checkWarpRouteDeployConfig({
+        multiProvider,
+        warpCoreConfig: getWarpCoreConfig(),
+        warpDeployConfig: veloConfig(),
+      });
+
+      expect(result.isValid).to.equal(false);
+      // isValid alone is true of any drift on any field, so the violation has
+      // to name the bridge for this to be about the bridge.
+      expect(
+        result.violations.map(({ chain: violationChain, name, actual }) => ({
+          chain: violationChain,
+          name,
+          namesTheBridge: actual.includes(extraBridge.toLowerCase()),
+        })),
+      ).to.deep.equal([
+        { chain, name: 'xERC20.extraBridges', namesTheBridge: true },
+      ]);
+    });
+  });
 
   describe('RateLimitedIsm with non-deployer warp owner', () => {
     let ismDeployer: HypERC20Deployer;
