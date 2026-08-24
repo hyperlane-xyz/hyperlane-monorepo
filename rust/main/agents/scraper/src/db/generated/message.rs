@@ -23,7 +23,7 @@ pub struct Model {
     pub recipient: Vec<u8>,
     pub msg_body: Option<Vec<u8>>,
     pub origin_mailbox: Vec<u8>,
-    pub origin_tx_id: i64,
+    pub origin_tx_id: Option<i64>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
@@ -73,7 +73,7 @@ impl ColumnTrait for Column {
             Self::Recipient => ColumnType::VarBinary(StringLen::None).def(),
             Self::MsgBody => ColumnType::VarBinary(StringLen::None).def().null(),
             Self::OriginMailbox => ColumnType::VarBinary(StringLen::None).def(),
-            Self::OriginTxId => ColumnType::BigInteger.def(),
+            Self::OriginTxId => ColumnType::BigInteger.def().null(),
         }
     }
 }

@@ -171,7 +171,7 @@ impl ScraperDb {
                     std::iter::once(StorableMessage {
                         msg,
                         meta: storable.meta,
-                        txn_id: storable.txn_id,
+                        txn_id: Some(storable.txn_id),
                         id_override: Some(msg_id),
                     }),
                 )
@@ -186,7 +186,7 @@ impl ScraperDb {
                     message_id: msg_id,
                     sequence: None,
                     meta: storable.meta,
-                    txn_id: storable.txn_id,
+                    txn_id: Some(storable.txn_id),
                 }),
             )
             .await?;

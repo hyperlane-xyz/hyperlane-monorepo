@@ -136,6 +136,7 @@ export abstract class HyperlaneRouterDeployer<
 
   async deploy(
     configMap: ChainMap<Config>,
+    options: { deferRouterEnrollment?: boolean } = {},
   ): Promise<HyperlaneContractsMap<Factories>> {
     // Only deploy on chains that don't have foreign deployments.
     const configMapToDeploy = objFilter(
@@ -152,11 +153,13 @@ export abstract class HyperlaneRouterDeployer<
 
     const deployedContractsMap = await super.deploy(configMapToDeploy);
 
-    await this.enrollRemoteRouters(
-      deployedContractsMap,
-      configMap,
-      foreignDeployments,
-    );
+    if (!options.deferRouterEnrollment) {
+      await this.enrollRemoteRouters(
+        deployedContractsMap,
+        configMap,
+        foreignDeployments,
+      );
+    }
     await this.deployAndConfigureTokenFees(deployedContractsMap, configMap);
     await this.configureClients(deployedContractsMap, configMap);
     await this.beforeTransferOwnership(deployedContractsMap, configMap);

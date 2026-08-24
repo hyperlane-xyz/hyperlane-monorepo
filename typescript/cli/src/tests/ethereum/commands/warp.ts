@@ -284,15 +284,18 @@ export function hyperlaneWarpApplyRaw({
   strategyUrl,
   warpRouteId,
   relay,
+  receiptsDir,
 }: {
   strategyUrl?: string;
   warpRouteId?: string;
   relay?: boolean;
+  receiptsDir?: string;
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp apply \
         --registry ${REGISTRY_PATH} \
         ${strategyUrl ? ['--strategy', strategyUrl] : []} \
         ${warpRouteId ? ['--warp-route-id', warpRouteId] : []} \
+        ${receiptsDir ? ['--receipts-dir', receiptsDir] : []} \
         ${getKeyFlags(ANVIL_KEY)} \
         --verbosity debug \
         ${relay ? ['--relay'] : []} \
@@ -726,6 +729,8 @@ export function generateWarpConfigs(
     TokenType.collateralDepositAddress,
     // Forward-compatibility placeholder, not deployable
     TokenType.unknown,
+    // Non-transferable dedicated standard, excluded from ordinary warp connections
+    TokenType.atomicLocalRebalancing,
   ]);
 
   const allowedWarpTokenTypes = Object.values(TokenType).filter(
@@ -945,6 +950,7 @@ export async function setupIncompleteWarpRouteExtension(
     },
     {},
     warpCoreConfig,
+    warpDeployConfig,
   );
 
   const combinedWarpCorePath = getCombinedWarpRoutePath('ETH', [

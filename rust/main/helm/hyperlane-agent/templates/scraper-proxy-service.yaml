@@ -1,0 +1,22 @@
+{{- if .Values.hyperlane.scraperProxy.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agent-common.fullname" . }}
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: {{ .Values.hyperlane.scraperProxy.port | quote }}
+    prometheus.io/scrape: 'true'
+  labels:
+    {{- include "agent-common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scraper-proxy
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "agent-common.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: scraper-proxy
+  ports:
+  - name: websocket
+    port: {{ .Values.hyperlane.scraperProxy.port }}
+    targetPort: scraper-proxy
+{{- end }}

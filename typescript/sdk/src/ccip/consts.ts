@@ -51,26 +51,6 @@ export const CCIP_NETWORKS: ChainMap<CCIPAddresses> = {
       version: '1.5.0',
     },
   },
-  bitlayer: {
-    armProxy: {
-      address: '0xcaa6131cEe85ba2F140cBa05F6825aC60B6CEA56',
-      version: '1.5.0',
-    },
-    chainSelector: '7937294810946806131',
-    feeTokens: ['LINK', 'WBTC'],
-    registryModule: {
-      address: '0x907BF5A4489d2b14EBDf9C9BDEA60AAe2Da54ef4',
-      version: '1.5.0',
-    },
-    router: {
-      address: '0x6c0aA29330c58dda07faD577fF5a0280823a910c',
-      version: '1.2.0',
-    },
-    tokenAdminRegistry: {
-      address: '0xd999758aEB04BDa755Ae78344FFF5534947620CD',
-      version: '1.5.0',
-    },
-  },
   bob: {
     armProxy: {
       address: '0xe4D8E0A02C61f6DDe95255E702fe1237428673D8',
@@ -228,26 +208,6 @@ export const CCIP_NETWORKS: ChainMap<CCIPAddresses> = {
     },
     tokenAdminRegistry: {
       address: '0x846Fccd01D4115FD1E81267495773aeB33bF1dC7',
-      version: '1.5.0',
-    },
-  },
-  hashkey: {
-    armProxy: {
-      address: '0x59F168858472c5ECC217588678F6c378951Bd524',
-      version: '1.5.0',
-    },
-    chainSelector: '7613811247471741961',
-    feeTokens: ['LINK', 'WHSK'],
-    registryModule: {
-      address: '0xE9A76b7071F0bDaF5968583BEDF6CC537613A1F7',
-      version: '1.5.0',
-    },
-    router: {
-      address: '0xf2Fd62c083F3BF324e99ce157D1a42d7EbA77f1d',
-      version: '1.2.0',
-    },
-    tokenAdminRegistry: {
-      address: '0x4b238f757f842280FeA88A1c2B4186b71eF8BC5E',
       version: '1.5.0',
     },
   },
@@ -448,26 +408,6 @@ export const CCIP_NETWORKS: ChainMap<CCIPAddresses> = {
     },
     tokenAdminRegistry: {
       address: '0x00F027eA6D0fb03256A15E9182B2B9227A4931d8',
-      version: '1.5.0',
-    },
-  },
-  ronin: {
-    armProxy: {
-      address: '0xceA253a8c2BB995054524d071498281E89aACD59',
-      version: '1.5.0',
-    },
-    chainSelector: '6916147374840168594',
-    feeTokens: ['LINK', 'WRON'],
-    registryModule: {
-      address: '0x5055DA89A16b71fEF91D1af323b139ceDe2d8320',
-      version: '1.5.0',
-    },
-    router: {
-      address: '0x46527571D5D1B68eE7Eb60B18A32e6C60DcEAf99',
-      version: '1.2.0',
-    },
-    tokenAdminRegistry: {
-      address: '0x90e83d532A4aD13940139c8ACE0B93b0DdbD323a',
       version: '1.5.0',
     },
   },

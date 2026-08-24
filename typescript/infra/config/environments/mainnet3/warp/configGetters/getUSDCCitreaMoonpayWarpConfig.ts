@@ -30,6 +30,7 @@ import {
   getRebalancingBridgesConfigFor,
   getUSDCRebalancingBridgesConfigFor,
   mergeAllowedBridges,
+  REBALANCER,
 } from './utils.js';
 
 const FASTPATH_CHAINS = [
@@ -91,8 +92,6 @@ const QUOTE_SIGNERS = [
   '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
   '0x6bb7818bbE8d88094Cf3620e58BC6BbEd542B867',
 ];
-
-const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
 
 function getCctpFastRouteAddresses(): Record<EvmChain, string> {
   const route = getRegistry().getWarpRoute(WarpRouteIds.MainnetCCTPV2Fast);

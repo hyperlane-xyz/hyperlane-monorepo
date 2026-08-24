@@ -6,9 +6,11 @@ import { Registry } from '@cosmjs/proto-signing';
 import { defaultRegistryTypes } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
 import { VersionedTransaction } from '@solana/web3.js';
-import type {
+import {
+  BigNumber,
   providers as EV5Providers,
-  PopulatedTransaction as EV5Transaction,
+  type PopulatedTransaction as EV5Transaction,
+  utils as EthersV5Utils,
 } from 'ethers';
 
 import {
@@ -23,6 +25,7 @@ import {
   ProtocolType,
   assert,
   convertToProtocolAddress,
+  isNullish,
 } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
@@ -49,6 +52,19 @@ import {
   ViemProvider,
   ViemTransaction,
 } from './ProviderType.js';
+import { HyperlaneSmartProvider } from './SmartProvider/SmartProvider.js';
+import { ProviderMethod } from './SmartProvider/ProviderMethods.js';
+
+const EVM_MAX_BALANCE = (1n << 256n) - 1n;
+const EVM_MAX_BALANCE_HEX = `0x${'f'.repeat(64)}`;
+
+export interface TransactionFeeEstimateOptions {
+  /**
+   * Estimates the fee without requiring the sender's native balance to fund
+   * both the transaction value and its network fee. Defaults to false.
+   */
+  ignoreSenderBalance?: boolean;
+}
 
 export interface TransactionFeeEstimate {
   gasUnits: number | bigint;
@@ -70,19 +86,65 @@ export async function estimateTransactionFeeEthersV5({
   transaction,
   provider,
   sender,
+  ignoreSenderBalance,
 }: {
   transaction: EV5Transaction;
   provider: EV5Providers.Provider;
   sender: Address;
-}): Promise<TransactionFeeEstimate> {
-  const gasUnits = await provider.estimateGas({
-    ...transaction,
-    from: sender,
-  });
+} & TransactionFeeEstimateOptions): Promise<TransactionFeeEstimate> {
+  const gasUnits = ignoreSenderBalance
+    ? await estimateGasEthersV5WithBalanceOverride({
+        transaction,
+        provider,
+        sender,
+      })
+    : await provider.estimateGas({
+        ...transaction,
+        from: sender,
+      });
   return estimateTransactionFeeEthersV5ForGasUnits({
     provider,
     gasUnits: BigInt(gasUnits.toString()),
   });
+}
+
+async function estimateGasEthersV5WithBalanceOverride({
+  transaction,
+  provider,
+  sender,
+}: {
+  transaction: EV5Transaction;
+  provider: EV5Providers.Provider;
+  sender: Address;
+}): Promise<BigNumber> {
+  const resolvedTransaction = EV5Providers.JsonRpcProvider.hexlifyTransaction(
+    await EthersV5Utils.resolveProperties({ ...transaction, from: sender }),
+    { from: true },
+  );
+  const stateOverride = { [sender]: { balance: EVM_MAX_BALANCE_HEX } };
+
+  if (provider instanceof HyperlaneSmartProvider) {
+    return BigNumber.from(
+      await provider.perform(ProviderMethod.EstimateGas, {
+        transaction: resolvedTransaction,
+        stateOverride,
+      }),
+    );
+  }
+
+  if ('send' in provider && typeof provider.send === 'function') {
+    return BigNumber.from(
+      await provider.send('eth_estimateGas', [
+        resolvedTransaction,
+        'latest',
+        stateOverride,
+      ]),
+    );
+  }
+
+  throw new Error(
+    'Ignoring sender balance requires a JSON-RPC Ethers provider',
+  );
 }
 
 // Separating out inner function to allow WarpCore to reuse logic
@@ -96,10 +158,11 @@ export async function estimateTransactionFeeEthersV5ForGasUnits({
   const feeData = await provider.getFeeData();
   return computeEvmTxFee(
     gasUnits,
-    feeData.gasPrice ? BigInt(feeData.gasPrice.toString()) : undefined,
-    feeData.maxFeePerGas ? BigInt(feeData.maxFeePerGas.toString()) : undefined,
-    feeData.maxPriorityFeePerGas
-      ? BigInt(feeData.maxPriorityFeePerGas.toString())
+    !isNullish(feeData.gasPrice)
+      ? BigInt(feeData.gasPrice.toString())
+      : undefined,
+    !isNullish(feeData.maxFeePerGas)
+      ? BigInt(feeData.maxFeePerGas.toString())
       : undefined,
   );
 }
@@ -108,35 +171,35 @@ export async function estimateTransactionFeeViem({
   transaction,
   provider,
   sender,
+  ignoreSenderBalance,
 }: {
   transaction: ViemTransaction;
   provider: ViemProvider;
   sender: Address;
-}): Promise<TransactionFeeEstimate> {
+} & TransactionFeeEstimateOptions): Promise<TransactionFeeEstimate> {
   const gasUnits = await provider.provider.estimateGas({
     ...transaction.transaction,
     blockNumber: undefined,
     account: sender as `0x${string}`,
+    ...(ignoreSenderBalance && {
+      stateOverride: [
+        { address: sender as `0x${string}`, balance: EVM_MAX_BALANCE },
+      ],
+    }),
   } as any); // Cast to silence overly-protective type enforcement from viem here
   const feeData = await provider.provider.estimateFeesPerGas();
-  return computeEvmTxFee(
-    gasUnits,
-    feeData.gasPrice,
-    feeData.maxFeePerGas,
-    feeData.maxPriorityFeePerGas,
-  );
+  return computeEvmTxFee(gasUnits, feeData.gasPrice, feeData.maxFeePerGas);
 }
 
 function computeEvmTxFee(
   gasUnits: bigint,
   gasPrice?: bigint,
   maxFeePerGas?: bigint,
-  maxPriorityFeePerGas?: bigint,
 ): TransactionFeeEstimate {
   let estGasPrice: bigint;
-  if (maxFeePerGas && maxPriorityFeePerGas) {
-    estGasPrice = maxFeePerGas + maxPriorityFeePerGas;
-  } else if (gasPrice) {
+  if (!isNullish(maxFeePerGas)) {
+    estGasPrice = maxFeePerGas;
+  } else if (!isNullish(gasPrice)) {
     estGasPrice = gasPrice;
   } else {
     throw new Error('Invalid fee data, neither 1559 nor legacy');
@@ -151,10 +214,11 @@ function computeEvmTxFee(
 export async function estimateTransactionFeeSolanaWeb3({
   provider,
   transaction,
+  ignoreSenderBalance,
 }: {
   transaction: SolanaWeb3Transaction;
   provider: SolanaWeb3Provider;
-}): Promise<TransactionFeeEstimate> {
+} & TransactionFeeEstimateOptions): Promise<TransactionFeeEstimate> {
   const connection = provider.provider;
   const inner = transaction.transaction;
   const message =
@@ -165,16 +229,21 @@ export async function estimateTransactionFeeSolanaWeb3({
   // has separate overloads for legacy `Transaction` and `VersionedTransaction`
   // and the union satisfies neither, so we branch purely to narrow `inner` to a
   // concrete type and let overload resolution pick the matching signature.
-  const simulation =
-    inner instanceof VersionedTransaction
-      ? connection.simulateTransaction(inner)
-      : connection.simulateTransaction(inner);
-  const [{ value }, feeResponse] = await Promise.all([
-    simulation,
+  const [simulation, feeResponse] = await Promise.all([
+    ignoreSenderBalance
+      ? undefined
+      : inner instanceof VersionedTransaction
+        ? connection.simulateTransaction(inner)
+        : connection.simulateTransaction(inner),
     connection.getFeeForMessage(message),
   ]);
-  assert(!value.err, `Solana gas estimation failed: ${JSON.stringify(value)}`);
-  const gasUnits = BigInt(value.unitsConsumed ?? 0);
+  if (simulation) {
+    assert(
+      !simulation.value.err,
+      `Solana gas estimation failed: ${JSON.stringify(simulation.value)}`,
+    );
+  }
+  const gasUnits = BigInt(simulation?.value.unitsConsumed ?? 0);
   assert(
     feeResponse.value !== null,
     'Solana transaction fee estimation failed',
@@ -351,13 +420,14 @@ export function estimateTransactionFee({
   chainMetadata,
   sender,
   senderPubKey,
+  ignoreSenderBalance,
 }: {
   transaction: TypedTransaction;
   provider: TypedProvider;
   chainMetadata: ChainMetadata;
   sender: Address;
   senderPubKey?: HexString;
-}): Promise<TransactionFeeEstimate> {
+} & TransactionFeeEstimateOptions): Promise<TransactionFeeEstimate> {
   if (
     transaction.type === ProviderType.EthersV5 &&
     provider.type === ProviderType.EthersV5
@@ -366,17 +436,27 @@ export function estimateTransactionFee({
       transaction: transaction.transaction,
       provider: provider.provider,
       sender,
+      ignoreSenderBalance,
     });
   } else if (
     transaction.type === ProviderType.Viem &&
     provider.type === ProviderType.Viem
   ) {
-    return estimateTransactionFeeViem({ transaction, provider, sender });
+    return estimateTransactionFeeViem({
+      transaction,
+      provider,
+      sender,
+      ignoreSenderBalance,
+    });
   } else if (
     transaction.type === ProviderType.SolanaWeb3 &&
     provider.type === ProviderType.SolanaWeb3
   ) {
-    return estimateTransactionFeeSolanaWeb3({ transaction, provider });
+    return estimateTransactionFeeSolanaWeb3({
+      transaction,
+      provider,
+      ignoreSenderBalance,
+    });
   } else if (
     transaction.type === ProviderType.CosmJs &&
     provider.type === ProviderType.CosmJs
@@ -448,6 +528,8 @@ export function estimateTransactionFee({
     provider.type === ProviderType.Tron
   ) {
     // Tron is EVM-compatible; its typed transaction/provider use EthersV5 underlying types
+    // Tron does not support EVM state overrides. TronJsonRpcProvider.estimateGas
+    // already falls back to a balance-independent energy limit when estimation fails.
     sender = convertToProtocolAddress(sender, ProtocolType.Ethereum);
     return estimateTransactionFeeEthersV5({
       transaction: transaction.transaction,

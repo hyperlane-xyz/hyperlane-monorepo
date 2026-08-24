@@ -20,6 +20,7 @@ import {
   KubernetesResources,
   RootAgentConfig,
 } from '../config/agent/agent.js';
+import { blockedQuorumRpcUrls } from '../config/rpcBlocklist.js';
 import {
   RelayerConfigHelper,
   RelayerConfigMapConfig,
@@ -27,6 +28,7 @@ import {
   RelayerEnvConfig,
 } from '../config/agent/relayer.js';
 import { ScraperConfigHelper } from '../config/agent/scraper.js';
+import type { ScraperProxyConfig } from '../config/agent/scraper-proxy.js';
 import { ValidatorConfigHelper } from '../config/agent/validator.js';
 import { DeployEnvironment } from '../config/deploy-environment.js';
 import { AgentRole, Role } from '../roles.js';
@@ -382,6 +384,55 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
   }
 }
 
+export class ScraperProxyHelmManager extends HelmManager<HelmRootAgentValues> {
+  readonly helmChartPath: string = HELM_CHART_PATH;
+  readonly helmReleaseName = 'scraper-proxy';
+  private readonly scraperProxy: ScraperProxyConfig;
+
+  constructor(private readonly config: RootAgentConfig) {
+    super();
+    const scraperProxy = config.scraperProxy;
+    if (!scraperProxy)
+      throw new Error('Scraper proxy is not defined for this context');
+    this.scraperProxy = scraperProxy;
+  }
+
+  get namespace(): string {
+    return this.config.namespace;
+  }
+
+  async helmValues(): Promise<HelmRootAgentValues> {
+    const { docker, ...scraperProxy } = this.scraperProxy;
+    return {
+      fullnameOverride: 'scraper-proxy',
+      image: {
+        repository: docker.repo,
+        tag: docker.tag,
+      },
+      hyperlane: {
+        runEnv: this.config.runEnv,
+        context: this.config.context,
+        aws: false,
+        chains: [],
+        scraperProxy,
+      },
+    };
+  }
+
+  async restartDeployment(): Promise<void> {
+    await this.runCommand(
+      `kubectl rollout restart deployment/${this.helmReleaseName} -n ${this.namespace}`,
+    );
+    await this.runCommand(
+      `kubectl rollout status deployment/${this.helmReleaseName} -n ${this.namespace} --timeout=180s`,
+    );
+  }
+
+  protected async runCommand(command: string): Promise<void> {
+    await execCmd(command);
+  }
+}
+
 export class ValidatorHelmManager extends MultichainAgentHelmManager {
   protected readonly config: ValidatorConfigHelper;
   readonly role: Role.Validator = Role.Validator;
@@ -432,10 +483,17 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
     // external-secret.yaml emits CUSTOMADDITIONALQUORUMRPCURLS whenever
     // publicRpcUrls is non-empty, so leaving this unset keeps quorum verification
     // off until a chain deliberately enables it.
+    //
+    // Chronically-erroring public RPCs are stripped here (see rpcBlocklist.ts).
+    // These are the validator's additional quorum pool, where every request is
+    // fanned out to all providers, so a bad endpoint counts against reaching
+    // majority. Matched by exact full-URL equality, so private URLs that share a
+    // host (but carry an API key) are never dropped.
     if (this.config.quorumVerificationEnabled) {
-      originChain.publicRpcUrls = getChain(cfg.originChainName).rpcUrls.map(
-        (rpc) => rpc.http,
-      );
+      const blocked = new Set(blockedQuorumRpcUrls[cfg.originChainName] ?? []);
+      originChain.publicRpcUrls = getChain(cfg.originChainName)
+        .rpcUrls.map((rpc) => rpc.http)
+        .filter((url) => !blocked.has(url));
     }
 
     helmValues.hyperlane.validator = {

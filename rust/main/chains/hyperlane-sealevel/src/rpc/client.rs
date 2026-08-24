@@ -120,13 +120,8 @@ impl SealevelRpcClient {
         slot: u64,
         commitment: CommitmentConfig,
     ) -> ChainResult<UiConfirmedBlock> {
-        let config = RpcBlockConfig {
-            commitment: Some(commitment),
-            max_supported_transaction_version: Some(0),
-            ..Default::default()
-        };
         self.0
-            .get_block_with_config(slot, config)
+            .get_block_with_config(slot, block_config(commitment))
             .await
             .map_err(Box::new)
             .map_err(HyperlaneSealevelError::ClientError)
@@ -390,6 +385,21 @@ impl std::fmt::Debug for SealevelRpcClient {
 impl BlockNumberGetter for SealevelRpcClient {
     async fn get_block_number(&self) -> ChainResult<u64> {
         self.get_block_height().await
+    }
+}
+
+/// Builds the `getBlock` request config. Rewards are explicitly disabled: the
+/// scraper/indexer only reads blockhash, block_time, and transactions, never
+/// rewards. Requesting rewards makes getBlock fail to deserialize when a block
+/// carries a reward_type our pinned solana crates don't know (e.g.
+/// `DeactivatedStake`), and because SerdeJson errors aren't classified as
+/// skippable this permanently stalls the sequence-aware cursor.
+fn block_config(commitment: CommitmentConfig) -> RpcBlockConfig {
+    RpcBlockConfig {
+        commitment: Some(commitment),
+        max_supported_transaction_version: Some(0),
+        rewards: Some(false),
+        ..Default::default()
     }
 }
 

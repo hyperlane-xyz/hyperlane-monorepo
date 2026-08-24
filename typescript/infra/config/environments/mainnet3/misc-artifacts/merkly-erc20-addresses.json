@@ -70,8 +70,5 @@
   },
   "lukso": {
     "router": "0x6E55472109E6aBE4054a8E8b8d9EdFfCb31032C5"
-  },
-  "bitlayer": {
-    "router": "0x6E55472109E6aBE4054a8E8b8d9EdFfCb31032C5"
   }
 }

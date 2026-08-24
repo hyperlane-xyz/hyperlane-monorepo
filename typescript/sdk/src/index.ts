@@ -232,11 +232,18 @@ export * as verificationUtils from './deploy/verify/utils.js';
 export { ExplorerLicenseType } from './block-explorer/etherscan.js';
 export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
 export {
+  assertDelayedFlowRouteCoverage,
+  assertDelayedFlowRoutePreconditions,
+  buildDelayedFlowEnrollmentTxs,
   buildFeeReadContextFromWarpDeployConfig,
+  type DelayedFlowEnrollmentTarget,
+  deriveDelayedFlowEnrollmentTargets,
   executeWarpDeploy,
+  executeWarpRouteExtensionDeploy,
   enrollCrossChainRouters,
   validateWarpConfigForAltVM,
 } from './deploy/warp.js';
+export { planWarpRouteHybrids } from './deploy/warpHybridPlan.js';
 export {
   SealevelIgpAdapter,
   SealevelIgpProgramAdapter,
@@ -290,6 +297,8 @@ export {
   AggregationHookConfigSchema,
   ArbL2ToL1HookConfig,
   ArbL2ToL1HookSchema,
+  DelayedFlowRouterHookConfig,
+  DelayedFlowRouterHookConfigSchema,
   DeployableHookType,
   DerivedHookConfig,
   DomainRoutingHookConfig,
@@ -308,6 +317,8 @@ export {
   IgpVersion,
   MerkleTreeHookConfig,
   MerkleTreeSchema,
+  NetFlowRateLimitedHookConfig,
+  NetFlowRateLimitedHookConfigSchema,
   normalizeUnknownHookTypes,
   OFFCHAIN_QUOTED_IGP_VERSION,
   OpStackHookConfig,
@@ -320,7 +331,11 @@ export {
   RateLimitedHookSchema,
   SafeParseHookConfigSchema,
 } from './hook/types.js';
-export { hookTreeContainsRateLimited, isHookCompatible } from './hook/utils.js';
+export {
+  collectHybridHookNodes,
+  hookTreeContainsRateLimited,
+  isHookCompatible,
+} from './hook/utils.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 // Note: MetadataBuilder types are now exported from @hyperlane-xyz/relayer
@@ -371,6 +386,8 @@ export {
   CompositeRoutingNodeConfig,
   CompositeTestNodeConfig,
   CompositeTrustedRelayerNodeConfig,
+  DelayedFlowRouterHookIsmConfig,
+  DelayedFlowRouterHookIsmConfigSchema,
   DeployableIsmType,
   DeployedIsm,
   DeployedIsmType,
@@ -380,11 +397,15 @@ export {
   IsmConfig,
   IsmConfigSchema,
   IsmType,
+  MailboxDefaultIsmConfig,
+  MailboxDefaultIsmConfigSchema,
   ModuleType,
   MultisigConfig,
   MultisigConfigSchema,
   MultisigIsmConfig,
   MultisigIsmConfigSchema,
+  NetFlowRateLimitedHookIsmConfig,
+  NetFlowRateLimitedHookIsmConfigSchema,
   normalizeUnknownIsmTypes,
   NullIsmConfig,
   OffchainLookupIsmConfig,
@@ -638,7 +659,11 @@ export {
 export { EV5GnosisSafeTxBuilder } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxBuilder.js';
 export { EV5GnosisSafeTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxSubmitter.js';
 export { EV5ImpersonatedAccountTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
-export { EV5JsonRpcTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5JsonRpcTxSubmitter.js';
+export {
+  EV5JsonRpcSubmissionError,
+  EV5JsonRpcTxSubmitter,
+  EV5SubmittedTransaction,
+} from './providers/transactions/submitter/ethersV5/EV5JsonRpcTxSubmitter.js';
 export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethersV5/EV5TxSubmitterInterface.js';
 export { EvmIcaTxSubmitter } from './providers/transactions/submitter/IcaTxSubmitter.js';
 export {

@@ -68,6 +68,8 @@ export class BaseMetadataBuilder implements MetadataBuilder {
       case IsmType.CCIP:
       case IsmType.RATE_LIMITED:
       case IsmType.BLACKLIST:
+      case IsmType.NET_FLOW_RATE_LIMITED:
+      case IsmType.DELAYED_FLOW_ROUTER:
         return this.nullMetadataBuilder.build({ ...context, ism });
 
       case IsmType.MERKLE_ROOT_MULTISIG:
@@ -94,6 +96,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
       case IsmType.FALLBACK_ROUTING:
       case IsmType.AMOUNT_ROUTING:
       case IsmType.INTERCHAIN_ACCOUNT_ROUTING:
+      case IsmType.MAILBOX_DEFAULT:
         return this.routingMetadataBuilder.build(
           {
             ...context,

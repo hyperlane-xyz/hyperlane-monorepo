@@ -8,6 +8,8 @@ import {
   CCIPHook__factory,
   DefaultHook,
   DefaultHook__factory,
+  DelayedFlowRouterHookIsm,
+  DelayedFlowRouterHookIsm__factory,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   IPostDispatchHook,
@@ -16,6 +18,8 @@ import {
   InterchainGasPaymaster__factory,
   MerkleTreeHook,
   MerkleTreeHook__factory,
+  NetFlowRateLimitedHookIsm,
+  NetFlowRateLimitedHookIsm__factory,
   OPStackHook,
   OPStackHook__factory,
   PackageVersioned,
@@ -24,10 +28,12 @@ import {
   PausableHook__factory,
   ProtocolFee,
   ProtocolFee__factory,
+  RateLimitedHook,
+  RateLimitedHook__factory,
   StorageGasOracle,
   StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
-import { WithAddress } from '@hyperlane-xyz/utils';
+import { WithAddress, addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { TestChainName, test1 } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -36,20 +42,24 @@ import {
   networkError,
   wrappedError,
 } from '../test/errors.js';
+import { contractDouble } from '../test/contractDouble.js';
 import { randomAddress } from '../test/testUtils.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
 import {
   CCIPHookConfig,
+  DelayedFlowRouterHookConfig,
   HookType,
   IgpVersion,
   MailboxDefaultHookConfig,
   MerkleTreeHookConfig,
+  NetFlowRateLimitedHookConfig,
   OFFCHAIN_QUOTED_IGP_VERSION,
   OnchainHookType,
   OpStackHookConfig,
   PausableHookConfig,
   ProtocolFeeHookConfig,
+  RateLimitedHookConfig,
 } from './types.js';
 
 // Message HyperlaneJsonRpcProvider emits for an empty eth_call result, which
@@ -427,6 +437,177 @@ describe('EvmHookReader', () => {
       oracleKey: owner,
       overhead: {},
       oracleConfig: {},
+    });
+  });
+
+  it('should derive a net flow rate limited hook ism (not a plain rate limited hook)', async () => {
+    const mockAddress = randomAddress();
+    const mockWarpRouter = randomAddress();
+    const mockOwner = randomAddress();
+
+    const mockContract = {
+      hookType: sandbox.stub().resolves(OnchainHookType.RATE_LIMITED),
+      warpRouter: sandbox.stub().resolves(mockWarpRouter),
+      thresholdBps: sandbox.stub().resolves(ethers.BigNumber.from(500)),
+      DURATION: sandbox.stub().resolves(ethers.BigNumber.from(86400)),
+      owner: sandbox.stub().resolves(mockOwner),
+    };
+    sandbox
+      .stub(NetFlowRateLimitedHookIsm__factory, 'connect')
+      .returns(contractDouble<NetFlowRateLimitedHookIsm>(mockContract));
+    sandbox
+      .stub(IPostDispatchHook__factory, 'connect')
+      .returns(contractDouble<IPostDispatchHook>(mockContract));
+
+    const expectedConfig: WithAddress<NetFlowRateLimitedHookConfig> = {
+      address: mockAddress,
+      type: HookType.NET_FLOW_RATE_LIMITED,
+      warpRouter: mockWarpRouter,
+      thresholdBps: 500,
+      duration: 86400n,
+      owner: mockOwner,
+    };
+
+    const hookConfig = await evmHookReader.deriveHookConfig(mockAddress);
+    expect(hookConfig).to.deep.equal(expectedConfig);
+  });
+
+  it('should preserve a nested net flow hook ism as a typed config', async () => {
+    const mockAddress = randomAddress();
+    const mockWarpRouter = randomAddress();
+    const mockOwner = randomAddress();
+
+    const mockContract = {
+      hookType: sandbox.stub().resolves(OnchainHookType.RATE_LIMITED),
+      warpRouter: sandbox.stub().resolves(mockWarpRouter),
+      thresholdBps: sandbox.stub().resolves(ethers.BigNumber.from(500)),
+      DURATION: sandbox.stub().resolves(ethers.BigNumber.from(86400)),
+      owner: sandbox.stub().resolves(mockOwner),
+    };
+    sandbox
+      .stub(NetFlowRateLimitedHookIsm__factory, 'connect')
+      .returns(contractDouble<NetFlowRateLimitedHookIsm>(mockContract));
+    sandbox
+      .stub(IPostDispatchHook__factory, 'connect')
+      .returns(contractDouble<IPostDispatchHook>(mockContract));
+
+    const hookConfig = await evmHookReader.deriveHookConfig({
+      type: HookType.AGGREGATION,
+      hooks: [mockAddress],
+    });
+
+    expect(hookConfig).to.deep.equal({
+      type: HookType.AGGREGATION,
+      hooks: [
+        {
+          address: mockAddress,
+          type: HookType.NET_FLOW_RATE_LIMITED,
+          warpRouter: mockWarpRouter,
+          thresholdBps: 500,
+          duration: 86400n,
+          owner: mockOwner,
+        },
+      ],
+    });
+  });
+
+  it('should still derive a plain rate limited hook when the hybrid probe misses', async () => {
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
+
+    const mockContract = {
+      hookType: sandbox.stub().resolves(OnchainHookType.RATE_LIMITED),
+      thresholdBps: sandbox.stub().rejects(missingSelectorError()),
+      maxCapacity: sandbox.stub().resolves(ethers.BigNumber.from('86400')),
+      DURATION: sandbox.stub().resolves(ethers.BigNumber.from(86400)),
+      owner: sandbox.stub().resolves(mockOwner),
+    };
+    sandbox
+      .stub(NetFlowRateLimitedHookIsm__factory, 'connect')
+      .returns(contractDouble<NetFlowRateLimitedHookIsm>(mockContract));
+    sandbox
+      .stub(RateLimitedHook__factory, 'connect')
+      .returns(contractDouble<RateLimitedHook>(mockContract));
+    sandbox
+      .stub(IPostDispatchHook__factory, 'connect')
+      .returns(contractDouble<IPostDispatchHook>(mockContract));
+
+    const expectedConfig: WithAddress<RateLimitedHookConfig> = {
+      address: mockAddress,
+      type: HookType.RATE_LIMITED,
+      maxCapacity: '86400',
+      duration: 86400n,
+      owner: mockOwner,
+    };
+
+    const hookConfig = await evmHookReader.deriveHookConfig(mockAddress);
+    expect(hookConfig).to.deep.equal(expectedConfig);
+  });
+
+  it('should derive a delayed flow router hook ism (not a plain domain routing hook)', async () => {
+    const mockAddress = randomAddress();
+    const mockWarpRouter = randomAddress();
+    const mockOwner = randomAddress();
+    const mockRemoteRouter = addressToBytes32(randomAddress()).toLowerCase();
+
+    const mockContract = {
+      hookType: sandbox.stub().resolves(OnchainHookType.ROUTING),
+      maxDelay: sandbox.stub().resolves(3600),
+      warpRouter: sandbox.stub().resolves(mockWarpRouter),
+      thresholdBps: sandbox.stub().resolves(ethers.BigNumber.from(10000)),
+      DURATION: sandbox.stub().resolves(ethers.BigNumber.from(86400)),
+      owner: sandbox.stub().resolves(mockOwner),
+      domains: sandbox.stub().resolves([test1.domainId]),
+      routers: sandbox.stub().resolves(mockRemoteRouter),
+    };
+    sandbox
+      .stub(DelayedFlowRouterHookIsm__factory, 'connect')
+      .returns(contractDouble<DelayedFlowRouterHookIsm>(mockContract));
+    sandbox
+      .stub(IPostDispatchHook__factory, 'connect')
+      .returns(contractDouble<IPostDispatchHook>(mockContract));
+
+    const expectedConfig: WithAddress<DelayedFlowRouterHookConfig> = {
+      address: mockAddress,
+      type: HookType.DELAYED_FLOW_ROUTER,
+      warpRouter: mockWarpRouter,
+      thresholdBps: 10000,
+      maxDelay: 3600,
+      duration: 86400n,
+      owner: mockOwner,
+      remoteIsms: { [TestChainName.test1]: mockRemoteRouter },
+    };
+
+    const hookConfig = await evmHookReader.deriveHookConfig(mockAddress);
+    expect(hookConfig).to.deep.equal(expectedConfig);
+  });
+
+  it('should still derive a plain domain routing hook when the hybrid probe misses', async () => {
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
+
+    sandbox.stub(evmHookReader, 'possibleDomainIds').returns([]);
+    const mockContract = {
+      hookType: sandbox.stub().resolves(OnchainHookType.ROUTING),
+      maxDelay: sandbox.stub().rejects(missingSelectorError()),
+      owner: sandbox.stub().resolves(mockOwner),
+    };
+    sandbox
+      .stub(DelayedFlowRouterHookIsm__factory, 'connect')
+      .returns(contractDouble<DelayedFlowRouterHookIsm>(mockContract));
+    sandbox
+      .stub(DomainRoutingHook__factory, 'connect')
+      .returns(contractDouble<DomainRoutingHook>(mockContract));
+    sandbox
+      .stub(IPostDispatchHook__factory, 'connect')
+      .returns(contractDouble<IPostDispatchHook>(mockContract));
+
+    const hookConfig = await evmHookReader.deriveHookConfig(mockAddress);
+    expect(hookConfig).to.deep.equal({
+      address: mockAddress,
+      type: HookType.ROUTING,
+      owner: mockOwner,
+      domains: {},
     });
   });
 

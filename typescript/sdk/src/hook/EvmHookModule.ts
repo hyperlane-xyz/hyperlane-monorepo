@@ -81,6 +81,10 @@ import {
 import { EvmHookReader } from './EvmHookReader.js';
 import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
+  collapseMatchingHybridHookNodes,
+  resolveHybridHookNodesToAddress,
+} from './utils.js';
+import {
   AggregationHookConfig,
   AmountRoutingHookConfig,
   ArbL2ToL1HookConfig,
@@ -211,6 +215,7 @@ export class EvmHookModule extends HyperlaneModule<
 
   public async update(
     targetConfig: HookConfig,
+    opaqueHybridAddresses: Address[] = [],
   ): Promise<AnnotatedEV5Transaction[]> {
     // Nothing to do if its the default hook
     if (typeof targetConfig === 'string' && isZeroishAddress(targetConfig)) {
@@ -218,12 +223,21 @@ export class EvmHookModule extends HyperlaneModule<
     }
 
     // We need to normalize the current and target configs to compare.
-    const normalizedTargetConfig: DerivedHookConfig = normalizeConfig(
+    let normalizedTargetConfig: HookConfig = normalizeConfig(
       await this.reader.deriveHookConfig(targetConfig),
     );
-    const normalizedCurrentConfig: DerivedHookConfig | string = normalizeConfig(
-      await this.read(),
-    );
+    for (const address of opaqueHybridAddresses) {
+      normalizedTargetConfig = resolveHybridHookNodesToAddress(
+        normalizedTargetConfig,
+        address,
+      );
+    }
+    normalizedTargetConfig = normalizeConfig(normalizedTargetConfig);
+    let currentConfig: HookConfig = await this.read();
+    for (const address of opaqueHybridAddresses) {
+      currentConfig = collapseMatchingHybridHookNodes(currentConfig, address);
+    }
+    const normalizedCurrentConfig: HookConfig = normalizeConfig(currentConfig);
 
     // If configs match, no updates needed
     if (hookConfigsEqual(normalizedCurrentConfig, normalizedTargetConfig)) {
@@ -1079,6 +1093,12 @@ export class EvmHookModule extends HyperlaneModule<
         );
       case HookType.RATE_LIMITED:
         return this.deployRateLimitedHook({ config });
+      case HookType.NET_FLOW_RATE_LIMITED:
+      case HookType.DELAYED_FLOW_ROUTER:
+        throw new Error(
+          `${config.type} is a hook/ISM hybrid deployed via its ISM config ` +
+            `(HyperlaneIsmFactory); reference the deployed instance by address as the hook`,
+        );
       default:
         throw new Error(`Unsupported hook config: ${config}`);
     }

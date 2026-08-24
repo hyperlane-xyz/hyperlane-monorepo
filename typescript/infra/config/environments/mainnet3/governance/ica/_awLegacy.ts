@@ -20,11 +20,9 @@ export const awIcasLegacy: ChainMap<Address> = {
 
   // Aug 26, 2024 batch
   // ----------------------------------------------------------
-  bitlayer: '0xe6239316cA60814229E801fF0B9DD71C9CA29008',
 
   // Sep 9, 2024 batch
   // ----------------------------------------------------------
-  oortmainnet: '0x7021D11F9fAe455AB2f45D72dbc2C64d116Cb657',
 
   // Sep 19, 2024 SAFE --> ICA v1 Migration
   // ----------------------------------------------------------
@@ -53,7 +51,6 @@ export const awIcasLegacy: ChainMap<Address> = {
 
   // Dec 4, 2024 batch
   // ----------------------------------------------------------
-  lumiaprism: '0xAFfA863646D1bC74ecEC0dB1070f069Af065EBf5',
   appchain: '0x4F25DFFd10A6D61C365E1a605d07B2ab0E82A7E6',
 
   // Dec 13, 2024 batch
@@ -69,7 +66,6 @@ export const awIcasLegacy: ChainMap<Address> = {
   // Feb 3, 2025 batch
   // ----------------------------------------------------------
   // glue: '0x24832680dF0468967F413be1C83acfE24154F88D',
-  matchain: '0x66af72e46b3e8DFc19992A2A88C05d9EEFE01ffB',
 
   // Q5, 2024 batch
   // ----------------------------------------------------------
@@ -77,8 +73,6 @@ export const awIcasLegacy: ChainMap<Address> = {
 
   // Feb 17, 2025 batch
   // ----------------------------------------------------------
-  arcadia: '0xD2344a364b6Dc6B2Fe0f7D836fa344d83056cbaD',
-  ronin: '0x8768A14AA6eD2A62C77155501E742376cbE97981',
   subtensor: '0x61BFbb5FEC57f5470388A80946F0415138630b9c',
 
   // Mar 14, 2025 batch
@@ -90,7 +84,6 @@ export const awIcasLegacy: ChainMap<Address> = {
 
   // Jun 5, 2025 - oUSDT v2
   // ----------------------------------------------------------
-  hashkey: '0xEE01c007f89c9255f43b91B591b93cD1459048D1',
 
   // Jun 21, 2025 - oUSDT v3
   // ----------------------------------------------------------

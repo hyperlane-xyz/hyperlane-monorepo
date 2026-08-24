@@ -12,7 +12,7 @@ use hyperlane_sealevel_mailbox::{
     mailbox_dispatched_message_pda_seeds, mailbox_processed_message_pda_seeds,
 };
 use solana_sdk::{account::Account, clock::Slot, pubkey::Pubkey};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use hyperlane_core::{
     config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator, Decode as _,
@@ -21,6 +21,7 @@ use hyperlane_core::{
 };
 
 use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
+use crate::error::is_get_block_unresolvable_after_retries;
 use crate::fallback::SubmitSealevelRpc;
 use crate::log_meta_composer::{
     is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
@@ -107,6 +108,16 @@ impl SealevelMailboxIndexer {
         let hyperlane_message =
             HyperlaneMessage::read_from(&mut &dispatched_message_account.encoded_message[..])?;
 
+        let basic_log_meta = LogMeta {
+            address: self.program_id.to_bytes().into(),
+            block_number: dispatched_message_account.slot,
+            // TODO: get these when building out scraper support.
+            // It's inconvenient to get these :|
+            block_hash: H256::zero(),
+            transaction_id: H512::zero(),
+            transaction_index: 0,
+            log_index: U256::zero(),
+        };
         let log_meta = if self.advanced_log_meta {
             self.dispatch_message_log_meta(
                 U256::from(nonce),
@@ -114,17 +125,9 @@ impl SealevelMailboxIndexer {
                 &dispatched_message_account.slot,
             )
             .await?
+            .unwrap_or(basic_log_meta)
         } else {
-            LogMeta {
-                address: self.program_id.to_bytes().into(),
-                block_number: dispatched_message_account.slot,
-                // TODO: get these when building out scraper support.
-                // It's inconvenient to get these :|
-                block_hash: H256::zero(),
-                transaction_id: H512::zero(),
-                transaction_index: 0,
-                log_index: U256::zero(),
-            }
+            basic_log_meta
         };
 
         Ok((hyperlane_message.into(), log_meta))
@@ -146,27 +149,58 @@ impl SealevelMailboxIndexer {
         Ok(expected_pubkey)
     }
 
+    /// Resolves the on-chain log meta for a dispatched message.
+    ///
+    /// Returns `Ok(None)` when the log meta cannot be resolved from the block
+    /// recorded on the message account (the block does not contain the dispatch
+    /// transaction). This is non-retryable, so callers fall back to basic log
+    /// meta instead of stalling the sequence-aware cursor. Transient RPC errors
+    /// still propagate as `Err` so they are retried.
     async fn dispatch_message_log_meta(
         &self,
         log_index: U256,
         message_storage_pda_pubkey: &Pubkey,
         message_account_slot: &Slot,
-    ) -> ChainResult<LogMeta> {
-        let block = self
+    ) -> ChainResult<Option<LogMeta>> {
+        let block = match self
             .mailbox
             .provider
             .rpc_client()
             .get_block(*message_account_slot)
-            .await?;
+            .await
+        {
+            Ok(block) => block,
+            Err(err) if is_get_block_unresolvable_after_retries(&err) => {
+                warn!(
+                    ?err,
+                    ?message_storage_pda_pubkey,
+                    slot = message_account_slot,
+                    "Block for message dispatch is unavailable after provider retries; \
+                     falling back to basic log meta",
+                );
+                return Ok(None);
+            }
+            Err(err) => return Err(err),
+        };
 
-        self.dispatch_message_log_meta_composer
-            .log_meta(
-                block,
-                log_index,
-                message_storage_pda_pubkey,
-                message_account_slot,
-            )
-            .map_err(Into::<ChainCommunicationError>::into)
+        match self.dispatch_message_log_meta_composer.log_meta(
+            block,
+            log_index,
+            message_storage_pda_pubkey,
+            message_account_slot,
+        ) {
+            Ok(log_meta) => Ok(Some(log_meta)),
+            Err(err) if err.is_log_meta_unresolvable() => {
+                warn!(
+                    ?err,
+                    ?message_storage_pda_pubkey,
+                    slot = message_account_slot,
+                    "Could not resolve advanced log meta for message dispatch; falling back to basic log meta",
+                );
+                Ok(None)
+            }
+            Err(err) => Err(err.into()),
+        }
     }
 
     async fn get_delivered_message_with_sequence(
@@ -205,6 +239,16 @@ impl SealevelMailboxIndexer {
             .into_inner();
         let message_id = delivered_message_account.message_id;
 
+        let basic_log_meta = LogMeta {
+            address: self.program_id.to_bytes().into(),
+            block_number: delivered_message_account.slot,
+            // TODO: get these when building out scraper support.
+            // It's inconvenient to get these :|
+            block_hash: H256::zero(),
+            transaction_id: H512::zero(),
+            transaction_index: 0,
+            log_index: U256::zero(),
+        };
         let log_meta = if self.advanced_log_meta {
             self.delivered_message_log_meta(
                 U256::from(sequence),
@@ -212,17 +256,9 @@ impl SealevelMailboxIndexer {
                 &delivered_message_account.slot,
             )
             .await?
+            .unwrap_or(basic_log_meta)
         } else {
-            LogMeta {
-                address: self.program_id.to_bytes().into(),
-                block_number: delivered_message_account.slot,
-                // TODO: get these when building out scraper support.
-                // It's inconvenient to get these :|
-                block_hash: H256::zero(),
-                transaction_id: H512::zero(),
-                transaction_index: 0,
-                log_index: U256::zero(),
-            }
+            basic_log_meta
         };
 
         let mut indexed = Indexed::from(message_id);
@@ -243,27 +279,53 @@ impl SealevelMailboxIndexer {
         Ok(expected_pubkey)
     }
 
+    /// Resolves the on-chain log meta for a delivered message. See
+    /// [`Self::dispatch_message_log_meta`] for the `Ok(None)` fallback contract.
     async fn delivered_message_log_meta(
         &self,
         log_index: U256,
         message_storage_pda_pubkey: &Pubkey,
         message_account_slot: &Slot,
-    ) -> ChainResult<LogMeta> {
-        let block = self
+    ) -> ChainResult<Option<LogMeta>> {
+        let block = match self
             .mailbox
             .provider
             .rpc_client()
             .get_block(*message_account_slot)
-            .await?;
+            .await
+        {
+            Ok(block) => block,
+            Err(err) if is_get_block_unresolvable_after_retries(&err) => {
+                warn!(
+                    ?err,
+                    ?message_storage_pda_pubkey,
+                    slot = message_account_slot,
+                    "Block for message delivery is unavailable after provider retries; \
+                     falling back to basic log meta",
+                );
+                return Ok(None);
+            }
+            Err(err) => return Err(err),
+        };
 
-        self.delivery_message_log_meta_composer
-            .log_meta(
-                block,
-                log_index,
-                message_storage_pda_pubkey,
-                message_account_slot,
-            )
-            .map_err(Into::<ChainCommunicationError>::into)
+        match self.delivery_message_log_meta_composer.log_meta(
+            block,
+            log_index,
+            message_storage_pda_pubkey,
+            message_account_slot,
+        ) {
+            Ok(log_meta) => Ok(Some(log_meta)),
+            Err(err) if err.is_log_meta_unresolvable() => {
+                warn!(
+                    ?err,
+                    ?message_storage_pda_pubkey,
+                    slot = message_account_slot,
+                    "Could not resolve advanced log meta for message delivery; falling back to basic log meta",
+                );
+                Ok(None)
+            }
+            Err(err) => Err(err.into()),
+        }
     }
 }
 

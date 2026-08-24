@@ -9,7 +9,9 @@ import {
 import {
   EvmWarpModule,
   HyperlaneDeployer,
+  HookType,
   IsmType,
+  MultiProvider,
   TokenStandard,
   TokenType,
   type WarpCoreConfig,
@@ -17,10 +19,121 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import {
+  fullyConnectTokens,
   runWarpRouteApply,
   runWarpRouteCombine,
+  runWarpUpdatePlanning,
   transformDeployConfigForDisplay,
+  withIntermediateWarpOwner,
 } from './warp.js';
+
+describe('fullyConnectTokens', () => {
+  it('does not connect operational ALRB entries', () => {
+    const warpCoreConfig: WarpCoreConfig = {
+      tokens: [
+        buildCrossCollateralToken({
+          chainName: 'anvil2',
+          symbol: 'USDC',
+          address: '0x1111111111111111111111111111111111111111',
+          decimals: 6,
+        }),
+        buildCrossCollateralToken({
+          chainName: 'anvil3',
+          symbol: 'USDT',
+          address: '0x2222222222222222222222222222222222222222',
+          decimals: 6,
+        }),
+        {
+          chainName: 'anvil4',
+          standard: TokenStandard.EvmAtomicLocalRebalancingBridge,
+          tokenType: TokenType.atomicLocalRebalancing,
+          decimals: 6,
+          symbol: 'ALRB',
+          name: 'Atomic Local Rebalancing Bridge',
+          addressOrDenom: '0x3333333333333333333333333333333333333333',
+        },
+      ],
+    };
+    const multiProvider = sinon.createStubInstance(MultiProvider);
+    multiProvider.getProtocol.returns(ProtocolType.Ethereum);
+
+    fullyConnectTokens(warpCoreConfig, multiProvider);
+
+    expect(warpCoreConfig.tokens[0].connections).to.have.length(1);
+    expect(warpCoreConfig.tokens[1].connections).to.have.length(1);
+    expect(warpCoreConfig.tokens[2].connections).to.equal(undefined);
+    expect(
+      warpCoreConfig.tokens
+        .flatMap((token) => token.connections ?? [])
+        .some((connection) =>
+          connection.token.endsWith(
+            '0x3333333333333333333333333333333333333333',
+          ),
+        ),
+    ).to.equal(false);
+  });
+});
+
+describe('withIntermediateWarpOwner', () => {
+  it('rewrites the router and nested hybrid owners for extension deployment', () => {
+    const finalOwner = '0x1111111111111111111111111111111111111111';
+    const intermediateOwner = '0x2222222222222222222222222222222222222222';
+    const config: WarpRouteDeployConfigMailboxRequired[string] = {
+      type: TokenType.synthetic,
+      mailbox: '0x3333333333333333333333333333333333333333',
+      owner: finalOwner,
+      interchainSecurityModule: {
+        type: IsmType.AGGREGATION,
+        threshold: 2,
+        modules: [
+          {
+            type: IsmType.TRUSTED_RELAYER,
+            relayer: '0x4444444444444444444444444444444444444444',
+          },
+          {
+            type: IsmType.NET_FLOW_RATE_LIMITED,
+            thresholdBps: 500,
+            duration: 86400n,
+            owner: finalOwner,
+          },
+        ],
+      },
+      hook: {
+        type: HookType.NET_FLOW_RATE_LIMITED,
+        thresholdBps: 500,
+        duration: 86400n,
+        owner: finalOwner,
+      },
+    };
+
+    expect(withIntermediateWarpOwner(config, intermediateOwner)).to.deep.equal({
+      ...config,
+      owner: intermediateOwner,
+      interchainSecurityModule: {
+        type: IsmType.AGGREGATION,
+        threshold: 2,
+        modules: [
+          {
+            type: IsmType.TRUSTED_RELAYER,
+            relayer: '0x4444444444444444444444444444444444444444',
+          },
+          {
+            type: IsmType.NET_FLOW_RATE_LIMITED,
+            thresholdBps: 500,
+            duration: 86400n,
+            owner: intermediateOwner,
+          },
+        ],
+      },
+      hook: {
+        type: HookType.NET_FLOW_RATE_LIMITED,
+        thresholdBps: 500,
+        duration: 86400n,
+        owner: intermediateOwner,
+      },
+    });
+  });
+});
 
 const DOMAIN_BY_CHAIN: Record<string, number> = {
   anvil2: 31337,
@@ -462,6 +575,37 @@ describe('runWarpRouteApply', () => {
       expect(updateSplitSpy.called).to.equal(false);
       expect(deployTimelockSpy.called).to.equal(false);
     }
+  });
+});
+
+describe('runWarpUpdatePlanning', () => {
+  for (const protocolType of [ProtocolType.Ethereum, ProtocolType.Tron]) {
+    it(`does not retry ${protocolType} planning after a deployment followed by failure`, async () => {
+      const runner = sinon
+        .stub()
+        .rejects(new Error('failure after deployment'));
+
+      let message = '';
+      try {
+        await runWarpUpdatePlanning(protocolType, runner);
+      } catch (error) {
+        message = error instanceof Error ? error.message : String(error);
+      }
+
+      expect(message).to.equal('failure after deployment');
+      expect(runner.calledOnce).to.equal(true);
+    });
+  }
+
+  it('retains retries for AltVM planning', async () => {
+    const runner = sinon.stub();
+    runner.onFirstCall().rejects(new Error('transient read failure'));
+    runner.onSecondCall().resolves('planned');
+
+    expect(await runWarpUpdatePlanning(ProtocolType.Sealevel, runner)).to.equal(
+      'planned',
+    );
+    expect(runner.callCount).to.equal(2);
   });
 });
 

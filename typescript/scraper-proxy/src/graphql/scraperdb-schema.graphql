@@ -1,0 +1,873 @@
+schema {
+  query: query_root
+  subscription: subscription_root
+}
+
+scalar bigint
+
+scalar bytea
+
+scalar interval
+
+scalar numeric
+
+scalar timestamp
+
+type __Directive {
+  args: __InputValue
+  description: String!
+  isRepeatable: Boolean!
+  locations: String!
+  name: String!
+}
+
+type __EnumValue {
+  deprecationReason: String!
+  description: String!
+  isDeprecated: String!
+  name: String!
+}
+
+type __Field {
+  args: __InputValue
+  deprecationReason: String!
+  description: String!
+  isDeprecated: String!
+  name: String!
+  type: __Type
+}
+
+type __InputValue {
+  defaultValue: String!
+  description: String!
+  name: String!
+  type: __Type
+}
+
+type __Schema {
+  description: String!
+  directives: __Directive
+  mutationType: __Type
+  queryType: __Type
+  subscriptionType: __Type
+  types: __Type
+}
+
+type __Type {
+  description: String!
+  enumValues(includeDeprecated: Boolean = false): __EnumValue
+  fields(includeDeprecated: Boolean = false): __Field
+  inputFields: __InputValue
+  interfaces: __Type
+  kind: __TypeKind!
+  name: String!
+  ofType: __Type
+  possibleTypes: __Type
+}
+
+type query_root {
+  "fetch data from the table: \"domain\""
+  domain(
+    "filter the rows returned"
+    where: domain_bool_exp
+    "sort the rows by one or more columns"
+    order_by: [domain_order_by!]
+    "limit the number of rows returned"
+    limit: Int
+    "skip the first n rows. Use only with order_by"
+    offset: Int
+    "distinct select on columns"
+    distinct_on: [domain_select_column!]
+  ): [domain!]!
+  "fetch data from the table: \"domain\" using primary key columns"
+  domain_by_pk(id: Int!): domain
+  "fetch data from the table: \"message_view\""
+  message_view(
+    "filter the rows returned"
+    where: message_view_bool_exp
+    "sort the rows by one or more columns"
+    order_by: [message_view_order_by!]
+    "limit the number of rows returned"
+    limit: Int
+    "skip the first n rows. Use only with order_by"
+    offset: Int
+    "distinct select on columns"
+    distinct_on: [message_view_select_column!]
+  ): [message_view!]!
+  "fetch data from the table: \"raw_message_dispatch\""
+  raw_message_dispatch(
+    "filter the rows returned"
+    where: raw_message_dispatch_bool_exp
+    "sort the rows by one or more columns"
+    order_by: [raw_message_dispatch_order_by!]
+    "limit the number of rows returned"
+    limit: Int
+    "skip the first n rows. Use only with order_by"
+    offset: Int
+    "distinct select on columns"
+    distinct_on: [raw_message_dispatch_select_column!]
+  ): [raw_message_dispatch!]!
+  "fetch data from the table: \"raw_message_dispatch\" using primary key columns"
+  raw_message_dispatch_by_pk(id: bigint!): raw_message_dispatch
+}
+
+type subscription_root {
+  "fetch data from the table in a streaming manner: \"domain\""
+  domain_stream(
+    "filter the rows returned"
+    where: domain_bool_exp
+    "cursor to stream the results returned by the query"
+    cursor: [domain_stream_cursor_input]!
+    "maximum number of rows returned in a single batch"
+    batch_size: Int!
+  ): [domain!]!
+  "fetch data from the table in a streaming manner: \"message_view\""
+  message_view_stream(
+    "filter the rows returned"
+    where: message_view_bool_exp
+    "cursor to stream the results returned by the query"
+    cursor: [message_view_stream_cursor_input]!
+    "maximum number of rows returned in a single batch"
+    batch_size: Int!
+  ): [message_view!]!
+  "fetch data from the table in a streaming manner: \"raw_message_dispatch\""
+  raw_message_dispatch_stream(
+    "filter the rows returned"
+    where: raw_message_dispatch_bool_exp
+    "cursor to stream the results returned by the query"
+    cursor: [raw_message_dispatch_stream_cursor_input]!
+    "maximum number of rows returned in a single batch"
+    batch_size: Int!
+  ): [raw_message_dispatch!]!
+  "fetch data from the table: \"domain\""
+  domain(
+    "filter the rows returned"
+    where: domain_bool_exp
+    "sort the rows by one or more columns"
+    order_by: [domain_order_by!]
+    "limit the number of rows returned"
+    limit: Int
+    "skip the first n rows. Use only with order_by"
+    offset: Int
+    "distinct select on columns"
+    distinct_on: [domain_select_column!]
+  ): [domain!]!
+  "fetch data from the table: \"domain\" using primary key columns"
+  domain_by_pk(id: Int!): domain
+  "fetch data from the table: \"message_view\""
+  message_view(
+    "filter the rows returned"
+    where: message_view_bool_exp
+    "sort the rows by one or more columns"
+    order_by: [message_view_order_by!]
+    "limit the number of rows returned"
+    limit: Int
+    "skip the first n rows. Use only with order_by"
+    offset: Int
+    "distinct select on columns"
+    distinct_on: [message_view_select_column!]
+  ): [message_view!]!
+  "fetch data from the table: \"raw_message_dispatch\""
+  raw_message_dispatch(
+    "filter the rows returned"
+    where: raw_message_dispatch_bool_exp
+    "sort the rows by one or more columns"
+    order_by: [raw_message_dispatch_order_by!]
+    "limit the number of rows returned"
+    limit: Int
+    "skip the first n rows. Use only with order_by"
+    offset: Int
+    "distinct select on columns"
+    distinct_on: [raw_message_dispatch_select_column!]
+  ): [raw_message_dispatch!]!
+  "fetch data from the table: \"raw_message_dispatch\" using primary key columns"
+  raw_message_dispatch_by_pk(id: bigint!): raw_message_dispatch
+}
+
+"columns and relationships of \"domain\""
+type domain {
+  chain_id: bigint
+  id: Int!
+  is_deprecated: Boolean!
+  is_test_net: Boolean!
+  name: String!
+  native_token: String!
+  time_created: timestamp!
+  time_updated: timestamp!
+}
+
+"columns and relationships of \"message_view\""
+type message_view {
+  delivery_latency: interval
+  delivery_occurred_at: timestamp
+  delivery_scape_latency: interval
+  delivery_scraped_at: timestamp
+  destination_block_hash: bytea
+  destination_block_height: bigint
+  destination_block_id: bigint
+  destination_chain_id: bigint
+  destination_domain: String
+  destination_domain_id: Int
+  destination_mailbox: bytea
+  destination_tx_cumulative_gas_used: numeric
+  destination_tx_effective_gas_price: numeric
+  destination_tx_gas_limit: numeric
+  destination_tx_gas_price: numeric
+  destination_tx_gas_used: numeric
+  destination_tx_hash: bytea
+  destination_tx_id: bigint
+  destination_tx_max_fee_per_gas: numeric
+  destination_tx_max_priority_fee_per_gas: numeric
+  destination_tx_nonce: bigint
+  destination_tx_recipient: bytea
+  destination_tx_sender: bytea
+  id: bigint
+  is_delivered: Boolean
+  message_body: bytea
+  msg_id: bytea
+  nonce: Int
+  num_payments: bigint
+  origin_block_hash: bytea
+  origin_block_height: bigint
+  origin_block_id: bigint
+  origin_chain_id: bigint
+  origin_domain: String
+  origin_domain_id: Int
+  origin_mailbox: bytea
+  origin_tx_cumulative_gas_used: numeric
+  origin_tx_effective_gas_price: numeric
+  origin_tx_gas_limit: numeric
+  origin_tx_gas_price: numeric
+  origin_tx_gas_used: numeric
+  origin_tx_hash: bytea
+  origin_tx_id: bigint
+  origin_tx_max_fee_per_gas: numeric
+  origin_tx_max_priority_fee_per_gas: numeric
+  origin_tx_nonce: bigint
+  origin_tx_recipient: bytea
+  origin_tx_sender: bytea
+  recipient: bytea
+  send_occurred_at: timestamp
+  send_scape_latency: interval
+  send_scraped_at: timestamp
+  sender: bytea
+  total_gas_amount: numeric
+  total_payment: numeric
+}
+
+"columns and relationships of \"raw_message_dispatch\""
+type raw_message_dispatch {
+  destination_domain: Int!
+  id: bigint!
+  msg_body: bytea
+  msg_id: bytea!
+  nonce: Int!
+  origin_block_hash: bytea!
+  origin_block_height: bigint!
+  origin_domain: Int!
+  origin_mailbox: bytea!
+  origin_tx_hash: bytea!
+  recipient: bytea!
+  sender: bytea!
+  time_created: timestamp!
+}
+
+enum __TypeKind {
+  ENUM
+  INPUT_OBJECT
+  INTERFACE
+  LIST
+  NON_NULL
+  OBJECT
+  SCALAR
+  UNION
+}
+
+"column ordering options"
+enum order_by {
+  "in ascending order, nulls first"
+  asc_nulls_first
+  "in ascending order, nulls last"
+  asc
+  "in ascending order, nulls last"
+  asc_nulls_last
+  "in descending order, nulls first"
+  desc
+  "in descending order, nulls first"
+  desc_nulls_first
+  "in descending order, nulls last"
+  desc_nulls_last
+}
+
+"ordering argument of a cursor"
+enum cursor_ordering {
+  "ascending ordering of the cursor"
+  ASC
+  "descending ordering of the cursor"
+  DESC
+}
+
+"select columns of table \"domain\""
+enum domain_select_column {
+  "column name"
+  chain_id
+  "column name"
+  id
+  "column name"
+  is_deprecated
+  "column name"
+  is_test_net
+  "column name"
+  name
+  "column name"
+  native_token
+  "column name"
+  time_created
+  "column name"
+  time_updated
+}
+
+"select columns of table \"message_view\""
+enum message_view_select_column {
+  "column name"
+  delivery_latency
+  "column name"
+  delivery_occurred_at
+  "column name"
+  delivery_scape_latency
+  "column name"
+  delivery_scraped_at
+  "column name"
+  destination_block_hash
+  "column name"
+  destination_block_height
+  "column name"
+  destination_block_id
+  "column name"
+  destination_chain_id
+  "column name"
+  destination_domain
+  "column name"
+  destination_domain_id
+  "column name"
+  destination_mailbox
+  "column name"
+  destination_tx_cumulative_gas_used
+  "column name"
+  destination_tx_effective_gas_price
+  "column name"
+  destination_tx_gas_limit
+  "column name"
+  destination_tx_gas_price
+  "column name"
+  destination_tx_gas_used
+  "column name"
+  destination_tx_hash
+  "column name"
+  destination_tx_id
+  "column name"
+  destination_tx_max_fee_per_gas
+  "column name"
+  destination_tx_max_priority_fee_per_gas
+  "column name"
+  destination_tx_nonce
+  "column name"
+  destination_tx_recipient
+  "column name"
+  destination_tx_sender
+  "column name"
+  id
+  "column name"
+  is_delivered
+  "column name"
+  message_body
+  "column name"
+  msg_id
+  "column name"
+  nonce
+  "column name"
+  num_payments
+  "column name"
+  origin_block_hash
+  "column name"
+  origin_block_height
+  "column name"
+  origin_block_id
+  "column name"
+  origin_chain_id
+  "column name"
+  origin_domain
+  "column name"
+  origin_domain_id
+  "column name"
+  origin_mailbox
+  "column name"
+  origin_tx_cumulative_gas_used
+  "column name"
+  origin_tx_effective_gas_price
+  "column name"
+  origin_tx_gas_limit
+  "column name"
+  origin_tx_gas_price
+  "column name"
+  origin_tx_gas_used
+  "column name"
+  origin_tx_hash
+  "column name"
+  origin_tx_id
+  "column name"
+  origin_tx_max_fee_per_gas
+  "column name"
+  origin_tx_max_priority_fee_per_gas
+  "column name"
+  origin_tx_nonce
+  "column name"
+  origin_tx_recipient
+  "column name"
+  origin_tx_sender
+  "column name"
+  recipient
+  "column name"
+  send_occurred_at
+  "column name"
+  send_scape_latency
+  "column name"
+  send_scraped_at
+  "column name"
+  sender
+  "column name"
+  total_gas_amount
+  "column name"
+  total_payment
+}
+
+"select columns of table \"raw_message_dispatch\""
+enum raw_message_dispatch_select_column {
+  "column name"
+  destination_domain
+  "column name"
+  id
+  "column name"
+  msg_body
+  "column name"
+  msg_id
+  "column name"
+  nonce
+  "column name"
+  origin_block_hash
+  "column name"
+  origin_block_height
+  "column name"
+  origin_domain
+  "column name"
+  origin_mailbox
+  "column name"
+  origin_tx_hash
+  "column name"
+  recipient
+  "column name"
+  sender
+  "column name"
+  time_created
+}
+
+"Boolean expression to compare columns of type \"Boolean\". All fields are combined with logical 'AND'."
+input Boolean_comparison_exp {
+  _eq: Boolean
+  _gt: Boolean
+  _gte: Boolean
+  _in: [Boolean!]
+  _is_null: Boolean
+  _lt: Boolean
+  _lte: Boolean
+  _neq: Boolean
+  _nin: [Boolean!]
+}
+
+"Boolean expression to compare columns of type \"Int\". All fields are combined with logical 'AND'."
+input Int_comparison_exp {
+  _eq: Int
+  _gt: Int
+  _gte: Int
+  _in: [Int!]
+  _is_null: Boolean
+  _lt: Int
+  _lte: Int
+  _neq: Int
+  _nin: [Int!]
+}
+
+"Boolean expression to compare columns of type \"String\". All fields are combined with logical 'AND'."
+input String_comparison_exp {
+  _eq: String
+  _gt: String
+  _gte: String
+  _in: [String!]
+  _is_null: Boolean
+  _lt: String
+  _lte: String
+  _neq: String
+  _nin: [String!]
+}
+
+"Boolean expression to compare columns of type \"bigint\". All fields are combined with logical 'AND'."
+input bigint_comparison_exp {
+  _eq: bigint
+  _gt: bigint
+  _gte: bigint
+  _in: [bigint!]
+  _is_null: Boolean
+  _lt: bigint
+  _lte: bigint
+  _neq: bigint
+  _nin: [bigint!]
+}
+
+"Boolean expression to compare columns of type \"bytea\". All fields are combined with logical 'AND'."
+input bytea_comparison_exp {
+  _eq: bytea
+  _gt: bytea
+  _gte: bytea
+  _in: [bytea!]
+  _is_null: Boolean
+  _lt: bytea
+  _lte: bytea
+  _neq: bytea
+  _nin: [bytea!]
+}
+
+"Boolean expression to compare columns of type \"interval\". All fields are combined with logical 'AND'."
+input interval_comparison_exp {
+  _eq: interval
+  _gt: interval
+  _gte: interval
+  _in: [interval!]
+  _is_null: Boolean
+  _lt: interval
+  _lte: interval
+  _neq: interval
+  _nin: [interval!]
+}
+
+"Boolean expression to compare columns of type \"numeric\". All fields are combined with logical 'AND'."
+input numeric_comparison_exp {
+  _eq: numeric
+  _gt: numeric
+  _gte: numeric
+  _in: [numeric!]
+  _is_null: Boolean
+  _lt: numeric
+  _lte: numeric
+  _neq: numeric
+  _nin: [numeric!]
+}
+
+"Boolean expression to compare columns of type \"timestamp\". All fields are combined with logical 'AND'."
+input timestamp_comparison_exp {
+  _eq: timestamp
+  _gt: timestamp
+  _gte: timestamp
+  _in: [timestamp!]
+  _is_null: Boolean
+  _lt: timestamp
+  _lte: timestamp
+  _neq: timestamp
+  _nin: [timestamp!]
+}
+
+"Boolean expression to filter rows from the table \"domain\". All fields are combined with a logical 'AND'."
+input domain_bool_exp {
+  _and: [domain_bool_exp!]
+  _not: domain_bool_exp
+  _or: [domain_bool_exp!]
+  chain_id: bigint_comparison_exp
+  id: Int_comparison_exp
+  is_deprecated: Boolean_comparison_exp
+  is_test_net: Boolean_comparison_exp
+  name: String_comparison_exp
+  native_token: String_comparison_exp
+  time_created: timestamp_comparison_exp
+  time_updated: timestamp_comparison_exp
+}
+
+"Boolean expression to filter rows from the table \"message_view\". All fields are combined with a logical 'AND'."
+input message_view_bool_exp {
+  _and: [message_view_bool_exp!]
+  _not: message_view_bool_exp
+  _or: [message_view_bool_exp!]
+  delivery_latency: interval_comparison_exp
+  delivery_occurred_at: timestamp_comparison_exp
+  delivery_scape_latency: interval_comparison_exp
+  delivery_scraped_at: timestamp_comparison_exp
+  destination_block_hash: bytea_comparison_exp
+  destination_block_height: bigint_comparison_exp
+  destination_block_id: bigint_comparison_exp
+  destination_chain_id: bigint_comparison_exp
+  destination_domain: String_comparison_exp
+  destination_domain_id: Int_comparison_exp
+  destination_mailbox: bytea_comparison_exp
+  destination_tx_cumulative_gas_used: numeric_comparison_exp
+  destination_tx_effective_gas_price: numeric_comparison_exp
+  destination_tx_gas_limit: numeric_comparison_exp
+  destination_tx_gas_price: numeric_comparison_exp
+  destination_tx_gas_used: numeric_comparison_exp
+  destination_tx_hash: bytea_comparison_exp
+  destination_tx_id: bigint_comparison_exp
+  destination_tx_max_fee_per_gas: numeric_comparison_exp
+  destination_tx_max_priority_fee_per_gas: numeric_comparison_exp
+  destination_tx_nonce: bigint_comparison_exp
+  destination_tx_recipient: bytea_comparison_exp
+  destination_tx_sender: bytea_comparison_exp
+  id: bigint_comparison_exp
+  is_delivered: Boolean_comparison_exp
+  message_body: bytea_comparison_exp
+  msg_id: bytea_comparison_exp
+  nonce: Int_comparison_exp
+  num_payments: bigint_comparison_exp
+  origin_block_hash: bytea_comparison_exp
+  origin_block_height: bigint_comparison_exp
+  origin_block_id: bigint_comparison_exp
+  origin_chain_id: bigint_comparison_exp
+  origin_domain: String_comparison_exp
+  origin_domain_id: Int_comparison_exp
+  origin_mailbox: bytea_comparison_exp
+  origin_tx_cumulative_gas_used: numeric_comparison_exp
+  origin_tx_effective_gas_price: numeric_comparison_exp
+  origin_tx_gas_limit: numeric_comparison_exp
+  origin_tx_gas_price: numeric_comparison_exp
+  origin_tx_gas_used: numeric_comparison_exp
+  origin_tx_hash: bytea_comparison_exp
+  origin_tx_id: bigint_comparison_exp
+  origin_tx_max_fee_per_gas: numeric_comparison_exp
+  origin_tx_max_priority_fee_per_gas: numeric_comparison_exp
+  origin_tx_nonce: bigint_comparison_exp
+  origin_tx_recipient: bytea_comparison_exp
+  origin_tx_sender: bytea_comparison_exp
+  recipient: bytea_comparison_exp
+  send_occurred_at: timestamp_comparison_exp
+  send_scape_latency: interval_comparison_exp
+  send_scraped_at: timestamp_comparison_exp
+  sender: bytea_comparison_exp
+  total_gas_amount: numeric_comparison_exp
+  total_payment: numeric_comparison_exp
+}
+
+"Boolean expression to filter rows from the table \"raw_message_dispatch\". All fields are combined with a logical 'AND'."
+input raw_message_dispatch_bool_exp {
+  _and: [raw_message_dispatch_bool_exp!]
+  _not: raw_message_dispatch_bool_exp
+  _or: [raw_message_dispatch_bool_exp!]
+  destination_domain: Int_comparison_exp
+  id: bigint_comparison_exp
+  msg_body: bytea_comparison_exp
+  msg_id: bytea_comparison_exp
+  nonce: Int_comparison_exp
+  origin_block_hash: bytea_comparison_exp
+  origin_block_height: bigint_comparison_exp
+  origin_domain: Int_comparison_exp
+  origin_mailbox: bytea_comparison_exp
+  origin_tx_hash: bytea_comparison_exp
+  recipient: bytea_comparison_exp
+  sender: bytea_comparison_exp
+  time_created: timestamp_comparison_exp
+}
+
+"Initial value of the column from where the streaming should start"
+input domain_stream_cursor_value_input {
+  chain_id: bigint
+  id: Int
+  is_deprecated: Boolean
+  is_test_net: Boolean
+  name: String
+  native_token: String
+  time_created: timestamp
+  time_updated: timestamp
+}
+
+"Initial value of the column from where the streaming should start"
+input message_view_stream_cursor_value_input {
+  delivery_latency: interval
+  delivery_occurred_at: timestamp
+  delivery_scape_latency: interval
+  delivery_scraped_at: timestamp
+  destination_block_hash: bytea
+  destination_block_height: bigint
+  destination_block_id: bigint
+  destination_chain_id: bigint
+  destination_domain: String
+  destination_domain_id: Int
+  destination_mailbox: bytea
+  destination_tx_cumulative_gas_used: numeric
+  destination_tx_effective_gas_price: numeric
+  destination_tx_gas_limit: numeric
+  destination_tx_gas_price: numeric
+  destination_tx_gas_used: numeric
+  destination_tx_hash: bytea
+  destination_tx_id: bigint
+  destination_tx_max_fee_per_gas: numeric
+  destination_tx_max_priority_fee_per_gas: numeric
+  destination_tx_nonce: bigint
+  destination_tx_recipient: bytea
+  destination_tx_sender: bytea
+  id: bigint
+  is_delivered: Boolean
+  message_body: bytea
+  msg_id: bytea
+  nonce: Int
+  num_payments: bigint
+  origin_block_hash: bytea
+  origin_block_height: bigint
+  origin_block_id: bigint
+  origin_chain_id: bigint
+  origin_domain: String
+  origin_domain_id: Int
+  origin_mailbox: bytea
+  origin_tx_cumulative_gas_used: numeric
+  origin_tx_effective_gas_price: numeric
+  origin_tx_gas_limit: numeric
+  origin_tx_gas_price: numeric
+  origin_tx_gas_used: numeric
+  origin_tx_hash: bytea
+  origin_tx_id: bigint
+  origin_tx_max_fee_per_gas: numeric
+  origin_tx_max_priority_fee_per_gas: numeric
+  origin_tx_nonce: bigint
+  origin_tx_recipient: bytea
+  origin_tx_sender: bytea
+  recipient: bytea
+  send_occurred_at: timestamp
+  send_scape_latency: interval
+  send_scraped_at: timestamp
+  sender: bytea
+  total_gas_amount: numeric
+  total_payment: numeric
+}
+
+"Initial value of the column from where the streaming should start"
+input raw_message_dispatch_stream_cursor_value_input {
+  destination_domain: Int
+  id: bigint
+  msg_body: bytea
+  msg_id: bytea
+  nonce: Int
+  origin_block_hash: bytea
+  origin_block_height: bigint
+  origin_domain: Int
+  origin_mailbox: bytea
+  origin_tx_hash: bytea
+  recipient: bytea
+  sender: bytea
+  time_created: timestamp
+}
+
+"Ordering options when selecting data from \"domain\"."
+input domain_order_by {
+  chain_id: order_by
+  id: order_by
+  is_deprecated: order_by
+  is_test_net: order_by
+  name: order_by
+  native_token: order_by
+  time_created: order_by
+  time_updated: order_by
+}
+
+"Ordering options when selecting data from \"message_view\"."
+input message_view_order_by {
+  delivery_latency: order_by
+  delivery_occurred_at: order_by
+  delivery_scape_latency: order_by
+  delivery_scraped_at: order_by
+  destination_block_hash: order_by
+  destination_block_height: order_by
+  destination_block_id: order_by
+  destination_chain_id: order_by
+  destination_domain: order_by
+  destination_domain_id: order_by
+  destination_mailbox: order_by
+  destination_tx_cumulative_gas_used: order_by
+  destination_tx_effective_gas_price: order_by
+  destination_tx_gas_limit: order_by
+  destination_tx_gas_price: order_by
+  destination_tx_gas_used: order_by
+  destination_tx_hash: order_by
+  destination_tx_id: order_by
+  destination_tx_max_fee_per_gas: order_by
+  destination_tx_max_priority_fee_per_gas: order_by
+  destination_tx_nonce: order_by
+  destination_tx_recipient: order_by
+  destination_tx_sender: order_by
+  id: order_by
+  is_delivered: order_by
+  message_body: order_by
+  msg_id: order_by
+  nonce: order_by
+  num_payments: order_by
+  origin_block_hash: order_by
+  origin_block_height: order_by
+  origin_block_id: order_by
+  origin_chain_id: order_by
+  origin_domain: order_by
+  origin_domain_id: order_by
+  origin_mailbox: order_by
+  origin_tx_cumulative_gas_used: order_by
+  origin_tx_effective_gas_price: order_by
+  origin_tx_gas_limit: order_by
+  origin_tx_gas_price: order_by
+  origin_tx_gas_used: order_by
+  origin_tx_hash: order_by
+  origin_tx_id: order_by
+  origin_tx_max_fee_per_gas: order_by
+  origin_tx_max_priority_fee_per_gas: order_by
+  origin_tx_nonce: order_by
+  origin_tx_recipient: order_by
+  origin_tx_sender: order_by
+  recipient: order_by
+  send_occurred_at: order_by
+  send_scape_latency: order_by
+  send_scraped_at: order_by
+  sender: order_by
+  total_gas_amount: order_by
+  total_payment: order_by
+}
+
+"Ordering options when selecting data from \"raw_message_dispatch\"."
+input raw_message_dispatch_order_by {
+  destination_domain: order_by
+  id: order_by
+  msg_body: order_by
+  msg_id: order_by
+  nonce: order_by
+  origin_block_hash: order_by
+  origin_block_height: order_by
+  origin_domain: order_by
+  origin_mailbox: order_by
+  origin_tx_hash: order_by
+  recipient: order_by
+  sender: order_by
+  time_created: order_by
+}
+
+"Streaming cursor of the table \"domain\""
+input domain_stream_cursor_input {
+  "Stream column input with initial value"
+  initial_value: domain_stream_cursor_value_input!
+  "cursor ordering"
+  ordering: cursor_ordering
+}
+
+"Streaming cursor of the table \"message_view\""
+input message_view_stream_cursor_input {
+  "Stream column input with initial value"
+  initial_value: message_view_stream_cursor_value_input!
+  "cursor ordering"
+  ordering: cursor_ordering
+}
+
+"Streaming cursor of the table \"raw_message_dispatch\""
+input raw_message_dispatch_stream_cursor_input {
+  "Stream column input with initial value"
+  initial_value: raw_message_dispatch_stream_cursor_value_input!
+  "cursor ordering"
+  ordering: cursor_ordering
+}

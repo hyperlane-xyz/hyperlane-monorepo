@@ -17,7 +17,10 @@ import type { DerivedIsmConfig, IsmConfig } from '../ism/types.js';
 import { IsmConfigSchema } from '../ism/types.js';
 import type { ChainName } from '../types.js';
 import { DeployedOwnableSchema, OwnableSchema } from '../types.js';
-import { ismTreeContainsRateLimited } from '../utils/ism.js';
+import {
+  ismTreeContainsMailboxDefaultOrHybrid,
+  ismTreeContainsRateLimited,
+} from '../utils/ism.js';
 
 const CoreConfigBaseSchema = OwnableSchema.extend({
   defaultIsm: IsmConfigSchema,
@@ -33,6 +36,27 @@ const CoreConfigBaseSchema = OwnableSchema.extend({
   deployQuotedCalls: z.boolean().optional(),
   contractVersion: z.string().optional(),
 });
+
+/**
+ * DefaultIsm routes to `mailbox.defaultIsm()`. Installed AS the mailbox's
+ * default ISM it routes to itself, so verification recurses until it runs out
+ * of gas and no inbound message can be delivered. The warp-route hybrid
+ * hook/ISMs are equally invalid here: they are bound to a specific warp router
+ * and meter its flow, which is meaningless for chain-wide default verification.
+ */
+const rejectWarpOnlyDefaultIsm = (
+  val: { defaultIsm: unknown },
+  ctx: z.RefinementCtx,
+) => {
+  if (ismTreeContainsMailboxDefaultOrHybrid(val.defaultIsm)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        'DefaultIsm, NetFlowRateLimitedHookIsm and DelayedFlowRouterHookIsm cannot be used as (or nested inside) a core default ISM',
+      path: ['defaultIsm'],
+    });
+  }
+};
 
 const rejectRateLimitedDefaultIsm = (
   val: { defaultIsm: unknown },
@@ -75,6 +99,7 @@ const rejectQuotedCallsWithLegacyIgp = (
 
 export const CoreConfigSchema = CoreConfigBaseSchema.superRefine((val, ctx) => {
   rejectRateLimitedDefaultIsm(val, ctx);
+  rejectWarpOnlyDefaultIsm(val, ctx);
   rejectQuotedCallsWithLegacyIgp(val, ctx);
 });
 
@@ -84,6 +109,7 @@ export const DerivedCoreConfigSchema = CoreConfigBaseSchema.merge(
   }),
 ).superRefine((val, ctx) => {
   rejectRateLimitedDefaultIsm(val, ctx);
+  rejectWarpOnlyDefaultIsm(val, ctx);
   rejectQuotedCallsWithLegacyIgp(val, ctx);
 });
 

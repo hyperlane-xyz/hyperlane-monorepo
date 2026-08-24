@@ -65,15 +65,6 @@
         "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
       ]
     },
-    "arcadia": {
-      "type": "messageIdMultisigIsm",
-      "threshold": 2,
-      "validators": [
-        "0xe16ee9618f138cc2dcf9f9a95462099a8bf33a38",
-        "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
-        "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
-      ]
-    },
     "avalanche": {
       "type": "messageIdMultisigIsm",
       "threshold": 2,
@@ -113,18 +104,6 @@
         "0xae09cb3febc4cad59ef5a56c1df741df4eb1f4b6",
         "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
         "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
-      ]
-    },
-    "bitlayer": {
-      "type": "messageIdMultisigIsm",
-      "threshold": 4,
-      "validators": [
-        "0x1d9b0f4ea80dbfc71cb7d64d8005eccf7c41e75f",
-        "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
-        "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36",
-        "0x6d113ae51bfea7b63a8828f97e9dce393b25c189",
-        "0x761980c3debdc8ddb69a2713cf5126d4db900f0f",
-        "0x5aed2fd5cc5f9749c455646c86b0db6126cafcbb"
       ]
     },
     "blast": {
@@ -391,15 +370,6 @@
         "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
       ]
     },
-    "hashkey": {
-      "type": "messageIdMultisigIsm",
-      "threshold": 2,
-      "validators": [
-        "0x55007cab8788cdba22844e7a2499cf43347f487a",
-        "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
-        "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
-      ]
-    },
     "hyperevm": {
       "type": "messageIdMultisigIsm",
       "threshold": 3,
@@ -527,15 +497,6 @@
         "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
       ]
     },
-    "lumiaprism": {
-      "type": "messageIdMultisigIsm",
-      "threshold": 2,
-      "validators": [
-        "0xb69731640ffd4338a2c9358a935b0274c6463f85",
-        "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
-        "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
-      ]
-    },
     "mantle": {
       "type": "messageIdMultisigIsm",
       "threshold": 4,
@@ -546,15 +507,6 @@
         "0x761980c3debdc8ddb69a2713cf5126d4db900f0f",
         "0x5aed2fd5cc5f9749c455646c86b0db6126cafcbb",
         "0x6d113ae51bfea7b63a8828f97e9dce393b25c189"
-      ]
-    },
-    "matchain": {
-      "type": "messageIdMultisigIsm",
-      "threshold": 2,
-      "validators": [
-        "0x8a052f7934b0626105f34f980c875ec03aaf82e8",
-        "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
-        "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
       ]
     },
     "merlin": {
@@ -639,15 +591,6 @@
         "0xb86f872df37f11f33acbe75b6ed208b872b57183",
         "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
         "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
-      ]
-    },
-    "oortmainnet": {
-      "type": "messageIdMultisigIsm",
-      "threshold": 2,
-      "validators": [
-        "0x9b7ff56cd9aa69006f73f1c5b8c63390c706a5d7",
-        "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36",
-        "0xfa94a494f01d1034b8cea025ca4c2a7e31ca39a1"
       ]
     },
     "optimism": {
@@ -740,18 +683,6 @@
         "0xf87c3eb3dde972257b0d6d110bdadcda951c0dc1",
         "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
         "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
-      ]
-    },
-    "ronin": {
-      "type": "messageIdMultisigIsm",
-      "threshold": 4,
-      "validators": [
-        "0xa3e11929317e4a871c3d47445ea7bb8c4976fd8a",
-        "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
-        "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36",
-        "0x6d113ae51bfea7b63a8828f97e9dce393b25c189",
-        "0x761980c3debdc8ddb69a2713cf5126d4db900f0f",
-        "0x5aed2fd5cc5f9749c455646c86b0db6126cafcbb"
       ]
     },
     "rootstockmainnet": {

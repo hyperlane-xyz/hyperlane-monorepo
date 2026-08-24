@@ -1,5 +1,10 @@
 import { expect } from 'chai';
-import { type PopulatedTransaction as EV5Transaction, ethers } from 'ethers';
+import {
+  type PopulatedTransaction as EV5Transaction,
+  Wallet,
+  ethers,
+} from 'ethers';
+import { readdirSync, rmSync, writeFileSync } from 'fs';
 
 import { type XERC20VSTest, XERC20VSTest__factory } from '@hyperlane-xyz/core';
 import { TxSubmitterType, randomAddress } from '@hyperlane-xyz/sdk';
@@ -7,8 +12,13 @@ import { type Address, randomInt } from '@hyperlane-xyz/utils';
 
 import { EV5FileSubmitter } from '../../../submitters/EV5FileSubmitter.js';
 import { CustomTxSubmitterType } from '../../../submitters/types.js';
+import { ExternalSignerType } from '../../../context/externalSigner.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
-import { deployXERC20VSToken, hyperlaneSubmit } from '../commands/helpers.js';
+import {
+  deployXERC20VSToken,
+  hyperlaneSubmit,
+  startMockTurnkeyApi,
+} from '../commands/helpers.js';
 import {
   ANVIL_KEY,
   CHAIN_NAME_2,
@@ -160,6 +170,71 @@ describe('hyperlane submit', function () {
       initialBalances[0].add(chain2MintAmount).toNumber(),
       initialBalances[1].add(chain3MintAmount).toNumber(),
     ]);
+  });
+
+  it('submits a transaction file with a Turnkey external signer', async function () {
+    const provider = xerc20Chain2.provider;
+    const feeWallet = Wallet.createRandom().connect(provider);
+    await (
+      await xerc20Chain2.signer.sendTransaction({
+        to: feeWallet.address,
+        value: ethers.utils.parseEther('1'),
+      })
+    ).wait();
+    const originalOwner = await xerc20Chain2.owner();
+    await (await xerc20Chain2.transferOwnership(feeWallet.address)).wait();
+
+    const mintAmount = randomInt(1, 1000);
+    const transaction = await getMintOnlyOwnerTransaction(
+      xerc20Chain2,
+      ALICE,
+      mintAmount,
+      ANVIL2_CHAIN_ID,
+    );
+    const suffix = randomInt(0, 1_000_000);
+    const transactionsPath = `${TEMP_PATH}/external-signer-transactions-${suffix}.json`;
+    const signerConfigPath = `${TEMP_PATH}/external-signer-config-${suffix}.json`;
+    const receiptsPath = `${TEMP_PATH}/external-signer-receipts-${suffix}`;
+    writeYamlOrJson(transactionsPath, [transaction], 'json');
+
+    const mockTurnkey = await startMockTurnkeyApi(feeWallet);
+    writeFileSync(
+      signerConfigPath,
+      JSON.stringify({
+        type: ExternalSignerType.TURNKEY,
+        ...mockTurnkey.apiKey,
+        organizationId: 'test-organization',
+        privateKeyId: 'test-private-key',
+        publicKey: feeWallet.address,
+        apiBaseUrl: mockTurnkey.url,
+      }),
+      { mode: 0o600 },
+    );
+
+    const initialBalance = await xerc20Chain2.balanceOf(ALICE);
+    try {
+      await hyperlaneSubmit({
+        transactionsPath,
+        signerConfigPath,
+        receiptsPath,
+      });
+    } finally {
+      try {
+        await (
+          await xerc20Chain2.connect(feeWallet).transferOwnership(originalOwner)
+        ).wait();
+      } finally {
+        rmSync(signerConfigPath, { force: true });
+        await mockTurnkey.close();
+      }
+    }
+
+    expect(await xerc20Chain2.balanceOf(ALICE)).to.eql(
+      initialBalance.add(mintAmount),
+    );
+    expect(
+      readdirSync(receiptsPath).some((file) => file.includes('jsonRpc')),
+    ).to.equal(true);
   });
 
   describe('FileSubmitter', function () {

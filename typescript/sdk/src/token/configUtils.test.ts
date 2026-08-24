@@ -18,7 +18,12 @@ import type { WarpCoreConfig } from '../warp/types.js';
 import { TokenType } from './config.js';
 import {
   canonicalizeAllowedRebalancingBridges,
+  canonicalizeDomainKeyedMap,
+  completeHybridHookNodesFromIsm,
+  expandWarpDeployConfig,
+  mergeRebalanceTargets,
   filterWarpCoreConfigMapByChains,
+  getDefaultRemoteRouterAndDestinationGasConfig,
   getChainsFromWarpCoreConfig,
   normalizeWarpDeployConfigForCheck,
   resolveTokenFeeAddress,
@@ -29,6 +34,7 @@ import { TokenStandard } from './TokenStandard.js';
 import {
   HypTokenConfig,
   HypTokenRouterConfig,
+  WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from './types.js';
 
@@ -40,6 +46,172 @@ function buildMultiProvider(): MultiProvider {
 }
 
 describe('configUtils', () => {
+  describe(getDefaultRemoteRouterAndDestinationGasConfig.name, () => {
+    it('excludes atomic local bridge foreign deployments', () => {
+      const address = '0x1111111111111111111111111111111111111111';
+      const deployConfig: WarpRouteDeployConfig = {
+        [test1.name]: {
+          owner: address,
+          type: TokenType.synthetic,
+        },
+        [test2.name]: {
+          foreignDeployment: address,
+          owner: address,
+          sourceRouter: address,
+          type: TokenType.atomicLocalRebalancing,
+        },
+      };
+
+      const [remoteRouters, destinationGas] =
+        getDefaultRemoteRouterAndDestinationGasConfig(
+          buildMultiProvider(),
+          test1.name,
+          { [test1.name]: address },
+          deployConfig,
+        );
+
+      expect(remoteRouters).to.deep.equal({});
+      expect(destinationGas).to.deep.equal({});
+    });
+  });
+
+  describe(completeHybridHookNodesFromIsm.name, () => {
+    it('completes an explicit delayed-flow hook leaf from the ISM leaf', () => {
+      const owner = '0x1111111111111111111111111111111111111111';
+      const warpRouter = '0x2222222222222222222222222222222222222222';
+      const remoteIsm = utils.hexZeroPad(
+        '0x3333333333333333333333333333333333333333',
+        32,
+      );
+      const hook = {
+        type: HookType.AGGREGATION,
+        hooks: [
+          {
+            type: HookType.DELAYED_FLOW_ROUTER,
+            thresholdBps: 10000,
+            maxDelay: 5,
+            duration: 86400n,
+            owner,
+          },
+        ],
+      };
+      const ism = {
+        type: IsmType.AGGREGATION,
+        threshold: 1,
+        modules: [
+          {
+            type: IsmType.DELAYED_FLOW_ROUTER,
+            warpRouter,
+            thresholdBps: 10000,
+            maxDelay: 5,
+            duration: 86400n,
+            owner,
+            remoteIsms: { [test2.name]: remoteIsm },
+          },
+        ],
+      };
+
+      expect(completeHybridHookNodesFromIsm(hook, ism)).to.deep.equal({
+        ...hook,
+        hooks: [ism.modules[0]],
+      });
+    });
+  });
+
+  describe(expandWarpDeployConfig.name, () => {
+    it('rejects a hybrid config without a deployed router address', async () => {
+      const owner = '0x1111111111111111111111111111111111111111';
+      let thrown: unknown;
+
+      try {
+        await expandWarpDeployConfig({
+          multiProvider: buildMultiProvider(),
+          warpDeployConfig: {
+            [test1.name]: {
+              type: TokenType.synthetic,
+              name: 'Test',
+              symbol: 'TEST',
+              decimals: 18,
+              owner,
+              mailbox: '0x2222222222222222222222222222222222222222',
+              interchainSecurityModule: {
+                type: IsmType.DELAYED_FLOW_ROUTER,
+                thresholdBps: 10000,
+                maxDelay: 60,
+                duration: 86400n,
+                owner,
+              },
+            },
+          },
+          deployedRoutersAddresses: {},
+        });
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).to.be.instanceOf(Error);
+      assert(thrown instanceof Error, 'Expected expansion to fail');
+      expect(thrown.message).to.equal(
+        `Missing deployed router address for ${test1.name}, which declares a hybrid hook/ISM`,
+      );
+    });
+
+    it('defaults an omitted hook to the completed hybrid ISM node', async () => {
+      const owner = '0x1111111111111111111111111111111111111111';
+      const router = '0x2222222222222222222222222222222222222222';
+      const multiProvider = buildMultiProvider();
+      const provider = multiProvider.getProvider(test1.name);
+      const getCodeStub = sinon.stub(provider, 'getCode').resolves('0x01');
+      const getStorageAtStub = sinon
+        .stub(provider, 'getStorageAt')
+        .resolves('0x0');
+
+      try {
+        const expanded = await expandWarpDeployConfig({
+          multiProvider,
+          warpDeployConfig: {
+            [test1.name]: {
+              type: TokenType.synthetic,
+              name: 'Test',
+              symbol: 'TEST',
+              decimals: 18,
+              owner,
+              mailbox: '0x3333333333333333333333333333333333333333',
+              interchainSecurityModule: {
+                type: IsmType.AGGREGATION,
+                threshold: 2,
+                modules: [
+                  { type: IsmType.TRUSTED_RELAYER, relayer: owner },
+                  {
+                    type: IsmType.DELAYED_FLOW_ROUTER,
+                    thresholdBps: 10000,
+                    maxDelay: 60,
+                    duration: 86400n,
+                    owner,
+                  },
+                ],
+              },
+            },
+          },
+          deployedRoutersAddresses: { [test1.name]: router },
+        });
+
+        expect(expanded[test1.name].hook).to.deep.equal({
+          type: IsmType.DELAYED_FLOW_ROUTER,
+          warpRouter: router,
+          thresholdBps: 10000,
+          maxDelay: 60,
+          duration: 86400n,
+          owner,
+          remoteIsms: undefined,
+        });
+      } finally {
+        getCodeStub.restore();
+        getStorageAtStub.restore();
+      }
+    });
+  });
+
   describe(transformConfigToCheck.name, () => {
     const ADDRESS = '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359';
 
@@ -1221,6 +1393,62 @@ describe('configUtils', () => {
         resolveDomainId,
       );
       expect(result).to.deep.equal({ unknownchain: [{ bridge: BRIDGE_A }] });
+    });
+  });
+
+  describe(canonicalizeDomainKeyedMap.name, () => {
+    const TARGET_A = '0x1111111111111111111111111111111111111111';
+    const TARGET_B = '0x2222222222222222222222222222222222222222';
+    const TEST1_DOMAIN = test1.domainId.toString();
+
+    // Only test1 resolves; everything else is treated as unknown.
+    const resolveDomainId = (key: string): number | undefined =>
+      key === test1.name ? test1.domainId : undefined;
+
+    it('canonicalizes chain-name keys to domain ids for rebalanceTargets', () => {
+      const result = canonicalizeDomainKeyedMap(
+        { [test1.name]: [TARGET_A] },
+        resolveDomainId,
+        mergeRebalanceTargets,
+      );
+      expect(result).to.deep.equal({ [TEST1_DOMAIN]: [TARGET_A] });
+    });
+
+    it('unions targets when chain name and domain id collapse to one key', () => {
+      const result = canonicalizeDomainKeyedMap(
+        { [test1.name]: [TARGET_A], [TEST1_DOMAIN]: [TARGET_B] },
+        resolveDomainId,
+        mergeRebalanceTargets,
+      );
+      expect(result[TEST1_DOMAIN]).to.have.deep.members([TARGET_A, TARGET_B]);
+    });
+
+    it('deduplicates a target keyed by both chain name and domain id', () => {
+      const targetMixedCase = '0x' + TARGET_A.slice(2).toUpperCase();
+      const result = canonicalizeDomainKeyedMap(
+        { [test1.name]: [TARGET_A], [TEST1_DOMAIN]: [targetMixedCase] },
+        resolveDomainId,
+        mergeRebalanceTargets,
+      );
+      expect(result[TEST1_DOMAIN]).to.have.lengthOf(1);
+    });
+
+    it('canonicalizes rebalanceRecipients with a last-write merge', () => {
+      const result = canonicalizeDomainKeyedMap<string>(
+        { [test1.name]: TARGET_A },
+        resolveDomainId,
+        (_existing, incoming) => incoming,
+      );
+      expect(result).to.deep.equal({ [TEST1_DOMAIN]: TARGET_A });
+    });
+
+    it('preserves keys the resolver does not recognize', () => {
+      const result = canonicalizeDomainKeyedMap(
+        { unknownchain: [TARGET_A] },
+        resolveDomainId,
+        mergeRebalanceTargets,
+      );
+      expect(result).to.deep.equal({ unknownchain: [TARGET_A] });
     });
   });
 });

@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
+import { BigNumber, constants } from 'ethers';
 import sinon from 'sinon';
 
 import {
@@ -12,6 +12,10 @@ import {
   CCIPIsm__factory,
   DefaultFallbackRoutingIsm,
   DefaultFallbackRoutingIsm__factory,
+  DefaultIsm,
+  DefaultIsm__factory,
+  DelayedFlowRouterHookIsm,
+  DelayedFlowRouterHookIsm__factory,
   DomainRoutingIsm__factory,
   IInterchainSecurityModule,
   IInterchainSecurityModule__factory,
@@ -20,6 +24,8 @@ import {
   IncrementalDomainRoutingIsm__factory,
   InterchainAccountRouter,
   InterchainAccountRouter__factory,
+  NetFlowRateLimitedHookIsm,
+  NetFlowRateLimitedHookIsm__factory,
   OPStackIsm,
   OPStackIsm__factory,
   Ownable__factory,
@@ -32,9 +38,9 @@ import {
   TrustedRelayerIsm,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
-import { WithAddress, assert } from '@hyperlane-xyz/utils';
+import { WithAddress, addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
-import { TestChainName } from '../consts/testChains.js';
+import { TestChainName, test2 } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
@@ -45,10 +51,13 @@ import { randomAddress } from '../test/testUtils.js';
 import { EvmIsmReader } from './EvmIsmReader.js';
 import {
   BlacklistIsmConfig,
+  DelayedFlowRouterHookIsmConfig,
   InterchainAccountRouterIsm,
   IsmType,
+  MailboxDefaultIsmConfig,
   ModuleType,
   MultisigIsmConfig,
+  NetFlowRateLimitedHookIsmConfig,
   PausableIsmConfig,
   TestIsmConfig,
 } from './types.js';
@@ -231,6 +240,7 @@ describe('EvmIsmReader', () => {
       VERIFIED_MASK_INDEX: sandbox.stub().rejects(missingSelectorError()),
       recipient: sandbox.stub().rejects(missingSelectorError()),
       blacklistedIds: sandbox.stub().rejects(missingSelectorError()),
+      warpRouter: sandbox.stub().rejects(missingSelectorError()),
     };
     sandbox
       .stub(TestIsm__factory, 'connect')
@@ -253,6 +263,9 @@ describe('EvmIsmReader', () => {
     sandbox
       .stub(BlacklistIsm__factory, 'connect')
       .returns(contractDouble<BlacklistIsm>(mockContract));
+    sandbox
+      .stub(NetFlowRateLimitedHookIsm__factory, 'connect')
+      .returns(contractDouble<NetFlowRateLimitedHookIsm>(mockContract));
     sandbox
       .stub(IInterchainSecurityModule__factory, 'connect')
       .returns(mockContract as unknown as IInterchainSecurityModule);
@@ -592,6 +605,71 @@ describe('EvmIsmReader', () => {
     expect(getLogsByTopic.notCalled).to.be.true;
   });
 
+  it('should derive net flow rate limited hook ISM config correctly', async () => {
+    const mockAddress = randomAddress();
+    const mockWarpRouter = randomAddress();
+    const mockOwner = randomAddress();
+
+    const mockContract = {
+      moduleType: sandbox.stub().resolves(ModuleType.NULL),
+      trustedRelayer: sandbox.stub().rejects(missingSelectorError()),
+      paused: sandbox.stub().rejects(missingSelectorError()),
+      ccipOrigin: sandbox.stub().rejects(missingSelectorError()),
+      VERIFIED_MASK_INDEX: sandbox.stub().rejects(missingSelectorError()),
+      recipient: sandbox.stub().rejects(missingSelectorError()),
+      blacklistedIds: sandbox.stub().rejects(missingSelectorError()),
+      maxDelay: sandbox.stub().rejects(missingSelectorError()),
+      warpRouter: sandbox.stub().resolves(mockWarpRouter),
+      thresholdBps: sandbox.stub().resolves(BigNumber.from(500)),
+      DURATION: sandbox.stub().resolves(BigNumber.from(86400)),
+      owner: sandbox.stub().resolves(mockOwner),
+    };
+    sandbox
+      .stub(PausableIsm__factory, 'connect')
+      .returns(contractDouble<PausableIsm>(mockContract));
+    sandbox
+      .stub(TrustedRelayerIsm__factory, 'connect')
+      .returns(contractDouble<TrustedRelayerIsm>(mockContract));
+    sandbox
+      .stub(OPStackIsm__factory, 'connect')
+      .returns(contractDouble<OPStackIsm>(mockContract));
+    sandbox
+      .stub(CCIPIsm__factory, 'connect')
+      .returns(contractDouble<CCIPIsm>(mockContract));
+    sandbox
+      .stub(RateLimitedIsm__factory, 'connect')
+      .returns(contractDouble<RateLimitedIsm>(mockContract));
+    sandbox
+      .stub(BlacklistIsm__factory, 'connect')
+      .returns(contractDouble<BlacklistIsm>(mockContract));
+    sandbox
+      .stub(NetFlowRateLimitedHookIsm__factory, 'connect')
+      .returns(contractDouble<NetFlowRateLimitedHookIsm>(mockContract));
+    sandbox
+      .stub(DelayedFlowRouterHookIsm__factory, 'connect')
+      .returns(contractDouble<DelayedFlowRouterHookIsm>(mockContract));
+    sandbox
+      .stub(IInterchainSecurityModule__factory, 'connect')
+      .returns(contractDouble<IInterchainSecurityModule>(mockContract));
+
+    const expectedConfig: WithAddress<NetFlowRateLimitedHookIsmConfig> = {
+      address: mockAddress,
+      type: IsmType.NET_FLOW_RATE_LIMITED,
+      warpRouter: mockWarpRouter,
+      thresholdBps: 500,
+      duration: 86400n,
+      owner: mockOwner,
+    };
+
+    // top-level method infers ism type
+    const ismConfig = await evmIsmReader.deriveIsmConfig(mockAddress);
+    expect(ismConfig).to.deep.equal(expectedConfig);
+
+    // should get same result if we call the specific method for the ism type
+    const config = await evmIsmReader.deriveNullConfig(mockAddress);
+    expect(config).to.deep.equal(ismConfig);
+  });
+
   it('should not classify transient blacklist probe failures as test ISM', async () => {
     const mockAddress = randomAddress();
     const transientError = networkError();
@@ -641,6 +719,221 @@ describe('EvmIsmReader', () => {
     }
 
     expect(thrown).to.equal(transientError);
+  });
+
+  it('should derive delayed flow router hook ISM config correctly', async () => {
+    const mockAddress = randomAddress();
+    const mockWarpRouter = randomAddress();
+    const mockOwner = randomAddress();
+    const mockRemoteRouter = addressToBytes32(randomAddress()).toLowerCase();
+
+    const mockContract = {
+      moduleType: sandbox.stub().resolves(ModuleType.NULL),
+      trustedRelayer: sandbox.stub().rejects(missingSelectorError()),
+      paused: sandbox.stub().rejects(missingSelectorError()),
+      ccipOrigin: sandbox.stub().rejects(missingSelectorError()),
+      VERIFIED_MASK_INDEX: sandbox.stub().rejects(missingSelectorError()),
+      recipient: sandbox.stub().rejects(missingSelectorError()),
+      blacklistedIds: sandbox.stub().rejects(missingSelectorError()),
+      warpRouter: sandbox.stub().resolves(mockWarpRouter),
+      maxDelay: sandbox.stub().resolves(3600),
+      thresholdBps: sandbox.stub().resolves(BigNumber.from(10000)),
+      DURATION: sandbox.stub().resolves(BigNumber.from(86400)),
+      owner: sandbox.stub().resolves(mockOwner),
+      domains: sandbox.stub().resolves([test2.domainId]),
+      routers: sandbox.stub().resolves(mockRemoteRouter),
+    };
+    sandbox
+      .stub(PausableIsm__factory, 'connect')
+      .returns(contractDouble<PausableIsm>(mockContract));
+    sandbox
+      .stub(TrustedRelayerIsm__factory, 'connect')
+      .returns(contractDouble<TrustedRelayerIsm>(mockContract));
+    sandbox
+      .stub(OPStackIsm__factory, 'connect')
+      .returns(contractDouble<OPStackIsm>(mockContract));
+    sandbox
+      .stub(CCIPIsm__factory, 'connect')
+      .returns(contractDouble<CCIPIsm>(mockContract));
+    sandbox
+      .stub(RateLimitedIsm__factory, 'connect')
+      .returns(contractDouble<RateLimitedIsm>(mockContract));
+    sandbox
+      .stub(BlacklistIsm__factory, 'connect')
+      .returns(contractDouble<BlacklistIsm>(mockContract));
+    sandbox
+      .stub(NetFlowRateLimitedHookIsm__factory, 'connect')
+      .returns(contractDouble<NetFlowRateLimitedHookIsm>(mockContract));
+    sandbox
+      .stub(DelayedFlowRouterHookIsm__factory, 'connect')
+      .returns(contractDouble<DelayedFlowRouterHookIsm>(mockContract));
+    sandbox
+      .stub(IInterchainSecurityModule__factory, 'connect')
+      .returns(contractDouble<IInterchainSecurityModule>(mockContract));
+
+    const expectedConfig: WithAddress<DelayedFlowRouterHookIsmConfig> = {
+      address: mockAddress,
+      type: IsmType.DELAYED_FLOW_ROUTER,
+      warpRouter: mockWarpRouter,
+      thresholdBps: 10000,
+      maxDelay: 3600,
+      duration: 86400n,
+      owner: mockOwner,
+      remoteIsms: { [TestChainName.test2]: mockRemoteRouter },
+    };
+
+    // top-level method infers ism type
+    const ismConfig = await evmIsmReader.deriveIsmConfig(mockAddress);
+    expect(ismConfig).to.deep.equal(expectedConfig);
+
+    // should get same result if we call the specific method for the ism type
+    const config = await evmIsmReader.deriveNullConfig(mockAddress);
+    expect(config).to.deep.equal(ismConfig);
+  });
+
+  it('should still derive a rate limited ISM before probing for hybrids', async () => {
+    const mockAddress = randomAddress();
+    const mockRecipient = randomAddress();
+    const mockOwner = randomAddress();
+
+    const mockContract = {
+      moduleType: sandbox.stub().resolves(ModuleType.NULL),
+      trustedRelayer: sandbox.stub().rejects(missingSelectorError()),
+      paused: sandbox.stub().rejects(missingSelectorError()),
+      ccipOrigin: sandbox.stub().rejects(missingSelectorError()),
+      VERIFIED_MASK_INDEX: sandbox.stub().rejects(missingSelectorError()),
+      recipient: sandbox.stub().resolves(mockRecipient),
+      maxCapacity: sandbox.stub().resolves(BigNumber.from('86400')),
+      DURATION: sandbox.stub().resolves(BigNumber.from(86400)),
+      owner: sandbox.stub().resolves(mockOwner),
+      warpRouter: sandbox.stub().rejects(missingSelectorError()),
+    };
+    sandbox
+      .stub(PausableIsm__factory, 'connect')
+      .returns(contractDouble<PausableIsm>(mockContract));
+    sandbox
+      .stub(TrustedRelayerIsm__factory, 'connect')
+      .returns(contractDouble<TrustedRelayerIsm>(mockContract));
+    sandbox
+      .stub(OPStackIsm__factory, 'connect')
+      .returns(contractDouble<OPStackIsm>(mockContract));
+    sandbox
+      .stub(CCIPIsm__factory, 'connect')
+      .returns(contractDouble<CCIPIsm>(mockContract));
+    sandbox
+      .stub(RateLimitedIsm__factory, 'connect')
+      .returns(contractDouble<RateLimitedIsm>(mockContract));
+    sandbox
+      .stub(BlacklistIsm__factory, 'connect')
+      .returns(contractDouble<BlacklistIsm>(mockContract));
+    sandbox
+      .stub(NetFlowRateLimitedHookIsm__factory, 'connect')
+      .returns(contractDouble<NetFlowRateLimitedHookIsm>(mockContract));
+    sandbox
+      .stub(IInterchainSecurityModule__factory, 'connect')
+      .returns(contractDouble<IInterchainSecurityModule>(mockContract));
+
+    const config = await evmIsmReader.deriveNullConfig(mockAddress);
+    expect(config).to.deep.equal({
+      address: mockAddress,
+      type: IsmType.RATE_LIMITED,
+      maxCapacity: '86400',
+      duration: 86400n,
+      owner: mockOwner,
+    });
+  });
+
+  it('should derive mailbox default ISM config correctly', async () => {
+    const mockAddress = randomAddress();
+    const mockMailbox = randomAddress();
+
+    sandbox.stub(AbstractRoutingIsm__factory, 'connect').returns(
+      contractDouble<InterchainAccountRouter>({
+        moduleType: sandbox.stub().resolves(ModuleType.ROUTING),
+      }),
+    );
+    sandbox.stub(InterchainAccountRouter__factory, 'connect').returns(
+      contractDouble<InterchainAccountRouter>({
+        CCIP_READ_ISM: sandbox.stub().rejects(missingSelectorError()),
+        bytecodeHash: sandbox.stub().rejects(missingSelectorError()),
+      }),
+    );
+    sandbox.stub(Ownable__factory, 'connect').returns(
+      contractDouble<InterchainAccountRouter>({
+        owner: sandbox.stub().rejects(missingSelectorError()),
+      }),
+    );
+    sandbox.stub(AmountRoutingIsm__factory, 'connect').returns(
+      contractDouble<AmountRoutingIsm>({
+        lower: sandbox.stub().rejects(missingSelectorError()),
+        upper: sandbox.stub().rejects(missingSelectorError()),
+        threshold: sandbox.stub().rejects(missingSelectorError()),
+      }),
+    );
+    sandbox.stub(DefaultIsm__factory, 'connect').returns(
+      contractDouble<DefaultIsm>({
+        mailbox: sandbox.stub().resolves(mockMailbox),
+      }),
+    );
+    sandbox.stub(IInterchainSecurityModule__factory, 'connect').returns(
+      contractDouble<IInterchainSecurityModule>({
+        moduleType: sandbox.stub().resolves(ModuleType.ROUTING),
+      }),
+    );
+
+    const expectedConfig: WithAddress<MailboxDefaultIsmConfig> = {
+      address: mockAddress,
+      type: IsmType.MAILBOX_DEFAULT,
+    };
+
+    // top-level method infers ism type
+    const ismConfig = await evmIsmReader.deriveIsmConfig(mockAddress);
+    expect(ismConfig).to.deep.equal(expectedConfig);
+
+    // should get same result if we call the specific method for the ism type
+    const config = await evmIsmReader.deriveRoutingConfig(mockAddress);
+    expect(config).to.deep.equal(ismConfig);
+  });
+
+  it('should still derive a legacy ICA ism when the mailbox probe misses', async () => {
+    const mockAddress = randomAddress();
+
+    sandbox.stub(AbstractRoutingIsm__factory, 'connect').returns(
+      contractDouble<InterchainAccountRouter>({
+        moduleType: sandbox.stub().resolves(ModuleType.ROUTING),
+      }),
+    );
+    sandbox.stub(InterchainAccountRouter__factory, 'connect').returns(
+      contractDouble<InterchainAccountRouter>({
+        CCIP_READ_ISM: sandbox.stub().rejects(missingSelectorError()),
+        bytecodeHash: sandbox.stub().rejects(missingSelectorError()),
+      }),
+    );
+    sandbox.stub(Ownable__factory, 'connect').returns(
+      contractDouble<InterchainAccountRouter>({
+        owner: sandbox.stub().rejects(missingSelectorError()),
+      }),
+    );
+    sandbox.stub(AmountRoutingIsm__factory, 'connect').returns(
+      contractDouble<AmountRoutingIsm>({
+        lower: sandbox.stub().rejects(missingSelectorError()),
+        upper: sandbox.stub().rejects(missingSelectorError()),
+        threshold: sandbox.stub().rejects(missingSelectorError()),
+      }),
+    );
+    sandbox.stub(DefaultIsm__factory, 'connect').returns(
+      contractDouble<DefaultIsm>({
+        mailbox: sandbox.stub().rejects(missingSelectorError()),
+      }),
+    );
+
+    const config = await evmIsmReader.deriveRoutingConfig(mockAddress);
+    expect(config).to.deep.equal({
+      type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+      isms: {},
+      address: mockAddress,
+      owner: constants.AddressZero,
+    });
   });
 
   it('should not classify transient pausable probe failures as test ISM', async () => {

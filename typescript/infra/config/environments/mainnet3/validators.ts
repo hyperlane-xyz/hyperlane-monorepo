@@ -375,30 +375,6 @@ export const validatorChainConfig = (
         'metis',
       ),
     },
-    bitlayer: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('bitlayer'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [''],
-          [Contexts.Neutron]: [],
-        },
-        'bitlayer',
-      ),
-    },
-    oortmainnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('oortmainnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [''],
-          [Contexts.Neutron]: [],
-        },
-        'oortmainnet',
-      ),
-    },
     zksync: {
       interval: 5,
       reorgPeriod: getReorgPeriod('zksync'),
@@ -469,16 +445,6 @@ export const validatorChainConfig = (
         'unichain',
       ),
     },
-    lumiaprism: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('lumiaprism'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'lumiaprism',
-      ),
-    },
     appchain: {
       interval: 5,
       reorgPeriod: getReorgPeriod('appchain'),
@@ -539,16 +505,6 @@ export const validatorChainConfig = (
         'abstract',
       ),
     },
-    matchain: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('matchain'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'matchain',
-      ),
-    },
     sonicsvm: {
       interval: 5,
       reorgPeriod: getReorgPeriod('sonicsvm'),
@@ -567,26 +523,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'berachain',
-      ),
-    },
-    arcadia: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('arcadia'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'arcadia',
-      ),
-    },
-    ronin: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('ronin'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'ronin',
       ),
     },
     starknet: {
@@ -628,16 +564,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'coti',
-      ),
-    },
-    hashkey: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('hashkey'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'hashkey',
       ),
     },
     kyve: {

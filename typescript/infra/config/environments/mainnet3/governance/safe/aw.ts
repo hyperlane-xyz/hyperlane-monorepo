@@ -29,7 +29,6 @@ export const awSafes: ChainMap<Address> = {
   // ---------------------------------------------------------------------------
   // abstract: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
   // berachain: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
-  // bitlayer: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
   // blast: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
   // bob: '0x9e2fe7723b018d02cDE4f5cC1A9bC9C65b922Fc8',
   // fraxtal: '0x66e9f52800E9F89F0569fddc594Acd5EE609f762',
@@ -43,7 +42,6 @@ export const awSafes: ChainMap<Address> = {
   // metis: '0xf6B817Cf8b4440F38951851cf1160969039966A2',
   // monad: '0x930f79e486B869EC7B5BF4e83121aDfcca198f42',
   // polygon: '0xf9cFD440CfBCfAB8473cc156485B7eE753b2913E',
-  // ronin: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
   // sei: '0xCed197FBc360C26C19889745Cf73511b71D03d5D',
   // solana: 'EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3',
   // soneium: '0xD97F1bc0d49f994137Acf36baE2aEd9b2E4F239a',

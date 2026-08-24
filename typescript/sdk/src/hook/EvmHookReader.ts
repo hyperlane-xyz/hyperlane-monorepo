@@ -6,6 +6,7 @@ import {
   ArbL2ToL1Hook__factory,
   CCIPHook__factory,
   DefaultHook__factory,
+  DelayedFlowRouterHookIsm__factory,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
@@ -13,6 +14,7 @@ import {
   IPostDispatchHook__factory,
   InterchainGasPaymaster__factory,
   MerkleTreeHook__factory,
+  NetFlowRateLimitedHookIsm__factory,
   OPStackHook__factory,
   PausableHook__factory,
   ProtocolFee__factory,
@@ -35,6 +37,7 @@ import {
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { DispatchedMessage } from '../core/types.js';
+import { deriveDelayedFlowRemoteIsms } from '../ism/delayedFlow.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
@@ -49,6 +52,7 @@ import {
   AmountRoutingHookConfig,
   ArbL2ToL1HookConfig,
   CCIPHookConfig,
+  DelayedFlowRouterHookConfig,
   DerivedHookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
@@ -58,6 +62,7 @@ import {
   IgpHookConfig,
   MailboxDefaultHookConfig,
   MerkleTreeHookConfig,
+  NetFlowRateLimitedHookConfig,
   OFFCHAIN_QUOTED_IGP_VERSION,
   OnchainHookType,
   OpStackHookConfig,
@@ -171,9 +176,17 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       onchainHookType = await hook.hookType();
 
       switch (onchainHookType) {
-        case OnchainHookType.ROUTING:
-          derivedHookConfig = await this.deriveDomainRoutingConfig(address);
+        case OnchainHookType.ROUTING: {
+          // DelayedFlowRouterHookIsm (a hook/ISM hybrid) also reports
+          // hookType() == ROUTING — disambiguate before the plain
+          // DomainRoutingHook derivation silently misderives it.
+          const delayedFlowConfig =
+            await this.tryDeriveDelayedFlowRouterHookConfig(address);
+          derivedHookConfig =
+            delayedFlowConfig ??
+            (await this.deriveDomainRoutingConfig(address));
           break;
+        }
         case OnchainHookType.AGGREGATION:
           derivedHookConfig = await this.deriveAggregationConfig(address);
           break;
@@ -213,9 +226,17 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           derivedHookConfig = { type: HookType.CCTP, address };
           this._cache.set(address, derivedHookConfig);
           break;
-        case OnchainHookType.RATE_LIMITED:
-          derivedHookConfig = await this.deriveRateLimitedHookConfig(address);
+        case OnchainHookType.RATE_LIMITED: {
+          // NetFlowRateLimitedHookIsm (a hook/ISM hybrid) also reports
+          // hookType() == RATE_LIMITED and exposes maxCapacity()/DURATION()/
+          // owner() — disambiguate before the plain RateLimitedHook derivation
+          // silently misderives it.
+          const netFlowConfig =
+            await this.tryDeriveNetFlowRateLimitedHookConfig(address);
+          derivedHookConfig =
+            netFlowConfig ?? (await this.deriveRateLimitedHookConfig(address));
           break;
+        }
         default:
           throw new Error(
             `Unsupported HookType: ${OnchainHookType[onchainHookType]}`,
@@ -304,16 +325,18 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     return config as DerivedHookConfig;
   }
 
-  // Returns original HookConfig for non-redeployable types (CCTP, PREDICATE) so that
-  // normalizeConfig — which strips 'address' from all objects — does not discard
-  // the address. Returns the address as a bare string so it survives normalizeConfig
-  // and deploy() reaches the string branch intact, regardless of whether the original
-  // was already a string or an object with an address field.
+  // Returns original HookConfig for non-redeployable standalone types (CCTP,
+  // PREDICATE) so that normalizeConfig — which strips 'address' from all
+  // objects — does not discard the address. Hybrid hook/ISMs deliberately keep
+  // their derived config: warp read/apply needs the typed node on both the hook
+  // and ISM surfaces to identify the shared instance. EvmWarpModule resolves
+  // that node back to its address before handing the tree to EvmHookModule.
   private preserveUnredeployable(
     original: HookConfig,
     derived: DerivedHookConfig,
   ): HookConfig {
-    if (derived.type !== HookType.CCTP && derived.type !== HookType.PREDICATE) {
+    const nonRedeployable: HookType[] = [HookType.CCTP, HookType.PREDICATE];
+    if (!nonRedeployable.includes(derived.type)) {
       return derived;
     }
     if (typeof original === 'string') return original;
@@ -404,6 +427,96 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       maxCapacity: maxCapacity.toString(),
       duration: duration.toBigInt(),
       owner,
+    };
+
+    this._cache.set(address, config);
+
+    return config;
+  }
+
+  /**
+   * Probes for NetFlowRateLimitedHookIsm via its thresholdBps() getter, which
+   * a plain RateLimitedHook lacks. Returns undefined if the probe misses.
+   */
+  private async tryDeriveNetFlowRateLimitedHookConfig(
+    address: Address,
+  ): Promise<WithAddress<NetFlowRateLimitedHookConfig> | undefined> {
+    const hook = NetFlowRateLimitedHookIsm__factory.connect(
+      address,
+      this.provider,
+    );
+
+    let thresholdBps;
+    try {
+      thresholdBps = await hook.thresholdBps();
+    } catch (error) {
+      throwIfNotMissingSelector(error);
+      return undefined;
+    }
+
+    const [warpRouter, duration, owner] = await Promise.all([
+      hook.warpRouter(),
+      hook.DURATION(),
+      hook.owner(),
+    ]);
+
+    const config: WithAddress<NetFlowRateLimitedHookConfig> = {
+      address,
+      type: HookType.NET_FLOW_RATE_LIMITED,
+      warpRouter,
+      thresholdBps: thresholdBps.toNumber(),
+      duration: duration.toBigInt(),
+      owner,
+    };
+
+    this._cache.set(address, config);
+
+    return config;
+  }
+
+  /**
+   * Probes for DelayedFlowRouterHookIsm via its maxDelay() getter, which a
+   * plain DomainRoutingHook lacks. Returns undefined if the probe misses.
+   */
+  private async tryDeriveDelayedFlowRouterHookConfig(
+    address: Address,
+  ): Promise<WithAddress<DelayedFlowRouterHookConfig> | undefined> {
+    const hook = DelayedFlowRouterHookIsm__factory.connect(
+      address,
+      this.provider,
+    );
+
+    let maxDelay;
+    try {
+      maxDelay = await hook.maxDelay();
+    } catch (error) {
+      throwIfNotMissingSelector(error);
+      return undefined;
+    }
+
+    const [warpRouter, thresholdBps, duration, owner, remoteIsms] =
+      await Promise.all([
+        hook.warpRouter(),
+        hook.thresholdBps(),
+        hook.DURATION(),
+        hook.owner(),
+        deriveDelayedFlowRemoteIsms(
+          hook,
+          this.multiProvider,
+          this.concurrency,
+          this.logger,
+        ),
+      ]);
+
+    const config: WithAddress<DelayedFlowRouterHookConfig> = {
+      address,
+      type: HookType.DELAYED_FLOW_ROUTER,
+      warpRouter,
+      thresholdBps: thresholdBps.toNumber(),
+      maxDelay,
+      duration: duration.toBigInt(),
+      owner,
+      remoteIsms,
     };
 
     this._cache.set(address, config);

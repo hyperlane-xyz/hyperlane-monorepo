@@ -29,6 +29,7 @@ type UpdateHookParams = {
   ccipContractCache?: CCIPContractCache;
   contractVerifier?: ContractVerifier;
   rateLimitedSender?: Address;
+  opaqueHybridAddresses?: Address[];
 };
 
 export async function getEvmHookUpdateTransactions(
@@ -50,6 +51,7 @@ export async function getEvmHookUpdateTransactions(
     ccipContractCache,
     contractVerifier,
     rateLimitedSender,
+    opaqueHybridAddresses,
   } = updateHookParams;
 
   const hookModule = new EvmHookModule(
@@ -79,7 +81,10 @@ export async function getEvmHookUpdateTransactions(
   logger.info(
     `Comparing target Hook config with current one for ${evmChainName} chain`,
   );
-  const updateTransactions = await hookModule.update(deepCopy(expectedConfig));
+  const updateTransactions = await hookModule.update(
+    deepCopy(expectedConfig),
+    opaqueHybridAddresses,
+  );
   const { deployedHook: newHookAddress } = hookModule.serialize();
 
   // If a new Hook is deployed, push the tx to set the hook on the client contract

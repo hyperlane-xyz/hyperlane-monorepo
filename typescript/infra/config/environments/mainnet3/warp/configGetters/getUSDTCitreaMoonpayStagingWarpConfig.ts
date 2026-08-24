@@ -8,7 +8,7 @@ import {
 import { getDomainId, getRegistry } from '../../../../registry.js';
 import { DEPLOYER } from '../../owners.js';
 import { WarpRouteIds } from '../warpIds.js';
-import { getRebalancingBridgesConfigFor } from './utils.js';
+import { getRebalancingBridgesConfigFor, REBALANCER } from './utils.js';
 
 // Staging mimic of the production CROSS/moonpay USDT route (getUSDTCitreaMoonpayWarpConfig).
 // Same simplifications as the USDC staging getter: deployer-owned, default ISM, default hook,
@@ -21,7 +21,6 @@ import { getRebalancingBridgesConfigFor } from './utils.js';
 // Owned by the shared Hyperlane deployer key (owners.ts DEPLOYER).
 const DEPLOYER_EVM = DEPLOYER;
 
-const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
 const EXTRA_REBALANCER = '0x2cB236403574301029c7bDDfda133c6e0338a857';
 const ALLOWED_REBALANCERS = [REBALANCER, EXTRA_REBALANCER];
 

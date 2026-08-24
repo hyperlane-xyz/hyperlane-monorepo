@@ -1098,11 +1098,29 @@ describe('EvmWarpRouteReader', async () => {
     const remoteRouter = addressToBytes32(
       '0x4000000000000000000000000000000000000004',
     );
+    const rebalanceTarget = addressToBytes32(
+      '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    );
+    const rebalanceRecipient = addressToBytes32(
+      '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    );
     const expectedScale = {
       numerator: 1n,
       denominator: 1_000_000_000_000n,
     };
 
+    const rebalanceTargetsStub = sinon
+      .stub()
+      .callsFake(async (domain: number) =>
+        domain === localDomain ? [rebalanceTarget] : [],
+      );
+    const allowedRecipientStub = sinon
+      .stub()
+      .callsFake(async (domain: number) =>
+        domain === localDomain
+          ? rebalanceRecipient
+          : hre.ethers.constants.HashZero,
+      );
     const mcConnectStub = sinon
       .stub(CrossCollateralRouter__factory, 'connect')
       .returns({
@@ -1116,6 +1134,8 @@ describe('EvmWarpRouteReader', async () => {
           .callsFake(async (domain: number) =>
             domain === localDomain ? [localRouter] : [remoteRouter],
           ),
+        rebalanceTargets: rebalanceTargetsStub,
+        allowedRecipient: allowedRecipientStub,
       } as any);
     const tokenRouterConnectStub = sinon
       .stub(TokenRouter__factory, 'connect')
@@ -1133,6 +1153,9 @@ describe('EvmWarpRouteReader', async () => {
     const scaleStub = sinon
       .stub(evmERC20WarpRouteReader, 'fetchScale')
       .resolves(expectedScale);
+    const packageVersionStub = sinon
+      .stub(evmERC20WarpRouteReader, 'fetchPackageVersion')
+      .resolves('12.0.0');
 
     const deriveCrossCollateralTokenConfig = (evmERC20WarpRouteReader as any)
       .deriveCrossCollateralTokenConfig as (address: string) => Promise<any>;
@@ -1149,11 +1172,62 @@ describe('EvmWarpRouteReader', async () => {
         [localDomain.toString()]: [localRouter],
         [remoteDomain.toString()]: [remoteRouter],
       });
+      expect(derivedConfig.rebalanceTargets).to.deep.equal({
+        [localDomain.toString()]: [rebalanceTarget],
+      });
+      expect(derivedConfig.rebalanceRecipients).to.deep.equal({
+        [localDomain.toString()]: rebalanceRecipient,
+      });
+
+      packageVersionStub.resolves('11.3.1');
+      rebalanceTargetsStub.resetHistory();
+      rebalanceTargetsStub.resetBehavior();
+      rebalanceTargetsStub.rejects(new Error('Invalid response from provider'));
+      const legacyConfig = await deriveCrossCollateralTokenConfig.call(
+        evmERC20WarpRouteReader,
+        routerAddress,
+      );
+      expect(legacyConfig.rebalanceTargets).to.equal(undefined);
+      expect(legacyConfig.rebalanceRecipients).to.deep.equal({
+        [localDomain.toString()]: rebalanceRecipient,
+      });
+      sinon.assert.notCalled(rebalanceTargetsStub);
+
+      const missingSelector = Object.assign(new Error('missing selector'), {
+        code: 'CALL_EXCEPTION',
+        data: '0x',
+      });
+      allowedRecipientStub.resetBehavior();
+      allowedRecipientStub.rejects(missingSelector);
+      const legacyRecipientConfig = await deriveCrossCollateralTokenConfig.call(
+        evmERC20WarpRouteReader,
+        routerAddress,
+      );
+      expect(legacyRecipientConfig.rebalanceRecipients).to.equal(undefined);
+
+      packageVersionStub.resolves('12.0.0');
+      rebalanceTargetsStub.resetBehavior();
+      rebalanceTargetsStub.rejects(new Error('RPC unavailable'));
+      let error: unknown;
+      try {
+        await deriveCrossCollateralTokenConfig.call(
+          evmERC20WarpRouteReader,
+          routerAddress,
+        );
+      } catch (caught) {
+        error = caught;
+      }
+      expect(error).to.be.instanceOf(Error);
+      if (!(error instanceof Error)) {
+        throw new Error('Expected RPC error');
+      }
+      expect(error.message).to.include('RPC unavailable');
     } finally {
       mcConnectStub.restore();
       tokenRouterConnectStub.restore();
       metadataStub.restore();
       scaleStub.restore();
+      packageVersionStub.restore();
     }
   });
 
@@ -1215,10 +1289,11 @@ describe('EvmWarpRouteReader', async () => {
     }
   });
 
-  it('deriveWarpRouteConfig includes CCR-only destinations when deriving token fees', async () => {
+  it('deriveWarpRouteConfig includes CCR-only fee destinations and local allowed bridges', async () => {
     const routerAddress = token.address;
     const localDomain = multiProvider.getDomainId(chain);
     const ccrOnlyDomain = localDomain + 100;
+    const localBridge = '0x1000000000000000000000000000000000000003';
 
     const readRouterConfigStub = sinon
       .stub(evmERC20WarpRouteReader, 'readRouterConfig')
@@ -1249,21 +1324,35 @@ describe('EvmWarpRouteReader', async () => {
       .stub(evmERC20WarpRouteReader, 'fetchTokenFee')
       .resolves(undefined);
 
+    const allowedBridgesStub = sinon
+      .stub()
+      .callsFake(async (domain: number | string) =>
+        Number(domain) === localDomain ? [localBridge] : [],
+      );
     const movableConnectStub = sinon
       .stub(MovableCollateralRouter__factory, 'connect')
       .returns({
         allowedRebalancers: sinon.stub().resolves([]),
         domains: sinon.stub().resolves([]),
-        allowedBridges: sinon.stub().resolves([]),
+        allowedBridges: allowedBridgesStub,
       } as any);
 
     try {
-      await evmERC20WarpRouteReader.deriveWarpRouteConfig(routerAddress);
+      const config =
+        await evmERC20WarpRouteReader.deriveWarpRouteConfig(routerAddress);
       expect(fetchTokenFeeStub.calledOnce).to.equal(true);
       expect(fetchTokenFeeStub.firstCall.args[1]).to.deep.equal([
         localDomain,
         ccrOnlyDomain,
       ]);
+      expect(
+        'allowedRebalancingBridges' in config
+          ? config.allowedRebalancingBridges
+          : undefined,
+      ).to.deep.equal({
+        [localDomain]: [{ bridge: localBridge }],
+      });
+      sinon.assert.calledWith(allowedBridgesStub, localDomain.toString());
     } finally {
       readRouterConfigStub.restore();
       fetchTokenConfigStub.restore();

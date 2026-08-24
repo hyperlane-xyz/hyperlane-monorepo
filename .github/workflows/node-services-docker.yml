@@ -10,6 +10,7 @@ on:
       - '.nvmrc'
       - '.github/workflows/node-services-docker.yml'
       - 'pnpm-lock.yaml'
+      - 'typescript/scraper-proxy/**'
   pull_request:
     paths:
       - 'typescript/Dockerfile'
@@ -18,6 +19,7 @@ on:
       - '.nvmrc'
       - '.github/workflows/node-services-docker.yml'
       - 'pnpm-lock.yaml'
+      - 'typescript/scraper-proxy/**'
   workflow_dispatch:
     inputs:
       include_arm64:
@@ -136,7 +138,7 @@ jobs:
           |-------|-----|
           | hyperlane-node-services | \`${TAG_SHA_DATE}\` |
 
-          **Services included:** rebalancer, warp-monitor, ccip-server, keyfunder, relayer, fee-quoting
+          **Services included:** rebalancer, warp-monitor, ccip-server, keyfunder, relayer, fee-quoting, scraper-proxy
 
           **Full image path:**
           \`\`\`

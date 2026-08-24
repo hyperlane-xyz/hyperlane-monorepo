@@ -43,15 +43,22 @@ import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { ProxiedFactories, resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
+import { hookTreeContainsHybridHookIsm } from '../hook/utils.js';
 import { normalizeScale } from '../utils/decimals.js';
-import { setRateLimitedIsmRecipient } from '../utils/ism.js';
+import {
+  ismTreeContainsHybridHookIsm,
+  setRateLimitedIsmRecipient,
+} from '../utils/ism.js';
 import {
   CCTP_PPM_PRECISION_VERSION,
   CCTP_PPM_STORAGE_VERSION,
 } from './EvmWarpRouteReader.js';
 import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { DeployableTokenType, gasOverhead } from './config.js';
-import { resolveTokenFeeAddress } from './configUtils.js';
+import {
+  resolveAndValidateRebalanceConfig,
+  resolveTokenFeeAddress,
+} from './configUtils.js';
 import {
   HypERC20Factories,
   HypERC20contracts,
@@ -73,6 +80,7 @@ import {
   OftTokenConfig,
   WarpRouteDeployConfig,
   assertTimelockConfigHasNoProxyAdminOwnerOverride,
+  isAtomicLocalRebalancingBridgeTokenConfig,
   isCctpTokenConfig,
   isCollateralTokenConfig,
   isEverclearCollateralTokenConfig,
@@ -170,7 +178,7 @@ abstract class TokenDeployer<
   }
 
   async constructorArgs(
-    _: ChainName,
+    chain: ChainName,
     config: HypTokenRouterConfig,
   ): Promise<any> {
     // TODO: derive as specified in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/5296
@@ -220,6 +228,13 @@ abstract class TokenDeployer<
       return [config.oft, config.owner];
     } else if (isDepositAddressTokenConfig(config)) {
       return [config.token, config.owner];
+    } else if (isAtomicLocalRebalancingBridgeTokenConfig(config)) {
+      // constructor(uint32 _localDomain, address _sourceRouter, address _owner)
+      return [
+        this.multiProvider.getDomainId(chain),
+        config.sourceRouter,
+        config.owner,
+      ];
     } else if (isCctpTokenConfig(config)) {
       switch (config.cctpVersion) {
         case 'V1':
@@ -278,6 +293,9 @@ abstract class TokenDeployer<
       throw new Error('OFT does not use initialize');
     } else if (isDepositAddressTokenConfig(config)) {
       throw new Error('Direct bridge adapters do not use initialize');
+    } else if (isAtomicLocalRebalancingBridgeTokenConfig(config)) {
+      // Deployed unproxied — owner is set in constructor, no initialize
+      throw new Error('AtomicLocalRebalancingBridge does not use initialize');
     } else if (
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
@@ -836,11 +854,61 @@ abstract class TokenDeployer<
     );
   }
 
-  // Wire rate-limited ISMs BEFORE ownership transfer so that
-  // setInterchainSecurityModule succeeds regardless of config.owner.
-  // Handles both top-level RateLimitedIsm and ISMs nested inside composites
+  protected async configureRebalanceTargetsAndRecipients(
+    configMap: ChainMap<HypTokenRouterConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        if (!isCrossCollateralTokenConfig(config)) return;
+
+        const { rebalanceTargets, rebalanceRecipients } =
+          resolveAndValidateRebalanceConfig(this.multiProvider, chain, config);
+        const router = this.router(deployedContractsMap[chain]).address;
+        const crossCollateralRouter = CrossCollateralRouter__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
+
+        for (const [domain, targets] of Object.entries(rebalanceTargets)) {
+          for (const target of targets) {
+            await this.multiProvider.handleTx(
+              chain,
+              crossCollateralRouter.addRebalanceTarget(
+                Number(domain),
+                addressToBytes32(target),
+                overrides,
+              ),
+            );
+          }
+        }
+
+        for (const [domain, recipient] of Object.entries(rebalanceRecipients)) {
+          await this.multiProvider.handleTx(
+            chain,
+            crossCollateralRouter.setRecipient(
+              Number(domain),
+              addressToBytes32(recipient),
+              overrides,
+            ),
+          );
+        }
+      }),
+    );
+  }
+
+  // Wire RATE_LIMITED ISMs BEFORE ownership transfer so that
+  // setInterchainSecurityModule succeeds regardless of config.owner. Handles
+  // both a top-level RateLimitedIsm and ones nested inside composites
   // (aggregation, routing, etc.) by setting `recipient` on every RATE_LIMITED
   // node in the tree before deploying.
+  //
+  // The warp-route hybrid hook/ISMs are deliberately NOT handled here. They
+  // occupy the router's hook as well as its ISM, and the two installs have to
+  // be ordered against every other chain of the route, so they are staged by
+  // deploy/warp.ts (wireHybridHookIsms) around a router this deployer leaves
+  // bare.
   protected async setRateLimitedIsms(
     rateLimitedIsms: ChainMap<IsmConfig>,
     configMap: ChainMap<HypTokenRouterConfig>,
@@ -888,6 +956,7 @@ abstract class TokenDeployer<
   async deploy(
     configMap: ChainMap<HypTokenRouterConfig>,
     rateLimitedIsms?: ChainMap<IsmConfig>,
+    options: { deferRouterEnrollment?: boolean } = {},
   ): Promise<HyperlaneContractsMap<Factories & ProxiedFactories>> {
     for (const [chain, config] of Object.entries(configMap)) {
       assertTimelockConfigHasNoProxyAdminOwnerOverride(config, chain);
@@ -911,6 +980,23 @@ abstract class TokenDeployer<
       assert(
         this.options.ismFactory,
         'ismFactory is required to deploy RateLimitedIsm — pass it to the deployer constructor',
+      );
+    }
+
+    // A hybrid hook/ISM cannot be wired by this deployer: it has to occupy the
+    // router's hook, which deployPredicateWrappers and setFeeHooks below both
+    // write, and its install has to be ordered against the rest of the route.
+    // Rejected here as well as in the planner because this method is a public
+    // entry point of its own — a direct caller must not be able to reach a
+    // half-wired router through it.
+    for (const [chain, config] of Object.entries(configMap)) {
+      const declaresHybrid =
+        ismTreeContainsHybridHookIsm(config.interchainSecurityModule) ||
+        hookTreeContainsHybridHookIsm(config.hook) ||
+        ismTreeContainsHybridHookIsm(rateLimitedIsms?.[chain]);
+      assert(
+        !declaresHybrid,
+        `A hybrid hook/ISM is configured on ${chain}. It is installed as both the router's hook and its ISM, in an order that spans the whole route, so it cannot be deployed through TokenDeployer.deploy — use executeWarpDeploy (or executeWarpRouteExtensionDeploy), which deploys the router bare and stages the wiring.`,
       );
     }
 
@@ -956,6 +1042,22 @@ abstract class TokenDeployer<
         delete resolvedConfigMap[chain];
         continue;
       }
+      if (isAtomicLocalRebalancingBridgeTokenConfig(config)) {
+        // Bare ITokenBridge adapter: constructor-configured, unproxied.
+        // Skip the router pipeline (no proxy/initialize/enrollRemoteRouters/
+        // mailbox-client config) exactly like OFT/DepositAddress.
+        const contractKey = this.routerContractKey(config);
+        const constructorArgs = await this.constructorArgs(chain, config);
+        const contract = await this.deployContractWithName(
+          chain,
+          contractKey,
+          this.routerContractName(config),
+          constructorArgs,
+        );
+        directBridgeContracts[chain] = { [contractKey]: contract };
+        delete resolvedConfigMap[chain];
+        continue;
+      }
       if (isOftTokenConfig(config)) {
         const contractKey = this.routerContractKey(config);
         const constructorArgs = await this.constructorArgs(chain, config);
@@ -971,7 +1073,7 @@ abstract class TokenDeployer<
 
     const deployedContractsMap =
       Object.keys(resolvedConfigMap).length > 0
-        ? await super.deploy(resolvedConfigMap)
+        ? await super.deploy(resolvedConfigMap, options)
         : // CAST: with no router-style deploys, the accumulated in-memory deploy state already
           // matches the public return shape even though the base field is declared less precisely.
           (this.deployedContracts as HyperlaneContractsMap<
@@ -1020,6 +1122,11 @@ abstract class TokenDeployer<
     await this.deployPredicateWrappers(configMap, deployedContractsMap);
 
     await this.enrollCrossCollateralRouters(configMap, deployedContractsMap);
+
+    await this.configureRebalanceTargetsAndRecipients(
+      configMap,
+      deployedContractsMap,
+    );
 
     // RateLimitedIsms are wired after enrollment. A brief window exists where
     // the token's effective ISM is the mailbox defaultIsm, but it is inert on a

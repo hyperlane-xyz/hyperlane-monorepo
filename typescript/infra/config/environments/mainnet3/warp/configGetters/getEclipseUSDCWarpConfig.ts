@@ -2,24 +2,25 @@ import {
   ChainMap,
   ChainSubmissionStrategy,
   HypTokenRouterConfig,
-  SubmissionStrategy,
   TokenType,
-  TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { getChainAddresses } from '../../../../registry.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { WARP_FEES_TURNKEY_OWNER } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
 import { usdcTokenAddresses } from '../cctp.js';
-import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
+import {
+  QUOTE_SIGNER,
+  SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
+} from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
 
 import {
   getCollateralTokenConfigForChain,
+  getEclipseWarpStrategyConfig,
   getFileSubmitterStrategyConfig,
   getFixedRoutingFeeConfig,
   getRebalancingUSDCConfigForChain,
@@ -383,6 +384,7 @@ export const getEclipseUSDCWarpConfig = async (
       name: 'USD Coin',
       symbol: 'USDC',
     },
+    quoteSigners: [QUOTE_SIGNER],
   });
 
 // Strategies
@@ -392,58 +394,12 @@ export const getUSDCEclipseFileSubmitterStrategyConfig = () =>
     '/tmp/eclipse-usdc-combined.json',
   );
 
-const ORIGIN_CHAIN = 'ethereum';
-
 export const getEclipseUSDCStrategyConfig = (): ChainSubmissionStrategy => {
-  const safeAddress = awSafes[ORIGIN_CHAIN];
-  const originSafeSubmitter = {
-    type: TxSubmitterType.GNOSIS_TX_BUILDER as const,
-    chain: ORIGIN_CHAIN,
-    safeAddress,
-    version: '1',
-  };
-
-  const chainAddress = getChainAddresses();
-  const originInterchainAccountRouter =
-    chainAddress[ORIGIN_CHAIN].interchainAccountRouter;
-  assert(
-    originInterchainAccountRouter,
-    `Could not fetch originInterchainAccountRouter for ${ORIGIN_CHAIN}`,
-  );
-
-  const icaChains = evmDeploymentChains.filter((c) => c !== ORIGIN_CHAIN);
-  const icaStrategies: [string, SubmissionStrategy][] = icaChains.map(
-    (chain) => [
-      chain,
-      {
-        submitter: {
-          type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
-          chain: ORIGIN_CHAIN,
-          destinationChain: chain,
-          owner: safeAddress,
-          originInterchainAccountRouter,
-          internalSubmitter: originSafeSubmitter,
-        },
-      },
-    ],
-  );
-
-  const svmFileStrategies: [
-    string,
-    { submitter: { type: 'file'; filepath: string } },
-  ][] = nonEvmDeploymentChains.map((chain) => [
-    chain,
-    {
-      submitter: {
-        type: 'file' as const,
-        filepath: `/tmp/eclipse-usdc-${chain}.json`,
-      },
-    },
-  ]);
-
-  return Object.fromEntries([
-    [ORIGIN_CHAIN, { submitter: originSafeSubmitter }],
-    ...icaStrategies,
-    ...svmFileStrategies,
-  ]);
+  // CAST: The CLI-specific file feeSubmitter is not represented by SDK types.
+  return getEclipseWarpStrategyConfig({
+    route: 'usdc',
+    evmChains: evmDeploymentChains,
+    nonEvmChains: nonEvmDeploymentChains,
+    turnkeyFeeChains: new Set(evmDeploymentChains),
+  }) as unknown as ChainSubmissionStrategy;
 };

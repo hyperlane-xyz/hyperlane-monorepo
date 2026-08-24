@@ -23,10 +23,6 @@
     "amount": "0.02",
     "decimals": 9
   },
-  "arcadia": {
-    "amount": "0.000000008",
-    "decimals": 9
-  },
   "avalanche": {
     "amount": "10.0",
     "decimals": 9
@@ -37,10 +33,6 @@
   },
   "berachain": {
     "amount": "1.030812584",
-    "decimals": 9
-  },
-  "bitlayer": {
-    "amount": "0.050000007",
     "decimals": 9
   },
   "blast": {
@@ -119,10 +111,6 @@
     "amount": "0.004298706",
     "decimals": 9
   },
-  "hashkey": {
-    "amount": "0.001000252",
-    "decimals": 9
-  },
   "hyperevm": {
     "amount": "4.174817029",
     "decimals": 9
@@ -171,20 +159,12 @@
     "amount": "1.0",
     "decimals": 9
   },
-  "lumiaprism": {
-    "amount": "1.0",
-    "decimals": 9
-  },
   "mantle": {
     "amount": "0.02",
     "decimals": 9
   },
   "mantra": {
     "amount": "11.25",
-    "decimals": 9
-  },
-  "matchain": {
-    "amount": "0.001",
     "decimals": 9
   },
   "megaeth": {
@@ -223,10 +203,6 @@
     "amount": "1.000000007",
     "decimals": 9
   },
-  "oortmainnet": {
-    "amount": "100.0",
-    "decimals": 9
-  },
   "optimism": {
     "amount": "0.00100052",
     "decimals": 9
@@ -253,10 +229,6 @@
   },
   "robinhood": {
     "amount": "0.1",
-    "decimals": 9
-  },
-  "ronin": {
-    "amount": "21.492605086",
     "decimals": 9
   },
   "sei": {

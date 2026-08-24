@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/metrics",
-  "version": "0.2.36",
+  "version": "0.2.38",
   "description": "Shared Prometheus metrics utilities for Hyperlane monitoring",
   "keywords": [
     "hyperlane",
