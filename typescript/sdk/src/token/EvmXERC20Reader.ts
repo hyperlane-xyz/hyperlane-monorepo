@@ -16,40 +16,22 @@ import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
-import {
-  EvmXERC20Adapter,
-  EvmXERC20VSAdapter,
-} from './adapters/EvmTokenAdapter.js';
-import { RateLimitMidPoint, xERC20Limits } from './adapters/ITokenAdapter.js';
 import { XERC20Type } from './types.js';
 import { CONFIGURATION_CHANGED_EVENT_SELECTOR } from './xerc20-abi.js';
+import { XERC20LimitsMap, readXERC20Limits } from './xerc20-limits.js';
 import {
   XERC20_LOG_SCAN_BLOCK_RANGE,
   deriveXERC20TokenType,
   latestConfigurationPerBridge,
 } from './xerc20.js';
 
-export interface StandardXERC20Limits {
-  type: typeof XERC20Type.Standard;
-  mint: string;
-  burn: string;
-}
-
-export interface VeloXERC20Limits {
-  type: typeof XERC20Type.Velo;
-  bufferCap: string;
-  rateLimitPerSecond: string;
-}
-
-/**
- * Unified XERC20 limits type
- */
-export type XERC20Limits = StandardXERC20Limits | VeloXERC20Limits;
-
-/**
- * Map of bridge addresses to their limits
- */
-export type XERC20LimitsMap = Record<Address, XERC20Limits>;
+export type {
+  StandardXERC20Limits,
+  VeloXERC20Limits,
+  XERC20Limits,
+  XERC20LimitsMap,
+} from './xerc20-limits.js';
+export { limitsAreZero, limitsMatch } from './xerc20-limits.js';
 
 /**
  * Reader for on-chain XERC20 state.
@@ -80,42 +62,26 @@ export class EvmXERC20Reader extends HyperlaneReader {
     bridges: Address[],
     type: XERC20Type,
   ): Promise<XERC20LimitsMap> {
-    const limitsMap: XERC20LimitsMap = {};
-    const chainName = this.multiProvider.getChainName(this.chain);
-
-    if (type === XERC20Type.Standard) {
-      const adapter = new EvmXERC20Adapter(
-        chainName,
-        this.multiProtocolProvider,
-        { token: xERC20Address },
-      );
-
-      for (const bridge of bridges) {
-        const limits = await adapter.getLimits(bridge);
-        limitsMap[bridge] = this.toStandardLimits(limits);
-      }
-    } else {
-      const adapter = new EvmXERC20VSAdapter(
-        chainName,
-        this.multiProtocolProvider,
-        { token: xERC20Address },
-      );
-
-      for (const bridge of bridges) {
-        const rateLimits = await adapter.getRateLimits(bridge);
-        limitsMap[bridge] = this.toVeloLimits(rateLimits);
-      }
-    }
-
-    return limitsMap;
+    return readXERC20Limits({
+      multiProtocolProvider: this.multiProtocolProvider,
+      chain: this.multiProvider.getChainName(this.chain),
+      xERC20Address,
+      bridges,
+      type,
+    });
   }
 
   /**
    * Read all bridges configured on-chain for a Velodrome XERC20 by parsing ConfigurationChanged events.
-   * Returns empty array for Standard XERC20 since it has no event-based bridge enumeration.
    * The scan covers the token's whole history, from the block it was deployed in
    * to the chain head, over the block explorer where the chain has a usable one
    * and over the paginated RPC otherwise.
+   *
+   * Returns an empty array for Standard XERC20, whose bridges this does not
+   * enumerate. They are enumerable: a Standard token announces them through
+   * BridgeLimitsSet, which getExtraLockBoxConfigs reads. Callers relying on
+   * this therefore fall back to the bridges their config names for a Standard
+   * token, which is why bringing the two paths together is worth doing.
    */
   async readOnChainBridges(
     xERC20Address: Address,
@@ -123,7 +89,7 @@ export class EvmXERC20Reader extends HyperlaneReader {
   ): Promise<Address[]> {
     if (type === XERC20Type.Standard) {
       this.logger.debug(
-        'Standard XERC20 does not support on-chain bridge enumeration',
+        'Standard XERC20 bridge enumeration is not implemented here',
       );
       return [];
     }
@@ -202,44 +168,4 @@ export class EvmXERC20Reader extends HyperlaneReader {
       owner: normalizeAddress(owner),
     };
   }
-
-  protected toStandardLimits(limits: xERC20Limits): StandardXERC20Limits {
-    return {
-      type: XERC20Type.Standard,
-      mint: limits.mint.toString(),
-      burn: limits.burn.toString(),
-    };
-  }
-
-  protected toVeloLimits(rateLimits: RateLimitMidPoint): VeloXERC20Limits {
-    return {
-      type: XERC20Type.Velo,
-      bufferCap: rateLimits.bufferCap.toString(),
-      rateLimitPerSecond: rateLimits.rateLimitPerSecond.toString(),
-    };
-  }
-}
-
-export function limitsAreZero(limits: XERC20Limits): boolean {
-  if (limits.type === XERC20Type.Standard) {
-    return limits.mint === '0' && limits.burn === '0';
-  }
-  return limits.bufferCap === '0' && limits.rateLimitPerSecond === '0';
-}
-
-export function limitsMatch(a: XERC20Limits, b: XERC20Limits): boolean {
-  if (a.type !== b.type) return false;
-
-  if (a.type === XERC20Type.Standard && b.type === XERC20Type.Standard) {
-    return a.mint === b.mint && a.burn === b.burn;
-  }
-
-  if (a.type === XERC20Type.Velo && b.type === XERC20Type.Velo) {
-    return (
-      a.bufferCap === b.bufferCap &&
-      a.rateLimitPerSecond === b.rateLimitPerSecond
-    );
-  }
-
-  return false;
 }
