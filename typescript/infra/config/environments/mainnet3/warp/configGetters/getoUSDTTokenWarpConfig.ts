@@ -78,6 +78,11 @@ type CollateralChainName = (typeof collateralChains)[number];
 function isCollateralChain(
   chain: oUSDTTokenChainName,
 ): chain is CollateralChainName {
+  // CAST: Array.prototype.includes types its argument as the array's own
+  // element type, so a readonly tuple only accepts the narrow union it holds.
+  // Widening the check is the point of this guard, and the cast affects the
+  // parameter type alone -- includes still compares by value at runtime, so a
+  // chain outside the tuple returns false rather than being mistyped.
   return collateralChains.includes(chain as CollateralChainName);
 }
 
