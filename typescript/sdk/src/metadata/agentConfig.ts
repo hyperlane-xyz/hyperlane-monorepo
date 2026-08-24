@@ -723,6 +723,9 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
   interval: ZNzUint.optional().describe(
     'How long to wait between checking for new checkpoints in seconds. Defaults to 2s, falling back to the origin chain’s index.interval if set and this is unset.',
   ),
+  maxSignConcurrency: ZNzUint.optional().describe(
+    'Maximum number of checkpoints signed concurrently. Defaults to 50.',
+  ),
 });
 
 export type ValidatorConfig = z.infer<typeof ValidatorAgentConfigSchema>;
