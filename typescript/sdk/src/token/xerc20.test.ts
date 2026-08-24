@@ -6,6 +6,7 @@ import sinon from 'sinon';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
+import { EIP1967_IMPLEMENTATION_SLOT } from '../deploy/proxy.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
@@ -27,7 +28,6 @@ chai.use(chaiAsPromised);
 
 const PROXY_ADDRESS = '0x1111111111111111111111111111111111111111';
 const IMPLEMENTATION_ADDRESS = '0x2222222222222222222222222222222222222222';
-const PROXY_ADMIN_ADDRESS = '0x3333333333333333333333333333333333333333';
 
 const setBufferCapSelector = ethers.utils
   .id('setBufferCap(address,uint256)')
@@ -37,13 +37,6 @@ const setLimitsSelector = ethers.utils
   .id('setLimits(address,uint256,uint256)')
   .slice(2, 10)
   .toLowerCase();
-
-// EIP-1967 admin slot read by proxyAdmin() / isProxy().
-const ADMIN_SLOT =
-  '0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103';
-// EIP-1967 implementation slot read by proxyImplementation().
-const IMPLEMENTATION_SLOT =
-  '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
 
 function storageAddress(address: string): string {
   return ethers.utils.hexZeroPad(address, 32);
@@ -77,15 +70,15 @@ const cases: Case[] = [
   },
   {
     // Proxy bytecode is a delegatecall stub lacking the selectors; the
-    // implementation bytecode carries the Velodrome selector.
+    // implementation bytecode carries the Velodrome selector. The admin slot is
+    // left out so the stub throws if the derivation reads one.
     name: 'inspects the implementation bytecode when the Velo token is behind a proxy',
     code: {
       [PROXY_ADDRESS]: '0xdead',
       [IMPLEMENTATION_ADDRESS]: `0x${setBufferCapSelector}`,
     },
     storage: {
-      [ADMIN_SLOT]: storageAddress(PROXY_ADMIN_ADDRESS),
-      [IMPLEMENTATION_SLOT]: storageAddress(IMPLEMENTATION_ADDRESS),
+      [EIP1967_IMPLEMENTATION_SLOT]: storageAddress(IMPLEMENTATION_ADDRESS),
     },
     expected: { type: XERC20Type.Velo },
   },
@@ -97,10 +90,50 @@ const cases: Case[] = [
       [IMPLEMENTATION_ADDRESS]: `0x${setLimitsSelector}`,
     },
     storage: {
-      [ADMIN_SLOT]: storageAddress(PROXY_ADMIN_ADDRESS),
-      [IMPLEMENTATION_SLOT]: storageAddress(IMPLEMENTATION_ADDRESS),
+      [EIP1967_IMPLEMENTATION_SLOT]: storageAddress(IMPLEMENTATION_ADDRESS),
     },
     expected: { type: XERC20Type.Standard },
+  },
+  {
+    // A UUPS proxy keeps its upgrade logic in the implementation, so its admin
+    // slot is empty. Reading the implementation off an admin would skip the
+    // only bytecode carrying the selectors; omitting the admin slot here makes
+    // the stub throw if it is consulted.
+    name: 'inspects the implementation bytecode of a Velo token behind a UUPS proxy',
+    code: {
+      [PROXY_ADDRESS]: '0xdead',
+      [IMPLEMENTATION_ADDRESS]: `0x${setBufferCapSelector}`,
+    },
+    storage: {
+      [EIP1967_IMPLEMENTATION_SLOT]: storageAddress(IMPLEMENTATION_ADDRESS),
+    },
+    expected: { type: XERC20Type.Velo },
+  },
+  {
+    name: 'inspects the implementation bytecode of a Standard token behind a UUPS proxy',
+    code: {
+      [PROXY_ADDRESS]: '0xdead',
+      [IMPLEMENTATION_ADDRESS]: `0x${setLimitsSelector}`,
+    },
+    storage: {
+      [EIP1967_IMPLEMENTATION_SLOT]: storageAddress(IMPLEMENTATION_ADDRESS),
+    },
+    expected: { type: XERC20Type.Standard },
+  },
+  {
+    // Nothing behind the address to inspect, so the zero implementation must
+    // not be fetched as though it were one.
+    name: 'throws when the implementation slot is empty',
+    code: { [PROXY_ADDRESS]: '0xdead' },
+    storage: {
+      [EIP1967_IMPLEMENTATION_SLOT]: storageAddress(
+        ethers.constants.AddressZero,
+      ),
+    },
+    expected: {
+      errorIncludes:
+        'does not implement Standard or Velodrome XERC20 interface',
+    },
   },
   {
     // Proxy resolves to an implementation that still lacks both selectors.
@@ -110,8 +143,7 @@ const cases: Case[] = [
       [IMPLEMENTATION_ADDRESS]: '0xbeef',
     },
     storage: {
-      [ADMIN_SLOT]: storageAddress(PROXY_ADMIN_ADDRESS),
-      [IMPLEMENTATION_SLOT]: storageAddress(IMPLEMENTATION_ADDRESS),
+      [EIP1967_IMPLEMENTATION_SLOT]: storageAddress(IMPLEMENTATION_ADDRESS),
     },
     expected: {
       errorIncludes:

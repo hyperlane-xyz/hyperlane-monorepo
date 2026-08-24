@@ -7,11 +7,12 @@ import {
   Address,
   assert,
   bytes32ToAddress,
+  eqAddress,
   normalizeAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { isProxy, proxyImplementation } from '../deploy/proxy.js';
+import { proxyImplementation } from '../deploy/proxy.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
@@ -565,13 +566,19 @@ export async function deriveXERC20TokenType(
 
   // xERC20 tokens are commonly deployed behind a proxy whose bytecode does not
   // embed the implementation's selectors; inspect the implementation in that case.
+  //
+  // Keyed on the EIP-1967 implementation slot alone. A UUPS proxy keeps its
+  // upgrade logic in the implementation and leaves the admin slot empty, so
+  // deciding this on an admin the way isProxy does would skip the only bytecode
+  // that carries the selectors and leave the token looking like neither type.
   if (
     !normalizedCode.includes(setBufferCapSelector) &&
-    !normalizedCode.includes(setLimitsSelector) &&
-    (await isProxy(provider, address))
+    !normalizedCode.includes(setLimitsSelector)
   ) {
     const implementation = await proxyImplementation(provider, address);
-    normalizedCode = (await provider.getCode(implementation)).toLowerCase();
+    if (!eqAddress(implementation, ethers.constants.AddressZero)) {
+      normalizedCode = (await provider.getCode(implementation)).toLowerCase();
+    }
   }
 
   // Prefer Velodrome if both selectors are present.

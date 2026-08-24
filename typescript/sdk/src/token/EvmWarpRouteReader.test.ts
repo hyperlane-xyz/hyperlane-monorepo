@@ -7,6 +7,7 @@ import sinon from 'sinon';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
+import { EIP1967_IMPLEMENTATION_SLOT } from '../deploy/proxy.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
@@ -67,6 +68,7 @@ describe('EvmWarpRouteReader', () => {
     const WARP_ROUTER = '0x88AC0fC430130983c0DDEB4C22574056D8340Ca8';
     const EXTRA_BRIDGE = '0x6D265C7dD8d76F25155F1a7687C693FDC1220D12';
     const XERC20_ADDRESS = '0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189';
+    const IMPLEMENTATION = '0xf24508eC5f0208589be2B206173993fBd7D6506d';
 
     const setBufferCapSelector = ethers.utils
       .id('setBufferCap(address,uint256)')
@@ -231,6 +233,49 @@ describe('EvmWarpRouteReader', () => {
           },
         },
       ]);
+    });
+
+    // A UUPS proxy holds its upgrade logic in the implementation and leaves the
+    // admin slot empty, so a derivation keyed on an admin never reads the
+    // bytecode that carries the selectors and reports the token as having no
+    // limits interface, which the caller turns into an empty config and the
+    // check reads as nothing to verify.
+    it('derives the limits of a token behind a UUPS proxy', async () => {
+      sandbox.stub(EvmEventLogsReader.prototype, 'getLogsByTopic').resolves([]);
+      const getCode = stubToken(XERC20Type.Standard, {
+        [WARP_ROUTER.toLowerCase()]: ['20000000000000', '20000000000000'],
+      });
+      // The proxy delegates, so its own bytecode carries neither selector.
+      getCode.withArgs(XERC20_ADDRESS).resolves('0xdead');
+      getCode.withArgs(IMPLEMENTATION).resolves(`0x${setLimitsSelector}`);
+
+      const provider = multiProvider.getProvider(TestChainName.test1);
+      sandbox
+        .stub(provider, 'getStorageAt')
+        .callsFake(async (_address, position) => {
+          const slot = await position;
+          assert(
+            slot === EIP1967_IMPLEMENTATION_SLOT,
+            `Read storage slot ${slot}, which a UUPS proxy does not populate`,
+          );
+          return ethers.utils.hexZeroPad(IMPLEMENTATION, 32);
+        });
+
+      const config = await reader.fetchXERC20Config(
+        XERC20_ADDRESS,
+        WARP_ROUTER,
+      );
+
+      expect(config).to.deep.equal({
+        xERC20: {
+          warpRouteLimits: {
+            type: XERC20Type.Standard,
+            mint: '20000000000000',
+            burn: '20000000000000',
+          },
+          extraBridges: undefined,
+        },
+      });
     });
 
     // A third-party token implementing neither limit interface is not drift and
