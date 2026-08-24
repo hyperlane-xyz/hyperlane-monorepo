@@ -752,6 +752,8 @@ const blacklist: MatchingList = [
     originDomain: getDomainId('starknet'),
     destinationDomain: getDomainId('starknet'),
   },
+  // NES warp route paused - blacklisted pending on-chain route pause
+  ...warpRouteMatchingList(WarpRouteIds.BscNES),
 ];
 
 const ismCacheConfigs: Array<IsmCacheConfig> = [
