@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/utils",
-  "version": "41.3.1",
+  "version": "42.0.0",
   "description": "General utilities and types for the Hyperlane network",
   "keywords": [
     "Hyperlane",
@@ -18,11 +18,20 @@
   "types": "./dist/index.d.ts",
   "typesVersions": {
     "*": {
+      "errors": [
+        "./dist/errors.d.ts"
+      ],
       "fs": [
         "./dist/fs/index.d.ts"
       ],
       "anvil": [
         "./dist/anvil/index.d.ts"
+      ],
+      "sets": [
+        "./dist/sets.d.ts"
+      ],
+      "validation": [
+        "./dist/validation.d.ts"
       ]
     }
   },
@@ -31,9 +40,21 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./errors": {
+      "types": "./dist/errors.d.ts",
+      "default": "./dist/errors.js"
+    },
     "./fs": {
       "types": "./dist/fs/index.d.ts",
       "default": "./dist/fs/index.js"
+    },
+    "./sets": {
+      "types": "./dist/sets.d.ts",
+      "default": "./dist/sets.js"
+    },
+    "./validation": {
+      "types": "./dist/validation.d.ts",
+      "default": "./dist/validation.js"
     }
   },
   "scripts": {

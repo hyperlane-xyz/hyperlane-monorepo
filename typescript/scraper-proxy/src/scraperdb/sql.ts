@@ -1,3 +1,5 @@
+import { assert } from '@hyperlane-xyz/utils/validation';
+
 import {
   assertColumn,
   quoteIdentifier as q,
@@ -48,7 +50,7 @@ const MAX = {
 };
 
 export function buildSelect(table: TableName, args: SelectArgs = {}): Sql {
-  validate(args);
+  validate(table, args);
   const values: unknown[] = [];
   const filters = [
     where(table, args.where, values),
@@ -65,7 +67,7 @@ export function buildCount(
   args: SelectArgs = {},
   count: CountArgs = {},
 ): Sql {
-  validate(args);
+  validate(table, args);
   const countColumns = [...new Set(count.columns ?? [])];
   countColumns.forEach((column) => assertColumn(table, column));
   const values: unknown[] = [];
@@ -104,8 +106,7 @@ export function buildByPk(
   selected?: string[],
 ): Sql {
   const primaryKey = tables[table].primaryKey;
-  if (!primaryKey)
-    throw new Error(`${table} does not expose a primary-key query`);
+  assert(primaryKey, `${table} does not expose a primary-key query`);
   return {
     sql: `SELECT ${columns(table, selected)} FROM ${q(table)} WHERE ${q(primaryKey)} = $1 LIMIT 1`,
     values: [id],
@@ -185,8 +186,7 @@ function comparison(
   if (value === null || value === undefined) return '';
   if (operator === '_is_null') return `${column} IS ${value ? '' : 'NOT '}NULL`;
   const sqlOperator = OPERATORS[operator];
-  if (!sqlOperator)
-    throw new Error(`Unsupported comparison operator ${operator}`);
+  assert(sqlOperator, `Unsupported comparison operator ${operator}`);
   if (operator === '_in' || operator === '_nin') {
     const items = Array.isArray(value) ? value : [];
     if (!items.length) return operator === '_in' ? 'FALSE' : 'TRUE';
@@ -277,7 +277,7 @@ function bind(value: unknown, values: unknown[]): string {
   return `$${values.length}`;
 }
 
-function validate(args: SelectArgs): void {
+function validate(table: TableName, args: SelectArgs): void {
   boundedInteger(args.limit, 'limit', MAX.limit);
   boundedInteger(args.batch_size, 'batch_size', MAX.limit);
   boundedInteger(args.offset, 'offset', MAX.offset);
@@ -287,43 +287,66 @@ function validate(args: SelectArgs): void {
     : args.order_by
       ? [args.order_by]
       : [];
-  boundedColumns(
-    orders.reduce(
-      (total, item) =>
-        total + Object.values(item).filter((value) => value != null).length,
-      0,
-    ),
-    'order_by',
-    MAX.orderColumns,
-  );
-  validateDistinctOrder(args.distinct_on, orders);
-  boundedColumns(
-    args.cursor?.reduce(
-      (total, item) => total + Object.keys(item.initial_value).length,
-      0,
-    ),
-    'cursor',
-    MAX.cursorColumns,
+  const orderColumns = orders
+    .flatMap(Object.entries)
+    .filter((entry): entry is [string, Direction] => entry[1] != null);
+  boundedColumns(orderColumns.length, 'order_by', MAX.orderColumns);
+  validateCursor(table, args.cursor, orderColumns);
+  validateDistinctOrder(
+    args.distinct_on,
+    orderColumns.length
+      ? orderColumns.map(([column]) => column)
+      : cursorColumns(args.cursor),
   );
   const state = { predicates: 0 };
   validateWhere(args.where, 0, state);
 }
 
+function validateCursor(
+  table: TableName,
+  cursors: Cursor[] | undefined,
+  orderColumns: [string, Direction][],
+): void {
+  const cursorColumns =
+    cursors?.reduce(
+      (total, item) => total + Object.keys(item.initial_value).length,
+      0,
+    ) ?? 0;
+  boundedColumns(cursorColumns, 'cursor', MAX.cursorColumns);
+  if (!cursors?.length || table !== 'message_view') return;
+
+  assert(
+    cursors.length === 1 && cursorColumns === 1,
+    'message_view cursor must contain one column',
+  );
+  const cursor = cursors[0];
+  const [cursorColumn, cursorValue] = Object.entries(cursor.initial_value)[0];
+  assert(cursorColumn === 'id', 'message_view cursor column must be id');
+  assert(cursorValue != null, 'message_view cursor value must be non-null');
+  if (!orderColumns.length) return;
+
+  const [orderColumn, orderDirection] = orderColumns[0] ?? [];
+  assert(
+    orderColumns.length === 1 &&
+      cursorColumn === orderColumn &&
+      (cursor.ordering === 'DESC') === orderDirection?.startsWith('desc'),
+    'cursor columns and directions must match order_by',
+  );
+}
+
 function validateDistinctOrder(
   distinctColumns: string[] | null | undefined,
-  orders: Order[],
+  orderColumns: string[],
 ): void {
-  if (!distinctColumns?.length || !orders.length) return;
-  const orderColumns = orders.flatMap((order) =>
-    Object.entries(order).flatMap(([column, direction]) =>
-      direction == null ? [] : [column],
-    ),
+  if (!distinctColumns?.length || !orderColumns.length) return;
+  assert(
+    !distinctColumns.some((column, index) => orderColumns[index] !== column),
+    'distinct_on columns must match the leftmost order_by columns',
   );
-  if (distinctColumns.some((column, index) => orderColumns[index] !== column)) {
-    throw new Error(
-      'distinct_on columns must match the leftmost order_by columns',
-    );
-  }
+}
+
+function cursorColumns(cursors: Cursor[] | undefined): string[] {
+  return (cursors ?? []).flatMap((cursor) => Object.keys(cursor.initial_value));
 }
 
 function boundedInteger(
@@ -332,10 +355,11 @@ function boundedInteger(
   max: number,
 ): void {
   if (value == null) return;
-  if (!Number.isInteger(value) || value < 0) {
-    throw new Error(`${name} must be a non-negative integer`);
-  }
-  if (value > max) throw new Error(`${name} exceeds maximum of ${max}`);
+  assert(
+    Number.isInteger(value) && value >= 0,
+    `${name} must be a non-negative integer`,
+  );
+  assert(value <= max, `${name} exceeds maximum of ${max}`);
 }
 
 function boundedColumns(
@@ -343,8 +367,7 @@ function boundedColumns(
   name: string,
   max: number,
 ): void {
-  if (value && value > max)
-    throw new Error(`${name} exceeds maximum of ${max} columns`);
+  assert(!value || value <= max, `${name} exceeds maximum of ${max} columns`);
 }
 
 function validateWhere(
@@ -353,8 +376,10 @@ function validateWhere(
   state: { predicates: number },
 ): void {
   if (!value || typeof value !== 'object') return;
-  if (depth > MAX.boolDepth)
-    throw new Error(`where exceeds maximum depth of ${MAX.boolDepth}`);
+  assert(
+    depth <= MAX.boolDepth,
+    `where exceeds maximum depth of ${MAX.boolDepth}`,
+  );
   for (const [key, child] of Object.entries(value)) {
     if (key === '_and' || key === '_or') {
       const children = Array.isArray(child) ? child : [child];
@@ -367,15 +392,12 @@ function validateWhere(
       addPredicates(state, 1);
       if (!child || typeof child !== 'object') continue;
       for (const [operator, items] of Object.entries(child)) {
-        if (
-          (operator === '_in' || operator === '_nin') &&
-          Array.isArray(items) &&
-          items.length > MAX.inItems
-        ) {
-          throw new Error(
-            `${operator} exceeds maximum of ${MAX.inItems} items`,
-          );
-        }
+        assert(
+          (operator !== '_in' && operator !== '_nin') ||
+            !Array.isArray(items) ||
+            items.length <= MAX.inItems,
+          `${operator} exceeds maximum of ${MAX.inItems} items`,
+        );
       }
     }
   }
@@ -383,9 +405,8 @@ function validateWhere(
 
 function addPredicates(state: { predicates: number }, count: number): void {
   state.predicates += count;
-  if (state.predicates > MAX.boolPredicates) {
-    throw new Error(
-      `where exceeds maximum of ${MAX.boolPredicates} predicates`,
-    );
-  }
+  assert(
+    state.predicates <= MAX.boolPredicates,
+    `where exceeds maximum of ${MAX.boolPredicates} predicates`,
+  );
 }

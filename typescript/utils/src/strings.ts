@@ -1,5 +1,7 @@
 import { ensure0x, strip0x } from './addresses.js';
 
+export { formatError } from './errors.js';
+
 export function toTitleCase(str: string) {
   return str.replace(/\w\S*/g, (txt) => {
     return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
@@ -45,39 +47,6 @@ export function errorToString(error: any, maxLength = 300) {
   const details = error.message || error.reason || error;
   if (typeof details === 'string') return trimToLength(details, maxLength);
   return trimToLength(JSON.stringify(details), maxLength);
-}
-
-interface ErrorWithContext {
-  context?: { logs?: unknown };
-}
-
-function isErrorWithContext(e: unknown): e is Error & ErrorWithContext {
-  return e instanceof Error && 'context' in e;
-}
-
-/**
- * Formats an error for display, including the cause chain and any Solana
- * program logs attached to preflight failure errors.
- */
-export function formatError(error: unknown, depth = 0): string {
-  if (!(error instanceof Error)) return String(error);
-
-  const parts: string[] = [error.message];
-
-  // SolanaError preflight failures attach { logs, unitsConsumed, ... } to context
-  if (
-    isErrorWithContext(error) &&
-    Array.isArray(error.context?.logs) &&
-    error.context.logs.length > 0
-  ) {
-    parts.push(`Logs:\n  ${error.context.logs.join('\n  ')}`);
-  }
-
-  if (error.cause != null && depth < 10) {
-    parts.push(`Caused by: ${formatError(error.cause, depth + 1)}`);
-  }
-
-  return parts.join('\n');
 }
 
 export const fromHexString = (hexstr: string) =>

@@ -78,6 +78,17 @@ void describe('scraper database SQL', () => {
         order_by: [{ origin_domain: 'asc' }, { nonce: 'desc' }],
       }),
     );
+    for (const order_by of [undefined, { id: null }]) {
+      assert.throws(
+        () =>
+          buildSelect('message_view', {
+            cursor: [{ initial_value: { id: 1 } }],
+            distinct_on: ['origin_domain'],
+            order_by,
+          }),
+        /leftmost order_by/,
+      );
+    }
   });
 
   void it('builds primary-key queries and rejects unsafe inputs', () => {
@@ -87,6 +98,61 @@ void describe('scraper database SQL', () => {
     );
     assert.throws(() => buildByPk('message_view', 1), /primary-key/);
     assert.throws(() => buildSelect('domain', { limit: 501 }), /maximum/);
+    assert.throws(
+      () =>
+        buildSelect('message_view', {
+          cursor: [{ initial_value: { id: 1 }, ordering: 'DESC' }],
+          order_by: { id: 'asc' },
+        }),
+      /must match order_by/,
+    );
+    assert.doesNotThrow(() =>
+      buildSelect('message_view', {
+        cursor: [{ initial_value: { id: 1 }, ordering: 'ASC' }],
+        order_by: { id: 'asc' },
+      }),
+    );
+    assert.doesNotThrow(() =>
+      buildSelect('message_view', {
+        cursor: [{ initial_value: { id: 1 }, ordering: 'DESC' }],
+        order_by: { id: 'desc' },
+      }),
+    );
+    assert.throws(
+      () =>
+        buildSelect('message_view', {
+          cursor: [
+            { initial_value: { send_occurred_at: '2026-01-01', id: 1 } },
+          ],
+        }),
+      /must contain one column/,
+    );
+    assert.throws(
+      () =>
+        buildSelect('message_view', {
+          cursor: [{ initial_value: {} }],
+        }),
+      /must contain one column/,
+    );
+    assert.throws(
+      () =>
+        buildSelect('message_view', {
+          cursor: [{ initial_value: { origin_domain: 'ethereum' } }],
+        }),
+      /cursor column must be id/,
+    );
+    assert.throws(
+      () =>
+        buildSelect('message_view', {
+          cursor: [{ initial_value: { id: null } }],
+        }),
+      /cursor value must be non-null/,
+    );
+    assert.doesNotThrow(() =>
+      buildSelect('domain', {
+        cursor: [{ initial_value: { id: 1, name: 'ethereum' } }],
+      }),
+    );
     assert.throws(
       () =>
         buildSelect('domain', { where: { id: { _in: Array(201).fill(1) } } }),

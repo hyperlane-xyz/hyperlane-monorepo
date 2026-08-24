@@ -8,10 +8,19 @@ import {
   validateBody,
   validateRequestParam,
 } from '../middleware/validateRequest.js';
+import { requireWriteMode } from '../middleware/writeMode.js';
 import { ChainService } from '../services/chainService.js';
 
-export function createChainRouter(chainService: ChainService): Router {
+export interface ChainRouterOptions {
+  writeMode?: boolean;
+}
+
+export function createChainRouter(
+  chainService: ChainService,
+  options: ChainRouterOptions = {},
+): Router {
   const router = Router();
+  const { writeMode = false } = options;
 
   router.get(
     '/:chain/metadata',
@@ -33,6 +42,7 @@ export function createChainRouter(chainService: ChainService): Router {
 
   router.post(
     '/:chain',
+    requireWriteMode(writeMode),
     validateRequestParam('chain', ZChainName),
     validateBody(UpdateChainSchema.strict()),
     async (req: Request<{ chain: string }>, res: Response) => {

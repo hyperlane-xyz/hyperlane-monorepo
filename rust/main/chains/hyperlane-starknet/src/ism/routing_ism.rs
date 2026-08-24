@@ -68,6 +68,7 @@ impl RoutingIsm for StarknetRoutingIsm {
         let ism = self
             .contract
             .route(message)
+            .block_id(BlockId::Tag(BlockTag::Latest))
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;

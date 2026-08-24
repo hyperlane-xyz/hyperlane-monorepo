@@ -68,6 +68,7 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
         let module = self
             .contract
             .module_type()
+            .block_id(BlockId::Tag(BlockTag::Latest))
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;

@@ -63,13 +63,14 @@ import {
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { DerivedHookConfig, HookType, OnchainHookType } from '../hook/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmRouterReader } from '../router/EvmRouterReader.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import {
   fetchPackageVersion as fetchContractPackageVersion,
-  isMissingSelectorCallException,
+  isMissingSelectorRevert,
   throwIfNotMissingSelector,
   throwIfNotMissingSelectorRevert,
 } from '../utils/contract.js';
@@ -107,7 +108,12 @@ import {
   isCrossCollateralTokenConfig,
   PredicateWrapperConfig,
 } from './types.js';
-import { getExtraLockBoxConfigs } from './xerc20.js';
+import { readXERC20Limits } from './xerc20-limits.js';
+import {
+  UnknownXERC20TypeError,
+  deriveXERC20TokenType,
+  getExtraLockBoxConfigs,
+} from './xerc20.js';
 
 const REBALANCING_CONTRACT_VERSION = '8.0.0';
 export const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
@@ -973,40 +979,65 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     xERC20Address: Address,
     warpRouteAddress: Address,
   ): Promise<XERC20TokenMetadata> {
-    // fetch the limits if possible
-    const rateLimitsABI = [
-      'function rateLimitPerSecond(address) external view returns (uint128)',
-      'function bufferCap(address) external view returns (uint112)',
-    ];
-    const xERC20 = new Contract(xERC20Address, rateLimitsABI, this.provider);
-    let extraBridgesLimits: XERC20TokenExtraBridgesLimits[] | undefined;
+    // Which getter holds the limits differs between the Standard and the
+    // Velodrome implementation, so the route's own limits are read through the
+    // type rather than through a fixed ABI.
+    let type: XERC20Type;
+    try {
+      type = await deriveXERC20TokenType(
+        this.multiProvider,
+        this.chain,
+        xERC20Address,
+      );
+    } catch (error) {
+      if (!(error instanceof UnknownXERC20TypeError)) throw error;
+      this.logger.warn(
+        `Token at ${xERC20Address} on chain ${this.chain} exposes no known xERC20 limits interface, skipping its xERC20 config`,
+        error,
+      );
+      return {};
+    }
 
+    let extraBridgesLimits: XERC20TokenExtraBridgesLimits[] | undefined;
     try {
       extraBridgesLimits = await getExtraLockBoxConfigs({
         chain: this.chain,
         multiProvider: this.multiProvider,
         xERC20Address,
         logger: this.logger,
+        type,
+        warpRouteAddress,
       });
     } catch (error) {
-      if (!isMissingSelectorCallException(error)) throw error;
+      // Only a contract answering that it does not have the getter is an
+      // answer. Everything else, an unreachable RPC above all, would otherwise
+      // report a token that has extra bridges as having none.
+      throwIfNotMissingSelectorRevert(error);
       this.logger.warn(
-        `Skipping extra xERC20 lockbox configs after missing-selector error for token at ${xERC20Address} on chain ${this.chain}`,
+        `Skipping extra xERC20 bridge configs after missing-selector error for token at ${xERC20Address} on chain ${this.chain}`,
         error,
       );
     }
 
     try {
-      // TODO: fix this such that it fetches from WL's values too
+      const limitsByBridge = await readXERC20Limits({
+        multiProtocolProvider: MultiProtocolProvider.fromMultiProvider(
+          this.multiProvider,
+        ),
+        chain: this.multiProvider.getChainName(this.chain),
+        xERC20Address,
+        bridges: [warpRouteAddress],
+        type,
+      });
+      const warpRouteLimits = limitsByBridge[warpRouteAddress];
+      assert(
+        warpRouteLimits,
+        `Missing xERC20 limits for warp route ${warpRouteAddress} on chain ${this.chain}`,
+      );
+
       return {
         xERC20: {
-          warpRouteLimits: {
-            type: XERC20Type.Velo,
-            rateLimitPerSecond: (
-              await xERC20.rateLimitPerSecond(warpRouteAddress)
-            ).toString(),
-            bufferCap: (await xERC20.bufferCap(warpRouteAddress)).toString(),
-          },
+          warpRouteLimits,
           extraBridges:
             extraBridgesLimits && extraBridgesLimits.length > 0
               ? extraBridgesLimits
@@ -1014,7 +1045,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         },
       };
     } catch (error) {
-      if (isMissingSelectorCallException(error)) return {};
+      if (isMissingSelectorRevert(error)) return {};
       this.logger.error(
         `Error fetching xERC20 limits for token at ${xERC20Address} on chain ${this.chain}`,
         error,

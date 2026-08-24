@@ -174,6 +174,40 @@ void it('ignores variable-like text inside string literals', async () => {
   await server.stop();
 });
 
+void it('preserves special variable names in cache keys', async () => {
+  let calls = 0;
+  const server = new ApolloServer({
+    plugins: plugins(),
+    resolvers: {
+      Query: {
+        value: (_parent: unknown, { key }: { key: number }) => {
+          calls++;
+          return key;
+        },
+      },
+    },
+    typeDefs: `
+      directive @cached(ttl: Int, refresh: Boolean) on QUERY
+      type Query { value(key: Int!): Int! }
+    `,
+  });
+  await server.start();
+  const query =
+    'query($__proto__: Int!) @cached(ttl: 10) { value(key: $__proto__) }';
+  const variables = (key: number): Record<string, unknown> =>
+    JSON.parse(`{"__proto__":${key}}`);
+  assert.equal(
+    value(await server.executeOperation({ query, variables: variables(1) })),
+    1,
+  );
+  assert.equal(
+    value(await server.executeOperation({ query, variables: variables(2) })),
+    2,
+  );
+  assert.equal(calls, 2);
+  await server.stop();
+});
+
 function cacheServer(
   resolver: () => unknown,
   returnType = 'String!',

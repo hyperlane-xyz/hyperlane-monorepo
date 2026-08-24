@@ -26,6 +26,7 @@ import { WarpRouteMonitorHelmManager } from '../warp-monitor/helm.js';
 import { disableGCPSecretVersion } from './gcloud.js';
 import { HelmManager } from './helm.js';
 import { K8sResourceType, refreshK8sResources } from './k8s.js';
+import { refreshK8sResourcesByNamespace } from './refresh-by-namespace.js';
 
 /**
  * Set the RPC URLs for the given chain in the given environment interactively.
@@ -315,17 +316,19 @@ async function refreshDependentK8sResourcesInteractive(
   ];
 
   if (allManagersForSecrets.length > 0) {
-    await refreshK8sResources(
+    await refreshK8sResourcesByNamespace(
       allManagersForSecrets,
       K8sResourceType.SECRET,
-      environment,
+      undefined,
+      refreshK8sResources,
     );
   }
   if (serviceManagers.length > 0) {
-    await refreshK8sResources(
+    await refreshK8sResourcesByNamespace(
       serviceManagers,
       K8sResourceType.POD,
-      environment,
+      undefined,
+      refreshK8sResources,
     );
   }
   for (const manager of tollkeeperManagers) {
@@ -681,19 +684,19 @@ export async function setRpcUrls(
     ];
 
     if (allManagersForSecrets.length > 0) {
-      await refreshK8sResources(
+      await refreshK8sResourcesByNamespace(
         allManagersForSecrets,
         K8sResourceType.SECRET,
-        environment,
         { skipConfirmation: true },
+        refreshK8sResources,
       );
     }
     if (serviceManagers.length > 0) {
-      await refreshK8sResources(
+      await refreshK8sResourcesByNamespace(
         serviceManagers,
         K8sResourceType.POD,
-        environment,
         { skipConfirmation: true },
+        refreshK8sResources,
       );
     }
     for (const manager of tollkeeperManagers) {
@@ -792,19 +795,19 @@ export async function refreshSelectedReleases(
     `Refreshing ${allForSecrets.length} releases: ${allForSecrets.map((m) => m.helmReleaseName).join(', ')}`,
   );
 
-  await refreshK8sResources(
+  await refreshK8sResourcesByNamespace(
     allForSecrets,
     K8sResourceType.SECRET,
-    environment,
     { skipConfirmation: true },
+    refreshK8sResources,
   );
 
   if (selectedServices.length > 0) {
-    await refreshK8sResources(
+    await refreshK8sResourcesByNamespace(
       selectedServices,
       K8sResourceType.POD,
-      environment,
       { skipConfirmation: true },
+      refreshK8sResources,
     );
   }
   for (const manager of selectedTollkeeper) {

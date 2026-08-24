@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util';
 
+import { formatError } from '@hyperlane-xyz/utils/errors';
 import { WebSocket } from 'ws';
 
 import {
@@ -215,7 +216,7 @@ try {
   const parsed = options();
   if (parsed) run(parsed);
 } catch (error) {
-  console.error(error instanceof Error ? error.message : error);
+  console.error(formatError(error));
   console.error('\nRun with --help for usage.');
   process.exitCode = 1;
 }

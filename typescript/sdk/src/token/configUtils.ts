@@ -948,6 +948,16 @@ const sortArraysInConfigToCheck = (a: any, b: any): number => {
     return 0;
   }
 
+  // Sort xERC20 extraBridges by the bridge they hold limits for. The derived
+  // side is ordered by the events the token emitted and the expected side by
+  // whoever wrote the deploy config, so without this the same set of bridges
+  // in two orders diffs index by index and reports drift that is not there.
+  if (a.lockbox && b.lockbox) {
+    if (a.lockbox < b.lockbox) return -1;
+    if (a.lockbox > b.lockbox) return 1;
+    return 0;
+  }
+
   if (a < b) return -1;
   if (a > b) return 1;
 

@@ -27,6 +27,7 @@ import { defaultZKSyncProviderBuilder } from './builders/zksync.js';
 import type { ProviderBuilderFn } from './providerBuilders.js';
 import {
   TransactionFeeEstimate,
+  TransactionFeeEstimateOptions,
   estimateTransactionFee,
 } from './transactionFeeEstimators.js';
 
@@ -199,12 +200,13 @@ export class MultiProviderAdapter<
     transaction,
     sender,
     senderPubKey,
+    ignoreSenderBalance,
   }: {
     chainNameOrId: ChainNameOrId;
     transaction: TypedTransaction;
     sender: Address;
     senderPubKey?: HexString;
-  }): Promise<TransactionFeeEstimate> {
+  } & TransactionFeeEstimateOptions): Promise<TransactionFeeEstimate> {
     const provider = this.getProvider(chainNameOrId, transaction.type);
     const chainMetadata = this.getChainMetadata(chainNameOrId);
     return estimateTransactionFee({
@@ -213,6 +215,7 @@ export class MultiProviderAdapter<
       chainMetadata,
       sender,
       senderPubKey,
+      ignoreSenderBalance,
     });
   }
 }
