@@ -1079,7 +1079,10 @@ export class EventWebSocketServer {
 
   private closeAgentClients(reason: string, code = 1013): void {
     this.notifications.clear();
-    this.clients.forEach((_client, socket) => socket.close(code, reason));
+    this.clients.forEach((_client, socket) => {
+      this.cancelCatchUp(socket);
+      socket.close(code, reason);
+    });
     this.clients.clear();
   }
 
@@ -1182,6 +1185,7 @@ export class EventWebSocketServer {
   }
 
   private disconnect(socket: WebSocket): void {
+    this.cancelCatchUp(socket);
     this.clients.get(socket)?.subscriptions.clear();
     this.clients.delete(socket);
     const explorerClient = this.explorerClients.get(socket);
