@@ -321,6 +321,7 @@ export class MultiProtocolBalanceMonitor {
           balance = await this.getRecipientBalance(chainConfig, rc);
         } catch (err: any) {
           console.warn(`[BalanceMonitor] Failed to fetch balance for recipient ${rc.address} on ${chainName}: ${err.message}`);
+          return null;
         }
 
         // Determine effective policy
@@ -358,7 +359,11 @@ export class MultiProtocolBalanceMonitor {
       });
 
       const settled = await Promise.all(promises);
-      recipientResults.push(...settled);
+      for (const item of settled) {
+        if (item !== null) {
+          recipientResults.push(item);
+        }
+      }
     }
 
     return {

@@ -143,8 +143,8 @@ library CrossChainVaultMessage {
                 msgType: TYPE_NAV_REPORT,
                 recipientOrSender: _sender,
                 amount: _currentNav,
-                minAmountOut: 0,
-                deadline: _timestamp,
+                minAmountOut: _timestamp, // optionally stash timestamp here instead of 0
+                deadline: type(uint256).max,
                 extraData: _extraData
             })
         );

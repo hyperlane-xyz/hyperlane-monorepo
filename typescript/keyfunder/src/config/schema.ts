@@ -61,20 +61,22 @@ export const StrategyConfigSchema = z
   })
   .passthrough();
 
-export const ChainFundingConfigSchema = z.object({
-  chain: z.string().optional(),
-  protocol: ProtocolTypeSchema,
-  rpcUrl: z.string().optional(),
-  fallbackRpcUrls: z.array(z.string()).optional(),
-  funderKey: FunderConfigSchema.optional(),
-  funderMinReserve: z.string().optional(),
-  gasBufferMultiplier: z.number().positive().default(1.2).optional(),
-  strategy: z.string().default('direct').optional(),
-  strategyConfig: StrategyConfigSchema.optional(),
-  recipients: z.array(RecipientConfigSchema).min(1, 'At least one recipient must be specified'),
-  nativeDecimals: z.number().int().nonnegative().optional(),
-  nativeSymbol: z.string().optional(),
-});
+export const ChainFundingConfigSchema = z
+  .object({
+    chain: z.string().optional(),
+    protocol: ProtocolTypeSchema.optional(),
+    rpcUrl: z.string().optional(),
+    fallbackRpcUrls: z.array(z.string()).optional(),
+    funderKey: FunderConfigSchema.optional(),
+    funderMinReserve: z.string().optional(),
+    gasBufferMultiplier: z.number().positive().default(1.2).optional(),
+    strategy: z.string().default('direct').optional(),
+    strategyConfig: StrategyConfigSchema.optional(),
+    recipients: z.array(RecipientConfigSchema).optional(),
+    nativeDecimals: z.number().int().nonnegative().optional(),
+    nativeSymbol: z.string().optional(),
+  })
+  .passthrough();
 
 export const KeyfunderConfigSchema = z.object({
   globalFunderKey: FunderConfigSchema.optional(),
@@ -161,11 +163,17 @@ export function validateConfig(raw: unknown): KeyfunderConfig {
     if (!chainConfig.chain) {
       chainConfig.chain = chainName;
     }
+    if (!chainConfig.protocol) {
+      chainConfig.protocol = 'ethereum';
+    }
+    if (!chainConfig.recipients) {
+      chainConfig.recipients = [];
+    }
     if (chainConfig.nativeDecimals === undefined) {
-      chainConfig.nativeDecimals = getDefaultDecimals(chainConfig.protocol);
+      chainConfig.nativeDecimals = getDefaultDecimals(chainConfig.protocol as ProtocolType);
     }
     if (!chainConfig.nativeSymbol) {
-      chainConfig.nativeSymbol = getDefaultSymbol(chainConfig.protocol);
+      chainConfig.nativeSymbol = getDefaultSymbol(chainConfig.protocol as ProtocolType);
     }
     if (!chainConfig.funderKey && rootFunder) {
       chainConfig.funderKey = rootFunder;

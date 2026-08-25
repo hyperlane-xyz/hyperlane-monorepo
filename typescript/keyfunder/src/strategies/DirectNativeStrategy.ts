@@ -51,6 +51,22 @@ export class DirectNativeStrategy implements IFundingStrategy {
       throw new Error('EVM Signer is required in signerContext');
     }
 
+    if (action.tokenAddress) {
+      const erc20 = new ethers.Contract(
+        action.tokenAddress,
+        ['function transfer(address to, uint256 amount) returns (bool)'],
+        signer
+      );
+      const txResponse = await erc20.transfer(action.recipient, action.requiredFunding, signerContext?.gasOverrides || {});
+      const receipt = await txResponse.wait(signerContext?.confirmations ?? 1);
+      return {
+        success: true,
+        txHash: txResponse.hash,
+        gasUsed: receipt ? BigInt(receipt.gasUsed.toString()) : undefined,
+        effectiveGasPrice: receipt && receipt.gasPrice ? BigInt(receipt.gasPrice.toString()) : undefined,
+      };
+    }
+
     const txRequest: ethers.TransactionRequest = {
       to: action.recipient,
       value: action.requiredFunding,

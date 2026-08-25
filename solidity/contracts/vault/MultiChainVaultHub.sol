@@ -162,6 +162,25 @@ contract MultiChainVaultHub is
     }
 
     /**
+     * @notice Limits maximum withdrawal to the physically available local liquidity in the Hub.
+     */
+    function maxWithdraw(address owner) public view override(ERC4626, IERC4626) returns (uint256) {
+        uint256 ownerMax = super.maxWithdraw(owner);
+        uint256 localBal = IERC20(asset()).balanceOf(address(this));
+        return localBal < ownerMax ? localBal : ownerMax;
+    }
+
+    /**
+     * @notice Limits maximum redemption to the physically available local liquidity in the Hub.
+     */
+    function maxRedeem(address owner) public view override(ERC4626, IERC4626) returns (uint256) {
+        uint256 ownerMax = super.maxRedeem(owner);
+        uint256 localBal = IERC20(asset()).balanceOf(address(this));
+        uint256 localBalInShares = convertToShares(localBal);
+        return localBalInShares < ownerMax ? localBalInShares : ownerMax;
+    }
+
+    /**
      * @notice Registers or updates a spoke strategy adapter and its target allocation weight.
      * @param domain Hyperlane domain ID of the spoke chain.
      * @param adapter Bytes32-formatted address of the spoke strategy adapter.
