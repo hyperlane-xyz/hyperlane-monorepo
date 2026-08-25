@@ -1,154 +1,185 @@
-import { Gauge, Registry } from 'prom-client';
+import * as http from 'http';
+import { Counter, Gauge, Histogram, Registry, collectDefaultMetrics } from 'prom-client';
+import { ChainBalanceReport, FundingAction } from '../types';
 
-import { submitMetrics } from '@hyperlane-xyz/metrics';
+export class KeyfunderMetrics {
+  public readonly registry: Registry;
 
-import type { MetricsConfig } from '../config/types.js';
+  public readonly balanceGauge: Gauge<string>;
+  public readonly fundingActionsTotal: Counter<string>;
+  public readonly fundingAmountTotal: Counter<string>;
+  public readonly cycleDurationSeconds: Histogram<string>;
+  public readonly cycleErrorsTotal: Counter<string>;
+  public readonly lastCycleTimestamp: Gauge<string>;
 
-export class KeyFunderMetrics {
-  private registry: Registry;
-  private jobName: string;
+  private server?: http.Server;
 
-  readonly walletBalanceGauge: Gauge<string>;
-  /**
-   * Unified wallet balance gauge matching the format used by Grafana alerts.
-   * Emits hyperlane_wallet_balance with the standard wallet balance labels.
-   */
-  readonly unifiedWalletBalanceGauge: Gauge<string>;
-  readonly fundingAmountGauge: Gauge<string>;
-  readonly igpBalanceGauge: Gauge<string>;
-  readonly sweepAmountGauge: Gauge<string>;
-  readonly operationDurationGauge: Gauge<string>;
-
-  constructor(
-    config: MetricsConfig | undefined,
-    private readonly baseLabels: Record<string, string> = {},
-  ) {
+  constructor() {
     this.registry = new Registry();
-    this.jobName = config?.jobName ?? 'keyfunder';
 
-    const labelNames = ['chain', 'address', 'role', ...Object.keys(baseLabels)];
+    // Default nodejs runtime metrics
+    collectDefaultMetrics({ register: this.registry });
 
-    this.walletBalanceGauge = new Gauge({
-      name: 'hyperlane_keyfunder_wallet_balance',
-      help: 'Current wallet balance in native token',
-      labelNames,
+    this.balanceGauge = new Gauge({
+      name: 'keyfunder_balance_gauge',
+      help: 'Current account balance in native units (decimal float)',
+      labelNames: ['chain', 'protocol', 'address', 'type'],
       registers: [this.registry],
     });
 
-    this.unifiedWalletBalanceGauge = new Gauge({
-      name: 'hyperlane_wallet_balance',
-      help: 'Current balance of a wallet for a token',
-      labelNames: [
-        'chain',
-        'wallet_address',
-        'wallet_name',
-        'token_address',
-        'token_symbol',
-        'token_name',
-        ...Object.keys(baseLabels),
-      ],
+    this.fundingActionsTotal = new Counter({
+      name: 'keyfunder_funding_actions_total',
+      help: 'Total funding actions processed by status',
+      labelNames: ['chain', 'protocol', 'strategy', 'status'],
       registers: [this.registry],
     });
 
-    this.fundingAmountGauge = new Gauge({
-      name: 'hyperlane_keyfunder_funding_amount',
-      help: 'Amount funded to a key',
-      labelNames,
+    this.fundingAmountTotal = new Counter({
+      name: 'keyfunder_funding_amount_total',
+      help: 'Total native amount funded across all recipients',
+      labelNames: ['chain', 'protocol', 'strategy'],
       registers: [this.registry],
     });
 
-    this.igpBalanceGauge = new Gauge({
-      name: 'hyperlane_keyfunder_igp_balance',
-      help: 'IGP contract balance',
-      labelNames: ['chain', ...Object.keys(baseLabels)],
+    this.cycleDurationSeconds = new Histogram({
+      name: 'keyfunder_cycle_duration_seconds',
+      help: 'Duration of keyfunder funding cycle in seconds',
+      buckets: [0.1, 0.5, 1, 2, 5, 10, 30, 60],
       registers: [this.registry],
     });
 
-    this.sweepAmountGauge = new Gauge({
-      name: 'hyperlane_keyfunder_sweep_amount',
-      help: 'Amount swept to safe address',
-      labelNames: ['chain', ...Object.keys(baseLabels)],
+    this.cycleErrorsTotal = new Counter({
+      name: 'keyfunder_cycle_errors_total',
+      help: 'Total errors encountered during funding cycle',
+      labelNames: ['chain', 'error_type'],
       registers: [this.registry],
     });
 
-    this.operationDurationGauge = new Gauge({
-      name: 'hyperlane_keyfunder_operation_duration_seconds',
-      help: 'Duration of funding operations',
-      labelNames: ['chain', 'operation', ...Object.keys(baseLabels)],
+    this.lastCycleTimestamp = new Gauge({
+      name: 'keyfunder_last_cycle_timestamp_seconds',
+      help: 'Unix timestamp of the last executed funding cycle',
       registers: [this.registry],
     });
   }
 
-  recordWalletBalance(
-    chain: string,
-    address: string,
-    role: string,
-    balance: number,
-  ): void {
-    this.walletBalanceGauge.set(
-      { chain, address, role, ...this.baseLabels },
-      balance,
-    );
+  /**
+   * Record balance metrics from ChainBalanceReport
+   */
+  public recordBalances(reports: Record<string, ChainBalanceReport>): void {
+    for (const [chain, report] of Object.entries(reports)) {
+      if (report.funderAddress) {
+        const funderBal = parseFloat(report.formattedFunderBalance) || 0;
+        this.balanceGauge.set(
+          {
+            chain,
+            protocol: report.protocol,
+            address: report.funderAddress,
+            type: 'funder',
+          },
+          funderBal
+        );
+      }
+
+      for (const rec of report.recipientBalances) {
+        const recBal = parseFloat(rec.formattedBalance) || 0;
+        this.balanceGauge.set(
+          {
+            chain,
+            protocol: report.protocol,
+            address: rec.recipient,
+            type: 'recipient',
+          },
+          recBal
+        );
+      }
+    }
   }
 
-  recordUnifiedWalletBalance(
-    chain: string,
-    walletAddress: string,
-    walletName: string,
-    balance: number,
-  ): void {
-    this.unifiedWalletBalanceGauge.set(
-      {
-        chain,
-        wallet_address: walletAddress,
-        wallet_name: walletName,
-        token_address: 'native',
-        token_symbol: 'Native',
-        token_name: 'Native',
-        ...this.baseLabels,
-      },
-      balance,
-    );
+  /**
+   * Record funding action execution results
+   */
+  public recordActions(actions: FundingAction[]): void {
+    for (const action of actions) {
+      this.fundingActionsTotal.inc({
+        chain: action.chain,
+        protocol: action.protocol,
+        strategy: action.strategy,
+        status: action.status.toLowerCase(),
+      });
+
+      if (action.status === 'EXECUTED' && action.formattedRequiredFunding) {
+        const amount = parseFloat(action.formattedRequiredFunding) || 0;
+        this.fundingAmountTotal.inc(
+          {
+            chain: action.chain,
+            protocol: action.protocol,
+            strategy: action.strategy,
+          },
+          amount
+        );
+      }
+    }
   }
 
-  recordFundingAmount(
-    chain: string,
-    address: string,
-    role: string,
-    amount: number,
-  ): void {
-    this.fundingAmountGauge.set(
-      { chain, address, role, ...this.baseLabels },
-      amount,
-    );
+  /**
+   * Record cycle error
+   */
+  public recordError(chain: string, errorType: string): void {
+    this.cycleErrorsTotal.inc({ chain, error_type: errorType });
   }
 
-  recordIgpBalance(chain: string, balance: number): void {
-    this.igpBalanceGauge.set({ chain, ...this.baseLabels }, balance);
-  }
+  /**
+   * Start HTTP metrics and health check server
+   */
+  public async startServer(port: number = 9090): Promise<http.Server> {
+    if (this.server) {
+      return this.server;
+    }
 
-  recordSweepAmount(chain: string, amount: number): void {
-    this.sweepAmountGauge.set({ chain, ...this.baseLabels }, amount);
-  }
+    const server = http.createServer(async (req, res) => {
+      const url = req.url || '/';
 
-  recordOperationDuration(
-    chain: string,
-    operation: string,
-    durationSeconds: number,
-  ): void {
-    this.operationDurationGauge.set(
-      { chain, operation, ...this.baseLabels },
-      durationSeconds,
-    );
-  }
+      if (url === '/metrics') {
+        try {
+          const metrics = await this.registry.metrics();
+          res.setHeader('Content-Type', this.registry.contentType);
+          res.writeHead(200);
+          res.end(metrics);
+        } catch (err: any) {
+          res.writeHead(500);
+          res.end(err.message);
+        }
+      } else if (url === '/healthz' || url === '/health') {
+        res.setHeader('Content-Type', 'application/json');
+        res.writeHead(200);
+        res.end(JSON.stringify({ status: 'ok', uptime: process.uptime() }));
+      } else {
+        res.writeHead(404);
+        res.end('Not Found');
+      }
+    });
 
-  async push(): Promise<void> {
-    await submitMetrics(this.registry, this.jobName, {
-      overwriteAllMetrics: true,
+    return new Promise((resolve, reject) => {
+      server.listen(port, () => {
+        this.server = server;
+        resolve(server);
+      });
+      server.on('error', reject);
     });
   }
 
-  getRegistry(): Registry {
-    return this.registry;
+  /**
+   * Stop HTTP metrics server
+   */
+  public async stopServer(): Promise<void> {
+    if (this.server) {
+      return new Promise((resolve, reject) => {
+        this.server!.close((err) => {
+          this.server = undefined;
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+    }
   }
 }

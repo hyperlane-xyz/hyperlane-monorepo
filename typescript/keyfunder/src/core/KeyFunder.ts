@@ -1,436 +1,255 @@
-import { BigNumber, ethers } from 'ethers';
-import type { Logger } from 'pino';
+import { ethers } from 'ethers';
+import { MultiProtocolBalanceMonitor } from './MultiProtocolBalanceMonitor';
+import { PolicyEvaluator } from './PolicyEvaluator';
+import { TransactionExecutor } from '../execution/TransactionExecutor';
+import { SignerFactory } from '../execution/SignerFactory';
+import { KeyfunderMetrics } from '../metrics/metrics';
+import { getDefaultDecimals, getDefaultSymbol } from '../config/schema';
+import {
+  ChainBalanceReport,
+  FundingAction,
+  KeyfunderConfig,
+  StrategyType,
+} from '../types';
 
-import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
-
-import type {
-  ChainConfig,
-  KeyFunderConfig,
-  ResolvedKeyConfig,
-} from '../config/types.js';
-import type { KeyFunderMetrics } from '../metrics/Metrics.js';
-
-const MIN_DELTA_NUMERATOR = BigNumber.from(6);
-const MIN_DELTA_DENOMINATOR = BigNumber.from(10);
-
-const CHAIN_FUNDING_TIMEOUT_MS = 60_000;
-
-export interface KeyFunderOptions {
-  logger: Logger;
-  metrics?: KeyFunderMetrics;
-  skipIgpClaim?: boolean;
-  igp?: HyperlaneIgp;
+export interface KeyfunderOptions {
+  balanceMonitor?: MultiProtocolBalanceMonitor;
+  policyEvaluator?: PolicyEvaluator;
+  executor?: TransactionExecutor;
+  metrics?: KeyfunderMetrics;
 }
 
 export class KeyFunder {
-  constructor(
-    private readonly multiProvider: MultiProvider,
-    private readonly config: KeyFunderConfig,
-    private readonly options: KeyFunderOptions,
-  ) {}
+  public readonly config: KeyfunderConfig;
+  public readonly balanceMonitor: MultiProtocolBalanceMonitor;
+  public readonly policyEvaluator: PolicyEvaluator;
+  public readonly executor: TransactionExecutor;
+  public readonly metrics: KeyfunderMetrics;
 
-  async fundAllChains(): Promise<void> {
-    const chainsToSkip = new Set(this.config.chainsToSkip ?? []);
-    const chains = Object.keys(this.config.chains).filter(
-      (chain) => !chainsToSkip.has(chain),
-    );
+  private isRunning: boolean = false;
+  private timer?: NodeJS.Timeout;
 
-    const results = await Promise.allSettled(
-      chains.map(async (chain) => this.fundChainWithTimeout(chain)),
-    );
-
-    const failures = results
-      .map((r, i) => ({ result: r, chain: chains[i] }))
-      .filter(
-        (entry): entry is { result: PromiseRejectedResult; chain: string } =>
-          entry.result.status === 'rejected',
+  constructor(config: KeyfunderConfig, options: KeyfunderOptions = {}) {
+    this.config = config;
+    this.balanceMonitor = options.balanceMonitor || new MultiProtocolBalanceMonitor();
+    this.policyEvaluator = options.policyEvaluator || new PolicyEvaluator();
+    this.executor =
+      options.executor ||
+      new TransactionExecutor(
+        { dryRun: config.dryRun },
+        undefined,
+        undefined,
+        undefined,
+        this.balanceMonitor
       );
-
-    if (failures.length > 0) {
-      const failedChains = failures.map((f) => ({
-        chain: f.chain,
-        error: f.result.reason?.message ?? String(f.result.reason),
-      }));
-      this.options.logger.error(
-        { failedChains, totalChains: chains.length },
-        'Some chains failed to fund',
-      );
-      throw new Error(
-        `${failures.length}/${chains.length} chains failed to fund: ${failedChains.map((f) => f.chain).join(', ')}`,
-      );
-    }
+    this.metrics = options.metrics || new KeyfunderMetrics();
   }
 
-  private async fundChainWithTimeout(chain: string): Promise<void> {
-    const { promise: timeoutPromise, cleanup } = createTimeoutPromise(
-      CHAIN_FUNDING_TIMEOUT_MS,
-      `Funding timed out for chain ${chain}`,
-    );
+  /**
+   * Resolve public funder address for each configured chain
+   */
+  public async getFunderAddresses(): Promise<Record<string, string>> {
+    const addresses: Record<string, string> = {};
+    const rootFunder = this.config.funder || this.config.globalFunderKey;
 
-    try {
-      await Promise.race([this.fundChain(chain), timeoutPromise]);
-    } catch (error) {
-      this.options.logger.error({ chain, error }, 'Chain funding failed');
-      throw error;
-    } finally {
-      cleanup();
-    }
-  }
-
-  async fundChain(chain: string): Promise<void> {
-    if (!Object.prototype.hasOwnProperty.call(this.config.chains, chain)) {
-      this.options.logger.warn({ chain }, 'No config for chain, skipping');
-      return;
-    }
-    const chainConfig = this.config.chains[chain];
-
-    const startTime = Date.now();
-    const logger = this.options.logger.child({ chain });
-
-    if (!this.options.skipIgpClaim && chainConfig.igp) {
-      await this.claimFromIgp(chain, chainConfig);
-    }
-
-    try {
-      await this.recordFunderBalance(chain);
-    } catch (error) {
-      logger.warn(
-        { error },
-        'Failed to record funder balance metric, continuing',
-      );
-    }
-
-    const resolvedKeys = this.resolveKeysForChain(chain, chainConfig);
-    if (resolvedKeys.length > 0) {
-      await this.fundKeys(chain, resolvedKeys);
-    }
-
-    if (chainConfig.sweep?.enabled) {
-      await this.sweepExcessFunds(chain, chainConfig);
-    }
-
-    const durationSeconds = (Date.now() - startTime) / 1000;
-    this.options.metrics?.recordOperationDuration(
-      chain,
-      'fund',
-      durationSeconds,
-    );
-    logger.info({ durationSeconds }, 'Chain funding completed');
-  }
-
-  private getNativeDecimals(chain: string): number {
-    return (
-      this.multiProvider.getChainMetadata(chain).nativeToken?.decimals ?? 18
-    );
-  }
-
-  private async recordFunderBalance(chain: string): Promise<void> {
-    const signer = this.multiProvider.getSigner(chain);
-    const funderAddress = await signer.getAddress();
-    const funderBalance = await signer.getBalance();
-    const balance = parseFloat(
-      ethers.utils.formatUnits(funderBalance, this.getNativeDecimals(chain)),
-    );
-    this.options.metrics?.recordUnifiedWalletBalance(
-      chain,
-      funderAddress,
-      'key-funder',
-      balance,
-    );
-  }
-
-  private resolveKeysForChain(
-    chain: string,
-    chainConfig: ChainConfig,
-  ): ResolvedKeyConfig[] {
-    if (!chainConfig.balances) {
-      return [];
-    }
-
-    const resolvedKeys: ResolvedKeyConfig[] = [];
-    for (const [roleName, desiredBalance] of Object.entries(
-      chainConfig.balances,
-    )) {
-      if (!Object.prototype.hasOwnProperty.call(this.config.roles, roleName)) {
-        this.options.logger.warn(
-          { chain, role: roleName },
-          'Role not found in config, skipping',
-        );
+    for (const [chainName, chainConfig] of Object.entries(this.config.chains)) {
+      const funder = chainConfig.funderKey || rootFunder;
+      if (!funder) {
+        addresses[chainName] = '';
         continue;
       }
-      const roleConfig = this.config.roles[roleName];
-
-      resolvedKeys.push({
-        address: roleConfig.address,
-        role: roleName,
-        desiredBalance,
-      });
+      try {
+        addresses[chainName] = await SignerFactory.getFunderAddress(chainConfig.protocol, funder);
+      } catch (err: any) {
+        console.warn(`[KeyFunder] Failed to get funder address for ${chainName}: ${err.message}`);
+        addresses[chainName] = '';
+      }
     }
 
-    return resolvedKeys;
+    return addresses;
   }
 
-  private async claimFromIgp(
-    chain: string,
-    chainConfig: ChainConfig,
-  ): Promise<void> {
-    const igpConfig = chainConfig.igp;
-    if (!igpConfig || !this.options.igp) {
-      return;
+  /**
+   * Check balances and evaluate policies without executing transactions
+   */
+  public async check(
+    configOverride?: Partial<KeyfunderConfig>
+  ): Promise<{ reports: Record<string, ChainBalanceReport>; actions: FundingAction[] }> {
+    const effectiveConfig = { ...this.config, ...(configOverride || {}) };
+    const funderAddresses = await this.getFunderAddresses();
+
+    const reports = await this.balanceMonitor.getAllBalances(effectiveConfig, funderAddresses);
+    const actions = this.policyEvaluator.evaluateAll(effectiveConfig, reports);
+
+    this.metrics.recordBalances(reports);
+    this.metrics.lastCycleTimestamp.set(Math.floor(Date.now() / 1000));
+
+    return { reports, actions };
+  }
+
+  /**
+   * Run a single complete funding cycle
+   */
+  public async runOnce(
+    configOverride?: Partial<KeyfunderConfig>
+  ): Promise<{ reports: Record<string, ChainBalanceReport>; actions: FundingAction[] }> {
+    const startCycle = Date.now();
+    const effectiveConfig = { ...this.config, ...(configOverride || {}) };
+    const isDryRun = effectiveConfig.dryRun ?? false;
+
+    const { reports, actions } = await this.check(effectiveConfig);
+
+    const pendingActions = actions.filter((a) => a.status === 'PENDING');
+    let executedActions: FundingAction[] = actions;
+
+    if (pendingActions.length > 0) {
+      if (isDryRun) {
+        executedActions = actions.map((a) => {
+          if (a.status === 'PENDING') {
+            return {
+              ...a,
+              status: 'EXECUTED',
+              txHash: '0x' + 'dryrun'.padEnd(64, '0'),
+            };
+          }
+          return a;
+        });
+      } else {
+        executedActions = await this.executor.executeAll(actions, effectiveConfig, {
+          dryRun: false,
+        });
+      }
     }
 
-    const logger = this.options.logger.child({ chain, operation: 'igp-claim' });
-    const provider = this.multiProvider.getProvider(chain);
-    const igpContract =
-      this.options.igp.getContracts(chain).interchainGasPaymaster;
-    const decimals = this.getNativeDecimals(chain);
-    const igpBalance = await provider.getBalance(igpContract.address);
-    const claimThreshold = ethers.utils.parseUnits(
-      igpConfig.claimThreshold,
+    // Record metrics
+    this.metrics.recordActions(executedActions);
+    const durationSeconds = (Date.now() - startCycle) / 1000;
+    this.metrics.cycleDurationSeconds.observe(durationSeconds);
+    this.metrics.lastCycleTimestamp.set(Math.floor(Date.now() / 1000));
+
+    return {
+      reports,
+      actions: executedActions,
+    };
+  }
+
+  /**
+   * Start daemon running continuous funding cycles
+   */
+  public async startDaemon(intervalSec?: number): Promise<void> {
+    if (this.isRunning) {
+      return;
+    }
+    this.isRunning = true;
+
+    const interval =
+      intervalSec ??
+      this.config.intervalSec ??
+      this.config.daemonIntervalSeconds ??
+      60;
+
+    if (this.config.metricsPort) {
+      await this.metrics.startServer(this.config.metricsPort);
+    }
+
+    const runLoop = async () => {
+      if (!this.isRunning) return;
+      try {
+        await this.runOnce();
+      } catch (err: any) {
+        console.error(`[KeyFunder Daemon] Error in funding cycle: ${err.message}`);
+        this.metrics.recordError('daemon', 'cycle_failure');
+      }
+
+      if (this.isRunning) {
+        this.timer = setTimeout(runLoop, interval * 1000);
+      }
+    };
+
+    // Run first cycle immediately
+    await runLoop();
+  }
+
+  /**
+   * Stop continuous daemon mode
+   */
+  public async stopDaemon(): Promise<void> {
+    this.isRunning = false;
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = undefined;
+    }
+    await this.metrics.stopServer();
+  }
+
+  /**
+   * Perform manual top-up for a single recipient
+   */
+  public async topUpRecipient(
+    chainName: string,
+    recipientAddress: string,
+    amountStr: string,
+    strategyOverride?: StrategyType,
+    dryRun: boolean = false
+  ): Promise<FundingAction> {
+    const chainConfig = this.config.chains[chainName];
+    if (!chainConfig) {
+      throw new Error(`Chain ${chainName} is not configured`);
+    }
+
+    const rootFunder = this.config.funder || this.config.globalFunderKey;
+    const funderConfig = chainConfig.funderKey || rootFunder;
+    if (!funderConfig) {
+      throw new Error(`No funder key configured for chain ${chainName}`);
+    }
+
+    const decimals = chainConfig.nativeDecimals ?? getDefaultDecimals(chainConfig.protocol);
+    const symbol = chainConfig.nativeSymbol ?? getDefaultSymbol(chainConfig.protocol);
+    const requiredFunding = ethers.parseUnits(amountStr, decimals);
+
+    const funderAddress = await SignerFactory.getFunderAddress(chainConfig.protocol, funderConfig);
+    const currentBalance = await this.balanceMonitor.getNativeBalance(chainConfig, recipientAddress);
+    const funderBalance = await this.balanceMonitor.getNativeBalance(chainConfig, funderAddress);
+
+    const strategy = strategyOverride || chainConfig.strategy || 'direct';
+
+    const action: FundingAction = {
+      chain: chainName,
+      protocol: chainConfig.protocol,
+      recipient: recipientAddress,
+      currentBalance,
+      formattedCurrentBalance: ethers.formatUnits(currentBalance, decimals),
+      minThreshold: 0n,
+      formattedMinThreshold: '0',
+      desiredBalance: currentBalance + requiredFunding,
+      formattedDesiredBalance: ethers.formatUnits(currentBalance + requiredFunding, decimals),
+      requiredFunding,
+      formattedRequiredFunding: amountStr,
+      funderAddress,
+      funderBalance,
+      formattedFunderBalance: ethers.formatUnits(funderBalance, decimals),
+      strategy,
+      status: 'PENDING',
       decimals,
-    );
+      symbol,
+    };
 
-    this.options.metrics?.recordIgpBalance(
-      chain,
-      parseFloat(ethers.utils.formatUnits(igpBalance, decimals)),
-    );
-
-    logger.info(
-      {
-        igpBalance: ethers.utils.formatUnits(igpBalance, decimals),
-        claimThreshold: ethers.utils.formatUnits(claimThreshold, decimals),
-      },
-      'Checking IGP balance',
-    );
-
-    if (igpBalance.gt(claimThreshold)) {
-      logger.info('IGP balance exceeds threshold, claiming');
-      await this.multiProvider.sendTransaction(
-        chain,
-        await igpContract.populateTransaction.claim(),
-      );
-      logger.info('IGP claim completed');
-    }
-  }
-
-  private async fundKeys(
-    chain: string,
-    keys: ResolvedKeyConfig[],
-  ): Promise<void> {
-    for (const key of keys) {
-      await this.fundKey(chain, key);
-    }
-  }
-
-  private async fundKey(chain: string, key: ResolvedKeyConfig): Promise<void> {
-    const logger = this.options.logger.child({
-      chain,
-      address: key.address,
-      role: key.role,
-    });
-
-    const decimals = this.getNativeDecimals(chain);
-    const desiredBalance = ethers.utils.parseUnits(
-      key.desiredBalance,
-      decimals,
-    );
-    const fundingAmount = await this.calculateFundingAmount(
-      chain,
-      key.address,
-      desiredBalance,
-    );
-
-    const currentBalance = await this.multiProvider
-      .getProvider(chain)
-      .getBalance(key.address);
-
-    this.options.metrics?.recordWalletBalance(
-      chain,
-      key.address,
-      key.role,
-      parseFloat(ethers.utils.formatUnits(currentBalance, decimals)),
-    );
-
-    if (fundingAmount.eq(0)) {
-      logger.debug(
-        { currentBalance: ethers.utils.formatUnits(currentBalance, decimals) },
-        'Key balance sufficient, skipping',
-      );
-      return;
+    if (dryRun) {
+      action.status = 'EXECUTED';
+      action.txHash = '0x' + 'dryrun_topup'.padEnd(64, '0');
+      return action;
     }
 
-    const funderAddress = await this.multiProvider.getSignerAddress(chain);
-    const funderBalance = await this.multiProvider
-      .getSigner(chain)
-      .getBalance();
-
-    if (funderBalance.lt(fundingAmount)) {
-      logger.error(
-        {
-          funderBalance: ethers.utils.formatUnits(funderBalance, decimals),
-          requiredAmount: ethers.utils.formatUnits(fundingAmount, decimals),
-        },
-        'Funder balance insufficient to cover funding amount',
-      );
-      throw new Error(
-        `Insufficient funder balance on ${chain}: has ${ethers.utils.formatUnits(funderBalance, decimals)}, needs ${ethers.utils.formatUnits(fundingAmount, decimals)}`,
-      );
-    }
-
-    logger.info(
-      {
-        amount: ethers.utils.formatUnits(fundingAmount, decimals),
-        currentBalance: ethers.utils.formatUnits(currentBalance, decimals),
-        desiredBalance: ethers.utils.formatUnits(desiredBalance, decimals),
-        funderAddress,
-        funderBalance: ethers.utils.formatUnits(funderBalance, decimals),
-      },
-      'Funding key',
-    );
-
-    const tx = await this.multiProvider.sendTransaction(chain, {
-      to: key.address,
-      value: fundingAmount,
-    });
-
-    this.options.metrics?.recordFundingAmount(
-      chain,
-      key.address,
-      key.role,
-      parseFloat(ethers.utils.formatUnits(fundingAmount, decimals)),
-    );
-
-    logger.info(
-      {
-        txHash: tx.transactionHash,
-        txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, {
-          hash: tx.transactionHash,
-        }),
-      },
-      'Funding transaction completed',
-    );
-  }
-
-  private async calculateFundingAmount(
-    chain: string,
-    address: string,
-    desiredBalance: BigNumber,
-  ): Promise<BigNumber> {
-    const currentBalance = await this.multiProvider
-      .getProvider(chain)
-      .getBalance(address);
-    if (currentBalance.gte(desiredBalance)) {
-      return BigNumber.from(0);
-    }
-    const delta = desiredBalance.sub(currentBalance);
-    const minDelta = desiredBalance
-      .mul(MIN_DELTA_NUMERATOR)
-      .div(MIN_DELTA_DENOMINATOR);
-    return delta.gt(minDelta) ? delta : BigNumber.from(0);
-  }
-
-  private async sweepExcessFunds(
-    chain: string,
-    chainConfig: ChainConfig,
-  ): Promise<void> {
-    const sweepConfig = chainConfig.sweep;
-    if (!sweepConfig?.enabled) {
-      return;
-    }
-
-    const logger = this.options.logger.child({ chain, operation: 'sweep' });
-
-    if (!sweepConfig.address || !sweepConfig.threshold) {
-      throw new Error(
-        `Sweep config is invalid for chain ${chain}: address and threshold are required when sweep is enabled`,
-      );
-    }
-
-    const decimals = this.getNativeDecimals(chain);
-    const threshold = ethers.utils.parseUnits(sweepConfig.threshold, decimals);
-    const targetBalance = calculateMultipliedBalance(
-      threshold,
-      sweepConfig.targetMultiplier,
-    );
-    const triggerThreshold = calculateMultipliedBalance(
-      threshold,
-      sweepConfig.triggerMultiplier,
-    );
-
-    const funderBalance = await this.multiProvider
-      .getSigner(chain)
-      .getBalance();
-
-    logger.info(
-      {
-        funderBalance: ethers.utils.formatUnits(funderBalance, decimals),
-        triggerThreshold: ethers.utils.formatUnits(triggerThreshold, decimals),
-        targetBalance: ethers.utils.formatUnits(targetBalance, decimals),
-      },
-      'Checking sweep conditions',
-    );
-
-    if (funderBalance.gt(triggerThreshold)) {
-      const sweepAmount = funderBalance.sub(targetBalance);
-
-      logger.info(
-        {
-          sweepAmount: ethers.utils.formatUnits(sweepAmount, decimals),
-          sweepAddress: sweepConfig.address,
-        },
-        'Sweeping excess funds',
-      );
-
-      const tx = await this.multiProvider.sendTransaction(chain, {
-        to: sweepConfig.address,
-        value: sweepAmount,
-      });
-
-      this.options.metrics?.recordSweepAmount(
-        chain,
-        parseFloat(ethers.utils.formatUnits(sweepAmount, decimals)),
-      );
-
-      logger.info(
-        {
-          txHash: tx.transactionHash,
-          txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, {
-            hash: tx.transactionHash,
-          }),
-        },
-        'Sweep completed',
-      );
+    const execResult = await this.executor.executeAction(action, chainConfig, funderConfig);
+    if (execResult.success) {
+      action.status = 'EXECUTED';
+      action.txHash = execResult.txHash;
     } else {
-      logger.debug('Funder balance below trigger threshold, no sweep needed');
+      action.status = 'FAILED';
+      action.error = execResult.error;
     }
+
+    this.metrics.recordActions([action]);
+    return action;
   }
-}
-
-/**
- * Multiplies a BigNumber by a decimal multiplier with 2 decimal precision (floored).
- * e.g., 1 ETH * 1.555 = 1.55 ETH (not 1.56 ETH)
- */
-export function calculateMultipliedBalance(
-  base: BigNumber,
-  multiplier: number,
-): BigNumber {
-  return base.mul(Math.floor(multiplier * 100)).div(100);
-}
-
-function createTimeoutPromise(
-  timeoutMs: number,
-  errorMessage: string,
-): { promise: Promise<never>; cleanup: () => void } {
-  let timeoutId: NodeJS.Timeout;
-  const promise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new Error(errorMessage));
-    }, timeoutMs);
-  });
-  return {
-    promise,
-    cleanup: () => {
-      clearTimeout(timeoutId);
-    },
-  };
 }
