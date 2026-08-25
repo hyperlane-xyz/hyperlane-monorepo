@@ -36,6 +36,9 @@ import {
   HypTokenRouterConfig,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  XERC20TokenExtraBridgesLimits,
+  XERC20Type,
+  isXERC20TokenConfig,
 } from './types.js';
 
 function buildMultiProvider(): MultiProvider {
@@ -420,6 +423,64 @@ describe('configUtils', () => {
         expect(transformedObj).to.eql(expected);
       });
     }
+
+    // The derived side is ordered by the events the token emitted and the
+    // expected side by whoever wrote the deploy config. Comparing them index by
+    // index reports two orderings of the same bridges as drift.
+    it('orders xERC20 extraBridges by the bridge they hold limits for', () => {
+      // The reader reports a bridge EIP-55 checksummed and a deploy config
+      // carries whatever its author typed, so the two sides only order alike if
+      // they are lowercased before they are sorted. These two make that
+      // load-bearing: the checksum uppercases the leading b and leaves the
+      // leading a alone, so sorting the raw strings puts "0xB" (0x42) ahead of
+      // "0xa" (0x61) and the sides canonicalise to opposite orders.
+      const LOWER_A = '0xa000000000000000000000000000000000000000';
+      const LOWER_B = '0xb000000000000000000000000000000000000000';
+      const CHECKSUMMED_A = utils.getAddress(LOWER_A);
+      const CHECKSUMMED_B = utils.getAddress(LOWER_B);
+      expect(CHECKSUMMED_B).to.equal(
+        '0xB000000000000000000000000000000000000000',
+      );
+
+      const limits = {
+        type: XERC20Type.Velo,
+        bufferCap: '20000000000000',
+        rateLimitPerSecond: '5000000000',
+      };
+      const config = (
+        extraBridges: XERC20TokenExtraBridgesLimits[],
+      ): HypTokenRouterConfig => ({
+        type: TokenType.XERC20,
+        token: ADDRESS,
+        mailbox: ADDRESS,
+        owner: ADDRESS,
+        xERC20: { warpRouteLimits: limits, extraBridges },
+      });
+
+      // As the reader reports them, announced in the opposite order to the
+      // deploy config below.
+      const announced = transformConfigToCheck(
+        config([
+          { lockbox: CHECKSUMMED_B, limits },
+          { lockbox: CHECKSUMMED_A, limits },
+        ]),
+      );
+      const declared = transformConfigToCheck(
+        config([
+          { lockbox: LOWER_A, limits },
+          { lockbox: LOWER_B, limits },
+        ]),
+      );
+
+      expect(announced).to.eql(declared);
+      assert(
+        isXERC20TokenConfig(announced),
+        'Expected the transformed config to stay an xERC20 config',
+      );
+      expect(
+        announced.xERC20?.extraBridges?.map(({ lockbox }) => lockbox),
+      ).to.eql([LOWER_A, LOWER_B]);
+    });
 
     it('normalizes plain number scale to {numerator, denominator} bigint', () => {
       const transformedObj = transformConfigToCheck({

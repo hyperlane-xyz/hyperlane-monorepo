@@ -10,7 +10,12 @@ import { HyperlaneJsonRpcProvider } from '../providers/SmartProvider/HyperlaneJs
 import { ProviderMethod } from '../providers/SmartProvider/ProviderMethods.js';
 import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 
+import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
+
 import { EvmXERC20Reader } from './EvmXERC20Reader.js';
+import { EvmXERC20VSAdapter } from './adapters/EvmTokenAdapter.js';
+import { RateLimitMidPoint } from './adapters/ITokenAdapter.js';
+import { VeloXERC20Limits } from './xerc20-limits.js';
 import { XERC20Type } from './types.js';
 import { CONFIGURATION_CHANGED_EVENT_SELECTOR } from './xerc20-abi.js';
 
@@ -185,6 +190,43 @@ function createReader(pagination: RpcUrl['pagination']): EvmXERC20Reader {
   return new EvmXERC20Reader(multiProvider, CHAIN_NAME);
 }
 
+const OVERRIDE_BRIDGE: Address = '0xEeEeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
+const LIMIT_BRIDGES: Address[] = Array.from(
+  { length: 12 },
+  (_value, index) =>
+    `0x${(index + 1).toString(16).padStart(2, '0').repeat(20)}`,
+);
+
+function createLimitsReader(concurrency?: number): EvmXERC20Reader {
+  const rpcUrl: RpcUrl = { http: RPC_URL, concurrency };
+  const metadata: ChainMetadata = {
+    chainId: CHAIN_ID,
+    domainId: CHAIN_ID,
+    name: CHAIN_NAME,
+    protocol: ProtocolType.Ethereum,
+    rpcUrls: [rpcUrl],
+  };
+  const multiProvider = new MultiProvider({ [CHAIN_NAME]: metadata });
+  multiProvider.setProvider(
+    CHAIN_NAME,
+    new HyperlaneJsonRpcProvider(rpcUrl, {
+      chainId: CHAIN_ID,
+      name: CHAIN_NAME,
+    }),
+  );
+  return new EvmXERC20Reader(multiProvider, CHAIN_NAME);
+}
+
+function rateLimits(bufferCap: bigint): RateLimitMidPoint {
+  return {
+    rateLimitPerSecond: 1n,
+    bufferCap,
+    lastBufferUsedTime: 0,
+    bufferStored: 0n,
+    midPoint: 0n,
+  };
+}
+
 describe('EvmXERC20Reader', () => {
   beforeEach(() => {
     // The chain declares no block explorer, so the reader is RPC only and any
@@ -308,5 +350,101 @@ describe('EvmXERC20Reader', () => {
       expect(bridges).to.deep.equal([]);
       expect(fromConfig.notCalled).to.be.true;
     });
+  });
+  describe('readLimits', () => {
+    // The conversions are protected on a root-exported class, so an override is
+    // part of what the class promises. Reading through the module functions
+    // directly would leave one silently uncalled.
+    it('reports what a subclass override returns', async () => {
+      class OverridingReader extends EvmXERC20Reader {
+        protected override toVeloLimits(
+          rateLimit: RateLimitMidPoint,
+        ): VeloXERC20Limits {
+          return {
+            type: XERC20Type.Velo,
+            bufferCap: `overridden-${rateLimit.bufferCap}`,
+            rateLimitPerSecond: 'overridden',
+          };
+        }
+      }
+
+      sinon
+        .stub(EvmXERC20VSAdapter.prototype, 'getRateLimits')
+        .resolves(rateLimits(7n));
+      const multiProvider = new MultiProvider({
+        [CHAIN_NAME]: {
+          chainId: CHAIN_ID,
+          domainId: CHAIN_ID,
+          name: CHAIN_NAME,
+          protocol: ProtocolType.Ethereum,
+          rpcUrls: [{ http: RPC_URL }],
+        },
+      });
+      multiProvider.setProvider(
+        CHAIN_NAME,
+        new HyperlaneJsonRpcProvider(
+          { http: RPC_URL },
+          { chainId: CHAIN_ID, name: CHAIN_NAME },
+        ),
+      );
+
+      const limits = await new OverridingReader(
+        multiProvider,
+        CHAIN_NAME,
+      ).readLimits(XERC20_ADDRESS, [OVERRIDE_BRIDGE], XERC20Type.Velo);
+
+      expect(limits).to.deep.equal({
+        [OVERRIDE_BRIDGE]: {
+          type: XERC20Type.Velo,
+          bufferCap: 'overridden-7',
+          rateLimitPerSecond: 'overridden',
+        },
+      });
+    });
+
+    interface ConcurrencyCase {
+      name: string;
+      configured?: number;
+      expectedPeak: number;
+    }
+
+    // Discovery hands over every address the token ever announced, so an
+    // unbounded read opens that whole history at once against one provider.
+    const concurrencyCases: ConcurrencyCase[] = [
+      {
+        name: 'reads no more bridges at once than the chain allows',
+        configured: 3,
+        expectedPeak: 3,
+      },
+      {
+        name: 'reads one bridge at a time when the chain configures nothing',
+        expectedPeak: DEFAULT_CONTRACT_READ_CONCURRENCY,
+      },
+    ];
+
+    for (const testCase of concurrencyCases) {
+      it(testCase.name, async () => {
+        let inFlight = 0;
+        let peak = 0;
+        sinon
+          .stub(EvmXERC20VSAdapter.prototype, 'getRateLimits')
+          .callsFake(async () => {
+            inFlight += 1;
+            peak = Math.max(peak, inFlight);
+            await new Promise((resolve) => setImmediate(resolve));
+            inFlight -= 1;
+            return rateLimits(1n);
+          });
+
+        const limits = await createLimitsReader(testCase.configured).readLimits(
+          XERC20_ADDRESS,
+          LIMIT_BRIDGES,
+          XERC20Type.Velo,
+        );
+
+        expect(Object.keys(limits)).to.have.members(LIMIT_BRIDGES);
+        expect(peak).to.equal(testCase.expectedPeak);
+      });
+    }
   });
 });

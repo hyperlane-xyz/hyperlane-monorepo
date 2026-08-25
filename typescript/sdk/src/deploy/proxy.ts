@@ -19,6 +19,11 @@ import { DeployedOwnableConfig } from '../types.js';
 
 export type EthersLikeProvider = ethers.providers.Provider | ZKSyncProvider;
 
+export const EIP1967_IMPLEMENTATION_SLOT =
+  '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
+export const EIP1967_ADMIN_SLOT =
+  '0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103';
+
 const ZEvmAddress = z
   .string()
   .refine(isValidAddressEvm, 'Must be a valid EVM address');
@@ -98,10 +103,9 @@ export async function proxyImplementation(
   proxy: Address,
 ): Promise<Address> {
   await assertCodeExists(provider, proxy);
-  // Hardcoded storage slot for implementation per EIP-1967
   const storageValue = await provider.getStorageAt(
     proxy,
-    '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc',
+    EIP1967_IMPLEMENTATION_SLOT,
   );
   if (isStorageEmpty(storageValue)) {
     return ethers.constants.AddressZero;
@@ -128,11 +132,7 @@ export async function proxyAdmin(
   proxy: Address,
 ): Promise<Address> {
   await assertCodeExists(provider, proxy);
-  // Hardcoded storage slot for admin per EIP-1967
-  const storageValue = await provider.getStorageAt(
-    proxy,
-    '0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103',
-  );
+  const storageValue = await provider.getStorageAt(proxy, EIP1967_ADMIN_SLOT);
   if (isStorageEmpty(storageValue)) {
     return ethers.constants.AddressZero;
   }
