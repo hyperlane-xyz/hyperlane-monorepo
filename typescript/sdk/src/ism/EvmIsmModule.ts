@@ -460,10 +460,10 @@ export class EvmIsmModule extends HyperlaneModule<
       target.type === IsmType.PAUSABLE
     ) {
       updateTxs.push(
-        ...this.updatePausableIsm({
+        ...(await this.updatePausableIsm({
           current,
           target,
-        }),
+        })),
       );
     } else if (
       current.type === IsmType.OFFCHAIN_LOOKUP &&
@@ -627,13 +627,13 @@ export class EvmIsmModule extends HyperlaneModule<
     return updateTxs;
   }
 
-  protected updatePausableIsm({
+  protected async updatePausableIsm({
     current,
     target,
   }: {
     current: PausableIsmConfig;
     target: PausableIsmConfig;
-  }): AnnotatedEV5Transaction[] {
+  }): Promise<AnnotatedEV5Transaction[]> {
     if (current.paused === target.paused) {
       return [];
     }
@@ -643,14 +643,20 @@ export class EvmIsmModule extends HyperlaneModule<
       ? ismInterface.encodeFunctionData('pause')
       : ismInterface.encodeFunctionData('unpause');
 
-    return [
-      {
-        annotation: `${target.paused ? 'Pausing' : 'Unpausing'} Pausable ISM on chain "${this.chain}" and address "${this.args.addresses.deployedIsm}"`,
-        chainId: this.multiProvider.getEvmChainId(this.chain),
-        to: this.args.addresses.deployedIsm,
-        data,
-      },
-    ];
+    const tx: AnnotatedEV5Transaction = {
+      annotation: `${target.paused ? 'Pausing' : 'Unpausing'} Pausable ISM on chain "${this.chain}" and address "${this.args.addresses.deployedIsm}"`,
+      chainId: this.multiProvider.getEvmChainId(this.chain),
+      to: this.args.addresses.deployedIsm,
+      data,
+    };
+
+    const signerAddress = await this.multiProvider.getSignerAddress(this.chain);
+    if (eqAddress(signerAddress, current.owner)) {
+      await this.multiProvider.sendTransaction(this.chain, tx);
+      return [];
+    }
+
+    return [tx];
   }
 
   protected updateOffchainLookupIsm({

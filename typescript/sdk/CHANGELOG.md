@@ -1,5 +1,57 @@
 # @hyperlane-xyz/sdk
 
+## 42.0.0
+
+### Major Changes
+
+- 1b136e1: Added SDK support for the new EVM warp-route flow-limiting ISM contracts:
+
+  - `DefaultIsm` was modeled as `IsmType.MAILBOX_DEFAULT`, deployed with its mailbox, derived through a contract-specific probe, and matched against that mailbox.
+  - `NetFlowRateLimitedHookIsm` and `DelayedFlowRouterHookIsm` were modeled as shared hook/ISM instances with typed config, deployment, derivation, matching, mutable ownership, and delayed-flow counterpart enrollment support. The hook side remains read-only so only the ISM deployment path creates the shared instance.
+  - Hybrid configs were required to sit in an exhaustive aggregation with a supported authenticating sibling. Core default-ISM configs and random mutable-ISM tests reject the warp-route-only hybrids.
+  - Hook and ISM readers use contract-specific probes so NULL-module hybrids are not mistaken for test ISMs and the net-flow hybrid is not mistaken for a plain rate-limited hook.
+  - Delayed-flow `maxDelay` values were bounded to a conservative operational maximum so adding the delay to the on-chain `uint48` timestamp cannot overflow in practical use.
+  - The relayer gained metadata building and decoding for all three types. `RoutingMetadata['type']` now includes `MAILBOX_DEFAULT`; because that exported union widening is breaking, the relayer package receives a major bump.
+  - `HookConfig` was expressed as an explicit union to avoid downstream TypeScript union-complexity failures.
+
+### Minor Changes
+
+- 1713edd: Added an optional `ignoreSenderBalance` mode to multi-protocol transaction fee estimation, allowing callers to price native max-amount transactions without changing the existing balance-aware default behavior.
+- 9003bab: External EVM signer configs were added to transaction-file submission, and JSON-RPC submitters were extended with explicit signer injection and partial submission results.
+- 1b136e1: Extended DelayedFlowRouterHookIsm auto-enrollment from `warp deploy` to `warp apply`:
+
+  - `warp apply` now resolves one shared hybrid leaf from the paired hook and ISM trees, enrolls delayed-flow counterparts, and uses the same ordinary per-chain submitter path as other non-fee warp updates.
+  - Each chain receives one ordered batch: upgrades, delayed-flow enrollment, hook installation, ISM installation, then router updates. Removal reverses the shared-instance operations so the ISM is removed before the hook. Operators must quiesce and drain the route because batches cannot execute atomically across chains.
+  - Adding, replacing, removing, extending, and resuming interrupted hybrid updates were covered. Safe, ICA, timelock, file, and distinct fee submitters keep their existing behavior.
+  - Preflight validation rejects partial delayed-flow routes, foreign legs, nonce-zero mailboxes, conflicting hybrid declarations, predicate wrappers, unsupported token types, zero peers, and delayed-flow routes with a non-zero ERC20 fee hook before deploying contracts.
+  - Route-derived peers override stale read-derived in-route `remoteIsms`; configured external peers are retained. Unknown on-chain domains are surfaced by `warp check` and removed by `warp apply`.
+  - Route-scoped CLI relaying was extended to discover installed delayed-flow instances from each EVM router's active hook tree, so `--warp-route-id` admits both token transfers and DFR preverification messages.
+  - EVM update planning is no longer automatically retried because planning can deploy contracts before later reads fail. AltVM planning retains its existing retry behavior.
+
+- 1b136e1: Added end-to-end warp deploy support for the warp-route hybrid hook/ISMs:
+
+  - Hook and ISM trees were validated together, token routers were deployed first, and each shared hybrid leaf was then deployed once and installed on both surfaces. Hook installation and readback complete route-wide before ISM installation.
+  - Delayed-flow counterparts were enrolled before router enrollment and final ownership transfer. In-route peers are derived automatically; configured external `remoteIsms` are retained.
+  - `warpRouter` became optional in warp-route configs and is injected after the containing router exists. Explicit mismatches are rejected.
+  - `remoteIsms` keys are canonicalized across deploy, update, read, and check. Route-derived peers override stale configured values for chains in the route, while external configured peers remain authoritative.
+  - Expanded configs include the deployed shared address, router, and delayed-flow peers so `warp check` converges with the installed route.
+
+### Patch Changes
+
+- aa29187: Restored Sonic CCIP constants and default multisig ISM validator configuration.
+- f0f8a56: Tron externally-owned accounts are no longer reported as inactive owners. `TronJsonRpcProvider` gained `isAccountActive`, which reads on-chain activation from the native `wallet/getaccount` endpoint instead of leaving liveness to be inferred from `getTransactionCount` (Tron has no nonces, so that method is hardcoded to 0 and made every Tron EOA look dead). `isAddressActive` now consults that method when the provider offers it and otherwise keeps its existing code-or-nonce behaviour, so `warp check` stops emitting a permanent `ownerStatus` violation for live Tron EOA owners. A failure reaching the Tron node is thrown rather than reported as inactive.
+- 9a8bb17: Updated `expandWarpDeployConfig` to canonicalize `rebalanceTargets` and `rebalanceRecipients` keys to domain IDs on cross-collateral token configs, mirroring the treatment of `allowedRebalancingBridges`, `remoteRouters`, and `destinationGas`. Previously a config keyed by chain name compared unequal to the domain-ID-keyed on-chain state read by `EvmWarpRouteReader`, so the warp config checker reported a permanent false-positive `ConfigMismatch`; now name-keyed and domain-ID-keyed configs compare equal. Keys resolving to the same canonical domain ID have their rebalance targets unioned.
+- Updated dependencies [f0f8a56]
+  - @hyperlane-xyz/tron-sdk@24.2.0
+  - @hyperlane-xyz/deploy-sdk@8.1.3
+  - @hyperlane-xyz/aleo-sdk@42.0.0
+  - @hyperlane-xyz/starknet-core@42.0.0
+  - @hyperlane-xyz/cosmos-sdk@42.0.0
+  - @hyperlane-xyz/radix-sdk@42.0.0
+  - @hyperlane-xyz/utils@42.0.0
+  - @hyperlane-xyz/core@12.1.0
+  - @hyperlane-xyz/provider-sdk@8.1.3
+
 ## 41.3.1
 
 ### Patch Changes

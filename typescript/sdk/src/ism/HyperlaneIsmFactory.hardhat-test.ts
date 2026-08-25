@@ -651,16 +651,95 @@ describe('HyperlaneIsmFactory', async () => {
     ).to.be.rejectedWith('Warp router address is required');
   });
 
-  it('recovers an address-bearing pausable ism config', async () => {
+  it('deploys a pausable ism with the configured initial state and owner', async () => {
+    const owner = randomAddress();
+
+    for (const paused of [false, true]) {
+      const deployed = await ismFactory.deploy({
+        destination: chain,
+        config: {
+          type: IsmType.PAUSABLE,
+          owner,
+          paused,
+        },
+      });
+      const pausable = PausableIsm__factory.connect(
+        deployed.address,
+        multiProvider.getProvider(chain),
+      );
+
+      expect(await pausable.paused()).to.equal(paused);
+      expect((await pausable.owner()).toLowerCase()).to.equal(
+        owner.toLowerCase(),
+      );
+    }
+  });
+
+  it('deploys an aggregation with its pausable submodule initially paused', async () => {
+    const owner = randomAddress();
+    const config: AggregationIsmConfig = {
+      type: IsmType.AGGREGATION,
+      modules: [
+        randomMultisigIsmConfig(3, 5),
+        {
+          type: IsmType.PAUSABLE,
+          owner,
+          paused: true,
+        },
+      ],
+      threshold: 2,
+    };
+
+    const deployed = await ismFactory.deploy({
+      destination: chain,
+      config,
+    });
+
+    expect(
+      await moduleMatchesConfig(
+        chain,
+        deployed.address,
+        config,
+        multiProvider,
+        ismFactory.getContracts(chain),
+      ),
+    ).to.be.true;
+  });
+
+  it('reconciles an address-bearing pausable ism config', async () => {
+    const [, newOwner, overrideOwner] = await hre.ethers.getSigners();
     const config: PausableIsmConfig = {
       type: IsmType.PAUSABLE,
       owner: await multiProvider.getSignerAddress(chain),
       paused: false,
     };
     const deployed = await ismFactory.deploy({ destination: chain, config });
+    const pauseMismatch: WithAddress<PausableIsmConfig> = {
+      ...config,
+      address: deployed.address,
+      owner: await newOwner.getAddress(),
+      paused: true,
+    };
+
+    await expect(
+      ismFactory.deploy({
+        destination: chain,
+        config: pauseMismatch,
+      }),
+    ).to.be.rejectedWith('but config expects paused');
+    const pausable = PausableIsm__factory.connect(
+      deployed.address,
+      multiProvider.getProvider(chain),
+    );
+    expect(await pausable.owner()).to.equal(config.owner);
+
     const recoveredConfig: WithAddress<PausableIsmConfig> = {
       ...config,
       address: deployed.address,
+      owner: await newOwner.getAddress(),
+      ownerOverrides: {
+        [IsmType.PAUSABLE]: await overrideOwner.getAddress(),
+      },
     };
 
     const recovered = await ismFactory.deploy({
@@ -669,6 +748,8 @@ describe('HyperlaneIsmFactory', async () => {
     });
 
     expect(recovered.address).to.equal(deployed.address);
+    expect(await pausable.paused()).to.be.false;
+    expect(await pausable.owner()).to.equal(await overrideOwner.getAddress());
   });
 
   it('deploys a trusted relayer ism', async () => {

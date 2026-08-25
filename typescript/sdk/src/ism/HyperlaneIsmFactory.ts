@@ -26,6 +26,7 @@ import {
   IStaticWeightedMultisigIsm,
   NetFlowRateLimitedHookIsm__factory,
   OPStackIsm__factory,
+  PausableIsm,
   PausableIsm__factory,
   RateLimitedIsm__factory,
   StaticAddressSetFactory,
@@ -44,6 +45,7 @@ import {
   addBufferToGasLimit,
   assert,
   eqAddress,
+  isZeroishAddress,
   objFilter,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -81,7 +83,9 @@ import {
   IsmConfig,
   IsmConfigSchema,
   IsmType,
+  ModuleType,
   MultisigIsmConfig,
+  PausableIsmConfig,
   RoutingIsmConfig,
   RoutingIsmDelta,
   WeightedMultisigIsmConfig,
@@ -394,14 +398,20 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         const derivedConfig = DerivedPausableIsmConfigSchema.safeParse(config);
         // Address-bearing configs represent recovered artifacts. Normal
         // pausable configs omit address and deploy a chain/route-local ISM.
-        contract = derivedConfig.success
+        const pausableIsm = derivedConfig.success
           ? PausableIsm__factory.connect(
               derivedConfig.data.address,
               this.multiProvider.getSignerOrProvider(destination),
             )
-          : await this.deployer.deployContract(destination, IsmType.PAUSABLE, [
-              config.owner,
-            ]);
+          : await this.deployPausableIsm(destination, config);
+        if (derivedConfig.success) {
+          await this.reconcileRecoveredPausableIsm(
+            destination,
+            pausableIsm,
+            config,
+          );
+        }
+        contract = pausableIsm;
         break;
       }
       case IsmType.TRUSTED_RELAYER:
@@ -584,6 +594,46 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     return contract;
   }
 
+  private async reconcileRecoveredPausableIsm(
+    destination: ChainName,
+    contract: PausableIsm,
+    config: PausableIsmConfig,
+  ): Promise<void> {
+    const [moduleType, currentOwner, currentPaused, signer] = await Promise.all(
+      [
+        contract.moduleType(),
+        contract.owner(),
+        contract.paused(),
+        this.multiProvider.getSignerAddress(destination),
+      ],
+    );
+    assert(
+      moduleType === ModuleType.NULL,
+      `Recovered pausable ISM ${contract.address} on ${destination} has module type ${moduleType}, expected ${ModuleType.NULL}`,
+    );
+    assert(
+      currentPaused === config.paused,
+      `Recovered pausable ISM ${contract.address} on ${destination} is ${currentPaused ? '' : 'not '}paused, but config expects ${config.paused ? '' : 'not '}paused`,
+    );
+    const owner = config.ownerOverrides?.[config.type] ?? config.owner;
+    assert(
+      !isZeroishAddress(owner),
+      `Recovered pausable ISM owner cannot be the zero address`,
+    );
+    if (eqAddress(currentOwner, owner)) return;
+
+    assert(
+      eqAddress(currentOwner, signer),
+      `Cannot reconcile recovered pausable ISM ${contract.address} on ${destination}: signer ${signer} is not owner ${currentOwner}`,
+    );
+
+    const overrides = this.multiProvider.getTransactionOverrides(destination);
+    await this.multiProvider.handleTx(
+      destination,
+      contract.transferOwnership(owner, overrides),
+    );
+  }
+
   protected async deployCCIPIsm(
     destination: ChainName,
     config: CCIPIsmConfig,
@@ -620,6 +670,34 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
     if (blacklistedIds.length > 0) {
       const tx = await contract.blacklist(blacklistedIds, overrides);
+      await this.multiProvider.handleTx(destination, tx);
+    }
+
+    if (!eqAddress(signerAddress, config.owner)) {
+      const tx = await contract.transferOwnership(config.owner, overrides);
+      await this.multiProvider.handleTx(destination, tx);
+    }
+
+    return contract;
+  }
+
+  protected async deployPausableIsm(
+    destination: ChainName,
+    config: PausableIsmConfig,
+  ): Promise<DeployedIsmType[typeof IsmType.PAUSABLE]> {
+    const signer = this.multiProvider.getSigner(destination);
+    const signerAddress = await signer.getAddress();
+    const overrides = this.multiProvider.getTransactionOverrides(destination);
+    const contract = await this.deployer.deployContract(
+      destination,
+      IsmType.PAUSABLE,
+      [signerAddress],
+    );
+
+    // Apply owner-gated state before transferring ownership so fresh ISMs
+    // always match the requested config when this method returns.
+    if (config.paused) {
+      const tx = await contract.pause(overrides);
       await this.multiProvider.handleTx(destination, tx);
     }
 
