@@ -20,10 +20,14 @@ import {ReentrancyGuardTransient} from "../libs/ReentrancyGuardTransient.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {IMailbox} from "../interfaces/IMailbox.sol";
 import {SignedQuote, IOffchainQuoter} from "../interfaces/IOffchainQuoter.sol";
 import {Quote, ITokenBridge} from "../interfaces/ITokenBridge.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {CallLib} from "../middleware/libs/Call.sol";
+import {InterchainAccountMessage} from "../middleware/libs/InterchainAccountMessage.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
+import {Message} from "../libs/Message.sol";
 import {PackageVersioned} from "../PackageVersioned.sol";
 
 interface ICrossCollateralRouter {
@@ -62,17 +66,15 @@ interface IInterchainAccountRouter {
         bytes32 _commitment
     ) external payable returns (bytes32, bytes32);
 
-    function quoteGasPayment(
-        address _feeToken,
-        uint32 _destination,
-        uint256 _gasLimit
-    ) external view returns (uint256);
+    function mailbox() external view returns (IMailbox);
 
-    function quoteGasForCommitReveal(
-        address _feeToken,
-        uint32 _destination,
-        uint256 _gasLimit
-    ) external view returns (uint256);
+    function hook() external view returns (IPostDispatchHook);
+
+    function COMMIT_TX_GAS_USAGE() external view returns (uint256);
+}
+
+interface IVersionedMailbox {
+    function VERSION() external view returns (uint8);
 }
 
 /**
@@ -167,6 +169,8 @@ library CalldataHeadLib {
  */
 contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
+    using StandardHookMetadata for bytes;
+    using TypeCasts for address;
 
     // ============ Immutables ============
 
@@ -299,6 +303,10 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
      *      transient quotes), skips token pull/sweep commands, and returns
      *      per-command Quote[] arrays for transfer/ICA commands.
      *      Same command bytes and inputs as execute().
+     *      ICA hook quotes must be caller-independent and pricing-stable
+     *      between quote and execution. Commands that dispatch before an ICA
+     *      command may change its Mailbox nonce and invalidate nonce-sensitive
+     *      hook pricing.
      * @param commands Concatenated command bytes (1 byte per command)
      * @param inputs ABI-encoded inputs for each command
      * @return results Per-command Quote arrays. Empty for non-quoting commands.
@@ -604,34 +612,17 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
             );
     }
 
-    function _quoteIcaGasPayment(
-        address icaRouter,
-        uint32 destination,
-        bytes memory hookMetadata,
-        address token
-    ) internal view returns (Quote[] memory quotes) {
-        quotes = new Quote[](1);
-        quotes[0] = Quote({
-            token: token,
-            amount: IInterchainAccountRouter(icaRouter).quoteGasPayment(
-                token,
-                destination,
-                StandardHookMetadata.gasLimit(hookMetadata)
-            )
-        });
-    }
-
     function _quoteCallRemoteWithOverrides(
         bytes calldata input
-    ) internal view returns (Quote[] memory) {
+    ) internal view returns (Quote[] memory quotes) {
         (
             address icaRouter,
             uint32 destination,
-            ,
-            ,
-            ,
+            bytes32 router,
+            bytes32 ism,
+            CallLib.Call[] memory calls,
             bytes memory hookMetadata,
-            ,
+            bytes32 userSalt,
             ,
             address token,
 
@@ -650,7 +641,29 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
                     uint256
                 )
             );
-        return _quoteIcaGasPayment(icaRouter, destination, hookMetadata, token);
+
+        IInterchainAccountRouter icaRouterContract = IInterchainAccountRouter(
+            icaRouter
+        );
+        bytes memory body = InterchainAccountMessage.encodeMemory(
+            address(this),
+            ism,
+            calls,
+            _scopeSalt(msg.sender, userSalt)
+        );
+        quotes = new Quote[](1);
+        quotes[0] = Quote({
+            token: token,
+            amount: _quoteDispatchForIca(
+                icaRouterContract,
+                destination,
+                router,
+                body,
+                hookMetadata,
+                icaRouterContract.hook(),
+                0
+            )
+        });
     }
 
     function _quoteCallRemoteCommitReveal(
@@ -659,12 +672,12 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
         (
             address icaRouter,
             uint32 destination,
-            ,
-            ,
+            bytes32 router,
+            bytes32 ism,
             bytes memory hookMetadata,
-            ,
-            ,
-            ,
+            address hook,
+            bytes32 salt,
+            bytes32 commitment,
             ,
             address token,
 
@@ -685,16 +698,110 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
                 )
             );
         // Commit-reveal pays for two dispatches (commit + reveal).
-        // quoteGasForCommitReveal returns the combined cost.
+        // The reconstructed quote returns their combined cost.
+        uint256 amount = _quoteCommitRevealDispatches(
+            icaRouter,
+            destination,
+            router,
+            ism,
+            hookMetadata,
+            IPostDispatchHook(hook),
+            _scopeSalt(msg.sender, salt),
+            commitment
+        );
         quotes = new Quote[](1);
-        quotes[0] = Quote({
-            token: token,
-            amount: IInterchainAccountRouter(icaRouter).quoteGasForCommitReveal(
-                token,
-                destination,
-                StandardHookMetadata.gasLimit(hookMetadata)
-            )
+        quotes[0] = Quote({token: token, amount: amount});
+    }
+
+    function _quoteCommitRevealDispatches(
+        address icaRouter,
+        uint32 destination,
+        bytes32 router,
+        bytes32 ism,
+        bytes memory hookMetadata,
+        IPostDispatchHook selectedHook,
+        bytes32 scopedSalt,
+        bytes32 commitment
+    ) internal view returns (uint256) {
+        // Both legs are quoted against the current hook state. Hooks whose
+        // pricing changes during postDispatch are not safely prequotable.
+        IInterchainAccountRouter icaRouterContract = IInterchainAccountRouter(
+            icaRouter
+        );
+
+        bytes memory commitmentBody = InterchainAccountMessage
+            .encodeCommitment({
+                _owner: address(this).addressToBytes32(),
+                _ism: ism,
+                _commitment: commitment,
+                _userSalt: scopedSalt
+            });
+        bytes memory commitmentMetadata = StandardHookMetadata
+            .formatWithFeeToken(
+                0,
+                icaRouterContract.COMMIT_TX_GAS_USAGE(),
+                icaRouter,
+                hookMetadata.feeToken()
+            );
+        bytes memory revealBody = InterchainAccountMessage.encodeReveal({
+            _ism: bytes32(0),
+            _commitment: commitment
         });
+
+        return
+            _quoteDispatchForIca(
+                icaRouterContract,
+                destination,
+                router,
+                commitmentBody,
+                commitmentMetadata,
+                selectedHook,
+                0
+            ) +
+            _quoteDispatchForIca(
+                icaRouterContract,
+                destination,
+                router,
+                revealBody,
+                hookMetadata,
+                selectedHook,
+                1
+            );
+    }
+
+    /**
+     * @dev Reconstructs Mailbox.quoteDispatch with the ICA router as message
+     * sender. Calling Mailbox.quoteDispatch directly would encode this
+     * QuotedCalls contract as sender and misquote sender-sensitive hooks.
+     * Hooks are expected to price metadata/message inputs rather than the
+     * caller of quoteDispatch, as required for permissionless quotes.
+     */
+    function _quoteDispatchForIca(
+        IInterchainAccountRouter icaRouter,
+        uint32 destination,
+        bytes32 router,
+        bytes memory body,
+        bytes memory hookMetadata,
+        IPostDispatchHook selectedHook,
+        uint32 nonceOffset
+    ) internal view returns (uint256) {
+        IMailbox mailbox = icaRouter.mailbox();
+        bytes memory message = Message.formatMessageMemory(
+            IVersionedMailbox(address(mailbox)).VERSION(),
+            mailbox.nonce() + nonceOffset,
+            mailbox.localDomain(),
+            address(icaRouter).addressToBytes32(),
+            destination,
+            router,
+            body
+        );
+
+        if (address(selectedHook) == address(0)) {
+            selectedHook = mailbox.defaultHook();
+        }
+        return
+            mailbox.requiredHook().quoteDispatch(hookMetadata, message) +
+            selectedHook.quoteDispatch(hookMetadata, message);
     }
 
     receive() external payable {}

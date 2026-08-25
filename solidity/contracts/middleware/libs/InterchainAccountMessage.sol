@@ -106,6 +106,26 @@ library InterchainAccountMessage {
     }
 
     /**
+     * @notice Returns a formatted InterchainAccountMessage from calls in memory.
+     * @dev Mirrors encode while allowing decoded command inputs to reuse the
+     * canonical ICA wire format.
+     */
+    function encodeMemory(
+        address _owner,
+        bytes32 _ism,
+        CallLib.Call[] memory _calls,
+        bytes32 _userSalt
+    ) internal pure returns (bytes memory) {
+        bytes memory prefix = abi.encodePacked(
+            MessageType.CALLS,
+            TypeCasts.addressToBytes32(_owner),
+            _ism,
+            _userSalt
+        );
+        return bytes.concat(prefix, abi.encode(_calls));
+    }
+
+    /**
      * @notice Returns formatted (packed) InterchainAccountMessage
      * @dev This function should only be used in memory message construction.
      * @param _owner The owner of the interchain account
