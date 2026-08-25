@@ -1178,9 +1178,22 @@ impl Validator {
                 .await
                 .context("Finding the next Merkle tree insertion sequence")??;
                 let fallback = fallback.clone();
+                let merkle_tree_hook = self.merkle_tree_hook.clone();
+                let reorg_period = self.reorg_period.clone();
                 Ok(tokio::spawn(
-                    async move { websocket.run(next_sequence, fallback, index_settings).await }
-                        .instrument(info_span!("MerkleTreeHookWebSocketSyncer")),
+                    async move {
+                        websocket
+                            .run(
+                                next_sequence,
+                                next_sequence_hint,
+                                fallback,
+                                index_settings,
+                                merkle_tree_hook,
+                                reorg_period,
+                            )
+                            .await
+                    }
+                    .instrument(info_span!("MerkleTreeHookWebSocketSyncer")),
                 ))
             }
         }

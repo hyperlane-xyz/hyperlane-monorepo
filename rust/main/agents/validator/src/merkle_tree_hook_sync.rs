@@ -6,7 +6,7 @@ use prometheus::IntGauge;
 use serde::{Deserialize, Serialize};
 use tokio::{
     task::JoinHandle,
-    time::{sleep, timeout},
+    time::{interval, sleep, timeout, Instant, MissedTickBehavior},
 };
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{info, info_span, warn, Instrument};
@@ -17,17 +17,37 @@ use hyperlane_base::{
     settings::IndexSettings,
     ContractSyncer, SequencedDataContractSync,
 };
-use hyperlane_core::{bytes_to_address, MerkleTreeInsertion, H256};
+use hyperlane_core::{
+    bytes_to_address, IndexMode, Indexed, LogMeta, MerkleTreeHook, MerkleTreeInsertion,
+    ReorgPeriod, H256,
+};
 
 const RETRY_DELAY: Duration = Duration::from_secs(5);
 const RETRY_JITTER_MS: u32 = 5_000;
 const READ_TIMEOUT: Duration = Duration::from_secs(75);
+const PROGRESS_CHECK_INTERVAL: Duration = Duration::from_secs(30);
+const PROGRESS_GRACE_PERIOD: Duration = Duration::from_secs(75);
 const EVENT_TYPE: &str = "merkle_tree_insertion";
 const NEXT_SEQUENCE_KEY: &str = "merkle_tree_hook_websocket_next_sequence_";
 
 struct RpcFallback {
     handle: JoinHandle<()>,
     active: IntGauge,
+}
+
+#[derive(Clone)]
+struct StreamDependencies {
+    canonical_sync: Option<Arc<SequencedDataContractSync<MerkleTreeInsertion>>>,
+    index_mode: IndexMode,
+    merkle_tree_hook: Option<Arc<dyn MerkleTreeHook>>,
+    reorg_period: ReorgPeriod,
+}
+
+#[derive(Clone, Copy)]
+struct StreamTimeouts {
+    read: Duration,
+    progress_check: Duration,
+    progress_grace: Duration,
 }
 
 impl RpcFallback {
@@ -153,29 +173,51 @@ impl MerkleTreeHookWebSocketSync {
     pub(crate) async fn run(
         self,
         next_sequence: u32,
+        activation_floor: u32,
         fallback_sync: Arc<SequencedDataContractSync<MerkleTreeInsertion>>,
         index_settings: IndexSettings,
+        merkle_tree_hook: Arc<dyn MerkleTreeHook>,
+        reorg_period: ReorgPeriod,
     ) {
         let retry_delay = RETRY_DELAY
             .checked_add(Duration::from_millis(
                 (self.domain % RETRY_JITTER_MS).into(),
             ))
             .expect("bounded retry jitter cannot overflow Duration");
-        self.run_loop(next_sequence, READ_TIMEOUT, retry_delay, || {
-            RpcFallback::start(
-                fallback_sync.clone(),
-                index_settings.clone(),
-                self.fallback_active.clone(),
-            )
-        })
+        let dependencies = StreamDependencies {
+            canonical_sync: Some(fallback_sync.clone()),
+            index_mode: index_settings.mode,
+            merkle_tree_hook: Some(merkle_tree_hook),
+            reorg_period,
+        };
+        self.run_loop(
+            next_sequence,
+            activation_floor,
+            StreamTimeouts {
+                read: READ_TIMEOUT,
+                progress_check: PROGRESS_CHECK_INTERVAL,
+                progress_grace: PROGRESS_GRACE_PERIOD,
+            },
+            retry_delay,
+            dependencies,
+            || {
+                RpcFallback::start(
+                    fallback_sync.clone(),
+                    index_settings.clone(),
+                    self.fallback_active.clone(),
+                )
+            },
+        )
         .await;
     }
 
     async fn run_loop(
         &self,
         mut next_sequence: u32,
-        read_timeout: Duration,
+        mut activation_floor: u32,
+        timeouts: StreamTimeouts,
         retry_delay: Duration,
+        dependencies: StreamDependencies,
         mut start_fallback: impl FnMut() -> RpcFallback,
     ) {
         // Keep local indexing active until the WebSocket proves it has reached the
@@ -184,7 +226,13 @@ impl MerkleTreeHookWebSocketSync {
         let mut fallback = Some(start_fallback());
         loop {
             match self
-                .stream_with_timeout(&mut next_sequence, &mut fallback, read_timeout)
+                .stream_with_timeout(
+                    &mut next_sequence,
+                    &mut activation_floor,
+                    &mut fallback,
+                    timeouts,
+                    &dependencies,
+                )
                 .await
             {
                 Ok(()) => warn!(
@@ -212,19 +260,55 @@ impl MerkleTreeHookWebSocketSync {
     async fn stream_with_timeout(
         &self,
         next_sequence: &mut u32,
+        activation_floor: &mut u32,
         fallback: &mut Option<RpcFallback>,
-        read_timeout: Duration,
+        timeouts: StreamTimeouts,
+        dependencies: &StreamDependencies,
     ) -> Result<()> {
-        let (mut socket, _) = timeout(read_timeout, connect_async(self.url.as_str()))
+        let (mut socket, _) = timeout(timeouts.read, connect_async(self.url.as_str()))
             .await
             .context("Connecting to Merkle tree hook WebSocket timed out")?
             .context("Connecting to Merkle tree hook WebSocket")?;
         let mut subscribed = false;
+        let mut lag_started_at = None;
+        let mut progress_checks = interval(timeouts.progress_check);
+        progress_checks.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        progress_checks.tick().await;
 
-        while let Some(message) = timeout(read_timeout, socket.next())
-            .await
-            .context("Merkle tree hook WebSocket heartbeat timed out")?
-        {
+        loop {
+            let message = tokio::select! {
+                message = timeout(timeouts.read, socket.next()) => Some(
+                    message.context("Merkle tree hook WebSocket heartbeat timed out")?
+                ),
+                _ = progress_checks.tick(), if dependencies.merkle_tree_hook.is_some() => {
+                    let hook = dependencies
+                        .merkle_tree_hook
+                        .as_ref()
+                        .expect("progress check requires a Merkle tree hook");
+                    let onchain_count = hook
+                        .count(&dependencies.reorg_period)
+                        .await
+                        .context("Reading on-chain Merkle tree count for WebSocket freshness")?;
+                    if onchain_count > *next_sequence {
+                        let lag_started_at = lag_started_at.get_or_insert_with(Instant::now);
+                        if lag_started_at.elapsed() >= timeouts.progress_grace {
+                            bail!(
+                                "Merkle tree hook WebSocket is stale: next sequence {}, on-chain count {onchain_count}",
+                                *next_sequence
+                            );
+                        }
+                    } else {
+                        lag_started_at = None;
+                    }
+                    None
+                }
+            };
+            let Some(message) = message else {
+                continue;
+            };
+            let Some(message) = message else {
+                break;
+            };
             match message.context("Reading Merkle tree hook WebSocket message")? {
                 Message::Text(text) => match serde_json::from_str::<ServerMessage>(&text)
                     .context("Parsing Merkle tree hook WebSocket message")?
@@ -260,12 +344,16 @@ impl MerkleTreeHookWebSocketSync {
                             *next_sequence,
                         )?;
                         if reached_cursor {
-                            self.activate_websocket(fallback).await;
-                            info!(
-                                domain = self.domain,
-                                next_sequence = *next_sequence,
-                                "Caught up Merkle tree hook WebSocket"
-                            );
+                            if self
+                                .activate_if_current(*next_sequence, activation_floor, fallback)
+                                .await?
+                            {
+                                info!(
+                                    domain = self.domain,
+                                    next_sequence = *next_sequence,
+                                    "Caught up Merkle tree hook WebSocket"
+                                );
+                            }
                         } else {
                             warn!(
                                 domain = self.domain,
@@ -276,8 +364,13 @@ impl MerkleTreeHookWebSocketSync {
                         }
                     }
                     ServerMessage::Event(event) => {
-                        if self.process_event(event, next_sequence)? {
-                            self.activate_websocket(fallback).await;
+                        if self
+                            .process_event(event, next_sequence, dependencies)
+                            .await?
+                        {
+                            lag_started_at = None;
+                            self.activate_if_current(*next_sequence, activation_floor, fallback)
+                                .await?;
                         }
                     }
                     ServerMessage::Error { error } => {
@@ -313,6 +406,39 @@ impl MerkleTreeHookWebSocketSync {
         self.websocket_active.set(1);
     }
 
+    async fn activate_if_current(
+        &self,
+        next_sequence: u32,
+        activation_floor: &mut u32,
+        fallback: &mut Option<RpcFallback>,
+    ) -> Result<bool> {
+        *activation_floor = (*activation_floor).max(self.contiguous_db_sequence(next_sequence)?);
+        if next_sequence < *activation_floor {
+            warn!(
+                domain = self.domain,
+                next_sequence,
+                activation_floor = *activation_floor,
+                "Merkle tree hook WebSocket is behind RPC indexing; keeping fallback active"
+            );
+            return Ok(false);
+        }
+        self.activate_websocket(fallback).await;
+        Ok(true)
+    }
+
+    fn contiguous_db_sequence(&self, mut sequence: u32) -> Result<u32> {
+        while self
+            .db
+            .retrieve_merkle_tree_insertion_by_leaf_index(&sequence)?
+            .is_some()
+        {
+            sequence = sequence
+                .checked_add(1)
+                .ok_or_else(|| eyre!("Merkle tree insertion sequence exhausted"))?;
+        }
+        Ok(sequence)
+    }
+
     fn subscription(&self, next_sequence: u32) -> Result<String> {
         let after_sequence = next_sequence.checked_sub(1).map(i64::from).unwrap_or(-1);
         serde_json::to_string(&SubscribeMessage {
@@ -331,8 +457,13 @@ impl MerkleTreeHookWebSocketSync {
         .context("Serializing Merkle tree hook WebSocket subscription")
     }
 
-    /// Processes an event and returns whether it advanced the WebSocket cursor.
-    fn process_event(&self, event: EventMessage, next_sequence: &mut u32) -> Result<bool> {
+    /// Canonically validates and stores an event, returning whether it advanced the cursor.
+    async fn process_event(
+        &self,
+        event: EventMessage,
+        next_sequence: &mut u32,
+        dependencies: &StreamDependencies,
+    ) -> Result<bool> {
         if event.event_type != EVENT_TYPE {
             bail!("Unexpected WebSocket event type {}", event.event_type);
         }
@@ -369,12 +500,37 @@ impl MerkleTreeHookWebSocketSync {
         let block_number = event.data.block_number.as_u64("block_number")?;
         let insertion = MerkleTreeInsertion::new(leaf_index, message_id);
 
+        if let Some(canonical_sync) = &dependencies.canonical_sync {
+            let query_position = match dependencies.index_mode {
+                IndexMode::Block => block_number
+                    .try_into()
+                    .context("Merkle tree insertion block number exceeds u32")?,
+                IndexMode::Sequence => leaf_index,
+            };
+            let canonical_logs = canonical_sync
+                .fetch_logs_in_range(query_position..=query_position)
+                .await
+                .context("Fetching canonical Merkle tree insertion")?;
+            if !matches_canonical_insertion(&insertion, block_number, &canonical_logs) {
+                bail!(
+                    "WebSocket Merkle tree insertion at leaf {leaf_index} did not match canonical RPC data"
+                );
+            }
+        }
+
         match self
             .db
             .retrieve_merkle_tree_insertion_by_leaf_index(&leaf_index)?
         {
             Some(existing) if existing != insertion => {
-                bail!("Conflicting Merkle tree insertion at leaf {leaf_index}")
+                warn!(
+                    domain = self.domain,
+                    leaf_index,
+                    ?existing,
+                    canonical = ?insertion,
+                    "Repairing conflicting Merkle tree insertion with canonical RPC data"
+                );
+                self.db.store_tree_insertion(&insertion, block_number)?;
             }
             Some(_) => {
                 let existing_block = self
@@ -422,6 +578,16 @@ impl MerkleTreeHookWebSocketSync {
         }
         Ok(sequence.checked_add(1) == Some(next_sequence))
     }
+}
+
+fn matches_canonical_insertion(
+    insertion: &MerkleTreeInsertion,
+    block_number: u64,
+    canonical_logs: &[(Indexed<MerkleTreeInsertion>, LogMeta)],
+) -> bool {
+    canonical_logs.iter().any(|(canonical, meta)| {
+        canonical.inner() == insertion && meta.block_number == block_number
+    })
 }
 
 #[derive(Debug, Serialize)]
@@ -539,15 +705,63 @@ mod tests {
         Arc,
     };
 
+    use async_trait::async_trait;
     use futures_util::{future::pending, SinkExt, StreamExt};
     use hyperlane_base::db::{HyperlaneDb, DB};
-    use hyperlane_core::HyperlaneDomain;
+    use hyperlane_core::{
+        ChainResult, CheckpointAtBlock, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+        HyperlaneProvider, IncrementalMerkleAtBlock,
+    };
     use prometheus::IntGauge;
     use tempfile::TempDir;
     use tokio::net::TcpListener;
     use tokio_tungstenite::{accept_async, tungstenite::Message};
 
     use super::*;
+
+    #[derive(Debug)]
+    struct CountHook {
+        count: Arc<AtomicUsize>,
+        domain: HyperlaneDomain,
+    }
+
+    impl HyperlaneChain for CountHook {
+        fn domain(&self) -> &HyperlaneDomain {
+            &self.domain
+        }
+
+        fn provider(&self) -> Box<dyn HyperlaneProvider> {
+            unreachable!("test count hook has no provider")
+        }
+    }
+
+    impl HyperlaneContract for CountHook {
+        fn address(&self) -> H256 {
+            H256::from_low_u64_be(2)
+        }
+    }
+
+    #[async_trait]
+    impl MerkleTreeHook for CountHook {
+        async fn tree(&self, _reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
+            unreachable!("test only reads count")
+        }
+
+        async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+            Ok(self.count.load(Ordering::SeqCst) as u32)
+        }
+
+        async fn latest_checkpoint(
+            &self,
+            _reorg_period: &ReorgPeriod,
+        ) -> ChainResult<CheckpointAtBlock> {
+            unreachable!("test only reads count")
+        }
+
+        async fn latest_checkpoint_at_block(&self, _height: u64) -> ChainResult<CheckpointAtBlock> {
+            unreachable!("test only reads count")
+        }
+    }
 
     fn test_sync() -> (MerkleTreeHookWebSocketSync, TempDir) {
         let temp_dir = tempfile::tempdir().expect("temp directory");
@@ -566,6 +780,15 @@ mod tests {
             ),
             temp_dir,
         )
+    }
+
+    fn test_dependencies() -> StreamDependencies {
+        StreamDependencies {
+            canonical_sync: None,
+            index_mode: IndexMode::Block,
+            merkle_tree_hook: None,
+            reorg_period: ReorgPeriod::None,
+        }
     }
 
     #[test]
@@ -592,10 +815,11 @@ mod tests {
         );
     }
 
-    #[test]
-    fn stores_valid_event_and_rejects_sequence_gap() {
+    #[tokio::test]
+    async fn stores_valid_event_and_rejects_sequence_gap() {
         let (sync, _temp_dir) = test_sync();
         let mut next_sequence = 0;
+        let dependencies = test_dependencies();
         let event = EventMessage {
             data: EventData {
                 block_number: StringOrNumber::String("12".to_owned()),
@@ -610,7 +834,8 @@ mod tests {
         };
 
         assert!(sync
-            .process_event(event, &mut next_sequence)
+            .process_event(event, &mut next_sequence, &dependencies)
+            .await
             .expect("valid event"));
         assert_eq!(next_sequence, 1);
         assert_eq!(
@@ -634,7 +859,9 @@ mod tests {
                     sequence: "0".to_owned(),
                 },
                 &mut next_sequence,
+                &dependencies,
             )
+            .await
             .expect("matching fallback insertion"));
         assert_eq!(next_sequence, 1);
         assert_eq!(
@@ -656,7 +883,66 @@ mod tests {
             event_type: EVENT_TYPE.to_owned(),
             sequence: "2".to_owned(),
         };
-        assert!(sync.process_event(gap, &mut next_sequence).is_err());
+        assert!(sync
+            .process_event(gap, &mut next_sequence, &dependencies)
+            .await
+            .is_err());
+    }
+
+    #[test]
+    fn rejects_noncanonical_websocket_insertion() {
+        let insertion = MerkleTreeInsertion::new(0, H256::from_low_u64_be(4));
+        let canonical = MerkleTreeInsertion::new(0, H256::from_low_u64_be(5));
+        let canonical_logs = [(
+            Indexed::from(canonical),
+            LogMeta {
+                block_number: 12,
+                ..Default::default()
+            },
+        )];
+
+        assert!(!matches_canonical_insertion(
+            &insertion,
+            12,
+            &canonical_logs
+        ));
+        assert!(!matches_canonical_insertion(
+            &canonical,
+            13,
+            &canonical_logs
+        ));
+        assert!(matches_canonical_insertion(&canonical, 12, &canonical_logs));
+    }
+
+    #[tokio::test]
+    async fn waits_for_moving_activation_floor() {
+        let (sync, _temp_dir) = test_sync();
+        let active = sync.fallback_active.clone();
+        active.set(1);
+        let mut fallback = Some(RpcFallback {
+            handle: tokio::spawn(pending()),
+            active: active.clone(),
+        });
+        let mut activation_floor = 3;
+
+        assert!(!sync
+            .activate_if_current(1, &mut activation_floor, &mut fallback)
+            .await
+            .expect("stale WebSocket cursor"));
+        sync.db
+            .store_tree_insertion(&MerkleTreeInsertion::new(3, H256::from_low_u64_be(6)), 13)
+            .expect("RPC insertion ahead of floor");
+        assert!(!sync
+            .activate_if_current(3, &mut activation_floor, &mut fallback)
+            .await
+            .expect("RPC advanced beyond activation floor"));
+        assert_eq!(activation_floor, 4);
+        assert!(sync
+            .activate_if_current(4, &mut activation_floor, &mut fallback)
+            .await
+            .expect("WebSocket reached moving floor"));
+        assert!(fallback.is_none());
+        assert_eq!(active.get(), 0);
     }
 
     #[test]
@@ -719,8 +1005,14 @@ mod tests {
         let task = tokio::spawn(async move {
             sync.run_loop(
                 1,
-                Duration::from_millis(10),
+                1,
+                StreamTimeouts {
+                    read: Duration::from_millis(10),
+                    progress_check: Duration::from_secs(1),
+                    progress_grace: Duration::from_secs(1),
+                },
                 Duration::from_millis(1),
+                test_dependencies(),
                 move || {
                     active_in_fallback.set(1);
                     starts_in_fallback.fetch_add(1, Ordering::SeqCst);
@@ -747,5 +1039,100 @@ mod tests {
         assert_eq!(starts.load(Ordering::SeqCst), 1);
         assert_eq!(active.get(), 0);
         assert_eq!(websocket_active.get(), 1);
+    }
+
+    #[tokio::test]
+    async fn heartbeat_only_stream_falls_back_when_onchain_count_advances() {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("test listener");
+        let (mut sync, _temp_dir) = test_sync();
+        sync.url = Url::parse(&format!(
+            "ws://{}",
+            listener.local_addr().expect("test listener address")
+        ))
+        .expect("test WebSocket URL");
+        let hook_address = format!("{:#x}", sync.merkle_tree_hook);
+        let onchain_count = Arc::new(AtomicUsize::new(1));
+        let server_count = onchain_count.clone();
+        tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.expect("connection");
+            let mut socket = accept_async(stream).await.expect("WebSocket");
+            socket
+                .send(Message::Text(r#"{"type":"ready"}"#.into()))
+                .await
+                .expect("send ready message");
+            socket
+                .next()
+                .await
+                .expect("subscription message")
+                .expect("read subscription message");
+            socket
+                .send(Message::Text(format!(
+                    r#"{{"type":"caught_up","address":"{hook_address}","domain":1,"eventType":"merkle_tree_insertion","sequence":"0"}}"#
+                )))
+                .await
+                .expect("send caught-up message");
+            server_count.store(2, Ordering::SeqCst);
+            let mut heartbeats = interval(Duration::from_millis(2));
+            loop {
+                heartbeats.tick().await;
+                if socket
+                    .send(Message::Text(r#"{"type":"heartbeat"}"#.into()))
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        });
+
+        let starts = Arc::new(AtomicUsize::new(0));
+        let starts_in_fallback = starts.clone();
+        let active = sync.fallback_active.clone();
+        let active_in_fallback = active.clone();
+        let websocket_active = sync.websocket_active.clone();
+        let websocket_active_after_stale = websocket_active.clone();
+        let dependencies = StreamDependencies {
+            merkle_tree_hook: Some(Arc::new(CountHook {
+                count: onchain_count,
+                domain: HyperlaneDomain::new_test_domain("count-hook"),
+            })),
+            ..test_dependencies()
+        };
+        let task = tokio::spawn(async move {
+            sync.run_loop(
+                1,
+                1,
+                StreamTimeouts {
+                    read: Duration::from_millis(50),
+                    progress_check: Duration::from_millis(5),
+                    progress_grace: Duration::from_millis(10),
+                },
+                Duration::from_secs(1),
+                dependencies,
+                move || {
+                    active_in_fallback.set(1);
+                    starts_in_fallback.fetch_add(1, Ordering::SeqCst);
+                    RpcFallback {
+                        handle: tokio::spawn(pending()),
+                        active: active_in_fallback.clone(),
+                    }
+                },
+            )
+            .await;
+        });
+
+        timeout(Duration::from_secs(1), async {
+            while starts.load(Ordering::SeqCst) != 2
+                || active.get() != 1
+                || websocket_active_after_stale.get() != 0
+            {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("stale data fallback");
+        task.abort();
     }
 }
