@@ -19,6 +19,18 @@ import { FileSystemRegistryWatcher } from './src/services/watcherService.js';
 
 export interface HttpServerOptions {
   writeMode?: boolean;
+  corsAllowedOrigins?: string[];
+}
+
+export function parseCorsAllowedOrigins(
+  value = process.env.CORS_ALLOWED_ORIGINS,
+): string[] {
+  return value
+    ? value
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean)
+    : [];
 }
 
 export class HttpServer {
@@ -26,6 +38,7 @@ export class HttpServer {
   protected readonly logger: Logger;
   private registryService: RegistryService | null = null;
   protected readonly writeMode: boolean;
+  protected readonly corsAllowedOrigins: Set<string>;
 
   private constructor(
     protected getRegistry: () => Promise<IRegistry>,
@@ -34,8 +47,32 @@ export class HttpServer {
   ) {
     this.logger = logger;
     this.writeMode = options.writeMode ?? false;
+    this.corsAllowedOrigins = new Set(
+      options.corsAllowedOrigins ?? parseCorsAllowedOrigins(),
+    );
     this.app = express();
     this.app.set('trust proxy', true); // trust proxy for x-forwarded-for header
+    this.app.use((req, res, next) => {
+      const origin = req.get('origin');
+      const isCorsRead =
+        this.corsAllowedOrigins.size > 0 &&
+        (req.method === 'GET' || req.method === 'HEAD');
+      if (isCorsRead) {
+        res.vary('Origin');
+      }
+      if (
+        origin &&
+        isCorsRead &&
+        (this.corsAllowedOrigins.has('*') ||
+          this.corsAllowedOrigins.has(origin))
+      ) {
+        res.setHeader(
+          'Access-Control-Allow-Origin',
+          this.corsAllowedOrigins.has('*') ? '*' : origin,
+        );
+      }
+      next();
+    });
     this.app.use(express.json());
   }
 
@@ -108,7 +145,9 @@ export class HttpServer {
       );
       this.app.use(
         '/chain',
-        createChainRouter(new ChainService(this.registryService)),
+        createChainRouter(new ChainService(this.registryService), {
+          writeMode: this.writeMode,
+        }),
       );
       this.app.use(
         '/warp-route',

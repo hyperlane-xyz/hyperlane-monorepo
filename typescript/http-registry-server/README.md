@@ -24,13 +24,14 @@ pnpm install
 
 The server is configured using environment variables. You can place these in a `.env` file in the package root (`typescript/http-registry-server/.env`).
 
-| Variable           | Description                                      | Default              |
-| ------------------ | ------------------------------------------------ | -------------------- |
-| `PORT`             | The port for the server to listen on.            | `3000`               |
-| `HOST`             | The host address to bind to.                     | `0.0.0.0`            |
-| `REFRESH_INTERVAL` | The interval (in ms) to refresh registry data.   | `60000` (60 seconds) |
-| `LOG_LEVEL`        | The minimum log level to output.                 | `info`               |
-| `LOG_FORMAT`       | The log format. Set to `pretty` for development. | `json`               |
+| Variable               | Description                                                                          | Default              |
+| ---------------------- | ------------------------------------------------------------------------------------ | -------------------- |
+| `PORT`                 | The port for the server to listen on.                                                | `3000`               |
+| `HOST`                 | The host address to bind to.                                                         | `0.0.0.0`            |
+| `REFRESH_INTERVAL`     | The interval (in ms) to refresh registry data.                                       | `60000` (60 seconds) |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated browser origins allowed to read; use `*` explicitly for public data. | none                 |
+| `LOG_LEVEL`            | The minimum log level to output.                                                     | `info`               |
+| `LOG_FORMAT`           | The log format. Set to `pretty` for development.                                     | `json`               |
 
 ## Usage
 
