@@ -74,4 +74,9 @@ impl DB {
     pub fn retrieve(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         Ok(self.0.get(key)?)
     }
+
+    /// Delete a value from the DB
+    pub fn delete(&self, key: &[u8]) -> Result<()> {
+        Ok(self.0.delete(key)?)
+    }
 }

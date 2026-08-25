@@ -229,6 +229,13 @@ impl HyperlaneRocksDB {
         insertion: &MerkleTreeInsertion,
         insertion_block_number: u64,
     ) -> DbResult<bool> {
+        if let Some(existing) =
+            self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index())?
+        {
+            if existing.message_id() != insertion.message_id() {
+                self.delete_merkle_leaf_index_by_message_id(&existing.message_id())?;
+            }
+        }
         // even if double insertions are ok, store the leaf by `leaf_index` (guaranteed to be unique)
         // rather than by `message_id` (not guaranteed to be recurring), so that leaves can be retrieved
         // based on insertion order.
@@ -242,6 +249,10 @@ impl HyperlaneRocksDB {
         )?;
         // Return true to indicate the tree insertion was processed
         Ok(true)
+    }
+
+    fn delete_merkle_leaf_index_by_message_id(&self, message_id: &H256) -> DbResult<()> {
+        self.delete_encodable(MERKLE_LEAF_INDEX_BY_MESSAGE_ID, message_id.to_vec())
     }
 
     /// Processes the gas expenditure and store the total expenditure for the
