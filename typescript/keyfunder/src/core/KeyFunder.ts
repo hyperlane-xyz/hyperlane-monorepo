@@ -122,7 +122,10 @@ export class KeyFunder {
     }
 
     // Record metrics
-    this.metrics.recordActions(executedActions);
+    // Dry-run actions must not touch the cumulative funding-amount counter.
+    if (!isDryRun) {
+      this.metrics.recordActions(executedActions);
+    }
     const durationSeconds = (Date.now() - startCycle) / 1000;
     this.metrics.cycleDurationSeconds.observe(durationSeconds);
     this.metrics.lastCycleTimestamp.set(Math.floor(Date.now() / 1000));

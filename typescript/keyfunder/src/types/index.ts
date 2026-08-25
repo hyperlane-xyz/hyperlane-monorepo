@@ -2,17 +2,19 @@
  * TypeScript Interfaces and Types for Keyfunder
  */
 
-export type ProtocolType = 'ethereum' | 'sealevel' | 'cosmos';
+import { ProtocolType } from '@hyperlane-xyz/sdk';
+
+export type { ProtocolType };
 
 export type KeyType = 'privateKey' | 'awsKms' | 'keystore' | 'mnemonic';
 
-export type StrategyType =
-  | 'direct'
-  | 'warpRoute'
-  | 'opStackBridge'
-  | 'arbitrumInbox'
-  | 'rollupBridge'
-  | string;
+export enum StrategyType {
+  Direct = 'direct',
+  WarpRoute = 'warpRoute',
+  OpStackBridge = 'opStackBridge',
+  ArbitrumInbox = 'arbitrumInbox',
+  RollupBridge = 'rollupBridge',
+}
 
 export interface FunderConfig {
   type: KeyType;

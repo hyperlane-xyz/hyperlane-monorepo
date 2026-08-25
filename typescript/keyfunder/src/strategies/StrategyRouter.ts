@@ -2,7 +2,7 @@ import { IFundingStrategy } from './IFundingStrategy';
 import { DirectNativeStrategy } from './DirectNativeStrategy';
 import { WarpRouteStrategy } from './WarpRouteStrategy';
 import { RollupBridgeStrategy } from './RollupBridgeStrategy';
-import { FundingAction, FundingExecutionResult, StrategyExecutionContext } from '../types';
+import { FundingAction, FundingExecutionResult, StrategyExecutionContext, StrategyType } from '../types';
 
 export class StrategyRouter {
   private strategies: Map<string, IFundingStrategy> = new Map();
@@ -16,13 +16,14 @@ export class StrategyRouter {
     const warp = new WarpRouteStrategy();
     const rollup = new RollupBridgeStrategy();
 
-    this.registerStrategy('direct', direct);
-    this.registerStrategy('warpRoute', warp);
-    this.registerStrategy('opStackBridge', rollup);
+    this.registerStrategy(StrategyType.Direct, direct);
+    this.registerStrategy(StrategyType.WarpRoute, warp);
+    this.registerStrategy(StrategyType.OpStackBridge, rollup);
+    this.registerStrategy(StrategyType.ArbitrumInbox, rollup);
+    this.registerStrategy(StrategyType.RollupBridge, rollup);
+    // Keep legacy aliases for backwards compatibility
     this.registerStrategy('optimismPortal', rollup);
-    this.registerStrategy('arbitrumInbox', rollup);
     this.registerStrategy('arbitrum', rollup);
-    this.registerStrategy('rollupBridge', rollup);
   }
 
   /**
@@ -58,7 +59,7 @@ export class StrategyRouter {
     context: StrategyExecutionContext,
     signerContext?: any
   ): Promise<FundingExecutionResult> {
-    const strategyName = action.strategy || 'direct';
+    const strategyName = action.strategy || StrategyType.Direct;
     const strategy = this.getStrategy(strategyName);
     return await strategy.execute(action, context, signerContext);
   }
