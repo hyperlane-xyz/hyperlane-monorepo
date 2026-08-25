@@ -114,6 +114,11 @@ impl DB {
         Ok(self.0.get(key)?)
     }
 
+    /// Delete a value from the DB
+    pub fn delete(&self, key: &[u8]) -> Result<()> {
+        Ok(self.0.delete(key)?)
+    }
+
     /// Retrieve all values stored under a key prefix.
     pub fn retrieve_values_by_prefix(&self, prefix: &[u8]) -> Result<Vec<Vec<u8>>> {
         let mut values = Vec::new();

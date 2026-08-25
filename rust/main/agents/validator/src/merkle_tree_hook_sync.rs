@@ -27,6 +27,9 @@ const RETRY_JITTER_MS: u32 = 5_000;
 const READ_TIMEOUT: Duration = Duration::from_secs(75);
 const PROGRESS_CHECK_INTERVAL: Duration = Duration::from_secs(30);
 const PROGRESS_GRACE_PERIOD: Duration = Duration::from_secs(75);
+const RPC_PROBE_TIMEOUT: Duration = Duration::from_secs(15);
+const CANONICAL_RETRY_DELAY: Duration = Duration::from_secs(1);
+const CANONICAL_FETCH_ATTEMPTS: usize = 3;
 const EVENT_TYPE: &str = "merkle_tree_insertion";
 const NEXT_SEQUENCE_KEY: &str = "merkle_tree_hook_websocket_next_sequence_";
 
@@ -38,6 +41,7 @@ struct RpcFallback {
 #[derive(Clone)]
 struct StreamDependencies {
     canonical_sync: Option<Arc<SequencedDataContractSync<MerkleTreeInsertion>>>,
+    canonical_chunk_size: u32,
     index_mode: IndexMode,
     merkle_tree_hook: Option<Arc<dyn MerkleTreeHook>>,
     reorg_period: ReorgPeriod,
@@ -186,6 +190,7 @@ impl MerkleTreeHookWebSocketSync {
             .expect("bounded retry jitter cannot overflow Duration");
         let dependencies = StreamDependencies {
             canonical_sync: Some(fallback_sync.clone()),
+            canonical_chunk_size: index_settings.chunk_size,
             index_mode: index_settings.mode,
             merkle_tree_hook: Some(merkle_tree_hook),
             reorg_period,
@@ -274,33 +279,45 @@ impl MerkleTreeHookWebSocketSync {
         let mut progress_checks = interval(timeouts.progress_check);
         progress_checks.set_missed_tick_behavior(MissedTickBehavior::Delay);
         progress_checks.tick().await;
+        let read_deadline = sleep(timeouts.read);
+        tokio::pin!(read_deadline);
+        let mut canonical_cache = Vec::new();
 
         loop {
             let message = tokio::select! {
-                message = timeout(timeouts.read, socket.next()) => Some(
-                    message.context("Merkle tree hook WebSocket heartbeat timed out")?
-                ),
+                _ = &mut read_deadline => bail!("Merkle tree hook WebSocket heartbeat timed out"),
+                message = socket.next() => Some(message),
                 _ = progress_checks.tick(), if dependencies.merkle_tree_hook.is_some() => {
                     let hook = dependencies
                         .merkle_tree_hook
                         .as_ref()
                         .expect("progress check requires a Merkle tree hook");
-                    let onchain_count = hook
-                        .count(&dependencies.reorg_period)
-                        .await
-                        .context("Reading on-chain Merkle tree count for WebSocket freshness")?;
-                    if onchain_count > *next_sequence {
-                        let lag_started_at = lag_started_at.get_or_insert_with(Instant::now);
-                        if lag_started_at.elapsed() >= timeouts.progress_grace {
-                            bail!(
-                                "Merkle tree hook WebSocket is stale: next sequence {}, on-chain count {onchain_count}",
-                                *next_sequence
-                            );
+                    tokio::select! {
+                        _ = &mut read_deadline => {
+                            bail!("Merkle tree hook WebSocket heartbeat timed out")
                         }
-                    } else {
-                        lag_started_at = None;
+                        message = socket.next() => Some(message),
+                        count = timeout(
+                            RPC_PROBE_TIMEOUT,
+                            hook.count(&dependencies.reorg_period),
+                        ) => {
+                            let onchain_count = count
+                                .context("On-chain Merkle tree count probe timed out")?
+                                .context("Reading on-chain Merkle tree count for WebSocket freshness")?;
+                            if onchain_count > *next_sequence {
+                                let lag_started_at = lag_started_at.get_or_insert_with(Instant::now);
+                                if lag_started_at.elapsed() >= timeouts.progress_grace {
+                                    bail!(
+                                        "Merkle tree hook WebSocket is stale: next sequence {}, on-chain count {onchain_count}",
+                                        *next_sequence
+                                    );
+                                }
+                            } else {
+                                lag_started_at = None;
+                            }
+                            None
+                        }
                     }
-                    None
                 }
             };
             let Some(message) = message else {
@@ -309,6 +326,7 @@ impl MerkleTreeHookWebSocketSync {
             let Some(message) = message else {
                 break;
             };
+            read_deadline.as_mut().reset(Instant::now() + timeouts.read);
             match message.context("Reading Merkle tree hook WebSocket message")? {
                 Message::Text(text) => match serde_json::from_str::<ServerMessage>(&text)
                     .context("Parsing Merkle tree hook WebSocket message")?
@@ -365,7 +383,7 @@ impl MerkleTreeHookWebSocketSync {
                     }
                     ServerMessage::Event(event) => {
                         if self
-                            .process_event(event, next_sequence, dependencies)
+                            .process_event(event, next_sequence, dependencies, &mut canonical_cache)
                             .await?
                         {
                             lag_started_at = None;
@@ -463,6 +481,7 @@ impl MerkleTreeHookWebSocketSync {
         event: EventMessage,
         next_sequence: &mut u32,
         dependencies: &StreamDependencies,
+        canonical_cache: &mut Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>,
     ) -> Result<bool> {
         if event.event_type != EVENT_TYPE {
             bail!("Unexpected WebSocket event type {}", event.event_type);
@@ -500,23 +519,8 @@ impl MerkleTreeHookWebSocketSync {
         let block_number = event.data.block_number.as_u64("block_number")?;
         let insertion = MerkleTreeInsertion::new(leaf_index, message_id);
 
-        if let Some(canonical_sync) = &dependencies.canonical_sync {
-            let query_position = match dependencies.index_mode {
-                IndexMode::Block => block_number
-                    .try_into()
-                    .context("Merkle tree insertion block number exceeds u32")?,
-                IndexMode::Sequence => leaf_index,
-            };
-            let canonical_logs = canonical_sync
-                .fetch_logs_in_range(query_position..=query_position)
-                .await
-                .context("Fetching canonical Merkle tree insertion")?;
-            if !matches_canonical_insertion(&insertion, block_number, &canonical_logs) {
-                bail!(
-                    "WebSocket Merkle tree insertion at leaf {leaf_index} did not match canonical RPC data"
-                );
-            }
-        }
+        self.validate_canonical_insertion(&insertion, block_number, dependencies, canonical_cache)
+            .await?;
 
         match self
             .db
@@ -556,6 +560,61 @@ impl MerkleTreeHookWebSocketSync {
         Ok(false)
     }
 
+    async fn validate_canonical_insertion(
+        &self,
+        insertion: &MerkleTreeInsertion,
+        block_number: u64,
+        dependencies: &StreamDependencies,
+        canonical_cache: &mut Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>,
+    ) -> Result<()> {
+        let Some(canonical_sync) = &dependencies.canonical_sync else {
+            return Ok(());
+        };
+        let query_position = match dependencies.index_mode {
+            IndexMode::Block => block_number
+                .try_into()
+                .context("Merkle tree insertion block number exceeds u32")?,
+            IndexMode::Sequence => insertion.index(),
+        };
+
+        let query_end = query_position
+            .saturating_add(dependencies.canonical_chunk_size.max(1).saturating_sub(1));
+        for attempt in 0..=CANONICAL_FETCH_ATTEMPTS {
+            if let Some(matches) = matches_canonical_insertion(
+                insertion,
+                block_number,
+                query_position,
+                dependencies.index_mode,
+                canonical_cache,
+            ) {
+                if matches {
+                    return Ok(());
+                }
+                bail!(
+                    "WebSocket Merkle tree insertion at leaf {} conflicted with canonical RPC data",
+                    insertion.index()
+                );
+            }
+            if attempt == CANONICAL_FETCH_ATTEMPTS {
+                break;
+            }
+            if attempt > 0 {
+                sleep(CANONICAL_RETRY_DELAY).await;
+            }
+            *canonical_cache = timeout(
+                RPC_PROBE_TIMEOUT,
+                canonical_sync.fetch_logs_in_range(query_position..=query_end),
+            )
+            .await
+            .context("Canonical Merkle tree insertion query timed out")?
+            .context("Fetching canonical Merkle tree insertion")?;
+        }
+        bail!(
+            "Canonical RPC data is not yet available for Merkle tree insertion at leaf {}",
+            insertion.index()
+        )
+    }
+
     fn validate_caught_up(
         &self,
         address: &str,
@@ -580,14 +639,25 @@ impl MerkleTreeHookWebSocketSync {
     }
 }
 
+/// `None` means the requested position is not yet present in the fetched window.
 fn matches_canonical_insertion(
     insertion: &MerkleTreeInsertion,
     block_number: u64,
+    query_position: u32,
+    index_mode: IndexMode,
     canonical_logs: &[(Indexed<MerkleTreeInsertion>, LogMeta)],
-) -> bool {
-    canonical_logs.iter().any(|(canonical, meta)| {
+) -> Option<bool> {
+    let mut logs_at_position = canonical_logs
+        .iter()
+        .filter(|(canonical, meta)| match index_mode {
+            IndexMode::Block => meta.block_number == u64::from(query_position),
+            IndexMode::Sequence => canonical.inner().index() == query_position,
+        })
+        .peekable();
+    logs_at_position.peek()?;
+    Some(logs_at_position.any(|(canonical, meta)| {
         canonical.inner() == insertion && meta.block_number == block_number
-    })
+    }))
 }
 
 #[derive(Debug, Serialize)]
@@ -785,6 +855,7 @@ mod tests {
     fn test_dependencies() -> StreamDependencies {
         StreamDependencies {
             canonical_sync: None,
+            canonical_chunk_size: 10,
             index_mode: IndexMode::Block,
             merkle_tree_hook: None,
             reorg_period: ReorgPeriod::None,
@@ -820,6 +891,7 @@ mod tests {
         let (sync, _temp_dir) = test_sync();
         let mut next_sequence = 0;
         let dependencies = test_dependencies();
+        let mut canonical_cache = Vec::new();
         let event = EventMessage {
             data: EventData {
                 block_number: StringOrNumber::String("12".to_owned()),
@@ -834,7 +906,12 @@ mod tests {
         };
 
         assert!(sync
-            .process_event(event, &mut next_sequence, &dependencies)
+            .process_event(
+                event,
+                &mut next_sequence,
+                &dependencies,
+                &mut canonical_cache,
+            )
             .await
             .expect("valid event"));
         assert_eq!(next_sequence, 1);
@@ -860,6 +937,7 @@ mod tests {
                 },
                 &mut next_sequence,
                 &dependencies,
+                &mut canonical_cache,
             )
             .await
             .expect("matching fallback insertion"));
@@ -870,7 +948,6 @@ mod tests {
                 .expect("retrieve insertion block"),
             Some(13)
         );
-
         let gap = EventMessage {
             data: EventData {
                 block_number: StringOrNumber::Number(13),
@@ -884,7 +961,7 @@ mod tests {
             sequence: "2".to_owned(),
         };
         assert!(sync
-            .process_event(gap, &mut next_sequence, &dependencies)
+            .process_event(gap, &mut next_sequence, &dependencies, &mut canonical_cache,)
             .await
             .is_err());
     }
@@ -901,17 +978,18 @@ mod tests {
             },
         )];
 
-        assert!(!matches_canonical_insertion(
-            &insertion,
-            12,
-            &canonical_logs
-        ));
-        assert!(!matches_canonical_insertion(
-            &canonical,
-            13,
-            &canonical_logs
-        ));
-        assert!(matches_canonical_insertion(&canonical, 12, &canonical_logs));
+        assert_eq!(
+            matches_canonical_insertion(&insertion, 12, 12, IndexMode::Block, &canonical_logs),
+            Some(false)
+        );
+        assert_eq!(
+            matches_canonical_insertion(&canonical, 13, 13, IndexMode::Block, &canonical_logs),
+            None
+        );
+        assert_eq!(
+            matches_canonical_insertion(&canonical, 12, 12, IndexMode::Block, &canonical_logs),
+            Some(true)
+        );
     }
 
     #[tokio::test]
