@@ -1,0 +1,5 @@
+---
+'@hyperlane-xyz/sdk': patch
+---
+
+The default per-chain deploy timeout in `HyperlaneDeployer` was raised from 15 to 45 minutes. `HyperlaneDeployer.deploy` wraps each chain's deployment in a single `runWithTimeout`, so deployments that fan out into many sequential transactions could exceed the old ceiling and abort partway through. `EvmTokenFeeDeployer.deployRoutingFee` is one such case: it deploys one sub-fee contract per destination and sends a `setFeeContract` transaction for each, so a route with many destinations on a chain with multi-block confirmations (oUSDT on ethereum, 16 destinations at 2-block confirmations) took roughly 30 minutes and timed out on every attempt. Because `runWithTimeout` rejects without aborting the underlying callback, the abandoned deploy kept submitting transactions, leaving already-deployed sub-fee contracts stranded on chain and unreferenced. Deployers that pass an explicit `chainTimeoutMs` are unaffected, including `HyperlaneCoreDeployer`, which keeps its own 10 minute default.
