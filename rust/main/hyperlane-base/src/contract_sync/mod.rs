@@ -1,6 +1,6 @@
 use std::{
-    collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration,
-    time::UNIX_EPOCH,
+    collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, ops::RangeInclusive,
+    sync::Arc, time::Duration, time::UNIX_EPOCH,
 };
 
 use async_trait::async_trait;
@@ -104,6 +104,14 @@ where
     /// The domain that this ContractSync is running on
     pub fn domain(&self) -> &HyperlaneDomain {
         &self.domain
+    }
+
+    /// Fetch logs directly from the underlying indexer without storing them.
+    pub async fn fetch_logs_in_range(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> hyperlane_core::ChainResult<Vec<(Indexed<T>, LogMeta)>> {
+        self.indexer.fetch_logs_in_range(range).await
     }
 
     fn get_broadcaster(&self) -> Option<BroadcastMpscSender<H512>> {
