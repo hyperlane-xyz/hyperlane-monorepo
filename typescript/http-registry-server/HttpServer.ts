@@ -54,12 +54,15 @@ export class HttpServer {
     this.app.set('trust proxy', true); // trust proxy for x-forwarded-for header
     this.app.use((req, res, next) => {
       const origin = req.get('origin');
-      if (origin && (req.method === 'GET' || req.method === 'HEAD')) {
+      const isCorsRead =
+        this.corsAllowedOrigins.size > 0 &&
+        (req.method === 'GET' || req.method === 'HEAD');
+      if (isCorsRead) {
         res.vary('Origin');
       }
       if (
         origin &&
-        (req.method === 'GET' || req.method === 'HEAD') &&
+        isCorsRead &&
         (this.corsAllowedOrigins.has('*') ||
           this.corsAllowedOrigins.has(origin))
       ) {

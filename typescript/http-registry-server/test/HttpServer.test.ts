@@ -30,6 +30,7 @@ describe('HttpServer CORS', () => {
       { corsAllowedOrigins: ['http://localhost:3000'] },
     );
 
+    const originlessResponse = await request(httpServer.app).get('/anything');
     const readResponse = await request(httpServer.app)
       .get('/anything')
       .set('Origin', 'http://localhost:3000');
@@ -43,6 +44,9 @@ describe('HttpServer CORS', () => {
       .post('/anything')
       .set('Origin', 'http://localhost:3000');
 
+    expect(originlessResponse.headers['access-control-allow-origin']).to.be
+      .undefined;
+    expect(originlessResponse.headers.vary).to.equal('Origin');
     expect(readResponse.headers['access-control-allow-origin']).to.equal(
       'http://localhost:3000',
     );
