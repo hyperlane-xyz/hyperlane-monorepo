@@ -9,7 +9,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { getChainAddresses } from '../../../../registry.js';
-import { getWarpFeeOwner } from '../../governance/utils.js';
+import { WARP_FEES_TURNKEY_OWNER } from '../../governance/utils.js';
 import { WarpRouteIds } from '../warpIds.js';
 
 import {
@@ -51,7 +51,10 @@ const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
 export const getIgraUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const feeOwner = getWarpFeeOwner('igra');
+  // igra warp-fee ownership rotated to the Turnkey treasury key so agent-driven
+  // sweeps can claim fees directly (see eni/moonpay rotation). Previously the
+  // WarpFees ICA on igra, controlled by the ethereum WarpFees Safe.
+  const feeOwner = WARP_FEES_TURNKEY_OWNER;
 
   return {
     ...Object.fromEntries(
