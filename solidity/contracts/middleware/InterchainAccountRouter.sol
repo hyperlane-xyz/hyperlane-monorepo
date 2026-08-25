@@ -29,6 +29,7 @@ import {AbstractRoutingIsm} from "../isms/routing/AbstractRoutingIsm.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /*
  * @title A contract that allows accounts on chain A to call contracts via a
@@ -544,6 +545,11 @@ contract InterchainAccountRouter is
         bytes32 _salt,
         bytes32 _commitment
     ) public payable returns (bytes32 _commitmentMsgId, bytes32 _revealMsgId) {
+        // Exclude this invocation's value from the baseline. The commitment
+        // hook may refund overpayment to this router to fund the reveal, but an
+        // unrelated pre-existing balance must never fund or block the reveal.
+        uint256 _balanceBefore = address(this).balance - msg.value;
+
         bytes memory _commitmentMsg = InterchainAccountMessage
             .encodeCommitment({
                 _owner: msg.sender.addressToBytes32(),
@@ -565,12 +571,7 @@ contract InterchainAccountRouter is
             _destination,
             _router,
             _commitmentMsg,
-            StandardHookMetadata.formatWithFeeToken(
-                0,
-                COMMIT_TX_GAS_USAGE,
-                address(this),
-                _hookMetadata.feeToken()
-            ),
+            _commitmentHookMetadata(_hookMetadata),
             _hook,
             msg.value
         );
@@ -579,14 +580,44 @@ contract InterchainAccountRouter is
             _ism: _ccipReadIsm,
             _commitment: _commitment
         });
+
+        // Forward only the net native value returned during this call's
+        // commitment dispatch.
+        uint256 _revealValue = address(this).balance - _balanceBefore;
         _revealMsgId = _dispatchMessageWithValue(
             _destination,
             _router,
             _revealMsg,
             _hookMetadata,
             _hook,
-            address(this).balance
+            _revealValue
         );
+
+        // Empty or short reveal metadata defaults hook refunds to this router.
+        // Return only this call's residual so it cannot become stranded or be
+        // swept by another caller; never touch the pre-existing baseline.
+        uint256 _residual = address(this).balance - _balanceBefore;
+        if (_residual != 0) {
+            Address.sendValue(payable(msg.sender), _residual);
+        }
+        assert(address(this).balance == _balanceBefore);
+    }
+
+    /**
+     * @dev Uses the fixed commitment gas limit and this router as refund
+     * recipient so the commitment's native refund can fund the reveal. The fee
+     * token is preserved so both dispatches use the same payment currency.
+     */
+    function _commitmentHookMetadata(
+        bytes memory _revealHookMetadata
+    ) internal view returns (bytes memory) {
+        return
+            StandardHookMetadata.formatWithFeeToken(
+                0,
+                COMMIT_TX_GAS_USAGE,
+                address(this),
+                _revealHookMetadata.feeToken()
+            );
     }
 
     function callRemoteCommitReveal(
