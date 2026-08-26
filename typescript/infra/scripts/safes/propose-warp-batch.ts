@@ -22,7 +22,10 @@ import {
   proposeSafeTransaction,
   retrySafeApi,
 } from '../../src/utils/safe.js';
-import { createTurnkeySigner } from '../../src/utils/turnkey.js';
+import {
+  createTurnkeySigner,
+  getTurnkeyEvmSignerWithAccountOverride,
+} from '../../src/utils/turnkey.js';
 import {
   ProposalResultStatus,
   computeExitCode,
@@ -211,10 +214,20 @@ async function main(): Promise<void> {
       describe:
         'Comma-separated list of chain names to limit which files are proposed',
     })
+    .option('turnkey-account-secret', {
+      type: 'string',
+      describe:
+        'GCP secret name of a Turnkey API-key (account) to authenticate the ' +
+        'signer, overriding the default EvmLegacyDeployer account. The signing ' +
+        'wallet stays the EvmLegacyDeployer key; only the authenticating ' +
+        'Turnkey user changes (e.g. haggis-turnkey-api-key for autonomous ' +
+        'Haggis-solo policy consensus).',
+    })
     .strict().argv;
 
   const { directory } = argv;
   const dryRun = argv['dry-run'];
+  const turnkeyAccountSecret = argv['turnkey-account-secret'];
   const chainFilter = argv['chain-filter']
     ? new Set(
         argv['chain-filter']
@@ -236,15 +249,28 @@ async function main(): Promise<void> {
 
   rootLogger.info(`Found ${files.length} JSON file(s) in ${directory}`);
 
-  const signer = await createTurnkeySigner(
-    ENVIRONMENT,
-    TurnkeyRole.EvmLegacyDeployer,
-  );
-  assert(
-    signer instanceof TurnkeyEvmSigner,
-    `Expected TurnkeyEvmSigner for role ${TurnkeyRole.EvmLegacyDeployer}, got ${signer.constructor.name}`,
-  );
-  rootLogger.info(`Using Turnkey signer ${signer.address}`);
+  let signer: TurnkeyEvmSigner;
+  if (turnkeyAccountSecret) {
+    signer = await getTurnkeyEvmSignerWithAccountOverride(
+      ENVIRONMENT,
+      TurnkeyRole.EvmLegacyDeployer,
+      turnkeyAccountSecret,
+    );
+    rootLogger.info(
+      `Using Turnkey signer ${signer.address} authed as account ${turnkeyAccountSecret}`,
+    );
+  } else {
+    const defaultSigner = await createTurnkeySigner(
+      ENVIRONMENT,
+      TurnkeyRole.EvmLegacyDeployer,
+    );
+    assert(
+      defaultSigner instanceof TurnkeyEvmSigner,
+      `Expected TurnkeyEvmSigner for role ${TurnkeyRole.EvmLegacyDeployer}, got ${defaultSigner.constructor.name}`,
+    );
+    signer = defaultSigner;
+    rootLogger.info(`Using Turnkey signer ${signer.address}`);
+  }
 
   const allocateNonce = createNonceAllocator();
   // Safes with a bundle that threw in this run. A failure after nonce

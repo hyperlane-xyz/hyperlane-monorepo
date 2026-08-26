@@ -1,10 +1,12 @@
+import { z } from 'zod';
+
 import {
   MultiProvider,
   TurnkeyConfigSchema,
   TurnkeyEvmSigner,
   TurnkeySealevelSigner,
 } from '@hyperlane-xyz/sdk';
-import { isEVMLike, rootLogger } from '@hyperlane-xyz/utils';
+import { assert, isEVMLike, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../config/deploy-environment.js';
 import { TurnkeyRole } from '../roles.js';
@@ -67,6 +69,48 @@ export async function createTurnkeySigner(
     );
     throw error;
   }
+}
+
+/**
+ * A standalone Turnkey API-key secret (e.g. `haggis-turnkey-api-key`): only the
+ * account credential, no wallet identity. Used to override which Turnkey user
+ * authenticates a signer while keeping the base role's private key (wallet).
+ */
+const TurnkeyAccountKeySchema = z.object({
+  publicKey: z.string(),
+  privateKey: z.string(),
+});
+
+/**
+ * Build a Turnkey EVM signer that signs with the given role's private key
+ * (wallet) but authenticates as the Turnkey account stored in a separate
+ * API-key secret. This lets a caller keep the default deployer wallet while
+ * swapping the authenticating user, so a user-scoped Turnkey policy (consensus)
+ * can auto-complete for that user instead of stalling on root consensus.
+ */
+export async function getTurnkeyEvmSignerWithAccountOverride(
+  deployEnvironment: DeployEnvironment,
+  role: Exclude<TurnkeyRole, TurnkeyRole.SealevelDeployer>,
+  accountSecretName: string,
+): Promise<TurnkeyEvmSigner> {
+  const baseSecretName = turnkeySecret(deployEnvironment, role);
+  const baseConfig = TurnkeyConfigSchema.parse(
+    JSON.parse(await fetchLatestGCPSecret(baseSecretName)),
+  );
+  const account = TurnkeyAccountKeySchema.parse(
+    JSON.parse(await fetchLatestGCPSecret(accountSecretName)),
+  );
+
+  const signer = new TurnkeyEvmSigner({
+    ...baseConfig,
+    apiPublicKey: account.publicKey,
+    apiPrivateKey: account.privateKey,
+  });
+  assert(
+    await signer.healthCheck(),
+    `Turnkey health check failed for ${role} wallet authed as account ${accountSecretName}`,
+  );
+  return signer;
 }
 
 // TurnkeySealevelSigner is now imported from SDK
