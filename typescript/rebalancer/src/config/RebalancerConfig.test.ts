@@ -788,7 +788,7 @@ describe('per-chain bridge configuration', () => {
     });
   });
 
-  it('should require externalBridges.lifi when executionType is inventory', () => {
+  it('should require externalBridge when executionType is inventory', () => {
     const data = {
       warpRouteId: 'test-route',
       strategy: [
@@ -810,7 +810,65 @@ describe('per-chain bridge configuration', () => {
     writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
 
     expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
-      /externalBridges\.lifi.*required/i,
+      /inventory execution.*externalBridge/i,
+    );
+  });
+
+  it('should accept deBridge inventory execution without LiFi config', () => {
+    const data = {
+      warpRouteId: 'test-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 100, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.DeBridge,
+            },
+          },
+        },
+      ],
+      inventorySigners: {
+        ethereum: '0x1234567890123456789012345678901234567890',
+      },
+      externalBridges: {
+        debridge: { maxFeePercent: 2.5 },
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+    const config = RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE);
+
+    expect(config.externalBridges?.debridge).to.deep.equal({
+      maxFeePercent: 2.5,
+    });
+  });
+
+  it('should require externalBridges.debridge when selected', () => {
+    const data = {
+      warpRouteId: 'test-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 100, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.DeBridge,
+            },
+          },
+        },
+      ],
+      inventorySigners: {
+        ethereum: '0x1234567890123456789012345678901234567890',
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
+      /externalBridges\.debridge.*not configured/i,
     );
   });
 
