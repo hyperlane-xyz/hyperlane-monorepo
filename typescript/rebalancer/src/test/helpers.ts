@@ -132,6 +132,7 @@ export interface MockAdapterConfig {
   isBridgeAllowed?: boolean;
   quotes?: InterchainGasQuote[];
   populatedTx?: PopulatedTransaction;
+  wrappedTokenAddress?: string;
   throwOnQuotes?: Error;
   throwOnPopulate?: Error;
 }
@@ -147,6 +148,7 @@ export function createMockAdapter(config: MockAdapterConfig = {}) {
       data: '0x',
       value: ethers.BigNumber.from(0),
     },
+    wrappedTokenAddress = TEST_ADDRESSES.token,
     throwOnQuotes,
     throwOnPopulate,
   } = config;
@@ -161,6 +163,7 @@ export function createMockAdapter(config: MockAdapterConfig = {}) {
     populateRebalanceTx: throwOnPopulate
       ? Sinon.stub().rejects(throwOnPopulate)
       : Sinon.stub().resolves(populatedTx),
+    getWrappedTokenAddress: Sinon.stub().resolves(wrappedTokenAddress),
   };
 
   Object.setPrototypeOf(adapter, EvmMovableCollateralAdapter.prototype);
@@ -231,6 +234,7 @@ export function createMockMultiProvider(config: MockMultiProviderConfig = {}) {
   };
 
   const mockSigner = {
+    _isSigner: true,
     getAddress: Sinon.stub().resolves(signerAddress),
     sendTransaction: throwOnSendTransaction
       ? Sinon.stub().rejects(throwOnSendTransaction)
