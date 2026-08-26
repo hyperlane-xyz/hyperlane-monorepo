@@ -114,6 +114,26 @@ where
         self.indexer.fetch_logs_in_range(range).await
     }
 
+    /// Get the latest finalized indexing position.
+    pub async fn latest_indexed_position(
+        &self,
+        mode: hyperlane_core::IndexMode,
+    ) -> hyperlane_core::ChainResult<Option<u32>>
+    where
+        I: SequenceAwareIndexer<T>,
+    {
+        match mode {
+            hyperlane_core::IndexMode::Block => {
+                self.indexer.get_finalized_block_number().await.map(Some)
+            }
+            hyperlane_core::IndexMode::Sequence => self
+                .indexer
+                .latest_sequence_count_and_tip()
+                .await
+                .map(|(count, _)| count.and_then(|count| count.checked_sub(1))),
+        }
+    }
+
     fn get_broadcaster(&self) -> Option<BroadcastMpscSender<H512>> {
         self.broadcast_sender.clone()
     }
