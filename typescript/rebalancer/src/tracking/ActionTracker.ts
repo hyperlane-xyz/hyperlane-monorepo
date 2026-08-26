@@ -726,6 +726,7 @@ export class ActionTracker implements IActionTracker {
           action.txHash,
           action.origin,
           action.destination,
+          action.externalBridgeTransferId,
         );
 
         if (status.status === 'complete') {

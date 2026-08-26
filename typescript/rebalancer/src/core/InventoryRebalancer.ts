@@ -84,6 +84,7 @@ type BridgeQuoteMode = 'forward' | 'reverse';
 
 type InventoryMovementExecutionResult =
   | {
+      /** The adapter returned a source transaction identity for status polling. */
       success: true;
       txHash: string;
       inputRequired: bigint;
@@ -1629,7 +1630,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           txHash: result.txHash,
           intentId: intent.id,
         },
-        'Inventory movement transaction executed',
+        'Inventory movement execution returned',
       );
 
       // Keep bridge consumption in source-local units; intent fulfillment only
@@ -1641,6 +1642,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         amount: inputRequired,
         type: 'inventory_movement',
         txHash: result.txHash,
+        externalBridgeTransferId: result.transferId,
         externalBridgeId: externalBridgeType,
       });
 
