@@ -1,0 +1,74 @@
+warpRouteId: USDT/eclipsemainnet
+
+inventorySigners:
+  ethereum:
+    address: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
+  sealevel:
+    address: '4ZJoMHQPEMkeExtFQLbuh8nB21dxHj741dSo6oJ5BcMo'
+  tron:
+    address: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
+
+externalBridges:
+  debridge: {}
+  layerzero: {}
+
+strategy:
+  rebalanceStrategy: minAmount
+  chains:
+    arbitrum:
+      executionType: inventory
+      externalBridge: layerzero
+      minAmount:
+        min: 15000
+        target: 20000
+        type: absolute
+      override:
+        bsc:
+          externalBridge: debridge
+    bsc:
+      executionType: inventory
+      externalBridge: debridge
+      minAmount:
+        min: 10000
+        target: 15000
+        type: absolute
+    ethereum:
+      executionType: inventory
+      externalBridge: layerzero
+      minAmount:
+        min: 15000
+        target: 20000
+        type: absolute
+      override:
+        bsc:
+          externalBridge: debridge
+    plasma:
+      executionType: inventory
+      externalBridge: layerzero
+      minAmount:
+        min: 10000
+        target: 15000
+        type: absolute
+      override:
+        bsc:
+          externalBridge: debridge
+    solanamainnet:
+      executionType: inventory
+      externalBridge: layerzero
+      minAmount:
+        min: 10000
+        target: 15000
+        type: absolute
+      override:
+        bsc:
+          externalBridge: debridge
+    tron:
+      executionType: inventory
+      externalBridge: layerzero
+      minAmount:
+        min: 15000
+        target: 20000
+        type: absolute
+      override:
+        bsc:
+          externalBridge: debridge
