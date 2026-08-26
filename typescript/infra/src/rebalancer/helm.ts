@@ -40,6 +40,7 @@ export class RebalancerHelmManager extends HelmManager {
   private rebalancerConfigContent: string = '';
   private rebalancerChains: string[] = [];
   private inventorySignerProtocols: string[] = [];
+  private externalBridgeProviders: string[] = [];
 
   constructor(
     readonly warpRouteId: string,
@@ -90,6 +91,9 @@ export class RebalancerHelmManager extends HelmManager {
     this.inventorySignerProtocols = Object.keys(
       validationResult.data.inventorySigners ?? {},
     );
+    this.externalBridgeProviders = Object.keys(
+      validationResult.data.externalBridges ?? {},
+    );
   }
 
   get namespace() {
@@ -116,6 +120,7 @@ export class RebalancerHelmManager extends HelmManager {
         // Used for fetching private RPC secrets
         chains: this.rebalancerChains,
         inventorySignerProtocols: this.inventorySignerProtocols,
+        externalBridgeProviders: this.externalBridgeProviders,
       },
     };
   }
