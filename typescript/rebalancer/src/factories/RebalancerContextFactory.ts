@@ -21,6 +21,7 @@ import {
 
 import { DeBridgeBridge } from '../bridges/DeBridgeBridge.js';
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
+import { SwapsXyzBridge } from '../bridges/SwapsXyzBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
@@ -94,6 +95,9 @@ export class RebalancerContextFactory {
     private readonly inventorySignerKeysByProtocol?: Partial<
       Record<ProtocolType, string>
     >,
+    private readonly externalBridgeApiKeys?: Partial<
+      Record<ExternalBridgeType, string>
+    >,
   ) {}
 
   /**
@@ -110,6 +114,7 @@ export class RebalancerContextFactory {
     registry: IRegistry,
     logger: Logger,
     inventorySignerKeysByProtocol?: Partial<Record<ProtocolType, string>>,
+    externalBridgeApiKeys?: Partial<Record<ExternalBridgeType, string>>,
     warpCoreConfigOverride?: WarpCoreConfig,
   ): Promise<RebalancerContextFactory> {
     logger.debug(
@@ -180,6 +185,7 @@ export class RebalancerContextFactory {
       registry,
       logger,
       inventorySignerKeysByProtocol,
+      externalBridgeApiKeys,
     );
   }
 
@@ -655,6 +661,29 @@ export class RebalancerContextFactory {
               {
                 chainMetadata: this.multiProvider.metadata,
                 maxFeePercent: debridgeConfig.maxFeePercent,
+              },
+              this.logger,
+            );
+          }
+          break;
+        }
+        case ExternalBridgeType.SwapsXyz: {
+          const swapsxyzConfig = externalBridges?.swapsxyz;
+          if (swapsxyzConfig) {
+            const apiKey =
+              this.externalBridgeApiKeys?.[ExternalBridgeType.SwapsXyz];
+            if (!apiKey) {
+              throw new Error(
+                'externalBridges.swapsxyz is configured but SWAPSXYZ_API_KEY is not set',
+              );
+            }
+            registry[ExternalBridgeType.SwapsXyz] = new SwapsXyzBridge(
+              {
+                apiKey,
+                apiUrl: swapsxyzConfig.apiUrl,
+                defaultSlippage: swapsxyzConfig.defaultSlippage,
+                maxQuoteLossBps: swapsxyzConfig.maxQuoteLossBps,
+                chainMetadata: this.multiProvider.metadata,
               },
               this.logger,
             );
