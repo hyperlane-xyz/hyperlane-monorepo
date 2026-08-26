@@ -39,7 +39,7 @@ export interface SelectArgs {
 const MAX = {
   boolDepth: 8,
   boolPredicates: 100,
-  cursorColumns: 3,
+  cursorColumns: 1,
   distinctColumns: 3,
   inItems: 200,
   limit: 500,
@@ -297,6 +297,7 @@ function validate(args: SelectArgs): void {
     MAX.orderColumns,
   );
   validateDistinctOrder(args.distinct_on, orders);
+  validateCursorOrder(args.cursor, orders);
   boundedColumns(
     args.cursor?.reduce(
       (total, item) => total + Object.keys(item.initial_value).length,
@@ -307,6 +308,26 @@ function validate(args: SelectArgs): void {
   );
   const state = { predicates: 0 };
   validateWhere(args.where, 0, state);
+}
+
+function validateCursorOrder(
+  cursors: Cursor[] | undefined,
+  orders: Order[],
+): void {
+  if (!cursors?.length || !orders.length) return;
+  const cursor = cursors[0];
+  const cursorColumn = Object.keys(cursor.initial_value)[0];
+  const orderColumns = orders
+    .flatMap(Object.entries)
+    .filter((entry) => entry[1] != null);
+  const [orderColumn, orderDirection] = orderColumns[0] ?? [];
+  if (
+    orderColumns.length !== 1 ||
+    cursorColumn !== orderColumn ||
+    (cursor.ordering === 'DESC') !== orderDirection?.startsWith('desc')
+  ) {
+    throw new Error('cursor columns and directions must match order_by');
+  }
 }
 
 function validateDistinctOrder(

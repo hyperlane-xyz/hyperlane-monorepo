@@ -89,6 +89,23 @@ void describe('scraper database SQL', () => {
     assert.throws(() => buildSelect('domain', { limit: 501 }), /maximum/);
     assert.throws(
       () =>
+        buildSelect('domain', {
+          cursor: [{ initial_value: { id: 1 }, ordering: 'DESC' }],
+          order_by: { id: 'asc' },
+        }),
+      /must match order_by/,
+    );
+    assert.throws(
+      () =>
+        buildSelect('message_view', {
+          cursor: [
+            { initial_value: { send_occurred_at: '2026-01-01', id: 1 } },
+          ],
+        }),
+      /cursor exceeds maximum of 1 columns/,
+    );
+    assert.throws(
+      () =>
         buildSelect('domain', { where: { id: { _in: Array(201).fill(1) } } }),
       /maximum/,
     );

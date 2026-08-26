@@ -83,3 +83,20 @@ void it('accepts literal and variable null optional arguments', async () => {
   }
   await server.stop();
 });
+
+void it('accepts a cursor on message queries', () => {
+  const errors = validate(
+    schema,
+    parse(`
+      query Messages($cursor: bigint!) {
+        message_view(
+          cursor: [{initial_value: {id: $cursor}, ordering: DESC}]
+          order_by: {id: desc}
+          limit: 50
+        ) { id }
+      }
+    `),
+  );
+
+  assert.deepEqual(errors, []);
+});
