@@ -21,8 +21,10 @@ import { Metrics } from '../metrics/Metrics.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 import { InflightContextAdapter } from '../tracking/InflightContextAdapter.js';
 import { getRawBalances } from '../utils/balanceUtils.js';
+import { type IMutex, Mutex } from '../utils/mutex.js';
 
 import { InventoryRebalancer } from './InventoryRebalancer.js';
+import type { InventoryBalanceFetcher } from '../monitor/InventoryBalanceFetcher.js';
 
 /**
  * Result of a rebalancing cycle.
@@ -46,6 +48,10 @@ export interface RebalancerOrchestratorDeps {
 
   externalBridgeRegistry?: Partial<ExternalBridgeRegistry>;
   metrics?: Metrics;
+  /** Serializes the execution phase across orchestrators sharing signing keys (fleet mode). Defaults to a private per-instance mutex. */
+  executionLock?: IMutex;
+  /** When set, inventory balances are re-fetched fresh (under the execution lock) instead of trusting the monitor-time snapshot. */
+  inventoryBalanceFetcher?: InventoryBalanceFetcher;
 }
 
 export class RebalancerOrchestrator {
@@ -57,6 +63,8 @@ export class RebalancerOrchestrator {
   private readonly rebalancersByType: Map<RebalancerType, IRebalancer>;
   private readonly externalBridgeRegistry?: Partial<ExternalBridgeRegistry>;
   private readonly metrics?: Metrics;
+  private readonly executionLock: IMutex;
+  private readonly inventoryBalanceFetcher?: InventoryBalanceFetcher;
 
   constructor(deps: RebalancerOrchestratorDeps) {
     this.strategy = deps.strategy;
@@ -69,6 +77,8 @@ export class RebalancerOrchestrator {
     );
     this.externalBridgeRegistry = deps.externalBridgeRegistry;
     this.metrics = deps.metrics;
+    this.executionLock = deps.executionLock ?? new Mutex();
+    this.inventoryBalanceFetcher = deps.inventoryBalanceFetcher;
   }
 
   /**
@@ -114,29 +124,45 @@ export class RebalancerOrchestrator {
     let executedCount = 0;
     let failedCount = 0;
 
-    if (strategyRoutes.length > 0) {
-      this.logger.info(
-        {
-          routes: strategyRoutes.map((r) => ({
-            from: r.origin,
-            to: r.destination,
-            amount: r.amount.toString(),
-          })),
-        },
-        'Routes proposed',
-      );
+    const lockRequestedAt = Date.now();
+    await this.executionLock.runExclusive(async () => {
+      const lockWaitMs = Date.now() - lockRequestedAt;
+      if (lockWaitMs > 60_000) {
+        this.logger.warn(
+          { lockWaitMs },
+          'Execution lock wait exceeded threshold',
+        );
+      } else {
+        this.logger.debug(
+          { lockWaitMs },
+          'Execution lock wait below threshold',
+        );
+      }
 
-      const results = await this.executeWithTracking(strategyRoutes, event);
-      executedCount = results.executedCount;
-      failedCount = results.failedCount;
-    } else {
-      this.logger.info('No rebalancing needed');
-    }
+      if (strategyRoutes.length > 0) {
+        this.logger.info(
+          {
+            routes: strategyRoutes.map((r) => ({
+              from: r.origin,
+              to: r.destination,
+              amount: r.amount.toString(),
+            })),
+          },
+          'Routes proposed',
+        );
 
-    const inventoryRebalancer = this.rebalancersByType.get('inventory');
-    if (inventoryRebalancer && strategyRoutes.length === 0) {
-      await this.executeRoutes([], inventoryRebalancer, event);
-    }
+        const results = await this.executeWithTracking(strategyRoutes, event);
+        executedCount = results.executedCount;
+        failedCount = results.failedCount;
+      } else {
+        this.logger.info('No rebalancing needed');
+      }
+
+      const inventoryRebalancer = this.rebalancersByType.get('inventory');
+      if (inventoryRebalancer && strategyRoutes.length === 0) {
+        await this.executeRoutes([], inventoryRebalancer, event);
+      }
+    });
 
     this.logger.info('Polling cycle completed');
 
@@ -219,10 +245,29 @@ export class RebalancerOrchestrator {
     rebalancer: IRebalancer,
     event: MonitorEvent,
   ): Promise<ExecutionResult[]> {
-    if (rebalancer.rebalancerType === 'inventory' && event.inventoryBalances) {
-      (rebalancer as InventoryRebalancer).setInventoryBalances(
-        event.inventoryBalances,
-      );
+    if (rebalancer.rebalancerType === 'inventory') {
+      // Prefer balances re-fetched at execution time (under the execution
+      // lock); fall back to the monitor-time snapshot if the strict fetch
+      // fails on any chain.
+      let balances = event.inventoryBalances;
+      if (this.inventoryBalanceFetcher) {
+        try {
+          balances = await this.inventoryBalanceFetcher.fetchInventoryBalances({
+            strict: true,
+          });
+        } catch (error) {
+          this.logger.warn(
+            {
+              error,
+              hasMonitorSnapshot: event.inventoryBalances !== undefined,
+            },
+            'Fresh inventory balance fetch failed, using monitor snapshot',
+          );
+        }
+      }
+      if (balances) {
+        (rebalancer as InventoryRebalancer).setInventoryBalances(balances);
+      }
     }
 
     try {

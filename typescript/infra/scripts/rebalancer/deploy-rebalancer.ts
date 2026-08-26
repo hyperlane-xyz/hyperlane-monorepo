@@ -1,21 +1,33 @@
 import { checkbox, input } from '@inquirer/prompts';
-import path from 'path';
 
 import {
   LogFormat,
   LogLevel,
   configureRootLogger,
   rootLogger,
+  sleep,
 } from '@hyperlane-xyz/utils';
 
+import {
+  getRebalancerFleet,
+  rebalancerFleets,
+} from '../../config/environments/mainnet3/rebalancer/fleets.js';
 import { DeployEnvironment } from '../../src/config/deploy-environment.js';
 import {
+  RebalancerFleetHelmManager,
   RebalancerHelmManager,
   getDeployedRebalancerWarpRouteIds,
+  getRebalancerConfigPath,
 } from '../../src/rebalancer/helm.js';
 import { REBALANCER_HELM_RELEASE_PREFIX } from '../../src/utils/consts.js';
 import { validateRegistryCommit } from '../../src/utils/git.js';
-import { HelmCommand } from '../../src/utils/helm.js';
+import {
+  HelmCommand,
+  HelmManager,
+  getHelmReleaseName,
+  removeHelmRelease,
+} from '../../src/utils/helm.js';
+import { execCmd } from '../../src/utils/utils.js';
 import {
   assertCorrectKubeContext,
   filterOrphanedWarpRouteIds,
@@ -27,8 +39,37 @@ import {
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-function getRebalancerConfigPathPrefix(environment: DeployEnvironment) {
-  return `config/environments/${environment}/rebalancer`;
+async function waitForReleasePodsToTerminate(
+  releaseName: string,
+  namespace: DeployEnvironment,
+): Promise<void> {
+  const selector = `app.kubernetes.io/instance=${releaseName}`;
+  const timeout = Date.now() + 120_000;
+
+  rootLogger.info(`Waiting for pods from ${releaseName} to terminate`);
+  while (Date.now() < timeout) {
+    const [pods] = await execCmd([
+      'kubectl',
+      'get',
+      'pods',
+      '--namespace',
+      namespace,
+      '--selector',
+      selector,
+      '-o',
+      'name',
+    ]);
+
+    if (pods.trim().length === 0) {
+      return;
+    }
+
+    await sleep(1000);
+  }
+
+  throw new Error(
+    `Timed out waiting for pods from ${releaseName} to terminate`,
+  );
 }
 
 async function main() {
@@ -39,11 +80,76 @@ async function main() {
     metrics,
     registryCommit: registryCommitArg,
     yes: skipConfirmation,
-  } = await withYes(
-    withMetrics(withRegistryCommit(withWarpRouteId(getArgs()))),
-  ).parse();
+    fleet: fleetName,
+  } = await withYes(withMetrics(withRegistryCommit(withWarpRouteId(getArgs()))))
+    .describe('fleet', 'rebalancer fleet name')
+    .string('fleet')
+    .conflicts('fleet', 'warpRouteId')
+    .parse();
+
+  if (fleetName && environment !== 'mainnet3') {
+    throw new Error(
+      `Rebalancer fleets are only defined for mainnet3; received ${environment}`,
+    );
+  }
+
+  const fleet = fleetName ? getRebalancerFleet(fleetName) : undefined;
 
   await assertCorrectKubeContext(getEnvironmentConfig(environment));
+
+  if (fleet) {
+    let registryCommit: string;
+    if (registryCommitArg) {
+      registryCommit = registryCommitArg;
+    } else {
+      const defaultRegistryCommit =
+        await RebalancerFleetHelmManager.getDeployedRegistryCommit(
+          fleet.name,
+          environment,
+        );
+
+      if (skipConfirmation) {
+        registryCommit = defaultRegistryCommit ?? 'main';
+      } else {
+        registryCommit = await input({
+          message: `[fleet ${fleet.name}] Enter registry version (commit, branch or tag):`,
+          default: defaultRegistryCommit,
+        });
+      }
+    }
+
+    await validateRegistryCommit(registryCommit);
+
+    const helmManager = new RebalancerFleetHelmManager(
+      fleet,
+      environment,
+      registryCommit,
+      metrics,
+    );
+    await helmManager.runPreflightChecks();
+
+    rootLogger.warn(
+      '⚠️  CUTOVER: pod-name-based Grafana alerts referencing hyperlane-rebalancer-usdc-* release names must be updated. Metric-level warp_route_id alerts are unaffected.',
+    );
+
+    for (const memberWarpRouteId of fleet.warpRouteIds) {
+      const releaseName = getHelmReleaseName(
+        memberWarpRouteId,
+        REBALANCER_HELM_RELEASE_PREFIX,
+      );
+      if (!(await HelmManager.doesHelmReleaseExist(releaseName, environment))) {
+        continue;
+      }
+
+      rootLogger.info(`Uninstalling per-route rebalancer: ${releaseName}`);
+      await removeHelmRelease(releaseName, environment);
+      await waitForReleasePodsToTerminate(releaseName, environment);
+      rootLogger.info(`Per-route rebalancer terminated: ${releaseName}`);
+    }
+
+    await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade);
+    return;
+  }
 
   let warpRouteIds: string[];
   if (warpRouteId) {
@@ -53,13 +159,22 @@ async function main() {
       environment,
       REBALANCER_HELM_RELEASE_PREFIX,
     );
-    const deployedIds = [
-      ...new Set(
-        deployedPods
-          .map((p) => p.warpRouteId)
-          .filter((id): id is string => !!id),
-      ),
-    ].sort();
+    // Fleet-managed routes are redeployed via --fleet, not per-route;
+    // exclude them from the checkbox so selecting one can't abort the batch.
+    const fleetManagedIds = new Set(
+      rebalancerFleets.flatMap((candidate) => candidate.warpRouteIds),
+    );
+    const deployedIds = [...new Set(deployedPods.map((pod) => pod.warpRouteId))]
+      .filter((id) => {
+        if (environment === 'mainnet3' && fleetManagedIds.has(id)) {
+          rootLogger.info(
+            `Excluding fleet-managed route ${id} (redeploy it with --fleet)`,
+          );
+          return false;
+        }
+        return true;
+      })
+      .sort();
 
     if (deployedIds.length === 0) {
       rootLogger.error(
@@ -77,6 +192,19 @@ async function main() {
     if (warpRouteIds.length === 0) {
       rootLogger.info('No rebalancers selected');
       process.exit(0);
+    }
+  }
+
+  if (environment === 'mainnet3') {
+    for (const selectedWarpRouteId of warpRouteIds) {
+      const owningFleet = rebalancerFleets.find((candidate) =>
+        candidate.warpRouteIds.includes(selectedWarpRouteId),
+      );
+      if (owningFleet) {
+        throw new Error(
+          `Warp route ${selectedWarpRouteId} is managed by fleet ${owningFleet.name}. Deploy it with --fleet ${owningFleet.name}.`,
+        );
+      }
     }
   }
 
@@ -135,10 +263,9 @@ async function main() {
     }
 
     // Build path for config file - relative for local checks
-    const configFileName = `${warpRouteId}-config.yaml`;
-    const relativeConfigPath = path.join(
-      getRebalancerConfigPathPrefix(environment),
-      configFileName,
+    const relativeConfigPath = getRebalancerConfigPath(
+      environment,
+      warpRouteId,
     );
 
     const containerConfigPath = `/hyperlane-monorepo/typescript/infra/${relativeConfigPath}`;

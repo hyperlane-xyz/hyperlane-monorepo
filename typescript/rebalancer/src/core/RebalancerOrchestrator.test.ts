@@ -17,6 +17,8 @@ import { Metrics } from '../metrics/Metrics.js';
 import { TEST_ADDRESSES, getTestAddress } from '../test/helpers.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 import { InflightContextAdapter } from '../tracking/InflightContextAdapter.js';
+import { InventoryBalanceFetcher } from '../monitor/InventoryBalanceFetcher.js';
+import { Mutex } from '../utils/mutex.js';
 
 import {
   RebalancerOrchestrator,
@@ -865,6 +867,150 @@ describe('RebalancerOrchestrator', () => {
       await orchestrator.executeCycle(event);
 
       expect((metrics.processToken as Sinon.SinonStub).calledTwice).to.be.true;
+    });
+  });
+
+  describe('Execution Lock', () => {
+    it('should serialize execution across orchestrators sharing a lock', async () => {
+      const sharedLock = new Mutex();
+      const firstStrategy = createMockStrategy();
+      const secondStrategy = createMockStrategy();
+      const route = {
+        origin: 'ethereum',
+        destination: 'arbitrum',
+        amount: 1000n,
+        bridge: TEST_ADDRESSES.bridge,
+        executionType: 'movableCollateral',
+      };
+      firstStrategy.getRebalancingRoutes.returns([route]);
+      secondStrategy.getRebalancingRoutes.returns([route]);
+
+      let executing = false;
+      const executionOrder: string[] = [];
+      let signalFirstStarted: () => void = () => undefined;
+      const firstStarted = new Promise<void>((resolve) => {
+        signalFirstStarted = resolve;
+      });
+
+      const firstRebalancer = createMockRebalancer();
+      firstRebalancer.rebalance.callsFake(async () => {
+        expect(executing).to.be.false;
+        executing = true;
+        executionOrder.push('first-started');
+        signalFirstStarted();
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        executing = false;
+        executionOrder.push('first-finished');
+        return [];
+      });
+
+      const secondRebalancer = createMockRebalancer();
+      secondRebalancer.rebalance.callsFake(async () => {
+        expect(executing).to.be.false;
+        executing = true;
+        executionOrder.push('second-started');
+        executing = false;
+        executionOrder.push('second-finished');
+        return [];
+      });
+
+      const firstOrchestrator = new RebalancerOrchestrator({
+        strategy: firstStrategy,
+        rebalancers: [firstRebalancer],
+        actionTracker: createMockActionTracker(),
+        inflightContextAdapter: createMockInflightContextAdapter(),
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+        executionLock: sharedLock,
+      });
+      const secondOrchestrator = new RebalancerOrchestrator({
+        strategy: secondStrategy,
+        rebalancers: [secondRebalancer],
+        actionTracker: createMockActionTracker(),
+        inflightContextAdapter: createMockInflightContextAdapter(),
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+        executionLock: sharedLock,
+      });
+
+      const firstCycle = firstOrchestrator.executeCycle(createMonitorEvent());
+      await firstStarted;
+      const secondCycle = secondOrchestrator.executeCycle(createMonitorEvent());
+
+      await Promise.all([firstCycle, secondCycle]);
+
+      expect(executionOrder).to.deep.equal([
+        'first-started',
+        'first-finished',
+        'second-started',
+        'second-finished',
+      ]);
+    });
+  });
+
+  describe('Inventory Balance Refetch', () => {
+    it('should use fresh inventory balances at execution time', async () => {
+      const inventoryBalanceFetcher = sandbox.createStubInstance(
+        InventoryBalanceFetcher,
+      );
+      const freshBalances = { ethereum: 100n, arbitrum: 200n };
+      const snapshotBalances = { ethereum: 10n, arbitrum: 20n };
+      inventoryBalanceFetcher.fetchInventoryBalances.resolves(freshBalances);
+      const inventoryRebalancer = createMockInventoryRebalancer();
+      const orchestrator = new RebalancerOrchestrator({
+        strategy: createMockStrategy(),
+        rebalancers: [inventoryRebalancer],
+        actionTracker: createMockActionTracker(),
+        inflightContextAdapter: createMockInflightContextAdapter(),
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+        inventoryBalanceFetcher,
+      });
+
+      await orchestrator.executeCycle(
+        createMonitorEvent({ inventoryBalances: snapshotBalances }),
+      );
+
+      expect(
+        inventoryRebalancer.setInventoryBalances.calledOnceWithExactly(
+          freshBalances,
+        ),
+      ).to.be.true;
+      expect(
+        inventoryRebalancer.setInventoryBalances.calledWith(snapshotBalances),
+      ).to.be.false;
+    });
+
+    it('should use monitor balances and warn when fresh fetch fails', async () => {
+      const inventoryBalanceFetcher = sandbox.createStubInstance(
+        InventoryBalanceFetcher,
+      );
+      const snapshotBalances = { ethereum: 10n, arbitrum: 20n };
+      inventoryBalanceFetcher.fetchInventoryBalances.rejects(
+        new Error('RPC unavailable'),
+      );
+      const inventoryRebalancer = createMockInventoryRebalancer();
+      const warnSpy = sandbox.spy(testLogger, 'warn');
+      const orchestrator = new RebalancerOrchestrator({
+        strategy: createMockStrategy(),
+        rebalancers: [inventoryRebalancer],
+        actionTracker: createMockActionTracker(),
+        inflightContextAdapter: createMockInflightContextAdapter(),
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+        inventoryBalanceFetcher,
+      });
+
+      await orchestrator.executeCycle(
+        createMonitorEvent({ inventoryBalances: snapshotBalances }),
+      );
+
+      expect(
+        inventoryRebalancer.setInventoryBalances.calledOnceWithExactly(
+          snapshotBalances,
+        ),
+      ).to.be.true;
+      expect(warnSpy.calledOnce).to.be.true;
     });
   });
 });
