@@ -123,6 +123,39 @@ describe('FileStore', () => {
     expect(await restartedActions.get(action.id)).to.deep.equal(action);
   });
 
+  it('round-trips settlement identity across a restart', async () => {
+    const filePath = path.join(temporaryDirectory, 'tracking', 'actions.json');
+    const action: RebalanceAction = {
+      id: 'action-lz',
+      status: 'in_progress',
+      type: 'rebalance_message',
+      intentId: 'intent-lz',
+      origin: 1,
+      destination: 2,
+      amount: 100n,
+      txHash: '0xorigin',
+      destinationTxHash: '0xdestination',
+      externalExecutionRef: {
+        provider: 'lz_scan',
+        kind: 'lz_scan',
+        data: { guid: '0xguid', sourceEid: 30110 },
+      },
+      createdAt: 1,
+      updatedAt: 1,
+    };
+
+    await new FileStore<RebalanceAction, RebalanceAction['status']>(
+      filePath,
+      isRebalanceAction,
+    ).save(action);
+
+    const restartedStore = new FileStore<
+      RebalanceAction,
+      RebalanceAction['status']
+    >(filePath, isRebalanceAction);
+    expect(await restartedStore.get(action.id)).to.deep.equal(action);
+  });
+
   it('serializes concurrent writes and leaves only an atomic state file', async () => {
     const trackingDirectory = path.join(temporaryDirectory, 'tracking');
     const filePath = path.join(trackingDirectory, 'transfers.json');
@@ -195,6 +228,43 @@ describe('FileStore', () => {
     const store = new FileStore<Transfer, Transfer['status']>(
       filePath,
       isTransfer,
+    );
+    await expect(store.getAll()).to.be.rejectedWith(
+      `Invalid entity in state store file ${filePath}`,
+    );
+  });
+
+  it('fails closed on malformed settlement identity', async () => {
+    const filePath = path.join(temporaryDirectory, 'actions.json');
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: 1,
+        entities: [
+          {
+            id: 'action-lz',
+            status: 'in_progress',
+            type: 'rebalance_message',
+            intentId: 'intent-lz',
+            origin: 1,
+            destination: 2,
+            amount: { __hyperlane_bigint__: '100' },
+            externalExecutionRef: {
+              provider: 1,
+              kind: 'lz_scan',
+              data: {},
+            },
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        ],
+      }),
+      'utf8',
+    );
+
+    const store = new FileStore<RebalanceAction, RebalanceAction['status']>(
+      filePath,
+      isRebalanceAction,
     );
     await expect(store.getAll()).to.be.rejectedWith(
       `Invalid entity in state store file ${filePath}`,

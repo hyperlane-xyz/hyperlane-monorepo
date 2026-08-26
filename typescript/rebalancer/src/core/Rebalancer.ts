@@ -7,7 +7,6 @@ import {
   type ChainName,
   type EthJsonRpcBlockParameterTag,
   EvmMovableCollateralAdapter,
-  HyperlaneCore,
   type InterchainGasQuote,
   type MultiProvider,
   type Token,
@@ -22,6 +21,8 @@ import {
   revokeErc20Approval,
   revokeErc20ApprovalIfNeeded,
 } from '../bridges/erc20Approve.js';
+import { createStatusAdapters } from '../bridges/status/index.js';
+import { TokenBridgeStatusAdapterType } from '../config/types.js';
 import type {
   IMovableCollateralRebalancer,
   MovableCollateralExecutionResult,
@@ -29,6 +30,10 @@ import type {
   RebalancerType,
 } from '../interfaces/IRebalancer.js';
 import { MovableCollateralRoute } from '../interfaces/IStrategy.js';
+import type {
+  MCRStatusRef,
+  StatusAdaptersByKind,
+} from '../interfaces/ITokenBridgeStatusAdapter.js';
 import { type Metrics } from '../metrics/Metrics.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 import type { RebalanceIntent } from '../tracking/types.js';
@@ -57,6 +62,7 @@ type CollateralFeeApprovalGroup = CollateralFeeApproval & {
 export class Rebalancer implements IMovableCollateralRebalancer {
   public readonly rebalancerType: RebalancerType = 'movableCollateral';
   private readonly logger: Logger;
+  private readonly statusAdaptersByKind: StatusAdaptersByKind;
 
   constructor(
     private readonly warpCore: WarpCore,
@@ -70,8 +76,11 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       Erc20ApprovalOptions,
       'contractFactory'
     > = {},
+    statusAdaptersByKind?: StatusAdaptersByKind,
   ) {
     this.logger = logger.child({ class: Rebalancer.name });
+    this.statusAdaptersByKind =
+      statusAdaptersByKind ?? createStatusAdapters(this.logger);
   }
 
   async rebalance(
@@ -173,17 +182,18 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     for (const result of results) {
       const intentId = result.intentId;
 
-      if (result.success && result.messageId && result.actionId) {
+      if (result.success && result.externalExecutionRef && result.actionId) {
         this.logger.info(
           {
             intentId,
             actionId: result.actionId,
             messageId: result.messageId,
+            statusAdapter: result.externalExecutionRef.kind,
             txHash: result.txHash,
             origin: result.route.origin,
             destination: result.route.destination,
           },
-          'Rebalance action created successfully',
+          'Rebalance action execution identity persisted',
         );
       } else if (result.actionId) {
         this.logger.warn(
@@ -220,6 +230,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       error: internal.error,
       messageId: internal.messageId || '', // Ensure messageId is always a string
       txHash: internal.txHash,
+      externalExecutionRef: internal.externalExecutionRef,
     }));
   }
 
@@ -917,27 +928,93 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     actionId: string,
   ): Promise<InternalExecutionResult> {
     const { origin, destination } = transaction.route;
-    const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
+    const statusAdapterKind =
+      transaction.route.statusAdapter?.kind ??
+      TokenBridgeStatusAdapterType.HyperlaneMessage;
+    const statusAdapter = this.statusAdaptersByKind.get(statusAdapterKind);
 
-    if (dispatchedMessages.length === 0) {
+    if (!statusAdapter) {
       this.logger.error(
-        { origin, destination, txHash: receipt.transactionHash },
-        'No Dispatch event found in confirmed rebalance receipt',
+        { origin, destination, statusAdapterKind },
+        'No movable collateral status adapter registered',
       );
       return {
         route: transaction.route,
         intentId: transaction.route.intentId,
         actionId,
         success: false,
-        error: `Transaction confirmed but no Dispatch event found`,
+        error: `No status adapter registered for ${statusAdapterKind}`,
         messageId: '', // Required by MovableCollateralExecutionResult, empty for failures
         txHash: receipt.transactionHash,
       };
     }
 
+    let externalExecutionRef: MCRStatusRef | null;
+    try {
+      externalExecutionRef = await statusAdapter.initFromReceipt({
+        origin,
+        destination,
+        originDomain: this.multiProvider.getDomainId(origin),
+        destinationDomain: this.multiProvider.getDomainId(destination),
+        bridge: transaction.route.bridge,
+        ...(transaction.route.statusAdapter?.kind ===
+        TokenBridgeStatusAdapterType.LayerZeroScan
+          ? {
+              sourceEid: transaction.route.statusAdapter.sourceEid,
+              destinationEid: transaction.route.statusAdapter.destinationEid,
+              sourceOft: transaction.route.statusAdapter.sourceOft,
+              destinationOft: transaction.route.statusAdapter.destinationOft,
+              destinationRecipient:
+                this.tokensByChainName[destination].addressOrDenom,
+              sourceTokenDecimals: this.tokensByChainName[origin].decimals,
+              destinationTokenDecimals:
+                this.tokensByChainName[destination].decimals,
+              minimumDestinationAmount: denormalizeToLocal(
+                normalizeToCanonical(
+                  transaction.originTokenAmount.amount,
+                  transaction.originTokenAmount.token,
+                ),
+                this.tokensByChainName[destination],
+              ),
+            }
+          : {}),
+        receipt,
+      });
+    } catch (error) {
+      this.logger.error(
+        { origin, destination, statusAdapterKind, error },
+        'Failed to initialize movable collateral settlement tracking',
+      );
+      externalExecutionRef = null;
+    }
+
+    if (!externalExecutionRef) {
+      const error =
+        statusAdapterKind === TokenBridgeStatusAdapterType.HyperlaneMessage
+          ? 'Transaction confirmed but no Dispatch event found'
+          : `Transaction confirmed but ${statusAdapterKind} settlement tracking could not be initialized`;
+      return {
+        route: transaction.route,
+        intentId: transaction.route.intentId,
+        actionId,
+        success: false,
+        error,
+        messageId: '',
+        txHash: receipt.transactionHash,
+      };
+    }
+
+    const messageId =
+      externalExecutionRef.kind ===
+        TokenBridgeStatusAdapterType.HyperlaneMessage &&
+      typeof externalExecutionRef.data.messageId === 'string'
+        ? externalExecutionRef.data.messageId
+        : '';
+
     await this.actionTracker.updateRebalanceActionExecution(actionId, {
-      messageId: dispatchedMessages[0].id,
+      messageId: messageId || undefined,
       txHash: receipt.transactionHash,
+      externalExecutionRef,
     });
 
     return {
@@ -945,8 +1022,9 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       intentId: transaction.route.intentId,
       actionId,
       success: true,
-      messageId: dispatchedMessages[0].id,
+      messageId,
       txHash: receipt.transactionHash,
+      externalExecutionRef,
       canonicalAmount: normalizeToCanonical(
         transaction.originTokenAmount.amount,
         transaction.originTokenAmount.token,

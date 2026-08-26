@@ -232,6 +232,7 @@ strategy:
 | `bridge`                  | `0x...` address  | Yes      | Bridge contract address for this chain                         |
 | `bridgeLockTime`          | number (seconds) | No       | Expected bridge transfer duration (used for inflight tracking) |
 | `bridgeMinAcceptedAmount` | number           | No       | Skip routes with amounts below this threshold                  |
+| `statusAdapter`           | object           | No       | Settlement tracker; defaults to `hyperlane_message`            |
 | `override`                | object           | No       | Per-destination bridge overrides (see below)                   |
 
 #### Per-Destination Overrides
@@ -249,9 +250,24 @@ strategy:
         arbitrum:
           bridge: '0xFastArbitrumBridge...'
           bridgeLockTime: 600
+          # Use for LayerZero OFT bridges that emit no Hyperlane Dispatch.
+          statusAdapter:
+            kind: lz_scan
+            sourceEid: 30101
+            destinationEid: 30110
+            sourceOft: '0xSourceOft...'
+            destinationOft: '0xDestinationOft...'
         optimism:
           bridge: '0xOptimismBridge...'
 ```
+
+`statusAdapter.kind` supports `hyperlane_message` and `lz_scan`. The default
+tracks a Hyperlane `Dispatch`; `lz_scan` extracts the exact OFT GUID and polls
+LayerZero Scan until a confirmed destination receipt contains the matching
+`OFTReceived` GUID, source EID, recipient, and amount from the source receipt.
+LayerZero EIDs and OFT contract addresses are required. Source-committed
+failures remain in progress for manual reconciliation rather than allowing a
+duplicate collateral move.
 
 ## Architecture
 

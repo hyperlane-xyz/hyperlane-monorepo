@@ -48,6 +48,15 @@ function isExternalBridgeType(value: unknown): boolean {
   return EXTERNAL_BRIDGE_TYPES.has(value);
 }
 
+function isExternalExecutionRef(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.provider === 'string' &&
+    typeof value.kind === 'string' &&
+    isRecord(value.data)
+  );
+}
+
 function isTrackedActionBase(value: unknown): value is Record<string, unknown> {
   return (
     isRecord(value) &&
@@ -105,7 +114,10 @@ export function isRebalanceAction(value: unknown): value is RebalanceAction {
     typeof value.intentId === 'string' &&
     isOptionalString(value.messageId) &&
     isOptionalString(value.txHash) &&
+    isOptionalString(value.destinationTxHash) &&
     isOptionalString(value.externalBridgeTransferId) &&
+    (value.externalExecutionRef === undefined ||
+      isExternalExecutionRef(value.externalExecutionRef)) &&
     (value.externalBridgeId === undefined ||
       isExternalBridgeType(value.externalBridgeId)) &&
     validBridgeStatus &&

@@ -15,6 +15,7 @@ import {
   type RebalancerConfigFileInput,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
+  TokenBridgeStatusAdapterType,
   type StrategyConfig,
   getAllBridges,
 } from './types.js';
@@ -128,6 +129,75 @@ describe('RebalancerConfig', () => {
 
     expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
       'stateStore.directory',
+    );
+  });
+
+  it('should load LayerZero settlement adapters on chains and overrides', () => {
+    const strategy = getStrategyArray(data)[0];
+    strategy.chains.chain1.statusAdapter = {
+      kind: TokenBridgeStatusAdapterType.LayerZeroScan,
+      sourceEid: 30110,
+      destinationEid: 30420,
+      sourceOft: '0x1111111111111111111111111111111111111111',
+      destinationOft: '0x2222222222222222222222222222222222222222',
+    };
+    strategy.chains.chain1.override = {
+      chain2: {
+        statusAdapter: {
+          kind: TokenBridgeStatusAdapterType.LayerZeroScan,
+          sourceEid: 30110,
+          destinationEid: 30420,
+          sourceOft: '0x1111111111111111111111111111111111111111',
+          destinationOft: '0x2222222222222222222222222222222222222222',
+        },
+      },
+    };
+    writeYamlOrJson(TEST_CONFIG_PATH, data);
+
+    const chainConfig =
+      RebalancerConfig.load(TEST_CONFIG_PATH).strategyConfig[0].chains.chain1;
+    expect(chainConfig.statusAdapter?.kind).to.equal(
+      TokenBridgeStatusAdapterType.LayerZeroScan,
+    );
+    expect(chainConfig.override?.chain2.statusAdapter?.kind).to.equal(
+      TokenBridgeStatusAdapterType.LayerZeroScan,
+    );
+  });
+
+  it('should reject unknown settlement adapter kinds', () => {
+    getStrategyArray(data)[0].chains.chain1.statusAdapter = {
+      kind: 'unknown',
+    } as any;
+    writeYamlOrJson(TEST_CONFIG_PATH, data);
+
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+      'statusAdapter.kind',
+    );
+  });
+
+  it('should require LayerZero route identity', () => {
+    getStrategyArray(data)[0].chains.chain1.statusAdapter = {
+      kind: TokenBridgeStatusAdapterType.LayerZeroScan,
+    } as any;
+    writeYamlOrJson(TEST_CONFIG_PATH, data);
+
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+      'statusAdapter.sourceEid',
+    );
+  });
+
+  it('should reject LayerZero EIDs outside uint32', () => {
+    getStrategyArray(data)[0].chains.chain1.statusAdapter = {
+      kind: TokenBridgeStatusAdapterType.LayerZeroScan,
+      sourceEid: 0x1_0000_0000,
+      destinationEid: 30420,
+      sourceOft: '0x1111111111111111111111111111111111111111',
+      destinationOft: '0x2222222222222222222222222222222222222222',
+    };
+    writeYamlOrJson(TEST_CONFIG_PATH, data);
+
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+      'statusAdapter.sourceEid',
     );
   });
 

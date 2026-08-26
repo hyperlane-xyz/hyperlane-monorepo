@@ -2,6 +2,7 @@ import type { Address, Domain } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
+import type { MCRStatusRef } from '../interfaces/ITokenBridgeStatusAdapter.js';
 import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
 
 import type {
@@ -34,12 +35,14 @@ export interface CreateRebalanceActionParams {
   txHash?: string;
   externalBridgeTransferId?: string; // Optional - for inventory_movement (external transfer bridge ID)
   externalBridgeId?: ExternalBridgeType; // Optional - for inventory_movement (e.g., 'lifi')
+  externalExecutionRef?: MCRStatusRef; // Optional - movable collateral settlement cursor
 }
 
 export interface UpdateRebalanceActionExecutionParams {
   messageId?: string;
   txHash?: string;
   externalBridgeTransferId?: string;
+  externalExecutionRef?: MCRStatusRef;
 }
 
 /**
