@@ -3,6 +3,7 @@ import {
   type ChainMetadata,
   submitEvmLikeTransaction,
 } from '@hyperlane-xyz/sdk';
+import { TronWallet } from '@hyperlane-xyz/tron-sdk/runtime';
 import {
   ACCOUNT_SIZE,
   AccountLayout,
@@ -29,6 +30,7 @@ import {
 } from '@hyperlane-xyz/utils';
 import { BigNumber, Contract, Wallet, providers, utils } from 'ethers';
 import type { Logger } from 'pino';
+import { TronWeb } from 'tronweb';
 
 import { ExternalBridgeType } from '../config/types.js';
 import type {
@@ -51,6 +53,7 @@ import {
   isEvmTx,
   isSolanaTx,
   isSwapsXyzNotFoundError,
+  isTronTx,
   type SwapsXyzActionRequest,
   type SwapsXyzActionResponse,
   type SwapsXyzStatusResponse,
@@ -62,10 +65,14 @@ const REVERSE_QUOTE_ATTEMPTS = 4;
 const REVERSE_QUOTE_HEADROOM_BPS = 30n;
 const BPS_DENOMINATOR = 10_000n;
 const ERC20_DECIMALS_ABI = ['function decimals() view returns (uint8)'];
+const ERC20_TRANSFER_INTERFACE = new utils.Interface([
+  'function transfer(address recipient, uint256 amount) returns (bool)',
+]);
 const REGISTER_TX_RETRY_DELAY_MS = 2_000;
 const MAX_TRANSACTION_AGE_MS = 30_000;
 const MAX_PREPARATION_ATTEMPTS = 3;
 const DEFAULT_MAX_EVM_NATIVE_FEE_WEI = 10_000_000_000_000_000n;
+const DEFAULT_MAX_TRON_NATIVE_FEE_SUN = 20_000_000n;
 const DEFAULT_MAX_SOLANA_NATIVE_SPEND_LAMPORTS = 10_000_000;
 const tokenAmountOffset = AccountLayout.offsetOf('amount');
 assert(
@@ -80,10 +87,12 @@ export interface SwapsXyzBridgeConfig {
   defaultSlippage?: number;
   maxQuoteLossBps?: number;
   maxEvmNativeFeeWei?: bigint;
+  maxTronNativeFeeSun?: bigint;
   maxSolanaNativeSpendLamports?: number;
   chainMetadata?: ChainMap<ChainMetadata>;
   evmProviderFactory?: (rpcUrl: string) => providers.Provider;
   solanaConnectionFactory?: (rpcUrl: string) => Connection;
+  tronWalletFactory?: (privateKey: string, rpcUrl: string) => Wallet;
   registerTxRetryDelayMs?: number;
   erc20ContractFactory?: Erc20ContractFactory;
 }
@@ -171,6 +180,10 @@ export class SwapsXyzBridge implements IExternalBridge {
   private readonly evmProviderFactory: (rpcUrl: string) => providers.Provider;
   private readonly solanaConnectionFactory: (rpcUrl: string) => Connection;
   private readonly maxSolanaNativeSpendLamports: number;
+  private readonly tronWalletFactory: (
+    privateKey: string,
+    rpcUrl: string,
+  ) => Wallet;
   private readonly registerTxRetryDelayMs: number;
   // Prevent source-account races when movements share a source in one cycle.
   private _executeLock: Promise<void> = Promise.resolve();
@@ -215,6 +228,9 @@ export class SwapsXyzBridge implements IExternalBridge {
       config.solanaConnectionFactory ??
       ((rpcUrl) => new Connection(rpcUrl, 'confirmed'));
     this.maxSolanaNativeSpendLamports = maxSolanaNativeSpendLamports;
+    this.tronWalletFactory =
+      config.tronWalletFactory ??
+      ((privateKey, rpcUrl) => new TronWallet(privateKey, rpcUrl));
     this.registerTxRetryDelayMs =
       config.registerTxRetryDelayMs ?? REGISTER_TX_RETRY_DELAY_MS;
 
@@ -406,12 +422,15 @@ export class SwapsXyzBridge implements IExternalBridge {
     assert(amount !== undefined, 'Must specify either fromAmount or toAmount');
     return {
       actionType: 'swap-action',
-      sender: params.fromAddress,
-      recipient: params.toAddress ?? params.fromAddress,
+      sender: this.formatAddressForApi(params.fromChain, params.fromAddress),
+      recipient: this.formatAddressForApi(
+        params.toChain,
+        params.toAddress ?? params.fromAddress,
+      ),
       srcChainId: params.fromChain,
       dstChainId: params.toChain,
-      srcToken: params.fromToken,
-      dstToken: params.toToken,
+      srcToken: this.formatAddressForApi(params.fromChain, params.fromToken),
+      dstToken: this.formatAddressForApi(params.toChain, params.toToken),
       slippage: this.getSlippageBps(params.slippage),
       amount: amount.toString(),
       swapDirection:
@@ -419,6 +438,44 @@ export class SwapsXyzBridge implements IExternalBridge {
           ? 'exact-amount-in'
           : 'exact-amount-out',
     };
+  }
+
+  private formatAddressForApi(chainId: number, address: string): string {
+    const protocol = this.chainMetadataByChainId.get(chainId)?.protocol;
+    if (protocol === ProtocolType.Tron) {
+      return TronWeb.address.fromHex(`41${this.tronAddressHex20(address)}`);
+    }
+    if (protocol === ProtocolType.Ethereum && address.startsWith('T')) {
+      return this.tronAddressToEvm(address);
+    }
+    return address;
+  }
+
+  private tronAddressHex20(address: string): string {
+    if (address.startsWith('T')) {
+      assert(
+        TronWeb.isAddress(address),
+        `SwapsXyzBridge: invalid Tron address ${address}`,
+      );
+      const hex = TronWeb.address.toHex(address);
+      assert(
+        /^41[0-9a-fA-F]{40}$/.test(hex),
+        `SwapsXyzBridge: invalid Tron address ${address}`,
+      );
+      return hex.slice(2).toLowerCase();
+    }
+
+    let hex = address.startsWith('0x') ? address.slice(2) : address;
+    if (/^41[0-9a-fA-F]{40}$/.test(hex)) hex = hex.slice(2);
+    assert(
+      /^[0-9a-fA-F]{40}$/.test(hex) && TronWeb.isAddress(`41${hex}`),
+      `SwapsXyzBridge: invalid Tron address ${address}`,
+    );
+    return hex.toLowerCase();
+  }
+
+  private tronAddressToEvm(address: string): string {
+    return ensure0x(this.tronAddressHex20(address));
   }
 
   private getSlippageBps(slippage?: number): number {
@@ -529,7 +586,15 @@ export class SwapsXyzBridge implements IExternalBridge {
       `SwapsXyzBridge: no RPC URL configured for chainId ${chainId}`,
     );
     const provider = this.evmProviderFactory(rpcUrl);
-    const tokenContract = new Contract(token, ERC20_DECIMALS_ABI, provider);
+    const tokenAddress =
+      metadata.protocol === ProtocolType.Tron
+        ? this.tronAddressToEvm(token)
+        : token;
+    const tokenContract = new Contract(
+      tokenAddress,
+      ERC20_DECIMALS_ABI,
+      provider,
+    );
     return Number(await tokenContract.decimals());
   }
 
@@ -590,6 +655,9 @@ export class SwapsXyzBridge implements IExternalBridge {
     );
     if (metadata.protocol === ProtocolType.Sealevel) {
       return this.executeSolana(quote, privateKeys, rpcUrl, options);
+    }
+    if (metadata.protocol === ProtocolType.Tron) {
+      return this.executeTron(quote, privateKeys, rpcUrl, options);
     }
     const privateKey = privateKeys[ProtocolType.Ethereum];
     assert(
@@ -673,7 +741,9 @@ export class SwapsXyzBridge implements IExternalBridge {
     const response = await this.client.getAction(
       this.buildActionRequest(quote.requestParams),
     );
-    await this.validatePreparedEvmOrder(quote, response);
+    if (metadata?.protocol === ProtocolType.Tron)
+      this.validatePreparedTronOrder(quote, response);
+    else await this.validatePreparedEvmOrder(quote, response);
     assert(
       Date.now() - preparedAt < MAX_TRANSACTION_AGE_MS,
       'swaps.xyz transaction expired during preparation',
@@ -834,6 +904,100 @@ export class SwapsXyzBridge implements IExternalBridge {
     return { response: fresh, preparedAt, transaction };
   }
 
+  private async executeTron(
+    quote: BridgeQuote,
+    privateKeys: Partial<Record<ProtocolType, string>>,
+    rpcUrl: string,
+    options?: BridgeExecutionOptions,
+  ): Promise<BridgeTransferResult> {
+    const { fromChain, toChain } = quote.requestParams;
+    const privateKey = privateKeys[ProtocolType.Tron];
+    assert(
+      privateKey,
+      'SwapsXyzBridge.execute requires a Tron private key for Tron-source routes',
+    );
+    const signer = this.tronWalletFactory(ensure0x(privateKey), rpcUrl);
+    assert(
+      this.addressesEqual(
+        await signer.getAddress(),
+        quote.requestParams.fromAddress,
+        fromChain,
+      ),
+      'SwapsXyzBridge.execute Tron signer does not match quote fromAddress',
+    );
+
+    for (let attempt = 0; attempt < MAX_PREPARATION_ATTEMPTS; attempt++) {
+      const { response: fresh, preparedAt } = await this.prepare(quote);
+      const freshTx = fresh.tx;
+      assert(isTronTx(freshTx), 'SwapsXyzBridge.execute requires a Tron tx');
+      const transactionTo = this.tronAddressToEvm(freshTx.to);
+      const isNativeSource = this.addressesEqual(
+        quote.requestParams.fromToken,
+        NATIVE_TOKEN_ADDRESS,
+        fromChain,
+      );
+      const sourceToken = isNativeSource
+        ? undefined
+        : this.tronAddressToEvm(quote.requestParams.fromToken);
+      let transaction: providers.TransactionRequest;
+
+      if (freshTx.toExtra === null) {
+        const transferAmount = BigNumber.from(freshTx.value);
+        transaction = isNativeSource
+          ? { to: transactionTo, value: transferAmount }
+          : {
+              to: sourceToken,
+              data: ERC20_TRANSFER_INTERFACE.encodeFunctionData('transfer', [
+                transactionTo,
+                transferAmount,
+              ]),
+              value: 0,
+            };
+      } else {
+        if (fresh.requiresTokenApproval) {
+          assert(sourceToken, 'Native Tron routes must not require approval');
+          await approveErc20IfNeeded(
+            signer,
+            sourceToken,
+            transactionTo,
+            BigInt((fresh.amountInMax ?? fresh.amountIn).amount),
+            this.logger,
+            {
+              contractFactory: this.config.erc20ContractFactory,
+              onApproval: options?.onApproval,
+            },
+          );
+        }
+        if (Date.now() - preparedAt >= MAX_TRANSACTION_AGE_MS) continue;
+        this.validatePreparedTronOrder(quote, fresh);
+        transaction = {
+          to: transactionTo,
+          data: ensure0x(freshTx.toExtra),
+          value: BigNumber.from(freshTx.value),
+        };
+      }
+
+      await signer.estimateGas(transaction);
+      await options?.onTransferId?.(fresh.txId);
+      const txResponse = await submitEvmLikeTransaction(
+        signer,
+        transaction,
+        options,
+      );
+      const txHash = ensure0x(txResponse.hash);
+      void this.registerIfRequired(fresh, txHash);
+      return {
+        txHash,
+        fromChain,
+        toChain,
+        transferId: fresh.txId,
+      };
+    }
+    throw new Error(
+      'swaps.xyz transaction expired repeatedly during preparation',
+    );
+  }
+
   private async resolveAddressLookupTables(
     connection: Connection,
     transaction: VersionedTransaction,
@@ -856,7 +1020,7 @@ export class SwapsXyzBridge implements IExternalBridge {
   private validateActionResponseMetadata(
     response: SwapsXyzActionResponse,
     quote: BridgeQuote,
-    expectedVmId: 'evm' | 'solana',
+    expectedVmId: 'evm' | 'solana' | 'alt-vm',
   ): void {
     const params = quote.requestParams;
     assert(
@@ -953,6 +1117,60 @@ export class SwapsXyzBridge implements IExternalBridge {
     assert(
       nativeFee <= maxNativeFee,
       `SwapsXyzBridge.execute native fee ${nativeFee} exceeds configured maximum ${maxNativeFee}`,
+    );
+  }
+
+  private validatePreparedTronOrder(
+    quote: BridgeQuote,
+    response: SwapsXyzActionResponse,
+  ): void {
+    this.validateActionResponseMetadata(response, quote, 'alt-vm');
+    const tx = response.tx;
+    assert(isTronTx(tx), 'SwapsXyzBridge.execute requires a Tron tx');
+    const target = this.tronAddressToEvm(tx.to);
+    const isNativeSource = this.addressesEqual(
+      quote.requestParams.fromToken,
+      NATIVE_TOKEN_ADDRESS,
+      quote.requestParams.fromChain,
+    );
+    const sourceToken = isNativeSource
+      ? undefined
+      : this.tronAddressToEvm(quote.requestParams.fromToken);
+    const freshFromAmount = BigInt(
+      (response.amountInMax ?? response.amountIn).amount,
+    );
+
+    if (tx.toExtra === null) {
+      assert(
+        response.requiresTokenApproval === false,
+        'SwapsXyzBridge.execute direct Tron transfers must not require token approval',
+      );
+      assert(
+        sourceToken === undefined ||
+          target.toLowerCase() !== sourceToken.toLowerCase(),
+        'SwapsXyzBridge.execute rejects direct Tron deposits to the source token',
+      );
+      const transferAmount = BigInt(tx.value);
+      assert(
+        transferAmount === freshFromAmount,
+        `SwapsXyzBridge.execute Tron transfer amount ${transferAmount} does not match fresh input ${freshFromAmount}`,
+      );
+      return;
+    }
+
+    assert(
+      /^0x(?:[0-9a-fA-F]{2})*$/.test(ensure0x(tx.toExtra)),
+      'SwapsXyzBridge.execute Tron calldata is invalid',
+    );
+    const nativeValue = BigInt(tx.value);
+    const nativePrincipal = isNativeSource ? freshFromAmount : 0n;
+    const nativeFee =
+      nativeValue > nativePrincipal ? nativeValue - nativePrincipal : 0n;
+    const maxNativeFee =
+      this.config.maxTronNativeFeeSun ?? DEFAULT_MAX_TRON_NATIVE_FEE_SUN;
+    assert(
+      nativeFee <= maxNativeFee,
+      `SwapsXyzBridge.execute Tron native fee ${nativeFee} exceeds configured maximum ${maxNativeFee}`,
     );
   }
 
@@ -1124,8 +1342,13 @@ export class SwapsXyzBridge implements IExternalBridge {
   private addressesEqual(
     left: string,
     right: string,
-    _chainId: number,
+    chainId: number,
   ): boolean {
+    if (
+      this.chainMetadataByChainId.get(chainId)?.protocol === ProtocolType.Tron
+    ) {
+      return this.tronAddressHex20(left) === this.tronAddressHex20(right);
+    }
     if (left.startsWith('0x') && right.startsWith('0x')) {
       return left.toLowerCase() === right.toLowerCase();
     }

@@ -5,6 +5,7 @@ import sinon from 'sinon';
 import {
   SwapsXyzClient,
   SwapsXyzRequestError,
+  isTronTx,
   isSwapsXyzTerminalError,
   type SwapsXyzActionRequest,
 } from './SwapsXyzClient.js';
@@ -73,6 +74,25 @@ function statusResponseBody(): unknown {
     txId: 'tx-1',
     srcChainId: 1,
     dstChainId: 8453,
+  };
+}
+
+function tronActionResponseBody(toExtra: string | null = null): unknown {
+  return {
+    tx: {
+      to: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+      toExtra,
+      value: '1000000',
+      chainId: 728126428,
+      chainKey: 'trx',
+    },
+    txId: 'tron-tx-1',
+    vmId: 'alt-vm',
+    amountIn: { amount: '1000000' },
+    amountOut: { amount: '995000' },
+    amountOutMin: { amount: '990000' },
+    requiresTokenApproval: false,
+    requiresRegisterTransaction: true,
   };
 }
 
@@ -224,6 +244,42 @@ describe('SwapsXyzClient', () => {
 
     expect(response.vmId).to.equal('solana');
     expect(response.tx).to.deep.include({ base64Tx: 'AQID' });
+  });
+
+  it('validates Tron alt-vm transaction responses', async () => {
+    fetchStub.resolves(makeResponse({ body: tronActionResponseBody() }));
+
+    const response = await client.getAction(actionRequest());
+
+    expect(isTronTx(response.tx)).to.equal(true);
+    if (!isTronTx(response.tx)) {
+      throw new Error('Expected a Tron transaction');
+    }
+    expect(response.tx.toExtra).to.equal(null);
+    expect(response.tx.chainKey).to.equal('trx');
+  });
+
+  it('rejects malformed Tron transaction objects in the type guard', () => {
+    expect(
+      isTronTx({
+        to: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+        toExtra: '0xabc',
+        value: '-1',
+        chainId: 728126428.5,
+        chainKey: 'trx',
+      }),
+    ).to.equal(false);
+  });
+
+  it('rejects malformed Tron calldata without retrying', async () => {
+    fetchStub.resolves(makeResponse({ body: tronActionResponseBody('0xabc') }));
+
+    const error = await captureError(client.getAction(actionRequest()));
+
+    expect(error).to.be.instanceOf(Error);
+    if (!(error instanceof Error)) throw new Error('Expected Error');
+    expect(error.message).to.include('Invalid swaps.xyz response');
+    expect(fetchStub.callCount).to.equal(1);
   });
 
   it('parses the error envelope and exposes its code', async () => {
