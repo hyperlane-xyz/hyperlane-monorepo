@@ -41,6 +41,7 @@ struct RpcFallback {
 #[derive(Clone)]
 struct StreamDependencies {
     canonical_sync: Option<Arc<SequencedDataContractSync<MerkleTreeInsertion>>>,
+    canonical_chunk_size: u32,
     index_mode: IndexMode,
     merkle_tree_hook: Option<Arc<dyn MerkleTreeHook>>,
     reorg_period: ReorgPeriod,
@@ -189,6 +190,7 @@ impl MerkleTreeHookWebSocketSync {
             .expect("bounded retry jitter cannot overflow Duration");
         let dependencies = StreamDependencies {
             canonical_sync: Some(fallback_sync.clone()),
+            canonical_chunk_size: index_settings.chunk_size,
             index_mode: index_settings.mode,
             merkle_tree_hook: Some(merkle_tree_hook),
             reorg_period,
@@ -302,17 +304,12 @@ impl MerkleTreeHookWebSocketSync {
                             let onchain_count = count
                                 .context("On-chain Merkle tree count probe timed out")?
                                 .context("Reading on-chain Merkle tree count for WebSocket freshness")?;
-                            if onchain_count > *next_sequence {
-                                let lag_started_at = lag_started_at.get_or_insert_with(Instant::now);
-                                if lag_started_at.elapsed() >= timeouts.progress_grace {
-                                    bail!(
-                                        "Merkle tree hook WebSocket is stale: next sequence {}, on-chain count {onchain_count}",
-                                        *next_sequence
-                                    );
-                                }
-                            } else {
-                                lag_started_at = None;
-                            }
+                            check_stream_lag(
+                                &mut lag_started_at,
+                                onchain_count,
+                                *next_sequence,
+                                timeouts.progress_grace,
+                            )?;
                             None
                         }
                     }
@@ -387,7 +384,6 @@ impl MerkleTreeHookWebSocketSync {
                             .process_event(event, next_sequence, dependencies, &mut canonical_cache)
                             .await?
                         {
-                            lag_started_at = None;
                             self.activate_if_current(*next_sequence, activation_floor, fallback)
                                 .await?;
                         }
@@ -600,9 +596,23 @@ impl MerkleTreeHookWebSocketSync {
             if attempt > 0 {
                 sleep(CANONICAL_RETRY_DELAY).await;
             }
+            let available_end = timeout(
+                RPC_PROBE_TIMEOUT,
+                canonical_sync.latest_indexed_position(dependencies.index_mode),
+            )
+            .await
+            .context("Canonical Merkle tree insertion tip query timed out")?
+            .context("Fetching canonical Merkle tree insertion tip")?;
+            let Some(query_end) = canonical_query_end(
+                query_position,
+                dependencies.canonical_chunk_size,
+                available_end,
+            ) else {
+                continue;
+            };
             *canonical_cache = timeout(
                 RPC_PROBE_TIMEOUT,
-                canonical_sync.fetch_logs_in_range(query_position..=query_position),
+                canonical_sync.fetch_logs_in_range(query_position..=query_end),
             )
             .await
             .context("Canonical Merkle tree insertion query timed out")?
@@ -636,6 +646,38 @@ impl MerkleTreeHookWebSocketSync {
         }
         Ok(sequence.checked_add(1) == Some(next_sequence))
     }
+}
+
+fn check_stream_lag(
+    lag_started_at: &mut Option<Instant>,
+    onchain_count: u32,
+    next_sequence: u32,
+    progress_grace: Duration,
+) -> Result<()> {
+    if onchain_count <= next_sequence {
+        *lag_started_at = None;
+        return Ok(());
+    }
+    let lag_started_at = lag_started_at.get_or_insert_with(Instant::now);
+    if lag_started_at.elapsed() >= progress_grace {
+        bail!(
+            "Merkle tree hook WebSocket is stale: next sequence {next_sequence}, on-chain count {onchain_count}"
+        );
+    }
+    Ok(())
+}
+
+fn canonical_query_end(
+    query_position: u32,
+    chunk_size: u32,
+    available_end: Option<u32>,
+) -> Option<u32> {
+    let available_end = available_end?;
+    (query_position <= available_end).then(|| {
+        query_position
+            .saturating_add(chunk_size.max(1).saturating_sub(1))
+            .min(available_end)
+    })
 }
 
 /// `None` means the requested position is not yet present in the fetched window.
@@ -854,6 +896,7 @@ mod tests {
     fn test_dependencies() -> StreamDependencies {
         StreamDependencies {
             canonical_sync: None,
+            canonical_chunk_size: 10,
             index_mode: IndexMode::Block,
             merkle_tree_hook: None,
             reorg_period: ReorgPeriod::None,
@@ -988,6 +1031,26 @@ mod tests {
             matches_canonical_insertion(&canonical, 12, 12, IndexMode::Block, &canonical_logs),
             Some(true)
         );
+    }
+
+    #[test]
+    fn canonical_query_is_batched_and_tip_clamped() {
+        assert_eq!(canonical_query_end(100, 1999, Some(150)), Some(150));
+        assert_eq!(canonical_query_end(10, 1999, Some(19)), Some(19));
+        assert_eq!(canonical_query_end(151, 1999, Some(150)), None);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn progressing_stream_still_fails_when_lag_grows() {
+        let grace = Duration::from_secs(10);
+        let mut lag_started_at = None;
+
+        check_stream_lag(&mut lag_started_at, 100, 1, grace).expect("initial lag");
+        tokio::time::advance(Duration::from_secs(5)).await;
+        check_stream_lag(&mut lag_started_at, 102, 2, grace).expect("progress within grace");
+        tokio::time::advance(Duration::from_secs(5)).await;
+
+        assert!(check_stream_lag(&mut lag_started_at, 104, 3, grace).is_err());
     }
 
     #[tokio::test]
