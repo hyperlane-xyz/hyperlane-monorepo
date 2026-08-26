@@ -3,12 +3,14 @@ import {
   ChainSubmissionStrategy,
   HypTokenRouterConfig,
   SubmissionStrategy,
+  SubmitterMetadata,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { getChainAddresses } from '../../../../registry.js';
+import { warpFeesSafes } from '../../governance/safe/warpFees.js';
 import { WARP_FEES_TURNKEY_OWNER } from '../../governance/utils.js';
 import { WarpRouteIds } from '../warpIds.js';
 
@@ -95,21 +97,45 @@ export const getIgraUSDCStrategyConfig = (): ChainSubmissionStrategy => {
     (c) => c !== ORIGIN_CHAIN,
   );
 
-  const icaStrategies: [string, SubmissionStrategy][] = icaChains.map(
-    (chain) => [
-      chain,
-      {
-        submitter: {
-          type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
-          chain: ORIGIN_CHAIN,
-          destinationChain: chain,
-          owner: safeAddress,
-          originInterchainAccountRouter,
-          internalSubmitter: originSafeSubmitter,
-        },
+  // The igra fee (RoutingFee) contract is owned by the WarpFees ICA on igra,
+  // controlled by the ethereum WarpFees Safe — a different hierarchy from the
+  // router owner (Igra Safe). Route fee-owner txs (transferOwnership to the
+  // Turnkey key) through the WarpFees Safe so they are submitted by the actual
+  // owner; without this the CLI merges fee txs into the router submitter and the
+  // transferOwnership reverts (not owner).
+  const warpFeeSafeAddress = warpFeesSafes[ORIGIN_CHAIN];
+  assert(warpFeeSafeAddress, `Missing WarpFees safe for ${ORIGIN_CHAIN}`);
+  const originWarpFeeSafeSubmitter = {
+    type: TxSubmitterType.GNOSIS_SAFE as const,
+    chain: ORIGIN_CHAIN,
+    safeAddress: warpFeeSafeAddress,
+  };
+  const igraWarpFeeSubmitter: SubmitterMetadata = {
+    type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
+    chain: ORIGIN_CHAIN,
+    destinationChain: 'igra',
+    owner: warpFeeSafeAddress,
+    originInterchainAccountRouter,
+    internalSubmitter: originWarpFeeSafeSubmitter,
+  };
+
+  const icaStrategies: [
+    string,
+    SubmissionStrategy & { feeSubmitter?: SubmitterMetadata },
+  ][] = icaChains.map((chain) => [
+    chain,
+    {
+      submitter: {
+        type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
+        chain: ORIGIN_CHAIN,
+        destinationChain: chain,
+        owner: safeAddress,
+        originInterchainAccountRouter,
+        internalSubmitter: originSafeSubmitter,
       },
-    ],
-  );
+      ...(chain === 'igra' ? { feeSubmitter: igraWarpFeeSubmitter } : {}),
+    },
+  ]);
 
   return Object.fromEntries([
     [ORIGIN_CHAIN, { submitter: originSafeSubmitter }],
