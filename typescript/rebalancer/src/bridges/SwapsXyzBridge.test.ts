@@ -1,5 +1,5 @@
 import type { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, bytesToAddressTron } from '@hyperlane-xyz/utils';
 import { AccountLayout, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import {
   AddressLookupTableAccount,
@@ -14,7 +14,15 @@ import {
   VersionedTransaction,
 } from '@solana/web3.js';
 import { expect } from 'chai';
-import { BigNumber, Wallet, providers, utils } from 'ethers';
+import {
+  BigNumber,
+  Contract,
+  Wallet,
+  providers,
+  utils,
+  type BigNumberish,
+  type Signer,
+} from 'ethers';
 import { pino } from 'pino';
 import sinon from 'sinon';
 
@@ -51,6 +59,16 @@ const SOLANA_OTHER_SOURCE_ACCOUNT = Keypair.generate().publicKey;
 const SOLANA_LOOKUP_TABLE_KEY = Keypair.generate().publicKey;
 const SOLANA_PROGRAM = Keypair.generate().publicKey;
 const SOLANA_BLOCKHASH = new PublicKey(new Uint8Array(32).fill(1)).toBase58();
+const TRON_CHAIN_ID = 728126428;
+const TRON_TOKEN_HEX = '0xa614f803b6fd780986a42c78ec9c7f77e6ded13c';
+const TRON_TOKEN_BASE58 = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
+const TRON_SENDER_BASE58 = bytesToAddressTron(
+  Buffer.from(SENDER.slice(2), 'hex'),
+);
+const TRON_SPENDER_BASE58 = bytesToAddressTron(
+  Buffer.from(SPENDER.slice(2), 'hex'),
+);
+const TRON_TX_HASH = `0x${'ab'.repeat(32)}`;
 
 const ETHEREUM_METADATA: ChainMetadata = {
   chainId: 1,
@@ -82,9 +100,20 @@ const SOLANA_METADATA: ChainMetadata = {
   nativeToken: { name: 'Solana', symbol: 'SOL', decimals: 9 },
 };
 
+const TRON_METADATA: ChainMetadata = {
+  chainId: TRON_CHAIN_ID,
+  protocol: ProtocolType.Tron,
+  name: 'tron',
+  displayName: 'Tron',
+  domainId: TRON_CHAIN_ID,
+  rpcUrls: [{ http: 'https://tron.example.invalid/jsonrpc' }],
+  nativeToken: { name: 'Tron', symbol: 'TRX', decimals: 6 },
+};
+
 const CHAIN_METADATA: ChainMap<ChainMetadata> = {
   ethereum: ETHEREUM_METADATA,
   base: BASE_METADATA,
+  tron: TRON_METADATA,
 };
 
 function actionResponse(
@@ -188,6 +217,7 @@ function createBridge(
     maxSolanaNativeSpendLamports?: number;
     evmProviderFactory?: (rpcUrl: string) => providers.Provider;
     solanaConnectionFactory?: (rpcUrl: string) => Connection;
+    tronWalletFactory?: (privateKey: string, rpcUrl: string) => Wallet;
     registerTxRetryDelayMs?: number;
     erc20ContractFactory?: Erc20ContractFactory;
   } = {},
@@ -201,6 +231,7 @@ function createBridge(
       maxSolanaNativeSpendLamports: overrides.maxSolanaNativeSpendLamports,
       evmProviderFactory: overrides.evmProviderFactory,
       solanaConnectionFactory: overrides.solanaConnectionFactory,
+      tronWalletFactory: overrides.tronWalletFactory,
       registerTxRetryDelayMs: overrides.registerTxRetryDelayMs,
       erc20ContractFactory: overrides.erc20ContractFactory,
     },
@@ -295,6 +326,97 @@ function createExecuteHarness(response = actionResponse()): {
     getActionStub,
     sendTransactionStub,
     waitForTransactionStub,
+  };
+}
+
+function tronActionResponse(
+  overrides: Partial<SwapsXyzActionResponse> = {},
+): SwapsXyzActionResponse {
+  return actionResponse({
+    tx: {
+      to: TRON_SPENDER_BASE58,
+      toExtra: '0xdeadbeef',
+      value: '0',
+      chainId: TRON_CHAIN_ID,
+      chainKey: 'trx',
+    },
+    txId: 'tron-transfer-id',
+    vmId: 'alt-vm',
+    amountIn: {
+      chainId: TRON_CHAIN_ID,
+      address: TRON_TOKEN_BASE58,
+      amount: '1000000',
+      decimals: 6,
+    },
+    amountOut: {
+      chainId: 1,
+      address: TO_TOKEN,
+      amount: '995000',
+      decimals: 6,
+    },
+    amountOutMin: {
+      chainId: 1,
+      address: TO_TOKEN,
+      amount: '990025',
+      decimals: 6,
+    },
+    requiresRegisterTransaction: true,
+    ...overrides,
+  });
+}
+
+function tronBridgeQuote(
+  response = tronActionResponse(),
+): BridgeQuote<SwapsXyzBridgeRoute> {
+  return {
+    ...bridgeQuote(
+      quoteParams({
+        fromChain: TRON_CHAIN_ID,
+        toChain: 1,
+        fromToken: TRON_TOKEN_HEX,
+        toToken: TO_TOKEN,
+        fromAddress: TRON_SENDER_BASE58,
+        toAddress: SENDER,
+      }),
+    ),
+    id: response.txId,
+    tool: response.bridgeIds?.join('+') || 'swapsxyz',
+    route: { actionResponse: response },
+  };
+}
+
+function createTronExecuteHarness(response = tronActionResponse()): {
+  bridge: SwapsXyzBridge;
+  client: SwapsXyzClient;
+  getActionStub: sinon.SinonStub;
+  registerTxsStub: sinon.SinonStub;
+  sendTransactionStub: sinon.SinonStub;
+  waitStub: sinon.SinonStub;
+  wallet: Wallet;
+} {
+  const client = createClient();
+  const getActionStub = sinon.stub(client, 'getAction').resolves(response);
+  const registerTxsStub = sinon
+    .stub(client, 'registerTxs')
+    .resolves([{ success: true, error: null }]);
+  const wallet = new Wallet(TEST_PRIVATE_KEY);
+  const txResponse = transactionResponse(TRON_TX_HASH);
+  const waitStub = sinon.stub(txResponse, 'wait');
+  const sendTransactionStub = sinon
+    .stub(wallet, 'sendTransaction')
+    .resolves(txResponse);
+  const bridge = createBridge(client, {
+    tronWalletFactory: () => wallet,
+    registerTxRetryDelayMs: 1,
+  });
+  return {
+    bridge,
+    client,
+    getActionStub,
+    registerTxsStub,
+    sendTransactionStub,
+    waitStub,
+    wallet,
   };
 }
 
@@ -590,6 +712,65 @@ function createSolanaExecuteHarness(
 
 describe('SwapsXyzBridge.quote', () => {
   afterEach(() => sinon.restore());
+
+  it('normalizes Tron senders, recipients, and tokens to checksummed base58', async () => {
+    const client = createClient();
+    const getActionStub = sinon
+      .stub(client, 'getAction')
+      .resolves(tronActionResponse());
+    const bridge = createBridge(client);
+
+    await bridge.quote(
+      quoteParams({
+        fromChain: TRON_CHAIN_ID,
+        toChain: 1,
+        fromToken: TRON_TOKEN_HEX,
+        toToken: TO_TOKEN,
+        fromAddress: SENDER,
+        toAddress: SENDER,
+      }),
+    );
+    await bridge.quote(
+      quoteParams({
+        fromChain: 1,
+        toChain: TRON_CHAIN_ID,
+        fromToken: FROM_TOKEN,
+        toToken: TRON_TOKEN_HEX,
+        fromAddress: SENDER,
+        toAddress: SENDER,
+      }),
+    );
+
+    expect(getActionStub.firstCall.args[0]).to.include({
+      sender: TRON_SENDER_BASE58,
+      srcToken: TRON_TOKEN_BASE58,
+      recipient: SENDER,
+    });
+    expect(getActionStub.secondCall.args[0]).to.include({
+      sender: SENDER,
+      dstToken: TRON_TOKEN_BASE58,
+      recipient: TRON_SENDER_BASE58,
+    });
+  });
+
+  it('rejects invalid Tron base58 checksums before quoting', async () => {
+    const client = createClient();
+    const getActionStub = sinon.stub(client, 'getAction');
+    const invalidToken = `${TRON_TOKEN_BASE58.slice(0, -1)}1`;
+
+    const error = await captureError(
+      createBridge(client).quote(
+        quoteParams({
+          fromChain: TRON_CHAIN_ID,
+          fromToken: invalidToken,
+          fromAddress: SENDER,
+        }),
+      ),
+    );
+
+    expect(error.message).to.include('invalid Tron address');
+    expect(getActionStub.callCount).to.equal(0);
+  });
 
   it('maps fees, tool, id, costs, duration, and amountInMax', async () => {
     const client = createClient();
@@ -958,6 +1139,257 @@ describe('SwapsXyzBridge.execute', () => {
 
     expect(error.message).to.include('Ethereum (EVM) private key');
     expect(getActionStub.callCount).to.equal(0);
+  });
+
+  it('throws before re-quoting when the Tron private key is missing', async () => {
+    const client = createClient();
+    const getActionStub = sinon.stub(client, 'getAction');
+
+    const error = await captureError(
+      createBridge(client).execute(tronBridgeQuote(), {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      }),
+    );
+
+    expect(error.message).to.include('Tron private key');
+    expect(getActionStub.callCount).to.equal(0);
+  });
+
+  it('throws before re-quoting when the Tron signer does not match', async () => {
+    const client = createClient();
+    const getActionStub = sinon.stub(client, 'getAction');
+    const quote = tronBridgeQuote();
+    quote.requestParams.fromAddress =
+      '0x4444444444444444444444444444444444444444';
+
+    const error = await captureError(
+      createBridge(client, {
+        tronWalletFactory: () => new Wallet(TEST_PRIVATE_KEY),
+      }).execute(quote, { [ProtocolType.Tron]: TEST_PRIVATE_KEY }),
+    );
+
+    expect(error.message).to.include('Tron signer does not match');
+    expect(getActionStub.callCount).to.equal(0);
+  });
+
+  it('broadcasts Tron calldata and returns before confirmation', async () => {
+    const harness = createTronExecuteHarness();
+
+    const result = await harness.bridge.execute(tronBridgeQuote(), {
+      [ProtocolType.Tron]: TEST_PRIVATE_KEY,
+    });
+
+    expect(harness.getActionStub.firstCall.args[0]).to.include({
+      sender: TRON_SENDER_BASE58,
+      srcToken: TRON_TOKEN_BASE58,
+    });
+    expect(harness.sendTransactionStub.firstCall.args[0]).to.deep.include({
+      to: SPENDER,
+      data: '0xdeadbeef',
+    });
+    expect(harness.waitStub.callCount).to.equal(0);
+    expect(result).to.deep.equal({
+      txHash: TRON_TX_HASH,
+      fromChain: TRON_CHAIN_ID,
+      toChain: 1,
+      transferId: 'tron-transfer-id',
+    });
+  });
+
+  it('broadcasts the direct TRC20 deposit shape returned by swaps.xyz', async () => {
+    const accepted = tronActionResponse({
+      tx: {
+        to: TRON_SPENDER_BASE58,
+        toExtra: null,
+        value: '1000000',
+        chainId: TRON_CHAIN_ID,
+        chainKey: 'trx',
+      },
+      bridgeIds: ['alt-vm-1'],
+    });
+    const freshRecipient = '0x4444444444444444444444444444444444444444';
+    const response = tronActionResponse({
+      tx: {
+        to: bytesToAddressTron(Buffer.from(freshRecipient.slice(2), 'hex')),
+        toExtra: null,
+        value: '1000000',
+        chainId: TRON_CHAIN_ID,
+        chainKey: 'trx',
+      },
+      bridgeIds: ['alt-vm-1'],
+    });
+    const harness = createTronExecuteHarness(response);
+
+    const result = await harness.bridge.execute(tronBridgeQuote(accepted), {
+      [ProtocolType.Tron]: TEST_PRIVATE_KEY,
+    });
+
+    const sent = harness.sendTransactionStub.firstCall.args[0];
+    expect(sent.to).to.equal(TRON_TOKEN_HEX);
+    expect(BigNumber.from(sent.value).isZero()).to.equal(true);
+    const transfer = new utils.Interface([
+      'function transfer(address recipient, uint256 amount) returns (bool)',
+    ]).decodeFunctionData('transfer', sent.data);
+    expect(transfer.recipient.toLowerCase()).to.equal(
+      freshRecipient.toLowerCase(),
+    );
+    expect(transfer.amount.toString()).to.equal('1000000');
+    expect(harness.waitStub.callCount).to.equal(0);
+    expect(result.transferId).to.equal('tron-transfer-id');
+  });
+
+  it('rejects a refreshed direct Tron deposit on another bridge rail', async () => {
+    const directTx = {
+      to: TRON_SPENDER_BASE58,
+      toExtra: null,
+      value: '1000000',
+      chainId: TRON_CHAIN_ID,
+      chainKey: 'trx' as const,
+    };
+    const accepted = tronActionResponse({
+      tx: directTx,
+      bridgeIds: ['alt-vm-1'],
+    });
+    const fresh = tronActionResponse({
+      tx: {
+        ...directTx,
+        to: bytesToAddressTron(Buffer.from('44'.repeat(20), 'hex')),
+      },
+      bridgeIds: ['other-rail'],
+    });
+    const harness = createTronExecuteHarness(fresh);
+
+    const error = await captureError(
+      harness.bridge.execute(tronBridgeQuote(accepted), {
+        [ProtocolType.Tron]: TEST_PRIVATE_KEY,
+      }),
+    );
+
+    expect(error.message).to.include('fresh bridge');
+    expect(harness.sendTransactionStub.callCount).to.equal(0);
+  });
+
+  it('rejects an unregistrable Tron action before broadcasting', async () => {
+    const harness = createTronExecuteHarness(
+      tronActionResponse({ requiresRegisterTransaction: false }),
+    );
+
+    const error = await captureError(
+      harness.bridge.execute(tronBridgeQuote(), {
+        [ProtocolType.Tron]: TEST_PRIVATE_KEY,
+      }),
+    );
+
+    expect(error.message).to.include('must require transaction registration');
+    expect(harness.sendTransactionStub.callCount).to.equal(0);
+  });
+
+  it('rejects a direct Tron source-token call', async () => {
+    const harness = createTronExecuteHarness(
+      tronActionResponse({
+        tx: {
+          to: TRON_TOKEN_BASE58,
+          toExtra: `0xa9059cbb${'00'.repeat(64)}`,
+          value: '0',
+          chainId: TRON_CHAIN_ID,
+          chainKey: 'trx',
+        },
+      }),
+    );
+
+    const error = await captureError(
+      harness.bridge.execute(tronBridgeQuote(), {
+        [ProtocolType.Tron]: TEST_PRIVATE_KEY,
+      }),
+    );
+
+    expect(error.message).to.include('direct source-token selector');
+    expect(harness.sendTransactionStub.callCount).to.equal(0);
+  });
+
+  it('rejects refreshed Tron target and selector changes', async () => {
+    for (const tx of [
+      {
+        to: bytesToAddressTron(Buffer.from('44'.repeat(20), 'hex')),
+        toExtra: '0xdeadbeef',
+      },
+      { to: TRON_SPENDER_BASE58, toExtra: '0xfeedface' },
+    ]) {
+      const harness = createTronExecuteHarness(
+        tronActionResponse({
+          tx: {
+            ...tx,
+            value: '0',
+            chainId: TRON_CHAIN_ID,
+            chainKey: 'trx',
+          },
+        }),
+      );
+
+      const error = await captureError(
+        harness.bridge.execute(tronBridgeQuote(), {
+          [ProtocolType.Tron]: TEST_PRIVATE_KEY,
+        }),
+      );
+
+      expect(error.message).to.match(/fresh target|calldata selector/);
+      expect(harness.sendTransactionStub.callCount).to.equal(0);
+      sinon.restore();
+    }
+  });
+
+  it('resets and approves the exact Tron token input', async () => {
+    const harness = createTronExecuteHarness(
+      tronActionResponse({ requiresTokenApproval: true }),
+    );
+    const allowanceStub = sinon
+      .stub<[string, string], Promise<BigNumber>>()
+      .resolves(BigNumber.from('2000000'));
+    const approveStub = sinon.stub<
+      [string, BigNumberish],
+      Promise<providers.TransactionResponse>
+    >();
+    approveStub
+      .onFirstCall()
+      .resolves(transactionResponse(`0x${'cd'.repeat(32)}`));
+    approveStub
+      .onSecondCall()
+      .resolves(transactionResponse(`0x${'ef'.repeat(32)}`));
+
+    class TronApprovalContract extends Contract {
+      constructor() {
+        super(TRON_TOKEN_HEX, [], harness.wallet);
+      }
+      allowance(owner: string, spender: string): Promise<BigNumber> {
+        return allowanceStub(owner, spender);
+      }
+      approve(
+        spender: string,
+        amount: BigNumberish,
+      ): Promise<providers.TransactionResponse> {
+        return approveStub(spender, amount);
+      }
+    }
+
+    const contractFactory = sinon
+      .stub<[string, string[], Signer], Contract>()
+      .returns(new TronApprovalContract());
+    const bridge = createBridge(harness.client, {
+      tronWalletFactory: () => harness.wallet,
+      erc20ContractFactory: contractFactory,
+      registerTxRetryDelayMs: 1,
+    });
+
+    await bridge.execute(tronBridgeQuote(), {
+      [ProtocolType.Tron]: TEST_PRIVATE_KEY,
+    });
+
+    expect(contractFactory.firstCall.args[0]).to.equal(TRON_TOKEN_HEX);
+    expect(approveStub.callCount).to.equal(2);
+    expect(BigNumber.from(approveStub.firstCall.args[1]).isZero()).to.be.true;
+    expect(BigNumber.from(approveStub.secondCall.args[1]).toString()).to.equal(
+      '1000000',
+    );
   });
 
   it('throws before re-quoting when the signer does not match fromAddress', async () => {
