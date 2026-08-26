@@ -40,8 +40,9 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';
-import { ExternalBridgeType } from './config/types.js';
+import { ExternalBridgeType, getStrategyChainNames } from './config/types.js';
 import { RebalancerService } from './core/RebalancerService.js';
+import { configureRebalancerSigners } from './utils/rebalancerSigners.js';
 import { parseSolanaPrivateKey } from './utils/solanaKeyParser.js';
 import type { InventorySignerConfig } from './core/InventoryRebalancer.js';
 
@@ -141,13 +142,19 @@ async function main(): Promise<void> {
     // Apply RPC URL overrides from environment variables
     applyRpcUrlOverridesFromEnv(chainMetadata);
 
-    // Create MultiProvider with signer
+    // Create MultiProvider with protocol-specific signers for the shared key.
     const multiProvider = new MultiProvider(chainMetadata);
-    const rebalancerSigner = new Wallet(rebalancerPrivateKey);
-    multiProvider.setSharedSigner(rebalancerSigner);
+    const rebalancerSignerSetup = configureRebalancerSigners(
+      multiProvider,
+      getStrategyChainNames(rebalancerConfig.strategyConfig),
+      rebalancerPrivateKey,
+    );
     logger.info(
-      { rebalancerAddress: rebalancerSigner.address },
-      '✅ Initialized MultiProvider with rebalancer signer',
+      {
+        rebalancerAddress: rebalancerSignerSetup.address,
+        tronChains: rebalancerSignerSetup.tronChains,
+      },
+      '✅ Initialized MultiProvider with protocol-specific rebalancer signers',
     );
 
     // Build consolidated inventory signers with keys embedded
