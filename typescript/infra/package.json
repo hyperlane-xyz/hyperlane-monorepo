@@ -23,6 +23,7 @@
     "deploy-hook": "tsx scripts/deploy.ts -e test -m hook",
     "hardhat-esm": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts",
     "kathy": "pnpm tsx ./scripts/send-test-messages.ts",
+    "verify:iron-moonpay": "tsx scripts/iron/verify-moonpay-autoramps.ts",
     "format": "oxfmt --write ./src ./config ./scripts ./test",
     "test:warp": "mocha --config ../sdk/.mocharc.json test/warp-configs.test.ts",
     "test:gitleaks": "mocha --config ../sdk/.mocharc.json test/gitleaks.test.ts",
