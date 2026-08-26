@@ -46,7 +46,7 @@ import { SeismicSigner } from './SeismicSigner.js';
 type Provider = providers.Provider | ZKSyncProvider;
 
 const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
-const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
+const MIN_CONFIRMATION_TIMEOUT_MS = 300_000;
 const INITIAL_RECEIPT_POLL_INTERVAL_MS = 100;
 
 // Preserve ethers' replacement detection while polling its non-blocking
