@@ -21,6 +21,7 @@ import {
 
 import { DeBridgeBridge } from '../bridges/DeBridgeBridge.js';
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
+import { LayerZeroBridge } from '../bridges/LayerZeroBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
@@ -655,6 +656,19 @@ export class RebalancerContextFactory {
               {
                 chainMetadata: this.multiProvider.metadata,
                 maxFeePercent: debridgeConfig.maxFeePercent,
+              },
+              this.logger,
+            );
+          }
+          break;
+        }
+        case ExternalBridgeType.LayerZero: {
+          const lzConfig = externalBridges?.layerzero;
+          if (lzConfig !== undefined) {
+            registry[ExternalBridgeType.LayerZero] = new LayerZeroBridge(
+              {
+                integrator: 'hyperlane-rebalancer',
+                chainMetadata: this.multiProvider.metadata,
               },
               this.logger,
             );
