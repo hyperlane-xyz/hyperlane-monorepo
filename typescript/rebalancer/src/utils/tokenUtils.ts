@@ -3,14 +3,22 @@ import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 import type { ExternalBridgeType } from '../config/types.js';
 
 import {
+  type IHypTokenAdapter,
   PROTOCOL_TO_HYP_NATIVE_STANDARD,
   type Token,
   TokenStandard,
 } from '@hyperlane-xyz/sdk';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
+
+const REBALANCEABLE_LOCKBOX_STANDARDS = new Set<TokenStandard>([
+  TokenStandard.EvmHypXERC20Lockbox,
+  TokenStandard.EvmHypVSXERC20Lockbox,
+]);
 
 const REBALANCEABLE_TOKEN_COLLATERALIZED_STANDARDS = new Set<TokenStandard>([
   TokenStandard.EvmHypCollateral,
   TokenStandard.EvmHypNative,
+  ...REBALANCEABLE_LOCKBOX_STANDARDS,
   TokenStandard.SealevelHypCollateral,
   TokenStandard.SealevelHypNative,
   TokenStandard.TronHypCollateral,
@@ -58,6 +66,19 @@ export function isCollateralizedTokenEligibleForRebalancing(
   );
 }
 
+type WrappedTokenAddressAdapter = IHypTokenAdapter<unknown> & {
+  getWrappedTokenAddress(): Promise<string>;
+};
+
+function isWrappedTokenAddressAdapter(
+  adapter: IHypTokenAdapter<unknown>,
+): adapter is WrappedTokenAddressAdapter {
+  return (
+    'getWrappedTokenAddress' in adapter &&
+    typeof adapter.getWrappedTokenAddress === 'function'
+  );
+}
+
 /**
  * Resolves the correct token address for external bridges (e.g. LiFi).
  *
@@ -65,20 +86,33 @@ export function isCollateralizedTokenEligibleForRebalancing(
  * NOT the underlying token. External bridges need the actual token address:
  * - Native tokens (EvmHypNative, SealevelHypNative): Use the bridge's native token representation
  * - Collateral tokens (EvmHypCollateral, SealevelHypCollateral): Use `collateralAddressOrDenom` (the underlying token)
+ * - xERC20 lockbox tokens: Read the wrapped ERC20 from the router adapter because
+ *   `collateralAddressOrDenom` contains the lockbox address
  * - Synthetic tokens: `collateralAddressOrDenom` is undefined, `addressOrDenom` IS the token
  *
  * @param token - The warp route token to resolve
+ * @param multiProvider - Provider used to read lockbox router state
  * @param externalBridgeType - The type of external bridge (e.g. 'lifi')
  * @param getNativeTokenAddress - Function to get the bridge's native token representation
  * @returns The correct token address for the external bridge
  */
-export function getExternalBridgeTokenAddress(
+export async function getExternalBridgeTokenAddress(
   token: Token,
+  multiProvider: MultiProviderAdapter,
   externalBridgeType: ExternalBridgeType,
   getNativeTokenAddress: (type: ExternalBridgeType) => string,
-): string {
+): Promise<string> {
   if (isNativeTokenStandard(token.standard)) {
     return getNativeTokenAddress(externalBridgeType);
+  }
+
+  if (REBALANCEABLE_LOCKBOX_STANDARDS.has(token.standard)) {
+    const adapter = token.getHypAdapter(multiProvider);
+    assert(
+      isWrappedTokenAddressAdapter(adapter),
+      `Hyp adapter for lockbox token on ${token.chainName} (${token.standard}) does not expose getWrappedTokenAddress`,
+    );
+    return adapter.getWrappedTokenAddress();
   }
 
   if (token.collateralAddressOrDenom) return token.collateralAddressOrDenom;
