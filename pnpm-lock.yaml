@@ -2110,6 +2110,9 @@ importers:
       prom-client:
         specifier: 'catalog:'
         version: 14.2.0
+      tronweb:
+        specifier: 'catalog:'
+        version: 6.5.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       uuid:
         specifier: 'catalog:'
         version: 10.0.0
