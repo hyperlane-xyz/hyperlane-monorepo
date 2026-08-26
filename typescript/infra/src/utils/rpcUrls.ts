@@ -315,18 +315,13 @@ async function refreshDependentK8sResourcesInteractive(
   ];
 
   if (allManagersForSecrets.length > 0) {
-    await refreshK8sResources(
+    await refreshK8sResourcesByNamespace(
       allManagersForSecrets,
       K8sResourceType.SECRET,
-      environment,
     );
   }
   if (serviceManagers.length > 0) {
-    await refreshK8sResources(
-      serviceManagers,
-      K8sResourceType.POD,
-      environment,
-    );
+    await refreshK8sResourcesByNamespace(serviceManagers, K8sResourceType.POD);
   }
   for (const manager of tollkeeperManagers) {
     await manager.restartDeployment();
@@ -644,6 +639,28 @@ async function collectAllK8sHelmManagers(
   };
 }
 
+async function refreshK8sResourcesByNamespace(
+  managers: HelmManager[],
+  resourceType: K8sResourceType,
+  options?: { skipConfirmation?: boolean },
+): Promise<void> {
+  const managersByNamespace = new Map<string, HelmManager[]>();
+  for (const manager of managers) {
+    const existing = managersByNamespace.get(manager.namespace) ?? [];
+    existing.push(manager);
+    managersByNamespace.set(manager.namespace, existing);
+  }
+
+  for (const [namespace, namespaceManagers] of managersByNamespace) {
+    await refreshK8sResources(
+      namespaceManagers,
+      resourceType,
+      namespace,
+      options,
+    );
+  }
+}
+
 /**
  * Non-interactively set RPC URLs for a chain. Validates each URL, updates the
  * GCP secret, and optionally refreshes dependent K8s resources.
@@ -681,18 +698,16 @@ export async function setRpcUrls(
     ];
 
     if (allManagersForSecrets.length > 0) {
-      await refreshK8sResources(
+      await refreshK8sResourcesByNamespace(
         allManagersForSecrets,
         K8sResourceType.SECRET,
-        environment,
         { skipConfirmation: true },
       );
     }
     if (serviceManagers.length > 0) {
-      await refreshK8sResources(
+      await refreshK8sResourcesByNamespace(
         serviceManagers,
         K8sResourceType.POD,
-        environment,
         { skipConfirmation: true },
       );
     }
@@ -792,18 +807,14 @@ export async function refreshSelectedReleases(
     `Refreshing ${allForSecrets.length} releases: ${allForSecrets.map((m) => m.helmReleaseName).join(', ')}`,
   );
 
-  await refreshK8sResources(
-    allForSecrets,
-    K8sResourceType.SECRET,
-    environment,
-    { skipConfirmation: true },
-  );
+  await refreshK8sResourcesByNamespace(allForSecrets, K8sResourceType.SECRET, {
+    skipConfirmation: true,
+  });
 
   if (selectedServices.length > 0) {
-    await refreshK8sResources(
+    await refreshK8sResourcesByNamespace(
       selectedServices,
       K8sResourceType.POD,
-      environment,
       { skipConfirmation: true },
     );
   }
