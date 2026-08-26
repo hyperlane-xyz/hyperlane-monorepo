@@ -26,6 +26,7 @@ import { WarpRouteMonitorHelmManager } from '../warp-monitor/helm.js';
 import { disableGCPSecretVersion } from './gcloud.js';
 import { HelmManager } from './helm.js';
 import { K8sResourceType, refreshK8sResources } from './k8s.js';
+import { refreshK8sResourcesByNamespace } from './refresh-by-namespace.js';
 
 /**
  * Set the RPC URLs for the given chain in the given environment interactively.
@@ -318,10 +319,17 @@ async function refreshDependentK8sResourcesInteractive(
     await refreshK8sResourcesByNamespace(
       allManagersForSecrets,
       K8sResourceType.SECRET,
+      undefined,
+      refreshK8sResources,
     );
   }
   if (serviceManagers.length > 0) {
-    await refreshK8sResourcesByNamespace(serviceManagers, K8sResourceType.POD);
+    await refreshK8sResourcesByNamespace(
+      serviceManagers,
+      K8sResourceType.POD,
+      undefined,
+      refreshK8sResources,
+    );
   }
   for (const manager of tollkeeperManagers) {
     await manager.restartDeployment();
@@ -639,28 +647,6 @@ async function collectAllK8sHelmManagers(
   };
 }
 
-async function refreshK8sResourcesByNamespace(
-  managers: HelmManager[],
-  resourceType: K8sResourceType,
-  options?: { skipConfirmation?: boolean },
-): Promise<void> {
-  const managersByNamespace = new Map<string, HelmManager[]>();
-  for (const manager of managers) {
-    const existing = managersByNamespace.get(manager.namespace) ?? [];
-    existing.push(manager);
-    managersByNamespace.set(manager.namespace, existing);
-  }
-
-  for (const [namespace, namespaceManagers] of managersByNamespace) {
-    await refreshK8sResources(
-      namespaceManagers,
-      resourceType,
-      namespace,
-      options,
-    );
-  }
-}
-
 /**
  * Non-interactively set RPC URLs for a chain. Validates each URL, updates the
  * GCP secret, and optionally refreshes dependent K8s resources.
@@ -702,6 +688,7 @@ export async function setRpcUrls(
         allManagersForSecrets,
         K8sResourceType.SECRET,
         { skipConfirmation: true },
+        refreshK8sResources,
       );
     }
     if (serviceManagers.length > 0) {
@@ -709,6 +696,7 @@ export async function setRpcUrls(
         serviceManagers,
         K8sResourceType.POD,
         { skipConfirmation: true },
+        refreshK8sResources,
       );
     }
     for (const manager of tollkeeperManagers) {
@@ -807,15 +795,19 @@ export async function refreshSelectedReleases(
     `Refreshing ${allForSecrets.length} releases: ${allForSecrets.map((m) => m.helmReleaseName).join(', ')}`,
   );
 
-  await refreshK8sResourcesByNamespace(allForSecrets, K8sResourceType.SECRET, {
-    skipConfirmation: true,
-  });
+  await refreshK8sResourcesByNamespace(
+    allForSecrets,
+    K8sResourceType.SECRET,
+    { skipConfirmation: true },
+    refreshK8sResources,
+  );
 
   if (selectedServices.length > 0) {
     await refreshK8sResourcesByNamespace(
       selectedServices,
       K8sResourceType.POD,
       { skipConfirmation: true },
+      refreshK8sResources,
     );
   }
   for (const manager of selectedTollkeeper) {
