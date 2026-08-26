@@ -94,6 +94,18 @@ await service.executeManual({
 
 The rebalancer uses a YAML configuration file with a `warpRouteId` and `strategy` field.
 
+Deployed executors should also enable file-backed state. The Helm deployment
+automatically provisions and mounts a persistent volume at `directory`.
+
+```yaml
+stateStore:
+  type: file
+  directory: /state
+```
+
+`type: memory` remains the default for local and backwards-compatible use. It
+does not preserve in-flight suppression across restarts.
+
 ### Basic Example (Single Strategy)
 
 ```yaml

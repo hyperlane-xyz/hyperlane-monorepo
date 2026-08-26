@@ -17,3 +17,10 @@ nameOverride: ''
 fullnameOverride: ''
 externalSecrets:
   clusterSecretStore:
+persistence:
+  enabled: false
+  mountPath: /state
+  size: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName:

@@ -22,4 +22,8 @@ spec:
       - name: config
         configMap:
           name: {{ include "hyperlane.fullname" . }}-config
-
+      {{- if .Values.persistence.enabled }}
+      - name: state
+        persistentVolumeClaim:
+          claimName: {{ include "hyperlane.fullname" . }}-state
+      {{- end }}

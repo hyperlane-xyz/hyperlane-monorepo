@@ -16,14 +16,30 @@ import type { IActionTracker } from '../tracking/IActionTracker.js';
 
 import { Rebalancer } from './Rebalancer.js';
 
-function createMockActionTracker(): IActionTracker {
+type TestActionTracker = IActionTracker & {
+  createRebalanceAction: Sinon.SinonStub;
+  failRebalanceIntent: Sinon.SinonStub;
+};
+
+function createMockActionTracker(): TestActionTracker {
   return {
     initialize: Sinon.stub().resolves(),
     createRebalanceIntent: Sinon.stub().callsFake(async () => ({
       id: `intent-${Date.now()}`,
       status: 'not_started',
     })),
-    createRebalanceAction: Sinon.stub().resolves(),
+    createRebalanceAction: Sinon.stub().resolves({
+      id: 'action-1',
+      status: 'in_progress',
+      type: 'rebalance_message',
+      intentId: 'intent-1',
+      origin: 1,
+      destination: 2,
+      amount: 1n,
+      createdAt: 1,
+      updatedAt: 1,
+    }),
+    updateRebalanceActionExecution: Sinon.stub().resolves(),
     completeRebalanceAction: Sinon.stub().resolves(),
     failRebalanceAction: Sinon.stub().resolves(),
     completeRebalanceIntent: Sinon.stub().resolves(),
@@ -871,16 +887,16 @@ describe('Rebalancer', () => {
   describe('sendTransactionsForChain()', () => {
     it('should return error result when send fails', async () => {
       const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
-      ctx.multiProvider.sendTransaction = Sinon.stub().rejects(
-        new Error('Send failed'),
-      );
+      const sendTransaction = Sinon.stub().rejects(new Error('Send failed'));
+      ctx.multiProvider.sendTransaction = sendTransaction;
+      const actionTracker = createMockActionTracker();
 
       const rebalancer = new Rebalancer(
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
-        createMockActionTracker(),
+        actionTracker,
         testLogger,
       );
 
@@ -890,6 +906,9 @@ describe('Rebalancer', () => {
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
       expect(results[0].error).to.include('Send failed');
+      expect(actionTracker.createRebalanceAction.calledBefore(sendTransaction))
+        .to.be.true;
+      expect(actionTracker.failRebalanceIntent.called).to.be.false;
     });
 
     it('should continue sending remaining transactions after one fails', async () => {

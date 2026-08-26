@@ -104,7 +104,31 @@ describe('RebalancerConfig', () => {
       intentTTL: DEFAULT_INTENT_TTL_MS,
       inventorySigners: undefined,
       externalBridges: undefined,
+      stateStore: { type: 'memory' },
     });
+  });
+
+  it('should load file-backed state configuration', () => {
+    writeYamlOrJson(TEST_CONFIG_PATH, {
+      ...data,
+      stateStore: { type: 'file', directory: '/state' },
+    });
+
+    expect(RebalancerConfig.load(TEST_CONFIG_PATH).stateStore).to.deep.equal({
+      type: 'file',
+      directory: '/state',
+    });
+  });
+
+  it('should reject an empty file state directory', () => {
+    writeYamlOrJson(TEST_CONFIG_PATH, {
+      ...data,
+      stateStore: { type: 'file', directory: '' },
+    });
+
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+      'stateStore.directory',
+    );
   });
 
   it('should throw if chains are not configured', () => {

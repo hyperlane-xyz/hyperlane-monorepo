@@ -8,6 +8,7 @@ import type { InventorySignerConfig } from '../core/InventoryRebalancer.js';
 import {
   type ExternalBridgesConfigSchema,
   type RebalancerConfigFileInput,
+  type RebalancerStateStoreConfig,
   RebalancerConfigSchema,
   type StrategyConfig,
   getStrategyChainNames,
@@ -24,6 +25,7 @@ export class RebalancerConfig {
       Record<ProtocolType, InventorySignerConfig>
     >,
     public readonly externalBridges?: ExternalBridgesConfig,
+    public readonly stateStore?: RebalancerStateStoreConfig,
   ) {}
 
   /**
@@ -45,6 +47,7 @@ export class RebalancerConfig {
       intentTTL,
       inventorySigners,
       externalBridges,
+      stateStore,
     } = validationResult.data;
 
     const chainNames = getStrategyChainNames(strategy);
@@ -58,6 +61,7 @@ export class RebalancerConfig {
       intentTTL,
       inventorySigners,
       externalBridges,
+      stateStore,
     );
   }
 }

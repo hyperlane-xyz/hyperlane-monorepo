@@ -121,4 +121,8 @@ The rebalancer container
   - name: config
     mountPath: /config
     readOnly: true
+  {{- if .Values.persistence.enabled }}
+  - name: state
+    mountPath: {{ .Values.persistence.mountPath | quote }}
+  {{- end }}
 {{- end }}

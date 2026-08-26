@@ -6,6 +6,7 @@ import { fromZodError } from 'zod-validation-error';
 import {
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
+  RebalancerStoreType,
   getStrategyChainNames,
 } from '@hyperlane-xyz/rebalancer';
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
@@ -39,6 +40,7 @@ export class RebalancerHelmManager extends HelmManager {
   private rebalancerChains: string[] = [];
   private inventorySignerProtocols: string[] = [];
   private externalBridgeProviders: string[] = [];
+  private stateStoreDirectory?: string;
 
   constructor(
     readonly warpRouteId: string,
@@ -92,6 +94,24 @@ export class RebalancerHelmManager extends HelmManager {
     this.externalBridgeProviders = Object.keys(
       validationResult.data.externalBridges ?? {},
     );
+    const { stateStore } = validationResult.data;
+    if (stateStore.type === RebalancerStoreType.File) {
+      if (!path.isAbsolute(stateStore.directory)) {
+        throw new Error('File stateStore.directory must be an absolute path');
+      }
+      if (
+        stateStore.directory === '/' ||
+        stateStore.directory === '/config' ||
+        stateStore.directory.startsWith('/config/')
+      ) {
+        throw new Error(
+          'File stateStore.directory must be a dedicated writable directory',
+        );
+      }
+      this.stateStoreDirectory = stateStore.directory;
+    } else {
+      this.stateStoreDirectory = undefined;
+    }
   }
 
   get namespace() {
@@ -110,6 +130,10 @@ export class RebalancerHelmManager extends HelmManager {
       warpRouteId: this.warpRouteId,
       withMetrics: this.withMetrics,
       fullnameOverride: this.helmReleaseName,
+      persistence: {
+        enabled: Boolean(this.stateStoreDirectory),
+        mountPath: this.stateStoreDirectory ?? '/state',
+      },
       hyperlane: {
         runEnv: this.environment,
         registryUri,

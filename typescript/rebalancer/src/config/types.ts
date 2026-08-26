@@ -123,6 +123,25 @@ export const DEFAULT_INTENT_TTL_MS = DEFAULT_INTENT_TTL_S * 1_000;
 
 export const DEFAULT_MOVEMENT_STALENESS_MS = 30 * 60 * 1_000; // 30 minutes
 
+export enum RebalancerStoreType {
+  Memory = 'memory',
+  File = 'file',
+}
+
+export const RebalancerStateStoreConfigSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal(RebalancerStoreType.Memory),
+  }),
+  z.object({
+    type: z.literal(RebalancerStoreType.File),
+    directory: z.string().min(1),
+  }),
+]);
+
+export type RebalancerStateStoreConfig = z.infer<
+  typeof RebalancerStateStoreConfigSchema
+>;
+
 export const LiFiBridgeConfigSchema = z.object({
   integrator: z.string(),
   defaultSlippage: z.number().optional(),
@@ -158,6 +177,9 @@ export const RebalancerConfigSchema = z
       )
       .optional(),
     externalBridges: ExternalBridgesConfigSchema.optional(),
+    stateStore: RebalancerStateStoreConfigSchema.default({
+      type: RebalancerStoreType.Memory,
+    }),
     intentTTL: z
       .number()
       .positive()

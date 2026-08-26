@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { type Logger } from 'pino';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
@@ -26,6 +28,7 @@ import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
   ExternalBridgeType,
+  RebalancerStoreType,
   getAllBridges,
   getInventoryChainNames,
   getInventoryOriginChainNames,
@@ -52,7 +55,13 @@ import {
 } from '../tracking/ActionTracker.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 import { InflightContextAdapter } from '../tracking/InflightContextAdapter.js';
-import { InMemoryStore } from '../tracking/store/index.js';
+import {
+  FileStore,
+  InMemoryStore,
+  isRebalanceAction,
+  isRebalanceIntent,
+  isTransfer,
+} from '../tracking/store/index.js';
 import type {
   RebalanceAction,
   RebalanceActionStatus,
@@ -326,15 +335,28 @@ export class RebalancerContextFactory {
       'Creating ActionTracker',
     );
 
-    const transferStore = new InMemoryStore<Transfer, TransferStatus>();
-    const intentStore = new InMemoryStore<
-      RebalanceIntent,
-      RebalanceIntentStatus
-    >();
-    const actionStore = new InMemoryStore<
-      RebalanceAction,
-      RebalanceActionStatus
-    >();
+    const fileStoreDirectory =
+      this.config.stateStore?.type === RebalancerStoreType.File
+        ? path.join(this.config.stateStore.directory, 'tracking')
+        : undefined;
+    const transferStore = fileStoreDirectory
+      ? new FileStore<Transfer, TransferStatus>(
+          path.join(fileStoreDirectory, 'transfers.json'),
+          isTransfer,
+        )
+      : new InMemoryStore<Transfer, TransferStatus>();
+    const intentStore = fileStoreDirectory
+      ? new FileStore<RebalanceIntent, RebalanceIntentStatus>(
+          path.join(fileStoreDirectory, 'intents.json'),
+          isRebalanceIntent,
+        )
+      : new InMemoryStore<RebalanceIntent, RebalanceIntentStatus>();
+    const actionStore = fileStoreDirectory
+      ? new FileStore<RebalanceAction, RebalanceActionStatus>(
+          path.join(fileStoreDirectory, 'actions.json'),
+          isRebalanceAction,
+        )
+      : new InMemoryStore<RebalanceAction, RebalanceActionStatus>();
 
     const explorerClient =
       typeof explorerUrlOrClient === 'string'

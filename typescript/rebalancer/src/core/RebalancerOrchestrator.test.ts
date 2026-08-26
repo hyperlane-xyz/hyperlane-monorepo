@@ -67,7 +67,13 @@ function createMockStrategy(): IStrategy & {
   };
 }
 
-function createMockActionTracker(): IActionTracker {
+type TestActionTracker = IActionTracker & {
+  syncRebalanceIntents: Sinon.SinonStub;
+  syncRebalanceActions: Sinon.SinonStub;
+  syncInventoryMovementActions: Sinon.SinonStub;
+};
+
+function createMockActionTracker(): TestActionTracker {
   return {
     initialize: Sinon.stub().resolves(),
     createRebalanceIntent: Sinon.stub().callsFake(async () => ({
@@ -75,6 +81,7 @@ function createMockActionTracker(): IActionTracker {
       status: 'not_started',
     })),
     createRebalanceAction: Sinon.stub().resolves(),
+    updateRebalanceActionExecution: Sinon.stub().resolves(),
     completeRebalanceAction: Sinon.stub().resolves(),
     failRebalanceAction: Sinon.stub().resolves(),
     completeRebalanceIntent: Sinon.stub().resolves(),
@@ -723,14 +730,19 @@ describe('RebalancerOrchestrator', () => {
 
       await orchestrator.executeCycle(event);
 
+      expect(actionTracker.syncInventoryMovementActions.calledOnce).to.be.true;
       expect(
-        (actionTracker.syncInventoryMovementActions as Sinon.SinonStub)
-          .calledOnce,
+        actionTracker.syncInventoryMovementActions.calledWith({ lifi: bridge }),
       ).to.be.true;
       expect(
-        (
-          actionTracker.syncInventoryMovementActions as Sinon.SinonStub
-        ).calledWith({ lifi: bridge }),
+        actionTracker.syncRebalanceActions.calledBefore(
+          actionTracker.syncRebalanceIntents,
+        ),
+      ).to.be.true;
+      expect(
+        actionTracker.syncInventoryMovementActions.calledBefore(
+          actionTracker.syncRebalanceIntents,
+        ),
       ).to.be.true;
     });
   });

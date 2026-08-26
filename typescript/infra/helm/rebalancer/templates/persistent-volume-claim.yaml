@@ -1,0 +1,17 @@
+{{- if .Values.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "hyperlane.fullname" . }}-state
+  labels:
+    {{- include "hyperlane.labels" . | nindent 4 }}
+spec:
+  accessModes:
+  {{- toYaml .Values.persistence.accessModes | nindent 2 }}
+  {{- with .Values.persistence.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size | quote }}
+{{- end }}

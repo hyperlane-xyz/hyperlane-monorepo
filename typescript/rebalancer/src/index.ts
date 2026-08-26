@@ -30,6 +30,7 @@ export {
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
   RebalancerStrategySchema,
+  RebalancerStoreType,
   RebalancerWeightedChainConfigSchema,
   StrategyConfigSchema,
 } from './config/types.js';
@@ -38,6 +39,7 @@ export type {
   RebalancerConfig as RebalancerConfigType,
   RebalancerConfigFileInput,
   RebalancerMinAmountChainConfig,
+  RebalancerStateStoreConfig,
   RebalancerWeightedChainConfig,
   StrategyConfig,
   WeightedStrategyConfig,
@@ -112,6 +114,7 @@ export type {
   IActionTracker,
   CreateRebalanceIntentParams,
   CreateRebalanceActionParams,
+  UpdateRebalanceActionExecutionParams,
 } from './tracking/IActionTracker.js';
 export type {
   Transfer,
