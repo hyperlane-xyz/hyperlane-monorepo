@@ -51,6 +51,9 @@ export interface BridgeQuote<R = unknown> {
 
 /**
  * Result of executing a bridge transfer.
+ * This includes a source transaction identity. Adapters may return immediately
+ * after broadcast or after additional bridge monitoring; callers must still
+ * use getStatus() to determine destination-chain settlement.
  */
 export interface BridgeTransferResult {
   txHash: string; // Origin chain transaction hash
@@ -87,6 +90,8 @@ export interface IExternalBridge {
 
   /**
    * Execute a bridge transfer using a previously obtained quote.
+   * Callers must persist the returned identity and poll getStatus() before
+   * treating the cross-chain transfer as settled.
    * @param quote - Quote obtained from quote()
    * @param privateKeys - Private keys keyed by ProtocolType (e.g., { [ProtocolType.Ethereum]: '0x...' })
    */
@@ -100,11 +105,13 @@ export interface IExternalBridge {
    * @param txHash - Origin chain transaction hash
    * @param fromChain - Source chain ID
    * @param toChain - Destination chain ID
+   * @param transferId - Optional bridge-specific transfer identifier
    */
   getStatus(
     txHash: string,
     fromChain: number,
     toChain: number,
+    transferId?: string,
   ): Promise<BridgeTransferStatus>;
 }
 
