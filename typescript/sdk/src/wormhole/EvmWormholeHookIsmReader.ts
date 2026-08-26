@@ -45,8 +45,9 @@ export class EvmWormholeHookIsmReader {
 
   public async deriveWormholeConfig(
     address: Address,
+    knownVariant?: WormholeVariant,
   ): Promise<DerivedWormholeHookIsmConfig> {
-    const variant = await this.deriveVariant(address);
+    const variant = knownVariant ?? (await this.deriveVariant(address));
     return variant === WormholeVariant.Executor
       ? this.deriveExecutorConfig(address)
       : this.deriveDirectVaaConfig(address);

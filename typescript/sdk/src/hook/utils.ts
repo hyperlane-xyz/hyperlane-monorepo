@@ -10,6 +10,7 @@ import {
   HookType,
   IgpVersion,
   NetFlowRateLimitedHookConfig,
+  WormholeHookConfig,
 } from './types.js';
 
 /**
@@ -96,6 +97,18 @@ export type HybridHookNodeConfig =
   | NetFlowRateLimitedHookConfig
   | DelayedFlowRouterHookConfig;
 
+/**
+ * A combined hook/ISM leaf. These leaves are deployed once and installed on
+ * both router surfaces; generic EVM module reconciliation must treat them as
+ * opaque addresses instead of trying to deploy a second hook instance.
+ *
+ * This is intentionally broader than `HybridHookNodeConfig`: the latter is
+ * the warp-router flow-control subset consumed by `warpHybridPlan`.
+ */
+export type CombinedHookIsmHookConfig =
+  | HybridHookNodeConfig
+  | WormholeHookConfig;
+
 export function isHybridHookNode(
   hook: HookConfig | undefined,
 ): hook is HybridHookNodeConfig {
@@ -104,6 +117,18 @@ export function isHybridHookNode(
     typeof hook === 'object' &&
     (hook.type === HookType.NET_FLOW_RATE_LIMITED ||
       hook.type === HookType.DELAYED_FLOW_ROUTER)
+  );
+}
+
+export function isCombinedHookIsmHookNode(
+  hook: HookConfig | undefined,
+): hook is CombinedHookIsmHookConfig {
+  return (
+    isHybridHookNode(hook) ||
+    (!!hook &&
+      typeof hook === 'object' &&
+      (hook.type === HookType.WORMHOLE_EXECUTOR ||
+        hook.type === HookType.WORMHOLE_VAA))
   );
 }
 
@@ -116,14 +141,28 @@ export function mapHybridHookNodes(
   hook: HookConfig,
   mapNode: (node: HybridHookNodeConfig) => HookConfig,
 ): HookConfig {
+  return mapHookTreeNodes(hook, isHybridHookNode, mapNode);
+}
+
+/**
+ * Rebuilds a hook tree, mapping every node accepted by `predicate`.
+ * Matching nodes are treated as leaves and their children are not traversed.
+ */
+export function mapHookTreeNodes<T extends HookConfig>(
+  hook: HookConfig,
+  predicate: (hook: HookConfig | undefined) => hook is T,
+  mapNode: (node: T) => HookConfig,
+): HookConfig {
   if (typeof hook === 'string') return hook;
-  if (isHybridHookNode(hook)) return mapNode(hook);
+  if (predicate(hook)) return mapNode(hook);
 
   switch (hook.type) {
     case HookType.AGGREGATION:
       return {
         ...hook,
-        hooks: hook.hooks.map((child) => mapHybridHookNodes(child, mapNode)),
+        hooks: hook.hooks.map((child) =>
+          mapHookTreeNodes(child, predicate, mapNode),
+        ),
       };
     case HookType.ROUTING:
       return {
@@ -131,7 +170,7 @@ export function mapHybridHookNodes(
         domains: Object.fromEntries(
           Object.entries(hook.domains).map(([domain, child]) => [
             domain,
-            mapHybridHookNodes(child, mapNode),
+            mapHookTreeNodes(child, predicate, mapNode),
           ]),
         ),
       };
@@ -141,38 +180,46 @@ export function mapHybridHookNodes(
         domains: Object.fromEntries(
           Object.entries(hook.domains).map(([domain, child]) => [
             domain,
-            mapHybridHookNodes(child, mapNode),
+            mapHookTreeNodes(child, predicate, mapNode),
           ]),
         ),
-        fallback: mapHybridHookNodes(hook.fallback, mapNode),
+        fallback: mapHookTreeNodes(hook.fallback, predicate, mapNode),
       };
     case HookType.AMOUNT_ROUTING:
       return {
         ...hook,
-        lowerHook: mapHybridHookNodes(hook.lowerHook, mapNode),
-        upperHook: mapHybridHookNodes(hook.upperHook, mapNode),
+        lowerHook: mapHookTreeNodes(hook.lowerHook, predicate, mapNode),
+        upperHook: mapHookTreeNodes(hook.upperHook, predicate, mapNode),
       };
     case HookType.ARB_L2_TO_L1:
       return {
         ...hook,
-        childHook: mapHybridHookNodes(hook.childHook, mapNode),
+        childHook: mapHookTreeNodes(hook.childHook, predicate, mapNode),
       };
     default:
       return hook;
   }
 }
 
-/** Every hybrid hook/ISM node declared anywhere in a hook tree. */
-export function collectHybridHookNodes(
+/** Collects matching hook-tree leaves. */
+export function collectHookTreeNodes<T extends HookConfig>(
   hook: HookConfig | undefined,
-): HybridHookNodeConfig[] {
+  predicate: (hook: HookConfig | undefined) => hook is T,
+): T[] {
   if (!hook) return [];
-  const collected: HybridHookNodeConfig[] = [];
-  mapHybridHookNodes(hook, (node) => {
+  const collected: T[] = [];
+  mapHookTreeNodes(hook, predicate, (node) => {
     collected.push(node);
     return node;
   });
   return collected;
+}
+
+/** Every hybrid hook/ISM node declared anywhere in a hook tree. */
+export function collectHybridHookNodes(
+  hook: HookConfig | undefined,
+): HybridHookNodeConfig[] {
+  return collectHookTreeNodes(hook, isHybridHookNode);
 }
 
 export function hookTreeContainsHybridHookIsm(
@@ -192,6 +239,36 @@ export function resolveHybridHookNodesToAddress(
   address: Address,
 ): HookConfig {
   return mapHybridHookNodes(hook, () => address);
+}
+
+/** Replaces any combined hook/ISM leaf with its shared deployed address. */
+export function resolveCombinedHookIsmNodesToAddress(
+  hook: HookConfig,
+  address: Address,
+): HookConfig {
+  return mapCombinedHookIsmNodes(hook, () => address);
+}
+
+export function collapseMatchingCombinedHookIsmNodes(
+  hook: HookConfig,
+  address: Address,
+): HookConfig {
+  return mapCombinedHookIsmNodes(hook, (node) => {
+    const derivedAddress =
+      'address' in node && typeof node.address === 'string'
+        ? node.address
+        : undefined;
+    return derivedAddress && eqAddress(derivedAddress, address)
+      ? address
+      : node;
+  });
+}
+
+function mapCombinedHookIsmNodes(
+  hook: HookConfig,
+  mapNode: (node: CombinedHookIsmHookConfig) => HookConfig,
+): HookConfig {
+  return mapHookTreeNodes(hook, isCombinedHookIsmHookNode, mapNode);
 }
 
 /** ISM-side counterpart: collapse only an already-installed matching leaf. */

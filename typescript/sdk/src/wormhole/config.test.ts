@@ -2,7 +2,15 @@ import { expect } from 'chai';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { HookConfig, HookType } from '../hook/types.js';
+import {
+  collapseMatchingCombinedHookIsmNodes,
+  resolveCombinedHookIsmNodesToAddress,
+} from '../hook/utils.js';
 import { IsmConfig, IsmType } from '../ism/types.js';
+import {
+  collapseMatchingCombinedHookIsmNodes as collapseCombinedIsm,
+  resolveCombinedHookIsmNodesToAddress as resolveCombinedIsm,
+} from '../utils/ism.js';
 
 import {
   WormholeWarpChainConfig,
@@ -67,6 +75,31 @@ function executorRoute(): Record<string, WormholeWarpChainConfig> {
 }
 
 describe('Wormhole Warp config resolution', () => {
+  it('treats Wormhole leaves as generic opaque combined hook/ISM nodes', () => {
+    const config = executorRoute();
+    const sharedAddress = '0x00000000000000000000000000000000000000aa';
+    const hook = resolveCombinedHookIsmNodesToAddress(
+      config.base.hook!,
+      sharedAddress,
+    );
+    const ism = resolveCombinedIsm(
+      config.base.interchainSecurityModule!,
+      sharedAddress,
+    );
+
+    expect(hook).to.deep.include({
+      hooks: [{ type: HookType.MAILBOX_DEFAULT }, sharedAddress],
+    });
+    expect(ism).to.deep.include({
+      modules: [{ type: IsmType.TEST_ISM }, sharedAddress],
+    });
+
+    expect(
+      collapseMatchingCombinedHookIsmNodes(hook, sharedAddress),
+    ).to.deep.equal(hook);
+    expect(collapseCombinedIsm(ism, sharedAddress)).to.deep.equal(ism);
+  });
+
   it('pairs nested hook and ISM leaves and derives the mesh', () => {
     const config = executorRoute();
     const pairs = pairWormholeConfigs(config);
