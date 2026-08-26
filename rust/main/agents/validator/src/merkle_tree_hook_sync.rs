@@ -41,7 +41,6 @@ struct RpcFallback {
 #[derive(Clone)]
 struct StreamDependencies {
     canonical_sync: Option<Arc<SequencedDataContractSync<MerkleTreeInsertion>>>,
-    canonical_chunk_size: u32,
     index_mode: IndexMode,
     merkle_tree_hook: Option<Arc<dyn MerkleTreeHook>>,
     reorg_period: ReorgPeriod,
@@ -190,7 +189,6 @@ impl MerkleTreeHookWebSocketSync {
             .expect("bounded retry jitter cannot overflow Duration");
         let dependencies = StreamDependencies {
             canonical_sync: Some(fallback_sync.clone()),
-            canonical_chunk_size: index_settings.chunk_size,
             index_mode: index_settings.mode,
             merkle_tree_hook: Some(merkle_tree_hook),
             reorg_period,
@@ -326,7 +324,10 @@ impl MerkleTreeHookWebSocketSync {
             let Some(message) = message else {
                 break;
             };
-            read_deadline.as_mut().reset(Instant::now() + timeouts.read);
+            let next_read_deadline = Instant::now()
+                .checked_add(timeouts.read)
+                .expect("read timeout cannot exceed Instant range");
+            read_deadline.as_mut().reset(next_read_deadline);
             match message.context("Reading Merkle tree hook WebSocket message")? {
                 Message::Text(text) => match serde_json::from_str::<ServerMessage>(&text)
                     .context("Parsing Merkle tree hook WebSocket message")?
@@ -577,8 +578,6 @@ impl MerkleTreeHookWebSocketSync {
             IndexMode::Sequence => insertion.index(),
         };
 
-        let query_end = query_position
-            .saturating_add(dependencies.canonical_chunk_size.max(1).saturating_sub(1));
         for attempt in 0..=CANONICAL_FETCH_ATTEMPTS {
             if let Some(matches) = matches_canonical_insertion(
                 insertion,
@@ -603,7 +602,7 @@ impl MerkleTreeHookWebSocketSync {
             }
             *canonical_cache = timeout(
                 RPC_PROBE_TIMEOUT,
-                canonical_sync.fetch_logs_in_range(query_position..=query_end),
+                canonical_sync.fetch_logs_in_range(query_position..=query_position),
             )
             .await
             .context("Canonical Merkle tree insertion query timed out")?
@@ -855,7 +854,6 @@ mod tests {
     fn test_dependencies() -> StreamDependencies {
         StreamDependencies {
             canonical_sync: None,
-            canonical_chunk_size: 10,
             index_mode: IndexMode::Block,
             merkle_tree_hook: None,
             reorg_period: ReorgPeriod::None,
