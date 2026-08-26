@@ -157,6 +157,7 @@ export const SwapsXyzBridgeConfigSchema = z
     defaultSlippage: z.number().positive().max(0.1).optional(),
     maxQuoteLossBps: z.number().int().min(0).max(10_000).default(50),
     maxEvmNativeFeeWei: z.coerce.bigint().nonnegative().optional(),
+    maxTronNativeFeeSun: z.coerce.bigint().nonnegative().optional(),
     maxSolanaTransactionFeeLamports: z
       .number()
       .int()

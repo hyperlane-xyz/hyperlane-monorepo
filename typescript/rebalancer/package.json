@@ -59,6 +59,7 @@
     "pino-pretty": "catalog:",
     "prom-client": "catalog:",
     "re2js": "2.9.1",
+    "tronweb": "catalog:",
     "uuid": "catalog:",
     "viem": "catalog:",
     "yaml": "catalog:",
