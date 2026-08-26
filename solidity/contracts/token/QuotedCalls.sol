@@ -304,9 +304,9 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
      *      per-command Quote[] arrays for transfer/ICA commands.
      *      Same command bytes and inputs as execute().
      *      ICA hook quotes must be caller-independent and pricing-stable
-     *      between quote and execution. Commands that dispatch before an ICA
-     *      command may change its Mailbox nonce and invalidate nonce-sensitive
-     *      hook pricing.
+     *      between quote and execution. Like Mailbox.quoteDispatch, every ICA
+     *      message is quoted at the current Mailbox nonce; hooks whose pricing
+     *      depends on the nonce cannot be reliably prequoted.
      * @param commands Concatenated command bytes (1 byte per command)
      * @param inputs ABI-encoded inputs for each command
      * @return results Per-command Quote arrays. Empty for non-quoting commands.
@@ -660,8 +660,7 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
                 router,
                 body,
                 hookMetadata,
-                icaRouterContract.hook(),
-                0
+                icaRouterContract.hook()
             )
         });
     }
@@ -755,8 +754,7 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
                 router,
                 commitmentBody,
                 commitmentMetadata,
-                selectedHook,
-                0
+                selectedHook
             ) +
             _quoteDispatchForIca(
                 icaRouterContract,
@@ -764,8 +762,7 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
                 router,
                 revealBody,
                 hookMetadata,
-                selectedHook,
-                1
+                selectedHook
             );
     }
 
@@ -782,13 +779,12 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
         bytes32 router,
         bytes memory body,
         bytes memory hookMetadata,
-        IPostDispatchHook selectedHook,
-        uint32 nonceOffset
+        IPostDispatchHook selectedHook
     ) internal view returns (uint256) {
         IMailbox mailbox = icaRouter.mailbox();
         bytes memory message = Message.formatMessageMemory(
             IVersionedMailbox(address(mailbox)).VERSION(),
-            mailbox.nonce() + nonceOffset,
+            mailbox.nonce(),
             mailbox.localDomain(),
             address(icaRouter).addressToBytes32(),
             destination,

@@ -202,17 +202,37 @@ abstract contract AbstractInterchainAccountRouter is Router {
         CallLib.Call[] calldata _calls,
         bytes memory _hookMetadata
     ) public payable virtual returns (bytes32) {
+        return
+            callRemoteWithOverrides(
+                _destination,
+                _router,
+                _ism,
+                _calls,
+                _hookMetadata,
+                InterchainAccountMessage.EMPTY_SALT
+            );
+    }
+
+    function callRemoteWithOverrides(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        CallLib.Call[] calldata _calls,
+        bytes memory _hookMetadata,
+        bytes32 _userSalt
+    ) public payable virtual returns (bytes32) {
         emit RemoteCallDispatched(
             _destination,
             msg.sender,
             _router,
             _ism,
-            InterchainAccountMessage.EMPTY_SALT
+            _userSalt
         );
         bytes memory _body = InterchainAccountMessage.encode(
             msg.sender,
             _ism,
-            _calls
+            _calls,
+            _userSalt
         );
         return
             _dispatchMessageWithValue(

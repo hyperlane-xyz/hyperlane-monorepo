@@ -32,13 +32,14 @@ import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {InterchainAccountRouter} from "../../contracts/middleware/InterchainAccountRouter.sol";
+import {MinimalInterchainAccountRouter} from "../../contracts/middleware/MinimalInterchainAccountRouter.sol";
 import {CallLib} from "../../contracts/middleware/libs/Call.sol";
 import {InterchainAccountMessage} from "../../contracts/middleware/libs/InterchainAccountMessage.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 import {ReentrancyGuardTransient} from "../../contracts/libs/ReentrancyGuardTransient.sol";
 
-/// @dev ERC20 hook whose fee binds quotes to the actual metadata and complete
-///      formatted message, including its sender and Mailbox nonce.
+/// @dev ERC20 hook whose fee binds quotes to the actual metadata, sender,
+///      recipient, destination, and body, but deliberately ignores the nonce.
 contract QuotedCallsERC20FeeHook is AbstractPostDispatchHook {
     using Message for bytes;
     using SafeERC20 for IERC20;
@@ -81,112 +82,39 @@ contract QuotedCallsERC20FeeHook is AbstractPostDispatchHook {
             metadata.gasLimit() +
             (uint256(message.recipient()) & 0xffff) *
             1_000_000 +
-            uint256(uint72(uint256(keccak256(message))));
+            uint256(
+                uint72(
+                    uint256(
+                        keccak256(
+                            abi.encode(
+                                message.sender(),
+                                message.destination(),
+                                message.recipient(),
+                                message.body()
+                            )
+                        )
+                    )
+                )
+            );
     }
 }
 
-/// @dev Models the ICA getter and quote surface deployed before exact-input
-///      quote overloads existed.
-contract LegacyIcaRouterQuoteSurface {
-    using StandardHookMetadata for bytes;
-    using TypeCasts for address;
+/// @dev Quote-only hook used to pin QuotedCalls' historical current-nonce
+///      behavior. Nonce-sensitive hooks are not supported for execution.
+contract QuotedCallsNonceFeeHook is AbstractPostDispatchHook {
+    using Message for bytes;
 
-    IMailbox public immutable mailbox;
-    IPostDispatchHook public hook;
-    uint256 public immutable COMMIT_TX_GAS_USAGE;
-
-    constructor(
-        IMailbox _mailbox,
-        IPostDispatchHook _hook,
-        uint256 _commitTxGasUsage
-    ) {
-        mailbox = _mailbox;
-        hook = _hook;
-        COMMIT_TX_GAS_USAGE = _commitTxGasUsage;
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.HookTypes.UNUSED);
     }
 
-    function quoteGasPayment(
-        address,
-        uint32,
-        uint256
-    ) external pure returns (uint256) {
-        return 1;
-    }
+    function _postDispatch(bytes calldata, bytes calldata) internal override {}
 
-    function quoteGasForCommitReveal(
-        address,
-        uint32,
-        uint256
-    ) external pure returns (uint256) {
-        return 2;
-    }
-
-    function callRemoteWithOverrides(
-        uint32 destination,
-        bytes32 router,
-        bytes32 ism,
-        CallLib.Call[] calldata calls,
-        bytes calldata hookMetadata,
-        bytes32 salt
-    ) external payable returns (bytes32) {
-        bytes memory body = InterchainAccountMessage.encode(
-            msg.sender,
-            ism,
-            calls,
-            salt
-        );
-        return
-            mailbox.dispatch{value: msg.value}(
-                destination,
-                router,
-                body,
-                hookMetadata,
-                hook
-            );
-    }
-
-    function callRemoteCommitReveal(
-        uint32 destination,
-        bytes32 router,
-        bytes32 ism,
-        bytes calldata hookMetadata,
-        IPostDispatchHook selectedHook,
-        bytes32 salt,
-        bytes32 commitment
-    ) external payable returns (bytes32 commitmentId, bytes32 revealId) {
-        bytes memory commitmentBody = InterchainAccountMessage
-            .encodeCommitment({
-                _owner: msg.sender.addressToBytes32(),
-                _ism: ism,
-                _commitment: commitment,
-                _userSalt: salt
-            });
-        bytes memory commitmentMetadata = StandardHookMetadata
-            .formatWithFeeToken(
-                0,
-                COMMIT_TX_GAS_USAGE,
-                address(this),
-                hookMetadata.feeToken()
-            );
-        commitmentId = mailbox.dispatch{value: msg.value}(
-            destination,
-            router,
-            commitmentBody,
-            commitmentMetadata,
-            selectedHook
-        );
-
-        bytes memory revealBody = InterchainAccountMessage.encodeReveal({
-            _ism: bytes32(0),
-            _commitment: commitment
-        });
-        revealId = mailbox.dispatch(
-            destination,
-            router,
-            revealBody,
-            hookMetadata,
-            selectedHook
-        );
+    function _quoteDispatch(
+        bytes calldata,
+        bytes calldata message
+    ) internal pure override returns (uint256) {
+        return message.nonce();
     }
 }
 
@@ -1966,117 +1894,95 @@ contract QuotedCallsTest is Test {
         assertGt(results[1][0].amount, 0, "fee should be > 0");
     }
 
-    function test_quoteExecute_icaCommands_supportLegacyRouterQuoteSurface()
-        public
-    {
-        QuotedCallsERC20FeeHook feeHook = new QuotedCallsERC20FeeHook(
-            primaryToken
-        );
-        LegacyIcaRouterQuoteSurface legacyRouter = new LegacyIcaRouterQuoteSurface(
-                localMailbox,
-                feeHook,
-                20_000
-            );
-        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
-            0,
-            GAS_LIMIT,
-            address(quotedCalls),
-            address(primaryToken)
-        );
-        bytes32 targetRouter = bytes32(uint256(0xbeef));
-        bytes32 ism = bytes32(uint256(0x1234));
-        bytes32 salt = bytes32(uint256(0x5678));
-
-        bytes1[] memory cmds = new bytes1[](2);
-        bytes[] memory ins = new bytes[](2);
-        (cmds[0], ins[0]) = _cmdCallRemoteWithOverrides(
-            address(legacyRouter),
+    function test_quoteExecute_icaQuotes_useCurrentMailboxNonce() public {
+        localMailbox.dispatch(
             DESTINATION,
-            targetRouter,
-            ism,
-            _singleRemoteCall(hex"123456"),
-            hookMetadata,
-            salt,
-            0,
-            address(primaryToken),
-            0
+            bytes32(uint256(0xbeef)),
+            bytes(""),
+            bytes(""),
+            noopHook
         );
-        (cmds[1], ins[1]) = _cmdCallRemoteCommitReveal(
-            address(legacyRouter),
-            DESTINATION,
-            targetRouter,
-            ism,
-            hookMetadata,
-            address(feeHook),
-            salt,
-            keccak256("commitment"),
+        uint32 currentNonce = localMailbox.nonce();
+        QuotedCallsNonceFeeHook nonceHook = new QuotedCallsNonceFeeHook();
+        string[] memory urls = new string[](1);
+        urls[0] = "https://quoter.example.com/{data}";
+        InterchainAccountRouter icaRouter = new InterchainAccountRouter(
+            address(localMailbox),
+            address(nonceHook),
+            address(this),
             0,
-            address(primaryToken),
-            0
+            urls
         );
-        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
-
-        Quote[][] memory results = quotedCalls.quoteExecute(commands, inputs);
-
-        // The legacy quote methods return sentinel values. Exact quotes must
-        // instead be constructed through getters available on old routers.
-        assertGt(results[0][0].amount, 2);
-        assertGt(results[1][0].amount, 2);
-        assertEq(results[0][0].token, address(primaryToken));
-        assertEq(results[1][0].token, address(primaryToken));
-    }
-
-    function test_quoteExecuteThenExecute_icaCommands_supportLegacyRouterSurface()
-        public
-    {
-        LegacyIcaRouterQuoteSurface legacyRouter = new LegacyIcaRouterQuoteSurface(
-                localMailbox,
-                noopHook,
-                20_000
-            );
         bytes memory hookMetadata = StandardHookMetadata.format(
             0,
             GAS_LIMIT,
             address(quotedCalls)
         );
-        bytes32 targetRouter = bytes32(uint256(0xbeef));
-        bytes32 salt = bytes32(uint256(0x5678));
         bytes1[] memory cmds = new bytes1[](2);
         bytes[] memory ins = new bytes[](2);
         (cmds[0], ins[0]) = _cmdCallRemoteWithOverrides(
-            address(legacyRouter),
+            address(icaRouter),
             DESTINATION,
-            targetRouter,
+            bytes32(uint256(0xbeef)),
             bytes32(uint256(0x1234)),
             _singleRemoteCall(hex"123456"),
             hookMetadata,
-            salt,
+            bytes32(uint256(0x5678)),
             0,
             address(0),
             0
         );
         (cmds[1], ins[1]) = _cmdCallRemoteCommitReveal(
-            address(legacyRouter),
+            address(icaRouter),
             DESTINATION,
-            targetRouter,
+            bytes32(uint256(0xbeef)),
             bytes32(uint256(0x1234)),
             hookMetadata,
-            address(noopHook),
-            salt,
+            address(nonceHook),
+            bytes32(uint256(0x5678)),
             keccak256("commitment"),
             0,
             address(0),
             0
         );
         (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        Quote[][] memory results = quotedCalls.quoteExecute(commands, inputs);
+
+        assertEq(results[0][0].amount, currentNonce);
+        assertEq(results[1][0].amount, uint256(currentNonce) * 2);
+    }
+
+    function test_quoteExecuteThenExecute_supportsMinimalIcaRouter() public {
+        MinimalInterchainAccountRouter minimalRouter = new MinimalInterchainAccountRouter(
+                address(localMailbox),
+                address(noopHook),
+                address(this)
+            );
+        (bytes1 command, bytes memory input) = _cmdCallRemoteWithOverrides(
+            address(minimalRouter),
+            DESTINATION,
+            bytes32(uint256(0xbeef)),
+            bytes32(uint256(0x1234)),
+            _singleRemoteCall(hex"123456"),
+            StandardHookMetadata.format(0, GAS_LIMIT, address(quotedCalls)),
+            bytes32(uint256(0x5678)),
+            0,
+            address(0),
+            0
+        );
+        bytes1[] memory cmds = new bytes1[](1);
+        bytes[] memory ins = new bytes[](1);
+        cmds[0] = command;
+        ins[0] = input;
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
         uint32 nonceBefore = localMailbox.nonce();
 
         Quote[][] memory results = quotedCalls.quoteExecute(commands, inputs);
         assertEq(results[0][0].amount, 0);
-        assertEq(results[1][0].amount, 0);
         quotedCalls.execute(commands, inputs);
 
-        assertEq(localMailbox.nonce(), nonceBefore + 3);
+        assertEq(localMailbox.nonce(), nonceBefore + 1);
     }
 
     function test_quoteExecute_callRemoteWithOverrides_erc20ExactInputs()

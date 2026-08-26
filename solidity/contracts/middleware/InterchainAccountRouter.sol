@@ -421,35 +421,6 @@ contract InterchainAccountRouter is
      * @param _ism The remote ISM address
      * @param _calls The sequence of calls to make
      * @param _hookMetadata The hook metadata to override with for the hook set by the owner
-     * @return The Hyperlane message ID
-     */
-    function callRemoteWithOverrides(
-        uint32 _destination,
-        bytes32 _router,
-        bytes32 _ism,
-        CallLib.Call[] calldata _calls,
-        bytes memory _hookMetadata
-    ) public payable override returns (bytes32) {
-        return
-            callRemoteWithOverrides(
-                _destination,
-                _router,
-                _ism,
-                _calls,
-                _hookMetadata,
-                InterchainAccountMessage.EMPTY_SALT
-            );
-    }
-
-    /**
-     * @notice Dispatches a sequence of remote calls to be made by an owner's
-     * interchain account on the destination domain
-     * @dev Recommend using CallLib.build to format the interchain calls
-     * @param _destination The remote domain of the chain to make calls on
-     * @param _router The remote router address
-     * @param _ism The remote ISM address
-     * @param _calls The sequence of calls to make
-     * @param _hookMetadata The hook metadata to override with for the hook set by the owner
      * @param _userSalt Salt provided by the user, allows control over account derivation.
      * @return The Hyperlane message ID
      */
@@ -460,7 +431,7 @@ contract InterchainAccountRouter is
         CallLib.Call[] calldata _calls,
         bytes memory _hookMetadata,
         bytes32 _userSalt
-    ) public payable returns (bytes32) {
+    ) public payable override returns (bytes32) {
         return
             callRemoteWithOverrides(
                 _destination,
