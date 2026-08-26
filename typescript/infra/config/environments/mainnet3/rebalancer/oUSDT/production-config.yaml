@@ -1,0 +1,71 @@
+warpRouteId: oUSDT/production
+inventorySigners:
+  ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
+  tron: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
+externalBridges:
+  lifi:
+    integrator: rebalancer
+  swapsxyz:
+    defaultSlippage: 0.005
+    maxQuoteLossBps: 250
+stateStore:
+  type: file
+  directory: /state
+strategy:
+  rebalanceStrategy: minAmount
+  chains:
+    arbitrum:
+      minAmount:
+        min: 1000
+        target: 3000
+        type: absolute
+      executionType: inventory
+      externalBridge: swapsxyz
+      override:
+        celo:
+          externalBridge: lifi
+        tron:
+          executionType: movableCollateral
+          bridge: '0x9323793FB9a071ce5fE839079925c0e39f37170F'
+          bridgeMinAcceptedAmount: 1000
+          statusAdapter:
+            kind: lz_scan
+            sourceEid: 30110
+            destinationEid: 30420
+            sourceOft: '0x77652D5aba086137b595875263FC200182919B92'
+            destinationOft: '0x3a08f76772e200653bb55c2a92998daca62e0e97'
+    celo:
+      minAmount:
+        min: 1000
+        target: 3000
+        type: absolute
+      executionType: inventory
+      externalBridge: swapsxyz
+    ethereum:
+      minAmount:
+        min: 750000
+        target: 760000
+        type: absolute
+      executionType: inventory
+      externalBridge: swapsxyz
+      override:
+        celo:
+          externalBridge: lifi
+    tron:
+      minAmount:
+        min: 1000
+        target: 3000
+        type: absolute
+      executionType: inventory
+      externalBridge: swapsxyz
+      override:
+        arbitrum:
+          executionType: movableCollateral
+          bridge: '0x43Bb7C9C64a05af94d67B52883a60756950058D7'
+          bridgeMinAcceptedAmount: 1000
+          statusAdapter:
+            kind: lz_scan
+            sourceEid: 30420
+            destinationEid: 30110
+            sourceOft: '0x3a08f76772e200653bb55c2a92998daca62e0e97'
+            destinationOft: '0x77652D5aba086137b595875263FC200182919B92'
