@@ -6,6 +6,8 @@ import { fetchWithDeadline } from '../utils/fetchWithDeadline.js';
 const DEFAULT_API_URL = 'https://api-v2.swaps.xyz/api';
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1_000;
+const INTEGER_STRING_REGEX = /^\d+$/;
+const TRON_CALLDATA_REGEX = /^(?:0x)?(?:[0-9a-fA-F]{2}){4,}$/;
 
 /**
  * Error returned by the swaps.xyz API.
@@ -104,6 +106,14 @@ export interface SwapsXyzSolanaTx {
   chainId?: number;
 }
 
+export interface SwapsXyzTronTx {
+  to: string;
+  toExtra: string | null;
+  value: string;
+  chainId: number;
+  chainKey: 'trx';
+}
+
 export function isEvmTx(tx: unknown): tx is SwapsXyzEvmTx {
   return (
     isRecord(tx) && typeof tx.to === 'string' && typeof tx.data === 'string'
@@ -112,6 +122,23 @@ export function isEvmTx(tx: unknown): tx is SwapsXyzEvmTx {
 
 export function isSolanaTx(tx: unknown): tx is SwapsXyzSolanaTx {
   return isRecord(tx) && typeof tx.base64Tx === 'string';
+}
+
+export function isTronTx(tx: unknown): tx is SwapsXyzTronTx {
+  return (
+    isRecord(tx) &&
+    typeof tx.to === 'string' &&
+    tx.to.length > 0 &&
+    (tx.toExtra === null ||
+      (typeof tx.toExtra === 'string' &&
+        TRON_CALLDATA_REGEX.test(tx.toExtra))) &&
+    typeof tx.value === 'string' &&
+    INTEGER_STRING_REGEX.test(tx.value) &&
+    typeof tx.chainId === 'number' &&
+    Number.isInteger(tx.chainId) &&
+    tx.chainId > 0 &&
+    tx.chainKey === 'trx'
+  );
 }
 
 export interface SwapsXyzTokenAmount {
@@ -141,7 +168,7 @@ export interface SwapsXyzBridgeRouteHop {
 }
 
 export interface SwapsXyzActionResponse {
-  tx: SwapsXyzEvmTx | SwapsXyzSolanaTx;
+  tx: SwapsXyzEvmTx | SwapsXyzSolanaTx | SwapsXyzTronTx;
   txId: string;
   vmId: SwapsXyzVmId;
   amountIn: SwapsXyzTokenAmount;
@@ -211,7 +238,7 @@ export interface SwapsXyzRegisterTxResult {
   error?: string | null;
 }
 
-const IntegerStringSchema = z.string().regex(/^\d+$/);
+const IntegerStringSchema = z.string().regex(INTEGER_STRING_REGEX);
 const TokenAmountSchema = z
   .object({
     amount: IntegerStringSchema,
@@ -251,6 +278,15 @@ const SolanaTxSchema = z
     chainId: z.number().int().optional(),
   })
   .passthrough();
+const TronTxSchema = z
+  .object({
+    to: z.string().min(1),
+    toExtra: z.string().regex(TRON_CALLDATA_REGEX).nullable(),
+    value: IntegerStringSchema,
+    chainId: z.number().int().positive(),
+    chainKey: z.literal('trx'),
+  })
+  .passthrough();
 const BridgeRouteHopSchema = z
   .object({
     srcChainId: z.number().int(),
@@ -262,7 +298,7 @@ const BridgeRouteHopSchema = z
   .passthrough();
 const ActionResponseSchema: z.ZodType<SwapsXyzActionResponse> = z
   .object({
-    tx: z.union([EvmTxSchema, SolanaTxSchema]),
+    tx: z.union([EvmTxSchema, SolanaTxSchema, TronTxSchema]),
     txId: z.string().min(1),
     vmId: z.enum(['evm', 'solana', 'alt-vm', 'hypercore']),
     amountIn: TokenAmountSchema,
