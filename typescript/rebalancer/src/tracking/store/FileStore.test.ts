@@ -155,6 +155,39 @@ describe('FileStore', () => {
     expect(JSON.parse(await readFile(filePath, 'utf8')).version).to.equal(1);
   });
 
+  it('persists deletions across a restart', async () => {
+    const filePath = path.join(
+      temporaryDirectory,
+      'tracking',
+      'transfers.json',
+    );
+    const transfer: Transfer = {
+      id: 'transfer-to-delete',
+      status: 'complete',
+      messageId: 'message-to-delete',
+      origin: 1,
+      destination: 2,
+      amount: 1n,
+      sender: '0xsender',
+      recipient: '0xrecipient',
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const store = new FileStore<Transfer, Transfer['status']>(
+      filePath,
+      isTransfer,
+    );
+    await store.save(transfer);
+
+    await store.delete(transfer.id);
+
+    const restartedStore = new FileStore<Transfer, Transfer['status']>(
+      filePath,
+      isTransfer,
+    );
+    expect(await restartedStore.get(transfer.id)).to.be.undefined;
+  });
+
   it('fails closed on malformed persisted state', async () => {
     const filePath = path.join(temporaryDirectory, 'transfers.json');
     await writeFile(filePath, '{"version":1,"entities":[{}]}', 'utf8');

@@ -12,7 +12,11 @@ import {
 } from '../config/types.js';
 import type { ExplorerMessage } from '../utils/ExplorerClient.js';
 
-import { ActionTracker, type ActionTrackerConfig } from './ActionTracker.js';
+import {
+  ActionTracker,
+  type ActionTrackerConfig,
+  TERMINAL_STATE_RETENTION_MS,
+} from './ActionTracker.js';
 import { InMemoryStore } from './store/InMemoryStore.js';
 import type { RebalanceAction, RebalanceIntent, Transfer } from './types.js';
 
@@ -21,14 +25,14 @@ chai.use(chaiAsPromised);
 const testLogger = pino({ level: 'silent' });
 
 describe('ActionTracker', () => {
-  let transferStore: InMemoryStore<Transfer, 'in_progress' | 'complete'>;
+  let transferStore: InMemoryStore<Transfer, Transfer['status']>;
   let rebalanceIntentStore: InMemoryStore<
     RebalanceIntent,
-    'not_started' | 'in_progress' | 'complete' | 'cancelled'
+    RebalanceIntent['status']
   >;
   let rebalanceActionStore: InMemoryStore<
     RebalanceAction,
-    'in_progress' | 'complete' | 'failed'
+    RebalanceAction['status']
   >;
   let explorerClient: any;
   let core: any;
@@ -396,7 +400,7 @@ describe('ActionTracker', () => {
       expect(transfers).to.have.lengthOf(1);
     });
 
-    it('should mark transfers as complete when delivered', async () => {
+    it('should remove transfers immediately when delivered', async () => {
       // Pre-create transfer
       await transferStore.save({
         id: '0xmsg1',
@@ -417,7 +421,26 @@ describe('ActionTracker', () => {
       await tracker.syncTransfers();
 
       const transfer = await transferStore.get('0xmsg1');
-      expect(transfer?.status).to.equal('complete');
+      expect(transfer).to.be.undefined;
+    });
+
+    it('should remove completed transfer records written by older versions', async () => {
+      await transferStore.save({
+        id: '0xlegacy-complete',
+        status: 'complete',
+        messageId: '0xlegacy-complete',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        sender: '0xuser1',
+        recipient: '0xuser2',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      await tracker.syncTransfers();
+
+      expect(await transferStore.get('0xlegacy-complete')).to.be.undefined;
     });
   });
 
@@ -526,6 +549,39 @@ describe('ActionTracker', () => {
       expect(updatedAction?.status).to.equal('in_progress');
     });
 
+    it('should preserve an expired intent after its inventory movement completes', async () => {
+      const oldTimestamp = Date.now() - DEFAULT_INTENT_TTL_MS - 1;
+      await rebalanceIntentStore.save({
+        id: 'intent-completed-movement',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        executionMethod: 'inventory',
+        createdAt: oldTimestamp,
+        updatedAt: oldTimestamp,
+      });
+      await rebalanceActionStore.save({
+        id: 'completed-movement',
+        status: 'complete',
+        type: 'inventory_movement',
+        intentId: 'intent-completed-movement',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: oldTimestamp,
+        updatedAt: oldTimestamp,
+      });
+
+      await tracker.syncRebalanceIntents();
+
+      expect(
+        (await rebalanceIntentStore.get('intent-completed-movement'))?.status,
+      ).to.equal('in_progress');
+      expect(await rebalanceActionStore.get('completed-movement')).to.not.be
+        .undefined;
+    });
+
     it('should fail expired intents that never started execution', async () => {
       await rebalanceIntentStore.save({
         id: 'intent-1',
@@ -560,6 +616,104 @@ describe('ActionTracker', () => {
 
       const updated = await rebalanceIntentStore.get('intent-1');
       expect(updated?.status).to.equal('in_progress');
+    });
+
+    it('should prune an old terminal intent and all terminal child actions', async () => {
+      const oldTimestamp = Date.now() - TERMINAL_STATE_RETENTION_MS - 1;
+      await rebalanceIntentStore.save({
+        id: 'terminal-intent',
+        status: 'complete',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: oldTimestamp,
+        updatedAt: oldTimestamp,
+      });
+      for (const [id, status] of [
+        ['complete-action', 'complete'],
+        ['failed-action', 'failed'],
+      ] as const) {
+        await rebalanceActionStore.save({
+          id,
+          status,
+          type: 'rebalance_message',
+          intentId: 'terminal-intent',
+          origin: 1,
+          destination: 2,
+          amount: 50n,
+          createdAt: oldTimestamp,
+          updatedAt: oldTimestamp,
+        });
+      }
+
+      await tracker.syncRebalanceIntents();
+
+      expect(await rebalanceIntentStore.get('terminal-intent')).to.be.undefined;
+      expect(await rebalanceActionStore.get('complete-action')).to.be.undefined;
+      expect(await rebalanceActionStore.get('failed-action')).to.be.undefined;
+    });
+
+    it('should retain a terminal intent group containing an in-progress action', async () => {
+      const oldTimestamp = Date.now() - TERMINAL_STATE_RETENTION_MS - 1;
+      await rebalanceIntentStore.save({
+        id: 'terminal-intent',
+        status: 'failed',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: oldTimestamp,
+        updatedAt: oldTimestamp,
+      });
+      await rebalanceActionStore.save({
+        id: 'in-progress-action',
+        status: 'in_progress',
+        type: 'inventory_movement',
+        intentId: 'terminal-intent',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: oldTimestamp,
+        updatedAt: oldTimestamp,
+      });
+
+      await tracker.syncRebalanceIntents();
+
+      expect(await rebalanceIntentStore.get('terminal-intent')).to.not.be
+        .undefined;
+      expect(await rebalanceActionStore.get('in-progress-action')).to.not.be
+        .undefined;
+    });
+
+    it('should retain a terminal group until its newest child ages out', async () => {
+      const oldTimestamp = Date.now() - TERMINAL_STATE_RETENTION_MS - 1;
+      const recentTimestamp = Date.now();
+      await rebalanceIntentStore.save({
+        id: 'terminal-intent',
+        status: 'complete',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: oldTimestamp,
+        updatedAt: oldTimestamp,
+      });
+      await rebalanceActionStore.save({
+        id: 'recent-action',
+        status: 'complete',
+        type: 'rebalance_message',
+        intentId: 'terminal-intent',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: oldTimestamp,
+        updatedAt: recentTimestamp,
+      });
+
+      await tracker.syncRebalanceIntents();
+
+      expect(await rebalanceIntentStore.get('terminal-intent')).to.not.be
+        .undefined;
+      expect(await rebalanceActionStore.get('recent-action')).to.not.be
+        .undefined;
     });
   });
 
@@ -1588,7 +1742,7 @@ describe('ActionTracker', () => {
       expect(call.args[0]).to.equal('0xmsg1');
 
       const transfer = await transferStore.get('0xmsg1');
-      expect(transfer?.status).to.equal('complete');
+      expect(transfer).to.be.undefined;
     });
 
     it('should check delivery status in syncRebalanceActions using adapter', async () => {

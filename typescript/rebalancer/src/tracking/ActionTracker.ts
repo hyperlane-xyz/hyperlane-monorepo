@@ -30,6 +30,18 @@ import type {
   Transfer,
 } from './types.js';
 
+/**
+ * Terminal intent/action groups remain available for operational inspection
+ * before being removed from durable state.
+ */
+export const TERMINAL_STATE_RETENTION_MS = 7 * 24 * 60 * 60 * 1_000;
+
+const TERMINAL_INTENT_STATUSES = new Set<RebalanceIntent['status']>([
+  'complete',
+  'cancelled',
+  'failed',
+]);
+
 export interface ActionTrackerConfig {
   routersByDomain: Record<number, string>; // Domain ID → router address (source of truth for routers and domains)
   bridges: Address[]; // Bridge contract addresses for rebalance action queries
@@ -104,6 +116,10 @@ export class ActionTracker implements IActionTracker {
 
   async syncTransfers(confirmedBlockTags?: ConfirmedBlockTags): Promise<void> {
     this.logger.debug('Syncing transfers');
+
+    // Remove records written by older versions that retained delivered
+    // transfers. Active transfers are deleted immediately upon delivery below.
+    await this.pruneCompletedTransfers();
 
     // Build list of addresses to exclude (rebalancer + optional inventory signer)
     const excludeTxSenders = [this.config.rebalancerAddress];
@@ -193,9 +209,12 @@ export class ActionTracker implements IActionTracker {
       );
 
       if (delivered) {
-        await this.transferStore.update(transfer.id, { status: 'complete' });
+        await this.transferStore.delete(transfer.id);
         completedTransfers++;
-        this.logger.debug({ id: transfer.id }, 'Transfer completed');
+        this.logger.debug(
+          { id: transfer.id },
+          'Transfer completed and was removed from tracking state',
+        );
       }
     }
 
@@ -216,8 +235,7 @@ export class ActionTracker implements IActionTracker {
     // Check in_progress intents for completion or TTL expiry
     const inProgressIntents =
       await this.rebalanceIntentStore.getByStatus('in_progress');
-    const allInProgressActions =
-      await this.rebalanceActionStore.getByStatus('in_progress');
+    const allActions = await this.rebalanceActionStore.getAll();
     const now = Date.now();
     for (const intent of inProgressIntents) {
       const completedAmount = await this.getCompletedAmountForIntent(intent.id);
@@ -227,8 +245,9 @@ export class ActionTracker implements IActionTracker {
         });
         this.logger.debug({ id: intent.id }, 'RebalanceIntent completed');
       } else if (now - intent.createdAt > this.config.intentTTL) {
-        const sourceStartedActions = allInProgressActions.filter(
-          (action) => action.intentId === intent.id,
+        const sourceStartedActions = allActions.filter(
+          (action) =>
+            action.intentId === intent.id && action.status !== 'failed',
         );
         if (sourceStartedActions.length > 0) {
           this.logger.warn(
@@ -262,6 +281,8 @@ export class ActionTracker implements IActionTracker {
         );
       }
     }
+
+    await this.pruneTerminalState(now);
 
     this.logger.debug('Rebalance intents synced');
   }
@@ -872,6 +893,72 @@ export class ActionTracker implements IActionTracker {
   }
 
   // === Private Helpers ===
+
+  private async pruneCompletedTransfers(): Promise<void> {
+    const completedTransfers = await this.transferStore.getByStatus('complete');
+    for (const transfer of completedTransfers) {
+      await this.transferStore.delete(transfer.id);
+    }
+
+    if (completedTransfers.length > 0) {
+      this.logger.debug(
+        { count: completedTransfers.length },
+        'Removed completed transfers from tracking state',
+      );
+    }
+  }
+
+  /**
+   * Remove old terminal intent groups without weakening duplicate-send
+   * suppression. A group is eligible only when the parent intent is terminal,
+   * every child action is terminal, and the newest group update is older than
+   * the fixed retention window.
+   */
+  private async pruneTerminalState(now: number): Promise<void> {
+    const [intents, actions] = await Promise.all([
+      this.rebalanceIntentStore.getAll(),
+      this.rebalanceActionStore.getAll(),
+    ]);
+    const actionsByIntent = new Map<string, RebalanceAction[]>();
+    for (const action of actions) {
+      const intentActions = actionsByIntent.get(action.intentId) ?? [];
+      intentActions.push(action);
+      actionsByIntent.set(action.intentId, intentActions);
+    }
+
+    let prunedIntents = 0;
+    let prunedActions = 0;
+    for (const intent of intents) {
+      if (!TERMINAL_INTENT_STATUSES.has(intent.status)) continue;
+
+      const intentActions = actionsByIntent.get(intent.id) ?? [];
+      if (intentActions.some((action) => action.status === 'in_progress')) {
+        continue;
+      }
+
+      const latestUpdateAt = intentActions.reduce(
+        (latest, action) => Math.max(latest, action.updatedAt),
+        intent.updatedAt,
+      );
+      if (now - latestUpdateAt <= TERMINAL_STATE_RETENTION_MS) continue;
+
+      // Delete terminal children before their terminal parent. A crash between
+      // deletes leaves only terminal state and is safe to resume next cycle.
+      for (const action of intentActions) {
+        await this.rebalanceActionStore.delete(action.id);
+        prunedActions++;
+      }
+      await this.rebalanceIntentStore.delete(intent.id);
+      prunedIntents++;
+    }
+
+    if (prunedIntents > 0) {
+      this.logger.info(
+        { prunedIntents, prunedActions },
+        'Pruned retained terminal tracking state',
+      );
+    }
+  }
 
   /**
    * Get the confirmed block tag for delivery checks.

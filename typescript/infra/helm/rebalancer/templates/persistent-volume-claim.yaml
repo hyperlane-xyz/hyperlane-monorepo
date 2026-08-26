@@ -3,6 +3,8 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ include "hyperlane.fullname" . }}-state
+  annotations:
+    helm.sh/resource-policy: keep
   labels:
     {{- include "hyperlane.labels" . | nindent 4 }}
 spec:

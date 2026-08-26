@@ -106,6 +106,19 @@ stateStore:
 `type: memory` remains the default for local and backwards-compatible use. It
 does not preserve in-flight suppression across restarts.
 
+Delivered user-transfer records are removed immediately. Terminal intents and
+their terminal actions are retained for seven days, then removed as a group.
+Any group containing an in-progress action, and every action belonging to an
+active intent, is retained.
+
+The Helm-managed state PVC is retained after an uninstall or rollback. Delete
+it only after all source-started actions have been reconciled and any required
+state has been archived:
+
+```sh
+kubectl delete pvc <helm-release>-state --namespace <namespace>
+```
+
 ### Basic Example (Single Strategy)
 
 ```yaml
