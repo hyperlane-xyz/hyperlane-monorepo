@@ -576,6 +576,7 @@ describe('ActionTracker', () => {
         destination: 2,
         amount: 100n,
         txHash: '0xtx-pending',
+        externalBridgeTransferId: 'transfer-pending',
         externalBridgeId: ExternalBridgeType.LiFi,
         createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
         updatedAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
@@ -585,6 +586,15 @@ describe('ActionTracker', () => {
       await tracker.syncInventoryMovementActions({
         lifi: { getStatus } as any,
       });
+
+      expect(
+        getStatus.calledOnceWithExactly(
+          '0xtx-pending',
+          1,
+          2,
+          'transfer-pending',
+        ),
+      ).to.equal(true);
 
       const action = await rebalanceActionStore.get('action-pending');
       expect(action?.status).to.equal('in_progress');
@@ -1339,6 +1349,24 @@ describe('ActionTracker', () => {
 
       const updatedIntent = await rebalanceIntentStore.get('intent-1');
       expect(updatedIntent?.status).to.equal('in_progress');
+    });
+
+    it('persists external bridge transfer identifiers', async () => {
+      const result = await tracker.createRebalanceAction({
+        type: 'inventory_movement',
+        intentId: 'intent-1',
+        origin: 1,
+        destination: 2,
+        amount: 50n,
+        txHash: '0xmovement',
+        externalBridgeTransferId: 'provider-transfer-id',
+        externalBridgeId: ExternalBridgeType.LiFi,
+      });
+
+      expect(result.externalBridgeTransferId).to.equal('provider-transfer-id');
+      expect(result.status).to.equal('in_progress');
+      const stored = await rebalanceActionStore.get(result.id);
+      expect(stored?.externalBridgeTransferId).to.equal('provider-transfer-id');
     });
   });
 
