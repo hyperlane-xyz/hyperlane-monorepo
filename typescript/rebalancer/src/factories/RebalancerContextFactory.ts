@@ -19,6 +19,7 @@ import {
   objMap,
 } from '@hyperlane-xyz/utils';
 
+import { DeBridgeBridge } from '../bridges/DeBridgeBridge.js';
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
@@ -641,6 +642,19 @@ export class RebalancerContextFactory {
                 integrator: lifiConfig.integrator,
                 defaultSlippage: lifiConfig.defaultSlippage,
                 chainMetadata: this.multiProvider.metadata,
+              },
+              this.logger,
+            );
+          }
+          break;
+        }
+        case ExternalBridgeType.DeBridge: {
+          const debridgeConfig = externalBridges?.debridge;
+          if (debridgeConfig) {
+            registry[ExternalBridgeType.DeBridge] = new DeBridgeBridge(
+              {
+                chainMetadata: this.multiProvider.metadata,
+                maxFeePercent: debridgeConfig.maxFeePercent,
               },
               this.logger,
             );
