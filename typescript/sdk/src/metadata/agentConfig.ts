@@ -22,6 +22,9 @@ import {
 } from './deploymentArtifacts.js';
 import { MatchingListSchema } from './matchingList.js';
 
+// Keep in sync with MAX_SIGN_CONCURRENCY in the validator settings parser.
+const MAX_SIGN_CONCURRENCY = 1_000;
+
 export enum RpcConsensusType {
   Single = 'single',
   Fallback = 'fallback',
@@ -723,9 +726,11 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
   interval: ZNzUint.optional().describe(
     'How long to wait between checking for new checkpoints in seconds. Defaults to 2s, falling back to the origin chain’s index.interval if set and this is unset.',
   ),
-  maxSignConcurrency: ZNzUint.optional().describe(
-    'Maximum number of checkpoints signed concurrently. Defaults to 50.',
-  ),
+  maxSignConcurrency: ZNzUint.max(MAX_SIGN_CONCURRENCY)
+    .optional()
+    .describe(
+      `Maximum number of checkpoints signed concurrently. Defaults to 50; maximum ${MAX_SIGN_CONCURRENCY}.`,
+    ),
 });
 
 export type ValidatorConfig = z.infer<typeof ValidatorAgentConfigSchema>;

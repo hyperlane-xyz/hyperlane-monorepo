@@ -8,8 +8,23 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   AgentChainMetadataSchema,
   RelayerAgentConfigSchema,
+  ValidatorAgentConfigSchema,
   buildAgentConfig,
 } from './agentConfig.js';
+
+describe('ValidatorAgentConfigSchema maxSignConcurrency', () => {
+  const schema = ValidatorAgentConfigSchema.shape.maxSignConcurrency;
+
+  it('accepts values from 1 through 1,000', () => {
+    expect(schema.safeParse(1).success).to.be.true;
+    expect(schema.safeParse(1_000).success).to.be.true;
+  });
+
+  it('rejects values outside the configured bounds', () => {
+    expect(schema.safeParse(0).success).to.be.false;
+    expect(schema.safeParse(1_001).success).to.be.false;
+  });
+});
 
 describe('RelayerAgentConfigSchema feeToken gate', () => {
   const FEE_TOKEN = '0x0000000000000000000000000000000000000005';

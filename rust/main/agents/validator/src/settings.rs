@@ -24,6 +24,9 @@ use serde::Deserialize;
 use serde_json::Value;
 
 const DEFAULT_MAX_SIGN_CONCURRENCY: usize = 50;
+// Bounds per-batch allocation and in-flight signing work while leaving ample
+// headroom above the operational default. Keep in sync with the SDK schema.
+const MAX_SIGN_CONCURRENCY: usize = 1_000;
 
 /// Settings for RPCs
 #[derive(Debug, Clone)]
@@ -277,13 +280,13 @@ fn parse_max_sign_concurrency(
     cwp: &ConfigPath,
     err: &mut ConfigParsingError,
 ) -> usize {
-    let configured = configured.unwrap_or(DEFAULT_MAX_SIGN_CONCURRENCY as u64);
+    let configured = configured.unwrap_or(50);
     match usize::try_from(configured) {
-        Ok(value @ 1..) => value,
+        Ok(value @ 1..=MAX_SIGN_CONCURRENCY) => value,
         _ => {
             err.push(
                 cwp.add("max_sign_concurrency"),
-                eyre::eyre!("`maxSignConcurrency` must be greater than zero"),
+                eyre::eyre!("`maxSignConcurrency` must be between 1 and {MAX_SIGN_CONCURRENCY}"),
             );
             DEFAULT_MAX_SIGN_CONCURRENCY
         }
@@ -443,10 +446,16 @@ mod test {
     use super::*;
 
     #[test]
-    fn max_sign_concurrency_is_positive() {
+    fn max_sign_concurrency_is_bounded() {
         let cwp = ConfigPath::default();
+        let max_sign_concurrency =
+            u64::try_from(MAX_SIGN_CONCURRENCY).expect("MAX_SIGN_CONCURRENCY must fit in u64");
 
-        for (configured, expected) in [(None, DEFAULT_MAX_SIGN_CONCURRENCY), (Some(1), 1)] {
+        for (configured, expected) in [
+            (None, DEFAULT_MAX_SIGN_CONCURRENCY),
+            (Some(1), 1),
+            (Some(max_sign_concurrency), MAX_SIGN_CONCURRENCY),
+        ] {
             let mut err = ConfigParsingError::default();
             assert_eq!(
                 parse_max_sign_concurrency(configured, &cwp, &mut err),
@@ -455,13 +464,15 @@ mod test {
             assert!(err.is_ok());
         }
 
-        let mut err = ConfigParsingError::default();
-        assert_eq!(
-            parse_max_sign_concurrency(Some(0), &cwp, &mut err),
-            DEFAULT_MAX_SIGN_CONCURRENCY
-        );
-        assert!(!err.is_ok());
-        assert!(err.to_string().contains("maxSignConcurrency"));
+        for configured in [0, max_sign_concurrency + 1, u64::MAX] {
+            let mut err = ConfigParsingError::default();
+            assert_eq!(
+                parse_max_sign_concurrency(Some(configured), &cwp, &mut err),
+                DEFAULT_MAX_SIGN_CONCURRENCY
+            );
+            assert!(!err.is_ok());
+            assert!(err.to_string().contains("maxSignConcurrency"));
+        }
     }
 
     #[test]
