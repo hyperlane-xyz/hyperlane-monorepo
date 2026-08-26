@@ -58,10 +58,11 @@ const ROUTES_TO_SKIP: string[] = [
   // Staging route: not auto-skipped by isStagingOrTestRoute since the STAGE
   // marker is in the symbol before the first `/`, not a chain segment.
   WarpRouteIds.EclipseUSDCSTAGE,
-  // Standard xERC20 route: registry config omits warpRouteLimits, so the
+  // Standard xERC20 routes: registry config omits warpRouteLimits, so the
   // post-#9329 reader flags a false ConfigMismatch on the real on-chain
   // limits. Excluded until ENG-4414 lands (backfill limits or ignore missing).
   WarpRouteIds.BaseEthereumREZ,
+  'SUPR/base-ethereum-ink-optimism-superseed',
 ];
 
 // Name segments that mark a warp route as a non-production (staging/test)
