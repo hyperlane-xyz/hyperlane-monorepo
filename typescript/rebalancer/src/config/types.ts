@@ -37,6 +37,7 @@ export enum ExecutionType {
 export enum ExternalBridgeType {
   LiFi = 'lifi',
   DeBridge = 'debridge',
+  LayerZero = 'layerzero',
 }
 
 export const RebalancerMinAmountConfigSchema = z.object({
@@ -131,9 +132,12 @@ export const DeBridgeBridgeConfigSchema = z.object({
   maxFeePercent: z.number().min(0).max(100).optional(),
 });
 
+export const LayerZeroBridgeConfigSchema = z.object({});
+
 export const ExternalBridgesConfigSchema = z.object({
   lifi: LiFiBridgeConfigSchema.optional(),
   debridge: DeBridgeBridgeConfigSchema.optional(),
+  layerzero: LayerZeroBridgeConfigSchema.optional(),
 });
 
 export const RebalancerConfigSchema = z
@@ -397,7 +401,9 @@ export const RebalancerConfigSchema = z
             (externalBridge === ExternalBridgeType.LiFi &&
               !!config.externalBridges?.lifi?.integrator) ||
             (externalBridge === ExternalBridgeType.DeBridge &&
-              config.externalBridges?.debridge !== undefined);
+              config.externalBridges?.debridge !== undefined) ||
+            (externalBridge === ExternalBridgeType.LayerZero &&
+              config.externalBridges?.layerzero !== undefined);
           if (!isConfigured) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
