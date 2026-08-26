@@ -56,7 +56,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   // standalone services
   keyFunder: 'b0c3c5d-20260804-175736',
   warpMonitor: '744b3bb-20260521-215958',
-  rebalancer: 'da26d9a-20260703-122943',
+  rebalancer: 'db28a86-20260826-203943',
   scraperProxy: '33ff5e4-20260821-113547',
   feeQuoting: '12d899d-20260325-184337',
 };
