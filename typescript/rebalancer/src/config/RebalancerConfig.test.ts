@@ -872,6 +872,105 @@ describe('per-chain bridge configuration', () => {
     );
   });
 
+  it('should accept swapsxyz inventory config without LiFi config', () => {
+    const data: RebalancerConfigFileInput = {
+      warpRouteId: 'test-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 100, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.SwapsXyz,
+            },
+          },
+        },
+      ],
+      inventorySigners: {
+        ethereum: '0x1234567890123456789012345678901234567890',
+      },
+      externalBridges: {
+        swapsxyz: {
+          apiUrl: 'https://api-v2.swaps.xyz/api',
+          defaultSlippage: 0.005,
+          maxQuoteLossBps: 250,
+        },
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+    const config = RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE);
+
+    expect(config.externalBridges?.swapsxyz).to.deep.equal({
+      apiUrl: 'https://api-v2.swaps.xyz/api',
+      defaultSlippage: 0.005,
+      maxQuoteLossBps: 250,
+    });
+    expect(config.externalBridges?.lifi).to.be.undefined;
+  });
+
+  it('should require externalBridges.swapsxyz when selected', () => {
+    const data: RebalancerConfigFileInput = {
+      warpRouteId: 'test-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 100, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.SwapsXyz,
+            },
+          },
+        },
+      ],
+      inventorySigners: {
+        ethereum: '0x1234567890123456789012345678901234567890',
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
+      /externalBridges\.swapsxyz.*not configured/i,
+    );
+  });
+
+  for (const swapsxyz of [
+    { apiUrl: 'http://api.swaps.xyz' },
+    { defaultSlippage: 50 },
+    { maxQuoteLossBps: -1 },
+    { maxQuoteLossBps: 10_001 },
+    { maxQuoteLossBps: 1.5 },
+  ]) {
+    it(`should reject unsafe swapsxyz config ${JSON.stringify(swapsxyz)}`, () => {
+      const data: RebalancerConfigFileInput = {
+        warpRouteId: 'test-route',
+        strategy: [
+          {
+            rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+            chains: {
+              ethereum: {
+                weighted: { weight: 100, tolerance: 5 },
+                executionType: ExecutionType.Inventory,
+                externalBridge: ExternalBridgeType.SwapsXyz,
+              },
+            },
+          },
+        ],
+        inventorySigners: {
+          ethereum: '0x1234567890123456789012345678901234567890',
+        },
+        externalBridges: { swapsxyz },
+      };
+
+      writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw();
+    });
+  }
+
   it('should require externalBridges.lifi when externalBridge is lifi', () => {
     const data = {
       warpRouteId: 'test-route',
