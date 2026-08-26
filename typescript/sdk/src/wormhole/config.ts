@@ -3,8 +3,10 @@ import { constants } from 'ethers';
 import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { HookConfig, HookType, WormholeHookConfig } from '../hook/types.js';
+import { collectHookTreeNodes, mapHookTreeNodes } from '../hook/utils.js';
 import { IsmConfig, IsmType, WormholeIsmConfig } from '../ism/types.js';
 import { ChainMap, ChainName } from '../types.js';
+import { collectIsmTreeNodes, mapIsmTreeNodes } from '../utils/ism.js';
 
 import {
   WormholeHookIsmConfig,
@@ -25,8 +27,11 @@ export interface WormholeConfigPair {
   variant: WormholeVariant;
 }
 
-function isWormholeHook(config: HookConfig): config is WormholeHookConfig {
+function isWormholeHook(
+  config: HookConfig | undefined,
+): config is WormholeHookConfig {
   return (
+    !!config &&
     typeof config !== 'string' &&
     (config.type === HookType.WORMHOLE_EXECUTOR ||
       config.type === HookType.WORMHOLE_VAA)
@@ -44,53 +49,13 @@ function isWormholeIsm(config: IsmConfig): config is WormholeIsmConfig {
 export function findWormholeHooks(
   config: HookConfig | undefined,
 ): WormholeHookConfig[] {
-  if (!config || typeof config === 'string') return [];
-  if (isWormholeHook(config)) return [config];
-
-  switch (config.type) {
-    case HookType.AGGREGATION:
-      return config.hooks.flatMap(findWormholeHooks);
-    case HookType.ROUTING:
-      return Object.values(config.domains).flatMap(findWormholeHooks);
-    case HookType.FALLBACK_ROUTING:
-      return [
-        ...Object.values(config.domains).flatMap(findWormholeHooks),
-        ...findWormholeHooks(config.fallback),
-      ];
-    case HookType.AMOUNT_ROUTING:
-      return [
-        ...findWormholeHooks(config.lowerHook),
-        ...findWormholeHooks(config.upperHook),
-      ];
-    case HookType.ARB_L2_TO_L1:
-      return findWormholeHooks(config.childHook);
-    default:
-      return [];
-  }
+  return collectHookTreeNodes(config, isWormholeHook);
 }
 
 export function findWormholeIsms(
   config: IsmConfig | undefined,
 ): WormholeIsmConfig[] {
-  if (!config || typeof config === 'string') return [];
-  if (isWormholeIsm(config)) return [config];
-
-  switch (config.type) {
-    case IsmType.AGGREGATION:
-    case IsmType.STORAGE_AGGREGATION:
-      return config.modules.flatMap(findWormholeIsms);
-    case IsmType.ROUTING:
-    case IsmType.FALLBACK_ROUTING:
-    case IsmType.INCREMENTAL_ROUTING:
-      return Object.values(config.domains).flatMap(findWormholeIsms);
-    case IsmType.AMOUNT_ROUTING:
-      return [
-        ...findWormholeIsms(config.lowerIsm),
-        ...findWormholeIsms(config.upperIsm),
-      ];
-    default:
-      return [];
-  }
+  return collectIsmTreeNodes(config, isWormholeIsm);
 }
 
 /** Collects concrete addresses from a derived hook tree. */
@@ -310,87 +275,14 @@ export function replaceWormholeHook(
   config: HookConfig,
   address: Address,
 ): HookConfig {
-  if (typeof config === 'string') return config;
-  if (isWormholeHook(config)) return address;
-
-  switch (config.type) {
-    case HookType.AGGREGATION:
-      return {
-        ...config,
-        hooks: config.hooks.map((hook) => replaceWormholeHook(hook, address)),
-      };
-    case HookType.ROUTING:
-      return {
-        ...config,
-        domains: Object.fromEntries(
-          Object.entries(config.domains).map(([chain, hook]) => [
-            chain,
-            replaceWormholeHook(hook, address),
-          ]),
-        ),
-      };
-    case HookType.FALLBACK_ROUTING:
-      return {
-        ...config,
-        domains: Object.fromEntries(
-          Object.entries(config.domains).map(([chain, hook]) => [
-            chain,
-            replaceWormholeHook(hook, address),
-          ]),
-        ),
-        fallback: replaceWormholeHook(config.fallback, address),
-      };
-    case HookType.AMOUNT_ROUTING:
-      return {
-        ...config,
-        lowerHook: replaceWormholeHook(config.lowerHook, address),
-        upperHook: replaceWormholeHook(config.upperHook, address),
-      };
-    case HookType.ARB_L2_TO_L1:
-      return {
-        ...config,
-        childHook: replaceWormholeHook(config.childHook, address),
-      };
-    default:
-      return config;
-  }
+  return mapHookTreeNodes(config, isWormholeHook, () => address);
 }
 
 export function replaceWormholeIsm(
   config: IsmConfig,
   address: Address,
 ): IsmConfig {
-  if (typeof config === 'string') return config;
-  if (isWormholeIsm(config)) return address;
-
-  switch (config.type) {
-    case IsmType.AGGREGATION:
-    case IsmType.STORAGE_AGGREGATION:
-      return {
-        ...config,
-        modules: config.modules.map((ism) => replaceWormholeIsm(ism, address)),
-      };
-    case IsmType.ROUTING:
-    case IsmType.FALLBACK_ROUTING:
-    case IsmType.INCREMENTAL_ROUTING:
-      return {
-        ...config,
-        domains: Object.fromEntries(
-          Object.entries(config.domains).map(([chain, ism]) => [
-            chain,
-            replaceWormholeIsm(ism, address),
-          ]),
-        ),
-      };
-    case IsmType.AMOUNT_ROUTING:
-      return {
-        ...config,
-        lowerIsm: replaceWormholeIsm(config.lowerIsm, address),
-        upperIsm: replaceWormholeIsm(config.upperIsm, address),
-      };
-    default:
-      return config;
-  }
+  return mapIsmTreeNodes(config, isWormholeIsm, () => address);
 }
 
 export function buildWormholeMeshConfig(

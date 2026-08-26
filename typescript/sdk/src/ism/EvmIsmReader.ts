@@ -23,15 +23,12 @@ import {
   RateLimitedIsm__factory,
   StaticAggregationIsm__factory,
   TrustedRelayerIsm__factory,
-  WormholeExecutorHookIsm__factory,
-  WormholeVaaHookIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
   WithAddress,
   assert,
   concurrentMap,
-  eqAddress,
   getLogLevel,
   objMap,
   promiseObjAll,
@@ -48,7 +45,7 @@ import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { ChainMap, ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 import { EvmWormholeHookIsmReader } from '../wormhole/EvmWormholeHookIsmReader.js';
-import { consistencyLevelConfigFromOnchain } from '../wormhole/consistency.js';
+import { WormholeVariant } from '../wormhole/types.js';
 import {
   contractHasString,
   isMissingSelectorCallException,
@@ -155,96 +152,27 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       return undefined;
     }
 
-    const remoteRouters = (
-      await new EvmWormholeHookIsmReader(
-        this.multiProvider,
-        this.chain,
-      ).deriveWormholeConfig(address)
-    ).remoteRouters;
-
-    if (moduleType === ModuleType.NULL) {
-      const router = WormholeExecutorHookIsm__factory.connect(
-        address,
-        this.provider,
-      );
-      const [
-        owner,
-        core,
-        wormholeChainId,
-        consistencyLevel,
-        customConsistencyLevel,
-        baseConsistencyLevel,
-        additionalBlocks,
-      ] = await Promise.all([
-        router.owner(),
-        router.wormhole(),
-        router.wormholeChainId(),
-        router.consistencyLevel(),
-        router.customConsistencyLevel(),
-        router.baseConsistencyLevel(),
-        router.additionalBlocks(),
-      ]);
-      const diagnosticConfig = {
-        address,
-        type: IsmType.WORMHOLE_EXECUTOR,
-        owner,
-        core,
-        wormholeChainId,
-        consistencyLevel: consistencyLevelConfigFromOnchain(
-          consistencyLevel,
-          eqAddress(customConsistencyLevel, ethers.constants.AddressZero)
-            ? undefined
-            : {
-                address: customConsistencyLevel,
-                baseConsistencyLevel,
-                additionalBlocks,
-              },
-        ),
-        remoteRouters,
-      };
-      return diagnosticConfig;
-    }
-
-    const router = WormholeVaaHookIsm__factory.connect(address, this.provider);
-    const [
-      owner,
-      core,
-      wormholeChainId,
-      consistencyLevel,
-      customConsistencyLevel,
-      baseConsistencyLevel,
-      additionalBlocks,
-      urls,
-    ] = await Promise.all([
-      router.owner(),
-      router.wormhole(),
-      router.wormholeChainId(),
-      router.consistencyLevel(),
-      router.customConsistencyLevel(),
-      router.baseConsistencyLevel(),
-      router.additionalBlocks(),
-      router.urls(),
-    ]);
-    const diagnosticConfig = {
+    const variant =
+      moduleType === ModuleType.NULL
+        ? WormholeVariant.Executor
+        : WormholeVariant.DirectVaa;
+    const derived = await new EvmWormholeHookIsmReader(
+      this.multiProvider,
+      this.chain,
+    ).deriveWormholeConfig(address, variant);
+    const common = {
       address,
-      type: IsmType.WORMHOLE_VAA,
-      owner,
-      core,
-      wormholeChainId,
-      consistencyLevel: consistencyLevelConfigFromOnchain(
-        consistencyLevel,
-        eqAddress(customConsistencyLevel, ethers.constants.AddressZero)
-          ? undefined
-          : {
-              address: customConsistencyLevel,
-              baseConsistencyLevel,
-              additionalBlocks,
-            },
-      ),
-      urls,
-      remoteRouters,
+      owner: derived.owner,
+      core: derived.core,
+      wormholeChainId: derived.wormholeChainId,
+      consistencyLevel: derived.consistencyLevel,
+      remoteRouters: derived.remoteRouters,
     };
-    return diagnosticConfig;
+    if (derived.type === WormholeVariant.Executor) {
+      return { ...common, type: IsmType.WORMHOLE_EXECUTOR };
+    }
+    assert(derived.urls, `Wormhole VAA router ${address} is missing URLs`);
+    return { ...common, type: IsmType.WORMHOLE_VAA, urls: derived.urls };
   }
 
   async deriveIsmConfigFromAddress(

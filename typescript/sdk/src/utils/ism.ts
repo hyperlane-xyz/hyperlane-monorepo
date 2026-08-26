@@ -16,6 +16,7 @@ import {
   IsmConfig,
   IsmType,
   NetFlowRateLimitedHookIsmConfig,
+  WormholeIsmConfig,
 } from '../ism/types.js';
 
 type ChainAddresses = Record<string, string>;
@@ -124,6 +125,11 @@ export type HybridHookIsmConfig =
   | NetFlowRateLimitedHookIsmConfig
   | DelayedFlowRouterHookIsmConfig;
 
+/** Combined hook/ISM leaves handled as opaque shared instances by generic
+ * EVM reconciliation. Flow-control hybrids remain a narrower subset used by
+ * the warp hybrid deployment planner. */
+export type CombinedHookIsmConfig = HybridHookIsmConfig | WormholeIsmConfig;
+
 /**
  * True if a warp-route hybrid hook/ISM node (NET_FLOW_RATE_LIMITED or
  * DELAYED_FLOW_ROUTER) exists anywhere in the ISM config tree.
@@ -159,6 +165,17 @@ function isHybridIsmNode(node: unknown): node is HybridHookIsmConfig {
   return (
     node.type === IsmType.NET_FLOW_RATE_LIMITED ||
     node.type === IsmType.DELAYED_FLOW_ROUTER
+  );
+}
+
+export function isCombinedHookIsmNode(
+  node: IsmConfig,
+): node is CombinedHookIsmConfig {
+  if (isHybridIsmNode(node)) return true;
+  return (
+    isRecord(node) &&
+    (node.type === IsmType.WORMHOLE_EXECUTOR ||
+      node.type === IsmType.WORMHOLE_VAA)
   );
 }
 
@@ -215,14 +232,20 @@ export function mapHybridIsmNodes(
   ismConfig: IsmConfig,
   mapNode: (node: HybridHookIsmConfig) => IsmConfig,
 ): IsmConfig {
-  if (typeof ismConfig === 'string') return ismConfig;
+  return mapIsmTreeNodes(ismConfig, isHybridIsmNode, mapNode);
+}
 
-  if (
-    ismConfig.type === IsmType.NET_FLOW_RATE_LIMITED ||
-    ismConfig.type === IsmType.DELAYED_FLOW_ROUTER
-  ) {
-    return mapNode(ismConfig);
-  }
+/**
+ * Rebuilds an ISM tree, mapping every node accepted by `predicate`.
+ * Matching nodes are treated as leaves and their children are not traversed.
+ */
+export function mapIsmTreeNodes<T extends IsmConfig>(
+  ismConfig: IsmConfig,
+  predicate: (node: IsmConfig) => node is T,
+  mapNode: (node: T) => IsmConfig,
+): IsmConfig {
+  if (typeof ismConfig === 'string') return ismConfig;
+  if (predicate(ismConfig)) return mapNode(ismConfig);
 
   if (
     ismConfig.type === IsmType.AGGREGATION ||
@@ -230,7 +253,9 @@ export function mapHybridIsmNodes(
   ) {
     return {
       ...ismConfig,
-      modules: ismConfig.modules.map((m) => mapHybridIsmNodes(m, mapNode)),
+      modules: ismConfig.modules.map((m) =>
+        mapIsmTreeNodes(m, predicate, mapNode),
+      ),
     };
   }
 
@@ -241,7 +266,7 @@ export function mapHybridIsmNodes(
   ) {
     const newDomains: Record<string, IsmConfig> = {};
     for (const [domain, domainIsm] of Object.entries(ismConfig.domains)) {
-      newDomains[domain] = mapHybridIsmNodes(domainIsm, mapNode);
+      newDomains[domain] = mapIsmTreeNodes(domainIsm, predicate, mapNode);
     }
     return { ...ismConfig, domains: newDomains };
   }
@@ -249,12 +274,26 @@ export function mapHybridIsmNodes(
   if (ismConfig.type === IsmType.AMOUNT_ROUTING) {
     return {
       ...ismConfig,
-      lowerIsm: mapHybridIsmNodes(ismConfig.lowerIsm, mapNode),
-      upperIsm: mapHybridIsmNodes(ismConfig.upperIsm, mapNode),
+      lowerIsm: mapIsmTreeNodes(ismConfig.lowerIsm, predicate, mapNode),
+      upperIsm: mapIsmTreeNodes(ismConfig.upperIsm, predicate, mapNode),
     };
   }
 
   return ismConfig;
+}
+
+/** Collects matching ISM-tree leaves. */
+export function collectIsmTreeNodes<T extends IsmConfig>(
+  ismConfig: IsmConfig | undefined,
+  predicate: (node: IsmConfig) => node is T,
+): T[] {
+  if (!ismConfig) return [];
+  const collected: T[] = [];
+  mapIsmTreeNodes(ismConfig, predicate, (node) => {
+    collected.push(node);
+    return node;
+  });
+  return collected;
 }
 
 /**
@@ -384,6 +423,36 @@ export function collapseMatchingHybridIsmNodes(
       ? address
       : node;
   });
+}
+
+/** Replaces any combined hook/ISM leaf with its shared deployed address. */
+export function resolveCombinedHookIsmNodesToAddress(
+  ismConfig: IsmConfig,
+  address: Address,
+): IsmConfig {
+  return mapCombinedHookIsmNodes(ismConfig, () => address);
+}
+
+export function collapseMatchingCombinedHookIsmNodes(
+  ismConfig: IsmConfig,
+  address: Address,
+): IsmConfig {
+  return mapCombinedHookIsmNodes(ismConfig, (node) => {
+    const derivedAddress =
+      'address' in node && typeof node.address === 'string'
+        ? node.address
+        : undefined;
+    return derivedAddress && eqAddress(derivedAddress, address)
+      ? address
+      : node;
+  });
+}
+
+function mapCombinedHookIsmNodes(
+  ismConfig: IsmConfig,
+  mapNode: (node: CombinedHookIsmConfig) => IsmConfig,
+): IsmConfig {
+  return mapIsmTreeNodes(ismConfig, isCombinedHookIsmNode, mapNode);
 }
 
 /**
