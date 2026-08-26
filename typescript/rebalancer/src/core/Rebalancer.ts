@@ -15,6 +15,13 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { eqAddress, isNullish, mapAllSettled } from '@hyperlane-xyz/utils';
 
+import {
+  Erc20ApprovalMode,
+  type Erc20ApprovalOptions,
+  approveErc20IfNeeded,
+  revokeErc20Approval,
+  revokeErc20ApprovalIfNeeded,
+} from '../bridges/erc20Approve.js';
 import type {
   IMovableCollateralRebalancer,
   MovableCollateralExecutionResult,
@@ -38,6 +45,13 @@ type InternalExecutionResult = MovableCollateralExecutionResult & {
 };
 
 type InternalRoute = MovableCollateralRoute & { intentId: string };
+type CollateralFeeApproval = NonNullable<
+  PreparedTransaction['collateralFeeApproval']
+>;
+type CollateralFeeApprovalGroup = CollateralFeeApproval & {
+  origin: ChainName;
+  transactions: PreparedTransaction[];
+};
 
 export class Rebalancer implements IMovableCollateralRebalancer {
   public readonly rebalancerType: RebalancerType = 'movableCollateral';
@@ -51,6 +65,10 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     private readonly actionTracker: IActionTracker,
     logger: Logger,
     private readonly metrics?: Metrics,
+    private readonly approvalOptions: Pick<
+      Erc20ApprovalOptions,
+      'contractFactory'
+    > = {},
   ) {
     this.logger = logger.child({ class: Rebalancer.name });
   }
@@ -307,6 +325,14 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       return null;
     }
 
+    const collateralFeeApproval =
+      await this.getCollateralFeeApprovalRequirement(
+        originHypAdapter,
+        originToken.addressOrDenom,
+        quotes,
+        localAmount,
+      );
+
     // 3. Populate transaction
     let populatedTx: PopulatedTransaction;
     try {
@@ -330,7 +356,41 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       return null;
     }
 
-    return { populatedTx, route, originTokenAmount };
+    return {
+      populatedTx,
+      route,
+      originTokenAmount,
+      collateralFeeApproval,
+    };
+  }
+
+  private async getCollateralFeeApprovalRequirement(
+    originHypAdapter: EvmMovableCollateralAdapter,
+    router: string,
+    quotes: InterchainGasQuote[],
+    localAmount: bigint,
+  ): Promise<PreparedTransaction['collateralFeeApproval']> {
+    if (quotes.every((quote) => !quote.igpQuote.addressOrDenom)) {
+      return undefined;
+    }
+
+    const collateralToken = await originHypAdapter.getWrappedTokenAddress();
+    const quotedCollateral = quotes.reduce(
+      (total, quote) =>
+        quote.igpQuote.addressOrDenom &&
+        eqAddress(quote.igpQuote.addressOrDenom, collateralToken)
+          ? total + quote.igpQuote.amount
+          : total,
+      0n,
+    );
+
+    if (quotedCollateral <= localAmount) return undefined;
+
+    return {
+      token: collateralToken,
+      spender: router,
+      amount: quotedCollateral - localAmount,
+    };
   }
 
   private async validateRoute(route: InternalRoute): Promise<boolean> {
@@ -448,6 +508,37 @@ export class Rebalancer implements IMovableCollateralRebalancer {
   private async executeTransactions(
     transactions: PreparedTransaction[],
   ): Promise<InternalExecutionResult[]> {
+    const approvalGroups = this.groupCollateralFeeApprovals(transactions);
+    const { failures: approvalFailures, failedGroups } =
+      await this.approveCollateralFeeGroups(approvalGroups);
+    const approvedTransactions = transactions.filter(
+      (transaction) => !approvalFailures.has(transaction),
+    );
+    const approvalFailureResults: InternalExecutionResult[] = Array.from(
+      approvalFailures.entries(),
+      ([transaction, error]) => ({
+        route: transaction.route,
+        intentId: transaction.route.intentId,
+        success: false,
+        error: `Collateral fee approval failed: ${String(error)}`,
+        messageId: '',
+      }),
+    );
+
+    try {
+      const executionResults =
+        approvedTransactions.length === 0
+          ? []
+          : await this.executeApprovedTransactions(approvedTransactions);
+      return [...approvalFailureResults, ...executionResults];
+    } finally {
+      await this.cleanupCollateralFeeGroups(approvalGroups, failedGroups);
+    }
+  }
+
+  private async executeApprovedTransactions(
+    transactions: PreparedTransaction[],
+  ): Promise<InternalExecutionResult[]> {
     this.logger.info(
       { numTransactions: transactions.length },
       'Estimating gas for all prepared transactions.',
@@ -455,7 +546,8 @@ export class Rebalancer implements IMovableCollateralRebalancer {
 
     const results: InternalExecutionResult[] = [];
 
-    // 1. Estimate gas for rebalance transactions
+    // The exact allowance deliberately makes a higher on-chain quote fail.
+    // A later cycle will fetch a fresh quote; this cycle never widens it.
     const gasEstimateResults = await Promise.allSettled(
       transactions.map(async (transaction) => {
         await this.multiProvider.estimateGas(
@@ -466,7 +558,6 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       }),
     );
 
-    // 2. Filter out failed transactions and track failures
     const validTransactions: PreparedTransaction[] = [];
     gasEstimateResults.forEach((result, i) => {
       if (result.status === 'fulfilled') {
@@ -489,7 +580,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           intentId: failedTransaction.route.intentId,
           success: false,
           error: `Gas estimation failed: ${String(result.reason)}`,
-          messageId: '', // Required by MovableCollateralExecutionResult, empty for failures
+          messageId: '',
         });
       }
     });
@@ -499,17 +590,14 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       return results;
     }
 
-    // 3. Group transactions by origin chain
     const txsByOrigin = new Map<ChainName, PreparedTransaction[]>();
     for (const tx of validTransactions) {
       const origin = tx.route.origin;
-      if (!txsByOrigin.has(origin)) {
-        txsByOrigin.set(origin, []);
-      }
-      txsByOrigin.get(origin)!.push(tx);
+      const originTransactions = txsByOrigin.get(origin);
+      if (originTransactions) originTransactions.push(tx);
+      else txsByOrigin.set(origin, [tx]);
     }
 
-    // 4. Send transactions - parallel across chains, sequential within each chain
     this.logger.info(
       {
         numChains: txsByOrigin.size,
@@ -523,8 +611,6 @@ export class Rebalancer implements IMovableCollateralRebalancer {
         this.sendTransactionsForChain(origin, txs),
       ),
     );
-
-    // 5. Collect successful sends and record send failures
     const successfulSends: Array<{
       transaction: PreparedTransaction;
       receipt: providers.TransactionReceipt;
@@ -541,7 +627,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
               intentId: txResult.transaction.route.intentId,
               success: false,
               error: `Transaction send failed: ${txResult.error}`,
-              messageId: '', // Required by MovableCollateralExecutionResult, empty for failures
+              messageId: '',
             });
             this.metrics?.recordActionAttempt(
               txResult.transaction.route,
@@ -550,8 +636,6 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           }
         }
       } else {
-        // This shouldn't happen since sendTransactionsForChain catches errors internally,
-        // but handle it just in case
         this.logger.error(
           { error: chainResult.reason },
           'Unexpected error during chain transaction sending.',
@@ -559,7 +643,6 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       }
     });
 
-    // 6. Build results from confirmed receipts
     for (const { transaction, receipt } of successfulSends) {
       const result = this.buildResult(transaction, receipt);
       results.push(result);
@@ -567,6 +650,142 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     }
 
     return results;
+  }
+
+  private groupCollateralFeeApprovals(
+    transactions: PreparedTransaction[],
+  ): Map<ChainName, CollateralFeeApprovalGroup[]> {
+    const groupsByOrigin = new Map<
+      ChainName,
+      Map<string, CollateralFeeApprovalGroup>
+    >();
+
+    for (const transaction of transactions) {
+      const approval = transaction.collateralFeeApproval;
+      if (!approval) continue;
+
+      const origin = transaction.route.origin;
+      let originGroups = groupsByOrigin.get(origin);
+      if (!originGroups) {
+        originGroups = new Map();
+        groupsByOrigin.set(origin, originGroups);
+      }
+
+      const key = `${approval.token.toLowerCase()}:${approval.spender.toLowerCase()}`;
+      const group = originGroups.get(key);
+      if (group) {
+        group.amount += approval.amount;
+        group.transactions.push(transaction);
+      } else {
+        originGroups.set(key, {
+          ...approval,
+          origin,
+          transactions: [transaction],
+        });
+      }
+    }
+
+    return new Map(
+      Array.from(groupsByOrigin, ([origin, groups]) => [
+        origin,
+        Array.from(groups.values()),
+      ]),
+    );
+  }
+
+  private async approveCollateralFeeGroups(
+    groupsByOrigin: Map<ChainName, CollateralFeeApprovalGroup[]>,
+  ): Promise<{
+    failures: Map<PreparedTransaction, unknown>;
+    failedGroups: Set<CollateralFeeApprovalGroup>;
+  }> {
+    const failures = new Map<PreparedTransaction, unknown>();
+    const failedGroups = new Set<CollateralFeeApprovalGroup>();
+
+    await Promise.all(
+      Array.from(groupsByOrigin, async ([origin, groups]) => {
+        // Sequential per origin avoids approval nonce contention.
+        for (const group of groups) {
+          try {
+            await approveErc20IfNeeded(
+              this.multiProvider.getSigner(origin),
+              group.token,
+              group.spender,
+              group.amount,
+              this.logger,
+              {
+                ...this.approvalOptions,
+                mode: Erc20ApprovalMode.Exact,
+              },
+            );
+          } catch (error) {
+            failedGroups.add(group);
+            this.logger.error(
+              {
+                origin,
+                token: group.token,
+                spender: group.spender,
+                amount: group.amount.toString(),
+                error,
+              },
+              'Collateral fee approval failed',
+            );
+            for (const transaction of group.transactions) {
+              failures.set(transaction, error);
+            }
+          }
+        }
+      }),
+    );
+
+    return { failures, failedGroups };
+  }
+
+  private async cleanupCollateralFeeGroups(
+    groupsByOrigin: Map<ChainName, CollateralFeeApprovalGroup[]>,
+    failedGroups: Set<CollateralFeeApprovalGroup>,
+  ): Promise<void> {
+    await Promise.all(
+      Array.from(groupsByOrigin, async ([origin, groups]) => {
+        // Sequential per origin avoids cleanup nonce contention.
+        for (const group of groups) {
+          try {
+            const signer = this.multiProvider.getSigner(origin);
+            if (failedGroups.has(group)) {
+              // An approval receipt timeout is ambiguous. Queue a zero after
+              // the possibly pending approval instead of trusting a stale read.
+              await revokeErc20Approval(
+                signer,
+                group.token,
+                group.spender,
+                this.logger,
+                this.approvalOptions,
+              );
+            } else {
+              await revokeErc20ApprovalIfNeeded(
+                signer,
+                group.token,
+                group.spender,
+                this.logger,
+                this.approvalOptions,
+              );
+            }
+          } catch (error) {
+            // Execution results remain authoritative even if best-effort
+            // residue cleanup fails after a send or approval failure.
+            this.logger.error(
+              {
+                origin,
+                token: group.token,
+                spender: group.spender,
+                error,
+              },
+              'Failed to clean up collateral fee approval residue',
+            );
+          }
+        }
+      }),
+    );
   }
 
   // === Parallel Transaction Sending Methods ===

@@ -3,7 +3,12 @@ import { ethers } from 'ethers';
 import { pino } from 'pino';
 import sinon from 'sinon';
 
-import { Erc20ApprovalMode, approveErc20IfNeeded } from './erc20Approve.js';
+import {
+  Erc20ApprovalMode,
+  approveErc20IfNeeded,
+  revokeErc20Approval,
+  revokeErc20ApprovalIfNeeded,
+} from './erc20Approve.js';
 
 const logger = pino({ level: 'silent' });
 const token = '0x1111111111111111111111111111111111111111';
@@ -149,5 +154,67 @@ describe('approveErc20IfNeeded', () => {
         ethers.constants.MaxUint256,
       ),
     ).to.equal(true);
+  });
+});
+
+describe('revokeErc20ApprovalIfNeeded', () => {
+  const signer = ethers.Wallet.createRandom();
+  let contract: TestErc20Contract;
+  let contractFactory: sinon.SinonStub<
+    [string, string[], ethers.Signer],
+    ethers.Contract
+  >;
+
+  beforeEach(() => {
+    contract = new TestErc20Contract(signer);
+    contractFactory = sinon.stub<
+      [string, string[], ethers.Signer],
+      ethers.Contract
+    >();
+    contractFactory.returns(contract);
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('skips cleanup when the allowance is zero', async () => {
+    contract.allowanceStub.resolves(ethers.constants.Zero);
+
+    await revokeErc20ApprovalIfNeeded(signer, token, spender, logger, {
+      contractFactory,
+    });
+
+    expect(contract.approveStub.called).to.equal(false);
+  });
+
+  it('revokes residue and waits for its receipt', async () => {
+    const revokeTx = makeTransaction('0xrevoke');
+    contract.allowanceStub.resolves(ethers.BigNumber.from(3));
+    contract.approveStub.resolves(revokeTx);
+
+    await revokeErc20ApprovalIfNeeded(signer, token, spender, logger, {
+      contractFactory,
+    });
+
+    expect(contract.approveStub.calledOnceWithExactly(spender, 0)).to.equal(
+      true,
+    );
+    expect(revokeTx.wait.calledOnce).to.equal(true);
+  });
+
+  it('can force a revocation without reading allowance', async () => {
+    const revokeTx = makeTransaction('0xrevoke');
+    contract.approveStub.resolves(revokeTx);
+
+    await revokeErc20Approval(signer, token, spender, logger, {
+      contractFactory,
+    });
+
+    expect(contract.allowanceStub.called).to.equal(false);
+    expect(contract.approveStub.calledOnceWithExactly(spender, 0)).to.equal(
+      true,
+    );
+    expect(revokeTx.wait.calledOnce).to.equal(true);
   });
 });
