@@ -91,9 +91,36 @@ export async function resolveChains(
   }
 }
 
+function setSkipChains(argv: Record<string, any>): Set<ChainName> {
+  const skipChains = new Set<ChainName>(argv.skipChains ?? []);
+  argv.context.skipChains = [...skipChains];
+  return skipChains;
+}
+
+function filterSkippedChains(
+  allChains: readonly ChainName[],
+  skippedChains: ReadonlySet<ChainName>,
+): ChainName[] {
+  const routeChains = new Set(allChains);
+  const unknownChains = [...skippedChains].filter(
+    (chain) => !routeChains.has(chain),
+  );
+  assert(
+    unknownChains.length === 0,
+    `Cannot skip chains not present in the warp route: ${unknownChains.join(', ')}`,
+  );
+  const activeChains = allChains.filter((chain) => !skippedChains.has(chain));
+  assert(
+    activeChains.length !== 0,
+    'Cannot skip every chain in the warp route',
+  );
+  return activeChains;
+}
+
 async function resolveWarpRouteConfigChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
+  setSkipChains(argv);
   const { config, resolvedWarpRouteId } = await getWarpRouteDeployConfig({
     context: argv.context,
     warpRouteId: argv.warpRouteId,
@@ -120,8 +147,23 @@ async function resolveWarpReadChains(
       context: argv.context,
       warpRouteId: argv.warpRouteId,
     });
-    argv.context.warpCoreConfig = warpCoreConfig;
-    argv.context.chains = warpCoreConfig.tokens.map((token) => token.chainName);
+    const skippedChains = setSkipChains(argv);
+    const allChains = warpCoreConfig.tokens.map((token) => token.chainName);
+    const activeChains = filterSkippedChains(allChains, skippedChains);
+    const activeChainSet = new Set(activeChains);
+    const filteredWarpCoreConfig = {
+      ...warpCoreConfig,
+      tokens: warpCoreConfig.tokens.filter((token) =>
+        activeChainSet.has(token.chainName),
+      ),
+    };
+    argv.context.warpCoreConfig = filteredWarpCoreConfig;
+    argv.context.chains = activeChains;
+  } else if (argv.chain) {
+    argv.context.chains = filterSkippedChains(
+      [argv.chain],
+      setSkipChains(argv),
+    );
   }
 
   assert(
@@ -221,6 +263,7 @@ async function resolveChain(argv: Record<string, any>): Promise<ChainName[]> {
 async function resolveWarpConfigChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
+  const skippedChains = setSkipChains(argv);
   const { warpCoreConfig, warpDeployConfig, resolvedWarpRouteId } =
     await getWarpConfigs({
       context: argv.context,
@@ -242,9 +285,10 @@ async function resolveWarpConfigChains(
   // so signers are set up for them before transaction submission.
   if (argv.strategy) {
     const strategy = readChainSubmissionStrategy(argv.strategy);
-    for (const config of Object.values(strategy)) {
+    for (const [chain, config] of Object.entries(strategy)) {
+      if (skippedChains.has(chain)) continue;
       for (const c of getSubmitterChains(config.submitter)) {
-        chains.add(c);
+        if (!skippedChains.has(c)) chains.add(c);
       }
     }
   }
@@ -256,6 +300,7 @@ async function resolveWarpCheckChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
   const context = argv.context;
+  const skippedChains = setSkipChains(argv);
   const resolvedId = await resolveWarpRouteId({
     context,
     warpRouteId: argv.warpRouteId,
@@ -268,14 +313,18 @@ async function resolveWarpCheckChains(
     const warpCoreConfigRaw = await context.registry.getWarpRoute(resolvedId);
     assert(warpCoreConfigRaw, `No warp route config found for "${resolvedId}"`);
 
-    const warpCoreConfig = WarpCoreConfigSchema.parse(warpCoreConfigRaw);
-    const uniqueChains = [
-      ...new Set(warpCoreConfig.tokens.map((t) => t.chainName)),
+    const fullWarpCoreConfig = WarpCoreConfigSchema.parse(warpCoreConfigRaw);
+    const allChains = [
+      ...new Set(fullWarpCoreConfig.tokens.map((t) => t.chainName)),
     ];
-    assert(
-      uniqueChains.length > 0,
-      `No chains found for warp route "${resolvedId}"`,
-    );
+    const uniqueChains = filterSkippedChains(allChains, skippedChains);
+    const activeChains = new Set(uniqueChains);
+    const warpCoreConfig = {
+      ...fullWarpCoreConfig,
+      tokens: fullWarpCoreConfig.tokens.filter((token) =>
+        activeChains.has(token.chainName),
+      ),
+    };
 
     context.warpCoreConfig = warpCoreConfig;
     context.resolvedWarpRouteId = resolvedId;
@@ -283,7 +332,15 @@ async function resolveWarpCheckChains(
     return uniqueChains;
   }
 
-  return resolveWarpConfigChains(argv);
+  const chains = await resolveWarpConfigChains(argv);
+  const activeChains = new Set(chains);
+  context.warpCoreConfig = {
+    ...context.warpCoreConfig,
+    tokens: context.warpCoreConfig.tokens.filter(
+      (token: { chainName: string }) => activeChains.has(token.chainName),
+    ),
+  };
+  return chains;
 }
 
 async function resolveWarpSendChains(

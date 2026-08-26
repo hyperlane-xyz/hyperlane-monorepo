@@ -136,22 +136,50 @@ export async function readWarpRouteDeployConfig({
   | {
       context: CommandContext;
       warpRouteId: string;
+      skipChains?: readonly string[];
     }
   | {
       context: CommandContext;
       filePath: string;
+      skipChains?: readonly string[];
     }): Promise<WarpRouteDeployConfigMailboxRequired> {
-  let config =
+  let config: WarpRouteDeployConfig | null | undefined =
     'filePath' in args
       ? readYamlOrJson(args.filePath)
       : await context.registry.getWarpDeployConfig(args.warpRouteId);
 
   assert(config, `No warp route deploy config found!`);
+  const fullConfig = config;
 
-  config = await fillDefaults(context, config as any);
+  const skippedChains = new Set(args.skipChains ?? context.skipChains ?? []);
+  const unknownChains = [...skippedChains].filter(
+    (chain) => !Object.hasOwn(fullConfig, chain),
+  );
+  assert(
+    unknownChains.length === 0,
+    `Cannot skip chains not present in the warp route: ${unknownChains.join(', ')}`,
+  );
 
-  config = objMap(
+  context.skippedWarpDeployConfig = Object.fromEntries(
+    Object.entries(fullConfig).filter(([chain]) => skippedChains.has(chain)),
+  );
+  config = Object.fromEntries(
+    Object.entries(fullConfig).filter(([chain]) => !skippedChains.has(chain)),
+  );
+  assert(
+    Object.keys(config).length !== 0,
+    'Cannot skip every chain in the warp route',
+  );
+
+  // CAST: fillDefaults only touches mailbox-client fields; the complete warp
+  // token union is validated by WarpRouteDeployConfigMailboxRequiredSchema below.
+  const configWithDefaults = (await fillDefaults(
+    context,
     config as any,
+  )) as WarpRouteDeployConfigMailboxRequired;
+
+  const resolvedConfig = objMap(
+    configWithDefaults,
     (_chain, chainConfig: HypTokenRouterConfig) => {
       if (chainConfig.destinationGas) {
         chainConfig.destinationGas = resolveRouterMapConfig(
@@ -183,7 +211,7 @@ export async function readWarpRouteDeployConfig({
   );
 
   //fillDefaults would have added a mailbox to the config if it was missing
-  return WarpRouteDeployConfigMailboxRequiredSchema.parse(config);
+  return WarpRouteDeployConfigMailboxRequiredSchema.parse(resolvedConfig);
 }
 
 export function isValidWarpRouteDeployConfig(config: any) {

@@ -158,13 +158,17 @@ export async function checkCrossCollateralWarpRoute({
 
   const allRoutes = await context.registry.getWarpRoutes();
   const constituentRouteIds: string[] = [];
+  const skippedChains = new Set(context.skipChains ?? []);
 
   for (const [routeId, routeCoreConfig] of Object.entries(allRoutes)) {
     if (routeId === warpRouteId) continue;
-    if (routeCoreConfig.tokens.length === 0) continue;
+    const activeTokens = routeCoreConfig.tokens.filter(
+      (token) => !skippedChains.has(token.chainName),
+    );
+    if (activeTokens.length === 0) continue;
 
     if (
-      routeCoreConfig.tokens.every(
+      activeTokens.every(
         (t) =>
           t.addressOrDenom &&
           crossAddresses.has(t.addressOrDenom.toLowerCase()) &&
@@ -191,14 +195,27 @@ export async function checkCrossCollateralWarpRoute({
 
   for (const constituentId of constituentRouteIds) {
     const constituentCoreConfig = allRoutes[constituentId];
+    const constituentChains = new Set(
+      constituentCoreConfig.tokens.map((token) => token.chainName),
+    );
     const constituentDeployConfig = await readWarpRouteDeployConfig({
       context,
       warpRouteId: constituentId,
+      skipChains: context.skipChains?.filter((chain) =>
+        constituentChains.has(chain),
+      ),
     });
+    const activeChains = new Set(Object.keys(constituentDeployConfig));
+    const activeCoreConfig = {
+      ...constituentCoreConfig,
+      tokens: constituentCoreConfig.tokens.filter((token) =>
+        activeChains.has(token.chainName),
+      ),
+    };
 
     const result = await checkWarpRouteDeployConfig({
       multiProvider: context.multiProvider,
-      warpCoreConfig: constituentCoreConfig,
+      warpCoreConfig: activeCoreConfig,
       warpDeployConfig: constituentDeployConfig,
     });
 

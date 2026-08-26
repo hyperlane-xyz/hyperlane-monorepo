@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { TxSubmitterType } from '@hyperlane-xyz/sdk';
+import { TokenStandard, TokenType, TxSubmitterType } from '@hyperlane-xyz/sdk';
 
 import { type ExtendedSubmissionStrategy } from '../../../submitters/types.js';
 
@@ -92,5 +92,138 @@ describe('resolveChains — STATUS command', () => {
   it('returns empty array when origin not provided', async () => {
     const result = await resolveChains(statusArgv());
     expect(result).to.deep.equal([]);
+  });
+});
+
+describe('resolveChains — warp --skip-chains', () => {
+  const routeId = 'TST/healthy-down';
+  const owner = '0x1111111111111111111111111111111111111111';
+  const mailbox = '0x2222222222222222222222222222222222222222';
+  const deployConfig = {
+    healthy: {
+      type: TokenType.synthetic,
+      owner,
+      mailbox,
+      name: 'Test',
+      symbol: 'TST',
+      decimals: 18,
+    },
+    down: {
+      type: TokenType.synthetic,
+      name: 'Test',
+      symbol: 'TST',
+      decimals: 18,
+    },
+  };
+  const coreConfig = {
+    tokens: [
+      {
+        chainName: 'healthy',
+        standard: TokenStandard.EvmHypSynthetic,
+        decimals: 18,
+        symbol: 'TST',
+        name: 'Test',
+        addressOrDenom: '0x3333333333333333333333333333333333333333',
+      },
+      {
+        chainName: 'down',
+        standard: TokenStandard.EvmHypSynthetic,
+        decimals: 18,
+        symbol: 'TST',
+        name: 'Test',
+        addressOrDenom: '0x4444444444444444444444444444444444444444',
+      },
+    ],
+  };
+
+  function warpArgv(command: 'read' | 'deploy' | 'apply' | 'check') {
+    const registry = {
+      listRegistryContent: async () => ({
+        deployments: {
+          warpDeployConfig: { [routeId]: deployConfig },
+          warpRoutes: { [routeId]: coreConfig },
+        },
+      }),
+      getWarpDeployConfig: async () => deployConfig,
+      getWarpRoute: async () => coreConfig,
+    };
+    const argv: Parameters<typeof resolveChains>[0] = {
+      _: ['warp', command],
+      warpRouteId: routeId,
+      skipChains: ['down'],
+      context: { registry },
+    };
+    return argv;
+  }
+
+  it('filters a down chain before warp deploy context setup', async () => {
+    const argv = warpArgv('deploy');
+    expect(await resolveChains(argv)).to.deep.equal(['healthy']);
+    expect(Object.keys(argv.context.warpDeployConfig)).to.deep.equal([
+      'healthy',
+    ]);
+  });
+
+  it('filters a down chain from warp read inputs', async () => {
+    const argv = warpArgv('read');
+    expect(await resolveChains(argv)).to.deep.equal(['healthy']);
+    expect(
+      argv.context.warpCoreConfig.tokens.map(
+        (token: { chainName: string }) => token.chainName,
+      ),
+    ).to.deep.equal(['healthy']);
+  });
+
+  it('filters apply planning but preserves the full core route', async () => {
+    const argv = warpArgv('apply');
+    expect(await resolveChains(argv)).to.deep.equal(['healthy']);
+    expect(Object.keys(argv.context.warpDeployConfig)).to.deep.equal([
+      'healthy',
+    ]);
+    expect(
+      argv.context.warpCoreConfig.tokens.map(
+        (token: { chainName: string }) => token.chainName,
+      ),
+    ).to.deep.equal(['healthy', 'down']);
+  });
+
+  it('filters a down chain from warp check inputs', async () => {
+    const argv = warpArgv('check');
+    expect(await resolveChains(argv)).to.deep.equal(['healthy']);
+    expect(Object.keys(argv.context.warpDeployConfig)).to.deep.equal([
+      'healthy',
+    ]);
+    expect(
+      argv.context.warpCoreConfig.tokens.map(
+        (token: { chainName: string }) => token.chainName,
+      ),
+    ).to.deep.equal(['healthy']);
+  });
+
+  it('filters a down chain from combined CROSS route checks', async () => {
+    const argv = warpArgv('check');
+    argv.context.registry.getWarpDeployConfig = async () => null;
+
+    expect(await resolveChains(argv)).to.deep.equal(['healthy']);
+    expect(
+      argv.context.warpCoreConfig.tokens.map(
+        (token: { chainName: string }) => token.chainName,
+      ),
+    ).to.deep.equal(['healthy']);
+  });
+
+  it('rejects skipping every route chain', async () => {
+    const argv = warpArgv('apply');
+    argv.skipChains = ['healthy', 'down'];
+    try {
+      await resolveChains(argv);
+      expect.fail('Expected resolveChains to reject');
+    } catch (error) {
+      expect(error).to.be.instanceOf(Error);
+      if (!(error instanceof Error)) throw error;
+      expect(error.message).to.equal(
+        'Cannot skip every chain in the warp route',
+      );
+    }
   });
 });

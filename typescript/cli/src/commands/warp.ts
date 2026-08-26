@@ -66,6 +66,7 @@ import {
   chainCommandOption,
   forkCommandOptions,
   outputFileCommandOption,
+  skipChainsCommandOption,
   strategyCommandOption,
   stringArrayOptionConfig,
   warpRouteIdCommandOption,
@@ -194,12 +195,14 @@ export const apply: CommandModuleWithWarpApplyContext<
     strategy?: string;
     receiptsDir: string;
     relay?: boolean;
+    skipChains?: string[];
   }
 > = {
   command: 'apply',
   describe: 'Update Warp Route contracts',
   builder: {
     ...WARP_ROUTE_OPTIONS,
+    'skip-chains': skipChainsCommandOption,
     strategy: { ...strategyCommandOption, demandOption: false },
     'receipts-dir': {
       type: 'string',
@@ -239,10 +242,15 @@ export const apply: CommandModuleWithWarpApplyContext<
   },
 };
 
-export const deploy: CommandModuleWithWarpDeployContext<WarpRouteOptions> = {
+export const deploy: CommandModuleWithWarpDeployContext<
+  WarpRouteOptions & { skipChains?: string[] }
+> = {
   command: 'deploy',
   describe: 'Deploy Warp Route contracts',
-  builder: WARP_ROUTE_OPTIONS,
+  builder: {
+    ...WARP_ROUTE_OPTIONS,
+    'skip-chains': skipChainsCommandOption,
+  },
   handler: async ({ context, warpRouteId }) => {
     logCommandHeader(`Hyperlane Warp Route Deployment`);
 
@@ -332,12 +340,14 @@ export const read: CommandModuleWithContext<
     chain?: string;
     address?: string;
     out?: string;
+    skipChains?: string[];
   }
 > = {
   command: 'read',
   describe: 'Derive the warp route config from onchain artifacts',
   builder: {
     ...WARP_ROUTE_OPTIONS,
+    'skip-chains': skipChainsCommandOption,
     chain: {
       ...chainCommandOption,
       demandOption: false,
@@ -595,6 +605,7 @@ export const check: CommandModuleWithContext<
     origin?: string;
     originOwner?: string;
     chains?: string[];
+    skipChains?: string[];
   }
 > = {
   command: 'check',
@@ -602,6 +613,7 @@ export const check: CommandModuleWithContext<
     'Verifies that a warp route configuration matches the on chain configuration.',
   builder: {
     ...WARP_ROUTE_OPTIONS,
+    'skip-chains': skipChainsCommandOption,
     ica: {
       type: 'boolean',
       description:

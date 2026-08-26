@@ -159,6 +159,69 @@ describe('configUtils', () => {
       );
     });
 
+    it('does not probe deployed routers omitted from the target config', async () => {
+      const owner = '0x1111111111111111111111111111111111111111';
+      const activeRouter = '0x2222222222222222222222222222222222222222';
+      const skippedRouter = '0x3333333333333333333333333333333333333333';
+      const multiProvider = buildMultiProvider();
+      const activeGetCode = sinon
+        .stub(multiProvider.getProvider(test1.name), 'getCode')
+        .resolves('0x01');
+      const activeGetStorageAt = sinon
+        .stub(multiProvider.getProvider(test1.name), 'getStorageAt')
+        .resolves('0x0');
+      const skippedGetCode = sinon
+        .stub(multiProvider.getProvider(test2.name), 'getCode')
+        .rejects(new Error('RPC unavailable'));
+
+      try {
+        const expanded = await expandWarpDeployConfig({
+          multiProvider,
+          warpDeployConfig: {
+            [test1.name]: {
+              type: TokenType.synthetic,
+              name: 'Test',
+              symbol: 'TEST',
+              decimals: 18,
+              owner,
+              mailbox: '0x4444444444444444444444444444444444444444',
+            },
+          },
+          referenceWarpDeployConfig: {
+            [test1.name]: {
+              type: TokenType.synthetic,
+              name: 'Test',
+              symbol: 'TEST',
+              decimals: 18,
+              owner,
+              mailbox: '0x4444444444444444444444444444444444444444',
+            },
+            [test2.name]: {
+              type: TokenType.synthetic,
+              name: 'Test',
+              symbol: 'TEST',
+              decimals: 18,
+              owner,
+            },
+          },
+          deployedRoutersAddresses: {
+            [test1.name]: activeRouter,
+            [test2.name]: skippedRouter,
+          },
+        });
+
+        expect(activeGetCode.calledOnce).to.equal(true);
+        expect(skippedGetCode.notCalled).to.equal(true);
+        expect(expanded[test1.name].remoteRouters).to.have.property(
+          String(test2.domainId),
+        );
+      } finally {
+        activeGetCode.restore();
+        activeGetStorageAt.restore();
+        skippedGetCode.restore();
+      }
+    });
+
     it('defaults an omitted hook to the completed hybrid ISM node', async () => {
       const owner = '0x1111111111111111111111111111111111111111';
       const router = '0x2222222222222222222222222222222222222222';

@@ -101,7 +101,10 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { requestAndSaveApiKeys } from '../context/apiKeys.js';
-import { type WriteCommandContext } from '../context/types.js';
+import {
+  type CommandContext,
+  type WriteCommandContext,
+} from '../context/types.js';
 import {
   errorRed,
   log,
@@ -521,6 +524,16 @@ export function withIntermediateWarpOwner(
   };
 }
 
+function getFullWarpDeployConfig(
+  context: CommandContext,
+  warpDeployConfig: WarpRouteDeployConfig,
+): WarpRouteDeployConfig {
+  return {
+    ...context.skippedWarpDeployConfig,
+    ...warpDeployConfig,
+  };
+}
+
 export async function runWarpRouteApply(
   params: WarpApplyParams,
 ): Promise<void> {
@@ -575,7 +588,7 @@ export async function runWarpRouteApply(
     { ...params, warpDeployConfig: intermediateOwnerConfig },
     apiKeys,
     warpCoreConfig,
-    warpDeployConfig,
+    getFullWarpDeployConfig(context, warpDeployConfig),
   );
 
   // Then create and submit update transactions
@@ -650,7 +663,7 @@ export async function extendWarpRoute(
   params: WarpApplyParams,
   apiKeys: ChainMap<string>,
   warpCoreConfig: WarpCoreConfig,
-  targetWarpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+  targetWarpDeployConfig: WarpRouteDeployConfig,
 ): Promise<WarpCoreConfig> {
   const { context, warpDeployConfig } = params;
   const { existingConfigs, initialExtendedConfigs, warpCoreConfigByChain } =
@@ -674,26 +687,20 @@ export async function extendWarpRoute(
       ),
   );
 
+  const skippedChains = new Set(context.skipChains ?? []);
+  const skippedWarpCoreConfigs = Object.values(warpCoreConfigByChain).filter(
+    (config) => skippedChains.has(config.chainName),
+  );
+  const activeExistingChains = new Set(Object.keys(filteredExistingConfigs));
   const filteredWarpCoreConfigByChain = objFilter(
     warpCoreConfigByChain,
     (chainName, _): _ is (typeof warpCoreConfigByChain)[string] =>
-      context.supportedProtocols.includes(
-        context.multiProvider.getProtocol(chainName),
-      ),
+      activeExistingChains.has(chainName),
   );
-
-  // Get the non compatible chains that should not be unenrolled/removed after the extension
-  // otherwise the update will generate unenroll transactions
-  const nonCompatibleWarpCoreConfigs: WarpCoreConfig['tokens'] = Object.entries(
-    warpCoreConfigByChain,
-  )
-    .filter(
-      ([chainName]) =>
-        !context.supportedProtocols.includes(
-          context.multiProvider.getProtocol(chainName),
-        ) && !!warpDeployConfig[chainName],
-    )
-    .map(([_, config]) => config);
+  // Preserve skipped and unsupported existing chains without probing them.
+  const preservedWarpCoreConfigs = warpCoreConfig.tokens.filter(
+    (token) => !activeExistingChains.has(token.chainName),
+  );
 
   const filteredExtendedChains = Object.keys(filteredExtendedConfigs);
   if (filteredExtendedChains.length === 0) {
@@ -791,9 +798,38 @@ export async function extendWarpRoute(
     await getWarpCoreConfig(params, mergedRouters);
   WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
 
-  // Re-add the non compatible chains to the warp core config so that expanding the config
-  // to get the proper remote routers and gas config works as expected
-  updatedWarpCoreConfig.tokens.push(...nonCompatibleWarpCoreConfigs);
+  // Re-add existing chains that were excluded from this run.
+  updatedWarpCoreConfig.tokens.push(...preservedWarpCoreConfigs);
+
+  // Healthy chains still target existing skipped routers. Do not add the
+  // reverse connection: no transaction is submitted to enroll new routers on
+  // the skipped chain during this run.
+  const preservedChains = new Set(
+    preservedWarpCoreConfigs.map((config) => config.chainName),
+  );
+  const skippedConnections = skippedWarpCoreConfigs.map((token) => {
+    assert(
+      token.addressOrDenom,
+      `Missing token address for skipped chain ${token.chainName}`,
+    );
+    return getTokenConnectionId(
+      context.multiProvider.getProtocol(token.chainName),
+      token.chainName,
+      token.addressOrDenom,
+    );
+  });
+  for (const token of updatedWarpCoreConfig.tokens) {
+    if (preservedChains.has(token.chainName)) continue;
+    const existingConnections = new Set(
+      token.connections?.map(({ token: connection }) => connection),
+    );
+    token.connections ??= [];
+    token.connections.push(
+      ...skippedConnections
+        .filter((connection) => !existingConnections.has(connection))
+        .map((connection) => ({ token: connection })),
+    );
+  }
 
   // Preserve metadata fields from existing config that generateTokenConfigs doesn't include
   // (e.g. logoURI, coinGeckoId, igpTokenAddressOrDenom, scale).
@@ -906,6 +942,10 @@ async function updateExistingWarpRoute(
   const expandedWarpDeployConfig = await expandWarpDeployConfig({
     multiProvider,
     warpDeployConfig,
+    referenceWarpDeployConfig: getFullWarpDeployConfig(
+      params.context,
+      warpDeployConfig,
+    ),
     deployedRoutersAddresses,
   });
 
