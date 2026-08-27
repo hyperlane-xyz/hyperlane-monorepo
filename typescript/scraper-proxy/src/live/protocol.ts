@@ -1,3 +1,5 @@
+import { setEquality } from '@hyperlane-xyz/utils/sets';
+
 export const EVENT_TYPES = [
   'dispatch',
   'delivery',
@@ -165,11 +167,7 @@ function parseStream(value: unknown): StreamRequest {
     if (new Set(keys).size < keys.length)
       throw new Error('Duplicate sequence cursor');
     const cursorDomains = new Set(cursors.map(({ domain }) => domain));
-    if (
-      domains &&
-      (domains.size !== cursorDomains.size ||
-        [...domains].some((domain) => !cursorDomains.has(domain)))
-    ) {
+    if (domains && !setEquality(domains, cursorDomains)) {
       throw new Error('domains must exactly match cursor domains');
     }
     domains ??= cursorDomains;

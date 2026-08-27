@@ -89,6 +89,8 @@ type query_root {
     order_by: [message_view_order_by!]
     "limit the number of rows returned"
     limit: Int
+    "cursor to continue an ordered query"
+    cursor: [message_view_stream_cursor_input!]
     "skip the first n rows. Use only with order_by"
     offset: Int
     "distinct select on columns"

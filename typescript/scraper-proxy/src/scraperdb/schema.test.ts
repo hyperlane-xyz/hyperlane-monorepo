@@ -83,3 +83,46 @@ void it('accepts literal and variable null optional arguments', async () => {
   }
   await server.stop();
 });
+
+void it('accepts a cursor on message queries', () => {
+  const errors = validate(
+    schema,
+    parse(`
+      query Messages($cursor: bigint!) {
+        message_view(
+          cursor: [{initial_value: {id: $cursor}, ordering: DESC}]
+          order_by: {id: desc}
+          limit: 50
+        ) { id }
+      }
+    `),
+  );
+
+  assert.deepEqual(errors, []);
+});
+
+void it('rejects an empty message cursor through the resolver', async () => {
+  const server = new ApolloServer({
+    resolvers: {
+      query_root: {
+        message_view: (_parent: unknown, args: SelectArgs) => {
+          buildSelect('message_view', args);
+          return [];
+        },
+      },
+    },
+    typeDefs: sanitized,
+  });
+  const response = await server.executeOperation({
+    query: '{ message_view(cursor: [{initial_value: {}}]) { id } }',
+  });
+
+  assert.equal(response.body.kind, 'single');
+  if (response.body.kind === 'single') {
+    assert.match(
+      response.body.singleResult.errors?.[0]?.message ?? '',
+      /must contain one column/,
+    );
+  }
+  await server.stop();
+});

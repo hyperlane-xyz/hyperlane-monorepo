@@ -1,3 +1,5 @@
+import { assert } from '@hyperlane-xyz/utils/validation';
+
 export type TableName = 'domain' | 'message_view' | 'raw_message_dispatch';
 
 export interface TableConfig {
@@ -106,9 +108,10 @@ function table(columns: readonly string[], primaryKey?: string): TableConfig {
 }
 
 export function assertColumn(table: TableName, column: string): void {
-  if (!tables[table].columnSet.has(column)) {
-    throw new Error(`Unsupported column ${table}.${column}`);
-  }
+  assert(
+    tables[table].columnSet.has(column),
+    `Unsupported column ${table}.${column}`,
+  );
 }
 
 export function quoteIdentifier(identifier: string): string {

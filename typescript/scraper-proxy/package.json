@@ -32,6 +32,7 @@
   "dependencies": {
     "@apollo/server": "catalog:",
     "@as-integrations/express5": "catalog:",
+    "@hyperlane-xyz/utils": "workspace:^",
     "@nestjs/apollo": "catalog:",
     "@nestjs/common": "catalog:",
     "@nestjs/core": "catalog:",

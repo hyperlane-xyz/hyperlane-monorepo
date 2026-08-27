@@ -2,6 +2,7 @@ import 'reflect-metadata';
 
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { formatError } from '@hyperlane-xyz/utils/errors';
 
 import { AppModule } from './module.js';
 import { config } from './config.js';
@@ -40,9 +41,7 @@ async function bootstrap(): Promise<void> {
       if (stopping) return;
       stopping = true;
       void stop().catch((error: unknown) => {
-        logger.error(
-          `shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        logger.error(`shutdown failed: ${formatError(error)}`);
         process.exitCode = 1;
       });
     });

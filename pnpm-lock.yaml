@@ -2249,6 +2249,9 @@ importers:
 
   typescript/scraper-proxy:
     dependencies:
+      '@hyperlane-xyz/utils':
+        specifier: workspace:^
+        version: link:../utils
       '@apollo/server':
         specifier: 'catalog:'
         version: 5.5.1(graphql@16.14.2)(supports-color@10.2.2)

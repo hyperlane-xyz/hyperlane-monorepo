@@ -3,6 +3,7 @@ import {
   type ApolloServerPlugin,
   type GraphQLResponse,
 } from '@apollo/server';
+import { assert } from '@hyperlane-xyz/utils/validation';
 import { createHash } from 'node:crypto';
 import { parse, print, visit, type DocumentNode } from 'graphql';
 
@@ -118,22 +119,25 @@ function cacheKey(
   const dataVariables = Object.fromEntries(
     Object.entries(variables).filter(([name]) => usedVariables.has(name)),
   );
+  const serializedVariables = JSON.stringify(sortObjectKeys(dataVariables));
+  assert(serializedVariables, 'Failed to serialize GraphQL variables');
   return createHash('sha256')
     .update(operation ?? '')
     .update('\0')
     .update(query)
     .update('\0')
-    .update(stableJson(dataVariables))
+    .update(serializedVariables)
     .digest('hex');
 }
 
-function stableJson(value: unknown): string {
-  if (!value || typeof value !== 'object') return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
-  return `{${Object.entries(value)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
-    .join(',')}}`;
+function sortObjectKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortObjectKeys);
+  if (!isRecord(value)) return value;
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, sortObjectKeys(value[key])]),
+  );
 }
 
 function cachedResponse(entry: Entry): GraphQLResponse {
