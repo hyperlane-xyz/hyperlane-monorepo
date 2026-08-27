@@ -59,10 +59,9 @@ const supportedCCIPChains = ['base', 'mode', 'optimism'];
 // core 6.1.0, which predates FungibleTokenRouter fee support; setting this makes
 // `warp apply` upgrade the proxy impl to the current @hyperlane-xyz/core release
 // (via ProxyAdmin.upgrade) so setFeeRecipient/feeRecipient exist for the OQLF fee.
-// Staging is pinned a minor behind production: the two impls are equivalent for
-// this route, so there is no reason to churn the staging proxies.
-const stagingContractVersion = '12.0.0';
-const productionContractVersion = '12.1.0';
+// Staging and production share the same impl version so the staging upgrade test
+// exercises exactly what production will apply.
+const contractVersion = '12.1.0';
 
 type oUSDTTokenChainName = (typeof deploymentChains)[number];
 type TypedoUSDTTokenChainMap<T> = {
@@ -636,7 +635,7 @@ export const getoUSDTTokenStagingWarpConfig = async (
     stagingRateLimitByChain,
     stagingFeeOwnerByChain,
     stagingQuoteSigners,
-    stagingContractVersion,
+    contractVersion,
     stagingExtraBridges,
   );
 };
@@ -653,7 +652,7 @@ export const getoUSDTTokenProductionWarpConfig = async (
     productionRateLimitByChain,
     productionFeeOwnerByChain,
     productionQuoteSigners,
-    productionContractVersion,
+    contractVersion,
     productionExtraBridges,
     productionOwnerOverridesByChain,
   );
