@@ -85,14 +85,17 @@ const rebalanceableCollateralChains: CollateralChainName[] = [
   'tron',
 ];
 
-// oUSDT message amounts are encoded with 6 decimals. Collateral tokens whose
-// local decimals exceed this are scaled down so all legs agree on the encoding.
+// oUSDT message amounts are encoded with 6 decimals. Every leg carries an
+// explicit scale so the warp checker sees a uniform scale convention across the
+// route (once any leg sets scale, all legs must). Legs at the message decimals
+// get scale 1/1; legs whose token has more decimals (BSC-USD is 18) are scaled
+// down so all legs agree on the encoding.
 const messageDecimals = 6;
-const collateralDecimalsByChain: Record<CollateralChainName, number> = {
-  arbitrum: 6,
-  tron: 6,
-  bsc: 18,
-};
+const localDecimalsByChain: TypedoUSDTTokenChainMap<number> =
+  deploymentChains.reduce((acc, chain) => {
+    acc[chain] = chain === 'bsc' ? 18 : messageDecimals;
+    return acc;
+  }, {} as TypedoUSDTTokenChainMap<number>);
 
 function isCollateralChain(
   chain: oUSDTTokenChainName,
@@ -574,19 +577,17 @@ function generateoUSDTTokenConfig(
         hook: generateHookConfig(chain, ownerByChain, amountRoutingThreshold),
         // This is used to explicitly check the owners of each key (e.g. collateralProxyAdmin).
         ownerOverrides: ownerOverridesByChain?.[chain] ?? undefined,
+        // Every leg carries an explicit scale so the checker sees a uniform
+        // convention. Legs at the message decimals get 1/1; higher-decimal
+        // tokens (BSC-USD is 18) are scaled down to the 6-decimal encoding.
+        ...scaleDownConfig(localDecimalsByChain[chain], messageDecimals),
       };
 
       if (isCollateralChain(chain)) {
-        const decimals = collateralDecimalsByChain[chain];
         const collateralConfig = {
           ...commonConfig,
           type: TokenType.collateral,
           token: tokenAddressesByChain[chain],
-          // Scale down legs whose collateral has more decimals than the 6-decimal
-          // message encoding (e.g. BSC-USD has 18 decimals).
-          ...(decimals > messageDecimals
-            ? scaleDownConfig(decimals, messageDecimals)
-            : {}),
         };
 
         if (!rebalanceableCollateralChains.includes(chain)) {
