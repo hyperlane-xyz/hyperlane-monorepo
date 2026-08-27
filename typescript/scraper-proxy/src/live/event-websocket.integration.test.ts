@@ -231,7 +231,7 @@ void it('enforces the historical replay row budget', async () => {
     }
   });
   const message = await waitFor(messages, 'error');
-  assert.match(String(message.error), /row limit exceeded/);
+  assert.equal(message.error, 'Failed to catch up merkle_tree_insertion');
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
 });
@@ -472,7 +472,7 @@ void it('enforces the catch-up deadline while pending rows replenish', async (co
     completions.shift()?.();
 
     const error = await waitFor(messages, 'error');
-    assert.match(String(error.error), /time limit exceeded \(10ms\)/);
+    assert.equal(error.error, 'Failed to catch up merkle_tree_insertion');
     assert.deepEqual(eventSequences(messages), ['0', '1', '2']);
   } finally {
     socket.close();
@@ -505,7 +505,7 @@ void it('rejects an empty historical cursor instead of reporting caught up', asy
     }
   });
   const message = await waitFor(messages, 'error');
-  assert.match(String(message.error), /No merkle_tree_insertion history/);
+  assert.equal(message.error, 'Failed to catch up merkle_tree_insertion');
   assert.equal(
     messages.some(({ type }) => type === 'caught_up'),
     false,

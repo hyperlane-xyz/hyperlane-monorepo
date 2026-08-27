@@ -287,17 +287,17 @@ function validate(table: TableName, args: SelectArgs): void {
     : args.order_by
       ? [args.order_by]
       : [];
-  boundedColumns(
-    orders.reduce(
-      (total, item) =>
-        total + Object.values(item).filter((value) => value != null).length,
-      0,
-    ),
-    'order_by',
-    MAX.orderColumns,
+  const orderColumns = orders
+    .flatMap(Object.entries)
+    .filter((entry): entry is [string, Direction] => entry[1] != null);
+  boundedColumns(orderColumns.length, 'order_by', MAX.orderColumns);
+  validateCursor(table, args.cursor, orderColumns);
+  validateDistinctOrder(
+    args.distinct_on,
+    orderColumns.length
+      ? orderColumns.map(([column]) => column)
+      : cursorColumns(args.cursor),
   );
-  validateDistinctOrder(args.distinct_on, orders);
-  validateCursor(table, args.cursor, orders);
   const state = { predicates: 0 };
   validateWhere(args.where, 0, state);
 }
@@ -305,7 +305,7 @@ function validate(table: TableName, args: SelectArgs): void {
 function validateCursor(
   table: TableName,
   cursors: Cursor[] | undefined,
-  orders: Order[],
+  orderColumns: [string, Direction][],
 ): void {
   const cursorColumns =
     cursors?.reduce(
@@ -323,11 +323,8 @@ function validateCursor(
   const [cursorColumn, cursorValue] = Object.entries(cursor.initial_value)[0];
   assert(cursorColumn === 'id', 'message_view cursor column must be id');
   assert(cursorValue != null, 'message_view cursor value must be non-null');
-  if (!orders.length) return;
+  if (!orderColumns.length) return;
 
-  const orderColumns = orders
-    .flatMap(Object.entries)
-    .filter((entry) => entry[1] != null);
   const [orderColumn, orderDirection] = orderColumns[0] ?? [];
   assert(
     orderColumns.length === 1 &&
@@ -339,18 +336,17 @@ function validateCursor(
 
 function validateDistinctOrder(
   distinctColumns: string[] | null | undefined,
-  orders: Order[],
+  orderColumns: string[],
 ): void {
-  if (!distinctColumns?.length || !orders.length) return;
-  const orderColumns = orders.flatMap((order) =>
-    Object.entries(order).flatMap(([column, direction]) =>
-      direction == null ? [] : [column],
-    ),
-  );
+  if (!distinctColumns?.length || !orderColumns.length) return;
   assert(
     !distinctColumns.some((column, index) => orderColumns[index] !== column),
     'distinct_on columns must match the leftmost order_by columns',
   );
+}
+
+function cursorColumns(cursors: Cursor[] | undefined): string[] {
+  return (cursors ?? []).flatMap((cursor) => Object.keys(cursor.initial_value));
 }
 
 function boundedInteger(

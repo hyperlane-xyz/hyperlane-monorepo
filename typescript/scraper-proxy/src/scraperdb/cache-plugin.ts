@@ -3,7 +3,7 @@ import {
   type ApolloServerPlugin,
   type GraphQLResponse,
 } from '@apollo/server';
-import { assert, sortObjectKeys } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 import { createHash } from 'node:crypto';
 import { parse, print, visit, type DocumentNode } from 'graphql';
 
@@ -128,6 +128,16 @@ function cacheKey(
     .update('\0')
     .update(serializedVariables)
     .digest('hex');
+}
+
+function sortObjectKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortObjectKeys);
+  if (!isRecord(value)) return value;
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, sortObjectKeys(value[key])]),
+  );
 }
 
 function cachedResponse(entry: Entry): GraphQLResponse {

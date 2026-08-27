@@ -536,10 +536,7 @@ export class EventWebSocketServer {
       this.logger.warn(
         `websocket catch-up failed eventType=${request.eventType}: ${reason}`,
       );
-      this.sendError(
-        socket,
-        `Failed to catch up ${request.eventType}: ${reason}`,
-      );
+      this.sendError(socket, `Failed to catch up ${request.eventType}`);
     } finally {
       this.catchUps--;
     }

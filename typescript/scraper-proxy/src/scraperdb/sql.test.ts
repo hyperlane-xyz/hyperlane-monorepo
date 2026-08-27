@@ -78,6 +78,17 @@ void describe('scraper database SQL', () => {
         order_by: [{ origin_domain: 'asc' }, { nonce: 'desc' }],
       }),
     );
+    for (const order_by of [undefined, { id: null }]) {
+      assert.throws(
+        () =>
+          buildSelect('message_view', {
+            cursor: [{ initial_value: { id: 1 } }],
+            distinct_on: ['origin_domain'],
+            order_by,
+          }),
+        /leftmost order_by/,
+      );
+    }
   });
 
   void it('builds primary-key queries and rejects unsafe inputs', () => {
