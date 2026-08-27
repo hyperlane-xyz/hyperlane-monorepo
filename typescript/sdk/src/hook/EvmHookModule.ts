@@ -1132,6 +1132,13 @@ export class EvmHookModule extends HyperlaneModule<
       [],
     );
 
+    if (config.paused) {
+      await this.multiProvider.handleTx(
+        this.chain,
+        hook.pause(this.txOverrides),
+      );
+    }
+
     // transfer ownership
     await this.multiProvider.handleTx(
       this.chain,
