@@ -26,7 +26,7 @@ env:
 
 jobs:
   ts-only:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     outputs:
       skip_rust: ${{ steps.decide.outputs.skip_rust }}
     steps:
@@ -290,7 +290,7 @@ jobs:
 
   # Wrapper jobs for required status checks (report success when skipped)
   lander-coverage:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [lander-coverage-run]
     if: always()
     steps:
@@ -302,7 +302,7 @@ jobs:
           result: ${{ needs.lander-coverage-run.result }}
 
   test-rs:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [test-rs-run, test-rs-sealevel-run]
     if: always()
     steps:
@@ -319,7 +319,7 @@ jobs:
           result: ${{ needs.test-rs-sealevel-run.result }}
 
   lint-rs:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [lint-rs-run]
     if: always()
     steps:

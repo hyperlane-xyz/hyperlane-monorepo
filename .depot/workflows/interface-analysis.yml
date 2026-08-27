@@ -14,7 +14,7 @@ on:
 
 jobs:
   diff-check:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     steps:
       # Checkout the PR branch
       - name: Checkout PR branch

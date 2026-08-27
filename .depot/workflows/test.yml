@@ -26,7 +26,7 @@ env:
 
 jobs:
   pnpm-install:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     steps:
       - uses: actions/checkout@v7
         with:
@@ -119,7 +119,7 @@ jobs:
           rm -f changed_files.txt
 
   lint-prettier:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [lint-prettier-run]
     if: always()
     steps:
@@ -147,7 +147,7 @@ jobs:
       has_rebalancer: ${{ steps.decide.outputs.has_rebalancer }}
       has_svm: ${{ steps.decide.outputs.has_svm }}
       has_svm_program_inputs: ${{ steps.decide.outputs.has_svm_program_inputs }}
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     steps:
       - uses: actions/checkout@v7
         with:
@@ -321,7 +321,7 @@ jobs:
           echo "has_svm_program_inputs=${{ steps.check-vm.outputs.has_svm_program_inputs }}" >> $GITHUB_OUTPUT
 
   pnpm-test-run:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [change-detection]
     timeout-minutes: 20
     if: needs.change-detection.outputs.skip_ts != 'true'
@@ -341,7 +341,7 @@ jobs:
         run: pnpm run test:ci
 
   pnpm-test:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [pnpm-test-run]
     if: always()
     steps:
@@ -353,7 +353,7 @@ jobs:
           result: ${{ needs.pnpm-test-run.result }}
 
   infra-test:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_ts != 'true'
     env:
@@ -405,7 +405,7 @@ jobs:
         run: pnpm -C typescript/infra test:warp
 
   cli-install-test-run:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_ts != 'true'
     steps:
@@ -423,7 +423,7 @@ jobs:
         run: hyperlane --version
 
   cli-install-test:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [cli-install-test-run]
     if: always()
     steps:
@@ -453,7 +453,7 @@ jobs:
       has_svm: ${{ needs.change-detection.outputs.has_svm }}
 
   cli-e2e:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [cli-e2e-tests]
     if: always()
     steps:
@@ -477,7 +477,7 @@ jobs:
       has_svm: ${{ needs.change-detection.outputs.has_svm }}
 
   sdk-e2e:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [sdk-e2e-tests]
     if: always()
     steps:
@@ -500,7 +500,7 @@ jobs:
     secrets: inherit
 
   agent-configs:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_ts != 'true'
     strategy:

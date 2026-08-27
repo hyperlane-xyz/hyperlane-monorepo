@@ -24,7 +24,7 @@ env:
 
 jobs:
   cosmos-sdk-e2e-run:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     if: inputs.has_cosmos == 'true'
     timeout-minutes: 20
     steps:
@@ -42,7 +42,7 @@ jobs:
         run: pnpm -C typescript/cosmos-sdk test:e2e
 
   aleo-sdk-e2e-matrix:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     if: inputs.has_aleo == 'true'
     timeout-minutes: 15
     strategy:
@@ -77,7 +77,7 @@ jobs:
           ALEO_SDK_E2E_TEST: ${{ matrix.test }}
 
   radix-sdk-e2e-run:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     if: inputs.has_radix == 'true'
     timeout-minutes: 15
     steps:
@@ -95,7 +95,7 @@ jobs:
         run: pnpm -C typescript/radix-sdk test:e2e
 
   starknet-sdk-e2e-matrix:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     if: inputs.has_starknet == 'true'
     timeout-minutes: 15
     strategy:
@@ -130,7 +130,7 @@ jobs:
           STARKNET_SDK_E2E_TEST: ${{ matrix.test }}
 
   tron-sdk-e2e-run:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     if: inputs.has_tron == 'true'
     timeout-minutes: 15
     steps:
@@ -157,7 +157,7 @@ jobs:
           fail_ci_if_error: false
 
   svm-sdk-e2e-matrix:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     if: inputs.has_svm == 'true'
     timeout-minutes: 15
     strategy:
