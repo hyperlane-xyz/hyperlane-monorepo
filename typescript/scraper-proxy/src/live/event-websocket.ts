@@ -3,6 +3,7 @@ import { isIP } from 'node:net';
 import type { Duplex } from 'node:stream';
 
 import { Logger } from '@nestjs/common';
+import { formatError } from '@hyperlane-xyz/utils';
 import { WebSocket, WebSocketServer } from 'ws';
 
 import { config } from '../config.js';
@@ -417,7 +418,7 @@ export class EventWebSocketServer {
     try {
       message = parseClientMessage(raw);
     } catch (error) {
-      this.sendError(socket, errorMessage(error));
+      this.sendError(socket, formatError(error));
       return;
     }
     if (message.type === 'ping') {
@@ -531,7 +532,7 @@ export class EventWebSocketServer {
       }
       websocketCatchUps.inc({ outcome: 'failure' });
       client.subscriptions.delete(request.eventType);
-      const reason = errorMessage(error);
+      const reason = formatError(error);
       this.logger.warn(
         `websocket catch-up failed eventType=${request.eventType}: ${reason}`,
       );
@@ -735,7 +736,7 @@ export class EventWebSocketServer {
       );
       this.listenerReady = true;
     } catch (error) {
-      this.logger.error(`database listener failed: ${errorMessage(error)}`);
+      this.logger.error(`database listener failed: ${formatError(error)}`);
       this.reconnectListener();
     }
   }
@@ -760,7 +761,7 @@ export class EventWebSocketServer {
       }
     } catch (error) {
       this.logger.warn(
-        `skipping invalid database notification: ${errorMessage(error)}`,
+        `skipping invalid database notification: ${formatError(error)}`,
       );
       return;
     }
@@ -829,7 +830,7 @@ export class EventWebSocketServer {
         returned.add(parseId(notification_id).toString());
       } catch (error) {
         this.logger.warn(
-          `invalid notified ${eventType} row ID: ${errorMessage(error)}`,
+          `invalid notified ${eventType} row ID: ${formatError(error)}`,
         );
       }
     }
@@ -850,7 +851,7 @@ export class EventWebSocketServer {
         return [row];
       } catch (error) {
         this.logger.warn(
-          `skipping invalid notified ${eventType} row: ${errorMessage(error)}`,
+          `skipping invalid notified ${eventType} row: ${formatError(error)}`,
         );
         return [];
       }
@@ -900,7 +901,7 @@ export class EventWebSocketServer {
   }
 
   private fail(error: unknown): void {
-    this.logger.error(`event stream failed: ${errorMessage(error)}`);
+    this.logger.error(`event stream failed: ${formatError(error)}`);
     this.closeClients('Event stream read failed');
   }
 
@@ -981,7 +982,7 @@ export class EventWebSocketServer {
       this.pendingBytes = Math.max(0, this.pendingBytes - message.bytes);
       completed?.(false);
       websocketSendFailures.inc({ reason: 'send_error' });
-      this.failSocket(socket, `send failed: ${errorMessage(error)}`);
+      this.failSocket(socket, `send failed: ${formatError(error)}`);
       return false;
     }
     return true;
@@ -1114,10 +1115,6 @@ function compareRows(eventType: EventType, a: Row, b: Row): number {
     : left < right
       ? -1
       : 1;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function clientIp(request: IncomingMessage): string | undefined {

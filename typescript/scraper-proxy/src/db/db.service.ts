@@ -4,6 +4,7 @@ import {
   type OnModuleDestroy,
   type OnModuleInit,
 } from '@nestjs/common';
+import { formatError } from '@hyperlane-xyz/utils';
 import pg from 'pg';
 
 import { config } from '../config.js';
@@ -66,7 +67,7 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
       result.status === 'rejected' ? [result.reason] : [],
     );
     failures.forEach((error) =>
-      this.logger.error(`database shutdown failed: ${errorMessage(error)}`),
+      this.logger.error(`database shutdown failed: ${formatError(error)}`),
     );
     if (failures.length) throw failures[0];
   }
@@ -180,7 +181,7 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
       const duration = Date.now() - started;
       this.record(duration, 0, true);
       this.logger.debug(
-        `query id=${id} failed ${duration}ms error=${error instanceof Error ? error.message : String(error)}`,
+        `query id=${id} failed ${duration}ms error=${formatError(error)}`,
       );
       throw error;
     }
@@ -210,10 +211,6 @@ function poolMetrics(pool?: pg.Pool): DatabaseMetricsSnapshot['pools']['main'] {
     total: pool?.totalCount ?? 0,
     waiting: pool?.waitingCount ?? 0,
   };
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function databaseOptions(connectionString: string): pg.ClientConfig {

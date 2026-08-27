@@ -106,8 +106,7 @@ export function buildByPk(
   selected?: string[],
 ): Sql {
   const primaryKey = tables[table].primaryKey;
-  if (!primaryKey)
-    throw new Error(`${table} does not expose a primary-key query`);
+  assert(primaryKey, `${table} does not expose a primary-key query`);
   return {
     sql: `SELECT ${columns(table, selected)} FROM ${q(table)} WHERE ${q(primaryKey)} = $1 LIMIT 1`,
     values: [id],
@@ -187,8 +186,7 @@ function comparison(
   if (value === null || value === undefined) return '';
   if (operator === '_is_null') return `${column} IS ${value ? '' : 'NOT '}NULL`;
   const sqlOperator = OPERATORS[operator];
-  if (!sqlOperator)
-    throw new Error(`Unsupported comparison operator ${operator}`);
+  assert(sqlOperator, `Unsupported comparison operator ${operator}`);
   if (operator === '_in' || operator === '_nin') {
     const items = Array.isArray(value) ? value : [];
     if (!items.length) return operator === '_in' ? 'FALSE' : 'TRUE';
@@ -349,11 +347,10 @@ function validateDistinctOrder(
       direction == null ? [] : [column],
     ),
   );
-  if (distinctColumns.some((column, index) => orderColumns[index] !== column)) {
-    throw new Error(
-      'distinct_on columns must match the leftmost order_by columns',
-    );
-  }
+  assert(
+    !distinctColumns.some((column, index) => orderColumns[index] !== column),
+    'distinct_on columns must match the leftmost order_by columns',
+  );
 }
 
 function boundedInteger(
@@ -362,10 +359,11 @@ function boundedInteger(
   max: number,
 ): void {
   if (value == null) return;
-  if (!Number.isInteger(value) || value < 0) {
-    throw new Error(`${name} must be a non-negative integer`);
-  }
-  if (value > max) throw new Error(`${name} exceeds maximum of ${max}`);
+  assert(
+    Number.isInteger(value) && value >= 0,
+    `${name} must be a non-negative integer`,
+  );
+  assert(value <= max, `${name} exceeds maximum of ${max}`);
 }
 
 function boundedColumns(
@@ -373,8 +371,7 @@ function boundedColumns(
   name: string,
   max: number,
 ): void {
-  if (value && value > max)
-    throw new Error(`${name} exceeds maximum of ${max} columns`);
+  assert(!value || value <= max, `${name} exceeds maximum of ${max} columns`);
 }
 
 function validateWhere(
@@ -383,8 +380,10 @@ function validateWhere(
   state: { predicates: number },
 ): void {
   if (!value || typeof value !== 'object') return;
-  if (depth > MAX.boolDepth)
-    throw new Error(`where exceeds maximum depth of ${MAX.boolDepth}`);
+  assert(
+    depth <= MAX.boolDepth,
+    `where exceeds maximum depth of ${MAX.boolDepth}`,
+  );
   for (const [key, child] of Object.entries(value)) {
     if (key === '_and' || key === '_or') {
       const children = Array.isArray(child) ? child : [child];
@@ -397,15 +396,12 @@ function validateWhere(
       addPredicates(state, 1);
       if (!child || typeof child !== 'object') continue;
       for (const [operator, items] of Object.entries(child)) {
-        if (
-          (operator === '_in' || operator === '_nin') &&
-          Array.isArray(items) &&
-          items.length > MAX.inItems
-        ) {
-          throw new Error(
-            `${operator} exceeds maximum of ${MAX.inItems} items`,
-          );
-        }
+        assert(
+          (operator !== '_in' && operator !== '_nin') ||
+            !Array.isArray(items) ||
+            items.length <= MAX.inItems,
+          `${operator} exceeds maximum of ${MAX.inItems} items`,
+        );
       }
     }
   }
@@ -413,9 +409,8 @@ function validateWhere(
 
 function addPredicates(state: { predicates: number }, count: number): void {
   state.predicates += count;
-  if (state.predicates > MAX.boolPredicates) {
-    throw new Error(
-      `where exceeds maximum of ${MAX.boolPredicates} predicates`,
-    );
-  }
+  assert(
+    state.predicates <= MAX.boolPredicates,
+    `where exceeds maximum of ${MAX.boolPredicates} predicates`,
+  );
 }
