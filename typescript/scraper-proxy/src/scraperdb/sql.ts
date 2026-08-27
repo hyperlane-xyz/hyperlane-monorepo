@@ -1,3 +1,5 @@
+import { assert } from '@hyperlane-xyz/utils';
+
 import {
   assertColumn,
   quoteIdentifier as q,
@@ -39,7 +41,7 @@ export interface SelectArgs {
 const MAX = {
   boolDepth: 8,
   boolPredicates: 100,
-  cursorColumns: 1,
+  cursorColumns: 3,
   distinctColumns: 3,
   inItems: 200,
   limit: 500,
@@ -48,7 +50,7 @@ const MAX = {
 };
 
 export function buildSelect(table: TableName, args: SelectArgs = {}): Sql {
-  validate(args);
+  validate(table, args);
   const values: unknown[] = [];
   const filters = [
     where(table, args.where, values),
@@ -65,7 +67,7 @@ export function buildCount(
   args: SelectArgs = {},
   count: CountArgs = {},
 ): Sql {
-  validate(args);
+  validate(table, args);
   const countColumns = [...new Set(count.columns ?? [])];
   countColumns.forEach((column) => assertColumn(table, column));
   const values: unknown[] = [];
@@ -277,7 +279,7 @@ function bind(value: unknown, values: unknown[]): string {
   return `$${values.length}`;
 }
 
-function validate(args: SelectArgs): void {
+function validate(table: TableName, args: SelectArgs): void {
   boundedInteger(args.limit, 'limit', MAX.limit);
   boundedInteger(args.batch_size, 'batch_size', MAX.limit);
   boundedInteger(args.offset, 'offset', MAX.offset);
@@ -297,37 +299,44 @@ function validate(args: SelectArgs): void {
     MAX.orderColumns,
   );
   validateDistinctOrder(args.distinct_on, orders);
-  validateCursorOrder(args.cursor, orders);
-  boundedColumns(
-    args.cursor?.reduce(
-      (total, item) => total + Object.keys(item.initial_value).length,
-      0,
-    ),
-    'cursor',
-    MAX.cursorColumns,
-  );
+  validateCursor(table, args.cursor, orders);
   const state = { predicates: 0 };
   validateWhere(args.where, 0, state);
 }
 
-function validateCursorOrder(
+function validateCursor(
+  table: TableName,
   cursors: Cursor[] | undefined,
   orders: Order[],
 ): void {
-  if (!cursors?.length || !orders.length) return;
+  const cursorColumns =
+    cursors?.reduce(
+      (total, item) => total + Object.keys(item.initial_value).length,
+      0,
+    ) ?? 0;
+  boundedColumns(cursorColumns, 'cursor', MAX.cursorColumns);
+  if (!cursors?.length || table !== 'message_view') return;
+
+  assert(
+    cursors.length === 1 && cursorColumns === 1,
+    'message_view cursor must contain one column',
+  );
   const cursor = cursors[0];
-  const cursorColumn = Object.keys(cursor.initial_value)[0];
+  const [cursorColumn, cursorValue] = Object.entries(cursor.initial_value)[0];
+  assert(cursorColumn === 'id', 'message_view cursor column must be id');
+  assert(cursorValue != null, 'message_view cursor value must be non-null');
+  if (!orders.length) return;
+
   const orderColumns = orders
     .flatMap(Object.entries)
     .filter((entry) => entry[1] != null);
   const [orderColumn, orderDirection] = orderColumns[0] ?? [];
-  if (
-    orderColumns.length !== 1 ||
-    cursorColumn !== orderColumn ||
-    (cursor.ordering === 'DESC') !== orderDirection?.startsWith('desc')
-  ) {
-    throw new Error('cursor columns and directions must match order_by');
-  }
+  assert(
+    orderColumns.length === 1 &&
+      cursorColumn === orderColumn &&
+      (cursor.ordering === 'DESC') === orderDirection?.startsWith('desc'),
+    'cursor columns and directions must match order_by',
+  );
 }
 
 function validateDistinctOrder(

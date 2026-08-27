@@ -89,11 +89,23 @@ void describe('scraper database SQL', () => {
     assert.throws(() => buildSelect('domain', { limit: 501 }), /maximum/);
     assert.throws(
       () =>
-        buildSelect('domain', {
+        buildSelect('message_view', {
           cursor: [{ initial_value: { id: 1 }, ordering: 'DESC' }],
           order_by: { id: 'asc' },
         }),
       /must match order_by/,
+    );
+    assert.doesNotThrow(() =>
+      buildSelect('message_view', {
+        cursor: [{ initial_value: { id: 1 }, ordering: 'ASC' }],
+        order_by: { id: 'asc' },
+      }),
+    );
+    assert.doesNotThrow(() =>
+      buildSelect('message_view', {
+        cursor: [{ initial_value: { id: 1 }, ordering: 'DESC' }],
+        order_by: { id: 'desc' },
+      }),
     );
     assert.throws(
       () =>
@@ -102,7 +114,33 @@ void describe('scraper database SQL', () => {
             { initial_value: { send_occurred_at: '2026-01-01', id: 1 } },
           ],
         }),
-      /cursor exceeds maximum of 1 columns/,
+      /must contain one column/,
+    );
+    assert.throws(
+      () =>
+        buildSelect('message_view', {
+          cursor: [{ initial_value: {} }],
+        }),
+      /must contain one column/,
+    );
+    assert.throws(
+      () =>
+        buildSelect('message_view', {
+          cursor: [{ initial_value: { origin_domain: 'ethereum' } }],
+        }),
+      /cursor column must be id/,
+    );
+    assert.throws(
+      () =>
+        buildSelect('message_view', {
+          cursor: [{ initial_value: { id: null } }],
+        }),
+      /cursor value must be non-null/,
+    );
+    assert.doesNotThrow(() =>
+      buildSelect('domain', {
+        cursor: [{ initial_value: { id: 1, name: 'ethereum' } }],
+      }),
     );
     assert.throws(
       () =>
