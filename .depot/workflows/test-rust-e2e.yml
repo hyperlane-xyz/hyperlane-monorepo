@@ -226,7 +226,7 @@ jobs:
           RUST_BACKTRACE: 'full'
 
   e2e:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: e2e-matrix
     if: always()
     steps:

@@ -25,7 +25,7 @@ env:
 
 jobs:
   pnpm-install:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     steps:
       - uses: actions/checkout@v7
         with:
@@ -118,7 +118,7 @@ jobs:
           rm -f changed_files.txt
 
   lint-prettier:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [lint-prettier-run]
     if: always()
     steps:
@@ -130,7 +130,7 @@ jobs:
           result: ${{ needs.lint-prettier-run.result }}
 
   set-base-sha:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     outputs:
       base_sha: ${{ steps.determine-sha.outputs.base_sha }}
       current_sha: ${{ steps.determine-sha.outputs.current_sha }}
@@ -161,7 +161,7 @@ jobs:
       has_relayer: ${{ steps.decide.outputs.has_relayer }}
       has_rebalancer: ${{ steps.decide.outputs.has_rebalancer }}
       has_svm: ${{ steps.decide.outputs.has_svm }}
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     steps:
       - uses: actions/checkout@v7
         with:
@@ -322,7 +322,7 @@ jobs:
           echo "has_svm=${{ steps.check-vm.outputs.has_svm }}" >> $GITHUB_OUTPUT
 
   pnpm-test-run:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [change-detection]
     timeout-minutes: 20
     if: needs.change-detection.outputs.skip_ts != 'true'
@@ -342,7 +342,7 @@ jobs:
         run: pnpm run test:ci
 
   pnpm-test:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [pnpm-test-run]
     if: always()
     steps:
@@ -354,7 +354,7 @@ jobs:
           result: ${{ needs.pnpm-test-run.result }}
 
   infra-test:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [set-base-sha, change-detection]
     if: needs.change-detection.outputs.skip_ts != 'true'
     env:
@@ -406,7 +406,7 @@ jobs:
         run: pnpm -C typescript/infra test:warp
 
   cli-install-test-run:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_ts != 'true'
     steps:
@@ -424,7 +424,7 @@ jobs:
         run: hyperlane --version
 
   cli-install-test:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [cli-install-test-run]
     if: always()
     steps:
@@ -454,7 +454,7 @@ jobs:
       has_svm: ${{ needs.change-detection.outputs.has_svm }}
 
   cli-e2e:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [cli-e2e-tests]
     if: always()
     steps:
@@ -478,7 +478,7 @@ jobs:
       has_svm: ${{ needs.change-detection.outputs.has_svm }}
 
   sdk-e2e:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [sdk-e2e-tests]
     if: always()
     steps:
@@ -505,7 +505,7 @@ jobs:
       current_sha: ${{ needs.set-base-sha.outputs.current_sha }}
 
   agent-configs:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_ts != 'true'
     strategy:
@@ -534,7 +534,7 @@ jobs:
           fi
 
   svm-program-bytes:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [change-detection]
     if: needs.change-detection.outputs.has_svm == 'true'
     steps:

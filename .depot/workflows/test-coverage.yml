@@ -16,7 +16,7 @@ env:
 
 jobs:
   check-solidity-changes:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     outputs:
       has_solidity_changes: ${{ steps.check-solidity.outputs.has_changes }}
     steps:
@@ -59,7 +59,7 @@ jobs:
           fail_ci_if_error: true
 
   coverage:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: [check-solidity-changes, coverage-run]
     if: always()
     steps:

@@ -14,7 +14,7 @@ env:
 
 jobs:
   env-test-matrix:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     if: inputs.skip_ts != 'true'
     env:
       MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
@@ -56,7 +56,7 @@ jobs:
             echo "Test failed, waiting before retry..."
 
   env-test:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     needs: env-test-matrix
     if: always()
     steps:

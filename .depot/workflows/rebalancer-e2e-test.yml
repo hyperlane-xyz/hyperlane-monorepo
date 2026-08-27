@@ -31,7 +31,7 @@ env:
 jobs:
   rebalancer-e2e-shards:
     name: rebalancer-e2e-shard (${{ matrix.name }})
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -79,7 +79,7 @@ jobs:
     name: rebalancer-e2e-test
     if: always()
     needs: rebalancer-e2e-shards
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     timeout-minutes: 5
     steps:
       - name: Check E2E shards
