@@ -1,15 +1,15 @@
 import { DeployEnvironment } from '../config/deploy-environment.js';
 import { HelmManager, HelmValues } from '../utils/helm.js';
 import { execCmd } from '../utils/utils.js';
+import {
+  getTollkeeperDeploymentNames,
+  getTollkeeperReleaseConfigs,
+} from './releases.js';
 
 // Tollkeeper (https://github.com/hyperlane-xyz/tollkeeper) is deployed from a
 // separate repo. This manager only exists so that the set-rpc-urls script can
 // refresh tollkeeper's k8s secret and restart its pods after rotating shared
 // `{env}-rpc-endpoints-{chain}` GCP secrets. It does not deploy the chart.
-const RELEASE_NAMES: Partial<Record<DeployEnvironment, string[]>> = {
-  mainnet3: ['tollkeeper-prod', 'tollkeeper-staging'],
-};
-
 const RPC_ENV_PREFIX = 'RPC_URL_';
 
 export class TollkeeperHelmManager extends HelmManager {
@@ -17,10 +17,10 @@ export class TollkeeperHelmManager extends HelmManager {
   readonly namespace: string;
   readonly helmChartPath: string = '';
 
-  private constructor(environment: DeployEnvironment, releaseName: string) {
+  private constructor(namespace: string, releaseName: string) {
     super();
     this.helmReleaseName = releaseName;
-    this.namespace = environment;
+    this.namespace = namespace;
   }
 
   async helmValues(): Promise<HelmValues> {
@@ -62,33 +62,49 @@ export class TollkeeperHelmManager extends HelmManager {
 
   // Deployment-aware restart: rolls pods without name-based polling.
   async restartDeployment(): Promise<void> {
-    console.log(
-      `🔄 Restarting deployment ${this.helmReleaseName} in ${this.namespace}...`,
-    );
-    await execCmd(
-      `kubectl rollout restart deployment/${this.helmReleaseName} -n ${this.namespace}`,
-    );
-    await execCmd(
-      `kubectl rollout status deployment/${this.helmReleaseName} -n ${this.namespace} --timeout=180s`,
-    );
-    console.log(`✅  ${this.helmReleaseName} rollout complete`);
+    for (const deploymentName of getTollkeeperDeploymentNames(
+      this.helmReleaseName,
+    )) {
+      const [existing] = await execCmd(
+        `kubectl get deployment ${deploymentName} -n ${this.namespace} --ignore-not-found -o name`,
+      );
+      if (!existing.trim()) continue;
+
+      console.log(
+        `🔄 Restarting deployment ${deploymentName} in ${this.namespace}...`,
+      );
+      await execCmd(
+        `kubectl rollout restart deployment/${deploymentName} -n ${this.namespace}`,
+      );
+      await execCmd(
+        `kubectl rollout status deployment/${deploymentName} -n ${this.namespace} --timeout=180s`,
+      );
+      console.log(`✅  ${deploymentName} rollout complete`);
+    }
   }
 
   static async getManagersForChain(
     environment: DeployEnvironment,
     chain: string,
   ): Promise<TollkeeperHelmManager[]> {
-    const releaseNames = RELEASE_NAMES[environment] ?? [];
+    const releases = getTollkeeperReleaseConfigs(environment);
+    let foundDeployment = false;
     const managers = await Promise.all(
-      releaseNames.map(async (releaseName) => {
-        const manager = new TollkeeperHelmManager(environment, releaseName);
+      releases.map(async ({ releaseName, namespace }) => {
+        const manager = new TollkeeperHelmManager(namespace, releaseName);
         const [existsOutput] = await execCmd(
-          `kubectl get deployment ${releaseName} -n ${environment} --ignore-not-found -o name`,
+          `kubectl get deployment ${releaseName} -n ${namespace} --ignore-not-found -o name`,
         );
         if (!existsOutput.trim()) return null;
+        foundDeployment = true;
         return (await manager.includesChain(chain)) ? manager : null;
       }),
     );
+    if (releases.length > 0 && !foundDeployment) {
+      console.warn(
+        `⚠️  No Tollkeeper deployment found for ${environment}; RPC rotation will not restart Tollkeeper`,
+      );
+    }
     return managers.filter((m): m is TollkeeperHelmManager => m !== null);
   }
 }
