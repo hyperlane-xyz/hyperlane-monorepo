@@ -32,6 +32,8 @@ const CANONICAL_RETRY_DELAY: Duration = Duration::from_secs(1);
 const CANONICAL_FETCH_ATTEMPTS: usize = 3;
 const EVENT_TYPE: &str = "merkle_tree_insertion";
 const NEXT_SEQUENCE_KEY: &str = "merkle_tree_hook_websocket_next_sequence_";
+// Bound crash recovery scans without writing the cursor for every replayed leaf.
+const NEXT_SEQUENCE_PERSIST_INTERVAL: u32 = 256;
 
 struct RpcFallback {
     handle: JoinHandle<()>,
@@ -373,6 +375,7 @@ impl MerkleTreeHookWebSocketSync {
                         // A stale marker may still need live events to reach our local cursor.
                         caught_up = true;
                         if reached_cursor {
+                            self.persist_next_sequence(*next_sequence)?;
                             lag_started_at = None;
                             if *next_sequence >= backfill_target {
                                 self.activate_websocket(fallback).await;
@@ -554,11 +557,18 @@ impl MerkleTreeHookWebSocketSync {
             *next_sequence = next_sequence
                 .checked_add(1)
                 .ok_or_else(|| eyre!("Merkle tree insertion sequence exhausted"))?;
-            self.db
-                .store_value_by_key(NEXT_SEQUENCE_KEY, &false, next_sequence)?;
+            if next_sequence.is_multiple_of(NEXT_SEQUENCE_PERSIST_INTERVAL) {
+                self.persist_next_sequence(*next_sequence)?;
+            }
             return Ok(true);
         }
         Ok(false)
+    }
+
+    fn persist_next_sequence(&self, next_sequence: u32) -> Result<()> {
+        self.db
+            .store_value_by_key(NEXT_SEQUENCE_KEY, &false, &next_sequence)?;
+        Ok(())
     }
 
     async fn validate_canonical_insertion(
@@ -938,6 +948,46 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn checkpoints_next_sequence_and_recovers_uncheckpointed_tail() {
+        let (sync, _temp_dir) = test_sync();
+        let mut next_sequence = sync.next_sequence(0).expect("initialize sequence");
+        let dependencies = test_dependencies();
+        let mut canonical_cache = Vec::new();
+
+        for sequence in 0_u32..257 {
+            let event = EventMessage {
+                data: EventData {
+                    block_number: StringOrNumber::Number(u64::from(sequence)),
+                    domain: 1,
+                    leaf_index: StringOrNumber::Number(u64::from(sequence)),
+                    merkle_tree_hook: format!("{:#x}", sync.merkle_tree_hook),
+                    message_id: format!("{:#x}", H256::from_low_u64_be(u64::from(sequence))),
+                },
+                domain: 1,
+                event_type: EVENT_TYPE.to_owned(),
+                sequence: sequence.to_string(),
+            };
+            assert!(sync
+                .process_event(
+                    event,
+                    &mut next_sequence,
+                    &dependencies,
+                    &mut canonical_cache,
+                )
+                .await
+                .expect("valid event"));
+        }
+
+        let persisted: Option<u32> = sync
+            .db
+            .retrieve_value_by_key(NEXT_SEQUENCE_KEY, &false)
+            .expect("retrieve persisted sequence");
+        assert_eq!(persisted, Some(256));
+        assert_eq!(next_sequence, 257);
+        assert_eq!(sync.next_sequence(0).expect("recover sequence"), 257);
+    }
+
+    #[tokio::test]
     async fn stores_valid_event_and_rejects_sequence_gap() {
         let (sync, _temp_dir) = test_sync();
         let mut next_sequence = 0;
@@ -1271,6 +1321,7 @@ mod tests {
         let starts_in_fallback = starts.clone();
         let active = sync.fallback_active.clone();
         let active_in_fallback = active.clone();
+        let db = sync.db.clone();
         let websocket_active = sync.websocket_active.clone();
         let websocket_active_after_recovery = websocket_active.clone();
         let task = tokio::spawn(async move {
@@ -1310,6 +1361,10 @@ mod tests {
         assert_eq!(starts.load(Ordering::SeqCst), 1);
         assert_eq!(active.get(), 0);
         assert_eq!(websocket_active.get(), 1);
+        let persisted: Option<u32> = db
+            .retrieve_value_by_key(NEXT_SEQUENCE_KEY, &false)
+            .expect("retrieve persisted sequence");
+        assert_eq!(persisted, Some(1));
     }
 
     #[tokio::test]
