@@ -80,9 +80,10 @@ export const getIgraUSDCWarpConfig = async (
 export const getIgraUSDCStrategyConfig = (): ChainSubmissionStrategy => {
   const safeAddress = ownersByChain[ORIGIN_CHAIN];
   const originSafeSubmitter = {
-    type: TxSubmitterType.GNOSIS_SAFE as const,
+    type: TxSubmitterType.GNOSIS_TX_BUILDER as const,
     chain: ORIGIN_CHAIN,
     safeAddress,
+    version: '1',
   };
 
   const chainAddress = getChainAddresses();
@@ -106,9 +107,10 @@ export const getIgraUSDCStrategyConfig = (): ChainSubmissionStrategy => {
   const warpFeeSafeAddress = warpFeesSafes[ORIGIN_CHAIN];
   assert(warpFeeSafeAddress, `Missing WarpFees safe for ${ORIGIN_CHAIN}`);
   const originWarpFeeSafeSubmitter = {
-    type: TxSubmitterType.GNOSIS_SAFE as const,
+    type: TxSubmitterType.GNOSIS_TX_BUILDER as const,
     chain: ORIGIN_CHAIN,
     safeAddress: warpFeeSafeAddress,
+    version: '1',
   };
   const igraWarpFeeSubmitter: SubmitterMetadata = {
     type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
