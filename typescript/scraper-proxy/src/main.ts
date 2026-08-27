@@ -2,7 +2,7 @@ import 'reflect-metadata';
 
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { formatError } from '@hyperlane-xyz/utils';
+import { formatError } from '@hyperlane-xyz/utils/errors';
 
 import { AppModule } from './module.js';
 import { config } from './config.js';

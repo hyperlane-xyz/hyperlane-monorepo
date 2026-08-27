@@ -4,7 +4,7 @@ import {
   type OnModuleDestroy,
   type OnModuleInit,
 } from '@nestjs/common';
-import { formatError } from '@hyperlane-xyz/utils';
+import { formatError } from '@hyperlane-xyz/utils/errors';
 import pg from 'pg';
 
 import { config } from '../config.js';

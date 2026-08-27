@@ -1,6 +1,6 @@
 import { parseArgs } from 'node:util';
 
-import { formatError } from '@hyperlane-xyz/utils';
+import { formatError } from '@hyperlane-xyz/utils/errors';
 import { WebSocket } from 'ws';
 
 import {

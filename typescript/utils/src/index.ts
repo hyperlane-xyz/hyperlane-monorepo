@@ -193,9 +193,9 @@ export {
   setEquality,
   symmetricDifference,
 } from './sets.js';
+export { formatError } from './errors.js';
 export {
   errorToString,
-  formatError,
   fromHexString,
   sanitizeString,
   streamToString,

@@ -3,7 +3,7 @@ import {
   type ApolloServerPlugin,
   type GraphQLResponse,
 } from '@apollo/server';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils/validation';
 import { createHash } from 'node:crypto';
 import { parse, print, visit, type DocumentNode } from 'graphql';
 

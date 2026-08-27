@@ -1,4 +1,4 @@
-import { setEquality } from '@hyperlane-xyz/utils';
+import { setEquality } from '@hyperlane-xyz/utils/sets';
 
 export const EVENT_TYPES = [
   'dispatch',

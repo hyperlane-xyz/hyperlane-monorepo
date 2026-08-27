@@ -3,7 +3,7 @@ import { isIP } from 'node:net';
 import type { Duplex } from 'node:stream';
 
 import { Logger } from '@nestjs/common';
-import { formatError } from '@hyperlane-xyz/utils';
+import { formatError } from '@hyperlane-xyz/utils/errors';
 import { WebSocket, WebSocketServer } from 'ws';
 
 import { config } from '../config.js';

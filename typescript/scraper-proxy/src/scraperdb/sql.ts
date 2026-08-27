@@ -1,4 +1,4 @@
-import { assert } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils/validation';
 
 import {
   assertColumn,

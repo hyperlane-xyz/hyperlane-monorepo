@@ -1,4 +1,4 @@
-import { assert } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils/validation';
 
 export type TableName = 'domain' | 'message_view' | 'raw_message_dispatch';
 
