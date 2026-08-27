@@ -27,6 +27,7 @@ import { WarpRouteIds } from '../warpIds.js';
 import {
   getFixedRoutingFeeConfig,
   getRebalancingBridgesConfigFor,
+  scaleDownConfig,
 } from './utils.js';
 
 // Environment-independent configuration
@@ -72,8 +73,26 @@ const xERC20LockboxChains: oUSDTTokenChainName[] = ['celo', 'ethereum'];
 const collateralChains = [
   'arbitrum',
   'tron',
+  'bsc',
 ] as const satisfies readonly oUSDTTokenChainName[];
 type CollateralChainName = (typeof collateralChains)[number];
+
+// Collateral legs backed by the canonical USDT OFT rebalancing route. bsc is a
+// plain collateral leg (BSC-USD) that is not part of that route, so it has no
+// rebalancing bridges.
+const rebalanceableCollateralChains: CollateralChainName[] = [
+  'arbitrum',
+  'tron',
+];
+
+// oUSDT message amounts are encoded with 6 decimals. Collateral tokens whose
+// local decimals exceed this are scaled down so all legs agree on the encoding.
+const messageDecimals = 6;
+const collateralDecimalsByChain: Record<CollateralChainName, number> = {
+  arbitrum: 6,
+  tron: 6,
+  bsc: 18,
+};
 
 function isCollateralChain(
   chain: oUSDTTokenChainName,
@@ -317,7 +336,7 @@ const productionTokenAddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   bob: productionXERC20TokenAddress,
   zerogravity: productionXERC20TokenAddress,
   tron: usdtTokenAddresses.tron,
-  bsc: productionXERC20TokenAddress,
+  bsc: usdtTokenAddresses.bsc,
   arbitrum: usdtTokenAddresses.arbitrum,
   tea: productionXERC20TokenAddress,
 };
@@ -363,7 +382,7 @@ const stagingTokenAddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   bob: stagingXERC20TokenAddress,
   zerogravity: stagingXERC20TokenAddress,
   tron: usdtTokenAddresses.tron,
-  bsc: stagingXERC20TokenAddress,
+  bsc: usdtTokenAddresses.bsc,
   arbitrum: usdtTokenAddresses.arbitrum,
   tea: stagingXERC20TokenAddress,
 };
@@ -558,17 +577,25 @@ function generateoUSDTTokenConfig(
       };
 
       if (isCollateralChain(chain)) {
+        const decimals = collateralDecimalsByChain[chain];
+        const collateralConfig = {
+          ...commonConfig,
+          type: TokenType.collateral,
+          token: tokenAddressesByChain[chain],
+          // Scale down legs whose collateral has more decimals than the 6-decimal
+          // message encoding (e.g. BSC-USD has 18 decimals).
+          ...(decimals > messageDecimals
+            ? scaleDownConfig(decimals, messageDecimals)
+            : {}),
+        };
+
+        if (!rebalanceableCollateralChains.includes(chain)) {
+          return [chain, collateralConfig];
+        }
+
         const rebalancingConfig = rebalancingConfigByChain[chain];
         assert(rebalancingConfig, `Rebalancing config for ${chain} not found`);
-        return [
-          chain,
-          {
-            ...commonConfig,
-            type: TokenType.collateral,
-            token: tokenAddressesByChain[chain],
-            ...rebalancingConfig,
-          },
-        ];
+        return [chain, { ...collateralConfig, ...rebalancingConfig }];
       }
 
       return [
