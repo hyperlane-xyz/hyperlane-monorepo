@@ -46,7 +46,7 @@ import { SeismicSigner } from './SeismicSigner.js';
 type Provider = providers.Provider | ZKSyncProvider;
 
 const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
-const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
+const DEFAULT_MIN_CONFIRMATION_TIMEOUT_MS = 300_000;
 const INITIAL_RECEIPT_POLL_INTERVAL_MS = 100;
 
 // Preserve ethers' replacement detection while polling its non-blocking
@@ -560,7 +560,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
 
     const estimateBlockTime = metadata.blocks?.estimateBlockTime;
     const minTimeout =
-      this.options.minConfirmationTimeoutMs ?? MIN_CONFIRMATION_TIMEOUT_MS;
+      this.options.minConfirmationTimeoutMs ??
+      DEFAULT_MIN_CONFIRMATION_TIMEOUT_MS;
     const dynamicTimeout =
       typeof confirmations === 'number' && estimateBlockTime
         ? Math.max(confirmations * estimateBlockTime * 1000 * 2, minTimeout)
