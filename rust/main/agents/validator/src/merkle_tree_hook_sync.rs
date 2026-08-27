@@ -372,12 +372,21 @@ impl MerkleTreeHookWebSocketSync {
                         if reached_cursor {
                             caught_up = true;
                             lag_started_at = None;
-                            self.activate_websocket(fallback).await;
-                            info!(
-                                domain = self.domain,
-                                next_sequence = *next_sequence,
-                                "Caught up Merkle tree hook WebSocket"
-                            );
+                            if *next_sequence >= backfill_target {
+                                self.activate_websocket(fallback).await;
+                                info!(
+                                    domain = self.domain,
+                                    next_sequence = *next_sequence,
+                                    "Caught up Merkle tree hook WebSocket"
+                                );
+                            } else {
+                                warn!(
+                                    domain = self.domain,
+                                    next_sequence = *next_sequence,
+                                    backfill_target,
+                                    "Scraper-proxy caught up below validator startup cursor; keeping RPC fallback active"
+                                );
+                            }
                         } else {
                             warn!(
                                 domain = self.domain,
@@ -396,7 +405,9 @@ impl MerkleTreeHookWebSocketSync {
                             // WebSocket is healthy. Only a lack of progress should trigger
                             // fallback; live-stream lag is checked after `caught_up`.
                             record_stream_progress(&mut lag_started_at, caught_up);
-                            self.activate_websocket(fallback).await;
+                            if *next_sequence >= backfill_target {
+                                self.activate_websocket(fallback).await;
+                            }
                         }
                     }
                     ServerMessage::Error { error } => {
@@ -452,10 +463,8 @@ impl MerkleTreeHookWebSocketSync {
 
     /// Validates and stores an event, returning whether it advanced the cursor.
     ///
-    /// New leaves are verified in aggregate when the checkpoint submitter compares the
-    /// reconstructed tree with the quorum-verified on-chain root. RPC validation here is
-    /// reserved for conflicting local data so normal WebSocket ingestion never blocks on
-    /// one RPC request per leaf.
+    /// New or changed leaves are verified against canonical RPC data before persistence.
+    /// Exact duplicates reuse the previously verified local row without another RPC query.
     async fn process_event(
         &self,
         event: EventMessage,
@@ -499,18 +508,27 @@ impl MerkleTreeHookWebSocketSync {
         let block_number = event.data.block_number.as_u64("block_number")?;
         let insertion = MerkleTreeInsertion::new(leaf_index, message_id);
 
-        match self
+        let existing = self
             .db
-            .retrieve_merkle_tree_insertion_by_leaf_index(&leaf_index)?
-        {
+            .retrieve_merkle_tree_insertion_by_leaf_index(&leaf_index)?;
+        let existing_block = if existing.is_some() {
+            self.db
+                .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&leaf_index)?
+        } else {
+            None
+        };
+        if existing.as_ref() != Some(&insertion) || existing_block != Some(block_number) {
+            self.validate_canonical_insertion(
+                &insertion,
+                block_number,
+                dependencies,
+                canonical_cache,
+            )
+            .await?;
+        }
+
+        match existing {
             Some(existing) if existing != insertion => {
-                self.validate_canonical_insertion(
-                    &insertion,
-                    block_number,
-                    dependencies,
-                    canonical_cache,
-                )
-                .await?;
                 warn!(
                     domain = self.domain,
                     leaf_index,
@@ -521,9 +539,6 @@ impl MerkleTreeHookWebSocketSync {
                 self.db.store_tree_insertion(&insertion, block_number)?;
             }
             Some(_) => {
-                let existing_block = self
-                    .db
-                    .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&leaf_index)?;
                 if existing_block != Some(block_number) {
                     self.db.store_tree_insertion(&insertion, block_number)?;
                 }
@@ -1064,7 +1079,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn advancing_backfill_disables_rpc_fallback_before_caught_up() {
+    async fn backfill_keeps_rpc_active_until_startup_target() {
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .expect("test listener");
@@ -1075,7 +1090,9 @@ mod tests {
         ))
         .expect("test WebSocket URL");
         let hook = format!("{:#x}", sync.merkle_tree_hook);
-        let message_id = format!("{:#x}", H256::from_low_u64_be(4));
+        let first_message_id = format!("{:#x}", H256::from_low_u64_be(4));
+        let second_message_id = format!("{:#x}", H256::from_low_u64_be(5));
+        let (continue_tx, continue_rx) = tokio::sync::oneshot::channel();
         tokio::spawn(async move {
             let (stream, _) = listener.accept().await.expect("connection");
             let mut socket = accept_async(stream).await.expect("WebSocket");
@@ -1090,20 +1107,28 @@ mod tests {
                 .expect("read subscription message");
             socket
                 .send(Message::Text(format!(
-                    r#"{{"type":"event","data":{{"block_number":12,"domain":1,"leaf_index":1,"merkle_tree_hook":"{hook}","message_id":"{message_id}"}},"domain":1,"eventType":"merkle_tree_insertion","sequence":"1"}}"#
+                    r#"{{"type":"event","data":{{"block_number":12,"domain":1,"leaf_index":1,"merkle_tree_hook":"{hook}","message_id":"{first_message_id}"}},"domain":1,"eventType":"merkle_tree_insertion","sequence":"1"}}"#
                 )))
                 .await
                 .expect("send backfill event");
+            continue_rx.await.expect("continue backfill");
+            socket
+                .send(Message::Text(format!(
+                    r#"{{"type":"event","data":{{"block_number":13,"domain":1,"leaf_index":2,"merkle_tree_hook":"{hook}","message_id":"{second_message_id}"}},"domain":1,"eventType":"merkle_tree_insertion","sequence":"2"}}"#
+                )))
+                .await
+                .expect("send final backfill event");
             pending::<()>().await;
         });
 
         let active = sync.fallback_active.clone();
         let active_after_backfill = active.clone();
         let websocket_active = sync.websocket_active.clone();
+        let db = sync.db.clone();
         let task = tokio::spawn(async move {
             sync.run_loop(
                 1,
-                100,
+                3,
                 StreamTimeouts {
                     read: Duration::from_secs(1),
                     progress_check: Duration::from_secs(1),
@@ -1123,12 +1148,27 @@ mod tests {
         });
 
         timeout(Duration::from_secs(1), async {
+            while db
+                .retrieve_merkle_tree_insertion_by_leaf_index(&1)
+                .expect("retrieve first backfill insertion")
+                .is_none()
+            {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("first backfill insertion");
+        assert_eq!(active_after_backfill.get(), 1);
+        assert_eq!(websocket_active.get(), 0);
+
+        continue_tx.send(()).expect("continue backfill");
+        timeout(Duration::from_secs(1), async {
             while websocket_active.get() != 1 {
                 tokio::task::yield_now().await;
             }
         })
         .await
-        .expect("WebSocket became active during backfill");
+        .expect("WebSocket reached fixed backfill target");
         assert_eq!(active_after_backfill.get(), 0);
         task.abort();
     }
