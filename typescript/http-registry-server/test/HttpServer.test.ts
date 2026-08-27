@@ -5,14 +5,86 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sinon from 'sinon';
+import request from 'supertest';
 
 import { PartialRegistry } from '@hyperlane-xyz/registry';
 import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
 
-import { HttpServer } from '../HttpServer.js';
+import { HttpServer, parseCorsAllowedOrigins } from '../HttpServer.js';
 import { RegistryService } from '../src/services/registryService.js';
 
 chaiUse(chaiAsPromised);
+
+describe('HttpServer CORS', () => {
+  it('parses the comma-separated origin allowlist', () => {
+    expect(
+      parseCorsAllowedOrigins(
+        'http://localhost:3000, https://bridge.example, ,*',
+      ),
+    ).to.deep.equal(['http://localhost:3000', 'https://bridge.example', '*']);
+  });
+
+  it('allows configured cross-origin reads without allowing other origins or writes', async () => {
+    const httpServer = await HttpServer.create(
+      async () => new PartialRegistry({}),
+      { corsAllowedOrigins: ['http://localhost:3000'] },
+    );
+
+    const originlessResponse = await request(httpServer.app).get('/anything');
+    const readResponse = await request(httpServer.app)
+      .get('/anything')
+      .set('Origin', 'http://localhost:3000');
+    const headResponse = await request(httpServer.app)
+      .head('/anything')
+      .set('Origin', 'http://localhost:3000');
+    const deniedResponse = await request(httpServer.app)
+      .get('/anything')
+      .set('Origin', 'https://malicious.example');
+    const writeResponse = await request(httpServer.app)
+      .post('/anything')
+      .set('Origin', 'http://localhost:3000');
+
+    expect(originlessResponse.headers['access-control-allow-origin']).to.be
+      .undefined;
+    expect(originlessResponse.headers.vary).to.equal('Origin');
+    expect(readResponse.headers['access-control-allow-origin']).to.equal(
+      'http://localhost:3000',
+    );
+    expect(readResponse.headers.vary).to.equal('Origin');
+    expect(headResponse.headers['access-control-allow-origin']).to.equal(
+      'http://localhost:3000',
+    );
+    expect(headResponse.headers.vary).to.equal('Origin');
+    expect(deniedResponse.headers['access-control-allow-origin']).to.be
+      .undefined;
+    expect(deniedResponse.headers.vary).to.equal('Origin');
+    expect(writeResponse.headers['access-control-allow-origin']).to.be
+      .undefined;
+  });
+
+  it('requires an explicit wildcard before allowing every browser origin', async () => {
+    const defaultServer = await HttpServer.create(
+      async () => new PartialRegistry({}),
+      { corsAllowedOrigins: [] },
+    );
+    const publicServer = await HttpServer.create(
+      async () => new PartialRegistry({}),
+      { corsAllowedOrigins: ['*'] },
+    );
+
+    const deniedResponse = await request(defaultServer.app)
+      .get('/anything')
+      .set('Origin', 'https://example.com');
+    const publicResponse = await request(publicServer.app)
+      .get('/anything')
+      .set('Origin', 'https://example.com');
+
+    expect(deniedResponse.headers['access-control-allow-origin']).to.be
+      .undefined;
+    expect(publicResponse.headers['access-control-allow-origin']).to.equal('*');
+    expect(publicResponse.headers.vary).to.equal('Origin');
+  });
+});
 
 async function bindPort(): Promise<{
   port: number;

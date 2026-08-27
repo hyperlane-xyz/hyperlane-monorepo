@@ -1,5 +1,10 @@
-import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
-import { assert, objFilter } from '@hyperlane-xyz/utils';
+import {
+  ChainMap,
+  ChainSubmissionStrategy,
+  HypTokenRouterConfig,
+  TokenType,
+} from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awProxyAdmins } from '../../governance/proxy-admin/aw.js';
@@ -9,16 +14,19 @@ import {
   getWarpFeeOwner,
 } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
-import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
+import {
+  QUOTE_SIGNER,
+  SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
+} from '../consts.js';
 import { usdtTokenAddresses } from '../tokens.js';
 import { WarpRouteIds } from '../warpIds.js';
 import {
   getFixedRoutingFeeConfig,
+  getEclipseWarpStrategyConfig,
   getRebalancingBridgesConfigFor,
   getRebalancingUSDTConfigForChain,
   scaleDownConfig,
 } from './utils.js';
-import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 
 const contractVersion = '11.1.0';
 
@@ -131,11 +139,14 @@ export interface EclipseUSDTWarpConfigOptions {
     solanamainnet: string;
   };
   proxyAdmins: ChainMap<{ address?: string; owner: string }>;
+  /** When set, fee contracts use OffchainQuotedLinearFee with these signers */
+  quoteSigners?: string[];
 }
 
 const getBaseEvmConfig = (
   chain: DeploymentChain,
   proxyAdmins: ChainMap<{ address?: string; owner: string }>,
+  quoteSigners?: string[],
 ) => {
   const proxyAdmin = proxyAdmins[chain];
   assert(proxyAdmin, `Missing proxyAdmin for chain ${chain}`);
@@ -144,12 +155,14 @@ const getBaseEvmConfig = (
   const destinations = evmDeploymentChains.filter((c) => c !== chain);
   const destinationFeeBps = feeBps[chain];
   assert(destinationFeeBps, `Missing destination fee bps for ${chain}`);
-  // tron's RoutingFee owner was not rotated to the Turnkey treasury key (EVM
-  // ICA tooling can't drive tron), so it stays with governance; every other EVM
-  // leg uses the Turnkey key. Sub-fee owners are not a meaningful authority and
-  // are not checked (see normalizeTokenFeeForCheck), so a single owner suffices.
-  const routingFeeOwner =
-    chain === 'tron' ? getWarpFeeOwner(chain) : WARP_FEES_TURNKEY_OWNER;
+  const isTron = chain === 'tron';
+  // Tron stays on LinearFee by design, matching USDT/eni (AW-675): its flat-fee
+  // reimbursement model is managed through Tron-native governance. OQLF is
+  // technically supported; every other EVM leg uses the Turnkey fee-owner key.
+  const routingFeeOwner = isTron
+    ? getWarpFeeOwner(chain)
+    : WARP_FEES_TURNKEY_OWNER;
+  const chainQuoteSigners = isTron ? undefined : quoteSigners;
   return {
     ...chainTokenMetadata[chain],
     proxyAdmin,
@@ -159,6 +172,8 @@ const getBaseEvmConfig = (
       routingFeeOwner,
       destinations,
       destinationFeeBps,
+      undefined,
+      chainQuoteSigners,
     ),
     ...scaleDownConfig(decimals, MESSAGE_DECIMALS),
   };
@@ -168,7 +183,7 @@ export const buildEclipseUSDTWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   options: EclipseUSDTWarpConfigOptions,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const { ownersByChain, programIds, proxyAdmins } = options;
+  const { ownersByChain, programIds, proxyAdmins, quoteSigners } = options;
 
   const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
     rebalanceableCollateralChains,
@@ -189,7 +204,7 @@ export const buildEclipseUSDTWarpConfig = async (
     );
     configs.push([
       chain,
-      { ...baseConfig, ...getBaseEvmConfig(chain, proxyAdmins) },
+      { ...baseConfig, ...getBaseEvmConfig(chain, proxyAdmins, quoteSigners) },
     ]);
   }
 
@@ -201,7 +216,7 @@ export const buildEclipseUSDTWarpConfig = async (
     configs.push([
       chain,
       {
-        ...getBaseEvmConfig(chain, proxyAdmins),
+        ...getBaseEvmConfig(chain, proxyAdmins, quoteSigners),
         type: TokenType.collateral,
         token: usdtToken,
         owner: ownersByChain[chain],
@@ -250,13 +265,18 @@ export const getEclipseUSDTWarpConfig = async (
     ownersByChain: productionOwnersByChain,
     programIds: PRODUCTION_PROGRAM_IDS,
     proxyAdmins: awProxyAdmins,
+    quoteSigners: [QUOTE_SIGNER],
   });
 
 // Strategies
-export const getEclipseUSDTGnosisSafeBuilderStrategyConfig =
-  getGnosisSafeBuilderStrategyConfigGenerator(
-    objFilter(
-      productionOwnersByChain,
-      (chain, _v): _v is string => chain === 'ethereum',
+export const getEclipseUSDTStrategyConfig = (): ChainSubmissionStrategy => {
+  // CAST: The CLI-specific file feeSubmitter is not represented by SDK types.
+  return getEclipseWarpStrategyConfig({
+    route: 'usdt',
+    evmChains: evmDeploymentChains,
+    nonEvmChains: nonEvmDeploymentChains,
+    turnkeyFeeChains: new Set(
+      evmDeploymentChains.filter((chain) => chain !== 'tron'),
     ),
-  );
+  }) as unknown as ChainSubmissionStrategy;
+};

@@ -1,4 +1,4 @@
-import { NextFunction, Request, Response, Router } from 'express';
+import { Request, Response, Router } from 'express';
 import { z } from 'zod';
 
 import {
@@ -11,13 +11,13 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { AppConstants } from '../constants/AppConstants.js';
-import { MethodNotAllowedError } from '../errors/ApiError.js';
 import {
   joinPathSegments,
   validateBody,
   validateQueryParams,
   validateRequestParam,
 } from '../middleware/validateRequest.js';
+import { requireWriteMode } from '../middleware/writeMode.js';
 import { WarpService } from '../services/warpService.js';
 
 export interface WarpRouterOptions {
@@ -33,15 +33,6 @@ const AddWarpRouteConfigBodySchema = z.object({
   config: WarpRouteDeployConfigSchema,
   options: AddWarpRouteConfigOptionsSchema,
 });
-
-function requireWriteMode(writeMode: boolean) {
-  return (_req: Request, _res: Response, next: NextFunction) => {
-    if (!writeMode) {
-      return next(new MethodNotAllowedError());
-    }
-    next();
-  };
-}
 
 export function createWarpRouter(
   warpService: WarpService,

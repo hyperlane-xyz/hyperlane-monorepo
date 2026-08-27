@@ -120,6 +120,14 @@ export function normalizeAddress(value: string): string {
   return `\\x${value.replace(/^(?:0x|\\x)/, '').toLowerCase()}`;
 }
 
+export function normalizeSequenceAddress(value: string): string {
+  const normalized = normalizeAddress(value);
+  const twentyBytePadding = `\\x${'00'.repeat(12)}`;
+  return normalized.length === 66 && normalized.startsWith(twentyBytePadding)
+    ? `\\x${normalized.slice(twentyBytePadding.length)}`
+    : normalized;
+}
+
 export function displayAddress(value: string): string {
   return `0x${normalizeAddress(value).slice(2)}`;
 }
@@ -177,7 +185,7 @@ function parseSequenceCursor(value: unknown): SequenceCursor {
     throw new Error('Invalid sequence cursor address');
   }
   return {
-    address: normalizeAddress(value.address),
+    address: normalizeSequenceAddress(value.address),
     afterSequence:
       value.afterSequence === undefined
         ? undefined

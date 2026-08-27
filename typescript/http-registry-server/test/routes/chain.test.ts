@@ -20,6 +20,7 @@ chaiUse(chaiAsPromised);
 
 describe('Chain Routes', () => {
   let app: Express;
+  let appWithWriteMode: Express;
   let mockChainService: sinon.SinonStubbedInstance<ChainService>;
 
   beforeEach(() => {
@@ -32,6 +33,14 @@ describe('Chain Routes', () => {
     app.use(express.json());
     app.use('/chain', createChainRouter(mockChainService));
     app.use(createErrorHandler(mockLogger));
+
+    appWithWriteMode = express();
+    appWithWriteMode.use(express.json());
+    appWithWriteMode.use(
+      '/chain',
+      createChainRouter(mockChainService, { writeMode: true }),
+    );
+    appWithWriteMode.use(createErrorHandler(mockLogger));
   });
 
   afterEach(() => {
@@ -88,6 +97,15 @@ describe('Chain Routes', () => {
   });
 
   describe('POST /chain/:chain', () => {
+    it('should return 405 when writeMode is disabled', async () => {
+      await request(app)
+        .post(`/chain/${MOCK_CHAIN_NAME}`)
+        .send({ metadata: mockChainMetadata })
+        .expect(AppConstants.HTTP_STATUS_METHOD_NOT_ALLOWED);
+
+      expect(mockChainService.updateChain.called).to.be.false;
+    });
+
     it('should update chain successfully', async () => {
       const updateParams = {
         metadata: {
@@ -97,7 +115,7 @@ describe('Chain Routes', () => {
       };
       mockChainService.updateChain.resolves();
 
-      await request(app)
+      await request(appWithWriteMode)
         .post(`/chain/${MOCK_CHAIN_NAME}`)
         .send(updateParams)
         .expect(AppConstants.HTTP_STATUS_NO_CONTENT);
@@ -113,7 +131,7 @@ describe('Chain Routes', () => {
     it('should return 400 for invalid metadata schema', async () => {
       const invalidMetadata = { invalidField: 'invalid' };
 
-      const response = await request(app)
+      const response = await request(appWithWriteMode)
         .post(`/chain/${MOCK_CHAIN_NAME}`)
         .send(invalidMetadata)
         .expect(AppConstants.HTTP_STATUS_BAD_REQUEST);
@@ -123,7 +141,7 @@ describe('Chain Routes', () => {
     });
 
     it('should return 400 for missing request body', async () => {
-      const response = await request(app)
+      const response = await request(appWithWriteMode)
         .post(`/chain/${MOCK_CHAIN_NAME}`)
         .expect(AppConstants.HTTP_STATUS_BAD_REQUEST);
 
@@ -136,7 +154,7 @@ describe('Chain Routes', () => {
       };
       mockChainService.updateChain.rejects(new Error('Update failed'));
 
-      const response = await request(app)
+      const response = await request(appWithWriteMode)
         .post(`/chain/${MOCK_CHAIN_NAME}`)
         .send(updateParams)
         .expect(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR);
@@ -153,7 +171,7 @@ describe('Chain Routes', () => {
       };
       mockChainService.updateChain.resolves();
 
-      await request(app)
+      await request(appWithWriteMode)
         .post(`/chain/${MOCK_CHAIN_NAME}`)
         .set('Content-Type', 'application/json')
         .send(updateParams)

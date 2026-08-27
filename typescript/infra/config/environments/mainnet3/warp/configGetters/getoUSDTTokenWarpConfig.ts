@@ -7,7 +7,10 @@ import {
   HypTokenRouterConfig,
   IsmConfig,
   IsmType,
+  TokenFeeConfigInput,
+  TokenFeeType,
   TokenType,
+  WarpRouteDeployConfigMailboxRequiredSchema,
   XERC20TokenExtraBridgesLimits,
   XERC20Type,
   XERC20VSLimitConfig,
@@ -15,13 +18,23 @@ import {
 import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { warpFeesIcas } from '../../governance/ica/warpFees.js';
+import { warpFeesSafes } from '../../governance/safe/warpFees.js';
 import { awTimelocks } from '../../governance/timelock/aw.js';
 import { DEPLOYER } from '../../owners.js';
+import { usdtTokenAddresses } from '../tokens.js';
+import { WarpRouteIds } from '../warpIds.js';
+import {
+  getFixedRoutingFeeConfig,
+  getRebalancingBridgesConfigFor,
+} from './utils.js';
 
 // Environment-independent configuration
 export const deploymentChains = [
+  // Collateral (XERC20Lockbox)
   'ethereum',
   'celo',
+  // Synthetic superswap (XERC20)
   'optimism',
   'base',
   'unichain',
@@ -29,24 +42,80 @@ export const deploymentChains = [
   'soneium',
   'mode',
   'fraxtal',
-  'superseed',
   'lisk',
-  'worldchain',
-  'sonic',
-  'mantle',
-  'metis',
-  'linea',
   'metal',
   'bob',
-  'swell',
   'zerogravity',
+  // Aug 6, 2026 - oUSDT expansion (new collateral/xERC20 legs, 6 decimals)
+  'tron',
+  'bsc',
+  'arbitrum',
+  'tea',
 ] as const;
 const supportedCCIPChains = ['base', 'mode', 'optimism'];
-const xERC20LockboxChains: oUSDTTokenChainName[] = ['celo', 'ethereum'];
+
+// Router implementation version to upgrade to. Deployed staging routers are on
+// core 6.1.0, which predates FungibleTokenRouter fee support; setting this makes
+// `warp apply` upgrade the proxy impl to the current @hyperlane-xyz/core release
+// (via ProxyAdmin.upgrade) so setFeeRecipient/feeRecipient exist for the OQLF fee.
+// Staging is pinned a minor behind production: the two impls are equivalent for
+// this route, so there is no reason to churn the staging proxies.
+const stagingContractVersion = '12.0.0';
+const productionContractVersion = '12.1.0';
 
 type oUSDTTokenChainName = (typeof deploymentChains)[number];
 type TypedoUSDTTokenChainMap<T> = {
   [Key in oUSDTTokenChainName]: T;
+};
+
+const xERC20LockboxChains: oUSDTTokenChainName[] = ['celo', 'ethereum'];
+const collateralChains = [
+  'arbitrum',
+  'tron',
+] as const satisfies readonly oUSDTTokenChainName[];
+type CollateralChainName = (typeof collateralChains)[number];
+
+function isCollateralChain(
+  chain: oUSDTTokenChainName,
+): chain is CollateralChainName {
+  // CAST: Array.prototype.includes types its argument as the array's own
+  // element type, so a readonly tuple only accepts the narrow union it holds.
+  // Widening the check is the point of this guard, and the cast affects the
+  // parameter type alone -- includes still compares by value at runtime, so a
+  // chain outside the tuple returns false rather than being mistyped.
+  return collateralChains.includes(chain as CollateralChainName);
+}
+
+// Fee configuration
+// 5 bps OffchainQuotedLinearFee withdrawal fee on collateral + new-chain legs.
+// No fee on the existing synthetic superswap legs.
+const withdrawalFeeBps = 5;
+const feeChains: oUSDTTokenChainName[] = [
+  'ethereum',
+  'celo',
+  'tron',
+  'bsc',
+  'arbitrum',
+  'tea',
+];
+// In-code quote signers (hyperlane-mainnet3-key-quotesigner GCP secret).
+const stagingQuoteSigners: Address[] = [
+  DEPLOYER,
+  '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
+];
+const productionQuoteSigners: Address[] = [
+  '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
+];
+const stagingFeeOwnerByChain: ChainMap<Address> = Object.fromEntries(
+  feeChains.map((chain) => [chain, DEPLOYER]),
+);
+const productionFeeOwnerByChain: ChainMap<Address> = {
+  ethereum: warpFeesSafes.ethereum,
+  celo: warpFeesIcas.celo,
+  tron: warpFeesIcas.tron,
+  bsc: warpFeesIcas.bsc,
+  arbitrum: warpFeesIcas.arbitrum,
+  tea: warpFeesIcas.tea,
 };
 
 // Environment-specific configuration
@@ -65,17 +134,14 @@ const productionBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   soneium: lowerBufferCap,
   mode: lowerBufferCap,
   fraxtal: lowerBufferCap,
-  superseed: lowerBufferCap,
   lisk: lowerBufferCap,
-  worldchain: '0',
-  sonic: middleBufferCap,
-  mantle: middleBufferCap,
-  metis: lowerBufferCap,
-  linea: lowerBufferCap,
   metal: lowerBufferCap,
   bob: lowerBufferCap,
-  swell: middleBufferCap,
   zerogravity: middleBufferCap,
+  tron: upperBufferCap,
+  bsc: upperBufferCap,
+  arbitrum: upperBufferCap,
+  tea: lowerBufferCap,
 };
 const productionDefaultRateLimitPerSecond = '5000000000'; // 5k/s = 5 * 10^3 ^ 10^6
 const middleRateLimitPerSecond = '2000000000'; // 2k/s = 2 * 10^3 ^ 10^6
@@ -90,17 +156,14 @@ const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   soneium: lowerRateLimitPerSecond,
   mode: lowerRateLimitPerSecond,
   fraxtal: lowerRateLimitPerSecond,
-  superseed: lowerRateLimitPerSecond,
   lisk: lowerRateLimitPerSecond,
-  worldchain: '0',
-  sonic: middleRateLimitPerSecond,
-  mantle: middleRateLimitPerSecond,
-  metis: lowerRateLimitPerSecond,
-  linea: lowerRateLimitPerSecond,
   metal: lowerRateLimitPerSecond,
   bob: lowerRateLimitPerSecond,
-  swell: middleRateLimitPerSecond,
   zerogravity: middleRateLimitPerSecond,
+  tron: productionDefaultRateLimitPerSecond,
+  bsc: productionDefaultRateLimitPerSecond,
+  arbitrum: productionDefaultRateLimitPerSecond,
+  tea: lowerRateLimitPerSecond,
 };
 
 const DPL_OWNED_CHAINS: oUSDTTokenChainName[] = [];
@@ -116,90 +179,18 @@ const productionOwnerByChain: TypedoUSDTTokenChainMap<string> =
     return acc;
   }, {} as TypedoUSDTTokenChainMap<string>);
 
-const productionOwnerOverridesByChain: TypedoUSDTTokenChainMap<
-  Record<'collateralToken' | 'collateralProxyAdmin', string>
-> = {
-  ethereum: {
-    collateralToken: productionOwnerByChain.ethereum,
-    collateralProxyAdmin: productionOwnerByChain.ethereum,
-  },
-  celo: {
-    collateralToken: productionOwnerByChain.celo,
-    collateralProxyAdmin: productionOwnerByChain.celo,
-  },
-  optimism: {
-    collateralToken: productionOwnerByChain.optimism,
-    collateralProxyAdmin: productionOwnerByChain.optimism,
-  },
-  base: {
-    collateralToken: productionOwnerByChain.base,
-    collateralProxyAdmin: productionOwnerByChain.base,
-  },
-  unichain: {
-    collateralToken: productionOwnerByChain.unichain,
-    collateralProxyAdmin: productionOwnerByChain.unichain,
-  },
-  ink: {
-    collateralToken: productionOwnerByChain.ink,
-    collateralProxyAdmin: productionOwnerByChain.ink,
-  },
-  soneium: {
-    collateralToken: productionOwnerByChain.soneium,
-    collateralProxyAdmin: productionOwnerByChain.soneium,
-  },
-  mode: {
-    collateralToken: productionOwnerByChain.mode,
-    collateralProxyAdmin: productionOwnerByChain.mode,
-  },
-  fraxtal: {
-    collateralToken: productionOwnerByChain.fraxtal,
-    collateralProxyAdmin: productionOwnerByChain.fraxtal,
-  },
-  superseed: {
-    collateralToken: productionOwnerByChain.superseed,
-    collateralProxyAdmin: productionOwnerByChain.superseed,
-  },
-  lisk: {
-    collateralToken: productionOwnerByChain.lisk,
-    collateralProxyAdmin: productionOwnerByChain.lisk,
-  },
-  worldchain: {
-    collateralToken: productionOwnerByChain.worldchain,
-    collateralProxyAdmin: productionOwnerByChain.worldchain,
-  },
-  sonic: {
-    collateralToken: productionOwnerByChain.sonic,
-    collateralProxyAdmin: productionOwnerByChain.sonic,
-  },
-  mantle: {
-    collateralToken: productionOwnerByChain.mantle,
-    collateralProxyAdmin: productionOwnerByChain.mantle,
-  },
-  metis: {
-    collateralToken: productionOwnerByChain.metis,
-    collateralProxyAdmin: productionOwnerByChain.metis,
-  },
-  linea: {
-    collateralToken: productionOwnerByChain.linea,
-    collateralProxyAdmin: productionOwnerByChain.linea,
-  },
-  metal: {
-    collateralToken: productionOwnerByChain.metal,
-    collateralProxyAdmin: productionOwnerByChain.metal,
-  },
-  bob: {
-    collateralToken: productionOwnerByChain.bob,
-    collateralProxyAdmin: productionOwnerByChain.bob,
-  },
-  swell: {
-    collateralToken: productionOwnerByChain.swell,
-    collateralProxyAdmin: productionOwnerByChain.swell,
-  },
-  zerogravity: {
-    collateralToken: productionOwnerByChain.zerogravity,
-    collateralProxyAdmin: productionOwnerByChain.zerogravity,
-  },
-};
+const productionOwnerOverridesByChain: ChainMap<Record<string, string>> =
+  Object.fromEntries(
+    deploymentChains
+      .filter((chain) => !isCollateralChain(chain))
+      .map((chain) => [
+        chain,
+        {
+          collateralToken: productionOwnerByChain[chain],
+          collateralProxyAdmin: productionOwnerByChain[chain],
+        },
+      ]),
+  );
 
 const productionAmountRoutingThreshold = 250000000000; // 250k = 250 * 10^3 ^ 10^6
 const productionEthereumXERC20LockboxAddress =
@@ -209,17 +200,30 @@ const productionCeloXERC20LockboxAddress =
 const productionXERC20TokenAddress =
   '0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189';
 
+// Bridges that were deactivated by zeroing their limits on chain. They are kept
+// in the tables below as a record of what was once registered, but are filtered
+// out of the generated config so it reflects only the live bridges.
 const zeroLimits: XERC20VSLimitConfig = {
   type: XERC20Type.Velo,
   bufferCap: '0',
   rateLimitPerSecond: '0',
 };
 
+function isActiveBridge({ limits }: XERC20TokenExtraBridgesLimits): boolean {
+  assert(
+    limits.type === XERC20Type.Velo,
+    `Expected Velo xERC20 limits, got ${limits.type}`,
+  );
+  return (
+    limits.bufferCap !== zeroLimits.bufferCap ||
+    limits.rateLimitPerSecond !== zeroLimits.rateLimitPerSecond
+  );
+}
+
 const productionCCIPTokenPoolAddresses: ChainMap<Address> = {
   ethereum: '0xa3532633401AbFfbd15e6be825a45FB7F141469B',
   celo: '0x47Db76c9c97F4bcFd54D8872FDb848Cab696092d',
   base: '0xa760D20a91C076A57b270D3F7a3150421ab40591',
-  sonic: '0x6a21a19aD44542d83F7f7FF45Aa31A62a36200de',
   optimism: '0x6a21a19aD44542d83F7f7FF45Aa31A62a36200de',
   bob: '0xAFEd606Bd2CAb6983fC6F10167c98aaC2173D77f',
   zerogravity: '0xd7502CaBdb70c79382deF58FB6df3CdA69cb2A1b',
@@ -268,12 +272,6 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
       limits: productionCCIPTokenPoolLimits,
     },
   ],
-  sonic: [
-    {
-      lockbox: productionCCIPTokenPoolAddresses.sonic,
-      limits: productionCCIPTokenPoolLimits,
-    },
-  ],
   optimism: [
     {
       // usdc
@@ -304,7 +302,7 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
   ],
 };
 
-const productionXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
+const productionTokenAddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   ethereum: productionEthereumXERC20LockboxAddress,
   celo: productionCeloXERC20LockboxAddress,
   optimism: productionXERC20TokenAddress,
@@ -314,66 +312,29 @@ const productionXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   soneium: productionXERC20TokenAddress,
   mode: productionXERC20TokenAddress,
   fraxtal: productionXERC20TokenAddress,
-  superseed: productionXERC20TokenAddress,
   lisk: productionXERC20TokenAddress,
-  worldchain: productionXERC20TokenAddress,
-  sonic: productionXERC20TokenAddress,
-  mantle: productionXERC20TokenAddress,
-  metis: productionXERC20TokenAddress,
-  linea: productionXERC20TokenAddress,
   metal: productionXERC20TokenAddress,
   bob: productionXERC20TokenAddress,
-  swell: productionXERC20TokenAddress,
   zerogravity: productionXERC20TokenAddress,
+  tron: usdtTokenAddresses.tron,
+  bsc: productionXERC20TokenAddress,
+  arbitrum: usdtTokenAddresses.arbitrum,
+  tea: productionXERC20TokenAddress,
 };
 
 // Staging
 const stagingDefaultBufferCap = '25000000000';
-const stagingBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
-  ethereum: stagingDefaultBufferCap,
-  celo: stagingDefaultBufferCap,
-  optimism: stagingDefaultBufferCap,
-  base: stagingDefaultBufferCap,
-  unichain: stagingDefaultBufferCap,
-  ink: stagingDefaultBufferCap,
-  soneium: stagingDefaultBufferCap,
-  mode: stagingDefaultBufferCap,
-  fraxtal: stagingDefaultBufferCap,
-  superseed: stagingDefaultBufferCap,
-  lisk: stagingDefaultBufferCap,
-  worldchain: stagingDefaultBufferCap,
-  sonic: stagingDefaultBufferCap,
-  mantle: stagingDefaultBufferCap,
-  metis: stagingDefaultBufferCap,
-  linea: stagingDefaultBufferCap,
-  metal: stagingDefaultBufferCap,
-  bob: stagingDefaultBufferCap,
-  swell: stagingDefaultBufferCap,
-  zerogravity: stagingDefaultBufferCap,
-};
+const stagingBufferCapByChain: TypedoUSDTTokenChainMap<string> =
+  deploymentChains.reduce((acc, chain) => {
+    acc[chain] = stagingDefaultBufferCap;
+    return acc;
+  }, {} as TypedoUSDTTokenChainMap<string>);
 const stagingDefaultRateLimitPerSecond = '120000000';
-const stagingRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
-  ethereum: stagingDefaultRateLimitPerSecond,
-  celo: stagingDefaultRateLimitPerSecond,
-  optimism: stagingDefaultRateLimitPerSecond,
-  base: stagingDefaultRateLimitPerSecond,
-  unichain: stagingDefaultRateLimitPerSecond,
-  ink: stagingDefaultRateLimitPerSecond,
-  soneium: stagingDefaultRateLimitPerSecond,
-  mode: stagingDefaultRateLimitPerSecond,
-  fraxtal: stagingDefaultRateLimitPerSecond,
-  superseed: stagingDefaultRateLimitPerSecond,
-  lisk: stagingDefaultRateLimitPerSecond,
-  worldchain: stagingDefaultRateLimitPerSecond,
-  sonic: stagingDefaultRateLimitPerSecond,
-  mantle: stagingDefaultRateLimitPerSecond,
-  metis: stagingDefaultRateLimitPerSecond,
-  linea: stagingDefaultRateLimitPerSecond,
-  metal: stagingDefaultRateLimitPerSecond,
-  bob: stagingDefaultRateLimitPerSecond,
-  swell: stagingDefaultRateLimitPerSecond,
-  zerogravity: stagingDefaultRateLimitPerSecond,
-};
+const stagingRateLimitByChain: TypedoUSDTTokenChainMap<string> =
+  deploymentChains.reduce((acc, chain) => {
+    acc[chain] = stagingDefaultRateLimitPerSecond;
+    return acc;
+  }, {} as TypedoUSDTTokenChainMap<string>);
 
 const stagingOwnerByChain: TypedoUSDTTokenChainMap<string> =
   deploymentChains.reduce((acc, chain) => {
@@ -387,7 +348,7 @@ const stagingEthereumXERC20LockboxAddress =
 const stagingCeloXERC20LockboxAddress =
   '0x9a3D8d7E931679374448FB2B661F664D42d05057';
 const stagingXERC20TokenAddress = '0x0290B74980C051EB46b84b1236645444e77da0E9';
-const stagingXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
+const stagingTokenAddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   ethereum: stagingEthereumXERC20LockboxAddress,
   celo: stagingCeloXERC20LockboxAddress,
   optimism: stagingXERC20TokenAddress,
@@ -397,17 +358,14 @@ const stagingXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   soneium: stagingXERC20TokenAddress,
   mode: stagingXERC20TokenAddress,
   fraxtal: stagingXERC20TokenAddress,
-  superseed: stagingXERC20TokenAddress,
   lisk: stagingXERC20TokenAddress,
-  worldchain: stagingXERC20TokenAddress,
-  sonic: stagingXERC20TokenAddress,
-  mantle: stagingXERC20TokenAddress,
-  metis: stagingXERC20TokenAddress,
-  linea: stagingXERC20TokenAddress,
   metal: stagingXERC20TokenAddress,
   bob: stagingXERC20TokenAddress,
-  swell: stagingXERC20TokenAddress,
   zerogravity: stagingXERC20TokenAddress,
+  tron: usdtTokenAddresses.tron,
+  bsc: stagingXERC20TokenAddress,
+  arbitrum: usdtTokenAddresses.arbitrum,
+  tea: stagingXERC20TokenAddress,
 };
 
 const stagingExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
@@ -425,6 +383,38 @@ const stagingExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
 
 function isCCIPChain(chain: oUSDTTokenChainName): boolean {
   return supportedCCIPChains.includes(chain);
+}
+
+function generateTokenFeeConfig(
+  chain: oUSDTTokenChainName,
+  feeOwnerByChain: ChainMap<Address>,
+  quoteSigners: Address[],
+): TokenFeeConfigInput | undefined {
+  if (!feeChains.includes(chain)) {
+    return undefined;
+  }
+  const owner = feeOwnerByChain[chain];
+  assert(owner, `Fee owner for ${chain} not found`);
+  // Tron: a per-destination RoutingFee would deploy one OQLF per destination,
+  // which is prohibitively expensive on TVM. Use a single bare OQLF instead.
+  if (chain === 'tron') {
+    return {
+      type: TokenFeeType.OffchainQuotedLinearFee,
+      owner,
+      bps: withdrawalFeeBps,
+      quoteSigners,
+    };
+  }
+  const feeDestinations = deploymentChains.filter(
+    (destination) => destination !== chain,
+  );
+  return getFixedRoutingFeeConfig(
+    owner,
+    feeDestinations,
+    withdrawalFeeBps,
+    undefined,
+    quoteSigners,
+  );
 }
 
 function generateIsmConfig(
@@ -521,31 +511,30 @@ function generateHookConfig(
 function generateoUSDTTokenConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   ownerByChain: ChainMap<Address>,
-  xERC20AddressesByChain: ChainMap<Address>,
+  tokenAddressesByChain: ChainMap<Address>,
   amountRoutingThreshold: number,
   bufferCapPerChain: ChainMap<string>,
   rateLimitPerSecondPerChain: ChainMap<string>,
+  feeOwnerByChain: ChainMap<Address>,
+  quoteSigners: Address[],
+  contractVersion: string,
   extraBridges?: ChainMap<XERC20TokenExtraBridgesLimits[]>,
   ownerOverridesByChain?: ChainMap<Record<string, string>>,
 ): ChainMap<HypTokenRouterConfig> {
-  return Object.fromEntries(
-    deploymentChains.map((chain) => [
-      chain,
-      {
+  const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
+    collateralChains,
+    [WarpRouteIds.USDTOftLegacy],
+  );
+
+  const config = Object.fromEntries(
+    deploymentChains.map((chain) => {
+      const commonConfig = {
         ...routerConfig[chain],
         owner: ownerByChain[chain],
-        type: xERC20LockboxChains.includes(chain)
-          ? TokenType.XERC20Lockbox
-          : TokenType.XERC20,
-        token: xERC20AddressesByChain[chain],
-        xERC20: {
-          warpRouteLimits: {
-            type: XERC20Type.Velo,
-            rateLimitPerSecond: rateLimitPerSecondPerChain[chain],
-            bufferCap: bufferCapPerChain[chain],
-          },
-          extraBridges: extraBridges ? extraBridges[chain] : undefined,
-        },
+        contractVersion,
+        // 5 bps OffchainQuotedLinearFee withdrawal fee on collateral + new legs;
+        // undefined (no fee) on the synthetic superswap legs.
+        tokenFee: generateTokenFeeConfig(chain, feeOwnerByChain, quoteSigners),
         // The ISM configuration uses a fallback routing ISM that routes messages based on amount thresholds:
         // - Below threshold: Uses default ISM
         // - Above threshold: Uses CCIP ISM for secure cross-chain messaging
@@ -566,9 +555,44 @@ function generateoUSDTTokenConfig(
         hook: generateHookConfig(chain, ownerByChain, amountRoutingThreshold),
         // This is used to explicitly check the owners of each key (e.g. collateralProxyAdmin).
         ownerOverrides: ownerOverridesByChain?.[chain] ?? undefined,
-      },
-    ]),
+      };
+
+      if (isCollateralChain(chain)) {
+        const rebalancingConfig = rebalancingConfigByChain[chain];
+        assert(rebalancingConfig, `Rebalancing config for ${chain} not found`);
+        return [
+          chain,
+          {
+            ...commonConfig,
+            type: TokenType.collateral,
+            token: tokenAddressesByChain[chain],
+            ...rebalancingConfig,
+          },
+        ];
+      }
+
+      return [
+        chain,
+        {
+          ...commonConfig,
+          type: xERC20LockboxChains.includes(chain)
+            ? TokenType.XERC20Lockbox
+            : TokenType.XERC20,
+          token: tokenAddressesByChain[chain],
+          xERC20: {
+            warpRouteLimits: {
+              type: XERC20Type.Velo,
+              rateLimitPerSecond: rateLimitPerSecondPerChain[chain],
+              bufferCap: bufferCapPerChain[chain],
+            },
+            extraBridges: extraBridges?.[chain]?.filter(isActiveBridge),
+          },
+        },
+      ];
+    }),
   );
+
+  return WarpRouteDeployConfigMailboxRequiredSchema.parse(config);
 }
 
 // ref: https://www.notion.so/hyperlanexyz/Cross-chain-USDT-1926d35200d6804bbdb1dfd2042e1f19?pvs=4#1936d35200d680af9c05f6133d7bb9f7
@@ -578,10 +602,13 @@ export const getoUSDTTokenStagingWarpConfig = async (
   return generateoUSDTTokenConfig(
     routerConfig,
     stagingOwnerByChain,
-    stagingXERC20AddressesByChain,
+    stagingTokenAddressesByChain,
     stagingAmountRoutingThreshold,
     stagingBufferCapByChain,
     stagingRateLimitByChain,
+    stagingFeeOwnerByChain,
+    stagingQuoteSigners,
+    stagingContractVersion,
     stagingExtraBridges,
   );
 };
@@ -592,10 +619,13 @@ export const getoUSDTTokenProductionWarpConfig = async (
   return generateoUSDTTokenConfig(
     routerConfig,
     productionOwnerByChain,
-    productionXERC20AddressesByChain,
+    productionTokenAddressesByChain,
     productionAmountRoutingThreshold,
     productionBufferCapByChain,
     productionRateLimitByChain,
+    productionFeeOwnerByChain,
+    productionQuoteSigners,
+    productionContractVersion,
     productionExtraBridges,
     productionOwnerOverridesByChain,
   );

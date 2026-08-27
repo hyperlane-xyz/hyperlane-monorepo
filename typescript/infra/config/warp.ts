@@ -28,7 +28,7 @@ import {
 import { getCarrChainCARRWarpConfig } from './environments/mainnet3/warp/configGetters/getCarrchainCARRWarpConfig.js';
 import { getEclipseEthereumESWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumESWarpConfig.js';
 import {
-  getEclipseUSDTGnosisSafeBuilderStrategyConfig,
+  getEclipseUSDTStrategyConfig,
   getEclipseUSDTWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getEclipseUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
@@ -80,6 +80,10 @@ import {
   getoXAUTGnosisSafeSubmitterStrategyConfig,
   getoXAUTTokenProductionWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getoXAUTTokenWarpConfig.js';
+import {
+  getoUSDTTokenProductionWarpConfig,
+  getoUSDTTokenStagingWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getoUSDTTokenWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 import { getCCTPWarpConfig as getTestnetCCTPWarpConfig } from './environments/testnet4/warp/getCCTPConfig.js';
 import { DEFAULT_REGISTRY_URI } from './registry.js';
@@ -120,6 +124,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   // TODO: uncomment after merging the staging route to registry
   // this has been commented out as it leads to check-warp-deploy cron job failing
   [WarpRouteIds.oXAUT]: getoXAUTTokenProductionWarpConfig,
+  [WarpRouteIds.oUSDT]: getoUSDTTokenProductionWarpConfig,
+  [WarpRouteIds.oUSDTSTAGE]: getoUSDTTokenStagingWarpConfig,
   [WarpRouteIds.SubtensorUSDC]: getSubtensorUSDCWarpConfig,
   [WarpRouteIds.ParadexUSDC]: getParadexUSDCWarpConfig,
   [WarpRouteIds.TestnetCCTPV1]: getTestnetCCTPWarpConfig,
@@ -157,7 +163,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.BaseEthereumREZSTAGING]:
     getRezStagingGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.EclipseUSDC]: getEclipseUSDCStrategyConfig,
-  [WarpRouteIds.EclipseUSDT]: getEclipseUSDTGnosisSafeBuilderStrategyConfig,
+  [WarpRouteIds.EclipseUSDT]: getEclipseUSDTStrategyConfig,
   [WarpRouteIds.IgraUSDC]: getIgraUSDCStrategyConfig,
   [WarpRouteIds.EclipseUSDCSTAGE]:
     getUSDCSTAGEEclipseFileSubmitterStrategyConfig,

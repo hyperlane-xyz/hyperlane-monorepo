@@ -1,6 +1,13 @@
+import { TokenRouter__factory } from '@hyperlane-xyz/core';
 import { HyperlaneRelayer, RelayerCacheSchema } from '@hyperlane-xyz/relayer';
-import { type ChainMap, HyperlaneCore } from '@hyperlane-xyz/sdk';
-import { type Address } from '@hyperlane-xyz/utils';
+import {
+  type ChainMap,
+  EvmHookReader,
+  HookType,
+  HyperlaneCore,
+  collectHybridHookNodes,
+} from '@hyperlane-xyz/sdk';
+import { type Address, assert, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { type CommandModuleWithContext } from '../context/types.js';
 import { log } from '../logger.js';
@@ -57,6 +64,38 @@ export const relayerCommand: CommandModuleWithContext<
           whitelist[chainName] = [addressOrDenom];
         }
       }
+
+      await Promise.all(
+        warpCoreConfig.tokens.map(async ({ chainName, addressOrDenom }) => {
+          if (
+            !addressOrDenom ||
+            !isEVMLike(context.multiProvider.getProtocol(chainName))
+          ) {
+            return;
+          }
+
+          const router = TokenRouter__factory.connect(
+            addressOrDenom,
+            context.multiProvider.getProvider(chainName),
+          );
+          const hookConfig = await new EvmHookReader(
+            context.multiProvider,
+            chainName,
+          ).deriveHookConfig(await router.hook());
+
+          for (const node of collectHybridHookNodes(hookConfig)) {
+            if (node.type !== HookType.DELAYED_FLOW_ROUTER) continue;
+            assert(
+              'address' in node && typeof node.address === 'string',
+              `Derived delayed-flow hook on ${chainName} is missing its address`,
+            );
+            whitelist[chainName] = [
+              ...(whitelist[chainName] ?? []),
+              node.address,
+            ];
+          }
+        }),
+      );
     }
 
     const relayer = new HyperlaneRelayer({ core, whitelist });

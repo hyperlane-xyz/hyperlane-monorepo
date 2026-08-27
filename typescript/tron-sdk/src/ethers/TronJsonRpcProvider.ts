@@ -3,7 +3,7 @@ import { TronWeb } from 'tronweb';
 
 import { ensure0x, isNullish, retryAsync } from '@hyperlane-xyz/utils';
 
-import { buildTronTriggerRequest } from '../utils/index.js';
+import { buildTronTriggerRequest, toTronHex } from '../utils/index.js';
 import { stripCustomRpcHeaders, toHttpApiUrl } from './urlUtils.js';
 
 const DEFAULT_MAX_RETRIES = 3;
@@ -24,6 +24,18 @@ interface TronConstantCallResponse {
   constant_result?: string[];
   result?: { result?: boolean; message?: string };
 }
+
+/**
+ * Subset of the raw full-node `wallet/getaccount` response we read. An address
+ * that was never activated answers HTTP 200 with an empty object; a node-level
+ * failure (malformed address, disabled API) answers with an `Error` field.
+ */
+interface TronAccountResponse {
+  Error?: string;
+}
+
+/** Raw full-node account-lookup endpoint. */
+const TRON_GET_ACCOUNT_PATH = 'wallet/getaccount';
 
 /** TronWeb's maximum allowed originEnergyLimit for contract creation. */
 export const MAX_TRON_ORIGIN_ENERGY_LIMIT = 10_000_000;
@@ -266,12 +278,60 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
 
   /**
    * Tron doesn't use nonces - always return 0.
+   *
+   * This is a nonce accessor, not a liveness signal: a live Tron account still
+   * reports 0 here. Use {@link isAccountActive} to test whether an account
+   * exists on-chain.
    */
   async getTransactionCount(
     _addressOrName: string,
     _blockTag?: providers.BlockTag,
   ): Promise<number> {
     return 0;
+  }
+
+  /**
+   * Whether an address has been activated on-chain.
+   *
+   * Tron accounts must be activated before they exist, and there are no nonces,
+   * so activation is read from the native account endpoint rather than inferred
+   * from `getTransactionCount` (which is hardcoded to 0, see above). An address
+   * that was never activated answers HTTP 200 with an empty object.
+   *
+   * Presence is deliberately keyed off the response being non-empty rather than
+   * off `create_time`: contract accounts omit `create_time` entirely, so keying
+   * off it would report every Tron contract inactive.
+   *
+   * Transport failures propagate. A node we cannot reach is not evidence that
+   * an account is missing, and callers gate destructive/reporting decisions on
+   * this answer.
+   */
+  async isAccountActive(address: string): Promise<boolean> {
+    const base58Address = this.tronWeb.address.fromHex(
+      toTronHex(this.tronWeb, address),
+    );
+    const response = await retryAsync(
+      () =>
+        this.tronWeb.fullNode.request<TronAccountResponse>(
+          TRON_GET_ACCOUNT_PATH,
+          { address: base58Address, visible: true },
+          'post',
+        ),
+      this.maxRetries,
+      this.baseRetryMs,
+    );
+
+    if (isNullish(response)) {
+      throw new Error(
+        `Tron account lookup returned no response body for ${base58Address}`,
+      );
+    }
+
+    if (response.Error) {
+      throw new Error(`Tron account lookup failed: ${response.Error}`);
+    }
+
+    return Object.keys(response).length > 0;
   }
 
   /**

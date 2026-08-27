@@ -64,8 +64,12 @@ import {
   WarpRouteDeployConfigSchema,
   TOKEN_CROSS_COLLATERAL_STANDARDS,
   altVmChainLookup,
+  assertDelayedFlowRoutePreconditions,
+  buildDelayedFlowEnrollmentTxs,
+  deriveDelayedFlowEnrollmentTargets,
   enrollCrossChainRouters,
   executeWarpDeploy,
+  executeWarpRouteExtensionDeploy,
   expandWarpDeployConfig,
   extractIsmAndHookFactoryAddresses,
   getRouterAddressesFromWarpCoreConfig,
@@ -73,9 +77,12 @@ import {
   getTokenConnectionId,
   isCrossCollateralTokenConfig,
   normalizeScale,
+  planWarpRouteHybrids,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
 } from '@hyperlane-xyz/sdk';
+import { mapHybridHookNodes } from '@hyperlane-xyz/sdk/hook/utils';
+import { mapHybridIsmNodes } from '@hyperlane-xyz/sdk/utils/ism';
 import {
   type Address,
   type Annotated,
@@ -486,6 +493,34 @@ export function fullyConnectTokens(
   }
 }
 
+export function withIntermediateWarpOwner(
+  config: WarpRouteDeployConfigMailboxRequired[string],
+  intermediateOwner: Address,
+): WarpRouteDeployConfigMailboxRequired[string] {
+  const interchainSecurityModule = config.interchainSecurityModule;
+  const hook = config.hook;
+  return {
+    ...config,
+    owner: intermediateOwner,
+    ...(interchainSecurityModule !== undefined
+      ? {
+          interchainSecurityModule: mapHybridIsmNodes(
+            interchainSecurityModule,
+            (node) => ({ ...node, owner: intermediateOwner }),
+          ),
+        }
+      : {}),
+    ...(hook !== undefined
+      ? {
+          hook: mapHybridHookNodes(hook, (node) => ({
+            ...node,
+            owner: intermediateOwner,
+          })),
+        }
+      : {}),
+  };
+}
+
 export async function runWarpRouteApply(
   params: WarpApplyParams,
 ): Promise<void> {
@@ -495,6 +530,13 @@ export async function runWarpRouteApply(
   WarpRouteDeployConfigSchema.parse(warpDeployConfig);
   WarpCoreConfigSchema.parse(warpCoreConfig);
   assertWarpApplyTimelocksSupportedByProtocols({
+    multiProvider,
+    warpDeployConfig,
+  });
+  planWarpRouteHybrids({ multiProvider, warpDeployConfig });
+  // Checked against the whole route config, before the extension deploys any
+  // chain: a delayed-flow route only works when every leg carries an instance.
+  await assertDelayedFlowRoutePreconditions({
     multiProvider,
     warpDeployConfig,
   });
@@ -515,16 +557,13 @@ export async function runWarpRouteApply(
     objMap(params.warpDeployConfig, async (chain, config) => {
       const protocolType = multiProvider.getProtocol(chain);
       if (isEVMLike(protocolType)) {
-        return {
-          ...config,
-          owner: await context.multiProvider.getSignerAddress(chain),
-        };
+        return withIntermediateWarpOwner(
+          config,
+          await context.multiProvider.getSignerAddress(chain),
+        );
       } else if (context.altVmSigners[chain]) {
         const signer = mustGet(context.altVmSigners, chain);
-        return {
-          ...config,
-          owner: signer.getSignerAddress(),
-        };
+        return withIntermediateWarpOwner(config, signer.getSignerAddress());
       } else {
         return config;
       }
@@ -536,6 +575,7 @@ export async function runWarpRouteApply(
     { ...params, warpDeployConfig: intermediateOwnerConfig },
     apiKeys,
     warpCoreConfig,
+    warpDeployConfig,
   );
 
   // Then create and submit update transactions
@@ -610,6 +650,7 @@ export async function extendWarpRoute(
   params: WarpApplyParams,
   apiKeys: ChainMap<string>,
   warpCoreConfig: WarpCoreConfig,
+  targetWarpDeployConfig: WarpRouteDeployConfigMailboxRequired,
 ): Promise<WarpCoreConfig> {
   const { context, warpDeployConfig } = params;
   const { existingConfigs, initialExtendedConfigs, warpCoreConfigByChain } =
@@ -668,43 +709,45 @@ export async function extendWarpRoute(
     filteredExtendedConfigs,
   );
 
-  // Helper to deploy a single extension chain
-  const deployExtension = async (chain: string): Promise<ChainMap<Address>> => {
-    logBlue(`Deploying extension to ${chain}...`);
-    const { deployedContracts } = await executeDeploy(
-      {
-        context: params.context,
-        warpDeployConfig: { [chain]: extendedConfigs[chain] },
-      },
-      apiKeys,
-    );
-    logGreen(`Successfully deployed extension to ${chain}`);
-    return deployedContracts;
-  };
-
-  // Group chains by protocol type for appropriate parallelization
-  // EVM chains can run in parallel (each chain has an independent nonce)
-  // Non-EVM chains must run sequentially because when the same private key
-  // is used across multiple chains, parallel tx submission causes sequence
-  // number conflicts
-  const evmExtendChains = filteredExtendedChains.filter((chain) =>
-    isEVMLike(context.multiProvider.getProtocol(chain)),
-  );
-  const nonEvmExtendChains = filteredExtendedChains.filter(
-    (chain) => !isEVMLike(context.multiProvider.getProtocol(chain)),
-  );
-
+  const registryAddresses = await context.registry.getAddresses();
+  const hybridExtension = planWarpRouteHybrids({
+    multiProvider: context.multiProvider,
+    warpDeployConfig: extendedConfigs,
+  });
   let newDeployedContracts: ChainMap<Address> = {};
   const allRejected = new Map<string, Error>();
 
-  // Deploy EVM chains in parallel
-  if (evmExtendChains.length > 0) {
+  if (Object.keys(hybridExtension).length > 0) {
+    // Hybrid instances need every new router address before counterpart
+    // enrollment and surface wiring, so their extension is route-wide.
+    newDeployedContracts = await executeWarpRouteExtensionDeploy(
+      extendedConfigs,
+      context.multiProvider,
+      context.altVmSigners,
+      registryAddresses,
+      apiKeys,
+    );
+  } else {
+    // Preserve partial-success retries for ordinary extensions.
+    const deployExtension = async (chain: ChainName) =>
+      executeWarpRouteExtensionDeploy(
+        { [chain]: extendedConfigs[chain] },
+        context.multiProvider,
+        context.altVmSigners,
+        registryAddresses,
+        apiKeys,
+      );
+    const evmChains = filteredExtendedChains.filter((chain) =>
+      isEVMLike(context.multiProvider.getProtocol(chain)),
+    );
+    const nonEvmChains = filteredExtendedChains.filter(
+      (chain) => !isEVMLike(context.multiProvider.getProtocol(chain)),
+    );
     const { fulfilled, rejected } = await mapAllSettled(
-      evmExtendChains,
-      (chain) => deployExtension(chain),
+      evmChains,
+      deployExtension,
       (chain) => chain,
     );
-
     for (const [, contracts] of fulfilled) {
       newDeployedContracts = { ...newDeployedContracts, ...contracts };
     }
@@ -712,26 +755,30 @@ export async function extendWarpRoute(
       errorRed(`Failed to deploy extension to ${chain}: ${formatError(error)}`);
       allRejected.set(chain, error);
     }
-  }
-
-  // Deploy non-EVM chains sequentially (shared signers)
-  for (const chain of nonEvmExtendChains) {
-    try {
-      const contracts = await deployExtension(chain);
-      newDeployedContracts = { ...newDeployedContracts, ...contracts };
-    } catch (error: unknown) {
-      errorRed(`Failed to deploy extension to ${chain}: ${formatError(error)}`);
-      allRejected.set(
-        chain,
-        error instanceof Error ? error : new Error(String(error)),
+    for (const chain of nonEvmChains) {
+      try {
+        newDeployedContracts = {
+          ...newDeployedContracts,
+          ...(await deployExtension(chain)),
+        };
+      } catch (error) {
+        errorRed(
+          `Failed to deploy extension to ${chain}: ${formatError(error)}`,
+        );
+        allRejected.set(
+          chain,
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      }
+    }
+    if (
+      Object.keys(newDeployedContracts).length === 0 &&
+      allRejected.size > 0
+    ) {
+      throw new Error(
+        `Extension deployment failed for all chains: ${[...allRejected.keys()].join(', ')}. Re-run to retry.`,
       );
     }
-  }
-
-  if (Object.keys(newDeployedContracts).length === 0 && allRejected.size > 0) {
-    throw new Error(
-      `Extension deployment failed for all chains: ${[...allRejected.keys()].join(', ')}. Re-run to retry.`,
-    );
   }
 
   const mergedRouters = mergeAllRouters(
@@ -774,13 +821,14 @@ export async function extendWarpRoute(
     context,
     warpRouteOptions,
   );
-  await context.registry.addWarpRouteConfig(warpDeployConfig, warpRouteOptions);
+  await context.registry.addWarpRouteConfig(
+    targetWarpDeployConfig,
+    warpRouteOptions,
+  );
 
-  // Throw after persisting successes so user can re-run for failures
   if (allRejected.size > 0) {
     throw new Error(
-      `Extension deployment failed for chain(s): ${[...allRejected.keys()].join(', ')}. ` +
-        `Successfully deployed chains have been saved to registry. Re-run to retry failed chains.`,
+      `Extension deployment failed for chain(s): ${[...allRejected.keys()].join(', ')}. Successfully deployed chains have been saved to registry. Re-run to retry failed chains.`,
     );
   }
 
@@ -810,6 +858,14 @@ function isSafeTxBuilderPayload(value: unknown): value is SafeTxBuilderPayload {
   );
 }
 
+/** EVM update planning may deploy contracts, so it must never auto-retry. */
+export async function runWarpUpdatePlanning<T>(
+  protocolType: ProtocolType,
+  runner: () => Promise<T>,
+): Promise<T> {
+  return isEVMLike(protocolType) ? runner() : retryAsync(runner);
+}
+
 // Updates Warp routes with new configurations.
 async function updateExistingWarpRoute(
   params: WarpApplyParams,
@@ -833,6 +889,15 @@ async function updateExistingWarpRoute(
   const updateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
   const feeUpdateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
   const ownershipTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
+  const ismUpdateTransactions: ChainMap<TypedAnnotatedTransaction[]> = {};
+  const upgradeTransactions: ChainMap<TypedAnnotatedTransaction[]> = {};
+  const instanceTransactions: ChainMap<TypedAnnotatedTransaction[]> = {};
+  const hookTransactions: ChainMap<TypedAnnotatedTransaction[]> = {};
+  const routerIsmTransactions: ChainMap<TypedAnnotatedTransaction[]> = {};
+  const removingHybridChains = new Set<ChainName>();
+  // Hybrid leaves resolved by the per-chain pass. They may be newly deployed
+  // and therefore are not readable through the router yet.
+  const updatedHybridAddresses: ChainMap<Address> = {};
 
   // Get all deployed router addresses
   const deployedRoutersAddresses =
@@ -846,20 +911,19 @@ async function updateExistingWarpRoute(
 
   await promiseObjAll(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
-      await retryAsync(async () => {
-        const protocolType = multiProvider.getProtocol(chain);
-        if (!isEVMLike(protocolType) && !altVmSigners[chain]) {
-          logBlue(`Skipping non-compatible chain ${chain}`);
-          return;
-        }
+      const protocolType = multiProvider.getProtocol(chain);
+      if (!isEVMLike(protocolType) && !altVmSigners[chain]) {
+        logBlue(`Skipping non-compatible chain ${chain}`);
+        return;
+      }
 
-        const deployedTokenRoute = deployedRoutersAddresses[chain];
-        assert(deployedTokenRoute, `Missing artifacts for ${chain}.`);
-        const configWithMailbox = {
-          ...config,
-          mailbox: registryAddresses[chain].mailbox,
-        };
-
+      const deployedTokenRoute = deployedRoutersAddresses[chain];
+      assert(deployedTokenRoute, `Missing artifacts for ${chain}.`);
+      const configWithMailbox: WarpRouteDeployConfigMailboxRequired[string] = {
+        ...config,
+        mailbox: registryAddresses[chain].mailbox,
+      };
+      await runWarpUpdatePlanning(protocolType, async () => {
         switch (protocolType) {
           case ProtocolType.Tron:
           case ProtocolType.Ethereum: {
@@ -878,11 +942,26 @@ async function updateExistingWarpRoute(
               ccipContractCache,
               contractVerifier,
             );
-            const { txs, feeTxs, ownershipTxs } =
-              await evmERC20WarpModule.updateSplit(configWithMailbox);
+            const {
+              upgradeTxs,
+              instanceTxs,
+              hookTxs,
+              ismTxs,
+              txs,
+              feeTxs,
+              ownershipTxs,
+              hybridIsm,
+              removesDelayedFlowRouter,
+            } = await evmERC20WarpModule.updatePhases(configWithMailbox);
             updateTransactions[chain] = txs;
             feeUpdateTransactions[chain] = feeTxs;
             ownershipTransactions[chain] = ownershipTxs;
+            upgradeTransactions[chain] = upgradeTxs;
+            instanceTransactions[chain] = instanceTxs;
+            hookTransactions[chain] = hookTxs;
+            routerIsmTransactions[chain] = ismTxs;
+            if (hybridIsm) updatedHybridAddresses[chain] = hybridIsm;
+            if (removesDelayedFlowRouter) removingHybridChains.add(chain);
             break;
           }
           default: {
@@ -915,6 +994,57 @@ async function updateExistingWarpRoute(
       });
     }),
   );
+
+  // Cross-chain pass: DelayedFlowRouterHookIsm instances must be mutually
+  // enrolled, which the per-chain pass above cannot do because chain A's
+  // enrollment needs chain B's instance address. Runs after every chain has
+  // resolved (or deployed) its ISM tree, so the full pairing is known.
+  // The resulting transactions use the router's ordinary submitter. Ownership
+  // reconciliation stays in the final ownership phase.
+  const delayedFlowTargets = await deriveDelayedFlowEnrollmentTargets(
+    multiProvider,
+    expandedWarpDeployConfig,
+    deployedRoutersAddresses,
+    updatedHybridAddresses,
+  );
+  for (const [chain, target] of Object.entries(delayedFlowTargets)) {
+    const enrollmentTxs = await buildDelayedFlowEnrollmentTxs({
+      chain,
+      multiProvider,
+      registryAddresses,
+      warpRouter: deployedRoutersAddresses[chain],
+      target,
+      allTargets: delayedFlowTargets,
+      reconcileOwnership: false,
+    });
+    if (enrollmentTxs.length === 0) continue;
+    logBlue(
+      `Enrolling ${chain} DelayedFlowRouterHookIsm with its remote counterparts`,
+    );
+    ismUpdateTransactions[chain] = enrollmentTxs;
+  }
+
+  const chains = new Set([
+    ...Object.keys(upgradeTransactions),
+    ...Object.keys(instanceTransactions),
+    ...Object.keys(ismUpdateTransactions),
+    ...Object.keys(hookTransactions),
+    ...Object.keys(routerIsmTransactions),
+    ...Object.keys(updateTransactions),
+  ]);
+  for (const chain of chains) {
+    const removingHybrid = removingHybridChains.has(chain);
+    updateTransactions[chain] = [
+      ...(upgradeTransactions[chain] ?? []),
+      ...(instanceTransactions[chain] ?? []),
+      ...(ismUpdateTransactions[chain] ?? []),
+      ...(removingHybrid ? (routerIsmTransactions[chain] ?? []) : []),
+      ...(hookTransactions[chain] ?? []),
+      ...(!removingHybrid ? (routerIsmTransactions[chain] ?? []) : []),
+      ...(updateTransactions[chain] ?? []),
+    ];
+  }
+
   return {
     txs: updateTransactions,
     feeTxs: feeUpdateTransactions,
@@ -1293,6 +1423,11 @@ function buildAltVmSubmitterFactories({
   };
 }
 
+/**
+ * Builds the submitter for fee transactions. Returns undefined when no
+ * dedicated fee submitter is configured, so callers fall back to the main
+ * submitter.
+ */
 async function getFeeSubmitterByStrategy<T extends ProtocolType>({
   chain,
   context,
@@ -1309,7 +1444,7 @@ async function getFeeSubmitterByStrategy<T extends ProtocolType>({
   const submissionStrategy = readChainSubmissionStrategy(strategyUrl)[chain];
   if (!submissionStrategy?.feeSubmitter) return undefined;
 
-  const feeStrategy: ExtendedSubmissionStrategy = {
+  const auxiliaryStrategy: ExtendedSubmissionStrategy = {
     submitter: submissionStrategy.feeSubmitter,
   };
 
@@ -1336,7 +1471,7 @@ async function getFeeSubmitterByStrategy<T extends ProtocolType>({
   }
 
   return getSubmitterBuilder<T>({
-    submissionStrategy: feeStrategy as SubmissionStrategy,
+    submissionStrategy: auxiliaryStrategy as SubmissionStrategy,
     multiProvider,
     coreAddressesByChain: await registry.getAddresses(),
     additionalSubmitterFactories,
@@ -1461,6 +1596,7 @@ async function submitChainTransactions(
         strategyUrl: params.strategyUrl,
         isExtendedChain,
       });
+
       const transactionReceipts =
         mainTransactions.length > 0
           ? await submitChainBatch(submitter, mainTransactions)
@@ -1708,10 +1844,11 @@ async function submitWarpApplyTransactions(
   }
 }
 
+/** Writes one combined bundle per (chainId, safeAddress) and returns their paths. */
 function writeCombinedBundles(
   receiptsDir: string,
   payloads: SafeTxBuilderPayload[],
-): void {
+): string[] {
   // Group by (chainId, safeAddress) — payloads for different Safes on the same origin
   // chain stay separate; main and fee payloads for the same Safe are merged together.
   const byGroup = new Map<string, SafeTxBuilderPayload[]>();
@@ -1722,6 +1859,7 @@ function writeCombinedBundles(
     list.push(payload);
     byGroup.set(groupKey, list);
   }
+  const writtenPaths: string[] = [];
   for (const [groupKey, group] of byGroup.entries()) {
     const [chainId, safeAddress] = groupKey.split(':');
     const combinedMeta: Record<string, unknown> = { ...group[0].meta };
@@ -1735,10 +1873,12 @@ function writeCombinedBundles(
     const safeSegment = safeAddress ? `-safe${safeAddress.slice(0, 8)}` : '';
     const path = `${receiptsDir}/combined-chainId${chainId}${safeSegment}-${Date.now()}-receipts.json`;
     writeYamlOrJson(path, combined);
+    writtenPaths.push(path);
     logGreen(
       `Combined ${group.length} bundle(s) (${combined.transactions.length} txs) for chain ID ${chainId} written to ${path}`,
     );
   }
+  return writtenPaths;
 }
 
 /**

@@ -99,7 +99,7 @@ describe('runForkCommand --kill teardown', () => {
     expect(createStub.called).to.equal(false);
   });
 
-  it('starts the registry server and does not kill when kill is not set', async () => {
+  it('starts a read-only registry server and does not kill when kill is not set', async () => {
     const created: FakeForkManager[] = [];
     stubRegistry(created);
     const serverStub = sinon.createStubInstance(HttpServer);
@@ -116,6 +116,7 @@ describe('runForkCommand --kill teardown', () => {
     expect(created.length).to.equal(1);
     expect(created.every((manager) => manager.killCount === 0)).to.equal(true);
     expect(createStub.calledOnce).to.equal(true);
+    expect(createStub.firstCall.args[1]).to.be.undefined;
     expect(serverStub.start.calledOnce).to.equal(true);
   });
 

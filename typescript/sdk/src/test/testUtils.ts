@@ -139,6 +139,10 @@ export const hookTypesToFilter: HookType[] = [
   HookType.CCIP,
   HookType.CCTP,
   HookType.UNKNOWN,
+  // hook/ISM hybrids are deployed via their ISM config and need a live paired
+  // TokenRouter, so they cannot be randomly generated
+  HookType.NET_FLOW_RATE_LIMITED,
+  HookType.DELAYED_FLOW_ROUTER,
 ];
 export const DEFAULT_TOKEN_DECIMALS = 18;
 
@@ -359,6 +363,12 @@ export const randomIsmConfig = (
   maxDepth = 2,
   providedIsmType?: IsmType,
 ): Exclude<IsmConfig, string> => {
+  // MAILBOX_DEFAULT maps to the ROUTING module type but has no domains table,
+  // so it cannot share the generic routing branch below
+  if (providedIsmType === IsmType.MAILBOX_DEFAULT) {
+    return { type: IsmType.MAILBOX_DEFAULT };
+  }
+
   // Use input IsmType, otherwise randomize a config based on depth
   const moduleType = providedIsmType
     ? ismTypeToModuleType(providedIsmType)
@@ -405,6 +415,18 @@ export const randomIsmConfig = (
       return config;
     }
     case ModuleType.NULL: {
+      // The hybrid hook/ISMs share the NULL module type but are not
+      // interchangeable with the fallback below: they only make sense paired
+      // with a warp router, so returning a trusted relayer config for them
+      // would silently test something else.
+      if (
+        providedIsmType === IsmType.NET_FLOW_RATE_LIMITED ||
+        providedIsmType === IsmType.DELAYED_FLOW_ROUTER
+      ) {
+        throw new Error(
+          `randomIsmConfig cannot generate ${providedIsmType}: it is deployed against a specific warp router, so build the config explicitly`,
+        );
+      }
       if (providedIsmType === IsmType.RATE_LIMITED) {
         const config: RateLimitedIsmConfig = {
           type: IsmType.RATE_LIMITED,

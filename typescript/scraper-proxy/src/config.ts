@@ -17,10 +17,6 @@ const ConfigSchema = z.object({
     .min(1)
     .max(5_000)
     .default(500),
-  EVENT_STREAM_HISTORY_ENABLED: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((value) => value === 'true'),
   EVENT_STREAM_HISTORY_MAX_CONCURRENT: z.coerce
     .number()
     .int()
@@ -31,7 +27,7 @@ const ConfigSchema = z.object({
     .number()
     .int()
     .min(1_000)
-    .default(60_000),
+    .default(1_800_000),
   EVENT_STREAM_HISTORY_MAX_ROWS: z.coerce
     .number()
     .int()

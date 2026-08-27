@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 
 import { HookType, IgpVersion } from '../hook/types.js';
+import { IsmType } from '../ism/types.js';
 
 import { CoreConfigSchema } from './types.js';
 
@@ -22,6 +23,76 @@ const baseConfig = (overrides: Record<string, unknown>) => ({
   defaultHook: ADDRESS,
   requiredHook: ADDRESS,
   ...overrides,
+});
+
+describe('CoreConfigSchema warp-only default ISM guard', () => {
+  const netFlow = {
+    type: IsmType.NET_FLOW_RATE_LIMITED,
+    warpRouter: ADDRESS,
+    thresholdBps: 500,
+    duration: 86400n,
+    owner: ADDRESS,
+  };
+  const delayedFlow = {
+    type: IsmType.DELAYED_FLOW_ROUTER,
+    warpRouter: ADDRESS,
+    thresholdBps: 500,
+    maxDelay: 3600,
+    duration: 86400n,
+    owner: ADDRESS,
+  };
+
+  // DefaultIsm.route() returns mailbox.defaultIsm(); as the default ISM it
+  // resolves to itself and recurses until out of gas.
+  it('rejects DefaultIsm as the core default ISM', () => {
+    const result = CoreConfigSchema.safeParse(
+      baseConfig({ defaultIsm: { type: IsmType.MAILBOX_DEFAULT } }),
+    );
+    expect(result.success).to.be.false;
+  });
+
+  it('rejects DefaultIsm nested inside a core default ISM tree', () => {
+    const result = CoreConfigSchema.safeParse(
+      baseConfig({
+        defaultIsm: {
+          type: IsmType.AGGREGATION,
+          threshold: 2,
+          modules: [
+            { type: IsmType.TRUSTED_RELAYER, relayer: ADDRESS },
+            { type: IsmType.MAILBOX_DEFAULT },
+          ],
+        },
+      }),
+    );
+    expect(result.success).to.be.false;
+  });
+
+  for (const hybrid of [netFlow, delayedFlow]) {
+    it(`rejects ${hybrid.type} nested in a core default ISM tree`, () => {
+      const result = CoreConfigSchema.safeParse(
+        baseConfig({
+          defaultIsm: {
+            type: IsmType.AGGREGATION,
+            threshold: 2,
+            modules: [
+              { type: IsmType.TRUSTED_RELAYER, relayer: ADDRESS },
+              hybrid,
+            ],
+          },
+        }),
+      );
+      expect(result.success).to.be.false;
+    });
+  }
+
+  it('still accepts an ordinary default ISM', () => {
+    const result = CoreConfigSchema.safeParse(
+      baseConfig({
+        defaultIsm: { type: IsmType.TRUSTED_RELAYER, relayer: ADDRESS },
+      }),
+    );
+    expect(result.success).to.be.true;
+  });
 });
 
 describe('CoreConfigSchema legacy IGP / QuotedCalls guard', () => {

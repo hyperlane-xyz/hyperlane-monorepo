@@ -28,6 +28,7 @@ import {
   RelayerEnvConfig,
 } from '../config/agent/relayer.js';
 import { ScraperConfigHelper } from '../config/agent/scraper.js';
+import type { ScraperProxyConfig } from '../config/agent/scraper-proxy.js';
 import { ValidatorConfigHelper } from '../config/agent/validator.js';
 import { DeployEnvironment } from '../config/deploy-environment.js';
 import { AgentRole, Role } from '../roles.js';
@@ -372,22 +373,63 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
 
   async helmValues(): Promise<HelmRootAgentValues> {
     const values = await super.helmValues();
-    const proxy = this.config.rawConfig.scraper?.proxy;
     values.hyperlane.scraper = {
       enabled: true,
       config: await this.config.buildConfig(),
-      proxy: proxy && {
-        ...proxy,
-        docker: {
-          repository: proxy.docker.repo,
-          tag: proxy.docker.tag,
-        },
-      },
       resources: this.kubernetesResources(),
     };
     // scraper never requires aws credentials
     values.hyperlane.aws = false;
     return values;
+  }
+}
+
+export class ScraperProxyHelmManager extends HelmManager<HelmRootAgentValues> {
+  readonly helmChartPath: string = HELM_CHART_PATH;
+  readonly helmReleaseName = 'scraper-proxy';
+  private readonly scraperProxy: ScraperProxyConfig;
+
+  constructor(private readonly config: RootAgentConfig) {
+    super();
+    const scraperProxy = config.scraperProxy;
+    if (!scraperProxy)
+      throw new Error('Scraper proxy is not defined for this context');
+    this.scraperProxy = scraperProxy;
+  }
+
+  get namespace(): string {
+    return this.config.namespace;
+  }
+
+  async helmValues(): Promise<HelmRootAgentValues> {
+    const { docker, ...scraperProxy } = this.scraperProxy;
+    return {
+      fullnameOverride: 'scraper-proxy',
+      image: {
+        repository: docker.repo,
+        tag: docker.tag,
+      },
+      hyperlane: {
+        runEnv: this.config.runEnv,
+        context: this.config.context,
+        aws: false,
+        chains: [],
+        scraperProxy,
+      },
+    };
+  }
+
+  async restartDeployment(): Promise<void> {
+    await this.runCommand(
+      `kubectl rollout restart deployment/${this.helmReleaseName} -n ${this.namespace}`,
+    );
+    await this.runCommand(
+      `kubectl rollout status deployment/${this.helmReleaseName} -n ${this.namespace} --timeout=180s`,
+    );
+  }
+
+  protected async runCommand(command: string): Promise<void> {
+    await execCmd(command);
   }
 }
 

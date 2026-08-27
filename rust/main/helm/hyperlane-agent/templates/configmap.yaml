@@ -1,3 +1,4 @@
+{{- if or .Values.hyperlane.validator.enabled .Values.hyperlane.relayer.enabled .Values.hyperlane.scraper.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -14,3 +15,4 @@ data:
 {{- include "agent-common.config-env-vars" (dict "config" . "key_name_prefix" (printf "chains_%s_" .name) "format" "config_map") | indent 2 }}
   {{- end }}
   HYP_METRICSPORT: {{ .Values.hyperlane.metrics.port | quote }}
+{{- end }}

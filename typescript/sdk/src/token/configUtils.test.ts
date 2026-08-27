@@ -18,6 +18,10 @@ import type { WarpCoreConfig } from '../warp/types.js';
 import { TokenType } from './config.js';
 import {
   canonicalizeAllowedRebalancingBridges,
+  canonicalizeDomainKeyedMap,
+  completeHybridHookNodesFromIsm,
+  expandWarpDeployConfig,
+  mergeRebalanceTargets,
   filterWarpCoreConfigMapByChains,
   getDefaultRemoteRouterAndDestinationGasConfig,
   getChainsFromWarpCoreConfig,
@@ -32,6 +36,9 @@ import {
   HypTokenRouterConfig,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  XERC20TokenExtraBridgesLimits,
+  XERC20Type,
+  isXERC20TokenConfig,
 } from './types.js';
 
 function buildMultiProvider(): MultiProvider {
@@ -68,6 +75,143 @@ describe('configUtils', () => {
 
       expect(remoteRouters).to.deep.equal({});
       expect(destinationGas).to.deep.equal({});
+    });
+  });
+
+  describe(completeHybridHookNodesFromIsm.name, () => {
+    it('completes an explicit delayed-flow hook leaf from the ISM leaf', () => {
+      const owner = '0x1111111111111111111111111111111111111111';
+      const warpRouter = '0x2222222222222222222222222222222222222222';
+      const remoteIsm = utils.hexZeroPad(
+        '0x3333333333333333333333333333333333333333',
+        32,
+      );
+      const hook = {
+        type: HookType.AGGREGATION,
+        hooks: [
+          {
+            type: HookType.DELAYED_FLOW_ROUTER,
+            thresholdBps: 10000,
+            maxDelay: 5,
+            duration: 86400n,
+            owner,
+          },
+        ],
+      };
+      const ism = {
+        type: IsmType.AGGREGATION,
+        threshold: 1,
+        modules: [
+          {
+            type: IsmType.DELAYED_FLOW_ROUTER,
+            warpRouter,
+            thresholdBps: 10000,
+            maxDelay: 5,
+            duration: 86400n,
+            owner,
+            remoteIsms: { [test2.name]: remoteIsm },
+          },
+        ],
+      };
+
+      expect(completeHybridHookNodesFromIsm(hook, ism)).to.deep.equal({
+        ...hook,
+        hooks: [ism.modules[0]],
+      });
+    });
+  });
+
+  describe(expandWarpDeployConfig.name, () => {
+    it('rejects a hybrid config without a deployed router address', async () => {
+      const owner = '0x1111111111111111111111111111111111111111';
+      let thrown: unknown;
+
+      try {
+        await expandWarpDeployConfig({
+          multiProvider: buildMultiProvider(),
+          warpDeployConfig: {
+            [test1.name]: {
+              type: TokenType.synthetic,
+              name: 'Test',
+              symbol: 'TEST',
+              decimals: 18,
+              owner,
+              mailbox: '0x2222222222222222222222222222222222222222',
+              interchainSecurityModule: {
+                type: IsmType.DELAYED_FLOW_ROUTER,
+                thresholdBps: 10000,
+                maxDelay: 60,
+                duration: 86400n,
+                owner,
+              },
+            },
+          },
+          deployedRoutersAddresses: {},
+        });
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).to.be.instanceOf(Error);
+      assert(thrown instanceof Error, 'Expected expansion to fail');
+      expect(thrown.message).to.equal(
+        `Missing deployed router address for ${test1.name}, which declares a hybrid hook/ISM`,
+      );
+    });
+
+    it('defaults an omitted hook to the completed hybrid ISM node', async () => {
+      const owner = '0x1111111111111111111111111111111111111111';
+      const router = '0x2222222222222222222222222222222222222222';
+      const multiProvider = buildMultiProvider();
+      const provider = multiProvider.getProvider(test1.name);
+      const getCodeStub = sinon.stub(provider, 'getCode').resolves('0x01');
+      const getStorageAtStub = sinon
+        .stub(provider, 'getStorageAt')
+        .resolves('0x0');
+
+      try {
+        const expanded = await expandWarpDeployConfig({
+          multiProvider,
+          warpDeployConfig: {
+            [test1.name]: {
+              type: TokenType.synthetic,
+              name: 'Test',
+              symbol: 'TEST',
+              decimals: 18,
+              owner,
+              mailbox: '0x3333333333333333333333333333333333333333',
+              interchainSecurityModule: {
+                type: IsmType.AGGREGATION,
+                threshold: 2,
+                modules: [
+                  { type: IsmType.TRUSTED_RELAYER, relayer: owner },
+                  {
+                    type: IsmType.DELAYED_FLOW_ROUTER,
+                    thresholdBps: 10000,
+                    maxDelay: 60,
+                    duration: 86400n,
+                    owner,
+                  },
+                ],
+              },
+            },
+          },
+          deployedRoutersAddresses: { [test1.name]: router },
+        });
+
+        expect(expanded[test1.name].hook).to.deep.equal({
+          type: IsmType.DELAYED_FLOW_ROUTER,
+          warpRouter: router,
+          thresholdBps: 10000,
+          maxDelay: 60,
+          duration: 86400n,
+          owner,
+          remoteIsms: undefined,
+        });
+      } finally {
+        getCodeStub.restore();
+        getStorageAtStub.restore();
+      }
     });
   });
 
@@ -279,6 +423,64 @@ describe('configUtils', () => {
         expect(transformedObj).to.eql(expected);
       });
     }
+
+    // The derived side is ordered by the events the token emitted and the
+    // expected side by whoever wrote the deploy config. Comparing them index by
+    // index reports two orderings of the same bridges as drift.
+    it('orders xERC20 extraBridges by the bridge they hold limits for', () => {
+      // The reader reports a bridge EIP-55 checksummed and a deploy config
+      // carries whatever its author typed, so the two sides only order alike if
+      // they are lowercased before they are sorted. These two make that
+      // load-bearing: the checksum uppercases the leading b and leaves the
+      // leading a alone, so sorting the raw strings puts "0xB" (0x42) ahead of
+      // "0xa" (0x61) and the sides canonicalise to opposite orders.
+      const LOWER_A = '0xa000000000000000000000000000000000000000';
+      const LOWER_B = '0xb000000000000000000000000000000000000000';
+      const CHECKSUMMED_A = utils.getAddress(LOWER_A);
+      const CHECKSUMMED_B = utils.getAddress(LOWER_B);
+      expect(CHECKSUMMED_B).to.equal(
+        '0xB000000000000000000000000000000000000000',
+      );
+
+      const limits = {
+        type: XERC20Type.Velo,
+        bufferCap: '20000000000000',
+        rateLimitPerSecond: '5000000000',
+      };
+      const config = (
+        extraBridges: XERC20TokenExtraBridgesLimits[],
+      ): HypTokenRouterConfig => ({
+        type: TokenType.XERC20,
+        token: ADDRESS,
+        mailbox: ADDRESS,
+        owner: ADDRESS,
+        xERC20: { warpRouteLimits: limits, extraBridges },
+      });
+
+      // As the reader reports them, announced in the opposite order to the
+      // deploy config below.
+      const announced = transformConfigToCheck(
+        config([
+          { lockbox: CHECKSUMMED_B, limits },
+          { lockbox: CHECKSUMMED_A, limits },
+        ]),
+      );
+      const declared = transformConfigToCheck(
+        config([
+          { lockbox: LOWER_A, limits },
+          { lockbox: LOWER_B, limits },
+        ]),
+      );
+
+      expect(announced).to.eql(declared);
+      assert(
+        isXERC20TokenConfig(announced),
+        'Expected the transformed config to stay an xERC20 config',
+      );
+      expect(
+        announced.xERC20?.extraBridges?.map(({ lockbox }) => lockbox),
+      ).to.eql([LOWER_A, LOWER_B]);
+    });
 
     it('normalizes plain number scale to {numerator, denominator} bigint', () => {
       const transformedObj = transformConfigToCheck({
@@ -1252,6 +1454,62 @@ describe('configUtils', () => {
         resolveDomainId,
       );
       expect(result).to.deep.equal({ unknownchain: [{ bridge: BRIDGE_A }] });
+    });
+  });
+
+  describe(canonicalizeDomainKeyedMap.name, () => {
+    const TARGET_A = '0x1111111111111111111111111111111111111111';
+    const TARGET_B = '0x2222222222222222222222222222222222222222';
+    const TEST1_DOMAIN = test1.domainId.toString();
+
+    // Only test1 resolves; everything else is treated as unknown.
+    const resolveDomainId = (key: string): number | undefined =>
+      key === test1.name ? test1.domainId : undefined;
+
+    it('canonicalizes chain-name keys to domain ids for rebalanceTargets', () => {
+      const result = canonicalizeDomainKeyedMap(
+        { [test1.name]: [TARGET_A] },
+        resolveDomainId,
+        mergeRebalanceTargets,
+      );
+      expect(result).to.deep.equal({ [TEST1_DOMAIN]: [TARGET_A] });
+    });
+
+    it('unions targets when chain name and domain id collapse to one key', () => {
+      const result = canonicalizeDomainKeyedMap(
+        { [test1.name]: [TARGET_A], [TEST1_DOMAIN]: [TARGET_B] },
+        resolveDomainId,
+        mergeRebalanceTargets,
+      );
+      expect(result[TEST1_DOMAIN]).to.have.deep.members([TARGET_A, TARGET_B]);
+    });
+
+    it('deduplicates a target keyed by both chain name and domain id', () => {
+      const targetMixedCase = '0x' + TARGET_A.slice(2).toUpperCase();
+      const result = canonicalizeDomainKeyedMap(
+        { [test1.name]: [TARGET_A], [TEST1_DOMAIN]: [targetMixedCase] },
+        resolveDomainId,
+        mergeRebalanceTargets,
+      );
+      expect(result[TEST1_DOMAIN]).to.have.lengthOf(1);
+    });
+
+    it('canonicalizes rebalanceRecipients with a last-write merge', () => {
+      const result = canonicalizeDomainKeyedMap<string>(
+        { [test1.name]: TARGET_A },
+        resolveDomainId,
+        (_existing, incoming) => incoming,
+      );
+      expect(result).to.deep.equal({ [TEST1_DOMAIN]: TARGET_A });
+    });
+
+    it('preserves keys the resolver does not recognize', () => {
+      const result = canonicalizeDomainKeyedMap(
+        { unknownchain: [TARGET_A] },
+        resolveDomainId,
+        mergeRebalanceTargets,
+      );
+      expect(result).to.deep.equal({ unknownchain: [TARGET_A] });
     });
   });
 });

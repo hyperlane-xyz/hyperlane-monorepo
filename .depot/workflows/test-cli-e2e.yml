@@ -45,8 +45,11 @@ jobs:
           - core-deploy
           - warp-deploy-1
           - warp-deploy-predicate
+          - warp-delayed-flow
+          - warp-net-flow
           - warp-apply-simple-updates
           - warp-apply-predicate-updates
+          - warp-apply-delayed-flow
           - warp-check-1
           - warp-send
     steps:
@@ -91,6 +94,7 @@ jobs:
           # ICA
           - ica-deploy
           # Warp Apply Commands
+          - warp-apply-delayed-flow
           - warp-apply-hook-updates
           - warp-apply-ism-updates
           - warp-apply-ownership-updates
@@ -105,6 +109,8 @@ jobs:
           # deploy
           - warp-bridge-1
           - warp-bridge-2
+          - warp-delayed-flow
+          - warp-net-flow
           - warp-deploy-1
           - warp-deploy-2
           - warp-deploy-predicate
@@ -368,6 +374,7 @@ jobs:
           - core-deploy
           - warp-deploy-1
           - warp-deploy-2
+          - warp-net-flow
     steps:
       - uses: actions/checkout@v7
         with:

@@ -1,12 +1,20 @@
+import { ethers } from 'ethers';
+
 import {
   AmountRoutingHook,
   CCIPHook,
   CCIPHook__factory,
   DomainRoutingHook,
+  DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
+  FallbackDomainRoutingHook__factory,
   IL1CrossDomainMessenger__factory,
+  IPostDispatchHook__factory,
+  MailboxClient__factory,
+  MerkleTreeHook__factory,
   OPStackHook,
   OPStackIsm,
+  PausableHook__factory,
   ProtocolFee,
   StaticAggregationHook__factory,
 } from '@hyperlane-xyz/core';
@@ -17,13 +25,15 @@ import {
   addressToBytes32,
   assert,
   deepEquals,
+  eqAddress,
+  isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types.js';
 import { CoreAddresses } from '../core/contracts.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
-import { submitBatched } from '../deploy/utils.js';
+import { getTxConfigBatchSize, submitBatched } from '../deploy/utils.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer.js';
 import { IgpFactories } from '../gas/contracts.js';
@@ -42,9 +52,51 @@ import {
   HookConfig,
   HookType,
   IgpHookConfig,
+  OnchainHookType,
   OpStackHookConfig,
+  PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './types.js';
+
+// Hook types that can be recovered without redeployment when the config carries
+// an existing address. Mutable recovered hooks are reconciled in place, and
+// recovered composites traverse only explicitly addressed children.
+const RECOVERABLE_HOOK_TYPES: HookType[] = [
+  HookType.MERKLE_TREE,
+  HookType.AGGREGATION,
+  HookType.PAUSABLE,
+  HookType.ROUTING,
+  HookType.FALLBACK_ROUTING,
+];
+
+const RECOVERABLE_ONCHAIN_HOOK_TYPES: Partial<
+  Record<HookType, OnchainHookType>
+> = {
+  [HookType.MERKLE_TREE]: OnchainHookType.MERKLE_TREE,
+  [HookType.AGGREGATION]: OnchainHookType.AGGREGATION,
+  [HookType.PAUSABLE]: OnchainHookType.PAUSABLE,
+  [HookType.ROUTING]: OnchainHookType.ROUTING,
+  [HookType.FALLBACK_ROUTING]: OnchainHookType.FALLBACK_ROUTING,
+};
+
+function configuredHookAddress(config: HookConfig): Address | undefined {
+  if (typeof config === 'string') return config;
+  return 'address' in config && typeof config.address === 'string'
+    ? config.address
+    : undefined;
+}
+
+interface RecoveredRoutingHookState {
+  routingHook: DomainRoutingHook | FallbackDomainRoutingHook;
+  routingConfigs: DomainRoutingHook.HookConfigStruct[];
+  childConfigs: Map<Address, Exclude<HookConfig, string>>;
+}
+
+interface RecoveredHookContext {
+  expectedMailbox?: Address;
+  configs: Map<string, Exclude<HookConfig, string>>;
+  routingHooks: Map<string, RecoveredRoutingHookState>;
+}
 
 export class HyperlaneHookDeployer extends HyperlaneDeployer<
   HookConfig,
@@ -81,6 +133,67 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
   ): Promise<HyperlaneContracts<HookFactories>> {
     if (typeof config === 'string') {
       throw new Error('Hook deployer should not receive address config');
+    }
+
+    // Configs carrying an `address` reference an already-deployed hook:
+    // recover the existing contract instead of deploying a new one.
+    const existingHookAddress = configuredHookAddress(config);
+    if (existingHookAddress && RECOVERABLE_HOOK_TYPES.includes(config.type)) {
+      const context: RecoveredHookContext = {
+        expectedMailbox: coreAddresses.mailbox,
+        configs: new Map(),
+        routingHooks: new Map(),
+      };
+      await this.validateRecoveredHook(
+        chain,
+        config,
+        existingHookAddress,
+        context,
+      );
+      await this.reconcileRecoveredHook(
+        chain,
+        config,
+        existingHookAddress,
+        new Set<string>(),
+        context,
+      );
+      const signerOrProvider = this.multiProvider.getSignerOrProvider(chain);
+      const hook = (() => {
+        switch (config.type) {
+          case HookType.MERKLE_TREE:
+            return MerkleTreeHook__factory.connect(
+              existingHookAddress,
+              signerOrProvider,
+            );
+          case HookType.AGGREGATION:
+            return StaticAggregationHook__factory.connect(
+              existingHookAddress,
+              signerOrProvider,
+            );
+          case HookType.PAUSABLE:
+            return PausableHook__factory.connect(
+              existingHookAddress,
+              signerOrProvider,
+            );
+          case HookType.ROUTING:
+            return DomainRoutingHook__factory.connect(
+              existingHookAddress,
+              signerOrProvider,
+            );
+          case HookType.FALLBACK_ROUTING:
+            return FallbackDomainRoutingHook__factory.connect(
+              existingHookAddress,
+              signerOrProvider,
+            );
+          default:
+            throw new Error(`Hook type ${config.type} cannot be recovered`);
+        }
+      })();
+      // CAST: deployers return the subset of HookFactories materialized by the
+      // requested config; HyperlaneContracts currently models a complete map.
+      const deployedContracts = { [config.type]: hook } as any; // partial
+      this.addDeployedContracts(chain, deployedContracts);
+      return deployedContracts;
     }
 
     let hook: DeployedHook;
@@ -128,6 +241,420 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     const deployedContracts = { [config.type]: hook } as any; // partial
     this.addDeployedContracts(chain, deployedContracts);
     return deployedContracts;
+  }
+
+  private recoveredOwner(
+    config:
+      | PausableHookConfig
+      | DomainRoutingHookConfig
+      | FallbackRoutingHookConfig,
+  ) {
+    const owner = config.ownerOverrides?.[config.type] ?? config.owner;
+    assert(
+      !isZeroishAddress(owner),
+      `Recovered ${config.type} owner cannot be the zero address`,
+    );
+    return owner;
+  }
+
+  private addRecoveredConfig(
+    configs: Map<string, Exclude<HookConfig, string>>,
+    address: Address,
+    config: Exclude<HookConfig, string>,
+  ): boolean {
+    const key = address.toLowerCase();
+    const existing = configs.get(key);
+    assert(
+      !existing || deepEquals(existing, config),
+      `Recovered hook ${address} has conflicting configs`,
+    );
+    if (existing) return false;
+    configs.set(key, config);
+    return true;
+  }
+
+  private async validateRecoveredHook(
+    chain: ChainName,
+    config: Exclude<HookConfig, string>,
+    address: Address,
+    context: RecoveredHookContext,
+  ): Promise<void> {
+    if (!this.addRecoveredConfig(context.configs, address, config)) return;
+
+    const expectedType = RECOVERABLE_ONCHAIN_HOOK_TYPES[config.type];
+    assert(
+      expectedType !== undefined,
+      `Hook type ${config.type} cannot be recovered by address`,
+    );
+    const actualType = await IPostDispatchHook__factory.connect(
+      address,
+      this.multiProvider.getProvider(chain),
+    ).hookType();
+    assert(
+      actualType === expectedType,
+      `Recovered hook ${address} on ${chain} has type ${actualType}, expected ${expectedType}`,
+    );
+
+    if (
+      config.type === HookType.MERKLE_TREE ||
+      config.type === HookType.ROUTING ||
+      config.type === HookType.FALLBACK_ROUTING
+    ) {
+      assert(
+        context.expectedMailbox,
+        `Mailbox address is required to recover ${config.type}`,
+      );
+      const actualMailbox = await MailboxClient__factory.connect(
+        address,
+        this.multiProvider.getProvider(chain),
+      ).mailbox();
+      assert(
+        eqAddress(actualMailbox, context.expectedMailbox),
+        `Recovered hook ${address} on ${chain} has mailbox ${actualMailbox}, expected ${context.expectedMailbox}`,
+      );
+    }
+
+    switch (config.type) {
+      case HookType.PAUSABLE:
+        await this.validateRecoveredPausableHook(chain, config, address);
+        break;
+      case HookType.AGGREGATION:
+        await this.validateRecoveredAggregationHook(
+          chain,
+          config,
+          address,
+          context,
+        );
+        break;
+      case HookType.ROUTING:
+      case HookType.FALLBACK_ROUTING:
+        await this.validateRecoveredRoutingHook(
+          chain,
+          config,
+          address,
+          context,
+        );
+        break;
+      case HookType.MERKLE_TREE:
+        break;
+      default:
+        assert(
+          false,
+          `Hook type ${config.type} cannot be recovered by address`,
+        );
+    }
+  }
+
+  private async validateRecoveredPausableHook(
+    chain: ChainName,
+    config: PausableHookConfig,
+    address: Address,
+  ): Promise<void> {
+    const hook = PausableHook__factory.connect(
+      address,
+      this.multiProvider.getProvider(chain),
+    );
+    const [currentOwner, currentPaused, signer] = await Promise.all([
+      hook.owner(),
+      hook.paused(),
+      this.multiProvider.getSignerAddress(chain),
+    ]);
+    assert(
+      currentPaused === config.paused,
+      `Recovered pausable hook ${address} on ${chain} is ${currentPaused ? '' : 'not '}paused, but config expects ${config.paused ? '' : 'not '}paused`,
+    );
+    const owner = this.recoveredOwner(config);
+    if (!eqAddress(currentOwner, owner)) {
+      assert(
+        eqAddress(currentOwner, signer),
+        `Cannot reconcile recovered pausable hook ${address} on ${chain}: signer ${signer} is not owner ${currentOwner}`,
+      );
+    }
+  }
+
+  private async validateRecoveredAggregationHook(
+    chain: ChainName,
+    config: AggregationHookConfig,
+    address: Address,
+    context: RecoveredHookContext,
+  ): Promise<void> {
+    await this.assertRecoveredAggregationChildren(chain, config, address);
+    for (const hookConfig of config.hooks) {
+      if (typeof hookConfig === 'string') continue;
+      const hookAddress = configuredHookAddress(hookConfig);
+      assert(hookAddress, 'Recovered aggregation child address is required');
+      await this.validateRecoveredHook(chain, hookConfig, hookAddress, context);
+    }
+  }
+
+  private async validateRecoveredRoutingHook(
+    chain: ChainName,
+    config: DomainRoutingHookConfig | FallbackRoutingHookConfig,
+    address: Address,
+    context: RecoveredHookContext,
+  ): Promise<void> {
+    const recoveredRoutingHook = await this.readRecoveredRoutingHook(
+      chain,
+      config,
+      address,
+    );
+    context.routingHooks.set(address.toLowerCase(), recoveredRoutingHook);
+    const { routingHook, routingConfigs, childConfigs } = recoveredRoutingHook;
+    const [currentOwner, signer] = await Promise.all([
+      routingHook.owner(),
+      this.multiProvider.getSignerAddress(chain),
+    ]);
+    const owner = this.recoveredOwner(config);
+    if (routingConfigs.length > 0 || !eqAddress(currentOwner, owner)) {
+      assert(
+        eqAddress(currentOwner, signer),
+        `Cannot reconcile recovered routing hook ${address} on ${chain}: signer ${signer} is not owner ${currentOwner}`,
+      );
+    }
+
+    const batchSize = getTxConfigBatchSize(chain);
+    for (let i = 0; i < routingConfigs.length; i += batchSize) {
+      await routingHook.estimateGas.setHooks(
+        routingConfigs.slice(i, i + batchSize),
+      );
+    }
+    for (const [childAddress, childConfig] of childConfigs) {
+      await this.validateRecoveredHook(
+        chain,
+        childConfig,
+        childAddress,
+        context,
+      );
+    }
+  }
+
+  private async reconcileRecoveredHook(
+    chain: ChainName,
+    config: Exclude<HookConfig, string>,
+    address: Address,
+    reconciled: Set<string>,
+    context: RecoveredHookContext,
+  ): Promise<void> {
+    const key = address.toLowerCase();
+    if (reconciled.has(key)) return;
+    reconciled.add(key);
+    switch (config.type) {
+      case HookType.PAUSABLE:
+        await this.reconcileRecoveredPausableHook(chain, config, address);
+        break;
+      case HookType.AGGREGATION:
+        await this.reconcileRecoveredAggregationHook(
+          chain,
+          config,
+          address,
+          reconciled,
+          context,
+        );
+        break;
+      case HookType.ROUTING:
+      case HookType.FALLBACK_ROUTING:
+        await this.reconcileRecoveredRoutingHook(
+          chain,
+          config,
+          address,
+          reconciled,
+          context,
+        );
+        break;
+      default:
+        break;
+    }
+  }
+
+  private async reconcileRecoveredPausableHook(
+    chain: ChainName,
+    config: PausableHookConfig,
+    address: Address,
+  ): Promise<void> {
+    const hook = PausableHook__factory.connect(
+      address,
+      this.multiProvider.getSignerOrProvider(chain),
+    );
+    const currentOwner = await hook.owner();
+    const owner = this.recoveredOwner(config);
+    if (eqAddress(currentOwner, owner)) return;
+    const overrides = this.multiProvider.getTransactionOverrides(chain);
+    await this.multiProvider.handleTx(
+      chain,
+      hook.transferOwnership(owner, overrides),
+    );
+  }
+
+  private async assertRecoveredAggregationChildren(
+    chain: ChainName,
+    config: AggregationHookConfig,
+    address: Address,
+  ): Promise<void> {
+    const expectedAddresses = config.hooks.map((hookConfig) => {
+      const hookAddress = configuredHookAddress(hookConfig);
+      assert(
+        hookAddress,
+        `Recovered aggregation hook ${address} on ${chain} requires addresses for every child`,
+      );
+      return hookAddress;
+    });
+
+    const aggregation = StaticAggregationHook__factory.connect(
+      address,
+      this.multiProvider.getProvider(chain),
+    );
+    const actualAddresses = await aggregation.hooks(
+      ethers.constants.AddressZero,
+    );
+    const expectedSorted = [...expectedAddresses].sort((a, b) =>
+      a.toLowerCase().localeCompare(b.toLowerCase()),
+    );
+    const actualSorted = [...actualAddresses].sort((a, b) =>
+      a.toLowerCase().localeCompare(b.toLowerCase()),
+    );
+    assert(
+      actualSorted.length === expectedSorted.length &&
+        actualSorted.every((hookAddress, index) =>
+          eqAddress(hookAddress, expectedSorted[index]),
+        ),
+      `Recovered aggregation hook ${address} on ${chain} does not contain the configured children`,
+    );
+  }
+
+  private async reconcileRecoveredAggregationHook(
+    chain: ChainName,
+    config: AggregationHookConfig,
+    address: Address,
+    reconciled: Set<string>,
+    context: RecoveredHookContext,
+  ): Promise<void> {
+    for (const hookConfig of config.hooks) {
+      if (typeof hookConfig === 'string') continue;
+      const hookAddress = configuredHookAddress(hookConfig);
+      assert(hookAddress, 'Recovered aggregation child address is required');
+      await this.reconcileRecoveredHook(
+        chain,
+        hookConfig,
+        hookAddress,
+        reconciled,
+        context,
+      );
+    }
+  }
+
+  private async readRecoveredRoutingHook(
+    chain: ChainName,
+    config: DomainRoutingHookConfig | FallbackRoutingHookConfig,
+    address: Address,
+  ): Promise<RecoveredRoutingHookState> {
+    let routingHook: DomainRoutingHook | FallbackDomainRoutingHook;
+    const childConfigs = new Map<string, Exclude<HookConfig, string>>();
+
+    if (config.type === HookType.FALLBACK_ROUTING) {
+      const fallbackRoutingHook = FallbackDomainRoutingHook__factory.connect(
+        address,
+        this.multiProvider.getSignerOrProvider(chain),
+      );
+      routingHook = fallbackRoutingHook;
+      const fallbackAddress = configuredHookAddress(config.fallback);
+      assert(
+        fallbackAddress,
+        `Recovered fallback routing hook ${address} on ${chain} requires a fallback address`,
+      );
+      const actualFallback = await fallbackRoutingHook.fallbackHook();
+      assert(
+        eqAddress(actualFallback, fallbackAddress),
+        `Recovered fallback routing hook ${address} on ${chain} has fallback ${actualFallback}, expected ${fallbackAddress}`,
+      );
+      if (typeof config.fallback !== 'string') {
+        this.addRecoveredConfig(childConfigs, fallbackAddress, config.fallback);
+      }
+    } else {
+      routingHook = DomainRoutingHook__factory.connect(
+        address,
+        this.multiProvider.getSignerOrProvider(chain),
+      );
+    }
+
+    const domainConfigs = Object.entries(config.domains).map(
+      ([destination, hookConfig]) => {
+        const hookAddress = configuredHookAddress(hookConfig);
+        assert(
+          hookAddress,
+          `Recovered routing hook ${address} on ${chain} requires an address for ${destination}`,
+        );
+        if (typeof hookConfig !== 'string') {
+          this.addRecoveredConfig(childConfigs, hookAddress, hookConfig);
+        }
+
+        return {
+          destination: this.multiProvider.getDomainId(destination),
+          hook: hookAddress,
+        };
+      },
+    );
+    const actualHooks = await Promise.all(
+      domainConfigs.map(({ destination }) => routingHook.hooks(destination)),
+    );
+    const routingConfigs = domainConfigs.filter(
+      ({ hook }, index) => !eqAddress(actualHooks[index], hook),
+    );
+
+    return { routingHook, routingConfigs, childConfigs };
+  }
+
+  private async reconcileRecoveredRoutingHook(
+    chain: ChainName,
+    config: DomainRoutingHookConfig | FallbackRoutingHookConfig,
+    address: Address,
+    reconciled: Set<string>,
+    context: RecoveredHookContext,
+  ): Promise<void> {
+    const recoveredRoutingHook = context.routingHooks.get(
+      address.toLowerCase(),
+    );
+    assert(
+      recoveredRoutingHook,
+      `Recovered routing hook ${address} on ${chain} was not validated`,
+    );
+    const { routingHook, routingConfigs, childConfigs } = recoveredRoutingHook;
+    for (const [childAddress, childConfig] of childConfigs) {
+      await this.reconcileRecoveredHook(
+        chain,
+        childConfig,
+        childAddress,
+        reconciled,
+        context,
+      );
+    }
+
+    const overrides = this.multiProvider.getTransactionOverrides(chain);
+    if (routingConfigs.length > 0) {
+      await submitBatched(
+        chain,
+        routingConfigs,
+        async (batch) => {
+          const estimatedGas = await routingHook.estimateGas.setHooks(batch);
+          await this.multiProvider.handleTx(
+            chain,
+            routingHook.setHooks(batch, {
+              gasLimit: addBufferToGasLimit(estimatedGas),
+              ...overrides,
+            }),
+          );
+        },
+        this.logger,
+        'recovered routing hook configs',
+      );
+    }
+    const owner = this.recoveredOwner(config);
+    const currentOwner = await routingHook.owner();
+    if (!eqAddress(currentOwner, owner)) {
+      await this.multiProvider.handleTx(
+        chain,
+        routingHook.transferOwnership(owner, overrides),
+      );
+    }
   }
 
   async deployCCIPHook(

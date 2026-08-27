@@ -5,9 +5,11 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { randomAddress } from '../test/testUtils.js';
 
+import { MAX_SAFE_UINT48 } from '../ism/types.js';
 import { RATE_LIMIT_DEFAULT_DURATION_SECONDS } from '../types.js';
 
 import {
+  DelayedFlowRouterHookConfigSchema,
   HookConfigSchema,
   HookType,
   IgpSchema,
@@ -16,6 +18,31 @@ import {
 
 const SOME_ADDRESS = ethers.Wallet.createRandom().address;
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+describe('DelayedFlowRouterHookConfigSchema', () => {
+  const config = {
+    type: HookType.DELAYED_FLOW_ROUTER,
+    warpRouter: SOME_ADDRESS,
+    thresholdBps: 500,
+    duration: 86400n,
+    owner: SOME_ADDRESS,
+  };
+
+  it('enforces the operational maxDelay bound', () => {
+    expect(
+      DelayedFlowRouterHookConfigSchema.safeParse({
+        ...config,
+        maxDelay: MAX_SAFE_UINT48,
+      }).success,
+    ).to.be.true;
+    expect(
+      DelayedFlowRouterHookConfigSchema.safeParse({
+        ...config,
+        maxDelay: MAX_SAFE_UINT48 + 1,
+      }).success,
+    ).to.be.false;
+  });
+});
 
 describe('IgpSchema', () => {
   const baseConfig = {

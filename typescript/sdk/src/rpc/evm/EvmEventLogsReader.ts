@@ -320,6 +320,38 @@ export class EvmEventLogsReader {
     return block;
   }
 
+  /**
+   * The block the contract was deployed in, which is where a scan of its whole
+   * history starts. Read over the block explorer where the chain has a usable
+   * one and over the RPC otherwise, the same way `getLogsByTopic` resolves it
+   * when a caller does not supply `fromBlock`, and cached per instance.
+   *
+   * Exposed for callers that read the same range more than once: resolving it
+   * here and passing it as `fromBlock` keeps a later read from deriving it
+   * again over the RPC, which bisects `eth_getCode` through historical blocks
+   * that a chain serving no archive state cannot answer.
+   */
+  async getContractDeploymentBlock(contractAddress: Address): Promise<number> {
+    try {
+      return await retryAsync(() =>
+        this.getDeploymentBlock(contractAddress, this.logReaderStrategy),
+      );
+    } catch (err) {
+      if (!this.fallbackLogReaderStrategy) {
+        throw err;
+      }
+
+      this.logger.debug(
+        `Failed to read the deployment block of ${contractAddress} on chain "${this.config.chain}": ${err}. Falling back to using the RPC`,
+      );
+
+      return this.getDeploymentBlock(
+        contractAddress,
+        this.fallbackLogReaderStrategy,
+      );
+    }
+  }
+
   async getLogsByTopic(
     options: GetLogByTopicOptions,
   ): Promise<GetEventLogsResponse[]> {

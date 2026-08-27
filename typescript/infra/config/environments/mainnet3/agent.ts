@@ -136,7 +136,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: false, // disabled — RPC unavailable
+    soon: true,
     stable: true,
     starknet: true,
     subtensor: true,
@@ -219,7 +219,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: false, // disabled — RPC unavailable
+    soon: true,
     stable: true,
     starknet: true,
     subtensor: true,
@@ -302,7 +302,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: false, // disabled — RPC unavailable
+    soon: true,
     stable: true,
     starknet: true,
     subtensor: true,
@@ -752,6 +752,8 @@ const blacklist: MatchingList = [
     originDomain: getDomainId('starknet'),
     destinationDomain: getDomainId('starknet'),
   },
+  // NES warp route paused - blacklisted pending on-chain route pause
+  ...warpRouteMatchingList(WarpRouteIds.BscNES),
 ];
 
 const ismCacheConfigs: Array<IsmCacheConfig> = [
@@ -838,26 +840,24 @@ const hyperlane: RootAgentConfig = {
   },
   scraper: {
     scraperOnlyChains,
-    proxy: {
-      docker: {
-        repo: DockerImageRepos.NODE_SERVICES,
-        tag: mainnetDockerTags.scraperProxy,
-      },
-      // Enable after publishing an immutable node-services image and creating
-      // the scraper-proxy Cloudflare tunnel token secret.
-      enabled: true,
-      historyEnabled: false,
-      port: 8383,
-      resources: {
-        requests: { cpu: '250m', memory: '512Mi' },
-      },
-    },
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.scraper,
     },
     resources: scraperResources,
+  },
+  scraperProxy: {
+    docker: {
+      repo: DockerImageRepos.NODE_SERVICES,
+      tag: mainnetDockerTags.scraperProxy,
+    },
+    enabled: true,
+    port: 8383,
+    replicas: 1,
+    resources: {
+      requests: { cpu: '500m', memory: '1Gi' },
+    },
   },
 };
 

@@ -16,6 +16,14 @@ import type { GraphQLFormattedError } from 'graphql';
 import { config } from './config.js';
 import { DbModule } from './db/db.module.js';
 import { DbService } from './db/db.service.js';
+import {
+  graphqlActiveRequestLimit,
+  graphqlActiveRequests,
+  graphqlErrors,
+  graphqlRequestDuration,
+  graphqlRequests,
+  MetricsController,
+} from './metrics.js';
 import { scraperDbCachePlugin } from './scraperdb/cache-plugin.js';
 import { normalizeGraphqlRequestBody } from './scraperdb/request-compatibility.js';
 import { buildResolvers } from './scraperdb/resolver-map.js';
@@ -59,6 +67,7 @@ if (!schemaPath) throw new Error('Missing scraper DB GraphQL schema');
 
 let stats = newStats();
 let activeRequests = 0;
+graphqlActiveRequestLimit.set(config.GRAPHQL_MAX_ACTIVE_REQUESTS);
 setInterval(() => {
   const current = stats;
   stats = newStats();
@@ -68,6 +77,7 @@ setInterval(() => {
 }, 60_000).unref();
 
 @Module({
+  controllers: [MetricsController],
   imports: [
     GraphQLModule.forRootAsync<ApolloDriverConfig>({
       driver: ApolloDriver,
@@ -103,15 +113,19 @@ function graphqlMiddleware(
     res.statusCode = 503;
     res.setHeader('retry-after', '1');
     res.end('GraphQL request capacity exceeded');
+    graphqlRequests.inc({ outcome: 'capacity_rejected' });
+    graphqlRequestDuration.observe((Date.now() - started) / 1_000);
     recordRequest(started, 503, true);
     return;
   }
   activeRequests++;
+  graphqlActiveRequests.inc();
   let completed = false;
   const complete = (): void => {
     if (completed) return;
     completed = true;
     activeRequests--;
+    graphqlActiveRequests.dec();
     recordRequest(
       started,
       res.statusCode ?? 0,
@@ -132,6 +146,10 @@ function recordRequest(
   request = 'REQUEST /graphql',
 ): void {
   const duration = Date.now() - started;
+  if (!rejected) {
+    graphqlRequests.inc({ outcome: requestOutcome(status) });
+    graphqlRequestDuration.observe(duration / 1_000);
+  }
   stats.requests++;
   stats.totalMs += duration;
   stats.maxMs = Math.max(stats.maxMs, duration);
@@ -147,8 +165,15 @@ function formatError(error: GraphQLFormattedError): GraphQLFormattedError {
       ? ` code=${error.extensions.code}`
       : '';
   stats.errors++;
+  graphqlErrors.inc();
   logger.warn(`error${code}: ${error.message}`);
   return error;
+}
+
+function requestOutcome(status: number): string {
+  if (status >= 500) return 'server_error';
+  if (status >= 400) return 'client_error';
+  return 'success';
 }
 
 function newStats(): Stats {
