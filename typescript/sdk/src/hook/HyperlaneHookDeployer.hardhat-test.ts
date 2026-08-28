@@ -33,7 +33,10 @@ describe('HyperlaneHookDeployer recovered hooks', () => {
   const remote = TestChainName.test2;
   const newRemote = TestChainName.test3;
 
-  async function deployFixture() {
+  async function deployFixture(
+    pausablePaused = false,
+    transferPausableOwnership = false,
+  ) {
     const [signer, newOwner, overrideOwner] = await hre.ethers.getSigners();
     const multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const proxyFactoryContracts = await new HyperlaneProxyFactoryDeployer(
@@ -59,6 +62,9 @@ describe('HyperlaneHookDeployer recovered hooks', () => {
     );
 
     const owner = await signer.getAddress();
+    const pausableOwner = transferPausableOwnership
+      ? await newOwner.getAddress()
+      : owner;
     const initialConfig: FallbackRoutingHookConfig = {
       type: HookType.FALLBACK_ROUTING,
       owner,
@@ -67,7 +73,11 @@ describe('HyperlaneHookDeployer recovered hooks', () => {
         [remote]: {
           type: HookType.AGGREGATION,
           hooks: [
-            { type: HookType.PAUSABLE, owner, paused: false },
+            {
+              type: HookType.PAUSABLE,
+              owner: pausableOwner,
+              paused: pausablePaused,
+            },
             { type: HookType.MERKLE_TREE },
           ],
         },
@@ -106,6 +116,7 @@ describe('HyperlaneHookDeployer recovered hooks', () => {
       coreAddresses,
       hookDeployer,
       owner,
+      pausableOwner,
       fallbackRoutingHook,
       aggregationAddress,
       pausableAddress,
@@ -114,6 +125,17 @@ describe('HyperlaneHookDeployer recovered hooks', () => {
       childrenBefore,
     };
   }
+
+  it('applies pausable hook state before transferring ownership', async () => {
+    const { signer, pausableAddress, pausableOwner } = await deployFixture(
+      true,
+      true,
+    );
+    const pausable = PausableHook__factory.connect(pausableAddress, signer);
+
+    expect(await pausable.paused()).to.be.true;
+    expect(eqAddress(await pausable.owner(), pausableOwner)).to.be.true;
+  });
 
   it('reconciles a nested recovered pausable hook without replacing the tree', async () => {
     const {

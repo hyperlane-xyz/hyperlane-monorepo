@@ -5,6 +5,7 @@ import hre from 'hardhat';
 import {
   CONTRACTS_PACKAGE_VERSION,
   InterchainGasPaymaster__factory,
+  PausableHook__factory,
   RateLimitedHook__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -204,6 +205,23 @@ describe('EvmHookModule', async () => {
     it('deploys a hook of type CUSTOM', async () => {
       const config: HookConfig = randomAddress();
       await createHook(config);
+    });
+
+    it('deploys a pausable hook in the configured paused state', async () => {
+      const config: PausableHookConfig = {
+        owner: randomAddress(),
+        type: HookType.PAUSABLE,
+        paused: true,
+      };
+
+      const { initialHookAddress } = await createHook(config);
+      const hook = PausableHook__factory.connect(
+        initialHookAddress,
+        multiProvider.getProvider(chain),
+      );
+
+      expect(await hook.paused()).to.be.true;
+      expect(eqAddress(await hook.owner(), config.owner)).to.be.true;
     });
 
     // random configs upto depth 2
