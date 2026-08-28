@@ -26,11 +26,15 @@ export class SvmSigner extends BaseSvmSigner {
 
   static async connectWithSigner(
     metadata: ChainMetadataForAltVM,
-    privateKey: string,
+    signer: string | TransactionSigner,
   ): Promise<SvmSigner> {
+    if (typeof signer !== 'string') {
+      const { rpc, rpcUrls } = BaseSvmSigner.resolveRpcConnection(metadata);
+      return new SvmSigner(rpc, rpcUrls, metadata, signer);
+    }
     const { rpc, rpcUrls, keypair } = await BaseSvmSigner.resolveConnection(
       metadata,
-      privateKey,
+      signer,
     );
 
     return new SvmSigner(rpc, rpcUrls, metadata, keypair);
