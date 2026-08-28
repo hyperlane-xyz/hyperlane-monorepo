@@ -71,6 +71,19 @@ describe('getRawBalances', () => {
     });
   });
 
+  for (const standard of [
+    TokenStandard.EvmHypXERC20Lockbox,
+    TokenStandard.EvmHypVSXERC20Lockbox,
+  ]) {
+    it(`should return the lockbox bridged supply for the token (${standard})`, () => {
+      token.standard = standard;
+
+      expect(getRawBalances(chains, event, testLogger)).to.deep.equal({
+        mainnet: tokenBridgedSupply,
+      });
+    });
+  }
+
   it('should ignore non supported token standards', () => {
     token.standard = TokenStandard.EvmHypOwnerCollateral;
 
