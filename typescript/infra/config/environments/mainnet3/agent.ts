@@ -75,7 +75,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     adichain: true,
     aleo: true,
     apechain: true,
-    appchain: true,
+    appchain: false, // disabled — deprecation per ENG-3932
     arbitrum: true,
     avalanche: true,
     base: true,
@@ -94,14 +94,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eni: true,
     ethereum: true,
     fluent: true,
-    flowmainnet: true,
+    flowmainnet: false, // disabled — deprecation per ENG-4006
     forma: false, // relayer + scraper only
     fraxtal: true,
     galactica: true,
     gnosis: true,
     hyperevm: true,
     igra: true,
-    immutablezkevmmainnet: true,
+    immutablezkevmmainnet: false, // disabled — deprecation per ENG-4119
     ink: true,
     katana: true,
     kiichain: true,
@@ -136,7 +136,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: true,
+    soon: false, // disabled — deprecation per ENG-3607
     stable: true,
     starknet: true,
     subtensor: true,
@@ -158,7 +158,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     adichain: true,
     aleo: true,
     apechain: true,
-    appchain: true,
+    appchain: false, // disabled — deprecation per ENG-3932
     arbitrum: true,
     avalanche: true,
     base: true,
@@ -177,14 +177,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eni: true,
     ethereum: true,
     fluent: true,
-    flowmainnet: true,
+    flowmainnet: false, // disabled — deprecation per ENG-4006
     forma: true,
     fraxtal: true,
     galactica: true,
     gnosis: true,
     hyperevm: true,
     igra: true,
-    immutablezkevmmainnet: true,
+    immutablezkevmmainnet: false, // disabled — deprecation per ENG-4119
     ink: true,
     katana: true,
     kiichain: true,
@@ -219,7 +219,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: true,
+    soon: false, // disabled — deprecation per ENG-3607
     stable: true,
     starknet: true,
     subtensor: true,
@@ -241,7 +241,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     adichain: true,
     aleo: true,
     apechain: true,
-    appchain: true,
+    appchain: false, // disabled — deprecation per ENG-3932
     arbitrum: true,
     avalanche: true,
     base: true,
@@ -260,14 +260,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eni: true,
     ethereum: true,
     fluent: true,
-    flowmainnet: true,
+    flowmainnet: false, // disabled — deprecation per ENG-4006
     forma: true,
     fraxtal: true,
     galactica: true,
     gnosis: true,
     hyperevm: true,
     igra: true,
-    immutablezkevmmainnet: true,
+    immutablezkevmmainnet: false, // disabled — deprecation per ENG-4119
     ink: true,
     katana: true,
     kiichain: true,
@@ -302,7 +302,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: true,
+    soon: false, // disabled — deprecation per ENG-3607
     stable: true,
     starknet: true,
     subtensor: true,
