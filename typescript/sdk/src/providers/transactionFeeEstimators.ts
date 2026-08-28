@@ -111,6 +111,10 @@ export interface EvmTransactionFeeEstimateOptions extends TransactionFeeEstimate
   fallbackGasUnits?: bigint;
 }
 
+interface EvmTransactionFeeEstimatorOptions extends EvmTransactionFeeEstimateOptions {
+  chainName?: string;
+}
+
 type EvmTypedTransaction = Extract<
   TypedTransaction,
   { type: ProviderType.EthersV5 | ProviderType.Viem }
@@ -165,11 +169,12 @@ export async function estimateTransactionFeeEthersV5({
   sender,
   ignoreSenderBalance,
   fallbackGasUnits,
+  chainName,
 }: {
   transaction: EV5Transaction;
   provider: EV5Providers.Provider;
   sender: Address;
-} & EvmTransactionFeeEstimateOptions): Promise<TransactionFeeEstimate> {
+} & EvmTransactionFeeEstimatorOptions): Promise<TransactionFeeEstimate> {
   assertValidFallbackGasUnits(fallbackGasUnits);
   const gasUnits = ignoreSenderBalance
     ? await estimateGasEthersV5WithBalanceOverride({
@@ -177,6 +182,7 @@ export async function estimateTransactionFeeEthersV5({
         provider,
         sender,
         fallbackGasUnits,
+        chainName,
       })
     : await provider.estimateGas({
         ...transaction,
@@ -193,11 +199,13 @@ async function estimateGasEthersV5WithBalanceOverride({
   provider,
   sender,
   fallbackGasUnits,
+  chainName,
 }: {
   transaction: EV5Transaction;
   provider: EV5Providers.Provider;
   sender: Address;
   fallbackGasUnits?: bigint;
+  chainName?: string;
 }): Promise<BigNumber> {
   const resolvedTransaction = EV5Providers.JsonRpcProvider.hexlifyTransaction(
     await EthersV5Utils.resolveProperties({ ...transaction, from: sender }),
@@ -234,7 +242,11 @@ async function estimateGasEthersV5WithBalanceOverride({
       throw new StateOverrideUnsupportedError({ cause: error });
     }
     logger.warn(
-      { estimator: 'ethersV5', jsonRpcCode: INVALID_PARAMS_JSON_RPC_ERROR },
+      {
+        estimator: 'ethersV5',
+        chainName,
+        jsonRpcCode: INVALID_PARAMS_JSON_RPC_ERROR,
+      },
       'Ethers v5 RPC rejected eth_estimateGas state override; using caller-provided fallback gas units without transaction simulation',
     );
     return BigNumber.from(fallbackGasUnits);
@@ -267,11 +279,12 @@ export async function estimateTransactionFeeViem({
   sender,
   ignoreSenderBalance,
   fallbackGasUnits,
+  chainName,
 }: {
   transaction: ViemTransaction;
   provider: ViemProvider;
   sender: Address;
-} & EvmTransactionFeeEstimateOptions): Promise<TransactionFeeEstimate> {
+} & EvmTransactionFeeEstimatorOptions): Promise<TransactionFeeEstimate> {
   assertValidFallbackGasUnits(fallbackGasUnits);
   assert(isViemAddress(sender), `Invalid EVM sender address: ${sender}`);
   const estimateGas = (includeStateOverride: boolean) =>
@@ -293,7 +306,11 @@ export async function estimateTransactionFeeViem({
       throw new StateOverrideUnsupportedError({ cause: error });
     }
     logger.warn(
-      { estimator: 'viem', jsonRpcCode: INVALID_PARAMS_JSON_RPC_ERROR },
+      {
+        estimator: 'viem',
+        chainName,
+        jsonRpcCode: INVALID_PARAMS_JSON_RPC_ERROR,
+      },
       'Viem RPC rejected eth_estimateGas state override; using caller-provided fallback gas units without transaction simulation',
     );
     gasUnits = fallbackGasUnits;
@@ -612,6 +629,7 @@ export function estimateTransactionFee({
       sender,
       ignoreSenderBalance,
       fallbackGasUnits,
+      chainName: chainMetadata.name,
     });
   } else if (
     transaction.type === ProviderType.Viem &&
@@ -623,6 +641,7 @@ export function estimateTransactionFee({
       sender,
       ignoreSenderBalance,
       fallbackGasUnits,
+      chainName: chainMetadata.name,
     });
   } else if (
     transaction.type === ProviderType.SolanaWeb3 &&
