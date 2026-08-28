@@ -3,7 +3,7 @@ import type { Server } from 'node:http';
 import type { Logger } from 'pino';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
-import { createServiceLogger, isObjEmpty } from '@hyperlane-xyz/utils';
+import { assert, createServiceLogger, isObjEmpty } from '@hyperlane-xyz/utils';
 
 import packageJson from './package.json' with { type: 'json' };
 import { AppConstants, ServerConstants } from './src/constants/index.js';
@@ -62,6 +62,10 @@ export class HttpServer {
       options.corsAllowedOrigins ?? parseCorsAllowedOrigins(),
     );
     this.signers = options.signers ?? {};
+    assert(
+      isObjEmpty(this.signers) || !this.writeMode,
+      'Signer mode cannot be combined with registry write mode',
+    );
     this.signerToken = !isObjEmpty(this.signers)
       ? validateSignerToken(options.signerToken)
       : undefined;

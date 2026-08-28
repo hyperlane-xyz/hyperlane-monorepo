@@ -220,6 +220,19 @@ describe('signer routes', () => {
     }
   });
 
+  it('rejects signer mode combined with registry write mode', async () => {
+    const backend = new WalletBackend(ethers.Wallet.createRandom());
+    await expect(
+      HttpServer.create(async () => registry(), {
+        writeMode: true,
+        signerToken: TOKEN,
+        signers: { [ProtocolType.Ethereum]: backend },
+      }),
+    ).to.be.rejectedWith(
+      'Signer mode cannot be combined with registry write mode',
+    );
+  });
+
   it('does not mount signer routes without a backend', async () => {
     ({ server, listener } = await startServer());
     const response = await request(listener).get(`/signer/account/${CHAIN}`);
