@@ -7,6 +7,7 @@ import Sinon from 'sinon';
 import { HyperlaneCore } from '@hyperlane-xyz/sdk';
 
 import type { Erc20ContractFactory } from '../bridges/erc20Approve.js';
+import { TokenBridgeStatusAdapterType } from '../config/types.js';
 import {
   TEST_ADDRESSES,
   buildTestMovableCollateralRoute,
@@ -18,6 +19,7 @@ import { Rebalancer } from './Rebalancer.js';
 
 type TestActionTracker = IActionTracker & {
   createRebalanceAction: Sinon.SinonStub;
+  updateRebalanceActionExecution: Sinon.SinonStub;
   failRebalanceIntent: Sinon.SinonStub;
 };
 
@@ -197,7 +199,7 @@ describe('Rebalancer', () => {
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
-        ctx.multiProvider as any,
+        ctx.multiProvider,
         createMockActionTracker(),
         testLogger,
       );
@@ -1014,6 +1016,71 @@ describe('Rebalancer', () => {
   });
 
   describe('result building', () => {
+    it('tracks LayerZero settlement without requiring a Dispatch event', async () => {
+      const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
+      const dispatchStub = sandbox
+        .stub(HyperlaneCore, 'getDispatchedMessages')
+        .returns([]);
+      const actionTracker = createMockActionTracker();
+
+      const rebalancer = new Rebalancer(
+        ctx.warpCore,
+        ctx.chainMetadata,
+        ctx.tokensByChainName,
+        ctx.multiProvider as any,
+        actionTracker,
+        testLogger,
+      );
+
+      const results = await rebalancer.rebalance([
+        buildTestMovableCollateralRoute({
+          statusAdapter: {
+            kind: TokenBridgeStatusAdapterType.LayerZeroScan,
+            sourceEid: 30110,
+            destinationEid: 30420,
+            sourceOft: '0x1111111111111111111111111111111111111111',
+            destinationOft: '0x2222222222222222222222222222222222222222',
+          },
+        }),
+      ]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(results[0].messageId).to.equal('');
+      expect(results[0].externalExecutionRef).to.deep.include({
+        provider: TokenBridgeStatusAdapterType.LayerZeroScan,
+        kind: TokenBridgeStatusAdapterType.LayerZeroScan,
+      });
+      expect(results[0].externalExecutionRef?.data.originTxHash).to.equal(
+        `0x${'11'.repeat(32)}`,
+      );
+      expect(
+        results[0].externalExecutionRef?.data.destinationRecipient,
+      ).to.equal(ctx.tokensByChainName.arbitrum.addressOrDenom);
+      expect(
+        results[0].externalExecutionRef?.data.minimumDestinationAmount,
+      ).to.equal(ethers.utils.parseEther('100').toString());
+      expect(dispatchStub.called).to.be.false;
+
+      const createAction = actionTracker.createRebalanceAction;
+      const updateAction = actionTracker.updateRebalanceActionExecution;
+      expect(createAction.calledOnce).to.be.true;
+      expect(
+        createAction.calledBefore(
+          // CAST: The test helper returns a Sinon stub behind MultiProvider's method type.
+          ctx.multiProvider.sendTransaction as Sinon.SinonStub,
+        ),
+      ).to.be.true;
+      expect(createAction.firstCall.args[0].messageId).to.be.undefined;
+      expect(createAction.firstCall.args[0].externalExecutionRef).to.be
+        .undefined;
+      expect(
+        updateAction.calledWithMatch('action-1', {
+          externalExecutionRef: results[0].externalExecutionRef,
+        }),
+      ).to.be.true;
+    });
+
     it('should include messageId when dispatch message found', async () => {
       const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
 
@@ -1045,12 +1112,13 @@ describe('Rebalancer', () => {
 
       sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([]);
 
+      const actionTracker = createMockActionTracker();
       const rebalancer = new Rebalancer(
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
-        createMockActionTracker(),
+        actionTracker,
         testLogger,
       );
 
@@ -1061,6 +1129,8 @@ describe('Rebalancer', () => {
       expect(results[0].success).to.be.false;
       expect(results[0].error).to.include('no Dispatch event found');
       expect(results[0].messageId).to.equal('');
+      expect(actionTracker.createRebalanceAction.calledOnce).to.be.true;
+      expect(actionTracker.failRebalanceIntent.called).to.be.false;
     });
 
     it('should include txHash in result', async () => {

@@ -2,6 +2,7 @@ import type { Address, Domain } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
 import type { BridgeTransferStatus } from '../interfaces/IExternalBridge.js';
+import type { MCRStatusRef } from '../interfaces/ITokenBridgeStatusAdapter.js';
 
 import type { IStore } from './store/IStore.js';
 
@@ -82,10 +83,12 @@ export interface RebalanceAction extends TrackedActionBase {
   intentId: string; // Links to parent RebalanceIntent
   messageId?: string; // Hyperlane message ID (required for rebalance_message, inventory_deposit)
   txHash?: string; // Origin transaction hash
+  destinationTxHash?: string; // Destination settlement transaction hash
+  externalExecutionRef?: MCRStatusRef; // Movable-collateral settlement cursor
   // Fields for inventory_movement (external bridge)
   externalBridgeTransferId?: string; // External bridge transfer ID (e.g., LiFi transfer ID)
   externalBridgeId?: ExternalBridgeType; // External bridge identifier (e.g., 'lifi')
-  lastBridgeStatus?: BridgeTransferStatus['status']; // Last observed external bridge status
+  lastBridgeStatus?: BridgeTransferStatus['status']; // Last observed bridge/settlement status
   nonPendingSince?: number; // Timestamp when bridge status first became non-pending
 }
 

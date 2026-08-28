@@ -9,7 +9,9 @@ import {
   DEFAULT_INTENT_TTL_MS,
   DEFAULT_MOVEMENT_STALENESS_MS,
   ExternalBridgeType,
+  TokenBridgeStatusAdapterType,
 } from '../config/types.js';
+import type { ITokenBridgeStatusAdapter } from '../interfaces/ITokenBridgeStatusAdapter.js';
 import type { ExplorerMessage } from '../utils/ExplorerClient.js';
 
 import { ActionTracker, type ActionTrackerConfig } from './ActionTracker.js';
@@ -526,6 +528,39 @@ describe('ActionTracker', () => {
       expect(updatedAction?.status).to.equal('in_progress');
     });
 
+    it('should preserve an expired intent after its inventory movement completes', async () => {
+      const oldTimestamp = Date.now() - DEFAULT_INTENT_TTL_MS - 1;
+      await rebalanceIntentStore.save({
+        id: 'intent-completed-movement',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        executionMethod: 'inventory',
+        createdAt: oldTimestamp,
+        updatedAt: oldTimestamp,
+      });
+      await rebalanceActionStore.save({
+        id: 'completed-movement',
+        status: 'complete',
+        type: 'inventory_movement',
+        intentId: 'intent-completed-movement',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: oldTimestamp,
+        updatedAt: oldTimestamp,
+      });
+
+      await tracker.syncRebalanceIntents();
+
+      expect(
+        (await rebalanceIntentStore.get('intent-completed-movement'))?.status,
+      ).to.equal('in_progress');
+      expect(await rebalanceActionStore.get('completed-movement')).to.not.be
+        .undefined;
+    });
+
     it('should fail expired intents that never started execution', async () => {
       await rebalanceIntentStore.save({
         id: 'intent-1',
@@ -564,6 +599,124 @@ describe('ActionTracker', () => {
   });
 
   describe('syncRebalanceActions', () => {
+    it('records an LZ ref and completes its parent intent after delivery', async () => {
+      const originalRef = {
+        provider: TokenBridgeStatusAdapterType.LayerZeroScan,
+        kind: TokenBridgeStatusAdapterType.LayerZeroScan,
+        data: { originTxHash: '0xorigin' },
+      };
+      const refreshedRef = {
+        ...originalRef,
+        data: { ...originalRef.data, lastObservedStatus: 'DELIVERED' },
+      };
+      const pollStatus = Sinon.stub().resolves({
+        status: 'complete',
+        receivingTxHash: '0xdestination',
+        ref: refreshedRef,
+      });
+      const statusAdapter: ITokenBridgeStatusAdapter = {
+        kind: TokenBridgeStatusAdapterType.LayerZeroScan,
+        logger: testLogger,
+        initFromReceipt: Sinon.stub(),
+        pollStatus,
+      };
+      tracker = new ActionTracker(
+        transferStore,
+        rebalanceIntentStore,
+        rebalanceActionStore,
+        explorerClient,
+        core,
+        config,
+        testLogger,
+        new Map([[statusAdapter.kind, statusAdapter]]),
+      );
+
+      const intent = await tracker.createRebalanceIntent({
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+      });
+      const action = await tracker.createRebalanceAction({
+        intentId: intent.id,
+        type: 'rebalance_message',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        txHash: '0xorigin',
+        externalExecutionRef: originalRef,
+      });
+
+      expect(
+        (await rebalanceActionStore.get(action.id))?.externalExecutionRef,
+      ).to.deep.equal(originalRef);
+
+      await tracker.syncRebalanceActions();
+
+      const updatedAction = await rebalanceActionStore.get(action.id);
+      expect(updatedAction?.status).to.equal('complete');
+      expect(updatedAction?.externalExecutionRef).to.deep.equal(refreshedRef);
+      expect(updatedAction?.destinationTxHash).to.equal('0xdestination');
+      expect((await rebalanceIntentStore.get(intent.id))?.status).to.equal(
+        'complete',
+      );
+      expect(pollStatus.calledOnceWith(originalRef)).to.be.true;
+      expect(mailboxStub.isDelivered.called).to.be.false;
+    });
+
+    it('keeps a source-committed LZ failure suppressed for the process lifetime', async () => {
+      const ref = {
+        provider: TokenBridgeStatusAdapterType.LayerZeroScan,
+        kind: TokenBridgeStatusAdapterType.LayerZeroScan,
+        data: { originTxHash: '0xorigin' },
+      };
+      const statusAdapter: ITokenBridgeStatusAdapter = {
+        kind: TokenBridgeStatusAdapterType.LayerZeroScan,
+        logger: testLogger,
+        initFromReceipt: Sinon.stub(),
+        pollStatus: Sinon.stub().resolves({
+          status: 'failed',
+          error: 'lz_blocked',
+          ref,
+        }),
+      };
+      tracker = new ActionTracker(
+        transferStore,
+        rebalanceIntentStore,
+        rebalanceActionStore,
+        explorerClient,
+        core,
+        config,
+        testLogger,
+        new Map([[statusAdapter.kind, statusAdapter]]),
+      );
+
+      const intent = await tracker.createRebalanceIntent({
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+      });
+      const action = await tracker.createRebalanceAction({
+        intentId: intent.id,
+        type: 'rebalance_message',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        externalExecutionRef: ref,
+      });
+
+      await tracker.syncRebalanceActions();
+
+      expect((await rebalanceActionStore.get(action.id))?.status).to.equal(
+        'in_progress',
+      );
+      expect((await rebalanceIntentStore.get(intent.id))?.status).to.equal(
+        'in_progress',
+      );
+      expect(
+        (await rebalanceActionStore.get(action.id))?.lastBridgeStatus,
+      ).to.equal('failed');
+    });
+
     it('should mark actions as complete when delivered and update parent intent', async () => {
       const intent: RebalanceIntent = {
         id: 'intent-1',

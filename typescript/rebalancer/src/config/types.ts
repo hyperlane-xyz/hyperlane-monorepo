@@ -40,6 +40,33 @@ export enum ExternalBridgeType {
   SwapsXyz = 'swapsxyz',
 }
 
+export enum TokenBridgeStatusAdapterType {
+  HyperlaneMessage = 'hyperlane_message',
+  LayerZeroScan = 'lz_scan',
+}
+
+export const TokenBridgeStatusAdapterConfigSchema = z.discriminatedUnion(
+  'kind',
+  [
+    z.object({
+      kind: z.literal(TokenBridgeStatusAdapterType.HyperlaneMessage),
+    }),
+    z.object({
+      kind: z.literal(TokenBridgeStatusAdapterType.LayerZeroScan),
+      sourceEid: z.number().int().positive().max(0xffffffff),
+      destinationEid: z.number().int().positive().max(0xffffffff),
+      sourceOft: z.string().refine(isAddressEvm, 'Invalid source OFT address'),
+      destinationOft: z
+        .string()
+        .refine(isAddressEvm, 'Invalid destination OFT address'),
+    }),
+  ],
+);
+
+export type TokenBridgeStatusAdapterConfig = z.infer<
+  typeof TokenBridgeStatusAdapterConfigSchema
+>;
+
 export const RebalancerMinAmountConfigSchema = z.object({
   min: z.string().or(z.number()),
   target: z.string().or(z.number()),
@@ -53,6 +80,7 @@ const RebalancerBridgeConfigSchema = z.object({
     .optional(),
   executionType: z.nativeEnum(ExecutionType).optional(),
   externalBridge: z.nativeEnum(ExternalBridgeType).optional(),
+  statusAdapter: TokenBridgeStatusAdapterConfigSchema.optional(),
   bridgeMinAcceptedAmount: z.string().or(z.number()).optional(),
   bridgeLockTime: z
     .number()
