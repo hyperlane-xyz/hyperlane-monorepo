@@ -141,7 +141,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     starknet: true,
     subtensor: true,
     superseed: true,
-    tac: true,
+    tac: false, // temporarily disabled — TAC chain halted (no new blocks) since 2026-08-22; re-enable when block production resumes
     taiko: false, // temporarily disabled out of caution (Taiko network incident)
     tea: true,
     tron: true,
@@ -224,7 +224,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     starknet: true,
     subtensor: true,
     superseed: true,
-    tac: true,
+    tac: false, // temporarily disabled — TAC chain halted (no new blocks) since 2026-08-22; re-enable when block production resumes
     taiko: false, // temporarily disabled out of caution (Taiko network incident)
     tea: true,
     tron: true,
@@ -307,7 +307,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     starknet: true,
     subtensor: true,
     superseed: true,
-    tac: true,
+    tac: false, // temporarily disabled — TAC chain halted (no new blocks) since 2026-08-22; re-enable when block production resumes
     taiko: true,
     tea: true,
     tron: true,
