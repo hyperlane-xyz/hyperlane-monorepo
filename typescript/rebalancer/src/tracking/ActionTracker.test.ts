@@ -276,6 +276,53 @@ describe('ActionTracker', () => {
       const intents = await rebalanceIntentStore.getAll();
       expect(intents).to.have.lengthOf(0);
     });
+
+    it('should link a restarted pre-send action by transaction hash', async () => {
+      const inflightMessage: ExplorerMessage = {
+        msg_id: '0xmsg1',
+        origin_domain_id: 1,
+        destination_domain_id: 2,
+        sender: '0xrouter1',
+        recipient: '0xrouter2',
+        origin_tx_hash: '0xtx1',
+        origin_tx_sender: '0xrebalancer',
+        origin_tx_recipient: '0xrouter1',
+        is_delivered: false,
+        message_body:
+          '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+        send_occurred_at: null,
+      };
+      await rebalanceIntentStore.save({
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      await rebalanceActionStore.save({
+        id: 'reserved-action',
+        type: 'rebalance_message',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        txHash: '0xTx1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      explorerClient.getInflightRebalanceActions.resolves([inflightMessage]);
+
+      await tracker.initialize();
+
+      const actions = await rebalanceActionStore.getAll();
+      expect(actions).to.have.lengthOf(1);
+      expect(actions[0].id).to.equal('reserved-action');
+      expect(actions[0].messageId).to.equal('0xmsg1');
+      expect(await rebalanceIntentStore.getAll()).to.have.lengthOf(1);
+    });
   });
 
   describe('syncTransfers', () => {
@@ -443,7 +490,7 @@ describe('ActionTracker', () => {
       expect(updated?.status).to.equal('in_progress');
     });
 
-    it('should mark unfulfilled intents as failed when TTL exceeded', async () => {
+    it('should preserve source-started intents when TTL exceeded', async () => {
       const intent: RebalanceIntent = {
         id: 'intent-1',
         status: 'in_progress',
@@ -473,10 +520,27 @@ describe('ActionTracker', () => {
       await tracker.syncRebalanceIntents();
 
       const updatedIntent = await rebalanceIntentStore.get('intent-1');
-      expect(updatedIntent?.status).to.equal('failed');
+      expect(updatedIntent?.status).to.equal('in_progress');
 
       const updatedAction = await rebalanceActionStore.get('action-1');
-      expect(updatedAction?.status).to.equal('failed');
+      expect(updatedAction?.status).to.equal('in_progress');
+    });
+
+    it('should fail expired intents that never started execution', async () => {
+      await rebalanceIntentStore.save({
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: Date.now() - DEFAULT_INTENT_TTL_MS - 1,
+        updatedAt: Date.now(),
+      });
+
+      await tracker.syncRebalanceIntents();
+
+      const updatedIntent = await rebalanceIntentStore.get('intent-1');
+      expect(updatedIntent?.status).to.equal('failed');
     });
 
     it('should not expire intents within TTL', async () => {
@@ -1077,7 +1141,7 @@ describe('ActionTracker', () => {
       expect(partialIntents).to.have.lengthOf(0);
     });
 
-    it('fails stale movement and returns intent', async () => {
+    it('keeps stale not_found movement suppressed for the process lifetime', async () => {
       await rebalanceIntentStore.save({
         id: 'intent-stale-movement',
         status: 'in_progress',
@@ -1106,15 +1170,13 @@ describe('ActionTracker', () => {
 
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(1);
-      expect(partialIntents[0].intent.id).to.equal('intent-stale-movement');
+      expect(partialIntents).to.have.lengthOf(0);
 
-      // Verify the stale movement was failed
-      const failedAction = await rebalanceActionStore.get('movement-stale');
-      expect(failedAction?.status).to.equal('failed');
+      const action = await rebalanceActionStore.get('movement-stale');
+      expect(action?.status).to.equal('in_progress');
     });
 
-    it('fails stale movement with undefined lastBridgeStatus (pre-deploy data)', async () => {
+    it('keeps old movement with unknown status suppressed', async () => {
       await rebalanceIntentStore.save({
         id: 'intent-undefined-status',
         status: 'in_progress',
@@ -1141,12 +1203,12 @@ describe('ActionTracker', () => {
 
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents).to.have.lengthOf(0);
 
       const action = await rebalanceActionStore.get(
         'movement-undefined-status',
       );
-      expect(action?.status).to.equal('failed');
+      expect(action?.status).to.equal('in_progress');
     });
 
     it('does not fail long-running pending movement', async () => {
@@ -1351,7 +1413,17 @@ describe('ActionTracker', () => {
       expect(updatedIntent?.status).to.equal('in_progress');
     });
 
-    it('persists external bridge transfer identifiers', async () => {
+    it('records external bridge transfer identifiers', async () => {
+      await rebalanceIntentStore.save({
+        id: 'intent-1',
+        status: 'not_started',
+        origin: 1,
+        destination: 2,
+        amount: 50n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
       const result = await tracker.createRebalanceAction({
         type: 'inventory_movement',
         intentId: 'intent-1',

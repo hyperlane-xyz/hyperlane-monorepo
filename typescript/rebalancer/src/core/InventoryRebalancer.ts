@@ -1117,6 +1117,14 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Expected at least one transaction from WarpCore',
     );
 
+    const action = await this.actionTracker.createRebalanceAction({
+      intentId: intent.id,
+      origin: this.multiProvider.getDomainId(origin),
+      destination: destinationDomain,
+      amount: fulfilledCanonicalAmount,
+      type: 'inventory_deposit',
+    });
+
     this.logger.info(
       {
         origin,
@@ -1133,6 +1141,9 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       const { txHash } = await this.sendAndConfirmInventoryTx(origin, tx);
       if (tx.category === WarpTxCategory.Transfer) {
         transferTxHash = txHash;
+        await this.actionTracker.updateRebalanceActionExecution(action.id, {
+          txHash,
+        });
       }
     }
 
@@ -1165,13 +1176,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'TransferRemote transaction confirmed',
     );
 
-    // Create the inventory_deposit action with messageId for tracking
-    await this.actionTracker.createRebalanceAction({
-      intentId: intent.id,
-      origin: this.multiProvider.getDomainId(origin),
-      destination: destinationDomain,
-      amount: fulfilledCanonicalAmount,
-      type: 'inventory_deposit',
+    await this.actionTracker.updateRebalanceActionExecution(action.id, {
       txHash: transferTxHash,
       messageId,
     });
@@ -1621,6 +1626,15 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         privateKeys[sourceProtocol],
         `Missing inventory signer key for protocol ${sourceProtocol} (chain ${sourceChain})`,
       );
+
+      const action = await this.actionTracker.createRebalanceAction({
+        intentId: intent.id,
+        origin: this.multiProvider.getDomainId(sourceChain),
+        destination: this.multiProvider.getDomainId(targetChain),
+        amount: inputRequired,
+        type: 'inventory_movement',
+        externalBridgeId: externalBridgeType,
+      });
       const result = await externalBridge.execute(quote, privateKeys);
 
       this.logger.info(
@@ -1633,17 +1647,9 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         'Inventory movement execution returned',
       );
 
-      // Keep bridge consumption in source-local units; intent fulfillment only
-      // advances from canonical inventory_deposit amounts after transferRemote.
-      await this.actionTracker.createRebalanceAction({
-        intentId: intent.id,
-        origin: this.multiProvider.getDomainId(sourceChain),
-        destination: this.multiProvider.getDomainId(targetChain),
-        amount: inputRequired,
-        type: 'inventory_movement',
+      await this.actionTracker.updateRebalanceActionExecution(action.id, {
         txHash: result.txHash,
         externalBridgeTransferId: result.transferId,
-        externalBridgeId: externalBridgeType,
       });
 
       // Track consumed inventory on source chain for this cycle

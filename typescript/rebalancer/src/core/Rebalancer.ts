@@ -40,6 +40,7 @@ import {
 // Internal types with intentId for tracking
 type InternalExecutionResult = MovableCollateralExecutionResult & {
   intentId: string;
+  actionId?: string;
   canonicalAmount?: bigint;
   localAmount?: bigint;
 };
@@ -172,26 +173,26 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     for (const result of results) {
       const intentId = result.intentId;
 
-      if (result.success && result.messageId) {
-        await this.actionTracker.createRebalanceAction({
-          intentId,
-          origin: this.multiProvider.getDomainId(result.route.origin),
-          destination: this.multiProvider.getDomainId(result.route.destination),
-          amount: result.canonicalAmount ?? result.route.amount,
-          type: 'rebalance_message',
-          messageId: result.messageId,
-          txHash: result.txHash,
-        });
-
+      if (result.success && result.messageId && result.actionId) {
         this.logger.info(
           {
             intentId,
+            actionId: result.actionId,
             messageId: result.messageId,
             txHash: result.txHash,
             origin: result.route.origin,
             destination: result.route.destination,
           },
           'Rebalance action created successfully',
+        );
+      } else if (result.actionId) {
+        this.logger.warn(
+          {
+            intentId,
+            actionId: result.actionId,
+            error: result.error,
+          },
+          'Source execution may have started; action remains suppressed for this process lifetime',
         );
       } else {
         await this.actionTracker.failRebalanceIntent(intentId);
@@ -614,6 +615,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     const successfulSends: Array<{
       transaction: PreparedTransaction;
       receipt: providers.TransactionReceipt;
+      actionId: string;
     }> = [];
 
     chainSendResults.forEach((chainResult) => {
@@ -625,6 +627,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
             results.push({
               route: txResult.transaction.route,
               intentId: txResult.transaction.route.intentId,
+              actionId: txResult.actionId,
               success: false,
               error: `Transaction send failed: ${txResult.error}`,
               messageId: '',
@@ -643,8 +646,9 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       }
     });
 
-    for (const { transaction, receipt } of successfulSends) {
-      const result = this.buildResult(transaction, receipt);
+    // 6. Build results from confirmed receipts
+    for (const { transaction, receipt, actionId } of successfulSends) {
+      const result = await this.buildResult(transaction, receipt, actionId);
       results.push(result);
       this.metrics?.recordActionAttempt(result.route, result.success);
     }
@@ -802,26 +806,51 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       | {
           transaction: PreparedTransaction;
           receipt: providers.TransactionReceipt;
+          actionId: string;
         }
-      | { transaction: PreparedTransaction; error: string }
+      | {
+          transaction: PreparedTransaction;
+          error: string;
+          actionId?: string;
+        }
     >
   > {
     const results: Array<
       | {
           transaction: PreparedTransaction;
           receipt: providers.TransactionReceipt;
+          actionId: string;
         }
-      | { transaction: PreparedTransaction; error: string }
+      | {
+          transaction: PreparedTransaction;
+          error: string;
+          actionId?: string;
+        }
     > = [];
 
     // Send sequentially to avoid nonce contention
     for (const transaction of transactions) {
+      let actionId: string | undefined;
       try {
         const decimalFormattedAmount =
           transaction.originTokenAmount.getDecimalFormattedAmount();
         const tokenName = transaction.originTokenAmount.token.name;
 
         const reorgPeriod = this.getReorgPeriod(origin);
+
+        const action = await this.actionTracker.createRebalanceAction({
+          intentId: transaction.route.intentId,
+          origin: this.multiProvider.getDomainId(origin),
+          destination: this.multiProvider.getDomainId(
+            transaction.route.destination,
+          ),
+          amount: normalizeToCanonical(
+            transaction.originTokenAmount.amount,
+            transaction.originTokenAmount.token,
+          ),
+          type: 'rebalance_message',
+        });
+        actionId = action.id;
 
         this.logger.info(
           {
@@ -844,6 +873,10 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           },
         );
 
+        await this.actionTracker.updateRebalanceActionExecution(actionId, {
+          txHash: receipt.transactionHash,
+        });
+
         this.logger.info(
           {
             origin,
@@ -855,7 +888,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           'Rebalance transaction confirmed at reorgPeriod depth.',
         );
 
-        results.push({ transaction, receipt });
+        results.push({ transaction, receipt, actionId });
       } catch (error) {
         this.logger.error(
           {
@@ -867,7 +900,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           },
           'Transaction send failed for route.',
         );
-        results.push({ transaction, error: String(error) });
+        results.push({ transaction, error: String(error), actionId });
       }
     }
 
@@ -878,10 +911,11 @@ export class Rebalancer implements IMovableCollateralRebalancer {
    * Build the execution result from a confirmed transaction receipt.
    * Receipt is already confirmed at reorgPeriod depth from sendTransaction.
    */
-  private buildResult(
+  private async buildResult(
     transaction: PreparedTransaction,
     receipt: providers.TransactionReceipt,
-  ): InternalExecutionResult {
+    actionId: string,
+  ): Promise<InternalExecutionResult> {
     const { origin, destination } = transaction.route;
     const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
 
@@ -893,6 +927,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       return {
         route: transaction.route,
         intentId: transaction.route.intentId,
+        actionId,
         success: false,
         error: `Transaction confirmed but no Dispatch event found`,
         messageId: '', // Required by MovableCollateralExecutionResult, empty for failures
@@ -900,9 +935,15 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       };
     }
 
+    await this.actionTracker.updateRebalanceActionExecution(actionId, {
+      messageId: dispatchedMessages[0].id,
+      txHash: receipt.transactionHash,
+    });
+
     return {
       route: transaction.route,
       intentId: transaction.route.intentId,
+      actionId,
       success: true,
       messageId: dispatchedMessages[0].id,
       txHash: receipt.transactionHash,

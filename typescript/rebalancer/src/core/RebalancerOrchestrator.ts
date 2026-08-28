@@ -157,7 +157,6 @@ export class RebalancerOrchestrator {
     try {
       await Promise.all([
         this.actionTracker.syncTransfers(confirmedBlockTags),
-        this.actionTracker.syncRebalanceIntents(),
         this.actionTracker.syncRebalanceActions(confirmedBlockTags),
       ]);
 
@@ -167,6 +166,10 @@ export class RebalancerOrchestrator {
           this.externalBridgeRegistry,
         );
       }
+
+      // Settle actions before expiring intents so source-started sends cannot be
+      // released by TTL while their latest delivery state is still being fetched.
+      await this.actionTracker.syncRebalanceIntents();
 
       await this.actionTracker.logStoreContents();
     } catch (error) {
