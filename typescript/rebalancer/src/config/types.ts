@@ -74,6 +74,7 @@ export const RebalancerMinAmountConfigSchema = z.object({
 });
 
 const RebalancerBridgeConfigSchema = z.object({
+  enabled: z.boolean().optional(),
   bridge: z
     .string()
     .regex(/0x[a-fA-F0-9]{40}/)
