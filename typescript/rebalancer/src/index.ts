@@ -32,6 +32,8 @@ export {
   RebalancerStrategySchema,
   RebalancerWeightedChainConfigSchema,
   StrategyConfigSchema,
+  TokenBridgeStatusAdapterConfigSchema,
+  TokenBridgeStatusAdapterType,
 } from './config/types.js';
 export type {
   MinAmountStrategyConfig,
@@ -40,6 +42,7 @@ export type {
   RebalancerMinAmountChainConfig,
   RebalancerWeightedChainConfig,
   StrategyConfig,
+  TokenBridgeStatusAdapterConfig,
   WeightedStrategyConfig,
 } from './config/types.js';
 
@@ -89,6 +92,19 @@ export {
   MonitorStartError,
 } from './interfaces/IMonitor.js';
 export type { IMetrics } from './interfaces/IMetrics.js';
+export type {
+  ITokenBridgeStatusAdapter,
+  MCRExecutionContext,
+  MCRSettlementStatus,
+  MCRStatusPollContext,
+  MCRStatusRef,
+  StatusAdaptersByKind,
+} from './interfaces/ITokenBridgeStatusAdapter.js';
+
+export {
+  HyperlaneMessageStatusAdapter,
+  LzScanStatusAdapter,
+} from './bridges/status/index.js';
 
 // Utils
 export {

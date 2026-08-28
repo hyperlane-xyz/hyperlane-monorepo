@@ -90,7 +90,7 @@ export interface IExternalBridge {
 
   /**
    * Execute a bridge transfer using a previously obtained quote.
-   * Callers must persist the returned identity and poll getStatus() before
+   * Callers must record the returned identity and poll getStatus() before
    * treating the cross-chain transfer as settled.
    * @param quote - Quote obtained from quote()
    * @param privateKeys - Private keys keyed by ProtocolType (e.g., { [ProtocolType.Ethereum]: '0x...' })

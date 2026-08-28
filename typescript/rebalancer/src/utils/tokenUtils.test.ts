@@ -18,12 +18,14 @@ const ROUTER_ADDRESS = '0x1111111111111111111111111111111111111111';
 const LOCKBOX_ADDRESS = '0x2222222222222222222222222222222222222222';
 const WRAPPED_TOKEN_ADDRESS = '0x3333333333333333333333333333333333333333';
 const NATIVE_TOKEN_ADDRESS = '0x4444444444444444444444444444444444444444';
+// CAST: This unit test only exercises adapter lookup; no provider methods are used.
 const multiProvider = {} as MultiProviderAdapter;
 
 function createToken(
   standard: TokenStandard,
   overrides: Partial<Token> = {},
 ): Token {
+  // CAST: This focused token fixture implements only fields used by tokenUtils.
   return {
     chainName: 'ethereum',
     standard,
