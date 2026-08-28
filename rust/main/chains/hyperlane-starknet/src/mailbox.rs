@@ -230,3 +230,81 @@ impl Mailbox for StarknetMailbox {
         })
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use async_trait::async_trait;
+    use serde::{de::DeserializeOwned, Serialize};
+    use serde_json::{json, Value};
+    use starknet::providers::{
+        jsonrpc::{JsonRpcMethod, JsonRpcResponse, JsonRpcTransport},
+        JsonRpcClient, ProviderRequestData,
+    };
+
+    use super::*;
+    use crate::contracts::mailbox::MailboxReader;
+
+    #[derive(Clone, Debug, Default)]
+    struct RecordingTransport {
+        params: Arc<Mutex<Vec<Value>>>,
+    }
+
+    #[derive(Debug, thiserror::Error)]
+    #[error(transparent)]
+    struct RecordingTransportError(#[from] serde_json::Error);
+
+    #[async_trait]
+    impl JsonRpcTransport for RecordingTransport {
+        type Error = RecordingTransportError;
+
+        async fn send_request<P, R>(
+            &self,
+            _method: JsonRpcMethod,
+            params: P,
+        ) -> Result<JsonRpcResponse<R>, Self::Error>
+        where
+            P: Serialize + Send + Sync,
+            R: DeserializeOwned + Send,
+        {
+            self.params
+                .lock()
+                .unwrap()
+                .push(serde_json::to_value(params)?);
+            Ok(JsonRpcResponse::Success {
+                id: 1,
+                result: serde_json::from_value(json!(["0x0"]))?,
+            })
+        }
+
+        async fn send_requests<R>(
+            &self,
+            _requests: R,
+        ) -> Result<Vec<JsonRpcResponse<Value>>, Self::Error>
+        where
+            R: AsRef<[ProviderRequestData]> + Send + Sync,
+        {
+            Ok(Vec::new())
+        }
+    }
+
+    #[tokio::test]
+    async fn generated_read_sends_latest_block_tag() {
+        let transport = RecordingTransport::default();
+        let provider = JsonRpcClient::new(transport.clone());
+        let mailbox = MailboxReader::new(Felt::ONE, provider);
+
+        mailbox
+            .delivered(&StarknetU256 { low: 0, high: 0 })
+            .block_id(BlockId::Tag(BlockTag::Latest))
+            .call()
+            .await
+            .unwrap();
+
+        let params = transport.params.lock().unwrap();
+        assert_eq!(params.len(), 1);
+        assert_eq!(params[0]["block_id"], json!("latest"));
+    }
+}
