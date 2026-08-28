@@ -1493,6 +1493,12 @@
       "rpcUrls": [
         {
           "http": "https://evm-rpc.sei-apis.com"
+        },
+        {
+          "http": "https://evm-rpc-sei.stingray.plus"
+        },
+        {
+          "http": "https://sei-evm-rpc.publicnode.com"
         }
       ],
       "staticAggregationHookFactory": "0x7442A72e41F09e35945BE4984785Ab92D921e6d5",
@@ -2043,6 +2049,12 @@
         "from": 6777659
       },
       "quotedCalls": "0x720ba6fbdd40a31972f83dB3b38697aad8768bB6",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      },
       "transactionOverrides": {
         "gasPrice": 16038000000
       }
@@ -2113,6 +2125,12 @@
         "from": 14336020
       },
       "quotedCalls": "0xD3c12725101C4896A9aEaf874EdE0C76E1D24A52",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      },
       "transactionOverrides": {
         "maxFeePerGas": 100000000000,
         "maxPriorityFeePerGas": 100000000000
@@ -2391,7 +2409,13 @@
       "testRecipient": "0xeF7F4367703cdf4863AD6Be34C1627d8b1C2D67a",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "validatorAnnounce": "0x1196055C61af3e3DA6f8458B07b255a72b64Bcf7",
-      "quotedCalls": "0x821d76954025fcf87Db141cA5CbE36Fec62Ae14D"
+      "quotedCalls": "0x821d76954025fcf87Db141cA5CbE36Fec62Ae14D",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "ink": {
       "blockExplorers": [
@@ -3367,12 +3391,6 @@
       "rpcUrls": [
         {
           "http": "https://rpc.api.prod.paradex.trade/rpc/v0_9"
-        },
-        {
-          "http": "https://juno.api.prod.paradex.trade/rpc/v0_9"
-        },
-        {
-          "http": "https://pathfinder.api.prod.paradex.trade/rpc/v0_9"
         }
       ],
       "technicalStack": "other",
