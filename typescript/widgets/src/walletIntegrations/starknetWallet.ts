@@ -1,11 +1,12 @@
 import {
+  type Connector,
   useAccount,
   useConnect,
   useDisconnect,
   useNetwork,
 } from '@starknet-react/core';
 import { useCallback, useMemo } from 'react';
-import { useStarknetkitConnectModal } from 'starknetkit';
+import { connect as openStarknetkitModal } from 'starknetkit';
 
 import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -53,27 +54,40 @@ export function useStarknetWalletDetails(): WalletDetails {
 
 export function useStarknetConnectFn(): () => void {
   const { connectAsync, connectors } = useConnect();
-  const { starknetkitConnectModal } = useStarknetkitConnectModal({
+
+  return useCallback(
+    () => connectStarknetWallet(connectors, connectAsync, openStarknetkitModal),
+    [connectAsync, connectors],
+  );
+}
+
+export async function connectStarknetWallet<T extends Pick<Connector, 'id'>>(
+  connectors: T[],
+  connectAsync: (args: { connector: T }) => Promise<void>,
+  openModal: (options: {
+    connectors: T[];
+    resultType: 'connector';
+  }) => Promise<{ connector: Pick<Connector, 'id'> | null }>,
+): Promise<void> {
+  const { connector } = await openModal({
     connectors,
+    resultType: 'connector',
   });
 
-  return useCallback(async () => {
-    const { connector } = await starknetkitConnectModal();
-    if (!connector) {
-      logger.error('No Starknet wallet connectors available');
-      return;
-    }
+  if (!connector) {
+    logger.error('No Starknet wallet connectors available');
+    return;
+  }
 
-    const selectedConnector = connectors.find((c) => c.id === connector.id);
-    if (!selectedConnector) {
-      logger.error(
-        `Selected Starknet connector ${connector.id} is not registered with @starknet-react/core`,
-      );
-      return;
-    }
+  const selectedConnector = connectors.find((c) => c.id === connector.id);
+  if (!selectedConnector) {
+    logger.error(
+      `Selected Starknet connector ${connector.id} is not registered with @starknet-react/core`,
+    );
+    return;
+  }
 
-    await connectAsync({ connector: selectedConnector });
-  }, [connectAsync, connectors, starknetkitConnectModal]);
+  await connectAsync({ connector: selectedConnector });
 }
 
 export function useStarknetDisconnectFn(): () => Promise<void> {

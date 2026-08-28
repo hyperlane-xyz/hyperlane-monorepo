@@ -5,16 +5,15 @@ import type { Connector } from '@starknet-react/core';
 // aligned with the hook surface used by widgets until upstream fixes it.
 declare module 'starknetkit' {
   interface StarknetkitConnectModalOptions {
-    connectors: Connector[];
+    connectors?: Connector[];
+    resultType?: 'connector' | 'wallet';
   }
 
   interface StarknetkitConnectModalResult {
     connector: Connector | null;
   }
 
-  export function useStarknetkitConnectModal(
-    options: StarknetkitConnectModalOptions,
-  ): {
-    starknetkitConnectModal: () => Promise<StarknetkitConnectModalResult>;
-  };
+  export function connect(
+    options: StarknetkitConnectModalOptions & { resultType: 'connector' },
+  ): Promise<StarknetkitConnectModalResult>;
 }
