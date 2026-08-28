@@ -204,6 +204,28 @@ describe('SwapsXyzClient', () => {
     expect(response.estimatedPriceImpact).to.be.null;
   });
 
+  it('accepts a Solana source transaction response', async () => {
+    fetchStub.resolves(
+      makeResponse({
+        body: {
+          ...actionResponseBody(),
+          tx: {
+            base64Tx: 'AQID',
+            payer: 'solana-payer',
+            chainId: 1399811149,
+          },
+          vmId: 'solana',
+          requiresRegisterTransaction: true,
+        },
+      }),
+    );
+
+    const response = await client.getAction(actionRequest());
+
+    expect(response.vmId).to.equal('solana');
+    expect(response.tx).to.deep.include({ base64Tx: 'AQID' });
+  });
+
   it('parses the error envelope and exposes its code', async () => {
     fetchStub.resolves(
       makeResponse({
