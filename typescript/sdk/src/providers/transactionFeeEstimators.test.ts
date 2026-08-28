@@ -1,4 +1,5 @@
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import sinon from 'sinon';
 
 import { StargateClient } from '@cosmjs/stargate';
@@ -27,6 +28,8 @@ import {
 
 const EVM_ADDRESS = '0x0000000000000000000000000000000000000001';
 const EVM_HASH = `0x${'01'.repeat(32)}` as const;
+
+chai.use(chaiAsPromised);
 
 describe('transactionFeeEstimators', () => {
   const sender = 'cosmos1sender';
@@ -203,6 +206,24 @@ describe('transactionFeeEstimators', () => {
       fee: 50_000n,
     });
     expect(estimateGas.notCalled).to.equal(true);
+  });
+
+  it('rejects non-positive Ethers fallback gas units', async () => {
+    const provider = makeEthersFeeProvider({
+      gasPrice: 2n,
+      maxFeePerGas: null,
+    });
+
+    for (const fallbackGasUnits of [0n, -1n]) {
+      await expect(
+        estimateTransactionFeeEthersV5({
+          transaction: { to: EVM_ADDRESS, value: BigNumber.from(1) },
+          provider,
+          sender: EVM_ADDRESS,
+          fallbackGasUnits,
+        }),
+      ).to.be.rejectedWith('fallbackGasUnits must be positive');
+    }
   });
 
   it('recognizes a SmartProvider-wrapped unsupported override error', async () => {
@@ -411,7 +432,17 @@ describe('transactionFeeEstimators', () => {
     expect(estimateGas.calledOnce).to.equal(true);
     expect(estimateGas.firstCall.args[0]).to.include({
       account: EVM_ADDRESS,
+      data: '0x',
+      gas: 21_000n,
+      gasPrice: 1n,
+      nonce: 0,
+      to: EVM_ADDRESS,
+      type: 'legacy',
+      value: 1n,
     });
+    expect(estimateGas.firstCall.args[0]).not.to.have.property('blockNumber');
+    expect(estimateGas.firstCall.args[0]).not.to.have.property('hash');
+    expect(estimateGas.firstCall.args[0]).not.to.have.property('input');
     expect(estimateGas.firstCall.args[0].stateOverride).to.deep.equal([
       { address: EVM_ADDRESS, balance: (1n << 256n) - 1n },
     ]);
@@ -509,6 +540,45 @@ describe('transactionFeeEstimators', () => {
       fee: 50_000n,
     });
     expect(estimateGas.calledOnce).to.equal(true);
+  });
+
+  it('rejects non-positive Viem fallback gas units', async () => {
+    const client = createPublicClient({
+      transport: custom({
+        request: async () => {
+          throw new Error('Unexpected RPC request');
+        },
+      }),
+    });
+    const transaction = {
+      blockHash: EVM_HASH,
+      blockNumber: 1n,
+      from: EVM_ADDRESS,
+      gas: 21_000n,
+      gasPrice: 2n,
+      hash: EVM_HASH,
+      input: '0x',
+      nonce: 0,
+      r: '0x',
+      s: '0x',
+      to: EVM_ADDRESS,
+      transactionIndex: 0,
+      type: 'legacy',
+      typeHex: '0x0',
+      v: 27n,
+      value: 1n,
+    } satisfies ViemTransaction['transaction'];
+
+    for (const fallbackGasUnits of [0n, -1n]) {
+      await expect(
+        estimateTransactionFeeViem({
+          transaction: { type: ProviderType.Viem, transaction },
+          provider: { type: ProviderType.Viem, provider: client },
+          sender: EVM_ADDRESS,
+          fallbackGasUnits,
+        }),
+      ).to.be.rejectedWith('fallbackGasUnits must be positive');
+    }
   });
 
   function makeProvider(url: string) {

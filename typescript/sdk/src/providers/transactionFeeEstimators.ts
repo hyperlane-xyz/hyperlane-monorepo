@@ -12,7 +12,7 @@ import {
   type PopulatedTransaction as EV5Transaction,
   utils as EthersV5Utils,
 } from 'ethers';
-import { isAddress as isViemAddress } from 'viem';
+import { type EstimateGasParameters, isAddress as isViemAddress } from 'viem';
 
 import {
   StargateClientCache,
@@ -125,7 +125,7 @@ export interface TransactionFeeEstimateOptions {
    * otherwise they retry a balance-dependent estimate.
    */
   ignoreSenderBalance?: boolean;
-  /** Gas units to use when an RPC rejects balance state overrides. */
+  /** Positive gas units to use when an RPC rejects balance state overrides. */
   fallbackGasUnits?: bigint;
 }
 
@@ -156,6 +156,7 @@ export async function estimateTransactionFeeEthersV5({
   provider: EV5Providers.Provider;
   sender: Address;
 } & TransactionFeeEstimateOptions): Promise<TransactionFeeEstimate> {
+  assertValidFallbackGasUnits(fallbackGasUnits);
   const gasUnits = ignoreSenderBalance
     ? await estimateGasEthersV5WithBalanceOverride({
         transaction,
@@ -254,18 +255,16 @@ export async function estimateTransactionFeeViem({
   provider: ViemProvider;
   sender: Address;
 } & TransactionFeeEstimateOptions): Promise<TransactionFeeEstimate> {
+  assertValidFallbackGasUnits(fallbackGasUnits);
   assert(isViemAddress(sender), `Invalid EVM sender address: ${sender}`);
   const estimateGas = (includeStateOverride: boolean) =>
-    provider.provider.estimateGas({
-      ...transaction.transaction,
-      blockNumber: undefined,
-      account: sender,
-      ...(includeStateOverride && {
-        stateOverride: [{ address: sender, balance: EVM_MAX_BALANCE }],
-      }),
-      // CAST: Viem's estimate type rejects the normalized transaction union
-      // even though its supported fields are accepted at runtime.
-    } as any);
+    provider.provider.estimateGas(
+      getViemEstimateGasParameters(
+        transaction.transaction,
+        sender,
+        includeStateOverride,
+      ),
+    );
 
   let gasUnits: bigint;
   try {
@@ -282,6 +281,74 @@ export async function estimateTransactionFeeViem({
   }
   const feeData = await provider.provider.estimateFeesPerGas();
   return computeEvmTxFee(gasUnits, feeData.gasPrice, feeData.maxFeePerGas);
+}
+
+function assertValidFallbackGasUnits(fallbackGasUnits?: bigint): void {
+  assert(
+    isNullish(fallbackGasUnits) || fallbackGasUnits > 0n,
+    'fallbackGasUnits must be positive',
+  );
+}
+
+function getViemEstimateGasParameters(
+  transaction: ViemTransaction['transaction'],
+  sender: `0x${string}`,
+  includeStateOverride: boolean,
+): EstimateGasParameters {
+  const common = {
+    account: sender,
+    data: transaction.input,
+    gas: transaction.gas,
+    nonce: transaction.nonce,
+    to: transaction.to,
+    value: transaction.value,
+    ...(includeStateOverride && {
+      stateOverride: [{ address: sender, balance: EVM_MAX_BALANCE }],
+    }),
+  };
+
+  switch (transaction.type) {
+    case 'legacy':
+      return {
+        ...common,
+        type: transaction.type,
+        gasPrice: transaction.gasPrice,
+      };
+    case 'eip2930':
+      return {
+        ...common,
+        type: transaction.type,
+        accessList: transaction.accessList,
+        gasPrice: transaction.gasPrice,
+      };
+    case 'eip1559':
+      return {
+        ...common,
+        type: transaction.type,
+        accessList: transaction.accessList,
+        maxFeePerGas: transaction.maxFeePerGas,
+        maxPriorityFeePerGas: transaction.maxPriorityFeePerGas,
+      };
+    case 'eip4844':
+      return {
+        ...common,
+        type: transaction.type,
+        accessList: transaction.accessList,
+        blobVersionedHashes: transaction.blobVersionedHashes,
+        maxFeePerBlobGas: transaction.maxFeePerBlobGas,
+        maxFeePerGas: transaction.maxFeePerGas,
+        maxPriorityFeePerGas: transaction.maxPriorityFeePerGas,
+      };
+    case 'eip7702':
+      return {
+        ...common,
+        type: transaction.type,
+        accessList: transaction.accessList,
+        authorizationList: transaction.authorizationList,
+        maxFeePerGas: transaction.maxFeePerGas,
+        maxPriorityFeePerGas: transaction.maxPriorityFeePerGas,
+      };
+  }
 }
 
 function computeEvmTxFee(
