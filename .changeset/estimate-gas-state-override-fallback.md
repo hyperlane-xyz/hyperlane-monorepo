@@ -1,5 +1,5 @@
 ---
-'@hyperlane-xyz/sdk': patch
+'@hyperlane-xyz/sdk': minor
 ---
 
-Restored EVM fee estimates on RPCs that reject balance state overrides. Callers can provide fallback gas units to keep estimation balance-independent; otherwise the SDK retries against the sender's real balance.
+Added balance-independent EVM fee estimation with caller-provided fallback gas units for RPCs that reject state overrides. Estimation now fails with `StateOverrideUnsupportedError` when those RPCs have no fallback.

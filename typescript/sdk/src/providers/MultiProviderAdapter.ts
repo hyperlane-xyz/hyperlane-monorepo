@@ -26,6 +26,7 @@ import {
 import { defaultZKSyncProviderBuilder } from './builders/zksync.js';
 import type { ProviderBuilderFn } from './providerBuilders.js';
 import {
+  EvmTransactionFeeEstimateOptions,
   TransactionFeeEstimate,
   TransactionFeeEstimateOptions,
   estimateTransactionFee,
@@ -195,21 +196,48 @@ export class MultiProviderAdapter<
     };
   }
 
-  estimateTransactionFee({
-    chainNameOrId,
-    transaction,
-    sender,
-    senderPubKey,
-    ignoreSenderBalance,
-    fallbackGasUnits,
-  }: {
-    chainNameOrId: ChainNameOrId;
-    transaction: TypedTransaction;
-    sender: Address;
-    senderPubKey?: HexString;
-  } & TransactionFeeEstimateOptions): Promise<TransactionFeeEstimate> {
+  estimateTransactionFee(
+    params:
+      | ({
+          chainNameOrId: ChainNameOrId;
+          transaction: Extract<
+            TypedTransaction,
+            { type: ProviderType.EthersV5 | ProviderType.Viem }
+          >;
+          sender: Address;
+          senderPubKey?: HexString;
+        } & EvmTransactionFeeEstimateOptions)
+      | ({
+          chainNameOrId: ChainNameOrId;
+          transaction: TypedTransaction;
+          sender: Address;
+          senderPubKey?: HexString;
+          fallbackGasUnits?: never;
+        } & TransactionFeeEstimateOptions),
+  ): Promise<TransactionFeeEstimate> {
+    const {
+      chainNameOrId,
+      transaction,
+      sender,
+      senderPubKey,
+      ignoreSenderBalance,
+    } = params;
     const provider = this.getProvider(chainNameOrId, transaction.type);
     const chainMetadata = this.getChainMetadata(chainNameOrId);
+    if (
+      transaction.type === ProviderType.EthersV5 ||
+      transaction.type === ProviderType.Viem
+    ) {
+      return estimateTransactionFee({
+        transaction,
+        provider,
+        chainMetadata,
+        sender,
+        senderPubKey,
+        ignoreSenderBalance,
+        fallbackGasUnits: params.fallbackGasUnits,
+      });
+    }
     return estimateTransactionFee({
       transaction,
       provider,
@@ -217,7 +245,6 @@ export class MultiProviderAdapter<
       sender,
       senderPubKey,
       ignoreSenderBalance,
-      fallbackGasUnits,
     });
   }
 }

@@ -168,6 +168,39 @@ export function getNestedJsonRpcError(error: unknown): {
   };
 }
 
+/** Extracts a JSON-RPC error from direct, nested, or serialized error shapes. */
+export function getJsonRpcErrorFrom(error: unknown): {
+  code?: number | string;
+  message?: string;
+} {
+  const record = getRecord(error);
+  const nested = getRecord(record?.error);
+  const nestedError = getRecord(nested?.error);
+  const candidates = [
+    nestedError,
+    nested,
+    parseJsonRpcErrorBody(nested?.body),
+    parseJsonRpcErrorBody(record?.body),
+    record,
+  ];
+  const complete = candidates.find(
+    (candidate) =>
+      getJsonRpcErrorCode(candidate) !== undefined &&
+      getJsonRpcErrorMessage(candidate) !== undefined,
+  );
+
+  return {
+    code:
+      getJsonRpcErrorCode(complete) ??
+      candidates.map(getJsonRpcErrorCode).find((code) => code !== undefined),
+    message:
+      getJsonRpcErrorMessage(complete) ??
+      candidates
+        .map(getJsonRpcErrorMessage)
+        .find((message) => message !== undefined),
+  };
+}
+
 function isCallExceptionWithTransientRpcError(error: unknown): boolean {
   const record = getRecord(error);
   if (record?.code !== EthersError.CALL_EXCEPTION) return false;
