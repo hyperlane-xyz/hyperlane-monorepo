@@ -52,7 +52,7 @@ pub async fn get_transaction_receipt(
                     .await
                     .map_err(HyperlaneStarknetError::from)?;
 
-                if tx.block == ReceiptBlock::Pending {
+                if matches!(tx.block, ReceiptBlock::PreConfirmed { .. }) {
                     return Err(HyperlaneStarknetError::PendingBlock.into());
                 }
 
