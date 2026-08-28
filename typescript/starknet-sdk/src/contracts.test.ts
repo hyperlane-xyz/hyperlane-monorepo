@@ -89,7 +89,8 @@ describe('starknet-sdk contracts helpers', () => {
   });
 
   it('publishes runtime data matching deployment artifacts in every group', function () {
-    this.timeout(120_000);
+    // starknet.js v8's computeContractClassHash is ~2-4s per artifact (~130s total).
+    this.timeout(300_000);
 
     for (const contractType of Object.values(ContractType)) {
       const contractNames = getRuntimeContractNames(contractType);

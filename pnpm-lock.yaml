@@ -295,8 +295,8 @@ catalogs:
       specifier: ^0.8.3
       version: 0.8.17
     starknet:
-      specifier: ^7.4.0
-      version: 7.6.4
+      specifier: ^8.9.2
+      version: 8.9.2
     testcontainers:
       specifier: 11.12.0
       version: 11.12.0
@@ -511,7 +511,7 @@ importers:
     dependencies:
       starknet:
         specifier: 'catalog:'
-        version: 7.6.4
+        version: 8.9.2
     devDependencies:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
@@ -2249,15 +2249,15 @@ importers:
 
   typescript/scraper-proxy:
     dependencies:
-      '@hyperlane-xyz/utils':
-        specifier: workspace:^
-        version: link:../utils
       '@apollo/server':
         specifier: 'catalog:'
         version: 5.5.1(graphql@16.14.2)(supports-color@10.2.2)
       '@as-integrations/express5':
         specifier: 'catalog:'
         version: 1.1.2(@apollo/server@5.5.1(graphql@16.14.2)(supports-color@10.2.2))(express@5.2.1(supports-color@10.2.2))
+      '@hyperlane-xyz/utils':
+        specifier: workspace:^
+        version: link:../utils
       '@nestjs/apollo':
         specifier: 'catalog:'
         version: 13.2.3(@apollo/server@5.5.1(graphql@16.14.2)(supports-color@10.2.2))(@as-integrations/express5@1.1.2(@apollo/server@5.5.1(graphql@16.14.2)(supports-color@10.2.2))(express@5.2.1(supports-color@10.2.2)))(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(@nestjs/graphql@13.2.3(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(bufferutil@4.0.9)(crossws@0.3.5)(graphql@16.14.2)(reflect-metadata@0.2.2)(utf-8-validate@5.0.10))(graphql@16.14.2)
@@ -2438,7 +2438,7 @@ importers:
         version: 8.21.0
       starknet:
         specifier: 'catalog:'
-        version: 7.6.4
+        version: 8.9.2
       viem:
         specifier: 'catalog:'
         version: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -2535,7 +2535,7 @@ importers:
         version: link:../utils
       starknet:
         specifier: 'catalog:'
-        version: 7.6.4
+        version: 8.9.2
     devDependencies:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
@@ -2771,7 +2771,7 @@ importers:
         version: 13.1.3
       starknet:
         specifier: 'catalog:'
-        version: 7.6.4
+        version: 8.9.2
       yaml:
         specifier: 'catalog:'
         version: 2.4.5
@@ -2971,7 +2971,7 @@ importers:
         version: 3.1.3
       '@starknet-react/core':
         specifier: ^3.7.2
-        version: 3.7.4(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(get-starknet-core@4.0.0)(react@18.3.1)(starknet@7.6.4)(utf-8-validate@5.0.10)
+        version: 3.7.4(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(get-starknet-core@4.0.0)(react@18.3.1)(starknet@8.9.2)(utf-8-validate@5.0.10)
       '@tronweb3/tronwallet-abstract-adapter':
         specifier: 'catalog:'
         version: 1.2.0(bufferutil@4.0.9)(debug@4.4.3(supports-color@10.2.2))(utf-8-validate@5.0.10)
@@ -2998,10 +2998,10 @@ importers:
         version: 5.30.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       starknet:
         specifier: 'catalog:'
-        version: 7.6.4
+        version: 8.9.2
       starknetkit:
         specifier: 2.6.1
-        version: 2.6.1(@react-native-async-storage/async-storage@1.24.0(react-native@0.82.1(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.3.1)(supports-color@10.2.2)(utf-8-validate@5.0.10)))(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(starknet@7.6.4)(utf-8-validate@5.0.10)(zod@3.25.76)
+        version: 2.6.1(@react-native-async-storage/async-storage@1.24.0(react-native@0.82.1(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.3.1)(supports-color@10.2.2)(utf-8-validate@5.0.10)))(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(starknet@8.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
       viem:
         specifier: 'catalog:'
         version: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -7509,9 +7509,6 @@ packages:
   '@scure/base@1.1.9':
     resolution: {integrity: sha512-8YKhl8GHiNI/pU2VMaofa2Tor7PJRAjwQLBBuilkJ9L5+13yVbC7JO/wS7piioAvPSwR3JKM1IJ/u4xQzbcXKg==}
 
-  '@scure/base@1.2.1':
-    resolution: {integrity: sha512-DGmGtC8Tt63J5GfHgfl5CuAXh96VF/LD8K9Hr/Gv0J2lAoRGlPOMpqMpMbCTOoOJMZCk2Xt+DskdDyn6dEFdzQ==}
-
   '@scure/base@1.2.6':
     resolution: {integrity: sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg==}
 
@@ -8475,6 +8472,9 @@ packages:
 
   '@starknet-io/types-js@0.8.4':
     resolution: {integrity: sha512-0RZ3TZHcLsUTQaq1JhDSCM8chnzO4/XNsSCozwDET64JK5bjFDIf2ZUkta+tl5Nlbf4usoU7uZiDI/Q57kt2SQ==}
+
+  '@starknet-io/types-js@0.9.2':
+    resolution: {integrity: sha512-vWOc0FVSn+RmabozIEWcEny1I73nDGTvOrLYJsR1x7LGA3AZmqt4i/aW69o/3i2NN5CVP8Ok6G1ayRQJKye3Wg==}
 
   '@starknet-react/chains@3.1.3':
     resolution: {integrity: sha512-b16VQyxqZXfiVmlKEkjfg+Oj8fdSnGWh1KU87O/unn6NpmaD9h511az1Cs6aW/j3qCIF1o5CrqfEnU1NWV7MVA==}
@@ -14846,6 +14846,7 @@ packages:
   prom-client@14.2.0:
     resolution: {integrity: sha512-sF308EhTenb/pDRPakm+WgiN+VdM/T1RaHj1x+MvAuT8UiQP8JmOEbxVqtkbfR4LrvOg5n7ic01kRBDGXjYikA==}
     engines: {node: '>=10'}
+    deprecated: prom-client has been replaced by @prometheus-io/client
 
   promise@8.3.0:
     resolution: {integrity: sha512-rZPNPKTOYVNEEKFaq1HqTgOwZD+4/YHS5ukLzQCypkj+OkYx7iv0mA91lJlpPPZ8vMau3IIGj5Qlwrx+8iiSmg==}
@@ -15924,8 +15925,8 @@ packages:
   stacktracey@2.2.0:
     resolution: {integrity: sha512-ETyQEz+CzXiLjEbyJqpbp+/T79RQD/6wqFucRBIlVNZfYq2Ay7wbretD4cxpbymZlaPWx58aIhPEY1Cr8DlVvg==}
 
-  starknet@7.6.4:
-    resolution: {integrity: sha512-FB20IaLCDbh/XomkB+19f5jmNxG+RzNdRO7QUhm7nfH81UPIt2C/MyWAlHCYkbv2wznSEb73wpxbp9tytokTgQ==}
+  starknet@8.9.2:
+    resolution: {integrity: sha512-+dp+o2w67fV6JyVOVkYeM1Ec71aORHc/JrF4VHLlfeGee0nLilooCQLE2u6hUcSGQG2x2/fvzkxYpIN+k1JBvA==}
     engines: {node: '>=22'}
 
   starknetkit@2.6.1:
@@ -23513,8 +23514,6 @@ snapshots:
 
   '@scure/base@1.1.9': {}
 
-  '@scure/base@1.2.1': {}
-
   '@scure/base@1.2.6': {}
 
   '@scure/base@2.2.0': {}
@@ -24938,9 +24937,11 @@ snapshots:
 
   '@starknet-io/types-js@0.8.4': {}
 
+  '@starknet-io/types-js@0.9.2': {}
+
   '@starknet-react/chains@3.1.3': {}
 
-  '@starknet-react/core@3.7.4(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(get-starknet-core@4.0.0)(react@18.3.1)(starknet@7.6.4)(utf-8-validate@5.0.10)':
+  '@starknet-react/core@3.7.4(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(get-starknet-core@4.0.0)(react@18.3.1)(starknet@8.9.2)(utf-8-validate@5.0.10)':
     dependencies:
       '@starknet-io/types-js': 0.7.10
       '@starknet-react/chains': 3.1.3
@@ -24949,7 +24950,7 @@ snapshots:
       eventemitter3: 5.0.4
       get-starknet-core: 4.0.0
       react: 18.3.1
-      starknet: 7.6.4
+      starknet: 8.9.2
       viem: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@3.25.76)
       zod: 3.25.76
     transitivePeerDependencies:
@@ -35166,20 +35167,20 @@ snapshots:
       as-table: 1.0.55
       get-source: 2.0.12
 
-  starknet@7.6.4:
+  starknet@8.9.2:
     dependencies:
       '@noble/curves': 1.7.0
-      '@noble/hashes': 1.6.0
-      '@scure/base': 1.2.1
+      '@noble/hashes': 1.6.1
+      '@scure/base': 1.2.6
       '@scure/starknet': 1.1.0
-      '@starknet-io/starknet-types-07': '@starknet-io/types-js@0.7.10'
       '@starknet-io/starknet-types-08': '@starknet-io/types-js@0.8.4'
+      '@starknet-io/starknet-types-09': '@starknet-io/types-js@0.9.2'
       abi-wan-kanabi: 2.2.4
       lossless-json: 4.3.0
       pako: 2.2.0
       ts-mixer: 6.0.4
 
-  starknetkit@2.6.1(@react-native-async-storage/async-storage@1.24.0(react-native@0.82.1(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.3.1)(supports-color@10.2.2)(utf-8-validate@5.0.10)))(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(starknet@7.6.4)(utf-8-validate@5.0.10)(zod@3.25.76):
+  starknetkit@2.6.1(@react-native-async-storage/async-storage@1.24.0(react-native@0.82.1(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.3.1)(supports-color@10.2.2)(utf-8-validate@5.0.10)))(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(starknet@8.9.2)(utf-8-validate@5.0.10)(zod@3.25.76):
     dependencies:
       '@starknet-io/get-starknet': 4.0.8
       '@starknet-io/get-starknet-core': 4.0.8
@@ -35192,7 +35193,7 @@ snapshots:
       eventemitter3: 5.0.4
       events: 3.3.0
       lodash-es: 4.18.1
-      starknet: 7.6.4
+      starknet: 8.9.2
       svelte-forms: 2.3.1
       trpc-browser: 1.4.4(@trpc/client@10.45.4(@trpc/server@10.45.4))(@trpc/server@10.45.4)
     transitivePeerDependencies:

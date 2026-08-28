@@ -133,11 +133,11 @@ export function getStarknetContract(
   providerOrAccount?: ProviderInterface | AccountInterface,
   contractType: ContractType = ContractType.CONTRACT,
 ): Contract {
-  return new Contract(
-    getPublishedContractAbi(contractName, contractType),
-    normalizeStarknetAddressSafe(address),
+  return new Contract({
+    abi: getPublishedContractAbi(contractName, contractType),
+    address: normalizeStarknetAddressSafe(address),
     providerOrAccount,
-  );
+  });
 }
 
 export function normalizeStarknetAddressSafe(value: unknown): string {
@@ -349,13 +349,21 @@ export async function getOnChainStarknetContract(
 ): Promise<Contract> {
   const normalized = normalizeStarknetAddressSafe(address);
   const { abi } = await provider.getClassAt(normalized);
-  const contract = new Contract(abi, normalized, provider);
+  const contract = new Contract({
+    abi,
+    address: normalized,
+    providerOrAccount: provider,
+  });
 
   const implHash = await resolveImplementationHash(contract);
   if (isNullish(implHash) || implHash === 0n) return contract;
 
   const implClass = await provider.getClassByHash(`0x${implHash.toString(16)}`);
-  return new Contract(implClass.abi, normalized, provider);
+  return new Contract({
+    abi: implClass.abi,
+    address: normalized,
+    providerOrAccount: provider,
+  });
 }
 
 async function resolveImplementationHash(

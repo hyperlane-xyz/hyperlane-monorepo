@@ -167,6 +167,7 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
 
     if (typeof value === 'number' || typeof value === 'bigint') {
       try {
+        // oxlint-disable-next-line typescript/no-deprecated -- starknet.js v8 deprecates this but ships no public utility replacement.
         return shortString.decodeShortString(
           ensure0x(BigInt(value).toString(16)),
         );

@@ -61,7 +61,7 @@ catalog:
   uuid: ^10.0.0
 
   # Starknet
-  starknet: ^7.4.0
+  starknet: ^8.9.2
   '@starknet-react/chains': ^3.1.2
 
   # Cosmos
