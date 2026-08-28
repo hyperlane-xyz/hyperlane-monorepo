@@ -128,6 +128,7 @@ export class StrategyFactory {
     for (const [chain, config] of Object.entries(strategyConfig.chains)) {
       const baseConfig = {
         bridgeMinAcceptedAmount: config.bridgeMinAcceptedAmount ?? 0,
+        enabled: config.enabled ?? true,
       };
 
       const executionType =

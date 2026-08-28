@@ -526,4 +526,29 @@ describe('WeightedStrategy', () => {
       );
     });
   });
+
+  it('filters a config-disabled chain pair', () => {
+    const config = {
+      [chain1]: {
+        weighted: { weight: 50n, tolerance: 0n },
+        bridge: ethers.constants.AddressZero,
+        bridgeLockTime: 1,
+      },
+      [chain2]: {
+        weighted: { weight: 50n, tolerance: 0n },
+        bridge: ethers.constants.AddressZero,
+        bridgeLockTime: 1,
+      },
+    };
+    const bridgeConfigs = extractBridgeConfigs(config);
+    bridgeConfigs[chain1].override = { [chain2]: { enabled: false } };
+    const strategy = new WeightedStrategy(config, testLogger, bridgeConfigs);
+
+    const routes = strategy.getRebalancingRoutes({
+      [chain1]: ethers.utils.parseEther('150').toBigInt(),
+      [chain2]: ethers.utils.parseEther('50').toBigInt(),
+    });
+
+    expect(routes).to.be.empty;
+  });
 });

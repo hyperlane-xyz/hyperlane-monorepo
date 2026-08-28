@@ -506,6 +506,22 @@ export abstract class BaseStrategy implements IStrategy {
     actualBalances: RawBalances,
   ): StrategyRoute[] {
     return routes.filter((route) => {
+      const bridgeConfig = this.getBridgeConfigForRoute(
+        route.origin,
+        route.destination,
+      );
+      if (bridgeConfig.enabled === false) {
+        this.logger.info(
+          {
+            context: this.constructor.name,
+            origin: route.origin,
+            destination: route.destination,
+          },
+          'Dropping config-disabled route',
+        );
+        return false;
+      }
+
       const balance = actualBalances[route.origin] ?? 0n;
       if (balance < route.amount) {
         this.logger.warn(
@@ -524,10 +540,6 @@ export abstract class BaseStrategy implements IStrategy {
       if (this.tokensByChainName) {
         const token = this.tokensByChainName[route.origin];
         if (token) {
-          const bridgeConfig = this.getBridgeConfigForRoute(
-            route.origin,
-            route.destination,
-          );
           if (bridgeConfig.bridgeMinAcceptedAmount != null) {
             const minAmount = normalizeConfiguredAmount(
               bridgeConfig.bridgeMinAcceptedAmount,

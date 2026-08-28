@@ -9,6 +9,7 @@ import type { StrategyRoute } from '../interfaces/IStrategy.js';
 
 type BaseBridgeConfig = {
   bridgeMinAcceptedAmount?: string | number;
+  enabled?: boolean;
 };
 
 export type MovableCollateralBridgeConfig = BaseBridgeConfig & {
