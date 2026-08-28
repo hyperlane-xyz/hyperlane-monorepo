@@ -226,7 +226,14 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     ) {
       hook = await this.deployRouting(chain, config, coreAddresses);
     } else if (config.type === HookType.PAUSABLE) {
-      hook = await this.deployContract(chain, config.type, []);
+      const pausableHook = await this.deployContract(chain, config.type, []);
+      if (config.paused) {
+        await this.multiProvider.handleTx(
+          chain,
+          pausableHook.pause(this.multiProvider.getTransactionOverrides(chain)),
+        );
+      }
+      hook = pausableHook;
       await this.transferOwnershipOfContracts(chain, config, {
         [HookType.PAUSABLE]: hook,
       });
