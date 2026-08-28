@@ -6,6 +6,8 @@ export enum Role {
   Deployer = 'deployer',
   Rebalancer = 'rebalancer',
   InventoryRebalancer = 'inventoryrebalancer',
+  RebalancerStaging = 'rebalancerstaging',
+  InventoryRebalancerStaging = 'inventoryrebalancerstaging',
   QuoteSigner = 'quotesigner',
   // Funding-only role: the CROSS/moonpay standing fee quote submitter.
   // The key is externally provisioned in GCP; keyfunder only needs its address.
@@ -30,6 +32,8 @@ export const ALL_KEY_ROLES = [
   Role.Deployer,
   Role.Rebalancer,
   Role.InventoryRebalancer,
+  Role.RebalancerStaging,
+  Role.InventoryRebalancerStaging,
   Role.QuoteSigner,
 ];
 
