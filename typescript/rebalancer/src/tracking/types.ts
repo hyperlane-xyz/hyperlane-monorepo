@@ -9,6 +9,7 @@ import type {
   BridgeTransferStatus,
   PendingApproval,
 } from '../interfaces/IExternalBridge.js';
+import type { MCRStatusRef } from '../interfaces/ITokenBridgeStatusAdapter.js';
 
 import type { IStore } from './store/IStore.js';
 
@@ -92,10 +93,13 @@ export interface RebalanceAction extends TrackedActionBase {
   submissionState?: TransactionSubmissionState; // Missing on older records means unknown.
   pendingApproval?: PendingApproval;
   finalizedSourceTxHash?: string; // Memoized finalized success for this exact primary identity.
+  destinationTxHash?: string; // Destination settlement transaction hash
+  externalExecutionRef?: MCRStatusRef; // Movable-collateral settlement cursor
   // Fields for inventory_movement (external bridge)
   externalBridgeTransferId?: string; // External bridge transfer ID (e.g., LiFi transfer ID)
   externalBridgeId?: ExternalBridgeType; // External bridge identifier (e.g., 'lifi')
-  lastBridgeStatus?: BridgeTransferStatus['status']; // Last observed external bridge status
+  lastBridgeStatus?: BridgeTransferStatus['status']; // Last observed bridge/settlement status
+
 }
 
 // === Type Aliases for Stores ===
