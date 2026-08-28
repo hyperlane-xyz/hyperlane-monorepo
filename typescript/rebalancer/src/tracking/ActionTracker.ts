@@ -3,7 +3,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 import type { MultiProtocolCore } from '@hyperlane-xyz/sdk';
 import type { Address, Domain } from '@hyperlane-xyz/utils';
-import { assert, parseWarpRouteMessage } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  parseWarpRouteMessage,
+} from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
@@ -85,14 +89,12 @@ export class ActionTracker implements IActionTracker {
     );
 
     // 2. For each message, create synthetic intent + action
-    for (const msg of inflightMessages) {
-      await this.recoverAction(msg);
-    }
+    await this.recoverActions(inflightMessages);
 
     // 3. Sync all stores
+    await this.syncRebalanceActions();
     await this.syncTransfers();
     await this.syncRebalanceIntents();
-    await this.syncRebalanceActions();
 
     // Log store contents for debugging
     await this.logStoreContents();
@@ -293,24 +295,7 @@ export class ActionTracker implements IActionTracker {
       'Found inflight rebalance actions from Explorer',
     );
 
-    const allActions = await this.rebalanceActionStore.getAll();
-
-    for (const msg of inflightMessages) {
-      const existingAction = allActions.find((a) => a.messageId === msg.msg_id);
-
-      if (!existingAction) {
-        this.logger.info(
-          {
-            msgId: msg.msg_id,
-            origin: msg.origin_domain_id,
-            destination: msg.destination_domain_id,
-          },
-          'Discovered new rebalance action, recovering...',
-        );
-        await this.recoverAction(msg);
-        discoveredActions++;
-      }
-    }
+    discoveredActions = await this.recoverActions(inflightMessages);
 
     // Check delivery status for all in-progress actions in our store
     // Only check delivery for actions that have a messageId (rebalance_message, inventory_deposit)
@@ -318,6 +303,13 @@ export class ActionTracker implements IActionTracker {
     const inProgressActions =
       await this.rebalanceActionStore.getByStatus('in_progress');
     for (const action of inProgressActions) {
+      if (
+        action.pendingApproval &&
+        action.submissionState === 'not_submitted'
+      ) {
+        await this.reconcilePendingApproval(action);
+        continue;
+      }
       // Skip actions without messageId (e.g., inventory_movement)
       if (!action.messageId) {
         continue;
@@ -797,6 +789,53 @@ export class ActionTracker implements IActionTracker {
     return { completed, failed };
   }
 
+  private async reconcilePendingApproval(
+    action: RebalanceAction,
+  ): Promise<void> {
+    const txHash = action.pendingApproval?.txHash;
+    if (!txHash) return; // A lost broadcast response without an identity requires operator reconciliation.
+    try {
+      const mp = this.core.multiProvider;
+      const protocol = mp.getProtocol(action.origin);
+      if (protocol === ProtocolType.Sealevel) {
+        const {
+          value: [status],
+        } = await mp
+          .getSolanaWeb3Provider(action.origin)
+          .getSignatureStatuses([txHash], { searchTransactionHistory: true });
+        if (status?.confirmationStatus !== 'finalized') return;
+      } else {
+        assert(
+          protocol === ProtocolType.Ethereum || protocol === ProtocolType.Tron,
+          'Unsupported approval protocol',
+        );
+        const provider = mp.getEthersV5Provider(action.origin);
+        const receipt = await provider.getTransactionReceipt(txHash);
+        if (!receipt || (receipt.status !== 0 && receipt.status !== 1)) return;
+        const blocks = mp.getChainMetadata(action.origin).blocks;
+        const finality = blocks?.reorgPeriod ?? blocks?.confirmations ?? 1;
+        if (typeof finality === 'number') {
+          if (receipt.confirmations < Math.max(finality, 1)) return;
+        } else {
+          const confirmedBlock = await provider.getBlock(finality);
+          if (!confirmedBlock || receipt.blockNumber > confirmedBlock.number)
+            return;
+        }
+      }
+      // The approval is settled, and the primary transaction was never submitted.
+      // A retry reads current allowance and sets its exact cap before sending.
+      await this.rebalanceActionStore.update(action.id, {
+        pendingApproval: undefined,
+      });
+      await this.failRebalanceAction(action.id);
+    } catch (error) {
+      this.logger.warn(
+        { actionId: action.id, approvalTxHash: txHash, error },
+        'Approval reconciliation failed; source work remains reserved',
+      );
+    }
+  }
+
   // === Debug Helpers ===
 
   /**
@@ -924,12 +963,72 @@ export class ActionTracker implements IActionTracker {
     }
   }
 
-  private async recoverAction(msg: ExplorerMessage): Promise<void> {
-    // Check if action already exists
-    const existing = await this.rebalanceActionStore.get(msg.msg_id);
+  /** Index once per Explorer batch, including identities discovered in that batch. */
+  private async recoverActions(messages: ExplorerMessage[]): Promise<number> {
+    if (messages.length === 0) return 0;
+    const byMessage = new Map<string, RebalanceAction>();
+    const byTransaction = new Map<string, RebalanceAction>();
+    const key = (origin: number, destination: number, identity: string) =>
+      `${origin}:${destination}:${identity.startsWith('0x') ? identity.toLowerCase() : identity}`;
+    const index = (action: RebalanceAction) => {
+      byMessage.set(
+        key(action.origin, action.destination, action.messageId ?? action.id),
+        action,
+      );
+      if (action.txHash) {
+        byTransaction.set(
+          key(action.origin, action.destination, action.txHash),
+          action,
+        );
+      }
+    };
+    for (const action of await this.rebalanceActionStore.getAll())
+      index(action);
+
+    let discovered = 0;
+    for (const msg of messages) {
+      const messageKey = key(
+        msg.origin_domain_id,
+        msg.destination_domain_id,
+        msg.msg_id,
+      );
+      let existing = byMessage.get(messageKey);
+      if (!existing) {
+        const byHash = byTransaction.get(
+          key(
+            msg.origin_domain_id,
+            msg.destination_domain_id,
+            msg.origin_tx_hash,
+          ),
+        );
+        // A transaction can dispatch multiple messages. Link only an unclassified source submission.
+        if (byHash && !byHash.messageId) existing = byHash;
+      }
+      const action = await this.recoverAction(msg, existing);
+      if (action) {
+        index(action);
+        if (!existing) discovered++;
+      }
+    }
+    return discovered;
+  }
+
+  private async recoverAction(
+    msg: ExplorerMessage,
+    existing?: RebalanceAction,
+  ): Promise<RebalanceAction | undefined> {
     if (existing) {
-      this.logger.debug({ id: msg.msg_id }, 'Action already exists, skipping');
-      return;
+      if (!existing.messageId || !existing.txHash) {
+        await this.updateRebalanceActionExecution(existing.id, {
+          messageId: msg.msg_id,
+          txHash: msg.origin_tx_hash,
+        });
+      }
+      this.logger.debug(
+        { id: existing.id, messageId: msg.msg_id },
+        'Action already exists, linked recovered execution identity',
+      );
+      return { ...existing, messageId: msg.msg_id, txHash: msg.origin_tx_hash };
     }
 
     this.logger.debug(
@@ -997,6 +1096,7 @@ export class ActionTracker implements IActionTracker {
         { id: action.id, intentId: action.intentId, amount: amount.toString() },
         'Recovered RebalanceAction',
       );
+      return action;
     } catch (error) {
       this.logger.warn(
         {
@@ -1010,6 +1110,7 @@ export class ActionTracker implements IActionTracker {
         },
         'Failed to parse message body during recovery, skipping action',
       );
+      return undefined;
     }
   }
 }
