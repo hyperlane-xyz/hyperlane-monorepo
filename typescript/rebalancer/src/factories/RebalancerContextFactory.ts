@@ -683,6 +683,8 @@ export class RebalancerContextFactory {
                 apiUrl: swapsxyzConfig.apiUrl,
                 defaultSlippage: swapsxyzConfig.defaultSlippage,
                 maxQuoteLossBps: swapsxyzConfig.maxQuoteLossBps,
+                maxSolanaNativeSpendLamports:
+                  swapsxyzConfig.maxSolanaNativeSpendLamports,
                 chainMetadata: this.multiProvider.metadata,
               },
               this.logger,

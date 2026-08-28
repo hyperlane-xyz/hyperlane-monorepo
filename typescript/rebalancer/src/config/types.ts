@@ -136,6 +136,12 @@ export const SwapsXyzBridgeConfigSchema = z.object({
   apiUrl: z.string().url().startsWith('https://').optional(),
   defaultSlippage: z.number().positive().max(0.1).optional(),
   maxQuoteLossBps: z.number().int().min(0).max(10_000).optional(),
+  maxSolanaNativeSpendLamports: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(Number.MAX_SAFE_INTEGER)
+    .optional(),
 });
 
 export const ExternalBridgesConfigSchema = z.object({
