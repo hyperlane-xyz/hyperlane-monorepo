@@ -708,7 +708,7 @@ export class SwapsXyzBridge implements IExternalBridge {
       data: fresh.tx.data,
       value: fresh.tx.value ? BigNumber.from(fresh.tx.value) : undefined,
     });
-    // Persistable tracking identity takes priority over waiting here: once a
+    // Source-action tracking takes priority over waiting here: once a
     // source transaction is broadcast, receipt/status failures must not cause
     // the planner to send the same movement again.
     void this.registerIfRequired(fresh, txResponse.hash);

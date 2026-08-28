@@ -36,6 +36,12 @@ export interface CreateRebalanceActionParams {
   externalBridgeId?: ExternalBridgeType; // Optional - for inventory_movement (e.g., 'lifi')
 }
 
+export interface UpdateRebalanceActionExecutionParams {
+  messageId?: string;
+  txHash?: string;
+  externalBridgeTransferId?: string;
+}
+
 /**
  * ActionTracker manages the lifecycle of tracked entities:
  * - Transfers: Inflight user warp transfers
@@ -192,6 +198,12 @@ export interface IActionTracker {
   createRebalanceAction(
     params: CreateRebalanceActionParams,
   ): Promise<RebalanceAction>;
+
+  /** Record source transaction identifiers on a pre-send action. */
+  updateRebalanceActionExecution(
+    id: string,
+    params: UpdateRebalanceActionExecutionParams,
+  ): Promise<void>;
 
   /**
    * Mark a rebalance action as complete.
