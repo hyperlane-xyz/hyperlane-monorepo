@@ -895,6 +895,7 @@ describe('per-chain bridge configuration', () => {
           apiUrl: 'https://api-v2.swaps.xyz/api',
           defaultSlippage: 0.005,
           maxQuoteLossBps: 250,
+          maxSolanaNativeSpendLamports: 10_000_000,
         },
       },
     };
@@ -906,6 +907,7 @@ describe('per-chain bridge configuration', () => {
       apiUrl: 'https://api-v2.swaps.xyz/api',
       defaultSlippage: 0.005,
       maxQuoteLossBps: 250,
+      maxSolanaNativeSpendLamports: 10_000_000,
     });
     expect(config.externalBridges?.lifi).to.be.undefined;
   });
@@ -943,6 +945,9 @@ describe('per-chain bridge configuration', () => {
     { maxQuoteLossBps: -1 },
     { maxQuoteLossBps: 10_001 },
     { maxQuoteLossBps: 1.5 },
+    { maxSolanaNativeSpendLamports: -1 },
+    { maxSolanaNativeSpendLamports: 1.5 },
+    { maxSolanaNativeSpendLamports: Number.MAX_SAFE_INTEGER + 1 },
   ]) {
     it(`should reject unsafe swapsxyz config ${JSON.stringify(swapsxyz)}`, () => {
       const data: RebalancerConfigFileInput = {

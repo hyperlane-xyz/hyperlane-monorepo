@@ -83,7 +83,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-export type SwapsXyzVmId = 'evm' | 'alt-vm' | 'hypercore';
+export type SwapsXyzVmId = 'evm' | 'solana' | 'alt-vm' | 'hypercore';
 export type SwapsXyzStatus = string;
 
 export interface SwapsXyzEvmTx {
@@ -93,10 +93,21 @@ export interface SwapsXyzEvmTx {
   chainId?: number;
 }
 
+export interface SwapsXyzSolanaTx {
+  base64Tx: string;
+  recentBlockhash?: string;
+  payer?: string;
+  chainId?: number;
+}
+
 export function isEvmTx(tx: unknown): tx is SwapsXyzEvmTx {
   return (
     isRecord(tx) && typeof tx.to === 'string' && typeof tx.data === 'string'
   );
+}
+
+export function isSolanaTx(tx: unknown): tx is SwapsXyzSolanaTx {
+  return isRecord(tx) && typeof tx.base64Tx === 'string';
 }
 
 export interface SwapsXyzTokenAmount {
@@ -126,7 +137,7 @@ export interface SwapsXyzBridgeRouteHop {
 }
 
 export interface SwapsXyzActionResponse {
-  tx: SwapsXyzEvmTx;
+  tx: SwapsXyzEvmTx | SwapsXyzSolanaTx;
   txId: string;
   vmId: SwapsXyzVmId;
   amountIn: SwapsXyzTokenAmount;
@@ -228,6 +239,14 @@ const EvmTxSchema = z
     chainId: z.number().int().optional(),
   })
   .passthrough();
+const SolanaTxSchema = z
+  .object({
+    base64Tx: z.string().min(1),
+    recentBlockhash: z.string().optional(),
+    payer: z.string().optional(),
+    chainId: z.number().int().optional(),
+  })
+  .passthrough();
 const BridgeRouteHopSchema = z
   .object({
     srcChainId: z.number().int(),
@@ -239,9 +258,9 @@ const BridgeRouteHopSchema = z
   .passthrough();
 const ActionResponseSchema: z.ZodType<SwapsXyzActionResponse> = z
   .object({
-    tx: EvmTxSchema,
+    tx: z.union([EvmTxSchema, SolanaTxSchema]),
     txId: z.string().min(1),
-    vmId: z.enum(['evm', 'alt-vm', 'hypercore']),
+    vmId: z.enum(['evm', 'solana', 'alt-vm', 'hypercore']),
     amountIn: TokenAmountSchema,
     amountInMax: TokenAmountSchema.optional(),
     amountOut: TokenAmountSchema,

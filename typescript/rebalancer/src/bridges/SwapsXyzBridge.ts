@@ -1,5 +1,20 @@
 import type { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
 import {
+  ACCOUNT_SIZE,
+  AccountLayout,
+  TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+} from '@solana/spl-token';
+import {
+  type AccountInfo,
+  type AddressLookupTableAccount,
+  Connection,
+  Keypair,
+  PublicKey,
+  type SimulatedTransactionAccountInfo,
+  VersionedTransaction,
+} from '@solana/web3.js';
+import {
   ProtocolType,
   assert,
   ensure0x,
@@ -17,6 +32,7 @@ import type {
   BridgeTransferStatus,
   IExternalBridge,
 } from '../interfaces/IExternalBridge.js';
+import { parseSolanaPrivateKey } from '../utils/solanaKeyParser.js';
 
 import {
   approveErc20IfNeeded,
@@ -26,6 +42,7 @@ import {
   SwapsXyzClient,
   SwapsXyzRequestError,
   isEvmTx,
+  isSolanaTx,
   isSwapsXyzNotFoundError,
   type SwapsXyzActionRequest,
   type SwapsXyzActionResponse,
@@ -39,6 +56,13 @@ const REVERSE_QUOTE_HEADROOM_BPS = 30n;
 const BPS_DENOMINATOR = 10_000n;
 const ERC20_DECIMALS_ABI = ['function decimals() view returns (uint8)'];
 const REGISTER_TX_RETRY_DELAY_MS = 2_000;
+const DEFAULT_MAX_SOLANA_NATIVE_SPEND_LAMPORTS = 10_000_000;
+const tokenAmountOffset = AccountLayout.offsetOf('amount');
+assert(
+  tokenAmountOffset !== undefined,
+  'SPL token account layout is missing amount',
+);
+const TOKEN_AMOUNT_OFFSET = tokenAmountOffset;
 const UNSAFE_SOURCE_TOKEN_SELECTORS = new Set([
   '095ea7b3', // approve(address,uint256)
   '23b872dd', // transferFrom(address,address,uint256)
@@ -50,15 +74,47 @@ export interface SwapsXyzBridgeConfig {
   apiUrl?: string;
   defaultSlippage?: number;
   maxQuoteLossBps?: number;
+  maxSolanaNativeSpendLamports?: number;
   chainMetadata?: ChainMap<ChainMetadata>;
   evmProviderFactory?: (rpcUrl: string) => providers.Provider;
+  solanaConnectionFactory?: (rpcUrl: string) => Connection;
   registerTxRetryDelayMs?: number;
   erc20ContractFactory?: Erc20ContractFactory;
+}
+
+interface TokenAccountSnapshot {
+  mint: PublicKey;
+  owner: PublicKey;
+  amount: bigint;
+  delegateOption: number;
+  delegate: PublicKey;
+  delegatedAmount: bigint;
+  closeAuthorityOption: number;
+  closeAuthority: PublicKey;
+  state: number;
 }
 
 export interface SwapsXyzBridgeRoute {
   // Telemetry only. execute() always re-quotes before signing.
   actionResponse: SwapsXyzActionResponse;
+}
+
+function isSwapsXyzActionResponseValue(
+  value: unknown,
+): value is SwapsXyzActionResponse {
+  return (
+    isRecord(value) &&
+    isRecord(value.tx) &&
+    typeof value.txId === 'string' &&
+    typeof value.vmId === 'string' &&
+    isRecord(value.amountIn) &&
+    typeof value.amountIn.amount === 'string' &&
+    isRecord(value.amountOut) &&
+    typeof value.amountOut.amount === 'string' &&
+    isRecord(value.amountOutMin) &&
+    typeof value.amountOutMin.amount === 'string' &&
+    typeof value.requiresTokenApproval === 'boolean'
+  );
 }
 
 function ceilDiv(numerator: bigint, denominator: bigint): bigint {
@@ -87,6 +143,43 @@ function transactionSelector(data: string, context: string): string {
   return data.slice(2, 10).toLowerCase();
 }
 
+function isTokenProgram(programId: PublicKey): boolean {
+  return (
+    programId.equals(TOKEN_PROGRAM_ID) ||
+    programId.equals(TOKEN_2022_PROGRAM_ID)
+  );
+}
+
+function decodeTokenAccount(
+  programId: PublicKey,
+  data: Buffer,
+): TokenAccountSnapshot | undefined {
+  if (!isTokenProgram(programId) || data.length < ACCOUNT_SIZE)
+    return undefined;
+  const decoded = AccountLayout.decode(data.subarray(0, ACCOUNT_SIZE));
+  return {
+    mint: decoded.mint,
+    owner: decoded.owner,
+    amount: decoded.amount,
+    delegateOption: decoded.delegateOption,
+    delegate: decoded.delegate,
+    delegatedAmount: decoded.delegatedAmount,
+    closeAuthorityOption: decoded.closeAuthorityOption,
+    closeAuthority: decoded.closeAuthority,
+    state: decoded.state,
+  };
+}
+
+function simulatedAccountData(
+  account: SimulatedTransactionAccountInfo,
+): Buffer {
+  assert(
+    account.data[1] === 'base64',
+    'SwapsXyzBridge.execute Solana simulation account must use base64 encoding',
+  );
+  return Buffer.from(account.data[0], 'base64');
+}
+
 export class SwapsXyzBridge implements IExternalBridge {
   readonly externalBridgeId = ExternalBridgeType.SwapsXyz;
   readonly logger: Logger;
@@ -96,6 +189,8 @@ export class SwapsXyzBridge implements IExternalBridge {
   private readonly chainMetadataByChainId = new Map<number, ChainMetadata>();
   private readonly tokenDecimalsCache = new Map<string, Promise<number>>();
   private readonly evmProviderFactory: (rpcUrl: string) => providers.Provider;
+  private readonly solanaConnectionFactory: (rpcUrl: string) => Connection;
+  private readonly maxSolanaNativeSpendLamports: number;
   private readonly registerTxRetryDelayMs: number;
   // Prevent source-account races when movements share a source in one cycle.
   private _executeLock: Promise<void> = Promise.resolve();
@@ -113,6 +208,14 @@ export class SwapsXyzBridge implements IExternalBridge {
           config.maxQuoteLossBps <= Number(BPS_DENOMINATOR)),
       'maxQuoteLossBps must be an integer between 0 and 10000',
     );
+    const maxSolanaNativeSpendLamports =
+      config.maxSolanaNativeSpendLamports ??
+      DEFAULT_MAX_SOLANA_NATIVE_SPEND_LAMPORTS;
+    assert(
+      Number.isSafeInteger(maxSolanaNativeSpendLamports) &&
+        maxSolanaNativeSpendLamports >= 0,
+      'maxSolanaNativeSpendLamports must be a non-negative safe integer',
+    );
     this.logger = logger;
     const defaultSlippageBps = this.getSlippageBps();
     this.client =
@@ -128,10 +231,22 @@ export class SwapsXyzBridge implements IExternalBridge {
     this.evmProviderFactory =
       config.evmProviderFactory ??
       ((rpcUrl) => new providers.StaticJsonRpcProvider(rpcUrl));
+    this.solanaConnectionFactory =
+      config.solanaConnectionFactory ??
+      ((rpcUrl) => new Connection(rpcUrl, 'confirmed'));
+    this.maxSolanaNativeSpendLamports = maxSolanaNativeSpendLamports;
     this.registerTxRetryDelayMs =
       config.registerTxRetryDelayMs ?? REGISTER_TX_RETRY_DELAY_MS;
 
     if (config.chainMetadata) {
+      for (const metadata of Object.values(config.chainMetadata)) {
+        if (
+          metadata.protocol === ProtocolType.Sealevel &&
+          !this.chainMetadataByChainId.has(metadata.domainId)
+        ) {
+          this.chainMetadataByChainId.set(metadata.domainId, metadata);
+        }
+      }
       for (const metadata of Object.values(config.chainMetadata)) {
         if (metadata.chainId !== undefined && isEVMLike(metadata.protocol)) {
           this.chainMetadataByChainId.set(Number(metadata.chainId), metadata);
@@ -409,6 +524,17 @@ export class SwapsXyzBridge implements IExternalBridge {
       metadata,
       `SwapsXyzBridge: no chain metadata configured for chainId ${chainId}`,
     );
+    if (metadata.protocol === ProtocolType.Sealevel) {
+      const rpcUrl = metadata.rpcUrls[0]?.http;
+      assert(
+        rpcUrl,
+        `SwapsXyzBridge: no RPC URL configured for chainId ${chainId}`,
+      );
+      const supply = await this.solanaConnectionFactory(rpcUrl).getTokenSupply(
+        new PublicKey(token),
+      );
+      return supply.value.decimals;
+    }
     if (token.toLowerCase() === NATIVE_TOKEN_ADDRESS) {
       return metadata.nativeToken?.decimals ?? 18;
     }
@@ -474,6 +600,9 @@ export class SwapsXyzBridge implements IExternalBridge {
       rpcUrl,
       `SwapsXyzBridge.execute: no RPC URL configured for chainId ${fromChain}`,
     );
+    if (metadata.protocol === ProtocolType.Sealevel) {
+      return this.executeSolana(quote, privateKeys, rpcUrl);
+    }
     const privateKey = privateKeys[ProtocolType.Ethereum];
     assert(
       privateKey,
@@ -525,10 +654,146 @@ export class SwapsXyzBridge implements IExternalBridge {
     };
   }
 
-  private validateActionResponse(
+  private async executeSolana(
+    quote: BridgeQuote,
+    privateKeys: Partial<Record<ProtocolType, string>>,
+    rpcUrl: string,
+  ): Promise<BridgeTransferResult> {
+    const { fromChain, toChain } = quote.requestParams;
+    const rawKey = privateKeys[ProtocolType.Sealevel];
+    assert(
+      rawKey,
+      'SwapsXyzBridge.execute requires a Sealevel private key for Solana-source routes',
+    );
+    const keypair = Keypair.fromSecretKey(parseSolanaPrivateKey(rawKey));
+    assert(
+      keypair.publicKey.toBase58() === quote.requestParams.fromAddress,
+      'SwapsXyzBridge.execute Solana signer does not match quote fromAddress',
+    );
+
+    const fresh = await this.client.getAction(
+      this.buildActionRequest(quote.requestParams),
+    );
+    assert(isSolanaTx(fresh.tx), 'SwapsXyzBridge.execute requires a Solana tx');
+    this.validateSolanaActionResponse(fresh, quote);
+
+    const transaction = VersionedTransaction.deserialize(
+      Buffer.from(fresh.tx.base64Tx, 'base64'),
+    );
+    assert(
+      transaction.message.header.numRequiredSignatures === 1,
+      'SwapsXyzBridge.execute Solana transaction must require exactly one signer',
+    );
+    assert(
+      transaction.message.staticAccountKeys[0]?.equals(keypair.publicKey),
+      'SwapsXyzBridge.execute Solana payer does not match inventory signer',
+    );
+    if (fresh.tx.payer !== undefined) {
+      assert(
+        fresh.tx.payer === keypair.publicKey.toBase58(),
+        `SwapsXyzBridge.execute Solana payer ${fresh.tx.payer} does not match signer ${keypair.publicKey.toBase58()}`,
+      );
+    }
+
+    const connection = this.solanaConnectionFactory(rpcUrl);
+    const addressLookupTables = await this.resolveAddressLookupTables(
+      connection,
+      transaction,
+    );
+    const accountKeys = transaction.message.getAccountKeys({
+      addressLookupTableAccounts: addressLookupTables,
+    });
+    const writableKeys = accountKeys
+      .keySegments()
+      .flat()
+      .filter((_, index) => transaction.message.isAccountWritable(index));
+    assert(
+      writableKeys.some((key) => key.equals(keypair.publicKey)),
+      'SwapsXyzBridge.execute Solana payer must be writable',
+    );
+
+    const preAccounts = await connection.getMultipleAccountsInfoAndContext(
+      writableKeys,
+      { commitment: 'confirmed' },
+    );
+    assert(
+      preAccounts.value.length === writableKeys.length,
+      'SwapsXyzBridge.execute Solana preflight did not return every writable account',
+    );
+    const { blockhash } = await connection.getLatestBlockhash('confirmed');
+    transaction.message.recentBlockhash = blockhash;
+    transaction.sign([keypair]);
+    const simulation = await connection.simulateTransaction(transaction, {
+      sigVerify: true,
+      commitment: 'confirmed',
+      minContextSlot: preAccounts.context.slot,
+      accounts: {
+        encoding: 'base64',
+        addresses: writableKeys.map((key) => key.toBase58()),
+      },
+    });
+    assert(
+      simulation.value.err === null,
+      `SwapsXyzBridge.execute Solana simulation failed: ${JSON.stringify(simulation.value.err)}`,
+    );
+    assert(
+      simulation.value.accounts?.length === writableKeys.length,
+      'SwapsXyzBridge.execute Solana simulation did not return every writable account',
+    );
+    const fee = await connection.getFeeForMessage(
+      transaction.message,
+      'confirmed',
+    );
+    assert(
+      fee.value !== null,
+      'SwapsXyzBridge.execute could not calculate the Solana transaction fee',
+    );
+    this.validateSolanaAccountEffects(
+      quote,
+      fresh,
+      keypair.publicKey,
+      writableKeys,
+      preAccounts.value,
+      simulation.value.accounts,
+      fee.value,
+    );
+
+    const signature = await connection.sendRawTransaction(
+      transaction.serialize(),
+      { skipPreflight: false, maxRetries: 5 },
+    );
+    void this.registerIfRequired(fresh, signature);
+    return {
+      txHash: signature,
+      fromChain,
+      toChain,
+      transferId: fresh.txId,
+    };
+  }
+
+  private async resolveAddressLookupTables(
+    connection: Connection,
+    transaction: VersionedTransaction,
+  ): Promise<AddressLookupTableAccount[]> {
+    return Promise.all(
+      transaction.message.addressTableLookups.map(async (lookup) => {
+        const { value } = await connection.getAddressLookupTable(
+          lookup.accountKey,
+          { commitment: 'confirmed' },
+        );
+        assert(
+          value,
+          `SwapsXyzBridge.execute Solana address lookup table ${lookup.accountKey.toBase58()} was not found`,
+        );
+        return value;
+      }),
+    );
+  }
+
+  private validateActionResponseMetadata(
     response: SwapsXyzActionResponse,
     quote: BridgeQuote,
-    expectedVmId: 'evm',
+    expectedVmId: 'evm' | 'solana',
   ): void {
     const params = quote.requestParams;
     assert(
@@ -573,19 +838,6 @@ export class SwapsXyzBridge implements IExternalBridge {
         `SwapsXyzBridge.execute amountOut token ${response.amountOut.address} does not match requested ${params.toToken}`,
       );
     }
-    const tx = response.tx;
-    assert(isEvmTx(tx), 'SwapsXyzBridge.execute EVM transaction is invalid');
-    if (this.addressesEqual(tx.to, params.fromToken, params.fromChain)) {
-      const selector = transactionSelector(
-        tx.data,
-        'SwapsXyzBridge.execute fresh',
-      );
-      assert(
-        !UNSAFE_SOURCE_TOKEN_SELECTORS.has(selector),
-        `SwapsXyzBridge.execute rejects direct source-token selector 0x${selector}`,
-      );
-    }
-
     const freshFromAmount = BigInt(
       (response.amountInMax ?? response.amountIn).amount,
     );
@@ -599,9 +851,37 @@ export class SwapsXyzBridge implements IExternalBridge {
       `SwapsXyzBridge.execute fresh minimum output ${freshToAmountMin} is below accepted minimum ${quote.toAmountMin}`,
     );
     assert(
-      isRecord(quote.route) && isRecord(quote.route.actionResponse),
+      isRecord(quote.route) &&
+        isSwapsXyzActionResponseValue(quote.route.actionResponse),
       'SwapsXyzBridge.execute accepted action response is missing',
     );
+  }
+
+  private validateActionResponse(
+    response: SwapsXyzActionResponse,
+    quote: BridgeQuote,
+    expectedVmId: 'evm',
+  ): void {
+    this.validateActionResponseMetadata(response, quote, expectedVmId);
+    assert(
+      isRecord(quote.route) &&
+        isSwapsXyzActionResponseValue(quote.route.actionResponse),
+      'SwapsXyzBridge.execute accepted action response is missing',
+    );
+    const params = quote.requestParams;
+    const tx = response.tx;
+    assert(isEvmTx(tx), 'SwapsXyzBridge.execute EVM transaction is invalid');
+    if (this.addressesEqual(tx.to, params.fromToken, params.fromChain)) {
+      const selector = transactionSelector(
+        tx.data,
+        'SwapsXyzBridge.execute fresh',
+      );
+      assert(
+        !UNSAFE_SOURCE_TOKEN_SELECTORS.has(selector),
+        `SwapsXyzBridge.execute rejects direct source-token selector 0x${selector}`,
+      );
+    }
+
     const acceptedTx = quote.route.actionResponse.tx;
     assert(
       isEvmTx(acceptedTx),
@@ -638,6 +918,151 @@ export class SwapsXyzBridge implements IExternalBridge {
       assert(
         acceptedValue === 0n && freshValue === 0n,
         'SwapsXyzBridge.execute ERC20 routes must not send native value',
+      );
+    }
+  }
+
+  private validateSolanaActionResponse(
+    response: SwapsXyzActionResponse,
+    quote: BridgeQuote,
+  ): void {
+    this.validateActionResponseMetadata(response, quote, 'solana');
+    assert(
+      isRecord(quote.route) &&
+        isSwapsXyzActionResponseValue(quote.route.actionResponse),
+      'SwapsXyzBridge.execute accepted action response is missing',
+    );
+    assert(
+      isSolanaTx(response.tx),
+      'SwapsXyzBridge.execute Solana transaction is invalid',
+    );
+    assert(
+      response.requiresRegisterTransaction === true,
+      'SwapsXyzBridge.execute Solana actions must require transaction registration',
+    );
+    const acceptedTx = quote.route.actionResponse.tx;
+    assert(
+      isSolanaTx(acceptedTx),
+      'SwapsXyzBridge.execute accepted Solana transaction is invalid',
+    );
+    const freshTool = response.bridgeIds?.join('+') || 'swapsxyz';
+    assert(
+      freshTool === quote.tool,
+      `SwapsXyzBridge.execute fresh bridge ${freshTool} does not match accepted bridge ${quote.tool}`,
+    );
+  }
+
+  private validateSolanaAccountEffects(
+    quote: BridgeQuote,
+    response: SwapsXyzActionResponse,
+    signer: PublicKey,
+    writableKeys: PublicKey[],
+    preAccounts: Array<AccountInfo<Buffer> | null>,
+    postAccounts: Array<SimulatedTransactionAccountInfo | null>,
+    transactionFeeLamports: number,
+  ): void {
+    const sourceMint = new PublicKey(quote.requestParams.fromToken);
+    let sourceDebit = 0n;
+    let signerLamportDebit: bigint | undefined;
+
+    for (let index = 0; index < writableKeys.length; index++) {
+      const address = writableKeys[index];
+      const pre = preAccounts[index];
+      const post = postAccounts[index];
+
+      if (address.equals(signer)) {
+        assert(pre && post, 'Solana signer account is missing from simulation');
+        assert(
+          post.owner === pre.owner.toBase58() &&
+            post.executable === pre.executable &&
+            simulatedAccountData(post).equals(pre.data),
+          'SwapsXyzBridge.execute Solana transaction changes signer account ownership or data',
+        );
+        signerLamportDebit =
+          pre.lamports > post.lamports
+            ? BigInt(pre.lamports - post.lamports)
+            : 0n;
+      }
+
+      if (!pre) continue;
+      const preToken = decodeTokenAccount(pre.owner, pre.data);
+      if (!preToken?.owner.equals(signer)) continue;
+      assert(
+        post,
+        `SwapsXyzBridge.execute Solana transaction closes signer token account ${address.toBase58()}`,
+      );
+      const postData = simulatedAccountData(post);
+      const postToken = decodeTokenAccount(new PublicKey(post.owner), postData);
+      assert(
+        postToken,
+        `SwapsXyzBridge.execute Solana transaction changes signer token account ${address.toBase58()} into a non-token account`,
+      );
+      assert(
+        postToken.mint.equals(preToken.mint) &&
+          postToken.owner.equals(preToken.owner) &&
+          postToken.delegateOption === preToken.delegateOption &&
+          postToken.delegate.equals(preToken.delegate) &&
+          postToken.delegatedAmount === preToken.delegatedAmount &&
+          postToken.closeAuthorityOption === preToken.closeAuthorityOption &&
+          postToken.closeAuthority.equals(preToken.closeAuthority) &&
+          postToken.state === preToken.state,
+        `SwapsXyzBridge.execute Solana transaction changes authority or state for signer token account ${address.toBase58()}`,
+      );
+      assert(
+        postData.length === pre.data.length,
+        `SwapsXyzBridge.execute Solana transaction changes data length for signer token account ${address.toBase58()}`,
+      );
+      const normalizedPostData = Buffer.from(postData);
+      pre.data.copy(
+        normalizedPostData,
+        TOKEN_AMOUNT_OFFSET,
+        TOKEN_AMOUNT_OFFSET,
+        TOKEN_AMOUNT_OFFSET + 8,
+      );
+      assert(
+        normalizedPostData.equals(pre.data),
+        `SwapsXyzBridge.execute Solana transaction changes non-balance data for signer token account ${address.toBase58()}`,
+      );
+
+      const debit =
+        preToken.amount > postToken.amount
+          ? preToken.amount - postToken.amount
+          : 0n;
+      if (preToken.mint.equals(sourceMint)) {
+        sourceDebit += debit;
+      } else {
+        assert(
+          debit === 0n,
+          `SwapsXyzBridge.execute Solana transaction debits non-source token account ${address.toBase58()}`,
+        );
+      }
+    }
+
+    assert(
+      signerLamportDebit !== undefined,
+      'SwapsXyzBridge.execute Solana simulation omitted the signer account',
+    );
+    const maxLamportDebit =
+      BigInt(transactionFeeLamports) +
+      BigInt(this.maxSolanaNativeSpendLamports);
+    assert(
+      signerLamportDebit <= maxLamportDebit,
+      `SwapsXyzBridge.execute Solana native spend ${signerLamportDebit} exceeds maximum ${maxLamportDebit}`,
+    );
+
+    if (quote.requestParams.fromAmount !== undefined) {
+      const expectedDebit = BigInt(response.amountIn.amount);
+      assert(
+        sourceDebit === expectedDebit,
+        `SwapsXyzBridge.execute Solana source-token debit ${sourceDebit} does not match exact input ${expectedDebit}`,
+      );
+    } else {
+      const maxDebit = BigInt(
+        (response.amountInMax ?? response.amountIn).amount,
+      );
+      assert(
+        sourceDebit > 0n && sourceDebit <= maxDebit,
+        `SwapsXyzBridge.execute Solana source-token debit ${sourceDebit} exceeds exact-output cap ${maxDebit}`,
       );
     }
   }
