@@ -1,80 +1,106 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity >=0.8.0;
+pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/interfaces/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import {MockERC20} from "./MockERC20.sol";
 
 /**
  * @title MockERC4626YieldSharing
- * @dev Mock ERC4626 vault for testing yield sharing with the owner of the vault
- * @dev This is a simplified version of the Aave v3 vault here
- * https://github.com/aave/Aave-Vault/blob/main/src/ATokenVault.sol
+ * @notice Realistic ERC-4626 yield strategy mock simulating dynamic APR and yield accretion over time.
  */
-contract MockERC4626YieldSharing is ERC4626, Ownable {
-    using Math for uint256;
+contract MockERC4626YieldSharing is ERC4626 {
+    uint256 public constant BPS_DENOMINATOR = 10000;
+    uint256 public constant SECONDS_PER_YEAR = 365 days;
 
-    uint256 public constant SCALE = 1e18;
-    uint256 public fee;
-    uint256 public accumulatedFees;
-    uint256 public lastVaultBalance;
+    uint256 public aprBps; // Annual percentage rate in basis points (e.g. 1000 = 10%)
+    uint256 public lastYieldAccrual;
+    uint256 public simulatedLossBps;
+
+    event YieldAdded(uint256 amount, uint256 newTotalAssets);
+    event AprUpdated(uint256 oldAprBps, uint256 newAprBps);
 
     constructor(
-        address _asset,
+        IERC20 _asset,
         string memory _name,
-        string memory _symbol,
-        uint256 _initialFee
-    ) ERC4626(IERC20(_asset)) ERC20(_name, _symbol) {
-        fee = _initialFee;
+        string memory _symbol
+    )
+        ERC20(_name, _symbol)
+        ERC4626(_asset)
+    {
+        lastYieldAccrual = block.timestamp;
     }
 
-    function setFee(uint256 newFee) external onlyOwner {
-        require(newFee <= SCALE, "Fee too high");
-        fee = newFee;
+    /**
+     * @notice Manually adds yield by minting underlying assets directly to the vault contract.
+     * @param amount Amount of underlying assets to add as yield.
+     */
+    function addYield(uint256 amount) external {
+        MockERC20(address(asset())).mint(address(this), amount);
+        emit YieldAdded(amount, totalAssets());
     }
 
-    function _accrueYield() internal {
-        uint256 newVaultBalance = IERC20(asset()).balanceOf(address(this));
-        if (newVaultBalance > lastVaultBalance) {
-            uint256 newYield = newVaultBalance - lastVaultBalance;
-            uint256 newFees = newYield.mulDiv(fee, SCALE, Math.Rounding.Down);
-            accumulatedFees += newFees;
-            lastVaultBalance = newVaultBalance;
+    /**
+     * @notice Simulates yield percentage gain based on current total assets.
+     * @param basisPoints Percentage gain in basis points (e.g. 500 = 5%).
+     */
+    function simulateYield(uint256 basisPoints) external {
+        uint256 currentAssets = totalAssets();
+        uint256 yieldAmount = (currentAssets * basisPoints) / BPS_DENOMINATOR;
+        if (yieldAmount > 0) {
+            MockERC20(address(asset())).mint(address(this), yieldAmount);
+            emit YieldAdded(yieldAmount, totalAssets());
         }
     }
 
-    function deposit(
-        uint256 assets,
-        address receiver
-    ) public override returns (uint256) {
-        lastVaultBalance += assets;
-        return super.deposit(assets, receiver);
+    /**
+     * @notice Sets annual APR for automatic yield accrual.
+     */
+    function setYieldApr(uint256 _aprBps) external {
+        accrueYield();
+        emit AprUpdated(aprBps, _aprBps);
+        aprBps = _aprBps;
     }
 
-    function redeem(
-        uint256 shares,
-        address receiver,
-        address owner
-    ) public override returns (uint256) {
-        _accrueYield();
-        return super.redeem(shares, receiver, owner);
-    }
-
-    function getClaimableFees() public view returns (uint256) {
-        uint256 newVaultBalance = IERC20(asset()).balanceOf(address(this));
-
-        if (newVaultBalance <= lastVaultBalance) {
-            return accumulatedFees;
+    /**
+     * @notice Accrues interest/yield based on configured APR and elapsed time.
+     */
+    function accrueYield() public {
+        uint256 elapsed = block.timestamp - lastYieldAccrual;
+        if (elapsed > 0 && aprBps > 0) {
+            uint256 currentAssets = totalAssets();
+            if (currentAssets > 0) {
+                uint256 yieldEarned = (currentAssets * aprBps * elapsed) / (SECONDS_PER_YEAR * BPS_DENOMINATOR);
+                if (yieldEarned > 0) {
+                    MockERC20(address(asset())).mint(address(this), yieldEarned);
+                }
+            }
         }
-
-        uint256 newYield = newVaultBalance - lastVaultBalance;
-        uint256 newFees = newYield.mulDiv(fee, SCALE, Math.Rounding.Down);
-
-        return accumulatedFees + newFees;
+        lastYieldAccrual = block.timestamp;
     }
 
     function totalAssets() public view override returns (uint256) {
-        return IERC20(asset()).balanceOf(address(this)) - getClaimableFees();
+        return IERC20(asset()).balanceOf(address(this));
+    }
+
+    function deposit(uint256 assets, address receiver) public override returns (uint256) {
+        accrueYield();
+        return super.deposit(assets, receiver);
+    }
+
+    function mint(uint256 shares, address receiver) public override returns (uint256) {
+        accrueYield();
+        return super.mint(shares, receiver);
+    }
+
+    function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256) {
+        accrueYield();
+        return super.withdraw(assets, receiver, owner);
+    }
+
+    function redeem(uint256 shares, address receiver, address owner) public override returns (uint256) {
+        accrueYield();
+        return super.redeem(shares, receiver, owner);
     }
 }

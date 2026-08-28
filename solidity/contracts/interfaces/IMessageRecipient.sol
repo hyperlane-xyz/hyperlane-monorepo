@@ -1,6 +1,10 @@
-// SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.6.11;
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.20;
 
+/**
+ * @title IMessageRecipient
+ * @notice Interface for Hyperlane message recipient contracts.
+ */
 interface IMessageRecipient {
     function handle(
         uint32 _origin,
