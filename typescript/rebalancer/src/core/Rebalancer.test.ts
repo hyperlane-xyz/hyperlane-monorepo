@@ -6,7 +6,9 @@ import Sinon from 'sinon';
 
 import { HyperlaneCore } from '@hyperlane-xyz/sdk';
 
+import type { Erc20ContractFactory } from '../bridges/erc20Approve.js';
 import {
+  TEST_ADDRESSES,
   buildTestMovableCollateralRoute,
   createRebalancerTestContext,
 } from '../test/helpers.js';
@@ -53,6 +55,113 @@ function createMockActionTracker(): IActionTracker {
 chai.use(chaiAsPromised);
 
 const testLogger = pino({ level: 'silent' });
+
+interface TestApprovalTransaction {
+  hash: string;
+  wait: Sinon.SinonStub<[], Promise<{ status: number }>>;
+}
+
+class StatefulErc20Contract extends ethers.Contract {
+  allowanceValue: ethers.BigNumber;
+  readonly allowanceStub = Sinon.stub<
+    [string, string],
+    Promise<ethers.BigNumber>
+  >();
+  readonly approveStub = Sinon.stub<
+    [string, ethers.BigNumberish],
+    Promise<TestApprovalTransaction>
+  >();
+
+  constructor(
+    address: string,
+    signer: ethers.Signer,
+    initialAllowance: ethers.BigNumberish = 0,
+  ) {
+    super(address, [], signer);
+    this.allowanceValue = ethers.BigNumber.from(initialAllowance);
+    this.allowanceStub.callsFake(async () => this.allowanceValue);
+    this.approveStub.callsFake(async (_spender, amount) => {
+      const target = ethers.BigNumber.from(amount);
+      const wait = Sinon.stub<[], Promise<{ status: number }>>().callsFake(
+        async () => {
+          this.allowanceValue = target;
+          return { status: 1 };
+        },
+      );
+      return {
+        hash: `0xapproval${this.approveStub.callCount}`,
+        wait,
+      };
+    });
+  }
+
+  allowance(owner: string, spender: string): Promise<ethers.BigNumber> {
+    return this.allowanceStub(owner, spender);
+  }
+
+  approve(
+    spender: string,
+    amount: ethers.BigNumberish,
+  ): Promise<TestApprovalTransaction> {
+    return this.approveStub(spender, amount);
+  }
+}
+
+function createApprovalHarness(
+  initialAllowances: Record<string, ethers.BigNumberish> = {},
+  failingApprovalTokens: string[] = [],
+  failingCleanupTokens: string[] = [],
+): {
+  contractFactory: Erc20ContractFactory;
+  getContract: (token: string) => StatefulErc20Contract;
+} {
+  const contracts = new Map<string, StatefulErc20Contract>();
+  const contractFactory: Erc20ContractFactory = (token, _abi, signer) => {
+    const key = token.toLowerCase();
+    let contract = contracts.get(key);
+    if (!contract) {
+      contract = new StatefulErc20Contract(
+        token,
+        signer,
+        initialAllowances[key] ?? 0,
+      );
+      if (failingApprovalTokens.some((value) => value.toLowerCase() === key)) {
+        contract.approveStub.onCall(0).rejects(new Error('approval failed'));
+      } else if (
+        failingCleanupTokens.some((value) => value.toLowerCase() === key)
+      ) {
+        contract.approveStub.onCall(1).rejects(new Error('cleanup failed'));
+      }
+      contracts.set(key, contract);
+    }
+    return contract;
+  };
+
+  return {
+    contractFactory,
+    getContract: (token) => {
+      const contract = contracts.get(token.toLowerCase());
+      if (!contract) throw new Error(`No approval contract for ${token}`);
+      return contract;
+    },
+  };
+}
+
+function createApprovalRebalancer(
+  ctx: ReturnType<typeof createRebalancerTestContext>,
+  contractFactory: Erc20ContractFactory,
+): Rebalancer {
+  return new Rebalancer(
+    ctx.warpCore,
+    ctx.chainMetadata,
+    ctx.tokensByChainName,
+    ctx.multiProvider,
+    createMockActionTracker(),
+    testLogger,
+    undefined,
+    { contractFactory },
+  );
+}
 
 describe('Rebalancer', () => {
   let sandbox: Sinon.SinonSandbox;
@@ -420,6 +529,201 @@ describe('Rebalancer', () => {
       expect(
         ctx.adapters.ethereum.populateRebalanceTx.firstCall.args[1],
       ).to.equal(1_000_000_000_000_000_000n);
+    });
+  });
+
+  describe('collateral fee approvals', () => {
+    const collateralA = TEST_ADDRESSES.token;
+    const collateralB = TEST_ADDRESSES.polygon;
+
+    function stubSuccessfulSettlement(): void {
+      // CAST: tests only need the message ID consumed by buildResult.
+      sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([
+        {
+          id: '0xMessageId111111111111111111111111111111111111111111111111111111',
+        } as any,
+      ]);
+    }
+
+    function feeQuote(token: string, total: bigint) {
+      return [{ igpQuote: { addressOrDenom: token, amount: total } }];
+    }
+
+    it('approves the exact aggregate for a same-router batch', async () => {
+      const ctx = createRebalancerTestContext(['ethereum', 'arbitrum'], {
+        ethereum: {
+          wrappedTokenAddress: collateralA,
+          quotes: feeQuote(collateralA, 103n),
+        },
+      });
+      const harness = createApprovalHarness();
+      const rebalancer = createApprovalRebalancer(ctx, harness.contractFactory);
+      stubSuccessfulSettlement();
+
+      const results = await rebalancer.rebalance([
+        buildTestMovableCollateralRoute({ amount: 100n }),
+        buildTestMovableCollateralRoute({ amount: 100n }),
+      ]);
+
+      expect(results.every((result) => result.success)).to.equal(true);
+      const amounts = harness
+        .getContract(collateralA)
+        .approveStub.getCalls()
+        .map((call) => ethers.BigNumber.from(call.args[1]).toString());
+      expect(amounts).to.deep.equal(['6', '0']);
+      expect(amounts).not.to.include(ethers.constants.MaxUint256.toString());
+    });
+
+    it('zero-resets a prior allowance before setting the exact fee', async () => {
+      const ctx = createRebalancerTestContext(['ethereum', 'arbitrum'], {
+        ethereum: {
+          wrappedTokenAddress: collateralA,
+          quotes: feeQuote(collateralA, 103n),
+        },
+      });
+      const harness = createApprovalHarness({
+        [collateralA.toLowerCase()]: 99,
+      });
+      const rebalancer = createApprovalRebalancer(ctx, harness.contractFactory);
+      stubSuccessfulSettlement();
+
+      const results = await rebalancer.rebalance([
+        buildTestMovableCollateralRoute({ amount: 100n }),
+      ]);
+
+      expect(results[0].success).to.equal(true);
+      const amounts = harness
+        .getContract(collateralA)
+        .approveStub.getCalls()
+        .map((call) => ethers.BigNumber.from(call.args[1]).toString());
+      expect(amounts).to.deep.equal(['0', '3', '0']);
+    });
+
+    it('cleans approval residue when a higher quote fails estimation', async () => {
+      const ctx = createRebalancerTestContext(['ethereum', 'arbitrum'], {
+        ethereum: {
+          wrappedTokenAddress: collateralA,
+          quotes: feeQuote(collateralA, 103n),
+        },
+      });
+      ctx.multiProvider.estimateGas = Sinon.stub().rejects(
+        new Error('quote increased above exact allowance'),
+      );
+      const harness = createApprovalHarness();
+      const rebalancer = createApprovalRebalancer(ctx, harness.contractFactory);
+
+      const results = await rebalancer.rebalance([
+        buildTestMovableCollateralRoute({ amount: 100n }),
+      ]);
+
+      expect(results[0].success).to.equal(false);
+      expect(results[0].error).to.include('quote increased');
+      const contract = harness.getContract(collateralA);
+      expect(contract.allowanceValue.isZero()).to.equal(true);
+      const amounts = contract.approveStub
+        .getCalls()
+        .map((call) => ethers.BigNumber.from(call.args[1]).toString());
+      expect(amounts).to.deep.equal(['3', '0']);
+    });
+
+    it('isolates one approval failure from another origin', async () => {
+      const ctx = createRebalancerTestContext(
+        ['ethereum', 'arbitrum', 'optimism'],
+        {
+          ethereum: {
+            wrappedTokenAddress: collateralA,
+            quotes: feeQuote(collateralA, 103n),
+          },
+          optimism: {
+            wrappedTokenAddress: collateralB,
+            quotes: feeQuote(collateralB, 104n),
+          },
+        },
+      );
+      const harness = createApprovalHarness({}, [collateralA]);
+      const rebalancer = createApprovalRebalancer(ctx, harness.contractFactory);
+      stubSuccessfulSettlement();
+
+      const results = await rebalancer.rebalance([
+        buildTestMovableCollateralRoute({ amount: 100n }),
+        buildTestMovableCollateralRoute({
+          origin: 'optimism',
+          destination: 'arbitrum',
+          amount: 100n,
+        }),
+      ]);
+
+      const ethereumResult = results.find(
+        (result) => result.route.origin === 'ethereum',
+      );
+      const optimismResult = results.find(
+        (result) => result.route.origin === 'optimism',
+      );
+      expect(ethereumResult?.success).to.equal(false);
+      expect(ethereumResult?.error).to.include('approval failed');
+      expect(optimismResult?.success).to.equal(true);
+    });
+
+    it('revokes residue after a partial same-origin send failure', async () => {
+      const ctx = createRebalancerTestContext(['ethereum', 'arbitrum'], {
+        ethereum: {
+          wrappedTokenAddress: collateralA,
+          quotes: feeQuote(collateralA, 103n),
+        },
+      });
+      const harness = createApprovalHarness();
+      let sends = 0;
+      ctx.multiProvider.sendTransaction = Sinon.stub().callsFake(async () => {
+        sends += 1;
+        if (sends === 1) {
+          const contract = harness.getContract(collateralA);
+          contract.allowanceValue = contract.allowanceValue.sub(3);
+          return {
+            transactionHash:
+              '0xTxHash1111111111111111111111111111111111111111111111111111111111',
+            blockNumber: 100,
+            status: 1,
+          };
+        }
+        throw new Error('second send failed');
+      });
+      const rebalancer = createApprovalRebalancer(ctx, harness.contractFactory);
+      stubSuccessfulSettlement();
+
+      const results = await rebalancer.rebalance([
+        buildTestMovableCollateralRoute({ amount: 100n }),
+        buildTestMovableCollateralRoute({ amount: 100n }),
+      ]);
+
+      expect(results.filter((result) => result.success)).to.have.lengthOf(1);
+      expect(results.filter((result) => !result.success)).to.have.lengthOf(1);
+      const contract = harness.getContract(collateralA);
+      expect(contract.allowanceValue.isZero()).to.equal(true);
+      const amounts = contract.approveStub
+        .getCalls()
+        .map((call) => ethers.BigNumber.from(call.args[1]).toString());
+      expect(amounts).to.deep.equal(['6', '0']);
+    });
+
+    it('does not replace a successful send result with cleanup failure', async () => {
+      const ctx = createRebalancerTestContext(['ethereum', 'arbitrum'], {
+        ethereum: {
+          wrappedTokenAddress: collateralA,
+          quotes: feeQuote(collateralA, 103n),
+        },
+      });
+      const harness = createApprovalHarness({}, [], [collateralA]);
+      const rebalancer = createApprovalRebalancer(ctx, harness.contractFactory);
+      stubSuccessfulSettlement();
+
+      const results = await rebalancer.rebalance([
+        buildTestMovableCollateralRoute({ amount: 100n }),
+      ]);
+
+      expect(results[0].success).to.equal(true);
+      expect(harness.getContract(collateralA).allowanceValue.eq(3)).to.equal(
+        true,
+      );
     });
   });
 
