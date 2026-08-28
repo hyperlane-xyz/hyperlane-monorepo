@@ -282,23 +282,14 @@ export class Monitor implements IMonitor {
         const token = this.warpCore.tokens.find(
           (t) => t.chainName === chainName,
         );
-        if (!token) {
-          this.logger.warn(
-            { chain: chainName },
-            'No token found for inventory chain',
-          );
-          return { chainName, balance: 0n };
-        }
+        assert(token, `No token found for inventory chain ${chainName}`);
 
         try {
           const address = inventoryConfig.inventoryAddresses[token.protocol];
-          if (!address) {
-            this.logger.warn(
-              { chain: chainName, protocol: token.protocol },
-              'No inventory address for chain protocol, skipping',
-            );
-            return { chainName, balance: 0n };
-          }
+          assert(
+            address,
+            `No inventory address for ${chainName} (${token.protocol})`,
+          );
           const adapter = token.getAdapter(this.warpCore.multiProvider);
           const balance = await adapter.getBalance(address);
           this.logger.debug(
