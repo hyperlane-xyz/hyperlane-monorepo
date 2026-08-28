@@ -9,7 +9,10 @@ import {
   parseWarpRouteMessage,
 } from '@hyperlane-xyz/utils';
 
+import { createStatusAdapters } from '../bridges/status/index.js';
+import { TokenBridgeStatusAdapterType } from '../config/types.js';
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
+import type { StatusAdaptersByKind } from '../interfaces/ITokenBridgeStatusAdapter.js';
 import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
 import type {
   ExplorerMessage,
@@ -46,6 +49,8 @@ export interface ActionTrackerConfig {
  * ActionTracker implementation managing the lifecycle of tracked entities.
  */
 export class ActionTracker implements IActionTracker {
+  private readonly statusAdaptersByKind: StatusAdaptersByKind;
+
   constructor(
     private readonly transferStore: ITransferStore,
     private readonly rebalanceIntentStore: IRebalanceIntentStore,
@@ -54,7 +59,11 @@ export class ActionTracker implements IActionTracker {
     private readonly core: MultiProtocolCore,
     private readonly config: ActionTrackerConfig,
     private readonly logger: Logger,
-  ) {}
+    statusAdaptersByKind?: StatusAdaptersByKind,
+  ) {
+    this.statusAdaptersByKind =
+      statusAdaptersByKind ?? createStatusAdapters(this.logger);
+  }
 
   // === Lifecycle ===
 
@@ -218,8 +227,7 @@ export class ActionTracker implements IActionTracker {
     // Check in_progress intents for completion or TTL expiry
     const inProgressIntents =
       await this.rebalanceIntentStore.getByStatus('in_progress');
-    const allInProgressActions =
-      await this.rebalanceActionStore.getByStatus('in_progress');
+    const allActions = await this.rebalanceActionStore.getAll();
     const now = Date.now();
     for (const intent of inProgressIntents) {
       const completedAmount = await this.getCompletedAmountForIntent(intent.id);
@@ -229,8 +237,12 @@ export class ActionTracker implements IActionTracker {
         });
         this.logger.debug({ id: intent.id }, 'RebalanceIntent completed');
       } else if (now - intent.createdAt > this.config.intentTTL) {
-        const sourceStartedActions = allInProgressActions.filter(
-          (action) => action.intentId === intent.id,
+        const sourceStartedActions = allActions.filter(
+          (action) =>
+            action.intentId === intent.id &&
+            (action.status === 'in_progress' ||
+              (action.type === 'inventory_movement' &&
+                action.status === 'complete')),
         );
         if (sourceStartedActions.length > 0) {
           this.logger.warn(
@@ -294,9 +306,9 @@ export class ActionTracker implements IActionTracker {
 
     discoveredActions = await this.recoverActions(inflightMessages);
 
-    // Check delivery status for all in-progress actions in our store
-    // Only check delivery for actions that have a messageId (rebalance_message, inventory_deposit)
-    // inventory_movement actions are synced separately via LiFi status API
+    // Check delivery status for all in-progress actions in our store.
+    // Movable-collateral actions may use an adapter-owned settlement ref;
+    // inventory_movement actions are synced separately via bridge APIs.
     const inProgressActions =
       await this.rebalanceActionStore.getByStatus('in_progress');
     for (const action of inProgressActions) {
@@ -307,7 +319,79 @@ export class ActionTracker implements IActionTracker {
         await this.reconcilePendingApproval(action);
         continue;
       }
-      // Skip actions without messageId (e.g., inventory_movement)
+      if (action.externalExecutionRef) {
+        const statusAdapter = this.statusAdaptersByKind.get(
+          action.externalExecutionRef.kind,
+        );
+        if (!statusAdapter) {
+          this.logger.warn(
+            {
+              actionId: action.id,
+              statusAdapterKind: action.externalExecutionRef.kind,
+            },
+            'No status adapter registered for movable collateral action',
+          );
+          continue;
+        }
+
+        const blockTag =
+          action.externalExecutionRef.kind ===
+          TokenBridgeStatusAdapterType.HyperlaneMessage
+            ? await this.getConfirmedBlockTag(
+                action.destination,
+                confirmedBlockTags,
+              )
+            : undefined;
+
+        try {
+          const status = await statusAdapter.pollStatus(
+            action.externalExecutionRef,
+            {
+              core: this.core,
+              destination: action.destination,
+              blockTag,
+            },
+          );
+          await this.rebalanceActionStore.update(action.id, {
+            externalExecutionRef: status.ref ?? action.externalExecutionRef,
+            lastBridgeStatus: status.status,
+            ...(status.status === 'complete' && status.receivingTxHash
+              ? { destinationTxHash: status.receivingTxHash }
+              : {}),
+          });
+
+          if (status.status === 'complete') {
+            await this.completeRebalanceAction(action.id);
+            completedActions++;
+            this.logger.debug(
+              { id: action.id, statusAdapterKind: statusAdapter.kind },
+              'RebalanceAction completed',
+            );
+          } else if (status.status === 'failed') {
+            this.logger.warn(
+              {
+                id: action.id,
+                intentId: action.intentId,
+                statusAdapterKind: statusAdapter.kind,
+                error: status.error,
+              },
+              'Source-committed rebalance remains suppressed for this process lifetime',
+            );
+          }
+        } catch (error) {
+          this.logger.warn(
+            {
+              actionId: action.id,
+              statusAdapterKind: statusAdapter.kind,
+              error,
+            },
+            'Failed to poll movable collateral settlement status',
+          );
+        }
+        continue;
+      }
+
+      // Backward compatibility for recovered/pre-adapter Hyperlane actions.
       if (!action.messageId) {
         continue;
       }
@@ -446,9 +530,12 @@ export class ActionTracker implements IActionTracker {
       messageId: params.messageId,
       txHash: params.txHash,
       submissionState:
-        params.txHash || params.messageId ? 'submitted' : 'not_submitted',
+        params.txHash || params.messageId || params.externalExecutionRef
+          ? 'submitted'
+          : 'not_submitted',
       externalBridgeTransferId: params.externalBridgeTransferId,
       externalBridgeId: params.externalBridgeId,
+      externalExecutionRef: params.externalExecutionRef,
       origin: params.origin,
       destination: params.destination,
       amount: params.amount,
@@ -498,6 +585,7 @@ export class ActionTracker implements IActionTracker {
         messageId: params.messageId,
         txHash: params.txHash,
         externalBridgeTransferId: params.externalBridgeTransferId,
+        statusAdapterKind: params.externalExecutionRef?.kind,
       },
       'Updated RebalanceAction execution identity',
     );

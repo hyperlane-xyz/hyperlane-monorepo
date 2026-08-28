@@ -10,6 +10,7 @@ import {
   type MovableCollateralRoute,
   type Route,
 } from './IStrategy.js';
+import type { MCRStatusRef } from './ITokenBridgeStatusAdapter.js';
 
 export type RebalancerType = 'movableCollateral' | 'inventory';
 
@@ -25,6 +26,7 @@ export interface ExecutionResult<R extends Route = Route> {
 
 export interface MovableCollateralExecutionResult extends ExecutionResult<MovableCollateralRoute> {
   messageId: string;
+  externalExecutionRef?: MCRStatusRef;
 }
 
 export interface InventoryExecutionResult extends ExecutionResult<InventoryRoute> {

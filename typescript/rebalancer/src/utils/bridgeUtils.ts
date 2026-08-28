@@ -1,7 +1,10 @@
 import type { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
-import type { ExternalBridgeType } from '../config/types.js';
+import type {
+  ExternalBridgeType,
+  TokenBridgeStatusAdapterConfig,
+} from '../config/types.js';
 import type { StrategyRoute } from '../interfaces/IStrategy.js';
 
 type BaseBridgeConfig = {
@@ -11,6 +14,7 @@ type BaseBridgeConfig = {
 export type MovableCollateralBridgeConfig = BaseBridgeConfig & {
   executionType: 'movableCollateral';
   bridge: Address;
+  statusAdapter?: TokenBridgeStatusAdapterConfig;
 };
 
 export type InventoryBridgeConfig = BaseBridgeConfig & {
@@ -90,6 +94,9 @@ export function createStrategyRoute(
         amount,
         executionType: 'movableCollateral',
         bridge: bridgeConfig.bridge,
+        ...(bridgeConfig.statusAdapter
+          ? { statusAdapter: bridgeConfig.statusAdapter }
+          : {}),
       };
     default: {
       const _exhaustive: never = bridgeConfig;
