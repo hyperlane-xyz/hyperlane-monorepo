@@ -68,6 +68,18 @@ describe('transactionFeeEstimators', () => {
     return provider;
   }
 
+  function stateOverrideUnsupportedError(code = -32602): Error {
+    return Object.assign(new Error('processing response error'), {
+      code: 'SERVER_ERROR',
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        error: { code, message: 'too many arguments, want at most 2' },
+      }),
+      error: { code },
+    });
+  }
+
   it('uses the EIP-1559 max fee as the total gas price cap', async () => {
     const estimate = await estimateTransactionFeeEthersV5ForGasUnits({
       provider: makeEthersFeeProvider({ gasPrice: 1n, maxFeePerGas: 2n }),
@@ -136,6 +148,135 @@ describe('transactionFeeEstimators', () => {
         { [EVM_ADDRESS]: { balance: `0x${'f'.repeat(64)}` } },
       ],
     ]);
+  });
+
+  it('falls back to a plain estimate when the RPC rejects the state override', async () => {
+    const provider = makeEthersFeeProvider({
+      gasPrice: 2n,
+      maxFeePerGas: null,
+    });
+    const estimateGas = sandbox
+      .stub(provider, 'estimateGas')
+      .resolves(BigNumber.from(21_000));
+    const send = sandbox
+      .stub(provider, 'send')
+      .rejects(stateOverrideUnsupportedError());
+
+    const estimate = await estimateTransactionFeeEthersV5({
+      transaction: { to: EVM_ADDRESS, value: BigNumber.from(1) },
+      provider,
+      sender: EVM_ADDRESS,
+      ignoreSenderBalance: true,
+    });
+
+    expect(estimate).to.deep.equal({
+      gasUnits: 21_000n,
+      gasPrice: 2n,
+      fee: 42_000n,
+    });
+    expect(send.calledOnce).to.equal(true);
+    expect(estimateGas.calledOnce).to.equal(true);
+    expect(estimateGas.firstCall.args[0]).to.include({ from: EVM_ADDRESS });
+  });
+
+  it('uses fallback gas units without requiring sender balance', async () => {
+    const provider = makeEthersFeeProvider({
+      gasPrice: 2n,
+      maxFeePerGas: null,
+    });
+    const estimateGas = sandbox
+      .stub(provider, 'estimateGas')
+      .rejects(new Error('insufficient balance for transfer'));
+    sandbox.stub(provider, 'send').rejects(stateOverrideUnsupportedError());
+
+    const estimate = await estimateTransactionFeeEthersV5({
+      transaction: { to: EVM_ADDRESS, value: BigNumber.from(1) },
+      provider,
+      sender: EVM_ADDRESS,
+      ignoreSenderBalance: true,
+      fallbackGasUnits: 25_000n,
+    });
+
+    expect(estimate).to.deep.equal({
+      gasUnits: 25_000n,
+      gasPrice: 2n,
+      fee: 50_000n,
+    });
+    expect(estimateGas.notCalled).to.equal(true);
+  });
+
+  it('recognizes a SmartProvider-wrapped unsupported override error', async () => {
+    const provider = new HyperlaneSmartProvider(1, [
+      { http: 'http://provider' },
+    ]);
+    const rpcError = stateOverrideUnsupportedError();
+    sandbox
+      .stub(provider, 'perform')
+      .rejects(
+        new Error('too many arguments, want at most 2', { cause: rpcError }),
+      );
+    sandbox.stub(provider, 'getFeeData').resolves({
+      gasPrice: BigNumber.from(2),
+      lastBaseFeePerGas: null,
+      maxFeePerGas: null,
+      maxPriorityFeePerGas: null,
+    });
+
+    const estimate = await estimateTransactionFeeEthersV5({
+      transaction: { to: EVM_ADDRESS, value: BigNumber.from(1) },
+      provider,
+      sender: EVM_ADDRESS,
+      ignoreSenderBalance: true,
+      fallbackGasUnits: 25_000n,
+    });
+
+    expect(estimate).to.deep.equal({
+      gasUnits: 25_000n,
+      gasPrice: 2n,
+      fee: 50_000n,
+    });
+  });
+
+  it('rethrows non-override errors from the balance-override estimate', async () => {
+    const provider = makeEthersFeeProvider({
+      gasPrice: 2n,
+      maxFeePerGas: null,
+    });
+    const estimateGas = sandbox.stub(provider, 'estimateGas');
+    sandbox
+      .stub(provider, 'send')
+      .rejects(new Error('execution reverted: insufficient allowance'));
+
+    await expect(
+      estimateTransactionFeeEthersV5({
+        transaction: { to: EVM_ADDRESS, value: BigNumber.from(1) },
+        provider,
+        sender: EVM_ADDRESS,
+        ignoreSenderBalance: true,
+      }),
+    ).to.be.rejectedWith('execution reverted: insufficient allowance');
+    expect(estimateGas.notCalled).to.equal(true);
+  });
+
+  it('does not treat matching text under another RPC code as unsupported', async () => {
+    const provider = makeEthersFeeProvider({
+      gasPrice: 2n,
+      maxFeePerGas: null,
+    });
+    const estimateGas = sandbox.stub(provider, 'estimateGas');
+    sandbox
+      .stub(provider, 'send')
+      .rejects(stateOverrideUnsupportedError(-32000));
+
+    await expect(
+      estimateTransactionFeeEthersV5({
+        transaction: { to: EVM_ADDRESS, value: BigNumber.from(1) },
+        provider,
+        sender: EVM_ADDRESS,
+        ignoreSenderBalance: true,
+      }),
+    ).to.be.rejectedWith('processing response error');
+    expect(estimateGas.notCalled).to.equal(true);
   });
 
   it('routes Ethers balance overrides through the smart provider', async () => {
@@ -274,6 +415,100 @@ describe('transactionFeeEstimators', () => {
     expect(estimateGas.firstCall.args[0].stateOverride).to.deep.equal([
       { address: EVM_ADDRESS, balance: (1n << 256n) - 1n },
     ]);
+  });
+
+  it('falls back when a Viem RPC rejects the state override', async () => {
+    const client = createPublicClient({
+      transport: custom({
+        request: async () => {
+          throw new Error('Unexpected RPC request');
+        },
+      }),
+    });
+    const estimateGas = sandbox.stub(client, 'estimateGas');
+    estimateGas.onFirstCall().rejects(stateOverrideUnsupportedError());
+    estimateGas.onSecondCall().resolves(21_000n);
+    sandbox.stub(client, 'estimateFeesPerGas').resolves({ gasPrice: 2n });
+    const transaction = {
+      blockHash: EVM_HASH,
+      blockNumber: 1n,
+      from: EVM_ADDRESS,
+      gas: 21_000n,
+      gasPrice: 2n,
+      hash: EVM_HASH,
+      input: '0x',
+      nonce: 0,
+      r: '0x',
+      s: '0x',
+      to: EVM_ADDRESS,
+      transactionIndex: 0,
+      type: 'legacy',
+      typeHex: '0x0',
+      v: 27n,
+      value: 1n,
+    } satisfies ViemTransaction['transaction'];
+
+    const estimate = await estimateTransactionFeeViem({
+      transaction: { type: ProviderType.Viem, transaction },
+      provider: { type: ProviderType.Viem, provider: client },
+      sender: EVM_ADDRESS,
+      ignoreSenderBalance: true,
+    });
+
+    expect(estimate).to.deep.equal({
+      gasUnits: 21_000n,
+      gasPrice: 2n,
+      fee: 42_000n,
+    });
+    expect(estimateGas.callCount).to.equal(2);
+    expect(estimateGas.firstCall.args[0].stateOverride).to.have.length(1);
+    expect(estimateGas.secondCall.args[0].stateOverride).to.equal(undefined);
+  });
+
+  it('uses Viem fallback gas units without a balance-dependent retry', async () => {
+    const client = createPublicClient({
+      transport: custom({
+        request: async () => {
+          throw new Error('Unexpected RPC request');
+        },
+      }),
+    });
+    const estimateGas = sandbox.stub(client, 'estimateGas');
+    estimateGas.onFirstCall().rejects(stateOverrideUnsupportedError());
+    sandbox.stub(client, 'estimateFeesPerGas').resolves({ gasPrice: 2n });
+    const transaction = {
+      blockHash: EVM_HASH,
+      blockNumber: 1n,
+      from: EVM_ADDRESS,
+      gas: 21_000n,
+      gasPrice: 2n,
+      hash: EVM_HASH,
+      input: '0x',
+      nonce: 0,
+      r: '0x',
+      s: '0x',
+      to: EVM_ADDRESS,
+      transactionIndex: 0,
+      type: 'legacy',
+      typeHex: '0x0',
+      v: 27n,
+      value: 1n,
+    } satisfies ViemTransaction['transaction'];
+
+    const estimate = await estimateTransactionFeeViem({
+      transaction: { type: ProviderType.Viem, transaction },
+      provider: { type: ProviderType.Viem, provider: client },
+      sender: EVM_ADDRESS,
+      ignoreSenderBalance: true,
+      fallbackGasUnits: 25_000n,
+    });
+
+    expect(estimate).to.deep.equal({
+      gasUnits: 25_000n,
+      gasPrice: 2n,
+      fee: 50_000n,
+    });
+    expect(estimateGas.calledOnce).to.equal(true);
   });
 
   function makeProvider(url: string) {

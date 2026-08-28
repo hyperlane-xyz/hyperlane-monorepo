@@ -201,6 +201,7 @@ export class MultiProviderAdapter<
     sender,
     senderPubKey,
     ignoreSenderBalance,
+    fallbackGasUnits,
   }: {
     chainNameOrId: ChainNameOrId;
     transaction: TypedTransaction;
@@ -216,6 +217,7 @@ export class MultiProviderAdapter<
       sender,
       senderPubKey,
       ignoreSenderBalance,
+      fallbackGasUnits,
     });
   }
 }
