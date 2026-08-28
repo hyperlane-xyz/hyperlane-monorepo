@@ -107,10 +107,7 @@ export class SimulationEngine {
       await rebalancer.start();
 
       // Execute transfers according to scenario
-      await this.executeTransfers(scenario, timing, kpiCollector);
-
-      // Wait for ethers event polling to catch up
-      await new Promise((r) => setTimeout(r, 200));
+      await this.executeTransfers(scenario, timing, kpiCollector, controller);
 
       // Wait for all deliveries (user transfers + bridge transfers)
       await controller.waitForAllDeliveries(60000);
@@ -162,6 +159,7 @@ export class SimulationEngine {
     scenario: TransferScenario,
     timing: SimulationTiming,
     kpiCollector: KPICollector,
+    controller: MockInfrastructureController,
   ): Promise<void> {
     const deployer = new ethers.Wallet(
       this.deployment.deployerKey,
@@ -215,7 +213,8 @@ export class SimulationEngine {
           transfer.amount,
           { value: gasPayment },
         );
-        await transferTx.wait();
+        const receipt = await transferTx.wait();
+        await controller.observeReceipt(transfer.origin, receipt);
 
         const totalTxTime = Date.now() - txStartTime;
 
@@ -226,8 +225,6 @@ export class SimulationEngine {
             'Slow transfer detected',
           );
         }
-
-        // Controller auto-tracks from Dispatch events — no registration needed
       } catch (error) {
         logger.error(
           {

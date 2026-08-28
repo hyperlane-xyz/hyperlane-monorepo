@@ -1,3 +1,4 @@
+import { expect } from 'chai';
 import { ethers } from 'ethers';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -180,6 +181,10 @@ export async function runScenarioWithRebalancers(
       strategyConfig,
     );
 
+    expect(
+      result.kpis.totalTransfers,
+      `${rebalancer.name}: every scenario transfer must be observed`,
+    ).to.equal(scenario.transfers.length);
     results.push(result);
 
     // Collect final balances

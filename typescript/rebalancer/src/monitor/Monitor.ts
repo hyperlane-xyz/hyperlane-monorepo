@@ -6,7 +6,13 @@ import {
   type Token,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, fromWei, sleep } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  assert,
+  fromWei,
+  sleep,
+} from '@hyperlane-xyz/utils';
 
 import {
   type ConfirmedBlockTag,
@@ -270,24 +276,15 @@ export class Monitor implements IMonitor {
 
     const readPromises = this.inventoryConfig.chains.map(async (chainName) => {
       const token = this.warpCore.tokens.find((t) => t.chainName === chainName);
-      if (!token) {
-        this.logger.warn(
-          { chain: chainName },
-          'No token found for inventory chain',
-        );
-        return { chainName, balance: 0n };
-      }
+      assert(token, `No token found for inventory chain ${chainName}`);
 
       try {
         const address =
           this.inventoryConfig!.inventoryAddresses[token.protocol];
-        if (!address) {
-          this.logger.warn(
-            { chain: chainName, protocol: token.protocol },
-            'No inventory address for chain protocol, skipping',
-          );
-          return { chainName, balance: 0n };
-        }
+        assert(
+          address,
+          `No inventory address for ${chainName} (${token.protocol})`,
+        );
         const adapter = token.getAdapter(this.warpCore.multiProvider);
         const balance = await adapter.getBalance(address);
         this.logger.debug(
@@ -304,7 +301,7 @@ export class Monitor implements IMonitor {
           { chain: chainName, error: (error as Error).message },
           'Failed to read inventory balance',
         );
-        return { chainName, balance: 0n };
+        throw error;
       }
     });
 

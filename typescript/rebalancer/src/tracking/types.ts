@@ -1,7 +1,14 @@
-import type { Address, Domain } from '@hyperlane-xyz/utils';
+import type {
+  Address,
+  Domain,
+  TransactionSubmissionState,
+} from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
-import type { BridgeTransferStatus } from '../interfaces/IExternalBridge.js';
+import type {
+  BridgeTransferStatus,
+  PendingApproval,
+} from '../interfaces/IExternalBridge.js';
 
 import type { IStore } from './store/IStore.js';
 
@@ -81,7 +88,9 @@ export interface RebalanceAction extends TrackedActionBase {
   type: ActionType; // Type of action (rebalance_message, inventory_movement, inventory_deposit)
   intentId: string; // Links to parent RebalanceIntent
   messageId?: string; // Hyperlane message ID (required for rebalance_message, inventory_deposit)
-  txHash?: string; // Origin transaction hash
+  txHash?: string; // Primary source transaction hash; never an approval hash.
+  submissionState?: TransactionSubmissionState; // Missing on older records means unknown.
+  pendingApproval?: PendingApproval;
   // Fields for inventory_movement (external bridge)
   externalBridgeTransferId?: string; // External bridge transfer ID (e.g., LiFi transfer ID)
   externalBridgeId?: ExternalBridgeType; // External bridge identifier (e.g., 'lifi')
