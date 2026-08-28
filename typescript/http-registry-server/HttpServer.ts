@@ -3,11 +3,12 @@ import type { Server } from 'node:http';
 import type { Logger } from 'pino';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
-import { createServiceLogger } from '@hyperlane-xyz/utils';
+import { createServiceLogger, isObjEmpty } from '@hyperlane-xyz/utils';
 
 import packageJson from './package.json' with { type: 'json' };
 import { AppConstants, ServerConstants } from './src/constants/index.js';
 import { createErrorHandler } from './src/middleware/errorHandler.js';
+import { createSignerRouter } from './src/routes/signer.js';
 import { createChainRouter } from './src/routes/chain.js';
 import { createRootRouter } from './src/routes/root.js';
 import { createWarpRouter } from './src/routes/warp.js';
@@ -16,10 +17,16 @@ import { RegistryService } from './src/services/registryService.js';
 import { RootService } from './src/services/rootService.js';
 import { WarpService } from './src/services/warpService.js';
 import { FileSystemRegistryWatcher } from './src/services/watcherService.js';
+import { createSignerAuth, validateSignerToken } from './src/signer/auth.js';
+import { createSignerErrorHandler } from './src/signer/errorHandler.js';
+import { SignerService } from './src/signer/signerService.js';
+import type { SignerBackends } from './src/signer/types.js';
 
 export interface HttpServerOptions {
   writeMode?: boolean;
   corsAllowedOrigins?: string[];
+  signerToken?: string;
+  signers?: SignerBackends;
 }
 
 export function parseCorsAllowedOrigins(
@@ -37,8 +44,12 @@ export class HttpServer {
   app: Express;
   protected readonly logger: Logger;
   private registryService: RegistryService | null = null;
+  private listeningServer: Server | null = null;
+  private shutdownHandler: (() => void) | null = null;
   protected readonly writeMode: boolean;
   protected readonly corsAllowedOrigins: Set<string>;
+  protected readonly signerToken?: string;
+  protected readonly signers: SignerBackends;
 
   private constructor(
     protected getRegistry: () => Promise<IRegistry>,
@@ -50,6 +61,10 @@ export class HttpServer {
     this.corsAllowedOrigins = new Set(
       options.corsAllowedOrigins ?? parseCorsAllowedOrigins(),
     );
+    this.signers = options.signers ?? {};
+    this.signerToken = !isObjEmpty(this.signers)
+      ? validateSignerToken(options.signerToken)
+      : undefined;
     this.app = express();
     this.app.set('trust proxy', true); // trust proxy for x-forwarded-for header
     this.app.use((req, res, next) => {
@@ -73,7 +88,14 @@ export class HttpServer {
       }
       next();
     });
-    this.app.use(express.json());
+    const registryJsonParser = express.json();
+    this.app.use((req, res, next) => {
+      if (req.path === '/signer' || req.path.startsWith('/signer/')) {
+        next();
+        return;
+      }
+      registryJsonParser(req, res, next);
+    });
   }
 
   static async create(
@@ -126,6 +148,31 @@ export class HttpServer {
       );
       await this.registryService.initialize();
 
+      if (!isObjEmpty(this.signers)) {
+        const host = process.env.HOST || ServerConstants.DEFAULT_HOST;
+        if (host !== '127.0.0.1' && host !== '::1') {
+          throw new Error('Signer mode requires HOST to be 127.0.0.1 or ::1');
+        }
+        await Promise.all(
+          Object.values(this.signers).map((backend) => backend.healthCheck()),
+        );
+        const signerService = new SignerService(
+          this.registryService,
+          this.signers,
+          this.logger,
+        );
+        if (!this.signerToken) {
+          throw new Error('Signer token invariant violated');
+        }
+        this.app.use(
+          '/signer',
+          createSignerAuth(this.signerToken),
+          express.json({ limit: '200kb' }),
+          createSignerRouter(signerService),
+          createSignerErrorHandler(this.logger),
+        );
+      }
+
       // add health check routes
       this.app.use(
         '/health',
@@ -162,6 +209,7 @@ export class HttpServer {
       const host = process.env.HOST || ServerConstants.DEFAULT_HOST;
       const listeningServer = await this.listen(port, host);
       server = listeningServer;
+      this.listeningServer = listeningServer;
 
       listeningServer.on('request', (req, _res) =>
         this.logger.info({ url: req.url }, 'Request received'),
@@ -173,22 +221,47 @@ export class HttpServer {
       // add shutdown handler
       const shutdown = () => {
         this.logger.info('Shutting down…');
-        this.registryService?.stop();
-        listeningServer.close(() => process.exit(0));
+        void this.stop().then(() => process.exit(0));
       };
+      this.shutdownHandler = shutdown;
       process.on('SIGTERM', shutdown);
       process.on('SIGINT', shutdown);
+      return listeningServer;
     } catch (error) {
-      this.logger.error({ error }, 'Error starting server');
+      if (!isObjEmpty(this.signers)) {
+        this.logger.error(
+          { errorType: error instanceof Error ? error.name : typeof error },
+          'Error starting signer server',
+        );
+      } else {
+        this.logger.error({ error }, 'Error starting server');
+      }
       // initialize() may have already started the registry's filesystem watcher,
       // whose active handle would keep the event loop alive after callers give up
       // on this failed start. Stop it (and any partially-set-up server) before
       // rethrowing so a bind failure cannot orphan a lingering watcher.
       this.registryService?.stop();
       this.registryService = null;
+      this.listeningServer = null;
       server?.close();
       throw error;
     }
+  }
+
+  async stop(): Promise<void> {
+    if (this.shutdownHandler) {
+      process.removeListener('SIGTERM', this.shutdownHandler);
+      process.removeListener('SIGINT', this.shutdownHandler);
+      this.shutdownHandler = null;
+    }
+    this.registryService?.stop();
+    this.registryService = null;
+    const server = this.listeningServer;
+    this.listeningServer = null;
+    if (!server) return;
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
   }
 
   /**
