@@ -42,6 +42,9 @@ export function parseSignerSource(value: string): SignerSource {
   if (url.search || url.hash) {
     throw new Error('HTTP signer URL must not contain a query or fragment');
   }
+  if (url.pathname !== '/') {
+    throw new Error('HTTP signer URL must not contain a path');
+  }
 
   return { type: SignerSourceType.HTTP, url };
 }

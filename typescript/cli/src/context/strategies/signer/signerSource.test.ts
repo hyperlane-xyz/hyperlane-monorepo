@@ -14,7 +14,7 @@ describe('parseSignerSource', () => {
     });
   });
 
-  for (const url of ['http://127.0.0.1:3333', 'http://[::1]:3333/registry/']) {
+  for (const url of ['http://127.0.0.1:3333', 'http://[::1]:3333']) {
     it(`accepts loopback signer URL ${url}`, () => {
       const result = parseSignerSource(url);
       expect(result.type).to.equal(SignerSourceType.HTTP);
@@ -30,6 +30,7 @@ describe('parseSignerSource', () => {
     'http://127.0.0.1',
     'http://user:password@127.0.0.1:3333',
     'http://127.0.0.1:3333?token=secret',
+    'http://[::1]:3333/registry/',
   ]) {
     it(`rejects unsafe signer URL ${url}`, () => {
       expect(() => parseSignerSource(url)).to.throw();

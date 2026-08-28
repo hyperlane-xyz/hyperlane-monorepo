@@ -66,6 +66,10 @@ export class HttpRemoteKitSigner implements TransactionPartialSigner {
       value: unsignedWire,
     });
     assert(
+      response.chain === this.chain,
+      `HTTP signer returned transaction for ${response.chain}, expected ${this.chain}`,
+    );
+    assert(
       eqAddressSol(response.signerAddress, this.address),
       `HTTP signer response address mismatch for ${this.chain}`,
     );

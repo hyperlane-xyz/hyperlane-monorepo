@@ -161,4 +161,44 @@ describe('HttpRemoteKitSigner HTTP integration', function () {
     expect(signed.signatures[remoteKey.address]).to.have.length(64);
     expect(signed.signatures[localKey.address]).to.have.length(64);
   });
+
+  it('rejects a signing response for another chain', async () => {
+    const remoteKey = await generateKeyPairSigner();
+    const client = new HttpSignerClient(
+      new URL('http://127.0.0.1:3333'),
+      TOKEN,
+    );
+    client.getAccount = async () => ({
+      chain: CHAIN,
+      protocol: ProtocolType.Sealevel,
+      address: remoteKey.address,
+      curve: 'ed25519',
+    });
+    client.signEncodedTransaction = async () => ({
+      chain: 'anotherchain',
+      signerAddress: remoteKey.address,
+      signedTransaction: { encoding: 'base64', value: '' },
+    });
+    const remoteSigner = await HttpRemoteKitSigner.create(CHAIN, client);
+    const message = setTransactionMessageLifetimeUsingBlockhash(
+      {
+        blockhash: blockhash('11111111111111111111111111111111'),
+        lastValidBlockHeight: 1n,
+      },
+      setTransactionMessageFeePayerSigner(
+        remoteSigner,
+        createTransactionMessage({ version: 0 }),
+      ),
+    );
+
+    let signingError: Error | undefined;
+    try {
+      await signTransactionMessageWithSigners(message);
+    } catch (error) {
+      signingError = error instanceof Error ? error : new Error(String(error));
+    }
+    expect(signingError?.message).to.include(
+      'returned transaction for anotherchain',
+    );
+  });
 });

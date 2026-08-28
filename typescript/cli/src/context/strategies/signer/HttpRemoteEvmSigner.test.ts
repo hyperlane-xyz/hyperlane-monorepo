@@ -68,12 +68,16 @@ describe('HttpRemoteEvmSigner', () => {
   let accountDelayMs: number;
   let invalidAccountResponse: boolean;
   let wrongSignerResponse: boolean;
+  let wrongTransactionSigner: boolean;
+  let mutateTransactionResponse: boolean;
 
   beforeEach(async () => {
     accountRequests = 0;
     accountDelayMs = 0;
     invalidAccountResponse = false;
     wrongSignerResponse = false;
+    wrongTransactionSigner = false;
+    mutateTransactionResponse = false;
     server = createServer(async (request, response) => {
       response.setHeader('Content-Type', 'application/json');
       if (request.headers.authorization !== `Bearer ${TOKEN}`) {
@@ -110,8 +114,13 @@ describe('HttpRemoteEvmSigner', () => {
         const parsed = ethers.utils.parseTransaction(
           ensure0x(body.transaction.value),
         );
-        const signed = await wallet.signTransaction(
-          transactionFromParsed(parsed),
+        const transaction = transactionFromParsed(parsed);
+        const signed = await (
+          wrongTransactionSigner ? wrongWallet : wallet
+        ).signTransaction(
+          mutateTransactionResponse
+            ? { ...transaction, value: parsed.value.add(1) }
+            : transaction,
         );
         response.end(
           JSON.stringify({
@@ -256,7 +265,49 @@ describe('HttpRemoteEvmSigner', () => {
         value: 1,
       }),
     );
-    expect(signerError.message).to.include('expected');
+    expect(signerError.message).to.include(
+      `returned transaction for ${wrongWallet.address}`,
+    );
+  });
+
+  it('rejects a transaction signed by the wrong account', async () => {
+    wrongTransactionSigner = true;
+    const signer = await HttpRemoteEvmSigner.create(
+      new HttpSignerClient(serverUrl, TOKEN),
+      CHAIN,
+    );
+    const signerError = await getError(
+      signer.signTransaction({
+        chainId: CHAIN_ID,
+        nonce: 0,
+        gasLimit: 21_000,
+        gasPrice: 1,
+        to: wallet.address,
+        value: 1,
+      }),
+    );
+    expect(signerError.message).to.include(`signed by ${wrongWallet.address}`);
+  });
+
+  it('rejects a modified transaction payload', async () => {
+    mutateTransactionResponse = true;
+    const signer = await HttpRemoteEvmSigner.create(
+      new HttpSignerClient(serverUrl, TOKEN),
+      CHAIN,
+    );
+    const signerError = await getError(
+      signer.signTransaction({
+        chainId: CHAIN_ID,
+        nonce: 0,
+        gasLimit: 21_000,
+        gasPrice: 1,
+        to: wallet.address,
+        value: 1,
+      }),
+    );
+    expect(signerError.message).to.include(
+      'modified the Ethereum transaction payload',
+    );
   });
 
   it('rejects personal-message signing', async () => {
