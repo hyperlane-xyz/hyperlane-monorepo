@@ -1,6 +1,7 @@
 import SafeApiKit from '@safe-global/api-kit';
-import Safe from '@safe-global/protocol-kit';
+import Safe, { generateTypedData } from '@safe-global/protocol-kit';
 import { MetaTransactionData, SafeTransaction } from '@safe-global/types-kit';
+import { Signer } from 'ethers';
 import { Logger } from 'pino';
 
 import { Address, assert, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
@@ -71,20 +72,11 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       `Signer ${signerAddress} is not an authorized Safe Proposer for ${safeAddress}`,
     );
 
-    const safeSignerKey =
-      'privateKey' in signer
-        ? (signer as { privateKey: string }).privateKey
-        : undefined;
-    assert(
-      safeSignerKey,
-      'Signer must have a private key to propose Safe transactions',
-    );
     const { safe, safeService } =
       await EV5GnosisSafeTxSubmitter.initSafeAndService(
         chain,
         multiProvider,
         safeAddress,
-        safeSignerKey,
       );
 
     return new EV5GnosisSafeTxSubmitter(
@@ -155,8 +147,12 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     const senderAddress: Address = await this.multiProvider.getSignerAddress(
       this.props.chain,
     );
-    const safeSignature: any = await this.safe.signTypedData(safeTransaction);
-    const senderSignature: string = safeSignature.data;
+    const signer = this.multiProvider.getSigner(this.props.chain);
+    const senderSignature = await signSafeTransactionWithSigner(
+      this.safe,
+      safeTransaction,
+      signer,
+    );
 
     this.logger.info(
       `Submitting transaction proposal to ${this.props.safeAddress} on ${this.props.chain}: ${safeTxHash}`,
@@ -175,4 +171,32 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       SAFE_API_BASE_RETRY_MS,
     );
   }
+}
+
+export async function signSafeTransactionWithSigner(
+  safe: Pick<Safe.default, 'getAddress' | 'getContractVersion' | 'getChainId'>,
+  safeTransaction: SafeTransaction,
+  signer: Signer,
+): Promise<string> {
+  assert(
+    '_signTypedData' in signer && typeof signer._signTypedData === 'function',
+    'Signer must support EIP-712 typed-data signing to propose Safe transactions',
+  );
+
+  const typedData = generateTypedData({
+    safeAddress: await safe.getAddress(),
+    safeVersion: safe.getContractVersion(),
+    chainId: await safe.getChainId(),
+    data: safeTransaction.data,
+  });
+  assert(
+    typedData.primaryType === 'SafeTx',
+    'Expected Safe transaction typed data',
+  );
+
+  return signer._signTypedData(
+    typedData.domain,
+    { SafeTx: typedData.types.SafeTx },
+    typedData.message,
+  );
 }
