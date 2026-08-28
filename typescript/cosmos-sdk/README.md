@@ -66,7 +66,7 @@ await signer.signAndBroadcast([txs...]);
 
 ## Setup
 
-Node 18 or newer is required.
+Node 22 or newer is required.
 
 ## Testing
 

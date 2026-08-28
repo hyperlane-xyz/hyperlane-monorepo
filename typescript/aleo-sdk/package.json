@@ -84,5 +84,8 @@
     "testcontainers": {
       "optional": true
     }
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

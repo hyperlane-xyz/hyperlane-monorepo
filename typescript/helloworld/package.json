@@ -71,5 +71,8 @@
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*",
     "@types/sinon-chai": "*"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }
