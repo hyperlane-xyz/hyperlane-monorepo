@@ -17,8 +17,10 @@ import { createPublicClient, custom } from 'viem';
 import { ProviderType, type ViemTransaction } from './ProviderType.js';
 import { HyperlaneJsonRpcProvider } from './SmartProvider/HyperlaneJsonRpcProvider.js';
 import { HyperlaneSmartProvider } from './SmartProvider/SmartProvider.js';
+import { test1 } from '../consts/testChains.js';
 import {
   clearCachedStargateClients,
+  estimateTransactionFee,
   estimateTransactionFeeEthersV5,
   estimateTransactionFeeCosmJsWasm,
   estimateTransactionFeeEthersV5ForGasUnits,
@@ -75,6 +77,7 @@ describe('transactionFeeEstimators', () => {
   function stateOverrideUnsupportedError(
     code = -32602,
     message = 'too many arguments, want at most 2',
+    directCode = code,
   ): Error {
     return Object.assign(new Error('processing response error'), {
       code: 'SERVER_ERROR',
@@ -83,7 +86,7 @@ describe('transactionFeeEstimators', () => {
         id: 1,
         error: { code, message },
       }),
-      error: { code },
+      error: { code: directCode },
     });
   }
 
@@ -222,6 +225,10 @@ describe('transactionFeeEstimators', () => {
     expect(estimateGas.notCalled).to.equal(true);
   });
 
+  it('preserves the JSON-RPC code on the typed unsupported error', () => {
+    expect(new StateOverrideUnsupportedError().code).to.equal(-32602);
+  });
+
   it('recognizes known unsupported state-override messages', async () => {
     for (const message of [
       'too many arguments, want at most 2',
@@ -287,10 +294,27 @@ describe('transactionFeeEstimators', () => {
           transaction: { to: EVM_ADDRESS, value: BigNumber.from(1) },
           provider,
           sender: EVM_ADDRESS,
+          ignoreSenderBalance: true,
           fallbackGasUnits,
         }),
       ).to.be.rejectedWith('fallbackGasUnits must be positive');
     }
+  });
+
+  it('rejects Ethers fallback units without a balance override', async () => {
+    const provider = makeEthersFeeProvider({
+      gasPrice: 2n,
+      maxFeePerGas: null,
+    });
+
+    await expect(
+      estimateTransactionFeeEthersV5({
+        transaction: { to: EVM_ADDRESS, value: BigNumber.from(1) },
+        provider,
+        sender: EVM_ADDRESS,
+        fallbackGasUnits: 25_000n,
+      }),
+    ).to.be.rejectedWith('fallbackGasUnits requires ignoreSenderBalance: true');
   });
 
   it('recognizes a SmartProvider-wrapped unsupported override error', async () => {
@@ -389,6 +413,79 @@ describe('transactionFeeEstimators', () => {
       }),
     ).to.be.rejectedWith('processing response error');
     expect(estimateGas.notCalled).to.equal(true);
+  });
+
+  it('does not combine an incomplete nested code with body message text', async () => {
+    const provider = makeEthersFeeProvider({
+      gasPrice: 2n,
+      maxFeePerGas: null,
+    });
+    sandbox
+      .stub(provider, 'send')
+      .rejects(
+        stateOverrideUnsupportedError(
+          -32000,
+          'too many arguments, want at most 2',
+          -32602,
+        ),
+      );
+
+    await expect(
+      estimateTransactionFeeEthersV5({
+        transaction: { to: EVM_ADDRESS, value: BigNumber.from(1) },
+        provider,
+        sender: EVM_ADDRESS,
+        ignoreSenderBalance: true,
+        fallbackGasUnits: 25_000n,
+      }),
+    ).to.be.rejectedWith('processing response error');
+  });
+
+  it('requires both override and unsupported message tokens', async () => {
+    const provider = makeEthersFeeProvider({
+      gasPrice: 2n,
+      maxFeePerGas: null,
+    });
+    sandbox
+      .stub(provider, 'send')
+      .rejects(
+        stateOverrideUnsupportedError(
+          -32602,
+          'state override balance exceeds maximum',
+        ),
+      );
+
+    await expect(
+      estimateTransactionFeeEthersV5({
+        transaction: { to: EVM_ADDRESS, value: BigNumber.from(1) },
+        provider,
+        sender: EVM_ADDRESS,
+        ignoreSenderBalance: true,
+        fallbackGasUnits: 25_000n,
+      }),
+    ).to.be.rejectedWith('processing response error');
+  });
+
+  it('forwards fallback options through the typed dispatcher', async () => {
+    const provider = makeEthersFeeProvider({
+      gasPrice: 2n,
+      maxFeePerGas: null,
+    });
+    sandbox.stub(provider, 'send').rejects(stateOverrideUnsupportedError());
+
+    const estimate = await estimateTransactionFee({
+      transaction: {
+        type: ProviderType.EthersV5,
+        transaction: { to: EVM_ADDRESS, value: BigNumber.from(1) },
+      },
+      provider: { type: ProviderType.EthersV5, provider },
+      chainMetadata: test1,
+      sender: EVM_ADDRESS,
+      ignoreSenderBalance: true,
+      fallbackGasUnits: 25_000n,
+    });
+
+    expect(estimate.gasUnits).to.equal(25_000n);
   });
 
   it('routes Ethers balance overrides through the smart provider', async () => {
@@ -607,6 +704,25 @@ describe('transactionFeeEstimators', () => {
     expect(request.calledOnce).to.equal(true);
   });
 
+  it('does not classify a Viem error when no override was sent', async () => {
+    const { client, request } = makeViemClientRejectingEstimateGas(
+      'too many arguments, want at most 2',
+    );
+
+    await expect(
+      estimateTransactionFeeViem({
+        transaction: {
+          type: ProviderType.Viem,
+          transaction: viemTransaction(),
+        },
+        provider: { type: ProviderType.Viem, provider: client },
+        sender: EVM_ADDRESS,
+      }),
+    ).to.be.rejectedWith('Invalid parameters were provided to the RPC method');
+    expect(request.calledOnce).to.equal(true);
+    expect(request.firstCall.args[0].params).to.have.length(1);
+  });
+
   it('rejects non-positive Viem fallback gas units', async () => {
     const client = createPublicClient({
       transport: custom({
@@ -640,10 +756,55 @@ describe('transactionFeeEstimators', () => {
           transaction: { type: ProviderType.Viem, transaction },
           provider: { type: ProviderType.Viem, provider: client },
           sender: EVM_ADDRESS,
+          ignoreSenderBalance: true,
           fallbackGasUnits,
         }),
       ).to.be.rejectedWith('fallbackGasUnits must be positive');
     }
+  });
+
+  it('rejects Viem fallback units without a balance override', async () => {
+    const client = createPublicClient({
+      transport: custom({
+        request: async () => {
+          throw new Error('Unexpected RPC request');
+        },
+      }),
+    });
+
+    await expect(
+      estimateTransactionFeeViem({
+        transaction: {
+          type: ProviderType.Viem,
+          transaction: viemTransaction(),
+        },
+        provider: { type: ProviderType.Viem, provider: client },
+        sender: EVM_ADDRESS,
+        fallbackGasUnits: 25_000n,
+      }),
+    ).to.be.rejectedWith('fallbackGasUnits requires ignoreSenderBalance: true');
+  });
+
+  it('fails clearly for an unsupported Viem transaction envelope', async () => {
+    const request = sandbox.stub().rejects(new Error('Unexpected RPC request'));
+    const client = createPublicClient({ transport: custom({ request }) });
+    const unsupportedTransaction = {
+      ...viemTransaction(),
+      type: 'cip64',
+    };
+
+    await expect(
+      estimateTransactionFeeViem({
+        transaction: {
+          type: ProviderType.Viem,
+          // CAST: deliberately exercises caller-supplied runtime data outside Viem's base union.
+          transaction: unsupportedTransaction as ViemTransaction['transaction'],
+        },
+        provider: { type: ProviderType.Viem, provider: client },
+        sender: EVM_ADDRESS,
+      }),
+    ).to.be.rejectedWith('Unsupported Viem transaction type: cip64');
+    expect(request.notCalled).to.equal(true);
   });
 
   function makeProvider(url: string) {

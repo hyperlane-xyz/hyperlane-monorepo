@@ -129,7 +129,9 @@ function getJsonRpcErrorCode(value: unknown): number | string | undefined {
 
 function getJsonRpcErrorMessage(value: unknown): string | undefined {
   if (!isRecord(value)) return undefined;
-  return typeof value.message === 'string' ? value.message : undefined;
+  return typeof value.message === 'string' && value.message.length > 0
+    ? value.message
+    : undefined;
 }
 
 function parseJsonRpcErrorBody(body: unknown): {
@@ -149,6 +151,11 @@ function parseJsonRpcErrorBody(body: unknown): {
   }
 }
 
+/**
+ * Extracts only nested JSON-RPC fields. Top-level fields are deliberately
+ * excluded so callers can distinguish a nested RPC response from an outer
+ * provider error whose message may contain request details.
+ */
 export function getNestedJsonRpcError(error: unknown): {
   code?: number | string;
   message?: string;
@@ -168,7 +175,11 @@ export function getNestedJsonRpcError(error: unknown): {
   };
 }
 
-/** Extracts a JSON-RPC error from direct, nested, or serialized error shapes. */
+/**
+ * Extracts one JSON-RPC candidate from direct, nested, or serialized shapes.
+ * A complete same-source code/message pair wins; fields are never combined
+ * across candidates.
+ */
 export function getJsonRpcErrorFrom(error: unknown): {
   code?: number | string;
   message?: string;
@@ -176,28 +187,27 @@ export function getJsonRpcErrorFrom(error: unknown): {
   const record = getRecord(error);
   const nested = getRecord(record?.error);
   const nestedError = getRecord(nested?.error);
-  const candidates = [
+  const structuredCandidates = [
     nestedError,
     nested,
     parseJsonRpcErrorBody(nested?.body),
     parseJsonRpcErrorBody(record?.body),
-    record,
   ];
-  const complete = candidates.find(
+  const complete = structuredCandidates.find(
     (candidate) =>
       getJsonRpcErrorCode(candidate) !== undefined &&
       getJsonRpcErrorMessage(candidate) !== undefined,
   );
+  const partial = structuredCandidates.find(
+    (candidate) =>
+      getJsonRpcErrorCode(candidate) !== undefined ||
+      getJsonRpcErrorMessage(candidate) !== undefined,
+  );
+  const selected = complete ?? partial ?? record;
 
   return {
-    code:
-      getJsonRpcErrorCode(complete) ??
-      candidates.map(getJsonRpcErrorCode).find((code) => code !== undefined),
-    message:
-      getJsonRpcErrorMessage(complete) ??
-      candidates
-        .map(getJsonRpcErrorMessage)
-        .find((message) => message !== undefined),
+    code: getJsonRpcErrorCode(selected),
+    message: getJsonRpcErrorMessage(selected),
   };
 }
 
@@ -206,7 +216,7 @@ function isCallExceptionWithTransientRpcError(error: unknown): boolean {
   if (record?.code !== EthersError.CALL_EXCEPTION) return false;
   const hasRevertData = !!record.data && record.data !== '0x';
   const nestedError = record.error;
-  const jsonRpcErrorCode = getNestedJsonRpcError(error).code;
+  const jsonRpcErrorCode = getJsonRpcErrorFrom(error).code;
   return !!nestedError && !hasRevertData && jsonRpcErrorCode !== 3;
 }
 
@@ -736,7 +746,7 @@ export class HyperlaneSmartProvider
       const hasRevertData = !!e.data && e.data !== '0x';
       // Check for JSON-RPC error code 3. Ethers nesting varies and some
       // providers put the JSON-RPC error only in the response body.
-      const jsonRpcErrorCode = getNestedJsonRpcError(e).code;
+      const jsonRpcErrorCode = getJsonRpcErrorFrom(e).code;
       const isJsonRpcRevert = jsonRpcErrorCode === 3;
       // No nested error means ethers failed to decode empty return data - permanent
       const isEmptyReturnDecodeFailure = !e.error;

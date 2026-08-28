@@ -103,15 +103,22 @@ export interface TransactionFeeEstimateOptions {
   ignoreSenderBalance?: boolean;
 }
 
-export interface EvmTransactionFeeEstimateOptions extends TransactionFeeEstimateOptions {
-  /**
-   * Positive gas units to use when an RPC rejects balance state overrides.
-   * Supplying this value skips successful gas simulation and revert detection.
-   */
-  fallbackGasUnits?: bigint;
-}
+export type EvmTransactionFeeEstimateOptions =
+  | {
+      ignoreSenderBalance: true;
+      /**
+       * Positive gas units to use when an RPC rejects balance state overrides.
+       * Supplying this value skips successful gas simulation and revert detection.
+       */
+      fallbackGasUnits?: bigint;
+    }
+  | {
+      ignoreSenderBalance?: false;
+      fallbackGasUnits?: never;
+    };
 
-interface EvmTransactionFeeEstimatorOptions extends EvmTransactionFeeEstimateOptions {
+interface EvmTransactionFeeEstimatorOptions extends TransactionFeeEstimateOptions {
+  fallbackGasUnits?: bigint;
   chainName?: string;
 }
 
@@ -126,18 +133,21 @@ type TransactionFeeEstimateCommon = {
   senderPubKey?: HexString;
 };
 
-export type TransactionFeeEstimateParams =
-  | (TransactionFeeEstimateCommon &
-      EvmTransactionFeeEstimateOptions & {
-        transaction: EvmTypedTransaction;
-      })
-  | (TransactionFeeEstimateCommon &
-      TransactionFeeEstimateOptions & {
-        transaction: TypedTransaction;
-        fallbackGasUnits?: never;
-      });
+export type TransactionFeeEstimateTransactionOptions =
+  | (EvmTransactionFeeEstimateOptions & {
+      transaction: EvmTypedTransaction;
+    })
+  | (TransactionFeeEstimateOptions & {
+      transaction: TypedTransaction;
+      fallbackGasUnits?: never;
+    });
+
+export type TransactionFeeEstimateParams = TransactionFeeEstimateCommon &
+  TransactionFeeEstimateTransactionOptions;
 
 export class StateOverrideUnsupportedError extends Error {
+  readonly code = INVALID_PARAMS_JSON_RPC_ERROR;
+
   constructor(options?: ErrorOptions) {
     super(
       'RPC does not support eth_estimateGas state overrides; provide fallbackGasUnits to keep estimation balance-independent',
@@ -175,7 +185,7 @@ export async function estimateTransactionFeeEthersV5({
   provider: EV5Providers.Provider;
   sender: Address;
 } & EvmTransactionFeeEstimatorOptions): Promise<TransactionFeeEstimate> {
-  assertValidFallbackGasUnits(fallbackGasUnits);
+  assertValidFallbackGasUnits(fallbackGasUnits, ignoreSenderBalance);
   const gasUnits = ignoreSenderBalance
     ? await estimateGasEthersV5WithBalanceOverride({
         transaction,
@@ -285,7 +295,7 @@ export async function estimateTransactionFeeViem({
   provider: ViemProvider;
   sender: Address;
 } & EvmTransactionFeeEstimatorOptions): Promise<TransactionFeeEstimate> {
-  assertValidFallbackGasUnits(fallbackGasUnits);
+  assertValidFallbackGasUnits(fallbackGasUnits, ignoreSenderBalance);
   assert(isViemAddress(sender), `Invalid EVM sender address: ${sender}`);
   const estimateGas = (includeStateOverride: boolean) =>
     provider.provider.estimateGas(
@@ -319,7 +329,14 @@ export async function estimateTransactionFeeViem({
   return computeEvmTxFee(gasUnits, feeData.gasPrice, feeData.maxFeePerGas);
 }
 
-function assertValidFallbackGasUnits(fallbackGasUnits?: bigint): void {
+function assertValidFallbackGasUnits(
+  fallbackGasUnits: bigint | undefined,
+  ignoreSenderBalance: boolean | undefined,
+): void {
+  assert(
+    isNullish(fallbackGasUnits) || ignoreSenderBalance === true,
+    'fallbackGasUnits requires ignoreSenderBalance: true',
+  );
   assert(
     isNullish(fallbackGasUnits) || fallbackGasUnits > 0n,
     'fallbackGasUnits must be positive',
@@ -342,6 +359,7 @@ function getViemEstimateGasParameters(
       stateOverride: [{ address: sender, balance: EVM_MAX_BALANCE }],
     }),
   };
+  const transactionType: string = transaction.type;
 
   switch (transaction.type) {
     case 'legacy':
@@ -384,6 +402,8 @@ function getViemEstimateGasParameters(
         maxFeePerGas: transaction.maxFeePerGas,
         maxPriorityFeePerGas: transaction.maxPriorityFeePerGas,
       };
+    default:
+      assert(false, `Unsupported Viem transaction type: ${transactionType}`);
   }
 }
 
@@ -610,37 +630,54 @@ export async function estimateTransactionFeeAleo({
   });
 }
 
-export function estimateTransactionFee({
-  transaction,
-  provider,
-  chainMetadata,
-  sender,
-  senderPubKey,
-  ignoreSenderBalance,
-  fallbackGasUnits,
-}: TransactionFeeEstimateParams): Promise<TransactionFeeEstimate> {
+export function estimateTransactionFee(
+  params: TransactionFeeEstimateParams,
+): Promise<TransactionFeeEstimate> {
+  assertValidFallbackGasUnits(
+    params.fallbackGasUnits,
+    params.ignoreSenderBalance,
+  );
+  const { transaction, provider, chainMetadata, sender, senderPubKey } = params;
   if (
     transaction.type === ProviderType.EthersV5 &&
     provider.type === ProviderType.EthersV5
   ) {
+    if (params.ignoreSenderBalance === true) {
+      return estimateTransactionFeeEthersV5({
+        transaction: transaction.transaction,
+        provider: provider.provider,
+        sender,
+        ignoreSenderBalance: true,
+        fallbackGasUnits: params.fallbackGasUnits,
+        chainName: chainMetadata.name,
+      });
+    }
     return estimateTransactionFeeEthersV5({
       transaction: transaction.transaction,
       provider: provider.provider,
       sender,
-      ignoreSenderBalance,
-      fallbackGasUnits,
+      ignoreSenderBalance: false,
       chainName: chainMetadata.name,
     });
   } else if (
     transaction.type === ProviderType.Viem &&
     provider.type === ProviderType.Viem
   ) {
+    if (params.ignoreSenderBalance === true) {
+      return estimateTransactionFeeViem({
+        transaction,
+        provider,
+        sender,
+        ignoreSenderBalance: true,
+        fallbackGasUnits: params.fallbackGasUnits,
+        chainName: chainMetadata.name,
+      });
+    }
     return estimateTransactionFeeViem({
       transaction,
       provider,
       sender,
-      ignoreSenderBalance,
-      fallbackGasUnits,
+      ignoreSenderBalance: false,
       chainName: chainMetadata.name,
     });
   } else if (
@@ -650,7 +687,7 @@ export function estimateTransactionFee({
     return estimateTransactionFeeSolanaWeb3({
       transaction,
       provider,
-      ignoreSenderBalance,
+      ignoreSenderBalance: params.ignoreSenderBalance,
     });
   } else if (
     transaction.type === ProviderType.CosmJs &&
@@ -725,11 +762,11 @@ export function estimateTransactionFee({
     // Tron is EVM-compatible; its typed transaction/provider use EthersV5 underlying types
     // Tron does not support EVM state overrides. TronJsonRpcProvider.estimateGas
     // already falls back to a balance-independent energy limit when estimation fails.
-    sender = convertToProtocolAddress(sender, ProtocolType.Ethereum);
+    const evmSender = convertToProtocolAddress(sender, ProtocolType.Ethereum);
     return estimateTransactionFeeEthersV5({
       transaction: transaction.transaction,
       provider: provider.provider,
-      sender,
+      sender: evmSender,
     });
   } else {
     throw new Error(
