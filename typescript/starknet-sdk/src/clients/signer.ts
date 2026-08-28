@@ -5,6 +5,7 @@ import {
   GetTransactionReceiptResponse,
   RawArgs,
   RpcProvider,
+  legacyDeployer,
 } from 'starknet';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
@@ -68,6 +69,10 @@ export class StarknetSigner
       provider,
       address: signerAddress,
       signer: privateKey,
+      // The legacy UDC remains deployed across old devnets and production
+      // networks. starknet.js v8's new default UDC is unavailable on older
+      // networks that this SDK still supports.
+      deployer: legacyDeployer,
     });
   }
 
@@ -134,13 +139,9 @@ export class StarknetSigner
     contractAddress: string;
     receipt: GetTransactionReceiptResponse;
   }> {
-    const { getCompiledClassHash, getCompiledContract, getContractArtifact } =
+    const { getCompiledContract, getContractArtifact } =
       await import('@hyperlane-xyz/starknet-core');
     const compiledContract = getCompiledContract(
-      params.contractName,
-      params.contractType,
-    );
-    const compiledClassHash = getCompiledClassHash(
       params.contractName,
       params.contractType,
     );
@@ -151,10 +152,6 @@ export class StarknetSigner
     assert(
       contractArtifact.compiled_contract_class,
       `Missing compiled_contract_class for Starknet contract ${params.contractName}`,
-    );
-    assert(
-      compiledClassHash,
-      `Missing compiledClassHash for Starknet contract ${params.contractName}`,
     );
     const hasConstructor = compiledContract.abi.some(
       (item) => item.type === 'constructor',
@@ -169,7 +166,6 @@ export class StarknetSigner
     const { deploy } = await this.account.declareAndDeploy({
       contract: compiledContract,
       casm: contractArtifact.compiled_contract_class,
-      compiledClassHash,
       constructorCalldata,
     });
 

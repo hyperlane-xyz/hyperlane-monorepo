@@ -94,7 +94,7 @@
     "@solana/wallet-adapter-react-ui": "^0.9.31",
     "@solana/web3.js": "catalog:",
     "@starknet-react/chains": "catalog:",
-    "@starknet-react/core": "^3.7.2",
+    "@starknet-react/core": "^5.0.3",
     "@tronweb3/tronwallet-abstract-adapter": "catalog:",
     "@tronweb3/tronwallet-adapter-react-hooks": "catalog:",
     "@tronweb3/tronwallet-adapter-tronlink": "catalog:",
@@ -104,7 +104,7 @@
     "pino": "catalog:",
     "react-tooltip": "^5.28.0",
     "starknet": "catalog:",
-    "starknetkit": "2.6.1",
+    "starknetkit": "^3.4.3",
     "viem": "catalog:",
     "wagmi": "^2.12.26",
     "yaml": "catalog:"
@@ -142,5 +142,8 @@
   "peerDependencies": {
     "react": "^18",
     "react-dom": "^18"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

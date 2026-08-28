@@ -28,7 +28,9 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version-file: .nvmrc
+          # Verify the CLI at its minimum supported runtime. Other workflows
+          # continue to exercise the repository's current Node version.
+          node-version: 22
 
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
