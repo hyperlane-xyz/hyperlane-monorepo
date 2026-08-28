@@ -1,6 +1,8 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
-use solana_client::nonblocking::rpc_client::RpcClient;
+use hyperlane_core::rpc_clients::BlockNumberGetter;
+use serde_json::json;
+use solana_client::{nonblocking::rpc_client::RpcClient, rpc_request::RpcRequest};
 use solana_commitment_config::CommitmentConfig;
 
 use super::block_config;
@@ -32,4 +34,18 @@ fn get_block_config_disables_rewards() {
     assert_eq!(config.rewards, Some(false));
     assert_eq!(config.max_supported_transaction_version, Some(0));
     assert_eq!(config.commitment, Some(CommitmentConfig::finalized()));
+}
+
+#[tokio::test]
+async fn fallback_liveness_uses_finalized_slot() {
+    let rpc_client = RpcClient::new_mock_with_mocks(
+        "succeeds".to_owned(),
+        HashMap::from([
+            (RpcRequest::GetSlot, json!(123)),
+            (RpcRequest::GetBlockHeight, json!(456)),
+        ]),
+    );
+    let client = SealevelRpcClient::from_rpc_client(Arc::new(rpc_client));
+
+    assert_eq!(client.get_block_number().await.unwrap(), 123);
 }

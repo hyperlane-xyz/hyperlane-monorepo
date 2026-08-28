@@ -384,7 +384,10 @@ impl std::fmt::Debug for SealevelRpcClient {
 #[async_trait::async_trait]
 impl BlockNumberGetter for SealevelRpcClient {
     async fn get_block_number(&self) -> ChainResult<u64> {
-        self.get_block_height().await
+        // SVM-compatible chains can expose `getBlockHeight` and finalized slot
+        // from different heads. Use the indexers' finalized-slot cursor for
+        // fallback liveness as well.
+        self.get_slot_raw().await
     }
 }
 
