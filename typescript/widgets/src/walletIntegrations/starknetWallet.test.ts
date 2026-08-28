@@ -24,4 +24,30 @@ describe('connectStarknetWallet', () => {
     ]);
     assert.deepEqual(connectCalls, [{ connector }]);
   });
+
+  it('handles modal rejection', async () => {
+    await assert.doesNotReject(() =>
+      connectStarknetWallet(
+        [],
+        async () => {},
+        async () => {
+          throw new Error('modal failed');
+        },
+      ),
+    );
+  });
+
+  it('handles connector rejection', async () => {
+    const connector = { id: 'argentX' };
+
+    await assert.doesNotReject(() =>
+      connectStarknetWallet(
+        [connector],
+        async () => {
+          throw new Error('connect failed');
+        },
+        async () => ({ connector }),
+      ),
+    );
+  });
 });

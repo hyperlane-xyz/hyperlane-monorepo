@@ -6,7 +6,6 @@ import {
   useNetwork,
 } from '@starknet-react/core';
 import { useCallback, useMemo } from 'react';
-import { connect as openStarknetkitModal } from 'starknetkit';
 
 import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -55,10 +54,15 @@ export function useStarknetWalletDetails(): WalletDetails {
 export function useStarknetConnectFn(): () => void {
   const { connectAsync, connectors } = useConnect();
 
-  return useCallback(
-    () => connectStarknetWallet(connectors, connectAsync, openStarknetkitModal),
-    [connectAsync, connectors],
-  );
+  return useCallback(() => {
+    void import('starknetkit')
+      .then(({ connect }) =>
+        connectStarknetWallet(connectors, connectAsync, connect),
+      )
+      .catch((error: unknown) =>
+        logger.error({ error }, 'Failed to load Starknet wallet modal'),
+      );
+  }, [connectAsync, connectors]);
 }
 
 export async function connectStarknetWallet<T extends Pick<Connector, 'id'>>(
@@ -69,25 +73,29 @@ export async function connectStarknetWallet<T extends Pick<Connector, 'id'>>(
     resultType: 'connector';
   }) => Promise<{ connector: Pick<Connector, 'id'> | null }>,
 ): Promise<void> {
-  const { connector } = await openModal({
-    connectors,
-    resultType: 'connector',
-  });
+  try {
+    const { connector } = await openModal({
+      connectors,
+      resultType: 'connector',
+    });
 
-  if (!connector) {
-    logger.error('No Starknet wallet connectors available');
-    return;
+    if (!connector) {
+      logger.error('No Starknet wallet connectors available');
+      return;
+    }
+
+    const selectedConnector = connectors.find((c) => c.id === connector.id);
+    if (!selectedConnector) {
+      logger.error(
+        `Selected Starknet connector ${connector.id} is not registered with @starknet-react/core`,
+      );
+      return;
+    }
+
+    await connectAsync({ connector: selectedConnector });
+  } catch (error: unknown) {
+    logger.error({ error }, 'Failed to connect Starknet wallet');
   }
-
-  const selectedConnector = connectors.find((c) => c.id === connector.id);
-  if (!selectedConnector) {
-    logger.error(
-      `Selected Starknet connector ${connector.id} is not registered with @starknet-react/core`,
-    );
-    return;
-  }
-
-  await connectAsync({ connector: selectedConnector });
 }
 
 export function useStarknetDisconnectFn(): () => Promise<void> {

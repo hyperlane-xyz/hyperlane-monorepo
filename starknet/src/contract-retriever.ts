@@ -46,11 +46,16 @@ export function getContractArtifact(
   return contract;
 }
 
+/**
+ * Computes a CASM class hash for a Starknet network version.
+ * Defaults to v0.13.6 to preserve the pre-starknet.js-v8 Poseidon hash.
+ */
 export function getCompiledClassHash(
   name: string,
   contractType: ContractType = ContractType.CONTRACT,
+  starknetVersion = '0.13.6',
 ): string | undefined {
-  const cacheKey = `${contractType}:${name}`;
+  const cacheKey = `${contractType}:${name}:${starknetVersion}`;
   const cached = compiledClassHashCache.get(cacheKey);
   if (cached) return cached;
 
@@ -59,6 +64,7 @@ export function getCompiledClassHash(
 
   const compiledClassHash = hash.computeCompiledClassHash(
     contract.compiled_contract_class,
+    starknetVersion,
   );
   compiledClassHashCache.set(cacheKey, compiledClassHash);
   return compiledClassHash;
