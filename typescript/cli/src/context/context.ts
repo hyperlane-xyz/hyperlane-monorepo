@@ -15,7 +15,6 @@ import {
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import {
-  type Address,
   ProtocolType,
   isEVMLike,
   assert,
@@ -24,7 +23,6 @@ import {
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
-import { getSigner } from '../utils/keys.js';
 
 import { createAltVMSigners } from './altvm.js';
 import { resolveChains } from './strategies/chain/chainResolver.js';
@@ -231,12 +229,9 @@ export async function getContext({
     authToken,
   });
 
-  const { keyMap, ethereumSignerAddress } = skipLocalSigner
-    ? {
-        keyMap: SignerKeyProtocolMapSchema.parse({}),
-        ethereumSignerAddress: undefined,
-      }
-    : await getSignerKeyMap(key, !!skipConfirmation);
+  const keyMap = skipLocalSigner
+    ? SignerKeyProtocolMapSchema.parse({})
+    : getSignerKeyMap(key);
 
   const multiProvider = await getMultiProvider(registry);
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
@@ -265,7 +260,6 @@ export async function getContext({
     supportedProtocols,
     key: keyMap,
     skipConfirmation: !!skipConfirmation,
-    signerAddress: ethereumSignerAddress,
     strategyPath,
   };
 }
@@ -274,10 +268,9 @@ export async function getContext({
  * Resolves private keys by protocol type by reading either the key
  * argument passed to the CLI or falling back to reading from env
  */
-async function getSignerKeyMap(
+function getSignerKeyMap(
   rawKeyMap: ContextSettings['key'],
-  skipConfirmation: boolean,
-): Promise<{ keyMap: SignerKeyProtocolMap; ethereumSignerAddress?: Address }> {
+): SignerKeyProtocolMap {
   const keyMap: SignerKeyProtocolMap = SignerKeyProtocolMapSchema.parse(
     rawKeyMap ?? {},
   );
@@ -298,20 +291,7 @@ async function getSignerKeyMap(
     }
   });
 
-  // Just for backward compatibility
-  let signerAddress: string | undefined = undefined;
-  if (keyMap[ProtocolType.Ethereum]) {
-    const { signer } = await getSigner({
-      key: keyMap[ProtocolType.Ethereum],
-      skipConfirmation,
-    });
-    signerAddress = await signer.getAddress();
-  }
-
-  return {
-    keyMap,
-    ethereumSignerAddress: signerAddress,
-  };
+  return keyMap;
 }
 
 /**

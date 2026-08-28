@@ -29,6 +29,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { type CommandContext } from '../context/types.js';
+import { tryResolveSignerAddress } from '../context/strategies/signer/resolveSignerAddress.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import {
@@ -116,9 +117,8 @@ export async function fillDefaults(
       }
       let owner = config.owner;
       if (!owner) {
-        owner =
-          context.signerAddress ??
-          (await context.multiProvider.getSignerAddress(chain));
+        owner = await tryResolveSignerAddress(context, chain);
+        assert(owner, `No signer address available for ${chain}`);
       }
       return {
         owner,
@@ -215,7 +215,7 @@ export async function createWarpRouteDeployConfig({
   for (const chain of warpChains) {
     logBlue(`${chain}: Configuring warp route...`);
     const owner = await detectAndConfirmOrPrompt(
-      async () => context.signerAddress,
+      () => tryResolveSignerAddress(context, chain),
       'Enter the desired',
       'owner address',
       'signer',

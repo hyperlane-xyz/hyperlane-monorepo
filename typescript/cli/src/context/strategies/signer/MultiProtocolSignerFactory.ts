@@ -13,6 +13,9 @@ import {
   type IMultiProtocolSigner,
   type SignerConfig,
 } from './BaseMultiProtocolSigner.js';
+import { HttpRemoteEvmSigner } from './HttpRemoteEvmSigner.js';
+import { HttpSignerClient } from './HttpSignerClient.js';
+import { parseSignerSource, SignerSourceType } from './signerSource.js';
 
 export class MultiProtocolSignerFactory {
   static getSignerStrategy(
@@ -30,21 +33,43 @@ export class MultiProtocolSignerFactory {
 }
 
 class EvmSignerStrategy extends BaseMultiProtocolSigner {
+  private readonly httpClients = new Map<string, HttpSignerClient>();
+
   async getSigner(config: SignerConfig): Promise<Signer> {
     const { privateKey } = await this.getPrivateKey(config);
 
     const { protocol, technicalStack, rpcUrls } =
       this.multiProtocolProvider.getChainMetadata(config.chain);
 
+    const source = parseSignerSource(privateKey);
+    if (source.type === SignerSourceType.HTTP) {
+      assert(
+        protocol !== ProtocolType.Tron,
+        `HTTP signer does not support Tron chain ${config.chain}`,
+      );
+      assert(
+        technicalStack !== ChainTechnicalStack.ZkSync,
+        `HTTP signer does not support zkSync chain ${config.chain}`,
+      );
+
+      const url = source.url.toString();
+      let client = this.httpClients.get(url);
+      if (!client) {
+        client = new HttpSignerClient(source.url);
+        this.httpClients.set(url, client);
+      }
+      return HttpRemoteEvmSigner.create(client, config.chain);
+    }
+
     if (technicalStack === ChainTechnicalStack.ZkSync) {
-      return new ZKSyncWallet(privateKey);
+      return new ZKSyncWallet(source.privateKey);
     }
 
     if (protocol === ProtocolType.Tron) {
       assert(rpcUrls.length > 0, `No RPC URLs for Tron chain ${config.chain}`);
-      return new TronWallet(privateKey, rpcUrls[0].http);
+      return new TronWallet(source.privateKey, rpcUrls[0].http);
     }
 
-    return new Wallet(privateKey);
+    return new Wallet(source.privateKey);
   }
 }

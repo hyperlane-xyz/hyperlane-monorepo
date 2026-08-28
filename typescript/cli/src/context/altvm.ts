@@ -12,6 +12,7 @@ import {
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import { assert, ProtocolType } from '@hyperlane-xyz/utils';
+import { SealevelSigner } from '@hyperlane-xyz/sealevel-sdk';
 
 import { type ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 
@@ -20,6 +21,12 @@ import {
   resolveAltVmAccountAddress,
 } from './altvm-signer-config.js';
 import { type SignerKeyProtocolMap } from './types.js';
+import { HttpRemoteKitSigner } from './strategies/signer/HttpRemoteKitSigner.js';
+import { HttpSignerClient } from './strategies/signer/HttpSignerClient.js';
+import {
+  parseSignerSource,
+  SignerSourceType,
+} from './strategies/signer/signerSource.js';
 
 export const altVmPrompts = {
   input,
@@ -39,14 +46,8 @@ async function loadPrivateKey(
   protocol: ProtocolType,
   chain: string,
 ): Promise<string> {
-  // 1. First try to get private key from --key.{protocol} flag
-  const explicitKey = keyByProtocol[protocol];
-  if (explicitKey) {
-    return explicitKey;
-  }
-
-  // 2. If no key flag was provided we check if a strategy config
-  // was provided for our chain where we can read our private key
+  // 1. A strategy's explicit private key remains chain-specific and wins.
+  let strategyRequiresKey = false;
   if (strategyConfig[chain]) {
     const rawConfig = strategyConfig[chain]!.submitter;
 
@@ -54,17 +55,24 @@ async function loadPrivateKey(
       if (rawConfig.privateKey) {
         return rawConfig.privateKey;
       }
-
-      if (protocol !== ProtocolType.Starknet) {
-        throw new Error(
-          `missing private key in strategy config for chain ${chain}`,
-        );
-      }
+      strategyRequiresKey = protocol !== ProtocolType.Starknet;
     } else {
       throw new Error(
         `unsupported submitter type in strategy config for chain ${chain}: ${rawConfig.type}`,
       );
     }
+  }
+
+  // 2. Try the protocol key from --key.{protocol}.
+  const explicitKey = keyByProtocol[protocol];
+  if (explicitKey) {
+    return explicitKey;
+  }
+
+  if (strategyRequiresKey) {
+    throw new Error(
+      `missing private key in strategy config for chain ${chain}`,
+    );
   }
 
   // 3. Finally, if no key flag or strategy was provided we prompt the user.
@@ -123,6 +131,7 @@ export async function createAltVMSigners(
 ) {
   const signers: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>> = {};
   const promptedKeyByProtocol: Partial<Record<ProtocolType, string>> = {};
+  const httpClients = new Map<string, HttpSignerClient>();
 
   for (const chain of chains) {
     const metadata = metadataManager.getChainMetadata(chain);
@@ -136,20 +145,45 @@ export async function createAltVMSigners(
       metadata.protocol,
       chain,
     );
-    const signerConfig = {
-      privateKey: await loadPrivateKey(
-        keyByProtocol,
-        promptedKeyByProtocol,
-        strategyConfig,
-        metadata.protocol,
-        chain,
-      ),
-      accountAddress,
-    };
+    const key = await loadPrivateKey(
+      keyByProtocol,
+      promptedKeyByProtocol,
+      strategyConfig,
+      metadata.protocol,
+      chain,
+    );
 
-    signers[chain] = await protocolRegistry
-      .getProtocolProvider(metadata.protocol)
-      .createSigner(metadata, signerConfig);
+    const source = parseSignerSource(key);
+    switch (source.type) {
+      case SignerSourceType.HTTP: {
+        assert(
+          metadata.protocol === ProtocolType.Sealevel,
+          `HTTP signing is not supported for ${metadata.protocol} chains`,
+        );
+        const cacheKey = source.url.href;
+        const client =
+          httpClients.get(cacheKey) ?? new HttpSignerClient(source.url);
+        httpClients.set(cacheKey, client);
+        const remoteSigner = await HttpRemoteKitSigner.create(chain, client);
+        signers[chain] = await SealevelSigner.connectWithSigner(
+          metadata,
+          remoteSigner,
+        );
+        break;
+      }
+      case SignerSourceType.PRIVATE_KEY:
+        signers[chain] = await protocolRegistry
+          .getProtocolProvider(metadata.protocol)
+          .createSigner(metadata, {
+            privateKey: source.privateKey,
+            accountAddress,
+          });
+        break;
+      default: {
+        const _exhaustive: never = source;
+        throw new Error(`Unhandled signer source: ${String(_exhaustive)}`);
+      }
+    }
   }
 
   return signers;

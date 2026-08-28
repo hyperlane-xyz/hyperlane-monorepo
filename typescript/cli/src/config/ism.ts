@@ -14,6 +14,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { type CommandContext } from '../context/types.js';
+import { tryResolveSignerAddress } from '../context/strategies/signer/resolveSignerAddress.js';
 import {
   errorRed,
   log,
@@ -171,11 +172,12 @@ export const createTrustedRelayerConfig = callWithConfigCreationLogs(
     context: CommandContext,
     advanced: boolean = false,
   ): Promise<TrustedRelayerIsmConfig> => {
+    const signerAddress = await tryResolveSignerAddress(context);
     const relayer =
-      !advanced && context.signerAddress
-        ? context.signerAddress
+      !advanced && signerAddress
+        ? signerAddress
         : await detectAndConfirmOrPrompt(
-            async () => context.signerAddress,
+            async () => signerAddress,
             'For trusted relayer ISM, enter',
             'relayer address',
             'signer',
