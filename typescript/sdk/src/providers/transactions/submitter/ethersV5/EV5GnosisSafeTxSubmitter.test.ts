@@ -100,7 +100,7 @@ describe('signSafeTransactionWithSigner', () => {
       simulateTxAccessorAddress: contractAddress,
     };
 
-    // @ts-ignore protocol-kit exposes its default class directly at runtime.
+    // @ts-expect-error protocol-kit exposes its default class directly at runtime.
     return Safe.init({
       provider,
       signer: privateKey,

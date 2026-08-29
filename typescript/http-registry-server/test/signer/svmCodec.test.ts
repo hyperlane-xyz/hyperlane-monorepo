@@ -47,8 +47,9 @@ describe('SvmTransactionCodec', () => {
     const codec = new SvmTransactionCodec();
     const account = { address: signer.address, curve: 'ed25519' as const };
 
-    expect(() => codec.validateUnsigned(unsignedBytes, metadata, account)).not
-      .to.throw;
+    expect(() =>
+      codec.validateUnsigned(unsignedBytes, metadata, account),
+    ).not.to.throw();
     const audit = await codec.validateSigned(
       unsignedBytes,
       signedBytes,

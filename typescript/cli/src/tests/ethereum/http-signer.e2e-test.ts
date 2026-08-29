@@ -93,16 +93,17 @@ describe('HTTP signer Anvil e2e', function () {
     const signerUrl = `http://127.0.0.1:${port}`;
 
     const recipient = Wallet.createRandom().address;
-    const provider = new ethers.providers.JsonRpcProvider(
-      metadata[CHAIN_NAME_2].rpcUrls[0].http,
-    );
+    const chainMetadata = metadata[CHAIN_NAME_2];
+    const rpcUrl = chainMetadata.rpcUrls[0];
+    assert(rpcUrl, `Expected an RPC URL for ${CHAIN_NAME_2}`);
+    const provider = new ethers.providers.JsonRpcProvider(rpcUrl.http);
     const value = ethers.BigNumber.from(12_345);
     const balanceBefore = await provider.getBalance(recipient);
     writeYamlOrJson(
       transactionsPath,
       [
         {
-          chainId: metadata[CHAIN_NAME_2].chainId,
+          chainId: chainMetadata.chainId,
           to: recipient,
           value: value.toString(),
           data: '0x',

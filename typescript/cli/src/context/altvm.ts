@@ -48,8 +48,9 @@ async function loadPrivateKey(
 ): Promise<string> {
   // 1. A strategy's explicit private key remains chain-specific and wins.
   let strategyRequiresKey = false;
-  if (strategyConfig[chain]) {
-    const rawConfig = strategyConfig[chain]!.submitter;
+  const chainStrategy = strategyConfig[chain];
+  if (chainStrategy) {
+    const rawConfig = chainStrategy.submitter;
 
     if (rawConfig.type === JSON_RPC_SUBMITTER_TYPE) {
       if (rawConfig.privateKey) {
