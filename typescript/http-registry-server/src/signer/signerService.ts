@@ -17,6 +17,7 @@ import {
   type SignerTransactionResponse,
   type SignerTypedDataRequest,
   type SignerTypedDataResponse,
+  MAX_EVM_TRANSACTION_BYTES,
   decodeEncodedBytes,
   encodeBytes,
 } from './schemas.js';
@@ -29,7 +30,7 @@ import {
   type TransactionSignerBackend,
 } from './types.js';
 
-const MAX_EVM_TRANSACTION_BYTES = 128 * 1024;
+const MAX_VALIDATION_LOG_FIELD_LENGTH = 64;
 
 function apiError(message: string, status: number): ApiError {
   return new ApiError(message, status);
@@ -50,6 +51,26 @@ function safeBackendError(error: unknown): ApiError {
     case 'unavailable':
       return apiError('Signing backend is unavailable', 502);
   }
+}
+
+function validationErrorLogFields(error: unknown): {
+  validationErrorType: string;
+  validationErrorCode?: string | number;
+} {
+  const validationErrorType = (
+    error instanceof Error ? error.name : typeof error
+  ).slice(0, MAX_VALIDATION_LOG_FIELD_LENGTH);
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? error.code
+      : undefined;
+  const validationErrorCode =
+    typeof code === 'string'
+      ? code.slice(0, MAX_VALIDATION_LOG_FIELD_LENGTH)
+      : typeof code === 'number'
+        ? code
+        : undefined;
+  return { validationErrorType, validationErrorCode };
 }
 
 function transactionEncoding(protocol: ProtocolType): EncodedBytes['encoding'] {
@@ -210,7 +231,7 @@ export class SignerService {
         {
           protocol: metadata.protocol,
           backendRequestId: result.backendRequestId,
-          err: error,
+          ...validationErrorLogFields(error),
         },
         'Signing backend returned an invalid transaction',
       );
@@ -312,7 +333,7 @@ export class SignerService {
         {
           protocol: metadata.protocol,
           backendRequestId: result.backendRequestId,
-          err: error,
+          ...validationErrorLogFields(error),
         },
         'Signing backend returned an invalid typed-data signature',
       );

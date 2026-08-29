@@ -2,6 +2,10 @@ import { z } from 'zod';
 
 import { isCanonicalBase64 } from './encoding.js';
 
+export const MAX_EVM_TRANSACTION_BYTES = 128 * 1024;
+// Hex encoding doubles transaction bytes; the remainder covers signature and JSON fields.
+export const SIGNER_JSON_PAYLOAD_LIMIT_BYTES = 270 * 1024;
+
 export const EncodedBytesSchema = z.discriminatedUnion('encoding', [
   z.object({
     encoding: z.literal('hex'),

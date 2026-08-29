@@ -5,6 +5,8 @@ export { EvmTransactionCodec } from './src/signer/evmCodec.js';
 export {
   Eip712PayloadSchema,
   EncodedBytesSchema,
+  MAX_EVM_TRANSACTION_BYTES,
+  SIGNER_JSON_PAYLOAD_LIMIT_BYTES,
   SignerAccountResponseSchema,
   SignerTransactionRequestSchema,
   SignerTransactionResponseSchema,

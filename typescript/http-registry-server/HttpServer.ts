@@ -19,10 +19,9 @@ import { WarpService } from './src/services/warpService.js';
 import { FileSystemRegistryWatcher } from './src/services/watcherService.js';
 import { createSignerAuth, validateSignerToken } from './src/signer/auth.js';
 import { createSignerErrorHandler } from './src/signer/errorHandler.js';
+import { SIGNER_JSON_PAYLOAD_LIMIT_BYTES } from './src/signer/schemas.js';
 import { SignerService } from './src/signer/signerService.js';
 import type { SignerBackends } from './src/signer/types.js';
-
-const SIGNER_REQUEST_BODY_LIMIT_BYTES = 270 * 1024;
 
 export interface HttpServerOptions {
   writeMode?: boolean;
@@ -172,7 +171,7 @@ export class HttpServer {
         this.app.use(
           '/signer',
           createSignerAuth(this.signerToken),
-          express.json({ limit: SIGNER_REQUEST_BODY_LIMIT_BYTES }),
+          express.json({ limit: SIGNER_JSON_PAYLOAD_LIMIT_BYTES }),
           createSignerRouter(signerService),
           createSignerErrorHandler(this.logger),
         );

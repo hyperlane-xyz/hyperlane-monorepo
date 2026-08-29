@@ -1,6 +1,10 @@
 import { expect } from 'chai';
 import { createServer, type Server } from 'node:http';
 
+import {
+  MAX_EVM_TRANSACTION_BYTES,
+  SIGNER_JSON_PAYLOAD_LIMIT_BYTES,
+} from '@hyperlane-xyz/http-registry-server';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { HttpSignerClient } from './HttpSignerClient.js';
@@ -23,6 +27,19 @@ describe('HttpSignerClient response limits', () => {
   beforeEach(async () => {
     const testServer = createServer((request, response) => {
       response.setHeader('Content-Type', 'application/json');
+      if (request.url === '/signer/transaction') {
+        response.end(
+          JSON.stringify({
+            chain: 'valid',
+            signerAddress: `0x${'11'.repeat(20)}`,
+            signedTransaction: {
+              encoding: 'hex',
+              value: '00'.repeat(MAX_EVM_TRANSACTION_BYTES + 128),
+            },
+          }),
+        );
+        return;
+      }
       if (request.url?.endsWith('/content-length')) {
         response.setHeader('Content-Length', 300_000);
         response.end('{}');
@@ -58,7 +75,9 @@ describe('HttpSignerClient response limits', () => {
       new HttpSignerClient(serverUrl, TOKEN).getAccount('content-length'),
     );
 
-    expect(error.message).to.include('exceeds 262144 bytes');
+    expect(error.message).to.include(
+      `exceeds ${SIGNER_JSON_PAYLOAD_LIMIT_BYTES} bytes`,
+    );
   });
 
   it('rejects an oversized chunked response while streaming', async () => {
@@ -66,6 +85,19 @@ describe('HttpSignerClient response limits', () => {
       new HttpSignerClient(serverUrl, TOKEN).getAccount('chunked'),
     );
 
-    expect(error.message).to.include('exceeds 262144 bytes');
+    expect(error.message).to.include(
+      `exceeds ${SIGNER_JSON_PAYLOAD_LIMIT_BYTES} bytes`,
+    );
+  });
+
+  it('accepts a maximum EVM transaction response with signature headroom', async () => {
+    const response = await new HttpSignerClient(
+      serverUrl,
+      TOKEN,
+    ).signTransaction('valid', '0x00');
+
+    expect(response.signedTransaction.value).to.have.length(
+      (MAX_EVM_TRANSACTION_BYTES + 128) * 2,
+    );
   });
 });

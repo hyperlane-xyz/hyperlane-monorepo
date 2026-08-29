@@ -8,6 +8,7 @@ import { tryResolveSignerAddress } from './resolveSignerAddress.js';
 
 const PRIVATE_KEY = Wallet.createRandom().privateKey;
 const CHAIN = 'test';
+const previousHttpSignerToken = process.env.HYP_HTTP_SIGNER_TOKEN;
 
 function getContext(key?: string) {
   return {
@@ -28,7 +29,11 @@ function getContext(key?: string) {
 
 describe('tryResolveSignerAddress', () => {
   afterEach(() => {
-    delete process.env.HYP_HTTP_SIGNER_TOKEN;
+    if (previousHttpSignerToken === undefined) {
+      delete process.env.HYP_HTTP_SIGNER_TOKEN;
+    } else {
+      process.env.HYP_HTTP_SIGNER_TOKEN = previousHttpSignerToken;
+    }
   });
 
   it('uses an attached signer', async () => {

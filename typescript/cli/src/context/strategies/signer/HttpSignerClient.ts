@@ -1,5 +1,6 @@
 import {
   SignerAccountResponseSchema,
+  SIGNER_JSON_PAYLOAD_LIMIT_BYTES,
   SignerTransactionResponseSchema,
   SignerTypedDataResponseSchema,
   type Eip712Payload,
@@ -9,8 +10,6 @@ import {
 import { errorToString, strip0x } from '@hyperlane-xyz/utils';
 
 const DEFAULT_HTTP_SIGNER_TIMEOUT_MS = 30_000;
-const MAX_HTTP_SIGNER_RESPONSE_BYTES = 256 * 1024;
-
 export class HttpSignerClient {
   private readonly token: string;
   private readonly accountRequests = new Map<
@@ -139,11 +138,11 @@ export class HttpSignerClient {
     const contentLength = Number(response.headers.get('content-length'));
     if (
       Number.isFinite(contentLength) &&
-      contentLength > MAX_HTTP_SIGNER_RESPONSE_BYTES
+      contentLength > SIGNER_JSON_PAYLOAD_LIMIT_BYTES
     ) {
       await response.body?.cancel();
       throw new Error(
-        `HTTP signer ${operation} response for ${chain} exceeds ${MAX_HTTP_SIGNER_RESPONSE_BYTES} bytes`,
+        `HTTP signer ${operation} response for ${chain} exceeds ${SIGNER_JSON_PAYLOAD_LIMIT_BYTES} bytes`,
       );
     }
 
@@ -163,10 +162,10 @@ export class HttpSignerClient {
         }
         if (result.done) break;
         totalBytes += result.value.byteLength;
-        if (totalBytes > MAX_HTTP_SIGNER_RESPONSE_BYTES) {
+        if (totalBytes > SIGNER_JSON_PAYLOAD_LIMIT_BYTES) {
           await reader.cancel();
           throw new Error(
-            `HTTP signer ${operation} response for ${chain} exceeds ${MAX_HTTP_SIGNER_RESPONSE_BYTES} bytes`,
+            `HTTP signer ${operation} response for ${chain} exceeds ${SIGNER_JSON_PAYLOAD_LIMIT_BYTES} bytes`,
           );
         }
         chunks.push(result.value);
