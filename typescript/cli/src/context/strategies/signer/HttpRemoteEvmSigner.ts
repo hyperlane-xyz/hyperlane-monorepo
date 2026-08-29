@@ -1,11 +1,6 @@
 import { ethers } from 'ethers';
 
-import {
-  ProtocolType,
-  assert,
-  ensure0x,
-  eqAddressEvm,
-} from '@hyperlane-xyz/utils';
+import { assert, ensure0x, eqAddressEvm } from '@hyperlane-xyz/utils';
 
 import type { HttpSignerClient } from './HttpSignerClient.js';
 
@@ -83,26 +78,13 @@ export class HttpRemoteEvmSigner extends ethers.Signer {
   static async create(
     client: HttpSignerClient,
     chain: string,
+    expectedAddress: string,
     provider?: ethers.providers.Provider,
   ): Promise<HttpRemoteEvmSigner> {
-    const account = await client.getAccount(chain);
-    assert(
-      account.chain === chain,
-      `HTTP signer returned account for ${account.chain}, expected ${chain}`,
-    );
-    assert(
-      account.protocol === ProtocolType.Ethereum,
-      `HTTP signer account for ${chain} uses unsupported protocol ${account.protocol}`,
-    );
-    assert(
-      account.curve === 'secp256k1',
-      `HTTP signer account for ${chain} uses unsupported curve ${account.curve}`,
-    );
-
     return new HttpRemoteEvmSigner(
       client,
       chain,
-      ethers.utils.getAddress(account.address),
+      ethers.utils.getAddress(expectedAddress),
       provider,
     );
   }

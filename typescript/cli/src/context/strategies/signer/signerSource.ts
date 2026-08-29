@@ -11,7 +11,11 @@ export type SignerSource =
       type: typeof SignerSourceType.PRIVATE_KEY;
       privateKey: string;
     }
-  | { type: typeof SignerSourceType.HTTP; url: URL };
+  | {
+      type: typeof SignerSourceType.HTTP;
+      url: URL;
+      expectedAddress: string;
+    };
 
 const LOOPBACK_HOSTNAMES = new Set(['127.0.0.1', '[::1]']);
 
@@ -39,12 +43,20 @@ export function parseSignerSource(value: string): SignerSource {
   if (url.username || url.password) {
     throw new Error('HTTP signer URL must not contain credentials');
   }
-  if (url.search || url.hash) {
-    throw new Error('HTTP signer URL must not contain a query or fragment');
+  if (url.search) {
+    throw new Error('HTTP signer URL must not contain a query');
   }
   if (url.pathname !== '/') {
     throw new Error('HTTP signer URL must not contain a path');
   }
 
-  return { type: SignerSourceType.HTTP, url };
+  const expectedAddress = url.hash.slice(1);
+  if (!expectedAddress) {
+    throw new Error(
+      'HTTP signer URL must include the expected signer address as a fragment',
+    );
+  }
+  url.hash = '';
+
+  return { type: SignerSourceType.HTTP, url, expectedAddress };
 }

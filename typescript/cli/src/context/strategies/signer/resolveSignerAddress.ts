@@ -47,6 +47,7 @@ export async function tryResolveSignerAddress(
         await HttpRemoteEvmSigner.create(
           new HttpSignerClient(source.url),
           chain,
+          source.expectedAddress,
         )
       ).getAddress();
     default: {

@@ -14,12 +14,17 @@ describe('parseSignerSource', () => {
     });
   });
 
-  for (const url of ['http://127.0.0.1:3333', 'http://[::1]:3333']) {
+  for (const [url, expectedAddress] of [
+    ['http://127.0.0.1:3333#0x1234', '0x1234'],
+    ['http://[::1]:3333#svmAddress', 'svmAddress'],
+  ]) {
     it(`accepts loopback signer URL ${url}`, () => {
       const result = parseSignerSource(url);
       expect(result.type).to.equal(SignerSourceType.HTTP);
-      if (result.type === SignerSourceType.HTTP)
-        expect(result.url.toString()).to.equal(new URL(url).toString());
+      if (result.type === SignerSourceType.HTTP) {
+        expect(result.url.hash).to.equal('');
+        expect(result.expectedAddress).to.equal(expectedAddress);
+      }
     });
   }
 
@@ -28,9 +33,11 @@ describe('parseSignerSource', () => {
     'http://localhost:3333',
     'http://192.168.1.1:3333',
     'http://127.0.0.1',
+    'http://127.0.0.1:3333',
+    'http://127.0.0.1:3333#',
     'http://user:password@127.0.0.1:3333',
-    'http://127.0.0.1:3333?token=secret',
-    'http://[::1]:3333/registry/',
+    'http://127.0.0.1:3333?token=secret#0x1234',
+    'http://[::1]:3333/registry/#svmAddress',
   ]) {
     it(`rejects unsafe signer URL ${url}`, () => {
       expect(() => parseSignerSource(url)).to.throw();

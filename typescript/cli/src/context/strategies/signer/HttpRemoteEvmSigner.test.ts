@@ -66,7 +66,6 @@ describe('HttpRemoteEvmSigner', () => {
   let serverUrl: URL;
   let accountRequests: number;
   let accountDelayMs: number;
-  let invalidAccountResponse: boolean;
   let wrongSignerResponse: boolean;
   let wrongTransactionSigner: boolean;
   let mutateTransactionResponse: boolean;
@@ -74,7 +73,6 @@ describe('HttpRemoteEvmSigner', () => {
   beforeEach(async () => {
     accountRequests = 0;
     accountDelayMs = 0;
-    invalidAccountResponse = false;
     wrongSignerResponse = false;
     wrongTransactionSigner = false;
     mutateTransactionResponse = false;
@@ -91,16 +89,12 @@ describe('HttpRemoteEvmSigner', () => {
           await new Promise((resolve) => setTimeout(resolve, accountDelayMs));
         }
         response.end(
-          JSON.stringify(
-            invalidAccountResponse
-              ? { chain: CHAIN, protocol: ProtocolType.Ethereum }
-              : {
-                  chain: CHAIN,
-                  protocol: ProtocolType.Ethereum,
-                  address: wallet.address,
-                  curve: 'secp256k1',
-                },
-          ),
+          JSON.stringify({
+            chain: CHAIN,
+            protocol: ProtocolType.Ethereum,
+            address: wrongWallet.address,
+            curve: 'secp256k1',
+          }),
         );
         return;
       }
@@ -160,18 +154,17 @@ describe('HttpRemoteEvmSigner', () => {
     );
   });
 
-  it('caches account discovery and preserves account/client when connected', async () => {
+  it('uses the pinned identity without trusting account discovery', async () => {
     const client = new HttpSignerClient(serverUrl, TOKEN);
-    const [first, second] = await Promise.all([
-      client.getAccount(CHAIN),
-      client.getAccount(CHAIN),
-    ]);
-    expect(first).to.deep.equal(second);
-    const signer = await HttpRemoteEvmSigner.create(client, CHAIN);
+    const signer = await HttpRemoteEvmSigner.create(
+      client,
+      CHAIN,
+      wallet.address,
+    );
     const provider = new ethers.providers.JsonRpcProvider();
     const connected = signer.connect(provider);
 
-    expect(accountRequests).to.equal(1);
+    expect(accountRequests).to.equal(0);
     expect(await connected.getAddress()).to.equal(wallet.address);
     expect(connected.provider).to.equal(provider);
   });
@@ -215,6 +208,7 @@ describe('HttpRemoteEvmSigner', () => {
       const signer = await HttpRemoteEvmSigner.create(
         new HttpSignerClient(serverUrl, TOKEN),
         CHAIN,
+        wallet.address,
       );
       expect(await signer.signTransaction(transaction)).to.equal(
         await wallet.signTransaction(transaction),
@@ -225,10 +219,7 @@ describe('HttpRemoteEvmSigner', () => {
   it('fails on timeout and unreachable server', async () => {
     accountDelayMs = 50;
     const timeoutError = await getError(
-      HttpRemoteEvmSigner.create(
-        new HttpSignerClient(serverUrl, TOKEN, 5),
-        CHAIN,
-      ),
+      new HttpSignerClient(serverUrl, TOKEN, 5).getAccount(CHAIN),
     );
     expect(timeoutError.message).to.include('account discovery failed');
 
@@ -242,18 +233,13 @@ describe('HttpRemoteEvmSigner', () => {
     expect(unreachableError.message).to.include('account discovery failed');
   });
 
-  it('rejects malformed account and wrong signer responses', async () => {
-    invalidAccountResponse = true;
-    const accountError = await getError(
-      HttpRemoteEvmSigner.create(new HttpSignerClient(serverUrl, TOKEN), CHAIN),
-    );
-    expect(accountError.message).to.include('invalid account discovery');
-
-    invalidAccountResponse = false;
+  it('rejects a self-consistent response from an unpinned signer', async () => {
     wrongSignerResponse = true;
+    wrongTransactionSigner = true;
     const signer = await HttpRemoteEvmSigner.create(
       new HttpSignerClient(serverUrl, TOKEN),
       CHAIN,
+      wallet.address,
     );
     const signerError = await getError(
       signer.signTransaction({
@@ -275,6 +261,7 @@ describe('HttpRemoteEvmSigner', () => {
     const signer = await HttpRemoteEvmSigner.create(
       new HttpSignerClient(serverUrl, TOKEN),
       CHAIN,
+      wallet.address,
     );
     const signerError = await getError(
       signer.signTransaction({
@@ -294,6 +281,7 @@ describe('HttpRemoteEvmSigner', () => {
     const signer = await HttpRemoteEvmSigner.create(
       new HttpSignerClient(serverUrl, TOKEN),
       CHAIN,
+      wallet.address,
     );
     const signerError = await getError(
       signer.signTransaction({
@@ -314,6 +302,7 @@ describe('HttpRemoteEvmSigner', () => {
     const signer = await HttpRemoteEvmSigner.create(
       new HttpSignerClient(serverUrl, TOKEN),
       CHAIN,
+      wallet.address,
     );
     const error = await getError(signer.signMessage('hello'));
     expect(error.message).to.include(
@@ -323,7 +312,7 @@ describe('HttpRemoteEvmSigner', () => {
 });
 
 describe('HTTP EVM signer unsupported chains', () => {
-  const signerUrl = 'http://127.0.0.1:3333';
+  const signerUrl = `http://127.0.0.1:3333#${Wallet.createRandom().address}`;
   const metadata = {
     tron: {
       chainId: 1,

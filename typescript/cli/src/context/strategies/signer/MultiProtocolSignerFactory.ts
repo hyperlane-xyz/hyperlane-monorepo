@@ -58,7 +58,11 @@ class EvmSignerStrategy extends BaseMultiProtocolSigner {
         client = new HttpSignerClient(source.url);
         this.httpClients.set(url, client);
       }
-      return HttpRemoteEvmSigner.create(client, config.chain);
+      return HttpRemoteEvmSigner.create(
+        client,
+        config.chain,
+        source.expectedAddress,
+      );
     }
 
     if (technicalStack === ChainTechnicalStack.ZkSync) {

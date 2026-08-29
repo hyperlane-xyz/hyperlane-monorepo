@@ -116,6 +116,7 @@ describe('HttpRemoteKitSigner HTTP integration', function () {
 
     const remoteSigner = await HttpRemoteKitSigner.create(
       CHAIN,
+      remoteKey.address,
       new HttpSignerClient(
         new URL(`http://127.0.0.1:${boundAddress.port}`),
         TOKEN,
@@ -168,18 +169,16 @@ describe('HttpRemoteKitSigner HTTP integration', function () {
       new URL('http://127.0.0.1:3333'),
       TOKEN,
     );
-    client.getAccount = async () => ({
-      chain: CHAIN,
-      protocol: ProtocolType.Sealevel,
-      address: remoteKey.address,
-      curve: 'ed25519',
-    });
     client.signEncodedTransaction = async () => ({
       chain: 'anotherchain',
       signerAddress: remoteKey.address,
       signedTransaction: { encoding: 'base64', value: '' },
     });
-    const remoteSigner = await HttpRemoteKitSigner.create(CHAIN, client);
+    const remoteSigner = await HttpRemoteKitSigner.create(
+      CHAIN,
+      remoteKey.address,
+      client,
+    );
     const message = setTransactionMessageLifetimeUsingBlockhash(
       {
         blockhash: blockhash('11111111111111111111111111111111'),

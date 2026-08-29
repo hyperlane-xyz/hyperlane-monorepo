@@ -1,11 +1,9 @@
 import { expect } from 'chai';
 import { Wallet } from 'ethers';
-import sinon from 'sinon';
 
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { HttpSignerClient } from './HttpSignerClient.js';
 import { tryResolveSignerAddress } from './resolveSignerAddress.js';
 
 const PRIVATE_KEY = Wallet.createRandom().privateKey;
@@ -30,7 +28,6 @@ function getContext(key?: string) {
 
 describe('tryResolveSignerAddress', () => {
   afterEach(() => {
-    sinon.restore();
     delete process.env.HYP_HTTP_SIGNER_TOKEN;
   });
 
@@ -50,24 +47,23 @@ describe('tryResolveSignerAddress', () => {
     );
   });
 
-  it('discovers an HTTP signer for a chain', async () => {
+  it('uses the pinned HTTP signer address for a chain', async () => {
     const signer = Wallet.createRandom();
     process.env.HYP_HTTP_SIGNER_TOKEN = 'test-token';
-    sinon.stub(HttpSignerClient.prototype, 'getAccount').resolves({
-      chain: CHAIN,
-      protocol: ProtocolType.Ethereum,
-      address: signer.address,
-      curve: 'secp256k1',
-    });
 
     expect(
-      await tryResolveSignerAddress(getContext('http://127.0.0.1:3333'), CHAIN),
+      await tryResolveSignerAddress(
+        getContext(`http://127.0.0.1:3333#${signer.address}`),
+        CHAIN,
+      ),
     ).to.equal(signer.address);
   });
 
   it('does not choose an arbitrary chain for an HTTP signer', async () => {
     expect(
-      await tryResolveSignerAddress(getContext('http://127.0.0.1:3333')),
+      await tryResolveSignerAddress(
+        getContext(`http://127.0.0.1:3333#${Wallet.createRandom().address}`),
+      ),
     ).to.equal(undefined);
   });
 });

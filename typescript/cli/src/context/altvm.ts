@@ -165,7 +165,11 @@ export async function createAltVMSigners(
         const client =
           httpClients.get(cacheKey) ?? new HttpSignerClient(source.url);
         httpClients.set(cacheKey, client);
-        const remoteSigner = await HttpRemoteKitSigner.create(chain, client);
+        const remoteSigner = await HttpRemoteKitSigner.create(
+          chain,
+          source.expectedAddress,
+          client,
+        );
         signers[chain] = await SealevelSigner.connectWithSigner(
           metadata,
           remoteSigner,

@@ -78,7 +78,8 @@ describe('HTTP signer Anvil e2e', function () {
     process.env.HYP_HTTP_SIGNER_TOKEN = TOKEN;
     const registry = new FileSystemRegistry({ uri: REGISTRY_PATH });
     const metadata = await registry.getMetadata();
-    const backend = new LocalWalletSignerBackend(new Wallet(ANVIL_KEY));
+    const wallet = new Wallet(ANVIL_KEY);
+    const backend = new LocalWalletSignerBackend(wallet);
     server = await HttpServer.create(async () => registry, {
       signerToken: TOKEN,
       signers: { [ProtocolType.Ethereum]: backend },
@@ -90,7 +91,8 @@ describe('HTTP signer Anvil e2e', function () {
       'Expected signer server TCP address',
     );
     const port = address.port;
-    const signerUrl = `http://127.0.0.1:${port}`;
+    const serverUrl = `http://127.0.0.1:${port}`;
+    const signerUrl = `${serverUrl}#${wallet.address}`;
 
     const recipient = Wallet.createRandom().address;
     const chainMetadata = metadata[CHAIN_NAME_2];
@@ -113,7 +115,7 @@ describe('HTTP signer Anvil e2e', function () {
     );
 
     const result = await $`${localTestRunCmdPrefix()} hyperlane submit \
-      --registry ${signerUrl} \
+      --registry ${serverUrl} \
       --transactions ${transactionsPath} \
       --receipts ${receiptsPath} \
       --key ${signerUrl} \

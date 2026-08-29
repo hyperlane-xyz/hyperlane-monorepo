@@ -10,7 +10,7 @@ import {
   verifySignature,
 } from '@solana/kit';
 
-import { ProtocolType, assert, eqAddressSol } from '@hyperlane-xyz/utils';
+import { assert, eqAddressSol } from '@hyperlane-xyz/utils';
 
 import type { HttpSignerClient } from './HttpSignerClient.js';
 
@@ -29,22 +29,10 @@ export class HttpRemoteKitSigner implements TransactionPartialSigner {
 
   static async create(
     chain: string,
+    expectedAddress: string,
     client: HttpSignerClient,
   ): Promise<HttpRemoteKitSigner> {
-    const account = await client.getAccount(chain);
-    assert(
-      account.chain === chain,
-      `HTTP signer returned account for ${account.chain}, expected ${chain}`,
-    );
-    assert(
-      account.protocol === ProtocolType.Sealevel,
-      `HTTP signer account for ${chain} uses ${account.protocol}, expected sealevel`,
-    );
-    assert(
-      account.curve === 'ed25519',
-      `HTTP signer account for ${chain} uses ${account.curve}, expected ed25519`,
-    );
-    return new HttpRemoteKitSigner(chain, account.address, client);
+    return new HttpRemoteKitSigner(chain, expectedAddress, client);
   }
 
   async signTransactions(

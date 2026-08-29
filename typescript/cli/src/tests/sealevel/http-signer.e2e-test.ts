@@ -97,7 +97,7 @@ describe('HTTP signer Sealevel e2e', function () {
       },
       [CHAIN],
       {
-        [ProtocolType.Sealevel]: `http://127.0.0.1:${boundAddress.port}`,
+        [ProtocolType.Sealevel]: `http://127.0.0.1:${boundAddress.port}#${localSigner.address}`,
       },
       {},
     );
