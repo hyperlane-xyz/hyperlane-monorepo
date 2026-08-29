@@ -154,9 +154,10 @@ export class HttpServer {
 
       if (!isObjEmpty(this.signers)) {
         const host = process.env.HOST || ServerConstants.DEFAULT_HOST;
-        if (host !== '127.0.0.1' && host !== '::1') {
-          throw new Error('Signer mode requires HOST to be 127.0.0.1 or ::1');
-        }
+        assert(
+          host === '127.0.0.1' || host === '::1',
+          'Signer mode requires HOST to be 127.0.0.1 or ::1',
+        );
         await Promise.all(
           Object.values(this.signers).map((backend) => backend.healthCheck()),
         );
@@ -165,9 +166,7 @@ export class HttpServer {
           this.signers,
           this.logger,
         );
-        if (!this.signerToken) {
-          throw new Error('Signer token invariant violated');
-        }
+        assert(this.signerToken, 'Signer token invariant violated');
         this.app.use(
           '/signer',
           createSignerAuth(this.signerToken),

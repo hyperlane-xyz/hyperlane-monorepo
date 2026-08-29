@@ -1,5 +1,7 @@
 import { Router } from 'express';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import {
   validateBody,
   validateRequestParam,
@@ -21,9 +23,7 @@ export function createSignerRouter(service: SignerService): Router {
     async (req, res, next) => {
       try {
         const chain = req.params.chain;
-        if (typeof chain !== 'string') {
-          throw new Error('Expected one chain name');
-        }
+        assert(typeof chain === 'string', 'Expected one chain name');
         res.json(await service.getAccount(chain));
       } catch (error) {
         next(error);

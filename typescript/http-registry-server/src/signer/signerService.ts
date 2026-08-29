@@ -205,19 +205,20 @@ export class SignerService {
         metadata,
         account,
       );
-    } catch {
+    } catch (error: unknown) {
+      this.logger.warn(
+        {
+          protocol: metadata.protocol,
+          backendRequestId: result.backendRequestId,
+          err: error,
+        },
+        'Signing backend returned an invalid transaction',
+      );
       throw apiError('Signing backend returned an invalid transaction', 502);
     }
     this.logger.info(
       {
-        chain:
-          metadata.protocol === ProtocolType.Sealevel
-            ? undefined
-            : request.chain,
-        requestedChain:
-          metadata.protocol === ProtocolType.Sealevel
-            ? request.chain
-            : undefined,
+        chain: request.chain,
         protocol: metadata.protocol,
         backendRequestId: result.backendRequestId,
         ...auditFields,
@@ -305,7 +306,15 @@ export class SignerService {
       if (!eqAddressEvm(recovered, account.address)) {
         throw new Error('Unexpected signer');
       }
-    } catch {
+    } catch (error: unknown) {
+      this.logger.warn(
+        {
+          protocol: metadata.protocol,
+          backendRequestId: result.backendRequestId,
+          err: error,
+        },
+        'Signing backend returned an invalid typed-data signature',
+      );
       throw apiError(
         'Signing backend returned an invalid typed-data signature',
         502,

@@ -21,6 +21,7 @@ import { ethers } from 'ethers';
 
 import {
   ProtocolType,
+  assert,
   ensure0x,
   eqAddress,
   fromHexString,
@@ -101,7 +102,7 @@ export class TurnkeyTransactionSignerBackend implements TransactionSignerBackend
 
   async healthCheck(): Promise<void> {
     const healthy = await this.manager.healthCheck();
-    if (!healthy) throw new Error('Turnkey health check failed');
+    assert(healthy, 'Turnkey health check failed');
     await this.getAccount();
   }
 
@@ -112,21 +113,22 @@ export class TurnkeyTransactionSignerBackend implements TransactionSignerBackend
       privateKeyId: this.config.privateKeyId,
     });
     const expected = getTurnkeyKeyMetadata(this.protocol);
-    if (privateKey.privateKeyId !== this.config.privateKeyId) {
-      throw new Error('Turnkey returned a different private key');
-    }
-    if (privateKey.curve !== expected.curve) {
-      throw new Error(`Turnkey key has incompatible curve ${privateKey.curve}`);
-    }
+    assert(
+      privateKey.privateKeyId === this.config.privateKeyId,
+      'Turnkey returned a different private key',
+    );
+    assert(
+      privateKey.curve === expected.curve,
+      `Turnkey key has incompatible curve ${privateKey.curve}`,
+    );
     const address = privateKey.addresses.find(
       ({ format }) => format === expected.addressFormat,
     )?.address;
-    if (!address) {
-      throw new Error(`Turnkey key is missing ${expected.addressFormat}`);
-    }
-    if (!eqAddress(address, this.config.publicKey)) {
-      throw new Error('Configured publicKey does not match Turnkey key');
-    }
+    assert(address, `Turnkey key is missing ${expected.addressFormat}`);
+    assert(
+      eqAddress(address, this.config.publicKey),
+      'Configured publicKey does not match Turnkey key',
+    );
     this.account = {
       address:
         this.protocol === ProtocolType.Ethereum

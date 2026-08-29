@@ -1,26 +1,28 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 
-import { fromHexString } from '@hyperlane-xyz/utils';
+import { assert, fromHexString } from '@hyperlane-xyz/utils';
 
 import { ApiError } from '../errors/ApiError.js';
 import { isCanonicalBase64 } from './encoding.js';
 
 export function validateSignerToken(token: string | undefined): string {
-  if (!token)
-    throw new Error('HYP_HTTP_SIGNER_TOKEN is required in signer mode');
+  assert(token, 'HYP_HTTP_SIGNER_TOKEN is required in signer mode');
 
   let decoded: Buffer;
   if (/^(?:[0-9a-fA-F]{2})+$/.test(token)) {
     decoded = fromHexString(token);
-  } else if (isCanonicalBase64(token)) {
-    decoded = Buffer.from(token, 'base64');
   } else {
-    throw new Error('HYP_HTTP_SIGNER_TOKEN must be hex or canonical base64');
+    assert(
+      isCanonicalBase64(token),
+      'HYP_HTTP_SIGNER_TOKEN must be hex or canonical base64',
+    );
+    decoded = Buffer.from(token, 'base64');
   }
-  if (decoded.length < 32) {
-    throw new Error('HYP_HTTP_SIGNER_TOKEN must contain at least 32 bytes');
-  }
+  assert(
+    decoded.length >= 32,
+    'HYP_HTTP_SIGNER_TOKEN must contain at least 32 bytes',
+  );
   return token;
 }
 
