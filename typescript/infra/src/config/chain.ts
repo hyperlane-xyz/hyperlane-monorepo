@@ -95,6 +95,10 @@ export const chainsToSkip: ChainName[] = [
   'zksync',
   'abstract',
 
+  // temp during downtime
+  'nesa',
+  'tac',
+
   ...getDisabledChains(),
 ];
 

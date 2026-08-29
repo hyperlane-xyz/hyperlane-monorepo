@@ -5,6 +5,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  ProtocolType,
   addBufferToGasLimit,
   addressToBytes32,
   arrayToObject,
@@ -118,12 +119,17 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     );
     const destinationRouter = this.router(destinationContracts);
 
-    const bytecodeHashPromise = destinationRouter
-      .bytecodeHash()
-      .catch((error: unknown) => {
-        if (isMissingSelectorCallException(error)) return null;
-        throw error;
-      });
+    // Tron uses 0x41 instead of the EVM 0xff prefix for CREATE2 address
+    // derivation, so ethers.getCreate2Address cannot reproduce its result.
+    const canDeriveLocally =
+      this.multiProvider.getProtocol(destinationChain) ===
+      ProtocolType.Ethereum;
+    const bytecodeHashPromise = canDeriveLocally
+      ? destinationRouter.bytecodeHash().catch((error: unknown) => {
+          if (isMissingSelectorCallException(error)) return null;
+          throw error;
+        })
+      : Promise.resolve(null);
     const [rawOriginRouter, rawIsm, bytecodeHash] = await Promise.all([
       config.localRouter ?? destinationRouter.routers(originDomain),
       config.ismOverride ?? destinationRouter.isms(originDomain),
