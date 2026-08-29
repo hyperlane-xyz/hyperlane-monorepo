@@ -180,6 +180,11 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     for (const [destinationChain, feeConfig] of Object.entries(
       config.feeContracts,
     )) {
+      assert(
+        feeConfig.type !== TokenFeeType.RoutingFee &&
+          feeConfig.type !== TokenFeeType.CrossCollateralRoutingFee,
+        `Cannot nest ${feeConfig.type} inside a routing fee`,
+      );
       // Sub-fee configs inherit the routing fee's token if not explicitly set
       const resolvedFeeConfig = {
         ...feeConfig,
@@ -245,6 +250,11 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       for (const [routerKey, routerFeeConfig] of Object.entries(
         destinationConfig,
       )) {
+        assert(
+          routerFeeConfig.type !== TokenFeeType.RoutingFee &&
+            routerFeeConfig.type !== TokenFeeType.CrossCollateralRoutingFee,
+          `Cannot nest ${routerFeeConfig.type} inside a cross-collateral routing fee`,
+        );
         const { address } =
           routerFeeConfig.type === TokenFeeType.OffchainQuotedLinearFee
             ? await this.deployOffchainQuotedLinearFee(chain, routerFeeConfig)

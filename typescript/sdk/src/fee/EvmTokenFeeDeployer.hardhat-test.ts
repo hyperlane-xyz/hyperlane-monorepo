@@ -18,9 +18,9 @@ import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
 import {
   DEFAULT_ROUTER_KEY,
-  LinearFeeConfig,
-  ProgressiveFeeConfig,
-  RegressiveFeeConfig,
+  LinearFeeInputConfig,
+  ProgressiveFeeInputConfig,
+  RegressiveFeeInputConfig,
   CrossCollateralRoutingFeeConfigSchema,
   RoutingFeeConfigSchema,
   TokenFeeConfigSchema,
@@ -40,8 +40,10 @@ describe('EvmTokenFeeDeployer', () => {
   type TestCase = {
     title: string;
     config: DistributiveOmit<
-      LinearFeeConfig | ProgressiveFeeConfig | RegressiveFeeConfig,
-      'owner' | 'token' // Omit owner and token because they are created after the beforeEach
+      | LinearFeeInputConfig
+      | ProgressiveFeeInputConfig
+      | RegressiveFeeInputConfig,
+      'owner' // Omit owner because it is created after the beforeEach
     >;
   };
 

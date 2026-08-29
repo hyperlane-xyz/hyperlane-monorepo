@@ -16,6 +16,7 @@ import { TokenFeeType, type TokenFeeConfigInput } from './types.js';
 export function tokenFeeInputToFeeConfig(
   input: TokenFeeConfigInput,
 ): FeeConfig {
+  assert(input.owner, `Owner is required for ${input.type} fee config`);
   const beneficiary = input.beneficiary ?? input.owner;
 
   switch (input.type) {

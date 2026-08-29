@@ -41,7 +41,7 @@ export enum ExternalBridgeType {
 export const RebalancerMinAmountConfigSchema = z.object({
   min: z.string().or(z.number()),
   target: z.string().or(z.number()),
-  type: z.nativeEnum(RebalancerMinAmountType),
+  type: z.enum(RebalancerMinAmountType),
 });
 
 const RebalancerBridgeConfigSchema = z.object({
@@ -49,8 +49,8 @@ const RebalancerBridgeConfigSchema = z.object({
     .string()
     .regex(/0x[a-fA-F0-9]{40}/)
     .optional(),
-  executionType: z.nativeEnum(ExecutionType).optional(),
-  externalBridge: z.nativeEnum(ExternalBridgeType).optional(),
+  executionType: z.enum(ExecutionType).optional(),
+  externalBridge: z.enum(ExternalBridgeType).optional(),
   bridgeMinAcceptedAmount: z.string().or(z.number()).optional(),
   bridgeLockTime: z
     .number()
@@ -62,7 +62,10 @@ const RebalancerBridgeConfigSchema = z.object({
 export const RebalancerBaseChainConfigSchema =
   RebalancerBridgeConfigSchema.extend({
     override: z
-      .record(z.string(), RebalancerBridgeConfigSchema.partial().passthrough())
+      .record(
+        z.string(),
+        z.looseObject(RebalancerBridgeConfigSchema.partial().shape),
+      )
       .optional(),
   });
 
@@ -135,8 +138,8 @@ export const RebalancerConfigSchema = z
     warpRouteId: z.string(),
     strategy: RebalancerStrategySchema,
     inventorySigners: z
-      .record(
-        z.nativeEnum(ProtocolType),
+      .partialRecord(
+        z.enum(ProtocolType),
         z.union([
           z.object({ address: z.string(), key: z.string().optional() }),
           z.string().transform((address) => ({ address })),

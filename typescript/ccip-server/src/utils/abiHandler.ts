@@ -72,7 +72,7 @@ export function createAbiHandler<
           handlerLogger.warn({ body }, 'Invalid sender or signature format');
           return res.status(400).json({
             error: 'Invalid sender or signature format',
-            details: parseResult.error.errors,
+            details: parseResult.error.issues,
           });
         }
       }

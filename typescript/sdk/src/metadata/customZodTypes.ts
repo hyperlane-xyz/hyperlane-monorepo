@@ -29,10 +29,10 @@ import { z } from 'zod';
 export function forwardCompatibleEnum<T extends Record<string, string>>(
   enumObj: T,
   unknownValue: T[keyof T],
-): z.ZodEffects<z.ZodUnion<[z.ZodNativeEnum<T>, z.ZodString]>, T[keyof T]> {
+) {
   const validValues = Object.values(enumObj) as T[keyof T][];
   return z
-    .nativeEnum(enumObj)
+    .enum(enumObj)
     .or(z.string())
     .transform((val): T[keyof T] => {
       return validValues.includes(val as T[keyof T])

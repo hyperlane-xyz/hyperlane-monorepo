@@ -20,19 +20,17 @@ import { ProposalResultStatus } from './warp-propose-result.js';
 export const RECEIPT_FILENAME_RE =
   /^combined-chainId(\d+)-safe(0x[0-9a-fA-F]{6})-\d+-receipts\.json$/;
 
-export const ReceiptTxSchema = z
-  .object({
-    to: z.string(),
-    value: z.union([z.string(), z.number()]).optional(),
-    data: z.string().optional(),
-    operation: z.number().optional(),
-  })
-  .passthrough();
+export const ReceiptTxSchema = z.looseObject({
+  to: z.string(),
+  value: z.union([z.string(), z.number()]).optional(),
+  data: z.string().optional(),
+  operation: z.number().optional(),
+});
 
 export const ReceiptFileSchema = z.object({
   version: z.string(),
   chainId: z.string(),
-  meta: z.record(z.unknown()).optional(),
+  meta: z.record(z.string(), z.unknown()).optional(),
   transactions: z.array(ReceiptTxSchema).min(1),
 });
 

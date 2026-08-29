@@ -1,3 +1,5 @@
+import 'zod/compile';
+
 import cors from 'cors';
 import express from 'express';
 import { pinoHttp } from 'pino-http';

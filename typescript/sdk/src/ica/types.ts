@@ -25,7 +25,7 @@ export type FeeTokenApproval = z.infer<typeof FeeTokenApprovalSchema>;
 export const IcaRouterConfigSchema = RouterConfigSchema.extend({
   /** Router variant. 'regular' (default) deploys full InterchainAccountRouter with commit-reveal;
    *  'minimal' deploys MinimalInterchainAccountRouter for size-constrained chains. */
-  routerType: z.nativeEnum(IcaRouterType).optional(),
+  routerType: z.enum(IcaRouterType).optional(),
   /** Commitment ISM config — required for regular routers, must be omitted for minimal. */
   commitmentIsm: OffchainLookupIsmConfigSchema.optional(),
   /**

@@ -485,7 +485,7 @@ export class CallCommitmentsService extends BaseService {
   private parseCommitmentBody(body: any, res: Response, logger: Logger) {
     const result = PostCallsSchema.safeParse(body);
     if (!result.success) {
-      const errors = result.error.format();
+      const errors = z.treeifyError(result.error);
       logger.warn({ errors }, 'Invalid request body received');
       res.status(400).json({ errors });
       return null;
@@ -753,7 +753,7 @@ export class CallCommitmentsService extends BaseService {
       req.body,
     );
     if (!result.success) {
-      return res.status(400).json({ errors: result.error.format() });
+      return res.status(400).json({ errors: z.treeifyError(result.error) });
     }
     const {
       commitment: requestedCommitment,

@@ -31,7 +31,10 @@ export type DerivedMailboxClientConfig = MailboxClientConfig & {
 };
 
 export type RouterConfig = z.infer<typeof RouterConfigSchema>;
-export type DerivedRouterConfig = Omit<RouterConfig, 'tokenFee'> & {
+export type DerivedRouterConfig = Omit<
+  RouterConfig,
+  'hook' | 'interchainSecurityModule' | 'tokenFee'
+> & {
   tokenFee?: DerivedTokenFeeConfig;
 } & DerivedMailboxClientConfig;
 
@@ -131,17 +134,15 @@ export const RemoteRoutersSchema = z.record(
   RemoteRouterRouter,
 );
 
-export const RouterConfigSchema = MailboxClientConfigSchema.merge(
-  ForeignDeploymentConfigSchema,
+export const RouterConfigSchema = MailboxClientConfigSchema.extend(
+  ForeignDeploymentConfigSchema.shape,
 )
-  .merge(UpgradeConfigSchema.partial())
-  .merge(
-    z.object({
-      remoteRouters: RemoteRoutersSchema.optional(),
-      proxyAdmin: DeployedOwnableSchema.optional(),
-      tokenFee: TokenFeeConfigInputSchema.optional(),
-    }),
-  );
+  .extend(UpgradeConfigSchema.partial().shape)
+  .extend({
+    remoteRouters: RemoteRoutersSchema.optional(),
+    proxyAdmin: DeployedOwnableSchema.optional(),
+    tokenFee: TokenFeeConfigInputSchema.optional(),
+  });
 
 const DestinationGasAmount = z.string(); // This must be a string type to match Ether's type
 export const DestinationGasSchema = z.record(

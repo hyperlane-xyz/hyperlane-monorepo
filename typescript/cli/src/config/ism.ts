@@ -27,7 +27,7 @@ import { detectAndConfirmOrPrompt } from '../utils/input.js';
 
 import { callWithConfigCreationLogs } from './utils.js';
 
-const IsmConfigMapSchema = z.record(IsmConfigSchema).refine(
+const IsmConfigMapSchema = z.record(z.string(), IsmConfigSchema).refine(
   (ismConfigMap) => {
     // check if any key in IsmConfigMap is found in its own RoutingIsmConfigSchema.domains
     for (const [key, config] of Object.entries(ismConfigMap)) {

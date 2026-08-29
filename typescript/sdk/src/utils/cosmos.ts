@@ -42,7 +42,7 @@ export const CosmosChainSchema = z.object({
     .min(1)
     .optional(),
   pretty_name: z.string().min(1).optional(),
-  website: z.string().url().min(1).optional(),
+  website: z.url().min(1).optional(),
   status: z.enum(['live', 'upcoming', 'killed']).optional(),
   network_type: z.enum(['mainnet', 'testnet', 'devnet']).optional(),
   bech32_prefix: z
@@ -53,7 +53,7 @@ export const CosmosChainSchema = z.object({
     )
     .optional(),
   bech32_config: z
-    .object({
+    .strictObject({
       bech32PrefixAccAddr: z
         .string()
         .min(1)
@@ -85,7 +85,6 @@ export const CosmosChainSchema = z.object({
         .describe("e.g., 'cosmosvalconspub'")
         .optional(),
     })
-    .strict()
     .describe('Used to override the bech32_prefix for specific uses.')
     .optional(),
   daemon_name: z.string().min(1).optional(),
@@ -96,33 +95,29 @@ export const CosmosChainSchema = z.object({
   slip44: z.number().optional(),
   alternative_slip44s: z.array(z.number()).optional(),
   fees: z
-    .object({
+    .strictObject({
       fee_tokens: z.array(
-        z
-          .object({
-            denom: z.string().min(1),
-            fixed_min_gas_price: z.number().optional(),
-            low_gas_price: z.number().optional(),
-            average_gas_price: z.number().optional(),
-            high_gas_price: z.number().optional(),
-            gas_costs: z
-              .object({
-                cosmos_send: z.number().optional(),
-                ibc_transfer: z.number().optional(),
-              })
-              .strict()
-              .optional(),
-          })
-          .strict(),
+        z.strictObject({
+          denom: z.string().min(1),
+          fixed_min_gas_price: z.number().optional(),
+          low_gas_price: z.number().optional(),
+          average_gas_price: z.number().optional(),
+          high_gas_price: z.number().optional(),
+          gas_costs: z
+            .strictObject({
+              cosmos_send: z.number().optional(),
+              ibc_transfer: z.number().optional(),
+            })
+            .optional(),
+        }),
       ),
     })
-    .strict()
     .optional(),
   staking: z
-    .object({
-      staking_tokens: z.array(z.object({ denom: z.string().min(1) }).strict()),
+    .strictObject({
+      staking_tokens: z.array(z.strictObject({ denom: z.string().min(1) })),
       lock_duration: z
-        .object({
+        .strictObject({
           blocks: z
             .number()
             .describe(
@@ -137,14 +132,12 @@ export const CosmosChainSchema = z.object({
             )
             .optional(),
         })
-        .strict()
         .optional(),
     })
-    .strict()
     .optional(),
   codebase: z
-    .object({
-      git_repo: z.string().url().min(1).optional(),
+    .strictObject({
+      git_repo: z.url().min(1).optional(),
       recommended_version: z.string().min(1).optional(),
       compatible_versions: z.array(z.string().min(1)).optional(),
       tag: z
@@ -154,7 +147,7 @@ export const CosmosChainSchema = z.object({
         .describe('Git Upgrade Tag')
         .optional(),
       language: z
-        .object({
+        .strictObject({
           type: z.enum(['go', 'rust', 'solidity', 'other']),
           version: z
             .string()
@@ -175,21 +168,19 @@ export const CosmosChainSchema = z.object({
             .describe('Git Upgrade Tag')
             .optional(),
         })
-        .strict()
         .optional(),
       binaries: z
-        .object({
-          'linux/amd64': z.string().url().min(1).optional(),
-          'linux/arm64': z.string().url().min(1).optional(),
-          'darwin/amd64': z.string().url().min(1).optional(),
-          'darwin/arm64': z.string().url().min(1).optional(),
-          'windows/amd64': z.string().url().min(1).optional(),
-          'windows/arm64': z.string().url().min(1).optional(),
+        .strictObject({
+          'linux/amd64': z.url().min(1).optional(),
+          'linux/arm64': z.url().min(1).optional(),
+          'darwin/amd64': z.url().min(1).optional(),
+          'darwin/arm64': z.url().min(1).optional(),
+          'windows/amd64': z.url().min(1).optional(),
+          'windows/arm64': z.url().min(1).optional(),
         })
-        .strict()
         .optional(),
       sdk: z
-        .object({
+        .strictObject({
           type: z.enum(['cosmos', 'penumbra', 'other']),
           version: z
             .string()
@@ -210,10 +201,9 @@ export const CosmosChainSchema = z.object({
             .describe('Git Upgrade Tag')
             .optional(),
         })
-        .strict()
         .optional(),
       consensus: z
-        .object({
+        .strictObject({
           type: z.enum(['tendermint', 'cometbft', 'sei-tendermint']),
           version: z
             .string()
@@ -234,10 +224,9 @@ export const CosmosChainSchema = z.object({
             .describe('Git Upgrade Tag')
             .optional(),
         })
-        .strict()
         .optional(),
       cosmwasm: z
-        .object({
+        .strictObject({
           version: z
             .string()
             .regex(new RegExp('^v?\\d+(\\.\\d+){0,2}$'))
@@ -266,10 +255,9 @@ export const CosmosChainSchema = z.object({
             )
             .optional(),
         })
-        .strict()
         .optional(),
       ibc: z
-        .object({
+        .strictObject({
           type: z.enum(['go', 'rust', 'other']),
           version: z
             .string()
@@ -300,25 +288,22 @@ export const CosmosChainSchema = z.object({
             )
             .optional(),
         })
-        .strict()
         .optional(),
       genesis: z
-        .object({
+        .strictObject({
           name: z.string().min(1).optional(),
-          genesis_url: z.string().url().min(1),
-          ics_ccv_url: z.string().url().min(1).optional(),
+          genesis_url: z.url().min(1),
+          ics_ccv_url: z.url().min(1).optional(),
         })
-        .strict()
         .optional(),
     })
-    .strict()
     .optional(),
   images: z
     .array(
       z
-        .object({
+        .strictObject({
           image_sync: z
-            .object({
+            .strictObject({
               chain_name: z
                 .string()
                 .min(1)
@@ -333,7 +318,6 @@ export const CosmosChainSchema = z.object({
                 )
                 .optional(),
             })
-            .strict()
             .describe(
               'The (primary) key used to identify an object within the Chain Registry.',
             )
@@ -357,20 +341,18 @@ export const CosmosChainSchema = z.object({
             .min(1)
             .optional(),
           theme: z
-            .object({
+            .strictObject({
               circle: z.boolean().optional(),
               dark_mode: z.boolean().optional(),
               monochrome: z.boolean().optional(),
             })
-            .strict()
             .optional(),
         })
-        .strict()
         .and(z.union([z.any(), z.any()])),
     )
     .optional(),
   logo_URIs: z
-    .object({
+    .strictObject({
       png: z
         .string()
         .regex(
@@ -390,128 +372,104 @@ export const CosmosChainSchema = z.object({
         .min(1)
         .optional(),
     })
-    .strict()
     .optional(),
   description: z.string().min(1).max(3000).optional(),
   peers: z
-    .object({
+    .strictObject({
       seeds: z
         .array(
-          z
-            .object({
-              id: z.string().min(1),
-              address: z.string().min(1),
-              provider: z.string().min(1).optional(),
-            })
-            .strict(),
+          z.strictObject({
+            id: z.string().min(1),
+            address: z.string().min(1),
+            provider: z.string().min(1).optional(),
+          }),
         )
         .optional(),
       persistent_peers: z
         .array(
-          z
-            .object({
-              id: z.string().min(1),
-              address: z.string().min(1),
-              provider: z.string().min(1).optional(),
-            })
-            .strict(),
+          z.strictObject({
+            id: z.string().min(1),
+            address: z.string().min(1),
+            provider: z.string().min(1).optional(),
+          }),
         )
         .optional(),
     })
-    .strict()
     .optional(),
   apis: z
-    .object({
+    .strictObject({
       rpc: z
         .array(
-          z
-            .object({
-              address: z.string().min(1),
-              provider: z.string().min(1).optional(),
-              archive: z.boolean().default(false),
-            })
-            .strict(),
+          z.strictObject({
+            address: z.string().min(1),
+            provider: z.string().min(1).optional(),
+            archive: z.boolean().default(false),
+          }),
         )
         .optional(),
       rest: z
         .array(
-          z
-            .object({
-              address: z.string().min(1),
-              provider: z.string().min(1).optional(),
-              archive: z.boolean().default(false),
-            })
-            .strict(),
+          z.strictObject({
+            address: z.string().min(1),
+            provider: z.string().min(1).optional(),
+            archive: z.boolean().default(false),
+          }),
         )
         .optional(),
       grpc: z
         .array(
-          z
-            .object({
-              address: z.string().min(1),
-              provider: z.string().min(1).optional(),
-              archive: z.boolean().default(false),
-            })
-            .strict(),
+          z.strictObject({
+            address: z.string().min(1),
+            provider: z.string().min(1).optional(),
+            archive: z.boolean().default(false),
+          }),
         )
         .optional(),
       wss: z
         .array(
-          z
-            .object({
-              address: z.string().min(1),
-              provider: z.string().min(1).optional(),
-              archive: z.boolean().default(false),
-            })
-            .strict(),
+          z.strictObject({
+            address: z.string().min(1),
+            provider: z.string().min(1).optional(),
+            archive: z.boolean().default(false),
+          }),
         )
         .optional(),
       'grpc-web': z
         .array(
-          z
-            .object({
-              address: z.string().min(1),
-              provider: z.string().min(1).optional(),
-              archive: z.boolean().default(false),
-            })
-            .strict(),
+          z.strictObject({
+            address: z.string().min(1),
+            provider: z.string().min(1).optional(),
+            archive: z.boolean().default(false),
+          }),
         )
         .optional(),
       'evm-http-jsonrpc': z
         .array(
-          z
-            .object({
-              address: z.string().min(1),
-              provider: z.string().min(1).optional(),
-              archive: z.boolean().default(false),
-            })
-            .strict(),
+          z.strictObject({
+            address: z.string().min(1),
+            provider: z.string().min(1).optional(),
+            archive: z.boolean().default(false),
+          }),
         )
         .optional(),
     })
-    .strict()
     .optional(),
   explorers: z
     .array(
-      z
-        .object({
-          kind: z.string().min(1).optional(),
-          url: z.string().min(1).optional(),
-          tx_page: z.string().min(1).optional(),
-          account_page: z.string().min(1).optional(),
-          validator_page: z.string().min(1).optional(),
-          proposal_page: z.string().min(1).optional(),
-          block_page: z.string().min(1).optional(),
-        })
-        .strict(),
+      z.strictObject({
+        kind: z.string().min(1).optional(),
+        url: z.string().min(1).optional(),
+        tx_page: z.string().min(1).optional(),
+        account_page: z.string().min(1).optional(),
+        validator_page: z.string().min(1).optional(),
+        proposal_page: z.string().min(1).optional(),
+        block_page: z.string().min(1).optional(),
+      }),
     )
     .optional(),
   keywords: z.array(z.string().min(1)).optional(),
   extra_codecs: z.array(z.enum(['ethermint', 'injective'])).optional(),
 });
-// .strict().and(z.intersection(z.any(), z.any())) is similar to .passthrough()
-// using this way as it's exactly as generated by the tool
-
 export async function getCosmosRegistryChain(chain: string) {
   const json = await fetch(
     `https://raw.githubusercontent.com/cosmos/chain-registry/master/${chain}/chain.json`,
@@ -520,7 +478,7 @@ export async function getCosmosRegistryChain(chain: string) {
   const result = CosmosChainSchema.safeParse(data);
   if (!result.success) {
     const errorMessages = result.error.issues.map(
-      (issue: any) => `${issue.path} => ${issue.message}`,
+      (issue) => `${issue.path} => ${issue.message}`,
     );
     throw new Error(
       `Invalid Cosmos chain ${chain}:\n ${errorMessages.join('\n')}`,

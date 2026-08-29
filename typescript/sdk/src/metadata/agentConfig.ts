@@ -180,7 +180,7 @@ const AgentSealevelChainMetadataSchema = z.object({
         type: z.literal(AgentSealevelPriorityFeeOracleType.Helius),
         url: z.string(),
         // TODO add options
-        feeLevel: z.nativeEnum(AgentSealevelHeliusFeeLevel),
+        feeLevel: z.enum(AgentSealevelHeliusFeeLevel),
       }),
       z.object({
         type: z.literal(AgentSealevelPriorityFeeOracleType.Constant),
@@ -191,7 +191,7 @@ const AgentSealevelChainMetadataSchema = z.object({
     .optional(),
   transactionSubmitter: z
     .object({
-      type: z.nativeEnum(AgentSealevelTransactionSubmitterType),
+      type: z.enum(AgentSealevelTransactionSubmitterType),
       url: z.string().optional(),
     })
     .optional(),
@@ -211,7 +211,7 @@ const AgentSealevelChainMetadataSchema = z.object({
     ),
   urReveal: z
     .object({
-      ccsUrl: z.string().url().describe('CCS endpoint for calldata lookup'),
+      ccsUrl: z.url().describe('CCS endpoint for calldata lookup'),
       programId: z
         .string()
         .refine((val) => {
@@ -242,8 +242,8 @@ export type AgentSealevelTransactionSubmitter =
 
 export type AgentSealevelUrReveal = AgentSealevelChainMetadata['urReveal'];
 
-export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
-  HyperlaneDeploymentArtifactsSchema,
+export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
+  HyperlaneDeploymentArtifactsSchema.shape,
 )
   .extend({
     customRpcUrls: z
@@ -265,7 +265,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
         'Validator only: comma separated list of *additional* RPC URLs that vote together with rpcUrls (2/3 majority, combined) on safety-critical merkle tree hook reads. Empty disables quorum verification. Intended for additional public RPCs only -- rpcUrls already votes in the same group, so there is no need to duplicate its (typically private) entries here.',
       ),
     rpcConsensusType: z
-      .nativeEnum(RpcConsensusType)
+      .enum(RpcConsensusType)
       .describe('The consensus type to use when multiple RPCs are configured.')
       .optional(),
     signer: AgentSignerSchema.optional().describe(
@@ -280,7 +280,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
           'The number of blocks to index at a time.',
         ),
         mode: z
-          .nativeEnum(AgentIndexMode)
+          .enum(AgentIndexMode)
           .optional()
           .describe(
             'The indexing method to use for this chain; will attempt to choose a suitable default if not specified.',
@@ -291,8 +291,8 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
       })
       .optional(),
   })
-  .merge(AgentCosmosChainMetadataSchema.partial())
-  .merge(AgentSealevelChainMetadataSchema.partial())
+  .extend(AgentCosmosChainMetadataSchema.partial().shape)
+  .extend(AgentSealevelChainMetadataSchema.partial().shape)
   .refine((metadata) => {
     // Make sure that the signer is valid for the protocol
 
@@ -364,7 +364,7 @@ export const AgentConfigSchema = z.object({
       'The port to expose prometheus metrics on. Accessible via `GET /metrics`.',
     ),
   chains: z
-    .record(AgentChainMetadataSchema)
+    .record(z.string(), AgentChainMetadataSchema)
     .describe('Chain metadata for all chains that the agent will index.')
     .superRefine((data, ctx) => {
       for (const c in data) {
@@ -382,11 +382,11 @@ export const AgentConfigSchema = z.object({
   log: z
     .object({
       format: z
-        .nativeEnum(AgentLogFormat)
+        .enum(AgentLogFormat)
         .optional()
         .describe('The format to use for tracing logs.'),
       level: z
-        .nativeEnum(AgentLogLevel)
+        .enum(AgentLogLevel)
         .optional()
         .describe("The log level to use for the agent's logs."),
     })
@@ -491,7 +491,7 @@ const IsmCacheConfigSchema = z.object({
     'The selector to use for the ISM cache policy',
   ),
   moduleTypes: z
-    .array(z.nativeEnum(ModuleType))
+    .array(z.enum(ModuleType))
     .describe('The ISM module types to use the cache policy for.'),
   chains: z
     .array(z.string())
@@ -499,9 +499,7 @@ const IsmCacheConfigSchema = z.object({
     .describe(
       'The chains to use the cache policy for. If not specified, all chains will be used.',
     ),
-  cachePolicy: z
-    .nativeEnum(IsmCachePolicy)
-    .describe('The cache policy to use.'),
+  cachePolicy: z.enum(IsmCachePolicy).describe('The cache policy to use.'),
 });
 export type IsmCacheConfig = z.infer<typeof IsmCacheConfigSchema>;
 
@@ -651,7 +649,7 @@ export const ScraperAgentConfigSchema = AgentConfigSchema.extend({
     'Comma separated list of chain names to scrape',
   ),
   ccrRouters: z
-    .record(z.record(z.string()))
+    .record(z.string(), z.record(z.string(), z.string()))
     .optional()
     .describe(
       'Per-domain CCR router → underlying ERC20 token mapping. Domain ID → { router_address → token_address }. Auto-populated from registry.',

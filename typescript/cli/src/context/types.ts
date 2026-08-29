@@ -19,10 +19,9 @@ import type {
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 export const SignerKeyProtocolMapSchema = z
-  .record(z.nativeEnum(ProtocolType), z.string().nonempty(), {
-    errorMap: (_issue, _ctx) => ({
-      message: `Key inputs not valid, make sure to use --key.{protocol} or the legacy flag --key but not both at the same time or avoid defining multiple --key or --key.{protocol} flags for the same protocol.`,
-    }),
+  .partialRecord(z.enum(ProtocolType), z.string().nonempty(), {
+    error:
+      'Key inputs not valid, make sure to use --key.{protocol} or the legacy flag --key but not both at the same time or avoid defining multiple --key or --key.{protocol} flags for the same protocol.',
   })
   .or(z.string().nonempty())
   .transform((value) =>

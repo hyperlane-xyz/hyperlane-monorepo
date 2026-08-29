@@ -69,6 +69,7 @@ function extractInputOnlyFields(config: TokenFeeConfigInput): any {
 
   switch (config.type) {
     case TokenFeeType.LinearFee:
+      assert(config.bps !== undefined, 'LinearFee config must define bps');
       return {
         type: config.type,
         bps: config.bps.toString(), // Convert to string for consistent comparison

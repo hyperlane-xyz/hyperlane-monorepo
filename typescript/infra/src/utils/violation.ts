@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { addedDiff, deletedDiff, updatedDiff } from 'deep-object-diff';
 import stringify from 'json-stable-stringify';
-import { fromError } from 'zod-validation-error';
+import { z } from 'zod';
 
 import {
   CheckerViolation,
@@ -252,13 +252,13 @@ function logViolationDetail(violation: CheckerViolation): void {
     if (!expectedConfigResult.success) {
       console.error(
         'Failed to parse expected config',
-        fromError(expectedConfigResult.error).toString(),
+        z.prettifyError(expectedConfigResult.error),
       );
     }
     if (!actualConfigResult.success) {
       console.error(
         'Failed to parse actual config',
-        fromError(actualConfigResult.error).toString(),
+        z.prettifyError(actualConfigResult.error),
       );
     }
     return;

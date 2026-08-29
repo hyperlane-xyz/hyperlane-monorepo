@@ -1,6 +1,7 @@
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { stringify as yamlStringify } from 'yaml';
+import { z } from 'zod';
 
 import {
   ChainSubmissionStrategy,
@@ -43,7 +44,7 @@ async function main() {
   if (!parsed.success) {
     rootLogger.error('Error parsing warp config:');
     console.dir(rawWarpConfig, { depth: null });
-    console.dir(parsed.error.format(), { depth: null });
+    console.dir(z.treeifyError(parsed.error), { depth: null });
     return;
   }
 

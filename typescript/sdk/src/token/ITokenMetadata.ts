@@ -21,10 +21,10 @@ export const TokenConfigSchema = z.object({
     'The name of the chain, must correspond to a chain in the multiProvider chainMetadata',
   ),
   standard: z
-    .nativeEnum(TokenStandard)
+    .enum(TokenStandard)
     .describe('The type of token. See TokenStandard for valid values.'),
   tokenType: z
-    .nativeEnum(TokenType)
+    .enum(TokenType)
     .optional()
     .describe(
       'The warp route deploy token type. Used to preserve route implementation semantics when multiple deploy token types share the same token standard.',

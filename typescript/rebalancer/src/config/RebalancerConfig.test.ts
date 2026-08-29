@@ -124,7 +124,7 @@ describe('RebalancerConfig', () => {
     writeYamlOrJson(TEST_CONFIG_PATH, data);
 
     expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
-      'Validation error: Required at "warpRouteId"',
+      'Invalid input: expected string, received undefined',
     );
   });
 

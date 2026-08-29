@@ -26,16 +26,15 @@ const CC_ROUTER_A_BYTES32 = addressToBytes32(CC_ROUTER_A, DEST_PROTOCOL);
 const CC_ROUTER_B = '0x' + 'cc'.repeat(20);
 const CC_ROUTER_B_BYTES32 = addressToBytes32(CC_ROUTER_B, DEST_PROTOCOL);
 
-// Inner leaf used by RoutingFee / CrossCollateralRoutingFee feeContracts —
-// matches TokenFeeConfig (no `address` wrapper, that's only on the outer
-// DerivedTokenFeeConfig).
-const LEAF: OffchainQuotedLinearFeeConfig = {
+// Readers derive the address for nested fee contracts as well as the root.
+const LEAF: OffchainQuotedLinearFeeConfig & { address: string } = {
   type: TokenFeeType.OffchainQuotedLinearFee,
   token: ADDR,
   owner: ADDR,
   maxFee: 1n,
   halfAmount: 2n,
   bps: 50,
+  address: ADDR,
 };
 
 // Minimal stub: only tryGetDomainId is read by resolveTargetRouterForVariant.
@@ -85,6 +84,7 @@ describe('resolveTargetRouterForVariant', () => {
         owner: ADDR,
         maxFee: 1n,
         halfAmount: 2n,
+        bps: 50,
         address: ADDR,
       },
       {
@@ -93,6 +93,7 @@ describe('resolveTargetRouterForVariant', () => {
         owner: ADDR,
         maxFee: 1n,
         halfAmount: 2n,
+        bps: 50,
         address: ADDR,
       },
       {
