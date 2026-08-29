@@ -85,6 +85,7 @@ export const keyFunderConfig: KeyFunderConfig<
     'flowmainnet',
     'immutablezkevmmainnet',
     'mocachain',
+    'nesa',
   ],
   // desired balance config, must be set for each chain
   desiredBalancePerChain: desiredRelayerBalancePerChain,
