@@ -77,6 +77,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     apechain: true,
     appchain: false, // disabled — deprecation per ENG-3932
     arbitrum: true,
+    // arc: true,
     avalanche: true,
     base: true,
     berachain: true,
@@ -120,7 +121,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mocachain: true,
     mode: true,
     monad: true,
-    nesa: true,
+    nesa: false, // disabled — superseded by nesachain after the Nesa incident
+    nesachain: true,
     nexus: true,
     optimism: true,
     paradex: true,
@@ -160,6 +162,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     apechain: true,
     appchain: false, // disabled — deprecation per ENG-3932
     arbitrum: true,
+    // arc: true,
     avalanche: true,
     base: true,
     berachain: true,
@@ -203,7 +206,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mocachain: true,
     mode: true,
     monad: true,
-    nesa: true,
+    nesa: false, // disabled — superseded by nesachain after the Nesa incident
+    nesachain: true,
     nexus: true,
     optimism: true,
     paradex: true,
@@ -243,6 +247,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     apechain: true,
     appchain: false, // disabled — deprecation per ENG-3932
     arbitrum: true,
+    // arc: true,
     avalanche: true,
     base: true,
     berachain: true,
@@ -286,7 +291,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mocachain: true,
     mode: true,
     monad: true,
-    nesa: true,
+    nesa: false, // disabled — superseded by nesachain after the Nesa incident
+    nesachain: true,
     nexus: true,
     optimism: true,
     paradex: true,

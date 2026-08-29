@@ -199,6 +199,10 @@
     "amount": "1.125",
     "decimals": 9
   },
+  "nesachain": {
+    "amount": "1.125",
+    "decimals": 9
+  },
   "nexus": {
     "amount": "1.000000007",
     "decimals": 9
