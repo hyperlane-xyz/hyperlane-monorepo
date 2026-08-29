@@ -58,6 +58,35 @@ function decodeMessage(messageBytes: Uint8Array) {
   return message;
 }
 
+function validateInstructionIndexes(
+  message: ReturnType<typeof decodeMessage>,
+): void {
+  const lookupAccountCount =
+    'addressTableLookups' in message
+      ? (message.addressTableLookups ?? []).reduce(
+          (count, lookup) =>
+            count +
+            lookup.writableIndexes.length +
+            lookup.readonlyIndexes.length,
+          0,
+        )
+      : 0;
+  const accountCount = message.staticAccounts.length + lookupAccountCount;
+
+  for (const instruction of message.instructions) {
+    if (instruction.programAddressIndex >= message.staticAccounts.length) {
+      throw new Error('Invalid Sealevel program address index');
+    }
+    if (
+      instruction.accountIndices?.some(
+        (accountIndex) => accountIndex >= accountCount,
+      )
+    ) {
+      throw new Error('Invalid Sealevel instruction account index');
+    }
+  }
+}
+
 export class SvmTransactionCodec implements TransactionCodec {
   validateUnsigned(
     bytes: Uint8Array,
@@ -68,7 +97,8 @@ export class SvmTransactionCodec implements TransactionCodec {
       throw new Error('Sealevel signer must use ed25519');
     }
     const transaction = decode(bytes);
-    decodeMessage(Uint8Array.from(transaction.messageBytes));
+    const message = decodeMessage(Uint8Array.from(transaction.messageBytes));
+    validateInstructionIndexes(message);
     if (!(address(account.address) in transaction.signatures)) {
       throw new Error(
         'Configured account is not a required transaction signer',
@@ -124,6 +154,7 @@ export class SvmTransactionCodec implements TransactionCodec {
     }
 
     const message = decodeMessage(Uint8Array.from(signed.messageBytes));
+    validateInstructionIndexes(message);
     const programIds = Array.from(
       new Set(
         message.instructions.map((instruction) => {

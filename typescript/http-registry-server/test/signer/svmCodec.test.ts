@@ -1,8 +1,13 @@
 import {
+  AccountRole,
+  appendTransactionMessageInstruction,
   blockhash,
   compileTransaction,
   createTransactionMessage,
   generateKeyPairSigner,
+  getCompiledTransactionMessageDecoder,
+  getCompiledTransactionMessageEncoder,
+  getTransactionDecoder,
   getTransactionEncoder,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
@@ -88,5 +93,85 @@ describe('SvmTransactionCodec', () => {
         curve: 'ed25519',
       }),
     ).to.throw('not a required transaction signer');
+  });
+
+  it('rejects invalid instruction indexes before signing', async () => {
+    const signer = await generateKeyPairSigner();
+    const program = await generateKeyPairSigner();
+    const account = await generateKeyPairSigner();
+    const withFeePayer = setTransactionMessageFeePayerSigner(
+      signer,
+      createTransactionMessage({ version: 0 }),
+    );
+    const withLifetime = setTransactionMessageLifetimeUsingBlockhash(
+      {
+        blockhash: blockhash('11111111111111111111111111111111'),
+        lastValidBlockHeight: 1n,
+      },
+      withFeePayer,
+    );
+    const withInstruction = appendTransactionMessageInstruction(
+      {
+        programAddress: program.address,
+        accounts: [{ address: account.address, role: AccountRole.READONLY }],
+      },
+      withLifetime,
+    );
+    const transactionEncoder = getTransactionEncoder();
+    const wireBytes = Uint8Array.from(
+      transactionEncoder.encode(compileTransaction(withInstruction)),
+    );
+    const transaction = getTransactionDecoder().decode(wireBytes);
+    const messageDecoder = getCompiledTransactionMessageDecoder();
+    const messageEncoder = getCompiledTransactionMessageEncoder();
+    const message = messageDecoder.decode(transaction.messageBytes);
+    if (!('instructions' in message)) {
+      throw new Error('Expected a legacy or v0 transaction message');
+    }
+    const instruction = message.instructions[0];
+    if (!instruction) throw new Error('Expected a compiled instruction');
+    const invalidMessages = [
+      {
+        expectedError: 'Invalid Sealevel program address index',
+        message: {
+          ...message,
+          instructions: [
+            {
+              ...instruction,
+              programAddressIndex: message.staticAccounts.length,
+            },
+          ],
+        },
+      },
+      {
+        expectedError: 'Invalid Sealevel instruction account index',
+        message: {
+          ...message,
+          instructions: [
+            {
+              ...instruction,
+              accountIndices: [message.staticAccounts.length],
+            },
+          ],
+        },
+      },
+    ];
+    const codec = new SvmTransactionCodec();
+    const signerAccount = {
+      address: signer.address,
+      curve: 'ed25519' as const,
+    };
+
+    for (const invalid of invalidMessages) {
+      const invalidMessageBytes = messageEncoder.encode(invalid.message);
+      const bytes = wireBytes.slice();
+      bytes.set(
+        invalidMessageBytes,
+        bytes.length - transaction.messageBytes.length,
+      );
+      expect(() =>
+        codec.validateUnsigned(bytes, metadata, signerAccount),
+      ).to.throw(invalid.expectedError);
+    }
   });
 });

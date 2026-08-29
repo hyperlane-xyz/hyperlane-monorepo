@@ -22,6 +22,8 @@ import { createSignerErrorHandler } from './src/signer/errorHandler.js';
 import { SignerService } from './src/signer/signerService.js';
 import type { SignerBackends } from './src/signer/types.js';
 
+const SIGNER_REQUEST_BODY_LIMIT_BYTES = 270 * 1024;
+
 export interface HttpServerOptions {
   writeMode?: boolean;
   corsAllowedOrigins?: string[];
@@ -170,7 +172,7 @@ export class HttpServer {
         this.app.use(
           '/signer',
           createSignerAuth(this.signerToken),
-          express.json({ limit: '200kb' }),
+          express.json({ limit: SIGNER_REQUEST_BODY_LIMIT_BYTES }),
           createSignerRouter(signerService),
           createSignerErrorHandler(this.logger),
         );

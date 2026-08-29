@@ -301,14 +301,29 @@ describe('signer routes', () => {
       .set('Authorization', `Bearer ${TOKEN}`)
       .type('text')
       .send('{}');
+    const maximumEvmTransaction = await request(listener)
+      .post('/signer/transaction')
+      .set('Authorization', `Bearer ${TOKEN}`)
+      .set('Content-Type', 'application/json')
+      .send({
+        chain: CHAIN,
+        transaction: {
+          encoding: 'hex',
+          value: '00'.repeat(128 * 1024),
+        },
+      });
     const oversized = await request(listener)
       .post('/signer/transaction')
       .set('Authorization', `Bearer ${TOKEN}`)
       .set('Content-Type', 'application/json')
-      .send(JSON.stringify({ padding: 'a'.repeat(210 * 1024) }));
+      .send(JSON.stringify({ padding: 'a'.repeat(270 * 1024) }));
 
     expect(unauthenticatedMalformed.status).to.equal(401);
     expect(wrongContentType.status).to.equal(400);
+    expect(maximumEvmTransaction.status).to.equal(400);
+    expect(maximumEvmTransaction.body.message).not.to.equal(
+      'Signer request body is too large',
+    );
     expect(oversized.status).to.equal(413);
     expect(oversized.body).to.deep.equal({
       message: 'Signer request body is too large',

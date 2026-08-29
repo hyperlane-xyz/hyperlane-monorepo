@@ -218,7 +218,8 @@ export class SignerService {
     }
     this.logger.info(
       {
-        chain: request.chain,
+        requestedChain: request.chain,
+        chainVerified: metadata.protocol === ProtocolType.Ethereum,
         protocol: metadata.protocol,
         backendRequestId: result.backendRequestId,
         ...auditFields,
@@ -323,7 +324,8 @@ export class SignerService {
 
     this.logger.info(
       {
-        chain: request.chain,
+        requestedChain: request.chain,
+        chainVerified: true,
         protocol: metadata.protocol,
         signer: account.address,
         primaryType: request.typedData.primaryType,

@@ -40,8 +40,13 @@ export type SignerTransactionRequest = z.infer<
   typeof SignerTransactionRequestSchema
 >;
 
+const RequestedChainEchoSchema = z
+  .string()
+  .min(1)
+  .describe('Echoes the requested chain; not derived from transaction bytes');
+
 export const SignerTransactionResponseSchema = z.object({
-  chain: z.string().min(1),
+  chain: RequestedChainEchoSchema,
   signerAddress: z.string().min(1),
   signedTransaction: EncodedBytesSchema,
   backendRequestId: z.string().min(1).optional(),
