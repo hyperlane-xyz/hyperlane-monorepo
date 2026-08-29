@@ -1,7 +1,14 @@
 import { expect } from 'chai';
 
-import { TokenStandard, TokenType, TxSubmitterType } from '@hyperlane-xyz/sdk';
+import {
+  TokenStandard,
+  TokenType,
+  TxSubmitterType,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
+} from '@hyperlane-xyz/sdk';
 
+import { type CommandContext } from '../../types.js';
 import { type ExtendedSubmissionStrategy } from '../../../submitters/types.js';
 
 import { getSubmitterChains, resolveChains } from './chainResolver.js';
@@ -79,8 +86,11 @@ describe('getSubmitterChains', () => {
 });
 
 describe('resolveChains — STATUS command', () => {
-  const statusArgv = (overrides: Record<string, any> = {}) => ({
+  const statusArgv = (
+    overrides: Partial<Parameters<typeof resolveChains>[0]> = {},
+  ): Parameters<typeof resolveChains>[0] => ({
     _: ['status'],
+    context: {} as CommandContext,
     ...overrides,
   });
 
@@ -110,6 +120,8 @@ describe('resolveChains — warp --skip-chains', () => {
     },
     down: {
       type: TokenType.synthetic,
+      owner,
+      mailbox,
       name: 'Test',
       symbol: 'TST',
       decimals: 18,
@@ -137,6 +149,8 @@ describe('resolveChains — warp --skip-chains', () => {
   };
 
   function warpArgv(command: 'read' | 'deploy' | 'apply' | 'check') {
+    let warpDeployConfig: WarpRouteDeployConfig | null = deployConfig;
+    let warpCoreConfig: WarpCoreConfig = coreConfig;
     const registry = {
       listRegistryContent: async () => ({
         deployments: {
@@ -144,76 +158,88 @@ describe('resolveChains — warp --skip-chains', () => {
           warpRoutes: { [routeId]: coreConfig },
         },
       }),
-      getWarpDeployConfig: async () => deployConfig,
-      getWarpRoute: async () => coreConfig,
+      getWarpDeployConfig: async () => warpDeployConfig,
+      getWarpRoute: async () => warpCoreConfig,
     };
     const argv: Parameters<typeof resolveChains>[0] = {
       _: ['warp', command],
       warpRouteId: routeId,
       skipChains: ['down'],
-      context: { registry },
+      context: { registry } as unknown as CommandContext,
     };
-    return argv;
+    return {
+      argv,
+      setWarpDeployConfig: (config: WarpRouteDeployConfig | null) => {
+        warpDeployConfig = config;
+      },
+      setWarpCoreConfig: (config: WarpCoreConfig) => {
+        warpCoreConfig = config;
+      },
+    };
   }
 
   it('filters a down chain before warp deploy context setup', async () => {
-    const argv = warpArgv('deploy');
+    const { argv } = warpArgv('deploy');
     expect(await resolveChains(argv)).to.deep.equal(['healthy']);
-    expect(Object.keys(argv.context.warpDeployConfig)).to.deep.equal([
+    expect(Object.keys(argv.context.warpDeployConfig!)).to.deep.equal([
       'healthy',
+    ]);
+    expect(Object.keys(argv.context.referenceWarpDeployConfig!)).to.deep.equal([
+      'healthy',
+      'down',
     ]);
   });
 
   it('filters a down chain from warp read inputs', async () => {
-    const argv = warpArgv('read');
+    const { argv } = warpArgv('read');
     expect(await resolveChains(argv)).to.deep.equal(['healthy']);
     expect(
-      argv.context.warpCoreConfig.tokens.map(
+      argv.context.warpCoreConfig!.tokens.map(
         (token: { chainName: string }) => token.chainName,
       ),
     ).to.deep.equal(['healthy']);
   });
 
   it('filters apply planning but preserves the full core route', async () => {
-    const argv = warpArgv('apply');
+    const { argv } = warpArgv('apply');
     expect(await resolveChains(argv)).to.deep.equal(['healthy']);
-    expect(Object.keys(argv.context.warpDeployConfig)).to.deep.equal([
+    expect(Object.keys(argv.context.warpDeployConfig!)).to.deep.equal([
       'healthy',
     ]);
     expect(
-      argv.context.warpCoreConfig.tokens.map(
+      argv.context.warpCoreConfig!.tokens.map(
         (token: { chainName: string }) => token.chainName,
       ),
     ).to.deep.equal(['healthy', 'down']);
   });
 
   it('filters a down chain from warp check inputs', async () => {
-    const argv = warpArgv('check');
+    const { argv } = warpArgv('check');
     expect(await resolveChains(argv)).to.deep.equal(['healthy']);
-    expect(Object.keys(argv.context.warpDeployConfig)).to.deep.equal([
+    expect(Object.keys(argv.context.warpDeployConfig!)).to.deep.equal([
       'healthy',
     ]);
     expect(
-      argv.context.warpCoreConfig.tokens.map(
+      argv.context.warpCoreConfig!.tokens.map(
         (token: { chainName: string }) => token.chainName,
       ),
     ).to.deep.equal(['healthy']);
   });
 
   it('filters a down chain from combined CROSS route checks', async () => {
-    const argv = warpArgv('check');
-    argv.context.registry.getWarpDeployConfig = async () => null;
+    const { argv, setWarpDeployConfig } = warpArgv('check');
+    setWarpDeployConfig(null);
 
     expect(await resolveChains(argv)).to.deep.equal(['healthy']);
     expect(
-      argv.context.warpCoreConfig.tokens.map(
+      argv.context.warpCoreConfig!.tokens.map(
         (token: { chainName: string }) => token.chainName,
       ),
     ).to.deep.equal(['healthy']);
   });
 
   it('rejects skipping every route chain', async () => {
-    const argv = warpArgv('apply');
+    const { argv } = warpArgv('apply');
     argv.skipChains = ['healthy', 'down'];
     try {
       await resolveChains(argv);
@@ -225,5 +251,38 @@ describe('resolveChains — warp --skip-chains', () => {
         'Cannot skip every chain in the warp route',
       );
     }
+  });
+
+  it('preserves core-only chains so check reports registry drift', async () => {
+    const { argv, setWarpDeployConfig } = warpArgv('check');
+    argv.skipChains = [];
+    const deployConfigWithoutDown = { healthy: deployConfig.healthy };
+    setWarpDeployConfig(deployConfigWithoutDown);
+
+    expect(await resolveChains(argv)).to.deep.equal(['healthy']);
+    expect(
+      argv.context.warpCoreConfig?.tokens.map((token) => token.chainName),
+    ).to.deep.equal(['healthy', 'down']);
+  });
+
+  it('accepts a skipped chain present only in the core config', async () => {
+    const { argv, setWarpDeployConfig } = warpArgv('check');
+    const deployConfigWithoutDown = { healthy: deployConfig.healthy };
+    setWarpDeployConfig(deployConfigWithoutDown);
+
+    expect(await resolveChains(argv)).to.deep.equal(['healthy']);
+    expect(
+      argv.context.warpCoreConfig?.tokens.map((token) => token.chainName),
+    ).to.deep.equal(['healthy']);
+  });
+
+  it('accepts a skipped chain present only in the deploy config', async () => {
+    const { argv, setWarpCoreConfig } = warpArgv('read');
+    setWarpCoreConfig({ tokens: [coreConfig.tokens[0]] });
+
+    expect(await resolveChains(argv)).to.deep.equal(['healthy']);
+    expect(
+      argv.context.warpCoreConfig?.tokens.map((token) => token.chainName),
+    ).to.deep.equal(['healthy']);
   });
 });

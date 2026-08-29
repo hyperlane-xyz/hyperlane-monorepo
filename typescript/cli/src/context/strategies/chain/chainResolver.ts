@@ -16,6 +16,7 @@ import { CommandType } from '../../../commands/signCommands.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
 import { getTransactions } from '../../../config/submit.js';
 import { readChainSubmissionStrategy } from '../../../deploy/warp.js';
+import { warnYellow } from '../../../logger.js';
 import { type ExtendedSubmissionStrategy } from '../../../submitters/types.js';
 import {
   filterOutDisabledChains,
@@ -29,6 +30,24 @@ import {
   resolveWarpRouteId,
 } from '../../../utils/warp.js';
 import { requestAndSaveApiKeys } from '../../apiKeys.js';
+import { type CommandContext } from '../../types.js';
+
+type ChainResolverArgs = {
+  _?: readonly (string | number)[];
+  context: CommandContext;
+  chain?: ChainName;
+  chains?: ChainName[];
+  config?: string;
+  destination?: ChainName;
+  origin?: ChainName;
+  recipient?: string;
+  relay?: boolean;
+  roundTrip?: boolean;
+  skipChains?: ChainName[];
+  strategy?: string;
+  transactions?: string;
+  warpRouteId?: string;
+};
 
 /**
  * Resolves chains based on command type.
@@ -36,10 +55,10 @@ import { requestAndSaveApiKeys } from '../../apiKeys.js';
  * @returns Promise<ChainName[]> - The chains resolved based on the command type.
  */
 export async function resolveChains(
-  argv: Record<string, any>,
+  argv: ChainResolverArgs,
 ): Promise<ChainName[]> {
-  const commandKey = `${argv._[0]}:${argv._[1] || ''}${
-    argv._[2] ? `:${argv._[2]}` : ''
+  const commandKey = `${argv._?.[0]}:${argv._?.[1] || ''}${
+    argv._?.[2] ? `:${argv._[2]}` : ''
   }`.trim() as CommandType;
 
   switch (commandKey) {
@@ -91,8 +110,11 @@ export async function resolveChains(
   }
 }
 
-function setSkipChains(argv: Record<string, any>): Set<ChainName> {
+function setSkipChains(argv: ChainResolverArgs): Set<ChainName> {
   const skipChains = new Set<ChainName>(argv.skipChains ?? []);
+  if (skipChains.size > 0 && !argv.context.skipChains) {
+    warnYellow(`Excluding route chains: ${[...skipChains].join(', ')}`);
+  }
   argv.context.skipChains = [...skipChains];
   return skipChains;
 }
@@ -118,14 +140,23 @@ function filterSkippedChains(
 }
 
 async function resolveWarpRouteConfigChains(
-  argv: Record<string, any>,
+  argv: ChainResolverArgs,
 ): Promise<ChainName[]> {
-  setSkipChains(argv);
-  const { config, resolvedWarpRouteId } = await getWarpRouteDeployConfig({
-    context: argv.context,
-    warpRouteId: argv.warpRouteId,
-  });
+  const skippedChains = setSkipChains(argv);
+  const { config, referenceConfig, resolvedWarpRouteId } =
+    await getWarpRouteDeployConfig({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+    });
+  const rawWarpCoreConfig =
+    await argv.context.registry.getWarpRoute(resolvedWarpRouteId);
+  const routeChains = new Set(Object.keys(referenceConfig));
+  for (const token of rawWarpCoreConfig?.tokens ?? []) {
+    routeChains.add(token.chainName);
+  }
+  filterSkippedChains([...routeChains], skippedChains);
   argv.context.warpDeployConfig = config;
+  argv.context.referenceWarpDeployConfig = referenceConfig;
   argv.context.resolvedWarpRouteId = resolvedWarpRouteId;
   argv.context.chains = Object.keys(config);
   assert(
@@ -136,20 +167,39 @@ async function resolveWarpRouteConfigChains(
 }
 
 async function resolveWarpReadChains(
-  argv: Record<string, any>,
+  argv: ChainResolverArgs,
 ): Promise<ChainName[]> {
   if (argv.chain) {
     argv.context.chains = await resolveChain(argv);
   }
 
   if (argv.warpRouteId) {
-    const warpCoreConfig = await getWarpCoreConfigOrExit({
+    const resolvedWarpRouteId = await resolveWarpRouteId({
       context: argv.context,
       warpRouteId: argv.warpRouteId,
     });
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      context: argv.context,
+      warpRouteId: resolvedWarpRouteId,
+    });
     const skippedChains = setSkipChains(argv);
-    const allChains = warpCoreConfig.tokens.map((token) => token.chainName);
-    const activeChains = filterSkippedChains(allChains, skippedChains);
+    const rawDeployConfig =
+      await argv.context.registry.getWarpDeployConfig(resolvedWarpRouteId);
+    const coreChains = [
+      ...new Set(warpCoreConfig.tokens.map((token) => token.chainName)),
+    ];
+    const routeChains = new Set([
+      ...coreChains,
+      ...Object.keys(rawDeployConfig ?? {}),
+    ]);
+    filterSkippedChains([...routeChains], skippedChains);
+    const activeChains = coreChains.filter(
+      (chain) => !skippedChains.has(chain),
+    );
+    assert(
+      activeChains.length !== 0,
+      'Cannot skip every chain in the warp core config',
+    );
     const activeChainSet = new Set(activeChains);
     const filteredWarpCoreConfig = {
       ...warpCoreConfig,
@@ -158,6 +208,8 @@ async function resolveWarpReadChains(
       ),
     };
     argv.context.warpCoreConfig = filteredWarpCoreConfig;
+    argv.context.referenceWarpCoreConfig = warpCoreConfig;
+    argv.context.resolvedWarpRouteId = resolvedWarpRouteId;
     argv.context.chains = activeChains;
   } else if (argv.chain) {
     argv.context.chains = filterSkippedChains(
@@ -178,7 +230,7 @@ async function resolveWarpReadChains(
 // warpRouteId is always present, so a single-chain read on a mixed EVM/SVM
 // route only provisions providers/signers for that chain.
 async function resolveWarpQuoteReadChains(
-  argv: Record<string, any>,
+  argv: ChainResolverArgs,
 ): Promise<ChainName[]> {
   if (argv.warpRouteId) {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
@@ -206,7 +258,7 @@ async function resolveWarpQuoteReadChains(
 }
 
 async function resolveWarpQuoteCreateChains(
-  argv: Record<string, any>,
+  argv: ChainResolverArgs,
 ): Promise<ChainName[]> {
   assert(
     argv.chain,
@@ -219,7 +271,7 @@ async function resolveWarpQuoteCreateChains(
 // `warp alt create` signs on SVM chains only; loading EVM signers for an
 // SVM/EVM warp route would prompt for keys the command never uses.
 async function resolveWarpAltCreateChains(
-  argv: Record<string, any>,
+  argv: ChainResolverArgs,
 ): Promise<ChainName[]> {
   const { multiProvider } = argv.context;
 
@@ -254,23 +306,39 @@ async function resolveWarpAltCreateChains(
   return argv.context.chains;
 }
 
-async function resolveChain(argv: Record<string, any>): Promise<ChainName[]> {
+async function resolveChain(argv: ChainResolverArgs): Promise<ChainName[]> {
   const chains = argv.chain ? [argv.chain] : [];
   assert(chains.length !== 0, 'No chains found set in parameters');
   return chains;
 }
 
 async function resolveWarpConfigChains(
-  argv: Record<string, any>,
+  argv: ChainResolverArgs,
 ): Promise<ChainName[]> {
   const skippedChains = setSkipChains(argv);
-  const { warpCoreConfig, warpDeployConfig, resolvedWarpRouteId } =
-    await getWarpConfigs({
-      context: argv.context,
-      warpRouteId: argv.warpRouteId,
-    });
+  const {
+    warpCoreConfig,
+    warpDeployConfig,
+    referenceWarpDeployConfig,
+    resolvedWarpRouteId,
+  } = await getWarpConfigs({
+    context: argv.context,
+    warpRouteId: argv.warpRouteId,
+  });
+  const routeChains = new Set([
+    ...Object.keys(referenceWarpDeployConfig),
+    ...warpCoreConfig.tokens.map((token) => token.chainName),
+  ]);
+  filterSkippedChains([...routeChains], skippedChains);
   argv.context.warpCoreConfig = warpCoreConfig;
+  argv.context.referenceWarpCoreConfig = {
+    ...warpCoreConfig,
+    tokens: warpCoreConfig.tokens.filter((token) =>
+      Object.hasOwn(referenceWarpDeployConfig, token.chainName),
+    ),
+  };
   argv.context.warpDeployConfig = warpDeployConfig;
+  argv.context.referenceWarpDeployConfig = referenceWarpDeployConfig;
   argv.context.resolvedWarpRouteId = resolvedWarpRouteId;
   argv.context.chains = Object.keys(warpDeployConfig);
 
@@ -288,7 +356,11 @@ async function resolveWarpConfigChains(
     for (const [chain, config] of Object.entries(strategy)) {
       if (skippedChains.has(chain)) continue;
       for (const c of getSubmitterChains(config.submitter)) {
-        if (!skippedChains.has(c)) chains.add(c);
+        assert(
+          !skippedChains.has(c),
+          `Submission strategy for active chain "${chain}" requires skipped submitter chain "${c}"`,
+        );
+        chains.add(c);
       }
     }
   }
@@ -297,7 +369,7 @@ async function resolveWarpConfigChains(
 }
 
 async function resolveWarpCheckChains(
-  argv: Record<string, any>,
+  argv: ChainResolverArgs,
 ): Promise<ChainName[]> {
   const context = argv.context;
   const skippedChains = setSkipChains(argv);
@@ -327,24 +399,25 @@ async function resolveWarpCheckChains(
     };
 
     context.warpCoreConfig = warpCoreConfig;
+    context.referenceWarpCoreConfig = fullWarpCoreConfig;
     context.resolvedWarpRouteId = resolvedId;
     context.chains = uniqueChains;
     return uniqueChains;
   }
 
   const chains = await resolveWarpConfigChains(argv);
-  const activeChains = new Set(chains);
+  assert(context.warpCoreConfig, 'Warp core config was not resolved');
   context.warpCoreConfig = {
     ...context.warpCoreConfig,
     tokens: context.warpCoreConfig.tokens.filter(
-      (token: { chainName: string }) => activeChains.has(token.chainName),
+      (token: { chainName: string }) => !skippedChains.has(token.chainName),
     ),
   };
   return chains;
 }
 
 async function resolveWarpSendChains(
-  argv: Record<string, any>,
+  argv: ChainResolverArgs,
 ): Promise<ChainName[]> {
   const { multiProvider } = argv.context;
   const chainPath: ChainName[] = [];
@@ -411,9 +484,10 @@ async function resolveWarpSendChains(
 }
 
 async function resolveWarpRebalancerChains(
-  argv: Record<string, any>,
+  argv: ChainResolverArgs,
 ): Promise<ChainName[]> {
   // Load rebalancer config to get the configured chains
+  assert(argv.config, 'No rebalancer config provided');
   const rebalancerConfig = RebalancerConfig.load(argv.config);
 
   // Extract chain names from all strategies in the rebalancer config
@@ -432,7 +506,7 @@ async function resolveWarpRebalancerChains(
  * interactively selected chains will be created after selection.
  */
 async function resolveSendMessageChains(
-  argv: Record<string, any>,
+  argv: ChainResolverArgs,
 ): Promise<ChainName[]> {
   const { multiProvider } = argv.context;
   const selectedChains = [argv.origin, argv.destination].filter(
@@ -464,7 +538,7 @@ async function resolveSendMessageChains(
  * Destination chains discovered from the dispatch tx are resolved lazily.
  */
 async function resolveStatusChains(
-  argv: Record<string, any>,
+  argv: ChainResolverArgs,
 ): Promise<ChainName[]> {
   // Only origin is declared by the status command builder (messageOptions).
   // Destination chains are discovered lazily from the dispatch tx.
@@ -472,7 +546,7 @@ async function resolveStatusChains(
 }
 
 async function resolveRelayerChains(
-  argv: Record<string, any>,
+  argv: ChainResolverArgs,
 ): Promise<ChainName[]> {
   const { multiProvider, chainMetadata } = argv.context;
   const chains = new Set<ChainName>();
@@ -503,9 +577,11 @@ async function resolveRelayerChains(
 }
 
 async function resolveCoreApplyChains(
-  argv: Record<string, any>,
+  argv: ChainResolverArgs,
 ): Promise<ChainName[]> {
   try {
+    assert(argv.config, 'No core deploy config provided');
+    assert(argv.chain, 'No chain provided');
     const config = readCoreDeployConfigs(argv.config);
 
     if (!config?.interchainAccountRouter) {
@@ -531,7 +607,10 @@ async function resolveCoreApplyChains(
         const transactions = await evmCoreModule.update(config);
 
         return Array.from(new Set(transactions.map((tx) => tx.chainId))).map(
-          (chainId) => argv.context.multiProvider.getChainName(chainId),
+          (chainId) => {
+            assert(chainId !== undefined, 'Transaction is missing a chain ID');
+            return argv.context.multiProvider.getChainName(chainId);
+          },
         );
       }
       default: {
@@ -546,7 +625,7 @@ async function resolveCoreApplyChains(
 }
 
 async function resolveCoreDeployChains(
-  argv: Record<string, any>,
+  argv: ChainResolverArgs,
 ): Promise<ChainName[]> {
   try {
     const { chainMetadata, registry, skipConfirmation } = argv.context;
@@ -580,7 +659,7 @@ async function resolveCoreDeployChains(
 }
 
 async function resolveIcaDeployChains(
-  argv: Record<string, any>,
+  argv: ChainResolverArgs,
 ): Promise<ChainName[]> {
   const chains = new Set<ChainName>();
   if (argv.origin) chains.add(argv.origin);
@@ -590,7 +669,7 @@ async function resolveIcaDeployChains(
 }
 
 async function resolveSubmitChains(
-  argv: Record<string, any>,
+  argv: ChainResolverArgs,
 ): Promise<ChainName[]> {
   try {
     const { multiProvider } = argv.context;
@@ -605,9 +684,10 @@ async function resolveSubmitChains(
 
     const chainIds = new Set(transactions.map((tx) => tx.chainId));
     const chains = new Set(
-      Array.from(chainIds).map((chainId) =>
-        multiProvider.getChainName(chainId),
-      ),
+      Array.from(chainIds).map((chainId) => {
+        assert(chainId !== undefined, 'Transaction is missing a chain ID');
+        return multiProvider.getChainName(chainId);
+      }),
     );
 
     if (argv.strategy) {

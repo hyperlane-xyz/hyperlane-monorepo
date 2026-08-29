@@ -19,6 +19,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import {
+  extendWarpRoute,
   fullyConnectTokens,
   runWarpRouteApply,
   runWarpRouteCombine,
@@ -575,6 +576,75 @@ describe('runWarpRouteApply', () => {
       expect(updateSplitSpy.called).to.equal(false);
       expect(deployTimelockSpy.called).to.equal(false);
     }
+  });
+});
+
+describe('extendWarpRoute', () => {
+  it('rejects skip-chains extensions before deployment', async () => {
+    const owner = '0x3333333333333333333333333333333333333333';
+    const mailbox = '0x2222222222222222222222222222222222222222';
+    const getAddresses = sinon.stub().resolves({});
+    const multiProvider = {
+      getProtocol: () => ProtocolType.Ethereum,
+    };
+    const warpCoreConfig: WarpCoreConfig = {
+      tokens: [
+        {
+          chainName: 'existing',
+          standard: TokenStandard.EvmHypSynthetic,
+          tokenType: TokenType.synthetic,
+          decimals: 18,
+          symbol: 'TST',
+          name: 'Test',
+          addressOrDenom: '0x1111111111111111111111111111111111111111',
+        },
+      ],
+    };
+    const warpDeployConfig: WarpRouteDeployConfigMailboxRequired = {
+      existing: {
+        type: TokenType.synthetic,
+        mailbox,
+        owner,
+      },
+      newchain: {
+        type: TokenType.synthetic,
+        mailbox,
+        owner,
+      },
+    };
+
+    try {
+      await extendWarpRoute(
+        {
+          context: {
+            multiProvider,
+            registry: { getAddresses },
+            skipChains: ['down'],
+            supportedProtocols: [ProtocolType.Ethereum],
+          },
+          warpCoreConfig,
+          warpDeployConfig,
+        } as unknown as Parameters<typeof extendWarpRoute>[0],
+        {},
+        warpCoreConfig,
+        {
+          ...warpDeployConfig,
+          down: {
+            type: TokenType.synthetic,
+            mailbox,
+            owner,
+          },
+        },
+      );
+      expect.fail('expected skip-chains extension to reject');
+    } catch (error) {
+      if (!(error instanceof Error)) throw error;
+      expect(error.message).to.equal(
+        'Cannot extend a warp route while skipping chains. Apply the extension after all route chains are available.',
+      );
+    }
+
+    expect(getAddresses.called).to.equal(false);
   });
 });
 

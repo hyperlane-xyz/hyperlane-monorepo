@@ -130,7 +130,7 @@ export const chainTargetsCommandOption: Options = stringArrayOptionConfig({
 
 export const skipChainsCommandOption: Options = stringArrayOptionConfig({
   description:
-    'List of route chains to skip without reading from or submitting to them',
+    'Route chains to exclude from on-chain reads and writes in this operation',
 });
 
 export const outputFileCommandOption = (

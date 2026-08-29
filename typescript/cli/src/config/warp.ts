@@ -102,12 +102,12 @@ const TYPE_CHOICES = Object.values(TokenType)
     description: TYPE_DESCRIPTIONS[type],
   }));
 
-export async function fillDefaults(
+export async function fillDefaults<T extends Partial<MailboxClientConfig>>(
   context: CommandContext,
-  config: ChainMap<Partial<MailboxClientConfig>>,
-): Promise<ChainMap<MailboxClientConfig>> {
+  config: ChainMap<T>,
+): Promise<ChainMap<T & MailboxClientConfig>> {
   return promiseObjAll(
-    objMap(config, async (chain, config): Promise<MailboxClientConfig> => {
+    objMap(config, async (chain, config): Promise<T & MailboxClientConfig> => {
       let mailbox = config.mailbox;
       if (!mailbox) {
         const addresses = await context.registry.getChainAddresses(chain);
@@ -142,41 +142,18 @@ export async function readWarpRouteDeployConfig({
       context: CommandContext;
       filePath: string;
       skipChains?: readonly string[];
-    }): Promise<WarpRouteDeployConfigMailboxRequired> {
-  let config: WarpRouteDeployConfig | null | undefined =
+    }): Promise<{
+  config: WarpRouteDeployConfigMailboxRequired;
+  referenceConfig: WarpRouteDeployConfigMailboxRequired;
+}> {
+  const config: WarpRouteDeployConfig | null | undefined =
     'filePath' in args
       ? readYamlOrJson(args.filePath)
       : await context.registry.getWarpDeployConfig(args.warpRouteId);
 
   assert(config, `No warp route deploy config found!`);
-  const fullConfig = config;
-
   const skippedChains = new Set(args.skipChains ?? context.skipChains ?? []);
-  const unknownChains = [...skippedChains].filter(
-    (chain) => !Object.hasOwn(fullConfig, chain),
-  );
-  assert(
-    unknownChains.length === 0,
-    `Cannot skip chains not present in the warp route: ${unknownChains.join(', ')}`,
-  );
-
-  context.skippedWarpDeployConfig = Object.fromEntries(
-    Object.entries(fullConfig).filter(([chain]) => skippedChains.has(chain)),
-  );
-  config = Object.fromEntries(
-    Object.entries(fullConfig).filter(([chain]) => !skippedChains.has(chain)),
-  );
-  assert(
-    Object.keys(config).length !== 0,
-    'Cannot skip every chain in the warp route',
-  );
-
-  // CAST: fillDefaults only touches mailbox-client fields; the complete warp
-  // token union is validated by WarpRouteDeployConfigMailboxRequiredSchema below.
-  const configWithDefaults = (await fillDefaults(
-    context,
-    config as any,
-  )) as WarpRouteDeployConfigMailboxRequired;
+  const configWithDefaults = await fillDefaults(context, config);
 
   const resolvedConfig = objMap(
     configWithDefaults,
@@ -210,8 +187,21 @@ export async function readWarpRouteDeployConfig({
     },
   );
 
-  //fillDefaults would have added a mailbox to the config if it was missing
-  return WarpRouteDeployConfigMailboxRequiredSchema.parse(resolvedConfig);
+  // Normalize every route leg before filtering so active and skipped configs
+  // retain one representation when they are later persisted together.
+  const referenceConfig =
+    WarpRouteDeployConfigMailboxRequiredSchema.parse(resolvedConfig);
+  const activeConfig = Object.fromEntries(
+    Object.entries(referenceConfig).filter(
+      ([chain]) => !skippedChains.has(chain),
+    ),
+  );
+  assert(
+    Object.keys(activeConfig).length !== 0,
+    'Cannot skip every chain in the warp route',
+  );
+
+  return { config: activeConfig, referenceConfig };
 }
 
 export function isValidWarpRouteDeployConfig(config: any) {

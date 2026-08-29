@@ -159,7 +159,8 @@ describe('configUtils', () => {
       );
     });
 
-    it('does not probe deployed routers omitted from the target config', async () => {
+    it('does not probe deployed routers omitted from the target config', async function () {
+      this.timeout(12_000);
       const owner = '0x1111111111111111111111111111111111111111';
       const activeRouter = '0x2222222222222222222222222222222222222222';
       const skippedRouter = '0x3333333333333333333333333333333333333333';

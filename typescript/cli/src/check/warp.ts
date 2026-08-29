@@ -150,25 +150,20 @@ export async function checkCrossCollateralWarpRoute({
   warpCoreConfig: WarpCoreConfig;
   warpRouteId: string;
 }): Promise<WarpRouteCheckResult> {
+  const allRoutes = await context.registry.getWarpRoutes();
+  const fullCrossCoreConfig = allRoutes[warpRouteId] ?? warpCoreConfig;
   const crossAddresses = new Set(
-    warpCoreConfig.tokens.flatMap((t) =>
+    fullCrossCoreConfig.tokens.flatMap((t) =>
       t.addressOrDenom ? [t.addressOrDenom.toLowerCase()] : [],
     ),
   );
-
-  const allRoutes = await context.registry.getWarpRoutes();
   const constituentRouteIds: string[] = [];
   const skippedChains = new Set(context.skipChains ?? []);
 
   for (const [routeId, routeCoreConfig] of Object.entries(allRoutes)) {
     if (routeId === warpRouteId) continue;
-    const activeTokens = routeCoreConfig.tokens.filter(
-      (token) => !skippedChains.has(token.chainName),
-    );
-    if (activeTokens.length === 0) continue;
-
     if (
-      activeTokens.every(
+      routeCoreConfig.tokens.every(
         (t) =>
           t.addressOrDenom &&
           crossAddresses.has(t.addressOrDenom.toLowerCase()) &&
@@ -192,32 +187,54 @@ export async function checkCrossCollateralWarpRoute({
     diff: {},
     scaleViolations: [],
   };
+  let checkedConstituents = 0;
 
   for (const constituentId of constituentRouteIds) {
     const constituentCoreConfig = allRoutes[constituentId];
-    const constituentChains = new Set(
-      constituentCoreConfig.tokens.map((token) => token.chainName),
+    const rawDeployConfig =
+      await context.registry.getWarpDeployConfig(constituentId);
+    assert(
+      rawDeployConfig,
+      `No warp route deploy config found for constituent "${constituentId}"`,
     );
-    const constituentDeployConfig = await readWarpRouteDeployConfig({
+    const skippedDeployChains = Object.keys(rawDeployConfig).filter((chain) =>
+      skippedChains.has(chain),
+    );
+    if (skippedDeployChains.length === Object.keys(rawDeployConfig).length) {
+      warnYellow(
+        `Skipping constituent "${constituentId}" because all of its deploy chains were excluded`,
+      );
+      continue;
+    }
+    const {
+      config: constituentDeployConfig,
+      referenceConfig: referenceWarpDeployConfig,
+    } = await readWarpRouteDeployConfig({
       context,
       warpRouteId: constituentId,
-      skipChains: context.skipChains?.filter((chain) =>
-        constituentChains.has(chain),
-      ),
+      skipChains: skippedDeployChains,
     });
-    const activeChains = new Set(Object.keys(constituentDeployConfig));
     const activeCoreConfig = {
       ...constituentCoreConfig,
+      tokens: constituentCoreConfig.tokens.filter(
+        (token) => !skippedChains.has(token.chainName),
+      ),
+    };
+    const referenceWarpCoreConfig = {
+      ...constituentCoreConfig,
       tokens: constituentCoreConfig.tokens.filter((token) =>
-        activeChains.has(token.chainName),
+        Object.hasOwn(referenceWarpDeployConfig, token.chainName),
       ),
     };
 
     const result = await checkWarpRouteDeployConfig({
       multiProvider: context.multiProvider,
       warpCoreConfig: activeCoreConfig,
+      referenceWarpCoreConfig,
       warpDeployConfig: constituentDeployConfig,
+      referenceWarpDeployConfig,
     });
+    checkedConstituents += 1;
 
     combinedResult.isValid = combinedResult.isValid && result.isValid;
     combinedResult.violations.push(...result.violations);
@@ -227,6 +244,11 @@ export async function checkCrossCollateralWarpRoute({
       combinedResult.diff[`${constituentId}/${chain}`] = diff;
     }
   }
+
+  assert(
+    checkedConstituents > 0,
+    'No constituent routes remained after applying --skip-chains',
+  );
 
   return combinedResult;
 }

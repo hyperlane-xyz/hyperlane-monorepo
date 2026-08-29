@@ -214,6 +214,7 @@ export async function getWarpConfigs({
   chains?: string[];
 }): Promise<{
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  referenceWarpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   warpCoreConfig: WarpCoreConfig;
   resolvedWarpRouteId: string;
 }> {
@@ -227,12 +228,18 @@ export async function getWarpConfigs({
     context,
     warpRouteId: resolvedWarpRouteId,
   });
-  const warpDeployConfig = await readWarpRouteDeployConfig({
-    warpRouteId: resolvedWarpRouteId,
-    context,
-  });
+  const { config: warpDeployConfig, referenceConfig } =
+    await readWarpRouteDeployConfig({
+      warpRouteId: resolvedWarpRouteId,
+      context,
+    });
 
-  return { warpDeployConfig, warpCoreConfig, resolvedWarpRouteId };
+  return {
+    warpDeployConfig,
+    referenceWarpDeployConfig: referenceConfig,
+    warpCoreConfig,
+    resolvedWarpRouteId,
+  };
 }
 
 export async function getWarpRouteDeployConfig({
@@ -243,6 +250,7 @@ export async function getWarpRouteDeployConfig({
   warpRouteId?: string;
 }): Promise<{
   config: WarpRouteDeployConfigMailboxRequired;
+  referenceConfig: WarpRouteDeployConfigMailboxRequired;
   resolvedWarpRouteId: string;
 }> {
   const resolvedWarpRouteId = await resolveWarpRouteId({
@@ -251,12 +259,12 @@ export async function getWarpRouteDeployConfig({
     promptByDeploymentConfigs: true,
   });
 
-  const config = await readWarpRouteDeployConfig({
+  const { config, referenceConfig } = await readWarpRouteDeployConfig({
     context,
     warpRouteId: resolvedWarpRouteId,
   });
 
-  return { config, resolvedWarpRouteId };
+  return { config, referenceConfig, resolvedWarpRouteId };
 }
 
 export function filterWarpConfigsToMatchingChains(

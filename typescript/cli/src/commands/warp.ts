@@ -232,6 +232,7 @@ export const apply: CommandModuleWithWarpApplyContext<
     await runWarpRouteApply({
       context,
       warpDeployConfig: context.warpDeployConfig,
+      referenceWarpDeployConfig: context.referenceWarpDeployConfig,
       warpCoreConfig: context.warpCoreConfig,
       strategyUrl,
       receiptsDir,
@@ -257,6 +258,7 @@ export const deploy: CommandModuleWithWarpDeployContext<
     await runWarpRouteDeploy({
       context,
       warpDeployConfig: context.warpDeployConfig,
+      referenceWarpDeployConfig: context.referenceWarpDeployConfig,
       warpRouteId: context.resolvedWarpRouteId ?? warpRouteId,
     });
 
@@ -618,7 +620,6 @@ export const check: CommandModuleWithContext<
       type: 'boolean',
       description:
         'Check that destination chain owners match expected ICA addresses derived from origin chain owner',
-      default: false,
     },
     origin: {
       type: 'string',
@@ -636,6 +637,7 @@ export const check: CommandModuleWithContext<
       description:
         'List of chains to check. Defaults to all chains except origin when using --ica.',
       implies: 'ica',
+      conflicts: 'skip-chains',
     }),
   },
   handler: async ({
@@ -674,8 +676,7 @@ export const check: CommandModuleWithContext<
         warpRouteId,
       });
 
-    // If --ica flag is set, run ICA owner check instead of the regular config check
-    // Note: ICA check uses full warpDeployConfig (not filtered) to support pre-deployed chains
+    // If --ica is set, run the owner check on the selected active chains.
     if (ica) {
       assert(origin, '--origin is required when using --ica');
 
@@ -698,7 +699,11 @@ export const check: CommandModuleWithContext<
     const result = await checkWarpRouteDeployConfig({
       multiProvider: context.multiProvider,
       warpCoreConfig,
+      referenceWarpCoreConfig:
+        context.referenceWarpCoreConfig ?? warpCoreConfig,
       warpDeployConfig,
+      referenceWarpDeployConfig:
+        context.referenceWarpDeployConfig ?? warpDeployConfig,
     });
 
     await runWarpRouteCheck({
