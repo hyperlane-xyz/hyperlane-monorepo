@@ -135,8 +135,7 @@
       "0x6dbc192c06907784fb0af0c0c2d8809ea50ba675",
       "0x761980c3debdc8ddb69a2713cf5126d4db900f0f",
       "0xa6c998f0db2b56d7a63faf30a9b677c8b9b6faab",
-      "0x21e93a81920b73c0e98aed8e6b058dae409e4909",
-      "0x7b8606d61bc990165d1e5977037ddcf7f2de74d6"
+      "0x21e93a81920b73c0e98aed8e6b058dae409e4909"
     ]
   },
   "celo": {
@@ -232,13 +231,12 @@
   },
   "fraxtal": {
     "type": "messageIdMultisigIsm",
-    "threshold": 4,
+    "threshold": 3,
     "validators": [
       "0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1",
       "0x0d4c1394a255568ec0ecd11795b28d1bda183ca4",
       "0x1c3C3013B863Cf666499Da1A61949AE396E3Ab82",
       "0x573e960e07ad74ea2c5f1e3c31b2055994b12797",
-      "0x25b3a88f7cfd3c9f7d7e32b295673a16a6ddbd91",
       "0x5450447aee7b544c462c9352bef7cad049b0c2dc"
     ]
   },
@@ -260,10 +258,9 @@
   },
   "hyperevm": {
     "type": "messageIdMultisigIsm",
-    "threshold": 3,
+    "threshold": 2,
     "validators": [
       "0x01be14a9eceeca36c9c1d46c056ca8c87f77c26f",
-      "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36",
       "0x04d949c615c9976f89595ddcb9008c92f8ba7278"
     ]
@@ -287,10 +284,9 @@
   },
   "ink": {
     "type": "messageIdMultisigIsm",
-    "threshold": 4,
+    "threshold": 3,
     "validators": [
       "0xb533b8b104522958b984fb258e0684dec0f1a6a5",
-      "0xd207a6dfd887d91648b672727ff1aef6223cb15a",
       "0xa40203b5301659f1e201848d92f5e81f64f206f5",
       "0xff9c1e7b266a36eda0d9177d4236994d94819dc0",
       "0x0d4c1394a255568ec0ecd11795b28d1bda183ca4",
@@ -468,6 +464,14 @@
     "threshold": 2,
     "validators": [
       "0x990f548e766b830f69642d36cdd47fb20a2aa405",
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
+    ]
+  },
+  "nesachain": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
@@ -678,12 +682,11 @@
   },
   "unichain": {
     "type": "messageIdMultisigIsm",
-    "threshold": 4,
+    "threshold": 3,
     "validators": [
       "0x9773a382342ebf604a2e5de0a1f462fb499e28b1",
       "0xa2549be30fb852c210c2fe8e7639039dca779936",
       "0xbcbed4d11e946844162cd92c6d09d1cf146b4006",
-      "0xa9d517776fe8beba7d67c21cac1e805bd609c08e",
       "0x0d4c1394a255568ec0ecd11795b28d1bda183ca4",
       "0x5450447aee7b544c462c9352bef7cad049b0c2dc"
     ]
