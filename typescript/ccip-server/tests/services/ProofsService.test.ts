@@ -1,79 +1,73 @@
-import { describe, expect, jest, test } from '@jest/globals';
+import { describe, expect, jest, test, beforeEach } from '@jest/globals';
 import { ethers } from 'ethers';
 
-// import { LightClientService } from '../../src/services/LightClientService';
-import { ProofsService } from '../../src/services/ProofsService';
-
-// Fixtures
-jest.mock('../../src/services/HyperlaneService');
-jest.mock('../../src/services/LightClientService');
-jest.mock('../../src/services/RPCService');
+import { ProofsService } from '../../src/services/ProofsService.js';
+import { ProofsServiceAbi } from '../../src/abis/ProofsServiceAbi.js';
 
 describe('ProofsService', () => {
-  const TARGET_ADDR = 'targetAddress';
-  const MESSAGE_ID = 'msgId';
-  const STORAGE_KEY = ethers.utils.formatBytes32String('10');
+  const TARGET_ADDR = '0x7DDf66a264656A36eB0Ff4bC6eC562028B983B90';
+  const STORAGE_KEY = '0x66ce4e8e12a5403828e3fb3176b429cb926ef9dc29fd04c1b3c13ed2787d98d6';
+  const SLOT = '1000';
+  const BLOCK_NUMBER = 2151871;
+
   let proofsService: ProofsService;
-  let pendingProofKey: string;
 
   beforeEach(() => {
-    proofsService = new ProofsService(
-      {
-        lightClientAddress: ethers.constants.AddressZero,
-        stepFunctionId: ethers.constants.HashZero,
-        platformUrl: 'http://localhost:8080',
-        apiKey: 'apiKey',
-      },
-      {
-        url: 'http://localhost:8545',
-        chainId: '1337',
-      },
-      {
-        url: 'http://localhost:8545',
-      },
-    );
-    pendingProofKey = proofsService.getPendingProofKey(
-      TARGET_ADDR,
-      STORAGE_KEY,
-      MESSAGE_ID,
-    );
-    jest.clearAllMocks();
+    process.env.RPC_ADDRESS = 'http://localhost:8545';
+    process.env.CONSENSUS_API_URL = 'http://localhost:5052/eth/v2/beacon/blocks';
+
+    proofsService = new ProofsService({ serviceName: 'proofs' });
+
+    proofsService.consensusService.getOriginBlockNumberBySlot = jest
+      .fn<() => Promise<number>>()
+      .mockResolvedValue(BLOCK_NUMBER);
+
+    proofsService.rpcService.getProofs = jest.fn<any>().mockResolvedValue({
+      accountProof: ['0xacct1', '0xacct2'],
+      storageProof: [
+        {
+          key: STORAGE_KEY,
+          value: '0xval',
+          proof: ['0xstorage1'],
+        },
+      ],
+      address: TARGET_ADDR,
+      balance: '0x0',
+      codeHash: '0x0',
+      nonce: '0x1',
+      storageHash: '0x0',
+    });
   });
 
-  /* eslint-disable jest/no-conditional-expect -- testing error handling state */
-  test('should set currentProofId, if proof is not ready', async () => {
-    try {
-      await proofsService.getProofs([TARGET_ADDR, STORAGE_KEY, MESSAGE_ID]);
-    } catch {
-      expect(proofsService.pendingProof.get(pendingProofKey)).toEqual(
-        'pendingProofId12',
-      );
-    }
+  test('getProofs returns account and storage proofs', async () => {
+    const proofs = await proofsService.getProofs(TARGET_ADDR, STORAGE_KEY, SLOT);
+
+    expect(proofsService.consensusService.getOriginBlockNumberBySlot).toHaveBeenCalledWith(
+      SLOT,
+    );
+    expect(proofsService.rpcService.getProofs).toHaveBeenCalledWith(
+      TARGET_ADDR,
+      [STORAGE_KEY],
+      `0x${BLOCK_NUMBER.toString(16)}`,
+    );
+
+    expect(proofs).toEqual([
+      ['0xacct1', '0xacct2'],
+      ['0xstorage1'],
+    ]);
   });
 
-  test('should reset currentProofId, if proof is ready', async () => {
-    const pendingProofKey = proofsService.getPendingProofKey(
+  test('ABI encodes and decodes getProofs correctly', () => {
+    const iface = new ethers.utils.Interface(ProofsServiceAbi);
+    const callData = iface.encodeFunctionData('getProofs', [
       TARGET_ADDR,
       STORAGE_KEY,
-      MESSAGE_ID,
-    );
-    try {
-      await proofsService.getProofs([TARGET_ADDR, STORAGE_KEY, MESSAGE_ID]);
-      expect(proofsService.pendingProof.get(pendingProofKey)).toEqual(
-        'pendingProofId12',
-      );
-    } catch {
-      // Try to get the proof again
-      const proofs = await proofsService.getProofs([
-        TARGET_ADDR,
-        STORAGE_KEY,
-        MESSAGE_ID,
-      ]);
-      expect(proofs[0][1]).toEqual([
-        '0xf844a120443dd0be11dd8e645a2e5675fd62011681443445ea8b04c77d2cdeb1326739eca1a031ede38d2e93c5aee49c836f329a626d8c6322abfbff3783e82e5759f870d7e9',
-      ]);
-      expect(proofsService.pendingProof.get(pendingProofKey)).toBeUndefined();
-    }
+      SLOT,
+    ]);
+
+    const decoded = iface.decodeFunctionData('getProofs', callData);
+    expect(decoded[0].toLowerCase()).toEqual(TARGET_ADDR.toLowerCase());
+    expect(decoded[1]).toEqual(STORAGE_KEY);
+    expect(decoded[2].toString()).toEqual(SLOT);
   });
-  /* eslint-enable jest/no-conditional-expect */
 });
