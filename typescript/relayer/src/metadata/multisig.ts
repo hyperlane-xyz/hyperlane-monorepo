@@ -7,8 +7,8 @@ import {
   IsmType,
   MerkleTreeHookConfig,
   MultisigIsmConfig,
-  S3Validator,
   defaultMultisigConfigs,
+  getValidatorFromStorageLocation,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -60,10 +60,14 @@ export type MultisigMetadata =
   | MessageIdMultisigMetadata
   | MerkleRootMultisigMetadata;
 
+type CheckpointValidator = Awaited<
+  ReturnType<typeof getValidatorFromStorageLocation>
+>;
+
 export class MultisigMetadataBuilder implements MetadataBuilder {
   protected validatorCache: Record<
     ChainName,
-    Record<string, S3Validator | undefined>
+    Record<string, CheckpointValidator | undefined>
   > = {};
 
   constructor(
@@ -88,21 +92,29 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     return validator?.alias;
   }
 
-  protected async s3Validators(
+  protected getAnnouncedStorageLocations(
     originChain: ChainName,
     validators: string[],
-  ): Promise<(S3Validator | undefined)[]> {
+  ): Promise<string[][]> {
+    return this.core
+      .getContracts(originChain)
+      .validatorAnnounce.getAnnouncedStorageLocations(validators);
+  }
+
+  protected async checkpointValidators(
+    originChain: ChainName,
+    validators: string[],
+  ): Promise<(CheckpointValidator | undefined)[]> {
     this.validatorCache[originChain] ??= {};
     const toFetch = validators.filter(
       (v) => !(v in this.validatorCache[originChain]),
     );
 
     if (toFetch.length > 0) {
-      const validatorAnnounce =
-        this.core.getContracts(originChain).validatorAnnounce;
-
-      const storageLocations =
-        await validatorAnnounce.getAnnouncedStorageLocations(toFetch);
+      const storageLocations = await this.getAnnouncedStorageLocations(
+        originChain,
+        toFetch,
+      );
 
       this.logger.debug({ storageLocations }, 'Fetched storage locations');
 
@@ -117,7 +129,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
               `No storage location announced for validator ${toFetch[index]}`,
             );
           }
-          return S3Validator.fromStorageLocation(latestLocation);
+          return getValidatorFromStorageLocation(latestLocation);
         },
       );
 
@@ -125,7 +137,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
       rejected.forEach((error, index) => {
         this.logger.warn(
           { validator: toFetch[index], error: error.message },
-          'Failed to initialize S3Validator',
+          'Failed to initialize checkpoint validator',
         );
       });
 
@@ -163,16 +175,19 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     this.logger.debug({ match, validators }, 'Fetching validator checkpoints');
 
     const originChain = this.core.multiProvider.getChainName(match.origin);
-    const s3Validators = await this.s3Validators(originChain, validators);
+    const checkpointValidators = await this.checkpointValidators(
+      originChain,
+      validators,
+    );
 
     const { fulfilled, rejected } = await mapAllSettled(
       validators,
       async (_, index) => {
-        const s3Validator = s3Validators[index];
-        if (!s3Validator) {
+        const checkpointValidator = checkpointValidators[index];
+        if (!checkpointValidator) {
           throw new Error('No valid storage location for validator');
         }
-        return s3Validator.getCheckpoint(match.index);
+        return checkpointValidator.getCheckpoint(match.index);
       },
     );
 
