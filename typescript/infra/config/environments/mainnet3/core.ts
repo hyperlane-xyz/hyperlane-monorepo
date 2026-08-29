@@ -4,9 +4,11 @@ import {
   AggregationHookConfig,
   AggregationIsmConfig,
   ChainMap,
+  ChainName,
   ChainTechnicalStack,
   CoreConfig,
   FallbackRoutingHookConfig,
+  HookConfig,
   HookType,
   IgpConfig,
   IsmType,
@@ -28,7 +30,7 @@ import { legacyIgpChains } from '../../../src/config/chain.js';
 import { getEdenCoreConfig } from './eden.js';
 import { getTronCoreConfig } from './tron.js';
 import { getIgp } from './igp.js';
-import { DEPLOYER, ethereumChainOwners } from './owners.js';
+import { DEPLOYER, PAUSER, ethereumChainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
 // There are no static ISMs or hooks for zkSync, this means
@@ -38,6 +40,39 @@ import { supportedChainNames } from './supportedChainNames.js';
 // on the IGP config, which is itself computed lazily to keep merely importing
 // the environment config cheap. See getIgp in ./igp.ts.
 let coreCache: ChainMap<CoreConfig> | undefined;
+
+// These deployed core hook trees predate the current deployer path. Keep this
+// list explicit so registry availability changes cannot silently opt another
+// chain into in-place recovery.
+const legacyCoreHookRecoveryChains: ChainName[] = [
+  'coti',
+  'electroneum',
+  'krown',
+  'metis',
+  'pulsechain',
+  'sei',
+  'sonic',
+  'taiko',
+  'viction',
+];
+
+// Metis has two live MerkleTreeHooks: its fallback routing hook points at the
+// newer block-18,010,430 deployment, while its immutable aggregation hook
+// still contains the older block-18,009,558 deployment. Model both addresses
+// instead of substituting the registry's canonical active tree into either
+// immutable position.
+const legacyCoreHookTopologyOverrides: Partial<
+  ChainMap<{
+    fallbackMerkleTreeHook: Address;
+    aggregationMerkleTreeHook: Address;
+  }>
+> = {
+  metis: {
+    fallbackMerkleTreeHook: '0x5F954cA945671e48466680eA815727948Ca340ef',
+    aggregationMerkleTreeHook: '0xF5da68b2577EF5C0A0D98aA2a58483a68C2f232a',
+  },
+};
+
 export function getCore(): ChainMap<CoreConfig> {
   if (coreCache) {
     return coreCache;
@@ -109,7 +144,7 @@ export function getCore(): ChainMap<CoreConfig> {
     const pausableIsm: PausableIsmConfig = {
       type: IsmType.PAUSABLE,
       paused: false,
-      owner: DEPLOYER, // keep pausable hot
+      owner: PAUSER, // dedicated Turnkey pauser (pause solo, unpause gated)
     };
 
     // No static aggregation ISM support on zkSync
@@ -130,7 +165,7 @@ export function getCore(): ChainMap<CoreConfig> {
     const pausableHook: PausableHookConfig = {
       type: HookType.PAUSABLE,
       paused: false,
-      owner: DEPLOYER, // keep pausable hot
+      owner: PAUSER, // dedicated Turnkey pauser (pause solo, unpause gated)
     };
 
     // No static aggregation hook support on zkSync
@@ -194,6 +229,61 @@ export function getCore(): ChainMap<CoreConfig> {
         ...pausableIsm,
         address: addresses.pausableIsm,
       };
+
+      // Legacy chains outside the reviewed recovery set keep referencing the
+      // existing fallback routing hook opaquely by address.
+      let defaultHook: HookConfig = addresses.fallbackRoutingHook;
+      if (legacyCoreHookRecoveryChains.includes(local)) {
+        assert(
+          addresses?.aggregationHook,
+          `Missing aggregation hook for ${local}`,
+        );
+        assert(addresses?.pausableHook, `Missing pausable hook for ${local}`);
+        assert(
+          addresses?.interchainGasPaymaster,
+          `Missing interchain gas paymaster for ${local}`,
+        );
+        assert(
+          addresses?.merkleTreeHook,
+          `Missing merkle tree hook for ${local}`,
+        );
+
+        const recoveredPausableHook: WithAddress<PausableHookConfig> = {
+          ...pausableHook,
+          address: addresses.pausableHook,
+        };
+        const hookTopology = legacyCoreHookTopologyOverrides[local];
+        // Derivable reference to the existing fallback routing hook tree, so
+        // that core apply/check traverses the nested pausable hook (now owned
+        // by the pauser) and reconciles it in place instead of redeploying
+        // hooks this chain cannot run. The on-chain aggregation child order
+        // varies per chain; comparison and reconciliation are
+        // order-insensitive. Preserve the fallback hook by its actual enrolled
+        // address; it can differ from the registry's canonical MerkleTreeHook.
+        defaultHook = {
+          type: HookType.FALLBACK_ROUTING,
+          // Preserve the existing legacy routing-hook owner. AW-739 only
+          // rotates the nested PAUSABLE module to the dedicated pauser.
+          owner: DEPLOYER,
+          address: addresses.fallbackRoutingHook,
+          fallback:
+            hookTopology?.fallbackMerkleTreeHook ?? addresses.merkleTreeHook,
+          domains: objMap(
+            originMultisigs,
+            (): WithAddress<AggregationHookConfig> => ({
+              type: HookType.AGGREGATION,
+              address: addresses.aggregationHook,
+              hooks: [
+                recoveredPausableHook,
+                addresses.interchainGasPaymaster,
+                hookTopology?.aggregationMerkleTreeHook ??
+                  addresses.merkleTreeHook,
+              ],
+            }),
+          ),
+        };
+      }
+
       return {
         defaultIsm: isZksyncChain
           ? defaultIsm
@@ -202,7 +292,7 @@ export function getCore(): ChainMap<CoreConfig> {
               modules: [routingIsm, recoveredPausableIsm],
               threshold: 2,
             },
-        defaultHook: addresses.fallbackRoutingHook,
+        defaultHook,
         requiredHook: requiredHookAddress,
         deployQuotedCalls: false,
         ...owner,
