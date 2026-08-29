@@ -14,6 +14,7 @@ import type {
   MultiProtocolProvider,
   MultiProvider,
   WarpCoreConfig,
+  WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -60,7 +61,7 @@ export interface CommandContext extends Omit<
   warpCoreConfig?: WarpCoreConfig;
   referenceWarpCoreConfig?: WarpCoreConfig;
   warpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
-  referenceWarpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
+  referenceWarpDeployConfig?: WarpRouteDeployConfig;
   resolvedWarpRouteId?: string;
   skipChains?: string[];
   chains?: string[];

@@ -1,6 +1,8 @@
 import { expect } from 'chai';
+import { Wallet } from 'ethers';
 import sinon from 'sinon';
 
+import { PartialRegistry } from '@hyperlane-xyz/registry';
 import {
   ProtocolType,
   addressToBytes32,
@@ -11,12 +13,15 @@ import {
   HyperlaneDeployer,
   HookType,
   IsmType,
+  MultiProtocolProvider,
   MultiProvider,
   TokenStandard,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
+
+import { type WriteCommandContext } from '../context/types.js';
 
 import {
   extendWarpRoute,
@@ -584,9 +589,8 @@ describe('extendWarpRoute', () => {
     const owner = '0x3333333333333333333333333333333333333333';
     const mailbox = '0x2222222222222222222222222222222222222222';
     const getAddresses = sinon.stub().resolves({});
-    const multiProvider = {
-      getProtocol: () => ProtocolType.Ethereum,
-    };
+    const multiProvider = sinon.createStubInstance(MultiProvider);
+    multiProvider.getProtocol.returns(ProtocolType.Ethereum);
     const warpCoreConfig: WarpCoreConfig = {
       tokens: [
         {
@@ -613,29 +617,36 @@ describe('extendWarpRoute', () => {
       },
     };
 
+    const context: WriteCommandContext = {
+      key: { [ProtocolType.Ethereum]: 'unused' },
+      signer: Wallet.createRandom(),
+      registry: new PartialRegistry({}),
+      chainMetadata: {},
+      multiProvider,
+      multiProtocolProvider: new MultiProtocolProvider({}),
+      altVmProviders: {},
+      supportedProtocols: [ProtocolType.Ethereum],
+      skipConfirmation: true,
+      altVmSigners: {},
+      skipChains: ['down'],
+    };
+    sinon.stub(context.registry, 'getAddresses').callsFake(getAddresses);
+    const params: Parameters<typeof extendWarpRoute>[0] = {
+      context,
+      warpCoreConfig,
+      warpDeployConfig,
+      receiptsDir: 'unused',
+    };
+
     try {
-      await extendWarpRoute(
-        {
-          context: {
-            multiProvider,
-            registry: { getAddresses },
-            skipChains: ['down'],
-            supportedProtocols: [ProtocolType.Ethereum],
-          },
-          warpCoreConfig,
-          warpDeployConfig,
-        } as unknown as Parameters<typeof extendWarpRoute>[0],
-        {},
-        warpCoreConfig,
-        {
-          ...warpDeployConfig,
-          down: {
-            type: TokenType.synthetic,
-            mailbox,
-            owner,
-          },
+      await extendWarpRoute(params, {}, warpCoreConfig, {
+        ...warpDeployConfig,
+        down: {
+          type: TokenType.synthetic,
+          mailbox,
+          owner,
         },
-      );
+      });
       expect.fail('expected skip-chains extension to reject');
     } catch (error) {
       if (!(error instanceof Error)) throw error;

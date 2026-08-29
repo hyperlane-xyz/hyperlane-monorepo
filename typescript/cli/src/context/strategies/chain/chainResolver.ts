@@ -57,7 +57,7 @@ type ChainResolverArgs = {
 export async function resolveChains(
   argv: ChainResolverArgs,
 ): Promise<ChainName[]> {
-  const commandKey = `${argv._?.[0]}:${argv._?.[1] || ''}${
+  const commandKey = `${argv._?.[0]}:${argv._?.[1] ?? ''}${
     argv._?.[2] ? `:${argv._[2]}` : ''
   }`.trim() as CommandType;
 

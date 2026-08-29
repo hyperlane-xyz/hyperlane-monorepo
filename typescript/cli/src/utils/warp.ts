@@ -5,6 +5,7 @@ import {
   type ChainName,
   filterWarpCoreConfigMapByChains,
   type WarpCoreConfig,
+  type WarpRouteDeployConfig,
   type WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -214,7 +215,7 @@ export async function getWarpConfigs({
   chains?: string[];
 }): Promise<{
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
-  referenceWarpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  referenceWarpDeployConfig: WarpRouteDeployConfig;
   warpCoreConfig: WarpCoreConfig;
   resolvedWarpRouteId: string;
 }> {
@@ -250,7 +251,7 @@ export async function getWarpRouteDeployConfig({
   warpRouteId?: string;
 }): Promise<{
   config: WarpRouteDeployConfigMailboxRequired;
-  referenceConfig: WarpRouteDeployConfigMailboxRequired;
+  referenceConfig: WarpRouteDeployConfig;
   resolvedWarpRouteId: string;
 }> {
   const resolvedWarpRouteId = await resolveWarpRouteId({

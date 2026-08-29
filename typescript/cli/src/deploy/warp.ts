@@ -138,7 +138,7 @@ import {
 interface DeployParams {
   context: WriteCommandContext;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
-  referenceWarpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
+  referenceWarpDeployConfig?: WarpRouteDeployConfig;
 }
 
 interface WarpApplyParams extends DeployParams {
@@ -173,7 +173,7 @@ export async function runWarpRouteDeploy({
 }: {
   context: WriteCommandContext;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
-  referenceWarpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
+  referenceWarpDeployConfig?: WarpRouteDeployConfig;
   warpRouteId?: string;
 }) {
   const {
@@ -660,7 +660,7 @@ export async function extendWarpRoute(
   params: WarpApplyParams,
   apiKeys: ChainMap<string>,
   warpCoreConfig: WarpCoreConfig,
-  targetWarpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+  targetWarpDeployConfig: WarpRouteDeployConfig,
 ): Promise<WarpCoreConfig> {
   const { context, warpDeployConfig } = params;
   const { existingConfigs, initialExtendedConfigs, warpCoreConfigByChain } =

@@ -7,7 +7,7 @@ import {
   type DeployableTokenType,
   type DeployedOwnableConfig,
   HypERC20Deployer,
-  type HypTokenRouterConfig,
+  type HypTokenRouterConfigMailboxOptional,
   type IsmConfig,
   IsmType,
   type MailboxClientConfig,
@@ -24,6 +24,7 @@ import {
 import {
   type Address,
   assert,
+  objFilter,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
@@ -144,7 +145,7 @@ export async function readWarpRouteDeployConfig({
       skipChains?: readonly string[];
     }): Promise<{
   config: WarpRouteDeployConfigMailboxRequired;
-  referenceConfig: WarpRouteDeployConfigMailboxRequired;
+  referenceConfig: WarpRouteDeployConfig;
 }> {
   const config: WarpRouteDeployConfig | null | undefined =
     'filePath' in args
@@ -153,11 +154,10 @@ export async function readWarpRouteDeployConfig({
 
   assert(config, `No warp route deploy config found!`);
   const skippedChains = new Set(args.skipChains ?? context.skipChains ?? []);
-  const configWithDefaults = await fillDefaults(context, config);
-
-  const resolvedConfig = objMap(
-    configWithDefaults,
-    (_chain, chainConfig: HypTokenRouterConfig) => {
+  const normalizedConfig = objMap(
+    config,
+    (_chain, rawChainConfig: HypTokenRouterConfigMailboxOptional) => {
+      const chainConfig = { ...rawChainConfig };
       if (chainConfig.destinationGas) {
         chainConfig.destinationGas = resolveRouterMapConfig(
           context.multiProvider,
@@ -187,19 +187,25 @@ export async function readWarpRouteDeployConfig({
     },
   );
 
-  // Normalize every route leg before filtering so active and skipped configs
-  // retain one representation when they are later persisted together.
-  const referenceConfig =
-    WarpRouteDeployConfigMailboxRequiredSchema.parse(resolvedConfig);
-  const activeConfig = Object.fromEntries(
-    Object.entries(referenceConfig).filter(
-      ([chain]) => !skippedChains.has(chain),
-    ),
+  // Resolve defaults only for active legs. Skipped legs may be unavailable and
+  // must not require chain addresses or a signer merely to preserve their raw
+  // registry config.
+  const activeConfigWithoutDefaults = objFilter(
+    normalizedConfig,
+    (chain, _config): _config is HypTokenRouterConfigMailboxOptional =>
+      !skippedChains.has(chain),
   );
   assert(
-    Object.keys(activeConfig).length !== 0,
+    Object.keys(activeConfigWithoutDefaults).length !== 0,
     'Cannot skip every chain in the warp route',
   );
+  const activeConfig = WarpRouteDeployConfigMailboxRequiredSchema.parse(
+    await fillDefaults(context, activeConfigWithoutDefaults),
+  );
+  const referenceConfig = WarpRouteDeployConfigSchema.parse({
+    ...normalizedConfig,
+    ...activeConfig,
+  });
 
   return { config: activeConfig, referenceConfig };
 }
