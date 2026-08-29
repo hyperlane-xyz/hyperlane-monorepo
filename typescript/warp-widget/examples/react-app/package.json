@@ -23,5 +23,5 @@
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vite": "^5.0.0"
   },
-  "packageManager": "pnpm@11.20.0"
+  "packageManager": "pnpm@12.1.0"
 }

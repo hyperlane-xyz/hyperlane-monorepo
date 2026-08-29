@@ -36,7 +36,7 @@
     "prettier": "catalog:",
     "prettier-plugin-solidity": "catalog:",
     "tsx": "catalog:",
-    "turbo": "^2.8.11"
+    "turbo": "^2.10.12"
   },
-  "packageManager": "pnpm@11.20.0"
+  "packageManager": "pnpm@12.1.0"
 }
