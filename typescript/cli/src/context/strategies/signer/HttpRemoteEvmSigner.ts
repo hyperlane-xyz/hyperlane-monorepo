@@ -4,23 +4,57 @@ import { assert, ensure0x, eqAddressEvm } from '@hyperlane-xyz/utils';
 
 import type { HttpSignerClient } from './HttpSignerClient.js';
 
+const SERIALIZABLE_TRANSACTION_FIELDS = [
+  'type',
+  'chainId',
+  'nonce',
+  'gasLimit',
+  'gasPrice',
+  'maxFeePerGas',
+  'maxPriorityFeePerGas',
+  'to',
+  'value',
+  'data',
+  'accessList',
+] as const satisfies readonly (keyof ethers.providers.TransactionRequest)[];
+
 type SerializableTransaction = {
-  type?: number | null;
-  chainId?: ethers.BigNumberish;
-  nonce?: ethers.BigNumberish;
-  gasLimit?: ethers.BigNumberish;
-  gasPrice?: ethers.BigNumberish | null;
-  maxFeePerGas?: ethers.BigNumberish | null;
-  maxPriorityFeePerGas?: ethers.BigNumberish | null;
-  to?: string | null;
-  value?: ethers.BigNumberish;
-  data?: ethers.BytesLike;
-  accessList?: ethers.utils.AccessListish | null;
+  [Field in (typeof SERIALIZABLE_TRANSACTION_FIELDS)[number]]?:
+    | ethers.providers.TransactionRequest[Field]
+    | null;
 };
+
+const SUPPORTED_TRANSACTION_FIELDS = new Set<
+  keyof ethers.providers.TransactionRequest
+>([...SERIALIZABLE_TRANSACTION_FIELDS, 'from']);
+
+function isSupportedTransactionField(field: string): boolean {
+  for (const supportedField of SUPPORTED_TRANSACTION_FIELDS) {
+    if (supportedField === field) return true;
+  }
+  return false;
+}
+
+function assertSupportedTransactionFields(
+  transaction: SerializableTransaction,
+): void {
+  const unsupportedFields = Object.entries(transaction)
+    .filter(
+      ([field, value]) => value != null && !isSupportedTransactionField(field),
+    )
+    .map(([field]) => field);
+  assert(
+    unsupportedFields.length === 0,
+    `HTTP signer does not support Ethereum transaction fields: ${unsupportedFields.join(', ')}`,
+  );
+}
 
 function toUnsignedTransaction(
   transaction: SerializableTransaction,
+  validateFields = false,
 ): ethers.utils.UnsignedTransaction {
+  if (validateFields) assertSupportedTransactionFields(transaction);
+
   const commonFields = {
     chainId:
       transaction.chainId == null
@@ -30,19 +64,30 @@ function toUnsignedTransaction(
       transaction.nonce == null
         ? undefined
         : ethers.BigNumber.from(transaction.nonce).toNumber(),
-    gasLimit: transaction.gasLimit,
+    gasLimit: transaction.gasLimit ?? undefined,
     to: transaction.to ?? undefined,
-    value: transaction.value,
-    data: transaction.data,
+    value: transaction.value ?? undefined,
+    data: transaction.data ?? undefined,
   };
   switch (transaction.type ?? 0) {
     case 0:
+      assert(
+        transaction.accessList == null &&
+          transaction.maxFeePerGas == null &&
+          transaction.maxPriorityFeePerGas == null,
+        'Legacy Ethereum transactions do not support access lists or EIP-1559 fee fields',
+      );
       return {
         ...commonFields,
         type: transaction.type ?? undefined,
         gasPrice: transaction.gasPrice ?? undefined,
       };
     case 1:
+      assert(
+        transaction.maxFeePerGas == null &&
+          transaction.maxPriorityFeePerGas == null,
+        'EIP-2930 Ethereum transactions do not support EIP-1559 fee fields',
+      );
       return {
         ...commonFields,
         type: 1,
@@ -50,6 +95,10 @@ function toUnsignedTransaction(
         accessList: transaction.accessList ?? undefined,
       };
     case 2:
+      assert(
+        transaction.gasPrice == null,
+        'EIP-1559 Ethereum transactions do not support gasPrice',
+      );
       return {
         ...commonFields,
         type: 2,
@@ -113,7 +162,7 @@ export class HttpRemoteEvmSigner extends ethers.Signer {
       );
     }
 
-    const unsignedFields = toUnsignedTransaction(resolved);
+    const unsignedFields = toUnsignedTransaction(resolved, true);
     const unsignedTransaction =
       ethers.utils.serializeTransaction(unsignedFields);
     const response = await this.client.signTransaction(

@@ -9,6 +9,7 @@ import {
 import { errorToString, strip0x } from '@hyperlane-xyz/utils';
 
 const DEFAULT_HTTP_SIGNER_TIMEOUT_MS = 30_000;
+const MAX_HTTP_SIGNER_RESPONSE_BYTES = 256 * 1024;
 
 export class HttpSignerClient {
   private readonly token: string;
@@ -135,8 +136,52 @@ export class HttpSignerClient {
     operation: string,
     chain: string,
   ): Promise<unknown> {
+    const contentLength = Number(response.headers.get('content-length'));
+    if (
+      Number.isFinite(contentLength) &&
+      contentLength > MAX_HTTP_SIGNER_RESPONSE_BYTES
+    ) {
+      await response.body?.cancel();
+      throw new Error(
+        `HTTP signer ${operation} response for ${chain} exceeds ${MAX_HTTP_SIGNER_RESPONSE_BYTES} bytes`,
+      );
+    }
+
+    const reader = response.body?.getReader();
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+    if (reader) {
+      while (true) {
+        let result: ReadableStreamReadResult<Uint8Array>;
+        try {
+          result = await reader.read();
+        } catch (error) {
+          throw new Error(
+            `Failed to read HTTP signer ${operation} response for ${chain} (${response.status})`,
+            { cause: error },
+          );
+        }
+        if (result.done) break;
+        totalBytes += result.value.byteLength;
+        if (totalBytes > MAX_HTTP_SIGNER_RESPONSE_BYTES) {
+          await reader.cancel();
+          throw new Error(
+            `HTTP signer ${operation} response for ${chain} exceeds ${MAX_HTTP_SIGNER_RESPONSE_BYTES} bytes`,
+          );
+        }
+        chunks.push(result.value);
+      }
+    }
+
+    const responseBytes = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      responseBytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+
     try {
-      return await response.json();
+      return JSON.parse(new TextDecoder().decode(responseBytes));
     } catch (error) {
       throw new Error(
         `HTTP signer returned a non-JSON ${operation} response for ${chain} (${response.status})`,

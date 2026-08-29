@@ -69,6 +69,7 @@ describe('HttpRemoteEvmSigner', () => {
   let wrongSignerResponse: boolean;
   let wrongTransactionSigner: boolean;
   let mutateTransactionResponse: boolean;
+  let signingRequests: number;
 
   beforeEach(async () => {
     accountRequests = 0;
@@ -76,6 +77,7 @@ describe('HttpRemoteEvmSigner', () => {
     wrongSignerResponse = false;
     wrongTransactionSigner = false;
     mutateTransactionResponse = false;
+    signingRequests = 0;
     server = createServer(async (request, response) => {
       response.setHeader('Content-Type', 'application/json');
       if (request.headers.authorization !== `Bearer ${TOKEN}`) {
@@ -99,6 +101,7 @@ describe('HttpRemoteEvmSigner', () => {
         return;
       }
       if (request.url === '/signer/transaction') {
+        signingRequests += 1;
         const body: {
           chain: string;
           transaction: { encoding: string; value: string };
@@ -213,6 +216,50 @@ describe('HttpRemoteEvmSigner', () => {
       expect(await signer.signTransaction(transaction)).to.equal(
         await wallet.signTransaction(transaction),
       );
+    });
+  }
+
+  for (const [name, transaction, expectedMessage] of [
+    [
+      'EIP-1559 fields on a legacy transaction',
+      { type: 0, maxFeePerGas: 1 },
+      'Legacy Ethereum transactions do not support',
+    ],
+    [
+      'EIP-1559 fields on an EIP-2930 transaction',
+      { type: 1, maxPriorityFeePerGas: 1 },
+      'EIP-2930 Ethereum transactions do not support',
+    ],
+    [
+      'gasPrice on an EIP-1559 transaction',
+      { type: 2, gasPrice: 1 },
+      'EIP-1559 Ethereum transactions do not support gasPrice',
+    ],
+    [
+      'unknown populated fields',
+      { type: 0, unsupportedField: 1 },
+      'does not support Ethereum transaction fields: unsupportedField',
+    ],
+  ] as const) {
+    it(`rejects ${name} before contacting the signer`, async () => {
+      const signer = await HttpRemoteEvmSigner.create(
+        new HttpSignerClient(serverUrl, TOKEN),
+        CHAIN,
+        wallet.address,
+      );
+      const error = await getError(
+        signer.signTransaction({
+          chainId: CHAIN_ID,
+          nonce: 0,
+          gasLimit: 21_000,
+          to: wallet.address,
+          value: 1,
+          ...transaction,
+        }),
+      );
+
+      expect(error.message).to.include(expectedMessage);
+      expect(signingRequests).to.equal(0);
     });
   }
 
