@@ -8,9 +8,25 @@ import {
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 import { describe, it } from 'mocha';
+import {
+  blockhash,
+  compileTransaction,
+  createSignableMessage,
+  createTransactionMessage,
+  generateKeyPairSigner,
+  getPublicKeyFromAddress,
+  getTransactionDecoder,
+  getTransactionEncoder,
+  setTransactionMessageFeePayerSigner,
+  setTransactionMessageLifetimeUsingBlockhash,
+  verifySignature,
+} from '@solana/kit';
 
 import { type TurnkeyConfig } from '@hyperlane-xyz/sdk';
-import { SignerBackendError } from '@hyperlane-xyz/http-registry-server';
+import {
+  Eip712PayloadSchema,
+  SignerBackendError,
+} from '@hyperlane-xyz/http-registry-server';
 import {
   ProtocolType,
   assert,
@@ -52,10 +68,12 @@ function apiCredentials() {
 }
 
 describe('TurnkeyTransactionSignerBackend integration', () => {
-  it('uses the Turnkey HTTP contract and signs with privateKeyId', async function () {
+  it('uses the Turnkey HTTP contract for EVM, SVM, and EIP-712', async function () {
     this.timeout(20_000);
     const wallet = ethers.Wallet.createRandom();
+    const solanaSigner = await generateKeyPairSigner();
     let signRequest: Record<string, unknown> | undefined;
+    let rawPayloadRequest: Record<string, unknown> | undefined;
     let signActivityStatus = 'ACTIVITY_STATUS_COMPLETED';
     const turnkeyApi = createServer(async (request, response) => {
       if (request.url === '/public/v1/query/whoami') {
@@ -63,14 +81,18 @@ describe('TurnkeyTransactionSignerBackend integration', () => {
         return;
       }
       if (request.url === '/public/v1/query/get_private_key') {
+        const body = await readJson(request);
+        const isSolana = body.privateKeyId === 'solana-private-key-id';
         sendJson(response, {
           privateKey: {
-            privateKeyId: 'private-key-id',
-            curve: 'CURVE_SECP256K1',
+            privateKeyId: isSolana ? 'solana-private-key-id' : 'private-key-id',
+            curve: isSolana ? 'CURVE_ED25519' : 'CURVE_SECP256K1',
             addresses: [
               {
-                format: 'ADDRESS_FORMAT_ETHEREUM',
-                address: wallet.address,
+                format: isSolana
+                  ? 'ADDRESS_FORMAT_SOLANA'
+                  : 'ADDRESS_FORMAT_ETHEREUM',
+                address: isSolana ? solanaSigner.address : wallet.address,
               },
             ],
           },
@@ -106,6 +128,31 @@ describe('TurnkeyTransactionSignerBackend integration', () => {
           });
           return;
         }
+        if (signRequest.type === 'TRANSACTION_TYPE_SOLANA') {
+          const transaction = getTransactionDecoder().decode(
+            Buffer.from(signRequest.unsignedTransaction, 'hex'),
+          );
+          const [signature] = await solanaSigner.signMessages([
+            createSignableMessage(Uint8Array.from(transaction.messageBytes)),
+          ]);
+          const signedTransaction = getTransactionEncoder().encode({
+            ...transaction,
+            signatures: { ...transaction.signatures, ...signature },
+          });
+          sendJson(response, {
+            activity: {
+              id: 'solana-activity-id',
+              status: 'ACTIVITY_STATUS_COMPLETED',
+              result: {
+                signTransactionResult: {
+                  signedTransaction:
+                    Buffer.from(signedTransaction).toString('hex'),
+                },
+              },
+            },
+          });
+          return;
+        }
         const parsed = ethers.utils.parseTransaction(
           ensure0x(signRequest.unsignedTransaction),
         );
@@ -128,6 +175,41 @@ describe('TurnkeyTransactionSignerBackend integration', () => {
             result: {
               signTransactionResult: {
                 signedTransaction: strip0x(signedTransaction),
+              },
+            },
+          },
+        });
+        return;
+      }
+      if (request.url === '/public/v1/submit/sign_raw_payload') {
+        const body = await readJson(request);
+        const parameters = body.parameters;
+        assert(isRecord(parameters), 'Expected Turnkey parameters');
+        rawPayloadRequest = parameters;
+        assert(
+          typeof parameters.payload === 'string',
+          'Expected EIP-712 payload',
+        );
+        const typedData = Eip712PayloadSchema.parse(
+          JSON.parse(parameters.payload),
+        );
+        const { EIP712Domain: _domain, ...types } = typedData.types;
+        const signature = ethers.utils.splitSignature(
+          await wallet._signTypedData(
+            typedData.domain,
+            types,
+            typedData.message,
+          ),
+        );
+        sendJson(response, {
+          activity: {
+            id: 'typed-data-activity-id',
+            status: 'ACTIVITY_STATUS_COMPLETED',
+            result: {
+              signRawPayloadResult: {
+                r: strip0x(signature.r),
+                s: strip0x(signature.s),
+                v: signature.v.toString(16),
               },
             },
           },
@@ -183,6 +265,94 @@ describe('TurnkeyTransactionSignerBackend integration', () => {
       expect(
         ethers.utils.parseTransaction(result.signedTransaction).from,
       ).to.equal(wallet.address);
+
+      const typedData = Eip712PayloadSchema.parse({
+        types: {
+          EIP712Domain: [{ name: 'chainId', type: 'uint256' }],
+          Mail: [{ name: 'contents', type: 'string' }],
+        },
+        primaryType: 'Mail',
+        domain: { chainId: '31337' },
+        message: { contents: 'hello' },
+      });
+      const typedDataResult = await backend.signTypedData(typedData);
+      expect(rawPayloadRequest).to.deep.include({
+        signWith: config.privateKeyId,
+        payload: JSON.stringify(typedData),
+        encoding: 'PAYLOAD_ENCODING_EIP712',
+        hashFunction: 'HASH_FUNCTION_NO_OP',
+      });
+      expect(typedDataResult.backendRequestId).to.equal(
+        'typed-data-activity-id',
+      );
+      const { EIP712Domain: _domain, ...types } = typedData.types;
+      expect(
+        ethers.utils.verifyTypedData(
+          typedData.domain,
+          types,
+          typedData.message,
+          typedDataResult.signature,
+        ),
+      ).to.equal(wallet.address);
+
+      const solanaConfig: TurnkeyConfig = {
+        ...config,
+        privateKeyId: 'solana-private-key-id',
+        publicKey: solanaSigner.address,
+      };
+      const solanaBackend = new TurnkeyTransactionSignerBackend(
+        solanaConfig,
+        ProtocolType.Sealevel,
+      );
+      await solanaBackend.healthCheck();
+      const solanaMessage = setTransactionMessageLifetimeUsingBlockhash(
+        {
+          blockhash: blockhash('11111111111111111111111111111111'),
+          lastValidBlockHeight: 1n,
+        },
+        setTransactionMessageFeePayerSigner(
+          solanaSigner,
+          createTransactionMessage({ version: 0 }),
+        ),
+      );
+      const unsignedSolanaTransaction = getTransactionEncoder().encode(
+        compileTransaction(solanaMessage),
+      );
+      const solanaResult = await solanaBackend.signTransaction(
+        ProtocolType.Sealevel,
+        Uint8Array.from(unsignedSolanaTransaction),
+      );
+      expect(signRequest).to.include({
+        signWith: solanaConfig.privateKeyId,
+        type: 'TRANSACTION_TYPE_SOLANA',
+        unsignedTransaction: Buffer.from(unsignedSolanaTransaction).toString(
+          'hex',
+        ),
+      });
+      expect(solanaResult.backendRequestId).to.equal('solana-activity-id');
+      const signedSolanaTransaction = getTransactionDecoder().decode(
+        solanaResult.signedTransaction,
+      );
+      const decodedUnsignedSolanaTransaction = getTransactionDecoder().decode(
+        unsignedSolanaTransaction,
+      );
+      expect(
+        Buffer.from(
+          Uint8Array.from(signedSolanaTransaction.messageBytes),
+        ).equals(
+          Uint8Array.from(decodedUnsignedSolanaTransaction.messageBytes),
+        ),
+      ).to.equal(true);
+      const solanaSignature =
+        signedSolanaTransaction.signatures[solanaSigner.address];
+      assert(solanaSignature, 'Expected Turnkey Solana signature');
+      expect(
+        await verifySignature(
+          await getPublicKeyFromAddress(solanaSigner.address),
+          solanaSignature,
+          signedSolanaTransaction.messageBytes,
+        ),
+      ).to.equal(true);
 
       for (const [status, kind] of [
         ['ACTIVITY_STATUS_CONSENSUS_NEEDED', 'approvalRequired'],
