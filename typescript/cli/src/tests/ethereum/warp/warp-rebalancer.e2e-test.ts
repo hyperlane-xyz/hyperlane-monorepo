@@ -159,24 +159,20 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     console.log('Bridging tokens...');
 
-    await Promise.all([
-      hyperlaneWarpSendRelay({
-        origin: CHAIN_NAME_2,
-        destination: CHAIN_NAME_4,
-        warpRouteId,
-        relay: true,
-        value: toWei(10),
-      }),
-      sleep(2000).then(() =>
-        hyperlaneWarpSendRelay({
-          origin: CHAIN_NAME_3,
-          destination: CHAIN_NAME_4,
-          warpRouteId,
-          relay: true,
-          value: toWei(10),
-        }),
-      ),
-    ]);
+    await hyperlaneWarpSendRelay({
+      origin: CHAIN_NAME_2,
+      destination: CHAIN_NAME_4,
+      warpRouteId,
+      relay: true,
+      value: toWei(10),
+    });
+    await hyperlaneWarpSendRelay({
+      origin: CHAIN_NAME_3,
+      destination: CHAIN_NAME_4,
+      warpRouteId,
+      relay: true,
+      value: toWei(10),
+    });
   });
 
   after(() => {
@@ -554,9 +550,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       },
     });
 
-    await startRebalancerAndExpectLog(
-      `Error: Validation error: All chains must use the same minAmount type. at "strategy[0].chains"`,
-    );
+    await startRebalancerAndExpectLog([
+      'Error: ✖ All chains must use the same minAmount type.',
+      '→ at strategy[0].chains',
+    ]);
   });
 
   it('should throw if a weight value cannot be parsed as bigint', async () => {
@@ -647,9 +644,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       },
     });
 
-    await startRebalancerAndExpectLog(
-      `Error: Validation error: Invalid at "strategy.chains.anvil2.bridge"`,
-    );
+    await startRebalancerAndExpectLog([
+      'Error: ✖ Invalid string',
+      '→ at strategy.chains.anvil2.bridge',
+    ]);
   });
 
   it('should log that no routes are to be executed', async () => {

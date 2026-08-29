@@ -156,7 +156,7 @@ export const RebalancerConfigSchema = z
       )
       .transform((val) => val * 1_000),
   })
-  .superRefine((config, ctx) => {
+  .transform((config, ctx) => {
     // CollateralDeficitStrategy must be first in composite if it is used
     if (config.strategy.length > 1) {
       const hasCollateralDeficit = config.strategy.some(
@@ -439,6 +439,8 @@ export const RebalancerConfigSchema = z
         }
       }
     }
+
+    return config;
   });
 
 // Define separate types for each strategy config

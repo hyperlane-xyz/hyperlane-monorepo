@@ -128,6 +128,17 @@ describe('RebalancerConfig', () => {
     );
   });
 
+  it('reports an invalid bridge before running cross-field rules', () => {
+    const strategy = getStrategyArray(data)[0];
+    strategy.chains.chain1.bridge = 'bridge';
+    data.strategy = strategy;
+    writeYamlOrJson(TEST_CONFIG_PATH, data);
+
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+      'Invalid string: must match pattern',
+    );
+  });
+
   it('should load relative params without modifications', () => {
     data = {
       warpRouteId: 'warpRouteId',

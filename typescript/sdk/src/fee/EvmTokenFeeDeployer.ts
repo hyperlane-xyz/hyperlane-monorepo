@@ -166,6 +166,17 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: RoutingFeeConfig,
   ): Promise<RoutingFee> {
+    const feeEntries = Object.entries(config.feeContracts).map(
+      ([destinationChain, feeConfig]) => {
+        assert(
+          feeConfig.type !== TokenFeeType.RoutingFee &&
+            feeConfig.type !== TokenFeeType.CrossCollateralRoutingFee,
+          `Cannot nest ${feeConfig.type} inside a routing fee`,
+        );
+        return { destinationChain, feeConfig };
+      },
+    );
+
     const signerAddress = await this.multiProvider.getSignerAddress(chain);
 
     // RoutingFee.setFeeContract is onlyOwner, so we deploy with the signer as a
@@ -177,14 +188,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     );
 
     // Deploy each fee contract & set each fee for the routing fee
-    for (const [destinationChain, feeConfig] of Object.entries(
-      config.feeContracts,
-    )) {
-      assert(
-        feeConfig.type !== TokenFeeType.RoutingFee &&
-          feeConfig.type !== TokenFeeType.CrossCollateralRoutingFee,
-        `Cannot nest ${feeConfig.type} inside a routing fee`,
-      );
+    for (const { destinationChain, feeConfig } of feeEntries) {
       // Sub-fee configs inherit the routing fee's token if not explicitly set
       const resolvedFeeConfig = {
         ...feeConfig,
@@ -233,6 +237,20 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: CrossCollateralRoutingFeeConfig,
   ): Promise<CrossCollateralRoutingFee> {
+    const feeEntries = Object.entries(config.feeContracts).flatMap(
+      ([destinationChain, destinationConfig]) =>
+        Object.entries(destinationConfig).map(
+          ([routerKey, routerFeeConfig]) => {
+            assert(
+              routerFeeConfig.type !== TokenFeeType.RoutingFee &&
+                routerFeeConfig.type !== TokenFeeType.CrossCollateralRoutingFee,
+              `Cannot nest ${routerFeeConfig.type} inside a cross-collateral routing fee`,
+            );
+            return { destinationChain, routerKey, routerFeeConfig };
+          },
+        ),
+    );
+
     const signerAddress = await this.multiProvider.getSignerAddress(chain);
     const routingFee = await this.deployContract(
       chain,
@@ -244,28 +262,15 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     const routerKeys: string[] = [];
     const feeAddresses: string[] = [];
 
-    for (const [destinationChain, destinationConfig] of Object.entries(
-      config.feeContracts,
-    )) {
-      for (const [routerKey, routerFeeConfig] of Object.entries(
-        destinationConfig,
-      )) {
-        assert(
-          routerFeeConfig.type !== TokenFeeType.RoutingFee &&
-            routerFeeConfig.type !== TokenFeeType.CrossCollateralRoutingFee,
-          `Cannot nest ${routerFeeConfig.type} inside a cross-collateral routing fee`,
-        );
-        const { address } =
-          routerFeeConfig.type === TokenFeeType.OffchainQuotedLinearFee
-            ? await this.deployOffchainQuotedLinearFee(chain, routerFeeConfig)
-            : await this.deployFee(chain, routerFeeConfig);
+    for (const { destinationChain, routerKey, routerFeeConfig } of feeEntries) {
+      const { address } =
+        routerFeeConfig.type === TokenFeeType.OffchainQuotedLinearFee
+          ? await this.deployOffchainQuotedLinearFee(chain, routerFeeConfig)
+          : await this.deployFee(chain, routerFeeConfig);
 
-        destinationDomains.push(
-          this.multiProvider.getDomainId(destinationChain),
-        );
-        routerKeys.push(routerKey);
-        feeAddresses.push(address);
-      }
+      destinationDomains.push(this.multiProvider.getDomainId(destinationChain));
+      routerKeys.push(routerKey);
+      feeAddresses.push(address);
     }
 
     if (destinationDomains.length > 0) {

@@ -30,14 +30,14 @@ export function forwardCompatibleEnum<T extends Record<string, string>>(
   enumObj: T,
   unknownValue: T[keyof T],
 ) {
-  const validValues = Object.values(enumObj) as T[keyof T][];
+  const validValues = new Set(Object.values(enumObj));
+  const isEnumValue = (value: string): value is T[keyof T] =>
+    validValues.has(value);
   return z
     .enum(enumObj)
     .or(z.string())
     .transform((val): T[keyof T] => {
-      return validValues.includes(val as T[keyof T])
-        ? (val as T[keyof T])
-        : unknownValue;
+      return isEnumValue(val) ? val : unknownValue;
     });
 }
 

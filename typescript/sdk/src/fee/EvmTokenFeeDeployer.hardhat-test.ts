@@ -31,6 +31,24 @@ import { BPS_PRECISION, convertToBps } from './utils.js';
 type DistributiveOmit<T, K extends keyof T> = T extends any
   ? Omit<T, K>
   : never;
+
+async function expectError(
+  promise: Promise<unknown>,
+  expectedMessage: string,
+): Promise<void> {
+  let thrown: unknown;
+  try {
+    await promise;
+  } catch (error) {
+    thrown = error;
+  }
+
+  expect(thrown).to.be.instanceOf(Error);
+  if (thrown instanceof Error) {
+    expect(thrown.message).to.equal(expectedMessage);
+  }
+}
+
 describe('EvmTokenFeeDeployer', () => {
   let multiProvider: MultiProvider;
   let deployer: EvmTokenFeeDeployer;
@@ -166,6 +184,38 @@ describe('EvmTokenFeeDeployer', () => {
       'quoteTransferRemote(uint32,bytes32,uint256)'
     ](122222, addressToBytes32(signer.address), MAX_FEE);
     expect(quote2.length).to.equal(0);
+  });
+
+  it('should reject a nested routing fee before deploying its parent', async () => {
+    const transactionCount = await signer.getTransactionCount();
+    const config = RoutingFeeConfigSchema.parse({
+      type: TokenFeeType.RoutingFee,
+      owner: signer.address,
+      token: token.address,
+      feeContracts: {
+        [TestChainName.test1]: {
+          type: TokenFeeType.RoutingFee,
+          owner: signer.address,
+          token: token.address,
+          feeContracts: {
+            [TestChainName.test2]: {
+              type: TokenFeeType.LinearFee,
+              owner: signer.address,
+              token: token.address,
+              maxFee: MAX_FEE,
+              halfAmount: HALF_AMOUNT,
+              bps: BPS,
+            },
+          },
+        },
+      },
+    });
+
+    await expectError(
+      deployer.deploy({ [TestChainName.test2]: config }),
+      'Cannot nest RoutingFee inside a routing fee',
+    );
+    expect(await signer.getTransactionCount()).to.equal(transactionCount);
   });
 
   it('should deploy RoutingFee with multiple fee contracts', async () => {
@@ -424,5 +474,38 @@ describe('EvmTokenFeeDeployer', () => {
     expect(await defaultFeeContract.token()).to.equal(token.address);
     expect(await routerFeeContract.owner()).to.equal(config.owner);
     expect(await routerFeeContract.token()).to.equal(token.address);
+  });
+
+  it('should reject nested routing before deploying a cross-collateral parent', async () => {
+    const transactionCount = await signer.getTransactionCount();
+    const config = CrossCollateralRoutingFeeConfigSchema.parse({
+      type: TokenFeeType.CrossCollateralRoutingFee,
+      owner: signer.address,
+      feeContracts: {
+        [TestChainName.test1]: {
+          [DEFAULT_ROUTER_KEY]: {
+            type: TokenFeeType.RoutingFee,
+            owner: signer.address,
+            token: token.address,
+            feeContracts: {
+              [TestChainName.test2]: {
+                type: TokenFeeType.LinearFee,
+                owner: signer.address,
+                token: token.address,
+                maxFee: MAX_FEE,
+                halfAmount: HALF_AMOUNT,
+                bps: BPS,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    await expectError(
+      deployer.deploy({ [TestChainName.test2]: config }),
+      'Cannot nest RoutingFee inside a cross-collateral routing fee',
+    );
+    expect(await signer.getTransactionCount()).to.equal(transactionCount);
   });
 });
