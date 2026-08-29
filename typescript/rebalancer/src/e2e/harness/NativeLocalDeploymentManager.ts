@@ -115,10 +115,11 @@ export class NativeLocalDeploymentManager extends BaseLocalDeploymentManager<Nat
     for (const chain of TEST_CHAIN_CONFIGS) {
       const provider = providersByChain.get(chain.name)!;
       const deployer = deployerWallet.connect(provider);
-      await deployer.sendTransaction({
+      const seedTx = await deployer.sendTransaction({
         to: bridgeRouters[chain.name].address,
         value: bridgeSeedAmount,
       });
+      await seedTx.wait();
     }
 
     return {
