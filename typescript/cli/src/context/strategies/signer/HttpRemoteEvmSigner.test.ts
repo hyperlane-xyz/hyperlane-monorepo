@@ -3,6 +3,7 @@ import { ethers, Wallet } from 'ethers';
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 
 import { ChainTechnicalStack, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import { SignerTransactionRequestSchema } from '@hyperlane-xyz/http-registry-server';
 import { ProtocolType, assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import { HttpRemoteEvmSigner } from './HttpRemoteEvmSigner.js';
@@ -78,7 +79,7 @@ describe('HttpRemoteEvmSigner', () => {
     wrongTransactionSigner = false;
     mutateTransactionResponse = false;
     signingRequests = 0;
-    server = createServer(async (request, response) => {
+    const testServer = createServer(async (request, response) => {
       response.setHeader('Content-Type', 'application/json');
       if (request.headers.authorization !== `Bearer ${TOKEN}`) {
         response.statusCode = 401;
@@ -102,10 +103,9 @@ describe('HttpRemoteEvmSigner', () => {
       }
       if (request.url === '/signer/transaction') {
         signingRequests += 1;
-        const body: {
-          chain: string;
-          transaction: { encoding: string; value: string };
-        } = JSON.parse(await readBody(request));
+        const body = SignerTransactionRequestSchema.parse(
+          JSON.parse(await readBody(request)),
+        );
         expect(body.chain).to.equal(CHAIN);
         expect(body.transaction.encoding).to.equal('hex');
         const parsed = ethers.utils.parseTransaction(
@@ -136,10 +136,11 @@ describe('HttpRemoteEvmSigner', () => {
       response.statusCode = 404;
       response.end(JSON.stringify({ message: 'Not found' }));
     });
+    server = testServer;
     await new Promise<void>((resolve) =>
-      server!.listen(0, '127.0.0.1', resolve),
+      testServer.listen(0, '127.0.0.1', resolve),
     );
-    const address = server.address();
+    const address = testServer.address();
     assert(
       typeof address === 'object' && address !== null,
       'Expected HTTP test server address',

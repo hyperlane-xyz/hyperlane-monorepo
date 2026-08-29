@@ -8,6 +8,7 @@ import {
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 import { describe, it } from 'mocha';
+import { z } from 'zod';
 import {
   blockhash,
   compileTransaction,
@@ -37,13 +38,12 @@ import {
 
 import { TurnkeyTransactionSignerBackend } from '../src/utils/turnkey.js';
 
+const JsonRecordSchema = z.record(z.unknown());
+
 async function readJson(request: IncomingMessage) {
   const chunks: Buffer[] = [];
   for await (const chunk of request) chunks.push(Buffer.from(chunk));
-  return JSON.parse(Buffer.concat(chunks).toString()) as Record<
-    string,
-    unknown
-  >;
+  return JsonRecordSchema.parse(JSON.parse(Buffer.concat(chunks).toString()));
 }
 
 function sendJson(response: ServerResponse, body: unknown): void {

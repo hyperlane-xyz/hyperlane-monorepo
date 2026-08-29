@@ -21,7 +21,7 @@ describe('HttpSignerClient response limits', () => {
   let serverUrl: URL;
 
   beforeEach(async () => {
-    server = createServer((request, response) => {
+    const testServer = createServer((request, response) => {
       response.setHeader('Content-Type', 'application/json');
       if (request.url?.endsWith('/content-length')) {
         response.setHeader('Content-Length', 300_000);
@@ -31,10 +31,11 @@ describe('HttpSignerClient response limits', () => {
       response.write(`{"padding":"${'x'.repeat(150_000)}`);
       response.end(`${'x'.repeat(150_000)}"}`);
     });
+    server = testServer;
     await new Promise<void>((resolve) =>
-      server!.listen(0, '127.0.0.1', resolve),
+      testServer.listen(0, '127.0.0.1', resolve),
     );
-    const address = server.address();
+    const address = testServer.address();
     assert(
       typeof address === 'object' && address !== null,
       'Expected HTTP test server address',

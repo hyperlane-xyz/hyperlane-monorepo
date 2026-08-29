@@ -143,11 +143,10 @@ export class TurnkeyTransactionSignerBackend implements TransactionSignerBackend
     protocol: ProtocolType,
     unsignedTransaction: Uint8Array,
   ): Promise<{ signedTransaction: Uint8Array; backendRequestId?: string }> {
-    if (protocol !== this.protocol) {
-      throw new Error(
-        `Backend is configured for ${this.protocol}, not ${protocol}`,
-      );
-    }
+    assert(
+      protocol === this.protocol,
+      `Backend is configured for ${this.protocol}, not ${protocol}`,
+    );
     try {
       const { activity, signedTransaction } = await this.manager
         .getClient()
@@ -179,9 +178,10 @@ export class TurnkeyTransactionSignerBackend implements TransactionSignerBackend
   async signTypedData(
     typedData: Eip712Payload,
   ): Promise<{ signature: string; backendRequestId?: string }> {
-    if (this.protocol !== ProtocolType.Ethereum) {
-      throw new Error('Typed-data signing requires an Ethereum backend');
-    }
+    assert(
+      this.protocol === ProtocolType.Ethereum,
+      'Typed-data signing requires an Ethereum backend',
+    );
     try {
       const { activity, r, s, v } = await this.manager
         .getClient()

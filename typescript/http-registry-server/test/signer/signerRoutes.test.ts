@@ -22,6 +22,7 @@ import {
 import { PartialRegistry } from '@hyperlane-xyz/registry';
 import {
   ProtocolType,
+  assert,
   ensure0x,
   fromHexString,
   strip0x,
@@ -565,10 +566,12 @@ describe('signer routes', () => {
       Buffer.from(response.body.signedTransaction.value, 'base64'),
     );
     expect(returned.signatures[remoteSigner.address]).not.to.equal(null);
+    const returnedOtherSignature = returned.signatures[otherSigner.address];
+    const expectedOtherSignature = otherSignature[otherSigner.address];
+    assert(returnedOtherSignature, 'Expected preserved remote signature');
+    assert(expectedOtherSignature, 'Expected local test signature');
     expect(
-      Buffer.from(returned.signatures[otherSigner.address]!).equals(
-        otherSignature[otherSigner.address]!,
-      ),
+      Buffer.from(returnedOtherSignature).equals(expectedOtherSignature),
     ).to.equal(true);
   });
 

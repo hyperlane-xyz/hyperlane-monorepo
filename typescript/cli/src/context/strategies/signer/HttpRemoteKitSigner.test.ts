@@ -19,6 +19,7 @@ import { expect } from 'chai';
 import { afterEach, describe, it } from 'mocha';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
+import { SignerTransactionRequestSchema } from '@hyperlane-xyz/http-registry-server';
 
 import { HttpRemoteKitSigner } from './HttpRemoteKitSigner.js';
 import { HttpSignerClient } from './HttpSignerClient.js';
@@ -49,7 +50,7 @@ describe('HttpRemoteKitSigner HTTP integration', function () {
     const lookedUpAccount = await generateKeyPairSigner();
     let signingRequests = 0;
 
-    server = createServer(async (request, response) => {
+    const testServer = createServer(async (request, response) => {
       try {
         expect(request.headers.authorization).to.equal(`Bearer ${TOKEN}`);
         response.setHeader('Content-Type', 'application/json');
@@ -68,10 +69,9 @@ describe('HttpRemoteKitSigner HTTP integration', function () {
         signingRequests += 1;
         const chunks: Buffer[] = [];
         for await (const chunk of request) chunks.push(Buffer.from(chunk));
-        const body = JSON.parse(Buffer.concat(chunks).toString()) as {
-          chain: string;
-          transaction: { encoding: string; value: string };
-        };
+        const body = SignerTransactionRequestSchema.parse(
+          JSON.parse(Buffer.concat(chunks).toString()),
+        );
         expect(body.chain).to.equal(CHAIN);
         expect(body.transaction.encoding).to.equal('base64');
         const unsigned = transactionDecoder.decode(
@@ -106,10 +106,11 @@ describe('HttpRemoteKitSigner HTTP integration', function () {
         );
       }
     });
+    server = testServer;
     await new Promise<void>((resolve) =>
-      server!.listen(0, '127.0.0.1', resolve),
+      testServer.listen(0, '127.0.0.1', resolve),
     );
-    const boundAddress = server.address();
+    const boundAddress = testServer.address();
     if (!boundAddress || typeof boundAddress === 'string') {
       throw new Error('Test signer did not bind a TCP port');
     }
