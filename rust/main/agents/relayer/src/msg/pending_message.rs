@@ -1,6 +1,7 @@
 #![allow(clippy::clone_on_ref_ptr)] // TODO: `rustc` 1.80.1 clippy issue
 
 use std::{
+    collections::HashSet,
     fmt::{Debug, Formatter},
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -9,6 +10,7 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
+use parking_lot::Mutex;
 use prometheus::IntGauge;
 use serde::{de::DeserializeOwned, Serialize};
 use tokio::sync::RwLock;
@@ -104,6 +106,33 @@ pub struct MessageContext {
     pub application_operation_verifier: Arc<dyn ApplicationOperationVerifier>,
 }
 
+/// Keeps an indexed message from being loaded again while its operation is alive.
+pub(super) struct LoadedMessageGuard {
+    message_id: H256,
+    loaded_messages: Arc<Mutex<HashSet<H256>>>,
+}
+
+impl LoadedMessageGuard {
+    pub(super) fn try_acquire(
+        message_id: H256,
+        loaded_messages: Arc<Mutex<HashSet<H256>>>,
+    ) -> Option<Self> {
+        if !loaded_messages.lock().insert(message_id) {
+            return None;
+        }
+        Some(Self {
+            message_id,
+            loaded_messages,
+        })
+    }
+}
+
+impl Drop for LoadedMessageGuard {
+    fn drop(&mut self) {
+        self.loaded_messages.lock().remove(&self.message_id);
+    }
+}
+
 /// A message that is pending processing and submission.
 #[derive(new, Serialize)]
 pub struct PendingMessage {
@@ -157,6 +186,15 @@ pub struct PendingMessage {
     #[new(default)]
     #[serde(skip_serializing)]
     ica_reveal_attempts: u32,
+    #[new(default)]
+    #[serde(skip_serializing)]
+    loaded_message_guard: Option<LoadedMessageGuard>,
+}
+
+impl PendingMessage {
+    pub(super) fn set_loaded_message_guard(&mut self, guard: LoadedMessageGuard) {
+        self.loaded_message_guard = Some(guard);
+    }
 }
 
 impl Drop for PendingMessage {

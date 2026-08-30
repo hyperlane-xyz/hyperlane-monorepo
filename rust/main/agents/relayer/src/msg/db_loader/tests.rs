@@ -317,6 +317,54 @@ async fn index_notification_reopens_exhausted_low_range() {
     .await;
 }
 
+#[tokio::test]
+async fn reopened_low_range_does_not_duplicate_in_flight_message() {
+    test_utils::run_test_db(|db| async move {
+        let origin_domain = dummy_domain(0, "dummy_origin_domain");
+        let destination_domain = dummy_domain(1, "dummy_destination_domain");
+        let db = HyperlaneRocksDB::new(&origin_domain, db);
+        let (notification_sender, notification_receiver) = mpsc::channel(1);
+        let (mut loader, mut receiver) = dummy_message_loader_with_notifications(
+            &origin_domain,
+            &destination_domain,
+            &db,
+            OptionalCache::new(None),
+            Some(notification_receiver),
+        );
+        finish_legacy_migration(&mut loader).await;
+
+        let high = dummy_hyperlane_message(&destination_domain, 5);
+        add_db_entry(&db, &high, 0);
+        loader.tick().await.expect("load high operation");
+        let high_operation = receiver.try_recv().expect("high operation");
+        assert_eq!(high_operation.id(), high.id());
+
+        loader.destination_iterators[0].low_nonce = None;
+        let late = dummy_hyperlane_message(&destination_domain, 1);
+        add_db_entry(&db, &late, 0);
+        notification_sender
+            .send(H512::from_low_u64_be(1))
+            .await
+            .expect("send index notification");
+
+        let late_operation = timeout(Duration::from_millis(750), async {
+            loop {
+                loader.tick().await.expect("scan reopened low range");
+                if let Ok(operation) = receiver.try_recv() {
+                    break operation;
+                }
+            }
+        })
+        .await
+        .expect("late operation should be found");
+        assert_eq!(late_operation.id(), late.id());
+        assert!(receiver.try_recv().is_err(), "high message was duplicated");
+
+        drop(high_operation);
+    })
+    .await;
+}
+
 /// Only adds database entries to the pending message prefix if the message's
 /// retry count is greater than zero
 fn persist_retried_messages(
