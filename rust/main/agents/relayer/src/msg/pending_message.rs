@@ -227,12 +227,15 @@ impl PendingOperation for PendingMessage {
     }
 
     fn set_status(&mut self, status: PendingOperationStatus) {
-        if let Err(e) = self
-            .ctx
-            .origin_db
-            .store_status_by_message_id(&self.message.id(), &status)
-        {
-            warn!(message_id = ?self.message.id(), err = %e, status = %status, "Persisting `status` failed for message");
+        // Manual status commits atomically with the cleared retry deadline.
+        if status != PendingOperationStatus::Retry(ReprepareReason::Manual) {
+            if let Err(e) = self
+                .ctx
+                .origin_db
+                .store_status_by_message_id(&self.message.id(), &status)
+            {
+                warn!(message_id = ?self.message.id(), err = %e, status = %status, "Persisting `status` failed for message");
+            }
         }
         self.status = status;
     }
@@ -1155,7 +1158,19 @@ impl PendingMessage {
     fn reset_attempts(&mut self) {
         self.next_attempt_after = None;
         self.last_attempted_at = Instant::now();
-        self.persist_retry_state(None, None);
+        let status = self.status.clone();
+        let state = PendingMessageRetryState::new(self.num_retries, None, None, None);
+        if let Err(e) = self
+            .ctx
+            .origin_db
+            .store_pending_message_retry_state_and_status_by_message_id(
+                &self.message.id(),
+                &state,
+                &status,
+            )
+        {
+            warn!(message_id = ?self.message.id(), err = %e, "Persisting manual retry reset failed for message");
+        }
     }
 
     fn inc_attempts(&mut self, reason: Option<&ReprepareReason>) {
@@ -1616,7 +1631,7 @@ mod test {
             .store_pending_message_retry_count_by_message_id(&message.id(), &2)
             .expect("store lagging legacy retry count");
 
-        let restored = PendingMessage::maybe_from_persisted_retries(
+        let mut restored = PendingMessage::maybe_from_persisted_retries(
             message.clone(),
             ctx.clone(),
             None,
@@ -1634,6 +1649,35 @@ mod test {
         );
         assert!(remaining > Duration::from_secs(58));
         assert!(remaining <= Duration::from_secs(60));
+
+        restored.set_status(PendingOperationStatus::Retry(ReprepareReason::Manual));
+        restored.reset_attempts();
+        assert_eq!(
+            base_db
+                .retrieve_status_by_message_id(&message.id())
+                .expect("read manual retry status"),
+            Some(PendingOperationStatus::Retry(ReprepareReason::Manual))
+        );
+        let manual_state = base_db
+            .retrieve_pending_message_retry_state_by_message_id(&message.id())
+            .expect("read manual retry state")
+            .expect("manual retry state");
+        assert_eq!(manual_state.retry_count, 3);
+        assert_eq!(manual_state.next_attempt_at_millis, None);
+        assert_eq!(manual_state.retry_delay_millis, None);
+        assert_eq!(manual_state.reason, None);
+        let manual = PendingMessage::maybe_from_persisted_retries(
+            message.clone(),
+            ctx.clone(),
+            None,
+            DEFAULT_MAX_MESSAGE_RETRIES,
+        )
+        .expect("restore manual retry");
+        assert_eq!(
+            manual.status(),
+            PendingOperationStatus::Retry(ReprepareReason::Manual)
+        );
+        assert_eq!(manual.next_attempt_after(), None);
 
         let expired_state = PendingMessageRetryState::new(
             3,

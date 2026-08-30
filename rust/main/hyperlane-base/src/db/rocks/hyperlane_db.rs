@@ -658,6 +658,35 @@ impl HyperlaneDb for HyperlaneRocksDB {
         ])
     }
 
+    fn store_pending_message_retry_state_and_status_by_message_id(
+        &self,
+        message_id: &H256,
+        state: &PendingMessageRetryState,
+        status: &PendingOperationStatus,
+    ) -> DbResult<()> {
+        self.store_batch([
+            (
+                PENDING_MESSAGE_RETRY_STATE_FOR_MESSAGE_ID
+                    .as_bytes()
+                    .to_vec(),
+                message_id.to_vec(),
+                state.to_vec(),
+            ),
+            (
+                PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID
+                    .as_bytes()
+                    .to_vec(),
+                message_id.to_vec(),
+                state.retry_count.to_vec(),
+            ),
+            (
+                STATUS_BY_MESSAGE_ID.as_bytes().to_vec(),
+                message_id.to_vec(),
+                status.to_vec(),
+            ),
+        ])
+    }
+
     fn retrieve_pending_message_retry_state_by_message_id(
         &self,
         message_id: &H256,

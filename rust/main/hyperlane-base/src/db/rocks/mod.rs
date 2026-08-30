@@ -277,22 +277,37 @@ mod tests {
     }
 
     #[test]
-    fn failed_batch_writes_no_keys() {
+    fn failed_batch_preserves_all_old_values() {
         let temp_dir = tempfile::tempdir().expect("temp db directory");
         let mut options = Options::default();
         options.create_if_missing(true);
-        drop(Rocks::open(&options, temp_dir.path()).expect("initialize db"));
+        let writable = Rocks::open(&options, temp_dir.path()).expect("initialize db");
+        writable
+            .put(b"retry-state", b"old-state")
+            .expect("store old state");
+        writable
+            .put(b"retry-count", b"old-count")
+            .expect("store old count");
+        drop(writable);
 
         let rocks =
             Rocks::open_for_read_only(&options, temp_dir.path(), false).expect("open read-only db");
         let db = DB::from(rocks);
         assert!(db
             .store_batch([
-                (b"retry-state".to_vec(), b"state".to_vec()),
-                (b"retry-count".to_vec(), b"count".to_vec()),
+                (b"retry-state".to_vec(), b"new-state".to_vec()),
+                (b"retry-count".to_vec(), b"new-count".to_vec()),
+                (b"status".to_vec(), b"manual".to_vec()),
             ])
             .is_err());
-        assert_eq!(db.retrieve(b"retry-state").expect("read state"), None);
-        assert_eq!(db.retrieve(b"retry-count").expect("read count"), None);
+        assert_eq!(
+            db.retrieve(b"retry-state").expect("read state"),
+            Some(b"old-state".to_vec())
+        );
+        assert_eq!(
+            db.retrieve(b"retry-count").expect("read count"),
+            Some(b"old-count".to_vec())
+        );
+        assert_eq!(db.retrieve(b"status").expect("read status"), None);
     }
 }
