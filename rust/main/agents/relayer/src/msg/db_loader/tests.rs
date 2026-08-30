@@ -285,6 +285,38 @@ async fn test_drain_index_notifications_clears_backlog() {
     .await;
 }
 
+#[tokio::test]
+async fn index_notification_reopens_exhausted_low_range() {
+    test_utils::run_test_db(|db| async move {
+        let origin_domain = dummy_domain(0, "dummy_origin_domain");
+        let destination_domain = dummy_domain(1, "dummy_destination_domain");
+        let db = HyperlaneRocksDB::new(&origin_domain, db);
+        let (notification_sender, notification_receiver) = mpsc::channel(1);
+        let (mut loader, mut receiver) = dummy_message_loader_with_notifications(
+            &origin_domain,
+            &destination_domain,
+            &db,
+            OptionalCache::new(None),
+            Some(notification_receiver),
+        );
+        finish_legacy_migration(&mut loader).await;
+        loader.destination_iterators[0].high_nonce = Some(6);
+        loader.destination_iterators[0].low_nonce = None;
+
+        let late = dummy_hyperlane_message(&destination_domain, 1);
+        add_db_entry(&db, &late, 0);
+        notification_sender
+            .send(H512::from_low_u64_be(1))
+            .await
+            .expect("send index notification");
+
+        loader.tick().await.expect("load late low nonce");
+
+        assert_eq!(receiver.try_recv().expect("late operation").id(), late.id());
+    })
+    .await;
+}
+
 /// Only adds database entries to the pending message prefix if the message's
 /// retry count is greater than zero
 fn persist_retried_messages(
