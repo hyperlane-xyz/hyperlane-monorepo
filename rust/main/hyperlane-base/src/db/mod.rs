@@ -128,12 +128,20 @@ pub trait HyperlaneDb: Send + Sync {
 
     /// Atomically store retry state and its legacy retry-count mirror.
     ///
-    /// Status is persisted separately by the operation queue. The retry state carries
-    /// its reason to close that write boundary while its deadline is active.
+    /// Status is normally persisted separately by the operation queue. The retry state
+    /// carries its reason to close that write boundary while its deadline is active.
     fn store_pending_message_retry_state_by_message_id(
         &self,
         message_id: &H256,
         state: &PendingMessageRetryState,
+    ) -> DbResult<()>;
+
+    /// Atomically store retry state, its legacy count mirror, and message status.
+    fn store_pending_message_retry_state_and_status_by_message_id(
+        &self,
+        message_id: &H256,
+        state: &PendingMessageRetryState,
+        status: &PendingOperationStatus,
     ) -> DbResult<()>;
 
     /// Retrieve durable retry state for a pending message.

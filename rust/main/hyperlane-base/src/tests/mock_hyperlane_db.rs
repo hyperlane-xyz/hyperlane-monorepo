@@ -103,6 +103,12 @@ mockall::mock! {
             message_id: &H256,
             state: &PendingMessageRetryState,
         ) -> DbResult<()>;
+        fn store_pending_message_retry_state_and_status_by_message_id(
+            &self,
+            message_id: &H256,
+            state: &PendingMessageRetryState,
+            status: &PendingOperationStatus,
+        ) -> DbResult<()>;
         fn retrieve_pending_message_retry_state_by_message_id(
             &self,
             message_id: &H256,
