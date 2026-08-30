@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use eyre::{bail, eyre, Context, ContextCompat, Result};
+use eyre::{bail, Context, ContextCompat, Result};
 use futures_util::{SinkExt, StreamExt};
 use hyperlane_base::{
     db::{DbResult, HyperlaneDb, HyperlaneRocksDB},
@@ -24,7 +24,6 @@ use serde::Deserialize;
 use sha3::{Digest, Keccak256};
 use tokio::{
     sync::Semaphore,
-    task::JoinHandle,
     time::{sleep, timeout, Instant},
 };
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -35,8 +34,12 @@ const DISPATCH_EVENT_TYPE: &str = "dispatch";
 const MERKLE_EVENT_TYPE: &str = "merkle_tree_insertion";
 const READ_TIMEOUT: Duration = Duration::from_secs(75);
 const RETRY_DELAY: Duration = Duration::from_secs(5);
-const PARITY_READ_TIMEOUT: Duration = Duration::from_secs(1);
 const PARITY_READ_CONCURRENCY: usize = 4;
+#[cfg(not(test))]
+const PARITY_RETRY_DELAY: Duration = Duration::from_secs(1);
+#[cfg(test)]
+const PARITY_RETRY_DELAY: Duration = Duration::from_millis(10);
+const PARITY_RETRY_ATTEMPTS: usize = 60;
 const PARITY_WARN_INTERVAL: Duration = Duration::from_secs(60);
 const DUPLICATE_FINGERPRINT_WINDOW: usize = 1_024;
 const CROSS_STREAM_WINDOW: usize = 1_024;
@@ -408,7 +411,7 @@ struct ValidatedEvent {
     sequence_result: SequenceResult,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum ParityInput {
     Dispatch {
         block_number: u64,
@@ -832,7 +835,10 @@ pub(crate) struct ScraperWebSocketMonitor {
     caught_up: IntGaugeVec,
     events: IntCounterVec,
     parity: IntCounterVec,
+    parity_pending: IntGaugeVec,
+    parity_ready: IntGaugeVec,
     parity_read_permit: Arc<Semaphore>,
+    parity_unhealthy: Arc<parking_lot::Mutex<std::collections::HashSet<(u32, EventKind)>>>,
     parity_warned_at: Arc<parking_lot::Mutex<Option<Instant>>>,
     sources: HashMap<u32, ScraperSource>,
     url: Url,
@@ -864,6 +870,16 @@ impl ScraperWebSocketMonitor {
             "Read-only parity outcomes for scraper-proxy events against RPC-indexed local DB records",
             &["chain", "event_type", "result"],
         )?;
+        let parity_pending = metrics.new_int_gauge(
+            "relayer_scraper_websocket_parity_pending",
+            "Scraper events awaiting a terminal local DB parity result",
+            &["chain", "event_type"],
+        )?;
+        let parity_ready = metrics.new_int_gauge(
+            "relayer_scraper_websocket_parity_ready",
+            "Whether every observed scraper event has terminal matching local DB parity",
+            &["chain", "event_type"],
+        )?;
         let sources = sources
             .into_iter()
             .map(|source| (source.domain, source))
@@ -874,6 +890,12 @@ impl ScraperWebSocketMonitor {
                 caught_up
                     .with_label_values(&[source.chain.as_str(), kind.label()])
                     .set(0);
+                parity_pending
+                    .with_label_values(&[&source.chain, kind.label()])
+                    .set(0);
+                parity_ready
+                    .with_label_values(&[&source.chain, kind.label()])
+                    .set(0);
             }
         }
         Ok(Self {
@@ -881,7 +903,10 @@ impl ScraperWebSocketMonitor {
             caught_up,
             events,
             parity,
+            parity_pending,
+            parity_ready,
             parity_read_permit: Arc::new(Semaphore::new(PARITY_READ_CONCURRENCY)),
+            parity_unhealthy: Arc::new(parking_lot::Mutex::new(std::collections::HashSet::new())),
             parity_warned_at: Arc::new(parking_lot::Mutex::new(None)),
             sources,
             url,
@@ -919,72 +944,71 @@ impl ScraperWebSocketMonitor {
         }
     }
 
-    fn observe_parity(
-        &self,
-        domain: u32,
-        kind: EventKind,
-        parity_input: ParityInput,
-    ) -> Option<JoinHandle<()>> {
+    async fn observe_parity(&self, domain: u32, kind: EventKind, parity_input: ParityInput) {
         let source = self
             .sources
             .get(&domain)
             .expect("validated scraper event source must exist");
         let chain = source.chain.clone();
         let event_type = kind.label();
-        let metrics = self.parity.clone();
-        let permit = match self.parity_read_permit.clone().try_acquire_owned() {
-            Ok(permit) => permit,
-            Err(_) => {
-                metrics
-                    .with_label_values(&[chain.as_str(), event_type, "skipped"])
-                    .inc();
-                if should_warn(&self.parity_warned_at) {
-                    warn!(%chain, event_type, "Local DB parity reader is busy");
-                }
-                return None;
-            }
-        };
+        let labels = [chain.as_str(), event_type];
+        self.parity_pending.with_label_values(&labels).inc();
+        self.parity_ready.with_label_values(&labels).set(0);
+        let _permit = self
+            .parity_read_permit
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("parity semaphore is never closed");
         let database = source.database.clone();
-        let warned_at = self.parity_warned_at.clone();
-        let comparison = tokio::task::spawn_blocking(move || {
-            let _permit = permit;
-            parity_input.compare(database.as_ref())
-        });
-
-        Some(tokio::spawn(async move {
-            let result = match timeout(PARITY_READ_TIMEOUT, comparison).await {
-                Ok(Ok(result)) => result,
-                Ok(Err(err)) => Err(eyre!("Local DB parity task failed: {err}")),
-                Err(_) => Err(eyre!("Local DB parity read timed out")),
-            };
-            match result {
-                Ok(parity_result) => {
-                    metrics
-                        .with_label_values(&[chain.as_str(), event_type, parity_result.label()])
-                        .inc();
-                    if parity_result == ParityResult::Conflict && should_warn(&warned_at) {
-                        warn!(
-                            %chain,
-                            event_type,
-                            "Scraper event conflicts with RPC-indexed local DB"
-                        );
+        let mut terminal = None;
+        for attempt in 1..=PARITY_RETRY_ATTEMPTS {
+            let database = database.clone();
+            let parity_input = parity_input.clone();
+            match tokio::task::spawn_blocking(move || parity_input.compare(database.as_ref())).await
+            {
+                Ok(Ok(ParityResult::Missing)) if attempt < PARITY_RETRY_ATTEMPTS => {
+                    sleep(PARITY_RETRY_DELAY).await;
+                }
+                Ok(Ok(ParityResult::Missing)) => {
+                    terminal = Some("expired");
+                    break;
+                }
+                Ok(Ok(result)) => {
+                    terminal = Some(result.label());
+                    break;
+                }
+                Ok(Err(err)) => {
+                    if should_warn(&self.parity_warned_at) {
+                        warn!(%chain, event_type, ?err, "Local DB parity comparison failed");
                     }
+                    terminal = Some("error");
+                    break;
                 }
                 Err(err) => {
-                    metrics
-                        .with_label_values(&[chain.as_str(), event_type, "error"])
-                        .inc();
-                    if should_warn(&warned_at) {
-                        warn!(
-                            %chain,
-                            event_type,
-                            ?err,
-                            "Local DB parity comparison failed"
-                        );
+                    if should_warn(&self.parity_warned_at) {
+                        warn!(%chain, event_type, ?err, "Local DB parity task failed");
                     }
+                    terminal = Some("error");
+                    break;
                 }
             }
-        }))
+        }
+        let terminal = terminal.expect("parity retry loop always produces a terminal result");
+        self.parity
+            .with_label_values(&[chain.as_str(), event_type, terminal])
+            .inc();
+        if terminal != ParityResult::Match.label() {
+            self.parity_unhealthy.lock().insert((domain, kind));
+            if should_warn(&self.parity_warned_at) {
+                warn!(%chain, event_type, result = terminal, "Scraper event did not reach matching local DB parity");
+            }
+        }
+        let pending = self.parity_pending.with_label_values(&labels);
+        pending.dec();
+        if pending.get() == 0 && !self.parity_unhealthy.lock().contains(&(domain, kind)) {
+            self.parity_ready.with_label_values(&labels).set(1);
+        }
     }
 
     async fn stream(&self, state: &mut StreamState) -> Result<()> {
@@ -1063,15 +1087,9 @@ impl ScraperWebSocketMonitor {
                                         SequenceResult::Accepted => "accepted",
                                         SequenceResult::Duplicate => "duplicate",
                                     };
+                                    self.observe_parity(domain, validated.kind, validated.parity)
+                                        .await;
                                     self.record(domain, validated.kind.label(), result);
-                                    let source = self.sources.get(&domain).context(
-                                        "Validated scraper event source unexpectedly missing",
-                                    )?;
-                                    drop(self.observe_parity(
-                                        domain,
-                                        validated.kind,
-                                        validated.parity,
-                                    ));
                                     self.update_source_caught_up(state, plan, &caught_up, domain)?;
                                 }
                                 Err(err) => {
@@ -2697,11 +2715,7 @@ mod tests {
                 &monitor.sources,
             )
             .expect("first event");
-        monitor
-            .observe_parity(5, first.kind, first.parity)
-            .expect("first parity task")
-            .await
-            .expect("first parity task must not panic");
+        monitor.observe_parity(5, first.kind, first.parity).await;
 
         let next = state
             .validate(
@@ -2710,11 +2724,7 @@ mod tests {
             )
             .expect("next event on the same stream");
         assert_eq!(next.sequence_result, SequenceResult::Accepted);
-        monitor
-            .observe_parity(5, next.kind, next.parity)
-            .expect("next parity task")
-            .await
-            .expect("next parity task must not panic");
+        monitor.observe_parity(5, next.kind, next.parity).await;
 
         assert_eq!(
             monitor
@@ -2731,44 +2741,69 @@ mod tests {
             1
         );
         assert_eq!(monitor.active.with_label_values(&["test"]).get(), 1);
+        assert_eq!(
+            monitor
+                .parity_ready
+                .with_label_values(&["test", DISPATCH_EVENT_TYPE])
+                .get(),
+            0
+        );
     }
 
     #[tokio::test]
-    async fn blocking_db_read_does_not_block_stream_validation() {
+    async fn retries_missing_parity_until_the_local_db_matches() {
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let mut database = MockParityDatabase::new();
         database
             .expect_retrieve_message_by_nonce()
-            .times(1)
-            .returning(|_| {
-                std::thread::sleep(PARITY_READ_TIMEOUT + Duration::from_millis(100));
-                Ok(None)
+            .times(2)
+            .returning({
+                let calls = calls.clone();
+                move |nonce| {
+                    if calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
+                        Ok(None)
+                    } else {
+                        Ok(Some(dispatch_message(nonce, b"payload")))
+                    }
+                }
             });
-        let monitor = monitor(std::sync::Arc::new(database));
-        let mut state = StreamState::default();
-        let first = state
+        database
+            .expect_retrieve_dispatched_block_number_by_nonce()
+            .times(2)
+            .returning(|_| Ok(Some(100)));
+        database
+            .expect_retrieve_dispatched_tx_hash_by_message_id()
+            .times(2)
+            .returning(|_| Ok(Some(dispatch_transaction_id())));
+        let monitor = monitor(Arc::new(database));
+        let input = StreamState::default()
             .validate(
-                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"first")),
+                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload")),
                 &monitor.sources,
             )
-            .expect("first event");
-        let started = std::time::Instant::now();
-        let parity_task = monitor
-            .observe_parity(5, first.kind, first.parity)
-            .expect("parity task");
-        let next = state
-            .validate(
-                event(DISPATCH_EVENT_TYPE, 8, dispatch_data(8, b"next")),
-                &monitor.sources,
-            )
-            .expect("next event while DB read is blocked");
-        assert_eq!(next.sequence_result, SequenceResult::Accepted);
-        assert!(started.elapsed() < Duration::from_millis(100));
+            .expect("valid dispatch")
+            .parity;
 
-        parity_task.await.expect("parity task must not panic");
+        monitor.observe_parity(5, EventKind::Dispatch, input).await;
+
         assert_eq!(
             monitor
                 .parity
-                .with_label_values(&["test", DISPATCH_EVENT_TYPE, "error"])
+                .with_label_values(&["test", DISPATCH_EVENT_TYPE, "match"])
+                .get(),
+            1
+        );
+        assert_eq!(
+            monitor
+                .parity_pending
+                .with_label_values(&["test", DISPATCH_EVENT_TYPE])
+                .get(),
+            0
+        );
+        assert_eq!(
+            monitor
+                .parity_ready
+                .with_label_values(&["test", DISPATCH_EVENT_TYPE])
                 .get(),
             1
         );
@@ -2801,6 +2836,15 @@ mod tests {
                             "released test read".to_owned(),
                         ))
                     });
+            } else {
+                database
+                    .expect_retrieve_message_by_nonce()
+                    .times(1)
+                    .returning(|_| {
+                        Err(hyperlane_base::db::DbError::Other(
+                            "queued test read".to_owned(),
+                        ))
+                    });
             }
             sources.push(ScraperSource::with_database(
                 format!("test-{domain}"),
@@ -2810,12 +2854,14 @@ mod tests {
                 Arc::new(database),
             ));
         }
-        let monitor = ScraperWebSocketMonitor::new(
-            Url::parse("ws://localhost:1").expect("test URL"),
-            sources,
-            &metrics,
-        )
-        .expect("create test monitor");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new(
+                Url::parse("ws://localhost:1").expect("test URL"),
+                sources,
+                &metrics,
+            )
+            .expect("create test monitor"),
+        );
         let parity_input = |domain| ParityInput::Dispatch {
             block_number: 100,
             message: HyperlaneMessage {
@@ -2831,37 +2877,44 @@ mod tests {
         };
         let mut parity_tasks = Vec::new();
         for domain in 1..=PARITY_READ_CONCURRENCY as u32 {
-            if let Some(task) =
-                monitor.observe_parity(domain, EventKind::Dispatch, parity_input(domain))
-            {
-                parity_tasks.push(task);
-            }
+            let monitor = monitor.clone();
+            let input = parity_input(domain);
+            parity_tasks.push(tokio::spawn(async move {
+                monitor
+                    .observe_parity(domain, EventKind::Dispatch, input)
+                    .await;
+            }));
         }
         let entered = (0..PARITY_READ_CONCURRENCY)
             .filter(|_| entered_rx.recv_timeout(Duration::from_millis(500)).is_ok())
             .count();
 
-        let skipped_domain = (PARITY_READ_CONCURRENCY + 1) as u32;
-        let skipped_chain = format!("test-{skipped_domain}");
-        let skipped = monitor
-            .observe_parity(
-                skipped_domain,
-                EventKind::Dispatch,
-                parity_input(skipped_domain),
-            )
-            .is_none();
+        let queued_domain = (PARITY_READ_CONCURRENCY + 1) as u32;
+        let queued_chain = format!("test-{queued_domain}");
+        let queued_monitor = monitor.clone();
+        let queued_input = parity_input(queued_domain);
+        let queued = tokio::spawn(async move {
+            queued_monitor
+                .observe_parity(queued_domain, EventKind::Dispatch, queued_input)
+                .await;
+        });
+        tokio::task::yield_now().await;
         let skipped_count = monitor
             .parity
-            .with_label_values(&[skipped_chain.as_str(), DISPATCH_EVENT_TYPE, "skipped"])
+            .with_label_values(&[queued_chain.as_str(), DISPATCH_EVENT_TYPE, "skipped"])
+            .get();
+        let queued_pending = monitor
+            .parity_pending
+            .with_label_values(&[queued_chain.as_str(), DISPATCH_EVENT_TYPE])
             .get();
 
         let (released, signal) = release.as_ref();
         *released.lock() = true;
         signal.notify_all();
-        let scheduled = parity_tasks.len();
         for task in parity_tasks {
             task.await.expect("parity task must not panic");
         }
+        queued.await.expect("queued parity task must not panic");
         timeout(Duration::from_secs(1), async {
             while monitor.parity_read_permit.available_permits() != PARITY_READ_CONCURRENCY {
                 tokio::task::yield_now().await;
@@ -2869,10 +2922,9 @@ mod tests {
         })
         .await
         .expect("blocking reads release global permits");
-        assert_eq!(scheduled, PARITY_READ_CONCURRENCY);
         assert_eq!(entered, PARITY_READ_CONCURRENCY);
-        assert!(skipped);
-        assert_eq!(skipped_count, 1);
+        assert_eq!(queued_pending, 1);
+        assert_eq!(skipped_count, 0);
         assert_eq!(
             monitor.parity_read_permit.available_permits(),
             PARITY_READ_CONCURRENCY
