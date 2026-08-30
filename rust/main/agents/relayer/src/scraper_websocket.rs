@@ -544,10 +544,10 @@ impl ScraperWebSocketMonitor {
             .map(|source| (source.domain, source))
             .collect::<HashMap<_, _>>();
         for source in sources.values() {
-            active.with_label_values(&[&source.chain]).set(0);
+            active.with_label_values(&[source.chain.as_str()]).set(0);
             for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
                 caught_up
-                    .with_label_values(&[&source.chain, kind.label()])
+                    .with_label_values(&[source.chain.as_str(), kind.label()])
                     .set(0);
             }
         }
@@ -719,7 +719,9 @@ impl ScraperWebSocketMonitor {
     fn set_active(&self, active: bool) {
         let value = i64::from(active);
         for source in self.sources.values() {
-            self.active.with_label_values(&[&source.chain]).set(value);
+            self.active
+                .with_label_values(&[source.chain.as_str()])
+                .set(value);
         }
     }
 
@@ -733,7 +735,7 @@ impl ScraperWebSocketMonitor {
 
     fn set_source_caught_up(&self, source: &ScraperSource, kind: EventKind, caught_up: bool) {
         self.caught_up
-            .with_label_values(&[&source.chain, kind.label()])
+            .with_label_values(&[source.chain.as_str(), kind.label()])
             .set(i64::from(caught_up));
     }
 
