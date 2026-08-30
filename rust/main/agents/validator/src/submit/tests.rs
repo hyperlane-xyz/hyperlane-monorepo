@@ -95,6 +95,57 @@ fn dummy_singleton_handle() -> SingletonSignerHandle {
     SingletonSignerHandle::new(H160::from_low_u64_be(0), mpsc::unbounded_channel().0)
 }
 
+fn dummy_submitter(interval: Duration) -> ValidatorSubmitter {
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    ValidatorSubmitter::new(
+        interval,
+        ReorgPeriod::from_blocks(1),
+        Arc::new(MockMerkleTreeHook::new()),
+        Arc::new(MockMerkleTreeHook::new()),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(MockCheckpointSyncer::new()),
+        Arc::new(MockDb::new()),
+        dummy_metrics(),
+        1,
+        Arc::new(MockReorgReporter::new()),
+    )
+}
+
+#[tokio::test(start_paused = true)]
+async fn checkpoint_check_wakes_on_verified_insertion_hint() {
+    let checkpoint_wake = Arc::new(Notify::new());
+    let submitter = dummy_submitter(Duration::from_secs(60))
+        .with_checkpoint_wake(Some(checkpoint_wake.clone()));
+    let task = tokio::spawn(async move { submitter.wait_for_checkpoint_check().await });
+
+    tokio::task::yield_now().await;
+    assert!(!task.is_finished());
+    checkpoint_wake.notify_one();
+    tokio::task::yield_now().await;
+
+    assert!(task.is_finished());
+    task.await.expect("checkpoint wait task");
+}
+
+#[tokio::test(start_paused = true)]
+async fn checkpoint_check_retains_interval_fallback() {
+    let checkpoint_wake = Arc::new(Notify::new());
+    let submitter =
+        dummy_submitter(Duration::from_secs(60)).with_checkpoint_wake(Some(checkpoint_wake));
+    let task = tokio::spawn(async move { submitter.wait_for_checkpoint_check().await });
+
+    tokio::task::yield_now().await;
+    tokio::time::advance(Duration::from_secs(59)).await;
+    tokio::task::yield_now().await;
+    assert!(!task.is_finished());
+
+    tokio::time::advance(Duration::from_secs(1)).await;
+    tokio::task::yield_now().await;
+    assert!(task.is_finished());
+    task.await.expect("checkpoint wait task");
+}
+
 #[tokio::test(start_paused = true)]
 async fn single_checkpoint_chunk_has_no_throttle_tail() {
     let checkpoint = CheckpointWithMessageId {

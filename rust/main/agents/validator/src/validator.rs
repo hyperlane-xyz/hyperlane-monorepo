@@ -14,6 +14,7 @@ use futures_util::future::{join_all, try_join_all};
 use rand::Rng;
 use serde::Serialize;
 use tokio::{
+    sync::Notify,
     task::JoinHandle,
     time::{sleep, timeout, Instant},
 };
@@ -529,6 +530,7 @@ pub struct Validator {
     core: HyperlaneAgentCore,
     db: HyperlaneRocksDB,
     merkle_tree_hook_sync: MerkleTreeHookSync,
+    checkpoint_wake: Option<Arc<Notify>>,
     mailbox: Arc<dyn Mailbox>,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     base_merkle_tree_hook: Arc<dyn MerkleTreeHook>,
@@ -759,23 +761,29 @@ impl BaseAgent for Validator {
         let websocket_active =
             sync_source.with_label_values(&[settings.origin_chain.name(), "websocket"]);
         let rpc_active = sync_source.with_label_values(&[settings.origin_chain.name(), "rpc"]);
-        let merkle_tree_hook_sync = if let Some(url) = settings.websocket_url.clone() {
-            MerkleTreeHookSync::WebSocket {
-                fallback: rpc_sync,
-                websocket: Box::new(MerkleTreeHookWebSocketSync::new(
-                    msg_db.clone(),
-                    settings.origin_chain.id(),
-                    origin_chain_conf.addresses.merkle_tree_hook,
-                    url,
-                    websocket_active,
-                    rpc_active,
-                )),
-            }
-        } else {
-            websocket_active.set(0);
-            rpc_active.set(1);
-            MerkleTreeHookSync::Rpc(rpc_sync)
-        };
+        let (merkle_tree_hook_sync, checkpoint_wake) =
+            if let Some(url) = settings.websocket_url.clone() {
+                let checkpoint_wake = Arc::new(Notify::new());
+                (
+                    MerkleTreeHookSync::WebSocket {
+                        fallback: rpc_sync,
+                        websocket: Box::new(MerkleTreeHookWebSocketSync::new(
+                            msg_db.clone(),
+                            settings.origin_chain.id(),
+                            origin_chain_conf.addresses.merkle_tree_hook,
+                            url,
+                            websocket_active,
+                            rpc_active,
+                            checkpoint_wake.clone(),
+                        )),
+                    },
+                    Some(checkpoint_wake),
+                )
+            } else {
+                websocket_active.set(0);
+                rpc_active.set(1);
+                (MerkleTreeHookSync::Rpc(rpc_sync), None)
+            };
 
         Ok(Self {
             origin_chain: settings.origin_chain,
@@ -786,6 +794,7 @@ impl BaseAgent for Validator {
             merkle_tree_hook,
             base_merkle_tree_hook,
             merkle_tree_hook_sync,
+            checkpoint_wake,
             validator_announce: validator_announce.into(),
             signer,
             raw_signer,
@@ -1212,7 +1221,8 @@ impl Validator {
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
             self.max_sign_concurrency,
             self.reorg_reporter.clone(),
-        );
+        )
+        .with_checkpoint_wake(self.checkpoint_wake.clone());
 
         let tip_tree = call_and_retry_indefinitely(|| {
             let merkle_tree_hook = self.merkle_tree_hook.clone();
