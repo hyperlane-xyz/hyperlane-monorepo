@@ -39,6 +39,7 @@ const PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID: &str =
 const PENDING_MESSAGE_RETRY_STATE_FOR_MESSAGE_ID: &str =
     "pending_message_retry_state_for_message_id_v1_";
 const PENDING_MESSAGE_BY_DESTINATION: &str = "pending_message_by_destination_v1_";
+const TERMINALLY_DROPPED_MESSAGE_BY_ID: &str = "terminally_dropped_message_by_id_v1_";
 const MERKLE_TREE_INSERTION: &str = "merkle_tree_insertion_";
 const MERKLE_LEAF_INDEX_BY_MESSAGE_ID: &str = "merkle_leaf_index_by_message_id_";
 const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
@@ -148,14 +149,19 @@ impl HyperlaneRocksDB {
                 id.to_vec(),
             ),
         ];
-        let deletions = previous
-            .filter(|previous| previous.destination != message.destination)
-            .map(|previous| {
-                (
+        let mut deletions = Vec::new();
+        if let Some(previous) = previous.filter(|previous| previous.id() != id) {
+            deletions.push((
+                TERMINALLY_DROPPED_MESSAGE_BY_ID.as_bytes().to_vec(),
+                previous.id().to_vec(),
+            ));
+            if previous.destination != message.destination {
+                deletions.push((
                     Self::pending_message_destination_prefix(previous.destination),
                     previous.nonce.to_vec(),
-                )
-            });
+                ));
+            }
+        }
         self.store_and_delete_batch(entries, deletions)?;
         Ok(())
     }
@@ -180,7 +186,19 @@ impl HyperlaneRocksDB {
 
     /// Remove a message from its destination range.
     pub fn delete_pending_message_index(&self, message: &HyperlaneMessage) -> DbResult<()> {
-        self.delete_pending_message_index_by_nonce(message.destination, message.nonce)
+        self.store_and_delete_batch(
+            std::iter::empty(),
+            [
+                (
+                    Self::pending_message_destination_prefix(message.destination),
+                    message.nonce.to_vec(),
+                ),
+                (
+                    TERMINALLY_DROPPED_MESSAGE_BY_ID.as_bytes().to_vec(),
+                    message.id().to_vec(),
+                ),
+            ],
+        )
     }
 
     /// Remove a destination range entry when the message value is unavailable.
@@ -196,6 +214,19 @@ impl HyperlaneRocksDB {
                 nonce.to_vec(),
             )],
         )
+    }
+
+    /// Persist that a message reached a terminal relayer outcome.
+    /// Cleared when the message is processed or replaced at the same nonce.
+    pub fn store_terminally_dropped_message(&self, message_id: &H256) -> DbResult<()> {
+        self.store_value_by_key(TERMINALLY_DROPPED_MESSAGE_BY_ID, message_id, &true)
+    }
+
+    /// Return whether a message reached a terminal relayer outcome.
+    pub fn retrieve_terminally_dropped_message(&self, message_id: &H256) -> DbResult<bool> {
+        Ok(self
+            .retrieve_value_by_key::<_, bool>(TERMINALLY_DROPPED_MESSAGE_BY_ID, message_id)?
+            .unwrap_or(false))
     }
 
     /// Restore or remove an index entry according to the processed marker.
@@ -517,9 +548,11 @@ mod pending_index_tests {
             );
             db.store_pending_message_index(&moved).unwrap();
             db.store_pending_message_index(&moved).unwrap();
+            db.store_terminally_dropped_message(&moved.id()).unwrap();
 
             db.store_message_processed(&moved).unwrap();
             assert_eq!(db.retrieve_processed_by_nonce(&7).unwrap(), Some(true));
+            assert!(!db.retrieve_terminally_dropped_message(&moved.id()).unwrap());
             assert_eq!(
                 db.retrieve_pending_message_at_or_after(11, 0).unwrap(),
                 None
@@ -743,10 +776,16 @@ impl HyperlaneDb for HyperlaneRocksDB {
                 message.nonce.to_vec(),
                 true.to_vec(),
             )],
-            [(
-                Self::pending_message_destination_prefix(message.destination),
-                message.nonce.to_vec(),
-            )],
+            [
+                (
+                    Self::pending_message_destination_prefix(message.destination),
+                    message.nonce.to_vec(),
+                ),
+                (
+                    TERMINALLY_DROPPED_MESSAGE_BY_ID.as_bytes().to_vec(),
+                    message.id().to_vec(),
+                ),
+            ],
         )
     }
 
