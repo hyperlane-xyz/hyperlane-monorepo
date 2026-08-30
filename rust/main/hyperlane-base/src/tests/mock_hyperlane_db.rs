@@ -38,7 +38,6 @@ mockall::mock! {
         ) -> DbResult<()>;
         fn retrieve_dispatched_block_number_by_nonce(&self, nonce: &u32) -> DbResult<Option<u64>>;
         fn store_processed_by_nonce(&self, nonce: &u32, processed: &bool) -> DbResult<()>;
-        fn store_message_processed(&self, message: &HyperlaneMessage) -> DbResult<()>;
         fn store_processed_by_gas_payment_meta(
             &self,
             meta: &InterchainGasPaymentMeta,
