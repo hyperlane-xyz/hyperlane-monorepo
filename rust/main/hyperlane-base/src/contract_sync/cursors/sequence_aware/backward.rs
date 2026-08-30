@@ -443,10 +443,15 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         if all_log_sequences != &expected_sequences {
             // If there are any missing sequences, rewind to just before the last indexed snapshot.
             // Rewind to the last snapshot.
-            let missing_sequences = expected_sequences
+            let mut missing_sequences = expected_sequences
                 .difference(all_log_sequences)
                 .copied()
-                .collect();
+                .collect::<HashSet<_>>();
+            // An unexpected-only response is still incomplete for cursor purposes. Keep a
+            // stable marker so repeated (or rotating) extra sequences cannot clear backoff.
+            if missing_sequences.is_empty() {
+                missing_sequences = expected_sequences.clone();
+            }
             self.rewind_due_to_sequence_gaps(&logs, all_log_sequences, &expected_sequences, &range);
             return Ok(Some(missing_sequences));
         }
@@ -1509,6 +1514,52 @@ mod test {
                 ],
             )
             .await;
+        }
+
+        #[tokio::test]
+        async fn test_unexpected_only_logs_back_off_until_exact_response() {
+            let mut cursor = get_cursor().await;
+            let range = 94..=99;
+            let logs = |unexpected| {
+                (94..=99)
+                    .chain([unexpected])
+                    .map(|sequence| {
+                        (
+                            MockSequencedData::new(sequence).into(),
+                            log_meta_with_block(sequence.into()),
+                        )
+                    })
+                    .collect()
+            };
+
+            cursor.update(logs(93), range.clone()).await.unwrap();
+            assert_eq!(cursor.sequence_gap_retries, 1);
+            assert!(cursor.sequence_gap_retry_at.is_some());
+            assert_eq!(cursor.get_next_range().await.unwrap(), None);
+
+            cursor.sequence_gap_retry_at = Some(Instant::now() - Duration::from_secs(1));
+            cursor.update(logs(92), range.clone()).await.unwrap();
+            assert_eq!(cursor.sequence_gap_retries, 2);
+            assert!(cursor.sequence_gap_retry_at.is_some());
+
+            cursor.sequence_gap_retry_at = Some(Instant::now() - Duration::from_secs(1));
+            cursor
+                .update(
+                    (94..=99)
+                        .map(|sequence| {
+                            (
+                                MockSequencedData::new(sequence).into(),
+                                log_meta_with_block(sequence.into()),
+                            )
+                        })
+                        .collect(),
+                    range.clone(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(cursor.sequence_gap_retries, 0);
+            assert_eq!(cursor.sequence_gap_retry_at, None);
+            assert_eq!(cursor.get_next_range().await.unwrap(), Some(88..=93));
         }
 
         #[tokio::test]
