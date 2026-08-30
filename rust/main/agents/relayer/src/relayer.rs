@@ -59,6 +59,7 @@ use crate::{
             BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
             IsmCachePolicyClassifier,
         },
+        op_queue::OpQueue,
         pending_message::MessageContext,
         QueueOperationBatch,
     },
