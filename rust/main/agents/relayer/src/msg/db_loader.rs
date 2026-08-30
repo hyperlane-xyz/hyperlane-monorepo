@@ -498,9 +498,13 @@ impl MessageDbLoader {
             self.index_notifications = None;
         }
         if received {
-            for iterator in &mut self.destination_iterators {
-                iterator.reopen_low_range();
-            }
+            self.reopen_exhausted_low_ranges();
+        }
+    }
+
+    fn reopen_exhausted_low_ranges(&mut self) {
+        for iterator in &mut self.destination_iterators {
+            iterator.reopen_low_range();
         }
     }
 
@@ -523,21 +527,27 @@ impl MessageDbLoader {
             }
         };
 
-        let disconnected = if let Some(receiver) = self.index_notifications.as_mut() {
+        let (disconnected, received) = if let Some(receiver) = self.index_notifications.as_mut() {
             tokio::select! {
-                notification = receiver.recv() => notification.is_none(),
-                _ = capacity_wait => false,
-                _ = tokio::time::sleep(FALLBACK_POLL_INTERVAL) => false,
+                notification = receiver.recv() => match notification {
+                    Some(_) => (false, true),
+                    None => (true, false),
+                },
+                _ = capacity_wait => (false, false),
+                _ = tokio::time::sleep(FALLBACK_POLL_INTERVAL) => (false, false),
             }
         } else {
             tokio::select! {
-                _ = capacity_wait => false,
-                _ = tokio::time::sleep(FALLBACK_POLL_INTERVAL) => false,
+                _ = capacity_wait => (false, false),
+                _ = tokio::time::sleep(FALLBACK_POLL_INTERVAL) => (false, false),
             }
         };
 
         if disconnected {
             self.index_notifications = None;
+        }
+        if received {
+            self.reopen_exhausted_low_ranges();
         }
     }
 
