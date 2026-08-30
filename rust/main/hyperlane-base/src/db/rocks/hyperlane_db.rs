@@ -38,6 +38,7 @@ const PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID: &str =
     "pending_message_retry_count_for_message_id_";
 const PENDING_MESSAGE_RETRY_STATE_FOR_MESSAGE_ID: &str =
     "pending_message_retry_state_for_message_id_v1_";
+const PENDING_MESSAGE_BY_DESTINATION: &str = "pending_message_by_destination_v1_";
 const MERKLE_TREE_INSERTION: &str = "merkle_tree_insertion_";
 const MERKLE_LEAF_INDEX_BY_MESSAGE_ID: &str = "merkle_leaf_index_by_message_id_";
 const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
@@ -95,9 +96,10 @@ impl HyperlaneRocksDB {
         message: &HyperlaneMessage,
         dispatched_block_number: u64,
     ) -> DbResult<bool> {
-        if let Ok(Some(_)) = self.retrieve_message_id_by_nonce(&message.nonce) {
+        if let Some(stored_message) = self.retrieve_message_by_nonce(message.nonce)? {
             trace!(hyp_message=?message, "Message already stored in db");
             self.try_update_max_seen_message_nonce(message.nonce)?;
+            self.reconcile_pending_message_index(&stored_message)?;
             return Ok(false);
         }
         self.upsert_message(message, dispatched_block_number)?;
@@ -116,17 +118,141 @@ impl HyperlaneRocksDB {
         dispatched_block_number: u64,
     ) -> DbResult<()> {
         let id = message.id();
+        let previous = self.retrieve_message_by_nonce(message.nonce)?;
+        let max_nonce = self
+            .retrieve_highest_seen_message_nonce()?
+            .unwrap_or_default()
+            .max(message.nonce);
         debug!(hyp_message=?message,  "Storing new message in db",);
 
-        // - `id` --> `message`
-        self.store_message_by_id(&id, message)?;
-        // - `nonce` --> `id`
-        self.store_message_id_by_nonce(&message.nonce, &id)?;
-        // Update the max seen nonce to allow forward-backward iteration in the processor
-        self.try_update_max_seen_message_nonce(message.nonce)?;
-        // - `nonce` --> `dispatched block number`
-        self.store_dispatched_block_number_by_nonce(&message.nonce, &dispatched_block_number)?;
+        let entries = [
+            (MESSAGE.as_bytes().to_vec(), id.to_vec(), message.to_vec()),
+            (
+                MESSAGE_ID.as_bytes().to_vec(),
+                message.nonce.to_vec(),
+                id.to_vec(),
+            ),
+            (
+                HIGHEST_SEEN_MESSAGE_NONCE.as_bytes().to_vec(),
+                bool::default().to_vec(),
+                max_nonce.to_vec(),
+            ),
+            (
+                MESSAGE_DISPATCHED_BLOCK_NUMBER.as_bytes().to_vec(),
+                message.nonce.to_vec(),
+                dispatched_block_number.to_vec(),
+            ),
+            (
+                Self::pending_message_destination_prefix(message.destination),
+                message.nonce.to_vec(),
+                id.to_vec(),
+            ),
+        ];
+        let deletions = previous
+            .filter(|previous| previous.destination != message.destination)
+            .map(|previous| {
+                (
+                    Self::pending_message_destination_prefix(previous.destination),
+                    previous.nonce.to_vec(),
+                )
+            });
+        self.store_and_delete_batch(entries, deletions)?;
         Ok(())
+    }
+
+    fn pending_message_destination_prefix(destination: u32) -> Vec<u8> {
+        PENDING_MESSAGE_BY_DESTINATION
+            .as_bytes()
+            .iter()
+            .chain(destination.to_be_bytes().iter())
+            .copied()
+            .collect()
+    }
+
+    /// Add an unprocessed message to its destination range.
+    pub fn store_pending_message_index(&self, message: &HyperlaneMessage) -> DbResult<()> {
+        self.store_value_by_key(
+            Self::pending_message_destination_prefix(message.destination),
+            &message.nonce,
+            &message.id(),
+        )
+    }
+
+    /// Remove a message from its destination range.
+    pub fn delete_pending_message_index(&self, message: &HyperlaneMessage) -> DbResult<()> {
+        self.delete_pending_message_index_by_nonce(message.destination, message.nonce)
+    }
+
+    /// Remove a destination range entry when the message value is unavailable.
+    pub fn delete_pending_message_index_by_nonce(
+        &self,
+        destination: u32,
+        nonce: u32,
+    ) -> DbResult<()> {
+        self.store_and_delete_batch(
+            std::iter::empty(),
+            [(
+                Self::pending_message_destination_prefix(destination),
+                nonce.to_vec(),
+            )],
+        )
+    }
+
+    /// Restore or remove an index entry according to the processed marker.
+    pub fn reconcile_pending_message_index(&self, message: &HyperlaneMessage) -> DbResult<()> {
+        let existing =
+            self.retrieve_pending_message_at_or_after(message.destination, message.nonce)?;
+        let existing = existing.filter(|(nonce, _)| *nonce == message.nonce);
+        if self
+            .retrieve_processed_by_nonce(&message.nonce)?
+            .unwrap_or(false)
+        {
+            if existing.is_some() {
+                self.delete_pending_message_index(message)?;
+            }
+        } else if existing != Some((message.nonce, message.id())) {
+            self.store_pending_message_index(message)?;
+        }
+        Ok(())
+    }
+
+    /// Retrieve the first destination entry at or after `nonce`.
+    pub fn retrieve_pending_message_at_or_after(
+        &self,
+        destination: u32,
+        nonce: u32,
+    ) -> DbResult<Option<(u32, H256)>> {
+        self.retrieve_pending_message_from(destination, nonce, true)
+    }
+
+    /// Retrieve the first destination entry at or before `nonce`.
+    pub fn retrieve_pending_message_at_or_before(
+        &self,
+        destination: u32,
+        nonce: u32,
+    ) -> DbResult<Option<(u32, H256)>> {
+        self.retrieve_pending_message_from(destination, nonce, false)
+    }
+
+    fn retrieve_pending_message_from(
+        &self,
+        destination: u32,
+        nonce: u32,
+        forward: bool,
+    ) -> DbResult<Option<(u32, H256)>> {
+        let prefix = Self::pending_message_destination_prefix(destination);
+        let entry = if forward {
+            self.retrieve_by_prefix_at_or_after(&prefix, nonce.to_be_bytes())?
+        } else {
+            self.retrieve_by_prefix_at_or_before(&prefix, nonce.to_be_bytes())?
+        };
+        let Some((nonce, message_id)) = entry else {
+            return Ok(None);
+        };
+        let nonce: [u8; 4] = nonce.try_into().map_err(|nonce: Vec<u8>| {
+            DbError::Other(format!("Invalid pending message index key: {nonce:?}"))
+        })?;
+        Ok(Some((u32::from_be_bytes(nonce), message_id)))
     }
 
     /// Retrieve a message by its nonce
@@ -311,6 +437,95 @@ impl HyperlaneRocksDB {
             .retrieve_interchain_gas_expenditure_data_by_message_id(&message_id)?
             .unwrap_or_default()
             .complete(message_id))
+    }
+}
+
+#[cfg(test)]
+mod pending_index_tests {
+    use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, H256};
+
+    use super::*;
+    use crate::db::rocks::test_utils::run_test_db;
+
+    fn message(nonce: u32, destination: u32) -> HyperlaneMessage {
+        HyperlaneMessage {
+            nonce,
+            origin: 1,
+            destination,
+            sender: H256::zero(),
+            recipient: H256::zero(),
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn destination_index_is_ordered_and_isolated() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            let first = message(0, 10);
+            let later = message(2, 10);
+            let other = message(1, 11);
+            db.store_message(&later, 1).unwrap();
+            db.store_message(&other, 1).unwrap();
+            db.store_message(&first, 1).unwrap();
+
+            assert_eq!(
+                db.retrieve_pending_message_at_or_after(10, 0).unwrap(),
+                Some((0, first.id()))
+            );
+            assert_eq!(
+                db.retrieve_pending_message_at_or_after(10, 1).unwrap(),
+                Some((2, later.id()))
+            );
+            assert_eq!(
+                db.retrieve_pending_message_at_or_before(10, u32::MAX)
+                    .unwrap(),
+                Some((2, later.id()))
+            );
+            assert_eq!(
+                db.retrieve_pending_message_at_or_after(11, 0).unwrap(),
+                Some((1, other.id()))
+            );
+            assert_eq!(
+                db.retrieve_pending_message_at_or_after(10, 3).unwrap(),
+                None
+            );
+            assert_eq!(
+                db.retrieve_pending_message_at_or_before(11, 0).unwrap(),
+                None
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn upsert_moves_index_and_processing_removes_it() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            let old = message(7, 10);
+            let moved = message(7, 11);
+            db.upsert_message(&old, 1).unwrap();
+            db.upsert_message(&moved, 2).unwrap();
+
+            assert_eq!(
+                db.retrieve_pending_message_at_or_after(10, 0).unwrap(),
+                None
+            );
+            assert_eq!(
+                db.retrieve_pending_message_at_or_after(11, 0).unwrap(),
+                Some((7, moved.id()))
+            );
+            db.store_pending_message_index(&moved).unwrap();
+            db.store_pending_message_index(&moved).unwrap();
+
+            db.store_message_processed(&moved).unwrap();
+            assert_eq!(db.retrieve_processed_by_nonce(&7).unwrap(), Some(true));
+            assert_eq!(
+                db.retrieve_pending_message_at_or_after(11, 0).unwrap(),
+                None
+            );
+        })
+        .await;
     }
 }
 
@@ -519,6 +734,20 @@ impl HyperlaneDb for HyperlaneRocksDB {
     /// Store whether a message was processed by its nonce
     fn store_processed_by_nonce(&self, nonce: &u32, processed: &bool) -> DbResult<()> {
         self.store_value_by_key(NONCE_PROCESSED, nonce, processed)
+    }
+
+    fn store_message_processed(&self, message: &HyperlaneMessage) -> DbResult<()> {
+        self.store_and_delete_batch(
+            [(
+                NONCE_PROCESSED.as_bytes().to_vec(),
+                message.nonce.to_vec(),
+                true.to_vec(),
+            )],
+            [(
+                Self::pending_message_destination_prefix(message.destination),
+                message.nonce.to_vec(),
+            )],
+        )
     }
 
     fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>> {

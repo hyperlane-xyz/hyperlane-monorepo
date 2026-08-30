@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use prometheus::IntCounterVec;
+use prometheus::{HistogramVec, IntCounterVec, IntGaugeVec};
 use tokio::{
     sync::mpsc::{self, Receiver},
     time::{sleep, timeout},
@@ -13,7 +13,7 @@ use hyperlane_base::{
     db::{test_utils, HyperlaneRocksDB},
     tests::mock_hyperlane_db::MockHyperlaneDb as MockDb,
 };
-use hyperlane_core::test_utils::dummy_domain;
+use hyperlane_core::{test_utils::dummy_domain, PendingOperationStatus};
 use hyperlane_operation_verifier::{
     ApplicationOperationVerifier, ApplicationOperationVerifierReport,
 };
@@ -43,6 +43,27 @@ pub fn dummy_message_loader_metrics() -> MessageDbLoaderMetrics {
         last_known_message_nonce_gauge: IntGauge::new(
             "dummy_last_known_message_nonce_gauge",
             "help string",
+        )
+        .unwrap(),
+        origin: "dummy_origin".to_owned(),
+        records_examined: IntCounterVec::new(
+            prometheus::Opts::new("dummy_db_loader_records_examined", "help string"),
+            &["origin", "destination", "phase"],
+        )
+        .unwrap(),
+        logical_db_reads: IntCounterVec::new(
+            prometheus::Opts::new("dummy_db_loader_logical_reads", "help string"),
+            &["origin", "destination", "phase", "operation"],
+        )
+        .unwrap(),
+        scan_duration_seconds: HistogramVec::new(
+            prometheus::HistogramOpts::new("dummy_db_loader_scan_duration", "help string"),
+            &["origin", "destination", "phase"],
+        )
+        .unwrap(),
+        ingress_depth: IntGaugeVec::new(
+            prometheus::Opts::new("dummy_db_loader_ingress_depth", "help string"),
+            &["destination"],
         )
         .unwrap(),
     }
@@ -371,13 +392,207 @@ async fn test_full_pending_message_persistence_flow() {
 }
 
 #[tokio::test]
-async fn test_forward_backward_iterator() {
-    let mut mock_db = MockDb::new();
-    const MAX_ONCHAIN_NONCE: u32 = 4;
-    const MOCK_HIGHEST_SEEN_NONCE: u32 = 2;
+async fn legacy_records_are_reconciled_into_destination_index() {
+    test_utils::run_test_db(|db| async move {
+        let origin_domain = dummy_domain(0, "dummy_origin_domain");
+        let destination_domain = dummy_domain(1, "dummy_destination_domain");
+        let db = HyperlaneRocksDB::new(&origin_domain, db);
+        let message = dummy_hyperlane_message(&destination_domain, 0);
+        add_db_entry(&db, &message, 0);
+        db.delete_pending_message_index(&message).unwrap();
 
-    // How many times the db was queried for the max onchain nonce message
-    let mut retrieve_calls_for_max_onchain_nonce = 0;
+        let (mut loader, mut receiver) = dummy_message_loader(
+            &origin_domain,
+            &destination_domain,
+            &db,
+            OptionalCache::new(None),
+        );
+        while loader.migration_iterator.is_some() {
+            timeout(Duration::from_millis(200), loader.tick())
+                .await
+                .expect("migration tick should not wait for polling fallback")
+                .unwrap();
+        }
+
+        assert_eq!(
+            db.retrieve_pending_message_at_or_after(destination_domain.id(), 0)
+                .unwrap(),
+            Some((message.nonce, message.id()))
+        );
+        assert_eq!(
+            receiver
+                .try_recv()
+                .unwrap()
+                .into_iter()
+                .next()
+                .unwrap()
+                .id(),
+            message.id()
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn stale_destination_index_entry_is_removed() {
+    test_utils::run_test_db(|db| async move {
+        let origin_domain = dummy_domain(0, "dummy_origin_domain");
+        let destination_domain = dummy_domain(1, "dummy_destination_domain");
+        let db = HyperlaneRocksDB::new(&origin_domain, db);
+        let stale_message = dummy_hyperlane_message(&destination_domain, 0);
+        db.store_pending_message_index(&stale_message).unwrap();
+
+        let (mut loader, _) = dummy_message_loader(
+            &origin_domain,
+            &destination_domain,
+            &db,
+            OptionalCache::new(None),
+        );
+        timeout(Duration::from_millis(200), loader.tick())
+            .await
+            .expect("stale index cleanup should not wait for polling fallback")
+            .unwrap();
+
+        assert_eq!(
+            db.retrieve_pending_message_at_or_after(destination_domain.id(), 0)
+                .unwrap(),
+            None
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn closed_destination_channel_does_not_advance_index() {
+    test_utils::run_test_db(|db| async move {
+        let origin_domain = dummy_domain(0, "dummy_origin_domain");
+        let destination_domain = dummy_domain(1, "dummy_destination_domain");
+        let db = HyperlaneRocksDB::new(&origin_domain, db);
+        let message = dummy_hyperlane_message(&destination_domain, 0);
+        add_db_entry(&db, &message, 0);
+
+        let (mut loader, receiver) = dummy_message_loader(
+            &origin_domain,
+            &destination_domain,
+            &db,
+            OptionalCache::new(None),
+        );
+        while loader.migrate_legacy_record().await.unwrap() {}
+        drop(receiver);
+        let cursor = loader.destination_iterators[0].high_nonce;
+
+        assert!(loader.try_load_destination(0).await.is_err());
+        assert_eq!(loader.destination_iterators[0].high_nonce, cursor);
+        assert_eq!(
+            db.retrieve_pending_message_at_or_after(destination_domain.id(), 0)
+                .unwrap(),
+            Some((message.nonce, message.id()))
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn saturated_destination_does_not_block_another_destination() {
+    test_utils::run_test_db(|db| async move {
+        let origin_domain = dummy_domain(0, "dummy_origin_domain");
+        let destination_a = dummy_domain(1, "destination_a");
+        let destination_b = dummy_domain(2, "destination_b");
+        let db = HyperlaneRocksDB::new(&origin_domain, db);
+        let cache = OptionalCache::new(None);
+
+        let context_a = Arc::new(dummy_message_context(
+            Arc::new(dummy_metadata_builder(
+                &origin_domain,
+                &destination_a,
+                &db,
+                cache.clone(),
+            )),
+            &db,
+            cache.clone(),
+        ));
+        let context_b = Arc::new(dummy_message_context(
+            Arc::new(dummy_metadata_builder(
+                &origin_domain,
+                &destination_b,
+                &db,
+                cache,
+            )),
+            &db,
+            OptionalCache::new(None),
+        ));
+        let message_a = dummy_hyperlane_message(&destination_a, 0);
+        let message_b = dummy_hyperlane_message(&destination_b, 1);
+        add_db_entry(&db, &message_a, 0);
+        add_db_entry(&db, &message_b, 0);
+
+        let (sender_a, mut receiver_a) = mpsc::channel::<QueueOperation>(1);
+        let (sender_b, mut receiver_b) = mpsc::channel::<QueueOperation>(1);
+        sender_a
+            .try_send(Box::new(PendingMessage::new(
+                message_a.clone(),
+                context_a.clone(),
+                PendingOperationStatus::FirstPrepareAttempt,
+                None,
+                DEFAULT_MAX_MESSAGE_RETRIES,
+            )))
+            .unwrap();
+        let mut loader = MessageDbLoader::new(
+            db,
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            dummy_message_loader_metrics(),
+            HashMap::from([
+                (destination_a.id(), sender_a),
+                (destination_b.id(), sender_b),
+            ]),
+            HashMap::from([
+                (destination_a.id(), context_a),
+                (destination_b.id(), context_b),
+            ]),
+            vec![].into(),
+            DEFAULT_MAX_MESSAGE_RETRIES,
+            None,
+        );
+
+        while loader.migration_iterator.is_some() {
+            timeout(Duration::from_millis(200), loader.tick())
+                .await
+                .expect("migration tick should not wait for polling fallback")
+                .unwrap();
+        }
+
+        assert_eq!(
+            receiver_b
+                .try_recv()
+                .unwrap()
+                .into_iter()
+                .next()
+                .unwrap()
+                .id(),
+            message_b.id()
+        );
+        assert_eq!(receiver_a.len(), 1);
+
+        timeout(Duration::from_millis(750), async {
+            let release_capacity = async {
+                sleep(Duration::from_millis(20)).await;
+                receiver_a.recv().await.unwrap();
+            };
+            let (tick_result, _) = tokio::join!(loader.tick(), release_capacity);
+            tick_result.unwrap();
+        })
+        .await
+        .expect("loader should wake when destination capacity becomes available");
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn legacy_iterator_stops_at_startup_watermark() {
+    let mut mock_db = MockDb::new();
+    const MOCK_HIGHEST_SEEN_NONCE: u32 = 2;
 
     mock_db
         .expect_domain()
@@ -388,16 +603,7 @@ async fn test_forward_backward_iterator() {
     mock_db
         .expect_retrieve_message_by_nonce()
         .returning(move |nonce| {
-            // return `None` the first time we get a query for the last message
-            // (the `MAX_ONCHAIN_NONCE`th one), to simulate an ongoing indexing that hasn't finished
-            if nonce == MAX_ONCHAIN_NONCE && retrieve_calls_for_max_onchain_nonce == 0 {
-                retrieve_calls_for_max_onchain_nonce += 1;
-                return Ok(None);
-            }
-
-            // otherwise return a message for every nonce in the closed
-            // interval [0, MAX_ONCHAIN_NONCE]
-            if nonce > MAX_ONCHAIN_NONCE {
+            if nonce > MOCK_HIGHEST_SEEN_NONCE || nonce == 1 {
                 Ok(None)
             } else {
                 Ok(Some(dummy_hyperlane_message(
@@ -415,30 +621,16 @@ async fn test_forward_backward_iterator() {
     let dummy_metrics = dummy_message_loader_metrics();
     let db = Arc::new(mock_db);
 
-    let mut forward_backward_iterator = ForwardBackwardIterator::new(db.clone());
+    let mut iterator = LegacyMessageIterator::new(db.clone());
 
     let mut messages = vec![];
-    while let Some(msg) = forward_backward_iterator
-        .try_get_next_message(&dummy_metrics)
-        .await
-        .unwrap()
-    {
+    while let Some(msg) = iterator.try_get_next_message(&dummy_metrics).await.unwrap() {
         messages.push(msg.nonce);
     }
 
-    // we start with 2 (MOCK_HIGHEST_SEEN_NONCE) as the highest seen nonce,
-    // so we go forward and get 3.
-    // then we try going forward again but get a `None` (not indexed yet), for nonce 4 (MAX_ONCHAIN_NONCE).
-    // then we go backwards once and get 1.
-    // then retry the forward iteration, which should return a message the second time, for nonce 4.
-    // finally, going forward again returns None so we go backward and get 0.
-    assert_eq!(messages, vec![2, 3, 1, 4, 0]);
+    // Migration crosses the missing nonce 1 but stops at the startup watermark.
+    assert_eq!(messages, vec![2, 0]);
 
-    // the final bounds of the iterator are (None, MAX_ONCHAIN_NONCE + 1), where None means
-    // the backward iterator has reached the beginning (iterated past nonce 0)
-    assert_eq!(forward_backward_iterator.low_nonce_iter.nonce, None);
-    assert_eq!(
-        forward_backward_iterator.high_nonce_iter.nonce,
-        Some(MAX_ONCHAIN_NONCE + 1)
-    );
+    assert_eq!(iterator.low_nonce_iter.nonce, None);
+    assert_eq!(iterator.high_nonce_iter.nonce, None);
 }

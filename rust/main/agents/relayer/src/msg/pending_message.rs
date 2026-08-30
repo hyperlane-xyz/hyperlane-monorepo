@@ -1172,9 +1172,7 @@ impl PendingMessage {
                 "Validator signature wait recovered after message delivery"
             );
         }
-        self.ctx
-            .origin_db
-            .store_processed_by_nonce(&self.message.nonce, &true)?;
+        self.ctx.origin_db.store_message_processed(&self.message)?;
         self.ctx.metrics.update_nonce(&self.message);
         self.ctx.metrics.messages_processed.inc();
         Ok(())
@@ -2273,6 +2271,76 @@ mod test {
                 .with_label_values(&[app_context, "ethereum", "arbitrum", "ended"])
                 .get(),
             1
+        );
+    }
+
+    #[test]
+    fn process_success_finishes_metadata_wait_and_deletes_pending_index() {
+        let origin_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+        let destination_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let cache = OptionalCache::new(None);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db = DB::from_path(temp_dir.path()).unwrap();
+        let base_db = HyperlaneRocksDB::new(&origin_domain, db);
+        let message = HyperlaneMessage {
+            nonce: 7,
+            origin: origin_domain.id(),
+            destination: destination_domain.id(),
+            ..Default::default()
+        };
+        base_db
+            .store_message(&message, Default::default())
+            .expect("store pending message and index");
+        let app_context = "test-app";
+        let base_metadata_builder =
+            dummy_metadata_builder(&origin_domain, &destination_domain, &base_db, cache.clone());
+        let message_context =
+            dummy_message_context(Arc::new(base_metadata_builder), &base_db, cache);
+        let mut pending_message = PendingMessage::new(
+            message.clone(),
+            Arc::new(message_context),
+            PendingOperationStatus::FirstPrepareAttempt,
+            Some(app_context.to_owned()),
+            DEFAULT_MAX_MESSAGE_RETRIES,
+        );
+        pending_message
+            .ctx
+            .metrics
+            .record_metadata_wait(message.id(), Some(app_context));
+
+        pending_message
+            .record_message_process_success()
+            .expect("commit process success");
+
+        assert_eq!(
+            pending_message
+                .ctx
+                .metrics
+                .metadata_wait_active
+                .with_label_values(&[app_context, "ethereum", "arbitrum"])
+                .get(),
+            0
+        );
+        assert_eq!(
+            pending_message
+                .ctx
+                .metrics
+                .metadata_wait_event_count
+                .with_label_values(&[app_context, "ethereum", "arbitrum", "recovered"])
+                .get(),
+            1
+        );
+        assert_eq!(
+            base_db
+                .retrieve_pending_message_at_or_after(destination_domain.id(), message.nonce)
+                .expect("read pending index"),
+            None
+        );
+        assert_eq!(
+            base_db
+                .retrieve_processed_by_nonce(&message.nonce)
+                .expect("read processed marker"),
+            Some(true)
         );
     }
 }
