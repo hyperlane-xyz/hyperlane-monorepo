@@ -135,21 +135,29 @@ impl OpQueue {
             .drain()
             .map(|Reverse(mut op)| {
                 let mut matched = false;
-                retry_responses
-                    .iter_mut()
+                let matching_requests = retry_responses
+                    .iter()
                     .enumerate()
-                    .for_each(|(i, retry_response)| {
+                    .filter_map(|(i, _)| {
                         let retry_req = &retry_requests[i];
                         if !retry_req.pattern.op_matches(&op) {
-                            return;
+                            return None;
                         }
-                        // update retry metrics
-                        retry_response.matched = retry_response.matched.saturating_add(1);
                         matched = true;
-                    });
+                        Some(i)
+                    })
+                    .collect::<Vec<_>>();
                 if matched {
                     op.set_status(PendingOperationStatus::Retry(ReprepareReason::Manual));
-                    op.reset_attempts();
+                    let reset_succeeded = op.reset_attempts();
+                    for i in matching_requests {
+                        let retry_response = &mut retry_responses[i];
+                        if reset_succeeded {
+                            retry_response.matched = retry_response.matched.saturating_add(1);
+                        } else {
+                            retry_response.failed = retry_response.failed.saturating_add(1);
+                        }
+                    }
                 }
                 Reverse(op)
             })

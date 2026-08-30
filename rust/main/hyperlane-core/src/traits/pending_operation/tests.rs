@@ -71,7 +71,9 @@ impl PendingOperation for MockQueueOperation {
     ) {
     }
     fn set_next_attempt_after(&mut self, _delay: Duration) {}
-    fn reset_attempts(&mut self) {}
+    fn reset_attempts(&mut self) -> bool {
+        true
+    }
     #[cfg(any(test, feature = "test-utils"))]
     fn set_retries(&mut self, _retries: u32) {}
     fn get_retries(&self) -> u32 {
