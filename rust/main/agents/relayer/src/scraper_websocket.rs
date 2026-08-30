@@ -8,14 +8,16 @@ use std::{
 use eyre::{bail, Context, ContextCompat, Result};
 use futures_util::{SinkExt, StreamExt};
 use hyperlane_base::{
-    db::HyperlaneRocksDB,
+    db::{HyperlaneDb, HyperlaneRocksDB},
     scraper_websocket::{
         EventMessage, SequenceCursor, ServerMessage, StringOrNumber, SubscribeMessage,
         SubscribeStream, SubscribedCursor, SubscribedStream,
     },
     CoreMetrics,
 };
-use hyperlane_core::{bytes_to_address, bytes_to_h512, HyperlaneMessage, H256, H512};
+use hyperlane_core::{
+    bytes_to_address, bytes_to_h512, HyperlaneMessage, MerkleTreeInsertion, H256, H512,
+};
 use prometheus::{IntCounterVec, IntGaugeVec};
 use serde::Deserialize;
 use sha3::{Digest, Keccak256};
@@ -37,26 +39,26 @@ const CORRELATION_CURSOR_PREFIX: &[u8] = b"scraper_websocket_correlation_cursor"
 #[derive(Clone, Debug)]
 pub(crate) struct ScraperSource {
     chain: String,
-    db: HyperlaneRocksDB,
     domain: u32,
     mailbox: H256,
     merkle_tree_hook: H256,
+    database: HyperlaneRocksDB,
 }
 
 impl ScraperSource {
     pub(crate) fn new(
         chain: String,
-        db: HyperlaneRocksDB,
         domain: u32,
         mailbox: H256,
         merkle_tree_hook: H256,
+        database: HyperlaneRocksDB,
     ) -> Self {
         Self {
             chain,
-            db,
             domain,
             mailbox,
             merkle_tree_hook,
+            database,
         }
     }
 
@@ -68,7 +70,7 @@ impl ScraperSource {
     }
 
     fn cursor(&self, kind: EventKind) -> Result<Option<u32>> {
-        self.db
+        self.database
             .retrieve_value_by_key(kind.cursor_prefix(), &self.address(kind))
             .context("Reading durable scraper WebSocket cursor")
     }
@@ -106,7 +108,7 @@ impl ScraperSource {
         if self.cursor(kind)?.is_some_and(|stored| stored >= sequence) {
             return Ok(());
         }
-        self.db
+        self.database
             .store_value_by_key(kind.cursor_prefix(), &self.address(kind), &sequence)
             .context("Storing durable scraper WebSocket cursor")
     }
@@ -228,6 +230,23 @@ impl CrossStreamPair {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ParityResult {
+    Match,
+    Missing,
+    Conflict,
+}
+
+impl ParityResult {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Match => "match",
+            Self::Missing => "missing",
+            Self::Conflict => "conflict",
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 struct CrossStreamState {
     entries: HashMap<u32, BTreeMap<u32, CrossStreamPair>>,
@@ -295,6 +314,88 @@ impl CrossStreamState {
         let pair = entries.entry(sequence).or_default();
         *pair.get_mut(kind) = Some(projection);
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct ValidatedEvent {
+    kind: EventKind,
+    parity: ParityInput,
+    sequence_result: SequenceResult,
+}
+
+#[derive(Debug)]
+enum ParityInput {
+    Dispatch {
+        block_number: u64,
+        message: HyperlaneMessage,
+        transaction_id: H512,
+    },
+    MerkleTreeInsertion {
+        block_number: u64,
+        insertion: MerkleTreeInsertion,
+    },
+}
+
+impl ParityInput {
+    fn compare(&self, source: &ScraperSource) -> Result<ParityResult> {
+        match self {
+            Self::Dispatch {
+                block_number,
+                message,
+                transaction_id,
+            } => {
+                let local_message = source
+                    .database
+                    .retrieve_message_by_nonce(message.nonce)
+                    .context("Reading RPC-indexed dispatch message")?;
+                let local_block_number = source
+                    .database
+                    .retrieve_dispatched_block_number_by_nonce(&message.nonce)
+                    .context("Reading RPC-indexed dispatch block number")?;
+                let local_transaction_id = source
+                    .database
+                    .retrieve_dispatched_tx_hash_by_message_id(&message.id())
+                    .context("Reading RPC-indexed dispatch transaction ID")?;
+                if local_message.as_ref().is_some_and(|local| local != message)
+                    || local_block_number.is_some_and(|local| local != *block_number)
+                    || local_transaction_id.is_some_and(|local| local != *transaction_id)
+                {
+                    return Ok(ParityResult::Conflict);
+                }
+                if local_message.is_none()
+                    || local_block_number.is_none()
+                    || local_transaction_id.is_none()
+                {
+                    return Ok(ParityResult::Missing);
+                }
+                Ok(ParityResult::Match)
+            }
+            Self::MerkleTreeInsertion {
+                block_number,
+                insertion,
+            } => {
+                let local_insertion = source
+                    .database
+                    .retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index())
+                    .context("Reading RPC-indexed Merkle tree insertion")?;
+                let local_block_number = source
+                    .database
+                    .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&insertion.index())
+                    .context("Reading RPC-indexed Merkle insertion block number")?;
+                if local_insertion
+                    .as_ref()
+                    .is_some_and(|local| local != insertion)
+                    || local_block_number.is_some_and(|local| local != *block_number)
+                {
+                    return Ok(ParityResult::Conflict);
+                }
+                if local_insertion.is_none() || local_block_number.is_none() {
+                    return Ok(ParityResult::Missing);
+                }
+                Ok(ParityResult::Match)
+            }
+        }
     }
 }
 
@@ -460,7 +561,7 @@ impl StreamState {
         &mut self,
         event: EventMessage<serde_json::Value>,
         sources: &HashMap<u32, ScraperSource>,
-    ) -> Result<(EventKind, SequenceResult)> {
+    ) -> Result<ValidatedEvent> {
         let source = sources
             .get(&event.domain)
             .with_context(|| format!("Unexpected scraper event domain {}", event.domain))?;
@@ -471,7 +572,7 @@ impl StreamState {
             .parse::<u32>()
             .context("Invalid scraper event sequence")?;
 
-        let (kind, fingerprint, projection) = match event.event_type.as_str() {
+        let (kind, fingerprint, projection, parity) = match event.event_type.as_str() {
             DISPATCH_EVENT_TYPE => {
                 let data: DispatchEventData =
                     serde_json::from_value(event.data).context("Invalid dispatch event payload")?;
@@ -513,21 +614,27 @@ impl StreamState {
                 let row_id = data.id.as_u64("dispatch row ID")?;
                 let row_id_bytes = row_id.to_be_bytes();
                 let origin_block_height_bytes = origin_block_height.to_be_bytes();
+                let fingerprint = event_fingerprint(&[
+                    b"dispatch",
+                    &row_id_bytes,
+                    message_id.as_ref(),
+                    origin_block_hash.as_ref(),
+                    &origin_block_height_bytes,
+                    origin_mailbox.as_ref(),
+                    origin_tx_hash.as_ref(),
+                    data.time_created.as_bytes(),
+                ]);
                 (
                     EventKind::Dispatch,
-                    event_fingerprint(&[
-                        b"dispatch",
-                        &row_id_bytes,
-                        message_id.as_ref(),
-                        origin_block_hash.as_ref(),
-                        &origin_block_height_bytes,
-                        origin_mailbox.as_ref(),
-                        origin_tx_hash.as_ref(),
-                        data.time_created.as_bytes(),
-                    ]),
+                    fingerprint,
                     ProtocolProjection {
                         block_number: origin_block_height,
                         message_id,
+                    },
+                    ParityInput::Dispatch {
+                        block_number: origin_block_height,
+                        message,
+                        transaction_id: origin_tx_hash,
                     },
                 )
             }
@@ -560,6 +667,10 @@ impl StreamState {
                         block_number,
                         message_id,
                     },
+                    ParityInput::MerkleTreeInsertion {
+                        block_number,
+                        insertion: MerkleTreeInsertion::new(leaf_index, message_id),
+                    },
                 )
             }
             event_type => bail!("Unexpected scraper event type {event_type}"),
@@ -588,7 +699,11 @@ impl StreamState {
                 }
             }
         }
-        Ok((kind, result))
+        Ok(ValidatedEvent {
+            kind,
+            parity,
+            sequence_result: result,
+        })
     }
 }
 
@@ -637,6 +752,7 @@ pub(crate) struct ScraperWebSocketMonitor {
     active: IntGaugeVec,
     caught_up: IntGaugeVec,
     events: IntCounterVec,
+    parity: IntCounterVec,
     sources: HashMap<u32, ScraperSource>,
     url: Url,
 }
@@ -662,6 +778,11 @@ impl ScraperWebSocketMonitor {
             "Whether scraper-proxy replay reached the durable cursor",
             &["chain", "event_type"],
         )?;
+        let parity = metrics.new_int_counter(
+            "relayer_scraper_websocket_parity",
+            "Read-only parity comparisons between scraper-proxy events and RPC-indexed local DB records",
+            &["chain", "event_type", "result"],
+        )?;
         let sources = sources
             .into_iter()
             .map(|source| (source.domain, source))
@@ -678,6 +799,7 @@ impl ScraperWebSocketMonitor {
             active,
             caught_up,
             events,
+            parity,
             sources,
             url,
         })
@@ -754,14 +876,17 @@ impl ScraperWebSocketMonitor {
                             let domain = event.domain;
                             let event_type = event_label(&event.event_type);
                             match state.validate(event, &self.sources) {
-                                Ok((kind, sequence_result)) => {
-                                    let sequence = state.latest_sequence(domain, kind)?;
+                                Ok(validated) => {
                                     let source = self
                                         .sources
                                         .get(&domain)
                                         .expect("validated scraper source exists");
                                     if sequenced_persistence_ready(
-                                        plan, &caught_up, state, domain, sequence,
+                                        plan,
+                                        &caught_up,
+                                        state,
+                                        domain,
+                                        validated.sequence,
                                     )? {
                                         if caught_up_baselines(&caught_up, domain) == Some((-1, -1))
                                             && !state.correlation_next.contains_key(&domain)
@@ -772,22 +897,49 @@ impl ScraperWebSocketMonitor {
                                                 source.store_cursor(kind, sequence)?;
                                             }
                                         }
-                                        if let Some(sequence) =
-                                            state.initialize_correlation(domain, sequence)
+                                        if let Some(sequence) = state
+                                            .initialize_correlation(domain, validated.sequence)
                                         {
                                             source.store_correlation_cursor(sequence)?;
                                         }
                                         let correlation_next = state.advance_correlation(domain)?;
-                                        source.store_cursor(kind, sequence)?;
+                                        source.store_cursor(validated.kind, validated.sequence)?;
                                         if let Some(sequence) = correlation_next {
                                             source.store_correlation_cursor(sequence)?;
                                         }
                                     }
-                                    let result = match sequence_result {
+                                    let result = match validated.sequence_result {
                                         SequenceResult::Accepted => "accepted",
                                         SequenceResult::Duplicate => "duplicate",
                                     };
-                                    self.record(domain, kind.label(), result);
+                                    self.record(domain, validated.kind.label(), result);
+                                    let source = self.sources.get(&domain).context(
+                                        "Validated scraper event source unexpectedly missing",
+                                    )?;
+                                    match validated.parity.compare(source) {
+                                        Ok(parity_result) => {
+                                            self.record_parity(
+                                                domain,
+                                                validated.kind.label(),
+                                                parity_result.label(),
+                                            );
+                                            if parity_result == ParityResult::Conflict {
+                                                warn!(
+                                                    chain = %source.chain,
+                                                    event_type = validated.kind.label(),
+                                                    "Scraper event conflicts with RPC-indexed local DB"
+                                                );
+                                            }
+                                        }
+                                        Err(err) => {
+                                            self.record_parity(
+                                                domain,
+                                                validated.kind.label(),
+                                                "error",
+                                            );
+                                            return Err(err);
+                                        }
+                                    }
                                     self.update_source_caught_up(state, plan, &caught_up, domain)?;
                                 }
                                 Err(err) => {
@@ -917,6 +1069,17 @@ impl ScraperWebSocketMonitor {
             .map(|source| source.chain.as_str())
             .unwrap_or("unknown");
         self.events
+            .with_label_values(&[chain, event_type, result])
+            .inc();
+    }
+
+    fn record_parity(&self, domain: u32, event_type: &str, result: &str) {
+        let chain = self
+            .sources
+            .get(&domain)
+            .map(|source| source.chain.as_str())
+            .unwrap_or("unknown");
+        self.parity
             .with_label_values(&[chain, event_type, result])
             .inc();
     }
@@ -1256,8 +1419,34 @@ fn event_label(event_type: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hyperlane_base::db::test_utils;
+    use hyperlane_base::db::{test_utils, DB};
     use hyperlane_core::HyperlaneDomain;
+
+    struct Fixture {
+        _temp_dir: tempfile::TempDir,
+        sources: HashMap<u32, ScraperSource>,
+    }
+
+    fn source(database: HyperlaneRocksDB) -> ScraperSource {
+        ScraperSource::new(
+            "test".to_owned(),
+            5,
+            H256::from_low_u64_be(1),
+            H256::from_low_u64_be(2),
+            database,
+        )
+    }
+
+    fn fixture() -> Fixture {
+        let temp_dir = tempfile::tempdir().expect("temp DB directory");
+        let db = DB::from_path(temp_dir.path()).expect("open temp DB");
+        let database =
+            HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("scraper-parity"), db);
+        Fixture {
+            _temp_dir: temp_dir,
+            sources: HashMap::from([(5, source(database))]),
+        }
+    }
 
     fn sources() -> HashMap<u32, ScraperSource> {
         sources_for(&[5])
@@ -1278,10 +1467,10 @@ mod tests {
                     domain,
                     ScraperSource::new(
                         chain,
-                        db,
                         domain,
                         H256::from_low_u64_be(1),
                         H256::from_low_u64_be(2),
+                        db,
                     ),
                 )
             })
@@ -1330,6 +1519,34 @@ mod tests {
             "sender": format!("{:#x}", message.sender),
             "time_created": "2026-08-30T00:00:00.000Z",
         })
+    }
+
+    fn dispatch_transaction_id() -> H512 {
+        bytes_to_h512(&[6_u8; 32])
+    }
+
+    fn store_dispatch(source: &ScraperSource, message: &HyperlaneMessage) {
+        let message_id = message.id();
+        source
+            .database
+            .store_message_id_by_nonce(&message.nonce, &message_id)
+            .expect("store message ID");
+        source
+            .database
+            .store_message_by_id(&message_id, message)
+            .expect("store message");
+        source
+            .database
+            .store_dispatched_block_number_by_nonce(&message.nonce, &100)
+            .expect("store dispatch block");
+        source
+            .database
+            .store_dispatched_tx_hash_by_message_id(&message_id, &dispatch_transaction_id())
+            .expect("store dispatch transaction");
+    }
+
+    fn sequence(validated: ValidatedEvent) -> (EventKind, SequenceResult) {
+        (validated.kind, validated.sequence_result)
     }
 
     fn merkle_data(index: u32, hook: H256) -> serde_json::Value {
@@ -1395,34 +1612,41 @@ mod tests {
 
     #[test]
     fn preserves_sequence_across_reconnects() {
-        let sources = sources();
+        let fixture = fixture();
+        let sources = &fixture.sources;
         let mut contiguous = StreamState::default();
 
         assert_eq!(
-            contiguous
-                .validate(
-                    event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"seven")),
-                    &sources,
-                )
-                .expect("first event"),
+            sequence(
+                contiguous
+                    .validate(
+                        event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"seven")),
+                        sources,
+                    )
+                    .expect("first event"),
+            ),
             (EventKind::Dispatch, SequenceResult::Accepted)
         );
         assert_eq!(
-            contiguous
-                .validate(
-                    event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"seven")),
-                    &sources,
-                )
-                .expect("duplicate event after reconnect"),
+            sequence(
+                contiguous
+                    .validate(
+                        event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"seven")),
+                        sources,
+                    )
+                    .expect("duplicate event after reconnect"),
+            ),
             (EventKind::Dispatch, SequenceResult::Duplicate)
         );
         assert_eq!(
-            contiguous
-                .validate(
-                    event(DISPATCH_EVENT_TYPE, 8, dispatch_data(8, b"eight")),
-                    &sources,
-                )
-                .expect("next event after reconnect"),
+            sequence(
+                contiguous
+                    .validate(
+                        event(DISPATCH_EVENT_TYPE, 8, dispatch_data(8, b"eight")),
+                        sources,
+                    )
+                    .expect("next event after reconnect"),
+            ),
             (EventKind::Dispatch, SequenceResult::Accepted)
         );
 
@@ -1430,13 +1654,13 @@ mod tests {
         gapped
             .validate(
                 event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"seven")),
-                &sources,
+                sources,
             )
             .expect("first event before reconnect");
         assert!(gapped
             .validate(
                 event(DISPATCH_EVENT_TYPE, 9, dispatch_data(9, b"nine")),
-                &sources,
+                sources,
             )
             .expect_err("gap must reject")
             .to_string()
@@ -2171,19 +2395,20 @@ mod tests {
 
     #[test]
     fn rejects_conflicting_duplicate_dispatch() {
-        let sources = sources();
+        let fixture = fixture();
+        let sources = &fixture.sources;
         let mut state = StreamState::default();
         state
             .validate(
                 event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"original")),
-                &sources,
+                sources,
             )
             .expect("first event");
 
         assert!(state
             .validate(
                 event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"conflict")),
-                &sources,
+                sources,
             )
             .expect_err("conflicting duplicate must reject")
             .to_string()
@@ -2191,11 +2416,154 @@ mod tests {
     }
 
     #[test]
+    fn dispatch_parity_handles_lag_duplicate_restart_and_conflict() {
+        let fixture = fixture();
+        let source = fixture.sources.get(&5).expect("source");
+        let message = dispatch_message(7, b"payload");
+        let data = dispatch_data(7, b"payload");
+        let mut state = StreamState::default();
+
+        let lagging = state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, data.clone()),
+                &fixture.sources,
+            )
+            .expect("lagging event");
+        assert_eq!(
+            lagging.parity.compare(source).expect("lag comparison"),
+            ParityResult::Missing
+        );
+
+        store_dispatch(source, &message);
+        let duplicate = state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, data.clone()),
+                &fixture.sources,
+            )
+            .expect("duplicate event");
+        assert_eq!(duplicate.sequence_result, SequenceResult::Duplicate);
+        assert_eq!(
+            duplicate.parity.compare(source).expect("duplicate parity"),
+            ParityResult::Match
+        );
+
+        let restarted = StreamState::default()
+            .validate(event(DISPATCH_EVENT_TYPE, 7, data), &fixture.sources)
+            .expect("event after process restart");
+        assert_eq!(restarted.sequence_result, SequenceResult::Accepted);
+        assert_eq!(
+            restarted.parity.compare(source).expect("restart parity"),
+            ParityResult::Match
+        );
+
+        let mut conflict_data = dispatch_data(7, b"payload");
+        conflict_data["origin_block_height"] = serde_json::json!("101");
+        let conflict = StreamState::default()
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, conflict_data),
+                &fixture.sources,
+            )
+            .expect("conflicting event payload");
+        assert_eq!(
+            conflict.parity.compare(source).expect("conflict parity"),
+            ParityResult::Conflict
+        );
+    }
+
+    #[test]
+    fn dispatch_parity_survives_database_restart() {
+        let temp_dir = tempfile::tempdir().expect("temp DB directory");
+        let message = dispatch_message(7, b"payload");
+        {
+            let db = DB::from_path(temp_dir.path()).expect("open temp DB");
+            let database =
+                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("scraper-parity"), db);
+            store_dispatch(&source(database), &message);
+        }
+
+        let db = DB::from_path(temp_dir.path()).expect("reopen temp DB");
+        let database =
+            HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("scraper-parity"), db);
+        let sources = HashMap::from([(5, source(database))]);
+        let validated = StreamState::default()
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload")),
+                &sources,
+            )
+            .expect("dispatch after restart");
+
+        assert_eq!(
+            validated
+                .parity
+                .compare(sources.get(&5).expect("source"))
+                .expect("restart comparison"),
+            ParityResult::Match
+        );
+    }
+
+    #[test]
+    fn merkle_parity_handles_lag_match_and_conflict() {
+        let fixture = fixture();
+        let source = fixture.sources.get(&5).expect("source");
+        let insertion = MerkleTreeInsertion::new(1, H256::from_low_u64_be(7));
+        let data = merkle_data(1, H256::from_low_u64_be(2));
+
+        let lagging = StreamState::default()
+            .validate(event(MERKLE_EVENT_TYPE, 1, data.clone()), &fixture.sources)
+            .expect("lagging Merkle event");
+        assert_eq!(
+            lagging.parity.compare(source).expect("lag comparison"),
+            ParityResult::Missing
+        );
+
+        source
+            .database
+            .store_merkle_tree_insertion_by_leaf_index(&1, &insertion)
+            .expect("store Merkle insertion");
+        source
+            .database
+            .store_merkle_tree_insertion_block_number_by_leaf_index(&1, &101)
+            .expect("store Merkle block");
+        let matched = StreamState::default()
+            .validate(event(MERKLE_EVENT_TYPE, 1, data), &fixture.sources)
+            .expect("matching Merkle event");
+        assert_eq!(
+            matched.parity.compare(source).expect("match comparison"),
+            ParityResult::Match
+        );
+
+        let mut conflict_data = merkle_data(1, H256::from_low_u64_be(2));
+        conflict_data["block_number"] = serde_json::json!("102");
+        let conflict = StreamState::default()
+            .validate(event(MERKLE_EVENT_TYPE, 1, conflict_data), &fixture.sources)
+            .expect("conflicting Merkle event");
+        assert_eq!(
+            conflict
+                .parity
+                .compare(source)
+                .expect("conflict comparison"),
+            ParityResult::Conflict
+        );
+    }
+
+    #[test]
     fn rejects_invalid_dispatch_payload() {
+        let fixture = fixture();
+        let mut missing_body = dispatch_data(7, b"original");
+        missing_body["msg_body"] = serde_json::Value::Null;
+        assert!(StreamState::default()
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, missing_body),
+                &fixture.sources
+            )
+            .expect_err("missing body must reject")
+            .to_string()
+            .contains("omitted message body"));
+
         let mut bad_body = dispatch_data(7, b"original");
         bad_body["msg_body"] = serde_json::json!("\\x00");
         assert!(StreamState::default()
-            .validate(event(DISPATCH_EVENT_TYPE, 7, bad_body), &sources())
+            .validate(event(DISPATCH_EVENT_TYPE, 7, bad_body), &fixture.sources)
             .expect_err("message ID mismatch must reject")
             .to_string()
             .contains("message ID"));
@@ -2203,7 +2571,7 @@ mod tests {
         let mut bad_sender = dispatch_data(7, b"original");
         bad_sender["sender"] = serde_json::json!("0x12");
         assert!(StreamState::default()
-            .validate(event(DISPATCH_EVENT_TYPE, 7, bad_sender), &sources())
+            .validate(event(DISPATCH_EVENT_TYPE, 7, bad_sender), &fixture.sources)
             .expect_err("invalid sender must reject")
             .to_string()
             .contains("address"));
@@ -2211,10 +2579,11 @@ mod tests {
 
     #[test]
     fn rejects_wrong_dispatch_mailbox() {
+        let fixture = fixture();
         let mut data = dispatch_data(7, b"payload");
         data["origin_mailbox"] = serde_json::json!(format!("{:#x}", H256::from_low_u64_be(3)));
         let error = StreamState::default()
-            .validate(event(DISPATCH_EVENT_TYPE, 7, data), &sources())
+            .validate(event(DISPATCH_EVENT_TYPE, 7, data), &fixture.sources)
             .expect_err("wrong mailbox must reject");
 
         assert!(error.to_string().contains("configured mailbox"));
@@ -2222,6 +2591,7 @@ mod tests {
 
     #[test]
     fn rejects_wrong_merkle_hook() {
+        let fixture = fixture();
         let mut state = StreamState::default();
         let error = state
             .validate(
@@ -2230,7 +2600,7 @@ mod tests {
                     1,
                     merkle_data(1, H256::from_low_u64_be(3)),
                 ),
-                &sources(),
+                &fixture.sources,
             )
             .expect_err("wrong hook must reject");
 
@@ -2239,10 +2609,11 @@ mod tests {
 
     #[test]
     fn validates_merkle_payload_fields() {
+        let fixture = fixture();
         let mut data = merkle_data(1, H256::from_low_u64_be(2));
         data["message_id"] = serde_json::json!("0x12");
         assert!(StreamState::default()
-            .validate(event(MERKLE_EVENT_TYPE, 1, data), &sources())
+            .validate(event(MERKLE_EVENT_TYPE, 1, data), &fixture.sources)
             .expect_err("invalid message ID must reject")
             .to_string()
             .contains("Merkle message ID"));
@@ -2250,10 +2621,11 @@ mod tests {
 
     #[test]
     fn rejects_fields_outside_wire_projection() {
+        let fixture = fixture();
         let mut dispatch = dispatch_data(7, b"payload");
         dispatch["time_updated"] = serde_json::json!("2026-08-30T00:00:01.000Z");
         assert!(StreamState::default()
-            .validate(event(DISPATCH_EVENT_TYPE, 7, dispatch), &sources())
+            .validate(event(DISPATCH_EVENT_TYPE, 7, dispatch), &fixture.sources)
             .expect_err("unprojected dispatch field must reject")
             .to_string()
             .contains("Invalid dispatch event payload"));
@@ -2261,7 +2633,7 @@ mod tests {
         let mut merkle = merkle_data(1, H256::from_low_u64_be(2));
         merkle["id"] = serde_json::json!(42);
         assert!(StreamState::default()
-            .validate(event(MERKLE_EVENT_TYPE, 1, merkle), &sources())
+            .validate(event(MERKLE_EVENT_TYPE, 1, merkle), &fixture.sources)
             .expect_err("unprojected Merkle field must reject")
             .to_string()
             .contains("Invalid Merkle tree insertion payload"));
@@ -2269,12 +2641,13 @@ mod tests {
 
     #[test]
     fn correlates_dispatch_and_merkle_projection() {
+        let fixture = fixture();
         let mut state = StreamState::default();
         let message = dispatch_message(7, b"payload");
         state
             .validate(
                 event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload")),
-                &sources(),
+                &fixture.sources,
             )
             .expect("dispatch should validate");
         state
@@ -2284,19 +2657,20 @@ mod tests {
                     7,
                     merkle_data_for(7, H256::from_low_u64_be(2), message.id(), 100),
                 ),
-                &sources(),
+                &fixture.sources,
             )
             .expect("matching Merkle insertion should validate");
     }
 
     #[test]
     fn rejects_cross_stream_message_and_block_mismatches() {
+        let fixture = fixture();
         let message = dispatch_message(7, b"payload");
         let mut wrong_message = StreamState::default();
         wrong_message
             .validate(
                 event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload")),
-                &sources(),
+                &fixture.sources,
             )
             .expect("dispatch should validate");
         assert!(wrong_message
@@ -2306,7 +2680,7 @@ mod tests {
                     7,
                     merkle_data_for(7, H256::from_low_u64_be(2), H256::from_low_u64_be(8), 100,),
                 ),
-                &sources(),
+                &fixture.sources,
             )
             .expect_err("message mismatch must reject")
             .to_string()
@@ -2316,7 +2690,7 @@ mod tests {
         wrong_block
             .validate(
                 event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload")),
-                &sources(),
+                &fixture.sources,
             )
             .expect("dispatch should validate");
         assert!(wrong_block
@@ -2326,7 +2700,7 @@ mod tests {
                     7,
                     merkle_data_for(7, H256::from_low_u64_be(2), message.id(), 101),
                 ),
-                &sources(),
+                &fixture.sources,
             )
             .expect_err("block mismatch must reject")
             .to_string()
