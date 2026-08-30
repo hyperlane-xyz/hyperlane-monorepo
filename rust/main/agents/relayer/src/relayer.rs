@@ -294,7 +294,6 @@ impl BaseAgent for Relayer {
             .map(|(domain, origin)| {
                 ScraperSource::new(
                     domain.name().to_owned(),
-                    origin.database.clone(),
                     domain.id(),
                     origin.chain_conf.addresses.mailbox,
                     origin.chain_conf.addresses.merkle_tree_hook,
