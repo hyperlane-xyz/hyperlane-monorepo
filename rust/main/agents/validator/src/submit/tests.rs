@@ -1,7 +1,7 @@
 use std::{
     fmt::Debug,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
     time::Duration,
@@ -333,20 +333,13 @@ async fn all_existing_chunks_skip_inter_chunk_throttle() {
     task.await.unwrap();
 }
 
-/// Regression test for the public-RPC load fix: `checkpoint_submitter` must not call the
-/// quorum-verified, public-RPC-fanning `latest_checkpoint()` when the cheap, base-hook-only
-/// `count()` shows nothing new since `tree` was last caught up.
+/// An idle poll needs one base-hook call and no public-RPC-fanning quorum call.
 #[tokio::test(start_paused = true)]
 async fn checkpoint_submitter_skips_latest_checkpoint_without_new_messages() {
     let mut tree = IncrementalMerkle::default();
     tree.ingest(H256::from_low_u64_be(1));
     tree.ingest(H256::from_low_u64_be(2));
     tree.ingest(H256::from_low_u64_be(3));
-    let tree_count = tree.count() as u32;
-
-    let count_calls = Arc::new(AtomicBool::new(false));
-    let count_calls_clone = count_calls.clone();
-
     let mut mock_quorum_merkle_tree_hook = MockMerkleTreeHook::new();
     mock_quorum_merkle_tree_hook
         .expect_address()
@@ -359,13 +352,10 @@ async fn checkpoint_submitter_skips_latest_checkpoint_without_new_messages() {
         .expect_latest_checkpoint()
         .never();
 
+    let base_checkpoint_calls = Arc::new(AtomicUsize::new(0));
+    let base_checkpoint_calls_clone = base_checkpoint_calls.clone();
     let mut mock_base_merkle_tree_hook = MockMerkleTreeHook::new();
-    mock_base_merkle_tree_hook
-        .expect_count()
-        .returning(move |_| {
-            count_calls_clone.store(true, Ordering::SeqCst);
-            Ok(tree_count)
-        });
+    mock_base_merkle_tree_hook.expect_count().never();
     let expected_checkpoint = CheckpointAtBlock {
         checkpoint: Checkpoint {
             root: tree.root(),
@@ -377,7 +367,11 @@ async fn checkpoint_submitter_skips_latest_checkpoint_without_new_messages() {
     };
     mock_base_merkle_tree_hook
         .expect_latest_checkpoint()
-        .returning(move |_| Ok(expected_checkpoint.clone()));
+        .once()
+        .returning(move |_| {
+            base_checkpoint_calls_clone.fetch_add(1, Ordering::SeqCst);
+            Ok(expected_checkpoint.clone())
+        });
 
     let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
     let submitter = ValidatorSubmitter::new(
@@ -398,32 +392,19 @@ async fn checkpoint_submitter_skips_latest_checkpoint_without_new_messages() {
         submitter.checkpoint_submitter(tree).await;
     });
 
-    for _ in 0..5 {
-        tokio::task::yield_now().await;
-        tokio::time::advance(Duration::from_secs(1)).await;
-    }
     tokio::task::yield_now().await;
     task.abort();
     let _ = task.await;
 
-    assert!(
-        count_calls.load(Ordering::SeqCst),
-        "the loop should still poll count() via the private base_hook"
-    );
-    // `mock_quorum_merkle_tree_hook.expect_latest_checkpoint().never()` above is the real
-    // assertion: a panic there would have failed this test already if it were called.
+    assert_eq!(base_checkpoint_calls.load(Ordering::SeqCst), 1);
 }
 
-/// Regression test for a race where `count()` returns the local count, but a leaf lands
-/// before `base_hook.latest_checkpoint()` resolves. The ahead checkpoint must be
-/// quorum-verified before it can drive signing.
+/// A base checkpoint ahead of the local tree must be quorum-verified before it can drive signing.
 #[tokio::test(start_paused = true)]
-async fn checkpoint_submitter_quorum_verifies_base_checkpoint_ahead_of_observed_count() {
+async fn checkpoint_submitter_quorum_verifies_base_checkpoint_ahead_of_tree() {
     let mut tree = IncrementalMerkle::default();
     tree.ingest(H256::from_low_u64_be(1));
     tree.ingest(H256::from_low_u64_be(2));
-    let tree_count = tree.count() as u32;
-
     let mut ahead_tree = tree.clone();
     ahead_tree.ingest(H256::from_low_u64_be(3));
 
@@ -457,10 +438,7 @@ async fn checkpoint_submitter_quorum_verifies_base_checkpoint_ahead_of_observed_
         });
 
     let mut mock_base_merkle_tree_hook = MockMerkleTreeHook::new();
-    mock_base_merkle_tree_hook
-        .expect_count()
-        .once()
-        .returning(move |_| Ok(tree_count));
+    mock_base_merkle_tree_hook.expect_count().never();
     let base_ahead_checkpoint = CheckpointAtBlock {
         checkpoint: Checkpoint {
             root: ahead_tree.root(),
@@ -536,11 +514,7 @@ async fn checkpoint_submitter_detects_reorg_when_count_is_unchanged() {
         .return_const(dummy_domain.clone());
 
     let mut mock_base_merkle_tree_hook = MockMerkleTreeHook::new();
-    let observed_count = local_tree.count() as u32;
-    mock_base_merkle_tree_hook
-        .expect_count()
-        .once()
-        .returning(move |_| Ok(observed_count));
+    mock_base_merkle_tree_hook.expect_count().never();
     let onchain_checkpoint = CheckpointAtBlock {
         checkpoint: Checkpoint {
             root: onchain_tree.root(),
@@ -613,9 +587,7 @@ async fn checkpoint_submitter_detects_reorg_when_count_is_unchanged() {
     assert!(result.unwrap_err().is_panic());
 }
 
-/// Counterpart to the above: once the cheap `count()` shows a new leaf, `latest_checkpoint()`
-/// (the quorum-verified, public-RPC-fanning read) must still be called to determine what to
-/// sign.
+/// A base checkpoint with a new leaf still requires a quorum-verified checkpoint.
 #[tokio::test(start_paused = true)]
 async fn checkpoint_submitter_fetches_latest_checkpoint_when_new_message_arrives() {
     let mut tree = IncrementalMerkle::default();
@@ -634,14 +606,28 @@ async fn checkpoint_submitter_fetches_latest_checkpoint_when_new_message_arrives
     mock_quorum_merkle_tree_hook
         .expect_domain()
         .return_const(dummy_domain.clone());
-    // One more leaf is available on-chain than what's locally ingested.
-    let observed_count = unchanged_tree.count() as u32 + 1;
+    let mut ahead_tree = unchanged_tree.clone();
+    ahead_tree.ingest(H256::from_low_u64_be(3));
+    let base_domain = dummy_domain.clone();
     let mut mock_base_merkle_tree_hook = MockMerkleTreeHook::new();
+    mock_base_merkle_tree_hook.expect_count().never();
     mock_base_merkle_tree_hook
-        .expect_count()
-        .returning(move |_| Ok(observed_count));
+        .expect_latest_checkpoint()
+        .once()
+        .returning(move |_| {
+            Ok(CheckpointAtBlock {
+                checkpoint: Checkpoint {
+                    root: ahead_tree.root(),
+                    index: ahead_tree.index(),
+                    merkle_tree_hook_address: H256::from_low_u64_be(0),
+                    mailbox_domain: base_domain.id(),
+                },
+                block_height: Some(2),
+            })
+        });
     mock_quorum_merkle_tree_hook
         .expect_latest_checkpoint()
+        .once()
         .returning(move |_| {
             latest_checkpoint_called_clone.store(true, Ordering::SeqCst);
             // Reports the checkpoint as already matching the current tree, so the
@@ -676,15 +662,15 @@ async fn checkpoint_submitter_fetches_latest_checkpoint_when_new_message_arrives
         submitter.checkpoint_submitter(tree).await;
     });
 
-    tokio::task::yield_now().await;
-    tokio::time::advance(Duration::from_secs(1)).await;
-    tokio::task::yield_now().await;
+    for _ in 0..5 {
+        tokio::task::yield_now().await;
+    }
     task.abort();
     let _ = task.await;
 
     assert!(
         latest_checkpoint_called.load(Ordering::SeqCst),
-        "latest_checkpoint() should be called once count() indicates a new leaf"
+        "latest_checkpoint() should be called once the base checkpoint indicates a new leaf"
     );
 }
 

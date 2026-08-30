@@ -142,30 +142,22 @@ impl ValidatorSubmitter {
         };
 
         loop {
-            // Cheap, base-hook-only (private RPC) tip check. The quorum-verified
-            // `merkle_tree_hook.latest_checkpoint()` may fan out to public RPCs (see
-            // `ValidatorMultiRpcQuorumMerkleTreeHook`); only call it when this indicates
-            // there's actually a new leaf to catch up to.
-            let observed_count = call_and_retry_indefinitely(|| {
+            // Fetch the base-hook checkpoint once. Its index tells us whether there are new
+            // leaves, while its root preserves same-count reorg detection. Fetching `count()`
+            // first would add another eth_call to every idle poll without providing any
+            // information that this checkpoint does not already contain.
+            let base_checkpoint = call_and_retry_indefinitely(|| {
                 let merkle_tree_hook = self.base_merkle_tree_hook.clone();
                 let reorg_period = self.reorg_period.clone();
-                Box::pin(async move { merkle_tree_hook.count(&reorg_period).await })
+                Box::pin(async move { merkle_tree_hook.latest_checkpoint(&reorg_period).await })
             })
             .await;
 
-            if (observed_count as usize) <= tree.count() {
-                // Count alone cannot prove the root is unchanged: a reorg may replace a
-                // leaf while leaving the count the same. Compare against the base hook
-                // checkpoint first. Use the base-only fast path only when it exactly
-                // matches the local tree; otherwise verify the checkpoint through the
-                // quorum hook before signing or reporting a reorg.
-                let base_checkpoint = call_and_retry_indefinitely(|| {
-                    let merkle_tree_hook = self.base_merkle_tree_hook.clone();
-                    let reorg_period = self.reorg_period.clone();
-                    Box::pin(async move { merkle_tree_hook.latest_checkpoint(&reorg_period).await })
-                })
-                .await;
-
+            // A checkpoint index is the corresponding tree count minus one. If the base
+            // checkpoint has no new leaf, use it to retain same-count root/reorg checks while
+            // avoiding a public-RPC quorum read on the normal idle path.
+            // CAST: u32 checkpoint indexes fit usize on every supported agent target.
+            if (base_checkpoint.index as usize) < tree.count() {
                 if tree_exceeds_checkpoint(&base_checkpoint, &tree) {
                     debug!(
                         ?base_checkpoint,
