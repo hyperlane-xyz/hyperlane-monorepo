@@ -378,6 +378,31 @@ async fn test_cancelled_capacity_wait_enqueues_nothing_and_allows_retry() {
 }
 
 #[tokio::test]
+async fn test_saturated_processor_returns_503_without_partial_enqueue() {
+    let indexer = Arc::new(MockIndexer::cctp(test_msg(ORIGIN_ID, DEST_ID, 1)));
+    let (TestHarness { state, mut rx, .. }, tx) =
+        make_state_multi_with_capacity(indexer, ORIGIN_ID, vec![DEST_ID], 1).await;
+    tx.send(Vec::new()).await.expect("prefill should succeed");
+
+    let cache = Arc::new(Mutex::new(TxHashCache::new(100)));
+    let router = state.with_tx_hash_cache(cache.clone()).router();
+    let started = std::time::Instant::now();
+    let status = send_relay(router.clone(), TX_HASH).await;
+
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert!(started.elapsed() < Duration::from_secs(1));
+    assert_eq!(rx.len(), 1, "failed request must not enqueue a batch");
+    assert!(
+        !cache.lock().contains("ethereum", TX_HASH),
+        "failed admission must release the tx-hash reservation"
+    );
+
+    let placeholder = rx.recv().await.expect("prefilled batch should remain");
+    assert!(placeholder.is_empty());
+    assert_eq!(send_relay(router, TX_HASH).await, StatusCode::OK);
+}
+
+#[tokio::test]
 async fn test_duplicate_within_ttl_rejected() {
     let msg = test_msg(ORIGIN_ID, DEST_ID, 1);
     let TestHarness {
