@@ -10,6 +10,7 @@ use futures_util::{SinkExt, StreamExt};
 use hyperlane_base::{
     scraper_websocket::{
         EventMessage, ServerMessage, StringOrNumber, SubscribeMessage, SubscribeStream,
+        SubscribedStream,
     },
     CoreMetrics,
 };
@@ -27,6 +28,7 @@ const MERKLE_EVENT_TYPE: &str = "merkle_tree_insertion";
 const READ_TIMEOUT: Duration = Duration::from_secs(75);
 const RETRY_DELAY: Duration = Duration::from_secs(5);
 const DUPLICATE_FINGERPRINT_WINDOW: usize = 1_024;
+const CROSS_STREAM_WINDOW: usize = 1_024;
 
 #[derive(Clone, Debug)]
 pub(crate) struct ScraperSource {
@@ -66,6 +68,101 @@ impl EventKind {
 enum SequenceResult {
     Accepted,
     Duplicate,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct ProtocolProjection {
+    block_number: u64,
+    message_id: H256,
+}
+
+#[derive(Debug, Default)]
+struct CrossStreamPair {
+    dispatch: Option<ProtocolProjection>,
+    merkle: Option<ProtocolProjection>,
+}
+
+impl CrossStreamPair {
+    fn complete(&self) -> bool {
+        self.dispatch.is_some() && self.merkle.is_some()
+    }
+
+    fn get(&self, kind: EventKind) -> Option<ProtocolProjection> {
+        match kind {
+            EventKind::Dispatch => self.dispatch,
+            EventKind::MerkleTreeInsertion => self.merkle,
+        }
+    }
+
+    fn get_mut(&mut self, kind: EventKind) -> &mut Option<ProtocolProjection> {
+        match kind {
+            EventKind::Dispatch => &mut self.dispatch,
+            EventKind::MerkleTreeInsertion => &mut self.merkle,
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct CrossStreamState {
+    entries: HashMap<u32, BTreeMap<u32, CrossStreamPair>>,
+}
+
+impl CrossStreamState {
+    fn validate(
+        &mut self,
+        domain: u32,
+        sequence: u32,
+        kind: EventKind,
+        projection: ProtocolProjection,
+    ) -> Result<()> {
+        let entries = self.entries.entry(domain).or_default();
+
+        let mismatch = if let Some(pair) = entries.get(&sequence) {
+            if let Some(previous) = pair.get(kind) {
+                if previous != projection {
+                    bail!("Conflicting scraper projection at sequence {sequence}");
+                }
+            }
+            if let Some(counterpart) = pair.get(match kind {
+                EventKind::Dispatch => EventKind::MerkleTreeInsertion,
+                EventKind::MerkleTreeInsertion => EventKind::Dispatch,
+            }) {
+                if counterpart.message_id != projection.message_id {
+                    Some(format!(
+                        "Dispatch and Merkle message IDs differ at sequence {sequence}"
+                    ))
+                } else if counterpart.block_number != projection.block_number {
+                    Some(format!(
+                        "Dispatch and Merkle block numbers differ at sequence {sequence}"
+                    ))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        if !entries.contains_key(&sequence) && entries.len() >= CROSS_STREAM_WINDOW {
+            let oldest_complete = entries
+                .first_key_value()
+                .is_some_and(|(_, pair)| pair.complete());
+            if !oldest_complete {
+                bail!("Scraper cross-stream skew exceeds {CROSS_STREAM_WINDOW} sequences");
+            }
+        }
+
+        if !entries.contains_key(&sequence) && entries.len() >= CROSS_STREAM_WINDOW {
+            entries.pop_first();
+        }
+        let pair = entries.entry(sequence).or_default();
+        *pair.get_mut(kind) = Some(projection);
+        if let Some(mismatch) = mismatch {
+            bail!(mismatch);
+        }
+        Ok(())
+    }
 }
 
 type EventFingerprint = H256;
@@ -128,6 +225,7 @@ struct StreamGap {
 
 #[derive(Debug, Default)]
 struct StreamState {
+    cross_stream: CrossStreamState,
     cursors: HashMap<(u32, EventKind), StreamCursor>,
 }
 
@@ -147,7 +245,7 @@ impl StreamState {
             .parse::<u32>()
             .context("Invalid scraper event sequence")?;
 
-        let (kind, fingerprint) = match event.event_type.as_str() {
+        let (kind, fingerprint, projection) = match event.event_type.as_str() {
             DISPATCH_EVENT_TYPE => {
                 let data: DispatchEventData =
                     serde_json::from_value(event.data).context("Invalid dispatch event payload")?;
@@ -201,6 +299,10 @@ impl StreamState {
                         origin_tx_hash.as_ref(),
                         data.time_created.as_bytes(),
                     ]),
+                    ProtocolProjection {
+                        block_number: origin_block_height,
+                        message_id,
+                    },
                 )
             }
             MERKLE_EVENT_TYPE => {
@@ -228,6 +330,10 @@ impl StreamState {
                         merkle_tree_hook.as_ref(),
                         message_id.as_ref(),
                     ]),
+                    ProtocolProjection {
+                        block_number,
+                        message_id,
+                    },
                 )
             }
             event_type => bail!("Unexpected scraper event type {event_type}"),
@@ -242,6 +348,8 @@ impl StreamState {
                 SequenceResult::Accepted
             }
         };
+        self.cross_stream
+            .validate(event.domain, sequence, kind, projection)?;
         Ok((kind, result))
     }
 }
@@ -261,13 +369,14 @@ impl HandshakeState {
         Ok(())
     }
 
-    fn subscribed(&mut self) -> Result<()> {
+    fn subscribed(&mut self, streams: &[SubscribedStream], domains: &[u32]) -> Result<()> {
         if !self.sent {
             bail!("Received subscribed before ready");
         }
         if self.confirmed {
             bail!("Received duplicate scraper-proxy subscribed message");
         }
+        validate_subscription(streams, domains)?;
         self.confirmed = true;
         Ok(())
     }
@@ -364,8 +473,8 @@ impl ScraperWebSocketMonitor {
                                 .await
                                 .context("Subscribing to relayer scraper-proxy streams")?;
                         }
-                        ServerMessage::Subscribed => {
-                            handshake.subscribed()?;
+                        ServerMessage::Subscribed { streams } => {
+                            handshake.subscribed(&streams, &self.domains())?;
                             self.set_active(true);
                             info!("Relayer scraper-proxy shadow streams active");
                         }
@@ -414,7 +523,13 @@ impl ScraperWebSocketMonitor {
     }
 
     fn subscription(&self) -> Result<String> {
-        subscription(self.sources.keys().copied().collect())
+        subscription(self.domains())
+    }
+
+    fn domains(&self) -> Vec<u32> {
+        let mut domains = self.sources.keys().copied().collect::<Vec<_>>();
+        domains.sort_unstable();
+        domains
     }
 
     fn set_active(&self, active: bool) {
@@ -454,6 +569,21 @@ fn subscription(mut domains: Vec<u32>) -> Result<String> {
         message_type: "subscribe",
     })
     .context("Serializing relayer scraper-proxy subscription")
+}
+
+fn validate_subscription(streams: &[SubscribedStream], domains: &[u32]) -> Result<()> {
+    if streams.len() != 2 {
+        bail!("Scraper-proxy confirmed an unexpected number of streams");
+    }
+    for (stream, event_type) in streams.iter().zip([DISPATCH_EVENT_TYPE, MERKLE_EVENT_TYPE]) {
+        if stream.event_type != event_type
+            || stream.cursors.is_some()
+            || stream.domains.as_deref() != Some(domains)
+        {
+            bail!("Scraper-proxy subscription confirmation does not match request");
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
@@ -558,8 +688,8 @@ mod tests {
         }
     }
 
-    fn dispatch_data(nonce: u32, body: &[u8]) -> serde_json::Value {
-        let message = HyperlaneMessage {
+    fn dispatch_message(nonce: u32, body: &[u8]) -> HyperlaneMessage {
+        HyperlaneMessage {
             version: 3,
             nonce,
             origin: 5,
@@ -567,7 +697,11 @@ mod tests {
             destination: 6,
             recipient: H256::from_low_u64_be(4),
             body: body.to_vec(),
-        };
+        }
+    }
+
+    fn dispatch_data(nonce: u32, body: &[u8]) -> serde_json::Value {
+        let message = dispatch_message(nonce, body);
         serde_json::json!({
             "destination_domain": message.destination,
             "id": "42",
@@ -586,13 +720,33 @@ mod tests {
     }
 
     fn merkle_data(index: u32, hook: H256) -> serde_json::Value {
+        merkle_data_for(index, hook, H256::from_low_u64_be(7), 101)
+    }
+
+    fn merkle_data_for(
+        index: u32,
+        hook: H256,
+        message_id: H256,
+        block_number: u64,
+    ) -> serde_json::Value {
         serde_json::json!({
-            "block_number": "101",
+            "block_number": block_number.to_string(),
             "domain": 5,
             "leaf_index": index,
             "merkle_tree_hook": format!("{hook:#x}"),
-            "message_id": format!("{:#x}", H256::from_low_u64_be(7)),
+            "message_id": format!("{message_id:#x}"),
         })
+    }
+
+    fn subscribed_streams(domains: &[u32]) -> Vec<SubscribedStream> {
+        [DISPATCH_EVENT_TYPE, MERKLE_EVENT_TYPE]
+            .into_iter()
+            .map(|event_type| SubscribedStream {
+                cursors: None,
+                domains: Some(domains.to_vec()),
+                event_type: event_type.to_owned(),
+            })
+            .collect()
     }
 
     #[test]
@@ -744,16 +898,145 @@ mod tests {
     }
 
     #[test]
+    fn correlates_dispatch_and_merkle_projection() {
+        let mut state = StreamState::default();
+        let message = dispatch_message(7, b"payload");
+        state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload")),
+                &sources(),
+            )
+            .expect("dispatch should validate");
+        state
+            .validate(
+                event(
+                    MERKLE_EVENT_TYPE,
+                    7,
+                    merkle_data_for(7, H256::from_low_u64_be(2), message.id(), 100),
+                ),
+                &sources(),
+            )
+            .expect("matching Merkle insertion should validate");
+    }
+
+    #[test]
+    fn rejects_cross_stream_message_and_block_mismatches() {
+        let message = dispatch_message(7, b"payload");
+        let mut wrong_message = StreamState::default();
+        wrong_message
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload")),
+                &sources(),
+            )
+            .expect("dispatch should validate");
+        assert!(wrong_message
+            .validate(
+                event(
+                    MERKLE_EVENT_TYPE,
+                    7,
+                    merkle_data_for(7, H256::from_low_u64_be(2), H256::from_low_u64_be(8), 100,),
+                ),
+                &sources(),
+            )
+            .expect_err("message mismatch must reject")
+            .to_string()
+            .contains("message IDs differ"));
+
+        let mut wrong_block = StreamState::default();
+        wrong_block
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload")),
+                &sources(),
+            )
+            .expect("dispatch should validate");
+        assert!(wrong_block
+            .validate(
+                event(
+                    MERKLE_EVENT_TYPE,
+                    7,
+                    merkle_data_for(7, H256::from_low_u64_be(2), message.id(), 101),
+                ),
+                &sources(),
+            )
+            .expect_err("block mismatch must reject")
+            .to_string()
+            .contains("block numbers differ"));
+    }
+
+    #[test]
+    fn bounds_unmatched_cross_stream_projections() {
+        let projection = ProtocolProjection {
+            block_number: 100,
+            message_id: H256::from_low_u64_be(7),
+        };
+        let mut state = CrossStreamState::default();
+        for sequence in 0..CROSS_STREAM_WINDOW as u32 {
+            state
+                .validate(5, sequence, EventKind::Dispatch, projection)
+                .expect("projection inside window");
+        }
+        assert_eq!(state.entries[&5].len(), CROSS_STREAM_WINDOW);
+        assert!(state
+            .validate(
+                5,
+                CROSS_STREAM_WINDOW as u32,
+                EventKind::Dispatch,
+                projection,
+            )
+            .expect_err("unmatched projection must not be evicted")
+            .to_string()
+            .contains("skew exceeds"));
+
+        state
+            .validate(5, 0, EventKind::MerkleTreeInsertion, projection)
+            .expect("oldest projection should complete");
+        state
+            .validate(
+                5,
+                CROSS_STREAM_WINDOW as u32,
+                EventKind::Dispatch,
+                projection,
+            )
+            .expect("completed oldest projection should be evicted");
+        assert_eq!(state.entries[&5].len(), CROSS_STREAM_WINDOW);
+        assert!(!state.entries[&5].contains_key(&0));
+        assert!(state.entries[&5].contains_key(&(CROSS_STREAM_WINDOW as u32)));
+    }
+
+    #[test]
     fn enforces_subscription_handshake_order() {
         let mut handshake = HandshakeState::default();
+        let domains = [5];
+        let streams = subscribed_streams(&domains);
         assert!(handshake.event().is_err());
-        assert!(handshake.subscribed().is_err());
+        assert!(handshake.subscribed(&streams, &domains).is_err());
         handshake.ready().expect("ready");
         assert!(handshake.event().is_err());
-        handshake.subscribed().expect("subscribed");
+        handshake
+            .subscribed(&streams, &domains)
+            .expect("subscribed");
         handshake.event().expect("event after confirmation");
-        assert!(handshake.subscribed().is_err());
+        assert!(handshake.subscribed(&streams, &domains).is_err());
         assert!(handshake.ready().is_err());
+    }
+
+    #[test]
+    fn rejects_subscription_confirmation_mismatch() {
+        let domains = [5];
+        for streams in [
+            subscribed_streams(&[9]),
+            vec![SubscribedStream {
+                cursors: None,
+                domains: Some(domains.to_vec()),
+                event_type: DISPATCH_EVENT_TYPE.to_owned(),
+            }],
+            subscribed_streams(&domains).into_iter().rev().collect(),
+        ] {
+            let mut handshake = HandshakeState::default();
+            handshake.ready().expect("ready");
+            assert!(handshake.subscribed(&streams, &domains).is_err());
+            assert!(!handshake.confirmed);
+        }
     }
 
     #[test]
