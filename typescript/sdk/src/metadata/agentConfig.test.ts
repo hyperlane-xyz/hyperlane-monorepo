@@ -95,6 +95,25 @@ describe('RelayerAgentConfigSchema feeToken gate', () => {
     );
     expect(result.success).to.be.true;
   });
+
+  it('accepts only WebSocket schemes for the scraper URL', () => {
+    expect(
+      RelayerAgentConfigSchema.safeParse(
+        config({
+          gasPaymentEnforcement: [{ type: 'onChainFeeQuoting' }],
+          websocketUrl: 'wss://scraper.example/ws/events',
+        }),
+      ).success,
+    ).to.be.true;
+    expect(
+      RelayerAgentConfigSchema.safeParse(
+        config({
+          gasPaymentEnforcement: [{ type: 'onChainFeeQuoting' }],
+          websocketUrl: 'https://scraper.example/ws/events',
+        }),
+      ).success,
+    ).to.be.false;
+  });
 });
 
 describe('AgentChainMetadataSchema additionalQuorumRpcUrls', () => {

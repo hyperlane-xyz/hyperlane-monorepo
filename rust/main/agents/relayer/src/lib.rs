@@ -9,6 +9,7 @@ mod merkle_tree;
 mod metrics;
 mod prover;
 mod relayer;
+mod scraper_websocket;
 mod settings;
 
 #[cfg(test)]
