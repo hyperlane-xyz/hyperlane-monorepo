@@ -164,6 +164,10 @@ export async function deriveFeeQuoteCascadeAltAddresses(args: {
     case FeeType.offchainQuotedLinear:
       cascade = await deriveLeafFeeCascade(cascadeArgs);
       break;
+    case FeeType.offchainQuotedPiecewiseLinear:
+      throw new Error(
+        'OffchainQuotedPiecewiseLinearFee is not supported on Sealevel',
+      );
     case FeeType.routing:
       cascade = await deriveRoutingFeeCascade(cascadeArgs);
       break;

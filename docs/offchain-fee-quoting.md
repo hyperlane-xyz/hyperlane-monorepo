@@ -1,5 +1,8 @@
 # Real-Time Warp Route Fees via Offchain Quoting
 
+For the signed marginal-curve extension and its economic risk analysis, see
+[Signed Piecewise Warp Fee Curves](./offchain-piecewise-fee-curve.md).
+
 ## Context
 
 Current warp route fees use onchain-configured models (Linear, Progressive, Regressive) and StorageGasOracle for IGP. These can't react to real-time market conditions. This leads to overpaying or failed relaying.
@@ -35,7 +38,8 @@ struct SignedQuote {
 **Quote data formats** (`bytes`, contract-specific encoding):
 
 - **IGP**: `abi.encodePacked(uint128 tokenExchangeRate, uint128 gasPrice)` — two uint128 values. Fee = `gasLimit * gasPrice * tokenExchangeRate / 1e10`.
-- **Warp fee**: `abi.encodePacked(uint256 maxFee, uint256 halfAmount)` — linear fee params. Fee = `min(maxFee, amount * maxFee / (2 * halfAmount))`. Same formula as `LinearFee`.
+- **Linear Warp fee**: `abi.encodePacked(uint256 maxFee, uint256 halfAmount)` — linear fee params. Fee = `min(maxFee, amount * maxFee / (2 * halfAmount))`. Same formula as `LinearFee`.
+- **Piecewise Warp fee**: `abi.encode(uint128[] breakpoints, uint32[] marginalBpsX1e4, uint32 staleAfterSeconds, uint32[] staleMarginalSurchargeBpsX1e4)` — marginal amount bands plus a single age-widening step. Its permanent fallback uses `abi.encode(uint128[] breakpoints, uint32[] marginalBpsX1e4)`.
 
 **Transient vs standing**:
 
@@ -73,6 +77,21 @@ Fee quote data (64 bytes packed):
 [0:32]   Maximum fee (uint256)
 [32:64]  Half amount — transfer size at which fee = maxFee/2 (uint256)
 ```
+
+Piecewise fee quote data is standard ABI encoding rather than packed bytes:
+
+```solidity
+abi.encode(
+    uint128[] breakpoints,
+    uint32[] marginalBpsX1e4,
+    uint32 staleAfterSeconds,
+    uint32[] staleMarginalSurchargeBpsX1e4
+)
+```
+
+The number of rates is one greater than the number of breakpoints. The final
+rate is open-ended. The surcharge vector has the same length as the rate
+vector. `1 bp == 10_000` encoded rate units.
 
 Each concrete contract decodes context to extract mapping keys for standing quotes. Wildcards use `type(T).max`.
 
@@ -165,12 +184,25 @@ bytes32 constant TRANSIENT_AMOUNT_SLOT = keccak256("OffchainQuotedLinearFee.amou
 | 4        | `quotes[WILDCARD][recipient]`                            | Recipient-only rate (any destination)   |
 | 5        | immutable `maxFee`/`halfAmount`                          | LinearFee fallback (constructor config) |
 
+### Piecewise Warp Fee (OffchainQuotedPiecewiseLinearFee)
+
+The piecewise variant preserves the first four resolution levels above. A
+normal curve uses its base marginal rates until `issuedAt + staleAfterSeconds`,
+then uses the full base-plus-surcharge curve through its inclusive expiry. Its
+fifth level is a required, non-expiring piecewise fallback that an authorized
+quote signer can replace through `submitFallbackCurve` without redeployment.
+
+Fallback updates use a distinct EIP-712 `SignedFallbackCurve` message, are
+bound to a nonzero transaction submitter, and are ordered by `issuedAt`. They
+have no expiry. Equal-timestamp retries are accepted only when the economic
+state is identical.
+
 ### Properties
 
 - **No replay protection needed** — transient quotes auto-clear (EIP-1153), standing quotes are intentionally reusable
 - **Intra-tx transient reuse is acceptable** — a transient quote can satisfy multiple calls with the same context tuple within one transaction. The quote's scoped `salt` binds it to a specific `msg.sender`, the `submitter` field restricts submission to a specific contract, and context fields must match. Same authorized user reusing the same rate for the same route in the same tx.
 - **Field-level matching** — transient quotes match individual context fields, supporting wildcards per-field
-- **Graceful degradation** — falls back through specificity levels to oracle / immutable config
+- **Graceful degradation** — falls back through specificity levels to oracle, immutable linear config, or the mutable permanent piecewise curve
 - **Compound matching** — Alice-to-Arbitrum, Alice-to-any, anyone-to-Arbitrum all coexist
 - **Scoped salt binding** — QuotedCalls verifies `salt == keccak256(msg.sender, clientSalt)`, preventing unauthorized quote use
 - **Submitter restriction** — quotes can be locked to a specific submitter contract
@@ -220,6 +252,13 @@ OffchainQuotedLinearFee is AbstractOffchainQuoter, LinearFee
   ├── _matchesTransient() — field-level wildcard matching
   ├── addQuoteSigner() / removeQuoteSigner() — owner-gated
   └── Inherits claim(), token, receive() from BaseFee
+
+OffchainQuotedPiecewiseLinearFee is AbstractOffchainQuoter, TokenFeeBase
+  ├── Fresh and effective-stale marginal curves with precomputed prefixes
+  ├── Required permanent fallback and signed fallback replacement
+  ├── Packed linear transient compatibility
+  ├── Fixed eight-probe band lookup (maximum 256 bands)
+  └── Inherits claim(), token, receive() from TokenFeeBase
 
 QuotedCalls is PackageVersioned
   ├── Command-based router: execute(bytes commands, bytes[] inputs)

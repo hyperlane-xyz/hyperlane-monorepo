@@ -3,6 +3,7 @@ import {
   type Address,
   type Hex,
   type LocalAccount,
+  encodeAbiParameters,
   encodePacked,
   isAddress,
 } from 'viem';
@@ -280,18 +281,16 @@ export class EvmQuoteService implements IProtocolQuoteService {
   // ============ private: resolve ============
 
   /**
-   * Walks the fee tree to find the leaf `OffchainQuotedLinearFee` that
+   * Walks the fee tree to find an offchain-quoted leaf that
    * applies to `(destChainName, targetRouter)`, asserts this signer is
    * whitelisted on it, and returns the verifying contract address. Throws
-   * `NoQuoteAvailableError` on miss. `OffchainQuotedLinearFee` is the only
-   * on-chain fee variant that extends `AbstractOffchainQuoter`, so it's the
-   * only variant that carries `quoteSigners`.
+   * `NoQuoteAvailableError` on miss.
    */
   private resolveOffchainFeeLeaf(
     tokenFee: DerivedTokenFeeConfig | undefined,
     destChainName: string,
     targetRouter?: Hex,
-  ): Address {
+  ): DerivedTokenFeeConfig {
     if (!tokenFee) {
       throw new NoQuoteAvailableError(
         NoQuoteAvailableReason.NotConfigured,
@@ -300,10 +299,13 @@ export class EvmQuoteService implements IProtocolQuoteService {
     }
 
     const leaf = pickFeeLeaf(tokenFee, destChainName, targetRouter);
-    if (leaf.type !== TokenFeeType.OffchainQuotedLinearFee) {
+    if (
+      leaf.type !== TokenFeeType.OffchainQuotedLinearFee &&
+      leaf.type !== TokenFeeType.OffchainQuotedPiecewiseLinearFee
+    ) {
       throw new NoQuoteAvailableError(
         NoQuoteAvailableReason.NotUpgraded,
-        `Fee at ${leaf.address} is ${leaf.type}, not OffchainQuotedLinearFee`,
+        `Fee at ${leaf.address} is ${leaf.type}, not an offchain-quoted fee`,
       );
     }
     this.assertSignerAuthorized(
@@ -311,7 +313,7 @@ export class EvmQuoteService implements IProtocolQuoteService {
       leaf.address,
       QuoterType.WarpFee,
     );
-    return narrowAddress(leaf.address, 'warp fee quoter');
+    return leaf;
   }
 
   /** Walks the hook tree to find the destination's IGP address. */
@@ -359,7 +361,7 @@ export class EvmQuoteService implements IProtocolQuoteService {
 
   private async signWarpQuote(
     route: EvmRouteState,
-    feeQuoter: Address,
+    feeQuoter: DerivedTokenFeeConfig,
     destination: number,
     recipient: Hex,
     binding: QuoteBinding,
@@ -368,9 +370,32 @@ export class EvmQuoteService implements IProtocolQuoteService {
       ['uint32', 'bytes32', 'uint256'],
       [destination, recipient, BigInt(2) ** BigInt(256) - BigInt(1)],
     );
-    const { maxFee, halfAmount } = PLACEHOLDER_WARP_FEE_PARAMS;
-    const data = encodePacked(['uint256', 'uint256'], [maxFee, halfAmount]);
-    return this.signEip712(route, feeQuoter, context, data, binding);
+    const data =
+      feeQuoter.type === TokenFeeType.OffchainQuotedPiecewiseLinearFee &&
+      binding.kind === QuoteMode.STANDING
+        ? encodeAbiParameters(
+            [
+              { type: 'uint128[]' },
+              { type: 'uint32[]' },
+              { type: 'uint32' },
+              { type: 'uint32[]' },
+            ],
+            [[], [0], binding.ttlSeconds, [0]],
+          )
+        : encodePacked(
+            ['uint256', 'uint256'],
+            [
+              PLACEHOLDER_WARP_FEE_PARAMS.maxFee,
+              PLACEHOLDER_WARP_FEE_PARAMS.halfAmount,
+            ],
+          );
+    return this.signEip712(
+      route,
+      narrowAddress(feeQuoter.address, 'warp fee quoter'),
+      context,
+      data,
+      binding,
+    );
   }
 
   private async signIgpQuote(

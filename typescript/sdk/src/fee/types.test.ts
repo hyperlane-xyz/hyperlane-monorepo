@@ -7,6 +7,7 @@ import {
   CrossCollateralRoutingFeeConfigSchema,
   CrossCollateralRoutingFeeInputConfigSchema,
   LinearFeeInputConfigSchema,
+  OffchainQuotedPiecewiseLinearFeeInputConfigSchema,
   RoutingFeeInputConfigSchema,
   TokenFeeType,
 } from './types.js';
@@ -122,6 +123,78 @@ describe('LinearFeeInputConfigSchema', () => {
       expect(result.data.bps).to.exist;
       expect(result.data.bps).to.be.a('number');
     }
+  });
+});
+
+describe('OffchainQuotedPiecewiseLinearFeeInputConfigSchema', () => {
+  const config = {
+    type: TokenFeeType.OffchainQuotedPiecewiseLinearFee,
+    owner: SOME_ADDRESS,
+    initialFallback: {
+      breakpoints: [100_000n, 250_000n],
+      marginalBps: [4, 10, 20],
+    },
+  } as const;
+
+  it('accepts a bounded maximum band count', () => {
+    expect(
+      OffchainQuotedPiecewiseLinearFeeInputConfigSchema.safeParse({
+        ...config,
+        maxBands: 4,
+      }).success,
+    ).to.equal(true);
+  });
+
+  it('rejects maximum band counts outside the contract bounds', () => {
+    expect(
+      OffchainQuotedPiecewiseLinearFeeInputConfigSchema.safeParse({
+        ...config,
+        maxBands: 0,
+      }).success,
+    ).to.equal(false);
+    expect(
+      OffchainQuotedPiecewiseLinearFeeInputConfigSchema.safeParse({
+        ...config,
+        maxBands: 257,
+      }).success,
+    ).to.equal(false);
+  });
+
+  it('accepts a one-band constant fallback', () => {
+    const result = OffchainQuotedPiecewiseLinearFeeInputConfigSchema.safeParse({
+      ...config,
+      maxBands: 1,
+      initialFallback: { breakpoints: [], marginalBps: [4.5] },
+    });
+    expect(result.success).to.equal(true);
+  });
+
+  it('rejects malformed, decreasing, or all-zero fallbacks', () => {
+    const invalidFallbacks = [
+      { breakpoints: [100n], marginalBps: [4] },
+      { breakpoints: [100n, 50n], marginalBps: [4, 10, 20] },
+      { breakpoints: [100n], marginalBps: [10, 4] },
+      { breakpoints: [], marginalBps: [0] },
+    ];
+
+    for (const initialFallback of invalidFallbacks) {
+      expect(
+        OffchainQuotedPiecewiseLinearFeeInputConfigSchema.safeParse({
+          ...config,
+          maxBands: 4,
+          initialFallback,
+        }).success,
+      ).to.equal(false);
+    }
+  });
+
+  it('rejects fallbacks that exceed maxBands', () => {
+    expect(
+      OffchainQuotedPiecewiseLinearFeeInputConfigSchema.safeParse({
+        ...config,
+        maxBands: 2,
+      }).success,
+    ).to.equal(false);
   });
 });
 
