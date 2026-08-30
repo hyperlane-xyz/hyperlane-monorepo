@@ -48,9 +48,11 @@ tokio = { workspace = true, features = [
     "rt-multi-thread",
 ] }
 tokio-metrics.workspace = true
+tokio-tungstenite.workspace = true
 tracing-futures.workspace = true
 tracing.workspace = true
 typetag.workspace = true
+url.workspace = true
 uuid.workspace = true
 tower-http = { version = "0.6", features = ["cors"] }
 

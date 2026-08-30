@@ -84,6 +84,7 @@ export interface BaseRelayerConfig {
   batch?: RelayerBatchConfig;
   txIdIndexingEnabled?: boolean;
   igpIndexingEnabled?: boolean;
+  websocketUrl?: string;
   reorgPeriodOverrides?: ChainMap<number>;
   interval?: number;
   relayApi?: RelayApiConfig;
@@ -196,6 +197,9 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     relayerConfig.allowContractCallCaching = baseConfig.cache?.enabled ?? false;
     relayerConfig.txIdIndexingEnabled = baseConfig.txIdIndexingEnabled ?? true;
     relayerConfig.igpIndexingEnabled = baseConfig.igpIndexingEnabled ?? true;
+    if (baseConfig.websocketUrl !== undefined) {
+      relayerConfig.websocketUrl = baseConfig.websocketUrl;
+    }
     if (baseConfig.relayApi !== undefined) {
       relayerConfig.relayApiEnabled = baseConfig.relayApi.enabled;
       if (baseConfig.relayApi.port !== undefined) {
