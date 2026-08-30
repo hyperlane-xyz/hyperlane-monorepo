@@ -1,12 +1,14 @@
 #![allow(clippy::doc_markdown)] // TODO: `rustc` 1.80.1 clippy issue
 #![allow(clippy::doc_lazy_continuation)] // TODO: `rustc` 1.80.1 clippy issue
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future::join_all;
 use futures_util::future::try_join_all;
+use futures_util::stream::{FuturesUnordered, StreamExt};
 use maplit::hashmap;
 use num_traits::Zero;
 use prometheus::{IntCounterVec, IntGaugeVec};
@@ -482,51 +484,109 @@ async fn get_batch_or_wait(queue: &mut OpQueue, batch_size: u32) -> Vec<QueueOpe
 
 async fn process_batch(
     domain: HyperlaneDomain,
-    mut batch: Vec<QueueOperation>,
+    batch: Vec<QueueOperation>,
     prepare_queue: &mut OpQueue,
     submit_queue: &OpQueue,
     confirm_queue: &OpQueue,
     metrics: &MessageProcessorMetrics,
 ) {
-    let mut task_prep_futures = vec![];
-    let op_refs = batch.iter_mut().map(|op| op.as_mut()).collect::<Vec<_>>();
-    for op in op_refs {
+    let mut next_sequence_by_origin = HashMap::<u32, usize>::new();
+    let mut prepare_futures = FuturesUnordered::new();
+
+    for mut op in batch {
         trace!(?op, "Preparing operation");
         debug_assert_eq!(*op.destination_domain(), domain);
-        task_prep_futures.push(op.prepare());
-    }
-    let res = join_all(task_prep_futures).await;
-    for (op, prepare_result) in batch.into_iter().zip(res.into_iter()) {
-        let app_context = op.app_context();
-        match prepare_result {
-            PendingOperationResult::Success => {
-                debug!(?op, "Operation prepared");
 
-                metrics.inc_prepared(app_context);
-                // TODO: push multiple messages at once
-                submit_queue
-                    .push(op, Some(PendingOperationStatus::ReadyToSubmit))
-                    .await;
-            }
-            PendingOperationResult::NotReady => {
-                prepare_queue.push(op, None).await;
-            }
-            PendingOperationResult::Reprepare(reason) => {
-                metrics.inc_failed(app_context);
-                prepare_queue
-                    .push(op, Some(PendingOperationStatus::Retry(reason)))
-                    .await;
-            }
-            PendingOperationResult::Drop => {
-                metrics.inc_dropped(app_context);
-                op.decrement_metric_if_exists();
-            }
-            PendingOperationResult::Confirm(reason) => {
-                debug!(?op, "Pushing operation to confirm queue");
-                confirm_queue
-                    .push(op, Some(PendingOperationStatus::Confirm(reason)))
-                    .await;
-            }
+        let origin = op.origin_domain_id();
+        let next_sequence = next_sequence_by_origin.entry(origin).or_default();
+        let sequence = *next_sequence;
+        *next_sequence = (*next_sequence).saturating_add(1);
+        prepare_futures.push(async move {
+            let result = op.prepare().await;
+            (origin, sequence, op, result)
+        });
+    }
+    let mut next_disposition_by_origin = HashMap::<u32, usize>::new();
+    let mut completed_by_origin =
+        HashMap::<u32, HashMap<usize, (QueueOperation, PendingOperationResult)>>::new();
+
+    while let Some((origin, sequence, op, result)) = prepare_futures.next().await {
+        // Route completed work immediately unless an earlier operation from the
+        // same origin is still preparing. Operations from other origins remain
+        // independent and can make progress in the meantime.
+        completed_by_origin
+            .entry(origin)
+            .or_default()
+            .insert(sequence, (op, result));
+
+        loop {
+            let next_sequence = *next_disposition_by_origin.entry(origin).or_default();
+            let Some((op, result)) = completed_by_origin
+                .get_mut(&origin)
+                .and_then(|completed| completed.remove(&next_sequence))
+            else {
+                break;
+            };
+
+            dispose_prepared_operation(
+                op,
+                result,
+                prepare_queue,
+                submit_queue,
+                confirm_queue,
+                metrics,
+            )
+            .await;
+            next_disposition_by_origin.insert(origin, next_sequence.saturating_add(1));
+        }
+    }
+
+    debug_assert!(completed_by_origin.values().all(HashMap::is_empty));
+}
+
+/// Routes a prepared operation and returns whether it remains unready.
+async fn dispose_prepared_operation(
+    op: QueueOperation,
+    prepare_result: PendingOperationResult,
+    prepare_queue: &mut OpQueue,
+    submit_queue: &OpQueue,
+    confirm_queue: &OpQueue,
+    metrics: &MessageProcessorMetrics,
+) -> bool {
+    let app_context = op.app_context();
+    match prepare_result {
+        PendingOperationResult::Success => {
+            debug!(?op, "Operation prepared");
+
+            metrics.inc_prepared(app_context);
+            // TODO: push multiple messages at once
+            submit_queue
+                .push(op, Some(PendingOperationStatus::ReadyToSubmit))
+                .await;
+            false
+        }
+        PendingOperationResult::NotReady => {
+            prepare_queue.push(op, None).await;
+            true
+        }
+        PendingOperationResult::Reprepare(reason) => {
+            metrics.inc_failed(app_context);
+            prepare_queue
+                .push(op, Some(PendingOperationStatus::Retry(reason)))
+                .await;
+            true
+        }
+        PendingOperationResult::Drop => {
+            metrics.inc_dropped(app_context);
+            op.decrement_metric_if_exists();
+            false
+        }
+        PendingOperationResult::Confirm(reason) => {
+            debug!(?op, "Pushing operation to confirm queue");
+            confirm_queue
+                .push(op, Some(PendingOperationStatus::Confirm(reason)))
+                .await;
+            false
         }
     }
 }
