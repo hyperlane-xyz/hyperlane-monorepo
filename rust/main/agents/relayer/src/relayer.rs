@@ -964,7 +964,7 @@ impl Relayer {
             self.metric_app_contexts.clone(),
             self.max_retries,
             index_notifications,
-        );
+        )?;
 
         let span = info_span!("MessageDbLoader", origin=%message_db_loader.domain());
         let db_loader = DbLoader::new(Box::new(message_db_loader), task_monitor.clone());

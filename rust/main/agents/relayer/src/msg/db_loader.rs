@@ -1,6 +1,6 @@
 use std::{
     cmp::max,
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     fmt::{Debug, Formatter},
     sync::Arc,
     time::Duration,
@@ -52,10 +52,11 @@ pub struct MessageDbLoader {
     index_notifications: Option<Receiver<H512>>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum IndexDirection {
     High,
     Low,
+    Reconsider,
 }
 
 #[derive(Debug)]
@@ -64,6 +65,8 @@ struct DestinationIndexIterator {
     destination_label: Arc<str>,
     high_nonce: Option<u32>,
     low_nonce: Option<u32>,
+    next_direction: IndexDirection,
+    reconsider_nonces: BTreeSet<u32>,
 }
 
 impl DestinationIndexIterator {
@@ -73,15 +76,17 @@ impl DestinationIndexIterator {
             destination_label: destination.to_string().into(),
             high_nonce: Some(highest_seen_nonce.unwrap_or_default()),
             low_nonce: highest_seen_nonce.and_then(|nonce| nonce.checked_sub(1)),
+            next_direction: IndexDirection::High,
+            reconsider_nonces: BTreeSet::new(),
         }
     }
 
     fn peek(
-        &self,
+        &mut self,
         db: &HyperlaneRocksDB,
         metrics: &MessageDbLoaderMetrics,
     ) -> Result<Option<(IndexDirection, u32, H256)>> {
-        if let Some(nonce) = self.high_nonce {
+        if let Some(nonce) = self.reconsider_nonces.first().copied() {
             metrics
                 .logical_db_reads
                 .with_label_values(&[
@@ -91,13 +96,31 @@ impl DestinationIndexIterator {
                     "index",
                 ])
                 .inc();
-            if let Some((nonce, message_id)) =
+            if let Some((indexed_nonce, message_id)) =
                 db.retrieve_pending_message_at_or_after(self.destination, nonce)?
             {
-                return Ok(Some((IndexDirection::High, nonce, message_id)));
+                if indexed_nonce == nonce {
+                    return Ok(Some((IndexDirection::Reconsider, nonce, message_id)));
+                }
             }
+            self.reconsider_nonces.remove(&nonce);
         }
-        if let Some(nonce) = self.low_nonce {
+
+        let directions = match self.next_direction {
+            IndexDirection::High | IndexDirection::Reconsider => {
+                [IndexDirection::High, IndexDirection::Low]
+            }
+            IndexDirection::Low => [IndexDirection::Low, IndexDirection::High],
+        };
+        for direction in directions {
+            let nonce = match direction {
+                IndexDirection::High => self.high_nonce,
+                IndexDirection::Low => self.low_nonce,
+                IndexDirection::Reconsider => None,
+            };
+            let Some(nonce) = nonce else {
+                continue;
+            };
             metrics
                 .logical_db_reads
                 .with_label_values(&[
@@ -107,10 +130,20 @@ impl DestinationIndexIterator {
                     "index",
                 ])
                 .inc();
-            if let Some((nonce, message_id)) =
-                db.retrieve_pending_message_at_or_before(self.destination, nonce)?
-            {
-                return Ok(Some((IndexDirection::Low, nonce, message_id)));
+            let entry = match direction {
+                IndexDirection::High => {
+                    db.retrieve_pending_message_at_or_after(self.destination, nonce)?
+                }
+                IndexDirection::Low => {
+                    db.retrieve_pending_message_at_or_before(self.destination, nonce)?
+                }
+                IndexDirection::Reconsider => unreachable!(),
+            };
+            if let Some((nonce, message_id)) = entry {
+                return Ok(Some((direction, nonce, message_id)));
+            }
+            if direction == IndexDirection::Low {
+                self.low_nonce = None;
             }
         }
         Ok(None)
@@ -118,8 +151,25 @@ impl DestinationIndexIterator {
 
     fn advance(&mut self, direction: IndexDirection, nonce: u32) {
         match direction {
-            IndexDirection::High => self.high_nonce = nonce.checked_add(1),
-            IndexDirection::Low => self.low_nonce = nonce.checked_sub(1),
+            IndexDirection::High => {
+                self.high_nonce = nonce.checked_add(1);
+                self.next_direction = IndexDirection::Low;
+            }
+            IndexDirection::Low => {
+                self.low_nonce = nonce.checked_sub(1);
+                self.next_direction = IndexDirection::High;
+            }
+            IndexDirection::Reconsider => {
+                self.reconsider_nonces.remove(&nonce);
+            }
+        }
+    }
+
+    fn reconsider(&mut self, nonce: u32) {
+        let covered_by_high = self.high_nonce.is_some_and(|high| nonce >= high);
+        let covered_by_low = self.low_nonce.is_some_and(|low| nonce <= low);
+        if !covered_by_high && !covered_by_low {
+            self.reconsider_nonces.insert(nonce);
         }
     }
 }
@@ -134,8 +184,8 @@ struct LegacyMessageIterator {
 
 impl LegacyMessageIterator {
     #[instrument(skip(db), ret)]
-    fn new(db: Arc<dyn HyperlaneDb>) -> Self {
-        let high_nonce = db.retrieve_highest_seen_message_nonce().ok().flatten();
+    fn new(db: Arc<dyn HyperlaneDb>) -> Result<(Self, Option<u32>)> {
+        let high_nonce = db.retrieve_highest_seen_message_nonce()?;
         let domain = db.domain().name().to_owned();
         let high_nonce_iter = DirectionalNonceIterator::new(
             // If the high nonce is None, we start from the beginning
@@ -154,42 +204,38 @@ impl LegacyMessageIterator {
             ?domain,
             "Initialized LegacyMessageIterator"
         );
-        Self {
-            low_nonce_iter,
-            high_nonce_iter,
-            _domain: domain,
-        }
+        Ok((
+            Self {
+                low_nonce_iter,
+                high_nonce_iter,
+                _domain: domain,
+            },
+            high_nonce,
+        ))
     }
 
     async fn try_get_next_message(
         &mut self,
         metrics: &MessageDbLoaderMetrics,
     ) -> Result<Option<HyperlaneMessage>> {
-        loop {
-            if self.high_nonce_iter.nonce.is_some() {
-                let status = self.high_nonce_iter.try_get_next_nonce(metrics)?;
-                // Newer messages are atomically indexed, so migration stops at its startup watermark.
-                self.high_nonce_iter.nonce = None;
-                if let MessageStatus::Processable(message) = status {
-                    return Ok(Some(message));
-                }
-            }
-
-            if self.low_nonce_iter.nonce.is_none() {
-                return Ok(None);
-            }
+        let status = if self.high_nonce_iter.nonce.is_some() {
+            let status = self.high_nonce_iter.try_get_next_nonce(metrics)?;
+            // Newer messages are atomically indexed, so migration stops at its startup watermark.
+            self.high_nonce_iter.nonce = None;
+            status
+        } else if self.low_nonce_iter.nonce.is_some() {
             let status = self.low_nonce_iter.try_get_next_nonce(metrics)?;
             // Legacy gaps are safe to cross because this iterator has a fixed startup watermark.
             self.low_nonce_iter.iterate();
-            if let MessageStatus::Processable(message) = status {
-                return Ok(Some(message));
-            }
-
-            // This loop may iterate through millions of processed messages, blocking the runtime.
-            // So, to avoid starving other futures in this task, yield to the runtime
-            // on each iteration
-            tokio::task::yield_now().await;
-        }
+            status
+        } else {
+            return Ok(None);
+        };
+        tokio::task::yield_now().await;
+        Ok(match status {
+            MessageStatus::Processable(message) => Some(message),
+            MessageStatus::Unindexed | MessageStatus::Processed => None,
+        })
     }
 
     fn migration_complete(&self) -> bool {
@@ -361,9 +407,7 @@ impl DbLoaderExt for MessageDbLoader {
         self.metrics
             .update_ingress_depths(&self.send_channels, &self.destination_iterators);
 
-        if self.migrate_legacy_record().await? {
-            return Ok(());
-        }
+        self.migrate_legacy_record().await?;
 
         let destination_count = self.destination_iterators.len();
         for _ in 0..destination_count {
@@ -374,7 +418,13 @@ impl DbLoaderExt for MessageDbLoader {
             }
         }
 
-        self.wait_for_work().await;
+        let migration_blocked = self
+            .destination_iterators
+            .iter()
+            .any(|iterator| !iterator.reconsider_nonces.is_empty());
+        if self.migration_iterator.is_none() || migration_blocked {
+            self.wait_for_work().await;
+        }
         Ok(())
     }
 }
@@ -392,15 +442,16 @@ impl MessageDbLoader {
         metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
         max_retries: u32,
         index_notifications: Option<Receiver<H512>>,
-    ) -> Self {
-        let highest_seen_nonce = db.retrieve_highest_seen_message_nonce().ok().flatten();
+    ) -> Result<Self> {
+        let (migration_iterator, highest_seen_nonce) =
+            LegacyMessageIterator::new(Arc::new(db.clone()) as Arc<dyn HyperlaneDb>)?;
         let mut destinations: Vec<_> = send_channels.keys().copied().collect();
         destinations.sort_unstable();
         let destination_iterators = destinations
             .into_iter()
             .map(|destination| DestinationIndexIterator::new(destination, highest_seen_nonce))
             .collect();
-        Self {
+        Ok(Self {
             message_whitelist,
             message_blacklist,
             address_blacklist,
@@ -408,15 +459,13 @@ impl MessageDbLoader {
             send_channels,
             destination_ctxs,
             metric_app_contexts,
-            migration_iterator: Some(LegacyMessageIterator::new(
-                Arc::new(db.clone()) as Arc<dyn HyperlaneDb>
-            )),
+            migration_iterator: Some(migration_iterator),
             db,
             destination_iterators,
             next_destination: 0,
             max_retries,
             index_notifications,
-        }
+        })
     }
 
     /// Discard already-observed index notifications so this receiver cannot
@@ -477,9 +526,16 @@ impl MessageDbLoader {
         }
     }
 
-    async fn migrate_legacy_record(&mut self) -> Result<bool> {
+    async fn migrate_legacy_record(&mut self) -> Result<()> {
+        if self
+            .destination_iterators
+            .iter()
+            .any(|iterator| !iterator.reconsider_nonces.is_empty())
+        {
+            return Ok(());
+        }
         let Some(iterator) = self.migration_iterator.as_mut() else {
-            return Ok(false);
+            return Ok(());
         };
         let _timer = self
             .metrics
@@ -498,20 +554,25 @@ impl MessageDbLoader {
                 ])
                 .inc_by(2);
             self.db.reconcile_pending_message_index(&message)?;
-            return Ok(true);
+            if let Some(iterator) = self
+                .destination_iterators
+                .iter_mut()
+                .find(|iterator| iterator.destination == message.destination)
+            {
+                iterator.reconsider(message.nonce);
+            }
         }
         if iterator.migration_complete() {
             self.migration_iterator = None;
-            return Ok(false);
         }
-        self.wait_for_work().await;
-        Ok(true)
+        Ok(())
     }
 
     async fn try_load_destination(&mut self, iterator_index: usize) -> Result<bool> {
-        let iterator = &self.destination_iterators[iterator_index];
-        let destination = iterator.destination;
-        let destination_label = iterator.destination_label.clone();
+        let destination = self.destination_iterators[iterator_index].destination;
+        let destination_label = self.destination_iterators[iterator_index]
+            .destination_label
+            .clone();
         let _timer = self
             .metrics
             .scan_duration_seconds
@@ -521,14 +582,14 @@ impl MessageDbLoader {
                 "destination_index",
             ])
             .start_timer();
-        let Some(sender) = self.send_channels.get(&destination) else {
+        let Some(sender) = self.send_channels.get(&destination).cloned() else {
             return Ok(false);
         };
         if !sender.is_closed() && sender.capacity() == 0 {
             return Ok(false);
         }
         let Some((direction, nonce, indexed_message_id)) =
-            iterator.peek(&self.db, &self.metrics)?
+            self.destination_iterators[iterator_index].peek(&self.db, &self.metrics)?
         else {
             return Ok(false);
         };
@@ -569,7 +630,17 @@ impl MessageDbLoader {
                 ])
                 .inc_by(2);
             self.db.reconcile_pending_message_index(&message)?;
+            if message.destination == destination {
+                return Ok(true);
+            }
             self.destination_iterators[iterator_index].advance(direction, nonce);
+            if let Some(target) = self
+                .destination_iterators
+                .iter_mut()
+                .find(|iterator| iterator.destination == message.destination)
+            {
+                target.reconsider(nonce);
+            }
             return Ok(true);
         }
         self.metrics

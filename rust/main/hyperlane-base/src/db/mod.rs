@@ -48,8 +48,10 @@ pub trait HyperlaneDb: Send + Sync {
     /// Store whether a message was processed by its nonce
     fn store_processed_by_nonce(&self, nonce: &u32, processed: &bool) -> DbResult<()>;
 
-    /// Atomically mark a message processed and remove it from pending loading.
-    fn store_message_processed(&self, message: &HyperlaneMessage) -> DbResult<()>;
+    /// Mark a message processed, optionally removing it from pending loading atomically.
+    fn store_message_processed(&self, message: &HyperlaneMessage) -> DbResult<()> {
+        self.store_processed_by_nonce(&message.nonce, &true)
+    }
 
     fn store_processed_by_gas_payment_meta(
         &self,
