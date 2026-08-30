@@ -267,6 +267,7 @@ impl MerkleTreeHookWebSocketSync {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_with_cursor_state(
         db: HyperlaneRocksDB,
         domain: u32,
