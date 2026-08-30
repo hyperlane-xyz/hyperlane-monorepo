@@ -172,6 +172,12 @@ impl DestinationIndexIterator {
             self.reconsider_nonces.insert(nonce);
         }
     }
+
+    fn reopen_low_range(&mut self) {
+        if self.low_nonce.is_none() {
+            self.low_nonce = self.high_nonce.and_then(|nonce| nonce.checked_sub(1));
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -472,10 +478,11 @@ impl MessageDbLoader {
     /// backpressure the message indexer while the loader is processing a backlog.
     fn drain_index_notifications(&mut self) {
         let mut disconnected = false;
+        let mut received = false;
         if let Some(receiver) = self.index_notifications.as_mut() {
             loop {
                 match receiver.try_recv() {
-                    Ok(_) => {}
+                    Ok(_) => received = true,
                     Err(TryRecvError::Empty) => break,
                     Err(TryRecvError::Disconnected) => {
                         disconnected = true;
@@ -486,6 +493,11 @@ impl MessageDbLoader {
         }
         if disconnected {
             self.index_notifications = None;
+        }
+        if received {
+            for iterator in &mut self.destination_iterators {
+                iterator.reopen_low_range();
+            }
         }
     }
 
