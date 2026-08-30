@@ -1,6 +1,9 @@
 use std::fmt::Debug;
 
-use crate::db::{DbResult, HyperlaneDb, InterchainGasExpenditureData, InterchainGasPaymentData};
+use crate::db::{
+    DbResult, HyperlaneDb, InterchainGasExpenditureData, InterchainGasPaymentData,
+    PendingMessageRetryState,
+};
 use hyperlane_core::{
     identifiers::UniqueIdentifier, GasPaymentKey, HyperlaneDomain, HyperlaneMessage,
     HyperlaneProvider, InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeInsertion,
@@ -95,6 +98,15 @@ mockall::mock! {
             &self,
             message_id: &H256,
         ) -> DbResult<Option<u32>>;
+        fn store_pending_message_retry_state_by_message_id(
+            &self,
+            message_id: &H256,
+            state: &PendingMessageRetryState,
+        ) -> DbResult<()>;
+        fn retrieve_pending_message_retry_state_by_message_id(
+            &self,
+            message_id: &H256,
+        ) -> DbResult<Option<PendingMessageRetryState>>;
         fn store_merkle_tree_insertion_by_leaf_index(
             &self,
             leaf_index: &u32,

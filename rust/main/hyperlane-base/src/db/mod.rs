@@ -1,4 +1,6 @@
-pub use self::storage_types::{InterchainGasExpenditureData, InterchainGasPaymentData};
+pub use self::storage_types::{
+    InterchainGasExpenditureData, InterchainGasPaymentData, PendingMessageRetryState,
+};
 pub use error::*;
 pub use rocks::*;
 
@@ -123,6 +125,19 @@ pub trait HyperlaneDb: Send + Sync {
         &self,
         message_id: &H256,
     ) -> DbResult<Option<u32>>;
+
+    /// Store retry count, deadline, and reason atomically for a pending message.
+    fn store_pending_message_retry_state_by_message_id(
+        &self,
+        message_id: &H256,
+        state: &PendingMessageRetryState,
+    ) -> DbResult<()>;
+
+    /// Retrieve durable retry state for a pending message.
+    fn retrieve_pending_message_retry_state_by_message_id(
+        &self,
+        message_id: &H256,
+    ) -> DbResult<Option<PendingMessageRetryState>>;
 
     fn store_merkle_tree_insertion_by_leaf_index(
         &self,
