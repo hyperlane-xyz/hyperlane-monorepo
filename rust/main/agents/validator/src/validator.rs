@@ -14,6 +14,7 @@ use futures_util::future::{join_all, try_join_all};
 use rand::Rng;
 use serde::Serialize;
 use tokio::{
+    sync::Notify,
     task::JoinHandle,
     time::{sleep, timeout, Instant},
 };
@@ -674,6 +675,7 @@ pub struct Validator {
     core: HyperlaneAgentCore,
     db: HyperlaneRocksDB,
     merkle_tree_hook_sync: MerkleTreeHookSync,
+    checkpoint_wake: Option<Arc<Notify>>,
     mailbox: Arc<dyn Mailbox>,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     base_merkle_tree_hook: Arc<dyn MerkleTreeHook>,
@@ -942,24 +944,30 @@ impl BaseAgent for Validator {
         let websocket_active =
             sync_source.with_label_values(&[settings.origin_chain.name(), "websocket"]);
         let rpc_active = sync_source.with_label_values(&[settings.origin_chain.name(), "rpc"]);
-        let merkle_tree_hook_sync = if let Some(url) = settings.websocket_url.clone() {
-            MerkleTreeHookSync::WebSocket {
-                fallback: rpc_sync,
-                websocket: Box::new(MerkleTreeHookWebSocketSync::new_with_cursor_state(
-                    msg_db.clone(),
-                    settings.origin_chain.id(),
-                    origin_chain_conf.addresses.merkle_tree_hook,
-                    url,
-                    websocket_active,
-                    rpc_active,
-                    cursor_state.expect("WebSocket configuration initializes cursor state"),
-                )),
-            }
-        } else {
-            websocket_active.set(0);
-            rpc_active.set(1);
-            MerkleTreeHookSync::Rpc(rpc_sync)
-        };
+        let (merkle_tree_hook_sync, checkpoint_wake) =
+            if let Some(url) = settings.websocket_url.clone() {
+                let checkpoint_wake = Arc::new(Notify::new());
+                (
+                    MerkleTreeHookSync::WebSocket {
+                        fallback: rpc_sync,
+                        websocket: Box::new(MerkleTreeHookWebSocketSync::new_with_cursor_state(
+                            msg_db.clone(),
+                            settings.origin_chain.id(),
+                            origin_chain_conf.addresses.merkle_tree_hook,
+                            url,
+                            websocket_active,
+                            rpc_active,
+                            cursor_state.expect("WebSocket configuration initializes cursor state"),
+                            checkpoint_wake.clone(),
+                        )),
+                    },
+                    Some(checkpoint_wake),
+                )
+            } else {
+                websocket_active.set(0);
+                rpc_active.set(1);
+                (MerkleTreeHookSync::Rpc(rpc_sync), None)
+            };
 
         Ok(Self {
             origin_chain: settings.origin_chain,
@@ -971,6 +979,7 @@ impl BaseAgent for Validator {
             base_merkle_tree_hook,
             readiness,
             merkle_tree_hook_sync,
+            checkpoint_wake,
             validator_announce: validator_announce.into(),
             signer,
             raw_signer,
@@ -1398,7 +1407,8 @@ impl Validator {
             self.max_sign_concurrency,
             self.reorg_reporter.clone(),
             Arc::clone(&self.readiness),
-        );
+        )
+        .with_checkpoint_wake(self.checkpoint_wake.clone());
 
         // `wait_for_first_message` only returns a non-empty, quorum-verified tree.
         assert!(tip_tree.count() > 0, "merkle tree is empty");
