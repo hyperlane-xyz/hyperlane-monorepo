@@ -13,7 +13,10 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use tokio::time::sleep;
 
-use crate::rpc_clients::fallback::{METHOD_GET_TRANSACTION_RECEIPT, METHOD_SEND_RAW_TRANSACTION};
+use crate::rpc_clients::fallback::{
+    METHOD_CALL, METHOD_GET_BLOCK_BY_HASH, METHOD_GET_TRANSACTION_RECEIPT,
+    METHOD_SEND_RAW_TRANSACTION,
+};
 
 type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
 
@@ -22,6 +25,14 @@ pub struct EthereumProviderMockResponses {
     pub get_block_number: ResponseList<Option<u64>>,
     pub get_tx_receipt: ResponseList<Option<TransactionReceipt>>,
     pub send_raw_transaction: ResponseList<Option<u64>>,
+    pub immutable_read: ResponseList<MockReadResponse>,
+}
+
+#[derive(Clone, Debug)]
+pub enum MockReadResponse {
+    Success(u64),
+    RetryableError,
+    NonRetryableError,
 }
 
 #[derive(Clone, Debug)]
@@ -117,6 +128,24 @@ impl JsonRpcClient for EthereumProviderMock {
                     text: "".to_owned(),
                 }
             });
+        }
+        if matches!(method, METHOD_GET_BLOCK_BY_HASH | METHOD_CALL) {
+            return match self.responses.immutable_read.lock().unwrap().pop_front() {
+                Some(MockReadResponse::Success(value)) => serde_json::from_value(value.into())
+                    .map_err(|err| HttpClientError::SerdeJson {
+                        err,
+                        text: "".to_owned(),
+                    }),
+                Some(MockReadResponse::NonRetryableError) => Err(HttpClientError::JsonRpcError(
+                    serde_json::from_value(serde_json::json!({
+                        "code": 3,
+                        "message": "execution reverted",
+                        "data": null,
+                    }))
+                    .unwrap(),
+                )),
+                Some(MockReadResponse::RetryableError) | None => dummy_error_return_value(),
+            };
         }
         dummy_error_return_value()
     }

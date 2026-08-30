@@ -355,6 +355,7 @@ mod tests {
                     ..Default::default()
                 },
                 consider_null_transaction_receipt: false,
+                fallback_hedge: None,
             }),
             metrics_conf: Default::default(),
             index: Default::default(),

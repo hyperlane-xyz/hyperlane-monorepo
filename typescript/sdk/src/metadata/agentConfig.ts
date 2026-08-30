@@ -275,6 +275,12 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
       .enum(RpcConsensusType)
       .describe('The consensus type to use when multiple RPCs are configured.')
       .optional(),
+    fallbackHedgeDelayMillis: ZNzUint.optional().describe(
+      'For fallback RPC consensus, start one speculative immutable read on the next provider after this delay. Unset disables hedging.',
+    ),
+    fallbackHedgeTimeoutMillis: ZNzUint.optional().describe(
+      'Per-provider timeout for hedged immutable reads. Requires fallbackHedgeDelayMillis and defaults to 30000ms.',
+    ),
     signer: AgentSignerSchema.optional().describe(
       'The signer to use for this chain',
     ),
@@ -300,6 +306,34 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
   })
   .extend(AgentCosmosChainMetadataSchema.partial().shape)
   .extend(AgentSealevelChainMetadataSchema.partial().shape)
+  .refine(
+    (metadata) =>
+      metadata.fallbackHedgeTimeoutMillis === undefined ||
+      metadata.fallbackHedgeDelayMillis !== undefined,
+    {
+      message: 'fallbackHedgeTimeoutMillis requires fallbackHedgeDelayMillis',
+      path: ['fallbackHedgeTimeoutMillis'],
+    },
+  )
+  .refine(
+    (metadata) =>
+      metadata.fallbackHedgeDelayMillis === undefined ||
+      metadata.protocol === ProtocolType.Ethereum,
+    {
+      message: 'fallback RPC hedging is only supported for Ethereum chains',
+      path: ['fallbackHedgeDelayMillis'],
+    },
+  )
+  .refine(
+    (metadata) =>
+      metadata.fallbackHedgeDelayMillis === undefined ||
+      metadata.rpcConsensusType === undefined ||
+      metadata.rpcConsensusType === RpcConsensusType.Fallback,
+    {
+      message: 'fallback RPC hedging requires fallback RPC consensus',
+      path: ['fallbackHedgeDelayMillis'],
+    },
+  )
   .refine((metadata) => {
     // Make sure that the signer is valid for the protocol
 

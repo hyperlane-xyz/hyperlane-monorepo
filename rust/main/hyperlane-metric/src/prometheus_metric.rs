@@ -4,7 +4,7 @@ use std::{fmt::Debug, time::Instant};
 
 use derive_builder::Builder;
 use maplit::hashmap;
-use prometheus::{CounterVec, IntCounterVec};
+use prometheus::{CounterVec, HistogramVec, IntCounterVec};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -46,6 +46,18 @@ pub const REQUEST_DURATION_SECONDS_LABELS: &[&str] = &[
 /// Help string for the metric.
 pub const REQUEST_DURATION_SECONDS_HELP: &str = "Total number of seconds spent making requests";
 
+/// Expected labels for fallback hedge lifecycle events.
+pub const FALLBACK_HEDGE_EVENT_LABELS: &[&str] = &["chain", "method", "event"];
+/// Help string for fallback hedge lifecycle events.
+pub const FALLBACK_HEDGE_EVENT_HELP: &str =
+    "Total fallback hedge lifecycle events, including extra requests and cancellations";
+
+/// Expected labels for hedged fallback request latency.
+pub const FALLBACK_HEDGE_DURATION_SECONDS_LABELS: &[&str] = &["chain", "method", "winner"];
+/// Help string for hedged fallback request latency.
+pub const FALLBACK_HEDGE_DURATION_SECONDS_HELP: &str =
+    "End-to-end duration of fallback requests eligible for hedging";
+
 /// Container for all the relevant rpc client metrics.
 #[derive(Clone, Builder, Default)]
 pub struct PrometheusClientMetrics {
@@ -82,6 +94,14 @@ pub struct PrometheusClientMetrics {
     ///   might still be an "error" but not one with the transport layer.
     #[builder(setter(into, strip_option), default)]
     pub request_duration_seconds: Option<CounterVec>,
+
+    /// Lifecycle events for allowlisted fallback hedges.
+    #[builder(setter(into, strip_option), default)]
+    pub fallback_hedge_events: Option<IntCounterVec>,
+
+    /// End-to-end latency for requests eligible for fallback hedging.
+    #[builder(setter(into, strip_option), default)]
+    pub fallback_hedge_duration_seconds: Option<HistogramVec>,
 }
 
 impl PrometheusClientMetrics {
@@ -128,6 +148,36 @@ impl PrometheusClientMetrics {
                 .with(&labels)
                 .inc_by((Instant::now().saturating_duration_since(start)).as_secs_f64())
         };
+    }
+
+    /// Increment a fallback hedge lifecycle event.
+    pub fn increment_fallback_hedge_event(&self, chain: &str, method: &str, event: &str) {
+        let labels = hashmap! {
+            "chain" => chain,
+            "method" => method,
+            "event" => event,
+        };
+        if let Some(counter) = &self.fallback_hedge_events {
+            counter.with(&labels).inc();
+        }
+    }
+
+    /// Observe end-to-end latency for an eligible fallback request.
+    pub fn observe_fallback_hedge_duration(
+        &self,
+        chain: &str,
+        method: &str,
+        winner: &str,
+        duration: std::time::Duration,
+    ) {
+        let labels = hashmap! {
+            "chain" => chain,
+            "method" => method,
+            "winner" => winner,
+        };
+        if let Some(histogram) = &self.fallback_hedge_duration_seconds {
+            histogram.with(&labels).observe(duration.as_secs_f64());
+        }
     }
 }
 
