@@ -51,7 +51,10 @@ pub enum ServerMessage<T> {
     /// The connection is ready to receive a subscription.
     Ready,
     /// The subscription was accepted.
-    Subscribed,
+    Subscribed {
+        /// Streams accepted by scraper-proxy.
+        streams: Vec<SubscribedStream>,
+    },
     /// Historical replay reached the scraper's current cursor.
     #[serde(rename_all = "camelCase")]
     CaughtUp {
@@ -74,6 +77,30 @@ pub enum ServerMessage<T> {
     /// A forwards-compatible protocol message not understood by this client.
     #[serde(other)]
     Other,
+}
+
+/// One stream echoed by scraper-proxy after subscription.
+#[derive(Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SubscribedStream {
+    /// Durable cursors accepted for this stream.
+    pub cursors: Option<Vec<SubscribedCursor>>,
+    /// Domains accepted for this stream.
+    pub domains: Option<Vec<u32>>,
+    /// Scraper event type.
+    pub event_type: String,
+}
+
+/// One durable cursor echoed by scraper-proxy after subscription.
+#[derive(Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SubscribedCursor {
+    /// Contract address encoded for scraper-proxy.
+    pub address: String,
+    /// Last processed sequence, encoded as a decimal string.
+    pub after_sequence: Option<String>,
+    /// Hyperlane domain identifier.
+    pub domain: u32,
 }
 
 /// Common envelope around scraper event-specific data.
@@ -226,6 +253,30 @@ mod tests {
         match message {
             ServerMessage::Event(event) => assert_eq!(event.sequence, None),
             _ => panic!("expected event"),
+        }
+    }
+
+    #[test]
+    fn deserializes_subscription_confirmation() {
+        let message: ServerMessage<TestData> = serde_json::from_value(serde_json::json!({
+            "type": "subscribed",
+            "streams": [{
+                "domains": [5, 9],
+                "eventType": "dispatch"
+            }]
+        }))
+        .expect("subscription confirmation should deserialize");
+
+        match message {
+            ServerMessage::Subscribed { streams } => assert_eq!(
+                streams,
+                vec![SubscribedStream {
+                    cursors: None,
+                    domains: Some(vec![5, 9]),
+                    event_type: "dispatch".to_owned(),
+                }]
+            ),
+            _ => panic!("expected subscription confirmation"),
         }
     }
 

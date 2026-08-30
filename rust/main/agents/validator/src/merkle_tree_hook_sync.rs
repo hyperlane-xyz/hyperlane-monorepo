@@ -381,7 +381,7 @@ impl MerkleTreeHookWebSocketSync {
                             .context("Subscribing to Merkle tree hook insertions")?;
                         subscription_state = next_state;
                     }
-                    ServerMessage::Subscribed => {
+                    ServerMessage::Subscribed { .. } => {
                         subscription_state = subscription_state.receive_subscribed()?;
                         if *next_sequence < backfill_target {
                             info!(
