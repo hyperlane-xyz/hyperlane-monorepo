@@ -1,9 +1,81 @@
 use std::io::{Read, Write};
 
 use hyperlane_core::{
-    Decode, Encode, HyperlaneProtocolError, InterchainGasExpenditure, InterchainGasPayment, H256,
-    U256,
+    Decode, Encode, HyperlaneProtocolError, InterchainGasExpenditure, InterchainGasPayment,
+    ReprepareReason, H256, U256,
 };
+use serde::{Deserialize, Serialize};
+
+const PENDING_MESSAGE_RETRY_STATE_VERSION: u8 = 1;
+
+/// Durable retry state for a pending message.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PendingMessageRetryState {
+    version: u8,
+    /// Number of delivery attempts made.
+    pub retry_count: u32,
+    /// Absolute Unix timestamp for the next attempt.
+    pub next_attempt_at_millis: Option<u64>,
+    /// Original delay, used to bound backwards wall-clock skew.
+    pub retry_delay_millis: Option<u64>,
+    /// Retry reason used when the deadline was calculated.
+    pub reason: Option<ReprepareReason>,
+}
+
+impl PendingMessageRetryState {
+    /// Creates a versioned retry-state record.
+    pub fn new(
+        retry_count: u32,
+        next_attempt_at_millis: Option<u64>,
+        retry_delay_millis: Option<u64>,
+        reason: Option<ReprepareReason>,
+    ) -> Self {
+        Self {
+            version: PENDING_MESSAGE_RETRY_STATE_VERSION,
+            retry_count,
+            next_attempt_at_millis,
+            retry_delay_millis,
+            reason,
+        }
+    }
+}
+
+impl Encode for PendingMessageRetryState {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: Write,
+    {
+        #[allow(clippy::io_other_error)]
+        let serialized = serde_json::to_vec(self)
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Failed to serialize"))?;
+        writer.write(&serialized)
+    }
+}
+
+impl Decode for PendingMessageRetryState {
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
+    where
+        R: Read,
+        Self: Sized,
+    {
+        let state: Self = serde_json::from_reader(reader).map_err(|err| {
+            #[allow(clippy::io_other_error)]
+            HyperlaneProtocolError::IoError(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to deserialize retry state: {err}"),
+            ))
+        })?;
+        if state.version != PENDING_MESSAGE_RETRY_STATE_VERSION
+            || state.next_attempt_at_millis.is_some() != state.retry_delay_millis.is_some()
+        {
+            return Err(HyperlaneProtocolError::IoError(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Unsupported or inconsistent pending-message retry state",
+            )));
+        }
+        Ok(state)
+    }
+}
 
 /// Subset of `InterchainGasPayment` excluding the message id which is stored in
 /// the key.
