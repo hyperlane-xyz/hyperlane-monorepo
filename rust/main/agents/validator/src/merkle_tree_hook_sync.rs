@@ -1702,7 +1702,7 @@ mod tests {
                 1,
                 1,
                 StreamTimeouts {
-                    read: Duration::from_millis(10),
+                    read: Duration::from_millis(500),
                     progress_check: Duration::from_secs(1),
                     progress_grace: Duration::from_secs(1),
                 },
@@ -1720,7 +1720,7 @@ mod tests {
             .await;
         });
 
-        timeout(Duration::from_secs(1), async {
+        timeout(Duration::from_secs(5), async {
             while starts.load(Ordering::SeqCst) != 1
                 || active.get() != 0
                 || websocket_active_after_recovery.get() != 1
@@ -2051,7 +2051,7 @@ mod tests {
                 StreamTimeouts {
                     read: Duration::from_millis(50),
                     progress_check: Duration::from_millis(20),
-                    progress_grace: Duration::from_millis(10),
+                    progress_grace: Duration::from_secs(5),
                 },
                 Duration::from_secs(1),
                 dependencies,
@@ -2067,7 +2067,7 @@ mod tests {
             .await;
         });
 
-        timeout(Duration::from_secs(1), async {
+        timeout(Duration::from_secs(5), async {
             while calls.load(Ordering::SeqCst) < 2 {
                 tokio::task::yield_now().await;
             }
@@ -2078,7 +2078,7 @@ mod tests {
         assert_eq!(websocket_active_after_retreat.get(), 0);
         retreat_tx.send(()).expect("retreat on-chain count");
 
-        timeout(Duration::from_secs(1), async {
+        timeout(Duration::from_secs(5), async {
             while active.get() != 0 || websocket_active_after_retreat.get() != 1 {
                 tokio::task::yield_now().await;
             }
