@@ -31,6 +31,7 @@ pub struct MockPendingOperation {
     seconds_to_next_attempt: u64,
     destination_domain: HyperlaneDomain,
     retry_count: u32,
+    #[serde(skip)]
     reset_succeeds: bool,
     #[serde(skip)]
     pub mailbox: Option<Arc<dyn Mailbox>>,

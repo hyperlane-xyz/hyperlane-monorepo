@@ -1683,6 +1683,12 @@ mod test {
         base_db
             .store_pending_message_retry_state_by_message_id(&message.id(), &state)
             .expect("store retry state");
+        base_db
+            .store_status_by_message_id(
+                &message.id(),
+                &PendingOperationStatus::Retry(ReprepareReason::CouldNotFetchMetadata),
+            )
+            .expect("store retry reason");
         // Simulate the historical write-order fault where the combined state landed
         // before its legacy mirror. The higher combined count must remain authoritative.
         base_db
