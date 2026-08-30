@@ -144,6 +144,21 @@ void describe('event websocket protocol', () => {
     assert.equal(message.streams[0]?.streamCursorVersion, 1);
   });
 
+  void it('accepts legacy non-cursored gas payment subscriptions', () => {
+    const message = parseClientMessage(
+      JSON.stringify({
+        streams: [{ domains: [1], eventType: 'gas_payment' }],
+        type: 'subscribe',
+      }),
+    );
+
+    assert.equal(message.type, 'subscribe');
+    if (message.type !== 'subscribe') return;
+    assert.deepEqual(message.streams[0]?.domains, new Set([1]));
+    assert.equal(message.streams[0]?.streamCursorVersion, undefined);
+    assert.equal(message.streams[0]?.cursors, undefined);
+  });
+
   void it('rejects physical row ID and unversioned gas cursors', () => {
     for (const stream of [
       {

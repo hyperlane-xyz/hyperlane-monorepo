@@ -155,12 +155,23 @@ function parseStream(value: unknown): StreamRequest {
   }
   let streamCursorVersion: number | undefined;
   if (value.eventType === 'gas_payment') {
-    if (value.streamCursorVersion !== STREAM_CURSOR_VERSIONS.gas_payment) {
+    if (
+      value.streamCursorVersion !== undefined &&
+      value.streamCursorVersion !== STREAM_CURSOR_VERSIONS.gas_payment
+    ) {
       throw new Error(
         `gas_payment requires streamCursorVersion ${STREAM_CURSOR_VERSIONS.gas_payment}`,
       );
     }
-    streamCursorVersion = STREAM_CURSOR_VERSIONS.gas_payment;
+    if (
+      value.cursors !== undefined &&
+      value.streamCursorVersion !== STREAM_CURSOR_VERSIONS.gas_payment
+    ) {
+      throw new Error(
+        `gas_payment cursors require streamCursorVersion ${STREAM_CURSOR_VERSIONS.gas_payment}`,
+      );
+    }
+    streamCursorVersion = value.streamCursorVersion;
   } else if (value.streamCursorVersion !== undefined) {
     throw new Error('streamCursorVersion is unsupported for this stream');
   }

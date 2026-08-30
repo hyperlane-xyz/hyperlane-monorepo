@@ -549,6 +549,30 @@ void it('drains live events arriving while the pending buffer is sent', async (c
   await new Promise<void>((resolve) => socket.once('close', resolve));
 });
 
+void it('accepts a legacy non-cursored live gas payment subscription', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [{ domains: [1], eventType: 'gas_payment' }],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+
+  const subscribed = await waitFor(messages, 'subscribed');
+  assert.deepEqual(subscribed.streams, [
+    { domains: [1], eventType: 'gas_payment' },
+  ]);
+  socket.close();
+  await new Promise<void>((resolve) => socket.once('close', resolve));
+});
+
 void it('bounds gas payment stream cursor replay', async () => {
   gasPaymentRows.clear();
   gasPaymentRows.set('10', gasPaymentRow('10', '100'));
