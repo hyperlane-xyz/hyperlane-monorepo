@@ -175,7 +175,7 @@ pub async fn build_message_metadata(
             );
         }
         Err(err) => {
-            tracing::error!(
+            tracing::warn!(
                 ?err,
                 ?ism_address,
                 message_id = ?message.id(),

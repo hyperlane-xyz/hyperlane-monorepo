@@ -135,7 +135,6 @@ mod tests {
         let labels = [app_context, "ethereum", "arbitrum"];
 
         metrics.record_metadata_wait(first_id, Some(app_context));
-        metrics.record_metadata_wait(second_id, Some(app_context));
         let expected_oldest = metrics
             .metadata_wait_oldest_timestamp_seconds
             .with_label_values(&labels)
@@ -145,7 +144,15 @@ mod tests {
         metrics
             .metadata_wait_oldest_timestamp_seconds
             .with_label_values(&labels)
-            .set(i64::MAX);
+            .set(1);
+        metrics.record_metadata_wait(second_id, Some(app_context));
+        assert_eq!(
+            metrics
+                .metadata_wait_oldest_timestamp_seconds
+                .with_label_values(&labels)
+                .get(),
+            expected_oldest
+        );
         assert!(metrics
             .finish_metadata_wait(second_id, Some(app_context), false)
             .is_some());
@@ -279,17 +286,21 @@ impl MessageSubmissionMetrics {
                     unix_timestamp_seconds,
                 };
                 entry.insert(start);
-                let labels = [app_context, self.origin.as_str(), self.destination.as_str()];
-                self.metadata_wait_active.with_label_values(&labels).inc();
-                let oldest = self
-                    .metadata_wait_oldest_timestamp_seconds
-                    .with_label_values(&labels);
-                if oldest.get() == 0 || unix_timestamp_seconds < oldest.get() {
-                    oldest.set(unix_timestamp_seconds);
-                }
                 (true, start)
             }
         };
+        if first_observation {
+            let labels = [app_context, self.origin.as_str(), self.destination.as_str()];
+            self.metadata_wait_active.with_label_values(&labels).inc();
+            let oldest = app_waits
+                .values()
+                .map(|start| start.unix_timestamp_seconds)
+                .min()
+                .unwrap_or(unix_timestamp_seconds);
+            self.metadata_wait_oldest_timestamp_seconds
+                .with_label_values(&labels)
+                .set(oldest);
+        }
 
         self.metadata_wait_event_count
             .with_label_values(&[
