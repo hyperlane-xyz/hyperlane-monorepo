@@ -38,17 +38,17 @@ const db: EventDatabase = {
     return async () => undefined;
   },
   async queryLive<T>(sql, values = []) {
-    if (sql.includes('MAX("id")') && sql.includes('"gas_payment"')) {
+    if (sql.includes('"gas_payment_stream_head"')) {
       const durable = [...gasPaymentRows.entries()].filter(
         ([, payment]) =>
           payment.domain === values[0] &&
           payment.interchain_gas_paymaster === values[1] &&
           payment.tx_id != null,
       );
-      const last = durable.reduce(
-        (max, [id]) => (BigInt(id) > max ? BigInt(id) : max),
-        0n,
-      );
+      const last = durable.reduce((max, [, payment]) => {
+        const cursor = BigInt(String(payment.scraper_stream_cursor));
+        return cursor > max ? cursor : max;
+      }, 0n);
       return queryRows<T>([{ last: last.toString() }]);
     }
     if (sql.includes('MIN('))
@@ -94,7 +94,7 @@ const db: EventDatabase = {
     }
     if (
       !sql.includes('notification_id') &&
-      sql.includes('ORDER BY "id"') &&
+      sql.includes('ORDER BY COALESCE(') &&
       sql.includes('"gas_payment"')
     ) {
       const after = BigInt(String(values[2]));
@@ -102,14 +102,19 @@ const db: EventDatabase = {
       return queryRows<T>(
         [...gasPaymentRows.entries()]
           .filter(
-            ([id, payment]) =>
+            ([, payment]) =>
               payment.domain === values[0] &&
               payment.interchain_gas_paymaster === values[1] &&
               payment.tx_id != null &&
-              BigInt(id) > after &&
-              BigInt(id) <= through,
+              BigInt(String(payment.scraper_stream_cursor)) > after &&
+              BigInt(String(payment.scraper_stream_cursor)) <= through,
           )
-          .sort(([left], [right]) => (BigInt(left) < BigInt(right) ? -1 : 1))
+          .sort(([, left], [, right]) =>
+            BigInt(String(left.scraper_stream_cursor)) <
+            BigInt(String(right.scraper_stream_cursor))
+              ? -1
+              : 1,
+          )
           .slice(0, Number(values[4]))
           .map(([, payment]) => payment),
       );
@@ -618,6 +623,43 @@ void it('replays sparse gas payment row IDs and resumes without duplicates', asy
   completions.shift()?.();
   resumed.close();
   await new Promise<void>((resolve) => resumed.once('close', resolve));
+  gasPaymentRows.clear();
+});
+
+void it('orders gas payments by commit cursor instead of allocated row ID', async () => {
+  gasPaymentRows.clear();
+  gasPaymentRows.set('100', gasPaymentRow('100', '1000', '2'));
+  gasPaymentRows.set('101', gasPaymentRow('101', '1001', '1'));
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [{ address: gasPaymaster, afterId: '0', domain: 1 }],
+              eventType: 'gas_payment',
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+
+  await waitFor(messages, 'caught_up');
+  assert.deepEqual(eventRowIds(messages), ['1', '2']);
+  assert.deepEqual(
+    messages
+      .filter(({ type }) => type === 'event')
+      .map(({ data }) => record(data).id),
+    ['101', '100'],
+  );
+  socket.close();
+  await new Promise<void>((resolve) => socket.once('close', resolve));
   gasPaymentRows.clear();
 });
 
@@ -1433,6 +1475,7 @@ function row(
 function gasPaymentRow(
   id: string,
   txId: string | null,
+  streamCursor = id,
 ): Record<string, unknown> {
   return {
     destination: 2,
@@ -1445,6 +1488,7 @@ function gasPaymentRow(
     origin: 1,
     payment: '1000',
     sequence: null,
+    scraper_stream_cursor: txId == null ? null : streamCursor,
     time_created: new Date(0).toISOString(),
     tx_id: txId,
   };

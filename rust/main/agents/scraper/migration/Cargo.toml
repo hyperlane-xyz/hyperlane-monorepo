@@ -59,3 +59,7 @@ path = "bin/create_raw_dispatch_native_sequence_index.rs"
 
 [features]
 default = []
+
+[dev-dependencies]
+testcontainers.workspace = true
+testcontainers-modules.workspace = true

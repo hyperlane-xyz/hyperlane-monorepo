@@ -7900,6 +7900,8 @@ dependencies = [
  "sea-orm",
  "sea-orm-migration",
  "serde",
+ "testcontainers",
+ "testcontainers-modules",
  "time",
  "tokio",
  "tracing",

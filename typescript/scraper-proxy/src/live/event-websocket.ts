@@ -54,6 +54,9 @@ const MAX_EXPLORER_PENDING_MESSAGES = 2_000;
 const MAX_CLIENT_MESSAGES = 30;
 const MAX_PENDING_EVENTS = 5_000;
 const MAX_PENDING_NOTIFICATIONS = 10_000;
+const GAS_PAYMENT_STREAM_CURSOR = 'gas_payment_stream_cursor';
+const GAS_PAYMENT_STREAM_HEAD = 'gas_payment_stream_head';
+const STREAM_CURSOR_COLUMN = 'scraper_stream_cursor';
 
 type Row = Record<string, unknown>;
 type NotifiedRow = Row & { notification_id: number | string };
@@ -716,11 +719,11 @@ export class EventWebSocketServer {
     cursor: RowIdCursor,
   ): Promise<boolean> {
     const key = sequenceKey(cursor.domain, cursor.address);
-    const highWater = await this.rowIdHighWater(eventType, cursor);
+    const highWater = await this.rowIdHighWater(cursor);
     const after = cursor.afterId ?? highWater;
     if (after > highWater) {
       throw new Error(
-        `Row ID ${after} is ahead of current ${eventType} row ID ${highWater}`,
+        `Cursor ${after} is ahead of current ${eventType} cursor ${highWater}`,
       );
     }
     subscription.rowIds.set(key, after);
@@ -738,8 +741,8 @@ export class EventWebSocketServer {
       subscription.catchUpRows += rows.length;
       this.assertCatchUpBudget(subscription);
       if (!rows.length) {
-        // Row IDs are global and intentionally sparse within a domain/address.
-        // A row removed before the snapshot query must not stall or skip a later ID.
+        // Deleted payments leave intentional holes in the durable cursor range.
+        // Advancing to the locked head cannot skip a later committed cursor.
         subscription.rowIds.set(key, highWater);
         break;
       }
@@ -847,8 +850,9 @@ export class EventWebSocketServer {
         subscription.sequences.set(sequenceCursorKey, sequence.value);
       }
     }
+    const data = eventType === 'gas_payment' ? withoutStreamCursor(row) : row;
     return {
-      data: row,
+      data,
       domain,
       eventType,
       rowId: rowId?.value.toString(),
@@ -914,7 +918,7 @@ export class EventWebSocketServer {
   ): Promise<Row[]> {
     const stream = STREAMS[eventType];
     return this.db.queryLive<Row>(
-      `SELECT ${columns(stream)} FROM ${q(stream.table)} WHERE ${q(stream.domain)} = $1 AND ${q('interchain_gas_paymaster')} = $2::bytea AND ${q('tx_id')} IS NOT NULL AND ${q('id')} > $3::bigint AND ${q('id')} <= $4::bigint ORDER BY ${q('id')} ASC LIMIT $5`,
+      `SELECT ${columns(stream, 'event_row')}, ${gasPaymentCursorExpression()} AS ${q(STREAM_CURSOR_COLUMN)} FROM ${q(stream.table)} AS ${q('event_row')} LEFT JOIN ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} ON ${q('event_cursor')}.${q('gas_payment_id')} = ${q('event_row')}.${q('id')} WHERE ${q('event_row')}.${q(stream.domain)} = $1 AND ${q('event_row')}.${q('interchain_gas_paymaster')} = $2::bytea AND ${q('event_row')}.${q('tx_id')} IS NOT NULL AND ${gasPaymentCursorExpression()} > $3::bigint AND ${gasPaymentCursorExpression()} <= $4::bigint ORDER BY ${gasPaymentCursorExpression()} ASC LIMIT $5`,
       [
         cursor.domain,
         cursor.address,
@@ -925,13 +929,9 @@ export class EventWebSocketServer {
     );
   }
 
-  private async rowIdHighWater(
-    eventType: EventType,
-    cursor: RowIdCursor,
-  ): Promise<bigint> {
-    const stream = STREAMS[eventType];
+  private async rowIdHighWater(cursor: RowIdCursor): Promise<bigint> {
     const [row] = await this.db.queryLive<{ last: string }>(
-      `SELECT COALESCE(MAX(${q('id')}), 0)::text AS last FROM ${q(stream.table)} WHERE ${q(stream.domain)} = $1 AND ${q('interchain_gas_paymaster')} = $2::bytea AND ${q('tx_id')} IS NOT NULL`,
+      `SELECT COALESCE(${q('last_cursor')}, 0)::text AS last FROM ${q(GAS_PAYMENT_STREAM_HEAD)} WHERE ${q('domain')} = $1 AND ${q('interchain_gas_paymaster')} = $2::bytea`,
       [cursor.domain, cursor.address],
     );
     return parseId(row?.last ?? '0');
@@ -1079,8 +1079,16 @@ export class EventWebSocketServer {
       ]),
     );
     const stream = STREAMS[eventType];
+    const gasPaymentCursor =
+      eventType === 'gas_payment'
+        ? ` LEFT JOIN ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} ON ${q('event_cursor')}.${q('gas_payment_id')} = ${q('event_row')}.${q('id')}`
+        : '';
+    const cursorProjection =
+      eventType === 'gas_payment'
+        ? `, CASE WHEN ${q('event_row')}.${q('tx_id')} IS NULL THEN NULL ELSE ${gasPaymentCursorExpression()} END AS ${q(STREAM_CURSOR_COLUMN)}`
+        : '';
     const rows = await this.db.queryLive<NotifiedRow>(
-      `SELECT ${q('id')} AS ${q('notification_id')}, ${columns(stream)} FROM ${q(stream.table)} WHERE ${q('id')} = ANY($1::bigint[]) ORDER BY ${q('id')} ASC`,
+      `SELECT ${q('event_row')}.${q('id')} AS ${q('notification_id')}, ${columns(stream, 'event_row')}${cursorProjection} FROM ${q(stream.table)} AS ${q('event_row')}${gasPaymentCursor} WHERE ${q('event_row')}.${q('id')} = ANY($1::bigint[]) ORDER BY ${q('event_row')}.${q('id')} ASC`,
       [[...expected.keys()]],
     );
     const returned = new Set<string>();
@@ -1396,8 +1404,14 @@ function matchesDomain(subscription: Subscription, domain: number): boolean {
   return !subscription.domains || subscription.domains.has(domain);
 }
 
-function columns(stream: Stream): string {
-  return stream.projection;
+function columns(stream: Stream, relation?: string): string {
+  return relation
+    ? stream.columns.map((column) => `${q(relation)}.${q(column)}`).join(', ')
+    : stream.projection;
+}
+
+function gasPaymentCursorExpression(): string {
+  return `COALESCE(${q('event_cursor')}.${q('stream_cursor')}, ${q('event_row')}.${q('id')})`;
 }
 
 function sequenceConfig(stream: Stream): NonNullable<Stream['sequence']> {
@@ -1452,14 +1466,20 @@ function rowIdCursor(
   row: Row,
 ): { address: string; value: bigint } | undefined {
   if (eventType !== 'gas_payment') return undefined;
+  if (row.tx_id == null) return undefined;
   const address = row.interchain_gas_paymaster;
   if (typeof address !== 'string') {
     throw new Error('Invalid interchain_gas_paymaster in event row');
   }
   return {
     address: normalizeSequenceAddress(address),
-    value: parseId(row.id),
+    value: parseId(row[STREAM_CURSOR_COLUMN]),
   };
+}
+
+function withoutStreamCursor(row: Row): Row {
+  const { [STREAM_CURSOR_COLUMN]: _streamCursor, ...data } = row;
+  return data;
 }
 
 function compareRows(eventType: EventType, a: Row, b: Row): number {
