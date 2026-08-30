@@ -640,11 +640,22 @@ impl HyperlaneDb for HyperlaneRocksDB {
         message_id: &H256,
         state: &PendingMessageRetryState,
     ) -> DbResult<()> {
-        self.store_value_by_key(
-            PENDING_MESSAGE_RETRY_STATE_FOR_MESSAGE_ID,
-            message_id,
-            state,
-        )
+        self.store_batch([
+            (
+                PENDING_MESSAGE_RETRY_STATE_FOR_MESSAGE_ID
+                    .as_bytes()
+                    .to_vec(),
+                message_id.to_vec(),
+                state.to_vec(),
+            ),
+            (
+                PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID
+                    .as_bytes()
+                    .to_vec(),
+                message_id.to_vec(),
+                state.retry_count.to_vec(),
+            ),
+        ])
     }
 
     fn retrieve_pending_message_retry_state_by_message_id(
