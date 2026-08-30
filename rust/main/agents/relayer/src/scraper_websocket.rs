@@ -5,10 +5,10 @@ use std::{
     time::Duration,
 };
 
-use eyre::{bail, Context, ContextCompat, Result};
+use eyre::{bail, eyre, Context, ContextCompat, Result};
 use futures_util::{SinkExt, StreamExt};
 use hyperlane_base::{
-    db::{HyperlaneDb, HyperlaneRocksDB},
+    db::{DbResult, HyperlaneDb, HyperlaneRocksDB},
     scraper_websocket::{
         EventMessage, SequenceCursor, ServerMessage, StringOrNumber, SubscribeMessage,
         SubscribeStream, SubscribedCursor, SubscribedStream,
@@ -21,7 +21,11 @@ use hyperlane_core::{
 use prometheus::{IntCounterVec, IntGaugeVec};
 use serde::Deserialize;
 use sha3::{Digest, Keccak256};
-use tokio::time::{sleep, timeout, Instant};
+use tokio::{
+    sync::Semaphore,
+    task::JoinHandle,
+    time::{sleep, timeout, Instant},
+};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{info, warn};
 use url::Url;
@@ -30,19 +34,72 @@ const DISPATCH_EVENT_TYPE: &str = "dispatch";
 const MERKLE_EVENT_TYPE: &str = "merkle_tree_insertion";
 const READ_TIMEOUT: Duration = Duration::from_secs(75);
 const RETRY_DELAY: Duration = Duration::from_secs(5);
+const PARITY_READ_TIMEOUT: Duration = Duration::from_secs(1);
+const PARITY_READ_CONCURRENCY: usize = 4;
 const DUPLICATE_FINGERPRINT_WINDOW: usize = 1_024;
 const CROSS_STREAM_WINDOW: usize = 1_024;
 const DISPATCH_CURSOR_PREFIX: &[u8] = b"scraper_websocket_dispatch_cursor";
 const MERKLE_CURSOR_PREFIX: &[u8] = b"scraper_websocket_merkle_cursor";
 const CORRELATION_CURSOR_PREFIX: &[u8] = b"scraper_websocket_correlation_cursor";
 
-#[derive(Clone, Debug)]
+#[cfg_attr(test, mockall::automock)]
+trait ParityDatabase: Send + Sync {
+    fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>>;
+    fn retrieve_dispatched_block_number_by_nonce(&self, nonce: &u32) -> DbResult<Option<u64>>;
+    fn retrieve_dispatched_tx_hash_by_message_id(
+        &self,
+        message_id: &H256,
+    ) -> DbResult<Option<H512>>;
+    fn retrieve_merkle_tree_insertion_by_leaf_index(
+        &self,
+        leaf_index: &u32,
+    ) -> DbResult<Option<MerkleTreeInsertion>>;
+    fn retrieve_merkle_tree_insertion_block_number_by_leaf_index(
+        &self,
+        leaf_index: &u32,
+    ) -> DbResult<Option<u64>>;
+}
+
+impl ParityDatabase for HyperlaneRocksDB {
+    fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>> {
+        HyperlaneDb::retrieve_message_by_nonce(self, nonce)
+    }
+
+    fn retrieve_dispatched_block_number_by_nonce(&self, nonce: &u32) -> DbResult<Option<u64>> {
+        HyperlaneDb::retrieve_dispatched_block_number_by_nonce(self, nonce)
+    }
+
+    fn retrieve_dispatched_tx_hash_by_message_id(
+        &self,
+        message_id: &H256,
+    ) -> DbResult<Option<H512>> {
+        HyperlaneDb::retrieve_dispatched_tx_hash_by_message_id(self, message_id)
+    }
+
+    fn retrieve_merkle_tree_insertion_by_leaf_index(
+        &self,
+        leaf_index: &u32,
+    ) -> DbResult<Option<MerkleTreeInsertion>> {
+        HyperlaneDb::retrieve_merkle_tree_insertion_by_leaf_index(self, leaf_index)
+    }
+
+    fn retrieve_merkle_tree_insertion_block_number_by_leaf_index(
+        &self,
+        leaf_index: &u32,
+    ) -> DbResult<Option<u64>> {
+        HyperlaneDb::retrieve_merkle_tree_insertion_block_number_by_leaf_index(self, leaf_index)
+    }
+}
+
+#[derive(Clone)]
 pub(crate) struct ScraperSource {
     chain: String,
+    cursor_db: HyperlaneRocksDB,
     domain: u32,
     mailbox: H256,
     merkle_tree_hook: H256,
-    database: HyperlaneRocksDB,
+    database: std::sync::Arc<dyn ParityDatabase>,
+    parity_read_permit: std::sync::Arc<Semaphore>,
 }
 
 impl ScraperSource {
@@ -55,10 +112,38 @@ impl ScraperSource {
     ) -> Self {
         Self {
             chain,
+            cursor_db: database.clone(),
+            domain,
+            mailbox,
+            merkle_tree_hook,
+            database: std::sync::Arc::new(database),
+            parity_read_permit: std::sync::Arc::new(Semaphore::new(PARITY_READ_CONCURRENCY)),
+        }
+    }
+
+    #[cfg(test)]
+    fn with_database(
+        chain: String,
+        domain: u32,
+        mailbox: H256,
+        merkle_tree_hook: H256,
+        database: std::sync::Arc<dyn ParityDatabase>,
+    ) -> Self {
+        let tempdir = tempfile::tempdir().expect("temporary scraper cursor DB");
+        let db =
+            hyperlane_base::db::test_utils::setup_db(tempdir.path().to_string_lossy().into_owned());
+        std::mem::forget(tempdir);
+        Self {
+            chain,
+            cursor_db: HyperlaneRocksDB::new(
+                &hyperlane_core::HyperlaneDomain::new_test_domain("scraper-parity-cursor"),
+                db,
+            ),
             domain,
             mailbox,
             merkle_tree_hook,
             database,
+            parity_read_permit: std::sync::Arc::new(Semaphore::new(PARITY_READ_CONCURRENCY)),
         }
     }
 
@@ -70,7 +155,7 @@ impl ScraperSource {
     }
 
     fn cursor(&self, kind: EventKind) -> Result<Option<u32>> {
-        self.database
+        self.cursor_db
             .retrieve_value_by_key(kind.cursor_prefix(), &self.address(kind))
             .context("Reading durable scraper WebSocket cursor")
     }
@@ -108,7 +193,7 @@ impl ScraperSource {
         if self.cursor(kind)?.is_some_and(|stored| stored >= sequence) {
             return Ok(());
         }
-        self.database
+        self.cursor_db
             .store_value_by_key(kind.cursor_prefix(), &self.address(kind), &sequence)
             .context("Storing durable scraper WebSocket cursor")
     }
@@ -338,23 +423,20 @@ enum ParityInput {
 }
 
 impl ParityInput {
-    fn compare(&self, source: &ScraperSource) -> Result<ParityResult> {
+    fn compare(&self, database: &dyn ParityDatabase) -> Result<ParityResult> {
         match self {
             Self::Dispatch {
                 block_number,
                 message,
                 transaction_id,
             } => {
-                let local_message = source
-                    .database
+                let local_message = database
                     .retrieve_message_by_nonce(message.nonce)
                     .context("Reading RPC-indexed dispatch message")?;
-                let local_block_number = source
-                    .database
+                let local_block_number = database
                     .retrieve_dispatched_block_number_by_nonce(&message.nonce)
                     .context("Reading RPC-indexed dispatch block number")?;
-                let local_transaction_id = source
-                    .database
+                let local_transaction_id = database
                     .retrieve_dispatched_tx_hash_by_message_id(&message.id())
                     .context("Reading RPC-indexed dispatch transaction ID")?;
                 if local_message.as_ref().is_some_and(|local| local != message)
@@ -375,12 +457,10 @@ impl ParityInput {
                 block_number,
                 insertion,
             } => {
-                let local_insertion = source
-                    .database
+                let local_insertion = database
                     .retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index())
                     .context("Reading RPC-indexed Merkle tree insertion")?;
-                let local_block_number = source
-                    .database
+                let local_block_number = database
                     .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&insertion.index())
                     .context("Reading RPC-indexed Merkle insertion block number")?;
                 if local_insertion
@@ -836,7 +916,75 @@ impl ScraperWebSocketMonitor {
         }
     }
 
-    async fn stream(&self, state: &mut StreamState, plan: &SequencedReplayPlan) -> Result<()> {
+    fn observe_parity(
+        &self,
+        domain: u32,
+        kind: EventKind,
+        parity_input: ParityInput,
+    ) -> Option<JoinHandle<()>> {
+        let source = self
+            .sources
+            .get(&domain)
+            .expect("validated scraper event source must exist");
+        let chain = source.chain.clone();
+        let event_type = kind.label();
+        let metrics = self.parity.clone();
+        let permit = match source.parity_read_permit.clone().try_acquire_owned() {
+            Ok(permit) => permit,
+            Err(err) => {
+                metrics
+                    .with_label_values(&[chain.as_str(), event_type, "error"])
+                    .inc();
+                warn!(
+                    %chain,
+                    event_type,
+                    ?err,
+                    "Local DB parity reader is busy; skipping comparison"
+                );
+                return None;
+            }
+        };
+        let database = source.database.clone();
+        let comparison = tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            parity_input.compare(database.as_ref())
+        });
+
+        Some(tokio::spawn(async move {
+            let result = match timeout(PARITY_READ_TIMEOUT, comparison).await {
+                Ok(Ok(result)) => result,
+                Ok(Err(err)) => Err(eyre!("Local DB parity task failed: {err}")),
+                Err(_) => Err(eyre!("Local DB parity read timed out")),
+            };
+            match result {
+                Ok(parity_result) => {
+                    metrics
+                        .with_label_values(&[chain.as_str(), event_type, parity_result.label()])
+                        .inc();
+                    if parity_result == ParityResult::Conflict {
+                        warn!(
+                            %chain,
+                            event_type,
+                            "Scraper event conflicts with RPC-indexed local DB"
+                        );
+                    }
+                }
+                Err(err) => {
+                    metrics
+                        .with_label_values(&[chain.as_str(), event_type, "error"])
+                        .inc();
+                    warn!(
+                        %chain,
+                        event_type,
+                        ?err,
+                        "Local DB parity comparison failed"
+                    );
+                }
+            }
+        }))
+    }
+
+    async fn stream(&self, state: &mut StreamState) -> Result<()> {
         let (mut socket, _) = timeout(READ_TIMEOUT, connect_async(self.url.as_str()))
             .await
             .context("Connecting to relayer scraper-proxy WebSocket timed out")?
@@ -916,30 +1064,11 @@ impl ScraperWebSocketMonitor {
                                     let source = self.sources.get(&domain).context(
                                         "Validated scraper event source unexpectedly missing",
                                     )?;
-                                    match validated.parity.compare(source) {
-                                        Ok(parity_result) => {
-                                            self.record_parity(
-                                                domain,
-                                                validated.kind.label(),
-                                                parity_result.label(),
-                                            );
-                                            if parity_result == ParityResult::Conflict {
-                                                warn!(
-                                                    chain = %source.chain,
-                                                    event_type = validated.kind.label(),
-                                                    "Scraper event conflicts with RPC-indexed local DB"
-                                                );
-                                            }
-                                        }
-                                        Err(err) => {
-                                            self.record_parity(
-                                                domain,
-                                                validated.kind.label(),
-                                                "error",
-                                            );
-                                            return Err(err);
-                                        }
-                                    }
+                                    drop(self.observe_parity(
+                                        domain,
+                                        validated.kind,
+                                        validated.parity,
+                                    ));
                                     self.update_source_caught_up(state, plan, &caught_up, domain)?;
                                 }
                                 Err(err) => {
@@ -1069,17 +1198,6 @@ impl ScraperWebSocketMonitor {
             .map(|source| source.chain.as_str())
             .unwrap_or("unknown");
         self.events
-            .with_label_values(&[chain, event_type, result])
-            .inc();
-    }
-
-    fn record_parity(&self, domain: u32, event_type: &str, result: &str) {
-        let chain = self
-            .sources
-            .get(&domain)
-            .map(|source| source.chain.as_str())
-            .unwrap_or("unknown");
-        self.parity
             .with_label_values(&[chain, event_type, result])
             .inc();
     }
@@ -1421,9 +1539,11 @@ mod tests {
     use super::*;
     use hyperlane_base::db::{test_utils, DB};
     use hyperlane_core::HyperlaneDomain;
+    use prometheus::Registry;
 
     struct Fixture {
         _temp_dir: tempfile::TempDir,
+        database: HyperlaneRocksDB,
         sources: HashMap<u32, ScraperSource>,
     }
 
@@ -1444,6 +1564,7 @@ mod tests {
             HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("scraper-parity"), db);
         Fixture {
             _temp_dir: temp_dir,
+            database: database.clone(),
             sources: HashMap::from([(5, source(database))]),
         }
     }
@@ -1475,6 +1596,23 @@ mod tests {
                 )
             })
             .collect()
+    }
+
+    fn monitor(database: std::sync::Arc<dyn ParityDatabase>) -> ScraperWebSocketMonitor {
+        let metrics = CoreMetrics::new("scraper-parity-test", 9090, Registry::new())
+            .expect("create test metrics");
+        ScraperWebSocketMonitor::new(
+            Url::parse("ws://localhost:1").expect("test URL"),
+            vec![ScraperSource::with_database(
+                "test".to_owned(),
+                5,
+                H256::from_low_u64_be(1),
+                H256::from_low_u64_be(2),
+                database,
+            )],
+            &metrics,
+        )
+        .expect("create test monitor")
     }
 
     fn event(
@@ -1525,22 +1663,18 @@ mod tests {
         bytes_to_h512(&[6_u8; 32])
     }
 
-    fn store_dispatch(source: &ScraperSource, message: &HyperlaneMessage) {
+    fn store_dispatch(database: &HyperlaneRocksDB, message: &HyperlaneMessage) {
         let message_id = message.id();
-        source
-            .database
+        database
             .store_message_id_by_nonce(&message.nonce, &message_id)
             .expect("store message ID");
-        source
-            .database
+        database
             .store_message_by_id(&message_id, message)
             .expect("store message");
-        source
-            .database
+        database
             .store_dispatched_block_number_by_nonce(&message.nonce, &100)
             .expect("store dispatch block");
-        source
-            .database
+        database
             .store_dispatched_tx_hash_by_message_id(&message_id, &dispatch_transaction_id())
             .expect("store dispatch transaction");
     }
@@ -2430,11 +2564,14 @@ mod tests {
             )
             .expect("lagging event");
         assert_eq!(
-            lagging.parity.compare(source).expect("lag comparison"),
+            lagging
+                .parity
+                .compare(source.database.as_ref())
+                .expect("lag comparison"),
             ParityResult::Missing
         );
 
-        store_dispatch(source, &message);
+        store_dispatch(&fixture.database, &message);
         let duplicate = state
             .validate(
                 event(DISPATCH_EVENT_TYPE, 7, data.clone()),
@@ -2443,7 +2580,10 @@ mod tests {
             .expect("duplicate event");
         assert_eq!(duplicate.sequence_result, SequenceResult::Duplicate);
         assert_eq!(
-            duplicate.parity.compare(source).expect("duplicate parity"),
+            duplicate
+                .parity
+                .compare(source.database.as_ref())
+                .expect("duplicate parity"),
             ParityResult::Match
         );
 
@@ -2452,7 +2592,10 @@ mod tests {
             .expect("event after process restart");
         assert_eq!(restarted.sequence_result, SequenceResult::Accepted);
         assert_eq!(
-            restarted.parity.compare(source).expect("restart parity"),
+            restarted
+                .parity
+                .compare(source.database.as_ref())
+                .expect("restart parity"),
             ParityResult::Match
         );
 
@@ -2465,7 +2608,10 @@ mod tests {
             )
             .expect("conflicting event payload");
         assert_eq!(
-            conflict.parity.compare(source).expect("conflict parity"),
+            conflict
+                .parity
+                .compare(source.database.as_ref())
+                .expect("conflict parity"),
             ParityResult::Conflict
         );
     }
@@ -2478,7 +2624,7 @@ mod tests {
             let db = DB::from_path(temp_dir.path()).expect("open temp DB");
             let database =
                 HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("scraper-parity"), db);
-            store_dispatch(&source(database), &message);
+            store_dispatch(&database, &message);
         }
 
         let db = DB::from_path(temp_dir.path()).expect("reopen temp DB");
@@ -2495,9 +2641,124 @@ mod tests {
         assert_eq!(
             validated
                 .parity
-                .compare(sources.get(&5).expect("source"))
+                .compare(sources.get(&5).expect("source").database.as_ref())
                 .expect("restart comparison"),
             ParityResult::Match
+        );
+    }
+
+    #[tokio::test]
+    async fn one_shot_db_error_does_not_interrupt_next_event() {
+        let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let mut database = MockParityDatabase::new();
+        database
+            .expect_retrieve_message_by_nonce()
+            .times(2)
+            .returning({
+                let calls = calls.clone();
+                move |nonce| {
+                    if calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
+                        Err(hyperlane_base::db::DbError::Other(
+                            "one-shot read failure".to_owned(),
+                        ))
+                    } else {
+                        Ok(Some(dispatch_message(nonce, b"next")))
+                    }
+                }
+            });
+        database
+            .expect_retrieve_dispatched_block_number_by_nonce()
+            .times(1)
+            .returning(|_| Ok(Some(100)));
+        database
+            .expect_retrieve_dispatched_tx_hash_by_message_id()
+            .times(1)
+            .returning(|_| Ok(Some(dispatch_transaction_id())));
+        let monitor = monitor(std::sync::Arc::new(database));
+        monitor.set_active(true);
+        let mut state = StreamState::default();
+
+        let first = state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"first")),
+                &monitor.sources,
+            )
+            .expect("first event");
+        monitor
+            .observe_parity(5, first.kind, first.parity)
+            .expect("first parity task")
+            .await
+            .expect("first parity task must not panic");
+
+        let next = state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 8, dispatch_data(8, b"next")),
+                &monitor.sources,
+            )
+            .expect("next event on the same stream");
+        assert_eq!(next.sequence_result, SequenceResult::Accepted);
+        monitor
+            .observe_parity(5, next.kind, next.parity)
+            .expect("next parity task")
+            .await
+            .expect("next parity task must not panic");
+
+        assert_eq!(
+            monitor
+                .parity
+                .with_label_values(&["test", DISPATCH_EVENT_TYPE, "error"])
+                .get(),
+            1
+        );
+        assert_eq!(
+            monitor
+                .parity
+                .with_label_values(&["test", DISPATCH_EVENT_TYPE, "match"])
+                .get(),
+            1
+        );
+        assert_eq!(monitor.active.with_label_values(&["test"]).get(), 1);
+    }
+
+    #[tokio::test]
+    async fn blocking_db_read_does_not_block_stream_validation() {
+        let mut database = MockParityDatabase::new();
+        database
+            .expect_retrieve_message_by_nonce()
+            .times(1)
+            .returning(|_| {
+                std::thread::sleep(PARITY_READ_TIMEOUT + Duration::from_millis(100));
+                Ok(None)
+            });
+        let monitor = monitor(std::sync::Arc::new(database));
+        let mut state = StreamState::default();
+        let first = state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"first")),
+                &monitor.sources,
+            )
+            .expect("first event");
+        let parity_task = monitor
+            .observe_parity(5, first.kind, first.parity)
+            .expect("parity task");
+
+        let started = std::time::Instant::now();
+        let next = state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 8, dispatch_data(8, b"next")),
+                &monitor.sources,
+            )
+            .expect("next event while DB read is blocked");
+        assert_eq!(next.sequence_result, SequenceResult::Accepted);
+        assert!(started.elapsed() < Duration::from_millis(100));
+
+        parity_task.await.expect("parity task must not panic");
+        assert_eq!(
+            monitor
+                .parity
+                .with_label_values(&["test", DISPATCH_EVENT_TYPE, "error"])
+                .get(),
+            1
         );
     }
 
@@ -2512,15 +2773,18 @@ mod tests {
             .validate(event(MERKLE_EVENT_TYPE, 1, data.clone()), &fixture.sources)
             .expect("lagging Merkle event");
         assert_eq!(
-            lagging.parity.compare(source).expect("lag comparison"),
+            lagging
+                .parity
+                .compare(source.database.as_ref())
+                .expect("lag comparison"),
             ParityResult::Missing
         );
 
-        source
+        fixture
             .database
             .store_merkle_tree_insertion_by_leaf_index(&1, &insertion)
             .expect("store Merkle insertion");
-        source
+        fixture
             .database
             .store_merkle_tree_insertion_block_number_by_leaf_index(&1, &101)
             .expect("store Merkle block");
@@ -2528,7 +2792,10 @@ mod tests {
             .validate(event(MERKLE_EVENT_TYPE, 1, data), &fixture.sources)
             .expect("matching Merkle event");
         assert_eq!(
-            matched.parity.compare(source).expect("match comparison"),
+            matched
+                .parity
+                .compare(source.database.as_ref())
+                .expect("match comparison"),
             ParityResult::Match
         );
 
@@ -2540,7 +2807,7 @@ mod tests {
         assert_eq!(
             conflict
                 .parity
-                .compare(source)
+                .compare(source.database.as_ref())
                 .expect("conflict comparison"),
             ParityResult::Conflict
         );
