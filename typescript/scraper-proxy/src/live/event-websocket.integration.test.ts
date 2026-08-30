@@ -525,7 +525,7 @@ void it('bounds gas payment row ID replay', async () => {
   });
 
   const error = await waitFor(messages, 'error');
-  assert.match(String(error.error), /row limit exceeded/);
+  assert.equal(error.error, 'Failed to catch up gas_payment');
   assert.deepEqual(eventRowIds(messages), []);
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
@@ -618,6 +618,41 @@ void it('replays sparse gas payment row IDs and resumes without duplicates', asy
   completions.shift()?.();
   resumed.close();
   await new Promise<void>((resolve) => resumed.once('close', resolve));
+  gasPaymentRows.clear();
+});
+
+void it('rejects a gas payment cursor ahead of the durable high-water', async () => {
+  gasPaymentRows.clear();
+  gasPaymentRows.set('20', gasPaymentRow('20', '200'));
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [{ address: gasPaymaster, afterId: '30', domain: 1 }],
+              eventType: 'gas_payment',
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+
+  const error = await waitFor(messages, 'error');
+  assert.equal(error.error, 'Failed to catch up gas_payment');
+  assert.equal(
+    messages.some(({ type }) => type === 'caught_up'),
+    false,
+  );
+
+  socket.close();
+  await new Promise<void>((resolve) => socket.once('close', resolve));
   gasPaymentRows.clear();
 });
 

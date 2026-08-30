@@ -718,6 +718,11 @@ export class EventWebSocketServer {
     const key = sequenceKey(cursor.domain, cursor.address);
     const highWater = await this.rowIdHighWater(eventType, cursor);
     const after = cursor.afterId ?? highWater;
+    if (after > highWater) {
+      throw new Error(
+        `Row ID ${after} is ahead of current ${eventType} row ID ${highWater}`,
+      );
+    }
     subscription.rowIds.set(key, after);
 
     while ((subscription.rowIds.get(key) ?? 0n) < highWater) {
