@@ -109,6 +109,15 @@ impl DB {
         Ok(self.0.put(key, value)?)
     }
 
+    /// Atomically store multiple key-value pairs in the DB.
+    pub fn store_batch(&self, entries: impl IntoIterator<Item = (Vec<u8>, Vec<u8>)>) -> Result<()> {
+        let mut batch = WriteBatch::default();
+        for (key, value) in entries {
+            batch.put(key, value);
+        }
+        Ok(self.0.write(batch)?)
+    }
+
     /// Retrieve a value from the DB
     pub fn retrieve(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         Ok(self.0.get(key)?)
@@ -265,5 +274,25 @@ mod tests {
         assert!(!db
             .has_unmarked_writes_since(checkpoint, b"source_", b"marker")
             .unwrap());
+    }
+
+    #[test]
+    fn failed_batch_writes_no_keys() {
+        let temp_dir = tempfile::tempdir().expect("temp db directory");
+        let mut options = Options::default();
+        options.create_if_missing(true);
+        drop(Rocks::open(&options, temp_dir.path()).expect("initialize db"));
+
+        let rocks =
+            Rocks::open_for_read_only(&options, temp_dir.path(), false).expect("open read-only db");
+        let db = DB::from(rocks);
+        assert!(db
+            .store_batch([
+                (b"retry-state".to_vec(), b"state".to_vec()),
+                (b"retry-count".to_vec(), b"count".to_vec()),
+            ])
+            .is_err());
+        assert_eq!(db.retrieve(b"retry-state").expect("read state"), None);
+        assert_eq!(db.retrieve(b"retry-count").expect("read count"), None);
     }
 }

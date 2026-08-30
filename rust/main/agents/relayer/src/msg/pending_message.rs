@@ -697,10 +697,9 @@ impl PendingMessage {
         max_retries: u32,
     ) -> Option<Self> {
         let retry_state = Self::get_retry_state(ctx.origin_db.clone(), &message);
-        let num_retries = retry_state
-            .as_ref()
-            .map(|state| state.retry_count)
-            .unwrap_or_else(|| Self::get_num_retries(ctx.origin_db.clone(), &message));
+        let legacy_num_retries = Self::get_num_retries(ctx.origin_db.clone(), &message);
+        let (num_retries, retry_state) =
+            Self::reconcile_retry_state(retry_state, legacy_num_retries, &message.id());
         if Self::should_skip(num_retries, max_retries) {
             return None;
         }
@@ -732,6 +731,26 @@ impl PendingMessage {
         pending_message.num_retries = num_retries;
         pending_message.next_attempt_after = next_attempt_after;
         Some(pending_message)
+    }
+
+    fn reconcile_retry_state(
+        retry_state: Option<PendingMessageRetryState>,
+        legacy_num_retries: u32,
+        message_id: &H256,
+    ) -> (u32, Option<PendingMessageRetryState>) {
+        let Some(retry_state) = retry_state else {
+            return (legacy_num_retries, None);
+        };
+        if legacy_num_retries > retry_state.retry_count {
+            warn!(
+                ?message_id,
+                legacy_num_retries,
+                retry_state_num_retries = retry_state.retry_count,
+                "Ignoring stale durable retry state after legacy retry count advanced"
+            );
+            return (legacy_num_retries, None);
+        }
+        (retry_state.retry_count, Some(retry_state))
     }
 
     /// Set fail-fast mode: drop the message immediately when `num_retries` exceeds
@@ -1154,7 +1173,18 @@ impl PendingMessage {
 
     fn set_retries(&mut self, retries: u32) {
         self.num_retries = retries;
-        self.persist_retries();
+        let reason = match &self.status {
+            PendingOperationStatus::Retry(reason) => Some(reason.clone()),
+            _ => None,
+        };
+        let delay = Self::calculate_msg_backoff(
+            self.num_retries,
+            self.max_retries,
+            Some(self.message.id()),
+            reason.as_ref(),
+        );
+        self.next_attempt_after = delay.and_then(|delay| Instant::now().checked_add(delay));
+        self.persist_retry_state(delay, reason);
     }
 
     fn persist_retry_state(&self, delay: Option<Duration>, reason: Option<ReprepareReason>) {
@@ -1180,19 +1210,6 @@ impl PendingMessage {
             .store_pending_message_retry_state_by_message_id(&self.message.id(), &state)
         {
             warn!(message_id = ?self.message.id(), err = %e, "Persisting durable retry state failed for message");
-        }
-        // Keep the legacy count current so rolling back to an older binary remains safe.
-        // New binaries always prefer the combined record when it is valid.
-        self.persist_retries();
-    }
-
-    fn persist_retries(&self) {
-        if let Err(e) = self
-            .ctx
-            .origin_db
-            .store_pending_message_retry_count_by_message_id(&self.message.id(), &self.num_retries)
-        {
-            warn!(message_id = ?self.message.id(), err = %e, "Persisting the `num_retries` failed for message");
         }
     }
 
@@ -1413,6 +1430,7 @@ impl PendingMessage {
 
 #[cfg(test)]
 mod test {
+    use std::io::Write;
     use std::{
         sync::Arc,
         time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -1433,6 +1451,40 @@ mod test {
             .as_millis()
             .try_into()
             .expect("test timestamp must fit in u64")
+    }
+
+    struct RawRetryState(&'static [u8]);
+
+    impl Encode for RawRetryState {
+        fn write_to<W: Write>(&self, writer: &mut W) -> std::io::Result<usize> {
+            writer.write(self.0)
+        }
+    }
+
+    #[test]
+    fn retry_state_reconciliation_uses_authoritative_count() {
+        let message_id = H256::zero();
+        let stale_state = PendingMessageRetryState::new(
+            1,
+            Some(60_000),
+            Some(60_000),
+            Some(ReprepareReason::CouldNotFetchMetadata),
+        );
+        assert_eq!(
+            PendingMessage::reconcile_retry_state(Some(stale_state), 2, &message_id),
+            (2, None)
+        );
+
+        let ahead_state = PendingMessageRetryState::new(
+            3,
+            Some(60_000),
+            Some(60_000),
+            Some(ReprepareReason::ErrorSubmitting),
+        );
+        assert_eq!(
+            PendingMessage::reconcile_retry_state(Some(ahead_state.clone()), 2, &message_id),
+            (3, Some(ahead_state))
+        );
     }
 
     #[test]
@@ -1520,6 +1572,34 @@ mod test {
         );
         assert!(persisted.next_attempt_after().is_some());
 
+        // Simulate rollback to an old binary, which advances only the legacy count,
+        // followed by rolling forward to this version.
+        base_db
+            .store_pending_message_retry_count_by_message_id(&message.id(), &2)
+            .expect("advance legacy retry count");
+        base_db
+            .store_status_by_message_id(
+                &message.id(),
+                &PendingOperationStatus::Retry(ReprepareReason::ErrorSubmitting),
+            )
+            .expect("store legacy retry reason");
+        let rolled_forward = PendingMessage::maybe_from_persisted_retries(
+            message.clone(),
+            ctx.clone(),
+            None,
+            DEFAULT_MAX_MESSAGE_RETRIES,
+        )
+        .expect("restore after rollback");
+        let remaining = rolled_forward
+            .next_attempt_after()
+            .expect("legacy schedule");
+        assert_eq!(rolled_forward.get_retries(), 2);
+        assert_eq!(
+            rolled_forward.status(),
+            PendingOperationStatus::Retry(ReprepareReason::ErrorSubmitting)
+        );
+        assert!(remaining.duration_since(Instant::now()) <= Duration::from_secs(10));
+
         let deadline = SystemTime::now() + Duration::from_secs(60);
         let state = PendingMessageRetryState::new(
             3,
@@ -1530,6 +1610,11 @@ mod test {
         base_db
             .store_pending_message_retry_state_by_message_id(&message.id(), &state)
             .expect("store retry state");
+        // Simulate the historical write-order fault where the combined state landed
+        // before its legacy mirror. The higher combined count must remain authoritative.
+        base_db
+            .store_pending_message_retry_count_by_message_id(&message.id(), &2)
+            .expect("store lagging legacy retry count");
 
         let restored = PendingMessage::maybe_from_persisted_retries(
             message.clone(),
@@ -1588,6 +1673,57 @@ mod test {
         .expect("fallback to legacy retry state");
         assert_eq!(fallback.get_retries(), 2);
         assert!(fallback.next_attempt_after().is_some());
+
+        let message = fallback.message.clone();
+        let ctx = fallback.ctx.clone();
+        base_db
+            .store_value_by_key(
+                "pending_message_retry_state_for_message_id_v1_",
+                &message.id(),
+                &RawRetryState(
+                    br#"{"version":2,"retry_count":9,"next_attempt_at_millis":null,"retry_delay_millis":null,"reason":null}"#,
+                ),
+            )
+            .expect("store unsupported retry state");
+        base_db
+            .store_pending_message_retry_count_by_message_id(&message.id(), &3)
+            .expect("store fallback retry count");
+        let mut unsupported = PendingMessage::maybe_from_persisted_retries(
+            message.clone(),
+            ctx.clone(),
+            None,
+            DEFAULT_MAX_MESSAGE_RETRIES,
+        )
+        .expect("fallback from unsupported retry state");
+        assert_eq!(unsupported.get_retries(), 3);
+        assert!(unsupported.next_attempt_after().is_some());
+
+        // An intentional lower/manual reset must replace both records; otherwise
+        // monotonic reconciliation would resurrect the older higher v1 count.
+        unsupported.set_retries(0);
+        assert_eq!(
+            base_db
+                .retrieve_pending_message_retry_count_by_message_id(&message.id())
+                .expect("read reset legacy count"),
+            Some(0)
+        );
+        assert_eq!(
+            base_db
+                .retrieve_pending_message_retry_state_by_message_id(&message.id())
+                .expect("read reset durable state")
+                .expect("reset durable state")
+                .retry_count,
+            0
+        );
+        let reset = PendingMessage::maybe_from_persisted_retries(
+            message,
+            ctx,
+            None,
+            DEFAULT_MAX_MESSAGE_RETRIES,
+        )
+        .expect("restore manually reset state");
+        assert_eq!(reset.get_retries(), 0);
+        assert_eq!(reset.next_attempt_after(), None);
     }
 
     #[test]
