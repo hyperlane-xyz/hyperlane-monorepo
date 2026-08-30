@@ -369,8 +369,10 @@ impl MerkleTreeHookWebSocketSync {
                             &sequence,
                             *next_sequence,
                         )?;
+                        // Any valid, non-ahead marker proves historical replay has completed.
+                        // A stale marker may still need live events to reach our local cursor.
+                        caught_up = true;
                         if reached_cursor {
-                            caught_up = true;
                             lag_started_at = None;
                             if *next_sequence >= backfill_target {
                                 self.activate_websocket(fallback).await;
@@ -405,7 +407,7 @@ impl MerkleTreeHookWebSocketSync {
                             // WebSocket is healthy. Only a lack of progress should trigger
                             // fallback; live-stream lag is checked after `caught_up`.
                             record_stream_progress(&mut lag_started_at, caught_up);
-                            if *next_sequence >= backfill_target {
+                            if caught_up && *next_sequence >= backfill_target {
                                 self.activate_websocket(fallback).await;
                             }
                         }
@@ -1079,7 +1081,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn backfill_keeps_rpc_active_until_startup_target() {
+    async fn backfill_waits_for_marker_and_stale_marker_enables_live_handoff() {
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .expect("test listener");
@@ -1092,7 +1094,10 @@ mod tests {
         let hook = format!("{:#x}", sync.merkle_tree_hook);
         let first_message_id = format!("{:#x}", H256::from_low_u64_be(4));
         let second_message_id = format!("{:#x}", H256::from_low_u64_be(5));
+        let third_message_id = format!("{:#x}", H256::from_low_u64_be(6));
         let (continue_tx, continue_rx) = tokio::sync::oneshot::channel();
+        let (caught_up_tx, caught_up_rx) = tokio::sync::oneshot::channel();
+        let (live_tx, live_rx) = tokio::sync::oneshot::channel();
         tokio::spawn(async move {
             let (stream, _) = listener.accept().await.expect("connection");
             let mut socket = accept_async(stream).await.expect("WebSocket");
@@ -1118,6 +1123,20 @@ mod tests {
                 )))
                 .await
                 .expect("send final backfill event");
+            caught_up_rx.await.expect("send caught-up marker");
+            socket
+                .send(Message::Text(format!(
+                    r#"{{"type":"caught_up","address":"{hook}","domain":1,"eventType":"merkle_tree_insertion","sequence":"1"}}"#
+                )))
+                .await
+                .expect("send caught-up marker");
+            live_rx.await.expect("send live event");
+            socket
+                .send(Message::Text(format!(
+                    r#"{{"type":"event","data":{{"block_number":14,"domain":1,"leaf_index":3,"merkle_tree_hook":"{hook}","message_id":"{third_message_id}"}},"domain":1,"eventType":"merkle_tree_insertion","sequence":"3"}}"#
+                )))
+                .await
+                .expect("send live event");
             pending::<()>().await;
         });
 
@@ -1163,13 +1182,37 @@ mod tests {
 
         continue_tx.send(()).expect("continue backfill");
         timeout(Duration::from_secs(1), async {
+            while db
+                .retrieve_merkle_tree_insertion_by_leaf_index(&2)
+                .expect("retrieve final backfill insertion")
+                .is_none()
+            {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("final backfill insertion");
+        assert_eq!(active_after_backfill.get(), 1);
+        assert_eq!(websocket_active.get(), 0);
+
+        caught_up_tx.send(()).expect("send caught-up marker");
+        tokio::time::sleep(Duration::from_millis(25)).await;
+        assert_eq!(active_after_backfill.get(), 1);
+        assert_eq!(websocket_active.get(), 0);
+
+        live_tx.send(()).expect("send live event");
+        timeout(Duration::from_secs(1), async {
             while websocket_active.get() != 1 {
                 tokio::task::yield_now().await;
             }
         })
         .await
-        .expect("WebSocket reached fixed backfill target");
+        .expect("WebSocket received post-marker live event");
         assert_eq!(active_after_backfill.get(), 0);
+        assert!(db
+            .retrieve_merkle_tree_insertion_by_leaf_index(&3)
+            .expect("retrieve live insertion")
+            .is_some());
         task.abort();
     }
 
