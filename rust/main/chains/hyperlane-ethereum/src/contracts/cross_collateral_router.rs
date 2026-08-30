@@ -281,6 +281,10 @@ impl BuildableWithProvider for CcrSwapIndexerBuilder {
     type Output = Box<dyn Indexer<SameChainCcrSwap>>;
     const NEEDS_SIGNER: bool = false;
 
+    fn uses_dynamic_block_cache(&self) -> bool {
+        true
+    }
+
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
@@ -293,5 +297,21 @@ impl BuildableWithProvider for CcrSwapIndexerBuilder {
             self.ccr_to_erc20.clone(),
             self.reorg_period,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ccr_indexer_uses_dynamic_block_cache() {
+        let builder = CcrSwapIndexerBuilder {
+            local_domain: 1,
+            ccr_to_erc20: HashMap::new(),
+            reorg_period: EthereumReorgPeriod::Blocks(0),
+        };
+
+        assert!(builder.uses_dynamic_block_cache());
     }
 }
