@@ -263,6 +263,9 @@ impl HyperlaneDbStore {
             .await?
             .map(|t| (t.hash, t))
             .collect();
+        // Start retry delays after the enrichment attempt finishes. A slow RPC batch must
+        // not consume the backoff before its missing rows are recorded.
+        let attempt_completed_at = OffsetDateTime::now_utc();
 
         let mut missing_tx_hashes = Vec::new();
         let mut unique_missing_tx_hashes = HashSet::new();
@@ -276,7 +279,8 @@ impl HyperlaneDbStore {
                         Some(raw_dispatch.storable_message(txn_id))
                     }
                     None => {
-                        let attempts = retry_backoff.record_missing(raw_dispatch.raw_id, now);
+                        let attempts = retry_backoff
+                            .record_missing(raw_dispatch.raw_id, attempt_completed_at);
                         if unique_missing_tx_hashes.insert(raw_dispatch.meta.transaction_id) {
                             missing_tx_hashes.push(raw_dispatch.meta.transaction_id);
                         }
@@ -555,6 +559,33 @@ mod tests {
         assert!(backoff.should_attempt(
             raw_id,
             offset_by_seconds(now, RAW_DISPATCH_RETRY_INITIAL_BACKOFF_SECONDS)
+        ));
+    }
+
+    #[test]
+    fn slow_reconciliation_starts_backoff_after_attempt_completion() {
+        let attempt_started_at = OffsetDateTime::now_utc();
+        let attempt_completed_at = offset_by_seconds(
+            attempt_started_at,
+            RAW_DISPATCH_RETRY_INITIAL_BACKOFF_SECONDS + 10,
+        );
+        let raw_id = 7;
+        let mut backoff = RawDispatchRetryBackoff::default();
+
+        backoff.record_missing(raw_id, attempt_completed_at);
+
+        assert_eq!(
+            backoff.next_retry_delay(attempt_completed_at),
+            Some(Duration::from_secs(
+                RAW_DISPATCH_RETRY_INITIAL_BACKOFF_SECONDS as u64
+            ))
+        );
+        assert!(!backoff.should_attempt(
+            raw_id,
+            offset_by_seconds(
+                attempt_completed_at,
+                RAW_DISPATCH_RETRY_INITIAL_BACKOFF_SECONDS - 1
+            )
         ));
     }
 
