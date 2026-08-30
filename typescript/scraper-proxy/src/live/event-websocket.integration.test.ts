@@ -594,7 +594,7 @@ void it('requires replay opt-in for a cursor ahead of scraper history', async ()
     }
   });
   const error = await waitFor(rejectedMessages, 'error');
-  assert.match(String(error.error), /ahead of current/);
+  assert.equal(error.error, 'Failed to catch up merkle_tree_insertion');
   rejected.close();
   await new Promise<void>((resolve) => rejected.once('close', resolve));
 
