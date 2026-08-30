@@ -29,7 +29,7 @@ use hyperlane_base::{
 use crate::{
     db::ScraperDb,
     settings::ScraperSettings,
-    store::{HyperlaneDbStore, RawDispatchRetryBackoff},
+    store::{HyperlaneDbStore, RawDispatchReconciliationResult, RawDispatchRetryBackoff},
 };
 
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
@@ -37,6 +37,21 @@ const RAW_DISPATCH_RECONCILIATION_BATCH_SIZE: u64 = 100;
 const RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP: Duration = Duration::from_secs(60);
 const RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP: Duration = Duration::from_secs(2);
 const LIVENESS_UPDATE_INTERVAL: Duration = Duration::from_secs(30);
+
+fn raw_dispatch_reconciliation_scan_complete(result: &RawDispatchReconciliationResult) -> bool {
+    result.candidate_count < RAW_DISPATCH_RECONCILIATION_BATCH_SIZE as usize
+}
+
+fn raw_dispatch_reconciliation_sleep(result: &RawDispatchReconciliationResult) -> Duration {
+    if raw_dispatch_reconciliation_scan_complete(result) {
+        result
+            .next_retry_delay
+            .unwrap_or(RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP)
+            .min(RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP)
+    } else {
+        RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP
+    }
+}
 
 fn update_liveness_metric(liveness_metric: &IntGauge) {
     let seconds_since_epoch = SystemTime::now()
@@ -467,7 +482,11 @@ impl Scraper {
                         Ok(Ok(result)) if result.candidate_count == 0 && next_after_id > 0 => {
                             next_after_id = 0;
                             max_age_seen_this_scan = 0;
-                            sleep(RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP).await;
+                            sleep_with_liveness(
+                                raw_dispatch_reconciliation_sleep(&result),
+                                &liveness_metric,
+                            )
+                            .await;
                         }
                         Ok(Ok(result)) if result.candidate_count == 0 => {
                             max_age_metric.set(0);
@@ -495,7 +514,15 @@ impl Scraper {
                                 domain = domain_name,
                                 "Reconciled raw message dispatches"
                             );
-                            sleep(RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP).await;
+                            if raw_dispatch_reconciliation_scan_complete(&result) {
+                                next_after_id = 0;
+                                max_age_seen_this_scan = 0;
+                            }
+                            sleep_with_liveness(
+                                raw_dispatch_reconciliation_sleep(&result),
+                                &liveness_metric,
+                            )
+                            .await;
                         }
                         Ok(Err(err)) => {
                             warn!(
@@ -735,7 +762,10 @@ impl Scraper {
 
 #[cfg(test)]
 mod test {
-    use std::collections::BTreeMap;
+    use std::{
+        collections::BTreeMap,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
 
     use ethers::utils::hex;
     use ethers_prometheus::middleware::PrometheusMiddlewareConf;
@@ -789,6 +819,74 @@ mod test {
 
         tokio::time::advance(Duration::from_secs(5)).await;
         task.await.expect("idle sleep should complete");
+    }
+
+    #[test]
+    fn raw_dispatch_scan_uses_backlog_delay_until_final_page() {
+        let full_page = RawDispatchReconciliationResult {
+            candidate_count: RAW_DISPATCH_RECONCILIATION_BATCH_SIZE as usize,
+            next_retry_delay: Some(Duration::from_secs(900)),
+            ..Default::default()
+        };
+        let final_page = RawDispatchReconciliationResult {
+            candidate_count: 1,
+            next_retry_delay: Some(Duration::from_secs(900)),
+            ..Default::default()
+        };
+
+        assert!(!raw_dispatch_reconciliation_scan_complete(&full_page));
+        assert_eq!(
+            raw_dispatch_reconciliation_sleep(&full_page),
+            RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP
+        );
+        assert!(raw_dispatch_reconciliation_scan_complete(&final_page));
+        assert_eq!(
+            raw_dispatch_reconciliation_sleep(&final_page),
+            RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn backed_off_final_page_wait_updates_liveness_and_bounds_queries() {
+        let liveness = IntGauge::new("test_backoff_liveness", "test backoff liveness")
+            .expect("test gauge should be valid");
+        let task_liveness = liveness.clone();
+        let query_count = Arc::new(AtomicUsize::new(0));
+        let task_query_count = query_count.clone();
+        let task = tokio::spawn(async move {
+            loop {
+                task_query_count.fetch_add(1, Ordering::SeqCst);
+                let final_page = RawDispatchReconciliationResult {
+                    candidate_count: 1,
+                    next_retry_delay: Some(Duration::from_secs(900)),
+                    ..Default::default()
+                };
+                sleep_with_liveness(
+                    raw_dispatch_reconciliation_sleep(&final_page),
+                    &task_liveness,
+                )
+                .await;
+            }
+        });
+
+        run_pending_tasks().await;
+        assert_eq!(query_count.load(Ordering::SeqCst), 1);
+
+        tokio::time::advance(LIVENESS_UPDATE_INTERVAL - Duration::from_secs(1)).await;
+        run_pending_tasks().await;
+        assert_eq!(liveness.get(), 0);
+        assert_eq!(query_count.load(Ordering::SeqCst), 1);
+
+        tokio::time::advance(Duration::from_secs(1)).await;
+        run_pending_tasks().await;
+        assert!(liveness.get() > 0);
+        assert_eq!(query_count.load(Ordering::SeqCst), 1);
+
+        tokio::time::advance(LIVENESS_UPDATE_INTERVAL).await;
+        run_pending_tasks().await;
+        assert_eq!(query_count.load(Ordering::SeqCst), 2);
+
+        task.abort();
     }
 
     fn generate_test_scraper_settings() -> ScraperSettings {
