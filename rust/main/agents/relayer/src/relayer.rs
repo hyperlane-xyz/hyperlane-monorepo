@@ -56,8 +56,8 @@ use crate::{
             MessageProcessor, MessageProcessorMetrics, MESSAGE_PROCESSOR_INGRESS_CAPACITY,
         },
         metadata::{
-            BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
-            IsmCachePolicyClassifier,
+            BaseMetadataBuilder, CheckpointSyncerPool, DefaultIsmCache,
+            IsmAwareAppContextClassifier, IsmCachePolicyClassifier,
         },
         pending_message::MessageContext,
         QueueOperationBatch,
@@ -178,6 +178,7 @@ impl BaseAgent for Relayer {
             None
         };
         let cache = OptionalCache::new(inner_cache);
+        let checkpoint_syncer_pool = CheckpointSyncerPool::default();
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized cache", "Relayer startup duration measurement");
 
         let db = DB::from_path(&settings.db)?;
@@ -250,6 +251,7 @@ impl BaseAgent for Relayer {
                     settings.allow_local_checkpoint_syncers,
                     core.metrics.clone(),
                     cache.clone(),
+                    checkpoint_syncer_pool.clone(),
                     db.clone(),
                     IsmAwareAppContextClassifier::new(
                         default_ism_getter.clone(),

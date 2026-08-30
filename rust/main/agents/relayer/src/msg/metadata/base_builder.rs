@@ -8,7 +8,7 @@ use futures::{stream, StreamExt};
 use hyperlane_ethereum::Signers;
 use maplit::hashmap;
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use hyperlane_base::{
     cache::{LocalCache, MeteredCache, OptionalCache},
@@ -29,9 +29,10 @@ use crate::{merkle_tree::builder::MerkleTreeBuilder, msg::metadata::MetadataBuil
 use super::{base::IsmCachePolicyClassifier, IsmAwareAppContextClassifier};
 
 mod cached_checkpoint_syncer;
+mod checkpoint_syncer_pool;
 mod validator_announced_storages;
 
-use cached_checkpoint_syncer::CachedCheckpointSyncer;
+pub(crate) use checkpoint_syncer_pool::CheckpointSyncerPool;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct IsmBuildMetricsParams {
@@ -53,6 +54,7 @@ pub struct BaseMetadataBuilder {
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
     cache: OptionalCache<MeteredCache<LocalCache>>,
+    checkpoint_syncer_pool: CheckpointSyncerPool,
     db: HyperlaneRocksDB,
     app_context_classifier: IsmAwareAppContextClassifier,
     ism_cache_policy_classifier: IsmCachePolicyClassifier,
@@ -318,7 +320,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             .collect::<Vec<_>>();
 
         for (validator, checkpoint_syncer) in checkpoint_syncers_results {
-            checkpoint_syncers.insert(validator.into(), checkpoint_syncer.into());
+            checkpoint_syncers.insert(validator.into(), checkpoint_syncer);
         }
 
         Ok(MultisigCheckpointSyncer::new(
@@ -347,18 +349,19 @@ impl BaseMetadataBuilder {
         config: &CheckpointSyncerConf,
         validator: &H256,
         storage_location: &str,
-    ) -> Result<Option<Box<dyn CheckpointSyncer>>, CheckpointSyncerBuildError> {
-        match config.build_and_validate(None).await {
-            Ok(checkpoint_syncer) => {
-                let checkpoint_syncer = CachedCheckpointSyncer::new(
-                    checkpoint_syncer,
-                    self.cache.clone(),
-                    self.origin_domain.name().to_string(),
-                    *validator,
-                    storage_location.to_string(),
-                );
-                return Ok(Some(Box::new(checkpoint_syncer)));
-            }
+    ) -> Result<Option<Arc<dyn CheckpointSyncer>>, CheckpointSyncerBuildError> {
+        let checkpoint_syncer = match self
+            .checkpoint_syncer_pool
+            .get_or_build(
+                config,
+                self.cache.clone(),
+                self.origin_domain.name().to_string(),
+                *validator,
+                storage_location.to_string(),
+            )
+            .await
+        {
+            Ok(checkpoint_syncer) => checkpoint_syncer,
             Err(CheckpointSyncerBuildError::ReorgFlag(reorg_event)) => {
                 if self.ignore_reorg_reports {
                     warn!(
@@ -381,8 +384,81 @@ impl BaseMetadataBuilder {
                     ?validator,
                     "Error when loading checkpoint syncer; will attempt to use the next config"
                 );
+                return Ok(None);
+            }
+        };
+
+        // The backend is pooled, but reorg status is safety-critical and must be
+        // checked on every checkout rather than only when the client is built.
+        match checkpoint_syncer.reorg_status().await {
+            Ok(reorg_event) if reorg_event.exists => {
+                if self.ignore_reorg_reports {
+                    warn!(
+                        ?reorg_event,
+                        ?config,
+                        ?validator,
+                        "Ignoring reorg event for checkpoint syncer build"
+                    );
+                    Ok(None)
+                } else {
+                    Err(CheckpointSyncerBuildError::ReorgFlag(reorg_event))
+                }
+            }
+            Ok(_) => Ok(Some(checkpoint_syncer)),
+            Err(err) => {
+                error!(
+                    ?err,
+                    ?config,
+                    ?validator,
+                    "Failed to read reorg status. Assuming no reorg occurred."
+                );
+                Ok(Some(checkpoint_syncer))
             }
         }
-        Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hyperlane_base::db::DB;
+    use hyperlane_core::{ReorgEvent, ReorgPeriod};
+
+    use crate::test_utils::dummy_data::dummy_metadata_builder;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn revalidates_reorg_status_on_every_pool_checkout() {
+        let origin = HyperlaneDomain::new_test_domain("origin");
+        let destination = HyperlaneDomain::new_test_domain("destination");
+        let db_dir = tempfile::tempdir().unwrap();
+        let db = HyperlaneRocksDB::new(&origin, DB::from_path(db_dir.path()).unwrap());
+        let builder = dummy_metadata_builder(&origin, &destination, &db, OptionalCache::new(None));
+        let checkpoint_dir = tempfile::tempdir().unwrap();
+        let storage_location = format!("file://{}", checkpoint_dir.path().display());
+        let config = CheckpointSyncerConf::from_str(&storage_location).unwrap();
+        let validator = H256::from_low_u64_be(1);
+
+        let syncer = builder
+            .build_and_validate(&config, &validator, &storage_location)
+            .await
+            .unwrap()
+            .unwrap();
+        let reorg_event = ReorgEvent {
+            local_merkle_root: H256::from_low_u64_be(2),
+            canonical_merkle_root: H256::from_low_u64_be(3),
+            checkpoint_index: 4,
+            unix_timestamp: 5,
+            reorg_period: ReorgPeriod::from_blocks(6),
+        };
+        syncer.write_reorg_status(&reorg_event).await.unwrap();
+
+        let result = builder
+            .build_and_validate(&config, &validator, &storage_location)
+            .await;
+        assert!(matches!(
+            result,
+            Err(CheckpointSyncerBuildError::ReorgFlag(response)) if response.exists
+        ));
     }
 }
