@@ -24,6 +24,9 @@ mod metadata;
 pub mod metrics;
 pub use metrics::*;
 
+/// Scraper-proxy WebSocket protocol types shared by agent consumers.
+pub mod scraper_websocket;
+
 /// Hyperlane server utils
 pub mod server;
 
