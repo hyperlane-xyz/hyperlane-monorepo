@@ -26,6 +26,12 @@ pub struct ContractSyncMetrics {
     /// Contract sync liveness metric
     pub liveness_metrics: IntGaugeVec,
 
+    /// Fetch errors which scheduled a range retry.
+    pub fetch_retries: IntCounterVec,
+
+    /// Current delay before retrying a failed range fetch.
+    pub fetch_backoff_seconds: IntGaugeVec,
+
     /// Metrics for SequenceAware and RateLimited cursors.
     pub cursor_metrics: Arc<CursorMetrics>,
 }
@@ -57,12 +63,30 @@ impl ContractSyncMetrics {
             )
             .expect("failed to register liveness metric");
 
+        let fetch_retries = metrics
+            .new_int_counter(
+                "contract_sync_fetch_retries",
+                "Range fetch errors which scheduled a retry",
+                &["data_type", "chain"],
+            )
+            .expect("failed to register contract_sync_fetch_retries metric");
+
+        let fetch_backoff_seconds = metrics
+            .new_int_gauge(
+                "contract_sync_fetch_backoff_seconds",
+                "Current delay before retrying a failed range fetch",
+                &["data_type", "chain"],
+            )
+            .expect("failed to register contract_sync_fetch_backoff_seconds metric");
+
         let cursor_metrics = Arc::new(CursorMetrics::new(metrics));
 
         ContractSyncMetrics {
             indexed_height,
             stored_events,
             liveness_metrics,
+            fetch_retries,
+            fetch_backoff_seconds,
             cursor_metrics,
         }
     }
