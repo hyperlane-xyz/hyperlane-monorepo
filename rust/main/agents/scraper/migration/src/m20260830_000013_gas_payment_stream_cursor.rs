@@ -11,7 +11,15 @@ pub struct Migration;
 /// the same domain/paymaster therefore cannot allocate its cursor or commit
 /// ahead of the first allocator. Existing row IDs remain valid cursors; each
 /// head starts at that stream's highest resolved legacy ID, avoiding an
-/// outbox-row rewrite for historical payments.
+/// outbox-row rewrite for historical payments. The legacy boundary is kept
+/// separately and never advanced, allowing indexed physical-ID replay below
+/// the boundary and indexed commit-cursor replay above it.
+///
+/// The upgrade performs one grouped scan of `gas_payment` while writers are
+/// blocked. It writes one head row per stream, not one mapping row per payment.
+/// Lock acquisition fails after 5 seconds and the complete migration fails
+/// after 2 minutes so a busy or unexpectedly large database can retry during a
+/// quieter window instead of blocking scraper writes indefinitely.
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
@@ -19,12 +27,16 @@ impl MigrationTrait for Migration {
             .get_connection()
             .execute_unprepared(
                 r#"
+                SET LOCAL lock_timeout = '5s';
+                SET LOCAL statement_timeout = '2min';
                 LOCK TABLE gas_payment IN SHARE ROW EXCLUSIVE MODE;
 
                 CREATE TABLE gas_payment_stream_head (
                   domain bigint NOT NULL,
                   interchain_gas_paymaster bytea NOT NULL,
+                  legacy_max_id bigint NOT NULL CHECK (legacy_max_id >= 0),
                   last_cursor bigint NOT NULL CHECK (last_cursor >= 0),
+                  CHECK (last_cursor >= legacy_max_id),
                   PRIMARY KEY (domain, interchain_gas_paymaster)
                 );
 
@@ -34,17 +46,20 @@ impl MigrationTrait for Migration {
                   domain bigint NOT NULL,
                   interchain_gas_paymaster bytea NOT NULL,
                   stream_cursor bigint NOT NULL CHECK (stream_cursor > 0),
-                  UNIQUE (domain, interchain_gas_paymaster, stream_cursor)
+                  CONSTRAINT gas_payment_stream_cursor_range_key
+                    UNIQUE (domain, interchain_gas_paymaster, stream_cursor)
                 );
 
                 INSERT INTO gas_payment_stream_head (
                   domain,
                   interchain_gas_paymaster,
+                  legacy_max_id,
                   last_cursor
                 )
                 SELECT
                   domain,
                   interchain_gas_paymaster,
+                  MAX(id),
                   MAX(id)
                 FROM gas_payment
                 WHERE tx_id IS NOT NULL
@@ -64,10 +79,12 @@ impl MigrationTrait for Migration {
                   INSERT INTO gas_payment_stream_head (
                     domain,
                     interchain_gas_paymaster,
+                    legacy_max_id,
                     last_cursor
                   ) VALUES (
                     NEW.domain,
                     NEW.interchain_gas_paymaster,
+                    0,
                     0
                   )
                   ON CONFLICT (domain, interchain_gas_paymaster) DO NOTHING;
@@ -155,6 +172,7 @@ mod tests {
               tx_id bigint,
               hold_before_insert boolean NOT NULL DEFAULT false
             );
+            CREATE INDEX gas_payment_domain_id_idx ON gas_payment(domain, id);
             "#,
         )
         .await?;
@@ -164,6 +182,15 @@ mod tests {
         .await?;
         let migration_tx = db.begin().await?;
         Migration.up(&SchemaManager::new(&migration_tx)).await?;
+        let timeouts = migration_tx
+            .query_one(Statement::from_string(
+                DbBackend::Postgres,
+                "SELECT current_setting('lock_timeout') AS lock_timeout, current_setting('statement_timeout') AS statement_timeout".to_owned(),
+            ))
+            .await?
+            .expect("migration timeout settings");
+        assert_eq!(timeouts.try_get::<String>("", "lock_timeout")?, "5s");
+        assert_eq!(timeouts.try_get::<String>("", "statement_timeout")?, "2min");
         migration_tx.commit().await?;
 
         let legacy_mapping_count = db
@@ -175,6 +202,17 @@ mod tests {
             .expect("legacy mapping count")
             .try_get::<i64>("", "count")?;
         assert_eq!(legacy_mapping_count, 0);
+        let legacy_boundary = db
+            .query_one(Statement::from_string(
+                DbBackend::Postgres,
+                format!(
+                    "SELECT legacy_max_id, last_cursor FROM gas_payment_stream_head WHERE domain = 1 AND interchain_gas_paymaster = decode('{PAYMASTER}', 'hex')"
+                ),
+            ))
+            .await?
+            .expect("legacy stream head");
+        assert_eq!(legacy_boundary.try_get::<i64>("", "legacy_max_id")?, 2);
+        assert_eq!(legacy_boundary.try_get::<i64>("", "last_cursor")?, 2);
 
         db.execute_unprepared(&format!(
             r#"
@@ -304,6 +342,40 @@ mod tests {
             .expect("unrelated stream cursor")
             .try_get::<i64>("", "stream_cursor")?;
         assert_eq!(unrelated, 1);
+
+        db.execute_unprepared("SET enable_seqscan = off").await?;
+        let legacy_plan = db
+            .query_all(Statement::from_string(
+                DbBackend::Postgres,
+                format!(
+                    "EXPLAIN (COSTS OFF) SELECT id FROM gas_payment WHERE domain = 1 AND interchain_gas_paymaster = decode('{PAYMASTER}', 'hex') AND tx_id IS NOT NULL AND id > 0 AND id <= 2 ORDER BY id LIMIT 100"
+                ),
+            ))
+            .await?
+            .iter()
+            .map(|row| row.try_get::<String>("", "QUERY PLAN"))
+            .collect::<Result<Vec<_>, DbErr>>()?
+            .join("\n");
+        assert!(
+            legacy_plan.contains("gas_payment_domain_id_idx"),
+            "legacy replay must use the physical ID range index: {legacy_plan}"
+        );
+        let plan = db
+            .query_all(Statement::from_string(
+                DbBackend::Postgres,
+                format!(
+                    "EXPLAIN (COSTS OFF) SELECT gas_payment.id, event_cursor.stream_cursor FROM gas_payment_stream_cursor AS event_cursor INNER JOIN gas_payment ON gas_payment.id = event_cursor.gas_payment_id WHERE event_cursor.domain = 1 AND event_cursor.interchain_gas_paymaster = decode('{PAYMASTER}', 'hex') AND event_cursor.stream_cursor > 2 AND event_cursor.stream_cursor <= 10 ORDER BY event_cursor.stream_cursor LIMIT 100"
+                ),
+            ))
+            .await?
+            .iter()
+            .map(|row| row.try_get::<String>("", "QUERY PLAN"))
+            .collect::<Result<Vec<_>, DbErr>>()?
+            .join("\n");
+        assert!(
+            plan.contains("gas_payment_stream_cursor_range_key"),
+            "mapped replay must use the stream cursor range index: {plan}"
+        );
         Ok(())
     }
 }

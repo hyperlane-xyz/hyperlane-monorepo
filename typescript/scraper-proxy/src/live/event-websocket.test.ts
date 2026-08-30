@@ -112,7 +112,7 @@ void describe('event websocket protocol', () => {
     }
   });
 
-  void it('parses per-domain gas payment row ID cursors', () => {
+  void it('parses negotiated per-domain gas payment stream cursors', () => {
     const message = parseClientMessage(
       JSON.stringify({
         streams: [
@@ -120,11 +120,12 @@ void describe('event websocket protocol', () => {
             cursors: [
               {
                 address: '0x0000000000000000000000000000000000000001',
-                afterId: '9007199254740993',
+                afterStreamCursor: '9007199254740993',
                 domain: 1,
               },
             ],
             eventType: 'gas_payment',
+            streamCursorVersion: 1,
           },
         ],
         type: 'subscribe',
@@ -134,12 +135,45 @@ void describe('event websocket protocol', () => {
     assert.equal(message.type, 'subscribe');
     if (message.type !== 'subscribe') return;
     const [cursor] = message.streams[0]?.cursors ?? [];
-    assert.equal(cursor?.kind, 'row_id');
+    assert.equal(cursor?.kind, 'gas_payment');
     assert.equal(
-      cursor?.kind === 'row_id' && cursor.afterId,
+      cursor?.kind === 'gas_payment' && cursor.afterStreamCursor,
       9_007_199_254_740_993n,
     );
     assert.deepEqual(message.streams[0]?.domains, new Set([1]));
+    assert.equal(message.streams[0]?.streamCursorVersion, 1);
+  });
+
+  void it('rejects physical row ID and unversioned gas cursors', () => {
+    for (const stream of [
+      {
+        cursors: [
+          {
+            address: '0x0000000000000000000000000000000000000001',
+            afterId: '1',
+            domain: 1,
+          },
+        ],
+        eventType: 'gas_payment',
+        streamCursorVersion: 1,
+      },
+      {
+        cursors: [
+          {
+            address: '0x0000000000000000000000000000000000000001',
+            afterStreamCursor: '1',
+            domain: 1,
+          },
+        ],
+        eventType: 'gas_payment',
+      },
+    ]) {
+      assert.throws(() =>
+        parseClientMessage(
+          JSON.stringify({ streams: [stream], type: 'subscribe' }),
+        ),
+      );
+    }
   });
 
   void it('rejects native sequence fields on gas payment cursors', () => {
@@ -158,6 +192,7 @@ void describe('event websocket protocol', () => {
                     },
                   ],
                   eventType: 'gas_payment',
+                  streamCursorVersion: 1,
                 },
               ],
               type: 'subscribe',

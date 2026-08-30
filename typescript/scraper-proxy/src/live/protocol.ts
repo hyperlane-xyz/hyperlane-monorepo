@@ -10,7 +10,8 @@ export const SEQUENCED_EVENT_TYPES = [
   'dispatch',
   'merkle_tree_insertion',
 ] as const;
-export const ROW_ID_EVENT_TYPES = ['gas_payment'] as const;
+export const GAS_PAYMENT_CURSOR_EVENT_TYPES = ['gas_payment'] as const;
+export const STREAM_CURSOR_VERSIONS = { gas_payment: 1 } as const;
 
 const CURSOR_ADDRESS = /^(?:0x|\\x)?(?:[\da-fA-F]{40}|[\da-fA-F]{64})$/;
 
@@ -23,17 +24,18 @@ export type SequenceCursor = {
   domain: number;
   kind: 'sequence';
 };
-export type RowIdCursor = {
+export type GasPaymentCursor = {
   address: string;
-  afterId?: bigint;
+  afterStreamCursor?: bigint;
   domain: number;
-  kind: 'row_id';
+  kind: 'gas_payment';
 };
-export type StreamCursor = RowIdCursor | SequenceCursor;
+export type StreamCursor = GasPaymentCursor | SequenceCursor;
 export type StreamRequest = {
   cursors?: StreamCursor[];
   domains?: Set<number>;
   eventType: EventType;
+  streamCursorVersion?: number;
 };
 export type ClientMessage =
   | { type: 'ping' }
@@ -148,8 +150,20 @@ function parseStream(value: unknown): StreamRequest {
   if (!isRecord(value) || !isEventType(value.eventType)) {
     throw new Error('Invalid eventType');
   }
-  if (value.afterId !== undefined)
-    throw new Error('afterId must be specified within a cursor');
+  if (value.afterId !== undefined || value.afterStreamCursor !== undefined) {
+    throw new Error('cursor positions must be specified within a cursor');
+  }
+  let streamCursorVersion: number | undefined;
+  if (value.eventType === 'gas_payment') {
+    if (value.streamCursorVersion !== STREAM_CURSOR_VERSIONS.gas_payment) {
+      throw new Error(
+        `gas_payment requires streamCursorVersion ${STREAM_CURSOR_VERSIONS.gas_payment}`,
+      );
+    }
+    streamCursorVersion = STREAM_CURSOR_VERSIONS.gas_payment;
+  } else if (value.streamCursorVersion !== undefined) {
+    throw new Error('streamCursorVersion is unsupported for this stream');
+  }
 
   let domains: Set<number> | undefined;
   if (value.domains !== undefined) {
@@ -170,8 +184,8 @@ function parseStream(value: unknown): StreamRequest {
     }
     if (isSequencedEventType(value.eventType)) {
       cursors = value.cursors.map(parseSequenceCursor);
-    } else if (isRowIdEventType(value.eventType)) {
-      cursors = value.cursors.map(parseRowIdCursor);
+    } else if (isGasPaymentCursorEventType(value.eventType)) {
+      cursors = value.cursors.map(parseGasPaymentCursor);
     } else {
       throw new Error('cursors are unsupported for this stream');
     }
@@ -184,7 +198,12 @@ function parseStream(value: unknown): StreamRequest {
     }
     domains ??= cursorDomains;
   }
-  return { cursors, domains, eventType: value.eventType };
+  return {
+    cursors,
+    domains,
+    eventType: value.eventType,
+    streamCursorVersion,
+  };
 }
 
 function parseSequenceCursor(value: unknown): SequenceCursor {
@@ -200,8 +219,11 @@ function parseSequenceCursor(value: unknown): SequenceCursor {
   ) {
     throw new Error('allowReplay must be a boolean');
   }
-  if (value.afterId !== undefined)
-    throw new Error('afterId is unsupported for native sequence cursors');
+  if (value.afterId !== undefined || value.afterStreamCursor !== undefined) {
+    throw new Error(
+      'stream cursor fields are unsupported for sequence cursors',
+    );
+  }
   return {
     address: normalizeSequenceAddress(value.address),
     allowReplay: value.allowReplay,
@@ -218,30 +240,33 @@ function parseSequenceCursor(value: unknown): SequenceCursor {
   };
 }
 
-function parseRowIdCursor(value: unknown): RowIdCursor {
+function parseGasPaymentCursor(value: unknown): GasPaymentCursor {
   if (!isRecord(value) || !isDomain(value.domain)) {
-    throw new Error('Invalid row ID cursor domain');
+    throw new Error('Invalid gas payment cursor domain');
   }
   if (!isCursorAddress(value.address)) {
-    throw new Error('Invalid row ID cursor address');
+    throw new Error('Invalid gas payment cursor address');
   }
   if (value.afterSequence !== undefined || value.allowReplay !== undefined) {
+    throw new Error('native sequence fields are unsupported for gas cursors');
+  }
+  if (value.afterId !== undefined) {
     throw new Error(
-      'native sequence fields are unsupported for row ID cursors',
+      'afterId is unsupported; use negotiated afterStreamCursor semantics',
     );
   }
   return {
     address: normalizeSequenceAddress(value.address),
-    afterId:
-      value.afterId === undefined
+    afterStreamCursor:
+      value.afterStreamCursor === undefined
         ? undefined
         : parseInteger(
-            value.afterId,
+            value.afterStreamCursor,
             0,
-            'afterId must be a non-negative integer string',
+            'afterStreamCursor must be a non-negative integer string',
           ),
     domain: value.domain,
-    kind: 'row_id',
+    kind: 'gas_payment',
   };
 }
 
@@ -272,10 +297,12 @@ export function isSequencedEventType(
   return SEQUENCED_EVENT_TYPES.some((eventType) => eventType === value);
 }
 
-export function isRowIdEventType(
+export function isGasPaymentCursorEventType(
   value: EventType,
-): value is (typeof ROW_ID_EVENT_TYPES)[number] {
-  return ROW_ID_EVENT_TYPES.some((eventType) => eventType === value);
+): value is (typeof GAS_PAYMENT_CURSOR_EVENT_TYPES)[number] {
+  return GAS_PAYMENT_CURSOR_EVENT_TYPES.some(
+    (eventType) => eventType === value,
+  );
 }
 
 export function isCursorAddress(value: unknown): value is string {
