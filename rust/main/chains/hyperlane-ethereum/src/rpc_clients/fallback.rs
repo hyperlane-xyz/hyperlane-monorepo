@@ -203,8 +203,9 @@ where
     C: JsonRpcClient<Error = HttpClientError>
         + Into<JsonRpcBlockGetter<C>>
         + PrometheusConfigExt
-        + Clone,
-    JsonRpcBlockGetter<C>: BlockNumberGetter,
+        + Clone
+        + 'static,
+    JsonRpcBlockGetter<C>: BlockNumberGetter + 'static,
 {
     type Error = ProviderError;
 
@@ -237,8 +238,9 @@ where
     C: JsonRpcClient<Error = HttpClientError>
         + Into<JsonRpcBlockGetter<C>>
         + PrometheusConfigExt
-        + Clone,
-    JsonRpcBlockGetter<C>: BlockNumberGetter,
+        + Clone
+        + 'static,
+    JsonRpcBlockGetter<C>: BlockNumberGetter + 'static,
 {
     async fn fallback_hedged<T, R>(
         &self,
@@ -468,14 +470,24 @@ where
         Box::pin(async move {
             let provider = &self.inner.providers[priority.index];
             let provider_host = provider.node_host().to_owned();
-            let response = match timeout(attempt_timeout, async {
-                let (_, response) = Self::provider_request(provider, method, params).await;
-                let _ = self.handle_stalled_provider(&priority, provider).await;
-                response
-            })
+            let response = match timeout(
+                attempt_timeout,
+                Self::provider_request(provider, method, params),
+            )
             .await
             {
-                Ok(response) => AttemptResponse::Rpc(response),
+                Ok((_, response)) => {
+                    let fallback = self.provider.clone();
+                    let provider = provider.clone();
+                    let _probe = tokio::spawn(async move {
+                        if let Err(error) =
+                            fallback.handle_stalled_provider(&priority, &provider).await
+                        {
+                            tracing::debug!(?error, "stalled_provider_probe_failed");
+                        }
+                    });
+                    AttemptResponse::Rpc(response)
+                }
                 Err(_) => AttemptResponse::TimedOut,
             };
             HedgedAttempt {

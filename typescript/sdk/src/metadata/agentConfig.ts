@@ -327,7 +327,6 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
   .refine(
     (metadata) =>
       metadata.fallbackHedgeDelayMillis === undefined ||
-      metadata.rpcConsensusType === undefined ||
       metadata.rpcConsensusType === RpcConsensusType.Fallback,
     {
       message: 'fallback RPC hedging requires fallback RPC consensus',

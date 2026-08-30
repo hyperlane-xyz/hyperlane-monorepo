@@ -23,6 +23,7 @@ type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
 #[derive(Clone, Debug, Default)]
 pub struct EthereumProviderMockResponses {
     pub get_block_number: ResponseList<Option<u64>>,
+    pub get_block_number_sleep: Arc<Mutex<Option<Duration>>>,
     pub get_tx_receipt: ResponseList<Option<TransactionReceipt>>,
     pub send_raw_transaction: ResponseList<Option<u64>>,
     pub immutable_read: ResponseList<MockReadResponse>,
@@ -88,6 +89,10 @@ impl JsonRpcClient for EthereumProviderMock {
         }
         tracing::debug!("Called {method}");
         if method == BLOCK_NUMBER_RPC {
+            let sleep_duration = *self.responses.get_block_number_sleep.lock().unwrap();
+            if let Some(sleep_duration) = sleep_duration {
+                sleep(sleep_duration).await;
+            }
             let resp = match self.responses.get_block_number.lock().unwrap().pop_front() {
                 Some(s) => s,
                 None => return dummy_error_return_value(),

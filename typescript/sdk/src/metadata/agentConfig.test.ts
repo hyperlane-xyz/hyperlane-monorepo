@@ -176,6 +176,7 @@ describe('AgentChainMetadataSchema fallback hedging', () => {
   it('parses positive fallback hedge settings', () => {
     const result = AgentChainMetadataSchema.safeParse({
       ...baseChainMetadata,
+      rpcConsensusType: RpcConsensusType.Fallback,
       fallbackHedgeDelayMillis: 250,
       fallbackHedgeTimeoutMillis: 30_000,
     });
@@ -210,6 +211,15 @@ describe('AgentChainMetadataSchema fallback hedging', () => {
       AgentChainMetadataSchema.safeParse({
         ...baseChainMetadata,
         rpcConsensusType: RpcConsensusType.Single,
+        fallbackHedgeDelayMillis: 250,
+      }).success,
+    ).to.be.false;
+  });
+
+  it('rejects fallback hedging without explicit fallback RPC consensus', () => {
+    expect(
+      AgentChainMetadataSchema.safeParse({
+        ...baseChainMetadata,
         fallbackHedgeDelayMillis: 250,
       }).success,
     ).to.be.false;

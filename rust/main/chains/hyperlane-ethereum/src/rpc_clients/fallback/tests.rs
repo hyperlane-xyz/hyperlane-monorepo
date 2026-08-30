@@ -14,8 +14,9 @@ where
     C: JsonRpcClient<Error = HttpClientError>
         + PrometheusConfigExt
         + Into<JsonRpcBlockGetter<C>>
-        + Clone,
-    JsonRpcBlockGetter<C>: BlockNumberGetter,
+        + Clone
+        + 'static,
+    JsonRpcBlockGetter<C>: BlockNumberGetter + 'static,
 {
     async fn fallback_test_call(&self) -> u64 {
         self.request::<_, u64>(BLOCK_NUMBER_RPC, ()).await.unwrap()
@@ -295,6 +296,46 @@ async fn per_attempt_timeout_prevents_all_hung_providers_from_blocking() {
     .expect("per-attempt timeouts should bound all provider attempts")
     .expect_err("all timed-out attempts should fail");
     assert_eq!(ProviderMock::get_call_counts(&provider).await, vec![2, 2]);
+}
+
+#[tokio::test]
+async fn successful_read_is_not_timed_out_by_stalled_provider_probe() {
+    let providers = vec![EthereumProviderMock::new(None)];
+    push_read_response(&providers[0], MockReadResponse::Success(1));
+    providers[0]
+        .responses
+        .get_block_number
+        .lock()
+        .unwrap()
+        .push_back(Some(100));
+    *providers[0]
+        .responses
+        .get_block_number_sleep
+        .lock()
+        .unwrap() = Some(Duration::from_millis(200));
+    let fallback = FallbackProviderBuilder::default()
+        .add_providers(providers)
+        .with_max_block_time(Duration::ZERO)
+        .with_call_timeout(Duration::from_millis(100))
+        .build();
+    let provider = EthereumFallbackProvider::new(fallback, false).with_hedging(
+        Some(hedge_config(
+            Duration::from_millis(5),
+            Duration::from_millis(10),
+        )),
+        None,
+    );
+
+    assert_eq!(
+        timeout(
+            Duration::from_millis(50),
+            provider.get_block_by_hash_test_call()
+        )
+        .await
+        .expect("stalled health probe blocked the completed read")
+        .unwrap(),
+        1
+    );
 }
 
 #[tokio::test]
