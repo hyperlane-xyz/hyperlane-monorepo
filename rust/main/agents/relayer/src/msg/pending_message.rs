@@ -632,8 +632,8 @@ impl PendingOperation for PendingMessage {
         self.persist_retry_state(Some(delay), None);
     }
 
-    fn reset_attempts(&mut self) {
-        self.reset_attempts();
+    fn reset_attempts(&mut self) -> bool {
+        self.reset_attempts()
     }
 
     fn set_retries(&mut self, retries: u32) {
@@ -701,12 +701,32 @@ impl PendingMessage {
     ) -> Option<Self> {
         let retry_state = Self::get_retry_state(ctx.origin_db.clone(), &message);
         let legacy_num_retries = Self::get_num_retries(ctx.origin_db.clone(), &message);
-        let (num_retries, retry_state) =
+        let (num_retries, mut retry_state) =
             Self::reconcile_retry_state(retry_state, legacy_num_retries, &message.id());
         if Self::should_skip(num_retries, max_retries) {
             return None;
         }
         let mut message_status = Self::get_message_status(ctx.origin_db.clone(), &message);
+        // Old binaries persist Manual status without clearing the versioned deadline. On
+        // roll-forward the operator's manual retry remains authoritative at equal counts.
+        if message_status == PendingOperationStatus::Retry(ReprepareReason::Manual)
+            && retry_state
+                .as_ref()
+                .is_some_and(|state| state.next_attempt_at_millis.is_some())
+        {
+            let normalized = PendingMessageRetryState::new(num_retries, None, None, None);
+            if let Err(err) = ctx
+                .origin_db
+                .store_pending_message_retry_state_and_status_by_message_id(
+                    &message.id(),
+                    &normalized,
+                    &message_status,
+                )
+            {
+                warn!(message_id = ?message.id(), %err, "Failed to normalize legacy manual retry state");
+            }
+            retry_state = Some(normalized);
+        }
         let reprepare_reason = match &message_status {
             PendingOperationStatus::Retry(r) => Some(r.clone()),
             _ => None,
@@ -1155,7 +1175,7 @@ impl PendingMessage {
         Ok(())
     }
 
-    fn reset_attempts(&mut self) {
+    fn reset_attempts(&mut self) -> bool {
         self.next_attempt_after = None;
         self.last_attempted_at = Instant::now();
         let status = self.status.clone();
@@ -1170,7 +1190,9 @@ impl PendingMessage {
             )
         {
             warn!(message_id = ?self.message.id(), err = %e, "Persisting manual retry reset failed for message");
+            return false;
         }
+        true
     }
 
     fn inc_attempts(&mut self, reason: Option<&ReprepareReason>) {
@@ -1615,6 +1637,42 @@ mod test {
         );
         assert!(remaining.duration_since(Instant::now()) <= Duration::from_secs(10));
 
+        // Simulate an old binary applying a manual retry after the v1 record was
+        // written at the same count. Roll-forward must not restore its stale deadline.
+        let stale_manual_state = PendingMessageRetryState::new(
+            2,
+            Some(unix_millis(SystemTime::now() + Duration::from_secs(60))),
+            Some(60_000),
+            Some(ReprepareReason::ErrorSubmitting),
+        );
+        base_db
+            .store_pending_message_retry_state_by_message_id(&message.id(), &stale_manual_state)
+            .expect("store stale manual retry state");
+        base_db
+            .store_status_by_message_id(
+                &message.id(),
+                &PendingOperationStatus::Retry(ReprepareReason::Manual),
+            )
+            .expect("store legacy manual status");
+        let manual_roll_forward = PendingMessage::maybe_from_persisted_retries(
+            message.clone(),
+            ctx.clone(),
+            None,
+            DEFAULT_MAX_MESSAGE_RETRIES,
+        )
+        .expect("restore legacy manual retry");
+        assert_eq!(manual_roll_forward.next_attempt_after(), None);
+        assert_eq!(
+            manual_roll_forward.status(),
+            PendingOperationStatus::Retry(ReprepareReason::Manual)
+        );
+        let normalized = base_db
+            .retrieve_pending_message_retry_state_by_message_id(&message.id())
+            .expect("read normalized manual state")
+            .expect("normalized manual state");
+        assert_eq!(normalized.next_attempt_at_millis, None);
+        assert_eq!(normalized.reason, None);
+
         let deadline = SystemTime::now() + Duration::from_secs(60);
         let state = PendingMessageRetryState::new(
             3,
@@ -1651,7 +1709,7 @@ mod test {
         assert!(remaining <= Duration::from_secs(60));
 
         restored.set_status(PendingOperationStatus::Retry(ReprepareReason::Manual));
-        restored.reset_attempts();
+        assert!(restored.reset_attempts());
         assert_eq!(
             base_db
                 .retrieve_status_by_message_id(&message.id())
