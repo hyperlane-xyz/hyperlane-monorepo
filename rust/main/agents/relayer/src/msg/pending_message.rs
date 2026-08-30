@@ -18,7 +18,7 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument
 
 use hyperlane_base::{
     cache::{FunctionCallCache, LocalCache, MeteredCache, OptionalCache},
-    db::{HyperlaneDb, PendingMessageRetryState},
+    db::{HyperlaneDb, HyperlaneRocksDB, PendingMessageRetryState},
 };
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
@@ -110,12 +110,14 @@ pub struct MessageContext {
 pub(super) struct LoadedMessageGuard {
     message_id: H256,
     loaded_messages: Arc<Mutex<HashSet<H256>>>,
+    db: HyperlaneRocksDB,
 }
 
 impl LoadedMessageGuard {
     pub(super) fn try_acquire(
         message_id: H256,
         loaded_messages: Arc<Mutex<HashSet<H256>>>,
+        db: HyperlaneRocksDB,
     ) -> Option<Self> {
         if !loaded_messages.lock().insert(message_id) {
             return None;
@@ -123,7 +125,12 @@ impl LoadedMessageGuard {
         Some(Self {
             message_id,
             loaded_messages,
+            db,
         })
+    }
+
+    fn mark_terminal(&self) -> hyperlane_base::db::DbResult<()> {
+        self.db.store_terminally_dropped_message(&self.message_id)
     }
 }
 
@@ -194,6 +201,16 @@ pub struct PendingMessage {
 impl PendingMessage {
     pub(super) fn set_loaded_message_guard(&mut self, guard: LoadedMessageGuard) {
         self.loaded_message_guard = Some(guard);
+    }
+
+    pub(super) fn terminal_drop(&mut self) -> PendingOperationResult {
+        if let Some(guard) = self.loaded_message_guard.as_ref() {
+            if let Err(err) = guard.mark_terminal() {
+                return self
+                    .on_reprepare(Some(err), ReprepareReason::ErrorPersistingTerminalMessage);
+            }
+        }
+        PendingOperationResult::Drop
     }
 }
 
@@ -355,7 +372,7 @@ impl PendingOperation for PendingMessage {
                 recipient=?self.message.recipient,
                 "Dropping message because recipient is not a contract"
             );
-            return PendingOperationResult::Drop;
+            return self.terminal_drop();
         }
 
         // Perform a preflight check to see if we can short circuit the gas
@@ -1165,7 +1182,7 @@ impl PendingMessage {
         result
     }
 
-    fn reprepare_or_drop(&self, reason: ReprepareReason) -> PendingOperationResult {
+    fn reprepare_or_drop(&mut self, reason: ReprepareReason) -> PendingOperationResult {
         // For fail-fast messages (relay API), drop immediately once the retry budget is
         // exceeded. Without this check, a small max_retries value (e.g. 3) would still
         // hit the fixed early-backoff arms (1 => 5s, 2 => 10s, ...) rather than dropping.
@@ -1177,7 +1194,7 @@ impl PendingMessage {
                 max_retries = self.max_retries,
                 "Relay API message exceeded max retries, dropping"
             );
-            return PendingOperationResult::Drop;
+            return self.terminal_drop();
         }
         PendingOperationResult::Reprepare(reason)
     }

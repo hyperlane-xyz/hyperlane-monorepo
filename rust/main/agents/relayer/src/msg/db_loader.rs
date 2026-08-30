@@ -687,11 +687,26 @@ impl MessageDbLoader {
             return Ok(true);
         }
 
+        self.metrics
+            .logical_db_reads
+            .with_label_values(&[
+                self.metrics.origin.as_str(),
+                destination_label.as_ref(),
+                "destination_index",
+                "terminal",
+            ])
+            .inc();
+        if self.db.retrieve_terminally_dropped_message(&message.id())? {
+            self.destination_iterators[iterator_index].advance(direction, nonce);
+            return Ok(true);
+        }
+
         let Some(loaded_message_guard) = LoadedMessageGuard::try_acquire(
             message.id(),
             self.destination_iterators[iterator_index]
                 .loaded_messages
                 .clone(),
+            self.db.clone(),
         ) else {
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);

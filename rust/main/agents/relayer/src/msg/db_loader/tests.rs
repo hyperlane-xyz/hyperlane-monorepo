@@ -13,7 +13,7 @@ use hyperlane_base::{
     db::{test_utils, DbError, HyperlaneRocksDB},
     tests::mock_hyperlane_db::MockHyperlaneDb as MockDb,
 };
-use hyperlane_core::{test_utils::dummy_domain, PendingOperationStatus};
+use hyperlane_core::{test_utils::dummy_domain, PendingOperationResult, PendingOperationStatus};
 use hyperlane_operation_verifier::{
     ApplicationOperationVerifier, ApplicationOperationVerifierReport,
 };
@@ -402,6 +402,100 @@ async fn reopened_low_range_does_not_duplicate_in_flight_message() {
         assert!(receiver.try_recv().is_err(), "high message was duplicated");
 
         drop(high_operation);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn notification_after_terminal_drop_does_not_reload_message() {
+    test_utils::run_test_db(|db| async move {
+        let origin_domain = dummy_domain(0, "dummy_origin_domain");
+        let destination_domain = dummy_domain(1, "dummy_destination_domain");
+        let db = HyperlaneRocksDB::new(&origin_domain, db);
+        let (mut loader, receiver) = dummy_message_loader(
+            &origin_domain,
+            &destination_domain,
+            &db,
+            OptionalCache::new(None),
+        );
+        finish_legacy_migration(&mut loader).await;
+
+        let message = dummy_hyperlane_message(&destination_domain, 1);
+        add_db_entry(&db, &message, 0);
+        let guard = LoadedMessageGuard::try_acquire(
+            message.id(),
+            loader.destination_iterators[0].loaded_messages.clone(),
+            db.clone(),
+        )
+        .expect("acquire loaded-message guard");
+        let mut pending_message = PendingMessage::new(
+            message.clone(),
+            loader.destination_ctxs[&destination_domain.id()].clone(),
+            PendingOperationStatus::FirstPrepareAttempt,
+            None,
+            DEFAULT_MAX_MESSAGE_RETRIES,
+        );
+        pending_message.set_loaded_message_guard(guard);
+        assert!(matches!(
+            pending_message.terminal_drop(),
+            PendingOperationResult::Drop
+        ));
+        drop(pending_message);
+        assert!(db
+            .retrieve_terminally_dropped_message(&message.id())
+            .unwrap());
+        drop(loader);
+        drop(receiver);
+
+        let (notification_sender, notification_receiver) = mpsc::channel(1);
+        let (mut restarted_loader, mut restarted_receiver) =
+            dummy_message_loader_with_notifications(
+                &origin_domain,
+                &destination_domain,
+                &db,
+                OptionalCache::new(None),
+                Some(notification_receiver),
+            );
+        finish_legacy_migration(&mut restarted_loader).await;
+        assert!(restarted_loader.try_load_destination(0).await.unwrap());
+        assert!(
+            restarted_receiver.try_recv().is_err(),
+            "terminal message was reloaded after restart"
+        );
+
+        restarted_loader.destination_iterators[0].low_nonce = None;
+        notification_sender
+            .send(H512::from_low_u64_be(1))
+            .await
+            .expect("send index notification");
+        restarted_loader.drain_index_notifications();
+        assert!(restarted_loader.try_load_destination(0).await.unwrap());
+        assert!(
+            restarted_receiver.try_recv().is_err(),
+            "terminal message was reloaded"
+        );
+
+        let terminal_message_id = message.id();
+        let mut replacement = message;
+        replacement.body.push(1);
+        db.upsert_message(&replacement, 0).unwrap();
+        assert!(!db
+            .retrieve_terminally_dropped_message(&terminal_message_id)
+            .unwrap());
+        restarted_loader.destination_iterators[0].low_nonce = None;
+        notification_sender
+            .send(H512::from_low_u64_be(2))
+            .await
+            .expect("send replacement notification");
+        restarted_loader.drain_index_notifications();
+        assert!(restarted_loader.try_load_destination(0).await.unwrap());
+        assert_eq!(
+            restarted_receiver
+                .try_recv()
+                .expect("replacement operation")
+                .id(),
+            replacement.id()
+        );
     })
     .await;
 }

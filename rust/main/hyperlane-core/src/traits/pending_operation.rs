@@ -307,6 +307,9 @@ pub enum ReprepareReason {
     #[strum(to_string = "Failed to retrieve payload uuid status by message id")]
     /// Failed to retrieve payload status by message id
     ErrorRetrievingPayloadStatus,
+    #[strum(to_string = "Failed to persist terminal message state")]
+    /// Failed to persist that a message reached a terminal outcome
+    ErrorPersistingTerminalMessage,
     #[strum(to_string = "Failed to create payload success criteria")]
     /// Failed to create payload success criteria
     ErrorCreatingPayloadSuccessCriteria,
