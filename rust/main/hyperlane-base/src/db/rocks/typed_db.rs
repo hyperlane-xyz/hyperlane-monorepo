@@ -59,6 +59,60 @@ impl TypedDB {
         )
     }
 
+    pub(crate) fn store_and_delete_batch(
+        &self,
+        entries: impl IntoIterator<Item = (Vec<u8>, Vec<u8>, Vec<u8>)>,
+        deletions: impl IntoIterator<Item = (Vec<u8>, Vec<u8>)>,
+    ) -> Result<()> {
+        self.db.store_and_delete_batch(
+            entries
+                .into_iter()
+                .map(|(prefix, key, value)| (self.prefixed_key(&prefix, &key), value)),
+            deletions
+                .into_iter()
+                .map(|(prefix, key)| self.prefixed_key(&prefix, &key)),
+        )
+    }
+
+    pub(crate) fn retrieve_by_prefix_at_or_after<V: Decode>(
+        &self,
+        prefix: impl AsRef<[u8]>,
+        key: impl AsRef<[u8]>,
+    ) -> Result<Option<(Vec<u8>, V)>> {
+        self.retrieve_by_prefix_from(prefix.as_ref(), key.as_ref(), true)
+    }
+
+    pub(crate) fn retrieve_by_prefix_at_or_before<V: Decode>(
+        &self,
+        prefix: impl AsRef<[u8]>,
+        key: impl AsRef<[u8]>,
+    ) -> Result<Option<(Vec<u8>, V)>> {
+        self.retrieve_by_prefix_from(prefix.as_ref(), key.as_ref(), false)
+    }
+
+    fn retrieve_by_prefix_from<V: Decode>(
+        &self,
+        prefix: &[u8],
+        key: &[u8],
+        forward: bool,
+    ) -> Result<Option<(Vec<u8>, V)>> {
+        let full_prefix = self.prefixed_key(prefix, &[]);
+        let start = self.prefixed_key(prefix, key);
+        let entry = if forward {
+            self.db.retrieve_at_or_after(&start)?
+        } else {
+            self.db.retrieve_at_or_before(&start)?
+        };
+        let Some((stored_key, value)) = entry else {
+            return Ok(None);
+        };
+        let Some(suffix) = stored_key.strip_prefix(full_prefix.as_slice()) else {
+            return Ok(None);
+        };
+        let value = V::read_from(&mut value.as_slice())?;
+        Ok(Some((suffix.to_vec(), value)))
+    }
+
     /// Store encodable value
     pub fn store_encodable<V: Encode>(
         &self,

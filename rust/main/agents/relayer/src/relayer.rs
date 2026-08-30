@@ -51,7 +51,7 @@ use crate::{
     metrics::message_submission::MessageSubmissionMetrics,
     msg::{
         blacklist::AddressBlacklist,
-        db_loader::{MessageDbLoader, MessageDbLoaderMetrics},
+        db_loader::{MessageDbLoader, MessageDbLoaderMetricsShared},
         message_processor::{
             MessageProcessor, MessageProcessorMetrics, MESSAGE_PROCESSOR_INGRESS_CAPACITY,
         },
@@ -445,6 +445,8 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started processors", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
+        let message_db_loader_metrics = MessageDbLoaderMetricsShared::new(&self.core.metrics)
+            .expect("Creating message DB loader metrics is infallible");
         for (origin_domain, origin) in self.origins.iter() {
             let maybe_broadcaster = origin.message_sync.get_broadcaster();
 
@@ -511,6 +513,7 @@ impl BaseAgent for Relayer {
                 send_channels.clone(),
                 BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
                 task_monitor.clone(),
+                &message_db_loader_metrics,
             ) {
                 Ok(task) => task,
                 Err(err) => {
@@ -916,8 +919,9 @@ impl Relayer {
         send_channels: HashMap<u32, Sender<QueueOperationBatch>>,
         index_notifications: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
+        shared_metrics: &MessageDbLoaderMetricsShared,
     ) -> eyre::Result<JoinHandle<()>> {
-        let metrics = MessageDbLoaderMetrics::new(&self.core.metrics, &origin.domain);
+        let metrics = shared_metrics.for_origin(&self.core.metrics, &origin.domain);
         let destination_ctxs: HashMap<_, _> = self
             .destinations
             .keys()
