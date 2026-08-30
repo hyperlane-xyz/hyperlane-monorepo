@@ -243,6 +243,7 @@ pub(crate) struct MerkleTreeHookWebSocketSync {
 }
 
 impl MerkleTreeHookWebSocketSync {
+    #[cfg(test)]
     pub(crate) fn new(
         db: HyperlaneRocksDB,
         domain: u32,
@@ -788,7 +789,7 @@ impl MerkleTreeHookWebSocketSync {
             .cursor_state
             .lock()
             .map_err(|_| eyre!("Merkle tree cursor lock poisoned"))?;
-        if (*persisted).map_or(true, |sequence| next_sequence > sequence) {
+        if (*persisted).is_none_or(|sequence| next_sequence > sequence) {
             self.db
                 .store_value_by_key(NEXT_SEQUENCE_KEY, &false, &next_sequence)?;
             *persisted = Some(next_sequence);
