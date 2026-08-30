@@ -1,9 +1,12 @@
-use std::{cmp::Reverse, collections::BinaryHeap, sync::Arc};
+use std::{cmp::Reverse, collections::BinaryHeap, sync::Arc, time::Instant};
 
 use derive_new::new;
 use hyperlane_core::{PendingOperation, PendingOperationStatus, QueueOperation, ReprepareReason};
 use prometheus::{IntGauge, IntGaugeVec};
-use tokio::sync::{broadcast::Receiver, Mutex};
+use tokio::{
+    sync::{broadcast::Receiver, Mutex, Notify},
+    time::sleep_until,
+};
 use tracing::{instrument, trace};
 
 use crate::server::operations::message_retry::{MessageRetryQueueResponse, MessageRetryRequest};
@@ -18,6 +21,10 @@ pub struct OpQueue {
     metrics: IntGaugeVec,
     queue_metrics_label: String,
     retry_receiver: Arc<Mutex<Receiver<MessageRetryRequest>>>,
+    #[new(default)]
+    notify: Arc<Notify>,
+    #[new(default)]
+    space_available: Arc<Notify>,
     #[new(default)]
     pub queue: OperationPriorityQueue,
 }
@@ -34,6 +41,7 @@ impl OpQueue {
         op.set_status_and_update_metrics(new_status, new_metric);
 
         self.queue.lock().await.push(Reverse(op));
+        self.notify.notify_one();
     }
 
     /// Pop an element from the queue and update metrics
@@ -56,6 +64,10 @@ impl OpQueue {
                 break;
             }
         }
+        drop(queue);
+        if !popped.is_empty() {
+            self.space_available.notify_one();
+        }
 
         // This function is called very often by the message processor tasks, so only log when there are operations to pop
         // to avoid spamming the logs
@@ -67,6 +79,70 @@ impl OpQueue {
             );
         }
         popped
+    }
+
+    pub async fn pop_many_ready(&mut self, limit: usize) -> (Vec<QueueOperation>, Option<Instant>) {
+        self.process_retry_requests().await;
+        let now = Instant::now();
+        let mut queue = self.queue.lock().await;
+        let mut popped = Vec::with_capacity(limit.min(queue.len()));
+        while popped.len() < limit {
+            let Some(Reverse(next)) = queue.peek() else {
+                break;
+            };
+            if next
+                .next_attempt_after()
+                .is_some_and(|deadline| deadline > now)
+            {
+                break;
+            }
+            if let Some(Reverse(op)) = queue.pop() {
+                popped.push(op);
+            }
+        }
+        let next_deadline = queue
+            .peek()
+            .and_then(|Reverse(operation)| operation.next_attempt_after());
+        drop(queue);
+        if !popped.is_empty() {
+            self.space_available.notify_one();
+        }
+        (popped, next_deadline)
+    }
+
+    pub async fn wait_for_len_below(&self, limit: usize) {
+        loop {
+            let notified = self.space_available.notified();
+            if self.len().await < limit {
+                return;
+            }
+            notified.await;
+        }
+    }
+
+    pub async fn wait_for_ready(&mut self, deadline: Option<Instant>) {
+        let notify = self.notify.clone();
+        let retry_receiver = self.retry_receiver.clone();
+        let retry_request = async move { retry_receiver.lock().await.recv().await };
+
+        let retry_request = match deadline {
+            Some(deadline) => {
+                tokio::select! {
+                    _ = notify.notified() => None,
+                    _ = sleep_until(deadline.into()) => None,
+                    request = retry_request => request.ok(),
+                }
+            }
+            None => {
+                tokio::select! {
+                    _ = notify.notified() => None,
+                    request = retry_request => request.ok(),
+                }
+            }
+        };
+        if let Some(retry_request) = retry_request {
+            self.process_retry_request_batch(vec![retry_request]).await;
+        }
     }
 
     pub async fn process_retry_requests(&mut self) {
@@ -85,6 +161,14 @@ impl OpQueue {
             return;
         }
 
+        self.process_retry_request_batch(message_retry_requests)
+            .await;
+    }
+
+    async fn process_retry_request_batch(
+        &mut self,
+        message_retry_requests: Vec<MessageRetryRequest>,
+    ) {
         let (retry_responses, queue_length) = {
             let mut queue = self.queue.lock().await;
             let responses = Self::reprioritize_matching(&mut queue, &message_retry_requests);

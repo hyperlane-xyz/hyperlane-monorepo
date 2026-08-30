@@ -29,6 +29,8 @@ pub struct MockPendingOperation {
     destination_domain_id: u32,
     recipient_address: H256,
     seconds_to_next_attempt: u64,
+    #[serde(skip)]
+    fixed_deadline: Option<Instant>,
     destination_domain: HyperlaneDomain,
     retry_count: u32,
     #[serde(skip)]
@@ -42,6 +44,7 @@ impl MockPendingOperation {
         Self {
             id: H256::random(),
             seconds_to_next_attempt,
+            fixed_deadline: None,
             destination_domain_id: destination_domain.id(),
             destination_domain,
             sender_address: H256::random(),
@@ -61,6 +64,7 @@ impl MockPendingOperation {
             origin_domain_id: message.origin,
             destination_domain_id: message.destination,
             seconds_to_next_attempt: 0,
+            fixed_deadline: None,
             retry_count: 0,
             reset_succeeds: true,
             destination_domain: HyperlaneDomain::Unknown {
@@ -115,6 +119,12 @@ impl MockPendingOperation {
         self.reset_succeeds = false;
         self
     }
+
+    fn with_fixed_deadline(mut self) -> Self {
+        self.fixed_deadline =
+            Instant::now().checked_add(Duration::from_secs(self.seconds_to_next_attempt));
+        self
+    }
 }
 
 impl TryBatchAs<HyperlaneMessage> for MockPendingOperation {}
@@ -137,6 +147,9 @@ impl PendingOperation for MockPendingOperation {
             return false;
         }
         self.seconds_to_next_attempt = 0;
+        if self.fixed_deadline.is_some() {
+            self.fixed_deadline = Some(Instant::now());
+        }
         true
     }
 
@@ -216,11 +229,9 @@ impl PendingOperation for MockPendingOperation {
     }
 
     fn next_attempt_after(&self) -> Option<Instant> {
-        Some(
-            Instant::now()
-                .checked_add(Duration::from_secs(self.seconds_to_next_attempt))
-                .unwrap(),
-        )
+        self.fixed_deadline.or_else(|| {
+            Instant::now().checked_add(Duration::from_secs(self.seconds_to_next_attempt))
+        })
     }
 
     fn set_next_attempt_after(&mut self, _delay: Duration) {
@@ -309,6 +320,142 @@ fn failed_manual_retry_reset_is_reported_not_matched() {
 
     assert_eq!(responses[0].matched, 0);
     assert_eq!(responses[0].failed, 1);
+}
+
+#[tokio::test]
+async fn ready_wait_wakes_for_new_earlier_operation() {
+    let broadcaster = sync::broadcast::Sender::new(10);
+    let mut waiting_queue = initialize_queue(&broadcaster);
+    waiting_queue
+        .push(
+            Box::new(
+                MockPendingOperation::new(60, KnownHyperlaneDomain::Base.into())
+                    .with_fixed_deadline(),
+            ),
+            Some(PendingOperationStatus::FirstPrepareAttempt),
+        )
+        .await;
+    let producer = waiting_queue.clone();
+
+    let waiter = tokio::spawn(async move {
+        loop {
+            let (batch, deadline) = waiting_queue.pop_many_ready(1).await;
+            if !batch.is_empty() {
+                break batch;
+            }
+            waiting_queue.wait_for_ready(deadline).await;
+        }
+    });
+    tokio::task::yield_now().await;
+    let ready_operation =
+        MockPendingOperation::new(0, KnownHyperlaneDomain::Base.into()).with_fixed_deadline();
+    let ready_operation_id = ready_operation.id();
+    producer
+        .push(
+            Box::new(ready_operation),
+            Some(PendingOperationStatus::FirstPrepareAttempt),
+        )
+        .await;
+
+    let batch = tokio::time::timeout(Duration::from_secs(1), waiter)
+        .await
+        .expect("earlier insertion must wake the queue")
+        .expect("wait task must not panic");
+    assert_eq!(batch.len(), 1);
+    assert_eq!(batch[0].id(), ready_operation_id);
+}
+
+#[tokio::test]
+async fn ready_wait_wakes_for_manual_retry() {
+    let broadcaster = sync::broadcast::Sender::new(10);
+    let mut waiting_queue = initialize_queue(&broadcaster);
+    let operation =
+        MockPendingOperation::new(60, KnownHyperlaneDomain::Base.into()).with_fixed_deadline();
+    let operation_id = operation.id();
+    waiting_queue
+        .push(
+            Box::new(operation),
+            Some(PendingOperationStatus::FirstPrepareAttempt),
+        )
+        .await;
+    let (response_sender, mut response_receiver) = mpsc::channel(1);
+
+    let waiter = tokio::spawn(async move {
+        loop {
+            let (batch, deadline) = waiting_queue.pop_many_ready(1).await;
+            if !batch.is_empty() {
+                break batch;
+            }
+            waiting_queue.wait_for_ready(deadline).await;
+        }
+    });
+    tokio::task::yield_now().await;
+    broadcaster
+        .send(MessageRetryRequest {
+            uuid: "manual-retry".to_owned(),
+            pattern: MatchingList::with_message_id(operation_id),
+            transmitter: response_sender,
+        })
+        .expect("broadcast retry request");
+
+    let batch = tokio::time::timeout(Duration::from_secs(1), waiter)
+        .await
+        .expect("manual retry must wake the queue")
+        .expect("wait task must not panic");
+    assert_eq!(batch.len(), 1);
+    assert_eq!(batch[0].id(), operation_id);
+    assert_eq!(
+        response_receiver
+            .recv()
+            .await
+            .expect("retry response")
+            .matched,
+        1
+    );
+}
+
+#[tokio::test]
+async fn capacity_wait_wakes_after_pop() {
+    let broadcaster = sync::broadcast::Sender::new(10);
+    let mut queue = initialize_queue(&broadcaster);
+    queue
+        .push(
+            Box::new(MockPendingOperation::new(
+                0,
+                KnownHyperlaneDomain::Base.into(),
+            )),
+            Some(PendingOperationStatus::FirstPrepareAttempt),
+        )
+        .await;
+    let waiter_queue = queue.clone();
+    let waiter = tokio::spawn(async move { waiter_queue.wait_for_len_below(1).await });
+    tokio::task::yield_now().await;
+    assert!(!waiter.is_finished());
+
+    assert!(queue.pop().await.is_some());
+    tokio::time::timeout(Duration::from_secs(1), waiter)
+        .await
+        .expect("capacity waiter should wake after a pop")
+        .expect("wait task must not panic");
+}
+
+#[tokio::test]
+async fn ready_pop_caps_preallocation_to_queue_length() {
+    let broadcaster = sync::broadcast::Sender::new(10);
+    let mut queue = initialize_queue(&broadcaster);
+    queue
+        .push(
+            Box::new(
+                MockPendingOperation::new(0, KnownHyperlaneDomain::Base.into())
+                    .with_fixed_deadline(),
+            ),
+            Some(PendingOperationStatus::FirstPrepareAttempt),
+        )
+        .await;
+
+    let (batch, _) = queue.pop_many_ready(usize::MAX).await;
+
+    assert_eq!(batch.len(), 1);
 }
 
 #[tokio::test]
