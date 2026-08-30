@@ -60,6 +60,9 @@ pub fn dummy_cache_metrics() -> MeteredCacheMetrics {
             &["cache_name", "method", "status"],
         )
         .ok(),
+        entry_count: None,
+        weighted_size_bytes: None,
+        eviction_count: None,
     }
 }
 
