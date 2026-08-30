@@ -15,12 +15,14 @@ const emptyHook = '\\xcccccccccccccccccccccccccccccccccccccccc';
 const budgetHook = '\\xdddddddddddddddddddddddddddddddddddddddd';
 const historyHook = '\\xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
 const pacedHook = '\\xffffffffffffffffffffffffffffffffffffffff';
+const gasPaymaster = '\\x1111111111111111111111111111111111111111';
 const msgId = `\\x${'01'.repeat(32)}`;
 const msgBody = 'x'.repeat(300);
 const rows = new Map([
   ['1', row(hookB)],
   ['2', row(hookA)],
 ]);
+const gasPaymentRows = new Map<string, Record<string, unknown>>();
 let notify: (channel: string, payload?: string) => void;
 const explorerBatchSizes: number[] = [];
 let explorerQuery = '';
@@ -36,6 +38,19 @@ const db: EventDatabase = {
     return async () => undefined;
   },
   async queryLive<T>(sql, values = []) {
+    if (sql.includes('MAX("id")') && sql.includes('"gas_payment"')) {
+      const durable = [...gasPaymentRows.entries()].filter(
+        ([, payment]) =>
+          payment.domain === values[0] &&
+          payment.interchain_gas_paymaster === values[1] &&
+          payment.tx_id != null,
+      );
+      const last = durable.reduce(
+        (max, [id]) => (BigInt(id) > max ? BigInt(id) : max),
+        0n,
+      );
+      return queryRows<T>([{ last: last.toString() }]);
+    }
     if (sql.includes('MIN('))
       return queryRows<T>([
         values[1] === emptyHook
@@ -77,15 +92,39 @@ const db: EventDatabase = {
         return queryRows<T>([row(pacedHook, 0), row(pacedHook, 1)]);
       return queryRows<T>([row(hookA, 0)]);
     }
+    if (
+      !sql.includes('notification_id') &&
+      sql.includes('ORDER BY "id"') &&
+      sql.includes('"gas_payment"')
+    ) {
+      const after = BigInt(String(values[2]));
+      const through = BigInt(String(values[3]));
+      return queryRows<T>(
+        [...gasPaymentRows.entries()]
+          .filter(
+            ([id, payment]) =>
+              payment.domain === values[0] &&
+              payment.interchain_gas_paymaster === values[1] &&
+              payment.tx_id != null &&
+              BigInt(id) > after &&
+              BigInt(id) <= through,
+          )
+          .sort(([left], [right]) => (BigInt(left) < BigInt(right) ? -1 : 1))
+          .slice(0, Number(values[4]))
+          .map(([, payment]) => payment),
+      );
+    }
     if (!sql.includes('notification_id')) return [];
     if (notificationQueryError) throw notificationQueryError;
     const ids = stringArray(values[0]);
     ids.forEach((id) => notifiedIds.add(id));
     return queryRows<T>(
-      ids.map((id) => ({
-        notification_id: id,
-        ...rows.get(id),
-      })),
+      ids.flatMap((id) => {
+        const event = sql.includes('"gas_payment"')
+          ? gasPaymentRows.get(id)
+          : rows.get(id);
+        return event ? [{ notification_id: id, ...event }] : [];
+      }),
     );
   },
 };
@@ -458,6 +497,128 @@ void it('drains live events arriving while the pending buffer is sent', async (c
   assert.deepEqual(eventSequences(messages), ['0', '1', '2', '3']);
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
+});
+
+void it('bounds gas payment row ID replay', async () => {
+  gasPaymentRows.clear();
+  gasPaymentRows.set('10', gasPaymentRow('10', '100'));
+  gasPaymentRows.set('20', gasPaymentRow('20', '200'));
+  gasPaymentRows.set('30', gasPaymentRow('30', '300'));
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [{ address: gasPaymaster, afterId: '0', domain: 1 }],
+              eventType: 'gas_payment',
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+
+  const error = await waitFor(messages, 'error');
+  assert.match(String(error.error), /row limit exceeded/);
+  assert.deepEqual(eventRowIds(messages), []);
+  socket.close();
+  await new Promise<void>((resolve) => socket.once('close', resolve));
+  gasPaymentRows.clear();
+});
+
+void it('replays sparse gas payment row IDs and resumes without duplicates', async (context) => {
+  gasPaymentRows.clear();
+  gasPaymentRows.set('10', gasPaymentRow('10', '100'));
+  gasPaymentRows.set('14', gasPaymentRow('14', null));
+  gasPaymentRows.set('20', gasPaymentRow('20', '200'));
+  const completions = delayServerSendCompletions(context);
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [{ address: gasPaymaster, afterId: '0', domain: 1 }],
+              eventType: 'gas_payment',
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+
+  await waitUntil(() => eventRowIds(messages).includes('10'));
+  await waitUntil(() => completions.length === 1);
+  notify('scraper_event', gasPaymentNotification('14'));
+  gasPaymentRows.set('30', gasPaymentRow('30', '300'));
+  notify('scraper_event', gasPaymentNotification('30'));
+  await waitUntil(() => notifiedIds.has('14') && notifiedIds.has('30'));
+  completions.shift()?.();
+  await waitUntil(() => eventRowIds(messages).includes('20'));
+  await waitUntil(() => completions.length === 1);
+  completions.shift()?.();
+  const caughtUp = await waitFor(messages, 'caught_up');
+  assert.equal(caughtUp.rowId, '20');
+  await waitUntil(() => completions.length === 1);
+  completions.shift()?.();
+  await waitUntil(() => eventRowIds(messages).includes('30'));
+  await waitUntil(() => completions.length === 1);
+  completions.shift()?.();
+  assert.deepEqual(eventRowIds(messages), ['10', '20', '30']);
+
+  socket.close();
+  await new Promise<void>((resolve) => socket.once('close', resolve));
+
+  const resumed = new WebSocket(url);
+  const resumedMessages: Record<string, unknown>[] = [];
+  resumed.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    resumedMessages.push(message);
+    if (message.type === 'ready') {
+      resumed.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [{ address: gasPaymaster, afterId: '30', domain: 1 }],
+              eventType: 'gas_payment',
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+  const resumedMarker = await waitFor(resumedMessages, 'caught_up');
+  assert.equal(resumedMarker.rowId, '30');
+  await waitUntil(() => completions.length === 1);
+  completions.shift()?.();
+
+  notify('scraper_event', gasPaymentNotification('30'));
+  notify('scraper_event', gasPaymentNotification('35'));
+  await waitUntil(() => notifiedIds.has('35'));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(eventRowIds(resumedMessages), []);
+
+  gasPaymentRows.set('42', gasPaymentRow('42', '420'));
+  notify('scraper_event', gasPaymentNotification('42'));
+  await waitUntil(() => eventRowIds(resumedMessages).includes('42'));
+  assert.deepEqual(eventRowIds(resumedMessages), ['42']);
+  await waitUntil(() => completions.length === 1);
+  completions.shift()?.();
+  resumed.close();
+  await new Promise<void>((resolve) => resumed.once('close', resolve));
+  gasPaymentRows.clear();
 });
 
 void it('enforces the catch-up deadline while pending rows replenish', async (context) => {
@@ -1234,6 +1395,30 @@ function row(
   };
 }
 
+function gasPaymentRow(
+  id: string,
+  txId: string | null,
+): Record<string, unknown> {
+  return {
+    destination: 2,
+    domain: 1,
+    gas_amount: '50000',
+    id,
+    interchain_gas_paymaster: gasPaymaster,
+    log_index: '0',
+    msg_id: msgId,
+    origin: 1,
+    payment: '1000',
+    sequence: null,
+    time_created: new Date(0).toISOString(),
+    tx_id: txId,
+  };
+}
+
+function gasPaymentNotification(id: string): string {
+  return JSON.stringify({ domain: 1, eventType: 'gas_payment', id });
+}
+
 function explorerSocket(ip: string): WebSocket {
   return new WebSocket(messagesUrl, {
     headers: { 'cf-connecting-ip': ip },
@@ -1341,6 +1526,12 @@ function eventSequences(messages: Record<string, unknown>[]): unknown[] {
   return messages
     .filter(({ type }) => type === 'event')
     .map(({ sequence }) => sequence);
+}
+
+function eventRowIds(messages: Record<string, unknown>[]): unknown[] {
+  return messages
+    .filter(({ type }) => type === 'event')
+    .map(({ rowId }) => rowId);
 }
 
 function notification(id: string): string {

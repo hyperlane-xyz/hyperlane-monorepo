@@ -90,15 +90,15 @@ void describe('event websocket protocol', () => {
     );
   });
 
-  void it('rejects row ID cursors and cursors on unsequenced streams', () => {
+  void it('rejects stream-level row IDs and cursors on unsupported streams', () => {
     for (const stream of [
       { eventType: 'dispatch', afterId: '1' },
       {
-        eventType: 'gas_payment',
+        eventType: 'delivery',
         cursors: [
           {
             address: '0x0000000000000000000000000000000000000001',
-            afterSequence: '1',
+            afterId: '1',
             domain: 1,
           },
         ],
@@ -108,6 +108,62 @@ void describe('event websocket protocol', () => {
         parseClientMessage(
           JSON.stringify({ type: 'subscribe', streams: [stream] }),
         ),
+      );
+    }
+  });
+
+  void it('parses per-domain gas payment row ID cursors', () => {
+    const message = parseClientMessage(
+      JSON.stringify({
+        streams: [
+          {
+            cursors: [
+              {
+                address: '0x0000000000000000000000000000000000000001',
+                afterId: '9007199254740993',
+                domain: 1,
+              },
+            ],
+            eventType: 'gas_payment',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+
+    assert.equal(message.type, 'subscribe');
+    if (message.type !== 'subscribe') return;
+    const [cursor] = message.streams[0]?.cursors ?? [];
+    assert.equal(cursor?.kind, 'row_id');
+    assert.equal(
+      cursor?.kind === 'row_id' && cursor.afterId,
+      9_007_199_254_740_993n,
+    );
+    assert.deepEqual(message.streams[0]?.domains, new Set([1]));
+  });
+
+  void it('rejects native sequence fields on gas payment cursors', () => {
+    for (const field of [{ afterSequence: '1' }, { allowReplay: true }]) {
+      assert.throws(
+        () =>
+          parseClientMessage(
+            JSON.stringify({
+              streams: [
+                {
+                  cursors: [
+                    {
+                      address: '0x0000000000000000000000000000000000000001',
+                      domain: 1,
+                      ...field,
+                    },
+                  ],
+                  eventType: 'gas_payment',
+                },
+              ],
+              type: 'subscribe',
+            }),
+          ),
+        /native sequence fields/,
       );
     }
   });

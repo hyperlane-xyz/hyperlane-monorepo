@@ -10,6 +10,7 @@ export const SEQUENCED_EVENT_TYPES = [
   'dispatch',
   'merkle_tree_insertion',
 ] as const;
+export const ROW_ID_EVENT_TYPES = ['gas_payment'] as const;
 
 const CURSOR_ADDRESS = /^(?:0x|\\x)?(?:[\da-fA-F]{40}|[\da-fA-F]{64})$/;
 
@@ -20,9 +21,17 @@ export type SequenceCursor = {
   allowReplay?: boolean;
   afterSequence?: bigint;
   domain: number;
+  kind: 'sequence';
 };
+export type RowIdCursor = {
+  address: string;
+  afterId?: bigint;
+  domain: number;
+  kind: 'row_id';
+};
+export type StreamCursor = RowIdCursor | SequenceCursor;
 export type StreamRequest = {
-  cursors?: SequenceCursor[];
+  cursors?: StreamCursor[];
   domains?: Set<number>;
   eventType: EventType;
 };
@@ -139,9 +148,8 @@ function parseStream(value: unknown): StreamRequest {
   if (!isRecord(value) || !isEventType(value.eventType)) {
     throw new Error('Invalid eventType');
   }
-  if (value.afterId !== undefined) {
-    throw new Error('afterId is unsupported; use native sequence cursors');
-  }
+  if (value.afterId !== undefined)
+    throw new Error('afterId must be specified within a cursor');
 
   let domains: Set<number> | undefined;
   if (value.domains !== undefined) {
@@ -155,18 +163,21 @@ function parseStream(value: unknown): StreamRequest {
     domains = new Set(value.domains);
   }
 
-  let cursors: SequenceCursor[] | undefined;
+  let cursors: StreamCursor[] | undefined;
   if (value.cursors !== undefined) {
-    if (!isSequencedEventType(value.eventType)) {
-      throw new Error('cursors are only supported for sequenced streams');
-    }
     if (!Array.isArray(value.cursors) || !value.cursors.length) {
       throw new Error('cursors must be a non-empty array');
     }
-    cursors = value.cursors.map(parseSequenceCursor);
+    if (isSequencedEventType(value.eventType)) {
+      cursors = value.cursors.map(parseSequenceCursor);
+    } else if (isRowIdEventType(value.eventType)) {
+      cursors = value.cursors.map(parseRowIdCursor);
+    } else {
+      throw new Error('cursors are unsupported for this stream');
+    }
     const keys = cursors.map(({ address, domain }) => `${domain}:${address}`);
     if (new Set(keys).size < keys.length)
-      throw new Error('Duplicate sequence cursor');
+      throw new Error('Duplicate stream cursor');
     const cursorDomains = new Set(cursors.map(({ domain }) => domain));
     if (domains && !setEquality(domains, cursorDomains)) {
       throw new Error('domains must exactly match cursor domains');
@@ -189,6 +200,8 @@ function parseSequenceCursor(value: unknown): SequenceCursor {
   ) {
     throw new Error('allowReplay must be a boolean');
   }
+  if (value.afterId !== undefined)
+    throw new Error('afterId is unsupported for native sequence cursors');
   return {
     address: normalizeSequenceAddress(value.address),
     allowReplay: value.allowReplay,
@@ -201,6 +214,34 @@ function parseSequenceCursor(value: unknown): SequenceCursor {
             'afterSequence must be an integer string greater than or equal to -1',
           ),
     domain: value.domain,
+    kind: 'sequence',
+  };
+}
+
+function parseRowIdCursor(value: unknown): RowIdCursor {
+  if (!isRecord(value) || !isDomain(value.domain)) {
+    throw new Error('Invalid row ID cursor domain');
+  }
+  if (!isCursorAddress(value.address)) {
+    throw new Error('Invalid row ID cursor address');
+  }
+  if (value.afterSequence !== undefined || value.allowReplay !== undefined) {
+    throw new Error(
+      'native sequence fields are unsupported for row ID cursors',
+    );
+  }
+  return {
+    address: normalizeSequenceAddress(value.address),
+    afterId:
+      value.afterId === undefined
+        ? undefined
+        : parseInteger(
+            value.afterId,
+            0,
+            'afterId must be a non-negative integer string',
+          ),
+    domain: value.domain,
+    kind: 'row_id',
   };
 }
 
@@ -229,6 +270,12 @@ export function isSequencedEventType(
   value: unknown,
 ): value is SequencedEventType {
   return SEQUENCED_EVENT_TYPES.some((eventType) => eventType === value);
+}
+
+export function isRowIdEventType(
+  value: EventType,
+): value is (typeof ROW_ID_EVENT_TYPES)[number] {
+  return ROW_ID_EVENT_TYPES.some((eventType) => eventType === value);
 }
 
 export function isCursorAddress(value: unknown): value is string {
