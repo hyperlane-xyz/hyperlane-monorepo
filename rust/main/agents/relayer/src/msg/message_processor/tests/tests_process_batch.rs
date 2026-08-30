@@ -170,7 +170,9 @@ impl PendingOperation for TestOperation {
 
     fn set_next_attempt_after(&mut self, _delay: Duration) {}
 
-    fn reset_attempts(&mut self) {}
+    fn reset_attempts(&mut self) -> bool {
+        true
+    }
 
     fn set_retries(&mut self, _retries: u32) {}
 
