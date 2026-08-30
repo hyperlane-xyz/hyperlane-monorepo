@@ -1,6 +1,6 @@
 use std::{
     cmp::max,
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeSet, HashMap, HashSet},
     fmt::{Debug, Formatter},
     sync::Arc,
     time::Duration,
@@ -16,6 +16,7 @@ use hyperlane_base::{
     CoreMetrics,
 };
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, QueueOperation, H256, H512};
+use parking_lot::Mutex;
 use prometheus::{HistogramVec, IntCounterVec, IntGauge, IntGaugeVec};
 use tokio::sync::mpsc::{error::TryRecvError, error::TrySendError, Receiver, Sender};
 use tracing::{debug, instrument, trace};
@@ -67,6 +68,7 @@ struct DestinationIndexIterator {
     low_nonce: Option<u32>,
     next_direction: IndexDirection,
     reconsider_nonces: BTreeSet<u32>,
+    loaded_messages: Arc<Mutex<HashSet<H256>>>,
 }
 
 impl DestinationIndexIterator {
@@ -78,6 +80,7 @@ impl DestinationIndexIterator {
             low_nonce: highest_seen_nonce.and_then(|nonce| nonce.checked_sub(1)),
             next_direction: IndexDirection::High,
             reconsider_nonces: BTreeSet::new(),
+            loaded_messages: Default::default(),
         }
     }
 
@@ -674,6 +677,16 @@ impl MessageDbLoader {
             return Ok(true);
         }
 
+        let Some(loaded_message_guard) = LoadedMessageGuard::try_acquire(
+            message.id(),
+            self.destination_iterators[iterator_index]
+                .loaded_messages
+                .clone(),
+        ) else {
+            self.destination_iterators[iterator_index].advance(direction, nonce);
+            return Ok(true);
+        };
+
         DirectionalNonceIterator::update_max_nonce_gauge(&message, &self.metrics);
         // Retain disqualified entries so restart or configuration changes reconsider them.
         if !self.message_whitelist.msg_matches(&message, true) {
@@ -708,7 +721,7 @@ impl MessageDbLoader {
         let app_context = AppContextClassifier::new(self.metric_app_contexts.clone())
             .get_app_context(&message)
             .await?;
-        let Some(pending_message) = PendingMessage::maybe_from_persisted_retries(
+        let Some(mut pending_message) = PendingMessage::maybe_from_persisted_retries(
             message,
             destination_msg_ctx.clone(),
             app_context,
@@ -717,6 +730,7 @@ impl MessageDbLoader {
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         };
+        pending_message.set_loaded_message_guard(loaded_message_guard);
         match sender.try_send(vec![Box::new(pending_message) as QueueOperation]) {
             Ok(()) => {
                 self.destination_iterators[iterator_index].advance(direction, nonce);
