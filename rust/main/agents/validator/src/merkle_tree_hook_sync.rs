@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use eyre::{bail, eyre, Context, Result};
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{future::BoxFuture, FutureExt, SinkExt, StreamExt};
 use prometheus::IntGauge;
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -314,46 +314,46 @@ impl MerkleTreeHookWebSocketSync {
         let mut progress_checks = interval(timeouts.progress_check);
         progress_checks.set_missed_tick_behavior(MissedTickBehavior::Delay);
         progress_checks.tick().await;
+        let mut count_probe: Option<BoxFuture<'static, Result<u32>>> = None;
         let read_deadline = sleep(timeouts.read);
         tokio::pin!(read_deadline);
         let mut canonical_cache = Vec::new();
 
         loop {
             let message = tokio::select! {
+                biased;
                 _ = &mut read_deadline => bail!("Merkle tree hook WebSocket heartbeat timed out"),
-                message = socket.next() => Some(message),
-                _ = progress_checks.tick(), if dependencies.merkle_tree_hook.is_some() => {
-                    let hook = dependencies
-                        .merkle_tree_hook
-                        .as_ref()
-                        .expect("progress check requires a Merkle tree hook");
-                    tokio::select! {
-                        _ = &mut read_deadline => {
-                            bail!("Merkle tree hook WebSocket heartbeat timed out")
-                        }
-                        message = socket.next() => Some(message),
-                        count = timeout(
-                            RPC_PROBE_TIMEOUT,
-                            hook.count(&dependencies.reorg_period),
-                        ) => {
-                            let onchain_count = count
-                                .context("On-chain Merkle tree count probe timed out")?
-                                .context("Reading on-chain Merkle tree count for WebSocket freshness")?;
-                            check_stream_lag(
-                                &mut lag_started_at,
-                                onchain_count,
-                                *next_sequence,
-                                timeouts.progress_grace,
-                                fallback.is_none(),
-                            )?;
-                            if caught_up && fallback.is_some() {
-                                cutover_target = (onchain_count > *next_sequence)
-                                    .then_some(onchain_count);
-                            }
-                            None
-                        }
+                count = async {
+                    count_probe
+                        .as_mut()
+                        .expect("count probe branch requires an in-flight probe")
+                        .await
+                }, if count_probe.is_some() => {
+                    count_probe = None;
+                    let onchain_count = count?;
+                    check_stream_lag(
+                        &mut lag_started_at,
+                        onchain_count,
+                        *next_sequence,
+                        timeouts.progress_grace,
+                        fallback.is_none(),
+                    )?;
+                    if caught_up && fallback.is_some() && *next_sequence >= backfill_target {
+                        self.apply_cutover_count(
+                            *next_sequence,
+                            onchain_count,
+                            fallback,
+                            &mut cutover_target,
+                        )
+                        .await?;
                     }
+                    None
                 }
+                _ = progress_checks.tick(), if dependencies.merkle_tree_hook.is_some() && count_probe.is_none() => {
+                    count_probe = Some(stream_count_probe(dependencies));
+                    None
+                }
+                message = socket.next() => Some(message),
             };
             let Some(message) = message else {
                 continue;
@@ -522,6 +522,17 @@ impl MerkleTreeHookWebSocketSync {
             .await
             .context("On-chain Merkle tree count cutover probe timed out")?
             .context("Reading on-chain Merkle tree count for WebSocket cutover")?;
+        self.apply_cutover_count(next_sequence, onchain_count, fallback, cutover_target)
+            .await
+    }
+
+    async fn apply_cutover_count(
+        &self,
+        next_sequence: u32,
+        onchain_count: u32,
+        fallback: &mut Option<RpcFallback>,
+        cutover_target: &mut Option<u32>,
+    ) -> Result<bool> {
         if !validate_cutover_freshness(onchain_count, next_sequence)? {
             *cutover_target = Some(onchain_count);
             warn!(
@@ -745,6 +756,22 @@ impl MerkleTreeHookWebSocketSync {
     }
 }
 
+fn stream_count_probe(dependencies: &StreamDependencies) -> BoxFuture<'static, Result<u32>> {
+    let hook = dependencies
+        .merkle_tree_hook
+        .as_ref()
+        .expect("progress check requires a Merkle tree hook")
+        .clone();
+    let reorg_period = dependencies.reorg_period.clone();
+    async move {
+        timeout(RPC_PROBE_TIMEOUT, hook.count(&reorg_period))
+            .await
+            .context("On-chain Merkle tree count probe timed out")?
+            .context("Reading on-chain Merkle tree count for WebSocket freshness")
+    }
+    .boxed()
+}
+
 fn check_stream_lag(
     lag_started_at: &mut Option<Instant>,
     onchain_count: u32,
@@ -952,6 +979,7 @@ mod tests {
     struct CountHook {
         count: Arc<AtomicUsize>,
         calls: Option<Arc<AtomicUsize>>,
+        delay: Option<Duration>,
         domain: HyperlaneDomain,
         pending: bool,
     }
@@ -981,6 +1009,9 @@ mod tests {
         async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
             if let Some(calls) = &self.calls {
                 calls.fetch_add(1, Ordering::SeqCst);
+            }
+            if let Some(delay) = self.delay {
+                sleep(delay).await;
             }
             if self.pending {
                 return pending().await;
@@ -1034,6 +1065,7 @@ mod tests {
             merkle_tree_hook: Some(Arc::new(CountHook {
                 count,
                 calls: None,
+                delay: None,
                 domain: HyperlaneDomain::new_test_domain("count-hook"),
                 pending: false,
             })),
@@ -1138,6 +1170,7 @@ mod tests {
             merkle_tree_hook: Some(Arc::new(CountHook {
                 count: Arc::new(AtomicUsize::new(1)),
                 calls: None,
+                delay: None,
                 domain: HyperlaneDomain::new_test_domain("pending-count-hook"),
                 pending: true,
             })),
@@ -1170,6 +1203,7 @@ mod tests {
             merkle_tree_hook: Some(Arc::new(CountHook {
                 count: count.clone(),
                 calls: Some(calls.clone()),
+                delay: None,
                 domain: HyperlaneDomain::new_test_domain("count-hook"),
                 pending: false,
             })),
@@ -1825,7 +1859,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn duplicate_caught_up_markers_do_not_reset_lag_grace() {
+    async fn delayed_count_probe_survives_frequent_duplicate_markers() {
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .expect("test listener");
@@ -1866,7 +1900,7 @@ mod tests {
             let duplicate = Message::Text(format!(
                 r#"{{"type":"caught_up","address":"{hook_address}","domain":1,"eventType":"merkle_tree_insertion","sequence":"0"}}"#
             ));
-            let mut markers = interval(Duration::from_millis(2));
+            let mut markers = interval(Duration::from_millis(1));
             loop {
                 markers.tick().await;
                 if socket.send(duplicate.clone()).await.is_err() {
@@ -1881,7 +1915,16 @@ mod tests {
         let active_in_fallback = active.clone();
         let websocket_active = sync.websocket_active.clone();
         let websocket_active_after_stale = websocket_active.clone();
-        let dependencies = test_dependencies_with_count(onchain_count);
+        let dependencies = StreamDependencies {
+            merkle_tree_hook: Some(Arc::new(CountHook {
+                count: onchain_count,
+                calls: None,
+                delay: Some(Duration::from_millis(8)),
+                domain: HyperlaneDomain::new_test_domain("delayed-count-hook"),
+                pending: false,
+            })),
+            ..test_dependencies()
+        };
         let task = tokio::spawn(async move {
             sync.run_loop(
                 1,
@@ -1924,6 +1967,125 @@ mod tests {
         })
         .await
         .expect("duplicate markers cannot mask lag");
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn scheduled_probe_activates_when_cached_target_retreats_to_cursor() {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("test listener");
+        let (mut sync, _temp_dir) = test_sync();
+        sync.url = Url::parse(&format!(
+            "ws://{}",
+            listener.local_addr().expect("test listener address")
+        ))
+        .expect("test WebSocket URL");
+        let hook_address = format!("{:#x}", sync.merkle_tree_hook);
+        let onchain_count = Arc::new(AtomicUsize::new(2));
+        let server_count = onchain_count.clone();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls_in_hook = calls.clone();
+        let calls_in_server = calls.clone();
+        let (retreat_tx, retreat_rx) = tokio::sync::oneshot::channel();
+        tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.expect("connection");
+            let mut socket = accept_async(stream).await.expect("WebSocket");
+            socket
+                .send(Message::Text(r#"{"type":"ready"}"#.into()))
+                .await
+                .expect("send ready message");
+            socket
+                .next()
+                .await
+                .expect("subscription message")
+                .expect("read subscription message");
+            socket
+                .send(Message::Text(r#"{"type":"subscribed"}"#.into()))
+                .await
+                .expect("send subscribed message");
+            while calls_in_server.load(Ordering::SeqCst) == 0 {
+                tokio::task::yield_now().await;
+            }
+            socket
+                .send(Message::Text(format!(
+                    r#"{{"type":"caught_up","address":"{hook_address}","domain":1,"eventType":"merkle_tree_insertion","sequence":"0"}}"#
+                )))
+                .await
+                .expect("send caught-up message");
+            retreat_rx.await.expect("retreat on-chain count");
+            server_count.store(1, Ordering::SeqCst);
+            let mut heartbeats = interval(Duration::from_millis(2));
+            loop {
+                heartbeats.tick().await;
+                if socket
+                    .send(Message::Text(r#"{"type":"heartbeat"}"#.into()))
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        });
+
+        let starts = Arc::new(AtomicUsize::new(0));
+        let starts_in_fallback = starts.clone();
+        let active = sync.fallback_active.clone();
+        let active_in_fallback = active.clone();
+        let websocket_active = sync.websocket_active.clone();
+        let websocket_active_after_retreat = websocket_active.clone();
+        let dependencies = StreamDependencies {
+            merkle_tree_hook: Some(Arc::new(CountHook {
+                count: onchain_count,
+                calls: Some(calls_in_hook),
+                delay: None,
+                domain: HyperlaneDomain::new_test_domain("retreat-count-hook"),
+                pending: false,
+            })),
+            ..test_dependencies()
+        };
+        let task = tokio::spawn(async move {
+            sync.run_loop(
+                1,
+                1,
+                StreamTimeouts {
+                    read: Duration::from_millis(50),
+                    progress_check: Duration::from_millis(20),
+                    progress_grace: Duration::from_millis(10),
+                },
+                Duration::from_secs(1),
+                dependencies,
+                move || {
+                    active_in_fallback.set(1);
+                    starts_in_fallback.fetch_add(1, Ordering::SeqCst);
+                    RpcFallback {
+                        handle: tokio::spawn(pending()),
+                        active: active_in_fallback.clone(),
+                    }
+                },
+            )
+            .await;
+        });
+
+        timeout(Duration::from_secs(1), async {
+            while calls.load(Ordering::SeqCst) < 2 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("cache ahead target");
+        assert_eq!(active.get(), 1);
+        assert_eq!(websocket_active_after_retreat.get(), 0);
+        retreat_tx.send(()).expect("retreat on-chain count");
+
+        timeout(Duration::from_secs(1), async {
+            while active.get() != 0 || websocket_active_after_retreat.get() != 1 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("scheduled probe activates WebSocket at retreated target");
+        assert_eq!(starts.load(Ordering::SeqCst), 1);
         task.abort();
     }
 
@@ -1989,6 +2151,7 @@ mod tests {
             merkle_tree_hook: Some(Arc::new(CountHook {
                 count: onchain_count,
                 calls: None,
+                delay: None,
                 domain: HyperlaneDomain::new_test_domain("count-hook"),
                 pending: false,
             })),
