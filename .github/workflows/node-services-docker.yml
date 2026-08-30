@@ -148,7 +148,7 @@ jobs:
 
       - name: Comment image tags on PR
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && always()
-        uses: ./.github/actions/docker-image-comment
+        uses: ./.depot/actions/docker-image-comment
         with:
           comment_tag: typescript-docker-images
           image_name: Node Services Docker Image

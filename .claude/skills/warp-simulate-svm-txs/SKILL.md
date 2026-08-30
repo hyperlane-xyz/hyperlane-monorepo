@@ -41,7 +41,7 @@ don't hold the authority's key.
 - **surfpool** installed: the CLI `warp fork` SVM path runs a locally-installed
   `surfpool` binary (`>= 1.5.0`) on `PATH` — there is **no Docker fallback**. Install
   the pinned, checksum-verified release the way CI does — see the `Install surfpool`
-  step in `.github/workflows/test-cli-e2e.yml` (a pinned `v1.5.0` tarball verified
+  step in `.depot/workflows/test-cli-e2e.yml` (a pinned `v1.5.0` tarball verified
   against its SHA-256); do **not** pipe the mutable `run.surfpool.run` installer to a
   shell. If it's missing, `warp fork` aborts before replaying anything with a
   "surfpool 1.5.0+ is required" error.

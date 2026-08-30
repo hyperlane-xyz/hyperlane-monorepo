@@ -8,14 +8,14 @@ on:
       - 'typescript/sdk/**'
       - 'typescript/utils/**'
       - 'typescript/metrics/**'
-      - '.github/workflows/rebalancer-e2e-test.yml'
+      - '.depot/workflows/rebalancer-e2e-test.yml'
   pull_request:
     paths:
       - 'typescript/rebalancer/**'
       - 'typescript/sdk/**'
       - 'typescript/utils/**'
       - 'typescript/metrics/**'
-      - '.github/workflows/rebalancer-e2e-test.yml'
+      - '.depot/workflows/rebalancer-e2e-test.yml'
   workflow_dispatch:
 
 concurrency:
@@ -31,7 +31,7 @@ env:
 jobs:
   rebalancer-e2e-shards:
     name: rebalancer-e2e-shard (${{ matrix.name }})
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -62,7 +62,7 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - name: pnpm-build
-        uses: ./.github/actions/pnpm-build-with-cache
+        uses: ./.depot/actions/pnpm-build-with-cache
 
       - name: Run rebalancer E2E tests (serial)
         working-directory: typescript/rebalancer
@@ -79,7 +79,7 @@ jobs:
     name: rebalancer-e2e-test
     if: always()
     needs: rebalancer-e2e-shards
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-4
     timeout-minutes: 5
     steps:
       - name: Check E2E shards

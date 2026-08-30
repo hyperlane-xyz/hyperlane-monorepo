@@ -65,6 +65,8 @@ before(async function () {
       code: new Uint8Array(code),
       packageDefinition: new Uint8Array(packageDefinition),
     },
+    undefined,
+    [TEST_CHAIN_METADATA_BY_PROTOCOL.radix.CHAIN_NAME_2],
   );
 
   // Deploy Hyperlane packages and update metadata with the deployed addresses.
