@@ -156,6 +156,13 @@ struct CrossStreamState {
 }
 
 impl CrossStreamState {
+    fn complete(&self, domain: u32, sequence: u32) -> bool {
+        self.entries
+            .get(&domain)
+            .and_then(|entries| entries.get(&sequence))
+            .is_some_and(CrossStreamPair::complete)
+    }
+
     fn validate(
         &mut self,
         domain: u32,
@@ -222,6 +229,13 @@ struct StreamCursor {
 }
 
 impl StreamCursor {
+    fn from_durable_sequence(sequence: u32) -> Self {
+        Self {
+            fingerprints: BTreeMap::new(),
+            next_sequence: sequence,
+        }
+    }
+
     fn from_after_sequence(sequence: u32) -> Result<Self> {
         Ok(Self {
             fingerprints: BTreeMap::new(),
@@ -307,7 +321,7 @@ impl StreamState {
                 if let Some(sequence) = source.cursor(kind)? {
                     state.cursors.insert(
                         (source.domain, kind),
-                        StreamCursor::from_after_sequence(sequence)?,
+                        StreamCursor::from_durable_sequence(sequence),
                     );
                 }
             }
@@ -595,7 +609,16 @@ impl ScraperWebSocketMonitor {
             .context("Connecting to relayer scraper-proxy WebSocket timed out")?
             .context("Connecting to relayer scraper-proxy WebSocket")?;
         let mut handshake = HandshakeState::default();
-        let mut caught_up = HashSet::new();
+        let mut correlation_required = HashSet::new();
+        for source in self.sources.values() {
+            for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+                if source.cursor(kind)?.is_some() {
+                    correlation_required.insert(source.domain);
+                    break;
+                }
+            }
+        }
+        let mut caught_up = HashMap::new();
         let read_deadline = sleep(READ_TIMEOUT);
         tokio::pin!(read_deadline);
 
@@ -688,10 +711,25 @@ impl ScraperWebSocketMonitor {
                                 source.store_cursor(kind, durable)?;
                             }
                             state.set_baseline(domain, kind, sequence)?;
-                            if !caught_up.insert((domain, kind)) {
+                            if caught_up.insert((domain, kind), sequence).is_some() {
                                 bail!("Received duplicate scraper caught-up marker");
                             }
-                            self.set_source_caught_up(source, kind, true);
+                            let counterpart = match kind {
+                                EventKind::Dispatch => EventKind::MerkleTreeInsertion,
+                                EventKind::MerkleTreeInsertion => EventKind::Dispatch,
+                            };
+                            if caught_up.get(&(domain, counterpart)) == Some(&sequence) {
+                                let correlation_complete = correlation_ready(
+                                    correlation_required.contains(&domain),
+                                    state,
+                                    domain,
+                                    sequence,
+                                )?;
+                                if correlation_complete {
+                                    self.set_source_caught_up(source, kind, true);
+                                    self.set_source_caught_up(source, counterpart, true);
+                                }
+                            }
                         }
                         ServerMessage::Error { error } => {
                             bail!("Scraper-proxy rejected relayer shadow stream: {error}")
@@ -765,7 +803,7 @@ fn subscription(sources: &HashMap<u32, ScraperSource>) -> Result<String> {
                 Ok(SequenceCursor {
                     address: format!("{:#x}", source.address(kind)),
                     allow_replay: Some(true),
-                    after_sequence: source.cursor(kind)?.map(|value| value.to_string()),
+                    after_sequence: source.cursor(kind)?.map(replay_after_sequence),
                     domain: source.domain,
                 })
             })
@@ -787,6 +825,30 @@ fn subscription(sources: &HashMap<u32, ScraperSource>) -> Result<String> {
         message_type: "subscribe",
     })
     .context("Serializing relayer scraper-proxy subscription")
+}
+
+fn replay_after_sequence(sequence: u32) -> String {
+    sequence
+        .checked_sub(1)
+        .map(|sequence| sequence.to_string())
+        .unwrap_or_else(|| "-1".to_owned())
+}
+
+fn correlation_ready(
+    required: bool,
+    state: &StreamState,
+    domain: u32,
+    sequence: i64,
+) -> Result<bool> {
+    if sequence < 0 || !required {
+        return Ok(true);
+    }
+    Ok(state.cross_stream.complete(
+        domain,
+        sequence
+            .try_into()
+            .context("Caught-up sequence exceeds u32")?,
+    ))
 }
 
 fn validate_subscription(
@@ -1015,7 +1077,7 @@ mod tests {
                             after_sequence: source
                                 .cursor(kind)
                                 .expect("cursor read")
-                                .map(|value| value.to_string()),
+                                .map(replay_after_sequence),
                             domain: source.domain,
                         })
                         .collect(),
@@ -1091,6 +1153,12 @@ mod tests {
             .expect("store first event cursor");
 
         let mut restarted = StreamState::load(&sources).expect("restart cursor load");
+        restarted
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"seven")),
+                &sources,
+            )
+            .expect("replay durable boundary");
         assert!(restarted
             .validate(
                 event(DISPATCH_EVENT_TYPE, 9, dispatch_data(9, b"nine")),
@@ -1105,6 +1173,66 @@ mod tests {
                 &sources,
             )
             .expect("replayed event after durable cursor");
+    }
+
+    #[test]
+    fn restart_replays_both_stream_boundaries_before_caught_up() {
+        let sources = sources();
+        let source = &sources[&5];
+        source
+            .store_cursor(EventKind::Dispatch, 7)
+            .expect("store dispatch cursor");
+        source
+            .store_cursor(EventKind::MerkleTreeInsertion, 6)
+            .expect("store Merkle cursor");
+
+        let mut restarted = StreamState::load(&sources).expect("restart cursor load");
+        restarted
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"seven")),
+                &sources,
+            )
+            .expect("replay dispatch boundary");
+        restarted
+            .validate(
+                event(
+                    MERKLE_EVENT_TYPE,
+                    6,
+                    merkle_data_for(
+                        6,
+                        H256::from_low_u64_be(2),
+                        dispatch_message(6, b"six").id(),
+                        100,
+                    ),
+                ),
+                &sources,
+            )
+            .expect("replay Merkle boundary");
+        assert!(!correlation_ready(true, &restarted, 5, 7).expect("readiness check"));
+        restarted
+            .validate(
+                event(
+                    MERKLE_EVENT_TYPE,
+                    7,
+                    merkle_data_for(
+                        7,
+                        H256::from_low_u64_be(2),
+                        dispatch_message(7, b"seven").id(),
+                        100,
+                    ),
+                ),
+                &sources,
+            )
+            .expect("complete split cursor pair");
+
+        assert!(restarted.cross_stream.entries[&5][&7].complete());
+        assert!(correlation_ready(true, &restarted, 5, 7).expect("readiness check"));
+        assert_eq!(
+            restarted
+                .latest_sequence(5, EventKind::MerkleTreeInsertion)
+                .expect("Merkle cursor"),
+            7
+        );
     }
 
     #[test]
