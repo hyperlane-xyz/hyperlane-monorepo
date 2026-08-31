@@ -103,6 +103,13 @@ impl EventKind {
         }
     }
 
+    fn counterpart(self) -> Self {
+        match self {
+            Self::Dispatch => Self::MerkleTreeInsertion,
+            Self::MerkleTreeInsertion => Self::Dispatch,
+        }
+    }
+
     fn from_label(label: &str) -> Result<Self> {
         match label {
             DISPATCH_EVENT_TYPE => Ok(Self::Dispatch),
@@ -662,7 +669,13 @@ impl ScraperWebSocketMonitor {
                                         SequenceResult::Accepted => "accepted",
                                         SequenceResult::Duplicate => "duplicate",
                                     };
-                                    self.record(domain, kind.label(), result)
+                                    self.record(domain, kind.label(), result);
+                                    self.update_source_caught_up(
+                                        state,
+                                        &correlation_required,
+                                        &caught_up,
+                                        domain,
+                                    )?;
                                 }
                                 Err(err) => {
                                     let result = if err.downcast_ref::<StreamGap>().is_some() {
@@ -714,22 +727,12 @@ impl ScraperWebSocketMonitor {
                             if caught_up.insert((domain, kind), sequence).is_some() {
                                 bail!("Received duplicate scraper caught-up marker");
                             }
-                            let counterpart = match kind {
-                                EventKind::Dispatch => EventKind::MerkleTreeInsertion,
-                                EventKind::MerkleTreeInsertion => EventKind::Dispatch,
-                            };
-                            if caught_up.get(&(domain, counterpart)) == Some(&sequence) {
-                                let correlation_complete = correlation_ready(
-                                    correlation_required.contains(&domain),
-                                    state,
-                                    domain,
-                                    sequence,
-                                )?;
-                                if correlation_complete {
-                                    self.set_source_caught_up(source, kind, true);
-                                    self.set_source_caught_up(source, counterpart, true);
-                                }
-                            }
+                            self.update_source_caught_up(
+                                state,
+                                &correlation_required,
+                                &caught_up,
+                                domain,
+                            )?;
                         }
                         ServerMessage::Error { error } => {
                             bail!("Scraper-proxy rejected relayer shadow stream: {error}")
@@ -777,6 +780,31 @@ impl ScraperWebSocketMonitor {
             .set(i64::from(caught_up));
     }
 
+    fn update_source_caught_up(
+        &self,
+        state: &StreamState,
+        correlation_required: &HashSet<u32>,
+        caught_up: &HashMap<(u32, EventKind), i64>,
+        domain: u32,
+    ) -> Result<()> {
+        if !source_caught_up(
+            correlation_required.contains(&domain),
+            caught_up,
+            state,
+            domain,
+        )? {
+            return Ok(());
+        }
+        let source = self
+            .sources
+            .get(&domain)
+            .context("Validated scraper source is missing")?;
+        for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+            self.set_source_caught_up(source, kind, true);
+        }
+        Ok(())
+    }
+
     fn record(&self, domain: u32, event_type: &str, result: &str) {
         let chain = self
             .sources
@@ -799,14 +827,7 @@ fn subscription(sources: &HashMap<u32, ScraperSource>) -> Result<String> {
     let cursors = |kind| -> Result<Vec<SequenceCursor>> {
         sources
             .iter()
-            .map(|source| {
-                Ok(SequenceCursor {
-                    address: format!("{:#x}", source.address(kind)),
-                    allow_replay: Some(true),
-                    after_sequence: source.cursor(kind)?.map(replay_after_sequence),
-                    domain: source.domain,
-                })
-            })
+            .map(|source| sequence_cursor(source, kind))
             .collect()
     };
     serde_json::to_string(&SubscribeMessage {
@@ -825,6 +846,19 @@ fn subscription(sources: &HashMap<u32, ScraperSource>) -> Result<String> {
         message_type: "subscribe",
     })
     .context("Serializing relayer scraper-proxy subscription")
+}
+
+fn sequence_cursor(source: &ScraperSource, kind: EventKind) -> Result<SequenceCursor> {
+    let replay_from = match source.cursor(kind)? {
+        Some(sequence) => Some(sequence),
+        None => source.cursor(kind.counterpart())?,
+    };
+    Ok(SequenceCursor {
+        address: format!("{:#x}", source.address(kind)),
+        allow_replay: Some(true),
+        after_sequence: replay_from.map(replay_after_sequence),
+        domain: source.domain,
+    })
 }
 
 fn replay_after_sequence(sequence: u32) -> String {
@@ -851,6 +885,39 @@ fn correlation_ready(
     ))
 }
 
+fn source_caught_up(
+    correlation_required: bool,
+    caught_up: &HashMap<(u32, EventKind), i64>,
+    state: &StreamState,
+    domain: u32,
+) -> Result<bool> {
+    let Some(dispatch) = caught_up.get(&(domain, EventKind::Dispatch)) else {
+        return Ok(false);
+    };
+    let Some(merkle) = caught_up.get(&(domain, EventKind::MerkleTreeInsertion)) else {
+        return Ok(false);
+    };
+    if !correlation_required {
+        return Ok(true);
+    }
+    let target = (*dispatch).max(*merkle);
+    if target < 0 {
+        return Ok(true);
+    }
+    let target: u32 = target
+        .try_into()
+        .context("Caught-up sequence exceeds u32")?;
+    for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+        let Some(cursor) = state.cursors.get(&(domain, kind)) else {
+            return Ok(false);
+        };
+        if cursor.latest_sequence()? < target {
+            return Ok(false);
+        }
+    }
+    correlation_ready(true, state, domain, i64::from(target))
+}
+
 fn validate_subscription(
     streams: &[SubscribedStream],
     sources: &HashMap<u32, ScraperSource>,
@@ -871,9 +938,10 @@ fn validate_subscription(
         let expected_cursors = sources
             .iter()
             .map(|source| {
+                let cursor = sequence_cursor(source, kind)?;
                 Ok(SubscribedCursor {
-                    address: format!("{:#x}", source.address(kind)),
-                    after_sequence: source.cursor(kind)?.map(|value| value.to_string()),
+                    address: cursor.address,
+                    after_sequence: cursor.after_sequence,
                     domain: source.domain,
                 })
             })
@@ -1072,13 +1140,13 @@ mod tests {
                 cursors: Some(
                     sources
                         .iter()
-                        .map(|source| SubscribedCursor {
-                            address: format!("{:#x}", source.address(kind)),
-                            after_sequence: source
-                                .cursor(kind)
-                                .expect("cursor read")
-                                .map(replay_after_sequence),
-                            domain: source.domain,
+                        .map(|source| {
+                            let cursor = sequence_cursor(source, kind).expect("cursor read");
+                            SubscribedCursor {
+                                address: cursor.address,
+                                after_sequence: cursor.after_sequence,
+                                domain: source.domain,
+                            }
                         })
                         .collect(),
                 ),
@@ -1233,6 +1301,67 @@ mod tests {
                 .expect("Merkle cursor"),
             7
         );
+    }
+
+    #[test]
+    fn restart_replays_missing_peer_and_rechecks_late_correlation() {
+        let sources = sources();
+        let source = &sources[&5];
+        source
+            .store_cursor(EventKind::Dispatch, 7)
+            .expect("store dispatch cursor");
+
+        let message: serde_json::Value =
+            serde_json::from_str(&subscription(&sources).expect("subscription should serialize"))
+                .expect("subscription JSON");
+        assert_eq!(message["streams"][0]["cursors"][0]["afterSequence"], "6");
+        assert_eq!(message["streams"][1]["cursors"][0]["afterSequence"], "6");
+        let streams = subscribed_streams(&sources);
+        assert_eq!(
+            streams[0].cursors.as_ref().expect("dispatch cursors")[0].after_sequence,
+            Some("6".to_owned())
+        );
+        assert_eq!(
+            streams[1].cursors.as_ref().expect("Merkle cursors")[0].after_sequence,
+            Some("6".to_owned())
+        );
+        validate_subscription(&streams, &sources).expect("subscription confirmation");
+
+        let mut restarted = StreamState::load(&sources).expect("restart cursor load");
+        restarted
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"seven")),
+                &sources,
+            )
+            .expect("replay dispatch boundary");
+        let caught_up = HashMap::from([
+            ((5, EventKind::Dispatch), 7),
+            ((5, EventKind::MerkleTreeInsertion), 6),
+        ]);
+        assert!(!source_caught_up(true, &caught_up, &restarted, 5).expect("readiness check"));
+
+        restarted
+            .validate(
+                event(
+                    MERKLE_EVENT_TYPE,
+                    7,
+                    merkle_data_for(
+                        7,
+                        H256::from_low_u64_be(2),
+                        dispatch_message(7, b"seven").id(),
+                        100,
+                    ),
+                ),
+                &sources,
+            )
+            .expect("late Merkle correlation");
+        assert!(source_caught_up(true, &caught_up, &restarted, 5).expect("readiness check"));
+    }
+
+    #[test]
+    fn replay_includes_zero_boundary() {
+        assert_eq!(replay_after_sequence(0), "-1");
+        assert_eq!(replay_after_sequence(1), "0");
     }
 
     #[test]
