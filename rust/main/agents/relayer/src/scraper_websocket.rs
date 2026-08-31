@@ -760,15 +760,28 @@ impl ScraperWebSocketMonitor {
                                         .sources
                                         .get(&domain)
                                         .expect("validated scraper source exists");
-                                    if let Some(sequence) =
-                                        state.initialize_correlation(domain, sequence)
-                                    {
-                                        source.store_correlation_cursor(sequence)?;
-                                    }
-                                    let correlation_next = state.advance_correlation(domain)?;
-                                    source.store_cursor(kind, sequence)?;
-                                    if let Some(sequence) = correlation_next {
-                                        source.store_correlation_cursor(sequence)?;
+                                    if sequenced_persistence_ready(
+                                        plan, &caught_up, state, domain, sequence,
+                                    )? {
+                                        if caught_up_baselines(&caught_up, domain) == Some((-1, -1))
+                                            && !state.correlation_next.contains_key(&domain)
+                                        {
+                                            for (kind, sequence) in
+                                                sequenced_cursor_write_order(state, domain)?
+                                            {
+                                                source.store_cursor(kind, sequence)?;
+                                            }
+                                        }
+                                        if let Some(sequence) =
+                                            state.initialize_correlation(domain, sequence)
+                                        {
+                                            source.store_correlation_cursor(sequence)?;
+                                        }
+                                        let correlation_next = state.advance_correlation(domain)?;
+                                        source.store_cursor(kind, sequence)?;
+                                        if let Some(sequence) = correlation_next {
+                                            source.store_correlation_cursor(sequence)?;
+                                        }
                                     }
                                     let result = match sequence_result {
                                         SequenceResult::Accepted => "accepted",
@@ -811,15 +824,23 @@ impl ScraperWebSocketMonitor {
                                 bail!("Invalid negative scraper caught-up sequence {sequence}");
                             }
                             validate_caught_up_floor(plan, domain, sequence)?;
-                            if sequence >= 0 {
-                                let durable: u32 = sequence
-                                    .try_into()
-                                    .context("Scraper caught-up sequence exceeds u32")?;
-                                source.store_cursor(kind, durable)?;
-                            }
                             state.set_baseline(domain, kind, sequence)?;
                             if caught_up.insert((domain, kind), sequence).is_some() {
                                 bail!("Received duplicate scraper caught-up marker");
+                            }
+                            if plan.correlation_required(domain)? {
+                                if sequence >= 0 {
+                                    let durable: u32 = sequence
+                                        .try_into()
+                                        .context("Scraper caught-up sequence exceeds u32")?;
+                                    source.store_cursor(kind, durable)?;
+                                }
+                            } else if let Some(baselines) =
+                                fresh_baseline_write_order(&caught_up, domain)?
+                            {
+                                for (kind, sequence) in baselines {
+                                    source.store_cursor(kind, sequence)?;
+                                }
                             }
                             self.update_source_caught_up(state, plan, &caught_up, domain)?;
                         }
@@ -981,16 +1002,91 @@ fn correlation_ready(
     ))
 }
 
+fn caught_up_baselines(
+    caught_up: &HashMap<(u32, EventKind), i64>,
+    domain: u32,
+) -> Option<(i64, i64)> {
+    Some((
+        *caught_up.get(&(domain, EventKind::Dispatch))?,
+        *caught_up.get(&(domain, EventKind::MerkleTreeInsertion))?,
+    ))
+}
+
+fn sequenced_persistence_ready(
+    plan: &SequencedReplayPlan,
+    caught_up: &HashMap<(u32, EventKind), i64>,
+    state: &StreamState,
+    domain: u32,
+    sequence: u32,
+) -> Result<bool> {
+    if plan.correlation_required(domain)? {
+        return Ok(true);
+    }
+    let Some((dispatch, merkle)) = caught_up_baselines(caught_up, domain) else {
+        return Ok(false);
+    };
+    if dispatch != merkle {
+        return Ok(false);
+    }
+    if dispatch >= 0 {
+        return Ok(true);
+    }
+    if state.correlation_next.contains_key(&domain) {
+        return Ok(true);
+    }
+    if sequence != 0 {
+        bail!("Fresh empty scraper stream started at sequence {sequence}, expected 0");
+    }
+    Ok(state.cross_stream.complete(domain, sequence))
+}
+
+fn cursor_write_order(dispatch: u32, merkle: u32) -> [(EventKind, u32); 2] {
+    if dispatch <= merkle {
+        [
+            (EventKind::Dispatch, dispatch),
+            (EventKind::MerkleTreeInsertion, merkle),
+        ]
+    } else {
+        [
+            (EventKind::MerkleTreeInsertion, merkle),
+            (EventKind::Dispatch, dispatch),
+        ]
+    }
+}
+
+fn sequenced_cursor_write_order(state: &StreamState, domain: u32) -> Result<[(EventKind, u32); 2]> {
+    Ok(cursor_write_order(
+        state.latest_sequence(domain, EventKind::Dispatch)?,
+        state.latest_sequence(domain, EventKind::MerkleTreeInsertion)?,
+    ))
+}
+
+fn fresh_baseline_write_order(
+    caught_up: &HashMap<(u32, EventKind), i64>,
+    domain: u32,
+) -> Result<Option<[(EventKind, u32); 2]>> {
+    let Some((dispatch, merkle)) = caught_up_baselines(caught_up, domain) else {
+        return Ok(None);
+    };
+    if dispatch < 0 || merkle < 0 {
+        return Ok(None);
+    }
+    let dispatch: u32 = dispatch
+        .try_into()
+        .context("Scraper caught-up sequence exceeds u32")?;
+    let merkle: u32 = merkle
+        .try_into()
+        .context("Scraper caught-up sequence exceeds u32")?;
+    Ok(Some(cursor_write_order(dispatch, merkle)))
+}
+
 fn source_caught_up(
     correlation_required: bool,
     caught_up: &HashMap<(u32, EventKind), i64>,
     state: &StreamState,
     domain: u32,
 ) -> Result<bool> {
-    let Some(dispatch) = caught_up.get(&(domain, EventKind::Dispatch)) else {
-        return Ok(false);
-    };
-    let Some(merkle) = caught_up.get(&(domain, EventKind::MerkleTreeInsertion)) else {
+    let Some((dispatch, merkle)) = caught_up_baselines(caught_up, domain) else {
         return Ok(false);
     };
     if !correlation_required {
@@ -999,7 +1095,7 @@ fn source_caught_up(
         }
         return Ok(true);
     }
-    let target = (*dispatch).max(*merkle);
+    let target = dispatch.max(merkle);
     if target < 0 {
         return Ok(true);
     }
@@ -1560,22 +1656,65 @@ mod tests {
             .expect("correlation requirement"));
 
         let mut state = replay_state(&initial_plan);
-        source
-            .store_cursor(EventKind::Dispatch, 100)
-            .expect("store fresh dispatch baseline");
         state
             .set_baseline(5, EventKind::Dispatch, 100)
             .expect("set fresh dispatch baseline");
         let mut caught_up = HashMap::from([((5, EventKind::Dispatch), 100)]);
         assert!(!source_caught_up(false, &caught_up, &state, 5).expect("one fresh marker"));
+        assert_eq!(
+            fresh_baseline_write_order(&caught_up, 5).expect("baseline order"),
+            None
+        );
+        assert_eq!(
+            source.cursor(EventKind::Dispatch).expect("dispatch cursor"),
+            None
+        );
 
-        source
-            .store_cursor(EventKind::MerkleTreeInsertion, 90)
-            .expect("store fresh Merkle baseline");
+        state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 101, dispatch_data(101, b"one-oh-one")),
+                &sources,
+            )
+            .expect("fresh live event after first marker");
+        assert!(
+            !sequenced_persistence_ready(&initial_plan, &caught_up, &state, 5, 101)
+                .expect("persistence readiness")
+        );
+        assert_eq!(
+            source.cursor(EventKind::Dispatch).expect("dispatch cursor"),
+            None
+        );
+        assert_eq!(
+            source.correlation_cursor().expect("correlation cursor"),
+            None
+        );
+
         state
             .set_baseline(5, EventKind::MerkleTreeInsertion, 90)
             .expect("set fresh Merkle baseline");
         caught_up.insert((5, EventKind::MerkleTreeInsertion), 90);
+        let baselines = fresh_baseline_write_order(&caught_up, 5)
+            .expect("baseline order")
+            .expect("both baselines");
+        assert_eq!(
+            baselines,
+            [
+                (EventKind::MerkleTreeInsertion, 90),
+                (EventKind::Dispatch, 100),
+            ]
+        );
+        source
+            .store_cursor(baselines[0].0, baselines[0].1)
+            .expect("store lower fresh baseline");
+
+        let interrupted_plan = replay_plan(&sources);
+        assert_eq!(
+            interrupted_plan.source(5).expect("source plan").floor,
+            Some(90)
+        );
+        source
+            .store_cursor(baselines[1].0, baselines[1].1)
+            .expect("store higher fresh baseline");
         assert!(source_caught_up(false, &caught_up, &state, 5)
             .expect_err("unequal fresh baselines must reconnect")
             .to_string()
@@ -1594,6 +1733,209 @@ mod tests {
         .expect("subscription JSON");
         assert_eq!(request["streams"][0]["cursors"][0]["afterSequence"], "89");
         assert_eq!(request["streams"][1]["cursors"][0]["afterSequence"], "89");
+    }
+
+    #[test]
+    fn fresh_equal_baselines_preserve_readiness() {
+        let sources = sources();
+        let source = &sources[&5];
+        let plan = replay_plan(&sources);
+        let mut state = replay_state(&plan);
+        state
+            .set_baseline(5, EventKind::Dispatch, 100)
+            .expect("set fresh dispatch baseline");
+        state
+            .set_baseline(5, EventKind::MerkleTreeInsertion, 100)
+            .expect("set fresh Merkle baseline");
+        let caught_up = HashMap::from([
+            ((5, EventKind::Dispatch), 100),
+            ((5, EventKind::MerkleTreeInsertion), 100),
+        ]);
+        let baselines = fresh_baseline_write_order(&caught_up, 5)
+            .expect("baseline order")
+            .expect("both baselines");
+        for (kind, sequence) in baselines {
+            source
+                .store_cursor(kind, sequence)
+                .expect("store equal fresh baseline");
+        }
+
+        assert!(source_caught_up(false, &caught_up, &state, 5).expect("readiness check"));
+        assert_eq!(
+            source.cursor(EventKind::Dispatch).expect("dispatch cursor"),
+            Some(100)
+        );
+        assert_eq!(
+            source
+                .cursor(EventKind::MerkleTreeInsertion)
+                .expect("Merkle cursor"),
+            Some(100)
+        );
+    }
+
+    #[test]
+    fn fresh_negative_lower_baseline_persists_neither_tip() {
+        let sources = sources();
+        let source = &sources[&5];
+        let caught_up = HashMap::from([
+            ((5, EventKind::Dispatch), 100),
+            ((5, EventKind::MerkleTreeInsertion), -1),
+        ]);
+
+        assert_eq!(
+            fresh_baseline_write_order(&caught_up, 5).expect("baseline order"),
+            None
+        );
+        assert_eq!(
+            source.cursor(EventKind::Dispatch).expect("dispatch cursor"),
+            None
+        );
+        assert_eq!(
+            source
+                .cursor(EventKind::MerkleTreeInsertion)
+                .expect("Merkle cursor"),
+            None
+        );
+        assert!(
+            source_caught_up(false, &caught_up, &StreamState::default(), 5)
+                .expect_err("negative unequal fresh baselines must reconnect")
+                .to_string()
+                .contains("Fresh scraper caught-up baselines differ")
+        );
+    }
+
+    #[test]
+    fn fresh_empty_baselines_wait_for_first_complete_pair() {
+        let sources = sources();
+        let source = &sources[&5];
+        let plan = replay_plan(&sources);
+        let caught_up = HashMap::from([
+            ((5, EventKind::Dispatch), -1),
+            ((5, EventKind::MerkleTreeInsertion), -1),
+        ]);
+        let mut skipped = replay_state(&plan);
+        skipped
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 5, dispatch_data(5, b"five")),
+                &sources,
+            )
+            .expect("first nonzero dispatch event");
+        assert!(
+            sequenced_persistence_ready(&plan, &caught_up, &skipped, 5, 5)
+                .expect_err("empty stream must start at zero")
+                .to_string()
+                .contains("expected 0")
+        );
+        assert_eq!(
+            source.cursor(EventKind::Dispatch).expect("dispatch cursor"),
+            None
+        );
+
+        let mut state = replay_state(&plan);
+        state
+            .set_baseline(5, EventKind::Dispatch, -1)
+            .expect("set empty dispatch baseline");
+        state
+            .set_baseline(5, EventKind::MerkleTreeInsertion, -1)
+            .expect("set empty Merkle baseline");
+        assert!(source_caught_up(false, &caught_up, &state, 5).expect("readiness check"));
+
+        state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 0, dispatch_data(0, b"zero")),
+                &sources,
+            )
+            .expect("first dispatch event");
+        assert!(
+            !sequenced_persistence_ready(&plan, &caught_up, &state, 5, 0)
+                .expect("persistence readiness")
+        );
+        assert_eq!(
+            source.cursor(EventKind::Dispatch).expect("dispatch cursor"),
+            None
+        );
+        assert_eq!(
+            source.correlation_cursor().expect("correlation cursor"),
+            None
+        );
+
+        state
+            .validate(
+                event(
+                    MERKLE_EVENT_TYPE,
+                    0,
+                    merkle_data_for(
+                        0,
+                        H256::from_low_u64_be(2),
+                        dispatch_message(0, b"zero").id(),
+                        100,
+                    ),
+                ),
+                &sources,
+            )
+            .expect("first Merkle event");
+        assert!(sequenced_persistence_ready(&plan, &caught_up, &state, 5, 0)
+            .expect("persistence readiness"));
+        let cursors = sequenced_cursor_write_order(&state, 5).expect("cursor write order");
+        assert_eq!(
+            cursors,
+            [
+                (EventKind::Dispatch, 0),
+                (EventKind::MerkleTreeInsertion, 0),
+            ]
+        );
+        for (kind, sequence) in cursors {
+            source
+                .store_cursor(kind, sequence)
+                .expect("seed first complete pair cursor");
+        }
+        let correlation = state
+            .initialize_correlation(5, 0)
+            .expect("initialize correlation");
+        source
+            .store_correlation_cursor(correlation)
+            .expect("store initial correlation");
+        let correlation = state
+            .advance_correlation(5)
+            .expect("advance correlation")
+            .expect("complete pair advances correlation");
+        source
+            .store_correlation_cursor(correlation)
+            .expect("store advanced correlation");
+
+        assert_eq!(
+            source.cursor(EventKind::Dispatch).expect("dispatch cursor"),
+            Some(0)
+        );
+        assert_eq!(
+            source
+                .cursor(EventKind::MerkleTreeInsertion)
+                .expect("Merkle cursor"),
+            Some(0)
+        );
+        assert_eq!(
+            source.correlation_cursor().expect("correlation cursor"),
+            Some(1)
+        );
+        state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 1, dispatch_data(1, b"one")),
+                &sources,
+            )
+            .expect("next dispatch event");
+        assert!(sequenced_persistence_ready(&plan, &caught_up, &state, 5, 1)
+            .expect("initialized persistence readiness"));
+        let reconnect_plan = replay_plan(&sources);
+        assert_eq!(
+            reconnect_plan.source(5).expect("source plan").floor,
+            Some(0)
+        );
+        let request: serde_json::Value = serde_json::from_str(
+            &subscription(&sources, &reconnect_plan).expect("subscription should serialize"),
+        )
+        .expect("subscription JSON");
+        assert_eq!(request["streams"][0]["cursors"][0]["afterSequence"], "-1");
+        assert_eq!(request["streams"][1]["cursors"][0]["afterSequence"], "-1");
     }
 
     #[test]
