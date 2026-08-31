@@ -3649,7 +3649,8 @@ mod tests {
             .correlation_required(5)
             .expect("correlation requirement"));
         let request: serde_json::Value = serde_json::from_str(
-            &subscription(&sources, &reconnect_plan).expect("subscription should serialize"),
+            &subscription(&sources, &reconnect_plan, &gas_payment_cursors(), true)
+                .expect("subscription should serialize"),
         )
         .expect("subscription JSON");
         assert_eq!(request["streams"][0]["cursors"][0]["afterSequence"], "89");
@@ -4244,7 +4245,8 @@ mod tests {
             Some(0)
         );
         let request: serde_json::Value = serde_json::from_str(
-            &subscription(&sources, &reconnect_plan).expect("subscription should serialize"),
+            &subscription(&sources, &reconnect_plan, &gas_payment_cursors(), true)
+                .expect("subscription should serialize"),
         )
         .expect("subscription JSON");
         assert_eq!(request["streams"][0]["cursors"][0]["afterSequence"], "-1");
@@ -4317,6 +4319,7 @@ mod tests {
                         100,
                     ),
                 ),
+                EventKind::GasPayment => unreachable!("test only covers sequenced streams"),
             };
             state
                 .validate(first, &sources)
@@ -4324,6 +4327,7 @@ mod tests {
             let peer = match kind {
                 EventKind::Dispatch => EventKind::MerkleTreeInsertion,
                 EventKind::MerkleTreeInsertion => EventKind::Dispatch,
+                EventKind::GasPayment => unreachable!("test only covers sequenced streams"),
             };
             let mut caught_up = HashMap::from([((5, kind), -1)]);
             assert!(!source_caught_up(false, &caught_up, &state, 5).expect("one empty marker"));
