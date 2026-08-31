@@ -91,6 +91,11 @@ impl DestinationIndexIterator {
         db: &HyperlaneRocksDB,
         metrics: &MessageDbLoaderMetrics,
     ) -> Result<Option<(IndexDirection, u32, H256)>> {
+        if self.low_nonce.is_none() && self.low_range_reopen_pending {
+            self.low_range_reopen_pending = false;
+            self.reopen_low_range();
+        }
+
         if let Some(nonce) = self.reconsider_nonces.first().copied() {
             metrics
                 .logical_db_reads
