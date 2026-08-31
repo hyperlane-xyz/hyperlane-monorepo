@@ -128,6 +128,13 @@ export const websocketSendFailures = new Counter({
   registers: [metricsRegistry],
 });
 
+export const websocketNotificationQueueOverflows = new Counter({
+  help: 'PostgreSQL notification queue overflows by isolated route.',
+  labelNames: ['route'] as const,
+  name: `${PREFIX}websocket_notification_queue_overflows_total`,
+  registers: [metricsRegistry],
+});
+
 for (const outcome of ['aborted', 'capacity_rejected', 'failure', 'success'])
   websocketCatchUps.inc({ outcome }, 0);
 for (const reason of [
@@ -143,6 +150,8 @@ for (const route of ['agent', 'messages']) {
 }
 for (const reason of ['invalid_client_ip', 'per_ip_limit'])
   websocketConnectionRejections.inc({ reason, route: 'messages' }, 0);
+for (const route of ['agent', 'messages'])
+  websocketNotificationQueueOverflows.inc({ route }, 0);
 
 let websocketMetricsProvider: (() => WebSocketMetricsSnapshot) | undefined;
 let databaseMetricsProvider: (() => DatabaseMetricsSnapshot) | undefined;

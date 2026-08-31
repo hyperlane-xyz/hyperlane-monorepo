@@ -14,6 +14,7 @@ import {
   websocketClientMessageRejections,
   websocketConnectionRejections,
   websocketConnections,
+  websocketNotificationQueueOverflows,
   websocketSendFailures,
 } from '../metrics.js';
 import { quoteIdentifier as q, tables } from '../scraperdb/tables.js';
@@ -794,6 +795,7 @@ export class EventWebSocketServer {
           this.explorerNotifications.size >= MAX_PENDING_NOTIFICATIONS
         ) {
           websocketSendFailures.inc({ reason: 'notification_queue_limit' });
+          websocketNotificationQueueOverflows.inc({ route: 'messages' });
           this.failExplorerStream(
             new Error('Explorer notification queue limit exceeded'),
           );
@@ -810,6 +812,7 @@ export class EventWebSocketServer {
           this.notifications.size >= MAX_PENDING_NOTIFICATIONS
         ) {
           websocketSendFailures.inc({ reason: 'notification_queue_limit' });
+          websocketNotificationQueueOverflows.inc({ route: 'agent' });
           this.failAgentStream(
             new Error('Agent notification queue limit exceeded'),
           );

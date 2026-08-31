@@ -751,6 +751,40 @@ void it('bounds Explorer notifications without closing agents', async () => {
   }
 });
 
+void it('bounds agent notifications without closing Explorer', async () => {
+  const explorer = new WebSocket(messagesUrl);
+  const explorerMessages: Record<string, unknown>[] = [];
+  const agentMessages: Record<string, unknown>[] = [];
+  explorer.on('message', (data) =>
+    explorerMessages.push(parseRecord(rawData(data))),
+  );
+  const agent = liveAgent(agentMessages);
+  try {
+    await Promise.all([
+      waitFor(explorerMessages, 'ready'),
+      waitFor(agentMessages, 'subscribed'),
+    ]);
+    for (let index = 0; index <= 10_000; index++)
+      notify('scraper_event', notification((index + 20_000).toString()));
+
+    await waitUntil(() => agent.readyState === WebSocket.CLOSED);
+    assert.equal(explorer.readyState, WebSocket.OPEN);
+    assert.equal(events.metricsSnapshot().notificationQueue.agent, 0);
+    assert.match(
+      await metricsRegistry.metrics(),
+      /websocket_notification_queue_overflows_total\{route="agent"\} 1/,
+    );
+  } finally {
+    explorer.close();
+    if (agent.readyState !== WebSocket.CLOSED) agent.close();
+    await waitUntil(() =>
+      [explorer, agent].every(
+        ({ readyState }) => readyState === WebSocket.CLOSED,
+      ),
+    );
+  }
+});
+
 void it('keeps fast Explorer clients independent from a stalled client', async (context) => {
   const completions = delayFirstExplorerSocket(context);
   const sockets = [new WebSocket(messagesUrl), new WebSocket(messagesUrl)];
