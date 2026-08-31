@@ -488,6 +488,13 @@ impl StagedParity {
         }
         Ok(ready)
     }
+
+    fn drain_all(&mut self) -> impl Iterator<Item = (u32, ValidatedEvent)> + '_ {
+        self.len = 0;
+        self.events
+            .drain()
+            .flat_map(|(domain, events)| events.into_iter().map(move |event| (domain, event)))
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -1264,14 +1271,40 @@ impl ScraperWebSocketMonitor {
         kind: EventKind,
         parity_input: ParityInput,
     ) -> &'static str {
+        self.note_parity_pending(domain, kind);
+        self.observe_parity_inner(domain, kind, parity_input).await
+    }
+
+    fn note_parity_pending(&self, domain: u32, kind: EventKind) {
+        let source = self
+            .sources
+            .get(&domain)
+            .expect("validated scraper event source must exist");
+        let labels = [source.chain.as_str(), kind.label()];
+        self.parity_ready.with_label_values(&labels).set(0);
+        self.parity_pending.with_label_values(&labels).inc();
+    }
+
+    fn cancel_parity_pending(&self, domain: u32, kind: EventKind) {
         let source = self
             .sources
             .get(&domain)
             .expect("validated scraper event source must exist");
         self.parity_pending
             .with_label_values(&[source.chain.as_str(), kind.label()])
-            .inc();
-        self.observe_parity_inner(domain, kind, parity_input).await
+            .dec();
+    }
+
+    fn stage_parity(
+        &self,
+        staged: &mut StagedParity,
+        domain: u32,
+        validated: ValidatedEvent,
+    ) -> Result<()> {
+        let kind = validated.kind;
+        staged.push(domain, validated)?;
+        self.note_parity_pending(domain, kind);
+        Ok(())
     }
 
     async fn observe_parity_inner(
@@ -1388,23 +1421,16 @@ impl ScraperWebSocketMonitor {
         }
     }
 
-    async fn enqueue_parity(
+    async fn enqueue_accounted_parity(
         self: &Arc<Self>,
         domain: u32,
         kind: EventKind,
         parity_input: ParityInput,
         sequence: u32,
-    ) {
-        let source = self
-            .sources
-            .get(&domain)
-            .expect("validated scraper event source exists");
+    ) -> bool {
         let generation = self.correlation_gate.lock().generation;
-        self.parity_ready
-            .with_label_values(&[source.chain.as_str(), kind.label()])
-            .set(0);
         if self.parity_read_disabled.load(Ordering::Acquire) {
-            return;
+            return false;
         }
         let queue_permit = self
             .parity_queue_permit
@@ -1413,11 +1439,8 @@ impl ScraperWebSocketMonitor {
             .await
             .expect("parity queue semaphore is never closed");
         if self.parity_read_disabled.load(Ordering::Acquire) {
-            return;
+            return false;
         }
-        self.parity_pending
-            .with_label_values(&[source.chain.as_str(), kind.label()])
-            .inc();
         let queue = self
             .parity_queues
             .get(&(domain, kind))
@@ -1444,6 +1467,25 @@ impl ScraperWebSocketMonitor {
                 monitor.drain_parity_queue(domain, kind, queue).await;
             });
         }
+        true
+    }
+
+    #[cfg(test)]
+    async fn enqueue_parity(
+        self: &Arc<Self>,
+        domain: u32,
+        kind: EventKind,
+        parity_input: ParityInput,
+        sequence: u32,
+    ) -> bool {
+        self.note_parity_pending(domain, kind);
+        let enqueued = self
+            .enqueue_accounted_parity(domain, kind, parity_input, sequence)
+            .await;
+        if !enqueued {
+            self.cancel_parity_pending(domain, kind);
+        }
+        enqueued
     }
 
     async fn admit_parity(
@@ -1464,8 +1506,12 @@ impl ScraperWebSocketMonitor {
         if let Some(next) = state.advance_correlation(domain)? {
             self.note_cross_stream_next(generation, domain, next);
         }
-        self.enqueue_parity(domain, validated.kind, validated.parity, validated.sequence)
-            .await;
+        if !self
+            .enqueue_accounted_parity(domain, validated.kind, validated.parity, validated.sequence)
+            .await
+        {
+            self.cancel_parity_pending(domain, validated.kind);
+        }
         Ok(())
     }
 
@@ -1478,11 +1524,27 @@ impl ScraperWebSocketMonitor {
         domain: u32,
         staged: &mut StagedParity,
     ) -> Result<()> {
-        for validated in staged.drain_ready(plan, caught_up, state, domain)? {
-            self.admit_parity(state, generation, domain, validated)
-                .await?;
+        let mut ready = staged.drain_ready(plan, caught_up, state, domain)?;
+        while let Some(validated) = ready.pop_front() {
+            let kind = validated.kind;
+            if let Err(err) = self
+                .admit_parity(state, generation, domain, validated)
+                .await
+            {
+                self.cancel_parity_pending(domain, kind);
+                for pending in ready {
+                    self.cancel_parity_pending(domain, pending.kind);
+                }
+                return Err(err);
+            }
         }
         Ok(())
+    }
+
+    fn abandon_staged_parity(&self, staged: &mut StagedParity) {
+        for (domain, event) in staged.drain_all() {
+            self.cancel_parity_pending(domain, event.kind);
+        }
     }
 
     async fn drain_parity_queue(
@@ -1573,13 +1635,27 @@ impl ScraperWebSocketMonitor {
         plan: &SequencedReplayPlan,
         generation: u64,
     ) -> Result<()> {
+        let mut staged_parity = StagedParity::default();
+        let result = self
+            .stream_inner(state, plan, generation, &mut staged_parity)
+            .await;
+        self.abandon_staged_parity(&mut staged_parity);
+        result
+    }
+
+    async fn stream_inner(
+        self: &Arc<Self>,
+        state: &mut StreamState,
+        plan: &SequencedReplayPlan,
+        generation: u64,
+        staged_parity: &mut StagedParity,
+    ) -> Result<()> {
         let (mut socket, _) = timeout(READ_TIMEOUT, connect_async(self.url.as_str()))
             .await
             .context("Connecting to relayer scraper-proxy WebSocket timed out")?
             .context("Connecting to relayer scraper-proxy WebSocket")?;
         let mut handshake = HandshakeState::default();
         let mut caught_up = HashMap::new();
-        let mut staged_parity = StagedParity::default();
         let read_deadline = sleep(READ_TIMEOUT);
         tokio::pin!(read_deadline);
 
@@ -1619,14 +1695,14 @@ impl ScraperWebSocketMonitor {
                                         SequenceResult::Duplicate => "duplicate",
                                     };
                                     self.record(domain, validated.kind.label(), result);
-                                    staged_parity.push(domain, validated)?;
+                                    self.stage_parity(staged_parity, domain, validated)?;
                                     self.flush_staged_parity(
                                         state,
                                         plan,
                                         &caught_up,
                                         generation,
                                         domain,
-                                        &mut staged_parity,
+                                        staged_parity,
                                     )
                                     .await?;
                                     self.update_source_caught_up(state, plan, &caught_up, domain)?;
@@ -1703,7 +1779,7 @@ impl ScraperWebSocketMonitor {
                                 &caught_up,
                                 generation,
                                 domain,
-                                &mut staged_parity,
+                                staged_parity,
                             )
                             .await?;
                             self.update_source_caught_up(state, plan, &caught_up, domain)?;
@@ -3841,6 +3917,82 @@ mod tests {
                 .get(),
             1
         );
+    }
+
+    #[tokio::test]
+    async fn staged_event_clears_parity_readiness_until_terminal() {
+        let mut database = MockParityDatabase::new();
+        database
+            .expect_retrieve_message_by_nonce()
+            .times(1)
+            .returning(|nonce| Ok(Some(dispatch_message(nonce, b"matched"))));
+        database
+            .expect_retrieve_dispatched_block_number_by_nonce()
+            .times(1)
+            .returning(|_| Ok(Some(100)));
+        database
+            .expect_retrieve_dispatched_tx_hash_by_message_id()
+            .times(1)
+            .returning(|_| Ok(Some(dispatch_transaction_id())));
+        let monitor = Arc::new(monitor(Arc::new(database)));
+        let labels = ["test", DISPATCH_EVENT_TYPE];
+        let mut state = StreamState::default();
+        let matched = state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 0, dispatch_data(0, b"matched")),
+                &monitor.sources,
+            )
+            .expect("valid matched dispatch");
+        assert_eq!(
+            monitor
+                .observe_parity(5, matched.kind, matched.parity)
+                .await,
+            ParityResult::Match.label()
+        );
+        assert_eq!(monitor.parity_pending.with_label_values(&labels).get(), 0);
+        assert_eq!(monitor.parity_ready.with_label_values(&labels).get(), 1);
+
+        let staged_event = state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 1, dispatch_data(1, b"staged")),
+                &monitor.sources,
+            )
+            .expect("valid staged dispatch");
+        let mut staged = StagedParity::default();
+        monitor
+            .stage_parity(&mut staged, 5, staged_event)
+            .expect("stage unmatched dispatch");
+        assert_eq!(monitor.parity_pending.with_label_values(&labels).get(), 1);
+        assert_eq!(monitor.parity_ready.with_label_values(&labels).get(), 0);
+
+        let queued_event = state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 2, dispatch_data(2, b"queued")),
+                &monitor.sources,
+            )
+            .expect("valid queued dispatch");
+        monitor.note_parity_pending(5, EventKind::Dispatch);
+        let queue = monitor
+            .parity_queues
+            .get(&(5, EventKind::Dispatch))
+            .expect("dispatch queue");
+        queue.lock().jobs.push_back(ParityJob {
+            generation: 1,
+            input: queued_event.parity,
+            queue_permit: monitor
+                .parity_queue_permit
+                .clone()
+                .try_acquire_owned()
+                .expect("queue permit"),
+            sequence: queued_event.sequence,
+        });
+        assert_eq!(monitor.parity_pending.with_label_values(&labels).get(), 2);
+
+        monitor.abandon_staged_parity(&mut staged);
+        assert_eq!(monitor.parity_pending.with_label_values(&labels).get(), 1);
+        assert_eq!(monitor.parity_ready.with_label_values(&labels).get(), 0);
+        monitor.abandon_parity_queue(5, EventKind::Dispatch, queue);
+        assert_eq!(monitor.parity_pending.with_label_values(&labels).get(), 0);
     }
 
     #[tokio::test]
