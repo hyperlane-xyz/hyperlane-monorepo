@@ -556,12 +556,16 @@ impl MerkleTreeHookWebSocketSync {
                         address,
                         domain,
                         event_type,
+                        legacy_max_stream_cursor,
                         row_id,
                         stream_cursor,
                         sequence,
                     } => {
                         subscription_state.require_subscribed("caught-up marker")?;
-                        if row_id.is_some() || stream_cursor.is_some() {
+                        if legacy_max_stream_cursor.is_some()
+                            || row_id.is_some()
+                            || stream_cursor.is_some()
+                        {
                             bail!("Merkle tree hook stream received row/stream cursor caught-up marker");
                         }
                         let sequence = sequence
@@ -1622,6 +1626,7 @@ mod tests {
             },
             domain: 1,
             event_type: EVENT_TYPE.to_owned(),
+            legacy_max_stream_cursor: None,
             row_id: Some("10".to_owned()),
             stream_cursor: None,
             sequence: Some("0".to_owned()),
@@ -1647,6 +1652,7 @@ mod tests {
             },
             domain: 1,
             event_type: EVENT_TYPE.to_owned(),
+            legacy_max_stream_cursor: None,
             row_id: None,
             stream_cursor: Some("10".to_owned()),
             sequence: Some("0".to_owned()),
@@ -1672,6 +1678,7 @@ mod tests {
             },
             domain: 1,
             event_type: EVENT_TYPE.to_owned(),
+            legacy_max_stream_cursor: None,
             row_id: None,
             stream_cursor: None,
             sequence: Some("0".to_owned()),
@@ -1706,6 +1713,7 @@ mod tests {
                     },
                     domain: 1,
                     event_type: EVENT_TYPE.to_owned(),
+                    legacy_max_stream_cursor: None,
                     row_id: None,
                     stream_cursor: None,
                     sequence: Some("0".to_owned()),
@@ -1734,6 +1742,7 @@ mod tests {
             },
             domain: 1,
             event_type: EVENT_TYPE.to_owned(),
+            legacy_max_stream_cursor: None,
             row_id: None,
             stream_cursor: None,
             sequence: Some("2".to_owned()),
