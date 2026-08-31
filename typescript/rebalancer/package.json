@@ -60,8 +60,7 @@
     "uuid": "catalog:",
     "viem": "catalog:",
     "yaml": "catalog:",
-    "zod": "catalog:",
-    "zod-validation-error": "catalog:"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@ethersproject/constants": "*",

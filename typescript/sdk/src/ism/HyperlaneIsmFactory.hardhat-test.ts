@@ -1175,16 +1175,18 @@ describe('HyperlaneIsmFactory', async () => {
   // sub-trees IsmConfigSchema rejects on their own, so its guard is the shape
   // of each node rather than the tree's composition.
   it('rejects a structurally invalid config handed straight to deployInternal', async () => {
-    await expect(
-      ismFactory.deployInternal({
+    const error = await ismFactory
+      .deployInternal({
         destination: chain,
         config: {
           type: IsmType.MERKLE_ROOT_MULTISIG,
           validators: ['not-an-address'],
           threshold: 1,
         },
-      }),
-    ).to.be.rejectedWith(ZodError);
+      })
+      .catch((reason: unknown) => reason);
+
+    expect(error).to.be.instanceOf(ZodError);
   });
 
   for (let i = 0; i < 16; i++) {

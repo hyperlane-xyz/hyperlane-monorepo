@@ -103,11 +103,9 @@ export const CoreConfigSchema = CoreConfigBaseSchema.superRefine((val, ctx) => {
   rejectQuotedCallsWithLegacyIgp(val, ctx);
 });
 
-export const DerivedCoreConfigSchema = CoreConfigBaseSchema.merge(
-  z.object({
-    interchainAccountRouter: DerivedIcaRouterConfigSchema.optional(),
-  }),
-).superRefine((val, ctx) => {
+export const DerivedCoreConfigSchema = CoreConfigBaseSchema.extend({
+  interchainAccountRouter: DerivedIcaRouterConfigSchema.optional(),
+}).superRefine((val, ctx) => {
   rejectRateLimitedDefaultIsm(val, ctx);
   rejectWarpOnlyDefaultIsm(val, ctx);
   rejectQuotedCallsWithLegacyIgp(val, ctx);

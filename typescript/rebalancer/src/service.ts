@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import 'zod/compile';
+
 /**
  * Hyperlane Rebalancer Service Entry Point
  *

@@ -50,14 +50,12 @@ export type PrintableSvmInstruction = z.infer<
 // `computeUnits` (carried through to the Squads proposal for the executor to
 // apply at `vaultTransactionExecute`). Passthrough keeps any additional
 // writer fields.
-export const PrintableSvmTransactionSchema = z
-  .object({
-    transaction_base58: z.string(),
-    instructions: z.array(PrintableSvmInstructionSchema).min(1),
-    waitForSlotAdvance: z.boolean().optional(),
-    computeUnits: z.number().optional(),
-  })
-  .passthrough();
+export const PrintableSvmTransactionSchema = z.looseObject({
+  transaction_base58: z.string(),
+  instructions: z.array(PrintableSvmInstructionSchema).min(1),
+  waitForSlotAdvance: z.boolean().optional(),
+  computeUnits: z.number().optional(),
+});
 
 export type PrintableSvmTransaction = z.infer<
   typeof PrintableSvmTransactionSchema

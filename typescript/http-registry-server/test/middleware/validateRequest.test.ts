@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { AppConstants } from '../../src/constants/AppConstants.js';
 import { ApiError } from '../../src/errors/ApiError.js';
 import {
+  legacyRegistrySchema,
   validateBody,
   validateQueryParam,
   validateQueryParams,
@@ -32,6 +33,41 @@ describe('validateRequest middleware', () => {
 
   afterEach(() => {
     sinon.restore();
+  });
+
+  describe('legacyRegistrySchema', () => {
+    it('returns parsed legacy schema output', () => {
+      const schema = legacyRegistrySchema({
+        safeParse: (_input: unknown) => ({
+          success: true,
+          data: { count: 42 },
+        }),
+      });
+
+      expect(schema.parse('ignored')).to.deep.equal({ count: 42 });
+    });
+
+    it('preserves nested legacy issue paths', () => {
+      const path = ['metadata', 'rpcUrls', 0, 'http'];
+      const schema = legacyRegistrySchema({
+        safeParse: (_input: unknown) => ({
+          success: false,
+          error: {
+            issues: [{ message: 'Invalid URL', path }],
+          },
+        }),
+      });
+
+      const result = schema.safeParse({});
+      expect(result.success).to.be.false;
+      if (!result.success) {
+        expect(result.error.issues).to.deep.include({
+          code: 'custom',
+          message: 'Invalid URL',
+          path,
+        });
+      }
+    });
   });
 
   describe('validateQueryParams', () => {
@@ -77,7 +113,9 @@ describe('validateRequest middleware', () => {
       expect(next.calledOnce).to.be.true;
       const error = next.getCall(0).args[0];
       expect(error).to.be.instanceOf(ApiError);
-      expect(error.message).to.include('Required');
+      expect(error.message).to.include(
+        'Invalid input: expected string, received undefined',
+      );
     });
   });
 
@@ -118,7 +156,9 @@ describe('validateRequest middleware', () => {
       expect(next.calledOnce).to.be.true;
       const error = next.getCall(0).args[0];
       expect(error).to.be.instanceOf(ApiError);
-      expect(error.message).to.include('Required');
+      expect(error.message).to.include(
+        'Invalid input: expected string, received undefined',
+      );
     });
   });
 

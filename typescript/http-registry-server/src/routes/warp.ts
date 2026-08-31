@@ -13,6 +13,7 @@ import {
 import { AppConstants } from '../constants/AppConstants.js';
 import {
   joinPathSegments,
+  legacyRegistrySchema,
   validateBody,
   validateQueryParams,
   validateRequestParam,
@@ -26,12 +27,12 @@ export interface WarpRouterOptions {
 
 const AddWarpRouteBodySchema = z.object({
   config: WarpCoreConfigSchema,
-  options: AddWarpRouteConfigOptionsSchema.optional(),
+  options: legacyRegistrySchema(AddWarpRouteConfigOptionsSchema).optional(),
 });
 
 const AddWarpRouteConfigBodySchema = z.object({
   config: WarpRouteDeployConfigSchema,
-  options: AddWarpRouteConfigOptionsSchema,
+  options: legacyRegistrySchema(AddWarpRouteConfigOptionsSchema),
 });
 
 export function createWarpRouter(

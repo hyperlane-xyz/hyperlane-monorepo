@@ -53,8 +53,7 @@ type ExtendedSubmitterMetadata =
   | ExtendedIcaSubmitterMetadata
   | ExtendedTimelockSubmitterMetadata;
 
-// @ts-expect-error recursive schema causes type inference errors
-const ExtendedSubmitterMetadataSchema: z.ZodSchema<ExtendedSubmitterMetadata> =
+const ExtendedSubmitterMetadataSchema: z.ZodType<ExtendedSubmitterMetadata> =
   z.lazy(() =>
     z.union([
       FileSubmitterMetadataSchema,
@@ -64,15 +63,14 @@ const ExtendedSubmitterMetadataSchema: z.ZodSchema<ExtendedSubmitterMetadata> =
     ]),
   );
 
-const ExtendedEvmIcaTxSubmitterPropsSchema =
-  buildEvmIcaTxSubmitterPropsSchema<ExtendedIcaSubmitterMetadata>(
-    () => ExtendedSubmitterMetadataSchema,
-  );
+const ExtendedEvmIcaTxSubmitterPropsSchema = buildEvmIcaTxSubmitterPropsSchema<
+  ExtendedIcaSubmitterMetadata['internalSubmitter']
+>(() => ExtendedSubmitterMetadataSchema);
 
 const ExtendedEvmTimelockControllerSubmitterPropsSchema =
-  buildEvmTimelockControllerSubmitterPropsSchema<ExtendedTimelockSubmitterMetadata>(
-    () => ExtendedSubmitterMetadataSchema,
-  );
+  buildEvmTimelockControllerSubmitterPropsSchema<
+    ExtendedTimelockSubmitterMetadata['proposerSubmitter']
+  >(() => ExtendedSubmitterMetadataSchema);
 
 export const ExtendedSubmissionStrategySchema = z.object({
   submitter: ExtendedSubmitterMetadataSchema,

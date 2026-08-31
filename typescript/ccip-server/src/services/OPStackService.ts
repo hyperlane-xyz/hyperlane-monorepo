@@ -14,10 +14,10 @@ import { HyperlaneService } from './HyperlaneService.js';
 import { RPCService } from './RPCService.js';
 
 const EnvSchema = z.object({
-  HYPERLANE_EXPLORER_API: z.string().url(),
-  RPC_ADDRESS: z.string().url(),
+  HYPERLANE_EXPLORER_API: z.url(),
+  RPC_ADDRESS: z.url(),
   CHAIN_ID: z.string(),
-  L2_RPC_ADDRESS: z.string().url(),
+  L2_RPC_ADDRESS: z.url(),
   L2_CHAIN_ID: z.string(),
   L1_ADDRESS_MANAGER: z.string(),
   L1_CROSS_DOMAIN_MESSENGER: z.string(),

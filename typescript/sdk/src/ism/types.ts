@@ -273,7 +273,7 @@ export type DomainRoutingIsmConfig = BaseRoutingIsmConfig<
 
 export const InterchainAccountRouterIsmSchema = OwnableSchema.extend({
   type: z.literal(IsmType.INTERCHAIN_ACCOUNT_ROUTING),
-  isms: z.record(ZHash),
+  isms: z.record(z.string(), ZHash),
 });
 export type InterchainAccountRouterIsm = z.infer<
   typeof InterchainAccountRouterIsmSchema
@@ -299,9 +299,9 @@ export type AggregationIsmConfig = {
 };
 
 // Explicit (not z.infer) union: IsmConfigSchema gets annotated with this type
-// below so downstream `.extend()`/`.merge()` chains (MailboxClientConfigSchema
+// below so downstream schema composition (MailboxClientConfigSchema
 // and everything built on it) reference this pre-computed type instead of
-// re-expanding the full union's structure on every merge, which otherwise
+// does not re-expand the full union's structure on every composition, which otherwise
 // risks TS2590 ("union too complex to represent") once the union is large
 // enough — confirmed via a control-group test that any new member (not just
 // compositeIsm) trips this ceiling.
@@ -508,7 +508,7 @@ export const DelayedFlowRouterHookIsmConfigSchema = OwnableSchema.extend({
    * on-chain nomenclature keeps "router": enrollRemoteRouters/routers()).
    * Omit to leave the current on-chain enrollment untouched.
    */
-  remoteIsms: z.record(ZRouterBytes32).optional(),
+  remoteIsms: z.record(z.string(), ZRouterBytes32).optional(),
 }).refine((val) => val.duration > 0n, {
   message: 'duration must be greater than 0',
   path: ['duration'],
@@ -521,7 +521,7 @@ export const CCIPIsmConfigSchema = z.object({
 
 export const OffchainLookupIsmConfigSchema = OwnableSchema.extend({
   type: z.literal(IsmType.OFFCHAIN_LOOKUP),
-  urls: z.array(z.string().url()),
+  urls: z.array(z.url()),
 });
 
 export const isOffchainLookupIsmConfig = isCompliant(
@@ -573,33 +573,29 @@ export const WeightedMultisigIsmConfigSchema = WeightedMultisigConfigSchema.and(
   }),
 );
 
-export const RoutingIsmConfigSchema: z.ZodType<
-  RoutingIsmConfig,
-  z.ZodTypeDef,
-  unknown
-> = z.lazy(() =>
-  z.discriminatedUnion('type', [
-    z.object({
-      type: z.literal(IsmType.AMOUNT_ROUTING),
-      lowerIsm: BaseIsmConfigSchema,
-      upperIsm: BaseIsmConfigSchema,
-      threshold: z.number(),
-    }),
-    OwnableSchema.extend({
-      type: z.enum([
-        IsmType.ROUTING,
-        IsmType.FALLBACK_ROUTING,
-        IsmType.INCREMENTAL_ROUTING,
-      ]),
-      domains: z.record(BaseIsmConfigSchema),
-    }),
-    InterchainAccountRouterIsmSchema,
-  ]),
-);
+export const RoutingIsmConfigSchema: z.ZodType<RoutingIsmConfig, unknown> =
+  z.lazy(() =>
+    z.discriminatedUnion('type', [
+      z.object({
+        type: z.literal(IsmType.AMOUNT_ROUTING),
+        lowerIsm: BaseIsmConfigSchema,
+        upperIsm: BaseIsmConfigSchema,
+        threshold: z.number(),
+      }),
+      OwnableSchema.extend({
+        type: z.enum([
+          IsmType.ROUTING,
+          IsmType.FALLBACK_ROUTING,
+          IsmType.INCREMENTAL_ROUTING,
+        ]),
+        domains: z.record(z.string(), BaseIsmConfigSchema),
+      }),
+      InterchainAccountRouterIsmSchema,
+    ]),
+  );
 
 export const AggregationIsmConfigSchema: z.ZodType<
   AggregationIsmConfig,
-  z.ZodTypeDef,
   unknown
 > = z
   .lazy(() =>
@@ -735,7 +731,7 @@ export type CompositeIsmNodeConfig =
   | CompositeRoutingNodeConfig
   | CompositeFallbackRoutingNodeConfig;
 
-export const CompositeIsmNodeConfigSchema: z.ZodSchema<CompositeIsmNodeConfig> =
+export const CompositeIsmNodeConfigSchema: z.ZodType<CompositeIsmNodeConfig> =
   z.lazy(() =>
     z.discriminatedUnion('type', [
       z.object({
@@ -774,12 +770,12 @@ export const CompositeIsmNodeConfigSchema: z.ZodSchema<CompositeIsmNodeConfig> =
       }),
       z.object({
         type: z.literal(CompositeIsmNodeType.ROUTING),
-        domains: z.record(CompositeIsmNodeConfigSchema).optional(),
+        domains: z.record(z.string(), CompositeIsmNodeConfigSchema).optional(),
       }),
       z.object({
         type: z.literal(CompositeIsmNodeType.FALLBACK_ROUTING),
         fallbackIsm: ZSealevelPubkey,
-        domains: z.record(CompositeIsmNodeConfigSchema).optional(),
+        domains: z.record(z.string(), CompositeIsmNodeConfigSchema).optional(),
       }),
     ]),
   );
@@ -954,7 +950,7 @@ function validateCompositeIsmTree(
   }
 }
 
-export const CompositeIsmConfigSchema: z.ZodSchema<CompositeIsmConfig> =
+export const CompositeIsmConfigSchema: z.ZodType<CompositeIsmConfig> =
   OwnableSchema.extend({
     type: z.literal(IsmType.COMPOSITE),
     // Composite ISM is Sealevel-only, so unlike OwnableSchema's generic
@@ -972,11 +968,9 @@ export const CompositeIsmConfigSchema: z.ZodSchema<CompositeIsmConfig> =
     );
   });
 
-export const UnknownIsmConfigSchema = z
-  .object({
-    type: z.literal(IsmType.UNKNOWN),
-  })
-  .passthrough();
+export const UnknownIsmConfigSchema = z.looseObject({
+  type: z.literal(IsmType.UNKNOWN),
+});
 export type UnknownIsmConfig = z.infer<typeof UnknownIsmConfigSchema>;
 
 const KnownIsmTypes: string[] = Object.values(IsmType).filter(
@@ -1018,30 +1012,29 @@ export function normalizeUnknownIsmTypes<T>(config: T): T {
   return normalized as T;
 }
 
-export const BaseIsmConfigSchema: z.ZodType<IsmConfig, z.ZodTypeDef, unknown> =
-  z.union([
-    ZHash,
-    TestIsmConfigSchema,
-    OpStackIsmConfigSchema,
-    DerivedPausableIsmConfigSchema,
-    PausableIsmConfigSchema,
-    TrustedRelayerIsmConfigSchema,
-    CCIPIsmConfigSchema,
-    RateLimitedIsmConfigSchema,
-    BlacklistIsmConfigSchema,
-    NetFlowRateLimitedHookIsmConfigSchema,
-    DelayedFlowRouterHookIsmConfigSchema,
-    MailboxDefaultIsmConfigSchema,
-    MultisigIsmConfigSchema,
-    WeightedMultisigIsmConfigSchema,
-    RoutingIsmConfigSchema,
-    AggregationIsmConfigSchema,
-    CompositeIsmConfigSchema,
-    ArbL2ToL1IsmConfigSchema,
-    OffchainLookupIsmConfigSchema,
-    InterchainAccountRouterIsmSchema,
-    UnknownIsmConfigSchema,
-  ]);
+export const BaseIsmConfigSchema: z.ZodType<IsmConfig, unknown> = z.union([
+  ZHash,
+  TestIsmConfigSchema,
+  OpStackIsmConfigSchema,
+  DerivedPausableIsmConfigSchema,
+  PausableIsmConfigSchema,
+  TrustedRelayerIsmConfigSchema,
+  CCIPIsmConfigSchema,
+  RateLimitedIsmConfigSchema,
+  BlacklistIsmConfigSchema,
+  NetFlowRateLimitedHookIsmConfigSchema,
+  DelayedFlowRouterHookIsmConfigSchema,
+  MailboxDefaultIsmConfigSchema,
+  MultisigIsmConfigSchema,
+  WeightedMultisigIsmConfigSchema,
+  RoutingIsmConfigSchema,
+  AggregationIsmConfigSchema,
+  CompositeIsmConfigSchema,
+  ArbL2ToL1IsmConfigSchema,
+  OffchainLookupIsmConfigSchema,
+  InterchainAccountRouterIsmSchema,
+  UnknownIsmConfigSchema,
+]);
 
 /**
  * ISM types that authenticate a message's origin/authorship, as opposed to
@@ -1294,7 +1287,7 @@ function validateIsmComposition(
   }
 }
 
-export const IsmConfigSchema: z.ZodType<IsmConfig, z.ZodTypeDef, unknown> =
+export const IsmConfigSchema: z.ZodType<IsmConfig, unknown> =
   BaseIsmConfigSchema.superRefine((data, ctx) =>
     validateIsmComposition(
       data,

@@ -110,7 +110,6 @@
     "yargs": "catalog:",
     "zksync-ethers": "catalog:",
     "zod": "catalog:",
-    "zod-validation-error": "catalog:",
     "zx": "^8.1.4"
   },
   "engines": {

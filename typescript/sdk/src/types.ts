@@ -27,7 +27,7 @@ export const RATE_LIMIT_DEFAULT_DURATION_SECONDS = 86_400n;
 
 export const OwnableSchema = z.object({
   owner: ZHash,
-  ownerOverrides: z.record(ZHash).optional(),
+  ownerOverrides: z.record(z.string(), ZHash).optional(),
 });
 
 export type OwnableConfig = z.infer<typeof OwnableSchema>;

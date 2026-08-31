@@ -1,6 +1,6 @@
 import fs from 'fs';
 import * as YAML from 'yaml';
-import { fromZodError } from 'zod-validation-error';
+import { z } from 'zod';
 
 import {
   KeyFunderConfig,
@@ -26,7 +26,7 @@ export class KeyFunderConfigLoader {
     const validationResult = KeyFunderConfigSchema.safeParse(config);
     if (!validationResult.success) {
       throw new Error(
-        `Invalid keyfunder config: ${fromZodError(validationResult.error).message}`,
+        `Invalid keyfunder config: ${z.prettifyError(validationResult.error)}`,
       );
     }
     return new KeyFunderConfigLoader(validationResult.data);

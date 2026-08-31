@@ -49,7 +49,6 @@ import {
 } from './crossCollateralUtils.js';
 import { EvmTokenFeeFactories } from './contracts.js';
 import {
-  ResolvedCrossCollateralRoutingFeeConfigInput,
   ResolvedTokenFeeConfigInput,
   TokenFeeConfig,
   TokenFeeConfigInput,
@@ -105,7 +104,14 @@ function getFallbackTokenFromFeeConfig(
   }
 
   if (config.type === TokenFeeType.CrossCollateralRoutingFee) {
-    return Object.values(config.feeContracts)
+    const feeContracts: Record<
+      string,
+      Record<
+        string,
+        TokenFeeConfigInput | ResolvedTokenFeeConfigInput | TokenFeeConfig
+      >
+    > = config.feeContracts;
+    return Object.values(feeContracts)
       .flatMap((destinationConfig) => Object.values(destinationConfig))
       .map(getFallbackTokenFromFeeConfig)
       .find(Boolean);
@@ -131,10 +137,14 @@ function resolveTokenForFeeConfig(
   config: TokenFeeConfigInput,
   fallbackToken?: Address,
 ): ResolvedTokenFeeConfigInput {
+  const owner = config.owner;
+  assert(owner, `Owner is required to resolve ${config.type} fee config`);
+
   if (config.type === TokenFeeType.RoutingFee) {
     const resolvedToken = requireResolvedFeeToken(config, fallbackToken);
     return {
       ...config,
+      owner,
       token: resolvedToken,
       feeContracts: Object.fromEntries(
         Object.entries(config.feeContracts).map(([chain, subFee]) => [
@@ -148,15 +158,17 @@ function resolveTokenForFeeConfig(
     const nestedFallbackToken = getResolvedFeeToken(config, fallbackToken);
     return {
       ...config,
+      owner,
       feeContracts: objMap(config.feeContracts, (_, destinationConfig) =>
         objMap(destinationConfig, (_, subFee) =>
           resolveTokenForFeeConfig(subFee, nestedFallbackToken),
         ),
       ),
-    } as ResolvedCrossCollateralRoutingFeeConfigInput;
+    };
   }
   return {
     ...config,
+    owner,
     token: requireResolvedFeeToken(config, fallbackToken),
   };
 }
@@ -347,6 +359,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       };
     } else {
       // Progressive/Regressive fees
+      assert(
+        config.maxFee !== undefined && config.halfAmount !== undefined,
+        `${config.type} requires maxFee and halfAmount`,
+      );
       intermediaryConfig = {
         ...config,
         maxFee: BigInt(config.maxFee),

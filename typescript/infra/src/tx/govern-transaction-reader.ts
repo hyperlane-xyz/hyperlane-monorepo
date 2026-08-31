@@ -141,6 +141,16 @@ type FeeRouteDetail = {
   percent: string;
 };
 
+function getFeeBps(config: DerivedTokenFeeConfig): number {
+  switch (config.type) {
+    case TokenFeeType.RoutingFee:
+    case TokenFeeType.CrossCollateralRoutingFee:
+      return 0;
+    default:
+      return config.bps ?? 0;
+  }
+}
+
 type XERC20Metadata = {
   type: TokenStandard.EvmHypXERC20 | TokenStandard.EvmHypVSXERC20;
   symbol: string;
@@ -1677,7 +1687,7 @@ export class GovernTransactionReader {
 
     if (feeConfig.type === TokenFeeType.LinearFee) {
       // bps is in basis points (1 bps = 0.01%), convert to percentage
-      const bps = feeConfig.bps ? Number(feeConfig.bps) : 0;
+      const bps = getFeeBps(feeConfig);
       const percentFormatted = (bps / 100).toFixed(2);
 
       const description = `LinearFee contract (${percentFormatted}% fee, owner: ${ownerInsight})`;
@@ -1702,7 +1712,7 @@ export class GovernTransactionReader {
       for (const [chainName, subConfig] of Object.entries(
         feeConfig.feeContracts || {},
       )) {
-        const bps = subConfig.bps ? Number(subConfig.bps) : 0;
+        const bps = getFeeBps(subConfig);
         const percent = (bps / 100).toFixed(2);
 
         routes[chainName] = {
@@ -1749,7 +1759,7 @@ export class GovernTransactionReader {
         const routerEntries = Object.entries(routerConfigs);
         routes[chainName] = Object.fromEntries(
           routerEntries.map(([routerKey, subConfig]) => {
-            const bps = subConfig.bps ? Number(subConfig.bps) : 0;
+            const bps = getFeeBps(subConfig);
             const percent = (bps / 100).toFixed(2);
 
             return [

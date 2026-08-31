@@ -8,11 +8,9 @@ import { TxSubmitterType } from '../TxSubmitterTypes.js';
 import { EvmIcaTxSubmitterProps } from '../ethersV5/types.js';
 import { SubmitterMetadata, SubmitterMetadataSchema } from '../types.js';
 
-export const SubmissionStrategySchema = z
-  .object({
-    submitter: SubmitterMetadataSchema,
-  })
-  .strict();
+export const SubmissionStrategySchema = z.strictObject({
+  submitter: SubmitterMetadataSchema,
+});
 
 export type SubmissionStrategy = z.infer<typeof SubmissionStrategySchema>;
 

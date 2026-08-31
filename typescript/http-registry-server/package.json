@@ -33,8 +33,7 @@
     "ethers": "catalog:",
     "express": "^5.1.0",
     "pino": "catalog:",
-    "zod": "catalog:",
-    "zod-validation-error": "catalog:"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",

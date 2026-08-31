@@ -38,7 +38,7 @@ import {
 
 import { TurnkeyTransactionSignerBackend } from '../src/utils/turnkey.js';
 
-const JsonRecordSchema = z.record(z.unknown());
+const JsonRecordSchema = z.record(z.string(), z.unknown());
 
 async function readJson(request: IncomingMessage) {
   const chunks: Buffer[] = [];
