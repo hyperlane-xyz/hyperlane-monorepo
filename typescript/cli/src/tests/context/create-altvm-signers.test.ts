@@ -15,7 +15,10 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 
 import { altVmPrompts, createAltVMSigners } from '../../context/altvm.js';
 import { type SignerKeyProtocolMap } from '../../context/types.js';
-import { type ExtendedChainSubmissionStrategy } from '../../submitters/types.js';
+import {
+  CustomTxSubmitterType,
+  type ExtendedChainSubmissionStrategy,
+} from '../../submitters/types.js';
 
 type MetadataManager = Parameters<typeof createAltVMSigners>[0];
 
@@ -304,6 +307,42 @@ describe('createAltVMSigners', () => {
 
     expect(privateKeyPrompt.called).to.equal(false);
     expect(capturedConfigs).to.have.length(0);
+  });
+
+  it('uses an explicit key with non-jsonRpc strategies', async () => {
+    const privateKeyPrompt = sinon.stub(altVmPrompts, 'password');
+    const submitters = [
+      {
+        type: CustomTxSubmitterType.FILE,
+        chain: 'radix',
+        filepath: '/tmp/transactions.json',
+      },
+      {
+        type: TxSubmitterType.IMPERSONATED_ACCOUNT,
+        chain: 'radix',
+        userAddress: '0x123',
+      },
+    ] satisfies ExtendedChainSubmissionStrategy[string]['submitter'][];
+
+    for (const submitter of submitters) {
+      const strategy: Partial<ExtendedChainSubmissionStrategy> = {
+        radix: { submitter },
+      };
+
+      await createAltVMSigners(
+        getMetadataManager(() => getRadixMetadata('radix')),
+        ['radix'],
+        { [ProtocolType.Radix]: '0xexplicit-key' },
+        strategy,
+        getProtocolRegistry(),
+      );
+    }
+
+    expect(privateKeyPrompt.called).to.equal(false);
+    expect(capturedConfigs).to.deep.equal([
+      { privateKey: '0xexplicit-key', accountAddress: undefined },
+      { privateKey: '0xexplicit-key', accountAddress: undefined },
+    ]);
   });
 
   it('prefers explicit per-chain strategy key over prompted fallback', async () => {
