@@ -148,10 +148,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  // arc: {
-  //   threshold: 1,
-  //   validators: [DEFAULT_AW_VALIDATOR],
-  // },
+  arc: {
+    threshold: 1,
+    validators: [DEFAULT_AW_VALIDATOR],
+  },
 
   avalanche: {
     threshold: 3,
