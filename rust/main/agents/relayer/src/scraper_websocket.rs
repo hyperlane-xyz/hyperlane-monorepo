@@ -1987,6 +1987,7 @@ fn cursor_write_order(dispatch: u32, merkle: u32) -> [(EventKind, u32); 2] {
     }
 }
 
+#[cfg(test)]
 fn sequenced_cursor_write_order(state: &StreamState, domain: u32) -> Result<[(EventKind, u32); 2]> {
     Ok(cursor_write_order(
         state.latest_sequence(domain, EventKind::Dispatch)?,
