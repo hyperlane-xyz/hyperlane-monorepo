@@ -29,6 +29,8 @@
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
+    "@solana/kit": "catalog:",
+    "ethers": "catalog:",
     "express": "^5.1.0",
     "pino": "catalog:",
     "zod": "catalog:"

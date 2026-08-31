@@ -863,12 +863,16 @@ export class EventWebSocketServer {
       `SELECT ${tables.message_view.columns.map(q).join(', ')} FROM ${q('message_view')} WHERE ${q('msg_id')} = ANY($1::bytea[]) AND ${q('send_occurred_at')} IS NOT NULL`,
       [messageIds],
     );
-    for (const row of rows) {
-      const message = serialize({ data: row, type: 'message_upsert' });
-      this.explorerClients.forEach((_client, socket) =>
-        this.sendSerialized(socket, message),
-      );
-    }
+    const messages = rows.map((row) =>
+      serialize({ data: row, type: 'message_upsert' }),
+    );
+    await Promise.all(
+      [...this.explorerClients.keys()].map(async (socket) => {
+        for (const message of messages) {
+          if (!(await this.sendSerializedAndWait(socket, message))) return;
+        }
+      }),
+    );
   }
 
   private hasSubscriber({ domain, eventType }: EventNotification): boolean {
@@ -943,8 +947,15 @@ export class EventWebSocketServer {
     socket: WebSocket,
     message: Record<string, unknown>,
   ): Promise<boolean> {
+    return this.sendSerializedAndWait(socket, serialize(message));
+  }
+
+  private sendSerializedAndWait(
+    socket: WebSocket,
+    message: SerializedMessage,
+  ): Promise<boolean> {
     return new Promise((resolve) => {
-      if (!this.sendSerialized(socket, serialize(message), resolve)) {
+      if (!this.sendSerialized(socket, message, resolve)) {
         resolve(false);
       }
     });

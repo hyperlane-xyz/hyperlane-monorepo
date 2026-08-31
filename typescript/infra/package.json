@@ -73,6 +73,7 @@
     "@solana/kit": "catalog:",
     "@solana/web3.js": "catalog:",
     "@turnkey/api-key-stamper": "catalog:",
+    "@turnkey/http": "catalog:",
     "@turnkey/sdk-server": "catalog:",
     "@turnkey/solana": "catalog:",
     "asn1.js": "catalog:",

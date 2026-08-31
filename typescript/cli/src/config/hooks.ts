@@ -26,6 +26,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { type CommandContext } from '../context/types.js';
+import { tryResolveSignerAddress } from '../context/strategies/signer/resolveSignerAddress.js';
 import { errorRed, logBlue, logGreen, logRed } from '../logger.js';
 import {
   runMultiChainSelectionStep,
@@ -237,11 +238,12 @@ async function getOwnerAndBeneficiary(
   context: CommandContext,
   advanced: boolean,
 ) {
+  const signerAddress = await tryResolveSignerAddress(context);
   const unnormalizedOwner =
-    !advanced && context.signerAddress
-      ? context.signerAddress
+    !advanced && signerAddress
+      ? signerAddress
       : await detectAndConfirmOrPrompt(
-          async () => context.signerAddress,
+          async () => signerAddress,
           `For ${module}, enter`,
           'owner address',
           'signer',

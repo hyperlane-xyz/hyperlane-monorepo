@@ -5,6 +5,7 @@ import {
 } from '@solana/errors';
 import {
   AccountRole,
+  type TransactionSendingSigner,
   address,
   blockhash,
   getBase58Encoder,
@@ -155,6 +156,23 @@ function makePreflightBlockhashError(): SolanaError {
 
 describe('SvmSigner', () => {
   afterEach(() => sinon.restore());
+
+  it('rejects a sending-only transaction signer', async () => {
+    const sendingOnlySigner: TransactionSendingSigner = {
+      address: address('11111111111111111111111111111111'),
+      signAndSendTransactions: async () => [],
+    };
+
+    await expect(
+      SvmSigner.connectWithSigner(
+        TEST_CHAIN_METADATA,
+        // @ts-expect-error Sending-only signers cannot satisfy this pipeline.
+        sendingOnlySigner,
+      ),
+    ).to.be.rejectedWith(
+      'SVM signer must implement transaction modifying or partial signing',
+    );
+  });
 
   // ---- Happy path ----
 

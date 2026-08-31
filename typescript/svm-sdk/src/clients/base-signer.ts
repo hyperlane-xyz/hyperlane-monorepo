@@ -679,12 +679,19 @@ export abstract class BaseSvmSigner
     rpcUrls: string[];
     keypair: KeyPairSigner;
   }> {
-    const rpcUrls = (metadata.rpcUrls ?? []).map((rpc) => rpc.http);
-    assert(rpcUrls.length > 0, 'At least one RPC URL is required');
-    const rpc = createRpc(rpcUrls[0]);
+    const { rpc, rpcUrls } = BaseSvmSigner.resolveRpcConnection(metadata);
     const keypair = await createKeypairFromPrivateKey(privateKey);
 
     return { rpc, rpcUrls, keypair };
+  }
+
+  protected static resolveRpcConnection(metadata: ChainMetadataForAltVM): {
+    rpc: SvmRpc;
+    rpcUrls: string[];
+  } {
+    const rpcUrls = (metadata.rpcUrls ?? []).map((rpc) => rpc.http);
+    assert(rpcUrls.length > 0, 'At least one RPC URL is required');
+    return { rpc: createRpc(rpcUrls[0]), rpcUrls };
   }
 
   getSignerAddress(): string {

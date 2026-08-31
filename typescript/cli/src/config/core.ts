@@ -9,6 +9,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { type CommandContext } from '../context/types.js';
+import { tryResolveSignerAddress } from '../context/strategies/signer/resolveSignerAddress.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import {
   indentYamlOrJson,
@@ -39,7 +40,7 @@ export async function createCoreDeployConfig({
   logBlue('Creating a new core deployment config...');
 
   const owner = await detectAndConfirmOrPrompt(
-    async () => context.signerAddress,
+    () => tryResolveSignerAddress(context),
     ENTER_DESIRED_VALUE_MSG,
     'owner address',
     SIGNER_PROMPT_LABEL,
@@ -64,7 +65,7 @@ export async function createCoreDeployConfig({
     });
     proxyAdmin = {
       owner: await detectAndConfirmOrPrompt(
-        async () => context.signerAddress,
+        () => tryResolveSignerAddress(context),
         ENTER_DESIRED_VALUE_MSG,
         'ProxyAdmin owner address',
         SIGNER_PROMPT_LABEL,
