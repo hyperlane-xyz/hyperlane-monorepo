@@ -125,7 +125,7 @@ void describe('event websocket protocol', () => {
               },
             ],
             eventType: 'gas_payment',
-            streamCursorVersion: 1,
+            streamCursorVersion: 2,
           },
         ],
         type: 'subscribe',
@@ -141,7 +141,7 @@ void describe('event websocket protocol', () => {
       9_007_199_254_740_993n,
     );
     assert.deepEqual(message.streams[0]?.domains, new Set([1]));
-    assert.equal(message.streams[0]?.streamCursorVersion, 1);
+    assert.equal(message.streams[0]?.streamCursorVersion, 2);
   });
 
   void it('accepts legacy non-cursored gas payment subscriptions', () => {
@@ -170,7 +170,7 @@ void describe('event websocket protocol', () => {
           },
         ],
         eventType: 'gas_payment',
-        streamCursorVersion: 1,
+        streamCursorVersion: 2,
       },
       {
         cursors: [
@@ -207,7 +207,7 @@ void describe('event websocket protocol', () => {
                     },
                   ],
                   eventType: 'gas_payment',
-                  streamCursorVersion: 1,
+                  streamCursorVersion: 2,
                 },
               ],
               type: 'subscribe',
@@ -216,6 +216,31 @@ void describe('event websocket protocol', () => {
         /native sequence fields/,
       );
     }
+  });
+
+  void it('rejects boundary-less gas payment cursor v1', () => {
+    assert.throws(
+      () =>
+        parseClientMessage(
+          JSON.stringify({
+            streams: [
+              {
+                cursors: [
+                  {
+                    address: '0x0000000000000000000000000000000000000001',
+                    afterStreamCursor: '1',
+                    domain: 1,
+                  },
+                ],
+                eventType: 'gas_payment',
+                streamCursorVersion: 1,
+              },
+            ],
+            type: 'subscribe',
+          }),
+        ),
+      /requires streamCursorVersion 2/,
+    );
   });
 
   void it('requires explicit domains to match cursor domains', () => {
