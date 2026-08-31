@@ -80,6 +80,13 @@ spec:
         ports:
         - name: metrics
           containerPort: {{ .Values.hyperlane.metrics.port }}
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: metrics
+          periodSeconds: 5
+          timeoutSeconds: 2
+          failureThreshold: 1
       volumes:
       - name: config-env-vars
         configMap:
