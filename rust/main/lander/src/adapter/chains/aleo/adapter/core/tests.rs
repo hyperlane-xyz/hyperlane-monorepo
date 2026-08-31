@@ -153,7 +153,7 @@ fn set_delivery_criterion(tx: &mut Transaction) {
 }
 
 #[tokio::test]
-async fn test_tx_status_without_hash_skips_network_queries() {
+async fn test_tx_status_without_hash_uses_delivery_mapping() {
     let provider = Arc::new(CountingStatusProvider::new(true));
     let adapter = AleoAdapter {
         provider: provider.clone(),
@@ -164,9 +164,9 @@ async fn test_tx_status_without_hash_skips_network_queries() {
 
     assert_eq!(
         adapter.tx_status(&tx).await.unwrap(),
-        TransactionStatus::PendingInclusion
+        TransactionStatus::Finalized
     );
-    assert_eq!(provider.mapping_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(provider.mapping_calls.load(Ordering::SeqCst), 1);
     assert_eq!(provider.confirmed_calls.load(Ordering::SeqCst), 0);
     assert_eq!(provider.unconfirmed_calls.load(Ordering::SeqCst), 0);
 }
