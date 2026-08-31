@@ -566,6 +566,49 @@ void it('emits normalized message upserts to Explorer', async () => {
   await new Promise<void>((resolve) => socket.once('close', () => resolve()));
 });
 
+void it('paces Explorer batches by send completion', async (context) => {
+  const socket = new WebSocket(messagesUrl);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  await waitFor(messages, 'ready');
+  const completions = delayServerSendCompletions(context);
+  const messageIds = [`\\x${'02'.repeat(32)}`, `\\x${'03'.repeat(32)}`];
+
+  try {
+    for (const messageId of messageIds) {
+      notify(
+        'scraper_explorer_event',
+        JSON.stringify({ messageId: messageId.slice(2) }),
+      );
+    }
+    const upserts = (): Record<string, unknown>[] =>
+      messages.filter(({ type }) => type === 'message_upsert');
+
+    await waitUntil(() => upserts().length === 1 && completions.length === 1);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    assert.equal(upserts().length, 1);
+    assert.equal(socket.readyState, WebSocket.OPEN);
+
+    completions.shift()?.();
+    await waitUntil(() => upserts().length === 2 && completions.length === 1);
+    assert.deepEqual(
+      upserts().map(({ data }) => record(data).msg_id),
+      messageIds,
+    );
+    assert.equal(socket.readyState, WebSocket.OPEN);
+    completions.shift()?.();
+  } finally {
+    for (const complete of completions.splice(0)) complete();
+    if (socket.readyState !== WebSocket.CLOSED) {
+      const closed = new Promise<void>((resolve) =>
+        socket.once('close', () => resolve()),
+      );
+      socket.close();
+      await closed;
+    }
+  }
+});
+
 void it('bounds aggregate Explorer outbound buffering', async () => {
   const sockets = Array.from({ length: 4 }, () => new WebSocket(messagesUrl));
   const messages: Record<string, unknown>[][] = sockets.map(() => []);
@@ -632,7 +675,9 @@ function delayServerSendCompletions(context: TestContext): Array<() => void> {
       const message = typeof data === 'string' ? parseRecord(data) : undefined;
       const delay =
         completion &&
-        (message?.type === 'event' || message?.type === 'caught_up');
+        (message?.type === 'event' ||
+          message?.type === 'caught_up' ||
+          message?.type === 'message_upsert');
       const completed = delay
         ? (error?: Error) => completions.push(() => completion(error))
         : completion;
