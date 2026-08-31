@@ -12,10 +12,13 @@ runs:
   steps:
     - name: Check job status
       shell: bash
+      env:
+        RESULT: ${{ inputs.result }}
+        JOB_NAME: ${{ inputs.job_name }}
       run: |
-        if [[ "${{ inputs.result }}" == "skipped" ]]; then
-          echo "${{ inputs.job_name }} was skipped!"
-        elif [[ "${{ inputs.result }}" != "success" ]]; then
-          echo "${{ inputs.job_name }} failed"
+        if [[ "$RESULT" == "skipped" ]]; then
+          echo "$JOB_NAME was skipped!"
+        elif [[ "$RESULT" != "success" ]]; then
+          echo "$JOB_NAME failed"
           exit 1
         fi
