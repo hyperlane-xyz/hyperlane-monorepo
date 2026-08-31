@@ -53,6 +53,7 @@ const DUPLICATE_FINGERPRINT_WINDOW: usize = 1_024;
 const CROSS_STREAM_WINDOW: usize = 1_024;
 const DISPATCH_CURSOR_PREFIX: &[u8] = b"scraper_websocket_dispatch_cursor";
 const MERKLE_CURSOR_PREFIX: &[u8] = b"scraper_websocket_merkle_cursor";
+const CORRELATION_CURSOR_PREFIX: &[u8] = b"scraper_websocket_correlation_cursor";
 const PARITY_UNHEALTHY_PREFIX: &[u8] = b"scraper_websocket_parity_unhealthy";
 
 #[cfg_attr(test, mockall::automock)]
@@ -178,7 +179,7 @@ impl ScraperSource {
     }
 
     fn correlation_cursor(&self) -> Result<Option<u32>> {
-        self.db
+        self.cursor_db
             .retrieve_value_by_key(CORRELATION_CURSOR_PREFIX, &self.correlation_cursor_key())
             .context("Reading durable scraper correlation cursor")
     }
@@ -190,7 +191,7 @@ impl ScraperSource {
         {
             return Ok(());
         }
-        self.db
+        self.cursor_db
             .store_value_by_key(
                 CORRELATION_CURSOR_PREFIX,
                 &self.correlation_cursor_key(),
@@ -858,6 +859,7 @@ impl HandshakeState {
 }
 
 struct ParityJob {
+    generation: u64,
     input: ParityInput,
     queue_permit: OwnedSemaphorePermit,
     sequence: u32,
@@ -869,10 +871,60 @@ struct ParityQueue {
     worker_running: bool,
 }
 
+#[derive(Debug, Default)]
+struct CorrelationGateSource {
+    cross_next: Option<u32>,
+    dispatch_match: Option<u32>,
+    durable_next: Option<u32>,
+    failed: bool,
+    merkle_match: Option<u32>,
+}
+
+impl CorrelationGateSource {
+    fn anchored(next: Option<u32>) -> Self {
+        Self {
+            cross_next: next,
+            dispatch_match: None,
+            durable_next: next,
+            failed: false,
+            merkle_match: None,
+        }
+    }
+
+    fn matched_mut(&mut self, kind: EventKind) -> &mut Option<u32> {
+        match kind {
+            EventKind::Dispatch => &mut self.dispatch_match,
+            EventKind::MerkleTreeInsertion => &mut self.merkle_match,
+        }
+    }
+
+    fn candidate(&self) -> Result<Option<u32>> {
+        let (Some(cross_next), Some(dispatch_match), Some(merkle_match)) =
+            (self.cross_next, self.dispatch_match, self.merkle_match)
+        else {
+            return Ok(None);
+        };
+        let dispatch_next = dispatch_match
+            .checked_add(1)
+            .context("Dispatch parity frontier exhausted")?;
+        let merkle_next = merkle_match
+            .checked_add(1)
+            .context("Merkle parity frontier exhausted")?;
+        Ok(Some(cross_next.min(dispatch_next).min(merkle_next)))
+    }
+}
+
+#[derive(Debug, Default)]
+struct CorrelationGate {
+    generation: u64,
+    sources: HashMap<u32, CorrelationGateSource>,
+}
+
 /// One process-wide, read-only scraper stream monitor.
 pub(crate) struct ScraperWebSocketMonitor {
     active: IntGaugeVec,
     caught_up: IntGaugeVec,
+    correlation_gate: parking_lot::Mutex<CorrelationGate>,
     events: IntCounterVec,
     parity: IntCounterVec,
     parity_pending: IntGaugeVec,
@@ -953,6 +1005,7 @@ impl ScraperWebSocketMonitor {
         Ok(Self {
             active,
             caught_up,
+            correlation_gate: parking_lot::Mutex::new(CorrelationGate::default()),
             events,
             parity,
             parity_pending,
@@ -970,22 +1023,31 @@ impl ScraperWebSocketMonitor {
 
     pub(crate) async fn run(self) {
         let monitor = Arc::new(self);
-        let mut state = loop {
-            match StreamState::load(&monitor.sources) {
-                Ok(state) => break state,
-                Err(err) => {
-                    warn!(
-                        ?err,
-                        "Loading durable scraper WebSocket cursors failed; retrying"
-                    );
-                    sleep(RETRY_DELAY).await;
-                }
-            }
-        };
+        let mut generation = 0_u64;
+        let mut state = StreamState::default();
         loop {
+            let plan = loop {
+                match SequencedReplayPlan::load(&monitor.sources) {
+                    Ok(plan) => break plan,
+                    Err(err) => {
+                        warn!(
+                            ?err,
+                            "Loading durable scraper WebSocket cursors failed; retrying"
+                        );
+                        sleep(RETRY_DELAY).await;
+                    }
+                }
+            };
+            let Some(next_generation) = generation.checked_add(1) else {
+                warn!("Scraper WebSocket connection generation exhausted; stopping monitor");
+                return;
+            };
+            generation = next_generation;
+            state.reset_sequenced(&plan);
+            monitor.reset_correlation_gate(generation, &plan);
             monitor.set_active(false);
             monitor.set_caught_up(false);
-            match monitor.stream(&mut state).await {
+            match monitor.stream(&mut state, &plan, generation).await {
                 Ok(()) => warn!("Relayer scraper-proxy shadow stream closed; reconnecting"),
                 Err(err) => warn!(
                     ?err,
@@ -996,6 +1058,115 @@ impl ScraperWebSocketMonitor {
             monitor.set_caught_up(false);
             sleep(RETRY_DELAY).await;
         }
+    }
+
+    fn reset_correlation_gate(&self, generation: u64, plan: &SequencedReplayPlan) {
+        let sources = plan
+            .sources
+            .iter()
+            .map(|(domain, source)| {
+                (
+                    *domain,
+                    CorrelationGateSource::anchored(source.correlation_next),
+                )
+            })
+            .collect();
+        *self.correlation_gate.lock() = CorrelationGate {
+            generation,
+            sources,
+        };
+    }
+
+    fn anchor_correlation_gate(&self, generation: u64, domain: u32, sequence: u32) {
+        let mut gate = self.correlation_gate.lock();
+        if gate.generation != generation {
+            return;
+        }
+        gate.sources
+            .entry(domain)
+            .and_modify(|source| {
+                if source.durable_next.is_none() {
+                    *source = CorrelationGateSource::anchored(Some(sequence));
+                }
+            })
+            .or_insert_with(|| CorrelationGateSource::anchored(Some(sequence)));
+    }
+
+    fn note_cross_stream_next(&self, generation: u64, domain: u32, next: u32) {
+        let mut gate = self.correlation_gate.lock();
+        if gate.generation != generation {
+            return;
+        }
+        if let Some(source) = gate.sources.get_mut(&domain) {
+            source.cross_next = Some(source.cross_next.map_or(next, |current| current.max(next)));
+        }
+    }
+
+    fn finish_parity_correlation(
+        &self,
+        generation: u64,
+        domain: u32,
+        kind: EventKind,
+        sequence: u32,
+        terminal: &'static str,
+    ) -> Result<()> {
+        let source = self
+            .sources
+            .get(&domain)
+            .context("Validated scraper source is missing")?;
+        let mut gate = self.correlation_gate.lock();
+        if generation == 0 {
+            return Ok(());
+        }
+        if gate.generation != generation {
+            return Ok(());
+        }
+        let state = gate
+            .sources
+            .get_mut(&domain)
+            .context("Correlation gate omitted configured source")?;
+        if state.failed {
+            return Ok(());
+        }
+        if terminal != ParityResult::Match.label() {
+            state.failed = true;
+            return Ok(());
+        }
+
+        let durable_next = state
+            .durable_next
+            .context("Correlation parity frontier is not anchored")?;
+        let matched = state.matched_mut(kind);
+        let expected = match *matched {
+            Some(latest) => latest
+                .checked_add(1)
+                .context("Scraper parity frontier exhausted")?,
+            None => durable_next,
+        };
+        if sequence < expected {
+            return Ok(());
+        }
+        if sequence > expected {
+            state.failed = true;
+            bail!("Scraper parity frontier gap: expected sequence {expected}, received {sequence}");
+        }
+        *matched = Some(sequence);
+
+        let Some(candidate) = state.candidate()? else {
+            return Ok(());
+        };
+        if state
+            .durable_next
+            .is_some_and(|durable| durable >= candidate)
+        {
+            return Ok(());
+        }
+        if let Err(err) = source.store_correlation_cursor(candidate) {
+            state.failed = true;
+            return Err(err);
+        }
+        state.durable_next = Some(candidate);
+        Ok(())
     }
 
     #[cfg(test)]
@@ -1140,6 +1311,7 @@ impl ScraperWebSocketMonitor {
             .sources
             .get(&domain)
             .expect("validated scraper event source exists");
+        let generation = self.correlation_gate.lock().generation;
         self.parity_ready
             .with_label_values(&[source.chain.as_str(), kind.label()])
             .set(0);
@@ -1166,6 +1338,7 @@ impl ScraperWebSocketMonitor {
         let start_worker = {
             let mut queue = queue.lock();
             queue.jobs.push_back(ParityJob {
+                generation,
                 input: parity_input,
                 queue_permit,
                 sequence,
@@ -1229,6 +1402,18 @@ impl ScraperWebSocketMonitor {
                 self.abandon_parity_queue(domain, kind, &queue);
                 return;
             }
+            if let Err(err) =
+                self.finish_parity_correlation(job.generation, domain, kind, job.sequence, terminal)
+            {
+                warn!(%domain, event_type = kind.label(), ?err, "Persisting scraper correlation cursor failed; disabling parity work");
+                self.disable_parity_reads(
+                    source.chain.as_str(),
+                    kind.label(),
+                    "durable correlation cursor could not be persisted",
+                );
+                self.abandon_parity_queue(domain, kind, &queue);
+                return;
+            }
             drop(job.queue_permit);
         }
     }
@@ -1255,7 +1440,12 @@ impl ScraperWebSocketMonitor {
             .sub(dropped as i64);
     }
 
-    async fn stream(self: &Arc<Self>, state: &mut StreamState) -> Result<()> {
+    async fn stream(
+        self: &Arc<Self>,
+        state: &mut StreamState,
+        plan: &SequencedReplayPlan,
+        generation: u64,
+    ) -> Result<()> {
         let (mut socket, _) = timeout(READ_TIMEOUT, connect_async(self.url.as_str()))
             .await
             .context("Connecting to relayer scraper-proxy WebSocket timed out")?
@@ -1296,36 +1486,13 @@ impl ScraperWebSocketMonitor {
                             let event_type = event_label(&event.event_type);
                             match state.validate(event, &self.sources) {
                                 Ok(validated) => {
-                                    let source = self
-                                        .sources
-                                        .get(&domain)
-                                        .expect("validated scraper source exists");
-                                    if sequenced_persistence_ready(
-                                        plan,
-                                        &caught_up,
-                                        state,
-                                        domain,
-                                        validated.sequence,
-                                    )? {
-                                        if caught_up_baselines(&caught_up, domain) == Some((-1, -1))
-                                            && !state.correlation_next.contains_key(&domain)
-                                        {
-                                            for (kind, sequence) in
-                                                sequenced_cursor_write_order(state, domain)?
-                                            {
-                                                source.store_cursor(kind, sequence)?;
-                                            }
-                                        }
-                                        if let Some(sequence) = state
-                                            .initialize_correlation(domain, validated.sequence)
-                                        {
-                                            source.store_correlation_cursor(sequence)?;
-                                        }
-                                        let correlation_next = state.advance_correlation(domain)?;
-                                        source.store_cursor(validated.kind, validated.sequence)?;
-                                        if let Some(sequence) = correlation_next {
-                                            source.store_correlation_cursor(sequence)?;
-                                        }
+                                    if let Some(sequence) =
+                                        state.initialize_correlation(domain, validated.sequence)
+                                    {
+                                        self.anchor_correlation_gate(generation, domain, sequence);
+                                    }
+                                    if let Some(next) = state.advance_correlation(domain)? {
+                                        self.note_cross_stream_next(generation, domain, next);
                                     }
                                     let result = match validated.sequence_result {
                                         SequenceResult::Accepted => "accepted",
@@ -1379,18 +1546,29 @@ impl ScraperWebSocketMonitor {
                             if caught_up.insert((domain, kind), sequence).is_some() {
                                 bail!("Received duplicate scraper caught-up marker");
                             }
-                            if plan.correlation_required(domain)? {
-                                if sequence >= 0 {
-                                    let durable: u32 = sequence
-                                        .try_into()
-                                        .context("Scraper caught-up sequence exceeds u32")?;
-                                    source.store_cursor(kind, durable)?;
-                                }
-                            } else if let Some(baselines) =
-                                fresh_baseline_write_order(&caught_up, domain)?
+                            if !plan.correlation_required(domain)?
+                                && !state.correlation_next.contains_key(&domain)
                             {
-                                for (kind, sequence) in baselines {
-                                    source.store_cursor(kind, sequence)?;
+                                let parity_pending =
+                                    [EventKind::Dispatch, EventKind::MerkleTreeInsertion]
+                                        .into_iter()
+                                        .map(|kind| {
+                                            self.parity_pending
+                                                .with_label_values(&[
+                                                    source.chain.as_str(),
+                                                    kind.label(),
+                                                ])
+                                                .get()
+                                        })
+                                        .sum::<i64>();
+                                if parity_pending == 0 {
+                                    if let Some(baselines) =
+                                        fresh_baseline_write_order(&caught_up, domain)?
+                                    {
+                                        for (kind, sequence) in baselines {
+                                            source.store_cursor(kind, sequence)?;
+                                        }
+                                    }
                                 }
                             }
                             self.update_source_caught_up(state, plan, &caught_up, domain)?;
@@ -1498,12 +1676,12 @@ fn store_fresh_caught_up_baseline(
     source: &ScraperSource,
     kind: EventKind,
     sequence: i64,
-    stored: Option<u32>,
+    replay_floor: Option<u32>,
     correlation_required: bool,
     replay_seen: bool,
     parity_pending: i64,
 ) -> Result<()> {
-    if stored.is_none()
+    if replay_floor.is_none()
         && sequence >= 0
         && fresh_baseline_allowed(correlation_required, replay_seen, parity_pending)
     {
@@ -1515,7 +1693,10 @@ fn store_fresh_caught_up_baseline(
     Ok(())
 }
 
-fn subscription(sources: &HashMap<u32, ScraperSource>) -> Result<String> {
+fn subscription(
+    sources: &HashMap<u32, ScraperSource>,
+    plan: &SequencedReplayPlan,
+) -> Result<String> {
     let mut sources = sources.values().collect::<Vec<_>>();
     sources.sort_unstable_by_key(|source| source.domain);
     let domains = sources
@@ -2880,6 +3061,12 @@ mod tests {
             .store_cursor(EventKind::MerkleTreeInsertion, 90)
             .expect("store Merkle cursor");
         let plan = replay_plan(&sources);
+        let mut handshake = HandshakeState::default();
+        handshake.ready().expect("ready");
+        let request: serde_json::Value = serde_json::from_str(
+            &subscription(&sources, &plan).expect("subscription should serialize"),
+        )
+        .expect("subscription JSON");
 
         source
             .store_cursor(EventKind::Dispatch, 200)
@@ -2891,16 +3078,56 @@ mod tests {
             .store_correlation_cursor(200)
             .expect("advance correlation cursor");
 
-        let request: serde_json::Value = serde_json::from_str(
-            &subscription(&sources, &plan).expect("subscription should serialize"),
-        )
-        .expect("subscription JSON");
         assert_eq!(request["streams"][0]["cursors"][0]["afterSequence"], "89");
         assert_eq!(request["streams"][1]["cursors"][0]["afterSequence"], "89");
         let streams = subscribed_streams(&sources, &plan);
-        validate_subscription(&streams, &sources, &plan).expect("subscription confirmation");
+        handshake
+            .subscribed(&streams, &sources, &plan)
+            .expect("subscription confirmation uses captured plan");
+        handshake
+            .event()
+            .expect("caught-up accepted after confirmation");
         validate_caught_up_floor(&plan, 5, 90).expect("captured replay floor");
         assert!(validate_caught_up_floor(&plan, 5, 89).is_err());
+    }
+
+    #[test]
+    fn parity_matches_do_not_combine_across_connection_generations() {
+        let database = MockParityDatabase::new();
+        let monitor = monitor(Arc::new(database));
+        let source = &monitor.sources[&5];
+        source
+            .store_correlation_cursor(7)
+            .expect("store replay anchor");
+        let plan = SequencedReplayPlan::load(&monitor.sources).expect("replay plan");
+
+        monitor.reset_correlation_gate(1, &plan);
+        monitor.note_cross_stream_next(1, 5, 8);
+        monitor
+            .finish_parity_correlation(1, 5, EventKind::Dispatch, 7, ParityResult::Match.label())
+            .expect("old generation dispatch match");
+        assert_eq!(source.correlation_cursor().expect("cursor read"), Some(7));
+
+        monitor.reset_correlation_gate(2, &plan);
+        monitor.note_cross_stream_next(2, 5, 8);
+        monitor
+            .finish_parity_correlation(
+                2,
+                5,
+                EventKind::MerkleTreeInsertion,
+                7,
+                ParityResult::Match.label(),
+            )
+            .expect("new generation Merkle match");
+        monitor
+            .finish_parity_correlation(1, 5, EventKind::Dispatch, 7, ParityResult::Match.label())
+            .expect("late old generation completion ignored");
+        assert_eq!(source.correlation_cursor().expect("cursor read"), Some(7));
+
+        monitor
+            .finish_parity_correlation(2, 5, EventKind::Dispatch, 7, ParityResult::Match.label())
+            .expect("same generation dispatch match");
+        assert_eq!(source.correlation_cursor().expect("cursor read"), Some(8));
     }
 
     #[test]
