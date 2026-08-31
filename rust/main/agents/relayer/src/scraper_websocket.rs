@@ -994,6 +994,9 @@ fn source_caught_up(
         return Ok(false);
     };
     if !correlation_required {
+        if dispatch != merkle {
+            bail!("Fresh scraper caught-up baselines differ: dispatch {dispatch}, Merkle {merkle}");
+        }
         return Ok(true);
     }
     let target = (*dispatch).max(*merkle);
@@ -1545,6 +1548,52 @@ mod tests {
             ((5, EventKind::MerkleTreeInsertion), 100),
         ]);
         assert!(source_caught_up(true, &caught_up, &restarted, 5).expect("readiness check"));
+    }
+
+    #[test]
+    fn fresh_unequal_baselines_reconnect_at_common_floor() {
+        let sources = sources();
+        let source = &sources[&5];
+        let initial_plan = replay_plan(&sources);
+        assert!(!initial_plan
+            .correlation_required(5)
+            .expect("correlation requirement"));
+
+        let mut state = replay_state(&initial_plan);
+        source
+            .store_cursor(EventKind::Dispatch, 100)
+            .expect("store fresh dispatch baseline");
+        state
+            .set_baseline(5, EventKind::Dispatch, 100)
+            .expect("set fresh dispatch baseline");
+        let mut caught_up = HashMap::from([((5, EventKind::Dispatch), 100)]);
+        assert!(!source_caught_up(false, &caught_up, &state, 5).expect("one fresh marker"));
+
+        source
+            .store_cursor(EventKind::MerkleTreeInsertion, 90)
+            .expect("store fresh Merkle baseline");
+        state
+            .set_baseline(5, EventKind::MerkleTreeInsertion, 90)
+            .expect("set fresh Merkle baseline");
+        caught_up.insert((5, EventKind::MerkleTreeInsertion), 90);
+        assert!(source_caught_up(false, &caught_up, &state, 5)
+            .expect_err("unequal fresh baselines must reconnect")
+            .to_string()
+            .contains("Fresh scraper caught-up baselines differ"));
+
+        let reconnect_plan = replay_plan(&sources);
+        let source_plan = reconnect_plan.source(5).expect("source plan");
+        assert_eq!(source_plan.floor, Some(90));
+        assert_eq!(source_plan.correlation_next, Some(90));
+        assert!(reconnect_plan
+            .correlation_required(5)
+            .expect("correlation requirement"));
+        let request: serde_json::Value = serde_json::from_str(
+            &subscription(&sources, &reconnect_plan).expect("subscription should serialize"),
+        )
+        .expect("subscription JSON");
+        assert_eq!(request["streams"][0]["cursors"][0]["afterSequence"], "89");
+        assert_eq!(request["streams"][1]["cursors"][0]["afterSequence"], "89");
     }
 
     #[test]
