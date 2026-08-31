@@ -1,4 +1,5 @@
-import { describe, expect, jest, test, beforeEach } from '@jest/globals';
+import { expect } from 'chai';
+import sinon from 'sinon';
 
 import { ConsensusService } from '../../src/services/ConsensusService.js';
 
@@ -10,7 +11,11 @@ describe('ConsensusService', () => {
     consensusService = new ConsensusService(CONSENSUS_URL);
   });
 
-  test('getOriginBlockNumberBySlot parses block number from beacon response', async () => {
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('getOriginBlockNumberBySlot parses block number from beacon response', async () => {
     const mockResponse = {
       data: {
         message: {
@@ -23,13 +28,14 @@ describe('ConsensusService', () => {
       },
     };
 
-    global.fetch = jest.fn<any>().mockResolvedValue({
+    const fetchStub = sinon.stub(global, 'fetch' as any).resolves({
       ok: true,
-      json: jest.fn<any>().mockResolvedValue(mockResponse),
-    });
+      json: async () => mockResponse,
+    } as any);
 
-    const blockNumber = await consensusService.getOriginBlockNumberBySlot('1000');
-    expect(blockNumber).toEqual(2151871);
-    expect(global.fetch).toHaveBeenCalledWith(`${CONSENSUS_URL}/1000`);
+    const blockNumber =
+      await consensusService.getOriginBlockNumberBySlot('1000');
+    expect(blockNumber).to.equal(2151871);
+    expect(fetchStub.calledWith(`${CONSENSUS_URL}/1000`)).to.be.true;
   });
 });

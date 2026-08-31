@@ -64,13 +64,13 @@ contract SP1LightClientIsmTest is StateProofHelpersTest {
     ) internal pure returns (bytes memory) {
         return
             MessageUtils.formatMessage({
-                _version: 0,
+                _version: 3,
                 _nonce: _messageNonce,
-                _originDomain: 0,
-                _sender: hex"0000000000000000000000007fa9385be102ac3eac297483dd6233d62b3e1496",
-                _destinationDomain: 0,
-                _recipient: hex"0000000000000000000000007fa9385be102ac3eac297483dd6233d62b3e1496",
-                _messageBody: hex"00000000000000000000000000000000000000000000000000000000000000a7"
+                _originDomain: 17000,
+                _sender: hex"0000000000000000000000005fde08e8fcb1cd9321c82aa47c7438f047de554d",
+                _destinationDomain: 84532,
+                _recipient: hex"000000000000000000000000bfc0435d465cb9528716ce8ec4fa1e2c3c77cf54",
+                _messageBody: hex"000000000000000000000000a5558ca30cd9952ab0e2349c274a3736698bd60e0000000000000000000000000000000000000000000000000000000000000001"
             });
     }
 

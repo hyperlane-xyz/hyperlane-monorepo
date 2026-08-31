@@ -1,28 +1,33 @@
-import { describe, expect, jest, test, beforeEach } from '@jest/globals';
+import { expect } from 'chai';
 import { ethers } from 'ethers';
+import sinon from 'sinon';
 
 import { ProofsService } from '../../src/services/ProofsService.js';
 import { ProofsServiceAbi } from '../../src/abis/ProofsServiceAbi.js';
 
 describe('ProofsService', () => {
   const TARGET_ADDR = '0x7DDf66a264656A36eB0Ff4bC6eC562028B983B90';
-  const STORAGE_KEY = '0x66ce4e8e12a5403828e3fb3176b429cb926ef9dc29fd04c1b3c13ed2787d98d6';
+  const STORAGE_KEY =
+    '0x66ce4e8e12a5403828e3fb3176b429cb926ef9dc29fd04c1b3c13ed2787d98d6';
   const SLOT = '1000';
   const BLOCK_NUMBER = 2151871;
 
   let proofsService: ProofsService;
+  let consensusStub: sinon.SinonStub;
+  let rpcStub: sinon.SinonStub;
 
   beforeEach(() => {
     process.env.RPC_ADDRESS = 'http://localhost:8545';
-    process.env.CONSENSUS_API_URL = 'http://localhost:5052/eth/v2/beacon/blocks';
+    process.env.CONSENSUS_API_URL =
+      'http://localhost:5052/eth/v2/beacon/blocks';
 
     proofsService = new ProofsService({ serviceName: 'proofs' });
 
-    proofsService.consensusService.getOriginBlockNumberBySlot = jest
-      .fn<() => Promise<number>>()
-      .mockResolvedValue(BLOCK_NUMBER);
+    consensusStub = sinon
+      .stub(proofsService.consensusService, 'getOriginBlockNumberBySlot')
+      .resolves(BLOCK_NUMBER);
 
-    proofsService.rpcService.getProofs = jest.fn<any>().mockResolvedValue({
+    rpcStub = sinon.stub(proofsService.rpcService, 'getProofs').resolves({
       accountProof: ['0xacct1', '0xacct2'],
       storageProof: [
         {
@@ -39,25 +44,30 @@ describe('ProofsService', () => {
     });
   });
 
-  test('getProofs returns account and storage proofs', async () => {
-    const proofs = await proofsService.getProofs(TARGET_ADDR, STORAGE_KEY, SLOT);
-
-    expect(proofsService.consensusService.getOriginBlockNumberBySlot).toHaveBeenCalledWith(
-      SLOT,
-    );
-    expect(proofsService.rpcService.getProofs).toHaveBeenCalledWith(
-      TARGET_ADDR,
-      [STORAGE_KEY],
-      `0x${BLOCK_NUMBER.toString(16)}`,
-    );
-
-    expect(proofs).toEqual([
-      ['0xacct1', '0xacct2'],
-      ['0xstorage1'],
-    ]);
+  afterEach(() => {
+    sinon.restore();
   });
 
-  test('ABI encodes and decodes getProofs correctly', () => {
+  it('getProofs returns account and storage proofs', async () => {
+    const proofs = await proofsService.getProofs(
+      TARGET_ADDR,
+      STORAGE_KEY,
+      SLOT,
+    );
+
+    expect(consensusStub.calledWith(SLOT)).to.be.true;
+    expect(
+      rpcStub.calledWith(
+        TARGET_ADDR,
+        [STORAGE_KEY],
+        `0x${BLOCK_NUMBER.toString(16)}`,
+      ),
+    ).to.be.true;
+
+    expect(proofs).to.deep.equal([['0xacct1', '0xacct2'], ['0xstorage1']]);
+  });
+
+  it('ABI encodes and decodes getProofs correctly', () => {
     const iface = new ethers.utils.Interface(ProofsServiceAbi);
     const callData = iface.encodeFunctionData('getProofs', [
       TARGET_ADDR,
@@ -66,8 +76,8 @@ describe('ProofsService', () => {
     ]);
 
     const decoded = iface.decodeFunctionData('getProofs', callData);
-    expect(decoded[0].toLowerCase()).toEqual(TARGET_ADDR.toLowerCase());
-    expect(decoded[1]).toEqual(STORAGE_KEY);
-    expect(decoded[2].toString()).toEqual(SLOT);
+    expect(decoded[0].toLowerCase()).to.equal(TARGET_ADDR.toLowerCase());
+    expect(decoded[1]).to.equal(STORAGE_KEY);
+    expect(decoded[2].toString()).to.equal(SLOT);
   });
 });
