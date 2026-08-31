@@ -729,7 +729,6 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
     'How long to wait between checking for new checkpoints in seconds. Defaults to 2s, falling back to the origin chain’s index.interval if set and this is unset.',
   ),
   websocketUrl: z
-    .string()
     .url()
     .refine((url) => /^wss?:\/\//i.test(url), {
       message: 'Must use ws:// or wss://',
