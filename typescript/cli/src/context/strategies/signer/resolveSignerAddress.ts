@@ -1,5 +1,10 @@
 import { type ChainName } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  isValidAddressEvm,
+  normalizeAddressEvm,
+} from '@hyperlane-xyz/utils';
 
 import { getSigner } from '../../../utils/keys.js';
 import { type CommandContext } from '../../types.js';
@@ -42,7 +47,14 @@ export async function tryResolveSignerAddress(
       return signer.getAddress();
     }
     case SignerSourceType.HTTP:
-      if (!chain) return undefined;
+      if (!chain) {
+        assert(
+          isValidAddressEvm(source.expectedAddress),
+          `Invalid EVM signer address: ${source.expectedAddress}`,
+        );
+        return normalizeAddressEvm(source.expectedAddress);
+      }
+
       return (
         await HttpRemoteEvmSigner.create(
           new HttpSignerClient(source.url),
