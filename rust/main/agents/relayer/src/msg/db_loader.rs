@@ -68,6 +68,7 @@ struct DestinationIndexIterator {
     low_nonce: Option<u32>,
     next_direction: IndexDirection,
     reconsider_nonces: BTreeSet<u32>,
+    low_range_reopen_pending: bool,
     loaded_messages: Arc<Mutex<HashSet<H256>>>,
 }
 
@@ -80,6 +81,7 @@ impl DestinationIndexIterator {
             low_nonce: highest_seen_nonce.and_then(|nonce| nonce.checked_sub(1)),
             next_direction: IndexDirection::High,
             reconsider_nonces: BTreeSet::new(),
+            low_range_reopen_pending: false,
             loaded_messages: Default::default(),
         }
     }
@@ -115,6 +117,7 @@ impl DestinationIndexIterator {
             }
             IndexDirection::Low => [IndexDirection::Low, IndexDirection::High],
         };
+        let mut reopened_low_range = false;
         for direction in directions {
             let nonce = match direction {
                 IndexDirection::High => self.high_nonce,
@@ -147,7 +150,15 @@ impl DestinationIndexIterator {
             }
             if direction == IndexDirection::Low {
                 self.low_nonce = None;
+                if self.low_range_reopen_pending {
+                    self.low_range_reopen_pending = false;
+                    self.reopen_low_range();
+                    reopened_low_range = true;
+                }
             }
+        }
+        if reopened_low_range {
+            return self.peek(db, metrics);
         }
         Ok(None)
     }
@@ -176,10 +187,20 @@ impl DestinationIndexIterator {
         }
     }
 
-    fn reopen_low_range(&mut self) {
+    fn request_low_range_reopen(&mut self) {
         if self.low_nonce.is_none() {
-            self.low_nonce = self.high_nonce.and_then(|nonce| nonce.checked_sub(1));
+            self.reopen_low_range();
+        } else {
+            self.low_range_reopen_pending = true;
         }
+    }
+
+    fn reopen_low_range(&mut self) {
+        self.low_nonce = match self.high_nonce {
+            Some(nonce) => nonce.checked_sub(1),
+            // `None` means the high scan advanced past the largest u32 nonce.
+            None => Some(u32::MAX),
+        };
     }
 }
 
@@ -498,13 +519,13 @@ impl MessageDbLoader {
             self.index_notifications = None;
         }
         if received {
-            self.reopen_exhausted_low_ranges();
+            self.request_low_range_reopens();
         }
     }
 
-    fn reopen_exhausted_low_ranges(&mut self) {
+    fn request_low_range_reopens(&mut self) {
         for iterator in &mut self.destination_iterators {
-            iterator.reopen_low_range();
+            iterator.request_low_range_reopen();
         }
     }
 
@@ -547,7 +568,7 @@ impl MessageDbLoader {
             self.index_notifications = None;
         }
         if received {
-            self.reopen_exhausted_low_ranges();
+            self.request_low_range_reopens();
         }
     }
 
