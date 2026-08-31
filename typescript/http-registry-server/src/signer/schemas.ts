@@ -74,12 +74,13 @@ const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
   z.union([
     JsonPrimitiveSchema,
     z.array(JsonValueSchema),
-    z.record(JsonValueSchema),
+    z.record(z.string(), JsonValueSchema),
   ]),
 );
 
 export const Eip712PayloadSchema = z.object({
   types: z.record(
+    z.string(),
     z.array(
       z.object({
         name: z.string(),
@@ -95,7 +96,7 @@ export const Eip712PayloadSchema = z.object({
     verifyingContract: z.string().optional(),
     salt: z.string().optional(),
   }),
-  message: z.record(JsonValueSchema),
+  message: z.record(z.string(), JsonValueSchema),
 });
 
 export type Eip712Payload = z.infer<typeof Eip712PayloadSchema>;

@@ -10,7 +10,7 @@ import {
   type OffchainQuotedLinearFeeConfig,
   TokenFeeType,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
+import { addressToBytes32, type WithAddress } from '@hyperlane-xyz/utils';
 
 import { resolveTargetRouterForVariant } from '../../deploy/warp-quote.js';
 
@@ -27,7 +27,7 @@ const CC_ROUTER_B = '0x' + 'cc'.repeat(20);
 const CC_ROUTER_B_BYTES32 = addressToBytes32(CC_ROUTER_B, DEST_PROTOCOL);
 
 // Readers derive the address for nested fee contracts as well as the root.
-const LEAF: OffchainQuotedLinearFeeConfig & { address: string } = {
+const LEAF: WithAddress<OffchainQuotedLinearFeeConfig> = {
   type: TokenFeeType.OffchainQuotedLinearFee,
   token: ADDR,
   owner: ADDR,
