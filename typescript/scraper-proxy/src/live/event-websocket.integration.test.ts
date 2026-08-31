@@ -649,7 +649,7 @@ void it('replays sparse legacy gas payment IDs and resumes without duplicates', 
   await waitUntil(() => eventStreamCursors(messages).includes('10'));
   await waitUntil(() => completions.length === 1);
   notify('scraper_event', gasPaymentNotification('14'));
-  gasPaymentRows.set('30', gasPaymentRow('30', '300'));
+  gasPaymentRows.set('30', gasPaymentRow('30', '300', '21'));
   notify('scraper_event', gasPaymentNotification('30'));
   await waitUntil(() => notifiedIds.has('14') && notifiedIds.has('30'));
   completions.shift()?.();
@@ -660,10 +660,10 @@ void it('replays sparse legacy gas payment IDs and resumes without duplicates', 
   assert.equal(caughtUp.streamCursor, '20');
   await waitUntil(() => completions.length === 1);
   completions.shift()?.();
-  await waitUntil(() => eventStreamCursors(messages).includes('30'));
+  await waitUntil(() => eventStreamCursors(messages).includes('21'));
   await waitUntil(() => completions.length === 1);
   completions.shift()?.();
-  assert.deepEqual(eventStreamCursors(messages), ['10', '20', '30']);
+  assert.deepEqual(eventStreamCursors(messages), ['10', '20', '21']);
 
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
@@ -681,7 +681,7 @@ void it('replays sparse legacy gas payment IDs and resumes without duplicates', 
               cursors: [
                 {
                   address: gasPaymaster,
-                  afterStreamCursor: '30',
+                  afterStreamCursor: '21',
                   domain: 1,
                 },
               ],
@@ -695,7 +695,7 @@ void it('replays sparse legacy gas payment IDs and resumes without duplicates', 
     }
   });
   const resumedMarker = await waitFor(resumedMessages, 'caught_up');
-  assert.equal(resumedMarker.streamCursor, '30');
+  assert.equal(resumedMarker.streamCursor, '21');
   await waitUntil(() => completions.length === 1);
   completions.shift()?.();
 
@@ -705,10 +705,10 @@ void it('replays sparse legacy gas payment IDs and resumes without duplicates', 
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual(eventStreamCursors(resumedMessages), []);
 
-  gasPaymentRows.set('42', gasPaymentRow('42', '420'));
+  gasPaymentRows.set('42', gasPaymentRow('42', '420', '22'));
   notify('scraper_event', gasPaymentNotification('42'));
-  await waitUntil(() => eventStreamCursors(resumedMessages).includes('42'));
-  assert.deepEqual(eventStreamCursors(resumedMessages), ['42']);
+  await waitUntil(() => eventStreamCursors(resumedMessages).includes('22'));
+  assert.deepEqual(eventStreamCursors(resumedMessages), ['22']);
   await waitUntil(() => completions.length === 1);
   completions.shift()?.();
   resumed.close();
@@ -757,6 +757,99 @@ void it('orders gas payments by commit cursor instead of allocated row ID', asyn
   );
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
+  gasPaymentRows.clear();
+});
+
+void it('rejects a gap at the legacy-to-mapped cursor transition', async () => {
+  gasPaymentRows.clear();
+  gasPaymentRows.set('10', gasPaymentRow('10', '100'));
+  gasPaymentRows.set('100', gasPaymentRow('100', '1000', '12'));
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [
+                {
+                  address: gasPaymaster,
+                  afterStreamCursor: '10',
+                  domain: 1,
+                },
+              ],
+              eventType: 'gas_payment',
+              streamCursorVersion: 1,
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+
+  const [code, reason] = await new Promise<[number, string]>((resolve) =>
+    socket.once('close', (code, reason) => resolve([code, reason.toString()])),
+  );
+  assert.equal(code, 1013);
+  assert.equal(
+    reason,
+    'gas_payment stream cursor gap: expected 11, received 12',
+  );
+  assert.deepEqual(eventStreamCursors(messages), []);
+  assert.equal(
+    messages.some(({ type }) => type === 'caught_up'),
+    false,
+  );
+  gasPaymentRows.clear();
+});
+
+void it('disconnects a live gas payment cursor gap', async () => {
+  gasPaymentRows.clear();
+  gasPaymentRows.set('10', gasPaymentRow('10', '100'));
+  gasPaymentRows.set('100', gasPaymentRow('100', '1000', '11'));
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [
+                {
+                  address: gasPaymaster,
+                  afterStreamCursor: '11',
+                  domain: 1,
+                },
+              ],
+              eventType: 'gas_payment',
+              streamCursorVersion: 1,
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+
+  await waitFor(messages, 'caught_up');
+  gasPaymentRows.set('102', gasPaymentRow('102', '1002', '13'));
+  notify('scraper_event', gasPaymentNotification('102'));
+  const [code, reason] = await new Promise<[number, string]>((resolve) =>
+    socket.once('close', (code, reason) => resolve([code, reason.toString()])),
+  );
+  assert.equal(code, 1013);
+  assert.equal(
+    reason,
+    'gas_payment stream cursor gap: expected 12, received 13',
+  );
+  assert.deepEqual(eventStreamCursors(messages), []);
   gasPaymentRows.clear();
 });
 
