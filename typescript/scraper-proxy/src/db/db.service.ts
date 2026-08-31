@@ -46,7 +46,7 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
     );
     clients.forEach((client) => client.release());
     this.logger.log(
-      `warmed ${MIN_POOL_CLIENTS} db connections in ${Date.now() - started}ms`,
+      `warmed ${MIN_POOL_CLIENTS} GraphQL db connections role=${config.DATABASE_READ_REPLICA_URL ? 'read-replica' : 'primary'} in ${Date.now() - started}ms`,
     );
     this.statsTimer = setInterval(() => this.logStats(), STATS_INTERVAL_MS);
   }
@@ -137,7 +137,10 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
   }
 
   private pool(): pg.Pool {
-    this.mainPool ??= this.createPool(config.DATABASE_URL, MIN_POOL_CLIENTS);
+    this.mainPool ??= this.createPool(
+      config.DATABASE_READ_REPLICA_URL ?? config.DATABASE_URL,
+      MIN_POOL_CLIENTS,
+    );
     return this.mainPool;
   }
 

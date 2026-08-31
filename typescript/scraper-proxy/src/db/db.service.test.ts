@@ -4,14 +4,18 @@ import { it } from 'node:test';
 import pg from 'pg';
 
 process.env.DATABASE_URL ??= 'postgresql://scraper-proxy-test';
+process.env.DATABASE_READ_REPLICA_URL ??=
+  'postgresql://scraper-proxy-replica-test';
 
 void it('keeps live queries prompt while the main pool is saturated', async (context) => {
   const saturatedPools = new WeakSet<pg.Pool>();
+  const queryUrls = new Map<string, string>();
   let releaseMain: (() => void) | undefined;
   context.mock.method(
     pg.Pool.prototype,
     'query',
     function (this: pg.Pool, text: string) {
+      queryUrls.set(text, this.options.connectionString);
       if (text === 'SELECT pg_sleep(1)') {
         saturatedPools.add(this);
         return new Promise((resolve) => {
@@ -27,6 +31,11 @@ void it('keeps live queries prompt while the main pool is saturated', async (con
 
   const saturated = db.query('SELECT pg_sleep(1)');
   assert.deepEqual(await db.queryLive('SELECT 1'), [{ ready: 1 }]);
+  assert.equal(
+    queryUrls.get('SELECT pg_sleep(1)'),
+    process.env.DATABASE_READ_REPLICA_URL,
+  );
+  assert.equal(queryUrls.get('SELECT 1'), process.env.DATABASE_URL);
   assert(releaseMain);
   releaseMain();
   await saturated;
