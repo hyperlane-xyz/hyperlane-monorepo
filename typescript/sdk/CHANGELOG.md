@@ -1,5 +1,40 @@
 # @hyperlane-xyz/sdk
 
+## 43.0.0
+
+### Major Changes
+
+- 8bcc7ab: Zod was upgraded to 4.5.2 across the TypeScript workspace. Public schemas and validation types were migrated to Zod 4, recursive fee configuration types were made explicit, application entrypoints adopted compiled parsing, and validation errors were changed to use Zod 4's built-in formatting.
+
+### Minor Changes
+
+- 0848474: Added safe recovery for address-bearing hook trees. Recovered pausable hooks and ISMs can transfer ownership without redeployment, while recovery validates the complete tree before mutation, preserves live pause state, and rejects incorrect contract types or conflicting aliases.
+- 60fc463: Added authenticated HTTP registry signers for standard EVM, Safe EIP-712, and Sealevel transactions.
+- 11f2dee: xERC20 bridge discovery reports the bridges a token actually holds limits for. Addresses are still collected from the token's events, but the limits are read from the token, and a bridge is no longer required to answer the lockbox `XERC20()` getter, which had dropped every configured bridge that is not a lockbox. Standard xERC20 tokens are discovered through `BridgeLimitsSet` and read through `mintingMaxLimitOf`/`burningMaxLimitOf`, where before only the Velodrome event and getters were consulted. A failed read is no longer classified as a missing selector, so a transient RPC failure surfaces instead of reporting a token with bridges as having none.
+
+  `GetExtraLockboxesOptions` gained the optional `warpRouteAddress` and `type`, `EvmEventLogsReader` gained the read-only `getContractDeploymentBlock`, and `deriveXERC20TokenType` throws the new exported `UnknownXERC20TypeError`.
+
+  Operators of Standard (non-Velodrome) xERC20 routes must add the token's current `mint` and `burn` to any deploy config that omits `xERC20.warpRouteLimits`, which are now derived and otherwise report a `warp check` violation. Extra bridges are compared as a set, so listing them in a different order to the token's no longer reports a violation.
+
+### Patch Changes
+
+- e76189e: The default per-chain deploy timeout in `HyperlaneDeployer` was raised from 15 to 45 minutes. `HyperlaneDeployer.deploy` wraps each chain's deployment in a single `runWithTimeout`, so deployments that fan out into many sequential transactions could exceed the old ceiling and abort partway through. `EvmTokenFeeDeployer.deployRoutingFee` is one such case: it deploys one sub-fee contract per destination and sends a `setFeeContract` transaction for each, so a route with many destinations on a chain with multi-block confirmations (oUSDT on ethereum, 16 destinations at 2-block confirmations) took roughly 30 minutes and timed out on every attempt. Because `runWithTimeout` rejects without aborting the underlying callback, the abandoned deploy kept submitting transactions, leaving already-deployed sub-fee contracts stranded on chain and unreferenced. Deployers that pass an explicit `chainTimeoutMs` are unaffected, including `HyperlaneCoreDeployer`, which keeps its own 10 minute default.
+- 3ced099: Pausable hooks were deployed in their configured paused state before ownership was transferred.
+- a00b342: Pausable ISMs now respect the configured `paused` state. Signer-owned changes are applied directly; all others are returned as transactions.
+- b58c7eb: Tron ICA address derivation was moved back to the destination router so its `0x41` CREATE2 prefix is handled correctly, while Ethereum destinations continue to use local derivation.
+- 8d91ef8: Increased multi provider timeout to 5min
+- Updated dependencies [8bcc7ab]
+- Updated dependencies [7cf9c01]
+  - @hyperlane-xyz/deploy-sdk@9.0.0
+  - @hyperlane-xyz/provider-sdk@9.0.0
+  - @hyperlane-xyz/utils@43.0.0
+  - @hyperlane-xyz/aleo-sdk@43.0.0
+  - @hyperlane-xyz/cosmos-sdk@43.0.0
+  - @hyperlane-xyz/radix-sdk@43.0.0
+  - @hyperlane-xyz/tron-sdk@24.2.1
+  - @hyperlane-xyz/core@12.1.0
+  - @hyperlane-xyz/starknet-core@43.0.0
+
 ## 42.0.0
 
 ### Major Changes

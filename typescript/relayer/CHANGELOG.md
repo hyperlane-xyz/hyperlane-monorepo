@@ -1,5 +1,29 @@
 # @hyperlane-xyz/relayer
 
+## 3.0.0
+
+### Major Changes
+
+- 8bcc7ab: Zod was upgraded to 4.5.2 across the TypeScript workspace. Public schemas and validation types were migrated to Zod 4, recursive fee configuration types were made explicit, application entrypoints adopted compiled parsing, and validation errors were changed to use Zod 4's built-in formatting.
+
+### Patch Changes
+
+- 3c65f58: Multisig metadata builders were updated to read validator checkpoints from GCS announcements in addition to S3.
+- Updated dependencies [0848474]
+- Updated dependencies [e76189e]
+- Updated dependencies [3ced099]
+- Updated dependencies [a00b342]
+- Updated dependencies [b58c7eb]
+- Updated dependencies [60fc463]
+- Updated dependencies [8bcc7ab]
+- Updated dependencies [7cf9c01]
+- Updated dependencies [8d91ef8]
+- Updated dependencies [11f2dee]
+  - @hyperlane-xyz/sdk@43.0.0
+  - @hyperlane-xyz/utils@43.0.0
+  - @hyperlane-xyz/metrics@0.2.40
+  - @hyperlane-xyz/core@12.1.0
+
 ## 2.0.0
 
 ### Major Changes
