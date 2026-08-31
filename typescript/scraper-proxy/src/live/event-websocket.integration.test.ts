@@ -30,6 +30,7 @@ let explorerQueryCount = 0;
 let explorerQueryError: Error | undefined;
 let explorerQueryGate: Promise<void> | undefined;
 let notificationQueryError: Error | undefined;
+let omitMappedGasPaymentRows = false;
 const notifiedIds = new Set<string>();
 
 const db: EventDatabase = {
@@ -131,6 +132,7 @@ const db: EventDatabase = {
       !sql.includes('notification_id') &&
       sql.includes('FROM "gas_payment_stream_cursor"')
     ) {
+      if (omitMappedGasPaymentRows) return [];
       const after = BigInt(String(values[2]));
       const through = BigInt(String(values[3]));
       return queryRows<T>(
@@ -805,6 +807,54 @@ void it('rejects a gap at the legacy-to-mapped cursor transition', async () => {
     false,
   );
   gasPaymentRows.clear();
+});
+
+void it('rejects an empty mapped gas payment cursor range', async () => {
+  gasPaymentRows.clear();
+  gasPaymentRows.set('10', gasPaymentRow('10', '100'));
+  gasPaymentRows.set('100', gasPaymentRow('100', '1000', '11'));
+  omitMappedGasPaymentRows = true;
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [
+                {
+                  address: gasPaymaster,
+                  afterStreamCursor: '10',
+                  domain: 1,
+                },
+              ],
+              eventType: 'gas_payment',
+              streamCursorVersion: 1,
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+
+  try {
+    const error = await waitFor(messages, 'error');
+    assert.equal(error.error, 'Failed to catch up gas_payment');
+    assert.deepEqual(eventStreamCursors(messages), []);
+    assert.equal(
+      messages.some(({ type }) => type === 'caught_up'),
+      false,
+    );
+  } finally {
+    omitMappedGasPaymentRows = false;
+    gasPaymentRows.clear();
+    socket.close();
+    await new Promise<void>((resolve) => socket.once('close', resolve));
+  }
 });
 
 void it('disconnects a live gas payment cursor gap', async () => {
