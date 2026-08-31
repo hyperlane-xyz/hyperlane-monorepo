@@ -559,6 +559,7 @@ type EventFingerprint = H256;
 #[derive(Debug)]
 struct StreamCursor {
     fingerprints: BTreeMap<u32, EventFingerprint>,
+    first_sequence: Option<u32>,
     next_sequence: u32,
 }
 
@@ -566,6 +567,7 @@ impl StreamCursor {
     fn from_durable_sequence(sequence: u32) -> Self {
         Self {
             fingerprints: BTreeMap::new(),
+            first_sequence: None,
             next_sequence: sequence,
         }
     }
@@ -573,6 +575,7 @@ impl StreamCursor {
     fn from_after_sequence(sequence: u32) -> Result<Self> {
         Ok(Self {
             fingerprints: BTreeMap::new(),
+            first_sequence: None,
             next_sequence: sequence
                 .checked_add(1)
                 .context("Scraper event sequence exhausted")?,
@@ -584,6 +587,7 @@ impl StreamCursor {
         fingerprints.insert(sequence, fingerprint);
         Ok(Self {
             fingerprints,
+            first_sequence: Some(sequence),
             next_sequence: sequence
                 .checked_add(1)
                 .context("Scraper event sequence exhausted")?,
@@ -616,6 +620,7 @@ impl StreamCursor {
     }
 
     fn accept(&mut self, sequence: u32, fingerprint: EventFingerprint) -> Result<()> {
+        self.first_sequence.get_or_insert(sequence);
         self.next_sequence = self
             .next_sequence
             .checked_add(1)
@@ -702,6 +707,32 @@ impl StreamState {
             .context("Scraper caught-up sequence exceeds u32")?;
         self.cursors
             .insert((domain, kind), StreamCursor::from_after_sequence(sequence)?);
+        Ok(())
+    }
+
+    fn validate_fresh_baseline(&self, domain: u32, kind: EventKind, sequence: i64) -> Result<()> {
+        if sequence < 0 {
+            return Ok(());
+        }
+        let Some(first) = self
+            .cursors
+            .get(&(domain, kind))
+            .and_then(|cursor| cursor.first_sequence)
+        else {
+            return Ok(());
+        };
+        let baseline: u32 = sequence
+            .try_into()
+            .context("Scraper caught-up sequence exceeds u32")?;
+        let expected = baseline
+            .checked_add(1)
+            .context("Scraper caught-up sequence exhausted")?;
+        if first != expected {
+            bail!(
+                "Fresh {} scraper stream started at sequence {first}, expected {expected} after caught-up baseline {baseline}",
+                kind.label()
+            );
+        }
         Ok(())
     }
 
@@ -1627,6 +1658,9 @@ impl ScraperWebSocketMonitor {
                                 bail!("Invalid negative scraper caught-up sequence {sequence}");
                             }
                             validate_caught_up_floor(plan, domain, sequence)?;
+                            if !plan.correlation_required(domain)? {
+                                state.validate_fresh_baseline(domain, kind, sequence)?;
+                            }
                             state.set_baseline(domain, kind, sequence)?;
                             if caught_up.insert((domain, kind), sequence).is_some() {
                                 bail!("Received duplicate scraper caught-up marker");
@@ -1883,9 +1917,7 @@ fn validate_fresh_empty_stream_starts(state: &StreamState, domain: u32) -> Resul
             continue;
         };
         let first = cursor
-            .fingerprints
-            .first_key_value()
-            .map(|(sequence, _)| *sequence)
+            .first_sequence
             .context("Fresh scraper stream cursor omitted its first fingerprint")?;
         if first != 0 {
             bail!(
@@ -2908,6 +2940,62 @@ mod tests {
             replay_plan(&sources).source(5).expect("source plan").floor,
             Some(90)
         );
+    }
+
+    #[test]
+    fn fresh_positive_baseline_rejects_staged_sequence_gaps() {
+        let event_for = |kind, sequence| match kind {
+            EventKind::Dispatch => event(
+                DISPATCH_EVENT_TYPE,
+                sequence,
+                dispatch_data(sequence, b"message"),
+            ),
+            EventKind::MerkleTreeInsertion => event(
+                MERKLE_EVENT_TYPE,
+                sequence,
+                merkle_data_for(
+                    sequence,
+                    H256::from_low_u64_be(2),
+                    dispatch_message(sequence, b"message").id(),
+                    100,
+                ),
+            ),
+        };
+
+        for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+            let sources = sources();
+            let source = &sources[&5];
+            let mut state = StreamState::default();
+            let validated = state
+                .validate(event_for(kind, 102), &sources)
+                .expect("stage event after a gap");
+            let mut staged = StagedParity::default();
+            staged.push(5, validated).expect("stage parity");
+
+            assert!(state
+                .validate_fresh_baseline(5, kind, 100)
+                .expect_err("fresh event must immediately follow its marker")
+                .to_string()
+                .contains("expected 101"));
+            assert_eq!(staged.len, 1, "rejected parity remains unadmitted");
+            assert_eq!(source.cursor(kind).expect("stream cursor"), None);
+            assert_eq!(
+                source.correlation_cursor().expect("correlation cursor"),
+                None
+            );
+
+            let mut contiguous = StreamState::default();
+            contiguous
+                .validate(event_for(kind, 101), &sources)
+                .expect("stage contiguous event");
+            contiguous
+                .validate_fresh_baseline(5, kind, 100)
+                .expect("baseline accepts its immediate successor");
+        }
+
+        StreamState::default()
+            .validate_fresh_baseline(5, EventKind::Dispatch, 100)
+            .expect("a stream without staged events may catch up at any positive marker");
     }
 
     #[test]
