@@ -2085,7 +2085,9 @@ impl ScraperWebSocketMonitor {
                                             staged_parity,
                                         )
                                         .await?;
-                                        self.update_source_caught_up(state, plan, &caught_up, domain)?;
+                                        self.update_source_caught_up(
+                                            state, plan, &caught_up, domain,
+                                        )?;
                                     } else {
                                         let source = self.sources.get(&domain).context(
                                             "Validated scraper event source unexpectedly missing",
