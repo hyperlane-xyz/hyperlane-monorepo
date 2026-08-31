@@ -242,6 +242,13 @@ export type AgentSealevelTransactionSubmitter =
 
 export type AgentSealevelUrReveal = AgentSealevelChainMetadata['urReveal'];
 
+const CompiledAgentCosmosChainMetadataSchema = z.compile(
+  AgentCosmosChainMetadataSchema,
+);
+const CompiledAgentSealevelChainMetadataSchema = z.compile(
+  AgentSealevelChainMetadataSchema,
+);
+
 export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
   HyperlaneDeploymentArtifactsSchema.shape,
 )
@@ -340,14 +347,14 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
       metadata.protocol === ProtocolType.Cosmos ||
       metadata.protocol === ProtocolType.CosmosNative
     ) {
-      if (!AgentCosmosChainMetadataSchema.safeParse(metadata).success) {
+      if (!z.validate(CompiledAgentCosmosChainMetadataSchema, metadata)) {
         return false;
       }
     }
 
     // If the protocol type is Sealevel, require everything in AgentSealevelChainMetadataSchema
     if (metadata.protocol === ProtocolType.Sealevel) {
-      if (!AgentSealevelChainMetadataSchema.safeParse(metadata).success) {
+      if (!z.validate(CompiledAgentSealevelChainMetadataSchema, metadata)) {
         return false;
       }
     }

@@ -1,12 +1,10 @@
 import { Request, Response, Router } from 'express';
-import { z } from 'zod';
 
-import { ChainAddressesSchema } from '@hyperlane-xyz/registry';
-import { ChainMetadataSchema, ZChainName } from '@hyperlane-xyz/sdk';
+import { UpdateChainSchema } from '@hyperlane-xyz/registry';
+import { ZChainName } from '@hyperlane-xyz/sdk';
 
 import { AppConstants } from '../constants/AppConstants.js';
 import {
-  legacyRegistrySchema,
   validateBody,
   validateRequestParam,
 } from '../middleware/validateRequest.js';
@@ -16,14 +14,6 @@ import { ChainService } from '../services/chainService.js';
 export interface ChainRouterOptions {
   writeMode?: boolean;
 }
-
-// The published registry's UpdateChainSchema combines its Zod 3 object with
-// the consumer-provided SDK schema, which is Zod 4 after this migration.
-// Compose the same boundary in Zod 4 until the linked registry release lands.
-const UpdateChainBodySchema = z.strictObject({
-  metadata: ChainMetadataSchema.optional(),
-  addresses: legacyRegistrySchema(ChainAddressesSchema).optional(),
-});
 
 export function createChainRouter(
   chainService: ChainService,
@@ -54,7 +44,7 @@ export function createChainRouter(
     '/:chain',
     requireWriteMode(writeMode),
     validateRequestParam('chain', ZChainName),
-    validateBody(UpdateChainBodySchema),
+    validateBody(UpdateChainSchema.strict()),
     async (req: Request<{ chain: string }>, res: Response) => {
       await chainService.updateChain({
         chainName: req.params.chain,

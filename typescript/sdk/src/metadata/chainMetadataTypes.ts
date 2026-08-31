@@ -444,14 +444,16 @@ export type ChainMetadata<Ext = object> = z.infer<
 > &
   Ext;
 
+const CompiledChainMetadataSchema = z.compile(ChainMetadataSchema);
+
 export function safeParseChainMetadata(
   c: ChainMetadata,
 ): z.ZodSafeParseResult<ChainMetadata> {
-  return ChainMetadataSchema.safeParse(c);
+  return CompiledChainMetadataSchema.safeParse(c);
 }
 
 export function isValidChainMetadata(c: ChainMetadata): boolean {
-  return ChainMetadataSchema.safeParse(c).success;
+  return z.validate(CompiledChainMetadataSchema, c);
 }
 
 export function getDomainId(chainMetadata: ChainMetadata): number {

@@ -1,5 +1,6 @@
 import { confirm, input, select } from '@inquirer/prompts';
 import { stringify as yamlStringify } from 'yaml';
+import { z } from 'zod';
 
 import {
   type ChainMap,
@@ -186,8 +187,8 @@ export async function readWarpRouteDeployConfig({
   return WarpRouteDeployConfigMailboxRequiredSchema.parse(config);
 }
 
-export function isValidWarpRouteDeployConfig(config: any) {
-  return WarpRouteDeployConfigSchema.safeParse(config).success;
+export function isValidWarpRouteDeployConfig(config: unknown) {
+  return z.validate(WarpRouteDeployConfigSchema, config);
 }
 
 export async function createWarpRouteDeployConfig({
