@@ -1150,16 +1150,7 @@ impl StreamState {
                 );
                 SequenceResult::Accepted
             }
-            _ => {
-                self.gas_payment_rows.insert(
-                    event.domain,
-                    DurableGasPaymentCursor {
-                        fingerprint: Some(fingerprint),
-                        stream_cursor,
-                    },
-                );
-                SequenceResult::Accepted
-            }
+            None => bail!("Gas payment event arrived before caught-up baseline"),
         };
         Ok(ValidatedEvent {
             kind: EventKind::GasPayment,
@@ -5559,13 +5550,34 @@ mod tests {
         let fixture = fixture();
         let source = fixture.sources.get(&5).expect("source");
         let mut state = StreamState::default();
+        assert!(state
+            .validate(gas_payment_event(10), &fixture.sources)
+            .expect_err("gas payment before fresh baseline must reject")
+            .to_string()
+            .contains("before caught-up baseline"));
+        assert!(!state.gas_payment_rows.contains_key(&5));
+        assert_eq!(
+            source.gas_payment_cursor().expect("read durable cursor"),
+            None,
+            "a pre-baseline event must not advance durable state"
+        );
+        state
+            .accept_gas_payment_caught_up(
+                &scraper_address(H256::from_low_u64_be(3)),
+                5,
+                None,
+                Some("10"),
+                None,
+                &fixture.sources,
+            )
+            .expect("fresh gas payment baseline");
         assert_eq!(
             sequence(
                 state
                     .validate(gas_payment_event(10), &fixture.sources)
-                    .expect("first gas payment")
+                    .expect("event at fresh gas payment baseline")
             ),
-            (EventKind::GasPayment, SequenceResult::Accepted)
+            (EventKind::GasPayment, SequenceResult::Duplicate)
         );
         let first_cursor = state.gas_payment_rows[&5];
         source
@@ -5620,6 +5632,16 @@ mod tests {
         event.row_id = Some("200".to_owned());
         event.data["id"] = serde_json::json!("200");
         let mut state = StreamState::default();
+        state
+            .accept_gas_payment_caught_up(
+                &scraper_address(H256::from_low_u64_be(3)),
+                5,
+                None,
+                Some("19"),
+                None,
+                &sources,
+            )
+            .expect("gas payment baseline");
         assert_eq!(
             state
                 .validate(event, &sources)
@@ -6021,6 +6043,16 @@ mod tests {
         let source = fixture.sources.get(&5).expect("source");
         let mut state =
             StreamState::load_gas_payment(&fixture.sources).expect("initial cursor load");
+        state
+            .accept_gas_payment_caught_up(
+                &scraper_address(H256::from_low_u64_be(3)),
+                5,
+                None,
+                Some("19"),
+                None,
+                &fixture.sources,
+            )
+            .expect("gas payment baseline");
         let validated = state
             .validate(gas_payment_event(20), &fixture.sources)
             .expect("valid gas payment");
