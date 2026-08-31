@@ -71,6 +71,22 @@ impl<C: AleoClient> HttpClient for FallbackHttpClient<C> {
             .await
     }
 
+    async fn request_optional<T: DeserializeOwned + Send>(
+        &self,
+        path: &str,
+        query: impl Into<Option<serde_json::Value>> + Send,
+    ) -> ChainResult<Option<T>> {
+        let query = query.into();
+        self.fallback
+            .call(|inner| {
+                let path = path.to_string();
+                let query = query.clone();
+                let future = async move { inner.request_optional(&path, query).await };
+                Box::pin(future)
+            })
+            .await
+    }
+
     /// Makes a POST request to the API
     async fn request_post<T: DeserializeOwned + Send>(
         &self,

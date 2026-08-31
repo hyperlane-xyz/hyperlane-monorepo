@@ -7,6 +7,42 @@ use crate::transaction::Transaction;
 use crate::{LanderError, TransactionStatus};
 
 impl<P: AleoProviderForLander> crate::adapter::chains::aleo::adapter::core::AleoAdapter<P> {
+    async fn payload_delivered(
+        &self,
+        payload_detail: &PayloadDetails,
+    ) -> Result<Option<bool>, LanderError> {
+        let Some(ref success_criteria_bytes) = payload_detail.success_criteria else {
+            return Ok(None);
+        };
+        let get_mapping_value: AleoGetMappingValue = serde_json::from_slice(success_criteria_bytes)
+            .map_err(|e| {
+                LanderError::NonRetryableError(format!("Failed to parse success_criteria: {e}"))
+            })?;
+
+        self.provider
+            .mapping_value_exists(
+                &get_mapping_value.program_id,
+                &get_mapping_value.mapping_name,
+                &get_mapping_value.mapping_key,
+            )
+            .await
+            .map(Some)
+            .map_err(LanderError::from)
+    }
+
+    /// Returns true only when every payload has a success criterion that is satisfied on-chain.
+    pub(crate) async fn delivered(&self, tx: &Transaction) -> Result<bool, LanderError> {
+        if tx.payload_details.is_empty() {
+            return Ok(false);
+        }
+        for payload_detail in &tx.payload_details {
+            if self.payload_delivered(payload_detail).await? != Some(true) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     /// Check which payloads were reverted by verifying on-chain delivery status.
     ///
     /// For Aleo:
@@ -24,33 +60,7 @@ impl<P: AleoProviderForLander> crate::adapter::chains::aleo::adapter::core::Aleo
                 let mut reverted = Vec::new();
 
                 for payload_detail in &tx.payload_details {
-                    // Skip payloads without success_criteria
-                    let Some(ref success_criteria_bytes) = payload_detail.success_criteria else {
-                        continue;
-                    };
-
-                    // Parse the success_criteria to get the delivery check parameters
-                    let get_mapping_value: AleoGetMappingValue =
-                        serde_json::from_slice(success_criteria_bytes).map_err(|e| {
-                            LanderError::NonRetryableError(format!(
-                                "Failed to parse success_criteria: {e}"
-                            ))
-                        })?;
-
-                    // Query on-chain to check if the delivery record exists
-                    // If provider returns error, treat as delivered (not reverted) with unwrap_or(true)
-                    let delivered = self
-                        .provider
-                        .mapping_value_exists(
-                            &get_mapping_value.program_id,
-                            &get_mapping_value.mapping_name,
-                            &get_mapping_value.mapping_key,
-                        )
-                        .await
-                        .unwrap_or(true);
-
-                    // If not delivered, the payload is reverted
-                    if !delivered {
+                    if self.payload_delivered(payload_detail).await? == Some(false) {
                         reverted.push(payload_detail.clone());
                     }
                 }

@@ -48,6 +48,17 @@ impl<C: AleoClient> Clone for MetricHttpClient<C> {
 }
 
 impl<C: AleoClient> MetricHttpClient<C> {
+    fn method(path: &str) -> String {
+        let mut segments = path.split('/');
+        let first = segments.next().unwrap_or_default();
+        match (first, segments.next()) {
+            ("transaction", Some(action @ ("confirmed" | "unconfirmed" | "broadcast"))) => {
+                format!("transaction_{action}")
+            }
+            _ => first.to_owned(),
+        }
+    }
+
     /// Creates a new MetricHttpClient
     pub fn new<Builder: HttpClientBuilder<Client = C>>(
         url: Url,
@@ -77,9 +88,9 @@ impl<C: AleoClient> MetricHttpClient<C> {
     {
         let start = Instant::now();
         let res = operation().await;
-        let method = path.split('/').next().unwrap_or_default();
+        let method = Self::method(path);
         self.metrics
-            .increment_metrics(&self.metrics_config, method, start, res.is_ok());
+            .increment_metrics(&self.metrics_config, &method, start, res.is_ok());
         res
     }
 }
@@ -96,6 +107,15 @@ impl<C: AleoClient> HttpClient for MetricHttpClient<C> {
             .await
     }
 
+    async fn request_optional<T: DeserializeOwned + Send>(
+        &self,
+        path: &str,
+        query: impl Into<Option<serde_json::Value>> + Send,
+    ) -> ChainResult<Option<T>> {
+        self.track_request(path, || self.inner.request_optional(path, query))
+            .await
+    }
+
     /// Makes a POST request to the API
     async fn request_post<T: DeserializeOwned + Send>(
         &self,
@@ -104,5 +124,27 @@ impl<C: AleoClient> HttpClient for MetricHttpClient<C> {
     ) -> ChainResult<T> {
         self.track_request(path, || self.inner.request_post(path, body))
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::MetricHttpClient;
+    use crate::provider::BaseHttpClient;
+
+    #[test]
+    fn transaction_endpoints_have_distinct_metric_methods() {
+        assert_eq!(
+            MetricHttpClient::<BaseHttpClient>::method("transaction/confirmed/id"),
+            "transaction_confirmed"
+        );
+        assert_eq!(
+            MetricHttpClient::<BaseHttpClient>::method("transaction/unconfirmed/id"),
+            "transaction_unconfirmed"
+        );
+        assert_eq!(
+            MetricHttpClient::<BaseHttpClient>::method("transaction/broadcast"),
+            "transaction_broadcast"
+        );
     }
 }

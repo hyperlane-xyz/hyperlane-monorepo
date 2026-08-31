@@ -336,19 +336,28 @@ impl InclusionStage {
         // Update the last status check timestamp before querying
         tx.last_status_check = Some(chrono::Utc::now());
 
-        let tx_status = call_until_success_or_nonretryable_error(
-            || state.adapter.tx_status(&tx),
-            "Querying transaction status",
-            state,
-        )
-        .await?;
-        info!(?tx, next_tx_status = ?tx_status, "Transaction status");
+        let tx_status = state.adapter.tx_status(&tx).await;
 
-        // Update the transaction in the pool with the new timestamp
+        // Persist the check timestamp even on provider failure so normal status
+        // backoff, rather than an in-call retry loop, controls the next attempt.
         {
             let mut pool_lock = pool.lock().await;
             pool_lock.insert(tx.uuid.clone(), tx.clone());
         }
+        let tx_status = match tx_status {
+            Ok(status) => status,
+            Err(err) if err.is_infra_error() => {
+                warn!(
+                    ?err,
+                    ?tx,
+                    "Error reading transaction status. Retrying later"
+                );
+                Self::update_inclusion_stage_metric(state, &state.domain, &err);
+                return Ok(());
+            }
+            Err(err) => return Err(err),
+        };
+        info!(?tx, next_tx_status = ?tx_status, "Transaction status");
 
         Self::try_process_tx_with_next_status(tx, tx_status, finality_stage_sender, state, pool)
             .await

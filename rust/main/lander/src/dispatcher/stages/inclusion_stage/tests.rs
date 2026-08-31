@@ -307,6 +307,32 @@ async fn test_unincluded_txs_reach_mempool() {
 }
 
 #[tokio::test]
+async fn test_status_provider_error_keeps_tx_for_later_retry() {
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_secs(1));
+    mock_adapter.expect_tx_status().once().returning(|_| {
+        Err(LanderError::ChainCommunicationError(
+            hyperlane_core::ChainCommunicationError::from_other_str("temporary RPC failure"),
+        ))
+    });
+
+    let (state, pool) = reprocess_test_state(mock_adapter);
+    let tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+    pool.lock().await.insert(tx.uuid.clone(), tx.clone());
+    let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(1);
+
+    InclusionStage::process_txs_step(&pool, &finality_stage_sender, &state, "test")
+        .await
+        .unwrap();
+
+    let retained_tx = pool.lock().await.get(&tx.uuid).cloned().unwrap();
+    assert!(retained_tx.last_status_check.is_some());
+    assert!(finality_stage_receiver.try_recv().is_err());
+}
+
+#[tokio::test]
 async fn test_failed_simulation() {
     const TXS_TO_PROCESS: usize = 3;
 
