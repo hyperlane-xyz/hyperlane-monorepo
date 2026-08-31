@@ -7,10 +7,15 @@ process.env.DATABASE_URL ??= 'postgresql://scraper-proxy-test';
 process.env.DATABASE_READ_REPLICA_URL ??=
   'postgresql://scraper-proxy-replica-test';
 
-void it('keeps live queries prompt while the main pool is saturated', async (context) => {
+void it('keeps replica health from gating primary live queries', async (context) => {
   const saturatedPools = new WeakSet<pg.Pool>();
   const queryUrls = new Map<string, string>();
+  let connectAttempts = 0;
   let releaseMain: (() => void) | undefined;
+  context.mock.method(pg.Pool.prototype, 'connect', () => {
+    connectAttempts++;
+    throw new Error('replica unavailable');
+  });
   context.mock.method(
     pg.Pool.prototype,
     'query',
@@ -29,6 +34,8 @@ void it('keeps live queries prompt while the main pool is saturated', async (con
   const { DbService } = await import('./db.service.js');
   const db = new DbService();
 
+  await db.onModuleInit();
+  assert.equal(connectAttempts, 0);
   const saturated = db.query('SELECT pg_sleep(1)');
   assert.deepEqual(await db.queryLive('SELECT 1'), [{ ready: 1 }]);
   assert.equal(

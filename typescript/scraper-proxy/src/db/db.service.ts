@@ -40,13 +40,20 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
   private statsTimer?: NodeJS.Timeout;
 
   async onModuleInit(): Promise<void> {
+    if (config.DATABASE_READ_REPLICA_URL) {
+      this.logger.log(
+        'GraphQL db role=read-replica; connections open lazily so replica health cannot gate websocket startup',
+      );
+      this.statsTimer = setInterval(() => this.logStats(), STATS_INTERVAL_MS);
+      return;
+    }
     const started = Date.now();
     const clients = await Promise.all(
       Array.from({ length: MIN_POOL_CLIENTS }, () => this.pool().connect()),
     );
     clients.forEach((client) => client.release());
     this.logger.log(
-      `warmed ${MIN_POOL_CLIENTS} GraphQL db connections role=${config.DATABASE_READ_REPLICA_URL ? 'read-replica' : 'primary'} in ${Date.now() - started}ms`,
+      `warmed ${MIN_POOL_CLIENTS} GraphQL db connections role=primary in ${Date.now() - started}ms`,
     );
     this.statsTimer = setInterval(() => this.logStats(), STATS_INTERVAL_MS);
   }
