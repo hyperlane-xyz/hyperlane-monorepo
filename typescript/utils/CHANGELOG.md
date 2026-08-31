@@ -1,5 +1,13 @@
 # @hyperlane-xyz/utils
 
+## 43.0.0
+
+### Patch Changes
+
+- 7cf9c01: Added cursor pagination to scraper message queries. Message cursors must contain exactly one non-null `id`; `order_by` may be omitted, in which case the cursor direction determines the ordering.
+
+  Added lightweight error, set, and validation utility subpath exports.
+
 ## 42.0.0
 
 ## 41.3.1
