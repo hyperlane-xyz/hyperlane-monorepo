@@ -158,6 +158,7 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
     const replicaUrl = config.DATABASE_READ_REPLICA_URL;
     this.mainPool ??= this.createPool(
       replicaUrl ?? config.DATABASE_URL,
+      replicaUrl ? 'graphql_replica' : 'graphql_primary',
       MIN_POOL_CLIENTS,
       replicaUrl ? config.DATABASE_QUERY_TIMEOUT_MS : undefined,
     );
@@ -165,12 +166,13 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
   }
 
   private live(): pg.Pool {
-    this.livePool ??= this.createPool(config.DATABASE_URL);
+    this.livePool ??= this.createPool(config.DATABASE_URL, 'live_primary');
     return this.livePool;
   }
 
   private createPool(
     connectionString: string,
+    role: DatabaseQueryRole,
     min?: number,
     connectionTimeoutMillis?: number,
   ): pg.Pool {
@@ -182,7 +184,9 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
       min,
     });
     pool.on('error', (error) =>
-      this.logger.error(`idle database connection failed: ${error.message}`),
+      this.logger.error(
+        `idle database connection failed role=${role}: ${error.message}`,
+      ),
     );
     return pool;
   }
@@ -228,7 +232,10 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
     this.stats.maxMs = Math.max(this.stats.maxMs, duration);
     if (failed) this.stats.errors++;
     databaseQueries.inc({ outcome: failed ? 'error' : 'success', role });
-    databaseQueryDuration.observe({ role }, duration / 1_000);
+    databaseQueryDuration.observe(
+      { outcome: failed ? 'error' : 'success', role },
+      duration / 1_000,
+    );
     databaseRows.inc({ role }, rows);
   }
 
