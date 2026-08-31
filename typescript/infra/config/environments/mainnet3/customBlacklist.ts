@@ -498,4 +498,12 @@ export const blacklistedMessageIds = [
   // value, recipient may have reverted". Permanently undeliverable recipient-side (~0.0001 ETH);
   // denylisting to stop endless prepare-queue retries that keep re-paging the queue-length alert.
   '0x898301d4e591195057088c29df05bb6cb5be9698f84d5b85b76831e2d80243b4',
+
+  // oUSDT/production superseed->optimism — incomplete warp extension [2026-08-28]
+  // optimism oUSDT collateral router 0x7bd2676c85cca9fa2203eba324fb8792fbd520b8 has no
+  // enrolled router for superseed (domain 5330), so Mailbox.process reverts
+  // "No router enrolled for domain: 5330" (ErrorEstimatingGas). Undeliverable until the
+  // route owner enrolls the superseed router on optimism (~0.38 oUSDT); denylisting to
+  // stop endless prepare-queue retries that keep re-paging the queue-length alert.
+  '0x64ef981504b3daed7edb87a1e02fdedc2f92500f95ac981855149fe98d5c04bd',
 ];

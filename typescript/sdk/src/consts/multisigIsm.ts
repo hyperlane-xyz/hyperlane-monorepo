@@ -3,6 +3,10 @@ import { ChainMap } from '../types.js';
 
 export const AW_VALIDATOR_ALIAS = 'Abacus Works';
 
+const DEFAULT_AW_VALIDATOR: ValidatorConfig = {
+  address: '0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03',
+  alias: AW_VALIDATOR_ALIAS,
+};
 const DEFAULT_MERKLY_VALIDATOR: ValidatorConfig = {
   address: '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f',
   alias: 'Merkly',
@@ -143,6 +147,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
     ],
   },
+
+  // arc: {
+  //   threshold: 1,
+  //   validators: [DEFAULT_AW_VALIDATOR],
+  // },
 
   avalanche: {
     threshold: 3,
@@ -997,6 +1006,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MITOSIS_VALIDATOR,
     ],
+  },
+
+  nesachain: {
+    threshold: 2,
+    validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
   },
 
   nexus: {
