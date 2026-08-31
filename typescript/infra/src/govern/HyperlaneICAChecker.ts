@@ -15,6 +15,7 @@ const MAINNET = 'ethereum';
 
 const FULLY_CONNECTED_ICA_CHAINS = new Set([
   'arbitrum',
+  'arc',
   'bsc',
   'polygon',
   'subtensor',
