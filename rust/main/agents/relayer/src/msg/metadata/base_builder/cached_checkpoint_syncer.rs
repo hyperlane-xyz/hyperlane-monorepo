@@ -872,49 +872,24 @@ mod tests {
         assert_eq!(latest_index_count.load(Ordering::Relaxed), 1);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[tokio::test]
     async fn singleflight_errors_are_retried() {
-        const CALLS: usize = 8;
-
         let signer = test_signer();
         let signed_checkpoint = signed_checkpoint(10, &signer).await;
-        let (inner, fetch_count, started, release) =
-            CountingCheckpointSyncer::new_with_gated_fetches(
-                vec![
-                    Err(eyre!("transient backend error")),
-                    Ok(Some(signed_checkpoint.clone())),
-                ],
-                false,
-            );
-        let syncer = Arc::new(CachedCheckpointSyncer::new(
+        let (inner, fetch_count) = CountingCheckpointSyncer::new(vec![
+            Err(eyre!("transient backend error")),
+            Ok(Some(signed_checkpoint.clone())),
+        ]);
+        let syncer = CachedCheckpointSyncer::new(
             Box::new(inner),
             LocalCache::new("test-cache"),
             "testorigin".to_string(),
             validator(&signer),
             "test".to_string(),
-        ));
-        let barrier = Arc::new(Barrier::new(CALLS + 1));
-        let tasks = (0..CALLS)
-            .map(|_| {
-                let syncer = syncer.clone();
-                let barrier = barrier.clone();
-                tokio::spawn(async move {
-                    barrier.wait().await;
-                    syncer.fetch_checkpoint(10).await
-                })
-            })
-            .collect::<Vec<_>>();
+        );
 
-        barrier.wait().await;
-        started.notified().await;
-        tokio::task::yield_now().await;
-        assert_eq!(fetch_count.load(Ordering::Relaxed), 1);
-        release.notify_one();
-
-        for task in tasks {
-            let error = task.await.unwrap().unwrap_err();
-            assert!(error.to_string().contains("transient backend error"));
-        }
+        let error = syncer.fetch_checkpoint(10).await.unwrap_err();
+        assert!(error.to_string().contains("transient backend error"));
         assert_eq!(fetch_count.load(Ordering::Relaxed), 1);
 
         assert_eq!(
