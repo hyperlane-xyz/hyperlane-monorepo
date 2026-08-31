@@ -660,12 +660,22 @@ void it('replays sparse legacy gas payment IDs and resumes without duplicates', 
   completions.shift()?.();
   const caughtUp = await waitFor(messages, 'caught_up');
   assert.equal(caughtUp.streamCursor, '20');
+  assert.equal(caughtUp.legacyMaxStreamCursor, '20');
   await waitUntil(() => completions.length === 1);
   completions.shift()?.();
   await waitUntil(() => eventStreamCursors(messages).includes('21'));
   await waitUntil(() => completions.length === 1);
   completions.shift()?.();
   assert.deepEqual(eventStreamCursors(messages), ['10', '20', '21']);
+  assert.deepEqual(
+    messages
+      .filter(
+        ({ eventType, type }) =>
+          type === 'event' && eventType === 'gas_payment',
+      )
+      .map(({ legacyMaxStreamCursor }) => legacyMaxStreamCursor),
+    ['20', '20', '20'],
+  );
 
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
@@ -698,6 +708,7 @@ void it('replays sparse legacy gas payment IDs and resumes without duplicates', 
   });
   const resumedMarker = await waitFor(resumedMessages, 'caught_up');
   assert.equal(resumedMarker.streamCursor, '21');
+  assert.equal(resumedMarker.legacyMaxStreamCursor, '20');
   await waitUntil(() => completions.length === 1);
   completions.shift()?.();
 

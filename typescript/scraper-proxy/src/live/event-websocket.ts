@@ -778,6 +778,7 @@ export class EventWebSocketServer {
         address: displayAddress(cursor.address),
         domain: cursor.domain,
         eventType,
+        legacyMaxStreamCursor: legacyMaxId.toString(),
         streamCursor: streamCursor.toString(),
         type: 'caught_up',
       }))
@@ -880,10 +881,16 @@ export class EventWebSocketServer {
     const data = eventType === 'gas_payment' ? withoutStreamCursor(row) : row;
     const rowId =
       eventType === 'gas_payment' ? parseId(row.id).toString() : undefined;
+    const legacyMaxStreamCursor = streamCursor
+      ? subscription.gasPaymentLegacyMaxIds.get(
+          sequenceKey(domain, streamCursor.address),
+        )
+      : undefined;
     return {
       data,
       domain,
       eventType,
+      legacyMaxStreamCursor: legacyMaxStreamCursor?.toString(),
       rowId,
       streamCursor: streamCursor?.value.toString(),
       sequence: sequence?.value.toString(),
