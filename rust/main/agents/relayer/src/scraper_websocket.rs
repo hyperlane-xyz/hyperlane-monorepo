@@ -37,7 +37,7 @@ use url::Url;
 
 const DISPATCH_EVENT_TYPE: &str = "dispatch";
 const GAS_PAYMENT_EVENT_TYPE: &str = "gas_payment";
-const GAS_PAYMENT_STREAM_CURSOR_VERSION: u32 = 1;
+const GAS_PAYMENT_STREAM_CURSOR_VERSION: u32 = 2;
 const MERKLE_EVENT_TYPE: &str = "merkle_tree_insertion";
 const READ_TIMEOUT: Duration = Duration::from_secs(75);
 const RETRY_DELAY: Duration = Duration::from_secs(5);
@@ -56,8 +56,9 @@ const PARITY_WARN_INTERVAL: Duration = Duration::from_secs(60);
 const DUPLICATE_FINGERPRINT_WINDOW: usize = 1_024;
 const CROSS_STREAM_WINDOW: usize = 1_024;
 const DISPATCH_CURSOR_PREFIX: &[u8] = b"scraper_websocket_dispatch_cursor";
+const GAS_PAYMENT_CURSOR_V1_PREFIX: &[u8] = b"scraper_websocket_gas_payment_stream_cursor_v1";
 const GAS_PAYMENT_CURSOR_PREFIX: &[u8] = b"scraper_websocket_gas_payment_stream_cursor_v2";
-const GAS_PAYMENT_DEGRADED_PREFIX: &[u8] = b"scraper_websocket_gas_payment_degraded_v1";
+const GAS_PAYMENT_DEGRADED_PREFIX: &[u8] = b"scraper_websocket_gas_payment_degraded_v2";
 const MERKLE_CURSOR_PREFIX: &[u8] = b"scraper_websocket_merkle_cursor";
 const CORRELATION_CURSOR_PREFIX: &[u8] = b"scraper_websocket_correlation_cursor";
 const PARITY_UNHEALTHY_PREFIX: &[u8] = b"scraper_websocket_parity_unhealthy";
@@ -238,6 +239,23 @@ impl ScraperSource {
         self.cursor_db
             .retrieve_value_by_key(GAS_PAYMENT_CURSOR_PREFIX, &self.interchain_gas_paymaster)
             .context("Reading durable scraper gas payment cursor")
+    }
+
+    fn gas_payment_v1_cursor(&self) -> Result<Option<LegacyDurableGasPaymentCursor>> {
+        self.cursor_db
+            .retrieve_value_by_key(GAS_PAYMENT_CURSOR_V1_PREFIX, &self.interchain_gas_paymaster)
+            .context("Reading legacy durable scraper gas payment cursor")
+    }
+
+    #[cfg(test)]
+    fn store_gas_payment_v1_cursor(&self, cursor: &LegacyDurableGasPaymentCursor) -> Result<()> {
+        self.cursor_db
+            .store_value_by_key(
+                GAS_PAYMENT_CURSOR_V1_PREFIX,
+                &self.interchain_gas_paymaster,
+                cursor,
+            )
+            .context("Storing legacy durable scraper gas payment cursor")
     }
 
     fn store_gas_payment_cursor(&self, cursor: &DurableGasPaymentCursor) -> Result<()> {
@@ -748,7 +766,44 @@ struct StreamState {
     cross_stream: CrossStreamState,
     cursors: HashMap<(u32, EventKind), StreamCursor>,
     gas_payment_degraded: HashSet<u32>,
+    gas_payment_v1_rows: HashMap<u32, LegacyDurableGasPaymentCursor>,
     gas_payment_rows: HashMap<u32, DurableGasPaymentCursor>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+struct LegacyDurableGasPaymentCursor {
+    fingerprint: Option<H256>,
+    stream_cursor: u64,
+}
+
+impl Encode for LegacyDurableGasPaymentCursor {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: std::io::Write,
+    {
+        let mut written = self.fingerprint.is_some().write_to(writer)?;
+        if let Some(fingerprint) = self.fingerprint {
+            written = written.saturating_add(fingerprint.write_to(writer)?);
+        }
+        written = written.saturating_add(self.stream_cursor.write_to(writer)?);
+        Ok(written)
+    }
+}
+
+impl Decode for LegacyDurableGasPaymentCursor {
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
+    where
+        R: std::io::Read,
+    {
+        let fingerprint = bool::read_from(reader)?
+            .then(|| H256::read_from(reader))
+            .transpose()?;
+        let stream_cursor = u64::read_from(reader)?;
+        Ok(Self {
+            fingerprint,
+            stream_cursor,
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -800,6 +855,8 @@ impl StreamState {
             }
             if let Some(cursor) = source.gas_payment_cursor()? {
                 state.gas_payment_rows.insert(source.domain, cursor);
+            } else if let Some(cursor) = source.gas_payment_v1_cursor()? {
+                state.gas_payment_v1_rows.insert(source.domain, cursor);
             }
         }
         Ok(state)
@@ -822,6 +879,17 @@ impl StreamState {
                 self.correlation_next.insert(*domain, sequence);
             }
         }
+    }
+
+    fn gas_payment_resume_cursor(&self, domain: u32) -> Option<u64> {
+        self.gas_payment_rows
+            .get(&domain)
+            .map(|cursor| cursor.stream_cursor)
+            .or_else(|| {
+                self.gas_payment_v1_rows
+                    .get(&domain)
+                    .map(|cursor| cursor.stream_cursor)
+            })
     }
 
     fn advance_correlation(&mut self, domain: u32) -> Result<Option<u32>> {
@@ -1127,50 +1195,50 @@ impl StreamState {
             &row_id.to_be_bytes(),
             &encoded,
         ]);
-        let (result, cursor) = match self.gas_payment_rows.get(&event.domain) {
-            Some(previous) if legacy_max_stream_cursor != previous.legacy_max_stream_cursor => {
-                bail!("Gas payment legacy cursor boundary changed");
-            }
-            Some(previous) if stream_cursor < previous.stream_cursor => {
-                bail!("Gas payment stream cursor moved backwards");
-            }
-            Some(previous) if stream_cursor == previous.stream_cursor => {
-                if previous
-                    .fingerprint
-                    .is_some_and(|previous| fingerprint != previous)
-                {
-                    bail!("Conflicting gas payment event at stream cursor {stream_cursor}");
-                }
+        let (previous_stream_cursor, previous_fingerprint, previous_legacy_max) = self
+            .gas_payment_rows
+            .get(&event.domain)
+            .map(|cursor| {
                 (
-                    SequenceResult::Duplicate,
-                    DurableGasPaymentCursor {
-                        fingerprint: Some(fingerprint),
-                        ..*previous
-                    },
+                    cursor.stream_cursor,
+                    cursor.fingerprint,
+                    Some(cursor.legacy_max_stream_cursor),
                 )
+            })
+            .or_else(|| {
+                self.gas_payment_v1_rows
+                    .get(&event.domain)
+                    .map(|cursor| (cursor.stream_cursor, cursor.fingerprint, None))
+            })
+            .context("Gas payment event arrived before caught-up baseline")?;
+        if previous_legacy_max.is_some_and(|previous| legacy_max_stream_cursor != previous) {
+            bail!("Gas payment legacy cursor boundary changed");
+        }
+        if stream_cursor < previous_stream_cursor {
+            bail!("Gas payment stream cursor moved backwards");
+        }
+        let result = if stream_cursor == previous_stream_cursor {
+            if previous_fingerprint.is_some_and(|previous| fingerprint != previous) {
+                bail!("Conflicting gas payment event at stream cursor {stream_cursor}");
             }
-            Some(previous) => {
-                let expected = previous
-                    .stream_cursor
-                    .checked_add(1)
-                    .context("Gas payment stream cursor exhausted")?;
-                if stream_cursor > legacy_max_stream_cursor && stream_cursor != expected {
-                    return Err(StreamGap {
-                        expected,
-                        received: stream_cursor,
-                    }
-                    .into());
+            SequenceResult::Duplicate
+        } else {
+            let expected = previous_stream_cursor
+                .checked_add(1)
+                .context("Gas payment stream cursor exhausted")?;
+            if stream_cursor > legacy_max_stream_cursor && stream_cursor != expected {
+                return Err(StreamGap {
+                    expected,
+                    received: stream_cursor,
                 }
-                (
-                    SequenceResult::Accepted,
-                    DurableGasPaymentCursor {
-                        fingerprint: Some(fingerprint),
-                        legacy_max_stream_cursor,
-                        stream_cursor,
-                    },
-                )
+                .into());
             }
-            None => bail!("Gas payment event arrived before caught-up baseline"),
+            SequenceResult::Accepted
+        };
+        let cursor = DurableGasPaymentCursor {
+            fingerprint: Some(fingerprint),
+            legacy_max_stream_cursor,
+            stream_cursor,
         };
         Ok(ValidatedEvent {
             gas_payment_cursor: Some(cursor),
@@ -1219,11 +1287,23 @@ impl StreamState {
                 bail!("Gas payment legacy cursor boundary changed")
             }
             Some(previous) => Ok(*previous),
-            None => Ok(DurableGasPaymentCursor {
-                fingerprint: None,
-                legacy_max_stream_cursor,
-                stream_cursor,
-            }),
+            None => {
+                let fingerprint = match self.gas_payment_v1_rows.get(&domain) {
+                    Some(previous) if stream_cursor != previous.stream_cursor => {
+                        bail!(
+                            "Gas payment caught-up stream cursor {stream_cursor} does not equal validated cursor {}",
+                            previous.stream_cursor
+                        )
+                    }
+                    Some(previous) => previous.fingerprint,
+                    None => None,
+                };
+                Ok(DurableGasPaymentCursor {
+                    fingerprint,
+                    legacy_max_stream_cursor,
+                    stream_cursor,
+                })
+            }
         }
     }
 
@@ -1237,6 +1317,7 @@ impl StreamState {
         F: FnOnce(&DurableGasPaymentCursor) -> Result<()>,
     {
         persist(&cursor)?;
+        self.gas_payment_v1_rows.remove(&domain);
         self.gas_payment_rows.insert(domain, cursor);
         Ok(())
     }
@@ -2378,9 +2459,8 @@ impl ScraperWebSocketMonitor {
             .map(|source| SubscribedCursor {
                 address: scraper_address(source.interchain_gas_paymaster),
                 after_stream_cursor: state
-                    .gas_payment_rows
-                    .get(&source.domain)
-                    .map(|cursor| cursor.stream_cursor.to_string()),
+                    .gas_payment_resume_cursor(source.domain)
+                    .map(|cursor| cursor.to_string()),
                 after_sequence: None,
                 domain: source.domain,
             })
@@ -6275,7 +6355,7 @@ mod tests {
                         ],
                         "domains": [5, 9],
                         "eventType": "gas_payment",
-                        "streamCursorVersion": 1
+                        "streamCursorVersion": 2
                     }
                 ],
                 "type": "subscribe"
@@ -6332,6 +6412,89 @@ mod tests {
     }
 
     #[test]
+    fn migrates_sparse_v1_gas_cursor_without_replaying_from_tip() {
+        let fixture = fixture();
+        let source = fixture.sources.get(&5).expect("source");
+        let legacy = LegacyDurableGasPaymentCursor {
+            fingerprint: Some(H256::from_low_u64_be(9)),
+            stream_cursor: 10,
+        };
+        source
+            .store_gas_payment_v1_cursor(&legacy)
+            .expect("store v1 gas cursor");
+        source
+            .cursor_db
+            .store_value_by_key(
+                b"scraper_websocket_gas_payment_degraded_v1",
+                &source.interchain_gas_paymaster,
+                &true,
+            )
+            .expect("store v1 degradation marker");
+
+        let mut state =
+            StreamState::load_gas_payment(&fixture.sources).expect("load v1 gas cursor");
+        assert_eq!(state.gas_payment_v1_rows.get(&5), Some(&legacy));
+        assert_eq!(state.gas_payment_resume_cursor(5), Some(10));
+        assert!(!state.gas_payment_degraded.contains(&5));
+        let validated = state
+            .validate(gas_payment_event_with_boundary(20, 20), &fixture.sources)
+            .expect("sparse v1 replay");
+        assert_eq!(validated.sequence_result, SequenceResult::Accepted);
+        state
+            .persist_gas_payment_cursor(
+                5,
+                validated
+                    .gas_payment_cursor
+                    .expect("migrated v2 gas cursor"),
+                |cursor| source.store_gas_payment_cursor(cursor),
+            )
+            .expect("persist v2 gas cursor");
+        assert!(!state.gas_payment_v1_rows.contains_key(&5));
+        assert_eq!(state.gas_payment_rows[&5].stream_cursor, 20);
+        assert_eq!(state.gas_payment_rows[&5].legacy_max_stream_cursor, 20);
+
+        let restarted =
+            StreamState::load_gas_payment(&fixture.sources).expect("reload migrated gas cursor");
+        assert!(!restarted.gas_payment_v1_rows.contains_key(&5));
+        assert_eq!(restarted.gas_payment_rows[&5], state.gas_payment_rows[&5]);
+        assert!(!restarted.gas_payment_degraded.contains(&5));
+    }
+
+    #[test]
+    fn migrates_dense_v1_gas_cursor_contiguously() {
+        let fixture = fixture();
+        let source = fixture.sources.get(&5).expect("source");
+        source
+            .store_gas_payment_v1_cursor(&LegacyDurableGasPaymentCursor {
+                fingerprint: None,
+                stream_cursor: 20,
+            })
+            .expect("store dense v1 gas cursor");
+        let mut state =
+            StreamState::load_gas_payment(&fixture.sources).expect("load dense v1 gas cursor");
+
+        assert!(state
+            .validate(gas_payment_event_with_boundary(22, 20), &fixture.sources,)
+            .expect_err("dense v1 migration gap")
+            .downcast_ref::<StreamGap>()
+            .is_some());
+        let validated = state
+            .validate(gas_payment_event_with_boundary(21, 20), &fixture.sources)
+            .expect("contiguous dense v1 migration");
+        assert_eq!(validated.sequence_result, SequenceResult::Accepted);
+        state
+            .persist_gas_payment_cursor(
+                5,
+                validated
+                    .gas_payment_cursor
+                    .expect("migrated dense v2 gas cursor"),
+                |cursor| source.store_gas_payment_cursor(cursor),
+            )
+            .expect("persist dense v2 gas cursor");
+        assert_eq!(state.gas_payment_rows[&5].stream_cursor, 21);
+    }
+
+    #[test]
     fn legacy_subscription_preserves_sequenced_streams() {
         let sources = sources();
         let plan = replay_plan(&sources);
@@ -6353,7 +6516,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn legacy_ready_rejects_unsolicited_gas_messages() {
+    async fn v1_ready_rejects_unsolicited_gas_messages() {
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind test server");
@@ -6373,9 +6536,11 @@ mod tests {
             let (stream, _) = listener.accept().await.expect("accept test client");
             let mut socket = accept_async(stream).await.expect("accept websocket");
             socket
-                .send(Message::Text(r#"{"type":"ready"}"#.to_owned()))
+                .send(Message::Text(
+                    r#"{"streamCursorVersions":{"gas_payment":1},"type":"ready"}"#.to_owned(),
+                ))
                 .await
-                .expect("send legacy ready");
+                .expect("send v1 ready");
             let request = socket
                 .next()
                 .await

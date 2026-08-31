@@ -276,7 +276,7 @@ mod tests {
                 })]),
                 domains: Some(vec![5]),
                 event_type: "gas_payment",
-                stream_cursor_version: Some(1),
+                stream_cursor_version: Some(2),
             }],
             message_type: "subscribe",
         };
@@ -287,7 +287,7 @@ mod tests {
                     "cursors": [{ "address": "0x1234", "afterStreamCursor": "41", "domain": 5 }],
                     "domains": [5],
                     "eventType": "gas_payment",
-                    "streamCursorVersion": 1
+                    "streamCursorVersion": 2
                 }],
                 "type": "subscribe"
             })
@@ -418,7 +418,7 @@ mod tests {
     #[test]
     fn deserializes_ready_cursor_capabilities() {
         let message: ServerMessage<TestData> = serde_json::from_value(serde_json::json!({
-            "streamCursorVersions": { "gas_payment": 1 },
+            "streamCursorVersions": { "gas_payment": 2 },
             "type": "ready"
         }))
         .expect("ready message should deserialize");
@@ -426,7 +426,7 @@ mod tests {
         match message {
             ServerMessage::Ready {
                 stream_cursor_versions,
-            } => assert_eq!(stream_cursor_versions.get("gas_payment"), Some(&1)),
+            } => assert_eq!(stream_cursor_versions.get("gas_payment"), Some(&2)),
             _ => panic!("expected ready message"),
         }
     }
