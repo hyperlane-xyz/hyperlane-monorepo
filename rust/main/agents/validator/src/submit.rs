@@ -55,6 +55,10 @@ impl ValidatorSubmitter {
         max_sign_concurrency: usize,
         reorg_reporter: Arc<dyn ReorgReporter>,
     ) -> Self {
+        assert!(
+            max_sign_concurrency > 0,
+            "maxSignConcurrency must be greater than zero"
+        );
         Self {
             reorg_period,
             interval,
@@ -307,12 +311,6 @@ impl ValidatorSubmitter {
             });
         }
 
-        info!(
-            root = ?tree.root(),
-            queue_length = checkpoint_queue.len(),
-            "Ingested leaves into in-memory merkle tree"
-        );
-
         // At this point we know that correctness_checkpoint.index == tree.index().
         assert_eq!(
             correctness_checkpoint.index,
@@ -363,13 +361,13 @@ impl ValidatorSubmitter {
             panic!("{panic_message}");
         }
 
-        tracing::info!(
-            elapsed=?start.elapsed(),
-            checkpoint_queue_len = checkpoint_queue.len(),
-            "Checkpoint submitter reached correctness checkpoint"
-        );
-
         if !checkpoint_queue.is_empty() {
+            info!(
+                root = ?tree.root(),
+                queue_length = checkpoint_queue.len(),
+                elapsed = ?start.elapsed(),
+                "Checkpoint submitter reached correctness checkpoint"
+            );
             info!(
                 index = checkpoint.index,
                 queue_len = checkpoint_queue.len(),
@@ -434,7 +432,7 @@ impl ValidatorSubmitter {
             let existing_signer = existing.recover()?;
             let signer = self.signer.eth_address();
             if existing_signer == signer && existing.value == checkpoint {
-                debug!(index = checkpoint.index, "Checkpoint already submitted");
+                tracing::trace!(index = checkpoint.index, "Checkpoint already submitted");
                 return Ok(false);
             } else {
                 warn!(
@@ -509,7 +507,7 @@ impl ValidatorSubmitter {
                         let checkpoint_index = checkpoint.index;
                         let wrote_checkpoint =
                             self_clone.sign_and_submit_checkpoint(checkpoint).await?;
-                        tracing::info!(
+                        tracing::trace!(
                             index = checkpoint_index,
                             wrote_checkpoint,
                             elapsed=?start.elapsed(),
@@ -522,12 +520,21 @@ impl ValidatorSubmitter {
 
             let wrote_checkpoint = join_all(futures).await.into_iter().any(|wrote| wrote);
 
-            tracing::info!(
-                elapsed=?start.elapsed(),
-                chunk_len,
-                remaining_checkpoints = checkpoints.len(),
-                "Signed and submitted checkpoint chunk",
-            );
+            if wrote_checkpoint {
+                tracing::info!(
+                    elapsed=?start.elapsed(),
+                    chunk_len,
+                    remaining_checkpoints = checkpoints.len(),
+                    "Signed and submitted checkpoint chunk",
+                );
+            } else {
+                tracing::trace!(
+                    elapsed=?start.elapsed(),
+                    chunk_len,
+                    remaining_checkpoints = checkpoints.len(),
+                    "Checkpoint chunk already existed",
+                );
+            }
 
             // If it's the first chunk, update the latest index
             if first_chunk {

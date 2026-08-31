@@ -95,6 +95,25 @@ fn dummy_singleton_handle() -> SingletonSignerHandle {
     SingletonSignerHandle::new(H160::from_low_u64_be(0), mpsc::unbounded_channel().0)
 }
 
+#[test]
+#[should_panic(expected = "maxSignConcurrency must be greater than zero")]
+fn validator_submitter_rejects_zero_sign_concurrency() {
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    ValidatorSubmitter::new(
+        Duration::from_secs(1),
+        ReorgPeriod::from_blocks(1),
+        Arc::new(MockMerkleTreeHook::new()),
+        Arc::new(MockMerkleTreeHook::new()),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(MockCheckpointSyncer::new()),
+        Arc::new(MockDb::new()),
+        dummy_metrics(),
+        0,
+        Arc::new(MockReorgReporter::new()),
+    );
+}
+
 #[tokio::test(start_paused = true)]
 async fn single_checkpoint_chunk_has_no_throttle_tail() {
     let checkpoint = CheckpointWithMessageId {
