@@ -39,6 +39,7 @@ void it('serves current usage and limits from /metrics', async () => {
       explorerPendingMessages: 2_000,
       messageConnections: 400,
       messageConnectionsPerIp: 5,
+      notificationEvents: 10_000,
       pendingEvents: 5_000,
       socketBufferedBytes: 1_024,
       totalPendingBytes: 4_096,
@@ -83,6 +84,14 @@ void it('serves current usage and limits from /metrics', async () => {
   assert.match(
     output,
     /hyperlane_scraper_proxy_websocket_explorer_pending_bytes 1024/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_notification_queue_limit\{route="agent"\} 10000/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_send_failures_total\{reason="buffer_limit"\} 0/,
   );
   assert.match(
     output,
