@@ -908,6 +908,26 @@ export const validatorChainConfig = (
         'tea',
       ),
     },
+    // arc: {
+    //   interval: 5,
+    //   reorgPeriod: getReorgPeriod('arc'),
+    //   validators: validatorsConfig(
+    //     {
+    //       [Contexts.Hyperlane]: [AW_VALIDATOR],
+    //     },
+    //     'arc',
+    //   ),
+    // },
+    nesachain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('nesachain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'nesachain',
+      ),
+    },
   };
 
   // Opt-in quorum RPC verification (ValidatorMultiRpcQuorumMerkleTreeHook) for

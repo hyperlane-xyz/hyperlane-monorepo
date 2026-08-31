@@ -4,6 +4,7 @@ import sinon from 'sinon';
 
 import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
 import {
+  ProtocolType,
   addressToBytes32,
   bytes32ToAddress,
   formatStandardHookMetadata,
@@ -183,12 +184,14 @@ describe('InterchainAccount.getAccount', () => {
     hash = bytecodeHash,
     configuredDestination = true,
     domain = originDomain,
+    protocol = ProtocolType.Ethereum,
   }: {
     router?: string;
     ism?: string;
     hash?: string | Error;
     configuredDestination?: boolean;
     domain?: number | null;
+    protocol?: ProtocolType;
   } = {}) {
     const destinationRouter = {
       address: destinationRouterAddress,
@@ -215,6 +218,7 @@ describe('InterchainAccount.getAccount', () => {
       getProvider: sinon.stub().returns(provider),
       getTransactionOverrides: sinon.stub().returns({}),
       handleTx: sinon.stub().resolves(),
+      getProtocol: sinon.stub().returns(protocol),
       tryGetDomainId: sinon.stub().returns(domain),
     };
     const app = Object.assign(Object.create(InterchainAccount.prototype), {
@@ -225,7 +229,7 @@ describe('InterchainAccount.getAccount', () => {
       logger: { debug: sinon.stub() },
       multiProvider,
     });
-    return { app, destinationRouter, multiProvider };
+    return { app, destinationRouter, multiProvider, provider };
   }
 
   it('matches a deployed router golden vector', async () => {
@@ -245,6 +249,30 @@ describe('InterchainAccount.getAccount', () => {
     expect(await app.getAccount(destination, { origin, owner })).to.equal(
       '0xa35B6C3E1604A6da3da2fb1210053Ba876d09CE7',
     );
+  });
+
+  it('uses the Tron router getter instead of EVM CREATE2 derivation', async () => {
+    const tronAccount = '0x2839B41900b59dEBb43E7d70630BF92d10b86D21';
+    const { app, destinationRouter, multiProvider, provider } = createApp({
+      router: addressToBytes32('0xC00b94c115742f711a6F9EA90373c33e9B72A4A9'),
+      ism: constants.HashZero,
+      protocol: ProtocolType.Tron,
+    });
+    destinationRouter.address = '0x68Cf65eFE8EccFBE30ab0Ca0ecB043C81E395Fc5';
+    destinationRouter[
+      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+    ].resolves(tronAccount);
+    provider.getCode.resolves('0x01');
+
+    expect(
+      await app.deployAccount(destination, {
+        origin,
+        owner: '0x562Dfaac27A84be6C96273F5c9594DA1681C0DA7',
+      }),
+    ).to.equal(tronAccount);
+    expect(destinationRouter.bytecodeHash.called).to.be.false;
+    sinon.assert.calledOnceWithExactly(provider.getCode, tronAccount);
+    expect(multiProvider.handleTx.called).to.be.false;
   });
 
   it('starts independent metadata reads concurrently', async () => {

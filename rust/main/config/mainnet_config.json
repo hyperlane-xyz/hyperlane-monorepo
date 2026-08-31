@@ -1493,6 +1493,12 @@
       "rpcUrls": [
         {
           "http": "https://evm-rpc.sei-apis.com"
+        },
+        {
+          "http": "https://evm-rpc-sei.stingray.plus"
+        },
+        {
+          "http": "https://sei-evm-rpc.publicnode.com"
         }
       ],
       "staticAggregationHookFactory": "0x7442A72e41F09e35945BE4984785Ab92D921e6d5",
@@ -2043,6 +2049,12 @@
         "from": 6777659
       },
       "quotedCalls": "0x720ba6fbdd40a31972f83dB3b38697aad8768bB6",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      },
       "transactionOverrides": {
         "gasPrice": 16038000000
       }
@@ -2113,6 +2125,12 @@
         "from": 14336020
       },
       "quotedCalls": "0xD3c12725101C4896A9aEaf874EdE0C76E1D24A52",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      },
       "transactionOverrides": {
         "maxFeePerGas": 100000000000,
         "maxPriorityFeePerGas": 100000000000
@@ -2391,7 +2409,13 @@
       "testRecipient": "0xeF7F4367703cdf4863AD6Be34C1627d8b1C2D67a",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "validatorAnnounce": "0x1196055C61af3e3DA6f8458B07b255a72b64Bcf7",
-      "quotedCalls": "0x821d76954025fcf87Db141cA5CbE36Fec62Ae14D"
+      "quotedCalls": "0x821d76954025fcf87Db141cA5CbE36Fec62Ae14D",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "ink": {
       "blockExplorers": [
@@ -2638,7 +2662,7 @@
       "protocol": "starknet",
       "rpcUrls": [
         {
-          "http": "https://rpc.starknet.lava.build:443/"
+          "http": "https://rpc.starknet.lava.build:443/rpc/v0_9"
         }
       ],
       "defaultHook": "0x03de4fa3b415b90bd11749f6c0e5fc610a02db2ff903182c446c965975988869",
@@ -3366,13 +3390,7 @@
       "protocol": "starknet",
       "rpcUrls": [
         {
-          "http": "https://rpc.api.prod.paradex.trade/rpc/v0_8"
-        },
-        {
-          "http": "https://juno.api.prod.paradex.trade/rpc/v0_8"
-        },
-        {
-          "http": "https://pathfinder.api.prod.paradex.trade/rpc/v0_8"
+          "http": "https://rpc.api.prod.paradex.trade/rpc/v0_9"
         }
       ],
       "technicalStack": "other",
@@ -5474,6 +5492,70 @@
       "validatorAnnounce": "0x51545389E04c2Ac07d98A40b85d29B480a2AF6ce",
       "index": {
         "from": 661412
+      }
+    },
+    "nesachain": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://explorer-evm.ns.onyxpro.ai/api",
+          "family": "blockscout",
+          "name": "Nesa Explorer",
+          "url": "https://explorer-evm.ns.onyxpro.ai"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 2,
+        "reorgPeriod": 0
+      },
+      "chainId": 41444,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Nesa",
+      "domainId": 41444,
+      "gasCurrencyCoinGeckoId": "nesa-ai-token",
+      "name": "nesachain",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "NES",
+        "symbol": "NES"
+      },
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "https://erpc.nesa.ai"
+        }
+      ],
+      "technicalStack": "other",
+      "aggregationHook": "0xDe8500555B02ef1CAC8A5C659b09916251D6404b",
+      "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
+      "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
+      "fallbackRoutingHook": "0x47bf94790241B1764fC41A35a8329A15569E121C",
+      "incrementalDomainRoutingIsmFactory": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
+      "interchainAccountRouter": "0x13E83ac41e696856B6996263501fB3225AD5E6F5",
+      "interchainGasPaymaster": "0x7621e04860F0bDe63311db9D5D8b589AD3458A1f",
+      "interchainSecurityModule": "0x48DF04f82A6222877b5b441A2eD4BE51bd6CC30c",
+      "mailbox": "0x7f50C5776722630a0024fAE05fDe8b47571D7B39",
+      "merkleTreeHook": "0xc2Da384799488B4e1E773d70a83346529145085B",
+      "pausableHook": "0xcC2816aC3fe471e5378BBd3B30F2B8247021625D",
+      "pausableIsm": "0xed9a722c543883FB7e07E78F3879762DE09eA7D5",
+      "protocolFee": "0x2F619Ac5122689180AeBB930ADccdae215d538a9",
+      "proxyAdmin": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
+      "quotedCalls": "0x18B0688990720103dB63559a3563f7E8d0f63EDb",
+      "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
+      "staticAggregationIsm": "0x48DF04f82A6222877b5b441A2eD4BE51bd6CC30c",
+      "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
+      "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
+      "staticMessageIdMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
+      "storageGasOracle": "0x87bDFaBbCC36D8B1aEdA871Cd54b2e86C7a4d597",
+      "testRecipient": "0xfBc08389224d23b79cb21cDc16c5d42F0ad0F57f",
+      "validatorAnnounce": "0x145566181A18E23bB6a8A3eC6D87765542A7F754",
+      "index": {
+        "from": 16032
       }
     }
   },

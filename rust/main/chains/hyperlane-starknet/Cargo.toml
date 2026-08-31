@@ -33,3 +33,6 @@ reqwest-utils = { path = "../../utils/reqwest-utils" }
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen", features = ["starknet"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }

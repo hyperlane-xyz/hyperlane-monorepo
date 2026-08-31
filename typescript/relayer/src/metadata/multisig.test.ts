@@ -1,7 +1,13 @@
 import { expect } from 'chai';
 import { existsSync, readFileSync, readdirSync } from 'fs';
+import sinon from 'sinon';
 
-import { IsmType, ModuleType } from '@hyperlane-xyz/sdk';
+import {
+  GcpValidator,
+  HyperlaneCore,
+  IsmType,
+  ModuleType,
+} from '@hyperlane-xyz/sdk';
 import { SignatureLike } from '@hyperlane-xyz/utils';
 
 import { MultisigMetadata, MultisigMetadataBuilder } from './multisig.js';
@@ -48,6 +54,51 @@ const fixtures: Fixture<MultisigMetadata>[] = files
     }
     return { decoded, encoded: contents.encoded };
   });
+
+class TestMultisigMetadataBuilder extends MultisigMetadataBuilder {
+  public constructor(private readonly storageLocations: string[][]) {
+    super(sinon.createStubInstance(HyperlaneCore));
+  }
+
+  protected override async getAnnouncedStorageLocations(): Promise<string[][]> {
+    return this.storageLocations;
+  }
+
+  public getCheckpointValidators(originChain: string, validators: string[]) {
+    return this.checkpointValidators(originChain, validators);
+  }
+}
+
+describe('MultisigMetadataBuilder validator storage', () => {
+  afterEach(() => sinon.restore());
+
+  it('initializes GCS validators from announced storage locations', async () => {
+    const location =
+      'gs://hyperlane-mainnet3-validator-0/nesachain/gcsAnnouncementKey';
+    const validatorAddress = '0xA5962eFA3ec138Bf7CA8f7fDe86b7ee32E24bf03';
+    const validator = new GcpValidator(
+      {
+        address: validatorAddress,
+        localDomain: 41444,
+        mailbox: '0x0000000000000000000000000000000000000001',
+      },
+      {
+        bucket: 'hyperlane-mainnet3-validator-0',
+        folder: 'nesachain',
+        caching: true,
+      },
+    );
+    const fromStorageLocation = sinon
+      .stub(GcpValidator, 'fromStorageLocation')
+      .resolves(validator);
+    const builder = new TestMultisigMetadataBuilder([[location]]);
+
+    expect(
+      await builder.getCheckpointValidators('nesachain', [validatorAddress]),
+    ).to.deep.equal([validator]);
+    expect(fromStorageLocation.calledOnceWithExactly(location)).to.equal(true);
+  });
+});
 
 // FIXME: migrate to mocha rules
 // eslint-disable-next-line jest/no-disabled-tests -- intentionally skipped pending migration

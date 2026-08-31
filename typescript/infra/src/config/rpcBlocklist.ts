@@ -17,4 +17,7 @@ export const blockedQuorumRpcUrls: ChainMap<string[]> = {
   // validator Quorum pool these erred on the merkle-root eth_call ~97% (drpc)
   // and ~55% (arb1) of requests, counting against reaching majority.
   arbitrum: ['https://arbitrum.drpc.org', 'https://arb1.arbitrum.io/rpc'],
+  // TLS certificate does not match erpc.nesa.ai, so this endpoint prevents the
+  // Nesachain validator from reaching RPC quorum.
+  nesachain: ['https://erpc.nesa.ai'],
 };
