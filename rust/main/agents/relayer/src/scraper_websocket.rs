@@ -1012,6 +1012,26 @@ fn caught_up_baselines(
     ))
 }
 
+fn validate_fresh_empty_stream_starts(state: &StreamState, domain: u32) -> Result<()> {
+    for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+        let Some(cursor) = state.cursors.get(&(domain, kind)) else {
+            continue;
+        };
+        let first = cursor
+            .fingerprints
+            .first_key_value()
+            .map(|(sequence, _)| *sequence)
+            .context("Fresh scraper stream cursor omitted its first fingerprint")?;
+        if first != 0 {
+            bail!(
+                "Fresh empty {} scraper stream started at sequence {first}, expected 0",
+                kind.label()
+            );
+        }
+    }
+    Ok(())
+}
+
 fn sequenced_persistence_ready(
     plan: &SequencedReplayPlan,
     caught_up: &HashMap<(u32, EventKind), i64>,
@@ -1034,9 +1054,7 @@ fn sequenced_persistence_ready(
     if state.correlation_next.contains_key(&domain) {
         return Ok(true);
     }
-    if sequence != 0 {
-        bail!("Fresh empty scraper stream started at sequence {sequence}, expected 0");
-    }
+    validate_fresh_empty_stream_starts(state, domain)?;
     Ok(state.cross_stream.complete(domain, sequence))
 }
 
@@ -1092,6 +1110,9 @@ fn source_caught_up(
     if !correlation_required {
         if dispatch != merkle {
             bail!("Fresh scraper caught-up baselines differ: dispatch {dispatch}, Merkle {merkle}");
+        }
+        if dispatch < 0 {
+            validate_fresh_empty_stream_starts(state, domain)?;
         }
         return Ok(true);
     }
@@ -1688,7 +1709,6 @@ mod tests {
             source.correlation_cursor().expect("correlation cursor"),
             None
         );
-
         state
             .set_baseline(5, EventKind::MerkleTreeInsertion, 90)
             .expect("set fresh Merkle baseline");
@@ -1858,6 +1878,20 @@ mod tests {
             source.correlation_cursor().expect("correlation cursor"),
             None
         );
+        state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 1, dispatch_data(1, b"one")),
+                &sources,
+            )
+            .expect("second dispatch event");
+        assert!(
+            !sequenced_persistence_ready(&plan, &caught_up, &state, 5, 1)
+                .expect("persistence readiness")
+        );
+        assert_eq!(
+            source.cursor(EventKind::Dispatch).expect("dispatch cursor"),
+            None
+        );
 
         state
             .validate(
@@ -1880,8 +1914,8 @@ mod tests {
         assert_eq!(
             cursors,
             [
-                (EventKind::Dispatch, 0),
                 (EventKind::MerkleTreeInsertion, 0),
+                (EventKind::Dispatch, 1),
             ]
         );
         for (kind, sequence) in cursors {
@@ -1905,7 +1939,7 @@ mod tests {
 
         assert_eq!(
             source.cursor(EventKind::Dispatch).expect("dispatch cursor"),
-            Some(0)
+            Some(1)
         );
         assert_eq!(
             source
@@ -1919,10 +1953,19 @@ mod tests {
         );
         state
             .validate(
-                event(DISPATCH_EVENT_TYPE, 1, dispatch_data(1, b"one")),
+                event(
+                    MERKLE_EVENT_TYPE,
+                    1,
+                    merkle_data_for(
+                        1,
+                        H256::from_low_u64_be(2),
+                        dispatch_message(1, b"one").id(),
+                        100,
+                    ),
+                ),
                 &sources,
             )
-            .expect("next dispatch event");
+            .expect("next Merkle event");
         assert!(sequenced_persistence_ready(&plan, &caught_up, &state, 5, 1)
             .expect("initialized persistence readiness"));
         let reconnect_plan = replay_plan(&sources);
@@ -1936,6 +1979,90 @@ mod tests {
         .expect("subscription JSON");
         assert_eq!(request["streams"][0]["cursors"][0]["afterSequence"], "-1");
         assert_eq!(request["streams"][1]["cursors"][0]["afterSequence"], "-1");
+    }
+
+    #[test]
+    fn fresh_empty_merkle_can_advance_while_waiting_for_dispatch() {
+        let sources = sources();
+        let plan = replay_plan(&sources);
+        let caught_up = HashMap::from([
+            ((5, EventKind::Dispatch), -1),
+            ((5, EventKind::MerkleTreeInsertion), -1),
+        ]);
+        let mut state = replay_state(&plan);
+        for sequence in 0..=1 {
+            state
+                .validate(
+                    event(
+                        MERKLE_EVENT_TYPE,
+                        sequence,
+                        merkle_data_for(
+                            sequence,
+                            H256::from_low_u64_be(2),
+                            dispatch_message(sequence, &[sequence as u8]).id(),
+                            100,
+                        ),
+                    ),
+                    &sources,
+                )
+                .expect("Merkle event while dispatch is pending");
+            assert!(
+                !sequenced_persistence_ready(&plan, &caught_up, &state, 5, sequence)
+                    .expect("persistence readiness")
+            );
+        }
+
+        state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 0, dispatch_data(0, &[0])),
+                &sources,
+            )
+            .expect("first dispatch event");
+        assert!(sequenced_persistence_ready(&plan, &caught_up, &state, 5, 0)
+            .expect("persistence readiness"));
+        assert_eq!(
+            sequenced_cursor_write_order(&state, 5).expect("cursor write order"),
+            [
+                (EventKind::Dispatch, 0),
+                (EventKind::MerkleTreeInsertion, 1),
+            ]
+        );
+    }
+
+    #[test]
+    fn fresh_empty_peer_marker_rejects_staged_nonzero_start() {
+        for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+            let sources = sources();
+            let plan = replay_plan(&sources);
+            let mut state = replay_state(&plan);
+            let first = match kind {
+                EventKind::Dispatch => event(DISPATCH_EVENT_TYPE, 5, dispatch_data(5, &[5])),
+                EventKind::MerkleTreeInsertion => event(
+                    MERKLE_EVENT_TYPE,
+                    5,
+                    merkle_data_for(
+                        5,
+                        H256::from_low_u64_be(2),
+                        dispatch_message(5, &[5]).id(),
+                        100,
+                    ),
+                ),
+            };
+            state
+                .validate(first, &sources)
+                .expect("staged first nonzero event");
+            let peer = match kind {
+                EventKind::Dispatch => EventKind::MerkleTreeInsertion,
+                EventKind::MerkleTreeInsertion => EventKind::Dispatch,
+            };
+            let mut caught_up = HashMap::from([((5, kind), -1)]);
+            assert!(!source_caught_up(false, &caught_up, &state, 5).expect("one empty marker"));
+            caught_up.insert((5, peer), -1);
+            assert!(source_caught_up(false, &caught_up, &state, 5)
+                .expect_err("peer marker must reject staged nonzero start")
+                .to_string()
+                .contains("expected 0"));
+        }
     }
 
     #[test]
