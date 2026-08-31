@@ -78,6 +78,7 @@ type Subscription = {
   catchingUp: boolean;
   cursorKeys?: Set<string>;
   domains?: Set<number>;
+  gasPaymentLegacyMaxIds: Map<string, bigint>;
   pending: Row[];
   streamCursors: Map<string, bigint>;
   sequences: Map<string, bigint>;
@@ -520,6 +521,7 @@ export class EventWebSocketServer {
             )
           : undefined,
         domains: request.domains,
+        gasPaymentLegacyMaxIds: new Map(),
         pending: [],
         streamCursors: new Map(),
         sequences: new Map(),
@@ -752,6 +754,7 @@ export class EventWebSocketServer {
         `Cursor ${after} is ahead of current ${eventType} cursor ${lastCursor}`,
       );
     }
+    subscription.gasPaymentLegacyMaxIds.set(key, legacyMaxId);
     subscription.streamCursors.set(key, after);
 
     while ((subscription.streamCursors.get(key) ?? 0n) < lastCursor) {
@@ -771,6 +774,9 @@ export class EventWebSocketServer {
       subscription.catchUpRows += rows.length;
       this.assertCatchUpBudget(subscription);
       if (!rows.length) {
+        if (!legacyPhase) {
+          throw new Error(`Missing ${eventType} stream cursor ${current + 1n}`);
+        }
         subscription.streamCursors.set(key, through);
         continue;
       }
@@ -779,7 +785,7 @@ export class EventWebSocketServer {
         if (
           !(await this.deliverAndWait(socket, eventType, subscription, row))
         ) {
-          return false;
+          throw new Error(`Gap in ${eventType} stream cursor after ${current}`);
         }
       }
     }
@@ -856,6 +862,19 @@ export class EventWebSocketServer {
       const current = subscription.streamCursors.get(streamCursorKey);
       if (current !== undefined) {
         if (streamCursor.value <= current) return undefined;
+        const legacyMaxId =
+          subscription.gasPaymentLegacyMaxIds.get(streamCursorKey);
+        if (
+          legacyMaxId !== undefined &&
+          streamCursor.value > legacyMaxId &&
+          streamCursor.value !== current + 1n
+        ) {
+          socket.close(
+            1013,
+            `${eventType} stream cursor gap: expected ${current + 1n}, received ${streamCursor.value}`,
+          );
+          return false;
+        }
         subscription.streamCursors.set(streamCursorKey, streamCursor.value);
       }
     }
