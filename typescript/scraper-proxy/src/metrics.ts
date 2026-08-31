@@ -58,6 +58,11 @@ export type DatabaseMetricsSnapshot = {
   pools: Record<'live' | 'main', DatabasePoolMetrics>;
 };
 
+export type DatabaseQueryRole =
+  | 'graphql_primary'
+  | 'graphql_replica'
+  | 'live_primary';
+
 export const metricsRegistry = new Registry();
 
 collectDefaultMetrics({ prefix: PREFIX, register: metricsRegistry });
@@ -93,6 +98,38 @@ export const graphqlRequestDuration = new Histogram({
   name: `${PREFIX}graphql_request_duration_seconds`,
   registers: [metricsRegistry],
 });
+
+export const databaseQueries = new Counter({
+  help: 'Database queries by fixed workload role and outcome.',
+  labelNames: ['role', 'outcome'] as const,
+  name: `${PREFIX}database_queries_total`,
+  registers: [metricsRegistry],
+});
+
+export const databaseQueryDuration = new Histogram({
+  buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20],
+  help: 'Database query duration in seconds by fixed workload role.',
+  labelNames: ['role'] as const,
+  name: `${PREFIX}database_query_duration_seconds`,
+  registers: [metricsRegistry],
+});
+
+export const databaseRows = new Counter({
+  help: 'Database rows returned by fixed workload role.',
+  labelNames: ['role'] as const,
+  name: `${PREFIX}database_rows_total`,
+  registers: [metricsRegistry],
+});
+
+for (const role of [
+  'graphql_primary',
+  'graphql_replica',
+  'live_primary',
+] satisfies DatabaseQueryRole[]) {
+  for (const outcome of ['error', 'success'])
+    databaseQueries.inc({ outcome, role }, 0);
+  databaseRows.inc({ role }, 0);
+}
 
 export const websocketConnections = new Counter({
   help: 'Accepted WebSocket connections by route.',

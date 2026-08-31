@@ -29,12 +29,15 @@ void it('keeps replica health from gating primary live queries', async (context)
           releaseMain = () => resolve({ rowCount: 0, rows: [] });
         });
       }
+      if (text === 'SELECT fail')
+        return Promise.reject(new Error('query failed'));
       assert(!saturatedPools.has(this));
       return Promise.resolve({ rowCount: 0, rows: [{ ready: 1 }] });
     },
   );
   const { DbService } = await import('./db.service.js');
   const db = new DbService();
+  context.after(() => db.onModuleDestroy());
 
   await db.onModuleInit();
   assert.equal(connectAttempts, 0);
@@ -48,7 +51,21 @@ void it('keeps replica health from gating primary live queries', async (context)
   assert(releaseMain);
   releaseMain();
   await saturated;
-  await db.onModuleDestroy();
+  await assert.rejects(db.query('SELECT fail'), /query failed/);
+  const { metricsRegistry } = await import('../metrics.js');
+  const metrics = await metricsRegistry.metrics();
+  assert.match(
+    metrics,
+    /database_queries_total\{(?=[^}]*role="graphql_replica")(?=[^}]*outcome="success")[^}]*\} 1/,
+  );
+  assert.match(
+    metrics,
+    /database_queries_total\{(?=[^}]*role="graphql_replica")(?=[^}]*outcome="error")[^}]*\} 1/,
+  );
+  assert.match(
+    metrics,
+    /database_queries_total\{(?=[^}]*role="live_primary")(?=[^}]*outcome="success")[^}]*\} 1/,
+  );
 });
 
 void it('times out stalled replica connections', async (context) => {
