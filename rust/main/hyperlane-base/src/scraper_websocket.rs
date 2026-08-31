@@ -96,6 +96,9 @@ pub enum ServerMessage<T> {
         domain: u32,
         /// Scraper event type.
         event_type: String,
+        /// Immutable upper bound of sparse legacy gas-payment cursors.
+        #[serde(default)]
+        legacy_max_stream_cursor: Option<String>,
         /// Last available row ID, encoded as a decimal string.
         row_id: Option<String>,
         /// Last available logical stream cursor, encoded as a decimal string.
@@ -153,6 +156,9 @@ pub struct EventMessage<T> {
     pub domain: u32,
     /// Scraper event type.
     pub event_type: String,
+    /// Immutable upper bound of sparse legacy gas-payment cursors.
+    #[serde(default)]
+    pub legacy_max_stream_cursor: Option<String>,
     /// Durable database row ID when the stream uses row cursors.
     pub row_id: Option<String>,
     /// Durable logical cursor when the stream uses versioned cursor semantics.
@@ -344,12 +350,14 @@ mod tests {
             "data": { "value": "payload" },
             "domain": 5,
             "eventType": "gas_payment",
+            "legacyMaxStreamCursor": "20",
             "rowId": "52",
             "streamCursor": "42"
         }))
         .expect("gas payment event should deserialize");
         match event {
             ServerMessage::Event(event) => {
+                assert_eq!(event.legacy_max_stream_cursor.as_deref(), Some("20"));
                 assert_eq!(event.row_id.as_deref(), Some("52"));
                 assert_eq!(event.stream_cursor.as_deref(), Some("42"));
             }
@@ -361,16 +369,19 @@ mod tests {
             "address": "0x1234",
             "domain": 5,
             "eventType": "gas_payment",
+            "legacyMaxStreamCursor": "20",
             "streamCursor": "42"
         }))
         .expect("gas payment marker should deserialize");
         match marker {
             ServerMessage::CaughtUp {
+                legacy_max_stream_cursor,
                 row_id,
                 stream_cursor,
                 sequence,
                 ..
             } => {
+                assert_eq!(legacy_max_stream_cursor.as_deref(), Some("20"));
                 assert_eq!(row_id, None);
                 assert_eq!(stream_cursor.as_deref(), Some("42"));
                 assert_eq!(sequence, None);

@@ -56,7 +56,7 @@ const PARITY_WARN_INTERVAL: Duration = Duration::from_secs(60);
 const DUPLICATE_FINGERPRINT_WINDOW: usize = 1_024;
 const CROSS_STREAM_WINDOW: usize = 1_024;
 const DISPATCH_CURSOR_PREFIX: &[u8] = b"scraper_websocket_dispatch_cursor";
-const GAS_PAYMENT_CURSOR_PREFIX: &[u8] = b"scraper_websocket_gas_payment_stream_cursor_v1";
+const GAS_PAYMENT_CURSOR_PREFIX: &[u8] = b"scraper_websocket_gas_payment_stream_cursor_v2";
 const GAS_PAYMENT_DEGRADED_PREFIX: &[u8] = b"scraper_websocket_gas_payment_degraded_v1";
 const MERKLE_CURSOR_PREFIX: &[u8] = b"scraper_websocket_merkle_cursor";
 const CORRELATION_CURSOR_PREFIX: &[u8] = b"scraper_websocket_correlation_cursor";
@@ -494,6 +494,7 @@ impl CrossStreamState {
 
 #[derive(Debug)]
 struct ValidatedEvent {
+    gas_payment_cursor: Option<DurableGasPaymentCursor>,
     kind: EventKind,
     parity: Option<ParityInput>,
     sequence: Option<u32>,
@@ -753,6 +754,7 @@ struct StreamState {
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 struct DurableGasPaymentCursor {
     fingerprint: Option<H256>,
+    legacy_max_stream_cursor: u64,
     stream_cursor: u64,
 }
 
@@ -765,6 +767,7 @@ impl Encode for DurableGasPaymentCursor {
         if let Some(fingerprint) = self.fingerprint {
             written = written.saturating_add(fingerprint.write_to(writer)?);
         }
+        written = written.saturating_add(self.legacy_max_stream_cursor.write_to(writer)?);
         written = written.saturating_add(self.stream_cursor.write_to(writer)?);
         Ok(written)
     }
@@ -778,9 +781,11 @@ impl Decode for DurableGasPaymentCursor {
         let fingerprint = bool::read_from(reader)?
             .then(|| H256::read_from(reader))
             .transpose()?;
+        let legacy_max_stream_cursor = u64::read_from(reader)?;
         let stream_cursor = u64::read_from(reader)?;
         Ok(Self {
             fingerprint,
+            legacy_max_stream_cursor,
             stream_cursor,
         })
     }
@@ -1044,6 +1049,7 @@ impl StreamState {
             }
         }
         Ok(ValidatedEvent {
+            gas_payment_cursor: None,
             kind,
             parity: Some(parity),
             sequence: Some(sequence),
@@ -1052,7 +1058,7 @@ impl StreamState {
     }
 
     fn validate_gas_payment(
-        &mut self,
+        &self,
         event: EventMessage<serde_json::Value>,
         source: &ScraperSource,
     ) -> Result<ValidatedEvent> {
@@ -1081,6 +1087,12 @@ impl StreamState {
             .context("Gas payment event omitted stream cursor")?
             .parse::<u64>()
             .context("Invalid gas payment stream cursor")?;
+        let legacy_max_stream_cursor = event
+            .legacy_max_stream_cursor
+            .as_deref()
+            .context("Gas payment event omitted legacy cursor boundary")?
+            .parse::<u64>()
+            .context("Invalid gas payment legacy cursor boundary")?;
         if data.domain != event.domain || data.origin != event.domain {
             bail!("Gas payment payload domain does not match event envelope");
         }
@@ -1115,7 +1127,10 @@ impl StreamState {
             &row_id.to_be_bytes(),
             &encoded,
         ]);
-        let result = match self.gas_payment_rows.get_mut(&event.domain) {
+        let (result, cursor) = match self.gas_payment_rows.get(&event.domain) {
+            Some(previous) if legacy_max_stream_cursor != previous.legacy_max_stream_cursor => {
+                bail!("Gas payment legacy cursor boundary changed");
+            }
             Some(previous) if stream_cursor < previous.stream_cursor => {
                 bail!("Gas payment stream cursor moved backwards");
             }
@@ -1126,33 +1141,39 @@ impl StreamState {
                 {
                     bail!("Conflicting gas payment event at stream cursor {stream_cursor}");
                 }
-                previous.fingerprint.get_or_insert(fingerprint);
-                SequenceResult::Duplicate
+                (
+                    SequenceResult::Duplicate,
+                    DurableGasPaymentCursor {
+                        fingerprint: Some(fingerprint),
+                        ..*previous
+                    },
+                )
             }
             Some(previous) => {
                 let expected = previous
                     .stream_cursor
                     .checked_add(1)
                     .context("Gas payment stream cursor exhausted")?;
-                if stream_cursor != expected {
+                if stream_cursor > legacy_max_stream_cursor && stream_cursor != expected {
                     return Err(StreamGap {
                         expected,
                         received: stream_cursor,
                     }
                     .into());
                 }
-                self.gas_payment_rows.insert(
-                    event.domain,
+                (
+                    SequenceResult::Accepted,
                     DurableGasPaymentCursor {
                         fingerprint: Some(fingerprint),
+                        legacy_max_stream_cursor,
                         stream_cursor,
                     },
-                );
-                SequenceResult::Accepted
+                )
             }
             None => bail!("Gas payment event arrived before caught-up baseline"),
         };
         Ok(ValidatedEvent {
+            gas_payment_cursor: Some(cursor),
             kind: EventKind::GasPayment,
             parity: None,
             sequence: None,
@@ -1160,15 +1181,16 @@ impl StreamState {
         })
     }
 
-    fn accept_gas_payment_caught_up(
-        &mut self,
+    fn gas_payment_caught_up_cursor(
+        &self,
         address: &str,
         domain: u32,
+        legacy_max_stream_cursor: Option<&str>,
         row_id: Option<&str>,
         stream_cursor: Option<&str>,
         sequence: Option<&str>,
         sources: &HashMap<u32, ScraperSource>,
-    ) -> Result<()> {
+    ) -> Result<DurableGasPaymentCursor> {
         if row_id.is_some() || sequence.is_some() {
             bail!("Unexpected scraper caught-up marker");
         }
@@ -1182,6 +1204,10 @@ impl StreamState {
             .context("Gas payment caught-up marker omitted stream cursor")?
             .parse::<u64>()
             .context("Invalid gas payment caught-up stream cursor")?;
+        let legacy_max_stream_cursor = legacy_max_stream_cursor
+            .context("Gas payment caught-up marker omitted legacy cursor boundary")?
+            .parse::<u64>()
+            .context("Invalid gas payment legacy cursor boundary")?;
         match self.gas_payment_rows.get(&domain) {
             Some(previous) if stream_cursor != previous.stream_cursor => {
                 bail!(
@@ -1189,18 +1215,68 @@ impl StreamState {
                     previous.stream_cursor
                 )
             }
-            Some(_) => {}
-            None => {
-                self.gas_payment_rows.insert(
-                    domain,
-                    DurableGasPaymentCursor {
-                        fingerprint: None,
-                        stream_cursor,
-                    },
-                );
+            Some(previous) if legacy_max_stream_cursor != previous.legacy_max_stream_cursor => {
+                bail!("Gas payment legacy cursor boundary changed")
             }
+            Some(previous) => Ok(*previous),
+            None => Ok(DurableGasPaymentCursor {
+                fingerprint: None,
+                legacy_max_stream_cursor,
+                stream_cursor,
+            }),
         }
+    }
+
+    fn persist_gas_payment_cursor<F>(
+        &mut self,
+        domain: u32,
+        cursor: DurableGasPaymentCursor,
+        persist: F,
+    ) -> Result<()>
+    where
+        F: FnOnce(&DurableGasPaymentCursor) -> Result<()>,
+    {
+        persist(&cursor)?;
+        self.gas_payment_rows.insert(domain, cursor);
         Ok(())
+    }
+
+    #[cfg(test)]
+    fn accept_gas_payment_caught_up(
+        &mut self,
+        address: &str,
+        domain: u32,
+        row_id: Option<&str>,
+        stream_cursor: Option<&str>,
+        sequence: Option<&str>,
+        sources: &HashMap<u32, ScraperSource>,
+    ) -> Result<()> {
+        let cursor = self.gas_payment_caught_up_cursor(
+            address,
+            domain,
+            Some("0"),
+            row_id,
+            stream_cursor,
+            sequence,
+            sources,
+        )?;
+        self.gas_payment_rows.insert(domain, cursor);
+        Ok(())
+    }
+
+    #[cfg(test)]
+    fn validate_and_commit_gas_payment(
+        &mut self,
+        event: EventMessage<serde_json::Value>,
+        sources: &HashMap<u32, ScraperSource>,
+    ) -> Result<ValidatedEvent> {
+        let domain = event.domain;
+        let validated = self.validate(event, sources)?;
+        let cursor = validated
+            .gas_payment_cursor
+            .context("Validated gas payment has no cursor")?;
+        self.persist_gas_payment_cursor(domain, cursor, |_| Ok(()))?;
+        Ok(validated)
     }
 }
 
@@ -1979,7 +2055,13 @@ impl ScraperWebSocketMonitor {
     ) -> Result<()> {
         let mut staged_parity = StagedParity::default();
         let result = self
-            .stream_inner(state, plan, generation, &mut staged_parity)
+            .stream_inner(
+                state,
+                plan,
+                gas_payment_cursors,
+                generation,
+                &mut staged_parity,
+            )
             .await;
         self.abandon_staged_parity(&mut staged_parity);
         result
@@ -1989,6 +2071,7 @@ impl ScraperWebSocketMonitor {
         self: &Arc<Self>,
         state: &mut StreamState,
         plan: &SequencedReplayPlan,
+        gas_payment_cursors: &[SubscribedCursor],
         generation: u64,
         staged_parity: &mut StagedParity,
     ) -> Result<()> {
@@ -2092,12 +2175,13 @@ impl ScraperWebSocketMonitor {
                                         let source = self.sources.get(&domain).context(
                                             "Validated scraper event source unexpectedly missing",
                                         )?;
-                                        let cursor = state
-                                            .gas_payment_rows
-                                            .get(&domain)
-                                            .context("Validated gas payment has no cursor")?
-                                            .to_owned();
-                                        source.store_gas_payment_cursor(&cursor)?;
+                                        state.persist_gas_payment_cursor(
+                                            domain,
+                                            validated
+                                                .gas_payment_cursor
+                                                .context("Validated gas payment has no cursor")?,
+                                            |cursor| source.store_gas_payment_cursor(cursor),
+                                        )?;
                                     }
                                 }
                                 Err(err) => {
@@ -2139,6 +2223,7 @@ impl ScraperWebSocketMonitor {
                             address,
                             domain,
                             event_type,
+                            legacy_max_stream_cursor,
                             row_id,
                             stream_cursor,
                             sequence,
@@ -2152,26 +2237,24 @@ impl ScraperWebSocketMonitor {
                                     self.record(domain, GAS_PAYMENT_EVENT_TYPE, "degraded");
                                     continue;
                                 }
-                                state.accept_gas_payment_caught_up(
+                                let cursor = state.gas_payment_caught_up_cursor(
                                     &address,
                                     domain,
+                                    legacy_max_stream_cursor.as_deref(),
                                     row_id.as_deref(),
                                     stream_cursor.as_deref(),
                                     sequence.as_deref(),
                                     &self.sources,
                                 )?;
-                                if !gas_payment_caught_up.insert(domain) {
-                                    bail!("Received duplicate scraper caught-up marker");
-                                }
                                 let source = self.sources.get(&domain).with_context(|| {
                                     format!("Unexpected scraper caught-up domain {domain}")
                                 })?;
-                                let cursor = state
-                                    .gas_payment_rows
-                                    .get(&domain)
-                                    .context("Gas payment caught-up marker has no cursor")?
-                                    .to_owned();
-                                source.store_gas_payment_cursor(&cursor)?;
+                                state.persist_gas_payment_cursor(domain, cursor, |cursor| {
+                                    source.store_gas_payment_cursor(cursor)
+                                })?;
+                                if !gas_payment_caught_up.insert(domain) {
+                                    bail!("Received duplicate scraper caught-up marker");
+                                }
                                 self.set_source_caught_up(source, EventKind::GasPayment, true);
                                 self.record(domain, GAS_PAYMENT_EVENT_TYPE, "caught_up");
                                 continue;
@@ -2939,6 +3022,7 @@ mod tests {
             data,
             domain: 5,
             event_type: event_type.to_owned(),
+            legacy_max_stream_cursor: None,
             row_id: None,
             stream_cursor: None,
             sequence: Some(sequence.to_string()),
@@ -3005,6 +3089,13 @@ mod tests {
     }
 
     fn gas_payment_event(row_id: u64) -> EventMessage<serde_json::Value> {
+        gas_payment_event_with_boundary(row_id, 0)
+    }
+
+    fn gas_payment_event_with_boundary(
+        row_id: u64,
+        legacy_max_stream_cursor: u64,
+    ) -> EventMessage<serde_json::Value> {
         EventMessage {
             data: serde_json::json!({
                 "destination": 6,
@@ -3022,6 +3113,7 @@ mod tests {
             }),
             domain: 5,
             event_type: GAS_PAYMENT_EVENT_TYPE.to_owned(),
+            legacy_max_stream_cursor: Some(legacy_max_stream_cursor.to_string()),
             row_id: Some(row_id.to_string()),
             stream_cursor: Some(row_id.to_string()),
             sequence: None,
@@ -3033,6 +3125,7 @@ mod tests {
             "data": event.data,
             "domain": event.domain,
             "eventType": event.event_type,
+            "legacyMaxStreamCursor": event.legacy_max_stream_cursor,
             "rowId": event.row_id,
             "streamCursor": event.stream_cursor,
             "sequence": event.sequence,
@@ -3137,6 +3230,7 @@ mod tests {
         let plan = replay_plan(&sources);
         let cursor = DurableGasPaymentCursor {
             fingerprint: Some(H256::from_low_u64_be(9)),
+            legacy_max_stream_cursor: 20,
             stream_cursor: 41,
         };
         let mut state = StreamState::default();
@@ -3170,6 +3264,7 @@ mod tests {
         source
             .store_gas_payment_cursor(&DurableGasPaymentCursor {
                 fingerprint: Some(H256::from_low_u64_be(9)),
+                legacy_max_stream_cursor: 20,
                 stream_cursor: 41,
             })
             .expect("store gas cursor");
@@ -4782,7 +4877,11 @@ mod tests {
             .expect("valid matched dispatch");
         assert_eq!(
             monitor
-                .observe_parity(5, matched.kind, matched.parity)
+                .observe_parity(
+                    5,
+                    matched.kind,
+                    matched.parity.expect("sequenced parity input"),
+                )
                 .await,
             ParityResult::Match.label()
         );
@@ -4815,13 +4914,13 @@ mod tests {
             .expect("dispatch queue");
         queue.lock().jobs.push_back(ParityJob {
             generation: 1,
-            input: queued_event.parity,
+            input: queued_event.parity.expect("sequenced parity input"),
             queue_permit: monitor
                 .parity_queue_permit
                 .clone()
                 .try_acquire_owned()
                 .expect("queue permit"),
-            sequence: queued_event.sequence,
+            sequence: queued_event.sequence.expect("sequenced wire sequence"),
         });
         assert_eq!(monitor.parity_pending.with_label_values(&labels).get(), 2);
 
@@ -5558,7 +5657,7 @@ mod tests {
         let source = fixture.sources.get(&5).expect("source");
         let mut state = StreamState::default();
         assert!(state
-            .validate(gas_payment_event(10), &fixture.sources)
+            .validate_and_commit_gas_payment(gas_payment_event(10), &fixture.sources)
             .expect_err("gas payment before fresh baseline must reject")
             .to_string()
             .contains("before caught-up baseline"));
@@ -5581,7 +5680,7 @@ mod tests {
         assert_eq!(
             sequence(
                 state
-                    .validate(gas_payment_event(10), &fixture.sources)
+                    .validate_and_commit_gas_payment(gas_payment_event(10), &fixture.sources)
                     .expect("event at fresh gas payment baseline")
             ),
             (EventKind::GasPayment, SequenceResult::Duplicate)
@@ -5593,7 +5692,7 @@ mod tests {
         assert_eq!(
             sequence(
                 state
-                    .validate(gas_payment_event(11), &fixture.sources)
+                    .validate_and_commit_gas_payment(gas_payment_event(11), &fixture.sources)
                     .expect("next gas payment")
             ),
             (EventKind::GasPayment, SequenceResult::Accepted)
@@ -5605,19 +5704,19 @@ mod tests {
         assert_eq!(
             sequence(
                 state
-                    .validate(gas_payment_event(11), &fixture.sources)
+                    .validate_and_commit_gas_payment(gas_payment_event(11), &fixture.sources)
                     .expect("duplicate gas payment")
             ),
             (EventKind::GasPayment, SequenceResult::Duplicate)
         );
         assert!(state
-            .validate(gas_payment_event(10), &fixture.sources)
+            .validate_and_commit_gas_payment(gas_payment_event(10), &fixture.sources)
             .expect_err("row ID regression must reject")
             .to_string()
             .contains("backwards"));
 
         let gap = state
-            .validate(gas_payment_event(13), &fixture.sources)
+            .validate_and_commit_gas_payment(gas_payment_event(13), &fixture.sources)
             .expect_err("logical cursor gap must reject");
         assert!(gap.downcast_ref::<StreamGap>().is_some());
         assert_eq!(
@@ -5630,6 +5729,146 @@ mod tests {
             Some(cursor),
             "a rejected cursor gap must not advance durable state"
         );
+    }
+
+    #[test]
+    fn accepts_sparse_legacy_then_requires_dense_gas_cursors() {
+        let sources = sources();
+        let mut state = StreamState::default();
+        state.gas_payment_rows.insert(
+            5,
+            DurableGasPaymentCursor {
+                fingerprint: None,
+                legacy_max_stream_cursor: 20,
+                stream_cursor: 10,
+            },
+        );
+
+        assert_eq!(
+            state
+                .validate_and_commit_gas_payment(gas_payment_event_with_boundary(20, 20), &sources)
+                .expect("sparse legacy cursor")
+                .sequence_result,
+            SequenceResult::Accepted
+        );
+        assert_eq!(
+            state
+                .validate_and_commit_gas_payment(gas_payment_event_with_boundary(21, 20), &sources)
+                .expect("first mapped cursor")
+                .sequence_result,
+            SequenceResult::Accepted
+        );
+        assert!(state
+            .validate_and_commit_gas_payment(gas_payment_event_with_boundary(23, 20), &sources)
+            .expect_err("mapped cursor gap")
+            .downcast_ref::<StreamGap>()
+            .is_some());
+        assert!(state
+            .validate_and_commit_gas_payment(gas_payment_event_with_boundary(22, 21), &sources)
+            .expect_err("changed legacy boundary")
+            .to_string()
+            .contains("boundary changed"));
+
+        let mut missing_boundary = gas_payment_event_with_boundary(22, 20);
+        missing_boundary.legacy_max_stream_cursor = None;
+        assert!(state
+            .validate(missing_boundary, &sources)
+            .expect_err("event boundary is required")
+            .to_string()
+            .contains("omitted legacy cursor boundary"));
+        assert!(state
+            .gas_payment_caught_up_cursor(
+                &scraper_address(H256::from_low_u64_be(3)),
+                5,
+                None,
+                None,
+                Some("21"),
+                None,
+                &sources,
+            )
+            .expect_err("caught-up boundary is required")
+            .to_string()
+            .contains("omitted legacy cursor boundary"));
+        assert!(state
+            .gas_payment_caught_up_cursor(
+                &scraper_address(H256::from_low_u64_be(3)),
+                5,
+                Some("21"),
+                None,
+                Some("21"),
+                None,
+                &sources,
+            )
+            .expect_err("caught-up boundary must match events")
+            .to_string()
+            .contains("boundary changed"));
+    }
+
+    #[test]
+    fn failed_fresh_gas_baseline_store_does_not_advance_resume() {
+        let monitor = monitor(Arc::new(MockParityDatabase::new()));
+        let mut state = StreamState::default();
+        let cursor = state
+            .gas_payment_caught_up_cursor(
+                &scraper_address(H256::from_low_u64_be(3)),
+                5,
+                Some("20"),
+                None,
+                Some("20"),
+                None,
+                &monitor.sources,
+            )
+            .expect("valid fresh gas baseline");
+
+        assert!(state
+            .persist_gas_payment_cursor(5, cursor, |_| bail!("store failed"))
+            .expect_err("durable store failure")
+            .to_string()
+            .contains("store failed"));
+        assert!(!state.gas_payment_rows.contains_key(&5));
+        assert_eq!(
+            monitor.gas_payment_cursors(&state)[0].after_stream_cursor,
+            None
+        );
+    }
+
+    #[test]
+    fn failed_gas_event_store_keeps_prior_resume_and_fingerprint() {
+        let monitor = monitor(Arc::new(MockParityDatabase::new()));
+        let prior = DurableGasPaymentCursor {
+            fingerprint: None,
+            legacy_max_stream_cursor: 20,
+            stream_cursor: 10,
+        };
+        let mut state = StreamState::default();
+        state.gas_payment_rows.insert(5, prior);
+
+        let accepted = state
+            .validate(gas_payment_event_with_boundary(20, 20), &monitor.sources)
+            .expect("valid sparse legacy event");
+        assert!(state
+            .persist_gas_payment_cursor(
+                5,
+                accepted.gas_payment_cursor.expect("accepted event cursor"),
+                |_| bail!("store failed"),
+            )
+            .is_err());
+        assert_eq!(state.gas_payment_rows[&5], prior);
+        assert_eq!(
+            monitor.gas_payment_cursors(&state)[0].after_stream_cursor,
+            Some("10".to_owned())
+        );
+
+        let duplicate = state
+            .validate(gas_payment_event_with_boundary(10, 20), &monitor.sources)
+            .expect("valid duplicate event");
+        let duplicate_cursor = duplicate.gas_payment_cursor.expect("duplicate cursor");
+        assert!(duplicate_cursor.fingerprint.is_some());
+        assert!(state
+            .persist_gas_payment_cursor(5, duplicate_cursor, |_| bail!("store failed"),)
+            .is_err());
+        assert_eq!(state.gas_payment_rows[&5], prior);
+        assert_eq!(state.gas_payment_rows[&5].fingerprint, None);
     }
 
     #[test]
@@ -5651,7 +5890,7 @@ mod tests {
             .expect("gas payment baseline");
         assert_eq!(
             state
-                .validate(event, &sources)
+                .validate_and_commit_gas_payment(event, &sources)
                 .expect("logical cursor may differ from physical row ID")
                 .sequence_result,
             SequenceResult::Accepted
@@ -5724,7 +5963,7 @@ mod tests {
         assert_eq!(
             sequence(
                 state
-                    .validate(gas_payment_event(21), &sources)
+                    .validate_and_commit_gas_payment(gas_payment_event(21), &sources)
                     .expect("next live row")
             ),
             (EventKind::GasPayment, SequenceResult::Accepted)
@@ -5781,7 +6020,7 @@ mod tests {
         assert_eq!(state.gas_payment_rows[&5].fingerprint, None);
         assert_eq!(
             state
-                .validate(gas_payment_event(20), &fixture.sources)
+                .validate_and_commit_gas_payment(gas_payment_event(20), &fixture.sources)
                 .expect("event at baseline")
                 .sequence_result,
             SequenceResult::Duplicate
@@ -6061,7 +6300,7 @@ mod tests {
             )
             .expect("gas payment baseline");
         let validated = state
-            .validate(gas_payment_event(20), &fixture.sources)
+            .validate_and_commit_gas_payment(gas_payment_event(20), &fixture.sources)
             .expect("valid gas payment");
         assert_eq!(validated.kind, EventKind::GasPayment);
         let cursor = state.gas_payment_rows[&5];
@@ -6078,7 +6317,7 @@ mod tests {
         );
         assert_eq!(
             restarted
-                .validate(gas_payment_event(20), &fixture.sources)
+                .validate_and_commit_gas_payment(gas_payment_event(20), &fixture.sources)
                 .expect("replayed durable cursor")
                 .sequence_result,
             SequenceResult::Duplicate
