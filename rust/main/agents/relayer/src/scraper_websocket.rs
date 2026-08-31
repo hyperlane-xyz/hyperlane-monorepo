@@ -446,7 +446,10 @@ impl StagedParity {
             bail!("Fresh scraper parity staging exceeded {PARITY_QUEUE_CAPACITY} events");
         }
         self.events.entry(domain).or_default().push_back(event);
-        self.len += 1;
+        self.len = self
+            .len
+            .checked_add(1)
+            .context("Fresh scraper parity staging length overflowed")?;
         Ok(())
     }
 
@@ -476,7 +479,10 @@ impl StagedParity {
                 retained.push_back(event);
             }
         }
-        self.len -= ready.len();
+        self.len = self
+            .len
+            .checked_sub(ready.len())
+            .context("Fresh scraper parity staging length underflowed")?;
         if !retained.is_empty() {
             self.events.insert(domain, retained);
         }
@@ -744,6 +750,7 @@ impl StreamState {
             .latest_sequence()
     }
 
+    #[cfg(test)]
     fn has_cursor(&self, domain: u32, kind: EventKind) -> bool {
         self.cursors.contains_key(&(domain, kind))
     }
@@ -1792,6 +1799,7 @@ fn should_warn(warned_at: &parking_lot::Mutex<Option<Instant>>) -> bool {
     true
 }
 
+#[cfg(test)]
 fn fresh_baseline_allowed(
     correlation_required: bool,
     replay_seen: bool,
@@ -1800,6 +1808,7 @@ fn fresh_baseline_allowed(
     !correlation_required && !replay_seen && parity_pending == 0
 }
 
+#[cfg(test)]
 fn store_fresh_caught_up_baseline(
     source: &ScraperSource,
     kind: EventKind,
@@ -1960,6 +1969,7 @@ fn sequenced_persistence_frontier(
     Ok(frontier)
 }
 
+#[cfg(test)]
 fn sequenced_persistence_ready(
     plan: &SequencedReplayPlan,
     caught_up: &HashMap<(u32, EventKind), i64>,
