@@ -701,8 +701,8 @@ impl StreamCursor {
         }
         if sequence > self.next_sequence {
             return Err(StreamGap {
-                expected: self.next_sequence,
-                received: sequence,
+                expected: u64::from(self.next_sequence),
+                received: u64::from(sequence),
             }
             .into());
         }
@@ -737,8 +737,8 @@ impl StreamCursor {
 #[derive(Debug, thiserror::Error)]
 #[error("Scraper stream gap: expected sequence {expected}, received {received}")]
 struct StreamGap {
-    expected: u32,
-    received: u32,
+    expected: u64,
+    received: u64,
 }
 
 #[derive(Debug, Default)]
@@ -1128,6 +1128,27 @@ impl StreamState {
                 }
                 previous.fingerprint.get_or_insert(fingerprint);
                 SequenceResult::Duplicate
+            }
+            Some(previous) => {
+                let expected = previous
+                    .stream_cursor
+                    .checked_add(1)
+                    .context("Gas payment stream cursor exhausted")?;
+                if stream_cursor != expected {
+                    return Err(StreamGap {
+                        expected,
+                        received: stream_cursor,
+                    }
+                    .into());
+                }
+                self.gas_payment_rows.insert(
+                    event.domain,
+                    DurableGasPaymentCursor {
+                        fingerprint: Some(fingerprint),
+                        stream_cursor,
+                    },
+                );
+                SequenceResult::Accepted
             }
             _ => {
                 self.gas_payment_rows.insert(
@@ -5534,38 +5555,62 @@ mod tests {
     }
 
     #[test]
-    fn validates_sparse_gas_payment_rows_and_duplicates() {
-        let sources = sources();
+    fn validates_dense_gas_payment_cursors_and_duplicates() {
+        let fixture = fixture();
+        let source = fixture.sources.get(&5).expect("source");
         let mut state = StreamState::default();
         assert_eq!(
             sequence(
                 state
-                    .validate(gas_payment_event(10), &sources)
+                    .validate(gas_payment_event(10), &fixture.sources)
                     .expect("first gas payment")
             ),
             (EventKind::GasPayment, SequenceResult::Accepted)
         );
+        let first_cursor = state.gas_payment_rows[&5];
+        source
+            .store_gas_payment_cursor(&first_cursor)
+            .expect("persist first gas payment");
         assert_eq!(
             sequence(
                 state
-                    .validate(gas_payment_event(20), &sources)
-                    .expect("sparse gas payment")
+                    .validate(gas_payment_event(11), &fixture.sources)
+                    .expect("next gas payment")
             ),
             (EventKind::GasPayment, SequenceResult::Accepted)
         );
+        let cursor = state.gas_payment_rows[&5];
+        source
+            .store_gas_payment_cursor(&cursor)
+            .expect("persist next gas payment");
         assert_eq!(
             sequence(
                 state
-                    .validate(gas_payment_event(20), &sources)
+                    .validate(gas_payment_event(11), &fixture.sources)
                     .expect("duplicate gas payment")
             ),
             (EventKind::GasPayment, SequenceResult::Duplicate)
         );
         assert!(state
-            .validate(gas_payment_event(19), &sources)
+            .validate(gas_payment_event(10), &fixture.sources)
             .expect_err("row ID regression must reject")
             .to_string()
             .contains("backwards"));
+
+        let gap = state
+            .validate(gas_payment_event(13), &fixture.sources)
+            .expect_err("logical cursor gap must reject");
+        assert!(gap.downcast_ref::<StreamGap>().is_some());
+        assert_eq!(
+            gap.to_string(),
+            "Scraper stream gap: expected sequence 12, received 13"
+        );
+        assert_eq!(state.gas_payment_rows[&5].stream_cursor, 11);
+        assert_eq!(
+            source.gas_payment_cursor().expect("read durable cursor"),
+            Some(cursor),
+            "a rejected cursor gap must not advance durable state"
+        );
     }
 
     #[test]
