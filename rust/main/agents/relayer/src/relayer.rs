@@ -296,6 +296,7 @@ impl BaseAgent for Relayer {
                     domain.name().to_owned(),
                     domain.id(),
                     origin.chain_conf.addresses.mailbox,
+                    origin.chain_conf.addresses.interchain_gas_paymaster,
                     origin.chain_conf.addresses.merkle_tree_hook,
                     origin.database.clone(),
                 )
