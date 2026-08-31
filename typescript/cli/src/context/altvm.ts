@@ -48,6 +48,7 @@ async function loadPrivateKey(
 ): Promise<string> {
   // 1. A strategy's explicit private key remains chain-specific and wins.
   let strategyRequiresKey = false;
+  let unsupportedSubmitterType: string | undefined;
   const chainStrategy = strategyConfig[chain];
   if (chainStrategy) {
     const rawConfig = chainStrategy.submitter;
@@ -58,9 +59,7 @@ async function loadPrivateKey(
       }
       strategyRequiresKey = protocol !== ProtocolType.Starknet;
     } else {
-      throw new Error(
-        `unsupported submitter type in strategy config for chain ${chain}: ${rawConfig.type}`,
-      );
+      unsupportedSubmitterType = rawConfig.type;
     }
   }
 
@@ -68,6 +67,12 @@ async function loadPrivateKey(
   const explicitKey = keyByProtocol[protocol];
   if (explicitKey) {
     return explicitKey;
+  }
+
+  if (unsupportedSubmitterType) {
+    throw new Error(
+      `unsupported submitter type in strategy config for chain ${chain}: ${unsupportedSubmitterType}`,
+    );
   }
 
   if (strategyRequiresKey) {
