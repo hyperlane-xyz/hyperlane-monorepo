@@ -582,7 +582,6 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .optional()
     .describe('Whether to enable IGP indexing'),
   websocketUrl: z
-    .string()
     .url()
     .refine(
       (value) => value.startsWith('ws://') || value.startsWith('wss://'),
