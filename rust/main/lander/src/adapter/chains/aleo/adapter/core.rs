@@ -91,13 +91,14 @@ impl<P: AleoProviderForLander> AdaptsChain for AleoAdapter<P> {
     }
 
     async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, LanderError> {
+        let Some(latest_hash) = tx.tx_hashes.last() else {
+            return Ok(TransactionStatus::PendingInclusion);
+        };
+
         if self.delivered(tx).await? {
             return Ok(TransactionStatus::Finalized);
         }
 
-        let Some(latest_hash) = tx.tx_hashes.last() else {
-            return Ok(TransactionStatus::PendingInclusion);
-        };
         self.get_tx_hash_status(*latest_hash).await
     }
 

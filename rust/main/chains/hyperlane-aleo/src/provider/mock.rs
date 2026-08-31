@@ -99,7 +99,13 @@ impl HttpClient for MockHttpClient {
             .chars()
             .filter(|c| !c.is_whitespace())
             .collect::<String>();
-        let Some(value) = self.responses.read().unwrap().get(&path).cloned() else {
+        let value = {
+            let responses = self.responses.read().map_err(|err| {
+                HyperlaneAleoError::Other(format!("Mock response lock poisoned: {err}"))
+            })?;
+            responses.get(&path).cloned()
+        };
+        let Some(value) = value else {
             return Ok(None);
         };
         let parsed: T = serde_json::from_value(value).map_err(HyperlaneAleoError::from)?;

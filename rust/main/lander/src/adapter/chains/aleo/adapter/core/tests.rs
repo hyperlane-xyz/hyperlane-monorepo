@@ -153,6 +153,25 @@ fn set_delivery_criterion(tx: &mut Transaction) {
 }
 
 #[tokio::test]
+async fn test_tx_status_without_hash_skips_network_queries() {
+    let provider = Arc::new(CountingStatusProvider::new(true));
+    let adapter = AleoAdapter {
+        provider: provider.clone(),
+        estimated_block_time: Duration::from_secs(10),
+    };
+    let mut tx = create_test_transaction();
+    set_delivery_criterion(&mut tx);
+
+    assert_eq!(
+        adapter.tx_status(&tx).await.unwrap(),
+        TransactionStatus::PendingInclusion
+    );
+    assert_eq!(provider.mapping_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(provider.confirmed_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(provider.unconfirmed_calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
 async fn test_tx_status_has_constant_width_with_historical_hashes() {
     let provider = Arc::new(CountingStatusProvider::new(false));
     let adapter = AleoAdapter {

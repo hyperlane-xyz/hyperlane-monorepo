@@ -8,7 +8,8 @@ use tokio::{select, sync::mpsc};
 use tracing_test::traced_test;
 
 use hyperlane_aleo::{
-    AleoConfirmedTransaction, AleoProviderForLander, AleoUnconfirmedTransaction, CurrentNetwork,
+    AleoConfirmedTransaction, AleoGetMappingValue, AleoProviderForLander, AleoSerialize,
+    AleoUnconfirmedTransaction, CurrentNetwork, DeliveryKey,
 };
 use hyperlane_core::{ChainCommunicationError, ChainResult, KnownHyperlaneDomain, H512};
 
@@ -842,11 +843,17 @@ async fn mock_aleo_tx(
     };
 
     let payload_uuid = PayloadUuid::random();
+    let delivery_key = DeliveryKey { id: [1u128, 1u128] };
+    let success_criteria = AleoGetMappingValue {
+        program_id: "mailbox.aleo".to_string(),
+        mapping_name: "deliveries".to_string(),
+        mapping_key: delivery_key.to_plaintext().unwrap(),
+    };
     let payload = FullPayload {
         details: PayloadDetails {
             uuid: payload_uuid.clone(),
             metadata: format!("test-payload-{}", payload_uuid),
-            success_criteria: Some(vec![1, 2, 3, 4]),
+            success_criteria: Some(serde_json::to_vec(&success_criteria).unwrap()),
         },
         data: serde_json::to_vec(&tx_data).unwrap(),
         to: H256::zero(),
