@@ -318,6 +318,53 @@ async fn index_notification_reopens_exhausted_low_range() {
 }
 
 #[tokio::test]
+async fn index_notification_defers_reopen_until_active_low_range_exhausts() {
+    test_utils::run_test_db(|db| async move {
+        let origin_domain = dummy_domain(0, "dummy_origin_domain");
+        let destination_domain = dummy_domain(1, "dummy_destination_domain");
+        let db = HyperlaneRocksDB::new(&origin_domain, db);
+        let (notification_sender, notification_receiver) = mpsc::channel(1);
+        let (mut loader, mut receiver) = dummy_message_loader_with_notifications(
+            &origin_domain,
+            &destination_domain,
+            &db,
+            OptionalCache::new(None),
+            Some(notification_receiver),
+        );
+        finish_legacy_migration(&mut loader).await;
+        loader.destination_iterators[0].high_nonce = Some(100);
+        loader.destination_iterators[0].low_nonce = Some(89);
+
+        let late = dummy_hyperlane_message(&destination_domain, 95);
+        add_db_entry(&db, &late, 0);
+        notification_sender
+            .send(H512::from_low_u64_be(95))
+            .await
+            .expect("send index notification");
+        loader.drain_index_notifications();
+
+        assert_eq!(loader.destination_iterators[0].low_nonce, Some(89));
+        assert!(loader.destination_iterators[0].low_range_reopen_pending);
+
+        loader.tick().await.expect("load late gap nonce");
+        assert_eq!(receiver.try_recv().expect("late operation").id(), late.id());
+        assert!(!loader.destination_iterators[0].low_range_reopen_pending);
+    })
+    .await;
+}
+
+#[test]
+fn index_notification_reopens_low_range_after_max_nonce() {
+    let mut iterator = DestinationIndexIterator::new(1, Some(u32::MAX));
+    iterator.advance(IndexDirection::High, u32::MAX);
+    iterator.low_nonce = None;
+
+    iterator.request_low_range_reopen();
+
+    assert_eq!(iterator.low_nonce, Some(u32::MAX));
+}
+
+#[tokio::test]
 async fn waited_index_notification_reopens_exhausted_low_range() {
     test_utils::run_test_db(|db| async move {
         let origin_domain = dummy_domain(0, "dummy_origin_domain");
