@@ -3799,6 +3799,7 @@ mod tests {
                     100,
                 ),
             ),
+            EventKind::GasPayment => unreachable!("gas payments are not sequenced parity events"),
         };
 
         for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
