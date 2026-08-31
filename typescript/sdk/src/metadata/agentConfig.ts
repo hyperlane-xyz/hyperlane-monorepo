@@ -774,7 +774,6 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
       `Maximum number of checkpoints signed concurrently. Defaults to 50; maximum ${MAX_SIGN_CONCURRENCY}.`,
     ),
   websocketUrl: z
-    .string()
     .url()
     .refine((url) => /^wss?:\/\//i.test(url), {
       message: 'Must use ws:// or wss://',
