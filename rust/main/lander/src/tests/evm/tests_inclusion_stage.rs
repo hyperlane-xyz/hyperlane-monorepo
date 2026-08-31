@@ -1288,7 +1288,7 @@ async fn run_and_expect_successful_inclusion(
 
 #[tokio::test]
 #[traced_test]
-async fn test_tx_dropped_when_gas_reaches_3x_cap() {
+async fn test_tx_kept_pending_when_gas_reaches_3x_cap() {
     let block_time = TEST_BLOCK_TIME;
     let signer = H160::random();
 
@@ -1315,11 +1315,6 @@ async fn test_tx_dropped_when_gas_reaches_3x_cap() {
     mock_evm_provider
         .expect_get_transaction_receipt()
         .returning(|_| Ok(None));
-
-    // Mock send for the new transaction (after the first one is dropped)
-    mock_evm_provider
-        .expect_send()
-        .returning(|_, _| Ok(H256::random()));
 
     let (payload_db, tx_db, nonce_db) = tmp_dbs();
     let mut adapter = mock_ethereum_adapter(
@@ -1398,7 +1393,7 @@ async fn test_tx_dropped_when_gas_reaches_3x_cap() {
         .await
         .insert(tx_uuid.clone(), created_tx.clone());
 
-    // Process the transaction - it should be dropped due to hitting gas cap
+    // Process the transaction - it should remain pending for later retry
     let result = InclusionStage::process_txs_step(
         &inclusion_stage_pool,
         &finality_stage_sender,
@@ -1410,25 +1405,29 @@ async fn test_tx_dropped_when_gas_reaches_3x_cap() {
     // The result should be Ok (error is handled internally)
     assert!(result.is_ok(), "Inclusion stage should handle the error");
 
-    // The pool should be empty (tx was dropped)
+    // The tx should remain in the pool for later retry.
     assert!(
-        inclusion_stage_pool.lock().await.is_empty(),
-        "Transaction should be removed from pool"
+        inclusion_stage_pool.lock().await.contains_key(&tx_uuid),
+        "Transaction should remain in pool"
     );
 
-    // The transaction should be marked as Dropped in the DB
+    // The transaction should remain pending in the DB.
     let retrieved_tx = tx_db
         .retrieve_transaction_by_uuid(&tx_uuid)
         .await
         .unwrap()
         .unwrap();
     assert!(
-        matches!(retrieved_tx.status, TransactionStatus::Dropped(_)),
-        "Transaction should be dropped, got {:?}",
+        matches!(retrieved_tx.status, TransactionStatus::PendingInclusion),
+        "Transaction should remain pending, got {:?}",
         retrieved_tx.status
     );
+    assert_eq!(
+        retrieved_tx.submission_attempts, 6,
+        "Submission attempts should be persisted for later retry"
+    );
 
-    // The payload should be marked as Dropped in the DB
+    // The payload should remain associated with the pending transaction.
     for detail in &created_tx.payload_details {
         let payload = dispatcher_state
             .payload_db
@@ -1439,9 +1438,9 @@ async fn test_tx_dropped_when_gas_reaches_3x_cap() {
         assert!(
             matches!(
                 payload.status,
-                PayloadStatus::InTransaction(TransactionStatus::Dropped(_))
+                PayloadStatus::InTransaction(TransactionStatus::PendingInclusion)
             ),
-            "Payload should be dropped"
+            "Payload should remain pending"
         );
     }
 
@@ -1455,47 +1454,15 @@ async fn test_tx_dropped_when_gas_reaches_3x_cap() {
         "No transaction should be sent to finality stage"
     );
 
-    // CRITICAL TEST: Verify nonce is available for reuse
-    // Create a new transaction with the same signer
-    let new_txs = mock_evm_txs(
-        1,
-        &dispatcher_state.payload_db,
-        &dispatcher_state.tx_db,
-        TransactionStatus::PendingInclusion,
-        signer,
-        ExpectedTxType::Eip1559,
-    )
-    .await;
-    let new_tx = new_txs[0].clone();
-
-    inclusion_stage_pool
-        .lock()
-        .await
-        .insert(new_tx.uuid.clone(), new_tx.clone());
-
-    // Process the new transaction - it should be able to use the freed nonce
-    let result = InclusionStage::process_txs_step(
-        &inclusion_stage_pool,
-        &finality_stage_sender,
-        &dispatcher_state,
-        mock_domain,
-    )
-    .await;
-
-    assert!(
-        result.is_ok(),
-        "New transaction should be processed successfully"
-    );
-
-    // Verify the new transaction got assigned a nonce (nonce 1 should be reused)
+    // The nonce should remain stored on the pending tx for a future retry.
     let stored_nonce = nonce_db
-        .retrieve_nonce_by_transaction_uuid(&signer, &new_tx.uuid)
+        .retrieve_nonce_by_transaction_uuid(&signer, &tx_uuid)
         .await
         .unwrap();
     assert_eq!(
         stored_nonce,
         Some(U256::from(1)),
-        "New transaction should reuse the freed nonce"
+        "Pending transaction should retain its nonce for later retry"
     );
 }
 
