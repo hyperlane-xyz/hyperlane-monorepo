@@ -21,6 +21,7 @@ use hyperlane_core::{
 use hyperlane_ethereum::{Signers, SingletonSignerHandle};
 
 use crate::reorg_reporter::ReorgReporter;
+use crate::server::ValidatorReadiness;
 
 const CHECKPOINT_SUBMISSION_CHUNK_INTERVAL: Duration = Duration::from_millis(100);
 
@@ -38,6 +39,7 @@ pub(crate) struct ValidatorSubmitter {
     metrics: ValidatorSubmitterMetrics,
     max_sign_concurrency: usize,
     reorg_reporter: Arc<dyn ReorgReporter>,
+    readiness: Arc<ValidatorReadiness>,
 }
 
 impl ValidatorSubmitter {
@@ -54,6 +56,7 @@ impl ValidatorSubmitter {
         metrics: ValidatorSubmitterMetrics,
         max_sign_concurrency: usize,
         reorg_reporter: Arc<dyn ReorgReporter>,
+        readiness: Arc<ValidatorReadiness>,
     ) -> Self {
         Self {
             reorg_period,
@@ -67,6 +70,7 @@ impl ValidatorSubmitter {
             metrics,
             max_sign_concurrency,
             reorg_reporter,
+            readiness,
         }
     }
 
@@ -274,6 +278,7 @@ impl ValidatorSubmitter {
         // All intermediate checkpoints will be stored here and signed once the correctness
         // checkpoint is reached.
         let mut checkpoint_queue = vec![];
+        let mut blocked_insertion_operation: Option<String> = None;
 
         // If the correctness checkpoint is ahead of the tree, we need to ingest more messages.
         //
@@ -286,8 +291,25 @@ impl ValidatorSubmitter {
                 .expect("Failed to fetch merkle tree insertion");
 
             let insertion = match res {
-                Some(insertion) => insertion,
+                Some(insertion) => {
+                    if let Some(operation) = blocked_insertion_operation.take() {
+                        self.readiness.mark_operation_ready(&operation);
+                    }
+                    insertion
+                }
                 None => {
+                    if blocked_insertion_operation.is_none() {
+                        let operation = format!("merkle_tree_insertion[{}]", tree.count());
+                        let snapshot = self.readiness.mark_operation_blocked(&operation);
+                        warn!(
+                            operation,
+                            consecutive_failures = snapshot.consecutive_failures,
+                            failure_duration_ms = snapshot.failure_duration_ms,
+                            signing_blocked = snapshot.signing_blocked,
+                            "Validator checkpoint production is waiting for an indexed merkle tree insertion"
+                        );
+                        blocked_insertion_operation = Some(operation);
+                    }
                     // If we haven't yet indexed the next merkle tree insertion but know that
                     // it will soon exist (because we know the correctness checkpoint), wait a bit and
                     // try again.
@@ -502,13 +524,32 @@ impl ValidatorSubmitter {
 
             let futures = chunk.into_iter().map(|checkpoint| {
                 let self_clone = arc_self.clone();
+                let operation = format!("checkpoint_submission[{}]", checkpoint.index);
                 call_and_retry_indefinitely(move || {
                     let self_clone = self_clone.clone();
+                    let operation = operation.clone();
                     Box::pin(async move {
                         let start = Instant::now();
                         let checkpoint_index = checkpoint.index;
-                        let wrote_checkpoint =
-                            self_clone.sign_and_submit_checkpoint(checkpoint).await?;
+                        let result = self_clone.sign_and_submit_checkpoint(checkpoint).await;
+                        let wrote_checkpoint = match result {
+                            Ok(wrote_checkpoint) => {
+                                self_clone.readiness.mark_operation_ready(&operation);
+                                wrote_checkpoint
+                            }
+                            Err(error) => {
+                                let snapshot =
+                                    self_clone.readiness.mark_operation_blocked(&operation);
+                                warn!(
+                                    operation,
+                                    consecutive_failures = snapshot.consecutive_failures,
+                                    failure_duration_ms = snapshot.failure_duration_ms,
+                                    signing_blocked = snapshot.signing_blocked,
+                                    "Validator checkpoint submission is blocked"
+                                );
+                                return Err(error);
+                            }
+                        };
                         tracing::info!(
                             index = checkpoint_index,
                             wrote_checkpoint,
@@ -535,10 +576,28 @@ impl ValidatorSubmitter {
                     let self_clone = self.clone();
                     Box::pin(async move {
                         let start = Instant::now();
-                        self_clone
+                        let result = self_clone
                             .checkpoint_syncer
                             .update_latest_index(last_checkpoint_index)
-                            .await?;
+                            .await;
+                        match result {
+                            Ok(()) => self_clone
+                                .readiness
+                                .mark_operation_ready("checkpoint_latest_index"),
+                            Err(error) => {
+                                let snapshot = self_clone
+                                    .readiness
+                                    .mark_operation_blocked("checkpoint_latest_index");
+                                warn!(
+                                    operation = "checkpoint_latest_index",
+                                    consecutive_failures = snapshot.consecutive_failures,
+                                    failure_duration_ms = snapshot.failure_duration_ms,
+                                    signing_blocked = snapshot.signing_blocked,
+                                    "Validator latest checkpoint index update is blocked"
+                                );
+                                return Err(error.into());
+                            }
+                        }
                         tracing::trace!(
                             elapsed=?start.elapsed(),
                             "Updated latest index",
