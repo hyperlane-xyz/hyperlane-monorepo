@@ -60,18 +60,19 @@ type SafeMultisigTransactionResponse = Awaited<
   ReturnType<SafeService['getTransaction']>
 >;
 
-interface SafeTxProposer {
-  proposer?: Address | null;
-  proposedByDelegate?: Address | null;
-}
+type SafeTxProposer = Pick<
+  SafeMultisigTransactionResponse,
+  'proposer' | 'proposedByDelegate'
+>;
 
 export function wasSafeTxProposedBy(
   tx: SafeTxProposer,
   signerAddress: Address,
 ): boolean {
   return (
-    (!!tx.proposer && eqAddress(tx.proposer, signerAddress)) ||
-    (!!tx.proposedByDelegate && eqAddress(tx.proposedByDelegate, signerAddress))
+    (tx.proposer !== null && eqAddress(tx.proposer, signerAddress)) ||
+    (tx.proposedByDelegate !== null &&
+      eqAddress(tx.proposedByDelegate, signerAddress))
   );
 }
 

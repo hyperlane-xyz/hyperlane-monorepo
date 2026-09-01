@@ -109,7 +109,7 @@ describe('Safe Utils', () => {
     it('should accept the attributed owner', () => {
       expect(
         wasSafeTxProposedBy(
-          { proposer: ownerA, proposedByDelegate: ownerB },
+          { proposer: ownerA, proposedByDelegate: null },
           ownerA,
         ),
       ).to.be.true;
