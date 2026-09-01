@@ -485,7 +485,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           if (!eqAddress(signerAddress, config.owner)) {
             const overrides =
               this.multiProvider.getTransactionOverrides(destination);
-            const tx = await contract.transferOwnership(
+            const netFlowIsm = NetFlowRateLimitedHookIsm__factory.connect(
+              contract.address,
+              this.multiProvider.getSigner(destination),
+            );
+            const tx = await netFlowIsm.transferOwnership(
               config.owner,
               overrides,
             );

@@ -41,9 +41,10 @@ import { ChainName, ChainNameOrId } from '../types.js';
 import { throwIfNotMissingSelector } from '../utils/contract.js';
 import {
   canonicalizeRemoteIsms,
-  collapseMatchingHybridIsmNodes,
+  collapseMatchingCombinedHookIsmNodes,
+  isCombinedHookIsmNode,
   normalizeConfig,
-  resolveHybridIsmNodesToAddress,
+  resolveCombinedHookIsmNodesToAddress,
 } from '../utils/ism.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
@@ -158,10 +159,13 @@ export class EvmIsmModule extends HyperlaneModule<
   // whoever calls update() needs to ensure that targetConfig has a valid owner
   public async update(
     targetConfig: IsmConfig,
-    opaqueHybridAddresses: Address[] = [],
+    opaqueCombinedHookIsmAddresses: Address[] = [],
   ): Promise<AnnotatedEV5Transaction[]> {
     const parsedTargetConfig = IsmConfigSchema.parse(targetConfig);
-    return this.updateInternal(parsedTargetConfig, opaqueHybridAddresses);
+    return this.updateInternal(
+      parsedTargetConfig,
+      opaqueCombinedHookIsmAddresses,
+    );
   }
 
   /**
@@ -198,7 +202,7 @@ export class EvmIsmModule extends HyperlaneModule<
 
   private async updateInternal(
     targetConfig: IsmConfig,
-    opaqueHybridAddresses: Address[] = [],
+    opaqueCombinedHookIsmAddresses: Address[] = [],
   ): Promise<AnnotatedEV5Transaction[]> {
     const parsedTargetConfig = BaseIsmConfigSchema.parse(targetConfig);
 
@@ -211,19 +215,26 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     // We need to normalize the current and target configs to compare.
-    let normalizedTargetConfig: IsmConfig = normalizeConfig(
-      await this.reader.deriveIsmConfig(parsedTargetConfig),
-    );
-    for (const address of opaqueHybridAddresses) {
-      normalizedTargetConfig = resolveHybridIsmNodesToAddress(
+    const derivedTargetConfig =
+      await this.reader.deriveIsmConfig(parsedTargetConfig);
+    let normalizedTargetConfig: IsmConfig =
+      typeof parsedTargetConfig === 'string' &&
+      isCombinedHookIsmNode(derivedTargetConfig)
+        ? parsedTargetConfig
+        : normalizeConfig(derivedTargetConfig);
+    for (const address of opaqueCombinedHookIsmAddresses) {
+      normalizedTargetConfig = resolveCombinedHookIsmNodesToAddress(
         normalizedTargetConfig,
         address,
       );
     }
     normalizedTargetConfig = normalizeConfig(normalizedTargetConfig);
     let currentConfig = await this.read();
-    for (const address of opaqueHybridAddresses) {
-      currentConfig = collapseMatchingHybridIsmNodes(currentConfig, address);
+    for (const address of opaqueCombinedHookIsmAddresses) {
+      currentConfig = collapseMatchingCombinedHookIsmNodes(
+        currentConfig,
+        address,
+      );
     }
     const normalizedCurrentConfig: IsmConfig = normalizeConfig(currentConfig);
 

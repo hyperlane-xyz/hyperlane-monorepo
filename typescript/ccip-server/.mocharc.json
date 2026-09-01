@@ -3,7 +3,10 @@
   "spec": [
     "./tests/**/CallCommitmentsService.test.ts",
     "./tests/**/RateLimiting.test.ts",
-    "./tests/**/cctpMessageMatcher.test.ts"
+    "./tests/**/cctpMessageMatcher.test.ts",
+    "./tests/**/WormholeVaaService.test.ts",
+    "./tests/**/WormholeVaaFetcher.test.ts",
+    "./tests/**/wormholeVaaMatcher.test.ts"
   ],
   "exit": true
 }
