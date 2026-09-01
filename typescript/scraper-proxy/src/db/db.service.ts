@@ -144,9 +144,11 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
   }
 
   private pool(): pg.Pool {
+    const replicaUrl = config.DATABASE_READ_REPLICA_URL;
     this.mainPool ??= this.createPool(
-      config.DATABASE_READ_REPLICA_URL ?? config.DATABASE_URL,
+      replicaUrl ?? config.DATABASE_URL,
       MIN_POOL_CLIENTS,
+      replicaUrl ? config.DATABASE_QUERY_TIMEOUT_MS : undefined,
     );
     return this.mainPool;
   }
@@ -156,9 +158,14 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
     return this.livePool;
   }
 
-  private createPool(connectionString: string, min?: number): pg.Pool {
+  private createPool(
+    connectionString: string,
+    min?: number,
+    connectionTimeoutMillis?: number,
+  ): pg.Pool {
     const pool = new pg.Pool({
       ...databaseOptions(connectionString),
+      connectionTimeoutMillis,
       idleTimeoutMillis: IDLE_TIMEOUT_MS,
       max: MAX_POOL_CLIENTS,
       min,

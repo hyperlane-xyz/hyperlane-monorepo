@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { Socket } from 'node:net';
 import { it } from 'node:test';
 
 import pg from 'pg';
@@ -6,6 +7,7 @@ import pg from 'pg';
 process.env.DATABASE_URL ??= 'postgresql://scraper-proxy-test';
 process.env.DATABASE_READ_REPLICA_URL ??=
   'postgresql://scraper-proxy-replica-test';
+process.env.DATABASE_QUERY_TIMEOUT_MS ??= '1000';
 
 void it('keeps replica health from gating primary live queries', async (context) => {
   const saturatedPools = new WeakSet<pg.Pool>();
@@ -47,4 +49,19 @@ void it('keeps replica health from gating primary live queries', async (context)
   releaseMain();
   await saturated;
   await db.onModuleDestroy();
+});
+
+void it('times out stalled replica connections', async (context) => {
+  context.mock.method(Socket.prototype, 'connect', function () {
+    return this;
+  });
+  const { DbService } = await import('./db.service.js');
+  const db = new DbService();
+  context.after(() => db.onModuleDestroy());
+
+  const started = Date.now();
+  await assert.rejects(db.query('SELECT 1'), /connection timeout/i);
+  const duration = Date.now() - started;
+  assert(duration >= 1_000);
+  assert(duration < 3_000);
 });
