@@ -709,43 +709,45 @@ export class CallCommitmentsService extends BaseService {
     isSigner: z.boolean(),
   });
 
-  private static readonly CalldataPostSchema = z.object({
-    commitment: z
-      .string()
-      .regex(
-        /^0x[0-9a-fA-F]{64}$/,
-        'commitment must be a 32-byte 0x hex string',
-      ),
-    originDomain: z.number().int().positive(),
-    data: z
-      .string()
-      .regex(
-        /^0x(?:[0-9a-fA-F]{2})+$/,
-        'data must be a non-empty byte-aligned 0x hex string',
-      ),
-    salt: z
-      .string()
-      .regex(/^0x[0-9a-fA-F]{64}$/, 'salt must be a 32-byte 0x hex string'),
-    relayers: z
-      .array(
-        z
-          .string()
-          .regex(
-            /^0x[0-9a-fA-F]{40}$/,
-            'relayer must be a 20-byte EVM address',
-          ),
-      )
-      .default([]),
-    destinationAccount: z
-      .string()
-      .regex(
-        /^0x[0-9a-fA-F]{64}$/,
-        'destinationAccount must be a 32-byte 0x hex string',
-      ),
-    revealAccounts: z
-      .array(CallCommitmentsService.RevealAccountSchema)
-      .optional(),
-  });
+  private static readonly CalldataPostSchema = z.compile(
+    z.object({
+      commitment: z
+        .string()
+        .regex(
+          /^0x[0-9a-fA-F]{64}$/,
+          'commitment must be a 32-byte 0x hex string',
+        ),
+      originDomain: z.number().int().positive(),
+      data: z
+        .string()
+        .regex(
+          /^0x(?:[0-9a-fA-F]{2})+$/,
+          'data must be a non-empty byte-aligned 0x hex string',
+        ),
+      salt: z
+        .string()
+        .regex(/^0x[0-9a-fA-F]{64}$/, 'salt must be a 32-byte 0x hex string'),
+      relayers: z
+        .array(
+          z
+            .string()
+            .regex(
+              /^0x[0-9a-fA-F]{40}$/,
+              'relayer must be a 20-byte EVM address',
+            ),
+        )
+        .default([]),
+      destinationAccount: z
+        .string()
+        .regex(
+          /^0x[0-9a-fA-F]{64}$/,
+          'destinationAccount must be a 32-byte 0x hex string',
+        ),
+      revealAccounts: z
+        .array(CallCommitmentsService.RevealAccountSchema)
+        .optional(),
+    }),
+  );
 
   public async handleCalldataPost(req: Request, res: Response) {
     const logger = this.addLoggerServiceContext(req.log);
