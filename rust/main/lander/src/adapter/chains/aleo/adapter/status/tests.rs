@@ -107,31 +107,25 @@ impl AleoProviderForLander for MockProviderWithFixtures {
     async fn request_confirmed_transaction(
         &self,
         transaction_id: H512,
-    ) -> ChainResult<AleoConfirmedTransaction<CurrentNetwork>> {
-        self.confirmed_transactions
+    ) -> ChainResult<Option<AleoConfirmedTransaction<CurrentNetwork>>> {
+        Ok(self
+            .confirmed_transactions
             .lock()
             .unwrap()
             .get(&transaction_id)
-            .cloned()
-            .ok_or_else(|| {
-                hyperlane_core::ChainCommunicationError::from_other_str("Transaction not found")
-            })
+            .cloned())
     }
 
     async fn request_unconfirmed_transaction(
         &self,
         transaction_id: H512,
-    ) -> ChainResult<AleoUnconfirmedTransaction<CurrentNetwork>> {
-        self.unconfirmed_transactions
+    ) -> ChainResult<Option<AleoUnconfirmedTransaction<CurrentNetwork>>> {
+        Ok(self
+            .unconfirmed_transactions
             .lock()
             .unwrap()
             .get(&transaction_id)
-            .cloned()
-            .ok_or_else(|| {
-                hyperlane_core::ChainCommunicationError::from_other_str(
-                    "Transaction not found in mempool",
-                )
-            })
+            .cloned())
     }
 
     async fn mapping_value_exists(
@@ -142,6 +136,49 @@ impl AleoProviderForLander for MockProviderWithFixtures {
     ) -> ChainResult<bool> {
         // Default: mapping values don't exist (messages not delivered)
         Ok(false)
+    }
+}
+
+struct ErrorProvider;
+
+#[async_trait]
+impl AleoProviderForLander for ErrorProvider {
+    async fn submit_tx<I>(
+        &self,
+        _program_id: &str,
+        _function_name: &str,
+        _input: I,
+    ) -> ChainResult<H512>
+    where
+        I: IntoIterator<Item = String> + Send,
+        I::IntoIter: ExactSizeIterator,
+    {
+        unreachable!()
+    }
+
+    async fn request_confirmed_transaction(
+        &self,
+        _transaction_id: H512,
+    ) -> ChainResult<Option<AleoConfirmedTransaction<CurrentNetwork>>> {
+        Err(hyperlane_core::ChainCommunicationError::from_other_str(
+            "temporary RPC failure",
+        ))
+    }
+
+    async fn request_unconfirmed_transaction(
+        &self,
+        _transaction_id: H512,
+    ) -> ChainResult<Option<AleoUnconfirmedTransaction<CurrentNetwork>>> {
+        unreachable!()
+    }
+
+    async fn mapping_value_exists(
+        &self,
+        _program_id: &str,
+        _mapping_name: &str,
+        _mapping_key: &Plaintext<CurrentNetwork>,
+    ) -> ChainResult<bool> {
+        unreachable!()
     }
 }
 
@@ -205,6 +242,16 @@ async fn test_status_not_found() {
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), TransactionStatus::PendingInclusion);
+}
+
+#[tokio::test]
+async fn test_status_propagates_provider_errors() {
+    let result = get_tx_hash_status(&Arc::new(ErrorProvider), H512::random()).await;
+
+    assert!(matches!(
+        result,
+        Err(crate::LanderError::ChainCommunicationError(_))
+    ));
 }
 
 #[tokio::test]

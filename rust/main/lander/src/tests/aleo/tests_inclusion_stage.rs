@@ -8,7 +8,8 @@ use tokio::{select, sync::mpsc};
 use tracing_test::traced_test;
 
 use hyperlane_aleo::{
-    AleoConfirmedTransaction, AleoProviderForLander, AleoUnconfirmedTransaction, CurrentNetwork,
+    AleoConfirmedTransaction, AleoGetMappingValue, AleoProviderForLander, AleoSerialize,
+    AleoUnconfirmedTransaction, CurrentNetwork, DeliveryKey,
 };
 use hyperlane_core::{ChainCommunicationError, ChainResult, KnownHyperlaneDomain, H512};
 
@@ -115,7 +116,7 @@ impl AleoProviderForLander for ConfigurableMockProvider {
     async fn request_confirmed_transaction(
         &self,
         _transaction_id: H512,
-    ) -> ChainResult<AleoConfirmedTransaction<CurrentNetwork>> {
+    ) -> ChainResult<Option<AleoConfirmedTransaction<CurrentNetwork>>> {
         let mut counter = self.confirmed_counter.lock().unwrap();
         *counter += 1;
 
@@ -124,18 +125,16 @@ impl AleoProviderForLander for ConfigurableMockProvider {
                 // Parse confirmed transaction from JSON fixture
                 let tx: AleoConfirmedTransaction<CurrentNetwork> =
                     serde_json::from_str(data).expect("Failed to parse confirmed transaction");
-                Ok(tx)
+                Ok(Some(tx))
             }
-            None => Err(ChainCommunicationError::from_other_str(
-                "Transaction not confirmed yet",
-            )),
+            None => Ok(None),
         }
     }
 
     async fn request_unconfirmed_transaction(
         &self,
         _transaction_id: H512,
-    ) -> ChainResult<AleoUnconfirmedTransaction<CurrentNetwork>> {
+    ) -> ChainResult<Option<AleoUnconfirmedTransaction<CurrentNetwork>>> {
         let mut counter = self.unconfirmed_counter.lock().unwrap();
         *counter += 1;
 
@@ -144,11 +143,9 @@ impl AleoProviderForLander for ConfigurableMockProvider {
                 // Parse unconfirmed transaction from JSON fixture
                 let tx: AleoUnconfirmedTransaction<CurrentNetwork> =
                     serde_json::from_str(data).expect("Failed to parse unconfirmed transaction");
-                Ok(tx)
+                Ok(Some(tx))
             }
-            None => Err(ChainCommunicationError::from_other_str(
-                "Transaction not found",
-            )),
+            None => Ok(None),
         }
     }
 
@@ -216,7 +213,7 @@ impl AleoProviderForLander for AleoErrorMockProvider {
     async fn request_confirmed_transaction(
         &self,
         _transaction_id: H512,
-    ) -> ChainResult<AleoConfirmedTransaction<CurrentNetwork>> {
+    ) -> ChainResult<Option<AleoConfirmedTransaction<CurrentNetwork>>> {
         Err(ChainCommunicationError::from_other_str(
             "Mock provider: get_confirmed_transaction not implemented",
         ))
@@ -225,7 +222,7 @@ impl AleoProviderForLander for AleoErrorMockProvider {
     async fn request_unconfirmed_transaction(
         &self,
         _transaction_id: H512,
-    ) -> ChainResult<AleoUnconfirmedTransaction<CurrentNetwork>> {
+    ) -> ChainResult<Option<AleoUnconfirmedTransaction<CurrentNetwork>>> {
         Err(ChainCommunicationError::from_other_str(
             "Mock provider: get_unconfirmed_transaction not implemented",
         ))
@@ -846,11 +843,17 @@ async fn mock_aleo_tx(
     };
 
     let payload_uuid = PayloadUuid::random();
+    let delivery_key = DeliveryKey { id: [1u128, 1u128] };
+    let success_criteria = AleoGetMappingValue {
+        program_id: "mailbox.aleo".to_string(),
+        mapping_name: "deliveries".to_string(),
+        mapping_key: delivery_key.to_plaintext().unwrap(),
+    };
     let payload = FullPayload {
         details: PayloadDetails {
             uuid: payload_uuid.clone(),
             metadata: format!("test-payload-{}", payload_uuid),
-            success_criteria: Some(vec![1, 2, 3, 4]),
+            success_criteria: Some(serde_json::to_vec(&success_criteria).unwrap()),
         },
         data: serde_json::to_vec(&tx_data).unwrap(),
         to: H256::zero(),

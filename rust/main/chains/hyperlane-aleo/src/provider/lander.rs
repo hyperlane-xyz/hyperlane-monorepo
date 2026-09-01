@@ -36,13 +36,13 @@ pub trait AleoProviderForLander: Send + Sync {
     async fn request_confirmed_transaction(
         &self,
         transaction_id: H512,
-    ) -> ChainResult<ConfirmedTransaction<CurrentNetwork>>;
+    ) -> ChainResult<Option<ConfirmedTransaction<CurrentNetwork>>>;
 
     /// Gets an unconfirmed transaction from the mempool by its ID
     async fn request_unconfirmed_transaction(
         &self,
         transaction_id: H512,
-    ) -> ChainResult<Transaction<CurrentNetwork>>;
+    ) -> ChainResult<Option<Transaction<CurrentNetwork>>>;
 
     /// Queries a program mapping value
     ///
@@ -81,15 +81,17 @@ impl<C: AleoClient> AleoProviderForLander for AleoProvider<C> {
     async fn request_confirmed_transaction(
         &self,
         transaction_id: H512,
-    ) -> ChainResult<ConfirmedTransaction<CurrentNetwork>> {
-        self.get_confirmed_transaction(transaction_id).await
+    ) -> ChainResult<Option<ConfirmedTransaction<CurrentNetwork>>> {
+        self.get_confirmed_transaction_optional(transaction_id)
+            .await
     }
 
     async fn request_unconfirmed_transaction(
         &self,
         transaction_id: H512,
-    ) -> ChainResult<Transaction<CurrentNetwork>> {
-        self.get_unconfirmed_transaction(transaction_id).await
+    ) -> ChainResult<Option<Transaction<CurrentNetwork>>> {
+        self.get_unconfirmed_transaction_optional(transaction_id)
+            .await
     }
 
     async fn mapping_value_exists(

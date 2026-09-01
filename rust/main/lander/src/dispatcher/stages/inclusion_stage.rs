@@ -184,6 +184,16 @@ impl InclusionStage {
             if let Err(err) =
                 Self::try_process_tx(tx.clone(), finality_stage_sender, state, pool).await
             {
+                if matches!(err, LanderError::ChannelSendFailure(_)) {
+                    error!(
+                        ?err,
+                        ?tx,
+                        "Failed to forward transaction. Retaining it for retry"
+                    );
+                    Self::update_inclusion_stage_metric(state, domain, &err);
+                    continue;
+                }
+
                 error!(?err, ?tx, "Error processing transaction. Dropping it");
 
                 let drop_reason = match &err {
@@ -336,19 +346,29 @@ impl InclusionStage {
         // Update the last status check timestamp before querying
         tx.last_status_check = Some(chrono::Utc::now());
 
-        let tx_status = call_until_success_or_nonretryable_error(
-            || state.adapter.tx_status(&tx),
-            "Querying transaction status",
-            state,
-        )
-        .await?;
-        info!(?tx, next_tx_status = ?tx_status, "Transaction status");
+        let tx_status = state.adapter.tx_status(&tx).await;
 
-        // Update the transaction in the pool with the new timestamp
+        // Persist the check timestamp even on provider failure so normal status
+        // backoff, rather than an in-call retry loop, controls the next attempt.
         {
             let mut pool_lock = pool.lock().await;
             pool_lock.insert(tx.uuid.clone(), tx.clone());
         }
+        let tx_status = match tx_status {
+            Ok(status) => status,
+            Err(err) if err.is_infra_error() => {
+                warn!(
+                    ?err,
+                    ?tx,
+                    "Error reading transaction status. Retrying later"
+                );
+                Self::update_inclusion_stage_metric(state, &state.domain, &err);
+                state.store_tx(&tx).await;
+                return Ok(());
+            }
+            Err(err) => return Err(err),
+        };
+        info!(?tx, next_tx_status = ?tx_status, "Transaction status");
 
         Self::try_process_tx_with_next_status(tx, tx_status, finality_stage_sender, state, pool)
             .await
@@ -370,6 +390,7 @@ impl InclusionStage {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
                 info!(tx_uuid = ?tx.uuid, ?tx_status, "Transaction is pending inclusion");
                 update_tx_status(state, &mut tx, tx_status.clone()).await?;
+                pool.lock().await.insert(tx.uuid.clone(), tx.clone());
                 if !state.adapter.tx_ready_for_resubmission(&tx).await {
                     info!(?tx, "Transaction is not ready for resubmission");
                     return Ok(());
@@ -379,6 +400,7 @@ impl InclusionStage {
             TransactionStatus::Included | TransactionStatus::Finalized => {
                 update_tx_status(state, &mut tx, tx_status.clone()).await?;
                 let tx_uuid = tx.uuid.clone();
+                pool.lock().await.insert(tx_uuid.clone(), tx.clone());
                 finality_stage_sender.send(tx).await.map_err(|err| {
                     tracing::error!(?err, "Failed to send tx to finality stage");
                     LanderError::ChannelSendFailure(Box::new(err))

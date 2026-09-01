@@ -85,10 +85,10 @@ pub async fn submit_transaction<P: AleoProviderForLander>(
         .await
         .map_err(classify_aleo_error)?;
 
-    // Store transaction hash
-    if !tx.tx_hashes.contains(&tx_hash) {
-        tx.tx_hashes.push(tx_hash);
-    }
+    // Aleo delivery is verified through payload success criteria, so only the
+    // latest submission hash is needed for mempool/confirmation status.
+    tx.tx_hashes.clear();
+    tx.tx_hashes.push(tx_hash);
 
     info!(tx_uuid=?tx.uuid, ?tx_hash, "submitted Aleo transaction");
     Ok(())
