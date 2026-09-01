@@ -14,6 +14,10 @@ const PREFIX = 'hyperlane_scraper_proxy_';
 export type WebSocketMetricsSnapshot = {
   catchUps: number;
   connections: Record<'agent' | 'messages', number>;
+  explorerPendingBytes: number;
+  explorerPendingMessages: number;
+  maxExplorerPendingBytes: number;
+  maxExplorerPendingMessages: number;
   messageClientIps: number;
   messageMaxConnectionsPerIp: number;
   limits: {
@@ -22,6 +26,8 @@ export type WebSocketMetricsSnapshot = {
     catchUpRows: number;
     clientMessagesPerMinute: number;
     concurrentCatchUps: number;
+    explorerPendingBytes: number;
+    explorerPendingMessages: number;
     messageConnections: number;
     messageConnectionsPerIp: number;
     pendingEvents: number;
@@ -321,6 +327,36 @@ snapshotGauge(
     gauge.set({ route: 'messages' }, snapshot.notificationQueue.messages);
   },
   ['route'],
+);
+snapshotGauge(
+  'websocket_explorer_pending_bytes',
+  'Current serialized Explorer bytes queued behind send callbacks.',
+  (gauge, snapshot) => gauge.set(snapshot.explorerPendingBytes),
+);
+snapshotGauge(
+  'websocket_explorer_max_pending_bytes',
+  'Largest current serialized Explorer byte queue for one client.',
+  (gauge, snapshot) => gauge.set(snapshot.maxExplorerPendingBytes),
+);
+snapshotGauge(
+  'websocket_explorer_pending_byte_limit',
+  'Maximum serialized Explorer bytes queued behind one client callback.',
+  (gauge, snapshot) => gauge.set(snapshot.limits.explorerPendingBytes),
+);
+snapshotGauge(
+  'websocket_explorer_pending_messages',
+  'Current Explorer messages queued behind per-client send callbacks.',
+  (gauge, snapshot) => gauge.set(snapshot.explorerPendingMessages),
+);
+snapshotGauge(
+  'websocket_explorer_max_pending_messages',
+  'Largest current per-client Explorer message queue.',
+  (gauge, snapshot) => gauge.set(snapshot.maxExplorerPendingMessages),
+);
+snapshotGauge(
+  'websocket_explorer_pending_message_limit',
+  'Maximum Explorer messages queued behind one client send callback.',
+  (gauge, snapshot) => gauge.set(snapshot.limits.explorerPendingMessages),
 );
 snapshotGauge(
   'websocket_outbound_pending_bytes',

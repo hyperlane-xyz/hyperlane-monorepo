@@ -5,7 +5,7 @@ import { after, before, it, type TestContext } from 'node:test';
 import { WebSocket } from 'ws';
 import type { QueryResultRow } from 'pg';
 
-import { websocketCatchUps } from '../metrics.js';
+import { metricsRegistry, websocketCatchUps } from '../metrics.js';
 import type { EventDatabase, EventWebSocketServer } from './event-websocket.js';
 import { rawData } from './websocket-data.js';
 
@@ -22,7 +22,12 @@ const rows = new Map([
   ['2', row(hookA)],
 ]);
 let notify: (channel: string, payload?: string) => void;
+const explorerBatchSizes: number[] = [];
 let explorerQuery = '';
+let explorerQueryCount = 0;
+let explorerQueryError: Error | undefined;
+let explorerQueryGate: Promise<void> | undefined;
+let notificationQueryError: Error | undefined;
 const notifiedIds = new Set<string>();
 
 const db: EventDatabase = {
@@ -45,8 +50,13 @@ const db: EventDatabase = {
       ]);
     if (sql.includes('"message_view"')) {
       explorerQuery = sql;
+      explorerQueryCount++;
+      await explorerQueryGate;
+      if (explorerQueryError) throw explorerQueryError;
+      const messageIds = stringArray(values[0]);
+      explorerBatchSizes.push(messageIds.length);
       return queryRows<T>(
-        stringArray(values[0]).map((messageId) => ({
+        messageIds.map((messageId) => ({
           id: '42',
           is_delivered: false,
           msg_body: msgBody,
@@ -68,6 +78,7 @@ const db: EventDatabase = {
       return queryRows<T>([row(hookA, 0)]);
     }
     if (!sql.includes('notification_id')) return [];
+    if (notificationQueryError) throw notificationQueryError;
     const ids = stringArray(values[0]);
     ids.forEach((id) => notifiedIds.add(id));
     return queryRows<T>(
@@ -91,7 +102,7 @@ before(async () => {
     maxAgentClients: 1,
     maxCatchUpRows: 2,
     maxExplorerClients: 8,
-    maxTotalBufferedBytes: 512,
+    maxTotalBufferedBytes: 1_024,
   });
   await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve));
   const address = http.address();
@@ -566,6 +577,301 @@ void it('emits normalized message upserts to Explorer', async () => {
   await new Promise<void>((resolve) => socket.once('close', () => resolve()));
 });
 
+void it('keeps agent delivery independent from a blocked Explorer query', async () => {
+  let releaseExplorerQuery: (() => void) | undefined;
+  explorerQueryGate = new Promise<void>((resolve) => {
+    releaseExplorerQuery = resolve;
+  });
+  const explorer = new WebSocket(messagesUrl);
+  const agent = new WebSocket(url);
+  const explorerMessages: Record<string, unknown>[] = [];
+  const agentMessages: Record<string, unknown>[] = [];
+  explorer.on('message', (data) =>
+    explorerMessages.push(parseRecord(rawData(data))),
+  );
+  agent.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    agentMessages.push(message);
+    if (message.type === 'ready') {
+      agent.send(
+        JSON.stringify({
+          streams: [{ eventType: 'merkle_tree_insertion' }],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+  try {
+    await Promise.all([
+      waitFor(explorerMessages, 'ready'),
+      waitFor(agentMessages, 'subscribed'),
+    ]);
+    const queriesBefore = explorerQueryCount;
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: msgId.slice(2) }),
+    );
+    await waitUntil(() => explorerQueryCount > queriesBefore);
+
+    rows.set('5', row(hookA, 5));
+    notify('scraper_event', notification('5'));
+    const event = await waitFor(agentMessages, 'event');
+    assert.equal(record(event.data).leaf_index, 5);
+    assert.equal(
+      explorerMessages.some(({ type }) => type === 'message_upsert'),
+      false,
+    );
+
+    releaseExplorerQuery();
+    await waitFor(explorerMessages, 'message_upsert');
+  } finally {
+    releaseExplorerQuery?.();
+    explorerQueryGate = undefined;
+    explorer.close();
+    agent.close();
+    await waitUntil(() =>
+      [explorer, agent].every(
+        ({ readyState }) => readyState === WebSocket.CLOSED,
+      ),
+    );
+  }
+});
+
+void it('keeps agents connected when an Explorer query fails', async () => {
+  const explorer = new WebSocket(messagesUrl);
+  const explorerMessages: Record<string, unknown>[] = [];
+  const agentMessages: Record<string, unknown>[] = [];
+  explorer.on('message', (data) =>
+    explorerMessages.push(parseRecord(rawData(data))),
+  );
+  const agent = liveAgent(agentMessages);
+  try {
+    await Promise.all([
+      waitFor(explorerMessages, 'ready'),
+      waitFor(agentMessages, 'subscribed'),
+    ]);
+    explorerQueryError = new Error('Explorer query failed');
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: msgId.slice(2) }),
+    );
+    await new Promise<void>((resolve) =>
+      explorer.once('close', () => resolve()),
+    );
+    explorerQueryError = undefined;
+
+    rows.set('6', row(hookA, 6));
+    notify('scraper_event', notification('6'));
+    const event = await waitFor(agentMessages, 'event');
+    assert.equal(record(event.data).leaf_index, 6);
+    assert.equal(agent.readyState, WebSocket.OPEN);
+  } finally {
+    explorerQueryError = undefined;
+    explorer.close();
+    agent.close();
+    await waitUntil(() =>
+      [explorer, agent].every(
+        ({ readyState }) => readyState === WebSocket.CLOSED,
+      ),
+    );
+  }
+});
+
+void it('keeps Explorer connected when an agent query fails', async () => {
+  const explorer = new WebSocket(messagesUrl);
+  const explorerMessages: Record<string, unknown>[] = [];
+  const agentMessages: Record<string, unknown>[] = [];
+  explorer.on('message', (data) =>
+    explorerMessages.push(parseRecord(rawData(data))),
+  );
+  const agent = liveAgent(agentMessages);
+  try {
+    await Promise.all([
+      waitFor(explorerMessages, 'ready'),
+      waitFor(agentMessages, 'subscribed'),
+    ]);
+    notificationQueryError = new Error('Agent query failed');
+    rows.set('7', row(hookA, 7));
+    notify('scraper_event', notification('7'));
+    await new Promise<void>((resolve) => agent.once('close', () => resolve()));
+    notificationQueryError = undefined;
+
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: msgId.slice(2) }),
+    );
+    await waitFor(explorerMessages, 'message_upsert');
+    assert.equal(explorer.readyState, WebSocket.OPEN);
+  } finally {
+    notificationQueryError = undefined;
+    agent.close();
+    explorer.close();
+    await waitUntil(() =>
+      [agent, explorer].every(
+        ({ readyState }) => readyState === WebSocket.CLOSED,
+      ),
+    );
+  }
+});
+
+void it('keeps fast Explorer clients independent from a stalled client', async (context) => {
+  const completions = delayFirstExplorerSocket(context);
+  const sockets = [new WebSocket(messagesUrl), new WebSocket(messagesUrl)];
+  const messages: Record<string, unknown>[][] = sockets.map(() => []);
+  sockets.forEach((socket, index) =>
+    socket.on('message', (data) =>
+      messages[index]?.push(parseRecord(rawData(data))),
+    ),
+  );
+  try {
+    await Promise.all(messages.map((items) => waitFor(items, 'ready')));
+    for (const byte of ['02', '03']) {
+      notify(
+        'scraper_explorer_event',
+        JSON.stringify({ messageId: byte.repeat(32) }),
+      );
+      if (byte === '02') {
+        await waitUntil(
+          () =>
+            messages.every(
+              (items) =>
+                items.filter(({ type }) => type === 'message_upsert').length ===
+                1,
+            ) && completions.length === 1,
+        );
+      }
+    }
+    await waitUntil(() =>
+      messages.some(
+        (items) =>
+          items.filter(({ type }) => type === 'message_upsert').length === 2,
+      ),
+    );
+    assert.deepEqual(
+      messages
+        .map(
+          (items) =>
+            items.filter(({ type }) => type === 'message_upsert').length,
+        )
+        .sort(),
+      [1, 2],
+    );
+
+    completions.shift()?.();
+    await waitUntil(() =>
+      messages.every(
+        (items) =>
+          items.filter(({ type }) => type === 'message_upsert').length === 2,
+      ),
+    );
+  } finally {
+    for (const complete of completions.splice(0)) complete();
+    sockets.forEach((socket) => socket.close());
+    await waitUntil(() =>
+      sockets.every(({ readyState }) => readyState === WebSocket.CLOSED),
+    );
+  }
+});
+
+void it('paces a full Explorer notification batch one send at a time', async (context) => {
+  const completions = delayServerSendCompletions(context);
+  const socket = new WebSocket(messagesUrl);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  try {
+    await waitFor(messages, 'ready');
+    const batchesBefore = explorerBatchSizes.length;
+    const messageIds = Array.from(
+      { length: 1_000 },
+      (_, index) => `\\x${index.toString(16).padStart(64, '0')}`,
+    );
+    for (const messageId of messageIds) {
+      notify(
+        'scraper_explorer_event',
+        JSON.stringify({ messageId: messageId.slice(2) }),
+      );
+    }
+    await waitUntil(() => completions.length === 1);
+    for (let sent = 1; sent <= messageIds.length; sent++) {
+      assert.equal(completions.length, 1);
+      completions.shift()?.();
+      if (sent < messageIds.length) {
+        await waitUntilImmediate(() => completions.length === 1);
+      }
+    }
+    await waitUntil(
+      () =>
+        messages.filter(({ type }) => type === 'message_upsert').length ===
+          messageIds.length &&
+        events.metricsSnapshot().explorerPendingMessages === 0,
+    );
+    const upserts = messages.filter(({ type }) => type === 'message_upsert');
+    assert.deepEqual(
+      new Set(upserts.map(({ data }) => record(data).msg_id)),
+      new Set(messageIds),
+    );
+    assert.equal(events.metricsSnapshot().explorerPendingBytes, 0);
+    assert.equal(events.metricsSnapshot().outboundPendingBytes, 0);
+    assert.equal(socket.readyState, WebSocket.OPEN);
+    const batchSizes = explorerBatchSizes.slice(batchesBefore);
+    assert.equal(
+      batchSizes.reduce((total, size) => total + size, 0),
+      1_000,
+    );
+    assert(batchSizes.every((size) => size <= 100));
+  } finally {
+    for (const complete of completions.splice(0)) complete();
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('sheds only an Explorer client that exceeds its queue limit', async (context) => {
+  const slow = new WebSocket(messagesUrl);
+  const slowMessages: Record<string, unknown>[] = [];
+  slow.on('message', (data) => slowMessages.push(parseRecord(rawData(data))));
+  await waitFor(slowMessages, 'ready');
+  const fast = new WebSocket(messagesUrl);
+  const fastMessages: Record<string, unknown>[] = [];
+  fast.on('message', (data) => fastMessages.push(parseRecord(rawData(data))));
+  await waitFor(fastMessages, 'ready');
+  const completions = delayFirstExplorerSocket(context);
+
+  try {
+    for (let batch = 0; batch < 21; batch++) {
+      for (let index = 0; index < 100; index++) {
+        const messageId = (batch * 100 + index + 10_000)
+          .toString(16)
+          .padStart(64, '0');
+        notify('scraper_explorer_event', JSON.stringify({ messageId }));
+      }
+      const expected = Math.min((batch + 1) * 100, 2_000);
+      await waitUntil(
+        () =>
+          fastMessages.filter(({ type }) => type === 'message_upsert').length >=
+          expected,
+      );
+    }
+
+    await waitUntil(() => slow.readyState === WebSocket.CLOSED);
+    assert.equal(fast.readyState, WebSocket.OPEN);
+    assert.equal(events.metricsSnapshot().connections.messages, 1);
+    assert.equal(events.metricsSnapshot().explorerPendingMessages, 0);
+    assert.equal(events.metricsSnapshot().explorerPendingBytes, 0);
+    assert.match(
+      await metricsRegistry.metrics(),
+      /websocket_send_failures_total\{reason="queue_limit"\} 1/,
+    );
+  } finally {
+    for (const complete of completions.splice(0)) complete();
+    fast.close();
+    if (slow.readyState !== WebSocket.CLOSED) slow.close();
+    await waitUntil(() =>
+      [slow, fast].every(({ readyState }) => readyState === WebSocket.CLOSED),
+    );
+  }
+});
+
 void it('paces Explorer batches by send completion', async (context) => {
   const socket = new WebSocket(messagesUrl);
   const messages: Record<string, unknown>[] = [];
@@ -607,6 +913,34 @@ void it('paces Explorer batches by send completion', async (context) => {
       await closed;
     }
   }
+});
+
+void it('releases a peer-closed Explorer queue immediately', async (context) => {
+  const socket = new WebSocket(messagesUrl);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  await waitFor(messages, 'ready');
+  const completions = delayServerSendCompletions(context);
+  for (const byte of ['04', '05']) {
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: byte.repeat(32) }),
+    );
+  }
+  await waitUntil(
+    () =>
+      completions.length === 1 &&
+      events.metricsSnapshot().explorerPendingMessages === 1,
+  );
+  socket.close();
+  await waitUntil(
+    () =>
+      socket.readyState === WebSocket.CLOSED &&
+      events.metricsSnapshot().connections.messages === 0,
+  );
+  assert.equal(events.metricsSnapshot().explorerPendingMessages, 0);
+  assert.equal(events.metricsSnapshot().explorerPendingBytes, 0);
+  for (const complete of completions.splice(0)) complete();
 });
 
 void it('bounds aggregate Explorer outbound buffering', async () => {
@@ -655,6 +989,23 @@ function explorerSocket(ip: string): WebSocket {
   });
 }
 
+function liveAgent(messages: Record<string, unknown>[]): WebSocket {
+  const socket = new WebSocket(url);
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [{ eventType: 'merkle_tree_insertion' }],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+  return socket;
+}
+
 function delayServerSendCompletions(context: TestContext): Array<() => void> {
   const completions: Array<() => void> = [];
   // oxlint-disable-next-line typescript/unbound-method -- called with the socket receiver below.
@@ -685,6 +1036,50 @@ function delayServerSendCompletions(context: TestContext): Array<() => void> {
         originalSend.call(this, data, completed);
       } else {
         originalSend.call(this, data, optionsOrCallback, completed);
+      }
+    },
+  );
+  return completions;
+}
+
+function delayFirstExplorerSocket(context: TestContext): Array<() => void> {
+  const completions: Array<() => void> = [];
+  const delayedSockets = new WeakSet<WebSocket>();
+  let selectedDelayedSocket = false;
+  // oxlint-disable-next-line typescript/unbound-method -- called with the socket receiver below.
+  const originalSend = WebSocket.prototype.send;
+  context.mock.method(
+    WebSocket.prototype,
+    'send',
+    function (
+      this: WebSocket,
+      data: Parameters<WebSocket['send']>[0],
+      optionsOrCallback?:
+        | Parameters<WebSocket['send']>[1]
+        | ((error?: Error) => void),
+      callback?: (error?: Error) => void,
+    ): void {
+      const completion =
+        typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
+      const message = typeof data === 'string' ? parseRecord(data) : undefined;
+      if (
+        !selectedDelayedSocket &&
+        completion &&
+        message?.type === 'message_upsert'
+      ) {
+        delayedSockets.add(this);
+        selectedDelayedSocket = true;
+      }
+      const delayedCompletion =
+        completion &&
+        message?.type === 'message_upsert' &&
+        delayedSockets.has(this)
+          ? (error?: Error) => completions.push(() => completion(error))
+          : completion;
+      if (typeof optionsOrCallback === 'function' || !optionsOrCallback) {
+        originalSend.call(this, data, delayedCompletion);
+      } else {
+        originalSend.call(this, data, optionsOrCallback, delayedCompletion);
       }
     },
   );
@@ -725,6 +1120,16 @@ async function waitUntil(
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error('Timed out waiting for condition');
+}
+
+async function waitUntilImmediate(
+  predicate: () => boolean | Promise<boolean>,
+): Promise<void> {
+  for (let attempts = 0; attempts < 10_000; attempts++) {
+    if (await predicate()) return;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+  throw new Error('Timed out waiting for immediate condition');
 }
 
 async function catchUpOutcome(outcome: string): Promise<number> {

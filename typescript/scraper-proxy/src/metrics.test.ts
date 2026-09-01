@@ -23,6 +23,10 @@ void it('serves current usage and limits from /metrics', async () => {
   setWebSocketMetricsProvider(() => ({
     catchUps: 2,
     connections: { agent: 3, messages: 4 },
+    explorerPendingBytes: 1_024,
+    explorerPendingMessages: 9,
+    maxExplorerPendingBytes: 512,
+    maxExplorerPendingMessages: 5,
     messageClientIps: 2,
     messageMaxConnectionsPerIp: 3,
     limits: {
@@ -31,6 +35,8 @@ void it('serves current usage and limits from /metrics', async () => {
       catchUpRows: 1_000,
       clientMessagesPerMinute: 30,
       concurrentCatchUps: 5,
+      explorerPendingBytes: 16_777_216,
+      explorerPendingMessages: 2_000,
       messageConnections: 400,
       messageConnectionsPerIp: 5,
       pendingEvents: 5_000,
@@ -69,6 +75,14 @@ void it('serves current usage and limits from /metrics', async () => {
   assert.match(
     output,
     /hyperlane_scraper_proxy_websocket_outbound_pending_bytes 256/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_explorer_pending_messages 9/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_explorer_pending_bytes 1024/,
   );
   assert.match(
     output,
