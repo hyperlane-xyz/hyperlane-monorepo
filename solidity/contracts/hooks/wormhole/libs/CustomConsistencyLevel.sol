@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.19;
 
+import {CONSISTENCY_LEVEL_CUSTOM, CONSISTENCY_LEVEL_INSTANT, CONSISTENCY_LEVEL_SAFE} from "wormhole-sdk/constants/ConsistencyLevel.sol";
+
 /**
  * @notice Inputs for Wormhole EVM finality and optional custom handling.
  * @dev `customConsistencyLevel` is the official per-chain CCL contract, while
@@ -14,34 +16,14 @@ struct WormholeConsistencyLevelConfig {
 }
 
 library CustomConsistencyLevelLib {
-    uint8 internal constant INSTANT = 200;
-    uint8 internal constant SAFE = 201;
+    uint8 internal constant INSTANT = CONSISTENCY_LEVEL_INSTANT;
+    uint8 internal constant SAFE = CONSISTENCY_LEVEL_SAFE;
+    // The SDK's generic finalized constant is 1. Wormhole's EVM-specific
+    // finalized tag is 202.
     uint8 internal constant FINALIZED = 202;
-    uint8 internal constant CUSTOM = 203;
-
-    /// @dev Wormhole's additional-blocks configuration type.
-    uint8 internal constant ADDITIONAL_BLOCKS_TYPE = 1;
+    uint8 internal constant CUSTOM = CONSISTENCY_LEVEL_CUSTOM;
 
     function isStandardEvmLevel(uint8 level) internal pure returns (bool) {
         return level == INSTANT || level == SAFE || level == FINALIZED;
-    }
-
-    /**
-     * @dev Wormhole encodes this as: type (u8), base level (u8), additional
-     * blocks (big-endian u16), then 28 zero bytes.
-     */
-    function encodeAdditionalBlocks(
-        uint8 baseConsistencyLevel,
-        uint16 additionalBlocks
-    ) internal pure returns (bytes32) {
-        return
-            bytes32(
-                abi.encodePacked(
-                    ADDITIONAL_BLOCKS_TYPE,
-                    baseConsistencyLevel,
-                    additionalBlocks,
-                    bytes28(0)
-                )
-            );
     }
 }

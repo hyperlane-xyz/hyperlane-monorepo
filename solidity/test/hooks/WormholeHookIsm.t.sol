@@ -2,12 +2,14 @@
 pragma solidity ^0.8.19;
 
 import {Test} from "forge-std/Test.sol";
+import {RelayInstructionLib} from "wormhole-sdk/Executor/RelayInstruction.sol";
+import {RequestLib} from "wormhole-sdk/Executor/Request.sol";
+import {CoreBridgeVM, ICoreBridge} from "wormhole-sdk/interfaces/ICoreBridge.sol";
 
 import {AbstractWormholeHookIsm} from "contracts/hooks/wormhole/AbstractWormholeHookIsm.sol";
 import {WormholeExecutorHookIsm} from "contracts/hooks/wormhole/WormholeExecutorHookIsm.sol";
 import {WormholeMessage} from "contracts/libs/WormholeMessage.sol";
 import {WormholeVaaHookIsm} from "contracts/hooks/wormhole/WormholeVaaHookIsm.sol";
-import {RelayInstructionLib, RequestLib} from "contracts/hooks/wormhole/libs/ExecutorRequest.sol";
 import {WormholeConsistencyLevelConfig} from "contracts/hooks/wormhole/libs/CustomConsistencyLevel.sol";
 import {StandardHookMetadata} from "contracts/hooks/libs/StandardHookMetadata.sol";
 import {IInterchainSecurityModule} from "contracts/interfaces/IInterchainSecurityModule.sol";
@@ -15,7 +17,6 @@ import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.so
 import {ICcipReadIsm} from "contracts/interfaces/isms/ICcipReadIsm.sol";
 import {IWormholeHookIsm, RemoteRouterEnrollment} from "contracts/interfaces/wormhole/IWormholeHookIsm.sol";
 import {IWormholeVaaService} from "contracts/interfaces/wormhole/IWormholeVaaService.sol";
-import {CoreBridgeVM} from "contracts/interfaces/wormhole/ICoreBridge.sol";
 import {Message} from "contracts/libs/Message.sol";
 import {TypeCasts} from "contracts/libs/TypeCasts.sol";
 import {MockExecutorQuoterRouter} from "contracts/mock/MockExecutorQuoterRouter.sol";
@@ -564,7 +565,7 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
         );
 
         vm.expectEmit(true, false, false, true, address(originCore));
-        emit MockWormholeCore.LogMessagePublished(
+        emit ICoreBridge.LogMessagePublished(
             address(originRouter),
             0,
             _nonce(message),

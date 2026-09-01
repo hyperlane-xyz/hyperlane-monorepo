@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.19;
 
-import {CoreBridgeSignature, CoreBridgeVM, ICoreBridge} from "../interfaces/wormhole/ICoreBridge.sol";
+import {CoreBridgeVM, GuardianSet, GuardianSignature} from "wormhole-sdk/interfaces/ICoreBridge.sol";
+
+import {IEvmCoreBridge} from "../interfaces/wormhole/IEvmCoreBridge.sol";
 
 /**
  * @title MockWormholeCore
@@ -14,7 +16,7 @@ import {CoreBridgeSignature, CoreBridgeVM, ICoreBridge} from "../interfaces/worm
  * is not a valid encoding, matching Core's behaviour for malformed input, and
  * returns `valid == false` when the referenced Guardian set is not live.
  */
-contract MockWormholeCore is ICoreBridge {
+contract MockWormholeCore is IEvmCoreBridge {
     /// @dev Wire form of a mock VAA. Kept ABI-encodable so tests and offchain
     /// fixtures can build one with a standard ABI coder.
     struct MockVaa {
@@ -26,14 +28,6 @@ contract MockWormholeCore is ICoreBridge {
         uint32 guardianSetIndex;
         bytes payload;
     }
-
-    event LogMessagePublished(
-        address indexed sender,
-        uint64 sequence,
-        uint32 nonce,
-        bytes payload,
-        uint8 consistencyLevel
-    );
 
     uint16 public immutable chainId;
     uint256 public evmChainId;
@@ -122,7 +116,7 @@ contract MockWormholeCore is ICoreBridge {
         vm_.consistencyLevel = vaa.consistencyLevel;
         vm_.payload = vaa.payload;
         vm_.guardianSetIndex = vaa.guardianSetIndex;
-        vm_.signatures = new CoreBridgeSignature[](0);
+        vm_.signatures = new GuardianSignature[](0);
         // Core's digest covers the VAA body only, never the signatures.
         vm_.hash = keccak256(
             abi.encode(
@@ -139,6 +133,22 @@ contract MockWormholeCore is ICoreBridge {
             return (vm_, false, "guardian set has expired");
         }
         return (vm_, true, "");
+    }
+
+    function getGuardianSet(
+        uint32 index
+    ) external view returns (GuardianSet memory guardianSet) {
+        if (liveGuardianSets[index]) {
+            guardianSet.keys = new address[](1);
+            guardianSet.keys[0] = address(1);
+        } else {
+            guardianSet.keys = new address[](0);
+            guardianSet.expirationTime = 1;
+        }
+    }
+
+    function getCurrentGuardianSetIndex() external pure returns (uint32) {
+        return 0;
     }
 
     function _decodeWireVaa(
