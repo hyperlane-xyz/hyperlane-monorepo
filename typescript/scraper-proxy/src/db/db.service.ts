@@ -40,13 +40,20 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
   private statsTimer?: NodeJS.Timeout;
 
   async onModuleInit(): Promise<void> {
+    if (config.DATABASE_READ_REPLICA_URL) {
+      this.logger.log(
+        'GraphQL db role=read-replica; connections open lazily so replica health cannot gate websocket startup',
+      );
+      this.statsTimer = setInterval(() => this.logStats(), STATS_INTERVAL_MS);
+      return;
+    }
     const started = Date.now();
     const clients = await Promise.all(
       Array.from({ length: MIN_POOL_CLIENTS }, () => this.pool().connect()),
     );
     clients.forEach((client) => client.release());
     this.logger.log(
-      `warmed ${MIN_POOL_CLIENTS} db connections in ${Date.now() - started}ms`,
+      `warmed ${MIN_POOL_CLIENTS} GraphQL db connections role=primary in ${Date.now() - started}ms`,
     );
     this.statsTimer = setInterval(() => this.logStats(), STATS_INTERVAL_MS);
   }
@@ -137,7 +144,12 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
   }
 
   private pool(): pg.Pool {
-    this.mainPool ??= this.createPool(config.DATABASE_URL, MIN_POOL_CLIENTS);
+    const replicaUrl = config.DATABASE_READ_REPLICA_URL;
+    this.mainPool ??= this.createPool(
+      replicaUrl ?? config.DATABASE_URL,
+      MIN_POOL_CLIENTS,
+      replicaUrl ? config.DATABASE_QUERY_TIMEOUT_MS : undefined,
+    );
     return this.mainPool;
   }
 
@@ -146,9 +158,14 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
     return this.livePool;
   }
 
-  private createPool(connectionString: string, min?: number): pg.Pool {
+  private createPool(
+    connectionString: string,
+    min?: number,
+    connectionTimeoutMillis?: number,
+  ): pg.Pool {
     const pool = new pg.Pool({
       ...databaseOptions(connectionString),
+      connectionTimeoutMillis,
       idleTimeoutMillis: IDLE_TIMEOUT_MS,
       max: MAX_POOL_CLIENTS,
       min,

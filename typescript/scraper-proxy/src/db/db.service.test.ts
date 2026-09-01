@@ -1,17 +1,28 @@
 import assert from 'node:assert/strict';
+import { Socket } from 'node:net';
 import { it } from 'node:test';
 
 import pg from 'pg';
 
 process.env.DATABASE_URL ??= 'postgresql://scraper-proxy-test';
+process.env.DATABASE_READ_REPLICA_URL ??=
+  'postgresql://scraper-proxy-replica-test';
+process.env.DATABASE_QUERY_TIMEOUT_MS ??= '1000';
 
-void it('keeps live queries prompt while the main pool is saturated', async (context) => {
+void it('keeps replica health from gating primary live queries', async (context) => {
   const saturatedPools = new WeakSet<pg.Pool>();
+  const queryUrls = new Map<string, string>();
+  let connectAttempts = 0;
   let releaseMain: (() => void) | undefined;
+  context.mock.method(pg.Pool.prototype, 'connect', () => {
+    connectAttempts++;
+    throw new Error('replica unavailable');
+  });
   context.mock.method(
     pg.Pool.prototype,
     'query',
     function (this: pg.Pool, text: string) {
+      queryUrls.set(text, this.options.connectionString);
       if (text === 'SELECT pg_sleep(1)') {
         saturatedPools.add(this);
         return new Promise((resolve) => {
@@ -25,10 +36,32 @@ void it('keeps live queries prompt while the main pool is saturated', async (con
   const { DbService } = await import('./db.service.js');
   const db = new DbService();
 
+  await db.onModuleInit();
+  assert.equal(connectAttempts, 0);
   const saturated = db.query('SELECT pg_sleep(1)');
   assert.deepEqual(await db.queryLive('SELECT 1'), [{ ready: 1 }]);
+  assert.equal(
+    queryUrls.get('SELECT pg_sleep(1)'),
+    process.env.DATABASE_READ_REPLICA_URL,
+  );
+  assert.equal(queryUrls.get('SELECT 1'), process.env.DATABASE_URL);
   assert(releaseMain);
   releaseMain();
   await saturated;
   await db.onModuleDestroy();
+});
+
+void it('times out stalled replica connections', async (context) => {
+  context.mock.method(Socket.prototype, 'connect', function () {
+    return this;
+  });
+  const { DbService } = await import('./db.service.js');
+  const db = new DbService();
+  context.after(() => db.onModuleDestroy());
+
+  const started = Date.now();
+  await assert.rejects(db.query('SELECT 1'), /connection timeout/i);
+  const duration = Date.now() - started;
+  assert(duration >= 1_000);
+  assert(duration < 3_000);
 });
