@@ -10,10 +10,10 @@ import pg from 'pg';
 import { config } from '../config.js';
 import {
   databaseQueries,
+  DatabaseQueryRole,
   databaseQueryDuration,
   databaseRows,
   type DatabaseMetricsSnapshot,
-  type DatabaseQueryRole,
 } from '../metrics.js';
 import { quoteIdentifier } from '../scraperdb/tables.js';
 
@@ -101,7 +101,9 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
   ): Promise<T[]> {
     return this.run(
       this.pool(),
-      config.DATABASE_READ_REPLICA_URL ? 'graphql_replica' : 'graphql_primary',
+      config.DATABASE_READ_REPLICA_URL
+        ? DatabaseQueryRole.GraphqlReplica
+        : DatabaseQueryRole.GraphqlPrimary,
       text,
       values,
     );
@@ -111,7 +113,7 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
     text: string,
     values: unknown[] = [],
   ): Promise<T[]> {
-    return this.run(this.live(), 'live_primary', text, values);
+    return this.run(this.live(), DatabaseQueryRole.LivePrimary, text, values);
   }
 
   async listen(
@@ -158,7 +160,9 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
     const replicaUrl = config.DATABASE_READ_REPLICA_URL;
     this.mainPool ??= this.createPool(
       replicaUrl ?? config.DATABASE_URL,
-      replicaUrl ? 'graphql_replica' : 'graphql_primary',
+      replicaUrl
+        ? DatabaseQueryRole.GraphqlReplica
+        : DatabaseQueryRole.GraphqlPrimary,
       MIN_POOL_CLIENTS,
       replicaUrl ? config.DATABASE_QUERY_TIMEOUT_MS : undefined,
     );
@@ -166,7 +170,10 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
   }
 
   private live(): pg.Pool {
-    this.livePool ??= this.createPool(config.DATABASE_URL, 'live_primary');
+    this.livePool ??= this.createPool(
+      config.DATABASE_URL,
+      DatabaseQueryRole.LivePrimary,
+    );
     return this.livePool;
   }
 

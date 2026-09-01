@@ -58,10 +58,14 @@ export type DatabaseMetricsSnapshot = {
   pools: Record<'live' | 'main', DatabasePoolMetrics>;
 };
 
+export const DatabaseQueryRole = {
+  GraphqlPrimary: 'graphql_primary',
+  GraphqlReplica: 'graphql_replica',
+  LivePrimary: 'live_primary',
+} as const;
+
 export type DatabaseQueryRole =
-  | 'graphql_primary'
-  | 'graphql_replica'
-  | 'live_primary';
+  (typeof DatabaseQueryRole)[keyof typeof DatabaseQueryRole];
 
 export const metricsRegistry = new Registry();
 
@@ -121,11 +125,7 @@ export const databaseRows = new Counter({
   registers: [metricsRegistry],
 });
 
-for (const role of [
-  'graphql_primary',
-  'graphql_replica',
-  'live_primary',
-] satisfies DatabaseQueryRole[]) {
+for (const role of Object.values(DatabaseQueryRole)) {
   for (const outcome of ['error', 'success'])
     databaseQueries.inc({ outcome, role }, 0);
   databaseRows.inc({ role }, 0);
