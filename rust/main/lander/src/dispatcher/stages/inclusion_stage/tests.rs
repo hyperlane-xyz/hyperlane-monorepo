@@ -14,10 +14,11 @@ use crate::dispatcher::{
 use crate::error::LanderError;
 use crate::payload::{DropReason as PayloadDropReason, PayloadStatus};
 use crate::tests::test_utils::{
-    are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them, dummy_tx, tmp_dbs,
-    MockAdapter,
+    are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them, dummy_tx,
+    initialize_payload_db, tmp_dbs, MockAdapter,
 };
 use crate::transaction::{DropReason as TxDropReason, Transaction, TransactionStatus};
+use crate::FullPayload;
 
 use super::{
     MAX_REPROCESS_TXS_POLL_RATE, MAX_TX_STATUS_CHECK_DELAY, REPROCESS_TXS_LIVENESS_RATE, STAGE_NAME,
@@ -390,6 +391,41 @@ async fn test_status_provider_error_preserves_latest_persisted_status() {
         .unwrap();
     assert_eq!(persisted_tx.status, TransactionStatus::Mempool);
     assert!(persisted_tx.last_status_check.is_some());
+}
+
+#[tokio::test]
+async fn test_finality_channel_error_preserves_latest_persisted_status() {
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_secs(1));
+    mock_adapter
+        .expect_tx_status()
+        .once()
+        .returning(|_| Ok(TransactionStatus::Included));
+
+    let (state, pool) = reprocess_test_state(mock_adapter);
+    let payload = FullPayload::random();
+    initialize_payload_db(&state.payload_db, &payload).await;
+    let tx = dummy_tx(vec![payload], TransactionStatus::PendingInclusion);
+    state.store_tx(&tx).await;
+    pool.lock().await.insert(tx.uuid.clone(), tx.clone());
+    let (finality_stage_sender, finality_stage_receiver) = mpsc::channel(1);
+    drop(finality_stage_receiver);
+
+    InclusionStage::process_txs_step(&pool, &finality_stage_sender, &state, "test")
+        .await
+        .unwrap();
+
+    let retained_tx = pool.lock().await.get(&tx.uuid).cloned().unwrap();
+    assert_eq!(retained_tx.status, TransactionStatus::Included);
+    assert_tx_status(
+        vec![tx],
+        &state.tx_db,
+        &state.payload_db,
+        TransactionStatus::Included,
+    )
+    .await;
 }
 
 #[tokio::test]

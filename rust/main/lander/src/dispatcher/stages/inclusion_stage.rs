@@ -184,6 +184,16 @@ impl InclusionStage {
             if let Err(err) =
                 Self::try_process_tx(tx.clone(), finality_stage_sender, state, pool).await
             {
+                if matches!(err, LanderError::ChannelSendFailure(_)) {
+                    error!(
+                        ?err,
+                        ?tx,
+                        "Failed to forward transaction. Retaining it for retry"
+                    );
+                    Self::update_inclusion_stage_metric(state, domain, &err);
+                    continue;
+                }
+
                 error!(?err, ?tx, "Error processing transaction. Dropping it");
 
                 let drop_reason = match &err {
@@ -390,6 +400,7 @@ impl InclusionStage {
             TransactionStatus::Included | TransactionStatus::Finalized => {
                 update_tx_status(state, &mut tx, tx_status.clone()).await?;
                 let tx_uuid = tx.uuid.clone();
+                pool.lock().await.insert(tx_uuid.clone(), tx.clone());
                 finality_stage_sender.send(tx).await.map_err(|err| {
                     tracing::error!(?err, "Failed to send tx to finality stage");
                     LanderError::ChannelSendFailure(Box::new(err))
