@@ -15,14 +15,16 @@ pragma solidity >=0.8.19;
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {CoreBridgeVM, ICoreBridge} from "wormhole-sdk/interfaces/ICoreBridge.sol";
+import {ICustomConsistencyLevel} from "wormhole-sdk/interfaces/ICustomConsistencyLevel.sol";
+import {CustomConsistencyLib} from "wormhole-sdk/libraries/CustomConsistency.sol";
 
 // ============ Internal Imports ============
 import {Router} from "../../client/Router.sol";
 import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
-import {CoreBridgeVM, ICoreBridge} from "../../interfaces/wormhole/ICoreBridge.sol";
-import {ICustomConsistencyLevel} from "../../interfaces/wormhole/ICustomConsistencyLevel.sol";
+import {IEvmCoreBridge} from "../../interfaces/wormhole/IEvmCoreBridge.sol";
 import {IWormholeHookIsm, RemoteRouterEnrollment} from "../../interfaces/wormhole/IWormholeHookIsm.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
@@ -125,7 +127,7 @@ abstract contract AbstractWormholeHookIsm is
     ) Router(mailbox_) {
         if (!Address.isContract(wormhole_)) revert InvalidWormholeCore();
         wormhole = ICoreBridge(wormhole_);
-        if (wormhole.evmChainId() != block.chainid) {
+        if (IEvmCoreBridge(wormhole_).evmChainId() != block.chainid) {
             revert InvalidWormholeEvmChainId();
         }
         wormholeChainId = wormhole.chainId();
@@ -155,7 +157,7 @@ abstract contract AbstractWormholeHookIsm is
             ICustomConsistencyLevel ccl = ICustomConsistencyLevel(
                 consistencyLevelConfig_.customConsistencyLevel
             );
-            bytes32 encoded = CustomConsistencyLevelLib.encodeAdditionalBlocks(
+            bytes32 encoded = CustomConsistencyLib.encodeAdditionalBlocksConfig(
                 consistencyLevelConfig_.baseConsistencyLevel,
                 consistencyLevelConfig_.additionalBlocks
             );

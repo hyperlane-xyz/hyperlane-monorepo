@@ -2,16 +2,18 @@
 pragma solidity ^0.8.19;
 
 import {Test, Vm} from "forge-std/Test.sol";
+import {GuardianSet, ICoreBridge} from "wormhole-sdk/interfaces/ICoreBridge.sol";
+import {ICustomConsistencyLevel} from "wormhole-sdk/interfaces/ICustomConsistencyLevel.sol";
+import {CustomConsistencyLib} from "wormhole-sdk/libraries/CustomConsistency.sol";
 
 import {AbstractWormholeHookIsm} from "contracts/hooks/wormhole/AbstractWormholeHookIsm.sol";
 import {WormholeExecutorHookIsm} from "contracts/hooks/wormhole/WormholeExecutorHookIsm.sol";
 import {WormholeMessage} from "contracts/libs/WormholeMessage.sol";
 import {WormholeVaaHookIsm} from "contracts/hooks/wormhole/WormholeVaaHookIsm.sol";
-import {CustomConsistencyLevelLib, WormholeConsistencyLevelConfig} from "contracts/hooks/wormhole/libs/CustomConsistencyLevel.sol";
+import {WormholeConsistencyLevelConfig} from "contracts/hooks/wormhole/libs/CustomConsistencyLevel.sol";
 import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {IInterchainSecurityModule} from "contracts/interfaces/IInterchainSecurityModule.sol";
-import {ICoreBridge} from "contracts/interfaces/wormhole/ICoreBridge.sol";
-import {ICustomConsistencyLevel} from "contracts/interfaces/wormhole/ICustomConsistencyLevel.sol";
+import {IEvmCoreBridge} from "contracts/interfaces/wormhole/IEvmCoreBridge.sol";
 import {IWormholeHookIsm, RemoteRouterEnrollment} from "contracts/interfaces/wormhole/IWormholeHookIsm.sol";
 import {Message} from "contracts/libs/Message.sol";
 import {TypeCasts} from "contracts/libs/TypeCasts.sol";
@@ -19,20 +21,6 @@ import {MockExecutorQuoterRouter} from "contracts/mock/MockExecutorQuoterRouter.
 import {TestMailbox} from "contracts/test/TestMailbox.sol";
 import {TestPostDispatchHook} from "contracts/test/TestPostDispatchHook.sol";
 import {TestRecipient} from "contracts/test/TestRecipient.sol";
-
-/// @dev Getters the official Core exposes beyond the integration's `ICoreBridge`.
-interface ICoreBridgeGuardians {
-    struct GuardianSet {
-        address[] keys;
-        uint32 expirationTime;
-    }
-
-    function getCurrentGuardianSetIndex() external view returns (uint32);
-
-    function getGuardianSet(
-        uint32 index
-    ) external view returns (GuardianSet memory);
-}
 
 /**
  * @title WormholeHookIsmForkTest
@@ -172,7 +160,7 @@ contract WormholeHookIsmForkTest is Test {
             urls
         );
 
-        bytes32 expected = CustomConsistencyLevelLib.encodeAdditionalBlocks(
+        bytes32 expected = CustomConsistencyLib.encodeAdditionalBlocksConfig(
             CONSISTENCY_INSTANT,
             2
         );
@@ -198,7 +186,7 @@ contract WormholeHookIsmForkTest is Test {
             "unexpected Wormhole chain ID"
         );
         assertEq(
-            ICoreBridge(core).evmChainId(),
+            IEvmCoreBridge(core).evmChainId(),
             expectedEvmChainId,
             "unexpected EVM chain ID"
         );
@@ -321,7 +309,7 @@ contract WormholeHookIsmForkTest is Test {
         ) = _readPublication(address(originRouter));
 
         vm.selectFork(baseFork);
-        uint32 guardianSetIndex = ICoreBridgeGuardians(CORE_BASE)
+        uint32 guardianSetIndex = ICoreBridge(CORE_BASE)
             .getCurrentGuardianSetIndex();
         // Signed by a key that is not in the Guardian set.
         (, uint256 impostorKey) = makeAddrAndKey("impostor");
@@ -364,7 +352,7 @@ contract WormholeHookIsmForkTest is Test {
         ) = _readPublication(address(originRouter));
 
         vm.selectFork(baseFork);
-        uint32 currentIndex = ICoreBridgeGuardians(CORE_BASE)
+        uint32 currentIndex = ICoreBridge(CORE_BASE)
             .getCurrentGuardianSetIndex();
         require(currentIndex > 0, "no historical Guardian set to expire");
         uint32 staleIndex = currentIndex - 1;
@@ -660,11 +648,10 @@ contract WormholeHookIsmForkTest is Test {
     function _overrideCurrentGuardianSet(
         address core
     ) internal returns (uint32 index) {
-        index = ICoreBridgeGuardians(core).getCurrentGuardianSetIndex();
+        index = ICoreBridge(core).getCurrentGuardianSetIndex();
         _writeGuardianSet(core, index, guardian, 0);
 
-        ICoreBridgeGuardians.GuardianSet memory set = ICoreBridgeGuardians(core)
-            .getGuardianSet(index);
+        GuardianSet memory set = ICoreBridge(core).getGuardianSet(index);
         assertEq(set.keys.length, 1, "Guardian set override did not apply");
         assertEq(set.keys[0], guardian, "Guardian key override did not apply");
     }
@@ -674,7 +661,7 @@ contract WormholeHookIsmForkTest is Test {
     function _overrideProductionGuardianSet(
         address core
     ) internal returns (uint32 index, uint256[] memory keys) {
-        index = ICoreBridgeGuardians(core).getCurrentGuardianSetIndex();
+        index = ICoreBridge(core).getCurrentGuardianSetIndex();
         keys = new uint256[](PRODUCTION_GUARDIAN_COUNT);
         address[] memory guardians = new address[](PRODUCTION_GUARDIAN_COUNT);
         for (uint256 i; i < PRODUCTION_GUARDIAN_COUNT; ++i) {
@@ -683,8 +670,7 @@ contract WormholeHookIsmForkTest is Test {
         }
         _writeGuardianSet(core, index, guardians, 0);
 
-        ICoreBridgeGuardians.GuardianSet memory set = ICoreBridgeGuardians(core)
-            .getGuardianSet(index);
+        GuardianSet memory set = ICoreBridge(core).getGuardianSet(index);
         assertEq(
             set.keys.length,
             PRODUCTION_GUARDIAN_COUNT,
@@ -732,8 +718,7 @@ contract WormholeHookIsmForkTest is Test {
             bytes32(uint256(expirationTime))
         );
 
-        ICoreBridgeGuardians.GuardianSet memory set = ICoreBridgeGuardians(core)
-            .getGuardianSet(index);
+        GuardianSet memory set = ICoreBridge(core).getGuardianSet(index);
         assertEq(set.keys.length, keys.length, "Guardian set write failed");
         for (uint256 i; i < keys.length; ++i) {
             assertEq(set.keys[i], keys[i], "Guardian key write failed");

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.19;
 
-import {IExecutorQuoterRouter} from "../interfaces/wormhole/IExecutor.sol";
+import {IExecutorQuoterRouter} from "wormhole-sdk/interfaces/IExecutor.sol";
 
 /**
  * @title MockExecutorQuoterRouter
