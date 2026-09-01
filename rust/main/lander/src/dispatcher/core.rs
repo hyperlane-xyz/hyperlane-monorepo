@@ -24,7 +24,10 @@ use crate::{
     transaction::Transaction,
 };
 
-use super::{metrics::DispatcherMetrics, DispatcherState, TransactionDbLoader};
+use super::{
+    entrypoint::DispatcherEntrypoint, metrics::DispatcherMetrics, DispatcherState,
+    TransactionDbLoader,
+};
 
 const SUBMITTER_CHANNEL_SIZE: usize = 1_000;
 
@@ -59,12 +62,21 @@ impl Dispatcher {
         settings: DispatcherSettings,
         domain: String,
         metrics: DispatcherMetrics,
-    ) -> Result<Self> {
+    ) -> Result<(DispatcherEntrypoint, Self)> {
         let state = DispatcherState::try_from_settings(settings, metrics).await?;
-        Ok(Self {
+        Ok(Self::from_state_with_entrypoint(state, domain))
+    }
+
+    fn from_state_with_entrypoint(
+        state: DispatcherState,
+        domain: String,
+    ) -> (DispatcherEntrypoint, Self) {
+        let entrypoint = DispatcherEntrypoint::from_inner(state.clone());
+        let dispatcher = Self {
             inner: state,
             domain,
-        })
+        };
+        (entrypoint, dispatcher)
     }
 
     /// Create a Dispatcher from a DispatcherState and domain (for testing)
@@ -187,5 +199,45 @@ impl Dispatcher {
                 .instrument(tracing::info_span!("dispatcher")),
             )
             .expect("spawning tokio task from Builder is infallible")
+    }
+}
+
+#[cfg(test)]
+mod shared_state_tests {
+    use std::sync::Arc;
+
+    use super::Dispatcher;
+    use crate::{
+        dispatcher::{DispatcherMetrics, DispatcherState},
+        tests::test_utils::{tmp_dbs, MockAdapter},
+    };
+
+    #[test]
+    fn entrypoint_and_dispatcher_share_state() {
+        let (payload_db, tx_db, _) = tmp_dbs();
+        let adapter = Arc::new(MockAdapter::new());
+        let state = DispatcherState::new(
+            payload_db,
+            tx_db,
+            adapter,
+            DispatcherMetrics::dummy_instance(),
+            "test".to_string(),
+        );
+
+        let (entrypoint, dispatcher) =
+            Dispatcher::from_state_with_entrypoint(state, "test".to_string());
+
+        assert!(Arc::ptr_eq(
+            &entrypoint.inner.adapter,
+            &dispatcher.inner.adapter
+        ));
+        assert!(Arc::ptr_eq(
+            &entrypoint.inner.payload_db,
+            &dispatcher.inner.payload_db
+        ));
+        assert!(Arc::ptr_eq(
+            &entrypoint.inner.tx_db,
+            &dispatcher.inner.tx_db
+        ));
     }
 }
