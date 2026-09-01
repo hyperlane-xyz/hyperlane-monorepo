@@ -294,12 +294,18 @@ fn mock_client() -> MockClient {
 pub fn signature_status_response(
     status: Option<SealevelTransactionStatus>,
 ) -> Response<Vec<Option<SealevelTransactionStatus>>> {
+    signature_statuses_response(vec![status])
+}
+
+pub fn signature_statuses_response(
+    statuses: Vec<Option<SealevelTransactionStatus>>,
+) -> Response<Vec<Option<SealevelTransactionStatus>>> {
     Response {
         context: RpcResponseContext {
             slot: 43,
             api_version: None,
         },
-        value: vec![status],
+        value: statuses,
     }
 }
 

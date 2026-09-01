@@ -58,6 +58,8 @@ use crate::{
 };
 
 const TX_RESUBMISSION_BLOCK_TIME_MULTIPLIER: f32 = 3.0;
+const STATUS_TX_BATCH_SIZE: usize = 16;
+const MAX_SIGNATURES_PER_STATUS_REQUEST: usize = 256;
 
 #[derive(Default, Clone, Copy, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum EstimateFreshnessCache {
@@ -298,6 +300,12 @@ impl SealevelAdapter {
             .client
             .get_signature_statuses_with_history(&[signature])
             .await?;
+        if response.value.len() != 1 {
+            return Err(LanderError::NetworkError(format!(
+                "Signature status response length {} did not match request length 1",
+                response.value.len()
+            )));
+        }
         let Some(status) = response.value.into_iter().next().flatten() else {
             return Err(LanderError::TxHashNotFound(format!(
                 "Transaction signature {signature} was not found"
@@ -440,6 +448,92 @@ impl AdaptsChain for SealevelAdapter {
         let status = self.get_tx_hash_status(hash).await?;
         info!(?hash, ?status, "got transaction hash status");
         Ok(status)
+    }
+
+    async fn tx_statuses(
+        &self,
+        txs: &[Transaction],
+    ) -> Vec<Result<TransactionStatus, LanderError>> {
+        let mut statuses_by_tx = (0..txs.len()).map(|_| Vec::new()).collect::<Vec<_>>();
+        let mut signatures = Vec::new();
+
+        for (tx_index, tx) in txs.iter().enumerate() {
+            for hash in &tx.tx_hashes {
+                match Signature::try_from(hash.as_ref()) {
+                    Ok(signature) => signatures.push((tx_index, signature)),
+                    Err(err) => statuses_by_tx[tx_index].push(Err(LanderError::TxSubmissionError(
+                        format!("Invalid signature: {err}"),
+                    ))),
+                }
+            }
+        }
+
+        for signature_batch in signatures.chunks(MAX_SIGNATURES_PER_STATUS_REQUEST) {
+            let batch_signatures = signature_batch
+                .iter()
+                .map(|(_, signature)| *signature)
+                .collect::<Vec<_>>();
+            match self
+                .client
+                .get_signature_statuses_with_history(&batch_signatures)
+                .await
+            {
+                Ok(response) => {
+                    if response.value.len() != signature_batch.len() {
+                        let error = format!(
+                            "Signature status response length {} did not match request length {}",
+                            response.value.len(),
+                            signature_batch.len()
+                        );
+                        for (tx_index, _) in signature_batch {
+                            statuses_by_tx[*tx_index]
+                                .push(Err(LanderError::NetworkError(error.clone())));
+                        }
+                        continue;
+                    }
+                    let mut response_statuses = response.value.into_iter();
+                    for (tx_index, signature) in signature_batch {
+                        let status = response_statuses
+                            .next()
+                            .flatten()
+                            .map(Self::classify_signature_status)
+                            .ok_or_else(|| {
+                                LanderError::TxHashNotFound(format!(
+                                    "Transaction signature {signature} was not found"
+                                ))
+                            });
+                        statuses_by_tx[*tx_index].push(status);
+                    }
+                }
+                Err(err) => {
+                    let message = err.to_string();
+                    for (tx_index, _) in signature_batch {
+                        statuses_by_tx[*tx_index]
+                            .push(Err(LanderError::NetworkError(message.clone())));
+                    }
+                }
+            }
+        }
+
+        statuses_by_tx
+            .into_iter()
+            .map(|mut statuses| {
+                if statuses.iter().all(Result::is_err) {
+                    if let Some(index) = statuses.iter().position(|status| {
+                        status.as_ref().is_err_and(|error| error.is_infra_error())
+                    }) {
+                        statuses.swap_remove(index)?;
+                    }
+                }
+                Ok(TransactionStatus::classify_tx_status_from_hash_statuses(
+                    statuses,
+                ))
+            })
+            .collect()
+    }
+
+    fn tx_status_batch_size(&self) -> usize {
+        STATUS_TX_BATCH_SIZE
     }
 
     async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {

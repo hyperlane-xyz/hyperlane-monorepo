@@ -395,6 +395,51 @@ async fn test_status_provider_error_keeps_tx_for_later_retry() {
 }
 
 #[tokio::test]
+async fn finalized_reprocessed_tx_is_rechecked_and_resubmitted() {
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_secs(1));
+    mock_adapter
+        .expect_tx_status()
+        .withf(|tx| tx.status == TransactionStatus::Finalized)
+        .once()
+        .returning(|_| Ok(TransactionStatus::PendingInclusion));
+    mock_adapter
+        .expect_tx_ready_for_resubmission()
+        .once()
+        .return_const(true);
+    mock_adapter.expect_simulate_tx().returning(|_| Ok(vec![]));
+    mock_adapter
+        .expect_estimate_tx()
+        .once()
+        .returning(|_| Ok(()));
+    mock_adapter.expect_submit().once().returning(|_| Ok(()));
+    mock_adapter
+        .expect_update_vm_specific_metrics()
+        .once()
+        .returning(|_, _| ());
+
+    let (state, pool) = reprocess_test_state(mock_adapter);
+    let tx = dummy_tx(Vec::new(), TransactionStatus::Finalized);
+    state.store_tx(&tx).await;
+    pool.lock().await.insert(tx.uuid.clone(), tx.clone());
+    let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(1);
+
+    InclusionStage::process_txs_step(&pool, &finality_stage_sender, &state, "test")
+        .await
+        .unwrap();
+
+    let reprocessed_tx = pool.lock().await.get(&tx.uuid).cloned().unwrap();
+    assert_eq!(reprocessed_tx.status, TransactionStatus::Mempool);
+    assert_eq!(
+        reprocessed_tx.submission_attempts,
+        tx.submission_attempts + 1
+    );
+    assert!(finality_stage_receiver.try_recv().is_err());
+}
+
+#[tokio::test]
 async fn test_status_provider_error_preserves_latest_persisted_status() {
     let calls = Arc::new(AtomicUsize::new(0));
     let calls_for_mock = calls.clone();

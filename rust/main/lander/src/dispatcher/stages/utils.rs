@@ -33,6 +33,65 @@ pub(super) fn sort_transactions_for_mutation(transactions: &mut [Transaction]) {
     });
 }
 
+#[derive(Clone, Copy)]
+pub(super) enum FinalizedStatusRead {
+    Query,
+    TrustPersisted,
+}
+
+pub(super) async fn read_transaction_status_batch(
+    state: &DispatcherState,
+    snapshot_txs: Vec<Transaction>,
+    finalized_status_read: FinalizedStatusRead,
+) -> Vec<(
+    Transaction,
+    Transaction,
+    Result<TransactionStatus, LanderError>,
+)> {
+    let mut checked_txs = snapshot_txs.clone();
+    let checked_at = chrono::Utc::now();
+    for tx in &mut checked_txs {
+        tx.last_status_check = Some(checked_at);
+    }
+    let mut query_txs = Vec::new();
+    let status_slots = checked_txs
+        .iter()
+        .map(|tx| {
+            if tx.status == TransactionStatus::Finalized
+                && matches!(finalized_status_read, FinalizedStatusRead::TrustPersisted)
+            {
+                Some(Ok(TransactionStatus::Finalized))
+            } else {
+                query_txs.push(tx.clone());
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    let queried_statuses = state.adapter.tx_statuses(&query_txs).await;
+    assert_eq!(
+        queried_statuses.len(),
+        query_txs.len(),
+        "adapter returned a mismatched transaction status count"
+    );
+    let mut queried_statuses = queried_statuses.into_iter();
+    let statuses = status_slots
+        .into_iter()
+        .map(|status| {
+            status.unwrap_or_else(|| {
+                queried_statuses
+                    .next()
+                    .expect("queried transaction status count was checked")
+            })
+        })
+        .collect::<Vec<_>>();
+    snapshot_txs
+        .into_iter()
+        .zip(checked_txs)
+        .zip(statuses)
+        .map(|((snapshot_tx, checked_tx), status)| (snapshot_tx, checked_tx, status))
+        .collect()
+}
+
 pub async fn call_until_success_or_nonretryable_error<F, T, Fut>(
     f: F,
     action: &str,
