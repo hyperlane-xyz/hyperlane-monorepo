@@ -469,7 +469,9 @@ impl<C: AleoClient> AleoProvider<C> {
             )
             .map_err(HyperlaneAleoError::SnarkVmError)?;
 
-        // Either use the proving service (with local fallback) or generate the proof locally
+        // Use local proving only when no delegated proving service is configured. A delegated
+        // prover failure is retried by the relayer; falling back here can saturate Tokio's
+        // blocking pool and destabilize unrelated chains.
         let start = Instant::now();
         let transaction = match self.proving_service {
             Some(ref client) => {
@@ -477,41 +479,26 @@ impl<C: AleoClient> AleoProvider<C> {
                     program_id,
                     function_name, "Starting delegated ZK proof generation"
                 );
-                match client
-                    .proving_request(authorization.clone(), fee.clone())
+                client
+                    .proving_request(authorization, fee)
                     .await
-                {
-                    Ok(tx) => Ok::<_, ChainCommunicationError>(tx),
-                    Err(e) => {
+                    .map_err(|error| {
                         warn!(
-                            error = %e,
-                            "Delegated proving failed, falling back to local proving"
+                            %error,
+                            "Delegated proving failed"
                         );
-                        debug!(
-                            program_id,
-                            function_name, "Starting local ZK proof generation (fallback)"
-                        );
-                        Ok(vm
-                            .execute_authorization(
-                                authorization,
-                                Some(fee),
-                                Some(&self.client),
-                                &mut rng,
-                            )
-                            .map_err(HyperlaneAleoError::from)?)
-                    }
-                }
+                        error
+                    })?
             }
             None => {
                 debug!(
                     program_id,
                     function_name, "Starting local ZK proof generation"
                 );
-                Ok(vm
-                    .execute_authorization(authorization, Some(fee), Some(&self.client), &mut rng)
-                    .map_err(HyperlaneAleoError::from)?)
+                vm.execute_authorization(authorization, Some(fee), Some(&self.client), &mut rng)
+                    .map_err(HyperlaneAleoError::from)?
             }
-        }?;
+        };
 
         let elapsed = start.elapsed();
         debug!(

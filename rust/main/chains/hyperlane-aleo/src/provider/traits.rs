@@ -368,8 +368,8 @@ impl<Client: HttpClient, N: Network> QueryTrait<N> for RpcClient<Client> {
             .join(",");
         Ok(self
             .request_blocking(
-                &format!("statePaths?commitments={commitments_string}"),
-                None,
+                "statePaths",
+                serde_json::json!({ "commitments": commitments_string }),
             )
             .unwrap_or_default())
     }
@@ -386,8 +386,8 @@ impl<Client: HttpClient, N: Network> QueryTrait<N> for RpcClient<Client> {
             .join(",");
         Ok(self
             .request(
-                &format!("statePaths?commitments={commitments_string}"),
-                None,
+                "statePaths",
+                serde_json::json!({ "commitments": commitments_string }),
             )
             .await
             .unwrap_or_default())
