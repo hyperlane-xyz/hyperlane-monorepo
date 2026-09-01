@@ -39,6 +39,7 @@ void it('serves current usage and limits from /metrics', async () => {
       explorerPendingMessages: 2_000,
       messageConnections: 400,
       messageConnectionsPerIp: 5,
+      notificationEvents: 10_000,
       pendingEvents: 5_000,
       socketBufferedBytes: 1_024,
       totalPendingBytes: 4_096,
@@ -84,6 +85,59 @@ void it('serves current usage and limits from /metrics', async () => {
     output,
     /hyperlane_scraper_proxy_websocket_explorer_pending_bytes 1024/,
   );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_notification_queue_limit\{route="agent"\} 10000/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_send_failures_total\{reason="buffer_limit"\} 0/,
+  );
+  for (const reason of [
+    'notification_queue_limit',
+    'queue_limit',
+    'send_error',
+  ]) {
+    assert.match(
+      output,
+      new RegExp(`websocket_send_failures_total\\{reason="${reason}"\\} 0`),
+    );
+  }
+  for (const outcome of [
+    'aborted',
+    'capacity_rejected',
+    'failure',
+    'success',
+  ]) {
+    assert.match(
+      output,
+      new RegExp(`websocket_catch_ups_total\\{outcome="${outcome}"\\} 0`),
+    );
+  }
+  for (const route of ['agent', 'messages']) {
+    assert.match(
+      output,
+      new RegExp(
+        `websocket_notification_queue_overflows_total\\{route="${route}"\\} 0`,
+      ),
+    );
+    for (const reason of ['connection_limit', 'listener_unavailable']) {
+      assert.match(
+        output,
+        new RegExp(
+          `websocket_connection_rejections_total\\{(?=[^}]*route="${route}")(?=[^}]*reason="${reason}")[^}]*\\} 0`,
+        ),
+      );
+    }
+  }
+  for (const reason of ['invalid_client_ip', 'per_ip_limit']) {
+    assert.match(
+      output,
+      new RegExp(
+        `websocket_connection_rejections_total\\{(?=[^}]*route="messages")(?=[^}]*reason="${reason}")[^}]*\\} 0`,
+      ),
+    );
+  }
   assert.match(
     output,
     /hyperlane_scraper_proxy_database_pool_connections\{pool="main",state="active"\} 2/,

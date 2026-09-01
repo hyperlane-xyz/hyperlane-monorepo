@@ -30,6 +30,7 @@ export type WebSocketMetricsSnapshot = {
     explorerPendingMessages: number;
     messageConnections: number;
     messageConnectionsPerIp: number;
+    notificationEvents: number;
     pendingEvents: number;
     socketBufferedBytes: number;
     totalPendingBytes: number;
@@ -126,6 +127,31 @@ export const websocketSendFailures = new Counter({
   name: `${PREFIX}websocket_send_failures_total`,
   registers: [metricsRegistry],
 });
+
+export const websocketNotificationQueueOverflows = new Counter({
+  help: 'PostgreSQL notification queue overflows by isolated route.',
+  labelNames: ['route'] as const,
+  name: `${PREFIX}websocket_notification_queue_overflows_total`,
+  registers: [metricsRegistry],
+});
+
+for (const outcome of ['aborted', 'capacity_rejected', 'failure', 'success'])
+  websocketCatchUps.inc({ outcome }, 0);
+for (const reason of [
+  'buffer_limit',
+  'notification_queue_limit',
+  'queue_limit',
+  'send_error',
+])
+  websocketSendFailures.inc({ reason }, 0);
+for (const route of ['agent', 'messages']) {
+  for (const reason of ['connection_limit', 'listener_unavailable'])
+    websocketConnectionRejections.inc({ reason, route }, 0);
+}
+for (const reason of ['invalid_client_ip', 'per_ip_limit'])
+  websocketConnectionRejections.inc({ reason, route: 'messages' }, 0);
+for (const route of ['agent', 'messages'])
+  websocketNotificationQueueOverflows.inc({ route }, 0);
 
 let websocketMetricsProvider: (() => WebSocketMetricsSnapshot) | undefined;
 let databaseMetricsProvider: (() => DatabaseMetricsSnapshot) | undefined;
@@ -325,6 +351,15 @@ snapshotGauge(
   (gauge, snapshot) => {
     gauge.set({ route: 'agent' }, snapshot.notificationQueue.agent);
     gauge.set({ route: 'messages' }, snapshot.notificationQueue.messages);
+  },
+  ['route'],
+);
+snapshotGauge(
+  'websocket_notification_queue_limit',
+  'Maximum queued PostgreSQL notifications before route clients are closed.',
+  (gauge, snapshot) => {
+    gauge.set({ route: 'agent' }, snapshot.limits.notificationEvents);
+    gauge.set({ route: 'messages' }, snapshot.limits.notificationEvents);
   },
   ['route'],
 );

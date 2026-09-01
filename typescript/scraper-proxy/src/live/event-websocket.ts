@@ -14,6 +14,7 @@ import {
   websocketClientMessageRejections,
   websocketConnectionRejections,
   websocketConnections,
+  websocketNotificationQueueOverflows,
   websocketSendFailures,
 } from '../metrics.js';
 import { quoteIdentifier as q, tables } from '../scraperdb/tables.js';
@@ -51,6 +52,7 @@ const MAX_EXPLORER_PENDING_BYTES = 16_777_216;
 const MAX_EXPLORER_PENDING_MESSAGES = 2_000;
 const MAX_CLIENT_MESSAGES = 30;
 const MAX_PENDING_EVENTS = 5_000;
+const MAX_PENDING_NOTIFICATIONS = 10_000;
 
 type Row = Record<string, unknown>;
 type NotifiedRow = Row & { notification_id: number | string };
@@ -303,6 +305,7 @@ export class EventWebSocketServer {
         explorerPendingMessages: MAX_EXPLORER_PENDING_MESSAGES,
         messageConnections: this.limits.maxExplorerClients,
         messageConnectionsPerIp: MAX_EXPLORER_CLIENTS_PER_IP,
+        notificationEvents: MAX_PENDING_NOTIFICATIONS,
         pendingEvents: MAX_PENDING_EVENTS,
         socketBufferedBytes: this.limits.maxBufferedBytes,
         totalPendingBytes: this.limits.maxTotalBufferedBytes,
@@ -786,17 +789,36 @@ export class EventWebSocketServer {
     try {
       if (channel === EXPLORER_CHANNEL) {
         if (!this.explorerClients.size) return;
-        this.explorerNotifications.add(
-          parseExplorerNotification(payload).messageId,
-        );
+        const messageId = parseExplorerNotification(payload).messageId;
+        if (
+          !this.explorerNotifications.has(messageId) &&
+          this.explorerNotifications.size >= MAX_PENDING_NOTIFICATIONS
+        ) {
+          websocketSendFailures.inc({ reason: 'notification_queue_limit' });
+          websocketNotificationQueueOverflows.inc({ route: 'messages' });
+          this.failExplorerStream(
+            new Error('Explorer notification queue limit exceeded'),
+          );
+          return;
+        }
+        this.explorerNotifications.add(messageId);
         this.scheduleExplorerDrain();
       } else {
         const notification = parseEventNotification(payload);
         if (!this.hasSubscriber(notification)) return;
-        this.notifications.set(
-          `${notification.eventType}:${notification.id}`,
-          notification,
-        );
+        const key = `${notification.eventType}:${notification.id}`;
+        if (
+          !this.notifications.has(key) &&
+          this.notifications.size >= MAX_PENDING_NOTIFICATIONS
+        ) {
+          websocketSendFailures.inc({ reason: 'notification_queue_limit' });
+          websocketNotificationQueueOverflows.inc({ route: 'agent' });
+          this.failAgentStream(
+            new Error('Agent notification queue limit exceeded'),
+          );
+          return;
+        }
+        this.notifications.set(key, notification);
         this.scheduleAgentDrain();
       }
     } catch (error) {
