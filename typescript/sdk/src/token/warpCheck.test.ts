@@ -4,7 +4,7 @@ import sinon from 'sinon';
 import { zeroAddress } from 'viem';
 
 import { CrossCollateralRouter__factory } from '@hyperlane-xyz/core';
-import { ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
+import { ProtocolType, addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import {
   test1,
@@ -1191,13 +1191,20 @@ describe('buildWormholeRemoteRouterDiff', () => {
     config: WormholeMeshConfig,
   ): Record<string, DerivedWormholeHookIsmConfig> {
     return Object.fromEntries(
-      Object.entries(config).map(([chain, chainConfig]) => [
-        chain,
-        {
-          ...chainConfig,
-          address: chain === CHAIN_A ? ROUTER_A : ROUTER_B,
-        },
-      ]),
+      Object.entries(config).map(([chain, chainConfig]) => {
+        assert(
+          chainConfig.wormholeChainId !== undefined,
+          `Missing Wormhole chain ID for ${chain}`,
+        );
+        return [
+          chain,
+          {
+            ...chainConfig,
+            wormholeChainId: chainConfig.wormholeChainId,
+            address: chain === CHAIN_A ? ROUTER_A : ROUTER_B,
+          },
+        ];
+      }),
     );
   }
 

@@ -175,8 +175,12 @@ export const WormholeMeshSchema = z.record(ZChainName, WormholeHookIsmSchema);
 
 export type WormholeMeshConfig = ChainMap<WormholeHookIsmConfig>;
 
-export type DerivedWormholeHookIsmConfig = WormholeHookIsmConfig & {
+export type DerivedWormholeHookIsmConfig = Omit<
+  WormholeHookIsmConfig,
+  'wormholeChainId'
+> & {
   address: Address;
+  wormholeChainId: number;
 };
 
 export type WormholeHookIsmAddresses = {
