@@ -353,6 +353,7 @@ impl InclusionStage {
                     "Error reading transaction status. Retrying later"
                 );
                 Self::update_inclusion_stage_metric(state, &state.domain, &err);
+                state.store_tx(&tx).await;
                 return Ok(());
             }
             Err(err) => return Err(err),

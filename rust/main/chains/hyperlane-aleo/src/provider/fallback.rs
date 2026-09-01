@@ -78,7 +78,7 @@ impl<C: AleoClient> HttpClient for FallbackHttpClient<C> {
     ) -> ChainResult<Option<T>> {
         let query = query.into();
         self.fallback
-            .call(|inner| {
+            .call_optional(|inner| {
                 let path = path.to_string();
                 let query = query.clone();
                 let future = async move { inner.request_optional(&path, query).await };

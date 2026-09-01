@@ -320,6 +320,7 @@ async fn test_status_provider_error_keeps_tx_for_later_retry() {
 
     let (state, pool) = reprocess_test_state(mock_adapter);
     let tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+    state.store_tx(&tx).await;
     pool.lock().await.insert(tx.uuid.clone(), tx.clone());
     let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(1);
 
@@ -329,6 +330,13 @@ async fn test_status_provider_error_keeps_tx_for_later_retry() {
 
     let retained_tx = pool.lock().await.get(&tx.uuid).cloned().unwrap();
     assert!(retained_tx.last_status_check.is_some());
+    let persisted_tx = state
+        .tx_db
+        .retrieve_transaction_by_uuid(&tx.uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(persisted_tx.last_status_check.is_some());
     assert!(finality_stage_receiver.try_recv().is_err());
 }
 
