@@ -362,6 +362,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn standard_client_get_keeps_query_out_of_path() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let (request_tx, request_rx) = mpsc::channel();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buffer = [0; 4096];
+            let length = stream.read(&mut buffer).unwrap();
+            let request = String::from_utf8_lossy(&buffer[..length]);
+            request_tx
+                .send(request.lines().next().unwrap().to_owned())
+                .unwrap();
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n[]",
+                )
+                .unwrap();
+        });
+        let client =
+            BaseHttpClient::new(Url::parse(&format!("http://{address}/v2")).unwrap(), 0).unwrap();
+
+        let response: Vec<Value> = client
+            .request("statePaths", json!({ "commitments": "field1,field2" }))
+            .await
+            .unwrap();
+
+        assert!(response.is_empty());
+        assert_eq!(
+            request_rx.recv().unwrap(),
+            "GET /v2/mainnet/statePaths?commitments=field1%2Cfield2 HTTP/1.1"
+        );
+        server.join().unwrap();
+    }
+
+    #[tokio::test]
     async fn standard_client_post_encodes_bracketed_mapping_keys() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
