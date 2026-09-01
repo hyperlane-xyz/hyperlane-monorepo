@@ -4,8 +4,9 @@ pub mod merkle_tree_insertions;
 pub use eigen_node::EigenNodeApi;
 
 use std::{
+    collections::BTreeMap,
     sync::{Arc, Mutex, MutexGuard},
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use axum::{http::StatusCode, response::IntoResponse, routing::get, Json, Router};
@@ -25,9 +26,14 @@ pub enum ValidatorReadinessState {
 
 #[derive(Debug)]
 struct ValidatorReadinessInner {
-    state: ValidatorReadinessState,
+    healthy_state: ValidatorReadinessState,
+    blockers: BTreeMap<String, ValidatorReadinessFailure>,
+}
+
+#[derive(Debug)]
+struct ValidatorReadinessFailure {
     consecutive_failures: u64,
-    first_failure_at: Option<Instant>,
+    first_failure_at: Instant,
 }
 
 #[derive(Debug, Serialize)]
@@ -36,6 +42,7 @@ pub struct ValidatorReadinessSnapshot {
     pub(crate) consecutive_failures: u64,
     pub(crate) failure_duration_ms: u128,
     pub(crate) signing_blocked: bool,
+    pub(crate) blocked_operations: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -47,9 +54,8 @@ impl Default for ValidatorReadiness {
     fn default() -> Self {
         Self {
             inner: Mutex::new(ValidatorReadinessInner {
-                state: ValidatorReadinessState::Starting,
-                consecutive_failures: 0,
-                first_failure_at: None,
+                healthy_state: ValidatorReadinessState::Starting,
+                blockers: BTreeMap::new(),
             }),
         }
     }
@@ -64,45 +70,63 @@ impl ValidatorReadiness {
 
     pub fn mark_waiting_for_first_message(&self) {
         let mut inner = self.lock();
-        inner.state = ValidatorReadinessState::WaitingForFirstMessage;
-        inner.consecutive_failures = 0;
-        inner.first_failure_at = None;
+        inner.healthy_state = ValidatorReadinessState::WaitingForFirstMessage;
     }
 
-    pub fn mark_ready(&self) {
+    pub fn mark_operation_ready(&self, operation: &str) {
         let mut inner = self.lock();
-        inner.state = ValidatorReadinessState::Ready;
-        inner.consecutive_failures = 0;
-        inner.first_failure_at = None;
+        inner.healthy_state = ValidatorReadinessState::Ready;
+        inner.blockers.remove(operation);
     }
 
-    pub fn mark_signing_blocked(&self) -> ValidatorReadinessSnapshot {
+    pub fn mark_operation_blocked(&self, operation: &str) -> ValidatorReadinessSnapshot {
         let now = Instant::now();
         let mut inner = self.lock();
-        inner.state = ValidatorReadinessState::SigningBlocked;
-        inner.consecutive_failures = inner.consecutive_failures.saturating_add(1);
-        let first_failure_at = *inner.first_failure_at.get_or_insert(now);
-        Self::snapshot_from_inner(&inner, now.saturating_duration_since(first_failure_at))
+        let failure =
+            inner
+                .blockers
+                .entry(operation.to_owned())
+                .or_insert(ValidatorReadinessFailure {
+                    consecutive_failures: 0,
+                    first_failure_at: now,
+                });
+        failure.consecutive_failures = failure.consecutive_failures.saturating_add(1);
+        Self::snapshot_from_inner(&inner, now)
     }
 
     pub fn snapshot(&self) -> ValidatorReadinessSnapshot {
         let inner = self.lock();
-        let failure_duration = inner
-            .first_failure_at
-            .map(|started_at| Instant::now().saturating_duration_since(started_at))
-            .unwrap_or(Duration::ZERO);
-        Self::snapshot_from_inner(&inner, failure_duration)
+        Self::snapshot_from_inner(&inner, Instant::now())
     }
 
     fn snapshot_from_inner(
         inner: &ValidatorReadinessInner,
-        failure_duration: Duration,
+        now: Instant,
     ) -> ValidatorReadinessSnapshot {
+        let state = if inner.blockers.is_empty() {
+            inner.healthy_state
+        } else {
+            ValidatorReadinessState::SigningBlocked
+        };
+        let consecutive_failures = inner
+            .blockers
+            .values()
+            .map(|failure| failure.consecutive_failures)
+            .max()
+            .unwrap_or(0);
+        let failure_duration_ms = inner
+            .blockers
+            .values()
+            .map(|failure| now.saturating_duration_since(failure.first_failure_at))
+            .max()
+            .map(|duration| duration.as_millis())
+            .unwrap_or(0);
         ValidatorReadinessSnapshot {
-            state: inner.state,
-            consecutive_failures: inner.consecutive_failures,
-            failure_duration_ms: failure_duration.as_millis(),
-            signing_blocked: inner.state == ValidatorReadinessState::SigningBlocked,
+            state,
+            consecutive_failures,
+            failure_duration_ms,
+            signing_blocked: state == ValidatorReadinessState::SigningBlocked,
+            blocked_operations: inner.blockers.keys().cloned().collect(),
         }
     }
 }
@@ -183,7 +207,7 @@ mod tests {
     #[tokio::test]
     async fn readiness_is_unhealthy_while_checkpoint_signing_is_blocked() {
         let readiness = Arc::new(ValidatorReadiness::default());
-        readiness.mark_signing_blocked();
+        readiness.mark_operation_blocked("merkle_tree_hook.tree");
 
         assert_eq!(
             readiness_status(test_router(readiness)).await,
@@ -195,15 +219,35 @@ mod tests {
     fn readiness_tracks_consecutive_failures_and_resets_after_recovery() {
         let readiness = ValidatorReadiness::default();
 
-        readiness.mark_signing_blocked();
-        let blocked = readiness.mark_signing_blocked();
+        readiness.mark_operation_blocked("merkle_tree_hook.tree");
+        let blocked = readiness.mark_operation_blocked("merkle_tree_hook.tree");
         assert_eq!(blocked.consecutive_failures, 2);
         assert!(blocked.signing_blocked);
 
-        readiness.mark_ready();
+        readiness.mark_operation_ready("merkle_tree_hook.tree");
         let recovered = readiness.snapshot();
         assert_eq!(recovered.consecutive_failures, 0);
         assert_eq!(recovered.failure_duration_ms, 0);
         assert!(!recovered.signing_blocked);
+    }
+
+    #[test]
+    fn readiness_does_not_clear_an_unrelated_blocker() {
+        let readiness = ValidatorReadiness::default();
+
+        readiness.mark_operation_blocked("merkle_tree_hook.tree");
+        readiness.mark_operation_blocked("base_merkle_tree_hook.count");
+        readiness.mark_waiting_for_first_message();
+        readiness.mark_operation_ready("base_merkle_tree_hook.count");
+
+        let snapshot = readiness.snapshot();
+        assert_eq!(snapshot.state, ValidatorReadinessState::SigningBlocked);
+        assert_eq!(
+            snapshot.blocked_operations,
+            vec!["merkle_tree_hook.tree".to_owned()]
+        );
+
+        readiness.mark_operation_ready("merkle_tree_hook.tree");
+        assert_eq!(readiness.snapshot().state, ValidatorReadinessState::Ready);
     }
 }

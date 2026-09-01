@@ -185,20 +185,34 @@ const MIN_RECOMMENDED_QUORUM_RPCS: usize = 3;
 struct ReadinessMerkleTreeHook {
     inner: Arc<dyn MerkleTreeHook>,
     readiness: Arc<ValidatorReadiness>,
+    source: &'static str,
 }
 
 impl ReadinessMerkleTreeHook {
-    fn new(inner: Arc<dyn MerkleTreeHook>, readiness: Arc<ValidatorReadiness>) -> Self {
-        Self { inner, readiness }
+    fn new(
+        inner: Arc<dyn MerkleTreeHook>,
+        readiness: Arc<ValidatorReadiness>,
+        source: &'static str,
+    ) -> Self {
+        Self {
+            inner,
+            readiness,
+            source,
+        }
+    }
+
+    fn operation(&self, operation: &str) -> String {
+        format!("{}.{}", self.source, operation)
     }
 
     fn record_checkpoint_read<T>(&self, operation: &str, result: &ChainResult<T>) {
+        let operation = self.operation(operation);
         match result {
-            Ok(_) => self.readiness.mark_ready(),
+            Ok(_) => self.readiness.mark_operation_ready(&operation),
             Err(_) => {
-                let snapshot = self.readiness.mark_signing_blocked();
+                let snapshot = self.readiness.mark_operation_blocked(&operation);
                 warn!(
-                    operation,
+                    operation = operation.as_str(),
                     consecutive_failures = snapshot.consecutive_failures,
                     failure_duration_ms = snapshot.failure_duration_ms,
                     signing_blocked = snapshot.signing_blocked,
@@ -209,13 +223,13 @@ impl ReadinessMerkleTreeHook {
     }
 
     fn record_count(&self, result: &ChainResult<u32>) {
+        let operation = self.operation("count");
         match result {
-            Ok(0) => self.readiness.mark_waiting_for_first_message(),
-            Ok(_) => {}
+            Ok(_) => self.readiness.mark_operation_ready(&operation),
             Err(_) => {
-                let snapshot = self.readiness.mark_signing_blocked();
+                let snapshot = self.readiness.mark_operation_blocked(&operation);
                 warn!(
-                    operation = "count",
+                    operation = operation.as_str(),
                     consecutive_failures = snapshot.consecutive_failures,
                     failure_duration_ms = snapshot.failure_duration_ms,
                     signing_blocked = snapshot.signing_blocked,
@@ -290,6 +304,7 @@ async fn wait_for_first_message(
                 error!("Error getting merkle tree count");
             }
             Ok(0) => {
+                readiness.mark_waiting_for_first_message();
                 info!("Waiting for first message in merkle tree hook");
             }
             Ok(_) => match merkle_tree_hook.tree(reorg_period).await {
@@ -795,7 +810,7 @@ impl BaseAgent for Validator {
         let reorg_reporter = Arc::new(reorg_reporter_with_storage_writer) as Arc<dyn ReorgReporter>;
 
         let origin_chain_conf = core.settings.chain_setup(&settings.origin_chain)?.clone();
-        let additional_quorum_rpc_urls: Vec<Url> = Self::dedupe_additional_quorum_rpc_urls(
+        let additional_quorum_rpc_urls: Vec<Url> = Self::dedupe_rpc_urls(
             settings
                 .additional_quorum_rpcs
                 .iter()
@@ -808,57 +823,69 @@ impl BaseAgent for Validator {
                         .map_err(|err| eyre!("Invalid additionalQuorumRpcUrls[{i}] entry: {err}"))
                 })
                 .collect::<Result<_>>()?,
+            "additionalQuorumRpcUrls",
         );
 
         let mailbox = origin_chain_conf.build_mailbox(&metrics).await?;
 
-        let base_merkle_tree_hook: Arc<dyn MerkleTreeHook> = settings
+        let raw_base_merkle_tree_hook: Arc<dyn MerkleTreeHook> = settings
             .build_merkle_tree_hook(&settings.origin_chain, &metrics)
             .await?
             .into();
 
-        let merkle_tree_hook: Arc<dyn MerkleTreeHook> = if Self::validator_uses_split_quorum_hook(
-            &origin_chain_conf,
-            &additional_quorum_rpc_urls,
-        ) {
-            // `rpcUrls` votes alongside `additionalQuorumRpcUrls` in the same 2/3 quorum
-            // group (see `ValidatorMultiRpcQuorumMerkleTreeHook`), so `additionalQuorumRpcUrls`
-            // only needs to add public endpoints on top of it. Read the URLs directly from
-            // `origin_chain_conf.connection` rather than `settings.rpcs`, which also
-            // comingles `grpcUrls`/`walletUrls`/`walletSolidityUrls` (non-Ethereum chains).
-            let primary_rpc_urls: Vec<Url> = Self::primary_rpc_urls(&origin_chain_conf);
-            let additional_quorum_rpc_urls: Vec<Url> =
-                Self::remove_urls_already_in_primary(&primary_rpc_urls, additional_quorum_rpc_urls);
-            let combined_urls: Vec<Url> = primary_rpc_urls
-                .iter()
-                .chain(additional_quorum_rpc_urls.iter())
-                .cloned()
-                .collect();
-            Self::warn_if_quorum_pool_undersized(&combined_urls);
-            Self::warn_if_duplicate_hosts(&combined_urls);
-            Self::build_validator_quorum_merkle_tree_hook(
-                base_merkle_tree_hook.clone(),
+        let raw_merkle_tree_hook: Arc<dyn MerkleTreeHook> =
+            if Self::validator_uses_split_quorum_hook(
                 &origin_chain_conf,
-                &primary_rpc_urls,
                 &additional_quorum_rpc_urls,
-                &metrics,
-            )
-            .await?
-            .into()
-        } else {
-            if !additional_quorum_rpc_urls.is_empty() {
-                warn!(
-                    origin_chain = %settings.origin_chain,
-                    "additionalQuorumRpcUrls is set but ignored: quorum verification is only supported for Ethereum chains"
+            ) {
+                // `rpcUrls` votes alongside `additionalQuorumRpcUrls` in the same 2/3 quorum
+                // group (see `ValidatorMultiRpcQuorumMerkleTreeHook`), so `additionalQuorumRpcUrls`
+                // only needs to add public endpoints on top of it. Read the URLs directly from
+                // `origin_chain_conf.connection` rather than `settings.rpcs`, which also
+                // comingles `grpcUrls`/`walletUrls`/`walletSolidityUrls` (non-Ethereum chains).
+                let primary_rpc_urls: Vec<Url> =
+                    Self::dedupe_rpc_urls(Self::primary_rpc_urls(&origin_chain_conf), "rpcUrls");
+                let additional_quorum_rpc_urls: Vec<Url> = Self::remove_urls_already_in_primary(
+                    &primary_rpc_urls,
+                    additional_quorum_rpc_urls,
                 );
-            }
-            base_merkle_tree_hook.clone()
-        };
+                let combined_urls: Vec<Url> = primary_rpc_urls
+                    .iter()
+                    .chain(additional_quorum_rpc_urls.iter())
+                    .cloned()
+                    .collect();
+                Self::warn_if_quorum_pool_undersized(&combined_urls);
+                Self::warn_if_duplicate_hosts(&combined_urls);
+                Self::build_validator_quorum_merkle_tree_hook(
+                    raw_base_merkle_tree_hook.clone(),
+                    &origin_chain_conf,
+                    &primary_rpc_urls,
+                    &additional_quorum_rpc_urls,
+                    &metrics,
+                )
+                .await?
+                .into()
+            } else {
+                if !additional_quorum_rpc_urls.is_empty() {
+                    warn!(
+                        origin_chain = %settings.origin_chain,
+                        "additionalQuorumRpcUrls is set but ignored: quorum verification is only supported for Ethereum chains"
+                    );
+                }
+                raw_base_merkle_tree_hook.clone()
+            };
         let readiness = Arc::new(ValidatorReadiness::default());
         let merkle_tree_hook: Arc<dyn MerkleTreeHook> = Arc::new(ReadinessMerkleTreeHook::new(
-            merkle_tree_hook,
+            raw_merkle_tree_hook,
             Arc::clone(&readiness),
+            "merkle_tree_hook",
         ));
+        let base_merkle_tree_hook: Arc<dyn MerkleTreeHook> =
+            Arc::new(ReadinessMerkleTreeHook::new(
+                raw_base_merkle_tree_hook,
+                Arc::clone(&readiness),
+                "base_merkle_tree_hook",
+            ));
 
         let validator_announce = settings
             .build_validator_announce(&settings.origin_chain, &metrics)
@@ -1023,7 +1050,7 @@ impl Validator {
     /// Removes exact duplicate URLs (order-preserving). A duplicated endpoint would
     /// otherwise count as two independent votes, undermining the quorum's independence
     /// assumption.
-    fn dedupe_additional_quorum_rpc_urls(urls: Vec<Url>) -> Vec<Url> {
+    fn dedupe_rpc_urls(urls: Vec<Url>, source: &'static str) -> Vec<Url> {
         let original_count = urls.len();
         let mut seen = HashSet::new();
         let deduped: Vec<Url> = urls
@@ -1032,9 +1059,10 @@ impl Validator {
             .collect();
         if deduped.len() < original_count {
             warn!(
+                source,
                 original_count,
                 deduped_count = deduped.len(),
-                "additionalQuorumRpcUrls contained duplicate entries; deduping to preserve vote independence"
+                "RPC configuration contained duplicate entries; deduping to preserve vote independence"
             );
         }
         deduped
@@ -1263,6 +1291,7 @@ impl Validator {
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
             self.max_sign_concurrency,
             self.reorg_reporter.clone(),
+            Arc::clone(&self.readiness),
         );
 
         // `wait_for_first_message` only returns a non-empty, quorum-verified tree.
@@ -1795,7 +1824,7 @@ mod tests {
     }
 
     #[test]
-    fn dedupe_additional_quorum_rpc_urls_removes_exact_duplicates_preserving_order() {
+    fn dedupe_rpc_urls_removes_exact_duplicates_preserving_order() {
         let urls = vec![
             Url::parse("http://rpc-a.example").unwrap(),
             Url::parse("http://rpc-b.example").unwrap(),
@@ -1803,7 +1832,7 @@ mod tests {
             Url::parse("http://rpc-c.example").unwrap(),
         ];
 
-        let deduped = Validator::dedupe_additional_quorum_rpc_urls(urls);
+        let deduped = Validator::dedupe_rpc_urls(urls, "rpcUrls");
 
         assert_eq!(
             deduped,
@@ -1816,13 +1845,13 @@ mod tests {
     }
 
     #[test]
-    fn dedupe_additional_quorum_rpc_urls_is_noop_without_duplicates() {
+    fn dedupe_rpc_urls_is_noop_without_duplicates() {
         let urls = vec![
             Url::parse("http://rpc-a.example").unwrap(),
             Url::parse("http://rpc-b.example").unwrap(),
         ];
 
-        let deduped = Validator::dedupe_additional_quorum_rpc_urls(urls.clone());
+        let deduped = Validator::dedupe_rpc_urls(urls.clone(), "additionalQuorumRpcUrls");
 
         assert_eq!(deduped, urls);
     }
@@ -2080,6 +2109,7 @@ mod tests {
         let readiness_hook: Arc<dyn MerkleTreeHook> = Arc::new(ReadinessMerkleTreeHook::new(
             Arc::new(hook),
             Arc::clone(&readiness),
+            "merkle_tree_hook",
         ));
         let task = tokio::spawn({
             let readiness = Arc::clone(&readiness);
@@ -2104,6 +2134,65 @@ mod tests {
         tokio::time::advance(Duration::from_secs(5)).await;
         let tree = task.await.expect("wait task should complete");
         assert_eq!(tree.count(), 1);
+        assert_eq!(
+            readiness.snapshot().state,
+            validator_server::ValidatorReadinessState::Ready
+        );
+    }
+
+    #[tokio::test]
+    async fn successful_quorum_read_does_not_hide_failed_base_read() {
+        let readiness = Arc::new(ValidatorReadiness::default());
+
+        let mut base_hook = MockMerkleTreeHook::new();
+        base_hook.expect_count().times(2).returning({
+            let calls = Arc::new(AtomicUsize::new(0));
+            move |_| {
+                if calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Err(ChainCommunicationError::from_other_str("base RPC down"))
+                } else {
+                    Ok(1)
+                }
+            }
+        });
+        let base_hook = ReadinessMerkleTreeHook::new(
+            Arc::new(base_hook),
+            Arc::clone(&readiness),
+            "base_merkle_tree_hook",
+        );
+
+        let mut quorum_hook = MockMerkleTreeHook::new();
+        quorum_hook.expect_tree().once().returning(|_| {
+            Ok(IncrementalMerkleAtBlock {
+                tree: Default::default(),
+                block_height: None,
+            })
+        });
+        let quorum_hook = ReadinessMerkleTreeHook::new(
+            Arc::new(quorum_hook),
+            Arc::clone(&readiness),
+            "merkle_tree_hook",
+        );
+
+        assert!(base_hook.count(&ReorgPeriod::None).await.is_err());
+        assert!(quorum_hook.tree(&ReorgPeriod::None).await.is_ok());
+        let blocked = readiness.snapshot();
+        assert_eq!(
+            blocked.state,
+            validator_server::ValidatorReadinessState::SigningBlocked
+        );
+        assert_eq!(
+            blocked.blocked_operations,
+            vec!["base_merkle_tree_hook.count".to_owned()]
+        );
+
+        assert_eq!(
+            base_hook
+                .count(&ReorgPeriod::None)
+                .await
+                .expect("base hook should recover"),
+            1
+        );
         assert_eq!(
             readiness.snapshot().state,
             validator_server::ValidatorReadinessState::Ready
@@ -2497,7 +2586,8 @@ mod tests {
                 ],
             });
         let readiness = Arc::new(ValidatorReadiness::default());
-        let hook = ReadinessMerkleTreeHook::new(quorum_hook, Arc::clone(&readiness));
+        let hook =
+            ReadinessMerkleTreeHook::new(quorum_hook, Arc::clone(&readiness), "merkle_tree_hook");
 
         let err = hook
             .tree(&ReorgPeriod::None)
