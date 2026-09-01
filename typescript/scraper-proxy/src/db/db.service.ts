@@ -8,7 +8,13 @@ import { formatError } from '@hyperlane-xyz/utils/errors';
 import pg from 'pg';
 
 import { config } from '../config.js';
-import type { DatabaseMetricsSnapshot } from '../metrics.js';
+import {
+  databaseQueries,
+  DatabaseQueryRole,
+  databaseQueryDuration,
+  databaseRows,
+  type DatabaseMetricsSnapshot,
+} from '../metrics.js';
 import { quoteIdentifier } from '../scraperdb/tables.js';
 
 const MIN_POOL_CLIENTS = 5;
@@ -93,14 +99,21 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
     text: string,
     values: unknown[] = [],
   ): Promise<T[]> {
-    return this.run(this.pool(), text, values);
+    return this.run(
+      this.pool(),
+      config.DATABASE_READ_REPLICA_URL
+        ? DatabaseQueryRole.GraphqlReplica
+        : DatabaseQueryRole.GraphqlPrimary,
+      text,
+      values,
+    );
   }
 
   queryLive<T extends pg.QueryResultRow>(
     text: string,
     values: unknown[] = [],
   ): Promise<T[]> {
-    return this.run(this.live(), text, values);
+    return this.run(this.live(), DatabaseQueryRole.LivePrimary, text, values);
   }
 
   async listen(
@@ -147,6 +160,9 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
     const replicaUrl = config.DATABASE_READ_REPLICA_URL;
     this.mainPool ??= this.createPool(
       replicaUrl ?? config.DATABASE_URL,
+      replicaUrl
+        ? DatabaseQueryRole.GraphqlReplica
+        : DatabaseQueryRole.GraphqlPrimary,
       MIN_POOL_CLIENTS,
       replicaUrl ? config.DATABASE_QUERY_TIMEOUT_MS : undefined,
     );
@@ -154,12 +170,16 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
   }
 
   private live(): pg.Pool {
-    this.livePool ??= this.createPool(config.DATABASE_URL);
+    this.livePool ??= this.createPool(
+      config.DATABASE_URL,
+      DatabaseQueryRole.LivePrimary,
+    );
     return this.livePool;
   }
 
   private createPool(
     connectionString: string,
+    role: DatabaseQueryRole,
     min?: number,
     connectionTimeoutMillis?: number,
   ): pg.Pool {
@@ -171,45 +191,59 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
       min,
     });
     pool.on('error', (error) =>
-      this.logger.error(`idle database connection failed: ${error.message}`),
+      this.logger.error(
+        `idle database connection failed role=${role}: ${error.message}`,
+      ),
     );
     return pool;
   }
 
   private async run<T extends pg.QueryResultRow>(
     pool: pg.Pool,
+    role: DatabaseQueryRole,
     text: string,
     values: unknown[],
   ): Promise<T[]> {
     const id = ++this.nextQueryId;
     const started = Date.now();
-    this.logger.debug(
-      `query id=${id} start sql=${text.replaceAll(/\s+/g, ' ').trim()} values=${json(values)}`,
-    );
     try {
       const result = await pool.query<T>(text, values);
       const duration = Date.now() - started;
-      this.record(duration, result.rowCount ?? 0);
-      this.logger.debug(
-        `query id=${id} completed ${duration}ms rows=${result.rowCount}`,
-      );
+      const rows = result.rowCount ?? 0;
+      this.record(role, duration, rows);
+      if (duration >= config.DATABASE_SLOW_QUERY_MS) {
+        this.logger.warn(
+          `slow query id=${id} role=${role} durationMs=${duration} rows=${rows} ${queryDetails(text, values)}`,
+        );
+      }
       return result.rows;
     } catch (error) {
       const duration = Date.now() - started;
-      this.record(duration, 0, true);
-      this.logger.debug(
-        `query id=${id} failed ${duration}ms error=${formatError(error)}`,
+      this.record(role, duration, 0, true);
+      this.logger.warn(
+        `query failed id=${id} role=${role} durationMs=${duration} error=${formatError(error)} ${queryDetails(text, values)}`,
       );
       throw error;
     }
   }
 
-  private record(duration: number, rows: number, failed = false): void {
+  private record(
+    role: DatabaseQueryRole,
+    duration: number,
+    rows: number,
+    failed = false,
+  ): void {
     this.stats.queries++;
     this.stats.rows += rows;
     this.stats.totalMs += duration;
     this.stats.maxMs = Math.max(this.stats.maxMs, duration);
     if (failed) this.stats.errors++;
+    databaseQueries.inc({ outcome: failed ? 'error' : 'success', role });
+    databaseQueryDuration.observe(
+      { outcome: failed ? 'error' : 'success', role },
+      duration / 1_000,
+    );
+    databaseRows.inc({ role }, rows);
   }
 
   private logStats(): void {
@@ -244,6 +278,10 @@ function newStats(): Stats {
 
 function json(value: unknown): string {
   return JSON.stringify(logValue(value));
+}
+
+function queryDetails(text: string, values: unknown[]): string {
+  return `sql=${text.replaceAll(/\s+/g, ' ').trim()} values=${json(values)}`;
 }
 
 function logValue(value: unknown): unknown {
