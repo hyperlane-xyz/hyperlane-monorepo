@@ -4,7 +4,7 @@ use tokio::{sync::Mutex, time::sleep};
 
 use crate::adapter::TxBuildingResult;
 use crate::dispatcher::metrics::DispatcherMetrics;
-use crate::dispatcher::{BuildingStageQueue, DispatcherState, PayloadDbLoader};
+use crate::dispatcher::{BuildingStageQueue, DispatcherState};
 use crate::tests::test_utils::{dummy_tx, tmp_dbs, MockAdapter};
 use crate::transaction::TransactionUuid;
 use crate::{
@@ -15,42 +15,60 @@ use crate::{
 use super::PayloadDb;
 
 #[tokio::test]
-async fn test_entrypoint_send_is_detected_by_loader() {
+async fn test_entrypoint_send_is_enqueued_directly() {
     let (payload_db, tx_db, _) = tmp_dbs();
-    let building_stage_queue = BuildingStageQueue::new();
     let domain = "dummy_domain".to_string();
-    let payload_db_loader = PayloadDbLoader::new(
-        payload_db.clone(),
-        building_stage_queue.clone(),
-        domain.clone(),
-    );
-    let mut payload_iterator = payload_db_loader.into_iterator().await;
-
     let metrics = DispatcherMetrics::dummy_instance();
     let adapter = Arc::new(MockAdapter::new());
     let state = DispatcherState::new(payload_db, tx_db, adapter, metrics.clone(), domain.clone());
+    let building_stage_queue = state.building_stage_queue.clone();
     let dispatcher_entrypoint = DispatcherEntrypoint {
         inner: state.clone(),
     };
 
-    let _payload_db_loader = tokio::spawn(async move {
-        payload_iterator
-            .load_from_db(metrics.clone())
-            .await
-            .expect("Payload loader crashed");
-    });
-
-    // Simulate writing to the database
     let payload = FullPayload::random();
     dispatcher_entrypoint.send_payload(&payload).await.unwrap();
 
-    // Check if the loader detects the new payload
-    sleep(Duration::from_millis(100)).await; // Wait for the loader to process the payload
-    let detected_payload_count = building_stage_queue.len().await;
-    assert_eq!(
-        detected_payload_count, 1,
-        "Loader did not detect the new payload"
+    assert_eq!(building_stage_queue.len().await, 1);
+}
+
+#[tokio::test]
+async fn test_entrypoint_send_waits_for_recovery() {
+    let (payload_db, tx_db, _) = tmp_dbs();
+    let metrics = DispatcherMetrics::dummy_instance();
+    let state = DispatcherState::new_recovery_pending(
+        payload_db.clone(),
+        tx_db,
+        Arc::new(MockAdapter::new()),
+        metrics,
+        "dummy_domain".to_string(),
     );
+    let building_stage_queue = state.building_stage_queue.clone();
+    let entrypoint = DispatcherEntrypoint {
+        inner: state.clone(),
+    };
+    let payload = FullPayload::random();
+    let payload_uuid = payload.uuid().clone();
+
+    let send_task = tokio::spawn(async move { entrypoint.send_payload(&payload).await });
+    tokio::task::yield_now().await;
+
+    assert!(payload_db
+        .retrieve_payload_by_uuid(&payload_uuid)
+        .await
+        .unwrap()
+        .is_none());
+    assert_eq!(building_stage_queue.len().await, 0);
+
+    state.mark_recovery_complete();
+    send_task.await.unwrap().unwrap();
+
+    assert!(payload_db
+        .retrieve_payload_by_uuid(&payload_uuid)
+        .await
+        .unwrap()
+        .is_some());
+    assert_eq!(building_stage_queue.len().await, 1);
 }
 
 #[tracing_test::traced_test]
@@ -64,7 +82,7 @@ async fn test_entrypoint_send_is_finalized_by_dispatcher() {
     let (entrypoint, dispatcher) = mock_entrypoint_and_dispatcher(adapter.clone()).await;
     let metrics = dispatcher.inner.metrics.clone();
 
-    let _payload_dispatcher = tokio::spawn(async move { dispatcher.spawn().await });
+    let _payload_dispatcher = dispatcher.spawn();
     entrypoint.send_payload(&payload).await.unwrap();
 
     // wait until the payload status is InTransaction(Finalized)
@@ -128,7 +146,7 @@ async fn test_entrypoint_send_fails_simulation_after_first_submission_but_finali
     let (entrypoint, dispatcher) = mock_entrypoint_and_dispatcher(adapter.clone()).await;
     let metrics = dispatcher.inner.metrics.clone();
 
-    let _payload_dispatcher = tokio::spawn(async move { dispatcher.spawn().await });
+    let _payload_dispatcher = dispatcher.spawn();
     entrypoint.send_payload(&payload).await.unwrap();
 
     // wait until the payload status is InTransaction(Finalized)
@@ -180,7 +198,7 @@ async fn test_entrypoint_send_fails_simulation_before_first_submission() {
     let (entrypoint, dispatcher) = mock_entrypoint_and_dispatcher(adapter.clone()).await;
     let metrics = dispatcher.inner.metrics.clone();
 
-    let _payload_dispatcher = tokio::spawn(async move { dispatcher.spawn().await });
+    let _payload_dispatcher = dispatcher.spawn();
     entrypoint.send_payload(&payload).await.unwrap();
 
     // wait until the payload status is InTransaction(Dropped(_))
@@ -236,7 +254,7 @@ async fn test_entrypoint_send_fails_estimation_after_first_submission() {
     let (entrypoint, dispatcher) = mock_entrypoint_and_dispatcher(adapter.clone()).await;
     let metrics = dispatcher.inner.metrics.clone();
 
-    let _payload_dispatcher = tokio::spawn(async move { dispatcher.spawn().await });
+    let _payload_dispatcher = dispatcher.spawn();
     entrypoint.send_payload(&payload).await.unwrap();
 
     // wait until the payload status is InTransaction(Dropped(_))
@@ -288,7 +306,7 @@ async fn test_entrypoint_send_fails_estimation_before_first_submission() {
     let (entrypoint, dispatcher) = mock_entrypoint_and_dispatcher(adapter.clone()).await;
     let metrics = dispatcher.inner.metrics.clone();
 
-    let _payload_dispatcher = tokio::spawn(async move { dispatcher.spawn().await });
+    let _payload_dispatcher = dispatcher.spawn();
     entrypoint.send_payload(&payload).await.unwrap();
 
     // wait until the payload status is InTransaction(Dropped(_))
@@ -329,28 +347,12 @@ async fn mock_entrypoint_and_dispatcher(
     let domain = "test_domain".to_string();
 
     let (payload_db, tx_db, _) = tmp_dbs();
-    let building_stage_queue = BuildingStageQueue::new();
-    let payload_db_loader = PayloadDbLoader::new(
-        payload_db.clone(),
-        building_stage_queue.clone(),
-        domain.clone(),
-    );
-    let mut payload_iterator = payload_db_loader.into_iterator().await;
-
     let metrics = DispatcherMetrics::dummy_instance();
 
     let state = DispatcherState::new(payload_db, tx_db, adapter, metrics.clone(), domain.clone());
     let dispatcher_entrypoint = DispatcherEntrypoint {
         inner: state.clone(),
     };
-
-    let metrics_to_move = metrics.clone();
-    let _payload_db_loader = tokio::spawn(async move {
-        payload_iterator
-            .load_from_db(metrics_to_move)
-            .await
-            .expect("Payload loader crashed");
-    });
 
     let dispatcher = Dispatcher {
         inner: state.clone(),

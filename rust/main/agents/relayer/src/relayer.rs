@@ -412,7 +412,7 @@ impl BaseAgent for Relayer {
                 .get(dest_domain)
                 .and_then(|d| d.dispatcher.clone());
             if let Some(dispatcher) = dispatcher {
-                tasks.push(dispatcher.spawn().await);
+                tasks.push(dispatcher.spawn());
             }
 
             let metrics_updater = match ChainSpecificMetricsUpdater::new(

@@ -369,7 +369,7 @@ async fn test_sealevel_payload_reaches_finalized_status() {
         lander::create_test_dispatcher(adapter, payload_db, tx_db, "sealevel".to_string()).await;
 
     // Spawn dispatcher
-    let _dispatcher_handle = tokio::spawn(async move { dispatcher.spawn().await.await });
+    let _dispatcher_handle = dispatcher.spawn();
 
     // Send payload
     entrypoint
@@ -429,7 +429,7 @@ async fn test_sealevel_versioned_tx_payload_reaches_finalized_status() {
         lander::create_test_dispatcher(adapter, payload_db, tx_db, "sealevel".to_string()).await;
 
     // Spawn dispatcher
-    let _dispatcher_handle = tokio::spawn(async move { dispatcher.spawn().await.await });
+    let _dispatcher_handle = dispatcher.spawn();
 
     // Send payload
     entrypoint
@@ -497,7 +497,7 @@ async fn test_sealevel_payload_simulation_failure_results_in_dropped() {
     let (entrypoint, dispatcher) =
         lander::create_test_dispatcher(adapter, payload_db, tx_db, "sealevel".to_string()).await;
 
-    let _dispatcher_handle = tokio::spawn(async move { dispatcher.spawn().await.await });
+    let _dispatcher_handle = dispatcher.spawn();
 
     // Send payload
     entrypoint
@@ -580,7 +580,7 @@ async fn test_sealevel_payload_estimation_failure_results_in_dropped() {
     let (entrypoint, dispatcher) =
         lander::create_test_dispatcher(adapter, payload_db, tx_db, "sealevel".to_string()).await;
 
-    let _dispatcher_handle = tokio::spawn(async move { dispatcher.spawn().await.await });
+    let _dispatcher_handle = dispatcher.spawn();
 
     // Send payload
     entrypoint
@@ -669,7 +669,7 @@ async fn test_sealevel_versioned_tx_estimation_failure_results_in_dropped() {
     let (entrypoint, dispatcher) =
         lander::create_test_dispatcher(adapter, payload_db, tx_db, "sealevel".to_string()).await;
 
-    let _dispatcher_handle = tokio::spawn(async move { dispatcher.spawn().await.await });
+    let _dispatcher_handle = dispatcher.spawn();
 
     // Send payload
     entrypoint

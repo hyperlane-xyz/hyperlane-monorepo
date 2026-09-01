@@ -41,7 +41,12 @@ impl DispatcherEntrypoint {
 #[async_trait]
 impl Entrypoint for DispatcherEntrypoint {
     async fn send_payload(&self, payload: &FullPayload) -> Result<(), LanderError> {
+        self.inner.wait_for_recovery().await;
         self.inner.payload_db.store_payload_by_uuid(payload).await?;
+        self.inner
+            .building_stage_queue
+            .push_back(payload.clone())
+            .await;
         info!(payload=?payload.details, "Sent payload to dispatcher");
         Ok(())
     }
@@ -133,6 +138,19 @@ pub mod tests {
             async fn retrieve_payload_uuid_by_index(&self, index: u32) -> DbResult<Option<PayloadUuid>>;
             async fn store_highest_payload_index(&self, index: u32) -> DbResult<()>;
             async fn retrieve_highest_payload_index(&self) -> DbResult<u32>;
+            async fn retrieve_pending_payloads(&self) -> DbResult<Vec<FullPayload>>;
+            async fn pending_payload_index_checkpoint(&self) -> DbResult<Option<u64>>;
+            async fn pending_payload_index_requires_reconciliation(
+                &self,
+                checkpoint: u64,
+            ) -> DbResult<bool>;
+            async fn mark_pending_payload_index_reconciled(&self) -> DbResult<()>;
+            async fn begin_pending_payload_index_reconciliation(&self) -> DbResult<()>;
+            async fn reconcile_pending_payloads(
+                &self,
+                first_index: u32,
+                last_index: u32,
+            ) -> DbResult<Vec<FullPayload>>;
             async fn store_payload_index_by_uuid(
                 &self,
                 index: u32,
