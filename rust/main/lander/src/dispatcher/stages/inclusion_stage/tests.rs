@@ -341,6 +341,58 @@ async fn test_status_provider_error_keeps_tx_for_later_retry() {
 }
 
 #[tokio::test]
+async fn test_status_provider_error_preserves_latest_persisted_status() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calls_for_mock = calls.clone();
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_secs(1));
+    mock_adapter
+        .expect_tx_status()
+        .times(2)
+        .returning(
+            move |_| match calls_for_mock.fetch_add(1, Ordering::SeqCst) {
+                0 => Ok(TransactionStatus::Mempool),
+                _ => Err(LanderError::ChainCommunicationError(
+                    hyperlane_core::ChainCommunicationError::from_other_str(
+                        "temporary RPC failure",
+                    ),
+                )),
+            },
+        );
+    mock_adapter
+        .expect_tx_ready_for_resubmission()
+        .once()
+        .return_const(false);
+
+    let (state, pool) = reprocess_test_state(mock_adapter);
+    let tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+    state.store_tx(&tx).await;
+    pool.lock().await.insert(tx.uuid.clone(), tx.clone());
+    let (finality_stage_sender, _finality_stage_receiver) = mpsc::channel(1);
+
+    InclusionStage::process_txs_step(&pool, &finality_stage_sender, &state, "test")
+        .await
+        .unwrap();
+    InclusionStage::process_txs_step(&pool, &finality_stage_sender, &state, "test")
+        .await
+        .unwrap();
+
+    let retained_tx = pool.lock().await.get(&tx.uuid).cloned().unwrap();
+    assert_eq!(retained_tx.status, TransactionStatus::Mempool);
+    assert!(retained_tx.last_status_check.is_some());
+    let persisted_tx = state
+        .tx_db
+        .retrieve_transaction_by_uuid(&tx.uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(persisted_tx.status, TransactionStatus::Mempool);
+    assert!(persisted_tx.last_status_check.is_some());
+}
+
+#[tokio::test]
 async fn test_failed_simulation() {
     const TXS_TO_PROCESS: usize = 3;
 
