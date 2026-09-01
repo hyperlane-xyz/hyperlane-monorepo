@@ -95,8 +95,6 @@ const StoredCallSchema = z.object({
   value: z.union([z.string(), z.number()]).optional(),
 });
 
-const CompiledPostCallsSchema = z.compile(PostCallsSchema);
-
 const commitmentReconciliationSelect = {
   ...commitmentMetadataSelect,
   calls: true,
@@ -485,7 +483,7 @@ export class CallCommitmentsService extends BaseService {
    * Returns parsed data or sends a 400 response and returns null.
    */
   private parseCommitmentBody(body: any, res: Response, logger: Logger) {
-    const result = CompiledPostCallsSchema.safeParse(body);
+    const result = PostCallsSchema.safeParse(body);
     if (!result.success) {
       const errors = z.treeifyError(result.error);
       logger.warn({ errors }, 'Invalid request body received');
