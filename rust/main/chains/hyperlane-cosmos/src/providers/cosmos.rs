@@ -318,15 +318,8 @@ impl<T: BuildableQueryClient> HyperlaneProvider for CosmosProvider<T> {
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
         let height = self.rpc().get_block_number().await?;
-        let response = self.rpc().get_block(height as u32).await?;
-        let hash = response.block.header.hash();
-        let block_info = BlockInfo {
-            hash: H256::from_slice(hash.as_bytes()),
-            timestamp: response.block.header.time.unix_timestamp() as u64,
-            number: height,
-        };
         Ok(Some(ChainInfo {
-            latest_block: block_info,
+            block_height: height,
             min_gas_price: None,
         }))
     }

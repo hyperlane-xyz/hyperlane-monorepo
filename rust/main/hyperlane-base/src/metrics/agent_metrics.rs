@@ -401,7 +401,7 @@ impl ChainSpecificMetricsUpdater {
             }
         };
 
-        let height = chain_metrics.latest_block.number as i64;
+        let height = chain_metrics.block_height as i64;
         trace!(chain, height, "Fetched block height for metrics");
         self.chain_metrics.set_block_height(chain, height);
 

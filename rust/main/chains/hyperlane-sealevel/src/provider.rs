@@ -856,9 +856,8 @@ impl HyperlaneProvider for SealevelProvider {
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
         let slot = self.rpc_client.get_slot_raw().await?;
-        let latest_block = self.block_info_by_height(slot).await?;
         let chain_info = ChainInfo {
-            latest_block,
+            block_height: slot,
             min_gas_price: None,
         };
         Ok(Some(chain_info))

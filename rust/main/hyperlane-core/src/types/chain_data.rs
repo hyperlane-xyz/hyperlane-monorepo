@@ -16,8 +16,8 @@ pub struct BlockInfo {
 /// Metrics about the chain.
 #[derive(Debug, Clone, Default, new)]
 pub struct ChainInfo {
-    /// Information about the latest block
-    pub latest_block: BlockInfo,
+    /// Height of the latest block
+    pub block_height: u64,
     /// The current gas price, in the lowest denomination (e.g. wei)
     /// Unless the chain implements an EIP-1559 style tx fee mechanism, this field will be `None`
     pub min_gas_price: Option<U256>,

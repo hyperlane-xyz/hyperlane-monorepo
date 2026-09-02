@@ -720,9 +720,8 @@ impl<C: AleoClient> HyperlaneProvider for AleoProvider<C> {
     /// Fetch metrics related to this chain
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
         let height = self.get_latest_height().await?;
-        let info = self.get_block_by_height(height as u64).await?;
         Ok(Some(ChainInfo {
-            latest_block: info,
+            block_height: height.into(),
             min_gas_price: None,
         }))
     }
