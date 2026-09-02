@@ -18,7 +18,7 @@ import { readYamlOrJson } from '../utils/files.js';
 import { type ForkConfigParser, loadForkManager } from './loadForkManager.js';
 
 /** Protocol-neutral per-chain fork-config envelope; slices are parsed per protocol. */
-export const ForkConfigByChainSchema = z.record(z.unknown());
+export const ForkConfigByChainSchema = z.record(z.string(), z.unknown());
 export type ForkConfigByChain = z.infer<typeof ForkConfigByChainSchema>;
 
 export async function runForkCommand({

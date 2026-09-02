@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import 'zod/compile';
+
 import { Wallet } from 'ethers';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';

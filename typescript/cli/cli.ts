@@ -1,4 +1,6 @@
 #! /usr/bin/env node
+import 'zod/compile';
+
 import chalk from 'chalk';
 import yargs from 'yargs';
 

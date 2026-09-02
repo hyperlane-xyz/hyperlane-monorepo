@@ -1,5 +1,7 @@
 # @hyperlane-xyz/starknet-core
 
+## 43.0.0
+
 ## 42.0.0
 
 ## 41.3.1

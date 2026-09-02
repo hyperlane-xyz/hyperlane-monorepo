@@ -8,7 +8,7 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneMessage, ModuleType, ReorgPeriod, TxOutcome,
 };
 use starknet::accounts::ExecutionV3;
-use starknet::core::types::ReceiptBlock;
+use starknet::core::types::{BlockId, BlockTag, ReceiptBlock};
 use starknet::{
     accounts::SingleOwnerAccount,
     core::{
@@ -52,7 +52,7 @@ pub async fn get_transaction_receipt(
                     .await
                     .map_err(HyperlaneStarknetError::from)?;
 
-                if tx.block == ReceiptBlock::Pending {
+                if matches!(tx.block, ReceiptBlock::PreConfirmed { .. }) {
                     return Err(HyperlaneStarknetError::PendingBlock.into());
                 }
 
@@ -91,13 +91,17 @@ pub async fn build_single_owner_account(
         starknet::accounts::ExecutionEncoding::New
     };
 
-    Ok(SingleOwnerAccount::new(
+    let mut account = SingleOwnerAccount::new(
         provider.clone(),
         signer.local_wallet(),
         signer.address,
         chain_id,
         execution_encoding,
-    ))
+    );
+    // Query nonce/fee-estimation against the latest confirmed block. starknet-rs
+    // defaults to the pre-confirmed tag, which older JSON-RPC nodes reject.
+    account.set_block_id(BlockId::Tag(BlockTag::Latest));
+    Ok(account)
 }
 
 /// Converts a starknet module type to a hyperlane module type.

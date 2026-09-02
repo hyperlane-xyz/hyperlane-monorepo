@@ -114,6 +114,7 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
         let storage_locations_res = self
             .contract
             .get_announced_storage_locations(&validators_calldata)
+            .block_id(BlockId::Tag(BlockTag::Latest))
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;

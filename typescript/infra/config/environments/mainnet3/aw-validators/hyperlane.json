@@ -11,10 +11,10 @@
   "apechain": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
-  "appchain": {
+  "arbitrum": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
-  "arbitrum": {
+  "arc": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "avalanche": {
@@ -68,9 +68,6 @@
   "fluent": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
-  "flowmainnet": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
   "fraxtal": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
@@ -84,9 +81,6 @@
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "igra": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
-  "immutablezkevmmainnet": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "ink": {
@@ -143,7 +137,7 @@
   "monad": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
-  "nesa": {
+  "nesachain": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "nexus": {
@@ -201,9 +195,6 @@
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "superseed": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
-  "tac": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "tea": {

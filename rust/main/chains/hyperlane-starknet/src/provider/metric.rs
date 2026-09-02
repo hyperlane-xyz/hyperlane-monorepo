@@ -90,8 +90,8 @@ impl JsonRpcTransport for MetricProvider {
         params: P,
     ) -> Result<JsonRpcResponse<R>, Self::Error>
     where
-        P: Serialize + Send,
-        R: DeserializeOwned,
+        P: Serialize + Send + Sync,
+        R: DeserializeOwned + Send,
     {
         let start = Instant::now();
         let params_json = serde_json::to_value(params).map_err(Self::Error::Json)?;

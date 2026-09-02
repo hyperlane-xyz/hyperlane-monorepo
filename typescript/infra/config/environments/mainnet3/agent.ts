@@ -71,12 +71,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   // Generally, we run all production validators in the Hyperlane context.
   [Role.Validator]: {
     abstract: true,
-    // acala: true,
     adichain: true,
     aleo: true,
     apechain: true,
-    appchain: true,
+    appchain: false, // disabled — deprecation per ENG-3932
     arbitrum: true,
+    arc: true,
     avalanche: true,
     base: true,
     berachain: true,
@@ -94,14 +94,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eni: true,
     ethereum: true,
     fluent: true,
-    flowmainnet: true,
+    flowmainnet: false, // disabled — deprecation per ENG-4006
     forma: false, // relayer + scraper only
     fraxtal: true,
     galactica: true,
     gnosis: true,
     hyperevm: true,
     igra: true,
-    immutablezkevmmainnet: true,
+    immutablezkevmmainnet: false, // disabled — deprecation per ENG-4119
     ink: true,
     katana: true,
     kiichain: true,
@@ -120,14 +120,15 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mocachain: true,
     mode: true,
     monad: true,
-    nesa: true,
+    nesa: false, // disabled — superseded by nesachain after the Nesa incident
+    nesachain: true,
     nexus: true,
     optimism: true,
     paradex: true,
     plasma: true,
     polygon: true,
     pulsechain: true,
-    radix: true,
+    radix: false, // disabled — removed from agent operations per request
     robinhood: true,
     sei: true,
     solanamainnet: true,
@@ -136,12 +137,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: true,
+    soon: false, // disabled — deprecation per ENG-3607
     stable: true,
     starknet: true,
     subtensor: true,
     superseed: true,
-    tac: true,
+    tac: false, // temporarily disabled — TAC chain halted (no new blocks) since 2026-08-22; re-enable when block production resumes
     taiko: false, // temporarily disabled out of caution (Taiko network incident)
     tea: true,
     tron: true,
@@ -154,12 +155,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   },
   [Role.Relayer]: {
     abstract: true,
-    // acala: true,
     adichain: true,
     aleo: true,
     apechain: true,
-    appchain: true,
+    appchain: false, // disabled — deprecation per ENG-3932
     arbitrum: true,
+    arc: true,
     avalanche: true,
     base: true,
     berachain: true,
@@ -177,14 +178,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eni: true,
     ethereum: true,
     fluent: true,
-    flowmainnet: true,
+    flowmainnet: false, // disabled — deprecation per ENG-4006
     forma: true,
     fraxtal: true,
     galactica: true,
     gnosis: true,
     hyperevm: true,
     igra: true,
-    immutablezkevmmainnet: true,
+    immutablezkevmmainnet: false, // disabled — deprecation per ENG-4119
     ink: true,
     katana: true,
     kiichain: true,
@@ -203,14 +204,15 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mocachain: true,
     mode: true,
     monad: true,
-    nesa: true,
+    nesa: false, // disabled — superseded by nesachain after the Nesa incident
+    nesachain: true,
     nexus: true,
     optimism: true,
     paradex: true,
     plasma: true,
     polygon: true,
     pulsechain: true,
-    radix: true,
+    radix: false, // disabled — removed from agent operations per request
     robinhood: true,
     sei: true,
     solanamainnet: true,
@@ -219,12 +221,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: true,
+    soon: false, // disabled — deprecation per ENG-3607
     stable: true,
     starknet: true,
     subtensor: true,
     superseed: true,
-    tac: true,
+    tac: false, // temporarily disabled — TAC chain halted (no new blocks) since 2026-08-22; re-enable when block production resumes
     taiko: false, // temporarily disabled out of caution (Taiko network incident)
     tea: true,
     tron: true,
@@ -237,12 +239,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   },
   [Role.Scraper]: {
     abstract: true,
-    // acala: true,
     adichain: true,
     aleo: true,
     apechain: true,
-    appchain: true,
+    appchain: false, // disabled — deprecation per ENG-3932
     arbitrum: true,
+    arc: true,
     avalanche: true,
     base: true,
     berachain: true,
@@ -260,14 +262,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eni: true,
     ethereum: true,
     fluent: true,
-    flowmainnet: true,
+    flowmainnet: false, // disabled — deprecation per ENG-4006
     forma: true,
     fraxtal: true,
     galactica: true,
     gnosis: true,
     hyperevm: true,
     igra: true,
-    immutablezkevmmainnet: true,
+    immutablezkevmmainnet: false, // disabled — deprecation per ENG-4119
     ink: true,
     katana: true,
     kiichain: true,
@@ -286,14 +288,15 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mocachain: true,
     mode: true,
     monad: true,
-    nesa: true,
+    nesa: false, // disabled — superseded by nesachain after the Nesa incident
+    nesachain: true,
     nexus: true,
     optimism: true,
     paradex: true,
     plasma: true,
     polygon: true,
     pulsechain: true,
-    radix: true,
+    radix: false, // disabled — removed from agent operations per request
     robinhood: true,
     sei: true,
     solanamainnet: true,
@@ -302,12 +305,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: true,
+    soon: false, // disabled — deprecation per ENG-3607
     stable: true,
     starknet: true,
     subtensor: true,
     superseed: true,
-    tac: true,
+    tac: false, // temporarily disabled — TAC chain halted (no new blocks) since 2026-08-22; re-enable when block production resumes
     taiko: true,
     tea: true,
     tron: true,

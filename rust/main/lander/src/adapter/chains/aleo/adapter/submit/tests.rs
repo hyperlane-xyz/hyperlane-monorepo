@@ -82,7 +82,7 @@ impl AleoProviderForLander for MockProviderWithError {
     async fn request_confirmed_transaction(
         &self,
         _transaction_id: H512,
-    ) -> ChainResult<AleoConfirmedTransaction<CurrentNetwork>> {
+    ) -> ChainResult<Option<AleoConfirmedTransaction<CurrentNetwork>>> {
         Err(hyperlane_core::ChainCommunicationError::from_other_str(
             "Mock provider: get_confirmed_transaction not implemented",
         ))
@@ -91,7 +91,7 @@ impl AleoProviderForLander for MockProviderWithError {
     async fn request_unconfirmed_transaction(
         &self,
         _transaction_id: H512,
-    ) -> ChainResult<AleoUnconfirmedTransaction<CurrentNetwork>> {
+    ) -> ChainResult<Option<AleoUnconfirmedTransaction<CurrentNetwork>>> {
         Err(hyperlane_core::ChainCommunicationError::from_other_str(
             "Mock provider: get_unconfirmed_transaction not implemented",
         ))
@@ -141,7 +141,7 @@ impl AleoProviderForLander for MockProvider {
     async fn request_confirmed_transaction(
         &self,
         _transaction_id: H512,
-    ) -> ChainResult<AleoConfirmedTransaction<CurrentNetwork>> {
+    ) -> ChainResult<Option<AleoConfirmedTransaction<CurrentNetwork>>> {
         Err(hyperlane_core::ChainCommunicationError::from_other_str(
             "Mock provider: get_confirmed_transaction not implemented",
         ))
@@ -150,7 +150,7 @@ impl AleoProviderForLander for MockProvider {
     async fn request_unconfirmed_transaction(
         &self,
         _transaction_id: H512,
-    ) -> ChainResult<AleoUnconfirmedTransaction<CurrentNetwork>> {
+    ) -> ChainResult<Option<AleoUnconfirmedTransaction<CurrentNetwork>>> {
         Err(hyperlane_core::ChainCommunicationError::from_other_str(
             "Mock provider: get_unconfirmed_transaction not implemented",
         ))
@@ -221,6 +221,17 @@ async fn test_submit_transaction_stores_tx_hash() {
     // Verify transaction hash was added
     assert_eq!(tx.tx_hashes.len(), 1);
     assert_ne!(tx.tx_hashes[0], H512::zero());
+}
+
+#[tokio::test]
+async fn test_submit_transaction_replaces_historical_hashes() {
+    let provider = MockProvider::new();
+    let mut tx = create_test_transaction();
+    tx.tx_hashes = (0..2_000).map(|_| H512::random()).collect();
+
+    submit_transaction(&provider, &mut tx).await.unwrap();
+
+    assert_eq!(tx.tx_hashes.len(), 1);
 }
 
 #[tokio::test]

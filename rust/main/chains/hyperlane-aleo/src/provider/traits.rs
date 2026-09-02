@@ -44,6 +44,13 @@ pub trait HttpClient {
         query: impl Into<Option<serde_json::Value>> + Send,
     ) -> ChainResult<T>;
 
+    /// Makes a GET request where HTTP 404 means the resource does not exist.
+    async fn request_optional<T: DeserializeOwned + Send>(
+        &self,
+        path: &str,
+        query: impl Into<Option<serde_json::Value>> + Send,
+    ) -> ChainResult<Option<T>>;
+
     /// Makes a GET request to the API in a blocking manner
     fn request_blocking<T: DeserializeOwned + Send>(
         &self,
@@ -240,6 +247,16 @@ impl<Client: HttpClient> RpcClient<Client> {
             .await
     }
 
+    /// Gets a confirmed transaction by ID, returning `None` when it is not found.
+    pub async fn get_confirmed_transaction_optional(
+        &self,
+        transaction_id: H512,
+    ) -> ChainResult<Option<ConfirmedTransaction<CurrentNetwork>>> {
+        let tx_id = get_tx_id::<CurrentNetwork>(transaction_id)?;
+        self.request_optional(&format!("transaction/confirmed/{tx_id}"), None)
+            .await
+    }
+
     /// Gets an unconfirmed transaction by ID from the mempool
     pub async fn get_unconfirmed_transaction(
         &self,
@@ -247,6 +264,16 @@ impl<Client: HttpClient> RpcClient<Client> {
     ) -> ChainResult<Transaction<CurrentNetwork>> {
         let tx_id = crate::utils::get_tx_id::<CurrentNetwork>(transaction_id)?;
         self.request(&format!("transaction/unconfirmed/{tx_id}"), None)
+            .await
+    }
+
+    /// Gets an unconfirmed transaction by ID, returning `None` when it is not found.
+    pub async fn get_unconfirmed_transaction_optional(
+        &self,
+        transaction_id: H512,
+    ) -> ChainResult<Option<Transaction<CurrentNetwork>>> {
+        let tx_id = crate::utils::get_tx_id::<CurrentNetwork>(transaction_id)?;
+        self.request_optional(&format!("transaction/unconfirmed/{tx_id}"), None)
             .await
     }
 
@@ -341,8 +368,8 @@ impl<Client: HttpClient, N: Network> QueryTrait<N> for RpcClient<Client> {
             .join(",");
         Ok(self
             .request_blocking(
-                &format!("statePaths?commitments={commitments_string}"),
-                None,
+                "statePaths",
+                serde_json::json!({ "commitments": commitments_string }),
             )
             .unwrap_or_default())
     }
@@ -359,8 +386,8 @@ impl<Client: HttpClient, N: Network> QueryTrait<N> for RpcClient<Client> {
             .join(",");
         Ok(self
             .request(
-                &format!("statePaths?commitments={commitments_string}"),
-                None,
+                "statePaths",
+                serde_json::json!({ "commitments": commitments_string }),
             )
             .await
             .unwrap_or_default())

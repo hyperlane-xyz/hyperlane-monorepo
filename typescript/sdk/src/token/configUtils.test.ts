@@ -7,6 +7,7 @@ import { assert } from '@hyperlane-xyz/utils';
 import {
   DEFAULT_ROUTER_KEY,
   ResolvedRoutingFeeConfigInput,
+  ResolvedTokenFeeConfigInput,
   TokenFeeType,
 } from '../fee/types.js';
 import { HookType } from '../hook/types.js';
@@ -46,6 +47,18 @@ function buildMultiProvider(): MultiProvider {
     [test1.name]: test1,
     [test2.name]: test2,
   });
+}
+
+function expectResolvedFeeToken(
+  feeConfig: ResolvedTokenFeeConfigInput | undefined,
+  expectedToken: string,
+) {
+  assert(feeConfig, 'Fee config must exist');
+  assert(
+    feeConfig.type !== TokenFeeType.CrossCollateralRoutingFee,
+    'CrossCollateralRoutingFee does not have a token',
+  );
+  expect(feeConfig.token).to.equal(expectedToken);
 }
 
 describe('configUtils', () => {
@@ -732,7 +745,7 @@ describe('configUtils', () => {
               type: TokenFeeType.LinearFee,
               owner: ADDRESS,
               token: ADDRESS,
-              bps: 100n,
+              bps: 100,
             },
           },
         },
@@ -751,7 +764,7 @@ describe('configUtils', () => {
               type: TokenFeeType.LinearFee,
               owner: constants.AddressZero,
               token: ADDRESS,
-              bps: 100n,
+              bps: 100,
             },
           },
         },
@@ -1090,8 +1103,8 @@ describe('configUtils', () => {
 
       assert(result.type === TokenFeeType.RoutingFee, 'expected a RoutingFee');
       expect(result.token).to.equal(ROUTER_ADDRESS);
-      expect(result.feeContracts.ethereum.token).to.equal(ROUTER_ADDRESS);
-      expect(result.feeContracts.arbitrum.token).to.equal(ROUTER_ADDRESS);
+      expectResolvedFeeToken(result.feeContracts.ethereum, ROUTER_ADDRESS);
+      expectResolvedFeeToken(result.feeContracts.arbitrum, ROUTER_ADDRESS);
     });
 
     it('should handle RoutingFee with empty feeContracts', async () => {
@@ -1123,12 +1136,12 @@ describe('configUtils', () => {
             [DEFAULT_ROUTER_KEY]: {
               type: TokenFeeType.LinearFee,
               owner: OWNER_ADDRESS,
-              bps: 100n,
+              bps: 100,
             },
             [ROUTER_KEY]: {
               type: TokenFeeType.LinearFee,
               owner: OWNER_ADDRESS,
-              bps: 200n,
+              bps: 200,
             },
           },
         },
@@ -1145,10 +1158,12 @@ describe('configUtils', () => {
         result.type === TokenFeeType.CrossCollateralRoutingFee,
         'expected a CrossCollateralRoutingFee',
       );
-      expect(result.feeContracts.ethereum[DEFAULT_ROUTER_KEY]?.token).to.equal(
+      expectResolvedFeeToken(
+        result.feeContracts.ethereum[DEFAULT_ROUTER_KEY],
         ROUTER_ADDRESS,
       );
-      expect(result.feeContracts.ethereum[ROUTER_KEY]?.token).to.equal(
+      expectResolvedFeeToken(
+        result.feeContracts.ethereum[ROUTER_KEY],
         ROUTER_ADDRESS,
       );
     });
@@ -1187,8 +1202,14 @@ describe('configUtils', () => {
       assert(result.type === TokenFeeType.RoutingFee, 'expected a RoutingFee');
       // Same feeToken threaded through every nesting level.
       expect(result.token).to.equal(XERC20_ONCHAIN_TOKEN);
-      expect(result.feeContracts.ethereum.token).to.equal(XERC20_ONCHAIN_TOKEN);
-      expect(result.feeContracts.arbitrum.token).to.equal(XERC20_ONCHAIN_TOKEN);
+      expectResolvedFeeToken(
+        result.feeContracts.ethereum,
+        XERC20_ONCHAIN_TOKEN,
+      );
+      expectResolvedFeeToken(
+        result.feeContracts.arbitrum,
+        XERC20_ONCHAIN_TOKEN,
+      );
       // token() resolved a single time despite the nested fee contracts.
       expect(callStub.callCount).to.equal(1);
     });

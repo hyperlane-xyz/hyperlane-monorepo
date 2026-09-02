@@ -1,3 +1,5 @@
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
 export enum Role {
   Validator = 'validator',
   Relayer = 'relayer',
@@ -60,4 +62,31 @@ export enum TurnkeyRole {
   EvmIgpClaimer = 'evm-igp-claimer',
   EvmIgpUpdater = 'evm-igp-updater',
   EvmWarpFeesOwner = 'evm-warp-fees-owner',
+}
+
+export const TURNKEY_SIGNER_PROTOCOLS = [
+  ProtocolType.Ethereum,
+  ProtocolType.Sealevel,
+] as const;
+
+export type TurnkeySignerProtocol = (typeof TURNKEY_SIGNER_PROTOCOLS)[number];
+
+export const TURNKEY_ROLE_PROTOCOL: Record<TurnkeyRole, TurnkeySignerProtocol> =
+  {
+    [TurnkeyRole.SealevelDeployer]: ProtocolType.Sealevel,
+    [TurnkeyRole.EvmLegacyDeployer]: ProtocolType.Ethereum,
+    [TurnkeyRole.EvmLegacyRebalancer]: ProtocolType.Ethereum,
+    [TurnkeyRole.EvmDeployer]: ProtocolType.Ethereum,
+    [TurnkeyRole.EvmRebalancer]: ProtocolType.Ethereum,
+    [TurnkeyRole.EvmIgpClaimer]: ProtocolType.Ethereum,
+    [TurnkeyRole.EvmIgpUpdater]: ProtocolType.Ethereum,
+    [TurnkeyRole.EvmWarpFeesOwner]: ProtocolType.Ethereum,
+  };
+
+export function getTurnkeyRolesForProtocol(
+  protocol: TurnkeySignerProtocol,
+): TurnkeyRole[] {
+  return Object.values(TurnkeyRole).filter(
+    (role) => TURNKEY_ROLE_PROTOCOL[role] === protocol,
+  );
 }

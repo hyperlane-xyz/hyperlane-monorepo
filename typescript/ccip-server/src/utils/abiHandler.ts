@@ -6,6 +6,13 @@ import { z } from 'zod';
 
 import { offchainLookupRequestMessageHash } from '@hyperlane-xyz/sdk';
 
+const RelayerSignatureBodySchema = z.compile(
+  z.object({
+    sender: z.string().startsWith('0x').length(42, 'Invalid Ethereum address'),
+    signature: z.string().startsWith('0x'),
+  }),
+);
+
 /**
  * Creates an Express handler that:
  * 1) reads `req.body.data`
@@ -57,22 +64,16 @@ export function createAbiHandler<
         return res.status(400).json({ error: 'Missing callData' });
       }
 
-      // Validation block for sender and signature
-      const bodySchema = z.object({
-        sender: z
-          .string()
-          .startsWith('0x')
-          .length(42, 'Invalid Ethereum address'),
-        signature: z.string().startsWith('0x'),
-      });
-
       if (verifyRelayerSignatureUrl) {
-        const parseResult = bodySchema.safeParse({ sender, signature });
+        const parseResult = RelayerSignatureBodySchema.safeParse({
+          sender,
+          signature,
+        });
         if (!parseResult.success) {
           handlerLogger.warn({ body }, 'Invalid sender or signature format');
           return res.status(400).json({
             error: 'Invalid sender or signature format',
-            details: parseResult.error.errors,
+            details: parseResult.error.issues,
           });
         }
       }

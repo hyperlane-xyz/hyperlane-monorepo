@@ -9,7 +9,7 @@ import { ApiError } from '../middleware/errorHandler.js';
  * (where input ≠ output) work as expected. Shared across v1 and v2 route
  * handlers.
  */
-export function parseAndValidate<S extends z.ZodTypeAny>(
+export function parseAndValidate<S extends z.ZodType>(
   schema: S,
   query: unknown,
 ): z.infer<S> {

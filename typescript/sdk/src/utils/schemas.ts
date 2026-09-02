@@ -1,14 +1,13 @@
-import { SafeParseReturnType, z } from 'zod';
+import { z } from 'zod';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-export function isCompliant<S extends z.ZodTypeAny>(schema: S) {
-  return (config: unknown): config is z.infer<S> =>
-    schema.safeParse(config).success;
+export function isCompliant<S extends z.ZodType>(schema: S) {
+  return (config: unknown): config is z.infer<S> => z.validate(schema, config);
 }
 
-export function validateZodResult<I, O>(
-  result: SafeParseReturnType<I, O>,
+export function validateZodResult<O>(
+  result: z.ZodSafeParseResult<O>,
   desc: string = 'config',
 ): O {
   if (!result.success) {

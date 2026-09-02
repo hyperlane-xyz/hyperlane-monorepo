@@ -95,7 +95,7 @@ const StorageKeySchema = z
   .string()
   .regex(/^0x[0-9a-fA-F]{64}$/, 'Invalid access-list storage key');
 const AccessListRecordSchema = z
-  .record(z.array(StorageKeySchema))
+  .record(z.string(), z.array(StorageKeySchema))
   .refine(
     (accessList) => Object.keys(accessList).every(isValidAddressEvm),
     'Invalid access-list address',
@@ -103,12 +103,10 @@ const AccessListRecordSchema = z
 const AccessListSchema = z
   .union([
     z.array(
-      z
-        .object({
-          address: EvmAddressSchema,
-          storageKeys: z.array(StorageKeySchema),
-        })
-        .strict(),
+      z.strictObject({
+        address: EvmAddressSchema,
+        storageKeys: z.array(StorageKeySchema),
+      }),
     ),
     z.array(z.tuple([EvmAddressSchema, z.array(StorageKeySchema)])),
     AccessListRecordSchema,
@@ -116,7 +114,7 @@ const AccessListSchema = z
   .transform((accessList) => ethersUtils.accessListify(accessList));
 
 const ExternalTransactionSchema = z
-  .object({
+  .strictObject({
     accessList: AccessListSchema.optional(),
     annotation: z.string().optional(),
     chainId: z.number().int().safe().positive(),
@@ -131,7 +129,6 @@ const ExternalTransactionSchema = z
     type: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
     value: ExternalBigNumberSchema.optional(),
   })
-  .strict()
   .superRefine((transaction, context) => {
     if (
       transaction.gasPrice !== undefined &&

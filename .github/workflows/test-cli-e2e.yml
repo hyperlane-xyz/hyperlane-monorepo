@@ -43,6 +43,7 @@ jobs:
       matrix:
         test:
           - core-deploy
+          - http-signer
           - warp-deploy-1
           - warp-deploy-predicate
           - warp-delayed-flow
@@ -88,6 +89,7 @@ jobs:
           # ISM Commands
           - ism
           # Other commands
+          - http-signer
           - relay
           - status
           - submit
@@ -533,6 +535,7 @@ jobs:
         test:
           - core-deploy
           - core-composite-ism
+          - http-signer
     steps:
       - uses: actions/checkout@v7
         with:
@@ -561,6 +564,7 @@ jobs:
           - core-deploy
           - core-apply
           - core-composite-ism
+          - http-signer
           - hook-igp
           - warp-alt
           - warp-cross-collateral

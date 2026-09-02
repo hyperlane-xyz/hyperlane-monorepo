@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import 'zod/compile';
+
 import { Wallet } from 'ethers';
 import { z } from 'zod';
 

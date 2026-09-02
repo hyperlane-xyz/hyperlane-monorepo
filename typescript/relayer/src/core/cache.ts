@@ -31,16 +31,20 @@ export type RelayerCache = {
   backlog: MessageBacklog;
 };
 
-export const RelayerCacheSchema: z.ZodType<
-  RelayerCache,
-  z.ZodTypeDef,
-  unknown
-> = z.object({
+export const RelayerCacheSchema: z.ZodType<RelayerCache, unknown> = z.object({
   hook: z.record(
-    z.record(z.object({ address: z.string() }).and(HookConfigSchema)),
+    z.string(),
+    z.record(
+      z.string(),
+      z.object({ address: z.string() }).and(HookConfigSchema),
+    ),
   ),
   ism: z.record(
-    z.record(z.object({ address: z.string() }).and(IsmConfigSchema)),
+    z.string(),
+    z.record(
+      z.string(),
+      z.object({ address: z.string() }).and(IsmConfigSchema),
+    ),
   ),
   backlog: MessageBacklogSchema,
 });

@@ -1,10 +1,15 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
 use uuid::Uuid;
 
-use hyperlane_aleo::{AleoSigner, AleoTxData};
-use hyperlane_core::H256;
+use async_trait::async_trait;
+use hyperlane_aleo::{
+    AleoConfirmedTransaction, AleoGetMappingValue, AleoProviderForLander, AleoSerialize,
+    AleoSigner, AleoTxData, AleoUnconfirmedTransaction, CurrentNetwork, DeliveryKey, Plaintext,
+};
+use hyperlane_core::{ChainResult, H256, H512};
 
 use crate::adapter::chains::{AleoAdapter, AleoTxPrecursor};
 use crate::adapter::AdaptsChain;
@@ -75,6 +80,135 @@ pub(crate) fn create_test_transaction() -> Transaction {
         last_submission_attempt: None,
         last_status_check: None,
     }
+}
+
+struct CountingStatusProvider {
+    delivered: bool,
+    confirmed_calls: AtomicUsize,
+    unconfirmed_calls: AtomicUsize,
+    mapping_calls: AtomicUsize,
+}
+
+impl CountingStatusProvider {
+    fn new(delivered: bool) -> Self {
+        Self {
+            delivered,
+            confirmed_calls: AtomicUsize::new(0),
+            unconfirmed_calls: AtomicUsize::new(0),
+            mapping_calls: AtomicUsize::new(0),
+        }
+    }
+}
+
+#[async_trait]
+impl AleoProviderForLander for CountingStatusProvider {
+    async fn submit_tx<I>(
+        &self,
+        _program_id: &str,
+        _function_name: &str,
+        _input: I,
+    ) -> ChainResult<H512>
+    where
+        I: IntoIterator<Item = String> + Send,
+        I::IntoIter: ExactSizeIterator,
+    {
+        Ok(H512::random())
+    }
+
+    async fn request_confirmed_transaction(
+        &self,
+        _transaction_id: H512,
+    ) -> ChainResult<Option<AleoConfirmedTransaction<CurrentNetwork>>> {
+        self.confirmed_calls.fetch_add(1, Ordering::SeqCst);
+        Ok(None)
+    }
+
+    async fn request_unconfirmed_transaction(
+        &self,
+        _transaction_id: H512,
+    ) -> ChainResult<Option<AleoUnconfirmedTransaction<CurrentNetwork>>> {
+        self.unconfirmed_calls.fetch_add(1, Ordering::SeqCst);
+        Ok(None)
+    }
+
+    async fn mapping_value_exists(
+        &self,
+        _program_id: &str,
+        _mapping_name: &str,
+        _mapping_key: &Plaintext<CurrentNetwork>,
+    ) -> ChainResult<bool> {
+        self.mapping_calls.fetch_add(1, Ordering::SeqCst);
+        Ok(self.delivered)
+    }
+}
+
+fn set_delivery_criterion(tx: &mut Transaction) {
+    let delivery_key = DeliveryKey { id: [1u128, 1u128] };
+    let criterion = AleoGetMappingValue {
+        program_id: "mailbox.aleo".to_string(),
+        mapping_name: "deliveries".to_string(),
+        mapping_key: delivery_key.to_plaintext().unwrap(),
+    };
+    tx.payload_details[0].success_criteria = Some(serde_json::to_vec(&criterion).unwrap());
+}
+
+#[tokio::test]
+async fn test_tx_status_without_hash_uses_delivery_mapping() {
+    let provider = Arc::new(CountingStatusProvider::new(true));
+    let adapter = AleoAdapter {
+        provider: provider.clone(),
+        estimated_block_time: Duration::from_secs(10),
+    };
+    let mut tx = create_test_transaction();
+    set_delivery_criterion(&mut tx);
+
+    assert_eq!(
+        adapter.tx_status(&tx).await.unwrap(),
+        TransactionStatus::Finalized
+    );
+    assert_eq!(provider.mapping_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(provider.confirmed_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(provider.unconfirmed_calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn test_tx_status_has_constant_width_with_historical_hashes() {
+    let provider = Arc::new(CountingStatusProvider::new(false));
+    let adapter = AleoAdapter {
+        provider: provider.clone(),
+        estimated_block_time: Duration::from_secs(10),
+    };
+    let mut tx = create_test_transaction();
+    set_delivery_criterion(&mut tx);
+    tx.tx_hashes = (0..2_000).map(|_| H512::random()).collect();
+
+    assert_eq!(
+        adapter.tx_status(&tx).await.unwrap(),
+        TransactionStatus::PendingInclusion
+    );
+    assert_eq!(provider.mapping_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(provider.confirmed_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(provider.unconfirmed_calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn test_tx_status_uses_delivery_mapping_before_transaction_hashes() {
+    let provider = Arc::new(CountingStatusProvider::new(true));
+    let adapter = AleoAdapter {
+        provider: provider.clone(),
+        estimated_block_time: Duration::from_secs(10),
+    };
+    let mut tx = create_test_transaction();
+    set_delivery_criterion(&mut tx);
+    tx.tx_hashes = (0..2_000).map(|_| H512::random()).collect();
+
+    assert_eq!(
+        adapter.tx_status(&tx).await.unwrap(),
+        TransactionStatus::Finalized
+    );
+    assert_eq!(provider.mapping_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(provider.confirmed_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(provider.unconfirmed_calls.load(Ordering::SeqCst), 0);
 }
 
 #[tokio::test]

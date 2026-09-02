@@ -321,6 +321,61 @@ where
 
         Err(RpcClientError::FallbackProvidersFailed(errors).into())
     }
+
+    /// Call each provider once until one returns `Some`.
+    ///
+    /// Returns `None` only when every provider successfully reports absence. If
+    /// any provider fails and none reports presence, the result is ambiguous and
+    /// the provider errors are returned.
+    pub async fn call_optional<V>(
+        &self,
+        mut f: impl FnMut(T) -> Pin<Box<dyn Future<Output = ChainResult<Option<V>>> + Send>>,
+    ) -> ChainResult<Option<V>> {
+        let mut errors = vec![];
+        let priorities_snapshot = self.take_priorities_snapshot().await;
+        if priorities_snapshot.is_empty() {
+            return Err(RpcClientError::FallbackProvidersFailed(errors).into());
+        }
+
+        for (idx, priority) in priorities_snapshot.iter().enumerate() {
+            let provider = &self.inner.providers[priority.index];
+            let resp = match tokio::time::timeout(self.call_timeout, async {
+                let resp = f(provider.clone()).await;
+                if resp.is_ok() {
+                    self.handle_stalled_provider(priority, provider).await?;
+                }
+                resp
+            })
+            .await
+            {
+                Ok(resp) => resp,
+                Err(_) => Err(crate::ChainCommunicationError::from_other_str(
+                    "fallback provider call timed out",
+                )),
+            };
+            if resp.is_err() {
+                self.handle_failed_provider(priority).await;
+            }
+            let _span = warn_span!("FallbackProvider::call_optional", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
+            match resp {
+                Ok(Some(value)) => return Ok(Some(value)),
+                Ok(None) => {}
+                Err(error) => {
+                    warn!(
+                        error=?error,
+                        "Got error from inner fallback provider",
+                    );
+                    errors.push(error);
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(None)
+        } else {
+            Err(RpcClientError::FallbackProvidersFailed(errors).into())
+        }
+    }
 }
 
 /// Builder to create a new fallback provider.
@@ -577,6 +632,81 @@ pub mod test {
             .map(|p| p.last_failed_count)
             .collect();
         assert_eq!(failed_counts[0], 1);
+    }
+
+    #[tokio::test]
+    async fn test_call_optional_prefers_secondary_presence_over_primary_absence() {
+        let provider1 = ProviderMock::default();
+        provider1.push("none", true);
+        let provider2 = ProviderMock::default();
+        provider2.push("some", true);
+        let fallback_provider: FallbackProvider<ProviderMock, ProviderMock> =
+            FallbackProvider::new([provider1.clone(), provider2.clone()]);
+
+        let result = fallback_provider
+            .call_optional(|provider| {
+                let response = provider.requests()[0].0.clone();
+                provider.push("call", true);
+                Box::pin(async move {
+                    match response.as_str() {
+                        "some" => Ok(Some(42)),
+                        _ => Ok(None),
+                    }
+                })
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(result, Some(42));
+        assert_eq!(provider1.requests().len(), 2);
+        assert_eq!(provider2.requests().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_call_optional_returns_none_when_all_providers_report_absence() {
+        let provider1 = ProviderMock::default();
+        provider1.push("none", true);
+        let provider2 = ProviderMock::default();
+        provider2.push("none", true);
+        let fallback_provider: FallbackProvider<ProviderMock, ProviderMock> =
+            FallbackProvider::new([provider1.clone(), provider2.clone()]);
+
+        let result = fallback_provider
+            .call_optional(|provider| {
+                provider.push("call", true);
+                Box::pin(async move { Ok::<_, crate::ChainCommunicationError>(None::<u64>) })
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(result, None);
+        assert_eq!(provider1.requests().len(), 2);
+        assert_eq!(provider2.requests().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_call_optional_does_not_treat_provider_error_as_absence() {
+        let provider1 = ProviderMock::default();
+        provider1.push("none", true);
+        let provider2 = ProviderMock::default();
+        provider2.push("error", true);
+        let fallback_provider: FallbackProvider<ProviderMock, ProviderMock> =
+            FallbackProvider::new([provider1, provider2]);
+
+        let result = fallback_provider
+            .call_optional(|provider| {
+                let response = provider.requests()[0].0.clone();
+                Box::pin(async move {
+                    if response == "error" {
+                        Err(crate::ChainCommunicationError::BatchingFailed)
+                    } else {
+                        Ok(None::<u64>)
+                    }
+                })
+            })
+            .await;
+
+        assert!(result.is_err());
     }
 
     #[tokio::test]

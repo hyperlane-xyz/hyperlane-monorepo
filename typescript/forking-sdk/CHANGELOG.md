@@ -1,5 +1,14 @@
 # @hyperlane-xyz/forking-sdk
 
+## 8.1.5
+
+### Patch Changes
+
+- Updated dependencies [8bcc7ab]
+- Updated dependencies [7cf9c01]
+  - @hyperlane-xyz/provider-sdk@9.0.0
+  - @hyperlane-xyz/utils@43.0.0
+
 ## 8.1.4
 
 ### Patch Changes

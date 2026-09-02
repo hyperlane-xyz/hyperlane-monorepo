@@ -46,6 +46,11 @@ spec:
             secretKeyRef:
               name: {{ include "agent-common.fullname" . }}-secret
               key: DATABASE_URL
+        - name: DATABASE_READ_REPLICA_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "agent-common.fullname" . }}-secret
+              key: DATABASE_READ_REPLICA_URL
         - name: PORT
           value: {{ .Values.hyperlane.scraperProxy.port | quote }}
         ports:

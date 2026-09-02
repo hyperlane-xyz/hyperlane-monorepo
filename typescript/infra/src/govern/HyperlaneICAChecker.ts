@@ -8,16 +8,19 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
+import { deploymentChains as ousdtChains } from '../../config/environments/mainnet3/warp/configGetters/getoUSDTTokenWarpConfig.js';
 import { legacyIcaChains } from '../config/chain.js';
 
 const MAINNET = 'ethereum';
 
 const FULLY_CONNECTED_ICA_CHAINS = new Set([
   'arbitrum',
+  'arc',
   'bsc',
   'polygon',
   'subtensor',
   MAINNET,
+  ...ousdtChains,
 ]);
 
 export class HyperlaneICAChecker extends InterchainAccountChecker {

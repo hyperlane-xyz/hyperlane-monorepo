@@ -14,6 +14,7 @@ import {
   websocketClientMessageRejections,
   websocketConnectionRejections,
   websocketConnections,
+  websocketNotificationQueueOverflows,
   websocketSendFailures,
 } from '../metrics.js';
 import { quoteIdentifier as q, tables } from '../scraperdb/tables.js';
@@ -43,11 +44,15 @@ const HEARTBEAT_MS = 30_000;
 const LISTENER_RETRY_MS = 1_000;
 const NOTIFICATION_BATCH_MS = 100;
 const NOTIFICATION_BATCH_SIZE = 1_000;
+const EXPLORER_NOTIFICATION_BATCH_SIZE = 100;
 const MAX_AGENT_CLIENTS = 100;
 const MAX_EXPLORER_CLIENTS = 400;
 const MAX_EXPLORER_CLIENTS_PER_IP = 5;
+const MAX_EXPLORER_PENDING_BYTES = 16_777_216;
+const MAX_EXPLORER_PENDING_MESSAGES = 2_000;
 const MAX_CLIENT_MESSAGES = 30;
 const MAX_PENDING_EVENTS = 5_000;
+const MAX_PENDING_NOTIFICATIONS = 10_000;
 
 type Row = Record<string, unknown>;
 type NotifiedRow = Row & { notification_id: number | string };
@@ -73,7 +78,13 @@ type Client = {
   messageWindow: number;
   subscriptions: Map<EventType, Subscription>;
 };
-type ExplorerClient = { alive: boolean; ip: string };
+type ExplorerClient = {
+  alive: boolean;
+  ip: string;
+  queuedBytes: number;
+  queue: SerializedMessage[];
+  sending: boolean;
+};
 type Limits = {
   maxAgentClients: number;
   maxBufferedBytes: number;
@@ -143,8 +154,10 @@ export class EventWebSocketServer {
   private readonly notifications = new Map<string, EventNotification>();
   private heartbeatTimer?: NodeJS.Timeout;
   private listenerRetryTimer?: NodeJS.Timeout;
-  private notificationTimer?: NodeJS.Timeout;
-  private draining = false;
+  private agentNotificationTimer?: NodeJS.Timeout;
+  private explorerNotificationTimer?: NodeJS.Timeout;
+  private drainingAgentNotifications = false;
+  private drainingExplorerNotifications = false;
   private catchUps = 0;
   private pendingBytes = 0;
   private listenerReady = false;
@@ -198,7 +211,8 @@ export class EventWebSocketServer {
     [
       this.heartbeatTimer,
       this.listenerRetryTimer,
-      this.notificationTimer,
+      this.agentNotificationTimer,
+      this.explorerNotificationTimer,
     ].forEach((timer) => timer && clearTimeout(timer));
     this.explorerNotifications.clear();
     this.notifications.clear();
@@ -256,6 +270,26 @@ export class EventWebSocketServer {
         agent: this.clients.size,
         messages: this.explorerClients.size,
       },
+      explorerPendingMessages: [...this.explorerClients.values()].reduce(
+        (total, client) => total + client.queue.length,
+        0,
+      ),
+      explorerPendingBytes: [...this.explorerClients.values()].reduce(
+        (total, client) => total + client.queuedBytes,
+        0,
+      ),
+      maxExplorerPendingBytes: Math.max(
+        0,
+        ...[...this.explorerClients.values()].map(
+          (client) => client.queuedBytes,
+        ),
+      ),
+      maxExplorerPendingMessages: Math.max(
+        0,
+        ...[...this.explorerClients.values()].map(
+          (client) => client.queue.length,
+        ),
+      ),
       messageClientIps: this.explorerClientsByIp.size,
       messageMaxConnectionsPerIp: Math.max(
         0,
@@ -267,8 +301,11 @@ export class EventWebSocketServer {
         catchUpRows: this.limits.maxCatchUpRows,
         clientMessagesPerMinute: MAX_CLIENT_MESSAGES,
         concurrentCatchUps: this.limits.maxConcurrentCatchUps,
+        explorerPendingBytes: MAX_EXPLORER_PENDING_BYTES,
+        explorerPendingMessages: MAX_EXPLORER_PENDING_MESSAGES,
         messageConnections: this.limits.maxExplorerClients,
         messageConnectionsPerIp: MAX_EXPLORER_CLIENTS_PER_IP,
+        notificationEvents: MAX_PENDING_NOTIFICATIONS,
         pendingEvents: MAX_PENDING_EVENTS,
         socketBufferedBytes: this.limits.maxBufferedBytes,
         totalPendingBytes: this.limits.maxTotalBufferedBytes,
@@ -351,15 +388,22 @@ export class EventWebSocketServer {
       return;
     }
     this.explorerClientsByIp.set(ip, connections + 1);
-    this.explorerClients.set(socket, { alive: true, ip });
+    this.explorerClients.set(socket, {
+      alive: true,
+      ip,
+      queuedBytes: 0,
+      queue: [],
+      sending: false,
+    });
     websocketConnections.inc({ route: 'messages' });
     this.send(socket, {
       eventTypes: ['message_upsert'],
       type: 'ready',
     });
-    this.watch(socket, this.explorerClients, ({ ip }) =>
-      this.releaseExplorerClient(ip),
-    );
+    this.watch(socket, this.explorerClients, (client) => {
+      this.clearExplorerQueue(client);
+      this.releaseExplorerClient(client.ip);
+    });
   }
 
   private accept(socket: WebSocket, route: 'agent' | 'explorer'): boolean {
@@ -745,16 +789,37 @@ export class EventWebSocketServer {
     try {
       if (channel === EXPLORER_CHANNEL) {
         if (!this.explorerClients.size) return;
-        this.explorerNotifications.add(
-          parseExplorerNotification(payload).messageId,
-        );
+        const messageId = parseExplorerNotification(payload).messageId;
+        if (
+          !this.explorerNotifications.has(messageId) &&
+          this.explorerNotifications.size >= MAX_PENDING_NOTIFICATIONS
+        ) {
+          websocketSendFailures.inc({ reason: 'notification_queue_limit' });
+          websocketNotificationQueueOverflows.inc({ route: 'messages' });
+          this.failExplorerStream(
+            new Error('Explorer notification queue limit exceeded'),
+          );
+          return;
+        }
+        this.explorerNotifications.add(messageId);
+        this.scheduleExplorerDrain();
       } else {
         const notification = parseEventNotification(payload);
         if (!this.hasSubscriber(notification)) return;
-        this.notifications.set(
-          `${notification.eventType}:${notification.id}`,
-          notification,
-        );
+        const key = `${notification.eventType}:${notification.id}`;
+        if (
+          !this.notifications.has(key) &&
+          this.notifications.size >= MAX_PENDING_NOTIFICATIONS
+        ) {
+          websocketSendFailures.inc({ reason: 'notification_queue_limit' });
+          websocketNotificationQueueOverflows.inc({ route: 'agent' });
+          this.failAgentStream(
+            new Error('Agent notification queue limit exceeded'),
+          );
+          return;
+        }
+        this.notifications.set(key, notification);
+        this.scheduleAgentDrain();
       }
     } catch (error) {
       this.logger.warn(
@@ -762,19 +827,38 @@ export class EventWebSocketServer {
       );
       return;
     }
-    if (!this.notificationTimer && !this.draining) {
-      this.notificationTimer = setTimeout(() => {
-        this.notificationTimer = undefined;
-        void this.drainNotifications().catch((error) => this.fail(error));
+  }
+
+  private scheduleAgentDrain(): void {
+    if (!this.agentNotificationTimer && !this.drainingAgentNotifications) {
+      this.agentNotificationTimer = setTimeout(() => {
+        this.agentNotificationTimer = undefined;
+        void this.drainAgentNotifications().catch((error) =>
+          this.failAgentStream(error),
+        );
       }, NOTIFICATION_BATCH_MS);
     }
   }
 
-  private async drainNotifications(): Promise<void> {
-    if (this.draining) return;
-    this.draining = true;
+  private scheduleExplorerDrain(): void {
+    if (
+      !this.explorerNotificationTimer &&
+      !this.drainingExplorerNotifications
+    ) {
+      this.explorerNotificationTimer = setTimeout(() => {
+        this.explorerNotificationTimer = undefined;
+        void this.drainExplorerNotifications().catch((error) =>
+          this.failExplorerStream(error),
+        );
+      }, NOTIFICATION_BATCH_MS);
+    }
+  }
+
+  private async drainAgentNotifications(): Promise<void> {
+    if (this.drainingAgentNotifications) return;
+    this.drainingAgentNotifications = true;
     try {
-      while (this.notifications.size || this.explorerNotifications.size) {
+      while (this.notifications.size) {
         const batch = [...this.notifications.entries()].slice(
           0,
           NOTIFICATION_BATCH_SIZE,
@@ -790,19 +874,28 @@ export class EventWebSocketServer {
         for (const [eventType, notifications] of grouped) {
           await this.publishNotifications(eventType, notifications);
         }
-        if (this.explorerNotifications.size) {
-          const messageIds = [...this.explorerNotifications].slice(
-            0,
-            NOTIFICATION_BATCH_SIZE,
-          );
-          messageIds.forEach((messageId) =>
-            this.explorerNotifications.delete(messageId),
-          );
-          await this.publishExplorer(messageIds);
-        }
       }
     } finally {
-      this.draining = false;
+      this.drainingAgentNotifications = false;
+    }
+  }
+
+  private async drainExplorerNotifications(): Promise<void> {
+    if (this.drainingExplorerNotifications) return;
+    this.drainingExplorerNotifications = true;
+    try {
+      while (this.explorerNotifications.size) {
+        const messageIds = [...this.explorerNotifications].slice(
+          0,
+          EXPLORER_NOTIFICATION_BATCH_SIZE,
+        );
+        messageIds.forEach((messageId) =>
+          this.explorerNotifications.delete(messageId),
+        );
+        await this.publishExplorer(messageIds);
+      }
+    } finally {
+      this.drainingExplorerNotifications = false;
     }
   }
 
@@ -863,11 +956,47 @@ export class EventWebSocketServer {
       `SELECT ${tables.message_view.columns.map(q).join(', ')} FROM ${q('message_view')} WHERE ${q('msg_id')} = ANY($1::bytea[]) AND ${q('send_occurred_at')} IS NOT NULL`,
       [messageIds],
     );
-    for (const row of rows) {
-      const message = serialize({ data: row, type: 'message_upsert' });
-      this.explorerClients.forEach((_client, socket) =>
-        this.sendSerialized(socket, message),
-      );
+    const messages = rows.map((row) =>
+      serialize({ data: row, type: 'message_upsert' }),
+    );
+    for (const [socket, client] of this.explorerClients) {
+      this.enqueueExplorer(socket, client, messages);
+    }
+  }
+
+  private enqueueExplorer(
+    socket: WebSocket,
+    client: ExplorerClient,
+    messages: SerializedMessage[],
+  ): void {
+    const bytes = messages.reduce((total, message) => total + message.bytes, 0);
+    if (
+      client.queue.length + messages.length > MAX_EXPLORER_PENDING_MESSAGES ||
+      client.queuedBytes + bytes > MAX_EXPLORER_PENDING_BYTES
+    ) {
+      websocketSendFailures.inc({ reason: 'queue_limit' });
+      this.failSocket(socket, 'outbound message queue limit exceeded');
+      return;
+    }
+    client.queue.push(...messages);
+    client.queuedBytes += bytes;
+    if (!client.sending) void this.drainExplorerClient(socket, client);
+  }
+
+  private async drainExplorerClient(
+    socket: WebSocket,
+    client: ExplorerClient,
+  ): Promise<void> {
+    client.sending = true;
+    try {
+      while (this.explorerClients.get(socket) === client) {
+        const message = client.queue.shift();
+        if (!message) return;
+        client.queuedBytes = Math.max(0, client.queuedBytes - message.bytes);
+        if (!(await this.sendSerializedAndWait(socket, message))) return;
+      }
+    } finally {
+      client.sending = false;
     }
   }
 
@@ -897,17 +1026,33 @@ export class EventWebSocketServer {
     }, LISTENER_RETRY_MS);
   }
 
-  private fail(error: unknown): void {
-    this.logger.error(`event stream failed: ${formatError(error)}`);
-    this.closeClients('Event stream read failed');
+  private failAgentStream(error: unknown): void {
+    this.logger.error(`agent event stream failed: ${formatError(error)}`);
+    this.closeAgentClients('Event stream read failed');
+  }
+
+  private failExplorerStream(error: unknown): void {
+    this.logger.error(`Explorer event stream failed: ${formatError(error)}`);
+    this.closeExplorerClients('Event stream read failed');
   }
 
   private closeClients(reason: string, code = 1013): void {
+    this.closeAgentClients(reason, code);
+    this.closeExplorerClients(reason, code);
+  }
+
+  private closeAgentClients(reason: string, code = 1013): void {
+    this.notifications.clear();
     this.clients.forEach((_client, socket) => socket.close(code, reason));
-    this.explorerClients.forEach((_client, socket) =>
-      socket.close(code, reason),
-    );
     this.clients.clear();
+  }
+
+  private closeExplorerClients(reason: string, code = 1013): void {
+    this.explorerNotifications.clear();
+    this.explorerClients.forEach((client, socket) => {
+      this.clearExplorerQueue(client);
+      socket.close(code, reason);
+    });
     this.explorerClients.clear();
     this.explorerClientsByIp.clear();
   }
@@ -943,8 +1088,15 @@ export class EventWebSocketServer {
     socket: WebSocket,
     message: Record<string, unknown>,
   ): Promise<boolean> {
+    return this.sendSerializedAndWait(socket, serialize(message));
+  }
+
+  private sendSerializedAndWait(
+    socket: WebSocket,
+    message: SerializedMessage,
+  ): Promise<boolean> {
     return new Promise((resolve) => {
-      if (!this.sendSerialized(socket, serialize(message), resolve)) {
+      if (!this.sendSerialized(socket, message, resolve)) {
         resolve(false);
       }
     });
@@ -997,8 +1149,16 @@ export class EventWebSocketServer {
     this.clients.get(socket)?.subscriptions.clear();
     this.clients.delete(socket);
     const explorerClient = this.explorerClients.get(socket);
-    if (explorerClient) this.releaseExplorerClient(explorerClient.ip);
+    if (explorerClient) {
+      this.clearExplorerQueue(explorerClient);
+      this.releaseExplorerClient(explorerClient.ip);
+    }
     this.explorerClients.delete(socket);
+  }
+
+  private clearExplorerQueue(client: ExplorerClient): void {
+    client.queue.length = 0;
+    client.queuedBytes = 0;
   }
 
   private releaseExplorerClient(ip: string): void {

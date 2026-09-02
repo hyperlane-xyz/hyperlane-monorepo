@@ -92,6 +92,31 @@ impl HttpClient for BaseHttpClient {
         Ok(json)
     }
 
+    async fn request_optional<T: DeserializeOwned + Send>(
+        &self,
+        path: &str,
+        query: impl Into<Option<serde_json::Value>> + Send,
+    ) -> ChainResult<Option<T>> {
+        let url = append_path(&self.base_url, path)?;
+        let query: serde_json::Value = query.into().unwrap_or_default();
+        let response = self
+            .client
+            .get(url)
+            .query(&query)
+            .send()
+            .await
+            .map_err(HyperlaneAleoError::from)?;
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        let response = response
+            .error_for_status()
+            .map_err(HyperlaneAleoError::from)?;
+        Ok(Some(
+            response.json().await.map_err(HyperlaneAleoError::from)?,
+        ))
+    }
+
     /// Makes a POST request to the API
     async fn request_post<T: DeserializeOwned + Send>(
         &self,
@@ -224,6 +249,37 @@ impl HttpClient for JWTBaseHttpClient {
         Ok(json)
     }
 
+    async fn request_optional<T: DeserializeOwned + Send>(
+        &self,
+        path: &str,
+        query: impl Into<Option<serde_json::Value>> + Send,
+    ) -> ChainResult<Option<T>> {
+        let url = append_path(&self.base_url, path)?;
+        let query: serde_json::Value = query.into().unwrap_or_default();
+        let auth = self.get_auth_token().await?;
+        let response = self
+            .client
+            .get(url)
+            .header(AUTHORIZATION, auth)
+            .query(&query)
+            .send()
+            .await
+            .map_err(HyperlaneAleoError::from)?;
+
+        if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+            self.clear_auth_token().await;
+        }
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        let response = response
+            .error_for_status()
+            .map_err(HyperlaneAleoError::from)?;
+        Ok(Some(
+            response.json().await.map_err(HyperlaneAleoError::from)?,
+        ))
+    }
+
     /// Makes a POST request to the API
     async fn request_post<T: DeserializeOwned + Send>(
         &self,
@@ -306,6 +362,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn standard_client_get_keeps_query_out_of_path() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let (request_tx, request_rx) = mpsc::channel();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buffer = [0; 4096];
+            let length = stream.read(&mut buffer).unwrap();
+            let request = String::from_utf8_lossy(&buffer[..length]);
+            request_tx
+                .send(request.lines().next().unwrap().to_owned())
+                .unwrap();
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n[]",
+                )
+                .unwrap();
+        });
+        let client =
+            BaseHttpClient::new(Url::parse(&format!("http://{address}/v2")).unwrap(), 0).unwrap();
+
+        let response: Vec<Value> = client
+            .request("statePaths", json!({ "commitments": "field1,field2" }))
+            .await
+            .unwrap();
+
+        assert!(response.is_empty());
+        assert_eq!(
+            request_rx.recv().unwrap(),
+            "GET /v2/mainnet/statePaths?commitments=field1%2Cfield2 HTTP/1.1"
+        );
+        server.join().unwrap();
+    }
+
+    #[tokio::test]
     async fn standard_client_post_encodes_bracketed_mapping_keys() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
@@ -337,6 +428,32 @@ mod tests {
             request_rx.recv().unwrap(),
             "POST /v2/mainnet/mapping/%7Bbytes:%5B1u8%5D%7D HTTP/1.1"
         );
+        server.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn optional_request_returns_none_for_not_found() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buffer = [0; 4096];
+            stream.read(&mut buffer).unwrap();
+            stream
+                .write_all(
+                    b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                )
+                .unwrap();
+        });
+        let client =
+            BaseHttpClient::new(Url::parse(&format!("http://{address}/v2")).unwrap(), 0).unwrap();
+
+        let response: Option<Value> = client
+            .request_optional("transaction/confirmed/missing", None)
+            .await
+            .unwrap();
+
+        assert_eq!(response, None);
         server.join().unwrap();
     }
 }

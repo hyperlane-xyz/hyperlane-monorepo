@@ -80,6 +80,24 @@ describe('EvmTokenFeeModule', () => {
     }
   }
 
+  function getLinearBps(feeConfig: TokenFeeConfig | undefined): number {
+    assert(
+      feeConfig?.type === TokenFeeType.LinearFee,
+      `Must be ${TokenFeeType.LinearFee}`,
+    );
+    assert(feeConfig.bps !== undefined, 'LinearFee must define bps');
+    return feeConfig.bps;
+  }
+
+  function getFeeToken(feeConfig: TokenFeeConfig | undefined): string {
+    assert(feeConfig, 'Fee config must exist');
+    assert(
+      feeConfig.type !== TokenFeeType.CrossCollateralRoutingFee,
+      'CrossCollateralRoutingFee does not have a token',
+    );
+    return feeConfig.token;
+  }
+
   it('should create a new token fee', async () => {
     const module = await EvmTokenFeeModule.create({
       multiProvider,
@@ -238,7 +256,9 @@ describe('EvmTokenFeeModule', () => {
         onchainConfig.type === TokenFeeType.RoutingFee,
         `Must be ${TokenFeeType.RoutingFee}`,
       );
-      expect(onchainConfig.feeContracts[test4Chain]?.bps).to.equal(BPS + 1);
+      expect(getLinearBps(onchainConfig.feeContracts[test4Chain])).to.equal(
+        BPS + 1,
+      );
     });
 
     it('should transfer ownership if they are different', async () => {
@@ -348,7 +368,9 @@ describe('EvmTokenFeeModule', () => {
         onchainConfig.type === TokenFeeType.RoutingFee,
         `Must be ${TokenFeeType.RoutingFee}`,
       );
-      expect(onchainConfig.feeContracts[test4Chain]?.bps).to.equal(BPS + 1);
+      expect(getLinearBps(onchainConfig.feeContracts[test4Chain])).to.equal(
+        BPS + 1,
+      );
     });
 
     it('should forward token reader params when updating routing fees', async () => {
@@ -575,7 +597,9 @@ describe('EvmTokenFeeModule', () => {
         `Must be ${TokenFeeType.CrossCollateralRoutingFee}`,
       );
       expect(
-        onchainConfig.feeContracts[test4Chain]?.[DEFAULT_ROUTER_KEY]?.token,
+        getFeeToken(
+          onchainConfig.feeContracts[test4Chain]?.[DEFAULT_ROUTER_KEY],
+        ),
       ).to.equal(token.address);
     });
 
@@ -720,10 +744,10 @@ describe('EvmTokenFeeModule', () => {
         `Must be ${TokenFeeType.CrossCollateralRoutingFee}`,
       );
       expect(
-        onchainConfig.feeContracts[test4Chain]?.[routerKeyA]?.bps,
+        getLinearBps(onchainConfig.feeContracts[test4Chain]?.[routerKeyA]),
       ).to.equal(BPS);
       expect(
-        onchainConfig.feeContracts[test4Chain]?.[routerKeyB]?.bps,
+        getLinearBps(onchainConfig.feeContracts[test4Chain]?.[routerKeyB]),
       ).to.equal(BPS + 5);
     });
 
@@ -795,10 +819,10 @@ describe('EvmTokenFeeModule', () => {
         `Must be ${TokenFeeType.CrossCollateralRoutingFee}`,
       );
       expect(
-        onchainConfig.feeContracts[test4Chain]?.[routerKeyA]?.bps,
+        getLinearBps(onchainConfig.feeContracts[test4Chain]?.[routerKeyA]),
       ).to.equal(BPS);
       expect(
-        onchainConfig.feeContracts[test4Chain]?.[routerKeyB]?.bps,
+        getLinearBps(onchainConfig.feeContracts[test4Chain]?.[routerKeyB]),
       ).to.equal(BPS + 5);
     });
 
@@ -1063,7 +1087,7 @@ describe('EvmTokenFeeModule', () => {
       const routingConfig = expandedConfig as RoutingFeeConfig;
       const nestedFee = routingConfig.feeContracts[test4Chain];
       assert(nestedFee, 'Nested fee must exist');
-      expect(nestedFee.token).to.equal(token.address);
+      expect(getFeeToken(nestedFee)).to.equal(token.address);
     });
 
     it('should expand config with fractional bps (1.5)', async () => {

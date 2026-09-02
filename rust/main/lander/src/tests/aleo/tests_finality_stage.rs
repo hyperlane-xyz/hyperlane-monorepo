@@ -56,7 +56,7 @@ impl AleoProviderForLander for MockAleoProviderForFinality {
     async fn request_confirmed_transaction(
         &self,
         _transaction_id: H512,
-    ) -> ChainResult<AleoConfirmedTransaction<CurrentNetwork>> {
+    ) -> ChainResult<Option<AleoConfirmedTransaction<CurrentNetwork>>> {
         Err(ChainCommunicationError::from_other_str(
             "Mock provider: get_confirmed_transaction not implemented",
         ))
@@ -65,7 +65,7 @@ impl AleoProviderForLander for MockAleoProviderForFinality {
     async fn request_unconfirmed_transaction(
         &self,
         _transaction_id: H512,
-    ) -> ChainResult<AleoUnconfirmedTransaction<CurrentNetwork>> {
+    ) -> ChainResult<Option<AleoUnconfirmedTransaction<CurrentNetwork>>> {
         Err(ChainCommunicationError::from_other_str(
             "Mock provider: get_unconfirmed_transaction not implemented",
         ))

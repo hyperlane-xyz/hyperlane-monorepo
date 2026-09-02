@@ -1,7 +1,7 @@
 use std::{
     fmt::Debug,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
     time::Duration,
@@ -20,6 +20,7 @@ use hyperlane_core::{
 };
 
 use super::*;
+use crate::server::ValidatorReadinessState;
 
 mockall::mock! {
     pub MerkleTreeHook {}
@@ -95,6 +96,10 @@ fn dummy_singleton_handle() -> SingletonSignerHandle {
     SingletonSignerHandle::new(H160::from_low_u64_be(0), mpsc::unbounded_channel().0)
 }
 
+fn dummy_readiness() -> Arc<ValidatorReadiness> {
+    Arc::new(ValidatorReadiness::default())
+}
+
 #[tokio::test(start_paused = true)]
 async fn single_checkpoint_chunk_has_no_throttle_tail() {
     let checkpoint = CheckpointWithMessageId {
@@ -135,6 +140,7 @@ async fn single_checkpoint_chunk_has_no_throttle_tail() {
         dummy_metrics(),
         1,
         Arc::new(MockReorgReporter::new()),
+        dummy_readiness(),
     );
 
     let task = tokio::spawn(async move {
@@ -151,6 +157,175 @@ async fn single_checkpoint_chunk_has_no_throttle_tail() {
         "a final checkpoint chunk must not wait for the 100ms inter-chunk throttle"
     );
     task.await.unwrap();
+}
+
+#[tokio::test(start_paused = true)]
+async fn checkpoint_submission_failure_blocks_readiness_until_recovery() {
+    let checkpoint = CheckpointWithMessageId {
+        checkpoint: Checkpoint {
+            root: H256::zero(),
+            merkle_tree_hook_address: H256::zero(),
+            mailbox_domain: 0,
+            index: 7,
+        },
+        message_id: H256::zero(),
+    };
+
+    let mut checkpoint_syncer = MockCheckpointSyncer::new();
+    checkpoint_syncer
+        .expect_fetch_checkpoint()
+        .times(2)
+        .returning(|_| Ok(None));
+    let write_calls = Arc::new(AtomicUsize::new(0));
+    checkpoint_syncer
+        .expect_write_checkpoint()
+        .times(2)
+        .returning({
+            let write_calls = Arc::clone(&write_calls);
+            move |_| {
+                if write_calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Err(eyre::eyre!("storage unavailable"))
+                } else {
+                    Ok(())
+                }
+            }
+        });
+    checkpoint_syncer
+        .expect_update_latest_index()
+        .with(mockall::predicate::eq(checkpoint.index))
+        .once()
+        .returning(|_| Ok(()));
+
+    let readiness = Arc::new(ValidatorReadiness::default());
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let submitter = ValidatorSubmitter::new(
+        Duration::from_secs(1),
+        ReorgPeriod::from_blocks(1),
+        Arc::new(MockMerkleTreeHook::new()),
+        Arc::new(MockMerkleTreeHook::new()),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(checkpoint_syncer),
+        Arc::new(MockDb::new()),
+        dummy_metrics(),
+        1,
+        Arc::new(MockReorgReporter::new()),
+        Arc::clone(&readiness),
+    );
+
+    let task = tokio::spawn(async move {
+        submitter
+            .sign_and_submit_checkpoints(vec![checkpoint])
+            .await;
+    });
+    while write_calls.load(Ordering::SeqCst) == 0 {
+        tokio::task::yield_now().await;
+    }
+
+    let blocked = readiness.snapshot();
+    assert_eq!(blocked.state, ValidatorReadinessState::SigningBlocked);
+    assert_eq!(
+        blocked.blocked_operations,
+        vec!["checkpoint_submission[7]".to_owned()]
+    );
+
+    tokio::time::advance(Duration::from_secs(2)).await;
+    task.await.expect("checkpoint submission should recover");
+    assert_eq!(readiness.snapshot().state, ValidatorReadinessState::Ready);
+}
+
+#[tokio::test(start_paused = true)]
+async fn missing_merkle_insertion_blocks_readiness_until_indexer_recovers() {
+    let insertion = MerkleTreeInsertion::new(0, H256::random());
+    let mut expected_tree = IncrementalMerkle::default();
+    expected_tree.ingest(insertion.message_id());
+
+    let db_calls = Arc::new(AtomicUsize::new(0));
+    let mut db = MockDb::new();
+    db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
+        .with(mockall::predicate::eq(0))
+        .times(2)
+        .returning({
+            let db_calls = Arc::clone(&db_calls);
+            move |_| {
+                if db_calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Ok(None)
+                } else {
+                    Ok(Some(insertion))
+                }
+            }
+        });
+
+    let domain = dummy_domain(0, "dummy_domain");
+    let mut merkle_tree_hook = MockMerkleTreeHook::new();
+    merkle_tree_hook.expect_address().returning(H256::zero);
+    merkle_tree_hook
+        .expect_domain()
+        .return_const(domain.clone());
+
+    let mut checkpoint_syncer = MockCheckpointSyncer::new();
+    checkpoint_syncer
+        .expect_fetch_checkpoint()
+        .once()
+        .returning(|_| Ok(None));
+    checkpoint_syncer
+        .expect_write_checkpoint()
+        .once()
+        .returning(|_| Ok(()));
+    checkpoint_syncer
+        .expect_update_latest_index()
+        .with(mockall::predicate::eq(0))
+        .once()
+        .returning(|_| Ok(()));
+
+    let readiness = Arc::new(ValidatorReadiness::default());
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let submitter = ValidatorSubmitter::new(
+        Duration::from_secs(1),
+        ReorgPeriod::from_blocks(1),
+        Arc::new(merkle_tree_hook),
+        Arc::new(MockMerkleTreeHook::new()),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(checkpoint_syncer),
+        Arc::new(db),
+        dummy_metrics(),
+        1,
+        Arc::new(MockReorgReporter::new()),
+        Arc::clone(&readiness),
+    );
+    let correctness_checkpoint = CheckpointAtBlock {
+        checkpoint: Checkpoint {
+            root: expected_tree.root(),
+            merkle_tree_hook_address: H256::zero(),
+            mailbox_domain: domain.id(),
+            index: 0,
+        },
+        block_height: Some(1),
+    };
+
+    let task = tokio::spawn(async move {
+        submitter
+            .submit_checkpoints_until_correctness_checkpoint(
+                &mut IncrementalMerkle::default(),
+                &correctness_checkpoint,
+            )
+            .await;
+    });
+    while db_calls.load(Ordering::SeqCst) == 0 {
+        tokio::task::yield_now().await;
+    }
+
+    let blocked = readiness.snapshot();
+    assert_eq!(blocked.state, ValidatorReadinessState::SigningBlocked);
+    assert_eq!(
+        blocked.blocked_operations,
+        vec!["merkle_tree_insertion[0]".to_owned()]
+    );
+
+    tokio::time::advance(Duration::from_millis(100)).await;
+    task.await.expect("checkpoint submission should recover");
+    assert_eq!(readiness.snapshot().state, ValidatorReadinessState::Ready);
 }
 
 #[tokio::test(start_paused = true)]
@@ -193,6 +368,7 @@ async fn two_written_chunks_have_one_inter_chunk_throttle() {
         dummy_metrics(),
         1,
         Arc::new(MockReorgReporter::new()),
+        dummy_readiness(),
     );
 
     let task = tokio::spawn(async move {
@@ -266,6 +442,7 @@ async fn all_existing_chunks_skip_inter_chunk_throttle() {
         dummy_metrics(),
         1,
         Arc::new(MockReorgReporter::new()),
+        dummy_readiness(),
     );
 
     let task = tokio::spawn(async move {
@@ -341,6 +518,7 @@ async fn checkpoint_submitter_skips_latest_checkpoint_without_new_messages() {
         dummy_metrics(),
         1,
         Arc::new(MockReorgReporter::new()),
+        dummy_readiness(),
     );
 
     let task = tokio::spawn(async move {
@@ -437,6 +615,7 @@ async fn checkpoint_submitter_quorum_verifies_base_checkpoint_ahead_of_observed_
         dummy_metrics(),
         1,
         Arc::new(MockReorgReporter::new()),
+        dummy_readiness(),
     );
 
     let task = tokio::spawn(async move {
@@ -547,6 +726,7 @@ async fn checkpoint_submitter_detects_reorg_when_count_is_unchanged() {
         dummy_metrics(),
         1,
         Arc::new(mock_reorg_reporter),
+        dummy_readiness(),
     );
 
     let task = tokio::spawn(async move {
@@ -619,6 +799,7 @@ async fn checkpoint_submitter_fetches_latest_checkpoint_when_new_message_arrives
         dummy_metrics(),
         1,
         Arc::new(MockReorgReporter::new()),
+        dummy_readiness(),
     );
 
     let task = tokio::spawn(async move {
@@ -760,6 +941,7 @@ async fn reorg_is_detected_and_persisted_to_checkpoint_storage() {
         dummy_metrics(),
         50,
         Arc::new(mock_reorg_reporter),
+        dummy_readiness(),
     );
 
     // mock the correctness checkpoint response
@@ -879,6 +1061,7 @@ async fn sign_and_submit_checkpoint_same_signature() {
         dummy_metrics(),
         50,
         Arc::new(mock_reorg_reporter),
+        dummy_readiness(),
     );
 
     // Start the submitter with an empty merkle tree, so it gets rebuilt from the db.
@@ -999,6 +1182,7 @@ async fn sign_and_submit_checkpoint_different_signature() {
         dummy_metrics(),
         50,
         Arc::new(mock_reorg_reporter),
+        dummy_readiness(),
     );
 
     // Start the submitter with an empty merkle tree, so it gets rebuilt from the db.

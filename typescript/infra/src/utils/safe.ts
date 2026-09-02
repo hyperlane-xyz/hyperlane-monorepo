@@ -60,6 +60,22 @@ type SafeMultisigTransactionResponse = Awaited<
   ReturnType<SafeService['getTransaction']>
 >;
 
+type SafeTxProposer = Pick<
+  SafeMultisigTransactionResponse,
+  'proposer' | 'proposedByDelegate'
+>;
+
+export function wasSafeTxProposedBy(
+  tx: SafeTxProposer,
+  signerAddress: Address,
+): boolean {
+  return (
+    (tx.proposer !== null && eqAddress(tx.proposer, signerAddress)) ||
+    (tx.proposedByDelegate !== null &&
+      eqAddress(tx.proposedByDelegate, signerAddress))
+  );
+}
+
 /**
  * Retry helper for Safe API calls with random delay between 1-3 seconds.
  * Handles rate limiting (429) errors with jittered backoff.
@@ -376,9 +392,10 @@ export async function deleteSafeTx(
     return;
   }
 
-  // Compare proposer to signer
+  // Safe attributes delegate submissions to the owner that delegated access.
+  // Permit either the attributed owner or the actual delegate to delete them.
   const signerAddress = await signer.getAddress();
-  if (!eqAddress(proposer, signerAddress)) {
+  if (!wasSafeTxProposedBy(txDetails, signerAddress)) {
     rootLogger.info(
       chalk.italic(
         `Skipping deletion of transaction ${safeTxHash} proposed by ${proposer}`,
@@ -738,11 +755,18 @@ export async function updateSafeOwner({
     newThreshold <= expectedOwners.length,
     `Safe threshold ${newThreshold} exceeds owner count ${expectedOwners.length}`,
   );
-  assert(
-    !proposer ||
-      expectedOwners.some((owner: Address) => eqAddress(owner, proposer)),
-    `Proposer ${proposer} must remain a Safe owner`,
-  );
+  // Safe delegates can propose without being owners. Only require retention
+  // when the proposer is an existing owner.
+  if (proposer) {
+    const proposerIsCurrentOwner = currentOwners.some((owner: Address) =>
+      eqAddress(owner, proposer),
+    );
+    assert(
+      !proposerIsCurrentOwner ||
+        expectedOwners.some((owner: Address) => eqAddress(owner, proposer)),
+      `Proposer ${proposer} must remain a Safe owner`,
+    );
+  }
 
   // Sort ownersToRemove by their position in the currentOwners array. Safe owners
   // are stored in a linked list, and each update changes the prevOwner needed for

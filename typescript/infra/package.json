@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/infra",
-  "version": "42.0.0",
+  "version": "43.0.0",
   "private": true,
   "description": "Infrastructure utilities for the Hyperlane Network",
   "keywords": [
@@ -73,6 +73,7 @@
     "@solana/kit": "catalog:",
     "@solana/web3.js": "catalog:",
     "@turnkey/api-key-stamper": "catalog:",
+    "@turnkey/http": "catalog:",
     "@turnkey/sdk-server": "catalog:",
     "@turnkey/solana": "catalog:",
     "asn1.js": "catalog:",
@@ -94,8 +95,7 @@
     "yaml": "catalog:",
     "yargs": "catalog:",
     "zksync-ethers": "catalog:",
-    "zod": "catalog:",
-    "zod-validation-error": "catalog:"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",

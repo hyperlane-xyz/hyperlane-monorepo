@@ -1,3 +1,4 @@
+import 'zod/compile';
 import 'reflect-metadata';
 
 import { Logger } from '@nestjs/common';

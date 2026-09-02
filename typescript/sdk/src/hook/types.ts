@@ -260,36 +260,36 @@ export const OpStackHookSchema = OwnableSchema.extend({
   destinationChain: z.string(),
 });
 
-export const ArbL2ToL1HookSchema: z.ZodType<
-  ArbL2ToL1HookConfig,
-  z.ZodTypeDef,
-  unknown
-> = z.lazy(() =>
-  z.object({
-    type: z.literal(HookType.ARB_L2_TO_L1),
-    arbSys: z
-      .string()
-      .describe(
-        'precompile for sending messages to L1, interface here: https://github.com/OffchainLabs/nitro-contracts/blob/90037b996509312ef1addb3f9352457b8a99d6a6/src/precompiles/ArbSys.sol#L12',
-      ),
-    bridge: z
-      .string()
-      .optional()
-      .describe(
-        'address of the bridge contract on L1, optional only needed for non @arbitrum/sdk chains',
-      ),
-    destinationChain: z.string(),
-    childHook: HookConfigSchema,
-  }),
-);
+export const ArbL2ToL1HookSchema: z.ZodType<ArbL2ToL1HookConfig, unknown> =
+  z.lazy(() =>
+    z.object({
+      type: z.literal(HookType.ARB_L2_TO_L1),
+      arbSys: z
+        .string()
+        .describe(
+          'precompile for sending messages to L1, interface here: https://github.com/OffchainLabs/nitro-contracts/blob/90037b996509312ef1addb3f9352457b8a99d6a6/src/precompiles/ArbSys.sol#L12',
+        ),
+      bridge: z
+        .string()
+        .optional()
+        .describe(
+          'address of the bridge contract on L1, optional only needed for non @arbitrum/sdk chains',
+        ),
+      destinationChain: z.string(),
+      childHook: HookConfigSchema,
+    }),
+  );
 
 export const IgpSchema = OwnableSchema.extend({
   type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),
   beneficiary: z.string(),
   oracleKey: z.string(),
-  overhead: z.record(z.number()),
-  oracleConfig: z.record(ProtocolAgnositicGasOracleConfigWithTypicalCostSchema),
-  igpVersion: z.nativeEnum(IgpVersion).optional(),
+  overhead: z.record(z.string(), z.number()),
+  oracleConfig: z.record(
+    z.string(),
+    ProtocolAgnositicGasOracleConfigWithTypicalCostSchema,
+  ),
+  igpVersion: z.enum(IgpVersion).optional(),
   quoteSigners: z.array(z.string()).optional(),
   contractVersion: z.string().optional(),
   // Per-fee-token gas oracles for ERC20-denominated interchain gas payments.
@@ -308,24 +308,22 @@ export const IgpSchema = OwnableSchema.extend({
 
 export const DomainRoutingHookConfigSchema: z.ZodType<
   DomainRoutingHookConfig,
-  z.ZodTypeDef,
   unknown
 > = z.lazy(() =>
   OwnableSchema.extend({
     type: z.literal(HookType.ROUTING),
-    domains: z.record(HookConfigSchema),
+    domains: z.record(z.string(), HookConfigSchema),
     address: ZHash.optional(),
   }),
 );
 
 export const FallbackRoutingHookConfigSchema: z.ZodType<
   FallbackRoutingHookConfig,
-  z.ZodTypeDef,
   unknown
 > = z.lazy(() =>
   OwnableSchema.extend({
     type: z.literal(HookType.FALLBACK_ROUTING),
-    domains: z.record(HookConfigSchema),
+    domains: z.record(z.string(), HookConfigSchema),
     fallback: HookConfigSchema,
     address: ZHash.optional(),
   }),
@@ -333,7 +331,6 @@ export const FallbackRoutingHookConfigSchema: z.ZodType<
 
 export const AmountRoutingHookConfigSchema: z.ZodType<
   AmountRoutingHookConfig,
-  z.ZodTypeDef,
   unknown
 > = z.lazy(() =>
   z.object({
@@ -346,7 +343,6 @@ export const AmountRoutingHookConfigSchema: z.ZodType<
 
 export const AggregationHookConfigSchema: z.ZodType<
   AggregationHookConfig,
-  z.ZodTypeDef,
   unknown
 > = z.lazy(() =>
   z.object({
@@ -367,11 +363,9 @@ export const CctpHookSchema = z.object({
 });
 export type CctpHookConfig = z.infer<typeof CctpHookSchema>;
 
-export const UnknownHookSchema = z
-  .object({
-    type: z.literal(HookType.UNKNOWN),
-  })
-  .passthrough();
+export const UnknownHookSchema = z.looseObject({
+  type: z.literal(HookType.UNKNOWN),
+});
 export type UnknownHookConfig = z.infer<typeof UnknownHookSchema>;
 
 export const RateLimitedHookSchema = OwnableSchema.extend({
@@ -438,7 +432,7 @@ export const DelayedFlowRouterHookConfigSchema = OwnableSchema.extend({
    * DelayedFlowRouterHookIsm instances (the contract is itself a Router, so
    * on-chain nomenclature keeps "router": enrollRemoteRouters/routers()).
    */
-  remoteIsms: z.record(ZRouterBytes32).optional(),
+  remoteIsms: z.record(z.string(), ZRouterBytes32).optional(),
 }).refine((val) => val.duration > 0n, {
   message: 'duration must be greater than 0',
   path: ['duration'],
@@ -488,28 +482,27 @@ export function normalizeUnknownHookTypes<T>(config: T): T {
   return normalized as T;
 }
 
-export const HookConfigSchema: z.ZodType<HookConfig, z.ZodTypeDef, unknown> =
-  z.union([
-    ZHash,
-    ProtocolFeeSchema,
-    PausableHookSchema,
-    OpStackHookSchema,
-    MerkleTreeSchema,
-    IgpSchema,
-    DomainRoutingHookConfigSchema,
-    FallbackRoutingHookConfigSchema,
-    AmountRoutingHookConfigSchema,
-    AggregationHookConfigSchema,
-    ArbL2ToL1HookSchema,
-    MailboxDefaultHookSchema,
-    CCIPHookSchema,
-    CctpHookSchema,
-    RateLimitedHookSchema,
-    NetFlowRateLimitedHookConfigSchema,
-    DelayedFlowRouterHookConfigSchema,
-    UnknownHookSchema,
-    PredicateHookSchema,
-  ]);
+export const HookConfigSchema: z.ZodType<HookConfig, unknown> = z.union([
+  ZHash,
+  ProtocolFeeSchema,
+  PausableHookSchema,
+  OpStackHookSchema,
+  MerkleTreeSchema,
+  IgpSchema,
+  DomainRoutingHookConfigSchema,
+  FallbackRoutingHookConfigSchema,
+  AmountRoutingHookConfigSchema,
+  AggregationHookConfigSchema,
+  ArbL2ToL1HookSchema,
+  MailboxDefaultHookSchema,
+  CCIPHookSchema,
+  CctpHookSchema,
+  RateLimitedHookSchema,
+  NetFlowRateLimitedHookConfigSchema,
+  DelayedFlowRouterHookConfigSchema,
+  UnknownHookSchema,
+  PredicateHookSchema,
+]);
 
 /**
  * Forward-compatible hook config schema that normalizes unknown hook types.
@@ -527,5 +520,5 @@ export const HooksConfigSchema = z.object({
   required: HookConfigSchema,
 });
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
-export const HooksConfigMapSchema = z.record(HooksConfigSchema);
+export const HooksConfigMapSchema = z.record(z.string(), HooksConfigSchema);
 export type HooksConfigMap = z.infer<typeof HooksConfigMapSchema>;

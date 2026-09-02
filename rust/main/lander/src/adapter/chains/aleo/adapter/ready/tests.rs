@@ -1,4 +1,5 @@
 use super::super::core::tests::{create_test_adapter, create_test_transaction};
+use crate::TransactionStatus;
 
 #[test]
 fn test_tx_ready_for_resubmission() {
@@ -39,4 +40,14 @@ fn test_tx_ready_for_resubmission() {
         result,
         "Transaction with future submission time should be ready (safety fallback)"
     );
+}
+
+#[test]
+fn test_mempool_transaction_is_not_resubmitted() {
+    let adapter = create_test_adapter();
+    let mut tx = create_test_transaction();
+    tx.status = TransactionStatus::Mempool;
+    tx.last_submission_attempt = Some(chrono::Utc::now() - chrono::Duration::hours(1));
+
+    assert!(!adapter.ready_for_resubmission(&tx));
 }

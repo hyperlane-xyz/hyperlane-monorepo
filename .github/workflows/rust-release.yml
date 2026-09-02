@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'rust/main/**'
+      - '!rust/main/helm/**'
       - 'rust/scripts/ci/**'
       - '.github/workflows/rust-release.yml'
   workflow_dispatch:
@@ -54,7 +55,7 @@ jobs:
             echo "has_changes=true" >> $GITHUB_OUTPUT
           else
             # Check if there are commits to rust/main since last release
-            COMMITS_SINCE=$(git log "$LATEST_TAG"..HEAD --oneline -- . | wc -l)
+            COMMITS_SINCE=$(git log "$LATEST_TAG"..HEAD --oneline -- . ':(exclude)helm/**' | wc -l)
             echo "Commits since $LATEST_TAG: $COMMITS_SINCE"
 
             if [ "$COMMITS_SINCE" -gt 0 ]; then
