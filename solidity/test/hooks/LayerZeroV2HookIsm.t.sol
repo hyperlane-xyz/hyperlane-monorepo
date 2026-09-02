@@ -503,6 +503,12 @@ abstract contract LayerZeroV2HookIsmTestBase is Test {
     }
 
     function testRuntimeCodeFitsEip170() public view {
+        // Coverage instrumentation changes runtime bytecode and cannot measure
+        // the deployable artifact's EIP-170 size. The default/CI profiles do.
+        if (
+            keccak256(bytes(vm.envOr("FOUNDRY_PROFILE", string("default")))) ==
+            keccak256(bytes("coverage"))
+        ) return;
         assertLe(address(originRouter).code.length, EIP_170_MAX_CODE_SIZE);
     }
 
