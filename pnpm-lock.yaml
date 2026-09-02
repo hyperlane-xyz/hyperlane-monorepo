@@ -334,8 +334,8 @@ catalogs:
       specifier: ^5.10.0
       version: 5.11.2
     zod:
-      specifier: ^4.5.2
-      version: 4.5.2
+      specifier: ^4.5.4
+      version: 4.5.4
 
 overrides:
   '@provablehq/wasm': 0.11.3
@@ -666,7 +666,7 @@ importers:
         version: 14.2.0
       zod:
         specifier: 'catalog:'
-        version: 4.5.2
+        version: 4.5.4
     devDependencies:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
@@ -904,7 +904,7 @@ importers:
         version: '@typescript/typescript6@6.0.2'
       viem:
         specifier: 'catalog:'
-        version: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+        version: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       yaml:
         specifier: 'catalog:'
         version: 2.4.5
@@ -916,7 +916,7 @@ importers:
         version: 5.11.2(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       zod:
         specifier: 'catalog:'
-        version: 4.5.2
+        version: 4.5.4
       zx:
         specifier: ^8.1.4
         version: 8.8.5
@@ -1041,7 +1041,7 @@ importers:
         version: link:../utils
       zod:
         specifier: 'catalog:'
-        version: 4.5.2
+        version: 4.5.4
     devDependencies:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
@@ -1120,13 +1120,13 @@ importers:
         version: 14.2.0
       viem:
         specifier: 'catalog:'
-        version: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+        version: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       yargs:
         specifier: 'catalog:'
         version: 17.7.3
       zod:
         specifier: 'catalog:'
-        version: 4.5.2
+        version: 4.5.4
     devDependencies:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
@@ -1375,7 +1375,7 @@ importers:
         version: 8.21.0
       zod:
         specifier: 'catalog:'
-        version: 4.5.2
+        version: 4.5.4
     devDependencies:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
@@ -1529,16 +1529,16 @@ importers:
         version: 3.1.8(hardhat@2.29.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(supports-color@10.2.2)(ts-node@10.9.2(@types/node@26.1.2)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10))(supports-color@10.2.2)
       '@safe-global/api-kit':
         specifier: 'catalog:'
-        version: 4.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+        version: 4.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       '@safe-global/protocol-kit':
         specifier: 'catalog:'
-        version: 7.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+        version: 7.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       '@safe-global/safe-deployments':
         specifier: 'catalog:'
         version: 1.37.60
       '@safe-global/types-kit':
         specifier: 'catalog:'
-        version: 3.1.0(@typescript/typescript6@6.0.2)(zod@4.5.2)
+        version: 3.1.0(@typescript/typescript6@6.0.2)(zod@4.5.4)
       '@solana/kit':
         specifier: 'catalog:'
         version: 6.10.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@5.0.10)
@@ -1553,10 +1553,10 @@ importers:
         version: 3.15.0
       '@turnkey/sdk-server':
         specifier: 'catalog:'
-        version: 4.12.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+        version: 4.12.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       '@turnkey/solana':
         specifier: 'catalog:'
-        version: 1.1.12(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+        version: 1.1.12(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       asn1.js:
         specifier: 'catalog:'
         version: 5.4.1
@@ -1604,7 +1604,7 @@ importers:
         version: 0.2.7
       viem:
         specifier: 'catalog:'
-        version: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+        version: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       yaml:
         specifier: 'catalog:'
         version: 2.4.5
@@ -1616,7 +1616,7 @@ importers:
         version: 5.11.2(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       zod:
         specifier: 'catalog:'
-        version: 4.5.2
+        version: 4.5.4
     devDependencies:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
@@ -1740,7 +1740,7 @@ importers:
         version: 2.4.5
       zod:
         specifier: 'catalog:'
-        version: 4.5.2
+        version: 4.5.4
     devDependencies:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
@@ -1850,7 +1850,7 @@ importers:
         version: 8.21.0
       zod:
         specifier: 'catalog:'
-        version: 4.5.2
+        version: 4.5.4
     devDependencies:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
@@ -1978,7 +1978,7 @@ importers:
         version: 1.3.3
       '@lifi/sdk':
         specifier: 'catalog:'
-        version: 3.16.3(@solana/wallet-adapter-base@0.9.27(@solana/web3.js@1.98.4(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)))(@solana/web3.js@1.98.4(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@types/react@18.3.27)(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(immer@10.2.0)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))(utf-8-validate@5.0.10)(viem@2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2))(zod@4.5.2)
+        version: 3.16.3(@solana/wallet-adapter-base@0.9.27(@solana/web3.js@1.98.4(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)))(@solana/web3.js@1.98.4(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@types/react@18.3.27)(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(immer@10.2.0)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))(utf-8-validate@5.0.10)(viem@2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4))(zod@4.5.4)
       '@solana/web3.js':
         specifier: 'catalog:'
         version: 1.98.4(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)
@@ -2008,13 +2008,13 @@ importers:
         version: 10.0.0
       viem:
         specifier: 'catalog:'
-        version: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+        version: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       yaml:
         specifier: 'catalog:'
         version: 2.4.5
       zod:
         specifier: 'catalog:'
-        version: 4.5.2
+        version: 4.5.4
     devDependencies:
       '@ethersproject/constants':
         specifier: '*'
@@ -2105,7 +2105,7 @@ importers:
         version: 13.1.3
       zod:
         specifier: 'catalog:'
-        version: 4.5.2
+        version: 4.5.4
     devDependencies:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
@@ -2181,7 +2181,7 @@ importers:
         version: 2.4.5
       zod:
         specifier: 'catalog:'
-        version: 4.5.2
+        version: 4.5.4
     devDependencies:
       '@ethersproject/providers':
         specifier: '*'
@@ -2290,7 +2290,7 @@ importers:
         version: 8.21.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       zod:
         specifier: 'catalog:'
-        version: 4.5.2
+        version: 4.5.4
     devDependencies:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
@@ -2381,16 +2381,16 @@ importers:
         version: link:../utils
       '@safe-global/api-kit':
         specifier: 'catalog:'
-        version: 4.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+        version: 4.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       '@safe-global/protocol-kit':
         specifier: 'catalog:'
-        version: 7.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+        version: 7.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       '@safe-global/safe-deployments':
         specifier: 'catalog:'
         version: 1.37.60
       '@safe-global/types-kit':
         specifier: 'catalog:'
-        version: 3.1.0(@typescript/typescript6@6.0.2)(zod@4.5.2)
+        version: 3.1.0(@typescript/typescript6@6.0.2)(zod@4.5.4)
       '@solana/spl-token':
         specifier: 'catalog:'
         version: 0.4.15(@solana/web3.js@1.98.4(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@5.0.10)
@@ -2405,10 +2405,10 @@ importers:
         version: 0.5.0
       '@turnkey/sdk-server':
         specifier: 'catalog:'
-        version: 4.12.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+        version: 4.12.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       '@turnkey/solana':
         specifier: 'catalog:'
-        version: 1.1.12(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+        version: 1.1.12(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       bignumber.js:
         specifier: 'catalog:'
         version: 9.3.1
@@ -2435,13 +2435,13 @@ importers:
         version: 8.9.2
       viem:
         specifier: 'catalog:'
-        version: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+        version: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       zksync-ethers:
         specifier: 'catalog:'
         version: 5.11.2(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       zod:
         specifier: 'catalog:'
-        version: 4.5.2
+        version: 4.5.4
     devDependencies:
       '@ethersproject/providers':
         specifier: '*'
@@ -2596,7 +2596,7 @@ importers:
         version: 6.1.1
       zod:
         specifier: 'catalog:'
-        version: 4.5.2
+        version: 4.5.4
     devDependencies:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
@@ -18017,8 +18017,8 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
-  zod@4.5.2:
-    resolution: {integrity: sha512-XkYXCol10+ba/6F/cueWV+TezUeOqXW0hdeJt5CdXjTYeAgAQg5N03RQdJ80mhfFE72+pblvYMW4wy2Qp4Qbrg==}
+  zod@4.5.4:
+    resolution: {integrity: sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA==}
 
   zustand@4.5.7:
     resolution: {integrity: sha512-CHOUy7mu3lbD6o6LJLfllpjkzhHXSBlX8B9+qPddUsIfeF5S/UZ5q0kmCsnRqT1UHFQZchNFDDzMbQsuesHWlw==}
@@ -21483,7 +21483,7 @@ snapshots:
       jszip: 3.10.1
       pino: 8.21.0
       yaml: 2.9.0
-      zod: 4.5.2
+      zod: 4.5.4
 
   '@img/sharp-darwin-arm64@0.33.5':
     optionalDependencies:
@@ -22001,11 +22001,11 @@ snapshots:
 
   '@ledgerhq/logs@5.50.0': {}
 
-  '@lifi/sdk@3.16.3(@solana/wallet-adapter-base@0.9.27(@solana/web3.js@1.98.4(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)))(@solana/web3.js@1.98.4(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@types/react@18.3.27)(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(immer@10.2.0)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))(utf-8-validate@5.0.10)(viem@2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2))(zod@4.5.2)':
+  '@lifi/sdk@3.16.3(@solana/wallet-adapter-base@0.9.27(@solana/web3.js@1.98.4(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)))(@solana/web3.js@1.98.4(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@types/react@18.3.27)(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(immer@10.2.0)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))(utf-8-validate@5.0.10)(viem@2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4))(zod@4.5.4)':
     dependencies:
       '@bigmi/core': 0.7.1(@types/react@18.3.27)(@typescript/typescript6@6.0.2)(bs58@6.0.0)(immer@10.2.0)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
       '@bitcoinerlab/secp256k1': 1.2.0
-      '@lifi/types': 17.65.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+      '@lifi/types': 17.65.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       '@mysten/sui': 1.45.2(@typescript/typescript6@6.0.2)
       '@mysten/wallet-standard': 0.19.9(@typescript/typescript6@6.0.2)
       '@noble/curves': 1.9.7
@@ -22014,7 +22014,7 @@ snapshots:
       bech32: 2.0.0
       bitcoinjs-lib: 7.0.1(@typescript/typescript6@6.0.2)
       bs58: 6.0.0
-      viem: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+      viem: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
     transitivePeerDependencies:
       - '@gql.tada/svelte-support'
       - '@gql.tada/vue-support'
@@ -22027,9 +22027,9 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@lifi/types@17.65.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)':
+  '@lifi/types@17.65.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)':
     dependencies:
-      viem: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+      viem: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
     transitivePeerDependencies:
       - bufferutil
       - typescript
@@ -24234,12 +24234,12 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.53.3':
     optional: true
 
-  '@safe-global/api-kit@4.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)':
+  '@safe-global/api-kit@4.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)':
     dependencies:
-      '@safe-global/protocol-kit': 7.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
-      '@safe-global/types-kit': 3.1.0(@typescript/typescript6@6.0.2)(zod@4.5.2)
+      '@safe-global/protocol-kit': 7.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
+      '@safe-global/types-kit': 3.1.0(@typescript/typescript6@6.0.2)(zod@4.5.4)
       node-fetch: 2.7.0(patch_hash=59af5fd5e6879432f6c8aaafe72ade0e018951d8576db2aedda3d59e5a7bc024)
-      viem: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+      viem: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
     transitivePeerDependencies:
       - bufferutil
       - encoding
@@ -24247,14 +24247,14 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@safe-global/protocol-kit@7.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)':
+  '@safe-global/protocol-kit@7.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)':
     dependencies:
       '@safe-global/safe-deployments': 1.37.60
       '@safe-global/safe-modules-deployments': 3.0.8
-      '@safe-global/types-kit': 3.1.0(@typescript/typescript6@6.0.2)(zod@4.5.2)
-      abitype: 1.3.0(@typescript/typescript6@6.0.2)(zod@4.5.2)
+      '@safe-global/types-kit': 3.1.0(@typescript/typescript6@6.0.2)(zod@4.5.4)
+      abitype: 1.3.0(@typescript/typescript6@6.0.2)(zod@4.5.4)
       semver: 7.8.5
-      viem: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+      viem: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
     optionalDependencies:
       '@noble/curves': 1.9.7
       '@peculiar/asn1-schema': 2.6.0
@@ -24292,9 +24292,9 @@ snapshots:
 
   '@safe-global/safe-modules-deployments@3.0.8': {}
 
-  '@safe-global/types-kit@3.1.0(@typescript/typescript6@6.0.2)(zod@4.5.2)':
+  '@safe-global/types-kit@3.1.0(@typescript/typescript6@6.0.2)(zod@4.5.4)':
     dependencies:
-      abitype: 1.3.0(@typescript/typescript6@6.0.2)(zod@4.5.2)
+      abitype: 1.3.0(@typescript/typescript6@6.0.2)(zod@4.5.4)
     transitivePeerDependencies:
       - typescript
       - zod
@@ -26511,7 +26511,7 @@ snapshots:
       '@turnkey/encoding': 0.6.0
       sha256-uint8array: 0.10.7
 
-  '@turnkey/core@1.7.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)':
+  '@turnkey/core@1.7.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)':
     dependencies:
       '@turnkey/api-key-stamper': 0.5.0
       '@turnkey/crypto': 2.8.5
@@ -26521,13 +26521,13 @@ snapshots:
       '@turnkey/webauthn-stamper': 0.6.0
       '@wallet-standard/app': 1.1.1
       '@wallet-standard/base': 1.1.1
-      '@walletconnect/sign-client': 2.23.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+      '@walletconnect/sign-client': 2.23.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       '@walletconnect/types': 2.23.10(@react-native-async-storage/async-storage@1.24.0(react-native@0.82.1(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.3.1)(supports-color@10.2.2)(utf-8-validate@5.0.10)))
       cross-fetch: 3.2.0
       ethers: 6.17.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       jwt-decode: 4.0.0
       uuid: 11.1.0
-      viem: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+      viem: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
     transitivePeerDependencies:
       - '@azure/app-configuration'
       - '@azure/cosmos'
@@ -26627,7 +26627,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@turnkey/sdk-browser@5.13.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)':
+  '@turnkey/sdk-browser@5.13.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)':
     dependencies:
       '@turnkey/api-key-stamper': 0.5.0
       '@turnkey/crypto': 2.8.5
@@ -26636,7 +26636,7 @@ snapshots:
       '@turnkey/iframe-stamper': 2.7.0
       '@turnkey/indexed-db-stamper': 1.2.0
       '@turnkey/sdk-types': 0.8.0
-      '@turnkey/wallet-stamper': 1.1.7(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+      '@turnkey/wallet-stamper': 1.1.7(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       '@turnkey/webauthn-stamper': 0.6.0
       buffer: 6.0.3
       cross-fetch: 3.2.0
@@ -26648,11 +26648,11 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@turnkey/sdk-server@4.12.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)':
+  '@turnkey/sdk-server@4.12.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)':
     dependencies:
       '@turnkey/api-key-stamper': 0.5.0
       '@turnkey/http': 3.15.0
-      '@turnkey/wallet-stamper': 1.1.7(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+      '@turnkey/wallet-stamper': 1.1.7(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       buffer: 6.0.3
       cross-fetch: 3.2.0
     transitivePeerDependencies:
@@ -26664,13 +26664,13 @@ snapshots:
 
   '@turnkey/sdk-types@0.8.0': {}
 
-  '@turnkey/solana@1.1.12(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)':
+  '@turnkey/solana@1.1.12(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)':
     dependencies:
       '@solana/web3.js': 1.98.4(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      '@turnkey/core': 1.7.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+      '@turnkey/core': 1.7.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       '@turnkey/http': 3.15.0
-      '@turnkey/sdk-browser': 5.13.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
-      '@turnkey/sdk-server': 4.12.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+      '@turnkey/sdk-browser': 5.13.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
+      '@turnkey/sdk-server': 4.12.0(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
     transitivePeerDependencies:
       - '@azure/app-configuration'
       - '@azure/cosmos'
@@ -26711,12 +26711,12 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@turnkey/wallet-stamper@1.1.7(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)':
+  '@turnkey/wallet-stamper@1.1.7(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)':
     dependencies:
       '@turnkey/crypto': 2.8.5
       '@turnkey/encoding': 0.6.0
     optionalDependencies:
-      viem: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+      viem: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
     transitivePeerDependencies:
       - bufferutil
       - typescript
@@ -27627,7 +27627,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@walletconnect/core@2.23.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)':
+  '@walletconnect/core@2.23.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)':
     dependencies:
       '@walletconnect/heartbeat': 1.2.2
       '@walletconnect/jsonrpc-provider': 1.0.14
@@ -27641,7 +27641,7 @@ snapshots:
       '@walletconnect/safe-json': 1.0.2
       '@walletconnect/time': 1.0.2
       '@walletconnect/types': 2.23.10(@react-native-async-storage/async-storage@1.24.0(react-native@0.82.1(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.3.1)(supports-color@10.2.2)(utf-8-validate@5.0.10)))
-      '@walletconnect/utils': 2.23.10(@typescript/typescript6@6.0.2)(zod@4.5.2)
+      '@walletconnect/utils': 2.23.10(@typescript/typescript6@6.0.2)(zod@4.5.4)
       '@walletconnect/window-getters': 1.0.1
       es-toolkit: 1.45.1
       events: 3.3.0
@@ -27938,14 +27938,14 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@walletconnect/sign-client@2.23.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)':
+  '@walletconnect/sign-client@2.23.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)':
     dependencies:
-      '@walletconnect/core': 2.23.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2)
+      '@walletconnect/core': 2.23.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4)
       '@walletconnect/jsonrpc-utils': 1.0.8
       '@walletconnect/logger': 3.0.2
       '@walletconnect/time': 1.0.2
       '@walletconnect/types': 2.23.10(@react-native-async-storage/async-storage@1.24.0(react-native@0.82.1(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.3.1)(supports-color@10.2.2)(utf-8-validate@5.0.10)))
-      '@walletconnect/utils': 2.23.10(@typescript/typescript6@6.0.2)(zod@4.5.2)
+      '@walletconnect/utils': 2.23.10(@typescript/typescript6@6.0.2)(zod@4.5.4)
       events: 3.3.0
     transitivePeerDependencies:
       - '@azure/app-configuration'
@@ -28304,7 +28304,7 @@ snapshots:
       - uploadthing
       - zod
 
-  '@walletconnect/utils@2.23.10(@typescript/typescript6@6.0.2)(zod@4.5.2)':
+  '@walletconnect/utils@2.23.10(@typescript/typescript6@6.0.2)(zod@4.5.4)':
     dependencies:
       '@msgpack/msgpack': 3.1.3
       '@noble/ciphers': 1.3.0
@@ -28323,7 +28323,7 @@ snapshots:
       '@walletconnect/window-metadata': 1.0.1
       blakejs: 1.2.1
       detect-browser: 5.3.0
-      ox: 0.9.3(@typescript/typescript6@6.0.2)(zod@4.5.2)
+      ox: 0.9.3(@typescript/typescript6@6.0.2)(zod@4.5.4)
       uint8arrays: 3.1.1
     transitivePeerDependencies:
       - '@azure/app-configuration'
@@ -28516,10 +28516,10 @@ snapshots:
       typescript: '@typescript/typescript6@6.0.2'
       zod: 3.25.76
 
-  abitype@1.2.3(@typescript/typescript6@6.0.2)(zod@4.5.2):
+  abitype@1.2.3(@typescript/typescript6@6.0.2)(zod@4.5.4):
     optionalDependencies:
       typescript: '@typescript/typescript6@6.0.2'
-      zod: 4.5.2
+      zod: 4.5.4
 
   abitype@1.3.0(@typescript/typescript6@6.0.2)(zod@3.22.4):
     optionalDependencies:
@@ -28531,10 +28531,10 @@ snapshots:
       typescript: '@typescript/typescript6@6.0.2'
       zod: 3.25.76
 
-  abitype@1.3.0(@typescript/typescript6@6.0.2)(zod@4.5.2):
+  abitype@1.3.0(@typescript/typescript6@6.0.2)(zod@4.5.4):
     optionalDependencies:
       typescript: '@typescript/typescript6@6.0.2'
-      zod: 4.5.2
+      zod: 4.5.4
 
   abort-controller@3.0.0:
     dependencies:
@@ -34206,7 +34206,7 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
-  ox@0.14.33(@typescript/typescript6@6.0.2)(zod@4.5.2):
+  ox@0.14.33(@typescript/typescript6@6.0.2)(zod@4.5.4):
     dependencies:
       '@adraffy/ens-normalize': 1.11.1
       '@noble/ciphers': 1.3.0
@@ -34214,7 +34214,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
-      abitype: 1.3.0(@typescript/typescript6@6.0.2)(zod@4.5.2)
+      abitype: 1.3.0(@typescript/typescript6@6.0.2)(zod@4.5.4)
       eventemitter3: 5.0.1
     optionalDependencies:
       typescript: '@typescript/typescript6@6.0.2'
@@ -34249,7 +34249,7 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
-  ox@0.9.14(@typescript/typescript6@6.0.2)(zod@4.5.2):
+  ox@0.9.14(@typescript/typescript6@6.0.2)(zod@4.5.4):
     dependencies:
       '@adraffy/ens-normalize': 1.11.1
       '@noble/ciphers': 1.3.0
@@ -34257,7 +34257,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
-      abitype: 1.3.0(@typescript/typescript6@6.0.2)(zod@4.5.2)
+      abitype: 1.3.0(@typescript/typescript6@6.0.2)(zod@4.5.4)
       eventemitter3: 5.0.1
     optionalDependencies:
       typescript: '@typescript/typescript6@6.0.2'
@@ -34279,7 +34279,7 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
-  ox@0.9.3(@typescript/typescript6@6.0.2)(zod@4.5.2):
+  ox@0.9.3(@typescript/typescript6@6.0.2)(zod@4.5.4):
     dependencies:
       '@adraffy/ens-normalize': 1.11.1
       '@noble/ciphers': 1.3.0
@@ -34287,7 +34287,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
-      abitype: 1.3.0(@typescript/typescript6@6.0.2)(zod@4.5.2)
+      abitype: 1.3.0(@typescript/typescript6@6.0.2)(zod@4.5.4)
       eventemitter3: 5.0.1
     optionalDependencies:
       typescript: '@typescript/typescript6@6.0.2'
@@ -34710,9 +34710,9 @@ snapshots:
       hono: 4.11.4
       idb-keyval: 6.2.2
       mipd: 0.0.7(@typescript/typescript6@6.0.2)
-      ox: 0.9.14(@typescript/typescript6@6.0.2)(zod@4.5.2)
+      ox: 0.9.14(@typescript/typescript6@6.0.2)(zod@4.5.4)
       viem: 2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@3.25.76)
-      zod: 4.5.2
+      zod: 4.5.4
       zustand: 5.0.8(@types/react@18.3.27)(immer@10.2.0)(react@18.3.1)(use-sync-external-store@1.4.0(react@18.3.1))
     optionalDependencies:
       '@tanstack/react-query': 5.101.4(react@18.3.1)
@@ -37802,15 +37802,15 @@ snapshots:
       - utf-8-validate
       - zod
 
-  viem@2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.2):
+  viem@2.55.10(@typescript/typescript6@6.0.2)(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@4.5.4):
     dependencies:
       '@noble/curves': 1.9.1
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
-      abitype: 1.2.3(@typescript/typescript6@6.0.2)(zod@4.5.2)
+      abitype: 1.2.3(@typescript/typescript6@6.0.2)(zod@4.5.4)
       isows: 1.0.7(ws@8.21.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))
-      ox: 0.14.33(@typescript/typescript6@6.0.2)(zod@4.5.2)
+      ox: 0.14.33(@typescript/typescript6@6.0.2)(zod@4.5.4)
       ws: 8.21.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
     optionalDependencies:
       typescript: '@typescript/typescript6@6.0.2'
@@ -38393,7 +38393,7 @@ snapshots:
 
   zod@3.25.76: {}
 
-  zod@4.5.2: {}
+  zod@4.5.4: {}
 
   zustand@4.5.7(@types/react@18.3.27)(immer@10.2.0)(react@18.3.1):
     dependencies:
