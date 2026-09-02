@@ -240,6 +240,15 @@ impl DispatcherMetrics {
         );
     }
 
+    pub fn remove_liveness_metric(&self, stage: &str, domain: &str) {
+        if let Err(error) = self.task_liveness.remove_label_values(&[domain, stage]) {
+            warn!(
+                ?error,
+                stage, domain, "Failed to remove task liveness metric"
+            );
+        }
+    }
+
     pub fn update_queue_length_metric(&self, stage: &str, length: u64, domain: &str) {
         match stage {
             crate::dispatcher::building_stage::STAGE_NAME => self
