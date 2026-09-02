@@ -15,6 +15,7 @@ contract MockLayerZeroEndpointV2 {
     uint32 public immutable eid;
     address public nativeToken;
     uint256 public nativeFee = 0.01 ether;
+    uint256 public lzTokenFee;
     bytes public lastPacket;
     bytes public lastOptions;
 
@@ -51,6 +52,10 @@ contract MockLayerZeroEndpointV2 {
         nativeFee = fee;
     }
 
+    function setLzTokenFee(uint256 fee) external {
+        lzTokenFee = fee;
+    }
+
     function registerMockLibrary(address libraryAddress) external {
         registeredLibraries[libraryAddress] = true;
     }
@@ -63,7 +68,11 @@ contract MockLayerZeroEndpointV2 {
         LayerZeroMessagingParams calldata,
         address
     ) external view returns (LayerZeroMessagingFee memory) {
-        return LayerZeroMessagingFee({nativeFee: nativeFee, lzTokenFee: 0});
+        return
+            LayerZeroMessagingFee({
+                nativeFee: nativeFee,
+                lzTokenFee: lzTokenFee
+            });
     }
 
     function send(
@@ -101,7 +110,10 @@ contract MockLayerZeroEndpointV2 {
         receipt = LayerZeroMessagingReceipt({
             guid: guid,
             nonce: nonce,
-            fee: LayerZeroMessagingFee({nativeFee: nativeFee, lzTokenFee: 0})
+            fee: LayerZeroMessagingFee({
+                nativeFee: nativeFee,
+                lzTokenFee: lzTokenFee
+            })
         });
     }
 
