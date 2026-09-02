@@ -1,5 +1,6 @@
 import {
   IsmType,
+  LayerZeroV2IsmConfig,
   MultiProvider,
   NullIsmConfig,
   WormholeIsmConfig,
@@ -15,13 +16,20 @@ import type {
 export const NULL_METADATA = '0x';
 
 export type NullMetadata = {
-  type: NullIsmConfig['type'] | typeof IsmType.WORMHOLE_EXECUTOR;
+  type:
+    | NullIsmConfig['type']
+    | typeof IsmType.WORMHOLE_EXECUTOR
+    | typeof IsmType.LAYER_ZERO_V2_CALLBACK;
 };
 
 /** ISM configs whose metadata is always empty. */
 export type EmptyMetadataIsmConfig =
   | NullIsmConfig
-  | (WormholeIsmConfig & { type: typeof IsmType.WORMHOLE_EXECUTOR });
+  | (WormholeIsmConfig & { type: typeof IsmType.WORMHOLE_EXECUTOR })
+  | Extract<
+      LayerZeroV2IsmConfig,
+      { type: typeof IsmType.LAYER_ZERO_V2_CALLBACK }
+    >;
 
 export class NullMetadataBuilder implements MetadataBuilder {
   constructor(protected multiProvider: MultiProvider) {}

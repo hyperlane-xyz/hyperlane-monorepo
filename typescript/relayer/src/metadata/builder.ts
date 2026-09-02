@@ -70,6 +70,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
       case IsmType.BLACKLIST:
       case IsmType.NET_FLOW_RATE_LIMITED:
       case IsmType.DELAYED_FLOW_ROUTER:
+      case IsmType.LAYER_ZERO_V2_CALLBACK:
         return this.nullMetadataBuilder.build({ ...context, ism });
 
       case IsmType.WORMHOLE_EXECUTOR:
@@ -128,6 +129,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
       }
 
       case IsmType.OFFCHAIN_LOOKUP:
+      case IsmType.LAYER_ZERO_V2_CCIP_READ:
         return this.ccipReadMetadataBuilder.build({
           ...context,
           ism,
