@@ -97,7 +97,7 @@ catalog:
   '@aws-sdk/client-kms': ^3.577.0
 
   # Registry
-  '@hyperlane-xyz/registry': 26.0.0
+  '@hyperlane-xyz/registry': 26.1.0
 
   # CLI prompts
   '@inquirer/prompts': 3.3.2
