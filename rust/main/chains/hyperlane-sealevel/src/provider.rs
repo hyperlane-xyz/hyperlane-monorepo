@@ -863,3 +863,86 @@ impl HyperlaneProvider for SealevelProvider {
         Ok(Some(chain_info))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+
+    use hyperlane_core::{rpc_clients::FallbackProvider, KnownHyperlaneDomain};
+    use serde_json::{json, Value};
+    use solana_client::{
+        client_error::Result as ClientResult,
+        nonblocking::rpc_client::RpcClient,
+        rpc_client::RpcClientConfig,
+        rpc_request::RpcRequest,
+        rpc_sender::{RpcSender, RpcTransportStats},
+    };
+
+    use super::*;
+    use crate::client::SealevelRpcClient;
+
+    #[derive(Clone)]
+    struct RecordingRpcSender {
+        calls: Arc<Mutex<Vec<(RpcRequest, Value)>>>,
+        slot: u64,
+    }
+
+    #[async_trait]
+    impl RpcSender for RecordingRpcSender {
+        async fn send(&self, request: RpcRequest, params: Value) -> ClientResult<Value> {
+            let response = match &request {
+                RpcRequest::GetSlot => json!(self.slot),
+                _ => Value::Null,
+            };
+            self.calls
+                .lock()
+                .expect("recording sender mutex should not be poisoned")
+                .push((request, params));
+            Ok(response)
+        }
+
+        fn get_transport_stats(&self) -> RpcTransportStats {
+            RpcTransportStats::default()
+        }
+
+        fn url(&self) -> String {
+            "recording://sealevel-provider-test".to_owned()
+        }
+    }
+
+    #[tokio::test]
+    async fn chain_metrics_only_fetch_finalized_slot() {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let sender = RecordingRpcSender {
+            calls: calls.clone(),
+            slot: 42,
+        };
+        let rpc_client = RpcClient::new_sender(
+            sender,
+            RpcClientConfig::with_commitment(CommitmentConfig::processed()),
+        );
+        let client = SealevelRpcClient::from_rpc_client(Arc::new(rpc_client));
+        let fallback_provider = FallbackProvider::new(vec![client]);
+        let provider = SealevelProvider {
+            rpc_client: SealevelFallbackRpcClient::new(fallback_provider),
+            domain: HyperlaneDomain::Known(KnownHyperlaneDomain::SolanaMainnet),
+            native_token: NativeToken::default(),
+            recipient_provider: RecipientProvider::new(&[]),
+            alt_cache: Arc::new(RwLock::new(HashMap::new())),
+        };
+
+        let chain_info = provider
+            .get_chain_metrics()
+            .await
+            .expect("chain metrics request should succeed")
+            .expect("Sealevel should expose chain metrics");
+
+        assert_eq!(chain_info.block_height, 42);
+        assert_eq!(
+            *calls
+                .lock()
+                .expect("recording sender mutex should not be poisoned"),
+            vec![(RpcRequest::GetSlot, json!([CommitmentConfig::finalized()]),)]
+        );
+    }
+}
