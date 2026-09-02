@@ -17,6 +17,7 @@ use super::PayloadDb;
 // Bound each synchronous chunk to at most 2,000 point reads and 1,000 derived
 // writes while amortizing one RocksDB commit across the whole chunk.
 const RECONCILIATION_BATCH_SIZE: u32 = 1_000;
+const TASK_NAME: &str = "PayloadDbLoader";
 
 #[derive(new)]
 pub struct PayloadDbLoader {
@@ -28,7 +29,7 @@ pub struct PayloadDbLoader {
 impl PayloadDbLoader {
     pub async fn load_from_db(&self, metrics: DispatcherMetrics) -> Result<(), LanderError> {
         let started_at = Instant::now();
-        metrics.update_liveness_metric("PayloadDbLoader", &self.domain);
+        metrics.update_liveness_metric(TASK_NAME, &self.domain);
 
         let checkpoint = self.db.pending_payload_index_checkpoint().await?;
         let requires_reconciliation = match checkpoint {
@@ -50,6 +51,7 @@ impl PayloadDbLoader {
                 domain = %self.domain,
                 "Loaded pending payload index"
             );
+            metrics.remove_liveness_metric(TASK_NAME, &self.domain);
             return Ok(());
         }
 
@@ -72,6 +74,7 @@ impl PayloadDbLoader {
                 .await?;
             pending_count = pending_count.saturating_add(payloads.len());
             self.building_stage_queue.extend(payloads).await;
+            metrics.update_liveness_metric(TASK_NAME, &self.domain);
 
             if first_index == 1 {
                 break;
@@ -87,6 +90,7 @@ impl PayloadDbLoader {
             domain = %self.domain,
             "Pending payload index backfill complete"
         );
+        metrics.remove_liveness_metric(TASK_NAME, &self.domain);
         Ok(())
     }
 }

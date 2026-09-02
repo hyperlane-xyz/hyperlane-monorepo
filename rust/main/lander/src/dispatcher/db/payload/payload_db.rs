@@ -537,10 +537,8 @@ mod tests {
 
         let queue = BuildingStageQueue::new();
         let loader = PayloadDbLoader::new(db.clone(), queue.clone(), "test".to_string());
-        loader
-            .load_from_db(DispatcherMetrics::dummy_instance())
-            .await
-            .unwrap();
+        let metrics = DispatcherMetrics::dummy_instance();
+        loader.load_from_db(metrics.clone()).await.unwrap();
 
         assert!(db
             .pending_payload_index_checkpoint()
@@ -552,6 +550,9 @@ mod tests {
             vec![payload.clone()]
         );
         assert_eq!(queue.pop_n(1).await, vec![payload]);
+        assert!(!String::from_utf8(metrics.gather().unwrap())
+            .unwrap()
+            .contains("PayloadDbLoader"));
     }
 
     #[tokio::test]
