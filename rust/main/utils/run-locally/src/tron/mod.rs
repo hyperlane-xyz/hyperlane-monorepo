@@ -23,8 +23,8 @@ use crate::{
     program::Program,
     server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count},
     utils::{
-        concat_path, get_workspace_path, make_static, stop_child, wait_for_postgres, AgentHandles,
-        TaskHandle,
+        concat_path, get_workspace_path, make_static, start_postgres, stop_child,
+        wait_for_postgres, AgentHandles, TaskHandle,
     },
     wait_for_condition, AGENT_BIN_PATH, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT,
     SCRAPER_METRICS_PORT,
@@ -302,14 +302,7 @@ fn run_locally() {
 
     // Start postgres
     log!("Starting postgres...");
-    let postgres = Program::new("docker")
-        .cmd("run")
-        .flag("rm")
-        .arg("name", "scraper-testnet-postgres")
-        .arg("env", "POSTGRES_PASSWORD=47221c18c610")
-        .arg("publish", "5432:5432")
-        .cmd("postgres:14")
-        .spawn("SQL", None);
+    let postgres = start_postgres();
 
     wait_for_postgres();
 

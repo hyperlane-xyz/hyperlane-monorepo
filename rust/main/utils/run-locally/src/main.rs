@@ -43,7 +43,10 @@ use crate::{
     ethereum::{ethereum_termination_invariants::termination_invariants_met, start_anvil},
     invariants::post_startup_invariants,
     metrics::agent_balance_sum,
-    utils::{concat_path, make_static, stop_child, AgentHandles, ArbitraryData, TaskHandle},
+    utils::{
+        concat_path, make_static, start_postgres, stop_child, AgentHandles, ArbitraryData,
+        TaskHandle,
+    },
 };
 
 mod config;
@@ -280,14 +283,7 @@ fn main() -> ExitCode {
     let start_anvil = start_anvil(config.clone());
 
     log!("Running postgres db...");
-    let postgres = Program::new("docker")
-        .cmd("run")
-        .flag("rm")
-        .arg("name", "scraper-testnet-postgres")
-        .arg("env", "POSTGRES_PASSWORD=47221c18c610")
-        .arg("publish", "5432:5432")
-        .cmd("postgres:14")
-        .spawn("SQL", None);
+    let postgres = start_postgres();
     state.push_agent(postgres);
 
     build_main.join();
