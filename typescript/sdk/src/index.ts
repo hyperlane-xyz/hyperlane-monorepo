@@ -402,6 +402,8 @@ export {
   IsmConfig,
   IsmConfigSchema,
   IsmType,
+  LayerZeroV2IsmConfig,
+  LayerZeroV2IsmConfigSchema,
   MailboxDefaultIsmConfig,
   MailboxDefaultIsmConfigSchema,
   ModuleType,
@@ -1223,3 +1225,7 @@ export type {
   WormholeConsistencyLevelConfig,
   WormholeStandardConsistencyType,
 } from './wormhole/types.js';
+export * from './layerzero/types.js';
+export * from './layerzero/config.js';
+export * from './layerzero/EvmLayerZeroV2HookIsmReader.js';
+export * from './layerzero/EvmLayerZeroV2HookIsmModule.js';
