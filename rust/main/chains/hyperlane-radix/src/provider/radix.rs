@@ -825,8 +825,7 @@ impl HyperlaneProvider for RadixProvider {
     /// Fetch metrics related to this chain
     async fn get_chain_metrics(&self) -> ChainResult<Option<hyperlane_core::ChainInfo>> {
         let state_version = self.get_state_version(None).await?;
-        let block_info = self.get_block_by_height(state_version).await?;
-        Ok(Some(hyperlane_core::ChainInfo::new(block_info, None)))
+        Ok(Some(hyperlane_core::ChainInfo::new(state_version, None)))
     }
 }
 

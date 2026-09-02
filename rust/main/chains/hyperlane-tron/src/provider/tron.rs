@@ -520,7 +520,8 @@ impl HyperlaneProvider for TronProvider {
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
         let block = self.get_current_block().await?;
-        let chain_metrics = ChainInfo::new(Self::get_block_info(&block)?, None);
+        let block_height = block.block_header.raw_data.number as u64;
+        let chain_metrics = ChainInfo::new(block_height, None);
         Ok(Some(chain_metrics))
     }
 }

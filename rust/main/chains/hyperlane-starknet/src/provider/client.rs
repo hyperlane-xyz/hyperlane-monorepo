@@ -198,7 +198,6 @@ impl HyperlaneProvider for StarknetProvider {
             .block_number()
             .await
             .map_err(HyperlaneStarknetError::from)?;
-        let block_info = self.get_block_by_height(block_height).await?;
-        Ok(Some(hyperlane_core::ChainInfo::new(block_info, None)))
+        Ok(Some(hyperlane_core::ChainInfo::new(block_height, None)))
     }
 }

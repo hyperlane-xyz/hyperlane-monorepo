@@ -102,23 +102,14 @@ async fn test_get_balance() {
 }
 
 #[tokio::test]
-async fn test_get_chain_metrics() {
+async fn chain_metrics_only_fetch_block_height() {
     let provider = mock_provider();
     provider
         .deref()
         .register_file("block/height/latest", "latest_height.json")
         .unwrap();
-    provider
-        .deref()
-        .register_file("block/1", "block_1.json")
-        .unwrap();
-    let block_info = provider.get_chain_metrics().await.unwrap().unwrap();
-    assert_eq!(block_info.latest_block.number, 1);
-    assert_eq!(block_info.latest_block.timestamp, 1725479626);
-    assert_eq!(
-        block_info.latest_block.hash,
-        H256::from_str("2306b5c843f34abe2bbac9e6f2bcfdda0926b50cd6f736dfd419aceed6b7c710").unwrap()
-    );
+    let chain_info = provider.get_chain_metrics().await.unwrap().unwrap();
+    assert_eq!(chain_info.block_height, 1);
 }
 
 // Missing blocks or transactions are indicated by corresponding HTTP responses where Reqwest handles the errors.
