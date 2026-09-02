@@ -1,5 +1,6 @@
 import { Chain } from '@starknet-react/chains';
 import {
+  paymasterRpcProvider,
   useAccount,
   useSendTransaction,
   useSwitchChain,
@@ -169,3 +170,19 @@ export function getStarknetChains(
     chainMetadataToStarknetChain,
   );
 }
+
+/**
+ * Creates the paymaster factory required by Starknet React v5. Hyperlane
+ * transactions do not use paymasters, so custom chains can fall back to their
+ * normal RPC without crashing during context initialization. Paymaster calls
+ * on chains without paymaster support still fail at the RPC boundary.
+ */
+export const starknetPaymasterProvider = paymasterRpcProvider({
+  rpc: (chain) => {
+    const nodeUrl =
+      chain.paymasterRpcUrls.avnu?.http[0] ??
+      chain.rpcUrls.public.http[0] ??
+      chain.rpcUrls.default.http[0];
+    return nodeUrl ? { nodeUrl } : null;
+  },
+});
