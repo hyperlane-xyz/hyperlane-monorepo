@@ -42,6 +42,12 @@ checksum = "20fd008c7c69b6c737cc0284469d1c76497107bc3e004d8381f6d8781cb27980"
 integrity = "f49457fb6591f0dfd8b59e02e6eb4508a115ef08a86b0803feb0a3939d82d783"
 
 [[dependencies]]
+name = "layerzero-v2"
+version = "2.0.2"
+git = "https://github.com/LayerZero-Labs/LayerZero-v2.git"
+rev = "9c741e7f9790639537b1710a203bcdfd73b0b9ac"
+
+[[dependencies]]
 name = "permit2"
 version = "1.0.0"
 git = "https://github.com/Uniswap/permit2"
