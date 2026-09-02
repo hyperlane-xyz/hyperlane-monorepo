@@ -1,5 +1,12 @@
 # @hyperlane-xyz/scraper-proxy
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [6fbe5ad]
+  - @hyperlane-xyz/utils@44.0.0
+
 ## 0.1.0
 
 ### Minor Changes
