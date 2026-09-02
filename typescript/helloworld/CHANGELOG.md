@@ -1,5 +1,15 @@
 # @hyperlane-xyz/helloworld
 
+## 44.0.0
+
+### Patch Changes
+
+- Updated dependencies [85c44af]
+- Updated dependencies [6fbe5ad]
+  - @hyperlane-xyz/sdk@44.0.0
+  - @hyperlane-xyz/utils@44.0.0
+  - @hyperlane-xyz/core@12.1.0
+
 ## 43.0.0
 
 ### Patch Changes
