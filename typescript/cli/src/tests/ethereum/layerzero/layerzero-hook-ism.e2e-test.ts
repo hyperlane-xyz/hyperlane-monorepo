@@ -88,17 +88,7 @@ function parsePacket(packet: string): ParsedPacket {
   };
 }
 
-async function startLayerZeroService(
-  routes: Record<
-    string,
-    {
-      mailbox: Address;
-      endpoint: Address;
-      layerZeroDomainId: number;
-      router: Address;
-    }
-  >,
-): Promise<LocalService> {
+async function startLayerZeroService(): Promise<LocalService> {
   const process: ProcessPromise = $({
     env: {
       ...globalThis.process.env,
@@ -106,7 +96,6 @@ async function startLayerZeroService(
       SERVER_PORT: String(SERVICE_PORT),
       REGISTRY_URI: REGISTRY_PATH,
       HYPERLANE_EXPLORER_URL: 'http://127.0.0.1:1',
-      LAYERZERO_ROUTES: JSON.stringify({ policyA: routes }),
     },
     nothrow: true,
   })`pnpm --filter @hyperlane-xyz/ccip-server run start`;
@@ -364,19 +353,7 @@ describe('LayerZero V2 combined hook/ISM message E2E', function () {
         mesh(LayerZeroV2Variant.CcipRead, [serviceUrl]),
       );
       await install(routers);
-      service = await startLayerZeroService(
-        Object.fromEntries(
-          CHAINS.map((chain) => [
-            chain,
-            {
-              mailbox: addresses[chain].mailbox,
-              endpoint: fixtures[chain].endpoint,
-              layerZeroDomainId: EIDS[chain],
-              router: routers[chain],
-            },
-          ]),
-        ),
-      );
+      service = await startLayerZeroService();
     });
 
     after(async () => service?.close());

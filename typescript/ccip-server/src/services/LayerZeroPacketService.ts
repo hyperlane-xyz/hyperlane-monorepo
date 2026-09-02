@@ -3,7 +3,10 @@ import { Router } from 'express';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
-import { ILayerZeroPacketService__factory } from '@hyperlane-xyz/core';
+import {
+  ILayerZeroPacketService__factory,
+  LayerZeroV2CcipReadHookIsm__factory,
+} from '@hyperlane-xyz/core';
 import { HyperlaneSmartProvider, MultiProvider } from '@hyperlane-xyz/sdk';
 import { assert, parseMessage } from '@hyperlane-xyz/utils';
 
@@ -25,77 +28,12 @@ import {
   findMatchingLayerZeroPacket,
   resolveLayerZeroReceiveLibrary,
 } from './layerZeroPacketMatcher.js';
-
-const AddressSchema = z
-  .string()
-  .refine(ethers.utils.isAddress, 'must be an address')
-  .refine(
-    (address) => address !== ethers.constants.AddressZero,
-    'must not be zero',
-  );
-
-export const LayerZeroChainConfigSchema = z.object({
-  mailbox: AddressSchema,
-  endpoint: AddressSchema,
-  layerZeroDomainId: z.number().int().positive().max(0xffffffff),
-  router: AddressSchema,
-});
-
-export type LayerZeroChainConfig = z.infer<typeof LayerZeroChainConfigSchema>;
-export const LayerZeroMeshSchema = z
-  .record(z.string(), LayerZeroChainConfigSchema)
-  .superRefine((routes, ctx) => {
-    const layerZeroDomainIds = new Map<number, string>();
-    for (const [chain, route] of Object.entries(routes)) {
-      const existing = layerZeroDomainIds.get(route.layerZeroDomainId);
-      if (existing) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [chain, 'layerZeroDomainId'],
-          message: `LayerZero domain ID ${route.layerZeroDomainId} is already configured for ${existing}`,
-        });
-      }
-      layerZeroDomainIds.set(route.layerZeroDomainId, chain);
-    }
-  });
-export const LayerZeroRoutesSchema = z
-  .record(z.string(), LayerZeroMeshSchema)
-  .superRefine((meshes, ctx) => {
-    const routers = new Map<string, string>();
-    for (const [meshName, mesh] of Object.entries(meshes)) {
-      for (const [chain, route] of Object.entries(mesh)) {
-        const key = `${chain}:${route.router.toLowerCase()}`;
-        const existing = routers.get(key);
-        if (existing) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [meshName, chain, 'router'],
-            message: `LayerZero router is already configured for policy ${existing}`,
-          });
-        }
-        routers.set(key, meshName);
-      }
-    }
-  });
-export type LayerZeroRoutes = z.infer<typeof LayerZeroRoutesSchema>;
+import { resolveLayerZeroRoutes } from './layerZeroRouteResolver.js';
+import type { LayerZeroChainConfig } from './layerZeroRouteResolver.js';
 
 const EnvSchema = z.object({
   HYPERLANE_EXPLORER_URL: z.string().url(),
   REGISTRY_URI: REGISTRY_URI_SCHEMA,
-  LAYERZERO_ROUTES: z
-    .string()
-    .transform((value, ctx) => {
-      try {
-        return JSON.parse(value);
-      } catch {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'LAYERZERO_ROUTES must be valid JSON',
-        });
-        return z.NEVER;
-      }
-    })
-    .pipe(LayerZeroRoutesSchema),
 });
 
 export interface OriginTransactionResolver {
@@ -106,7 +44,6 @@ export interface OriginTransactionResolver {
 }
 
 export interface LayerZeroPacketServiceConfig extends ServiceConfigWithMultiProvider {
-  routes: LayerZeroRoutes;
   hyperlaneService: OriginTransactionResolver;
 }
 
@@ -124,7 +61,6 @@ const RECEIVE_LIBRARY_ABI = [
 export class LayerZeroPacketService extends BaseService {
   public router: Router;
   private readonly multiProvider: MultiProvider;
-  private readonly routes: LayerZeroRoutes;
   private readonly hyperlaneService: OriginTransactionResolver;
 
   static async create(serviceName: string): Promise<LayerZeroPacketService> {
@@ -133,49 +69,18 @@ export class LayerZeroPacketService extends BaseService {
     const service = new LayerZeroPacketService({
       serviceName,
       multiProvider,
-      routes: env.LAYERZERO_ROUTES,
       hyperlaneService: new HyperlaneService(
         serviceName,
         env.HYPERLANE_EXPLORER_URL,
       ),
     });
-    await service.validateEndpointEids();
     return service;
-  }
-
-  private async validateEndpointEids(): Promise<void> {
-    await Promise.all(
-      Object.entries(this.routes).flatMap(([meshName, mesh]) =>
-        Object.entries(mesh).map(async ([chain, route]) => {
-          const endpoint = new ethers.Contract(
-            route.endpoint,
-            ENDPOINT_ABI,
-            this.multiProvider.getProvider(chain),
-          );
-          const actualLayerZeroDomainId = Number(await endpoint.eid());
-          assert(
-            actualLayerZeroDomainId === route.layerZeroDomainId,
-            `LayerZero mesh ${meshName} route ${chain} Endpoint reports domain ID ${actualLayerZeroDomainId}; configured ${route.layerZeroDomainId}`,
-          );
-        }),
-      ),
-    );
   }
 
   constructor(config: LayerZeroPacketServiceConfig) {
     super(config);
     this.multiProvider = config.multiProvider;
-    this.routes = config.routes;
     this.hyperlaneService = config.hyperlaneService;
-    for (const [meshName, mesh] of Object.entries(this.routes)) {
-      for (const chain of Object.keys(mesh)) {
-        assert(
-          this.multiProvider.tryGetDomainId(chain) !== null &&
-            this.multiProvider.tryGetProvider(chain) !== null,
-          `LayerZero mesh ${meshName} route ${chain} has no configured RPC provider`,
-        );
-      }
-    }
     this.router = Router();
 
     this.router.get('/getLayerZeroPacket/:sender/:callData.json', (req, res) =>
@@ -215,11 +120,21 @@ export class LayerZeroPacketService extends BaseService {
   ): Promise<[string, string]> {
     const parsed = parseMessage(message);
     const messageId = ethers.utils.keccak256(message);
-    const { origin, destination } = this.routesFor(
-      parsed.origin,
-      parsed.destination,
-      requestRouter,
-    );
+    let origin: LayerZeroChainConfig;
+    let destination: LayerZeroChainConfig;
+    try {
+      ({ origin, destination } = await this.routesFor(
+        parsed.origin,
+        parsed.destination,
+        requestRouter,
+      ));
+    } catch (error) {
+      PrometheusMetrics.logUnhandledError(
+        this.config.serviceName,
+        UnhandledErrorReason.LAYERZERO_ROUTE_NOT_CONFIGURED,
+      );
+      throw error;
+    }
     const txHash =
       originTxHash ??
       (await this.hyperlaneService.getOriginTransactionHashByMessageId(
@@ -282,14 +197,14 @@ export class LayerZeroPacketService extends BaseService {
     return [receiveLibrary, packet.packet];
   }
 
-  private routesFor(
+  private async routesFor(
     originDomain: number,
     destinationDomain: number,
     requestRouter: string,
-  ): {
+  ): Promise<{
     origin: LayerZeroChainConfig;
     destination: LayerZeroChainConfig;
-  } {
+  }> {
     assert(
       typeof requestRouter === 'string' &&
         ethers.utils.isAddress(requestRouter),
@@ -303,28 +218,42 @@ export class LayerZeroPacketService extends BaseService {
       destinationChain,
       `Unknown Hyperlane destination domain ${destinationDomain}`,
     );
-    const matches = Object.entries(this.routes).filter(([, mesh]) => {
-      const destination = mesh[destinationChain];
-      return (
-        destination?.router.toLowerCase() === requestRouter.toLowerCase() &&
-        !!mesh[originChain]
-      );
-    });
-    if (matches.length !== 1) {
-      PrometheusMetrics.logUnhandledError(
-        this.config.serviceName,
-        UnhandledErrorReason.LAYERZERO_ROUTE_NOT_CONFIGURED,
-      );
-    }
     assert(
-      matches.length === 1,
-      `Expected one LayerZero mesh for ${originDomain} -> ${destinationDomain} and router ${requestRouter}; found ${matches.length}`,
+      this.multiProvider.tryGetProvider(originChain) !== null,
+      `Hyperlane origin domain ${originDomain} has no configured RPC provider`,
     );
-    const mesh = matches[0][1];
-    return {
-      origin: mesh[originChain],
-      destination: mesh[destinationChain],
-    };
+    assert(
+      this.multiProvider.tryGetProvider(destinationChain) !== null,
+      `Hyperlane destination domain ${destinationDomain} has no configured RPC provider`,
+    );
+    const routes = await resolveLayerZeroRoutes(
+      originDomain,
+      destinationDomain,
+      requestRouter,
+      (router, domain) =>
+        LayerZeroV2CcipReadHookIsm__factory.connect(
+          router,
+          this.multiProvider.getProvider(domain),
+        ),
+    );
+    await Promise.all(
+      [
+        [originDomain, routes.origin] as const,
+        [destinationDomain, routes.destination] as const,
+      ].map(async ([domain, route]) => {
+        const endpoint = new ethers.Contract(
+          route.endpoint,
+          ENDPOINT_ABI,
+          this.multiProvider.getProvider(domain),
+        );
+        const endpointEid = Number(await endpoint.eid());
+        assert(
+          endpointEid === route.layerZeroDomainId,
+          `LayerZero Endpoint ${route.endpoint} reports domain ID ${endpointEid}; router reports ${route.layerZeroDomainId}`,
+        );
+      }),
+    );
+    return routes;
   }
 
   private async resolveReadyReceiveLibrary(

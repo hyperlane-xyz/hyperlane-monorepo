@@ -86,14 +86,13 @@ Enable the module with `ENABLED_MODULES=layerzero` and configure:
 
 ```env
 HYPERLANE_EXPLORER_URL=https://explorer.hyperlane.xyz/graphql
-LAYERZERO_ROUTES={"policyA":{"ethereum":{"mailbox":"0x...","endpoint":"0x...","layerZeroDomainId":30101,"router":"0x..."},"arbitrum":{"mailbox":"0x...","endpoint":"0x...","layerZeroDomainId":30110,"router":"0x..."}}}
 ```
 
-The outer key identifies a LayerZero mesh/security policy; inner keys are
-Hyperlane chain names. Values pin that policy's Mailbox, Endpoint V2, LayerZero
-domain ID, and
-combined hook/ISM router. The CCIP `sender` selects the exact destination
-router/mesh. The module exposes the CCIP-read endpoints:
+The CCIP `sender` identifies the destination combined hook/ISM. The server
+discovers its origin peer, Mailboxes, Endpoint V2 contracts, and LayerZero
+domain IDs from reciprocal on-chain enrollment. RPC URLs come from the
+Hyperlane registry selected by `REGISTRY_URI`; no deployment-address mapping is
+required. The module exposes the CCIP-read endpoints:
 
 - `GET /layerzero/getLayerZeroPacket/:sender/:callData.json`
 - `POST /layerzero/getLayerZeroPacket`
