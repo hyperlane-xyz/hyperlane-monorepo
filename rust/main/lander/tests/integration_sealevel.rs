@@ -7,7 +7,7 @@ use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use mockall::mock;
-use solana_client::rpc_response::RpcSimulateTransactionResult;
+use solana_client::rpc_response::{Response, RpcResponseContext, RpcSimulateTransactionResult};
 use solana_commitment_config::CommitmentConfig;
 use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_sdk::{
@@ -25,8 +25,8 @@ use solana_sdk::{
 };
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
-    EncodedTransaction, EncodedTransactionWithStatusMeta, UiConfirmedBlock,
-    UiTransactionStatusMeta,
+    EncodedTransaction, EncodedTransactionWithStatusMeta,
+    TransactionStatus as SealevelTransactionStatus, UiConfirmedBlock, UiTransactionStatusMeta,
 };
 
 use hyperlane_base::db::{HyperlaneRocksDB, DB};
@@ -53,6 +53,7 @@ mock! {
         async fn get_block_with_commitment(&self, slot: u64, commitment: CommitmentConfig) -> ChainResult<UiConfirmedBlock>;
         async fn get_transaction(&self, signature: Signature) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
         async fn get_transaction_with_commitment(&self, signature: Signature, commitment: CommitmentConfig) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
+        async fn get_signature_statuses_with_history(&self, signatures: &[Signature]) -> ChainResult<Response<Vec<Option<SealevelTransactionStatus>>>>;
         async fn simulate_transaction(&self, transaction: &SealevelLegacyTransaction) -> ChainResult<RpcSimulateTransactionResult>;
         async fn simulate_versioned_transaction(&self, transaction: &SealevelVersionedTransaction) -> ChainResult<RpcSimulateTransactionResult>;
     }
@@ -225,8 +226,16 @@ fn create_sealevel_client() -> MockClient {
         .expect_get_block_with_commitment()
         .returning(move |_, _| Ok(svm_block()));
     client
-        .expect_get_transaction_with_commitment()
-        .returning(move |_, _| Ok(encoded_svm_transaction()));
+        .expect_get_signature_statuses_with_history()
+        .returning(move |_| {
+            Ok(Response {
+                context: RpcResponseContext {
+                    slot: 43,
+                    api_version: None,
+                },
+                value: vec![Some(finalized_signature_status())],
+            })
+        });
     let result_clone = result.clone();
     client
         .expect_simulate_transaction()
@@ -235,6 +244,18 @@ fn create_sealevel_client() -> MockClient {
         .expect_simulate_versioned_transaction()
         .returning(move |_| Ok(result.clone()));
     client
+}
+
+fn finalized_signature_status() -> SealevelTransactionStatus {
+    SealevelTransactionStatus {
+        slot: 43,
+        confirmations: None,
+        status: Ok(()),
+        err: None,
+        confirmation_status: Some(
+            solana_transaction_status::TransactionConfirmationStatus::Finalized,
+        ),
+    }
 }
 
 fn create_sealevel_submitter() -> MockSubmitter {

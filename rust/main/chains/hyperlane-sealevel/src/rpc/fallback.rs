@@ -4,7 +4,8 @@ use async_trait::async_trait;
 use derive_new::new;
 use solana_client::rpc_config::RpcProgramAccountsConfig;
 use solana_client::rpc_response::{
-    Response, RpcConfirmedTransactionStatusWithSignature, RpcSimulateTransactionResult,
+    Response, RpcConfirmedTransactionStatusWithSignature, RpcResponseContext,
+    RpcSimulateTransactionResult,
 };
 use solana_commitment_config::CommitmentConfig;
 use solana_sdk::hash::Hash;
@@ -13,16 +14,104 @@ use solana_sdk::signature::Signature;
 use solana_sdk::transaction::{Transaction, VersionedTransaction};
 use solana_sdk::{account::Account, clock::Slot};
 use solana_transaction_status::{
-    EncodedConfirmedTransactionWithStatusMeta, TransactionStatus, UiConfirmedBlock,
+    EncodedConfirmedTransactionWithStatusMeta, TransactionConfirmationStatus, TransactionStatus,
+    UiConfirmedBlock,
 };
 use url::Url;
 
-use hyperlane_core::{rpc_clients::FallbackProvider, ChainResult, U256};
+use hyperlane_core::{
+    rpc_clients::{FallbackProvider, RpcClientError},
+    ChainCommunicationError, ChainResult, U256,
+};
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
 use crate::client::SealevelRpcClient;
 use crate::client_builder::SealevelRpcClientBuilder;
 use crate::tx_type::SealevelTxType;
+
+fn validate_signature_status_response(
+    response: Response<Vec<Option<TransactionStatus>>>,
+    expected_len: usize,
+) -> ChainResult<Response<Vec<Option<TransactionStatus>>>> {
+    if response.value.len() != expected_len {
+        return Err(ChainCommunicationError::from_other_str(&format!(
+            "getSignatureStatuses returned {} statuses for {expected_len} signatures",
+            response.value.len()
+        )));
+    }
+    Ok(response)
+}
+
+fn signature_status_rank(status: &TransactionStatus) -> u8 {
+    match status.confirmation_status() {
+        TransactionConfirmationStatus::Processed => 0,
+        TransactionConfirmationStatus::Confirmed => 1,
+        TransactionConfirmationStatus::Finalized => 2,
+    }
+}
+
+fn all_signature_statuses_finalized(
+    signature_count: usize,
+    responses: &[ChainResult<Response<Vec<Option<TransactionStatus>>>>],
+) -> bool {
+    (0..signature_count).all(|index| {
+        responses.iter().any(|response| {
+            response.as_ref().is_ok_and(|response| {
+                response.value[index].as_ref().is_some_and(|status| {
+                    status.confirmation_status() == TransactionConfirmationStatus::Finalized
+                })
+            })
+        })
+    })
+}
+
+fn merge_signature_status_responses(
+    signature_count: usize,
+    responses: Vec<ChainResult<Response<Vec<Option<TransactionStatus>>>>>,
+) -> ChainResult<Response<Vec<Option<TransactionStatus>>>> {
+    let mut context = None;
+    let mut statuses = vec![None; signature_count];
+    let mut errors = Vec::new();
+
+    for response in responses {
+        match response {
+            Ok(response) => {
+                if context
+                    .as_ref()
+                    .is_none_or(|current: &RpcResponseContext| response.context.slot > current.slot)
+                {
+                    context = Some(response.context);
+                }
+                for (current, candidate) in statuses.iter_mut().zip(response.value) {
+                    let should_replace = candidate.as_ref().is_some_and(|candidate| {
+                        current.as_ref().is_none_or(|current| {
+                            let candidate_rank = signature_status_rank(candidate);
+                            let current_rank = signature_status_rank(current);
+                            candidate_rank > current_rank
+                                || (candidate_rank == current_rank && candidate.slot > current.slot)
+                        })
+                    });
+                    if should_replace {
+                        *current = candidate;
+                    }
+                }
+            }
+            Err(error) => errors.push(error),
+        }
+    }
+
+    let Some(context) = context else {
+        return Err(RpcClientError::FallbackProvidersFailed(errors).into());
+    };
+    if !errors.is_empty() && statuses.iter().any(Option::is_none) {
+        return Err(RpcClientError::FallbackProvidersFailed(errors).into());
+    }
+
+    Ok(Response {
+        context,
+        value: statuses,
+    })
+}
 
 /// Defines methods required to submit transactions to Sealevel chains
 #[async_trait]
@@ -55,6 +144,12 @@ pub trait SubmitSealevelRpc: Send + Sync {
         signature: Signature,
         commitment: CommitmentConfig,
     ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
+
+    /// Requests transaction statuses from recent and rooted history.
+    async fn get_signature_statuses_with_history(
+        &self,
+        signatures: &[Signature],
+    ) -> ChainResult<Response<Vec<Option<TransactionStatus>>>>;
 
     /// Simulates Sealevel legacy transaction
     async fn simulate_transaction(
@@ -109,6 +204,13 @@ impl SubmitSealevelRpc for SealevelFallbackRpcClient {
                 Box::pin(future)
             })
             .await
+    }
+
+    async fn get_signature_statuses_with_history(
+        &self,
+        signatures: &[Signature],
+    ) -> ChainResult<Response<Vec<Option<TransactionStatus>>>> {
+        SealevelFallbackRpcClient::get_signature_statuses_with_history(self, signatures).await
     }
 
     /// simulate a legacy transaction
@@ -433,6 +535,31 @@ impl SealevelFallbackRpcClient {
             })
             .await
     }
+
+    /// Get signature statuses, including rooted transaction history.
+    pub async fn get_signature_statuses_with_history(
+        &self,
+        signatures: &[Signature],
+    ) -> ChainResult<Response<Vec<Option<TransactionStatus>>>> {
+        let signature_count = signatures.len();
+        let responses = self
+            .fallback_provider
+            .call_until(
+                move |client| {
+                    let signatures = signatures.to_vec();
+                    let future = async move {
+                        let response = client
+                            .get_signature_statuses_with_history(&signatures)
+                            .await?;
+                        validate_signature_status_response(response, signatures.len())
+                    };
+                    Box::pin(future)
+                },
+                |responses| all_signature_statuses_finalized(signature_count, responses),
+            )
+            .await;
+        merge_signature_status_responses(signature_count, responses)
+    }
 }
 
 impl Debug for SealevelFallbackRpcClient {
@@ -442,5 +569,108 @@ impl Debug for SealevelFallbackRpcClient {
             "SealevelFallbackProvider {{ count: {} }}",
             self.fallback_provider.len()
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn status(confirmation_status: TransactionConfirmationStatus) -> TransactionStatus {
+        TransactionStatus {
+            slot: 42,
+            confirmations: None,
+            status: Ok(()),
+            err: None,
+            confirmation_status: Some(confirmation_status),
+        }
+    }
+
+    fn response(
+        slot: u64,
+        value: Vec<Option<TransactionStatus>>,
+    ) -> Response<Vec<Option<TransactionStatus>>> {
+        Response {
+            context: RpcResponseContext::new(slot),
+            value,
+        }
+    }
+
+    #[test]
+    fn signature_status_merge_uses_strongest_provider_result_per_index() {
+        let merged = merge_signature_status_responses(
+            2,
+            vec![
+                Ok(response(
+                    10,
+                    vec![None, Some(status(TransactionConfirmationStatus::Confirmed))],
+                )),
+                Ok(response(
+                    11,
+                    vec![
+                        Some(status(TransactionConfirmationStatus::Finalized)),
+                        Some(status(TransactionConfirmationStatus::Finalized)),
+                    ],
+                )),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(merged.context.slot, 11);
+        assert!(merged.value.into_iter().all(|status| {
+            status.unwrap().confirmation_status() == TransactionConfirmationStatus::Finalized
+        }));
+    }
+
+    #[test]
+    fn finalized_completion_requires_every_signature() {
+        let responses = vec![Ok(response(
+            10,
+            vec![
+                Some(status(TransactionConfirmationStatus::Finalized)),
+                Some(status(TransactionConfirmationStatus::Confirmed)),
+            ],
+        ))];
+        assert!(!all_signature_statuses_finalized(2, &responses));
+
+        let responses = vec![Ok(response(
+            10,
+            vec![
+                Some(status(TransactionConfirmationStatus::Finalized)),
+                Some(status(TransactionConfirmationStatus::Finalized)),
+            ],
+        ))];
+        assert!(all_signature_statuses_finalized(2, &responses));
+    }
+
+    #[test]
+    fn signature_status_merge_reports_ambiguous_absence() {
+        let merged = merge_signature_status_responses(
+            1,
+            vec![
+                Ok(response(10, vec![None])),
+                Err(ChainCommunicationError::from_other_str("RPC unavailable")),
+            ],
+        );
+
+        assert!(merged.is_err());
+    }
+
+    #[test]
+    fn signature_status_merge_reports_absence_after_all_providers_agree() {
+        let merged = merge_signature_status_responses(
+            1,
+            vec![Ok(response(10, vec![None])), Ok(response(11, vec![None]))],
+        )
+        .unwrap();
+
+        assert_eq!(merged.value, vec![None]);
+    }
+
+    #[test]
+    fn signature_status_response_rejects_wrong_cardinality() {
+        let result = validate_signature_status_response(response(10, vec![None]), 2);
+
+        assert!(result.is_err());
     }
 }

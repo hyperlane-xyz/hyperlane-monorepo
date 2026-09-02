@@ -6,13 +6,15 @@ use eyre::eyre;
 use futures_util::future::join_all;
 use serde_json::json;
 use solana_client::rpc_response::{Response, RpcSimulateTransactionResult};
-use solana_commitment_config::CommitmentConfig;
 use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_sdk::{
     instruction::AccountMeta,
     message::Message,
     pubkey::Pubkey,
     signature::{Signature, Signer},
+};
+use solana_transaction_status::{
+    TransactionConfirmationStatus, TransactionStatus as SealevelTransactionStatus,
 };
 
 use hyperlane_sealevel::SealevelTxType;
@@ -292,42 +294,32 @@ impl SealevelAdapter {
         let signature = Signature::try_from(tx_hash.as_ref())
             .map_err(|e| LanderError::TxSubmissionError(format!("Invalid signature: {e}")))?;
 
-        // query the tx hash from most to least finalized to learn what level of finality it has
-        // the calls below can be parallelized if needed, but for now avoid rate limiting
-
-        let tx_resp = self
+        let response = self
             .client
-            .get_transaction_with_commitment(signature, CommitmentConfig::finalized())
-            .await;
+            .get_signature_statuses_with_history(&[signature])
+            .await?;
+        let Some(status) = response.value.into_iter().next().flatten() else {
+            return Err(LanderError::TxHashNotFound(format!(
+                "Transaction signature {signature} was not found"
+            )));
+        };
 
-        if tx_resp.is_ok() {
-            info!("transaction finalized");
-            return Ok(TransactionStatus::Finalized);
-        }
+        Ok(Self::classify_signature_status(status))
+    }
 
-        let tx_resp = self
-            .client
-            .get_transaction_with_commitment(signature, CommitmentConfig::confirmed())
-            .await;
-
-        // the "confirmed" commitment is equivalent to being "included" in a block on evm
-        if tx_resp.is_ok() {
-            info!(?tx_hash, "transaction included");
-            return Ok(TransactionStatus::Included);
-        }
-
-        match self
-            .client
-            .get_transaction_with_commitment(signature, CommitmentConfig::processed())
-            .await
-        {
-            Ok(_) => {
-                info!("transaction is in mempool");
-                Ok(TransactionStatus::Mempool)
+    fn classify_signature_status(status: SealevelTransactionStatus) -> TransactionStatus {
+        match status.confirmation_status() {
+            TransactionConfirmationStatus::Finalized => {
+                info!("transaction finalized");
+                TransactionStatus::Finalized
             }
-            Err(err) => {
-                warn!(?err, "Failed to get transaction status by hash");
-                Err(LanderError::TxHashNotFound(err.to_string()))
+            TransactionConfirmationStatus::Confirmed => {
+                info!("transaction included");
+                TransactionStatus::Included
+            }
+            TransactionConfirmationStatus::Processed => {
+                info!("transaction is in mempool");
+                TransactionStatus::Mempool
             }
         }
     }
