@@ -628,7 +628,7 @@ impl SealevelProvider {
     }
 
     async fn block_info_by_height(&self, slot: u64) -> Result<BlockInfo, ChainCommunicationError> {
-        let confirmed_block = self.rpc_client.get_block(slot).await?;
+        let confirmed_block = self.rpc_client.get_block_info(slot).await?;
 
         let block_hash = decode_h256(&confirmed_block.blockhash)?;
 

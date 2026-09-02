@@ -21,8 +21,8 @@ use solana_sdk::{
     transaction::{Transaction, VersionedTransaction},
 };
 use solana_transaction_status::{
-    EncodedConfirmedTransactionWithStatusMeta, TransactionStatus, UiConfirmedBlock,
-    UiTransactionEncoding,
+    EncodedConfirmedTransactionWithStatusMeta, TransactionDetails, TransactionStatus,
+    UiConfirmedBlock, UiTransactionEncoding,
 };
 
 use hyperlane_core::{rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, U256};
@@ -132,6 +132,16 @@ impl SealevelRpcClient {
     pub async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock> {
         self.get_block_with_commitment(slot, CommitmentConfig::finalized())
             .await
+    }
+
+    /// Get block metadata without downloading transactions.
+    pub async fn get_block_info(&self, slot: u64) -> ChainResult<UiConfirmedBlock> {
+        self.0
+            .get_block_with_config(slot, block_info_config(CommitmentConfig::finalized()))
+            .await
+            .map_err(Box::new)
+            .map_err(HyperlaneSealevelError::ClientError)
+            .map_err(Into::into)
     }
 
     /// get block_height
@@ -411,6 +421,13 @@ fn block_config(commitment: CommitmentConfig) -> RpcBlockConfig {
         max_supported_transaction_version: Some(0),
         rewards: Some(false),
         ..Default::default()
+    }
+}
+
+fn block_info_config(commitment: CommitmentConfig) -> RpcBlockConfig {
+    RpcBlockConfig {
+        transaction_details: Some(TransactionDetails::None),
+        ..block_config(commitment)
     }
 }
 

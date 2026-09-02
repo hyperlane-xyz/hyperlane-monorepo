@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_commitment_config::CommitmentConfig;
+use solana_transaction_status::TransactionDetails;
 
-use super::block_config;
+use super::{block_config, block_info_config};
 use crate::client::SealevelRpcClient;
 
 //#[tokio::test]
@@ -32,4 +33,12 @@ fn get_block_config_disables_rewards() {
     assert_eq!(config.rewards, Some(false));
     assert_eq!(config.max_supported_transaction_version, Some(0));
     assert_eq!(config.commitment, Some(CommitmentConfig::finalized()));
+}
+
+#[test]
+fn get_block_info_config_omits_transactions() {
+    let config = block_info_config(CommitmentConfig::finalized());
+
+    assert_eq!(config.transaction_details, Some(TransactionDetails::None));
+    assert_eq!(config.rewards, Some(false));
 }

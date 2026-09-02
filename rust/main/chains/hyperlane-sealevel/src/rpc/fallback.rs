@@ -256,6 +256,16 @@ impl SealevelFallbackRpcClient {
         SealevelFallbackRpcClient::new(fallback)
     }
 
+    /// Requests block metadata without downloading transactions.
+    pub async fn get_block_info(&self, slot: u64) -> ChainResult<UiConfirmedBlock> {
+        self.fallback_provider
+            .call(move |client| {
+                let future = async move { client.get_block_info(slot).await };
+                Box::pin(future)
+            })
+            .await
+    }
+
     /// confirm transaction with given commitment
     pub async fn confirm_transaction_with_commitment(
         &self,
