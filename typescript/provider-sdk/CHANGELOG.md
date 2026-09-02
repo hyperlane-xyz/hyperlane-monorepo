@@ -1,5 +1,12 @@
 # @hyperlane-xyz/provider-sdk
 
+## 10.0.1
+
+### Patch Changes
+
+- f269e03: Zod was updated to 4.5.4 to prevent function-valued default factories from running during schema cycle detection and compilation.
+  - @hyperlane-xyz/utils@44.0.1
+
 ## 10.0.0
 
 ### Major Changes

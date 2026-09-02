@@ -1,5 +1,16 @@
 # @hyperlane-xyz/relayer
 
+## 4.0.1
+
+### Patch Changes
+
+- f269e03: Zod was updated to 4.5.4 to prevent function-valued default factories from running during schema cycle detection and compilation.
+- Updated dependencies [f269e03]
+  - @hyperlane-xyz/sdk@44.0.1
+  - @hyperlane-xyz/metrics@1.0.1
+  - @hyperlane-xyz/utils@44.0.1
+  - @hyperlane-xyz/core@12.1.0
+
 ## 4.0.0
 
 ### Major Changes

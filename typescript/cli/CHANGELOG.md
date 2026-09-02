@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 44.0.1
+
+### Patch Changes
+
+- f269e03: Zod was updated to 4.5.4 to prevent function-valued default factories from running during schema cycle detection and compilation.
+
 ## 44.0.0
 
 ### Major Changes
