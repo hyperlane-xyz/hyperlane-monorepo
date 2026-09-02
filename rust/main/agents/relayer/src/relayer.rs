@@ -34,7 +34,7 @@ use hyperlane_base::{
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
     HyperlaneDomain, HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion,
-    PendingOperation, QueueOperation, H512, U256,
+    PendingOperation, H512, U256,
 };
 use lander::{CommandEntrypoint, DispatcherMetrics};
 
@@ -60,6 +60,7 @@ use crate::{
             IsmCachePolicyClassifier,
         },
         pending_message::MessageContext,
+        QueueOperationBatch,
     },
     server::{self as relayer_server},
     settings::{matching_list::MatchingList, RelayerSettings},
@@ -351,7 +352,7 @@ impl BaseAgent for Relayer {
             let dest_conf = &destination.chain_conf;
 
             let (send_channel, receive_channel) =
-                mpsc::channel::<QueueOperation>(MESSAGE_PROCESSOR_INGRESS_CAPACITY);
+                mpsc::channel::<QueueOperationBatch>(MESSAGE_PROCESSOR_INGRESS_CAPACITY);
             send_channels.insert(dest_domain.id(), send_channel);
 
             let dispatcher_entrypoint = self
@@ -609,7 +610,7 @@ impl Relayer {
     async fn build_router(
         &self,
         prep_queues: PrepQueue,
-        send_channels: HashMap<u32, mpsc::Sender<QueueOperation>>,
+        send_channels: HashMap<u32, mpsc::Sender<QueueOperationBatch>>,
         sender: BroadcastSender<relayer_server::operations::message_retry::MessageRetryRequest>,
     ) -> (Router, Option<RelayApiState>) {
         let dbs: HashMap<u32, HyperlaneRocksDB> = self
@@ -918,7 +919,7 @@ impl Relayer {
     fn run_message_db_loader(
         &self,
         origin: &Origin,
-        send_channels: HashMap<u32, Sender<QueueOperation>>,
+        send_channels: HashMap<u32, Sender<QueueOperationBatch>>,
         index_notifications: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
     ) -> eyre::Result<JoinHandle<()>> {

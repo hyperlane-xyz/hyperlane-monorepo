@@ -32,8 +32,8 @@ use crate::msg::pending_message::CONFIRM_DELAY;
 use crate::server::operations::message_retry::MessageRetryRequest;
 
 use super::op_batch::OperationBatch;
-use super::op_queue::OpQueue;
 use super::op_queue::OperationPriorityQueue;
+use super::{op_queue::OpQueue, QueueOperationBatch};
 
 use stage::prepare;
 use stage::submit::filter_operations_for_submit;
@@ -102,7 +102,7 @@ pub struct MessageProcessor {
     /// Domain this processor delivers to.
     domain: HyperlaneDomain,
     /// Receiver for new messages to submit.
-    rx: Option<mpsc::Receiver<QueueOperation>>,
+    rx: Option<mpsc::Receiver<QueueOperationBatch>>,
     /// Metrics for message processor.
     metrics: MessageProcessorMetrics,
     /// Max batch size for submitting messages
@@ -121,7 +121,7 @@ impl MessageProcessor {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         domain: HyperlaneDomain,
-        rx: mpsc::Receiver<QueueOperation>,
+        rx: mpsc::Receiver<QueueOperationBatch>,
         retry_op_transmitter: &Sender<MessageRetryRequest>,
         metrics: MessageProcessorMetrics,
         max_batch_size: u32,
@@ -217,7 +217,7 @@ impl MessageProcessor {
 
     fn create_receive_task(
         &self,
-        rx_prepare: mpsc::Receiver<QueueOperation>,
+        rx_prepare: mpsc::Receiver<QueueOperationBatch>,
         recovery_waiter: Option<Arc<dyn RecoveryWaiter>>,
     ) -> JoinHandle<()> {
         let name = Self::task_name("receive::", &self.domain);
@@ -359,7 +359,7 @@ impl MessageProcessor {
 #[instrument(skip_all, fields(%domain))]
 async fn receive_task(
     domain: HyperlaneDomain,
-    mut rx: mpsc::Receiver<QueueOperation>,
+    mut rx: mpsc::Receiver<QueueOperationBatch>,
     prepare_queue: OpQueue,
     recovery_waiter: Option<Arc<dyn RecoveryWaiter>>,
 ) {
@@ -368,13 +368,15 @@ async fn receive_task(
     }
 
     // Pull any messages sent to this message processor
-    while let Some(op) = rx.recv().await {
-        trace!(?op, "Received new operation");
-        // make sure things are getting wired up correctly; if this works in testing it
-        // should also be valid in production.
-        debug_assert_eq!(*op.destination_domain(), domain);
-        let op_status = op.status();
-        prepare_queue.push(op, Some(op_status)).await;
+    while let Some(operations) = rx.recv().await {
+        for op in operations {
+            trace!(?op, "Received new operation");
+            // make sure things are getting wired up correctly; if this works in testing it
+            // should also be valid in production.
+            debug_assert_eq!(*op.destination_domain(), domain);
+            let op_status = op.status();
+            prepare_queue.push(op, Some(op_status)).await;
+        }
     }
 }
 

@@ -68,7 +68,7 @@ fn dummy_message_loader(
     destination_domain: &HyperlaneDomain,
     db: &HyperlaneRocksDB,
     cache: OptionalCache<MeteredCache<LocalCache>>,
-) -> (MessageDbLoader, Receiver<QueueOperation>) {
+) -> (MessageDbLoader, Receiver<QueueOperationBatch>) {
     dummy_message_loader_with_notifications(origin_domain, destination_domain, db, cache, None)
 }
 
@@ -78,7 +78,7 @@ fn dummy_message_loader_with_notifications(
     db: &HyperlaneRocksDB,
     cache: OptionalCache<MeteredCache<LocalCache>>,
     index_notifications: Option<Receiver<H512>>,
-) -> (MessageDbLoader, Receiver<QueueOperation>) {
+) -> (MessageDbLoader, Receiver<QueueOperationBatch>) {
     let base_metadata_builder =
         dummy_metadata_builder(origin_domain, destination_domain, db, cache.clone());
     let message_context = Arc::new(dummy_message_context(
@@ -87,7 +87,7 @@ fn dummy_message_loader_with_notifications(
         cache,
     ));
 
-    let (send_channel, receive_channel) = mpsc::channel::<QueueOperation>(1);
+    let (send_channel, receive_channel) = mpsc::channel::<QueueOperationBatch>(1);
     (
         MessageDbLoader::new(
             db.clone(),
@@ -286,8 +286,8 @@ async fn get_first_n_operations_from_db_loader(
     let load_fut = db_loader.spawn(info_span!("MessageDbLoader"));
     let mut pending_messages = vec![];
     let pending_message_accumulator = async {
-        while let Some(pm) = receive_channel.recv().await {
-            pending_messages.push(pm);
+        while let Some(batch) = receive_channel.recv().await {
+            pending_messages.extend(batch);
             if pending_messages.len() == num_operations {
                 break;
             }

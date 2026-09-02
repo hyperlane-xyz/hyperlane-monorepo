@@ -9,6 +9,7 @@ use tokio::sync::{mpsc, Semaphore};
 use tokio::time::timeout;
 
 use super::{receive_task, RecoveryWaiter, MESSAGE_PROCESSOR_INGRESS_CAPACITY};
+use crate::msg::QueueOperationBatch;
 use tests_common::{create_test_queue, MockQueueOperation};
 
 struct TestRecoveryWaiter(Arc<Semaphore>);
@@ -31,7 +32,7 @@ async fn test_recovery_backpressures_message_processor_ingress() {
     let recovery = Arc::new(Semaphore::new(0));
     let recovery_waiter: Arc<dyn RecoveryWaiter> = Arc::new(TestRecoveryWaiter(recovery.clone()));
     let (send_channel, receive_channel) =
-        mpsc::channel::<QueueOperation>(MESSAGE_PROCESSOR_INGRESS_CAPACITY);
+        mpsc::channel::<QueueOperationBatch>(MESSAGE_PROCESSOR_INGRESS_CAPACITY);
 
     let receive_handle = tokio::spawn(receive_task(
         domain.clone(),
@@ -45,7 +46,7 @@ async fn test_recovery_backpressures_message_processor_ingress() {
         domain.clone(),
     ));
     send_channel
-        .send(first_operation)
+        .send(vec![first_operation])
         .await
         .expect("first operation should fill the ingress slot");
 
@@ -56,7 +57,7 @@ async fn test_recovery_backpressures_message_processor_ingress() {
         domain,
     ));
     let mut blocked_send =
-        tokio::spawn(async move { second_send_channel.send(second_operation).await });
+        tokio::spawn(async move { second_send_channel.send(vec![second_operation]).await });
 
     assert!(timeout(Duration::from_millis(20), &mut blocked_send)
         .await

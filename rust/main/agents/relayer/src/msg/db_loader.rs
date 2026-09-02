@@ -19,7 +19,10 @@ use prometheus::IntGauge;
 use tokio::sync::mpsc::{error::TryRecvError, Receiver, Sender};
 use tracing::{debug, instrument, trace};
 
-use super::{blacklist::AddressBlacklist, metadata::AppContextClassifier, pending_message::*};
+use super::{
+    blacklist::AddressBlacklist, metadata::AppContextClassifier, pending_message::*,
+    QueueOperationBatch,
+};
 use crate::{db_loader::DbLoaderExt, settings::matching_list::MatchingList};
 
 /// Finds unprocessed messages from an origin and submits then through a channel
@@ -35,7 +38,7 @@ pub struct MessageDbLoader {
     metrics: MessageDbLoaderMetrics,
     /// channel for each destination chain to send operations (i.e. message
     /// submissions) to
-    send_channels: HashMap<u32, Sender<QueueOperation>>,
+    send_channels: HashMap<u32, Sender<QueueOperationBatch>>,
     /// Needed context to send a message for each destination chain
     destination_ctxs: HashMap<u32, Arc<MessageContext>>,
     metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
@@ -320,7 +323,7 @@ impl DbLoaderExt for MessageDbLoader {
             );
             if let Some(pending_msg) = pending_msg {
                 self.send_channels[&destination]
-                    .send(Box::new(pending_msg) as QueueOperation)
+                    .send(vec![Box::new(pending_msg) as QueueOperation])
                     .await?;
             }
         } else {
@@ -338,7 +341,7 @@ impl MessageDbLoader {
         message_blacklist: Arc<MatchingList>,
         address_blacklist: Arc<AddressBlacklist>,
         metrics: MessageDbLoaderMetrics,
-        send_channels: HashMap<u32, Sender<QueueOperation>>,
+        send_channels: HashMap<u32, Sender<QueueOperationBatch>>,
         destination_ctxs: HashMap<u32, Arc<MessageContext>>,
         metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
         max_retries: u32,

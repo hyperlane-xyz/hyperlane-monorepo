@@ -18,7 +18,10 @@ use tokio::sync::mpsc::Sender;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
-use crate::msg::pending_message::{MessageContext, PendingMessage};
+use crate::msg::{
+    pending_message::{MessageContext, PendingMessage},
+    QueueOperationBatch,
+};
 use crate::relay_api::metrics::RelayApiMetrics;
 
 /// Bounded cache for tracking recently submitted tx hashes to prevent replay attacks
@@ -159,7 +162,7 @@ pub struct ServerState {
     /// gas payment check never races the background `tx_id_indexer_task`.
     igp_indexers: HashMap<u32, Arc<dyn Indexer<InterchainGasPayment>>>,
     dbs: HashMap<u32, HyperlaneRocksDB>,
-    send_channels: HashMap<u32, Sender<QueueOperation>>,
+    send_channels: HashMap<u32, Sender<QueueOperationBatch>>,
     msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
     metrics: RelayApiMetrics,
     // Optional features
@@ -176,7 +179,7 @@ impl ServerState {
         indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>,
         igp_indexers: HashMap<u32, Arc<dyn Indexer<InterchainGasPayment>>>,
         dbs: HashMap<u32, HyperlaneRocksDB>,
-        send_channels: HashMap<u32, Sender<QueueOperation>>,
+        send_channels: HashMap<u32, Sender<QueueOperationBatch>>,
         msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
         metrics: RelayApiMetrics,
     ) -> Self {
@@ -460,20 +463,14 @@ async fn create_relay(
         None
     };
 
-    let result = relay_work(&state, &req).await;
-
-    if result.is_ok() {
-        if let Some(reservation) = maybe_reservation {
-            reservation.commit();
-        }
-    }
-    // On Err (or if this future is dropped/cancelled), `maybe_reservation` drops here
-    // and TxHashReservation::drop removes the entry so the client can retry.
-
-    result
+    relay_work(&state, &req, maybe_reservation).await
 }
 
-async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Json<RelayResponse>> {
+async fn relay_work(
+    state: &ServerState,
+    req: &RelayRequest,
+    maybe_reservation: Option<TxHashReservation>,
+) -> ServerResult<Json<RelayResponse>> {
     // 1. Extract message using indexers (with timeout)
     let indexers = &state.indexers;
 
@@ -525,7 +522,7 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
     // If any message fails here, no side effects have occurred.
     struct ValidatedMessage {
         pending_msg: PendingMessage,
-        send_channel: Sender<QueueOperation>,
+        send_channel: Sender<QueueOperationBatch>,
         message_id: H256,
         origin_domain: u32,
         tx_hash: H512,
@@ -792,48 +789,76 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
         }
     }
 
-    // Phase 3: send all validated messages.
-    //
-    // Pre-check: verify every destination channel is open before sending anything.
-    // If any channel is already closed, bail before awaiting bounded sends. No
-    // messages have entered the queue yet, so the caller can retry safely.
-    for v in &validated {
-        if v.send_channel.is_closed() {
-            error!(
-                message_id = ?v.message_id,
-                destination_domain = v.destination_domain,
-                "Processor channel closed for destination; aborting before any send"
-            );
-            state.record_failure("send_failed");
-            return Err(ServerError::InternalError(
-                "Processor channel closed for destination".to_string(),
-            ));
+    // Phase 3: reserve one bounded channel slot per destination before enqueueing
+    // anything. Cancellation while awaiting capacity releases every permit and the
+    // tx-hash reservation, so a retry cannot duplicate a partially handed-off tx.
+    // Once every permit is held, committing the reservation and sending the batches
+    // are synchronous: the transaction becomes deduplicated at the same atomic
+    // boundary where all of its operations become owned by processor channels.
+    struct SentMessage {
+        message_id: H256,
+        origin_domain: u32,
+        tx_hash: H512,
+        destination_domain: u32,
+        app_context: Option<String>,
+        nonce: u32,
+    }
+
+    let mut batches: HashMap<u32, (Sender<QueueOperationBatch>, QueueOperationBatch)> =
+        HashMap::new();
+    let mut sent_messages = Vec::with_capacity(validated.len());
+    for validated_message in validated {
+        let ValidatedMessage {
+            pending_msg,
+            send_channel,
+            message_id,
+            origin_domain,
+            tx_hash,
+            destination_domain,
+            app_context,
+            nonce,
+        } = validated_message;
+        batches
+            .entry(destination_domain)
+            .or_insert_with(|| (send_channel, Vec::new()))
+            .1
+            .push(Box::new(pending_msg) as QueueOperation);
+        sent_messages.push(SentMessage {
+            message_id,
+            origin_domain,
+            tx_hash,
+            destination_domain,
+            app_context,
+            nonce,
+        });
+    }
+
+    let mut reserved_batches = Vec::with_capacity(batches.len());
+    for (destination, (send_channel, batch)) in batches {
+        match send_channel.reserve_owned().await {
+            Ok(permit) => reserved_batches.push((permit, batch)),
+            Err(error) => {
+                error!(
+                    destination_domain = destination,
+                    %error,
+                    "Processor channel closed before transaction handoff"
+                );
+                state.record_failure("send_failed");
+                return Err(ServerError::InternalError(
+                    "Failed to reserve processor channel capacity".to_string(),
+                ));
+            }
         }
     }
 
-    // Send phase. A failure here is an extreme race (channel closed between the
-    // is_closed() check above and this send). If that happens, messages already
-    // sent in this loop may be double-enqueued on the caller's retry — this is
-    // unavoidable without transactional send semantics, but the pre-check above
-    // eliminates the common case (channel already closed before we start).
-    for v in validated {
-        if let Err(e) = v
-            .send_channel
-            .send(Box::new(v.pending_msg) as QueueOperation)
-            .await
-        {
-            error!(
-                message_id = ?v.message_id,
-                error = %e,
-                "Processor channel closed mid-send (race); earlier messages in this \
-                 batch may be double-enqueued on retry"
-            );
-            state.record_failure("send_failed");
-            return Err(ServerError::InternalError(
-                "Failed to send message to processor".to_string(),
-            ));
-        }
+    if let Some(reservation) = maybe_reservation {
+        reservation.commit();
+    }
+    for (permit, batch) in reserved_batches {
+        permit.send(batch);
+    }
 
+    for v in sent_messages {
         info!(
             message_id = ?v.message_id,
             destination = v.destination_domain,
