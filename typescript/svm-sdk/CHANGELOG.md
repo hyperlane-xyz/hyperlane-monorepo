@@ -1,5 +1,15 @@
 # @hyperlane-xyz/sealevel-sdk
 
+## 44.0.1
+
+### Patch Changes
+
+- f269e03: Zod was updated to 4.5.4 to prevent function-valued default factories from running during schema cycle detection and compilation.
+- Updated dependencies [f269e03]
+  - @hyperlane-xyz/provider-sdk@10.0.1
+  - @hyperlane-xyz/forking-sdk@9.0.1
+  - @hyperlane-xyz/utils@44.0.1
+
 ## 44.0.0
 
 ### Patch Changes
