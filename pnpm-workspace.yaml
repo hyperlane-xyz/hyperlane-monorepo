@@ -145,7 +145,7 @@ catalog:
   '@vercel/ncc': ^0.38.3
 
   # Linting
-  oxlint: ^1.77.0
+  oxlint: 1.77.0
   oxlint-tsgolint: ^7.0.2001
 
   # Formatting

@@ -357,8 +357,8 @@ catalogs:
       specifier: ^0.62.0
       version: 0.62.0
     oxlint:
-      specifier: ^1.77.0
-      version: 1.81.0
+      specifier: 1.77.0
+      version: 1.77.0
     oxlint-tsgolint:
       specifier: ^7.0.2001
       version: 7.0.2001
@@ -486,7 +486,7 @@ importers:
         version: 0.62.0
       oxlint:
         specifier: 'catalog:'
-        version: 1.81.0(oxlint-tsgolint@7.0.2001)
+        version: 1.77.0(oxlint-tsgolint@7.0.2001)
       oxlint-tsgolint:
         specifier: 'catalog:'
         version: 7.0.2001
@@ -2246,7 +2246,7 @@ importers:
     dependencies:
       '@arbitrum/sdk':
         specifier: 'catalog:'
-        version: 4.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+        version: 4.1.0(bufferutil@4.1.0)
       '@google-cloud/pino-logging-gcp-config':
         specifier: 'catalog:'
         version: 1.3.5(supports-color@8.1.1)
@@ -2292,10 +2292,10 @@ importers:
         version: link:../tsconfig
       '@nomiclabs/hardhat-ethers':
         specifier: 'catalog:'
-        version: 2.2.3(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@6.0.6))
+        version: 2.2.3(ethers@5.8.0(bufferutil@4.1.0))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2)))
       '@nomiclabs/hardhat-waffle':
         specifier: 'catalog:'
-        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@6.0.6)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@typescript/typescript6@6.0.2)(debug@4.4.3(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@6.0.6))
+        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.1.0))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.1.0))(@typescript/typescript6@6.0.2)(debug@4.4.3(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0))(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2)))
       '@types/chai':
         specifier: 'catalog:'
         version: 4.3.20
@@ -2322,10 +2322,10 @@ importers:
         version: 8.0.2(chai@4.5.0)
       ethereum-waffle:
         specifier: 'catalog:'
-        version: 4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@typescript/typescript6@6.0.2)(debug@4.4.3(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(supports-color@8.1.1)
+        version: 4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.1.0))(@typescript/typescript6@6.0.2)(debug@4.4.3(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0))(supports-color@8.1.1)
       hardhat:
         specifier: 'catalog:'
-        version: 2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@6.0.6)
+        version: 2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10)
       mocha:
         specifier: 'catalog:'
         version: 11.8.0
@@ -2355,7 +2355,7 @@ importers:
         version: link:../utils
       '@nestjs/apollo':
         specifier: 'catalog:'
-        version: 13.2.3(@apollo/server@5.5.1(graphql@16.14.2)(supports-color@8.1.1))(@as-integrations/express5@1.1.2(@apollo/server@5.5.1(graphql@16.14.2)(supports-color@8.1.1))(express@5.2.1(supports-color@8.1.1)))(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.1.28)(@nestjs/graphql@13.2.3(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.1.28)(bufferutil@4.1.0)(crossws@0.3.5)(graphql@16.14.2)(reflect-metadata@0.2.2)(utf-8-validate@6.0.6))(graphql@16.14.2)
+        version: 13.2.3(@apollo/server@5.5.1(graphql@16.14.2)(supports-color@8.1.1))(@as-integrations/express5@1.1.2(@apollo/server@5.5.1(graphql@16.14.2)(supports-color@8.1.1))(express@5.2.1(supports-color@8.1.1)))(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.1.28)(@nestjs/graphql@13.2.3(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.1.28)(bufferutil@4.1.0)(crossws@0.3.5)(graphql@16.14.2)(reflect-metadata@0.2.2))(graphql@16.14.2)
       '@nestjs/common':
         specifier: 'catalog:'
         version: 11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1)
@@ -2364,7 +2364,7 @@ importers:
         version: 11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/platform-express@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/graphql':
         specifier: 'catalog:'
-        version: 13.2.3(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.1.28)(bufferutil@4.1.0)(crossws@0.3.5)(graphql@16.14.2)(reflect-metadata@0.2.2)(utf-8-validate@6.0.6)
+        version: 13.2.3(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.1.28)(bufferutil@4.1.0)(crossws@0.3.5)(graphql@16.14.2)(reflect-metadata@0.2.2)
       '@nestjs/platform-express':
         specifier: 'catalog:'
         version: 11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.1.28)(supports-color@8.1.1)
@@ -6478,124 +6478,124 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@oxlint/binding-android-arm-eabi@1.81.0':
-    resolution: {integrity: sha512-IcCRsXiedJoJopY6mpZUBEeVFsUrutmrG7dZ87zMuKJlhg70Ora9bBl1WcCxZQtyI10YpnVdEso5oCg7YcfSHw==}
+  '@oxlint/binding-android-arm-eabi@1.77.0':
+    resolution: {integrity: sha512-E06sKWS6PiI6HRxS1wyQg22HvApt01hI7fV+T3wUk3OSbaaP4a3hYGY/MIQDmASqCiRjBdpRQYkgMkqH82cWmQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm]
     os: [android]
 
-  '@oxlint/binding-android-arm64@1.81.0':
-    resolution: {integrity: sha512-GRrIPyTGVhx3L3h+0T5xT2A0jFAcdPv4+IfuXpGDLIdl6XeYhgg/zw72A5ILZoUgRqZuM8F1y+V/gfDriXSxzQ==}
+  '@oxlint/binding-android-arm64@1.77.0':
+    resolution: {integrity: sha512-NvsKz0KZxTp9cYWPLf+FXaSZwB3oO3peAjtukpOMBgse2vhQSoIIVqeO1yR0lEo/UcdZIDL18uq+kL0LzQ0ytA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [android]
 
-  '@oxlint/binding-darwin-arm64@1.81.0':
-    resolution: {integrity: sha512-qNQ9tXRgLuKbqSV1S2h9h4KPHjbovO7RRR2/enUOtHzTkFZ7B9X5zqqHJua8dRyc7dBy7Aoyq5pqTSLFVcAzGQ==}
+  '@oxlint/binding-darwin-arm64@1.77.0':
+    resolution: {integrity: sha512-bgjTn6nW4bQCFBvSvuHCpDD+sONvmpo4lGI4PxzMt1quBA+xYxhczk6RiCn3GZ9gY8uhaBbwhj9MdKGfu6T9DA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [darwin]
 
-  '@oxlint/binding-darwin-x64@1.81.0':
-    resolution: {integrity: sha512-q0QTm32jWga2Gv4j7IaVZN0jYMi9UV73sWVgFtDA4iIfqwMCLLZ3ve+9KwfYtsaKZSgQhmPaogeZWqDZpcY1Pw==}
+  '@oxlint/binding-darwin-x64@1.77.0':
+    resolution: {integrity: sha512-aotaIttH1R6j1Rwhx0M0htgeZyGtVQqYNTVEYMN/UcgHPquGA6kmk9OyuDc3a2GKUQBC+3C3GVQCcrRPMYqAFA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [darwin]
 
-  '@oxlint/binding-freebsd-x64@1.81.0':
-    resolution: {integrity: sha512-/+8wVWDXEC7wHVAhOc59Fw/SkMc1arLkFD8iQCaSsmzenK1X4doFqquL9H1wrtGUzaiycVqkf/sSpcILK6W1UA==}
+  '@oxlint/binding-freebsd-x64@1.77.0':
+    resolution: {integrity: sha512-nNx/wta7ksRAdYvq+l4AWjXkLxEXHALhENxjj2cYbQAIR4ybaA5L+hCbE63HOmft5czQ6ks+hb8vmEAnn7YGPg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [freebsd]
 
-  '@oxlint/binding-linux-arm-gnueabihf@1.81.0':
-    resolution: {integrity: sha512-4xt422FEgioRq9hAL4Tq7fujGUWnc8z1BJ+Oi8RN8vB8axaP+sdK6a2xdlcQCCYnJg9QMuMFS0AucuIFx/EacA==}
+  '@oxlint/binding-linux-arm-gnueabihf@1.77.0':
+    resolution: {integrity: sha512-tMLLjM7xXtzXisVCzkOTXNCy9bZVId2wteNwjohlFDR/jY6WagpEDA1c1wu4xRc20Hojaxj+V6DSR7gbKxijWA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm]
     os: [linux]
 
-  '@oxlint/binding-linux-arm-musleabihf@1.81.0':
-    resolution: {integrity: sha512-u3vna8KdGplH4DRCW9K54D68fcMo7IxVrkCJWwXnIhwtBdnDnYrmzOUA/XjmBlPpcLsgw9Z5BNdY4za9+Dj+MQ==}
+  '@oxlint/binding-linux-arm-musleabihf@1.77.0':
+    resolution: {integrity: sha512-MiAFDFaqR0tmHTAyo0YDcZ5hyLREdYw/RQhc2R3cbT+8O3tB+zqPM2th9TTQ+Uo3jn/embS+DO+HyX9ztCPkOQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm]
     os: [linux]
 
-  '@oxlint/binding-linux-arm64-gnu@1.81.0':
-    resolution: {integrity: sha512-3j9k+gsYsE7nv71GWotXsqsa2l9/aJenD7dVHNt/CBvsb0SgRjSMnHFeP59IXUAl1wvVFhqGl2wJNMwWU3UBlA==}
+  '@oxlint/binding-linux-arm64-gnu@1.77.0':
+    resolution: {integrity: sha512-/xqQ3B16i1T4cyt/9Mn+4CpzhUXoBXp7kVpIwzOXNFLj5JmK1bIjsbSnX296Gg8A/o7oDtKWikFgBx0SLwztkw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@oxlint/binding-linux-arm64-musl@1.81.0':
-    resolution: {integrity: sha512-k5iAp3dNxW0/uDCBY+WSm8jKB2szu7SkEQZdgRRpDXvuDd69vvDcqhB3A/pWCfCwXyenjNjFn9Td1fVoyAc+Yg==}
+  '@oxlint/binding-linux-arm64-musl@1.77.0':
+    resolution: {integrity: sha512-LSbwuRKiNCenPDcbARqAZ5RfBy7gmj7vOvfJRLeCDU3gFtSxWbhv/+VTlaUqzUhNj1gFLHB8h7ALnxa/Az6z6g==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@oxlint/binding-linux-ppc64-gnu@1.81.0':
-    resolution: {integrity: sha512-TFqLja3uYmVSte6nof9GWrex9Z8WgdZrNiLC6Te5rXGDqXB2y4j/26iFhwosXiAFqDhE9JJVuuCkDKLwptTn1g==}
+  '@oxlint/binding-linux-ppc64-gnu@1.77.0':
+    resolution: {integrity: sha512-QWdcH31mXEUe5Nq1s0CfCpceaKjIo9uZtwDjAuL681g1axf+5x8xrg/eXWaw//4NCxYZ4V4e5Hu5tvdR+pTBlg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [ppc64]
     os: [linux]
     libc: [glibc]
 
-  '@oxlint/binding-linux-riscv64-gnu@1.81.0':
-    resolution: {integrity: sha512-UEcySvGS0NOVo7h7n7CYyJL9+6gFAh7Zc/ToDXVScFvzHSTIxtzkMVU30rmQ6+nQ1LF+UdiRDdJajpDu+OylLg==}
+  '@oxlint/binding-linux-riscv64-gnu@1.77.0':
+    resolution: {integrity: sha512-GnOfYgJxbcElOiPZaDFDl406ONddwvOWk2jvAAAEjwAl4GofNoHF+/HHUIBYa6bFCArlcGPi0XjC4cU1pkgF/Q==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [riscv64]
     os: [linux]
     libc: [glibc]
 
-  '@oxlint/binding-linux-riscv64-musl@1.81.0':
-    resolution: {integrity: sha512-H+diDbhD00+wI1IRP8Kz88x/lat+DgtoBJzoTthS16xkTJGNaEkfb8gzmd1rzc/2uDQQMl7GNl+JFUacVeWxIA==}
+  '@oxlint/binding-linux-riscv64-musl@1.77.0':
+    resolution: {integrity: sha512-AyEMTUCf0xY+hHF+IxqXFQIX0yQOIR8ykpY0lJNOw9xYqOzUX8dyZfRvlG0RfXwuQn2eonf/8NrMmDSZJjdqsA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [riscv64]
     os: [linux]
     libc: [musl]
 
-  '@oxlint/binding-linux-s390x-gnu@1.81.0':
-    resolution: {integrity: sha512-8znJ/5TekjOKg1j1Acho4PJMdiAHLtlcXuWEiipOhAMV6rQcXdmDdXCbheyDczN6TjBwiNfjcP81k4AthrKRzw==}
+  '@oxlint/binding-linux-s390x-gnu@1.77.0':
+    resolution: {integrity: sha512-sPLzEcNvxd/oyVQ5oZo92CiHkFkpBeRop13E/P3TPY+hZfXHKCOWKI70TE2RYwMKFJDc20EMjH16L7NZICtKTw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [s390x]
     os: [linux]
     libc: [glibc]
 
-  '@oxlint/binding-linux-x64-gnu@1.81.0':
-    resolution: {integrity: sha512-Q2Wj70yFsvn5QjlmifFzbj4H+kJy53bwqc41o1fzoM7MpLV1NIbhg/LpWXRfC6KOkSAdUx1Wd8VJsdPmhp/HRA==}
+  '@oxlint/binding-linux-x64-gnu@1.77.0':
+    resolution: {integrity: sha512-1Oh2ssH2L7lwyvkdSqaMUfsGfwU2Wfvew+obBUYjRVqhpBcUpwnsPSEr1IzVi9XqkuY10geiLsNKecqaZC34Dw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@oxlint/binding-linux-x64-musl@1.81.0':
-    resolution: {integrity: sha512-cPInHp/ddEe5qkyK2IiyQ8Q3Mp2oLLEhhsGgTK2oZx4L6+llGam1H1yBvJZ7qHfOXj8N3hxBS8sj4tO+gtFlIg==}
+  '@oxlint/binding-linux-x64-musl@1.77.0':
+    resolution: {integrity: sha512-0j/2wRgNGO+Qj/M1uu/p57h/hFTTWWcfie0ufkbabeus2s5+/QqkCflnMOwLLN5m2GsNeWp4xdl4cPa4n7QCOQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@oxlint/binding-openharmony-arm64@1.81.0':
-    resolution: {integrity: sha512-0CQxSX4ajqm07AHBf5U33qQzXKdd7wtq/oTL/7vpY6RNNuxrRi8W4bqUV1Jyu/vj+9KmxQyDhxfeVX1nQL6kfg==}
+  '@oxlint/binding-openharmony-arm64@1.77.0':
+    resolution: {integrity: sha512-BJ/j54qS0usEnyDkLYURMj2iiD9h5Cyy+ppzeMSXBGRXaGRNWnj1Mw14NqWMR5E/PzdgB30OOCCzLzbRoduafw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [openharmony]
 
-  '@oxlint/binding-win32-arm64-msvc@1.81.0':
-    resolution: {integrity: sha512-l0hbeISm9673hVrrQU8j/p2M7YH9Ouoj7p7E/QM55NTrKVLP+P3PF8hLu+OY+x0VtGRW+ggiQKZqmdYps9H+TA==}
+  '@oxlint/binding-win32-arm64-msvc@1.77.0':
+    resolution: {integrity: sha512-Yh8w+g2Lpx7StrvtYkoz9JJvXjB9wxgFChFNb85nrXm/wj/XTwGWS1hve9+900HL7llrntYB3YP+y32E3tRqzA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [win32]
 
-  '@oxlint/binding-win32-ia32-msvc@1.81.0':
-    resolution: {integrity: sha512-ksqPP5jbFXcYreEQ7zdJh06rJQBymCTyGRCdaXjfcf2aG4f8KxUWY5wcgYHmaTK+FJ4bPG5sUAdOX+6trnH1JA==}
+  '@oxlint/binding-win32-ia32-msvc@1.77.0':
+    resolution: {integrity: sha512-zja5b7+6a7UsRFgAQSrnax5vrzliEyNPLCjfXONu/vTWswaIVZGFajJZptaeRvPE4LghtFdAzVFlexTm7MVTGA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [ia32]
     os: [win32]
 
-  '@oxlint/binding-win32-x64-msvc@1.81.0':
-    resolution: {integrity: sha512-IZuUCwGw9emG5JtCp+fYGB+Z4OWEoeEcM8R5BA1pYw63/ieYFVdcU2ylxTpHbVHSenZnsYE+ZZ20uHAJszQ4cA==}
+  '@oxlint/binding-win32-x64-msvc@1.77.0':
+    resolution: {integrity: sha512-+teyvPDZ2RjUvo+SuCqS/UhaJl1QtdW5fWT5NJTV61V5MIuIS90Db9LixmtEGvXixyttiK62P96MSu3UlpviBw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [win32]
@@ -15250,8 +15250,8 @@ packages:
     resolution: {integrity: sha512-KjK/XLcXr1DSyonKhsuFqJRiuKqcyG9j3LJ8nkOsrLzGvodBPqzHOKauy10asLMDI0sUpvb+1sxlzff3udZvfg==}
     hasBin: true
 
-  oxlint@1.81.0:
-    resolution: {integrity: sha512-HyrJYqeoOCL0iqaLEzGewGT48ZX99P3hxYh8udAF9RGGIghSamkXE4ClUyBpEDNqasamThgmlPbuMOe7SAZmHg==}
+  oxlint@1.77.0:
+    resolution: {integrity: sha512-qnGh8XJHaQ0dprrDXNQZgS0FgjI6v+V3+X8DwmaV++5Aamy6jGKfDdQ1TUvhUxtmKFAbEf4/WeO5QZX+5WSngg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
@@ -18781,6 +18781,17 @@ snapshots:
     dependencies:
       xss: 1.0.15
 
+  '@arbitrum/sdk@4.1.0(bufferutil@4.1.0)':
+    dependencies:
+      '@ethersproject/address': 5.8.0
+      '@ethersproject/bignumber': 5.8.0
+      '@ethersproject/bytes': 5.8.0
+      async-mutex: 0.4.1
+      ethers: 5.8.0(bufferutil@4.1.0)
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
   '@arbitrum/sdk@4.1.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
     dependencies:
       '@ethersproject/address': 5.8.0
@@ -18788,17 +18799,6 @@ snapshots:
       '@ethersproject/bytes': 5.8.0
       async-mutex: 0.4.1
       ethers: 5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-
-  '@arbitrum/sdk@4.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)':
-    dependencies:
-      '@ethersproject/address': 5.8.0
-      '@ethersproject/bignumber': 5.8.0
-      '@ethersproject/bytes': 5.8.0
-      async-mutex: 0.4.1
-      ethers: 5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -21160,11 +21160,11 @@ snapshots:
       - '@ensdomains/resolver'
       - supports-color
 
-  '@ethereum-waffle/chai@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(supports-color@8.1.1)':
+  '@ethereum-waffle/chai@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.8.0(bufferutil@4.1.0))(supports-color@8.1.1)':
     dependencies:
-      '@ethereum-waffle/provider': 4.0.5(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(supports-color@8.1.1)
+      '@ethereum-waffle/provider': 4.0.5(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.8.0(bufferutil@4.1.0))(supports-color@8.1.1)
       debug: 4.4.3(supports-color@8.1.1)
-      ethers: 5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      ethers: 5.8.0(bufferutil@4.1.0)
       json-bigint: 1.0.0
     transitivePeerDependencies:
       - '@ensdomains/ens'
@@ -21190,14 +21190,14 @@ snapshots:
       - supports-color
       - typescript
 
-  '@ethereum-waffle/compiler@4.0.3(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@typescript/typescript6@6.0.2)(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(solc@0.8.15(debug@4.4.3(supports-color@8.1.1)))(supports-color@8.1.1)(typechain@8.3.2(patch_hash=fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950)(@typescript/typescript6@6.0.2)(supports-color@8.1.1))':
+  '@ethereum-waffle/compiler@4.0.3(@ethersproject/providers@5.8.0(bufferutil@4.1.0))(@typescript/typescript6@6.0.2)(ethers@5.8.0(bufferutil@4.1.0))(solc@0.8.15(debug@4.4.3(supports-color@8.1.1)))(supports-color@8.1.1)(typechain@8.3.2(patch_hash=fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950)(@typescript/typescript6@6.0.2)(supports-color@8.1.1))':
     dependencies:
       '@resolver-engine/imports': 0.3.3(supports-color@8.1.1)
       '@resolver-engine/imports-fs': 0.3.3(supports-color@8.1.1)
-      '@typechain/ethers-v5': 11.1.2(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@typescript/typescript6@6.0.2)(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(typechain@8.3.2(patch_hash=fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950)(@typescript/typescript6@6.0.2)(supports-color@8.1.1))
+      '@typechain/ethers-v5': 11.1.2(@ethersproject/providers@5.8.0(bufferutil@4.1.0))(@typescript/typescript6@6.0.2)(ethers@5.8.0(bufferutil@4.1.0))(typechain@8.3.2(patch_hash=fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950)(@typescript/typescript6@6.0.2)(supports-color@8.1.1))
       '@types/mkdirp': 0.5.2
       '@types/node-fetch': 2.6.13
-      ethers: 5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      ethers: 5.8.0(bufferutil@4.1.0)
       mkdirp: 0.5.6
       node-fetch: 2.7.0(patch_hash=59af5fd5e6879432f6c8aaafe72ade0e018951d8576db2aedda3d59e5a7bc024)
       solc: 0.8.15(debug@4.4.3(supports-color@8.1.1))
@@ -21215,19 +21215,19 @@ snapshots:
       '@ensdomains/resolver': 0.2.4
       ethers: 5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
 
-  '@ethereum-waffle/ens@4.0.3(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
+  '@ethereum-waffle/ens@4.0.3(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.8.0(bufferutil@4.1.0))':
     dependencies:
       '@ensdomains/ens': 0.4.5
       '@ensdomains/resolver': 0.2.4
-      ethers: 5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      ethers: 5.8.0(bufferutil@4.1.0)
 
   '@ethereum-waffle/mock-contract@4.0.4(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))':
     dependencies:
       ethers: 5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
 
-  '@ethereum-waffle/mock-contract@4.0.4(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
+  '@ethereum-waffle/mock-contract@4.0.4(ethers@5.8.0(bufferutil@4.1.0))':
     dependencies:
-      ethers: 5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      ethers: 5.8.0(bufferutil@4.1.0)
 
   '@ethereum-waffle/provider@4.0.5(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(supports-color@8.1.1)':
     dependencies:
@@ -21241,12 +21241,12 @@ snapshots:
       - '@ensdomains/resolver'
       - supports-color
 
-  '@ethereum-waffle/provider@4.0.5(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(supports-color@8.1.1)':
+  '@ethereum-waffle/provider@4.0.5(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.8.0(bufferutil@4.1.0))(supports-color@8.1.1)':
     dependencies:
-      '@ethereum-waffle/ens': 4.0.3(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+      '@ethereum-waffle/ens': 4.0.3(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.8.0(bufferutil@4.1.0))
       '@ganache/ethereum-options': 0.1.4(supports-color@8.1.1)
       debug: 4.4.3(supports-color@8.1.1)
-      ethers: 5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      ethers: 5.8.0(bufferutil@4.1.0)
       ganache: 7.4.3
     transitivePeerDependencies:
       - '@ensdomains/ens'
@@ -22846,13 +22846,13 @@ snapshots:
       pump: 3.0.4
       tar-fs: 2.1.5
 
-  '@nestjs/apollo@13.2.3(@apollo/server@5.5.1(graphql@16.14.2)(supports-color@8.1.1))(@as-integrations/express5@1.1.2(@apollo/server@5.5.1(graphql@16.14.2)(supports-color@8.1.1))(express@5.2.1(supports-color@8.1.1)))(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.1.28)(@nestjs/graphql@13.2.3(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.1.28)(bufferutil@4.1.0)(crossws@0.3.5)(graphql@16.14.2)(reflect-metadata@0.2.2)(utf-8-validate@6.0.6))(graphql@16.14.2)':
+  '@nestjs/apollo@13.2.3(@apollo/server@5.5.1(graphql@16.14.2)(supports-color@8.1.1))(@as-integrations/express5@1.1.2(@apollo/server@5.5.1(graphql@16.14.2)(supports-color@8.1.1))(express@5.2.1(supports-color@8.1.1)))(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.1.28)(@nestjs/graphql@13.2.3(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.1.28)(bufferutil@4.1.0)(crossws@0.3.5)(graphql@16.14.2)(reflect-metadata@0.2.2))(graphql@16.14.2)':
     dependencies:
       '@apollo/server': 5.5.1(graphql@16.14.2)(supports-color@8.1.1)
       '@apollo/server-plugin-landing-page-graphql-playground': 4.0.1(@apollo/server@5.5.1(graphql@16.14.2)(supports-color@8.1.1))
       '@nestjs/common': 11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1)
       '@nestjs/core': 11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/platform-express@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@nestjs/graphql': 13.2.3(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.1.28)(bufferutil@4.1.0)(crossws@0.3.5)(graphql@16.14.2)(reflect-metadata@0.2.2)(utf-8-validate@6.0.6)
+      '@nestjs/graphql': 13.2.3(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.1.28)(bufferutil@4.1.0)(crossws@0.3.5)(graphql@16.14.2)(reflect-metadata@0.2.2)
       graphql: 16.14.2
       iterall: 1.3.0
       lodash.omit: 4.5.0
@@ -22885,7 +22885,7 @@ snapshots:
     optionalDependencies:
       '@nestjs/platform-express': 11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.1.28)(supports-color@8.1.1)
 
-  '@nestjs/graphql@13.2.3(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.1.28)(bufferutil@4.1.0)(crossws@0.3.5)(graphql@16.14.2)(reflect-metadata@0.2.2)(utf-8-validate@6.0.6)':
+  '@nestjs/graphql@13.2.3(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.1.28)(bufferutil@4.1.0)(crossws@0.3.5)(graphql@16.14.2)(reflect-metadata@0.2.2)':
     dependencies:
       '@graphql-tools/merge': 9.1.6(graphql@16.14.2)
       '@graphql-tools/schema': 10.0.30(graphql@16.14.2)
@@ -22897,13 +22897,13 @@ snapshots:
       fast-glob: 3.3.3
       graphql: 16.14.2
       graphql-tag: 2.12.6(graphql@16.14.2)
-      graphql-ws: 6.0.6(crossws@0.3.5)(graphql@16.14.2)(ws@8.18.3(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+      graphql-ws: 6.0.6(crossws@0.3.5)(graphql@16.14.2)(ws@8.18.3(bufferutil@4.1.0))
       lodash: 4.18.1
       normalize-path: 3.0.0
       reflect-metadata: 0.2.2
-      subscriptions-transport-ws: 0.11.0(bufferutil@4.1.0)(graphql@16.14.2)(utf-8-validate@6.0.6)
+      subscriptions-transport-ws: 0.11.0(bufferutil@4.1.0)(graphql@16.14.2)
       tslib: 2.8.1
-      ws: 8.18.3(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      ws: 8.18.3(bufferutil@4.1.0)
     transitivePeerDependencies:
       - '@fastify/websocket'
       - bufferutil
@@ -23109,10 +23109,10 @@ snapshots:
       ethers: 5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       hardhat: 2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10)
 
-  '@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@6.0.6))':
+  '@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.1.0))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2)))':
     dependencies:
-      ethers: 5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
-      hardhat: 2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@6.0.6)
+      ethers: 5.8.0(bufferutil@4.1.0)
+      hardhat: 2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10)
 
   '@nomiclabs/hardhat-etherscan@3.1.8(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10))(supports-color@8.1.1)':
     dependencies:
@@ -23146,13 +23146,13 @@ snapshots:
       ethers: 5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       hardhat: 2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10)
 
-  '@nomiclabs/hardhat-waffle@2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@6.0.6)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@typescript/typescript6@6.0.2)(debug@4.4.3(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@6.0.6))':
+  '@nomiclabs/hardhat-waffle@2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.1.0))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.1.0))(@typescript/typescript6@6.0.2)(debug@4.4.3(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0))(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2)))':
     dependencies:
-      '@nomiclabs/hardhat-ethers': 2.2.3(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@6.0.6))
+      '@nomiclabs/hardhat-ethers': 2.2.3(ethers@5.8.0(bufferutil@4.1.0))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2)))
       '@types/sinon-chai': 3.2.12
-      ethereum-waffle: 4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@typescript/typescript6@6.0.2)(debug@4.4.3(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(supports-color@8.1.1)
-      ethers: 5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
-      hardhat: 2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@6.0.6)
+      ethereum-waffle: 4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.1.0))(@typescript/typescript6@6.0.2)(debug@4.4.3(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0))(supports-color@8.1.1)
+      ethers: 5.8.0(bufferutil@4.1.0)
+      hardhat: 2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10)
 
   '@opentelemetry/api@1.9.1': {}
 
@@ -23235,61 +23235,61 @@ snapshots:
   '@oxlint-tsgolint/win32-x64@7.0.2001':
     optional: true
 
-  '@oxlint/binding-android-arm-eabi@1.81.0':
+  '@oxlint/binding-android-arm-eabi@1.77.0':
     optional: true
 
-  '@oxlint/binding-android-arm64@1.81.0':
+  '@oxlint/binding-android-arm64@1.77.0':
     optional: true
 
-  '@oxlint/binding-darwin-arm64@1.81.0':
+  '@oxlint/binding-darwin-arm64@1.77.0':
     optional: true
 
-  '@oxlint/binding-darwin-x64@1.81.0':
+  '@oxlint/binding-darwin-x64@1.77.0':
     optional: true
 
-  '@oxlint/binding-freebsd-x64@1.81.0':
+  '@oxlint/binding-freebsd-x64@1.77.0':
     optional: true
 
-  '@oxlint/binding-linux-arm-gnueabihf@1.81.0':
+  '@oxlint/binding-linux-arm-gnueabihf@1.77.0':
     optional: true
 
-  '@oxlint/binding-linux-arm-musleabihf@1.81.0':
+  '@oxlint/binding-linux-arm-musleabihf@1.77.0':
     optional: true
 
-  '@oxlint/binding-linux-arm64-gnu@1.81.0':
+  '@oxlint/binding-linux-arm64-gnu@1.77.0':
     optional: true
 
-  '@oxlint/binding-linux-arm64-musl@1.81.0':
+  '@oxlint/binding-linux-arm64-musl@1.77.0':
     optional: true
 
-  '@oxlint/binding-linux-ppc64-gnu@1.81.0':
+  '@oxlint/binding-linux-ppc64-gnu@1.77.0':
     optional: true
 
-  '@oxlint/binding-linux-riscv64-gnu@1.81.0':
+  '@oxlint/binding-linux-riscv64-gnu@1.77.0':
     optional: true
 
-  '@oxlint/binding-linux-riscv64-musl@1.81.0':
+  '@oxlint/binding-linux-riscv64-musl@1.77.0':
     optional: true
 
-  '@oxlint/binding-linux-s390x-gnu@1.81.0':
+  '@oxlint/binding-linux-s390x-gnu@1.77.0':
     optional: true
 
-  '@oxlint/binding-linux-x64-gnu@1.81.0':
+  '@oxlint/binding-linux-x64-gnu@1.77.0':
     optional: true
 
-  '@oxlint/binding-linux-x64-musl@1.81.0':
+  '@oxlint/binding-linux-x64-musl@1.77.0':
     optional: true
 
-  '@oxlint/binding-openharmony-arm64@1.81.0':
+  '@oxlint/binding-openharmony-arm64@1.77.0':
     optional: true
 
-  '@oxlint/binding-win32-arm64-msvc@1.81.0':
+  '@oxlint/binding-win32-arm64-msvc@1.77.0':
     optional: true
 
-  '@oxlint/binding-win32-ia32-msvc@1.81.0':
+  '@oxlint/binding-win32-ia32-msvc@1.77.0':
     optional: true
 
-  '@oxlint/binding-win32-x64-msvc@1.81.0':
+  '@oxlint/binding-win32-x64-msvc@1.77.0':
     optional: true
 
   '@paralleldrive/cuid2@2.3.1':
@@ -28127,10 +28127,10 @@ snapshots:
       typechain: 8.3.2(patch_hash=fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950)(@typescript/typescript6@6.0.2)(supports-color@8.1.1)
       typescript: '@typescript/typescript6@6.0.2'
 
-  '@typechain/ethers-v5@11.1.2(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@typescript/typescript6@6.0.2)(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(typechain@8.3.2(patch_hash=fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950)(@typescript/typescript6@6.0.2)(supports-color@8.1.1))':
+  '@typechain/ethers-v5@11.1.2(@ethersproject/providers@5.8.0(bufferutil@4.1.0))(@typescript/typescript6@6.0.2)(ethers@5.8.0(bufferutil@4.1.0))(typechain@8.3.2(patch_hash=fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950)(@typescript/typescript6@6.0.2)(supports-color@8.1.1))':
     dependencies:
       '@ethersproject/providers': 5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
-      ethers: 5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      ethers: 5.8.0(bufferutil@4.1.0)
       lodash: 4.18.1
       ts-essentials: 7.0.3(@typescript/typescript6@6.0.2)
       typechain: 8.3.2(patch_hash=fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950)(@typescript/typescript6@6.0.2)(supports-color@8.1.1)
@@ -32403,13 +32403,13 @@ snapshots:
       - supports-color
       - typescript
 
-  ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@typescript/typescript6@6.0.2)(debug@4.4.3(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(supports-color@8.1.1):
+  ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.1.0))(@typescript/typescript6@6.0.2)(debug@4.4.3(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0))(supports-color@8.1.1):
     dependencies:
-      '@ethereum-waffle/chai': 4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(supports-color@8.1.1)
-      '@ethereum-waffle/compiler': 4.0.3(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@typescript/typescript6@6.0.2)(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(solc@0.8.15(debug@4.4.3(supports-color@8.1.1)))(supports-color@8.1.1)(typechain@8.3.2(patch_hash=fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950)(@typescript/typescript6@6.0.2)(supports-color@8.1.1))
-      '@ethereum-waffle/mock-contract': 4.0.4(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
-      '@ethereum-waffle/provider': 4.0.5(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(supports-color@8.1.1)
-      ethers: 5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      '@ethereum-waffle/chai': 4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.8.0(bufferutil@4.1.0))(supports-color@8.1.1)
+      '@ethereum-waffle/compiler': 4.0.3(@ethersproject/providers@5.8.0(bufferutil@4.1.0))(@typescript/typescript6@6.0.2)(ethers@5.8.0(bufferutil@4.1.0))(solc@0.8.15(debug@4.4.3(supports-color@8.1.1)))(supports-color@8.1.1)(typechain@8.3.2(patch_hash=fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950)(@typescript/typescript6@6.0.2)(supports-color@8.1.1))
+      '@ethereum-waffle/mock-contract': 4.0.4(ethers@5.8.0(bufferutil@4.1.0))
+      '@ethereum-waffle/provider': 4.0.5(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.8.0(bufferutil@4.1.0))(supports-color@8.1.1)
+      ethers: 5.8.0(bufferutil@4.1.0)
       solc: 0.8.15(debug@4.4.3(supports-color@8.1.1))
       typechain: 8.3.2(patch_hash=fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950)(@typescript/typescript6@6.0.2)(supports-color@8.1.1)
     transitivePeerDependencies:
@@ -32452,6 +32452,42 @@ snapshots:
       create-hash: 1.2.0
       ethereum-cryptography: 0.1.3
       rlp: 2.2.7
+
+  ethers@5.8.0(bufferutil@4.1.0):
+    dependencies:
+      '@ethersproject/abi': 5.8.0
+      '@ethersproject/abstract-provider': 5.8.0
+      '@ethersproject/abstract-signer': 5.8.0
+      '@ethersproject/address': 5.8.0
+      '@ethersproject/base64': 5.8.0
+      '@ethersproject/basex': 5.8.0
+      '@ethersproject/bignumber': 5.8.0
+      '@ethersproject/bytes': 5.8.0
+      '@ethersproject/constants': 5.8.0
+      '@ethersproject/contracts': 5.8.0
+      '@ethersproject/hash': 5.8.0
+      '@ethersproject/hdnode': 5.8.0
+      '@ethersproject/json-wallets': 5.8.0
+      '@ethersproject/keccak256': 5.8.0
+      '@ethersproject/logger': 5.8.0
+      '@ethersproject/networks': 5.8.0
+      '@ethersproject/pbkdf2': 5.8.0
+      '@ethersproject/properties': 5.8.0
+      '@ethersproject/providers': 5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      '@ethersproject/random': 5.8.0
+      '@ethersproject/rlp': 5.8.0
+      '@ethersproject/sha2': 5.8.0
+      '@ethersproject/signing-key': 5.8.0
+      '@ethersproject/solidity': 5.8.0
+      '@ethersproject/strings': 5.8.0
+      '@ethersproject/transactions': 5.8.0
+      '@ethersproject/units': 5.8.0
+      '@ethersproject/wallet': 5.8.0
+      '@ethersproject/web': 5.8.0
+      '@ethersproject/wordlists': 5.8.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10):
     dependencies:
@@ -33654,12 +33690,12 @@ snapshots:
       graphql: 16.14.2
       tslib: 2.8.1
 
-  graphql-ws@6.0.6(crossws@0.3.5)(graphql@16.14.2)(ws@8.18.3(bufferutil@4.1.0)(utf-8-validate@6.0.6)):
+  graphql-ws@6.0.6(crossws@0.3.5)(graphql@16.14.2)(ws@8.18.3(bufferutil@4.1.0)):
     dependencies:
       graphql: 16.14.2
     optionalDependencies:
       crossws: 0.3.5
-      ws: 8.18.3(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      ws: 8.18.3(bufferutil@4.1.0)
 
   graphql@16.14.2: {}
 
@@ -33790,55 +33826,6 @@ snapshots:
       undici: 5.29.0
       uuid: 8.3.2
       ws: 7.5.13(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-    optionalDependencies:
-      ts-node: 10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2)
-      typescript: '@typescript/typescript6@6.0.2'
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-
-  hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@6.0.6):
-    dependencies:
-      '@ethereumjs/util': 9.1.0
-      '@ethersproject/abi': 5.8.0
-      '@nomicfoundation/edr': 0.12.0-next.23
-      '@nomicfoundation/solidity-analyzer': 0.1.2
-      '@sentry/node': 5.30.0(supports-color@8.1.1)
-      adm-zip: 0.4.16
-      aggregate-error: 3.1.0
-      ansi-escapes: 4.3.2
-      boxen: 5.1.2
-      chokidar: 4.0.3
-      ci-info: 2.0.0
-      debug: 4.4.3(supports-color@8.1.1)
-      enquirer: 2.4.1
-      env-paths: 2.2.1
-      ethereum-cryptography: 1.2.0
-      find-up: 5.0.0
-      fp-ts: 1.19.3
-      fs-extra: 7.0.1
-      immutable: 4.3.9
-      io-ts: 1.10.4
-      json-stream-stringify: 3.1.7
-      keccak: 3.0.4
-      lodash: 4.18.1
-      micro-eth-signer: 0.14.0
-      mnemonist: 0.38.5
-      mocha: 11.8.0
-      p-map: 4.0.0
-      picocolors: 1.1.1
-      raw-body: 2.5.3
-      resolve: 1.17.0
-      semver: 6.3.1
-      solc: 0.8.26(debug@4.4.3(supports-color@8.1.1))
-      source-map-support: 0.5.21
-      stacktrace-parser: 0.1.11
-      tinyglobby: 0.2.17
-      tsort: 0.0.1
-      undici: 5.29.0
-      uuid: 8.3.2
-      ws: 7.5.13(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     optionalDependencies:
       ts-node: 10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2)
       typescript: '@typescript/typescript6@6.0.2'
@@ -35951,27 +35938,27 @@ snapshots:
       '@oxlint-tsgolint/win32-arm64': 7.0.2001
       '@oxlint-tsgolint/win32-x64': 7.0.2001
 
-  oxlint@1.81.0(oxlint-tsgolint@7.0.2001):
+  oxlint@1.77.0(oxlint-tsgolint@7.0.2001):
     optionalDependencies:
-      '@oxlint/binding-android-arm-eabi': 1.81.0
-      '@oxlint/binding-android-arm64': 1.81.0
-      '@oxlint/binding-darwin-arm64': 1.81.0
-      '@oxlint/binding-darwin-x64': 1.81.0
-      '@oxlint/binding-freebsd-x64': 1.81.0
-      '@oxlint/binding-linux-arm-gnueabihf': 1.81.0
-      '@oxlint/binding-linux-arm-musleabihf': 1.81.0
-      '@oxlint/binding-linux-arm64-gnu': 1.81.0
-      '@oxlint/binding-linux-arm64-musl': 1.81.0
-      '@oxlint/binding-linux-ppc64-gnu': 1.81.0
-      '@oxlint/binding-linux-riscv64-gnu': 1.81.0
-      '@oxlint/binding-linux-riscv64-musl': 1.81.0
-      '@oxlint/binding-linux-s390x-gnu': 1.81.0
-      '@oxlint/binding-linux-x64-gnu': 1.81.0
-      '@oxlint/binding-linux-x64-musl': 1.81.0
-      '@oxlint/binding-openharmony-arm64': 1.81.0
-      '@oxlint/binding-win32-arm64-msvc': 1.81.0
-      '@oxlint/binding-win32-ia32-msvc': 1.81.0
-      '@oxlint/binding-win32-x64-msvc': 1.81.0
+      '@oxlint/binding-android-arm-eabi': 1.77.0
+      '@oxlint/binding-android-arm64': 1.77.0
+      '@oxlint/binding-darwin-arm64': 1.77.0
+      '@oxlint/binding-darwin-x64': 1.77.0
+      '@oxlint/binding-freebsd-x64': 1.77.0
+      '@oxlint/binding-linux-arm-gnueabihf': 1.77.0
+      '@oxlint/binding-linux-arm-musleabihf': 1.77.0
+      '@oxlint/binding-linux-arm64-gnu': 1.77.0
+      '@oxlint/binding-linux-arm64-musl': 1.77.0
+      '@oxlint/binding-linux-ppc64-gnu': 1.77.0
+      '@oxlint/binding-linux-riscv64-gnu': 1.77.0
+      '@oxlint/binding-linux-riscv64-musl': 1.77.0
+      '@oxlint/binding-linux-s390x-gnu': 1.77.0
+      '@oxlint/binding-linux-x64-gnu': 1.77.0
+      '@oxlint/binding-linux-x64-musl': 1.77.0
+      '@oxlint/binding-openharmony-arm64': 1.77.0
+      '@oxlint/binding-win32-arm64-msvc': 1.77.0
+      '@oxlint/binding-win32-ia32-msvc': 1.77.0
+      '@oxlint/binding-win32-x64-msvc': 1.77.0
       oxlint-tsgolint: 7.0.2001
 
   p-cancelable@3.0.0: {}
@@ -38330,14 +38317,14 @@ snapshots:
 
   stylis@4.2.0: {}
 
-  subscriptions-transport-ws@0.11.0(bufferutil@4.1.0)(graphql@16.14.2)(utf-8-validate@6.0.6):
+  subscriptions-transport-ws@0.11.0(bufferutil@4.1.0)(graphql@16.14.2):
     dependencies:
       backo2: 1.0.2
       eventemitter3: 3.1.2
       graphql: 16.14.2
       iterall: 1.3.0
       symbol-observable: 1.2.0
-      ws: 7.5.13(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      ws: 7.5.13(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -39820,11 +39807,6 @@ snapshots:
       bufferutil: 4.1.0
       utf-8-validate: 5.0.10
 
-  ws@7.5.13(bufferutil@4.1.0)(utf-8-validate@6.0.6):
-    optionalDependencies:
-      bufferutil: 4.1.0
-      utf-8-validate: 6.0.6
-
   ws@8.17.1(bufferutil@4.1.0)(utf-8-validate@5.0.10):
     optionalDependencies:
       bufferutil: 4.1.0
@@ -39840,10 +39822,9 @@ snapshots:
       bufferutil: 4.1.0
       utf-8-validate: 6.0.6
 
-  ws@8.18.3(bufferutil@4.1.0)(utf-8-validate@6.0.6):
+  ws@8.18.3(bufferutil@4.1.0):
     optionalDependencies:
       bufferutil: 4.1.0
-      utf-8-validate: 6.0.6
 
   ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@5.0.10):
     optionalDependencies:
