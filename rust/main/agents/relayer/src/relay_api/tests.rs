@@ -181,7 +181,7 @@ fn test_msg(origin: u32, destination: u32, nonce: u32) -> HyperlaneMessage {
 
 struct TestHarness {
     state: ServerState,
-    rx: mpsc::UnboundedReceiver<QueueOperation>,
+    rx: mpsc::Receiver<QueueOperation>,
     _tempdir: TempDir,
 }
 
@@ -225,7 +225,7 @@ async fn make_state_multi(
     let mut dbs = HashMap::new();
     dbs.insert(origin, rocks_db);
 
-    let (tx, rx) = mpsc::unbounded_channel();
+    let (tx, rx) = mpsc::channel(10);
     let mut send_channels = HashMap::new();
     for &dest in &dests {
         send_channels.insert(dest, tx.clone());
@@ -525,9 +525,9 @@ async fn test_partial_send_failure_releases_dedup_for_retry() {
         application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
     });
 
-    let (tx_a, _rx_a2) = mpsc::unbounded_channel::<QueueOperation>();
+    let (tx_a, _rx_a2) = mpsc::channel::<QueueOperation>(10);
     // dest_b sender: drop the receiver immediately so sends fail
-    let (tx_b, rx_b_dropped) = mpsc::unbounded_channel::<QueueOperation>();
+    let (tx_b, rx_b_dropped) = mpsc::channel::<QueueOperation>(10);
     drop(rx_b_dropped);
 
     let mut indexers = HashMap::new();
@@ -626,7 +626,7 @@ async fn test_igp_payments_stored_before_enqueue() {
     );
     let mut dbs = HashMap::new();
     dbs.insert(ORIGIN_ID, rocks_db);
-    let (tx, mut rx) = mpsc::unbounded_channel::<QueueOperation>();
+    let (tx, mut rx) = mpsc::channel::<QueueOperation>(10);
     let mut send_channels = HashMap::new();
     send_channels.insert(DEST_ID, tx);
     let mut msg_ctxs = HashMap::new();

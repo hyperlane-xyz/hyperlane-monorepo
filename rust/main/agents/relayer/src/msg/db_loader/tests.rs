@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use prometheus::IntCounterVec;
 use tokio::{
-    sync::mpsc::{self, Receiver, UnboundedReceiver},
+    sync::mpsc::{self, Receiver},
     time::{sleep, timeout},
 };
 use tokio_metrics::TaskMonitor;
@@ -68,7 +68,7 @@ fn dummy_message_loader(
     destination_domain: &HyperlaneDomain,
     db: &HyperlaneRocksDB,
     cache: OptionalCache<MeteredCache<LocalCache>>,
-) -> (MessageDbLoader, UnboundedReceiver<QueueOperation>) {
+) -> (MessageDbLoader, Receiver<QueueOperation>) {
     dummy_message_loader_with_notifications(origin_domain, destination_domain, db, cache, None)
 }
 
@@ -78,7 +78,7 @@ fn dummy_message_loader_with_notifications(
     db: &HyperlaneRocksDB,
     cache: OptionalCache<MeteredCache<LocalCache>>,
     index_notifications: Option<Receiver<H512>>,
-) -> (MessageDbLoader, UnboundedReceiver<QueueOperation>) {
+) -> (MessageDbLoader, Receiver<QueueOperation>) {
     let base_metadata_builder =
         dummy_metadata_builder(origin_domain, destination_domain, db, cache.clone());
     let message_context = Arc::new(dummy_message_context(
@@ -87,7 +87,7 @@ fn dummy_message_loader_with_notifications(
         cache,
     ));
 
-    let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
+    let (send_channel, receive_channel) = mpsc::channel::<QueueOperation>(1);
     (
         MessageDbLoader::new(
             db.clone(),

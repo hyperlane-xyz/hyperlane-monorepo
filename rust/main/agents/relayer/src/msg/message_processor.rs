@@ -47,6 +47,22 @@ mod stage;
 /// update the number of queues an MessageProcessor has.
 pub const MESSAGE_PROCESSOR_QUEUE_COUNT: usize = 3;
 
+/// Ingress only bridges producers into the destination priority queue. Keeping
+/// one slot avoids a duplicate backlog while still decoupling task scheduling.
+pub const MESSAGE_PROCESSOR_INGRESS_CAPACITY: usize = 1;
+
+#[async_trait::async_trait]
+trait RecoveryWaiter: Send + Sync {
+    async fn wait_for_recovery(&self);
+}
+
+#[async_trait::async_trait]
+impl RecoveryWaiter for DispatcherEntrypoint {
+    async fn wait_for_recovery(&self) {
+        DispatcherEntrypoint::wait_for_recovery(self).await;
+    }
+}
+
 /// MessageProcessor accepts operations over a channel, prepares them for submission,
 /// and if successful, sends them to the destination chain via a submitter.
 ///
@@ -86,7 +102,7 @@ pub struct MessageProcessor {
     /// Domain this processor delivers to.
     domain: HyperlaneDomain,
     /// Receiver for new messages to submit.
-    rx: Option<mpsc::UnboundedReceiver<QueueOperation>>,
+    rx: Option<mpsc::Receiver<QueueOperation>>,
     /// Metrics for message processor.
     metrics: MessageProcessorMetrics,
     /// Max batch size for submitting messages
@@ -105,7 +121,7 @@ impl MessageProcessor {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         domain: HyperlaneDomain,
-        rx: mpsc::UnboundedReceiver<QueueOperation>,
+        rx: mpsc::Receiver<QueueOperation>,
         retry_op_transmitter: &Sender<MessageRetryRequest>,
         metrics: MessageProcessorMetrics,
         max_batch_size: u32,
@@ -167,6 +183,9 @@ impl MessageProcessor {
         let rx_prepare = self.rx.take().expect("rx should be initialised");
 
         let entrypoint = self.payload_dispatcher_entrypoint.take().map(Arc::new);
+        let recovery_waiter = entrypoint
+            .as_ref()
+            .map(|entrypoint| -> Arc<dyn RecoveryWaiter> { entrypoint.clone() });
 
         let prepare_task = match &entrypoint {
             None => self.create_classic_prepare_task(),
@@ -181,7 +200,7 @@ impl MessageProcessor {
         let confirm_task = self.create_classic_confirm_task();
 
         let tasks = [
-            self.create_receive_task(rx_prepare),
+            self.create_receive_task(rx_prepare, recovery_waiter),
             prepare_task,
             submit_task,
             confirm_task,
@@ -198,14 +217,20 @@ impl MessageProcessor {
 
     fn create_receive_task(
         &self,
-        rx_prepare: mpsc::UnboundedReceiver<QueueOperation>,
+        rx_prepare: mpsc::Receiver<QueueOperation>,
+        recovery_waiter: Option<Arc<dyn RecoveryWaiter>>,
     ) -> JoinHandle<()> {
         let name = Self::task_name("receive::", &self.domain);
         tokio::task::Builder::new()
             .name(&name)
             .spawn(TaskMonitor::instrument(
                 &self.task_monitor,
-                receive_task(self.domain.clone(), rx_prepare, self.prepare_queue.clone()),
+                receive_task(
+                    self.domain.clone(),
+                    rx_prepare,
+                    self.prepare_queue.clone(),
+                    recovery_waiter,
+                ),
             ))
             .expect("spawning tokio task from Builder is infallible")
     }
@@ -334,9 +359,14 @@ impl MessageProcessor {
 #[instrument(skip_all, fields(%domain))]
 async fn receive_task(
     domain: HyperlaneDomain,
-    mut rx: mpsc::UnboundedReceiver<QueueOperation>,
+    mut rx: mpsc::Receiver<QueueOperation>,
     prepare_queue: OpQueue,
+    recovery_waiter: Option<Arc<dyn RecoveryWaiter>>,
 ) {
+    if let Some(recovery_waiter) = recovery_waiter {
+        recovery_waiter.wait_for_recovery().await;
+    }
+
     // Pull any messages sent to this message processor
     while let Some(op) = rx.recv().await {
         trace!(?op, "Received new operation");

@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::Sender;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
@@ -159,7 +159,7 @@ pub struct ServerState {
     /// gas payment check never races the background `tx_id_indexer_task`.
     igp_indexers: HashMap<u32, Arc<dyn Indexer<InterchainGasPayment>>>,
     dbs: HashMap<u32, HyperlaneRocksDB>,
-    send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+    send_channels: HashMap<u32, Sender<QueueOperation>>,
     msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
     metrics: RelayApiMetrics,
     // Optional features
@@ -176,7 +176,7 @@ impl ServerState {
         indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>,
         igp_indexers: HashMap<u32, Arc<dyn Indexer<InterchainGasPayment>>>,
         dbs: HashMap<u32, HyperlaneRocksDB>,
-        send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+        send_channels: HashMap<u32, Sender<QueueOperation>>,
         msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
         metrics: RelayApiMetrics,
     ) -> Self {
@@ -525,7 +525,7 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
     // If any message fails here, no side effects have occurred.
     struct ValidatedMessage {
         pending_msg: PendingMessage,
-        send_channel: UnboundedSender<QueueOperation>,
+        send_channel: Sender<QueueOperation>,
         message_id: H256,
         origin_domain: u32,
         tx_hash: H512,
@@ -795,9 +795,8 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
     // Phase 3: send all validated messages.
     //
     // Pre-check: verify every destination channel is open before sending anything.
-    // UnboundedSender::send() only fails when the receiver (processor) has been
-    // dropped. If any channel is already closed we bail here — no messages have
-    // entered the queue yet, so the caller's retry is safe and won't double-enqueue.
+    // If any channel is already closed, bail before awaiting bounded sends. No
+    // messages have entered the queue yet, so the caller can retry safely.
     for v in &validated {
         if v.send_channel.is_closed() {
             error!(
@@ -821,6 +820,7 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
         if let Err(e) = v
             .send_channel
             .send(Box::new(v.pending_msg) as QueueOperation)
+            .await
         {
             error!(
                 message_id = ?v.message_id,

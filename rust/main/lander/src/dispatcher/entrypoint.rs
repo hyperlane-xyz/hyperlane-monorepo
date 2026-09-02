@@ -36,12 +36,17 @@ impl DispatcherEntrypoint {
     pub(crate) fn from_inner(inner: DispatcherState) -> Self {
         Self { inner }
     }
+
+    /// Wait until persisted payload recovery has completed.
+    pub async fn wait_for_recovery(&self) {
+        self.inner.wait_for_recovery().await;
+    }
 }
 
 #[async_trait]
 impl Entrypoint for DispatcherEntrypoint {
     async fn send_payload(&self, payload: &FullPayload) -> Result<(), LanderError> {
-        self.inner.wait_for_recovery().await;
+        self.wait_for_recovery().await;
         self.inner.payload_db.store_payload_by_uuid(payload).await?;
         self.inner
             .building_stage_queue

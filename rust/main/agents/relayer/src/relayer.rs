@@ -14,7 +14,7 @@ use futures_util::future::try_join_all;
 use tokio::{
     sync::{
         broadcast::Sender as BroadcastSender,
-        mpsc::{self, Receiver as MpscReceiver, UnboundedSender},
+        mpsc::{self, Receiver as MpscReceiver, Sender},
         RwLock,
     },
     task::JoinHandle,
@@ -52,7 +52,9 @@ use crate::{
     msg::{
         blacklist::AddressBlacklist,
         db_loader::{MessageDbLoader, MessageDbLoaderMetrics},
-        message_processor::{MessageProcessor, MessageProcessorMetrics},
+        message_processor::{
+            MessageProcessor, MessageProcessorMetrics, MESSAGE_PROCESSOR_INGRESS_CAPACITY,
+        },
         metadata::{
             BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
             IsmCachePolicyClassifier,
@@ -348,7 +350,8 @@ impl BaseAgent for Relayer {
         for (dest_domain, destination) in &self.destinations {
             let dest_conf = &destination.chain_conf;
 
-            let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
+            let (send_channel, receive_channel) =
+                mpsc::channel::<QueueOperation>(MESSAGE_PROCESSOR_INGRESS_CAPACITY);
             send_channels.insert(dest_domain.id(), send_channel);
 
             let dispatcher_entrypoint = self
@@ -606,7 +609,7 @@ impl Relayer {
     async fn build_router(
         &self,
         prep_queues: PrepQueue,
-        send_channels: HashMap<u32, mpsc::UnboundedSender<QueueOperation>>,
+        send_channels: HashMap<u32, mpsc::Sender<QueueOperation>>,
         sender: BroadcastSender<relayer_server::operations::message_retry::MessageRetryRequest>,
     ) -> (Router, Option<RelayApiState>) {
         let dbs: HashMap<u32, HyperlaneRocksDB> = self
@@ -915,7 +918,7 @@ impl Relayer {
     fn run_message_db_loader(
         &self,
         origin: &Origin,
-        send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+        send_channels: HashMap<u32, Sender<QueueOperation>>,
         index_notifications: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
     ) -> eyre::Result<JoinHandle<()>> {
