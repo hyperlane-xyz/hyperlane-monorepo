@@ -8,6 +8,13 @@ minimumReleaseAgeExclude:
   - oxfmt
   - oxlint
   - zod@4.5.4
+  - '@turbo/darwin-64@2.10.12'
+  - '@turbo/darwin-arm64@2.10.12'
+  - '@turbo/linux-64@2.10.12'
+  - '@turbo/linux-arm64@2.10.12'
+  - '@turbo/windows-64@2.10.12'
+  - '@turbo/windows-arm64@2.10.12'
+  - turbo@2.10.12
 
 packages:
   - 'solhint-plugin'
@@ -138,7 +145,7 @@ catalog:
   '@vercel/ncc': ^0.38.3
 
   # Linting
-  oxlint: ^1.77.0
+  oxlint: 1.77.0
   oxlint-tsgolint: ^7.0.2001
 
   # Formatting

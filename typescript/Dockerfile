@@ -26,9 +26,9 @@ RUN set -o pipefail && \
     curl --fail -L "https://github.com/foundry-rs/foundry/releases/download/${FOUNDRY_VERSION}/foundry_${FOUNDRY_VERSION}_linux_${ARCH}.tar.gz" | tar -xzC /usr/local/bin forge cast
 SHELL ["/bin/sh", "-c"]
 
-# Copy package.json first for corepack to read packageManager field
+# Copy package.json first for dependency layer caching
 COPY package.json ./
-RUN npm install --global corepack@0.35.0 && corepack enable && corepack install
+RUN npm install --global pnpm@12.3.0
 
 # Copy pnpm config files
 COPY pnpm-lock.yaml pnpm-workspace.yaml ./
