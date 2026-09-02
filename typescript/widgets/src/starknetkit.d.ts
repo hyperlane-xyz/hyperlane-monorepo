@@ -1,21 +1,19 @@
+import type { Connector } from '@starknet-react/core';
+
+// starknetkit@3.4.3's root declaration re-exports `./main` without a file
+// extension, which NodeNext cannot resolve. Keep this augmentation narrow and
+// aligned with the hook surface used by widgets until upstream fixes it.
 declare module 'starknetkit' {
-  export interface StarknetkitConnector {
-    id: string;
-    name: string;
-    icon?: string | { light: string; dark: string };
+  interface StarknetkitConnectModalOptions {
+    connectors?: Connector[];
+    resultType?: 'connector' | 'wallet';
   }
 
-  export interface StarknetkitConnectModalOptions {
-    connectors: StarknetkitConnector[];
+  interface StarknetkitConnectModalResult {
+    connector: Connector | null;
   }
 
-  export interface StarknetkitConnectModalResult {
-    connector?: any;
-  }
-
-  export function useStarknetkitConnectModal(
-    options: StarknetkitConnectModalOptions,
-  ): {
-    starknetkitConnectModal: () => Promise<StarknetkitConnectModalResult>;
-  };
+  export function connect(
+    options: StarknetkitConnectModalOptions & { resultType: 'connector' },
+  ): Promise<StarknetkitConnectModalResult>;
 }

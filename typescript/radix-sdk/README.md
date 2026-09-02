@@ -40,4 +40,4 @@ const mailbox = await signingSdk.query.getMailbox({ mailbox: mailboxAddress });
 
 ## Setup
 
-Node 18 or newer is required.
+Node 22 or newer is required.

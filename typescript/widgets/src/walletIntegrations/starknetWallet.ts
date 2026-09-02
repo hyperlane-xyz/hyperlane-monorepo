@@ -1,12 +1,11 @@
 import {
+  type Connector,
   useAccount,
   useConnect,
   useDisconnect,
   useNetwork,
 } from '@starknet-react/core';
 import { useCallback, useMemo } from 'react';
-import { useStarknetkitConnectModal } from 'starknetkit';
-import type { StarknetkitConnector } from 'starknetkit';
 
 import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -18,30 +17,6 @@ import type { AccountInfo, ActiveChainInfo, WalletDetails } from './types.js';
 const logger = widgetLogger.child({
   module: 'widgets/walletIntegrations/starknetWallet',
 });
-
-type StarknetReactConnector = ReturnType<
-  typeof useConnect
->['connectors'][number];
-
-function toStarknetkitConnector(
-  connector: StarknetReactConnector,
-): StarknetkitConnector {
-  const icon =
-    typeof connector.icon === 'string'
-      ? connector.icon
-      : connector.icon
-        ? {
-            light: connector.icon.light,
-            dark: connector.icon.dark,
-          }
-        : undefined;
-
-  return {
-    id: connector.id,
-    name: connector.name,
-    ...(icon ? { icon } : {}),
-  };
-}
 
 export function useStarknetAccount(
   _multiProvider: MinimalProviderRegistry,
@@ -78,12 +53,32 @@ export function useStarknetWalletDetails(): WalletDetails {
 
 export function useStarknetConnectFn(): () => void {
   const { connectAsync, connectors } = useConnect();
-  const { starknetkitConnectModal } = useStarknetkitConnectModal({
-    connectors: connectors.map(toStarknetkitConnector),
-  });
 
-  return useCallback(async () => {
-    const { connector } = await starknetkitConnectModal();
+  return useCallback(() => {
+    void import('starknetkit')
+      .then(({ connect }) =>
+        connectStarknetWallet(connectors, connectAsync, connect),
+      )
+      .catch((error: unknown) =>
+        logger.error({ error }, 'Failed to load Starknet wallet modal'),
+      );
+  }, [connectAsync, connectors]);
+}
+
+export async function connectStarknetWallet<T extends Pick<Connector, 'id'>>(
+  connectors: T[],
+  connectAsync: (args: { connector: T }) => Promise<void>,
+  openModal: (options: {
+    connectors: T[];
+    resultType: 'connector';
+  }) => Promise<{ connector: Pick<Connector, 'id'> | null }>,
+): Promise<void> {
+  try {
+    const { connector } = await openModal({
+      connectors,
+      resultType: 'connector',
+    });
+
     if (!connector) {
       logger.error('No Starknet wallet connectors available');
       return;
@@ -98,7 +93,9 @@ export function useStarknetConnectFn(): () => void {
     }
 
     await connectAsync({ connector: selectedConnector });
-  }, [connectAsync, connectors, starknetkitConnectModal]);
+  } catch (error: unknown) {
+    logger.error({ error }, 'Failed to connect Starknet wallet');
+  }
 }
 
 export function useStarknetDisconnectFn(): () => Promise<void> {

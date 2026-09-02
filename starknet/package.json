@@ -42,5 +42,8 @@
     "globby": "^14.1.0",
     "tsx": "catalog:",
     "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

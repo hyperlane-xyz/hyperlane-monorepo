@@ -2,6 +2,7 @@ import {
   CallData,
   InvokeTransactionReceiptResponse,
   ParsedEvents,
+  createAbiParser,
   events as eventsUtils,
 } from 'starknet';
 
@@ -45,7 +46,7 @@ export class StarknetCoreAdapter
 
     let parsedEvents: ParsedEvents = [];
     sourceTx.receipt.match({
-      success: (txR) => {
+      SUCCEEDED: (txR) => {
         const emittedEvents =
           (txR as InvokeTransactionReceiptResponse).events?.map((event) => {
             return {
@@ -63,6 +64,7 @@ export class StarknetCoreAdapter
           eventsUtils.getAbiEvents(mailboxAbi),
           CallData.getAbiStruct(mailboxAbi),
           CallData.getAbiEnum(mailboxAbi),
+          createAbiParser(mailboxAbi),
         );
       },
       _: () => {

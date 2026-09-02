@@ -19,7 +19,7 @@ pnpm add @hyperlane-xyz/starknet-core
 
 ## Requirements
 
-- Node.js 18 or newer
+- Node.js 22 or newer
 - For development: `curl`, `jq`, and `unzip` utilities
 
 ## Usage

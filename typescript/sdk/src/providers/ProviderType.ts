@@ -18,8 +18,8 @@ import type {
   PopulatedTransaction as EV5Transaction,
 } from 'ethers';
 import type {
+  Call as StarknetCall,
   Contract as StarknetContract,
-  Invocation as StarknetInvocation,
   Provider as StarknetProvider,
   GetTransactionReceiptResponse as StarknetTxReceipt,
 } from 'starknet';
@@ -374,9 +374,9 @@ export interface CosmJsNativeTransaction extends TypedTransactionBase<CmTransact
   transaction: CmTransaction;
 }
 
-export interface StarknetJsTransaction extends TypedTransactionBase<StarknetInvocation> {
+export interface StarknetJsTransaction extends TypedTransactionBase<StarknetCall> {
   type: ProviderType.Starknet;
-  transaction: StarknetInvocation;
+  transaction: StarknetCall;
 }
 
 export interface RadixTransaction extends TypedTransactionBase<RadixSDKTransaction> {
@@ -425,7 +425,7 @@ export type AnnotatedCosmJsWasmTransaction = Annotated<ExecuteInstruction>;
 
 export type AnnotatedCosmJsNativeTransaction = Annotated<CmTransaction>;
 
-export type AnnotatedStarknetJsTransaction = Annotated<StarknetInvocation>;
+export type AnnotatedStarknetJsTransaction = Annotated<StarknetCall>;
 
 export type AnnotatedZKSyncTransaction =
   Annotated<zkSyncTypes.TransactionRequest>;

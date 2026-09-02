@@ -29,7 +29,11 @@ export class StarknetMultiProtocolSignerAdapter implements IMultiProtocolSigner<
       'Starknet private key must be a hex string',
     );
 
-    this.signer = new StarknetAccount(provider, address, privateKey);
+    this.signer = new StarknetAccount({
+      provider,
+      address,
+      signer: privateKey,
+    });
   }
 
   async address(): Promise<string> {

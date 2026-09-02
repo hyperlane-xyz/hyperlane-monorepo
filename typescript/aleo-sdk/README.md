@@ -54,4 +54,4 @@ A couple of env variables are used to influence the behaviour of the aleo-sdk.
 
 ## Setup
 
-Node 18 or newer is required.
+Node 22 or newer is required.

@@ -1,7 +1,10 @@
 import { expect } from 'chai';
 import { CallData, hash } from 'starknet';
 
-import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
+import {
+  getCompiledClassHash,
+  getCompiledContract,
+} from '@hyperlane-xyz/starknet-core';
 import {
   ContractType,
   getContractAbi,
@@ -89,7 +92,8 @@ describe('starknet-sdk contracts helpers', () => {
   });
 
   it('publishes runtime data matching deployment artifacts in every group', function () {
-    this.timeout(120_000);
+    // starknet.js v8's computeContractClassHash is ~2-4s per artifact (~130s total).
+    this.timeout(300_000);
 
     for (const contractType of Object.values(ContractType)) {
       const contractNames = getRuntimeContractNames(contractType);
@@ -106,6 +110,19 @@ describe('starknet-sdk contracts helpers', () => {
         );
       }
     }
+  });
+
+  it('computes compiled class hashes for both Starknet hash eras', function () {
+    this.timeout(30_000);
+
+    expect(getCompiledClassHash('mailbox')).to.equal(
+      '0x188e5a5af7c6e8805709a50e5266abd92d99130ef21f1df948fe81d1afffde',
+    );
+    expect(
+      getCompiledClassHash('mailbox', ContractType.CONTRACT, '0.14.1'),
+    ).to.equal(
+      '0x434b65e8120a34ab8b2e7c5940636b45ede0d6fcaa15af741c52569496fa168',
+    );
   });
 
   it('throws when runtime data does not own the requested contract', () => {

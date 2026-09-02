@@ -192,6 +192,22 @@ class StarknetNativeTokenMetadataHarness extends StarknetProvider {
   }
 }
 
+describe('StarknetProvider connect', () => {
+  it('selects the RPC channel declared by the endpoint path', () => {
+    const rpc08Provider = StarknetProvider.connect({
+      ...TEST_METADATA,
+      rpcUrls: [{ http: 'https://rpc.example/rpc/v0_8' }],
+    });
+    const rpc09Provider = StarknetProvider.connect({
+      ...TEST_METADATA,
+      rpcUrls: [{ http: 'https://rpc.example/rpc/v0_9' }],
+    });
+
+    expect(rpc08Provider.getRawProvider().readSpecVersion()).to.equal('0.8.1');
+    expect(rpc09Provider.getRawProvider().readSpecVersion()).to.equal('0.9.0');
+  });
+});
+
 describe('StarknetProvider parseString', () => {
   const provider = new StarknetProviderTestHarness();
 

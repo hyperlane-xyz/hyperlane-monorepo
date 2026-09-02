@@ -144,5 +144,6 @@ export function chainMetadataToStarknetChain(
         http: httpUrls,
       },
     },
+    paymasterRpcUrls: {},
   };
 }
