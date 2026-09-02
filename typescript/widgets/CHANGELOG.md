@@ -1,5 +1,19 @@
 # @hyperlane-xyz/widgets
 
+## 44.0.2
+
+### Patch Changes
+
+- 16df6ee: Bumped the @hyperlane-xyz/registry catalog pin to 26.1.0 and released the exact-pin cascade through tron-sdk, deploy-sdk, sdk, and widgets.
+- Updated dependencies [16df6ee]
+  - @hyperlane-xyz/tron-sdk@25.0.2
+  - @hyperlane-xyz/sdk@44.0.2
+  - @hyperlane-xyz/aleo-sdk@44.0.2
+  - @hyperlane-xyz/cosmos-sdk@44.0.2
+  - @hyperlane-xyz/radix-sdk@44.0.2
+  - @hyperlane-xyz/utils@44.0.2
+  - @hyperlane-xyz/provider-sdk@10.0.2
+
 ## 44.0.1
 
 ### Patch Changes

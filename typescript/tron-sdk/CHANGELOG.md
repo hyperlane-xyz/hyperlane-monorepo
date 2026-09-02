@@ -1,5 +1,14 @@
 # @hyperlane-xyz/tron-sdk
 
+## 25.0.2
+
+### Patch Changes
+
+- 16df6ee: Bumped the @hyperlane-xyz/registry catalog pin to 26.1.0 and released the exact-pin cascade through tron-sdk, deploy-sdk, sdk, and widgets.
+  - @hyperlane-xyz/utils@44.0.2
+  - @hyperlane-xyz/core@12.1.0
+  - @hyperlane-xyz/provider-sdk@10.0.2
+
 ## 25.0.1
 
 ### Patch Changes

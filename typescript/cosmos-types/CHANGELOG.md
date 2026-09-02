@@ -1,5 +1,7 @@
 # @hyperlane-xyz/cosmos-types
 
+## 44.0.2
+
 ## 44.0.1
 
 ## 44.0.0
