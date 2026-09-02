@@ -1,7 +1,10 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 
 use chrono::format;
 use derive_new::new;
@@ -22,7 +25,8 @@ use hyperlane_core::HyperlaneDomain;
 use crate::{
     adapter::{AdapterFactory, AdaptsChain},
     dispatcher::{
-        metrics::DispatcherMetrics, DatabaseOrPath, DispatcherSettings, PayloadDb, TransactionDb,
+        metrics::DispatcherMetrics, BuildingStageQueue, DatabaseOrPath, DispatcherSettings,
+        PayloadDb, TransactionDb,
     },
     payload::{DropReason, PayloadDetails, PayloadStatus},
     transaction::Transaction,
@@ -37,7 +41,38 @@ pub struct DispatcherState {
     pub(crate) adapter: Arc<dyn AdaptsChain>,
     pub(crate) metrics: DispatcherMetrics,
     pub(crate) domain: String,
+    pub(crate) building_stage_queue: BuildingStageQueue,
+    recovery_gate: Arc<RecoveryGate>,
     reprocess_txs_wakeup: Arc<Notify>,
+}
+
+struct RecoveryGate {
+    ready: AtomicBool,
+    activity: Notify,
+}
+
+impl RecoveryGate {
+    fn new(ready: bool) -> Self {
+        Self {
+            ready: AtomicBool::new(ready),
+            activity: Notify::new(),
+        }
+    }
+
+    async fn wait(&self) {
+        while !self.ready.load(Ordering::Acquire) {
+            let notified = self.activity.notified();
+            if self.ready.load(Ordering::Acquire) {
+                break;
+            }
+            notified.await;
+        }
+    }
+
+    fn open(&self) {
+        self.ready.store(true, Ordering::Release);
+        self.activity.notify_waiters();
+    }
 }
 
 impl DispatcherState {
@@ -48,14 +83,45 @@ impl DispatcherState {
         metrics: DispatcherMetrics,
         domain: String,
     ) -> Self {
+        Self::new_with_recovery_state(payload_db, tx_db, adapter, metrics, domain, true)
+    }
+
+    fn new_with_recovery_state(
+        payload_db: Arc<dyn PayloadDb>,
+        tx_db: Arc<dyn TransactionDb>,
+        adapter: Arc<dyn AdaptsChain>,
+        metrics: DispatcherMetrics,
+        domain: String,
+        recovery_complete: bool,
+    ) -> Self {
         Self {
             payload_db,
             tx_db,
             adapter,
             metrics,
             domain,
+            building_stage_queue: BuildingStageQueue::new(),
+            recovery_gate: Arc::new(RecoveryGate::new(recovery_complete)),
             reprocess_txs_wakeup: Arc::new(Notify::new()),
         }
+    }
+
+    pub(crate) fn new_recovery_pending(
+        payload_db: Arc<dyn PayloadDb>,
+        tx_db: Arc<dyn TransactionDb>,
+        adapter: Arc<dyn AdaptsChain>,
+        metrics: DispatcherMetrics,
+        domain: String,
+    ) -> Self {
+        Self::new_with_recovery_state(payload_db, tx_db, adapter, metrics, domain, false)
+    }
+
+    pub(crate) async fn wait_for_recovery(&self) {
+        self.recovery_gate.wait().await;
+    }
+
+    pub(crate) fn mark_recovery_complete(&self) {
+        self.recovery_gate.open();
     }
 
     pub(crate) fn notify_reprocess_txs_activity(&self) {
@@ -86,7 +152,9 @@ impl DispatcherState {
         let payload_db = rocksdb.clone() as Arc<dyn PayloadDb>;
         let tx_db = rocksdb as Arc<dyn TransactionDb>;
         let domain = settings.domain.to_string();
-        Ok(Self::new(payload_db, tx_db, adapter, metrics, domain))
+        Ok(Self::new_recovery_pending(
+            payload_db, tx_db, adapter, metrics, domain,
+        ))
     }
 
     pub(crate) async fn update_status_for_payloads(

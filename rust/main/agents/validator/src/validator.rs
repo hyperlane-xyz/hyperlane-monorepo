@@ -30,11 +30,11 @@ use hyperlane_base::{
     SequencedDataContractSync,
 };
 use hyperlane_core::{
-    rpc_clients::{call_and_retry_indefinitely, RPC_RETRY_SLEEP_DURATION},
-    Announcement, ChainCommunicationError, ChainResult, Checkpoint, CheckpointAtBlock,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt,
-    IncrementalMerkleAtBlock, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
-    ValidatorAnnounce, ValidatorAnnounceSubmission, H256, U256,
+    rpc_clients::RPC_RETRY_SLEEP_DURATION, Announcement, ChainCommunicationError, ChainResult,
+    Checkpoint, CheckpointAtBlock, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneSigner, HyperlaneSignerExt, IncrementalMerkleAtBlock, Mailbox, MerkleTreeHook,
+    MerkleTreeInsertion, ReorgPeriod, TxOutcome, ValidatorAnnounce, ValidatorAnnounceSubmission,
+    H256, U256,
 };
 use hyperlane_ethereum::{RpcConnectionConf, Signers, SingletonSigner, SingletonSignerHandle};
 use hyperlane_metric::prometheus_metric::RpcRole;
@@ -42,7 +42,7 @@ use hyperlane_metric::prometheus_metric::RpcRole;
 use crate::reorg_reporter::{
     LatestCheckpointReorgReporter, LatestCheckpointReorgReporterWithStorageWriter, ReorgReporter,
 };
-use crate::server::{self as validator_server, merkle_tree_insertions};
+use crate::server::{self as validator_server, merkle_tree_insertions, ValidatorReadiness};
 use crate::{
     settings::ValidatorSettings,
     submit::{ValidatorSubmitter, ValidatorSubmitterMetrics},
@@ -178,6 +178,150 @@ const QUORUM_RPC_CALL_TIMEOUT: Duration = Duration::from_secs(20);
 /// all must unanimously agree.
 const MIN_RECOMMENDED_QUORUM_RPCS: usize = 3;
 
+/// Connects safety-critical MerkleTreeHook reads to the validator readiness endpoint. An empty
+/// tree is an expected ready state because there is nothing to sign. Once a tree exists, any
+/// failed correctness read blocks signing and readiness until a later read succeeds.
+#[derive(Debug)]
+struct ReadinessMerkleTreeHook {
+    inner: Arc<dyn MerkleTreeHook>,
+    readiness: Arc<ValidatorReadiness>,
+    source: &'static str,
+}
+
+impl ReadinessMerkleTreeHook {
+    fn new(
+        inner: Arc<dyn MerkleTreeHook>,
+        readiness: Arc<ValidatorReadiness>,
+        source: &'static str,
+    ) -> Self {
+        Self {
+            inner,
+            readiness,
+            source,
+        }
+    }
+
+    fn operation(&self, operation: &str) -> String {
+        format!("{}.{}", self.source, operation)
+    }
+
+    fn record_checkpoint_read<T>(&self, operation: &str, result: &ChainResult<T>) {
+        let operation = self.operation(operation);
+        match result {
+            Ok(_) => self.readiness.mark_operation_ready(&operation),
+            Err(_) => {
+                let snapshot = self.readiness.mark_operation_blocked(&operation);
+                warn!(
+                    operation = operation.as_str(),
+                    consecutive_failures = snapshot.consecutive_failures,
+                    failure_duration_ms = snapshot.failure_duration_ms,
+                    signing_blocked = snapshot.signing_blocked,
+                    "Validator checkpoint production is blocked"
+                );
+            }
+        }
+    }
+
+    fn record_count(&self, result: &ChainResult<u32>) {
+        let operation = self.operation("count");
+        match result {
+            Ok(_) => self.readiness.mark_operation_ready(&operation),
+            Err(_) => {
+                let snapshot = self.readiness.mark_operation_blocked(&operation);
+                warn!(
+                    operation = operation.as_str(),
+                    consecutive_failures = snapshot.consecutive_failures,
+                    failure_duration_ms = snapshot.failure_duration_ms,
+                    signing_blocked = snapshot.signing_blocked,
+                    "Validator checkpoint production is blocked"
+                );
+            }
+        }
+    }
+}
+
+#[async_trait]
+impl MerkleTreeHook for ReadinessMerkleTreeHook {
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
+        let result = self.inner.tree(reorg_period).await;
+        self.record_checkpoint_read("tree", &result);
+        result
+    }
+
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let result = self.inner.count(reorg_period).await;
+        self.record_count(&result);
+        result
+    }
+
+    async fn latest_checkpoint(
+        &self,
+        reorg_period: &ReorgPeriod,
+    ) -> ChainResult<CheckpointAtBlock> {
+        let result = self.inner.latest_checkpoint(reorg_period).await;
+        self.record_checkpoint_read("latest_checkpoint", &result);
+        result
+    }
+
+    async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
+        let result = self.inner.latest_checkpoint_at_block(height).await;
+        self.record_checkpoint_read("latest_checkpoint_at_block", &result);
+        result
+    }
+
+    async fn tree_at_block(&self, height: u64) -> ChainResult<IncrementalMerkleAtBlock> {
+        let result = self.inner.tree_at_block(height).await;
+        self.record_checkpoint_read("tree_at_block", &result);
+        result
+    }
+}
+
+impl HyperlaneChain for ReadinessMerkleTreeHook {
+    fn domain(&self) -> &HyperlaneDomain {
+        self.inner.domain()
+    }
+
+    fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
+        self.inner.provider()
+    }
+}
+
+impl HyperlaneContract for ReadinessMerkleTreeHook {
+    fn address(&self) -> H256 {
+        self.inner.address()
+    }
+}
+
+async fn wait_for_first_message(
+    merkle_tree_hook: Arc<dyn MerkleTreeHook>,
+    reorg_period: &ReorgPeriod,
+    interval: Duration,
+    readiness: &ValidatorReadiness,
+) -> IncrementalMerkleAtBlock {
+    loop {
+        match merkle_tree_hook.count(reorg_period).await {
+            Err(_) => {
+                error!("Error getting merkle tree count");
+            }
+            Ok(0) => {
+                readiness.mark_waiting_for_first_message();
+                info!("Waiting for first message in merkle tree hook");
+            }
+            Ok(_) => match merkle_tree_hook.tree(reorg_period).await {
+                Err(_) => {
+                    error!("Error getting merkle tree");
+                }
+                Ok(tree) if tree.count() == 0 => {
+                    readiness.mark_waiting_for_first_message();
+                    info!("Waiting for first message in merkle tree hook");
+                }
+                Ok(tree) => return tree,
+            },
+        }
+        sleep(interval).await;
+    }
+}
+
 /// `count()`/domain/address come from `base_hook` (the normal `rpcUrls` connection, using
 /// whatever consensus mode it's configured with). `tree()`/`tree_at_block()` — the actual
 /// merkle tree root reads — require BOTH: a 2/3 majority across `quorum_hooks` (one entry
@@ -262,7 +406,7 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
         context: &str,
     ) -> ChainResult<T> {
         let mut oks: Vec<(String, T)> = Vec::new();
-        let mut first_err = None;
+        let mut failed_rpc_labels: Vec<String> = Vec::new();
         // Identified by label prefix (see `build_validator_ethereum_per_url_hooks`), not a
         // separate role field: purely observational, doesn't affect the threshold below. A
         // `Primary` (`rpcUrls`) failure is notable even when the round still succeeds via
@@ -273,13 +417,11 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
         for (label, result) in results {
             match result {
                 Ok(value) => oks.push((label, value)),
-                Err(err) => {
+                Err(_) => {
                     if label.starts_with("rpcUrls[") {
                         failed_primary_rpcs.push(label.clone());
                     }
-                    if first_err.is_none() {
-                        first_err = Some(err);
-                    }
+                    failed_rpc_labels.push(label);
                 }
             }
         }
@@ -330,27 +472,28 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
             }
         }
 
-        if oks.is_empty() {
-            return Err(
-                first_err.unwrap_or_else(|| ChainCommunicationError::from_other_str(context))
-            );
-        }
-
         let responding_rpcs: Vec<&str> = oks.iter().map(|(label, _)| label.as_str()).collect();
+        let configured_endpoint_count = self.quorum_hooks.len();
+        let successful_endpoint_count = oks.len();
+        let failed_endpoint_count = failed_rpc_labels.len();
         warn!(
             context,
-            total_successful = oks.len(),
-            max_agreeing,
-            threshold,
+            configured_endpoint_count,
+            successful_endpoint_count,
+            failed_endpoint_count,
+            failed_endpoint_labels = ?failed_rpc_labels,
+            required_threshold = threshold,
+            maximum_agreeing_responses = max_agreeing,
             responding_rpcs = ?responding_rpcs,
             best_agreeing_rpcs = ?best_agreeing_rpcs,
-            "Failed to reach quorum: no value reached a 2/3 majority"
+            signing_blocked = true,
+            "Failed to reach quorum: no value reached the configured threshold"
         );
         debug!(context, all_values = ?oks, "Full quorum candidate values by RPC");
         Err(ChainCommunicationError::from_other_str(&format!(
-            "{context}; best candidate had {max_agreeing}/{threshold} needed \
-             (of {total} quorum RPCs)",
-            total = oks.len()
+            "{context}; maximum agreeing responses {max_agreeing}/{threshold} required; \
+             configured endpoints {configured_endpoint_count}, successful \
+             {successful_endpoint_count}, failed {failed_endpoint_count}"
         )))
     }
 
@@ -522,6 +665,7 @@ pub struct Validator {
     mailbox: Arc<dyn Mailbox>,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     base_merkle_tree_hook: Arc<dyn MerkleTreeHook>,
+    readiness: Arc<ValidatorReadiness>,
     validator_announce: Arc<dyn ValidatorAnnounce>,
     signer: SingletonSignerHandle,
     raw_signer: Signers,
@@ -666,7 +810,7 @@ impl BaseAgent for Validator {
         let reorg_reporter = Arc::new(reorg_reporter_with_storage_writer) as Arc<dyn ReorgReporter>;
 
         let origin_chain_conf = core.settings.chain_setup(&settings.origin_chain)?.clone();
-        let additional_quorum_rpc_urls: Vec<Url> = Self::dedupe_additional_quorum_rpc_urls(
+        let additional_quorum_rpc_urls: Vec<Url> = Self::dedupe_rpc_urls(
             settings
                 .additional_quorum_rpcs
                 .iter()
@@ -679,52 +823,69 @@ impl BaseAgent for Validator {
                         .map_err(|err| eyre!("Invalid additionalQuorumRpcUrls[{i}] entry: {err}"))
                 })
                 .collect::<Result<_>>()?,
+            "additionalQuorumRpcUrls",
         );
 
         let mailbox = origin_chain_conf.build_mailbox(&metrics).await?;
 
-        let base_merkle_tree_hook: Arc<dyn MerkleTreeHook> = settings
+        let raw_base_merkle_tree_hook: Arc<dyn MerkleTreeHook> = settings
             .build_merkle_tree_hook(&settings.origin_chain, &metrics)
             .await?
             .into();
 
-        let merkle_tree_hook: Arc<dyn MerkleTreeHook> = if Self::validator_uses_split_quorum_hook(
-            &origin_chain_conf,
-            &additional_quorum_rpc_urls,
-        ) {
-            // `rpcUrls` votes alongside `additionalQuorumRpcUrls` in the same 2/3 quorum
-            // group (see `ValidatorMultiRpcQuorumMerkleTreeHook`), so `additionalQuorumRpcUrls`
-            // only needs to add public endpoints on top of it. Read the URLs directly from
-            // `origin_chain_conf.connection` rather than `settings.rpcs`, which also
-            // comingles `grpcUrls`/`walletUrls`/`walletSolidityUrls` (non-Ethereum chains).
-            let primary_rpc_urls: Vec<Url> = Self::primary_rpc_urls(&origin_chain_conf);
-            let additional_quorum_rpc_urls: Vec<Url> =
-                Self::remove_urls_already_in_primary(&primary_rpc_urls, additional_quorum_rpc_urls);
-            let combined_urls: Vec<Url> = primary_rpc_urls
-                .iter()
-                .chain(additional_quorum_rpc_urls.iter())
-                .cloned()
-                .collect();
-            Self::warn_if_quorum_pool_undersized(&combined_urls);
-            Self::warn_if_duplicate_hosts(&combined_urls);
-            Self::build_validator_quorum_merkle_tree_hook(
-                base_merkle_tree_hook.clone(),
+        let raw_merkle_tree_hook: Arc<dyn MerkleTreeHook> =
+            if Self::validator_uses_split_quorum_hook(
                 &origin_chain_conf,
-                &primary_rpc_urls,
                 &additional_quorum_rpc_urls,
-                &metrics,
-            )
-            .await?
-            .into()
-        } else {
-            if !additional_quorum_rpc_urls.is_empty() {
-                warn!(
-                    origin_chain = %settings.origin_chain,
-                    "additionalQuorumRpcUrls is set but ignored: quorum verification is only supported for Ethereum chains"
+            ) {
+                // `rpcUrls` votes alongside `additionalQuorumRpcUrls` in the same 2/3 quorum
+                // group (see `ValidatorMultiRpcQuorumMerkleTreeHook`), so `additionalQuorumRpcUrls`
+                // only needs to add public endpoints on top of it. Read the URLs directly from
+                // `origin_chain_conf.connection` rather than `settings.rpcs`, which also
+                // comingles `grpcUrls`/`walletUrls`/`walletSolidityUrls` (non-Ethereum chains).
+                let primary_rpc_urls: Vec<Url> =
+                    Self::dedupe_rpc_urls(Self::primary_rpc_urls(&origin_chain_conf), "rpcUrls");
+                let additional_quorum_rpc_urls: Vec<Url> = Self::remove_urls_already_in_primary(
+                    &primary_rpc_urls,
+                    additional_quorum_rpc_urls,
                 );
-            }
-            base_merkle_tree_hook.clone()
-        };
+                let combined_urls: Vec<Url> = primary_rpc_urls
+                    .iter()
+                    .chain(additional_quorum_rpc_urls.iter())
+                    .cloned()
+                    .collect();
+                Self::warn_if_quorum_pool_undersized(&combined_urls);
+                Self::warn_if_duplicate_hosts(&combined_urls);
+                Self::build_validator_quorum_merkle_tree_hook(
+                    raw_base_merkle_tree_hook.clone(),
+                    &origin_chain_conf,
+                    &primary_rpc_urls,
+                    &additional_quorum_rpc_urls,
+                    &metrics,
+                )
+                .await?
+                .into()
+            } else {
+                if !additional_quorum_rpc_urls.is_empty() {
+                    warn!(
+                        origin_chain = %settings.origin_chain,
+                        "additionalQuorumRpcUrls is set but ignored: quorum verification is only supported for Ethereum chains"
+                    );
+                }
+                raw_base_merkle_tree_hook.clone()
+            };
+        let readiness = Arc::new(ValidatorReadiness::default());
+        let merkle_tree_hook: Arc<dyn MerkleTreeHook> = Arc::new(ReadinessMerkleTreeHook::new(
+            raw_merkle_tree_hook,
+            Arc::clone(&readiness),
+            "merkle_tree_hook",
+        ));
+        let base_merkle_tree_hook: Arc<dyn MerkleTreeHook> =
+            Arc::new(ReadinessMerkleTreeHook::new(
+                raw_base_merkle_tree_hook,
+                Arc::clone(&readiness),
+                "base_merkle_tree_hook",
+            ));
 
         let validator_announce = settings
             .build_validator_announce(&settings.origin_chain, &metrics)
@@ -751,6 +912,7 @@ impl BaseAgent for Validator {
             mailbox: mailbox.into(),
             merkle_tree_hook,
             base_merkle_tree_hook,
+            readiness,
             merkle_tree_hook_sync,
             validator_announce: validator_announce.into(),
             signer,
@@ -779,6 +941,7 @@ impl BaseAgent for Validator {
             .merge(validator_server::router(
                 self.origin_chain.clone(),
                 self.core.metrics.clone(),
+                Arc::clone(&self.readiness),
             ))
             .merge(
                 merkle_tree_insertions::list_merkle_tree_insertions::ServerState::new(
@@ -836,22 +999,16 @@ impl BaseAgent for Validator {
         // announce the validator after spawning the signer task
         self.announce().await.expect("Failed to announce validator");
 
-        // wait for the first message before submitting checkpoints
-        loop {
-            match self.merkle_tree_hook.tree(&self.reorg_period).await {
-                Err(err) => {
-                    error!(?err, "Error getting merkle tree");
-                    sleep(self.interval).await;
-                }
-                Ok(tree) if tree.count() == 0 => {
-                    info!("Waiting for first message in merkle tree hook");
-                    sleep(self.interval).await;
-                }
-                Ok(_) => {
-                    break;
-                }
-            }
-        }
+        // `latestCheckpoint()` reverts on an empty MerkleTreeHook because the contract computes
+        // `count - 1`. Query count first so a newly deployed chain is an expected ready state,
+        // then retain the first quorum-verified tree for checkpoint startup.
+        let tip_tree = wait_for_first_message(
+            Arc::clone(&self.merkle_tree_hook),
+            &self.reorg_period,
+            self.interval,
+            &self.readiness,
+        )
+        .await;
 
         let merkle_tree_hook_sync = match self
             .try_n_times_to_run_merkle_tree_hook_sync(CURSOR_INSTANTIATION_ATTEMPTS)
@@ -864,7 +1021,7 @@ impl BaseAgent for Validator {
             }
         };
         tasks.push(merkle_tree_hook_sync);
-        for checkpoint_sync_task in self.run_checkpoint_submitters().await {
+        for checkpoint_sync_task in self.run_checkpoint_submitters(tip_tree).await {
             tasks.push(checkpoint_sync_task);
         }
 
@@ -893,7 +1050,7 @@ impl Validator {
     /// Removes exact duplicate URLs (order-preserving). A duplicated endpoint would
     /// otherwise count as two independent votes, undermining the quorum's independence
     /// assumption.
-    fn dedupe_additional_quorum_rpc_urls(urls: Vec<Url>) -> Vec<Url> {
+    fn dedupe_rpc_urls(urls: Vec<Url>, source: &'static str) -> Vec<Url> {
         let original_count = urls.len();
         let mut seen = HashSet::new();
         let deduped: Vec<Url> = urls
@@ -902,9 +1059,10 @@ impl Validator {
             .collect();
         if deduped.len() < original_count {
             warn!(
+                source,
                 original_count,
                 deduped_count = deduped.len(),
-                "additionalQuorumRpcUrls contained duplicate entries; deduping to preserve vote independence"
+                "RPC configuration contained duplicate entries; deduping to preserve vote independence"
             );
         }
         deduped
@@ -1117,7 +1275,10 @@ impl Validator {
         Ok(handle)
     }
 
-    async fn run_checkpoint_submitters(&self) -> Vec<JoinHandle<()>> {
+    async fn run_checkpoint_submitters(
+        &self,
+        tip_tree: IncrementalMerkleAtBlock,
+    ) -> Vec<JoinHandle<()>> {
         let submitter = ValidatorSubmitter::new(
             self.interval,
             self.reorg_period.clone(),
@@ -1130,18 +1291,10 @@ impl Validator {
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
             self.max_sign_concurrency,
             self.reorg_reporter.clone(),
+            Arc::clone(&self.readiness),
         );
 
-        let tip_tree = call_and_retry_indefinitely(|| {
-            let merkle_tree_hook = self.merkle_tree_hook.clone();
-            let reorg_period = self.reorg_period.clone();
-            Box::pin(async move { merkle_tree_hook.tree(&reorg_period).await })
-        })
-        .await;
-
-        // This function is only called after we have already checked that the
-        // merkle tree hook has count > 0, but we assert to be extra sure this is
-        // the case.
+        // `wait_for_first_message` only returns a non-empty, quorum-verified tree.
         assert!(tip_tree.count() > 0, "merkle tree is empty");
         let backfill_target = submitter.checkpoint_at_block(&tip_tree);
 
@@ -1435,6 +1588,8 @@ impl Validator {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     use async_trait::async_trait;
     use hyperlane_core::{test_utils::dummy_domain, HyperlaneProvider};
     use prometheus::Registry;
@@ -1669,7 +1824,7 @@ mod tests {
     }
 
     #[test]
-    fn dedupe_additional_quorum_rpc_urls_removes_exact_duplicates_preserving_order() {
+    fn dedupe_rpc_urls_removes_exact_duplicates_preserving_order() {
         let urls = vec![
             Url::parse("http://rpc-a.example").unwrap(),
             Url::parse("http://rpc-b.example").unwrap(),
@@ -1677,7 +1832,7 @@ mod tests {
             Url::parse("http://rpc-c.example").unwrap(),
         ];
 
-        let deduped = Validator::dedupe_additional_quorum_rpc_urls(urls);
+        let deduped = Validator::dedupe_rpc_urls(urls, "rpcUrls");
 
         assert_eq!(
             deduped,
@@ -1690,13 +1845,13 @@ mod tests {
     }
 
     #[test]
-    fn dedupe_additional_quorum_rpc_urls_is_noop_without_duplicates() {
+    fn dedupe_rpc_urls_is_noop_without_duplicates() {
         let urls = vec![
             Url::parse("http://rpc-a.example").unwrap(),
             Url::parse("http://rpc-b.example").unwrap(),
         ];
 
-        let deduped = Validator::dedupe_additional_quorum_rpc_urls(urls.clone());
+        let deduped = Validator::dedupe_rpc_urls(urls.clone(), "additionalQuorumRpcUrls");
 
         assert_eq!(deduped, urls);
     }
@@ -1924,6 +2079,124 @@ mod tests {
 
     fn quorum_rpc(label: &str, hook: MockMerkleTreeHook) -> (String, Arc<dyn MerkleTreeHook>) {
         (label.to_string(), Arc::new(hook) as Arc<dyn MerkleTreeHook>)
+    }
+
+    #[tokio::test(start_paused = true)]
+    #[tracing_test::traced_test]
+    async fn empty_tree_waits_then_starts_from_first_message_without_restart() {
+        let count_calls = Arc::new(AtomicUsize::new(0));
+        let mut hook = MockMerkleTreeHook::new();
+        hook.expect_count().times(2).returning({
+            let count_calls = Arc::clone(&count_calls);
+            move |_| {
+                Ok(if count_calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                    0
+                } else {
+                    1
+                })
+            }
+        });
+        hook.expect_tree().once().return_once(|_| {
+            let mut tree = hyperlane_core::accumulator::incremental::IncrementalMerkle::default();
+            tree.ingest(H256::from_low_u64_be(1));
+            Ok(IncrementalMerkleAtBlock {
+                tree,
+                block_height: Some(10),
+            })
+        });
+
+        let readiness = Arc::new(ValidatorReadiness::default());
+        let readiness_hook: Arc<dyn MerkleTreeHook> = Arc::new(ReadinessMerkleTreeHook::new(
+            Arc::new(hook),
+            Arc::clone(&readiness),
+            "merkle_tree_hook",
+        ));
+        let task = tokio::spawn({
+            let readiness = Arc::clone(&readiness);
+            async move {
+                wait_for_first_message(
+                    readiness_hook,
+                    &ReorgPeriod::None,
+                    Duration::from_secs(5),
+                    &readiness,
+                )
+                .await
+            }
+        });
+
+        tokio::task::yield_now().await;
+        assert_eq!(
+            readiness.snapshot().state,
+            validator_server::ValidatorReadinessState::WaitingForFirstMessage
+        );
+        assert!(!logs_contain("Error getting merkle tree"));
+
+        tokio::time::advance(Duration::from_secs(5)).await;
+        let tree = task.await.expect("wait task should complete");
+        assert_eq!(tree.count(), 1);
+        assert_eq!(
+            readiness.snapshot().state,
+            validator_server::ValidatorReadinessState::Ready
+        );
+    }
+
+    #[tokio::test]
+    async fn successful_quorum_read_does_not_hide_failed_base_read() {
+        let readiness = Arc::new(ValidatorReadiness::default());
+
+        let mut base_hook = MockMerkleTreeHook::new();
+        base_hook.expect_count().times(2).returning({
+            let calls = Arc::new(AtomicUsize::new(0));
+            move |_| {
+                if calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Err(ChainCommunicationError::from_other_str("base RPC down"))
+                } else {
+                    Ok(1)
+                }
+            }
+        });
+        let base_hook = ReadinessMerkleTreeHook::new(
+            Arc::new(base_hook),
+            Arc::clone(&readiness),
+            "base_merkle_tree_hook",
+        );
+
+        let mut quorum_hook = MockMerkleTreeHook::new();
+        quorum_hook.expect_tree().once().returning(|_| {
+            Ok(IncrementalMerkleAtBlock {
+                tree: Default::default(),
+                block_height: None,
+            })
+        });
+        let quorum_hook = ReadinessMerkleTreeHook::new(
+            Arc::new(quorum_hook),
+            Arc::clone(&readiness),
+            "merkle_tree_hook",
+        );
+
+        assert!(base_hook.count(&ReorgPeriod::None).await.is_err());
+        assert!(quorum_hook.tree(&ReorgPeriod::None).await.is_ok());
+        let blocked = readiness.snapshot();
+        assert_eq!(
+            blocked.state,
+            validator_server::ValidatorReadinessState::SigningBlocked
+        );
+        assert_eq!(
+            blocked.blocked_operations,
+            vec!["base_merkle_tree_hook.count".to_owned()]
+        );
+
+        assert_eq!(
+            base_hook
+                .count(&ReorgPeriod::None)
+                .await
+                .expect("base hook should recover"),
+            1
+        );
+        assert_eq!(
+            readiness.snapshot().state,
+            validator_server::ValidatorReadinessState::Ready
+        );
     }
 
     #[test]
@@ -2245,6 +2518,96 @@ mod tests {
         assert_eq!(
             hook.tree(&ReorgPeriod::None).await.unwrap().block_height,
             Some(11)
+        );
+    }
+
+    /// A failed endpoint must not shrink a 2-of-2 threshold to 1. The same hook must recover
+    /// readiness and return a tree when that endpoint later becomes healthy.
+    #[tokio::test]
+    #[tracing_test::traced_test]
+    async fn two_endpoint_quorum_blocks_then_recovers_without_restart() {
+        let mailbox_domain = dummy_domain(1337, "test-domain").id();
+        let expected_tree = IncrementalMerkleAtBlock {
+            tree: Default::default(),
+            block_height: Some(11),
+        };
+
+        let mut base_hook = MockMerkleTreeHook::new();
+        base_hook.expect_count().never();
+        base_hook.expect_tree().never();
+        base_hook.expect_latest_checkpoint_at_block().never();
+        base_hook
+            .expect_latest_checkpoint()
+            .times(2)
+            .returning(move |_| Ok(height_resolution_checkpoint(mailbox_domain, 11)));
+        base_hook
+            .expect_tree_at_block()
+            .once()
+            .with(mockall::predicate::eq(11))
+            .return_once({
+                let expected_tree = expected_tree.clone();
+                move |_| Ok(expected_tree)
+            });
+
+        let mut quorum_a = MockMerkleTreeHook::new();
+        quorum_a
+            .expect_tree_at_block()
+            .times(2)
+            .with(mockall::predicate::eq(11))
+            .returning({
+                let expected_tree = expected_tree.clone();
+                move |_| Ok(expected_tree.clone())
+            });
+
+        let endpoint_b_calls = Arc::new(AtomicUsize::new(0));
+        let mut quorum_b = MockMerkleTreeHook::new();
+        quorum_b
+            .expect_tree_at_block()
+            .times(2)
+            .with(mockall::predicate::eq(11))
+            .returning({
+                let endpoint_b_calls = Arc::clone(&endpoint_b_calls);
+                let expected_tree = expected_tree.clone();
+                move |_| {
+                    if endpoint_b_calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                        Err(ChainCommunicationError::from_other_str("rpc down"))
+                    } else {
+                        Ok(expected_tree.clone())
+                    }
+                }
+            });
+
+        let quorum_hook: Arc<dyn MerkleTreeHook> =
+            Arc::new(ValidatorMultiRpcQuorumMerkleTreeHook {
+                base_hook: Arc::new(base_hook),
+                quorum_hooks: vec![
+                    quorum_rpc("rpcUrls[0]", quorum_a),
+                    quorum_rpc("additionalQuorumRpcUrls[0]", quorum_b),
+                ],
+            });
+        let readiness = Arc::new(ValidatorReadiness::default());
+        let hook =
+            ReadinessMerkleTreeHook::new(quorum_hook, Arc::clone(&readiness), "merkle_tree_hook");
+
+        let err = hook
+            .tree(&ReorgPeriod::None)
+            .await
+            .expect_err("one response must not satisfy a two-response threshold");
+        let error_message = err.to_string();
+        assert!(error_message.contains("maximum agreeing responses 1/2 required"));
+        assert!(error_message.contains("configured endpoints 2, successful 1, failed 1"));
+        assert_eq!(
+            readiness.snapshot().state,
+            validator_server::ValidatorReadinessState::SigningBlocked
+        );
+        assert!(logs_contain("failed_endpoint_labels"));
+        assert!(logs_contain("additionalQuorumRpcUrls[0]"));
+        assert!(logs_contain("signing_blocked=true"));
+
+        assert!(hook.tree(&ReorgPeriod::None).await.is_ok());
+        assert_eq!(
+            readiness.snapshot().state,
+            validator_server::ValidatorReadinessState::Ready
         );
     }
 

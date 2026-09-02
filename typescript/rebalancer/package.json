@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/rebalancer",
-  "version": "27.3.18",
+  "version": "29.0.2",
   "description": "Hyperlane Warp Route Collateral Rebalancer Service",
   "keywords": [
     "blockchain",
@@ -60,8 +60,7 @@
     "uuid": "catalog:",
     "viem": "catalog:",
     "yaml": "catalog:",
-    "zod": "catalog:",
-    "zod-validation-error": "catalog:"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@ethersproject/constants": "*",
@@ -85,6 +84,6 @@
     "typescript": "catalog:"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   }
 }

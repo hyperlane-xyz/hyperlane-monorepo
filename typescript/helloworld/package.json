@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/helloworld",
-  "version": "42.0.0",
+  "version": "44.0.2",
   "description": "A basic skeleton of an Hyperlane app",
   "keywords": [
     "HelloWorld",
@@ -71,5 +71,8 @@
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*",
     "@types/sinon-chai": "*"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

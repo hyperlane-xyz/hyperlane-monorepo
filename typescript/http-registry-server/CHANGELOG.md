@@ -1,5 +1,51 @@
 # @hyperlane-xyz/http-registry-server
 
+## 44.0.2
+
+### Patch Changes
+
+- Updated dependencies [16df6ee]
+  - @hyperlane-xyz/sdk@44.0.2
+  - @hyperlane-xyz/utils@44.0.2
+
+## 44.0.1
+
+### Patch Changes
+
+- Updated dependencies [f269e03]
+  - @hyperlane-xyz/sdk@44.0.1
+  - @hyperlane-xyz/utils@44.0.1
+
+## 44.0.0
+
+### Minor Changes
+
+- 85c44af: The temporary Zod 3 registry compatibility layer was removed after adopting the registry's Zod 4 schemas. Repeated server and config validators are now compiled once, and boolean-only checks use Zod's allocation-free validation path.
+
+### Patch Changes
+
+- Updated dependencies [85c44af]
+- Updated dependencies [6fbe5ad]
+  - @hyperlane-xyz/sdk@44.0.0
+  - @hyperlane-xyz/utils@44.0.0
+
+## 43.0.0
+
+### Patch Changes
+
+- Updated dependencies [0848474]
+- Updated dependencies [e76189e]
+- Updated dependencies [3ced099]
+- Updated dependencies [a00b342]
+- Updated dependencies [b58c7eb]
+- Updated dependencies [60fc463]
+- Updated dependencies [8bcc7ab]
+- Updated dependencies [7cf9c01]
+- Updated dependencies [8d91ef8]
+- Updated dependencies [11f2dee]
+  - @hyperlane-xyz/sdk@43.0.0
+  - @hyperlane-xyz/utils@43.0.0
+
 ## 42.0.0
 
 ### Patch Changes

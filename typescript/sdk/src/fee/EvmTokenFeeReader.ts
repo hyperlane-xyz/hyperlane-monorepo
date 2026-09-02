@@ -23,9 +23,10 @@ import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 import {
   CrossCollateralRoutingFeeConfig,
   FeeParameters,
+  OffchainQuotedLinearFeeConfig,
   OnchainTokenFeeType,
   RoutingFeeConfig,
-  TokenFeeConfig,
+  StandardTokenFeeConfig,
   TokenFeeType,
 } from './types.js';
 import {
@@ -37,7 +38,6 @@ import { bpsToRawFeeParams } from '@hyperlane-xyz/provider-sdk/fee';
 
 import { ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY, convertToBps } from './utils.js';
 
-export type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
 type DerivedCrossCollateralFeeContracts = Record<
   ChainName,
   Record<string, DerivedTokenFeeConfig>
@@ -49,6 +49,10 @@ export type DerivedCrossCollateralRoutingFeeConfig =
   WithAddress<CrossCollateralRoutingFeeConfig> & {
     feeContracts: DerivedCrossCollateralFeeContracts;
   };
+export type DerivedTokenFeeConfig =
+  | WithAddress<StandardTokenFeeConfig | OffchainQuotedLinearFeeConfig>
+  | DerivedRoutingFeeConfig
+  | DerivedCrossCollateralRoutingFeeConfig;
 
 export type TokenFeeReaderParams = {
   address: Address;

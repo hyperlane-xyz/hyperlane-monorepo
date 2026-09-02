@@ -24,7 +24,7 @@ use crate::{
     sealevel::{sealevel_termination_invariants::*, solana::*},
     utils::{
         concat_path, get_sealevel_path, get_ts_infra_path, get_workspace_path, make_static,
-        TaskHandle,
+        start_postgres, TaskHandle,
     },
     wait_for_condition, State, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT,
 };
@@ -216,14 +216,7 @@ fn run_locally() {
         .run();
 
     log!("Running postgres db...");
-    let postgres = Program::new("docker")
-        .cmd("run")
-        .flag("rm")
-        .arg("name", "scraper-testnet-postgres")
-        .arg("env", "POSTGRES_PASSWORD=47221c18c610")
-        .arg("publish", "5432:5432")
-        .cmd("postgres:14")
-        .spawn("SQL", None);
+    let postgres = start_postgres();
     state.push_agent(postgres);
 
     build_main.join();

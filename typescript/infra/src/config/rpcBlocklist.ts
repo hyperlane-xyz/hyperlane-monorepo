@@ -13,6 +13,9 @@ import { ChainMap } from '@hyperlane-xyz/sdk';
 // Match is an exact full-URL equality: list only the public URLs, so private
 // URLs that happen to share a host (but carry an API key) are never blocked.
 export const blockedQuorumRpcUrls: ChainMap<string[]> = {
+  // DNS does not resolve, so this endpoint prevents the Arc validator from
+  // reaching RPC quorum.
+  arc: ['https://rpc.arc.io'],
   // Chronic high-error public RPCs on arbitrum (see Linear AW-735). In the
   // validator Quorum pool these erred on the merkle-root eth_call ~97% (drpc)
   // and ~55% (arb1) of requests, counting against reaching majority.

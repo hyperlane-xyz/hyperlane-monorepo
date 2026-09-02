@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { fromError } from 'zod-validation-error';
+import { z } from 'zod';
 
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
@@ -137,7 +137,7 @@ async function validateAgentConfig(
 ) {
   const result = AgentConfigSchema.safeParse(agentConfig);
   if (!result.success) {
-    const errorMessage = fromError(result.error).toString();
+    const errorMessage = z.prettifyError(result.error);
     warnYellow(
       `\nAgent config is invalid, this is possibly due to required contracts not being deployed. See details below:\n${errorMessage}`,
     );

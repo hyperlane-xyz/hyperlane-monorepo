@@ -25,8 +25,8 @@ use solana_sdk::{
 };
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
-    EncodedTransaction, EncodedTransactionWithStatusMeta, UiConfirmedBlock,
-    UiTransactionStatusMeta,
+    EncodedTransaction, EncodedTransactionWithStatusMeta,
+    TransactionStatus as SealevelTransactionStatus, UiConfirmedBlock, UiTransactionStatusMeta,
 };
 
 use hyperlane_base::db::{HyperlaneRocksDB, DB};
@@ -53,6 +53,7 @@ mock! {
         async fn get_block_with_commitment(&self, slot: u64, commitment: CommitmentConfig) -> ChainResult<UiConfirmedBlock>;
         async fn get_transaction(&self, signature: Signature) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
         async fn get_transaction_with_commitment(&self, signature: Signature, commitment: CommitmentConfig) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
+        async fn get_signature_statuses_with_history(&self, signatures: &[Signature]) -> Vec<ChainResult<Option<SealevelTransactionStatus>>>;
         async fn simulate_transaction(&self, transaction: &SealevelLegacyTransaction) -> ChainResult<RpcSimulateTransactionResult>;
         async fn simulate_versioned_transaction(&self, transaction: &SealevelVersionedTransaction) -> ChainResult<RpcSimulateTransactionResult>;
     }
@@ -225,8 +226,8 @@ fn create_sealevel_client() -> MockClient {
         .expect_get_block_with_commitment()
         .returning(move |_, _| Ok(svm_block()));
     client
-        .expect_get_transaction_with_commitment()
-        .returning(move |_, _| Ok(encoded_svm_transaction()));
+        .expect_get_signature_statuses_with_history()
+        .returning(move |_| vec![Ok(Some(finalized_signature_status()))]);
     let result_clone = result.clone();
     client
         .expect_simulate_transaction()
@@ -235,6 +236,18 @@ fn create_sealevel_client() -> MockClient {
         .expect_simulate_versioned_transaction()
         .returning(move |_| Ok(result.clone()));
     client
+}
+
+fn finalized_signature_status() -> SealevelTransactionStatus {
+    SealevelTransactionStatus {
+        slot: 43,
+        confirmations: None,
+        status: Ok(()),
+        err: None,
+        confirmation_status: Some(
+            solana_transaction_status::TransactionConfirmationStatus::Finalized,
+        ),
+    }
 }
 
 fn create_sealevel_submitter() -> MockSubmitter {
@@ -369,7 +382,7 @@ async fn test_sealevel_payload_reaches_finalized_status() {
         lander::create_test_dispatcher(adapter, payload_db, tx_db, "sealevel".to_string()).await;
 
     // Spawn dispatcher
-    let _dispatcher_handle = tokio::spawn(async move { dispatcher.spawn().await.await });
+    let _dispatcher_handle = dispatcher.spawn();
 
     // Send payload
     entrypoint
@@ -429,7 +442,7 @@ async fn test_sealevel_versioned_tx_payload_reaches_finalized_status() {
         lander::create_test_dispatcher(adapter, payload_db, tx_db, "sealevel".to_string()).await;
 
     // Spawn dispatcher
-    let _dispatcher_handle = tokio::spawn(async move { dispatcher.spawn().await.await });
+    let _dispatcher_handle = dispatcher.spawn();
 
     // Send payload
     entrypoint
@@ -497,7 +510,7 @@ async fn test_sealevel_payload_simulation_failure_results_in_dropped() {
     let (entrypoint, dispatcher) =
         lander::create_test_dispatcher(adapter, payload_db, tx_db, "sealevel".to_string()).await;
 
-    let _dispatcher_handle = tokio::spawn(async move { dispatcher.spawn().await.await });
+    let _dispatcher_handle = dispatcher.spawn();
 
     // Send payload
     entrypoint
@@ -580,7 +593,7 @@ async fn test_sealevel_payload_estimation_failure_results_in_dropped() {
     let (entrypoint, dispatcher) =
         lander::create_test_dispatcher(adapter, payload_db, tx_db, "sealevel".to_string()).await;
 
-    let _dispatcher_handle = tokio::spawn(async move { dispatcher.spawn().await.await });
+    let _dispatcher_handle = dispatcher.spawn();
 
     // Send payload
     entrypoint
@@ -669,7 +682,7 @@ async fn test_sealevel_versioned_tx_estimation_failure_results_in_dropped() {
     let (entrypoint, dispatcher) =
         lander::create_test_dispatcher(adapter, payload_db, tx_db, "sealevel".to_string()).await;
 
-    let _dispatcher_handle = tokio::spawn(async move { dispatcher.spawn().await.await });
+    let _dispatcher_handle = dispatcher.spawn();
 
     // Send payload
     entrypoint

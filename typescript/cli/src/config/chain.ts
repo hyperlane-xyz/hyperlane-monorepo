@@ -1,6 +1,7 @@
 import { confirm, input, select } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
+import { z } from 'zod';
 
 import {
   type ChainMetadata,
@@ -17,6 +18,9 @@ import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { indentYamlOrJson, readYamlOrJson } from '../utils/files.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 
+const CompiledChainMetadataSchema = z.compile(ChainMetadataSchema);
+const CompiledZChainName = z.compile(ZChainName);
+
 export function readChainConfigs(filePath: string) {
   log(`Reading file configs in ${filePath}`);
   const chainMetadata = readYamlOrJson<ChainMetadata>(filePath);
@@ -31,12 +35,12 @@ export function readChainConfigs(filePath: string) {
   }
 
   // Validate configs from file and merge in core configs as needed
-  const parseResult = ChainMetadataSchema.safeParse(chainMetadata);
+  const parseResult = CompiledChainMetadataSchema.safeParse(chainMetadata);
   if (!parseResult.success) {
     errorRed(
       `Chain config for ${filePath} is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/chain-config.yaml for an example`,
     );
-    errorRed(JSON.stringify(parseResult.error.errors));
+    errorRed(JSON.stringify(parseResult.error.issues));
     process.exit(1);
   }
   return chainMetadata;
@@ -62,7 +66,7 @@ export async function createChainConfig({
 
   const name = await input({
     message: 'Enter chain name (one word, lower case)',
-    validate: (chainName) => ZChainName.safeParse(chainName).success,
+    validate: (chainName) => z.validate(CompiledZChainName, chainName),
   });
 
   const displayName = await input({
@@ -146,7 +150,7 @@ export async function createChainConfig({
     errorRed(
       `Chain config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/chain-config.yaml for an example`,
     );
-    errorRed(JSON.stringify(parseResult.error.errors));
+    errorRed(JSON.stringify(parseResult.error.issues));
     throw new Error('Invalid chain config');
   }
 }

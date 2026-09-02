@@ -262,4 +262,41 @@ describe('StarknetSigner sendAndConfirmTransaction', () => {
     expect(String(error)).to.include('reverted');
     expect(String(error)).to.include('boom');
   });
+
+  it('rejects a v0.8 transaction with REJECTED finality immediately', async () => {
+    const signer = await StarknetSigner.connectWithSigner(
+      {
+        ...TEST_METADATA,
+        rpcUrls: [{ http: 'https://rpc.example/rpc/v0_8' }],
+      },
+      '0x1',
+      { accountAddress: '0x123' },
+    );
+    const account = Reflect.get(signer, 'account') as {
+      channel: object;
+    };
+    Reflect.set(account, 'execute', async () => ({
+      transaction_hash: '0xdead',
+    }));
+    Reflect.set(account.channel, 'transactionRetryIntervalFallback', 0);
+    Reflect.set(account.channel, 'getTransactionStatus', async () => ({
+      finality_status: 'REJECTED',
+    }));
+
+    let error: unknown;
+    try {
+      await signer.sendAndConfirmTransaction({
+        kind: 'invoke',
+        contractAddress: '0xabc',
+        entrypoint: 'transfer',
+        calldata: [],
+      });
+    } catch (caughtError) {
+      error = caughtError;
+    }
+
+    expect(signer.getRawProvider().readSpecVersion()).to.equal('0.8.1');
+    expect(String(error)).to.include('REJECTED');
+    expect(String(error)).not.to.include('timed-out');
+  });
 });

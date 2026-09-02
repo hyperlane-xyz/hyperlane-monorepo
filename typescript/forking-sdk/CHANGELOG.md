@@ -1,5 +1,41 @@
 # @hyperlane-xyz/forking-sdk
 
+## 9.0.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@44.0.2
+- @hyperlane-xyz/provider-sdk@10.0.2
+
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [f269e03]
+  - @hyperlane-xyz/provider-sdk@10.0.1
+  - @hyperlane-xyz/utils@44.0.1
+
+## 9.0.0
+
+### Major Changes
+
+- 6fbe5ad: The Starknet TypeScript stack was upgraded from starknet.js v7 to v8.9.2 to support the JSON-RPC v0.9 endpoints. Account and Contract call sites were migrated to the v8 options-object constructors, fee estimation was updated to the new resourceBounds shape, and dispatch-event parsing now passes the required ABI parser. Starknet wallet dependencies were upgraded for starknet.js v8 compatibility, and the minimum supported Node.js version is now 22 across published runtime dependents.
+
+### Patch Changes
+
+- Updated dependencies [6fbe5ad]
+  - @hyperlane-xyz/utils@44.0.0
+  - @hyperlane-xyz/provider-sdk@10.0.0
+
+## 8.1.5
+
+### Patch Changes
+
+- Updated dependencies [8bcc7ab]
+- Updated dependencies [7cf9c01]
+  - @hyperlane-xyz/provider-sdk@9.0.0
+  - @hyperlane-xyz/utils@43.0.0
+
 ## 8.1.4
 
 ### Patch Changes

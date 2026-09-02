@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/sdk",
-  "version": "42.0.0",
+  "version": "44.0.2",
   "description": "The official SDK for the Hyperlane Network",
   "keywords": [
     "Hyperlane",
@@ -237,6 +237,6 @@
     "@ethersproject/abi": "*"
   },
   "engines": {
-    "node": ">=16"
+    "node": ">=22"
   }
 }

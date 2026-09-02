@@ -24,12 +24,13 @@ const MultisigConfigMapSchema = z.object({}).catchall(
     validators: z.array(ZHash),
   }),
 );
+const CompiledMultisigConfigMapSchema = z.compile(MultisigConfigMapSchema);
 export type MultisigConfigMap = z.infer<typeof MultisigConfigMapSchema>;
 
 export function readMultisigConfig(filePath: string) {
   const config = readYamlOrJson(filePath);
   if (!config) throw new Error(`No multisig config found at ${filePath}`);
-  const result = MultisigConfigMapSchema.safeParse(config);
+  const result = CompiledMultisigConfigMapSchema.safeParse(config);
   if (!result.success) {
     const firstIssue = result.error.issues[0];
     throw new Error(
@@ -61,8 +62,8 @@ export function readMultisigConfig(filePath: string) {
   return formattedConfig;
 }
 
-export function isValidMultisigConfig(config: any) {
-  return MultisigConfigMapSchema.safeParse(config).success;
+export function isValidMultisigConfig(config: unknown) {
+  return z.validate(CompiledMultisigConfigMapSchema, config);
 }
 
 export async function createMultisigConfig({

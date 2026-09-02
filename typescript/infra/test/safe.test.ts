@@ -8,6 +8,7 @@ import {
   getOwnerChanges,
   parseSafeTx,
   updateSafeOwner,
+  wasSafeTxProposedBy,
 } from '../src/utils/safe.js';
 
 const safeAddress = '0x1234567890123456789012345678901234567890';
@@ -104,6 +105,35 @@ async function expectRejection(promise: Promise<unknown>, message: string) {
 }
 
 describe('Safe Utils', () => {
+  describe('wasSafeTxProposedBy', () => {
+    it('should accept the attributed owner', () => {
+      expect(
+        wasSafeTxProposedBy(
+          { proposer: ownerA, proposedByDelegate: null },
+          ownerA,
+        ),
+      ).to.be.true;
+    });
+
+    it('should accept the submitting delegate', () => {
+      expect(
+        wasSafeTxProposedBy(
+          { proposer: ownerA, proposedByDelegate: ownerB },
+          ownerB,
+        ),
+      ).to.be.true;
+    });
+
+    it('should reject unrelated signers', () => {
+      expect(
+        wasSafeTxProposedBy(
+          { proposer: ownerA, proposedByDelegate: ownerB },
+          ownerC,
+        ),
+      ).to.be.false;
+    });
+  });
+
   describe('getOwnerChanges', () => {
     it('should identify owners to add and remove', async () => {
       const currentOwners = [
@@ -254,6 +284,17 @@ describe('Safe Utils', () => {
             name: 'removeOwner',
             args: [productionNewOwner, productionOwners[2], 3],
           },
+        ],
+      },
+      {
+        name: 'allow a non-owner delegate to propose owner updates',
+        currentOwners: [ownerA, ownerB, ownerC],
+        currentThreshold: 2,
+        expectedOwners: [ownerB, ownerC, ownerE],
+        newThreshold: 2,
+        proposer: ownerF,
+        expectedCalls: [
+          { name: 'swapOwner', args: [sentinelOwners, ownerA, ownerE] },
         ],
       },
       {

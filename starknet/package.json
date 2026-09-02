@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/starknet-core",
-  "version": "42.0.0",
+  "version": "44.0.2",
   "description": "Core cairo contracts for Hyperlane",
   "keywords": [
     "Cairo",
@@ -42,5 +42,8 @@
     "globby": "^14.1.0",
     "tsx": "catalog:",
     "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

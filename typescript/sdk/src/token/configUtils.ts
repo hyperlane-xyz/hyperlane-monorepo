@@ -838,9 +838,13 @@ function applyFeeTokenAddress(
   feeConfig: TokenFeeConfigInput,
   feeToken: Address,
 ): ResolvedTokenFeeConfigInput {
+  const owner = feeConfig.owner;
+  assert(owner, `Owner is required to resolve ${feeConfig.type} fee config`);
+
   if (feeConfig.type === TokenFeeType.RoutingFee) {
     return {
       ...feeConfig,
+      owner,
       token: feeToken,
       feeContracts: objMap(feeConfig.feeContracts, (_chain, subFee) =>
         applyFeeTokenAddress(subFee, feeToken),
@@ -851,6 +855,7 @@ function applyFeeTokenAddress(
   if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
     return {
       ...feeConfig,
+      owner,
       feeContracts: objMap(
         feeConfig.feeContracts,
         (_chain, destinationConfig) =>
@@ -863,6 +868,7 @@ function applyFeeTokenAddress(
 
   return {
     ...feeConfig,
+    owner,
     token: feeToken,
   } satisfies ResolvedTokenFeeConfigInput;
 }
@@ -1001,6 +1007,14 @@ function normalizeCrossCollateralFeeContractsForCheck(
   );
 }
 
+function normalizeTokenFeeForCheck(
+  feeConfig: TokenFeeConfigInput,
+  isNested?: boolean,
+): TokenFeeConfigInput;
+function normalizeTokenFeeForCheck(
+  feeConfig: undefined,
+  isNested?: boolean,
+): undefined;
 function normalizeTokenFeeForCheck(
   feeConfig: TokenFeeConfigInput | undefined,
   isNested = false,

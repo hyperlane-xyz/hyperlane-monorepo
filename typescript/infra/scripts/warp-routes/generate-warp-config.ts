@@ -1,4 +1,5 @@
 import { stringify as yamlStringify } from 'yaml';
+import { z } from 'zod';
 
 import { WarpRouteDeployConfigSchema } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -26,7 +27,7 @@ async function main() {
   if (!parsed.success) {
     rootLogger.error('Error parsing warp config:');
     console.dir(warpConfig, { depth: null });
-    console.dir(parsed.error.format(), { depth: null });
+    console.dir(z.treeifyError(parsed.error), { depth: null });
     return;
   }
 

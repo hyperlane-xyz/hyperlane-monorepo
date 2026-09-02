@@ -90,6 +90,18 @@ impl<P: AleoProviderForLander> AdaptsChain for AleoAdapter<P> {
         status::get_tx_hash_status(&self.provider, hash).await
     }
 
+    async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, LanderError> {
+        if self.delivered(tx).await? {
+            return Ok(TransactionStatus::Finalized);
+        }
+
+        let Some(latest_hash) = tx.tx_hashes.last() else {
+            return Ok(TransactionStatus::PendingInclusion);
+        };
+
+        self.get_tx_hash_status(*latest_hash).await
+    }
+
     async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
         self.ready_for_resubmission(tx)
     }

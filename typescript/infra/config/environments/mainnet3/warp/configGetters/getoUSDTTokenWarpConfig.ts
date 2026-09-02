@@ -27,6 +27,7 @@ import { WarpRouteIds } from '../warpIds.js';
 import {
   getFixedRoutingFeeConfig,
   getRebalancingBridgesConfigFor,
+  scaleDownConfig,
 } from './utils.js';
 
 // Environment-independent configuration
@@ -58,10 +59,9 @@ const supportedCCIPChains = ['base', 'mode', 'optimism'];
 // core 6.1.0, which predates FungibleTokenRouter fee support; setting this makes
 // `warp apply` upgrade the proxy impl to the current @hyperlane-xyz/core release
 // (via ProxyAdmin.upgrade) so setFeeRecipient/feeRecipient exist for the OQLF fee.
-// Staging is pinned a minor behind production: the two impls are equivalent for
-// this route, so there is no reason to churn the staging proxies.
-const stagingContractVersion = '12.0.0';
-const productionContractVersion = '12.1.0';
+// Staging and production share the same impl version so the staging upgrade test
+// exercises exactly what production will apply.
+const contractVersion = '12.1.0';
 
 type oUSDTTokenChainName = (typeof deploymentChains)[number];
 type TypedoUSDTTokenChainMap<T> = {
@@ -72,8 +72,29 @@ const xERC20LockboxChains: oUSDTTokenChainName[] = ['celo', 'ethereum'];
 const collateralChains = [
   'arbitrum',
   'tron',
+  'bsc',
 ] as const satisfies readonly oUSDTTokenChainName[];
 type CollateralChainName = (typeof collateralChains)[number];
+
+// Collateral legs backed by the canonical USDT OFT rebalancing route. bsc is a
+// plain collateral leg (BSC-USD) that is not part of that route, so it has no
+// rebalancing bridges.
+const rebalanceableCollateralChains: CollateralChainName[] = [
+  'arbitrum',
+  'tron',
+];
+
+// oUSDT message amounts are encoded with 6 decimals. Every leg carries an
+// explicit scale so the warp checker sees a uniform scale convention across the
+// route (once any leg sets scale, all legs must). Legs at the message decimals
+// get scale 1/1; legs whose token has more decimals (BSC-USD is 18) are scaled
+// down so all legs agree on the encoding.
+const messageDecimals = 6;
+const localDecimalsByChain: TypedoUSDTTokenChainMap<number> =
+  deploymentChains.reduce((acc, chain) => {
+    acc[chain] = chain === 'bsc' ? 18 : messageDecimals;
+    return acc;
+  }, {} as TypedoUSDTTokenChainMap<number>);
 
 function isCollateralChain(
   chain: oUSDTTokenChainName,
@@ -317,7 +338,7 @@ const productionTokenAddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   bob: productionXERC20TokenAddress,
   zerogravity: productionXERC20TokenAddress,
   tron: usdtTokenAddresses.tron,
-  bsc: productionXERC20TokenAddress,
+  bsc: usdtTokenAddresses.bsc,
   arbitrum: usdtTokenAddresses.arbitrum,
   tea: productionXERC20TokenAddress,
 };
@@ -363,7 +384,7 @@ const stagingTokenAddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   bob: stagingXERC20TokenAddress,
   zerogravity: stagingXERC20TokenAddress,
   tron: usdtTokenAddresses.tron,
-  bsc: stagingXERC20TokenAddress,
+  bsc: usdtTokenAddresses.bsc,
   arbitrum: usdtTokenAddresses.arbitrum,
   tea: stagingXERC20TokenAddress,
 };
@@ -555,20 +576,26 @@ function generateoUSDTTokenConfig(
         hook: generateHookConfig(chain, ownerByChain, amountRoutingThreshold),
         // This is used to explicitly check the owners of each key (e.g. collateralProxyAdmin).
         ownerOverrides: ownerOverridesByChain?.[chain] ?? undefined,
+        // Every leg carries an explicit scale so the checker sees a uniform
+        // convention. Legs at the message decimals get 1/1; higher-decimal
+        // tokens (BSC-USD is 18) are scaled down to the 6-decimal encoding.
+        ...scaleDownConfig(localDecimalsByChain[chain], messageDecimals),
       };
 
       if (isCollateralChain(chain)) {
+        const collateralConfig = {
+          ...commonConfig,
+          type: TokenType.collateral,
+          token: tokenAddressesByChain[chain],
+        };
+
+        if (!rebalanceableCollateralChains.includes(chain)) {
+          return [chain, collateralConfig];
+        }
+
         const rebalancingConfig = rebalancingConfigByChain[chain];
         assert(rebalancingConfig, `Rebalancing config for ${chain} not found`);
-        return [
-          chain,
-          {
-            ...commonConfig,
-            type: TokenType.collateral,
-            token: tokenAddressesByChain[chain],
-            ...rebalancingConfig,
-          },
-        ];
+        return [chain, { ...collateralConfig, ...rebalancingConfig }];
       }
 
       return [
@@ -608,7 +635,7 @@ export const getoUSDTTokenStagingWarpConfig = async (
     stagingRateLimitByChain,
     stagingFeeOwnerByChain,
     stagingQuoteSigners,
-    stagingContractVersion,
+    contractVersion,
     stagingExtraBridges,
   );
 };
@@ -625,7 +652,7 @@ export const getoUSDTTokenProductionWarpConfig = async (
     productionRateLimitByChain,
     productionFeeOwnerByChain,
     productionQuoteSigners,
-    productionContractVersion,
+    contractVersion,
     productionExtraBridges,
     productionOwnerOverridesByChain,
   );

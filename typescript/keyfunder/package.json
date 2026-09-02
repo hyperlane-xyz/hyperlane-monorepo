@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/keyfunder",
-  "version": "0.1.46",
+  "version": "0.1.50",
   "private": true,
   "description": "Hyperlane Key Funder Service - funds agent keys with native tokens",
   "keywords": [
@@ -46,8 +46,7 @@
     "pino-pretty": "catalog:",
     "prom-client": "catalog:",
     "yaml": "catalog:",
-    "zod": "catalog:",
-    "zod-validation-error": "catalog:"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",

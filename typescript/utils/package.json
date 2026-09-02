@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/utils",
-  "version": "42.0.0",
+  "version": "44.0.2",
   "description": "General utilities and types for the Hyperlane network",
   "keywords": [
     "Hyperlane",
@@ -108,6 +108,6 @@
     }
   },
   "engines": {
-    "node": ">=16"
+    "node": ">=22"
   }
 }

@@ -1,5 +1,72 @@
 # @hyperlane-xyz/widgets
 
+## 44.0.2
+
+### Patch Changes
+
+- 16df6ee: Bumped the @hyperlane-xyz/registry catalog pin to 26.1.0 and released the exact-pin cascade through tron-sdk, deploy-sdk, sdk, and widgets.
+- Updated dependencies [16df6ee]
+  - @hyperlane-xyz/tron-sdk@25.0.2
+  - @hyperlane-xyz/sdk@44.0.2
+  - @hyperlane-xyz/aleo-sdk@44.0.2
+  - @hyperlane-xyz/cosmos-sdk@44.0.2
+  - @hyperlane-xyz/radix-sdk@44.0.2
+  - @hyperlane-xyz/utils@44.0.2
+  - @hyperlane-xyz/provider-sdk@10.0.2
+
+## 44.0.1
+
+### Patch Changes
+
+- Updated dependencies [f269e03]
+  - @hyperlane-xyz/provider-sdk@10.0.1
+  - @hyperlane-xyz/sdk@44.0.1
+  - @hyperlane-xyz/aleo-sdk@44.0.1
+  - @hyperlane-xyz/cosmos-sdk@44.0.1
+  - @hyperlane-xyz/radix-sdk@44.0.1
+  - @hyperlane-xyz/tron-sdk@25.0.1
+  - @hyperlane-xyz/utils@44.0.1
+
+## 44.0.0
+
+### Major Changes
+
+- 6fbe5ad: The Starknet TypeScript stack was upgraded from starknet.js v7 to v8.9.2 to support the JSON-RPC v0.9 endpoints. Account and Contract call sites were migrated to the v8 options-object constructors, fee estimation was updated to the new resourceBounds shape, and dispatch-event parsing now passes the required ABI parser. Starknet wallet dependencies were upgraded for starknet.js v8 compatibility, and the minimum supported Node.js version is now 22 across published runtime dependents.
+
+### Patch Changes
+
+- Updated dependencies [85c44af]
+- Updated dependencies [6fbe5ad]
+  - @hyperlane-xyz/sdk@44.0.0
+  - @hyperlane-xyz/utils@44.0.0
+  - @hyperlane-xyz/provider-sdk@10.0.0
+  - @hyperlane-xyz/tron-sdk@25.0.0
+  - @hyperlane-xyz/aleo-sdk@44.0.0
+  - @hyperlane-xyz/cosmos-sdk@44.0.0
+  - @hyperlane-xyz/radix-sdk@44.0.0
+
+## 43.0.0
+
+### Patch Changes
+
+- Updated dependencies [0848474]
+- Updated dependencies [e76189e]
+- Updated dependencies [3ced099]
+- Updated dependencies [a00b342]
+- Updated dependencies [b58c7eb]
+- Updated dependencies [60fc463]
+- Updated dependencies [8bcc7ab]
+- Updated dependencies [7cf9c01]
+- Updated dependencies [8d91ef8]
+- Updated dependencies [11f2dee]
+  - @hyperlane-xyz/sdk@43.0.0
+  - @hyperlane-xyz/provider-sdk@9.0.0
+  - @hyperlane-xyz/utils@43.0.0
+  - @hyperlane-xyz/aleo-sdk@43.0.0
+  - @hyperlane-xyz/cosmos-sdk@43.0.0
+  - @hyperlane-xyz/radix-sdk@43.0.0
+  - @hyperlane-xyz/tron-sdk@24.2.1
+
 ## 42.0.0
 
 ### Patch Changes

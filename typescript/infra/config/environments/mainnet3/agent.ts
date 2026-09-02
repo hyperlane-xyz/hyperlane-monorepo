@@ -71,13 +71,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   // Generally, we run all production validators in the Hyperlane context.
   [Role.Validator]: {
     abstract: true,
-    // acala: true,
     adichain: true,
     aleo: true,
     apechain: true,
     appchain: false, // disabled — deprecation per ENG-3932
     arbitrum: true,
-    // arc: true,
+    arc: true,
     avalanche: true,
     base: true,
     berachain: true,
@@ -129,7 +128,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     plasma: true,
     polygon: true,
     pulsechain: true,
-    radix: true,
+    radix: false, // disabled — removed from agent operations per request
     robinhood: true,
     sei: true,
     solanamainnet: true,
@@ -156,13 +155,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   },
   [Role.Relayer]: {
     abstract: true,
-    // acala: true,
     adichain: true,
     aleo: true,
     apechain: true,
     appchain: false, // disabled — deprecation per ENG-3932
     arbitrum: true,
-    // arc: true,
+    arc: true,
     avalanche: true,
     base: true,
     berachain: true,
@@ -214,7 +212,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     plasma: true,
     polygon: true,
     pulsechain: true,
-    radix: true,
+    radix: false, // disabled — removed from agent operations per request
     robinhood: true,
     sei: true,
     solanamainnet: true,
@@ -241,13 +239,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   },
   [Role.Scraper]: {
     abstract: true,
-    // acala: true,
     adichain: true,
     aleo: true,
     apechain: true,
     appchain: false, // disabled — deprecation per ENG-3932
     arbitrum: true,
-    // arc: true,
+    arc: true,
     avalanche: true,
     base: true,
     berachain: true,
@@ -299,7 +296,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     plasma: true,
     polygon: true,
     pulsechain: true,
-    radix: true,
+    radix: false, // disabled — removed from agent operations per request
     robinhood: true,
     sei: true,
     solanamainnet: true,

@@ -26,8 +26,8 @@ import { findMatchingCircleMessage } from './cctpMessageMatcher.js';
 import { HyperlaneService } from './HyperlaneService.js';
 
 const EnvSchema = z.object({
-  HYPERLANE_EXPLORER_URL: z.string().url(),
-  CCTP_ATTESTATION_URL: z.string().url(),
+  HYPERLANE_EXPLORER_URL: z.url(),
+  CCTP_ATTESTATION_URL: z.url(),
   REGISTRY_URI: REGISTRY_URI_SCHEMA,
 });
 

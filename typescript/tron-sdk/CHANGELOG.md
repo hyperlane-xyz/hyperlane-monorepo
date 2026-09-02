@@ -1,5 +1,46 @@
 # @hyperlane-xyz/tron-sdk
 
+## 25.0.2
+
+### Patch Changes
+
+- 16df6ee: Bumped the @hyperlane-xyz/registry catalog pin to 26.1.0 and released the exact-pin cascade through tron-sdk, deploy-sdk, sdk, and widgets.
+  - @hyperlane-xyz/utils@44.0.2
+  - @hyperlane-xyz/core@12.1.0
+  - @hyperlane-xyz/provider-sdk@10.0.2
+
+## 25.0.1
+
+### Patch Changes
+
+- Updated dependencies [f269e03]
+  - @hyperlane-xyz/provider-sdk@10.0.1
+  - @hyperlane-xyz/utils@44.0.1
+  - @hyperlane-xyz/core@12.1.0
+
+## 25.0.0
+
+### Major Changes
+
+- 6fbe5ad: The Starknet TypeScript stack was upgraded from starknet.js v7 to v8.9.2 to support the JSON-RPC v0.9 endpoints. Account and Contract call sites were migrated to the v8 options-object constructors, fee estimation was updated to the new resourceBounds shape, and dispatch-event parsing now passes the required ABI parser. Starknet wallet dependencies were upgraded for starknet.js v8 compatibility, and the minimum supported Node.js version is now 22 across published runtime dependents.
+
+### Patch Changes
+
+- Updated dependencies [6fbe5ad]
+  - @hyperlane-xyz/utils@44.0.0
+  - @hyperlane-xyz/provider-sdk@10.0.0
+  - @hyperlane-xyz/core@12.1.0
+
+## 24.2.1
+
+### Patch Changes
+
+- Updated dependencies [8bcc7ab]
+- Updated dependencies [7cf9c01]
+  - @hyperlane-xyz/provider-sdk@9.0.0
+  - @hyperlane-xyz/utils@43.0.0
+  - @hyperlane-xyz/core@12.1.0
+
 ## 24.2.0
 
 ### Minor Changes

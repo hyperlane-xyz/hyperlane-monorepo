@@ -77,7 +77,9 @@ describe('validateRequest middleware', () => {
       expect(next.calledOnce).to.be.true;
       const error = next.getCall(0).args[0];
       expect(error).to.be.instanceOf(ApiError);
-      expect(error.message).to.include('Required');
+      expect(error.message).to.include(
+        'Invalid input: expected string, received undefined',
+      );
     });
   });
 
@@ -118,7 +120,9 @@ describe('validateRequest middleware', () => {
       expect(next.calledOnce).to.be.true;
       const error = next.getCall(0).args[0];
       expect(error).to.be.instanceOf(ApiError);
-      expect(error.message).to.include('Required');
+      expect(error.message).to.include(
+        'Invalid input: expected string, received undefined',
+      );
     });
   });
 

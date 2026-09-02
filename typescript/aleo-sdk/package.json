@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/aleo-sdk",
-  "version": "42.0.0",
+  "version": "44.0.2",
   "description": "Hyperlane TypeScript SDK for the Aleo Hyperlane SDK module",
   "keywords": [
     "aleo",
@@ -84,5 +84,8 @@
     "testcontainers": {
       "optional": true
     }
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

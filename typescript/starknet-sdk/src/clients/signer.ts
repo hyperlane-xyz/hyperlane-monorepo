@@ -2,10 +2,10 @@ import {
   Account,
   Call,
   CallData,
-  ContractFactory,
   GetTransactionReceiptResponse,
   RawArgs,
   RpcProvider,
+  legacyDeployer,
 } from 'starknet';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
@@ -32,15 +32,6 @@ export class StarknetSigner
   extends StarknetProvider
   implements AltVM.ISigner<StarknetAnnotatedTx, StarknetTxReceipt>
 {
-  private static readStringField(
-    value: unknown,
-    key: string,
-  ): string | undefined {
-    if (!value || typeof value !== 'object') return undefined;
-    const candidate = Reflect.get(value, key);
-    return typeof candidate === 'string' ? candidate : undefined;
-  }
-
   static async connectWithSigner(
     metadata: ChainMetadataForAltVM,
     privateKey: string,
@@ -74,7 +65,15 @@ export class StarknetSigner
     privateKey: string,
   ) {
     super(provider, metadata, rpcUrls);
-    this.account = new Account(provider, signerAddress, privateKey);
+    this.account = new Account({
+      provider,
+      address: signerAddress,
+      signer: privateKey,
+      // The legacy UDC remains deployed across old devnets and production
+      // networks. starknet.js v8's new default UDC is unavailable on older
+      // networks that this SDK still supports.
+      deployer: legacyDeployer,
+    });
   }
 
   protected override get accountAddress(): string {
@@ -127,7 +126,7 @@ export class StarknetSigner
 
     assert(
       false,
-      `Starknet transaction ${transactionHash} failed with status ${receipt.statusReceipt}`,
+      `Starknet transaction ${transactionHash} failed with an unknown status`,
     );
   }
 
@@ -140,13 +139,9 @@ export class StarknetSigner
     contractAddress: string;
     receipt: GetTransactionReceiptResponse;
   }> {
-    const { getCompiledClassHash, getCompiledContract, getContractArtifact } =
+    const { getCompiledContract, getContractArtifact } =
       await import('@hyperlane-xyz/starknet-core');
     const compiledContract = getCompiledContract(
-      params.contractName,
-      params.contractType,
-    );
-    const compiledClassHash = getCompiledClassHash(
       params.contractName,
       params.contractType,
     );
@@ -158,10 +153,6 @@ export class StarknetSigner
       contractArtifact.compiled_contract_class,
       `Missing compiled_contract_class for Starknet contract ${params.contractName}`,
     );
-    assert(
-      compiledClassHash,
-      `Missing compiledClassHash for Starknet contract ${params.contractName}`,
-    );
     const hasConstructor = compiledContract.abi.some(
       (item) => item.type === 'constructor',
     );
@@ -172,26 +163,16 @@ export class StarknetSigner
         )
       : undefined;
 
-    const factory = new ContractFactory({
-      compiledContract,
+    const { deploy } = await this.account.declareAndDeploy({
+      contract: compiledContract,
       casm: contractArtifact.compiled_contract_class,
-      compiledClassHash,
-      account: this.account,
+      constructorCalldata,
     });
 
-    const deployment =
-      constructorCalldata === undefined
-        ? await factory.deploy()
-        : await factory.deploy(constructorCalldata);
-
-    const transactionHash =
-      deployment.deployTransactionHash ??
-      StarknetSigner.readStringField(deployment, 'transaction_hash');
+    const transactionHash = deploy.transaction_hash;
     assert(transactionHash, 'missing Starknet deploy transaction hash');
 
-    const rawAddress =
-      deployment.address ||
-      StarknetSigner.readStringField(deployment, 'contract_address');
+    const rawAddress = deploy.contract_address;
     assert(rawAddress, 'missing Starknet deploy contract address');
 
     const address = normalizeStarknetAddressSafe(rawAddress);
@@ -291,14 +272,13 @@ export class StarknetSigner
     ];
 
     const estimate = await this.account.estimateInvokeFee(calls);
+    const { l1_gas, l1_data_gas, l2_gas } = estimate.resourceBounds;
     const gasUnits =
-      estimate.l1_gas_consumed +
-      estimate.l1_data_gas_consumed +
-      (estimate.l2_gas_consumed ?? 0n);
+      l1_gas.max_amount + l1_data_gas.max_amount + l2_gas.max_amount;
 
     return {
       gasUnits,
-      gasPrice: Number(estimate.l1_gas_price),
+      gasPrice: Number(l1_gas.max_price_per_unit),
       fee: estimate.overall_fee,
     };
   }

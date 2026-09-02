@@ -1,5 +1,33 @@
 # @hyperlane-xyz/cli
 
+## 44.0.2
+
+## 44.0.1
+
+### Patch Changes
+
+- f269e03: Zod was updated to 4.5.4 to prevent function-valued default factories from running during schema cycle detection and compilation.
+
+## 44.0.0
+
+### Major Changes
+
+- 6fbe5ad: The Starknet TypeScript stack was upgraded from starknet.js v7 to v8.9.2 to support the JSON-RPC v0.9 endpoints. Account and Contract call sites were migrated to the v8 options-object constructors, fee estimation was updated to the new resourceBounds shape, and dispatch-event parsing now passes the required ABI parser. Starknet wallet dependencies were upgraded for starknet.js v8 compatibility, and the minimum supported Node.js version is now 22 across published runtime dependents.
+
+### Patch Changes
+
+- 85c44af: The temporary Zod 3 registry compatibility layer was removed after adopting the registry's Zod 4 schemas. Repeated server and config validators are now compiled once, and boolean-only checks use Zod's allocation-free validation path.
+
+## 43.0.0
+
+### Major Changes
+
+- 8bcc7ab: Zod was upgraded to 4.5.2 across the TypeScript workspace. Public schemas and validation types were migrated to Zod 4, recursive fee configuration types were made explicit, application entrypoints adopted compiled parsing, and validation errors were changed to use Zod 4's built-in formatting.
+
+### Minor Changes
+
+- 60fc463: Added authenticated HTTP registry signers for standard EVM, Safe EIP-712, and Sealevel transactions.
+
 ## 42.0.0
 
 ### Minor Changes

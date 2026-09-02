@@ -12,7 +12,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     ChainResult, GasPaymentKey, HyperlaneDomain, HyperlaneMessage, Indexed, Indexer,
-    InterchainGasPayment, LogMeta, QueueOperation, H256, H512, U256,
+    InterchainGasPayment, LogMeta, H256, H512, U256,
 };
 use hyperlane_test::mocks::MockMailboxContract;
 use parking_lot::Mutex;
@@ -24,6 +24,7 @@ use tower::ServiceExt;
 use crate::msg::db_loader::tests::DummyApplicationOperationVerifier;
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::pending_message::MessageContext;
+use crate::msg::QueueOperationBatch;
 use crate::relay_api::handlers::{RateLimiter, ServerState, TxHashCache};
 use crate::relay_api::metrics::RelayApiMetrics;
 use crate::settings::matching_list::MatchingList;
@@ -181,7 +182,7 @@ fn test_msg(origin: u32, destination: u32, nonce: u32) -> HyperlaneMessage {
 
 struct TestHarness {
     state: ServerState,
-    rx: mpsc::UnboundedReceiver<QueueOperation>,
+    rx: mpsc::Receiver<QueueOperationBatch>,
     _tempdir: TempDir,
 }
 
@@ -198,6 +199,17 @@ async fn make_state_multi(
     origin: u32,
     dests: Vec<u32>,
 ) -> TestHarness {
+    make_state_multi_with_capacity(indexer, origin, dests, 10)
+        .await
+        .0
+}
+
+async fn make_state_multi_with_capacity(
+    indexer: Arc<dyn Indexer<HyperlaneMessage>>,
+    origin: u32,
+    dests: Vec<u32>,
+    channel_capacity: usize,
+) -> (TestHarness, mpsc::Sender<QueueOperationBatch>) {
     let tempdir = TempDir::new().unwrap();
     let db = test_utils::setup_db(tempdir.path().to_str().unwrap().to_owned());
     let domain = HyperlaneDomain::new_test_domain("relay_api_test");
@@ -225,7 +237,7 @@ async fn make_state_multi(
     let mut dbs = HashMap::new();
     dbs.insert(origin, rocks_db);
 
-    let (tx, rx) = mpsc::unbounded_channel();
+    let (tx, rx) = mpsc::channel(channel_capacity);
     let mut send_channels = HashMap::new();
     for &dest in &dests {
         send_channels.insert(dest, tx.clone());
@@ -246,11 +258,14 @@ async fn make_state_multi(
         metrics,
     );
 
-    TestHarness {
-        state,
-        rx,
-        _tempdir: tempdir,
-    }
+    (
+        TestHarness {
+            state,
+            rx,
+            _tempdir: tempdir,
+        },
+        tx,
+    )
 }
 
 fn relay_request(tx_hash: &str) -> Request<Body> {
@@ -294,6 +309,72 @@ async fn test_happy_path_enqueue() {
 
     assert_eq!(status, StatusCode::OK);
     assert!(rx.try_recv().is_ok(), "message should have been enqueued");
+}
+
+#[tokio::test]
+async fn test_same_destination_transaction_is_enqueued_as_one_batch() {
+    let messages = vec![
+        test_msg(ORIGIN_ID, DEST_ID, 1),
+        test_msg(ORIGIN_ID, DEST_ID, 2),
+    ];
+    let (TestHarness { state, mut rx, .. }, _tx) = make_state_multi_with_capacity(
+        Arc::new(MockIndexer::with_messages(messages)),
+        ORIGIN_ID,
+        vec![DEST_ID],
+        1,
+    )
+    .await;
+
+    let status = send_relay(state.router(), TX_HASH).await;
+
+    assert_eq!(status, StatusCode::OK);
+    let batch = rx.try_recv().expect("transaction should be enqueued");
+    assert_eq!(batch.len(), 2);
+    assert!(rx.try_recv().is_err(), "only one batch should be enqueued");
+}
+
+#[tokio::test]
+async fn test_cancelled_capacity_wait_enqueues_nothing_and_allows_retry() {
+    let messages = vec![
+        test_msg(ORIGIN_ID, DEST_ID, 1),
+        test_msg(ORIGIN_ID, DEST_ID, 2),
+    ];
+    let (TestHarness { state, mut rx, .. }, tx) = make_state_multi_with_capacity(
+        Arc::new(MockIndexer::with_messages(messages)),
+        ORIGIN_ID,
+        vec![DEST_ID],
+        1,
+    )
+    .await;
+    tx.send(Vec::new()).await.expect("prefill should succeed");
+
+    let cache = Arc::new(Mutex::new(TxHashCache::new(100)));
+    let router = state.with_tx_hash_cache(cache.clone()).router();
+    let blocked_router = router.clone();
+    let request = tokio::spawn(async move { send_relay(blocked_router, TX_HASH).await });
+
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while !cache.lock().contains("ethereum", TX_HASH) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("request should reserve its tx hash while waiting for capacity");
+
+    request.abort();
+    assert!(request.await.unwrap_err().is_cancelled());
+    assert_eq!(rx.len(), 1, "cancelled request must not enqueue a batch");
+    assert!(
+        !cache.lock().contains("ethereum", TX_HASH),
+        "cancellation must release the tx-hash reservation"
+    );
+
+    let placeholder = rx.recv().await.expect("prefilled batch should remain");
+    assert!(placeholder.is_empty());
+
+    let retry = send_relay(router, TX_HASH).await;
+    assert_eq!(retry, StatusCode::OK);
+    assert_eq!(rx.recv().await.expect("retry batch").len(), 2);
 }
 
 #[tokio::test]
@@ -525,9 +606,9 @@ async fn test_partial_send_failure_releases_dedup_for_retry() {
         application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
     });
 
-    let (tx_a, _rx_a2) = mpsc::unbounded_channel::<QueueOperation>();
+    let (tx_a, _rx_a2) = mpsc::channel::<QueueOperationBatch>(10);
     // dest_b sender: drop the receiver immediately so sends fail
-    let (tx_b, rx_b_dropped) = mpsc::unbounded_channel::<QueueOperation>();
+    let (tx_b, rx_b_dropped) = mpsc::channel::<QueueOperationBatch>(10);
     drop(rx_b_dropped);
 
     let mut indexers = HashMap::new();
@@ -626,7 +707,7 @@ async fn test_igp_payments_stored_before_enqueue() {
     );
     let mut dbs = HashMap::new();
     dbs.insert(ORIGIN_ID, rocks_db);
-    let (tx, mut rx) = mpsc::unbounded_channel::<QueueOperation>();
+    let (tx, mut rx) = mpsc::channel::<QueueOperationBatch>(10);
     let mut send_channels = HashMap::new();
     send_channels.insert(DEST_ID, tx);
     let mut msg_ctxs = HashMap::new();

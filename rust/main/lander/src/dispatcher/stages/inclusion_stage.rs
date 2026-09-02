@@ -2,13 +2,12 @@ use std::cmp::max;
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
 use derive_new::new;
 use eyre::{eyre, Result};
-use futures_util::future::try_join_all;
-use futures_util::try_join;
+use futures_util::{future::try_join_all, try_join, StreamExt};
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::sleep;
 use tracing::{error, info, info_span, instrument, warn, Instrument};
@@ -20,7 +19,13 @@ use crate::{
     transaction::{DropReason as TxDropReason, Transaction, TransactionStatus, TransactionUuid},
 };
 
-use super::{utils::call_until_success_or_nonretryable_error, DispatcherState};
+use super::{
+    utils::{
+        buffer_ordered_bounded, call_until_success_or_nonretryable_error,
+        read_transaction_status_batch, FinalizedStatusRead,
+    },
+    DispatcherState,
+};
 
 #[cfg(test)]
 pub mod tests;
@@ -37,6 +42,7 @@ const MAX_TX_STATUS_CHECK_DELAY: Duration = Duration::from_secs(5 * 60);
 const REPROCESS_TXS_LIVENESS_RATE: Duration = Duration::from_secs(5);
 // Bounds idle reorg-detection latency without reducing the liveness heartbeat rate.
 const MAX_REPROCESS_TXS_POLL_RATE: Duration = Duration::from_secs(5 * 60);
+const STATUS_READ_CONCURRENCY: usize = 16;
 
 pub struct InclusionStage {
     pub(crate) pool: InclusionStagePool,
@@ -152,49 +158,139 @@ impl InclusionStage {
             .metrics
             .update_liveness_metric(format!("{STAGE_NAME}::process_txs").as_str(), domain);
 
+        let scan_started = Instant::now();
         let pool_snapshot = {
             let pool_snapshot = pool.lock().await;
-            let pool_snapshot = pool_snapshot.clone();
             state.metrics.update_queue_length_metric(
                 STAGE_NAME,
                 pool_snapshot.len() as u64,
                 domain,
             );
-            pool_snapshot
+            pool_snapshot.values().cloned().collect::<Vec<_>>()
         };
+        let now = chrono::Utc::now();
+        let oldest_unchecked_age = pool_snapshot
+            .iter()
+            .filter_map(|tx| {
+                now.signed_duration_since(tx.last_status_check.unwrap_or(tx.creation_timestamp))
+                    .to_std()
+                    .ok()
+            })
+            .max()
+            .unwrap_or_default();
+        state
+            .metrics
+            .update_oldest_unchecked_transaction_age_metric(
+                STAGE_NAME,
+                oldest_unchecked_age,
+                domain,
+            );
         if pool_snapshot.is_empty() {
+            state.metrics.update_status_scan_duration_metric(
+                STAGE_NAME,
+                scan_started.elapsed(),
+                domain,
+            );
             return Ok(());
         }
         info!(pool_size=?pool_snapshot.len() , "Processing transactions in inclusion pool");
 
         let base_interval = *state.adapter.estimated_block_time();
-        let now = chrono::Utc::now();
+        let mut eligible_txs = pool_snapshot
+            .into_iter()
+            .filter(|tx| Self::tx_ready_for_processing(base_interval, now, tx))
+            .collect::<Vec<_>>();
+        super::utils::sort_transactions_for_mutation(&mut eligible_txs);
+        let status_batch_size = state
+            .adapter
+            .tx_status_batch_size()
+            .clamp(1, STATUS_READ_CONCURRENCY);
+        let status_batch_concurrency = STATUS_READ_CONCURRENCY.div_ceil(status_batch_size);
+        let status_batches = eligible_txs
+            .chunks(status_batch_size)
+            .map(<[Transaction]>::to_vec)
+            .collect::<Vec<_>>();
+        let status_reads = status_batches
+            .into_iter()
+            .map(|batch| read_transaction_status_batch(state, batch, FinalizedStatusRead::Query));
+        let status_reads = buffer_ordered_bounded(status_reads, status_batch_concurrency);
+        let status_reads = status_reads.flat_map(futures_util::stream::iter);
+        futures_util::pin_mut!(status_reads);
 
-        for (_, mut tx) in pool_snapshot {
-            // Update liveness metric on every tx as well.
-            // This prevents alert misfires when there are many txs to process.
-            state
-                .metrics
-                .update_liveness_metric(format!("{STAGE_NAME}::process_txs").as_str(), domain);
+        let result = async {
+            while let Some((snapshot_tx, mut checked_tx, status)) = status_reads.next().await {
+                // Update liveness metric on every tx as well.
+                // This prevents alert misfires when there are many txs to process.
+                state
+                    .metrics
+                    .update_liveness_metric(format!("{STAGE_NAME}::process_txs").as_str(), domain);
 
-            if !Self::tx_ready_for_processing(base_interval, now, &tx) {
-                continue;
-            }
+                if !Self::replace_if_unchanged(pool, &snapshot_tx, checked_tx.clone()).await {
+                    info!(tx_uuid = ?snapshot_tx.uuid, "Skipping stale transaction status result");
+                    continue;
+                }
 
-            if let Err(err) =
-                Self::try_process_tx(tx.clone(), finality_stage_sender, state, pool).await
-            {
-                error!(?err, ?tx, "Error processing transaction. Dropping it");
-
-                let drop_reason = match &err {
-                    LanderError::TxDropped(reason) => reason.clone(),
-                    _ => TxDropReason::Other(err.to_string()),
+                let tx_status = match status {
+                    Ok(status) => status,
+                    Err(err) if err.is_infra_error() => {
+                        warn!(
+                            ?err,
+                            tx = ?checked_tx,
+                            "Error reading transaction status. Retrying later"
+                        );
+                        Self::update_inclusion_stage_metric(state, domain, &err);
+                        state.store_tx(&checked_tx).await;
+                        continue;
+                    }
+                    Err(err) => {
+                        error!(?err, tx = ?checked_tx, "Error processing transaction. Dropping it");
+                        let drop_reason = match &err {
+                            LanderError::TxDropped(reason) => reason.clone(),
+                            _ => TxDropReason::Other(err.to_string()),
+                        };
+                        Self::drop_tx(state, &mut checked_tx, drop_reason, pool).await?;
+                        Self::update_inclusion_stage_metric(state, domain, &err);
+                        continue;
+                    }
                 };
-                Self::drop_tx(state, &mut tx, drop_reason, pool).await?;
-                Self::update_inclusion_stage_metric(state, domain, &err);
+                info!(tx = ?checked_tx, next_tx_status = ?tx_status, "Transaction status");
+                if let Err(err) = Self::try_process_tx_with_next_status(
+                    checked_tx.clone(),
+                    tx_status,
+                    finality_stage_sender,
+                    state,
+                    pool,
+                )
+                .await
+                {
+                    if matches!(err, LanderError::ChannelSendFailure(_)) {
+                        error!(
+                            ?err,
+                            tx = ?checked_tx,
+                            "Failed to forward transaction. Retaining it for retry"
+                        );
+                        Self::update_inclusion_stage_metric(state, domain, &err);
+                        continue;
+                    }
+
+                    error!(?err, tx = ?checked_tx, "Error processing transaction. Dropping it");
+                    let drop_reason = match &err {
+                        LanderError::TxDropped(reason) => reason.clone(),
+                        _ => TxDropReason::Other(err.to_string()),
+                    };
+                    Self::drop_tx(state, &mut checked_tx, drop_reason, pool).await?;
+                    Self::update_inclusion_stage_metric(state, domain, &err);
+                }
             }
+            Ok(())
         }
-        Ok(())
+        .await;
+        state.metrics.update_status_scan_duration_metric(
+            STAGE_NAME,
+            scan_started.elapsed(),
+            domain,
+        );
+        result
     }
 
     #[instrument(skip_all, fields(?domain))]
@@ -320,38 +416,17 @@ impl InclusionStage {
         true
     }
 
-    #[instrument(
-        skip_all,
-        name = "InclusionStage::try_process_tx",
-        fields(tx_uuid = ?tx.uuid, tx_status = ?tx.status, payloads = ?tx.payload_details)
-    )]
-    async fn try_process_tx(
-        mut tx: Transaction,
-        finality_stage_sender: &mpsc::Sender<Transaction>,
-        state: &DispatcherState,
+    async fn replace_if_unchanged(
         pool: &InclusionStagePool,
-    ) -> Result<(), LanderError> {
-        info!(?tx, "Processing inclusion stage transaction");
-
-        // Update the last status check timestamp before querying
-        tx.last_status_check = Some(chrono::Utc::now());
-
-        let tx_status = call_until_success_or_nonretryable_error(
-            || state.adapter.tx_status(&tx),
-            "Querying transaction status",
-            state,
-        )
-        .await?;
-        info!(?tx, next_tx_status = ?tx_status, "Transaction status");
-
-        // Update the transaction in the pool with the new timestamp
-        {
-            let mut pool_lock = pool.lock().await;
-            pool_lock.insert(tx.uuid.clone(), tx.clone());
+        snapshot_tx: &Transaction,
+        checked_tx: Transaction,
+    ) -> bool {
+        let mut pool = pool.lock().await;
+        if pool.get(&snapshot_tx.uuid) != Some(snapshot_tx) {
+            return false;
         }
-
-        Self::try_process_tx_with_next_status(tx, tx_status, finality_stage_sender, state, pool)
-            .await
+        pool.insert(checked_tx.uuid.clone(), checked_tx);
+        true
     }
 
     #[instrument(
@@ -370,6 +445,7 @@ impl InclusionStage {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
                 info!(tx_uuid = ?tx.uuid, ?tx_status, "Transaction is pending inclusion");
                 update_tx_status(state, &mut tx, tx_status.clone()).await?;
+                pool.lock().await.insert(tx.uuid.clone(), tx.clone());
                 if !state.adapter.tx_ready_for_resubmission(&tx).await {
                     info!(?tx, "Transaction is not ready for resubmission");
                     return Ok(());
@@ -379,6 +455,7 @@ impl InclusionStage {
             TransactionStatus::Included | TransactionStatus::Finalized => {
                 update_tx_status(state, &mut tx, tx_status.clone()).await?;
                 let tx_uuid = tx.uuid.clone();
+                pool.lock().await.insert(tx_uuid.clone(), tx.clone());
                 finality_stage_sender.send(tx).await.map_err(|err| {
                     tracing::error!(?err, "Failed to send tx to finality stage");
                     LanderError::ChannelSendFailure(Box::new(err))

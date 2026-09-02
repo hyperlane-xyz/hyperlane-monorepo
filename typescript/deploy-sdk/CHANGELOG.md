@@ -1,5 +1,73 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 10.0.2
+
+### Patch Changes
+
+- 16df6ee: Bumped the @hyperlane-xyz/registry catalog pin to 26.1.0 and released the exact-pin cascade through tron-sdk, deploy-sdk, sdk, and widgets.
+- Updated dependencies [16df6ee]
+  - @hyperlane-xyz/tron-sdk@25.0.2
+  - @hyperlane-xyz/aleo-sdk@44.0.2
+  - @hyperlane-xyz/cosmos-sdk@44.0.2
+  - @hyperlane-xyz/radix-sdk@44.0.2
+  - @hyperlane-xyz/sealevel-sdk@44.0.2
+  - @hyperlane-xyz/utils@44.0.2
+  - @hyperlane-xyz/starknet-sdk@30.0.2
+  - @hyperlane-xyz/provider-sdk@10.0.2
+
+## 10.0.1
+
+### Patch Changes
+
+- f269e03: Zod was updated to 4.5.4 to prevent function-valued default factories from running during schema cycle detection and compilation.
+- Updated dependencies [f269e03]
+  - @hyperlane-xyz/provider-sdk@10.0.1
+  - @hyperlane-xyz/sealevel-sdk@44.0.1
+  - @hyperlane-xyz/aleo-sdk@44.0.1
+  - @hyperlane-xyz/cosmos-sdk@44.0.1
+  - @hyperlane-xyz/radix-sdk@44.0.1
+  - @hyperlane-xyz/starknet-sdk@30.0.1
+  - @hyperlane-xyz/tron-sdk@25.0.1
+  - @hyperlane-xyz/utils@44.0.1
+
+## 10.0.0
+
+### Major Changes
+
+- 6fbe5ad: The Starknet TypeScript stack was upgraded from starknet.js v7 to v8.9.2 to support the JSON-RPC v0.9 endpoints. Account and Contract call sites were migrated to the v8 options-object constructors, fee estimation was updated to the new resourceBounds shape, and dispatch-event parsing now passes the required ABI parser. Starknet wallet dependencies were upgraded for starknet.js v8 compatibility, and the minimum supported Node.js version is now 22 across published runtime dependents.
+
+### Patch Changes
+
+- Updated dependencies [6fbe5ad]
+  - @hyperlane-xyz/starknet-sdk@30.0.0
+  - @hyperlane-xyz/utils@44.0.0
+  - @hyperlane-xyz/provider-sdk@10.0.0
+  - @hyperlane-xyz/tron-sdk@25.0.0
+  - @hyperlane-xyz/aleo-sdk@44.0.0
+  - @hyperlane-xyz/cosmos-sdk@44.0.0
+  - @hyperlane-xyz/radix-sdk@44.0.0
+  - @hyperlane-xyz/sealevel-sdk@44.0.0
+
+## 9.0.0
+
+### Major Changes
+
+- 8bcc7ab: Zod was upgraded to 4.5.2 across the TypeScript workspace. Public schemas and validation types were migrated to Zod 4, recursive fee configuration types were made explicit, application entrypoints adopted compiled parsing, and validation errors were changed to use Zod 4's built-in formatting.
+
+### Patch Changes
+
+- Updated dependencies [60fc463]
+- Updated dependencies [8bcc7ab]
+- Updated dependencies [7cf9c01]
+  - @hyperlane-xyz/sealevel-sdk@43.0.0
+  - @hyperlane-xyz/provider-sdk@9.0.0
+  - @hyperlane-xyz/utils@43.0.0
+  - @hyperlane-xyz/aleo-sdk@43.0.0
+  - @hyperlane-xyz/cosmos-sdk@43.0.0
+  - @hyperlane-xyz/radix-sdk@43.0.0
+  - @hyperlane-xyz/starknet-sdk@29.1.8
+  - @hyperlane-xyz/tron-sdk@24.2.1
+
 ## 8.1.3
 
 ### Patch Changes

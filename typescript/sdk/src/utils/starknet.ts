@@ -53,11 +53,11 @@ export function getStarknetContract(
   providerOrAccount?: ProviderInterface | AccountInterface,
   contractType: ContractType = ContractType.CONTRACT,
 ): Contract {
-  return new Contract(
-    getContractAbi(contractName, contractType),
+  return new Contract({
+    abi: getContractAbi(contractName, contractType),
     address,
     providerOrAccount,
-  );
+  });
 }
 
 export function getStarknetMailboxContract(

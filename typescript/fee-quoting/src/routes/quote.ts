@@ -34,12 +34,18 @@ const IcaQuerySchema = z.object({
   salt: bytes32Schema,
 });
 
+const CompiledWarpQuerySchema = z.compile(WarpQuerySchema);
+const CompiledWarpQueryWithTargetRouterSchema = z.compile(
+  WarpQueryWithTargetRouterSchema,
+);
+const CompiledIcaQuerySchema = z.compile(IcaQuerySchema);
+
 export function createQuoteRouter(quoteService: QuoteService): Router {
   const router = Router();
 
   function warpHandler(command: FeeQuotingCommand) {
     return async (req: Request, res: Response) => {
-      const data = parseAndValidate(WarpQuerySchema, req.query);
+      const data = parseAndValidate(CompiledWarpQuerySchema, req.query);
       const response = await quoteService.getQuote(
         data.origin,
         command,
@@ -54,7 +60,7 @@ export function createQuoteRouter(quoteService: QuoteService): Router {
 
   function icaHandler(command: FeeQuotingCommand) {
     return async (req: Request, res: Response) => {
-      const data = parseAndValidate(IcaQuerySchema, req.query);
+      const data = parseAndValidate(CompiledIcaQuerySchema, req.query);
       const response = await quoteService.getQuote(
         data.origin,
         command,
@@ -73,7 +79,10 @@ export function createQuoteRouter(quoteService: QuoteService): Router {
   router.get(
     '/transferRemoteTo',
     asyncHandler(async (req: Request, res: Response) => {
-      const data = parseAndValidate(WarpQueryWithTargetRouterSchema, req.query);
+      const data = parseAndValidate(
+        CompiledWarpQueryWithTargetRouterSchema,
+        req.query,
+      );
       const response = await quoteService.getQuote(
         data.origin,
         FeeQuotingCommand.TransferRemoteTo,

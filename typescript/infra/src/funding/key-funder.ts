@@ -1,7 +1,7 @@
 import { BigNumber, ethers } from 'ethers';
 import { join } from 'path';
 import YAML from 'yaml';
-import { fromZodError } from 'zod-validation-error';
+import { z } from 'zod';
 
 import { KeyFunderConfigSchema } from '@hyperlane-xyz/keyfunder';
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
@@ -210,7 +210,7 @@ export class KeyFunderHelmManager extends HelmManager {
     const validationResult = KeyFunderConfigSchema.safeParse(config);
     if (!validationResult.success) {
       throw new Error(
-        `Invalid keyfunder config: ${fromZodError(validationResult.error).message}`,
+        `Invalid keyfunder config: ${z.prettifyError(validationResult.error)}`,
       );
     }
 

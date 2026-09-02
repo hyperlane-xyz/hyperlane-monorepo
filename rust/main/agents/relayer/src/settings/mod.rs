@@ -77,12 +77,10 @@ pub struct RelayerSettings {
     ///
     /// # Deployment requirement
     ///
-    /// The relay API feeds an `UnboundedSender` that is shared with the normal
-    /// message-processing path. There is no back-pressure at the channel level:
-    /// the rate limiter (`relay_api_rate_limit_*`) and `MAX_MESSAGES_PER_TX=10`
-    /// provide a soft cap (~17 ops/sec at default limits) but will not prevent
-    /// unbounded queue growth under sustained load if the endpoint is exposed
-    /// publicly without per-tenant limiting at the ingress layer.
+    /// The relay API shares the bounded, backpressured message-processing channel
+    /// with the normal loader. The rate limiter (`relay_api_rate_limit_*`) and
+    /// `MAX_MESSAGES_PER_TX=10` additionally limit admitted work, but do not
+    /// replace per-tenant limiting at the ingress layer.
     ///
     /// **The relay API must be deployed behind an ingress that enforces
     /// per-tenant rate limits.** Enabling it on a publicly reachable port

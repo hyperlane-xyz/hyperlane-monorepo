@@ -219,6 +219,17 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
+    /// Get signature statuses, including rooted transaction history.
+    pub async fn get_signature_statuses_with_history(
+        &self,
+        signatures: &[Signature],
+    ) -> ChainResult<Response<Vec<Option<TransactionStatus>>>> {
+        self.0
+            .get_signature_statuses_with_history(signatures)
+            .await
+            .map_err(ChainCommunicationError::from_other)
+    }
+
     /// get slot
     pub async fn get_slot(&self) -> ChainResult<u32> {
         let slot = self

@@ -71,20 +71,20 @@ export class StarknetTokenAdapter
   private async createContractInstance(): Promise<Contract> {
     const provider = this.getProvider();
     const { abi } = await provider.getClassAt(this.addresses.tokenAddress);
-    const contractInstance = new Contract(
+    const contractInstance = new Contract({
       abi,
-      this.addresses.tokenAddress,
-      provider,
-    );
+      address: this.addresses.tokenAddress,
+      providerOrAccount: provider,
+    });
 
     if (contractInstance.get_implementation) {
       const { implementation } = await contractInstance.get_implementation();
       const contractClass = await provider.getClassByHash(implementation);
-      const implementationContract = new Contract(
-        contractClass.abi,
-        this.addresses.tokenAddress,
-        provider,
-      );
+      const implementationContract = new Contract({
+        abi: contractClass.abi,
+        address: this.addresses.tokenAddress,
+        providerOrAccount: provider,
+      });
       return implementationContract;
     }
 

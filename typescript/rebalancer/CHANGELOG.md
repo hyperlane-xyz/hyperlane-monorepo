@@ -1,5 +1,68 @@
 # @hyperlane-xyz/rebalancer
 
+## 29.0.2
+
+### Patch Changes
+
+- Updated dependencies [16df6ee]
+  - @hyperlane-xyz/sdk@44.0.2
+  - @hyperlane-xyz/metrics@1.0.2
+  - @hyperlane-xyz/utils@44.0.2
+  - @hyperlane-xyz/core@12.1.0
+  - @hyperlane-xyz/provider-sdk@10.0.2
+
+## 29.0.1
+
+### Patch Changes
+
+- f269e03: Zod was updated to 4.5.4 to prevent function-valued default factories from running during schema cycle detection and compilation.
+- Updated dependencies [f269e03]
+  - @hyperlane-xyz/provider-sdk@10.0.1
+  - @hyperlane-xyz/sdk@44.0.1
+  - @hyperlane-xyz/metrics@1.0.1
+  - @hyperlane-xyz/utils@44.0.1
+  - @hyperlane-xyz/core@12.1.0
+
+## 29.0.0
+
+### Major Changes
+
+- 6fbe5ad: The Starknet TypeScript stack was upgraded from starknet.js v7 to v8.9.2 to support the JSON-RPC v0.9 endpoints. Account and Contract call sites were migrated to the v8 options-object constructors, fee estimation was updated to the new resourceBounds shape, and dispatch-event parsing now passes the required ABI parser. Starknet wallet dependencies were upgraded for starknet.js v8 compatibility, and the minimum supported Node.js version is now 22 across published runtime dependents.
+
+### Patch Changes
+
+- Updated dependencies [85c44af]
+- Updated dependencies [6fbe5ad]
+  - @hyperlane-xyz/sdk@44.0.0
+  - @hyperlane-xyz/utils@44.0.0
+  - @hyperlane-xyz/metrics@1.0.0
+  - @hyperlane-xyz/provider-sdk@10.0.0
+  - @hyperlane-xyz/core@12.1.0
+
+## 28.0.0
+
+### Major Changes
+
+- 8bcc7ab: Zod was upgraded to 4.5.2 across the TypeScript workspace. Public schemas and validation types were migrated to Zod 4, recursive fee configuration types were made explicit, application entrypoints adopted compiled parsing, and validation errors were changed to use Zod 4's built-in formatting.
+
+### Patch Changes
+
+- Updated dependencies [0848474]
+- Updated dependencies [e76189e]
+- Updated dependencies [3ced099]
+- Updated dependencies [a00b342]
+- Updated dependencies [b58c7eb]
+- Updated dependencies [60fc463]
+- Updated dependencies [8bcc7ab]
+- Updated dependencies [7cf9c01]
+- Updated dependencies [8d91ef8]
+- Updated dependencies [11f2dee]
+  - @hyperlane-xyz/sdk@43.0.0
+  - @hyperlane-xyz/provider-sdk@9.0.0
+  - @hyperlane-xyz/utils@43.0.0
+  - @hyperlane-xyz/metrics@0.2.40
+  - @hyperlane-xyz/core@12.1.0
+
 ## 27.3.18
 
 ### Patch Changes

@@ -20,7 +20,11 @@ pub async fn get_tx_hash_status<P: AleoProviderForLander>(
     debug!("Checking status of tx, hash: {:?}", hash);
 
     // First, check if the transaction is confirmed on-chain
-    if let Ok(_confirmed_tx) = provider.request_confirmed_transaction(hash).await {
+    if provider
+        .request_confirmed_transaction(hash)
+        .await?
+        .is_some()
+    {
         // Transaction is confirmed - report as finalized
         // Once we introduce transaction drop reasons Rejected and Reverted,
         // we shall check if a confirmed Aleo transaction was rejected.
@@ -33,7 +37,11 @@ pub async fn get_tx_hash_status<P: AleoProviderForLander>(
     debug!("Transaction is not finalized, hash: {}", hash);
 
     // Not confirmed yet, check if it's in the mempool (unconfirmed)
-    if let Ok(_unconfirmed_tx) = provider.request_unconfirmed_transaction(hash).await {
+    if provider
+        .request_unconfirmed_transaction(hash)
+        .await?
+        .is_some()
+    {
         // Transaction is in the mempool, waiting to be included in a block
         debug!("Transaction found in mempool, hash: {:?}", hash);
         return Ok(TransactionStatus::Mempool);
@@ -43,7 +51,7 @@ pub async fn get_tx_hash_status<P: AleoProviderForLander>(
     // This could mean:
     // 1. Transaction was just submitted and not yet propagated
     // 2. Transaction was dropped from the mempool
-    // 3. Network error
+    // Provider errors are propagated instead of being mistaken for absence.
     debug!(
         "Transaction not found in confirmed or unconfirmed, hash: {:?}",
         hash

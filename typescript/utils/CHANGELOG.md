@@ -1,5 +1,23 @@
 # @hyperlane-xyz/utils
 
+## 44.0.2
+
+## 44.0.1
+
+## 44.0.0
+
+### Major Changes
+
+- 6fbe5ad: The Starknet TypeScript stack was upgraded from starknet.js v7 to v8.9.2 to support the JSON-RPC v0.9 endpoints. Account and Contract call sites were migrated to the v8 options-object constructors, fee estimation was updated to the new resourceBounds shape, and dispatch-event parsing now passes the required ABI parser. Starknet wallet dependencies were upgraded for starknet.js v8 compatibility, and the minimum supported Node.js version is now 22 across published runtime dependents.
+
+## 43.0.0
+
+### Patch Changes
+
+- 7cf9c01: Added cursor pagination to scraper message queries. Message cursors must contain exactly one non-null `id`; `order_by` may be omitted, in which case the cursor direction determines the ordering.
+
+  Added lightweight error, set, and validation utility subpath exports.
+
 ## 42.0.0
 
 ## 41.3.1

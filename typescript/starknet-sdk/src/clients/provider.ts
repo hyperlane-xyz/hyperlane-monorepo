@@ -44,6 +44,12 @@ import { StarknetAnnotatedTx } from '../types.js';
 
 let tokenTypeByClassHash: Map<string, AltVM.TokenType> | undefined;
 
+function getRpcSpecVersion(rpcUrl: string): '0.8.1' | '0.9.0' {
+  return /\/rpc\/v0_8(?:\/|$)/i.test(new URL(rpcUrl).pathname)
+    ? '0.8.1'
+    : '0.9.0';
+}
+
 function getTokenTypeByClassHash(): Map<string, AltVM.TokenType> {
   if (tokenTypeByClassHash) {
     return tokenTypeByClassHash;
@@ -93,14 +99,18 @@ const WARP_DEPLOY_CUSTOM_HOOK_FRI = 0n; // + custom hook / IGP (config.hook obje
 export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
   static connect(metadata: ChainMetadataForAltVM): StarknetProvider {
     const rpcUrls = (metadata.rpcUrls ?? []).map(({ http }) => http);
-    assert(rpcUrls.length > 0, 'at least one rpc url is required');
+    const rpcUrl = rpcUrls[0];
+    assert(rpcUrl, 'at least one rpc url is required');
 
     const blockTime = metadata.blocks?.estimateBlockTime;
     const transactionRetryIntervalFallback =
       !isNullish(blockTime) && blockTime <= 1 ? 1000 : undefined;
 
     const provider = new RpcProvider({
-      nodeUrl: rpcUrls[0],
+      nodeUrl: rpcUrl,
+      // starknet.js v8 defaults to RPC 0.9, whose receipt parser does not
+      // recognize the REJECTED finality status returned by RPC 0.8 endpoints.
+      specVersion: getRpcSpecVersion(rpcUrl),
       transactionRetryIntervalFallback,
       // Default reads to the latest accepted block instead of starknet.js's
       // `pending` default. Some RPC providers reject `block_id: "pending"`
@@ -167,6 +177,7 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
 
     if (typeof value === 'number' || typeof value === 'bigint') {
       try {
+        // oxlint-disable-next-line typescript/no-deprecated -- starknet.js v8 deprecates this but ships no public utility replacement.
         return shortString.decodeShortString(
           ensure0x(BigInt(value).toString(16)),
         );

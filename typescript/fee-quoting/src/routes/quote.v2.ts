@@ -36,6 +36,9 @@ const IgpQuerySchema = z.object({
   txSubmitter: protocolAddressSchema,
 });
 
+const CompiledWarpQuerySchema = z.compile(WarpQuerySchema);
+const CompiledIgpQuerySchema = z.compile(IgpQuerySchema);
+
 /**
  * v2 quote routes — split by quoter type rather than by command. Each route
  * returns at most one signed quote (`QuoteV2Response`) or a 404
@@ -54,7 +57,7 @@ export function createQuoteV2Router(quoteService: QuoteService): Router {
   router.get(
     '/warp',
     asyncHandler(async (req: Request, res: Response) => {
-      const data = parseAndValidate(WarpQuerySchema, req.query);
+      const data = parseAndValidate(CompiledWarpQuerySchema, req.query);
       const quote = await quoteService.getWarpQuoteV2(data);
       const response: QuoteV2Response = { quote };
       res.json(response);
@@ -64,7 +67,7 @@ export function createQuoteV2Router(quoteService: QuoteService): Router {
   router.get(
     '/igp',
     asyncHandler(async (req: Request, res: Response) => {
-      const data = parseAndValidate(IgpQuerySchema, req.query);
+      const data = parseAndValidate(CompiledIgpQuerySchema, req.query);
       const quote = await quoteService.getIgpQuoteV2(data);
       const response: QuoteV2Response = { quote };
       res.json(response);

@@ -14,6 +14,10 @@ const PREFIX = 'hyperlane_scraper_proxy_';
 export type WebSocketMetricsSnapshot = {
   catchUps: number;
   connections: Record<'agent' | 'messages', number>;
+  explorerPendingBytes: number;
+  explorerPendingMessages: number;
+  maxExplorerPendingBytes: number;
+  maxExplorerPendingMessages: number;
   messageClientIps: number;
   messageMaxConnectionsPerIp: number;
   limits: {
@@ -22,8 +26,11 @@ export type WebSocketMetricsSnapshot = {
     catchUpRows: number;
     clientMessagesPerMinute: number;
     concurrentCatchUps: number;
+    explorerPendingBytes: number;
+    explorerPendingMessages: number;
     messageConnections: number;
     messageConnectionsPerIp: number;
+    notificationEvents: number;
     pendingEvents: number;
     socketBufferedBytes: number;
     totalPendingBytes: number;
@@ -50,6 +57,15 @@ export type DatabaseMetricsSnapshot = {
   listeners: number;
   pools: Record<'live' | 'main', DatabasePoolMetrics>;
 };
+
+export const DatabaseQueryRole = {
+  GraphqlPrimary: 'graphql_primary',
+  GraphqlReplica: 'graphql_replica',
+  LivePrimary: 'live_primary',
+} as const;
+
+export type DatabaseQueryRole =
+  (typeof DatabaseQueryRole)[keyof typeof DatabaseQueryRole];
 
 export const metricsRegistry = new Registry();
 
@@ -87,6 +103,34 @@ export const graphqlRequestDuration = new Histogram({
   registers: [metricsRegistry],
 });
 
+export const databaseQueries = new Counter({
+  help: 'Database queries by fixed workload role and outcome.',
+  labelNames: ['role', 'outcome'] as const,
+  name: `${PREFIX}database_queries_total`,
+  registers: [metricsRegistry],
+});
+
+export const databaseQueryDuration = new Histogram({
+  buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20],
+  help: 'Database query duration in seconds by fixed workload role and outcome.',
+  labelNames: ['role', 'outcome'] as const,
+  name: `${PREFIX}database_query_duration_seconds`,
+  registers: [metricsRegistry],
+});
+
+export const databaseRows = new Counter({
+  help: 'Database rows returned by fixed workload role.',
+  labelNames: ['role'] as const,
+  name: `${PREFIX}database_rows_total`,
+  registers: [metricsRegistry],
+});
+
+for (const role of Object.values(DatabaseQueryRole)) {
+  for (const outcome of ['error', 'success'])
+    databaseQueries.inc({ outcome, role }, 0);
+  databaseRows.inc({ role }, 0);
+}
+
 export const websocketConnections = new Counter({
   help: 'Accepted WebSocket connections by route.',
   labelNames: ['route'] as const,
@@ -120,6 +164,31 @@ export const websocketSendFailures = new Counter({
   name: `${PREFIX}websocket_send_failures_total`,
   registers: [metricsRegistry],
 });
+
+export const websocketNotificationQueueOverflows = new Counter({
+  help: 'PostgreSQL notification queue overflows by isolated route.',
+  labelNames: ['route'] as const,
+  name: `${PREFIX}websocket_notification_queue_overflows_total`,
+  registers: [metricsRegistry],
+});
+
+for (const outcome of ['aborted', 'capacity_rejected', 'failure', 'success'])
+  websocketCatchUps.inc({ outcome }, 0);
+for (const reason of [
+  'buffer_limit',
+  'notification_queue_limit',
+  'queue_limit',
+  'send_error',
+])
+  websocketSendFailures.inc({ reason }, 0);
+for (const route of ['agent', 'messages']) {
+  for (const reason of ['connection_limit', 'listener_unavailable'])
+    websocketConnectionRejections.inc({ reason, route }, 0);
+}
+for (const reason of ['invalid_client_ip', 'per_ip_limit'])
+  websocketConnectionRejections.inc({ reason, route: 'messages' }, 0);
+for (const route of ['agent', 'messages'])
+  websocketNotificationQueueOverflows.inc({ route }, 0);
 
 let websocketMetricsProvider: (() => WebSocketMetricsSnapshot) | undefined;
 let databaseMetricsProvider: (() => DatabaseMetricsSnapshot) | undefined;
@@ -321,6 +390,45 @@ snapshotGauge(
     gauge.set({ route: 'messages' }, snapshot.notificationQueue.messages);
   },
   ['route'],
+);
+snapshotGauge(
+  'websocket_notification_queue_limit',
+  'Maximum queued PostgreSQL notifications before route clients are closed.',
+  (gauge, snapshot) => {
+    gauge.set({ route: 'agent' }, snapshot.limits.notificationEvents);
+    gauge.set({ route: 'messages' }, snapshot.limits.notificationEvents);
+  },
+  ['route'],
+);
+snapshotGauge(
+  'websocket_explorer_pending_bytes',
+  'Current serialized Explorer bytes queued behind send callbacks.',
+  (gauge, snapshot) => gauge.set(snapshot.explorerPendingBytes),
+);
+snapshotGauge(
+  'websocket_explorer_max_pending_bytes',
+  'Largest current serialized Explorer byte queue for one client.',
+  (gauge, snapshot) => gauge.set(snapshot.maxExplorerPendingBytes),
+);
+snapshotGauge(
+  'websocket_explorer_pending_byte_limit',
+  'Maximum serialized Explorer bytes queued behind one client callback.',
+  (gauge, snapshot) => gauge.set(snapshot.limits.explorerPendingBytes),
+);
+snapshotGauge(
+  'websocket_explorer_pending_messages',
+  'Current Explorer messages queued behind per-client send callbacks.',
+  (gauge, snapshot) => gauge.set(snapshot.explorerPendingMessages),
+);
+snapshotGauge(
+  'websocket_explorer_max_pending_messages',
+  'Largest current per-client Explorer message queue.',
+  (gauge, snapshot) => gauge.set(snapshot.maxExplorerPendingMessages),
+);
+snapshotGauge(
+  'websocket_explorer_pending_message_limit',
+  'Maximum Explorer messages queued behind one client send callback.',
+  (gauge, snapshot) => gauge.set(snapshot.limits.explorerPendingMessages),
 );
 snapshotGauge(
   'websocket_outbound_pending_bytes',

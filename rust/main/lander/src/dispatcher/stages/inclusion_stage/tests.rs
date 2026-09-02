@@ -14,10 +14,11 @@ use crate::dispatcher::{
 use crate::error::LanderError;
 use crate::payload::{DropReason as PayloadDropReason, PayloadStatus};
 use crate::tests::test_utils::{
-    are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them, dummy_tx, tmp_dbs,
-    MockAdapter,
+    are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them, dummy_tx,
+    initialize_payload_db, tmp_dbs, MockAdapter,
 };
 use crate::transaction::{DropReason as TxDropReason, Transaction, TransactionStatus};
+use crate::FullPayload;
 
 use super::{
     MAX_REPROCESS_TXS_POLL_RATE, MAX_TX_STATUS_CHECK_DELAY, REPROCESS_TXS_LIVENESS_RATE, STAGE_NAME,
@@ -262,6 +263,59 @@ async fn test_processing_included_txs() {
     .await;
 }
 
+#[tokio::test(start_paused = true)]
+async fn completed_prefix_is_applied_before_later_status_error() {
+    let mut earlier_tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+    let mut later_tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+    let now = chrono::Utc::now();
+    earlier_tx.creation_timestamp = now - chrono::Duration::seconds(2);
+    later_tx.creation_timestamp = now - chrono::Duration::seconds(1);
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_secs(1));
+    let later_uuid = later_tx.uuid.clone();
+    mock_adapter.expect_tx_status().returning(move |tx| {
+        (tx.uuid != later_uuid)
+            .then_some(TransactionStatus::Included)
+            .ok_or_else(|| LanderError::TxSubmissionError("status read failed".to_string()))
+    });
+
+    let (payload_db, tx_db, _) = tmp_dbs();
+    let state = DispatcherState::new(
+        payload_db,
+        tx_db,
+        Arc::new(mock_adapter),
+        DispatcherMetrics::dummy_instance(),
+        "test".to_string(),
+    );
+    let pool = InclusionStagePool::default();
+    pool.lock()
+        .await
+        .insert(earlier_tx.uuid.clone(), earlier_tx.clone());
+    pool.lock()
+        .await
+        .insert(later_tx.uuid.clone(), later_tx.clone());
+    let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(2);
+
+    let scan_pool = pool.clone();
+    let scan_state = state.clone();
+    let scan = tokio::spawn(async move {
+        InclusionStage::process_txs_step(&scan_pool, &finality_stage_sender, &scan_state, "test")
+            .await
+    });
+
+    let forwarded = tokio::time::timeout(Duration::from_millis(1), finality_stage_receiver.recv())
+        .await
+        .expect("the completed prefix should be applied before the later error")
+        .expect("the finality stage receiver should remain open");
+    assert_eq!(forwarded.uuid, earlier_tx.uuid);
+    assert!(!pool.lock().await.contains_key(&earlier_tx.uuid));
+    assert!(pool.lock().await.contains_key(&later_tx.uuid));
+
+    scan.await.unwrap().unwrap();
+}
+
 #[tokio::test]
 async fn test_unincluded_txs_reach_mempool() {
     const TXS_TO_PROCESS: usize = 3;
@@ -302,6 +356,172 @@ async fn test_unincluded_txs_reach_mempool() {
         &tx_db,
         &payload_db,
         TransactionStatus::Mempool,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_status_provider_error_keeps_tx_for_later_retry() {
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_secs(1));
+    mock_adapter.expect_tx_status().once().returning(|_| {
+        Err(LanderError::ChainCommunicationError(
+            hyperlane_core::ChainCommunicationError::from_other_str("temporary RPC failure"),
+        ))
+    });
+
+    let (state, pool) = reprocess_test_state(mock_adapter);
+    let tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+    state.store_tx(&tx).await;
+    pool.lock().await.insert(tx.uuid.clone(), tx.clone());
+    let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(1);
+
+    InclusionStage::process_txs_step(&pool, &finality_stage_sender, &state, "test")
+        .await
+        .unwrap();
+
+    let retained_tx = pool.lock().await.get(&tx.uuid).cloned().unwrap();
+    assert!(retained_tx.last_status_check.is_some());
+    let persisted_tx = state
+        .tx_db
+        .retrieve_transaction_by_uuid(&tx.uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(persisted_tx.last_status_check.is_some());
+    assert!(finality_stage_receiver.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn finalized_reprocessed_tx_is_rechecked_and_resubmitted() {
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_secs(1));
+    mock_adapter
+        .expect_tx_status()
+        .withf(|tx| tx.status == TransactionStatus::Finalized)
+        .once()
+        .returning(|_| Ok(TransactionStatus::PendingInclusion));
+    mock_adapter
+        .expect_tx_ready_for_resubmission()
+        .once()
+        .return_const(true);
+    mock_adapter.expect_simulate_tx().returning(|_| Ok(vec![]));
+    mock_adapter
+        .expect_estimate_tx()
+        .once()
+        .returning(|_| Ok(()));
+    mock_adapter.expect_submit().once().returning(|_| Ok(()));
+    mock_adapter
+        .expect_update_vm_specific_metrics()
+        .once()
+        .returning(|_, _| ());
+
+    let (state, pool) = reprocess_test_state(mock_adapter);
+    let tx = dummy_tx(Vec::new(), TransactionStatus::Finalized);
+    state.store_tx(&tx).await;
+    pool.lock().await.insert(tx.uuid.clone(), tx.clone());
+    let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(1);
+
+    InclusionStage::process_txs_step(&pool, &finality_stage_sender, &state, "test")
+        .await
+        .unwrap();
+
+    let reprocessed_tx = pool.lock().await.get(&tx.uuid).cloned().unwrap();
+    assert_eq!(reprocessed_tx.status, TransactionStatus::Mempool);
+    assert_eq!(
+        reprocessed_tx.submission_attempts,
+        tx.submission_attempts + 1
+    );
+    assert!(finality_stage_receiver.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn test_status_provider_error_preserves_latest_persisted_status() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calls_for_mock = calls.clone();
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_secs(1));
+    mock_adapter
+        .expect_tx_status()
+        .times(2)
+        .returning(
+            move |_| match calls_for_mock.fetch_add(1, Ordering::SeqCst) {
+                0 => Ok(TransactionStatus::Mempool),
+                _ => Err(LanderError::ChainCommunicationError(
+                    hyperlane_core::ChainCommunicationError::from_other_str(
+                        "temporary RPC failure",
+                    ),
+                )),
+            },
+        );
+    mock_adapter
+        .expect_tx_ready_for_resubmission()
+        .once()
+        .return_const(false);
+
+    let (state, pool) = reprocess_test_state(mock_adapter);
+    let tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+    state.store_tx(&tx).await;
+    pool.lock().await.insert(tx.uuid.clone(), tx.clone());
+    let (finality_stage_sender, _finality_stage_receiver) = mpsc::channel(1);
+
+    InclusionStage::process_txs_step(&pool, &finality_stage_sender, &state, "test")
+        .await
+        .unwrap();
+    InclusionStage::process_txs_step(&pool, &finality_stage_sender, &state, "test")
+        .await
+        .unwrap();
+
+    let retained_tx = pool.lock().await.get(&tx.uuid).cloned().unwrap();
+    assert_eq!(retained_tx.status, TransactionStatus::Mempool);
+    assert!(retained_tx.last_status_check.is_some());
+    let persisted_tx = state
+        .tx_db
+        .retrieve_transaction_by_uuid(&tx.uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(persisted_tx.status, TransactionStatus::Mempool);
+    assert!(persisted_tx.last_status_check.is_some());
+}
+
+#[tokio::test]
+async fn test_finality_channel_error_preserves_latest_persisted_status() {
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_secs(1));
+    mock_adapter
+        .expect_tx_status()
+        .once()
+        .returning(|_| Ok(TransactionStatus::Included));
+
+    let (state, pool) = reprocess_test_state(mock_adapter);
+    let payload = FullPayload::random();
+    initialize_payload_db(&state.payload_db, &payload).await;
+    let tx = dummy_tx(vec![payload], TransactionStatus::PendingInclusion);
+    state.store_tx(&tx).await;
+    pool.lock().await.insert(tx.uuid.clone(), tx.clone());
+    let (finality_stage_sender, finality_stage_receiver) = mpsc::channel(1);
+    drop(finality_stage_receiver);
+
+    InclusionStage::process_txs_step(&pool, &finality_stage_sender, &state, "test")
+        .await
+        .unwrap();
+
+    let retained_tx = pool.lock().await.get(&tx.uuid).cloned().unwrap();
+    assert_eq!(retained_tx.status, TransactionStatus::Included);
+    assert_tx_status(
+        vec![tx],
+        &state.tx_db,
+        &state.payload_db,
+        TransactionStatus::Included,
     )
     .await;
 }

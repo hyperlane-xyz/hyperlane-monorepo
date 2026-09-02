@@ -1,5 +1,92 @@
 # @hyperlane-xyz/sdk
 
+## 44.0.2
+
+### Patch Changes
+
+- 16df6ee: Bumped the @hyperlane-xyz/registry catalog pin to 26.1.0 and released the exact-pin cascade through tron-sdk, deploy-sdk, sdk, and widgets.
+- Updated dependencies [16df6ee]
+  - @hyperlane-xyz/tron-sdk@25.0.2
+  - @hyperlane-xyz/deploy-sdk@10.0.2
+  - @hyperlane-xyz/aleo-sdk@44.0.2
+  - @hyperlane-xyz/starknet-core@44.0.2
+  - @hyperlane-xyz/cosmos-sdk@44.0.2
+  - @hyperlane-xyz/radix-sdk@44.0.2
+  - @hyperlane-xyz/utils@44.0.2
+  - @hyperlane-xyz/core@12.1.0
+  - @hyperlane-xyz/provider-sdk@10.0.2
+
+## 44.0.1
+
+### Patch Changes
+
+- f269e03: Zod was updated to 4.5.4 to prevent function-valued default factories from running during schema cycle detection and compilation.
+- Updated dependencies [f269e03]
+  - @hyperlane-xyz/deploy-sdk@10.0.1
+  - @hyperlane-xyz/provider-sdk@10.0.1
+  - @hyperlane-xyz/aleo-sdk@44.0.1
+  - @hyperlane-xyz/cosmos-sdk@44.0.1
+  - @hyperlane-xyz/radix-sdk@44.0.1
+  - @hyperlane-xyz/tron-sdk@25.0.1
+  - @hyperlane-xyz/starknet-core@44.0.1
+  - @hyperlane-xyz/utils@44.0.1
+  - @hyperlane-xyz/core@12.1.0
+
+## 44.0.0
+
+### Major Changes
+
+- 6fbe5ad: The Starknet TypeScript stack was upgraded from starknet.js v7 to v8.9.2 to support the JSON-RPC v0.9 endpoints. Account and Contract call sites were migrated to the v8 options-object constructors, fee estimation was updated to the new resourceBounds shape, and dispatch-event parsing now passes the required ABI parser. Starknet wallet dependencies were upgraded for starknet.js v8 compatibility, and the minimum supported Node.js version is now 22 across published runtime dependents.
+
+### Patch Changes
+
+- 85c44af: The temporary Zod 3 registry compatibility layer was removed after adopting the registry's Zod 4 schemas. Repeated server and config validators are now compiled once, and boolean-only checks use Zod's allocation-free validation path.
+- Updated dependencies [6fbe5ad]
+  - @hyperlane-xyz/starknet-core@44.0.0
+  - @hyperlane-xyz/utils@44.0.0
+  - @hyperlane-xyz/deploy-sdk@10.0.0
+  - @hyperlane-xyz/provider-sdk@10.0.0
+  - @hyperlane-xyz/tron-sdk@25.0.0
+  - @hyperlane-xyz/core@12.1.0
+  - @hyperlane-xyz/aleo-sdk@44.0.0
+  - @hyperlane-xyz/cosmos-sdk@44.0.0
+  - @hyperlane-xyz/radix-sdk@44.0.0
+
+## 43.0.0
+
+### Major Changes
+
+- 8bcc7ab: Zod was upgraded to 4.5.2 across the TypeScript workspace. Public schemas and validation types were migrated to Zod 4, recursive fee configuration types were made explicit, application entrypoints adopted compiled parsing, and validation errors were changed to use Zod 4's built-in formatting.
+
+### Minor Changes
+
+- 0848474: Added safe recovery for address-bearing hook trees. Recovered pausable hooks and ISMs can transfer ownership without redeployment, while recovery validates the complete tree before mutation, preserves live pause state, and rejects incorrect contract types or conflicting aliases.
+- 60fc463: Added authenticated HTTP registry signers for standard EVM, Safe EIP-712, and Sealevel transactions.
+- 11f2dee: xERC20 bridge discovery reports the bridges a token actually holds limits for. Addresses are still collected from the token's events, but the limits are read from the token, and a bridge is no longer required to answer the lockbox `XERC20()` getter, which had dropped every configured bridge that is not a lockbox. Standard xERC20 tokens are discovered through `BridgeLimitsSet` and read through `mintingMaxLimitOf`/`burningMaxLimitOf`, where before only the Velodrome event and getters were consulted. A failed read is no longer classified as a missing selector, so a transient RPC failure surfaces instead of reporting a token with bridges as having none.
+
+  `GetExtraLockboxesOptions` gained the optional `warpRouteAddress` and `type`, `EvmEventLogsReader` gained the read-only `getContractDeploymentBlock`, and `deriveXERC20TokenType` throws the new exported `UnknownXERC20TypeError`.
+
+  Operators of Standard (non-Velodrome) xERC20 routes must add the token's current `mint` and `burn` to any deploy config that omits `xERC20.warpRouteLimits`, which are now derived and otherwise report a `warp check` violation. Extra bridges are compared as a set, so listing them in a different order to the token's no longer reports a violation.
+
+### Patch Changes
+
+- e76189e: The default per-chain deploy timeout in `HyperlaneDeployer` was raised from 15 to 45 minutes. `HyperlaneDeployer.deploy` wraps each chain's deployment in a single `runWithTimeout`, so deployments that fan out into many sequential transactions could exceed the old ceiling and abort partway through. `EvmTokenFeeDeployer.deployRoutingFee` is one such case: it deploys one sub-fee contract per destination and sends a `setFeeContract` transaction for each, so a route with many destinations on a chain with multi-block confirmations (oUSDT on ethereum, 16 destinations at 2-block confirmations) took roughly 30 minutes and timed out on every attempt. Because `runWithTimeout` rejects without aborting the underlying callback, the abandoned deploy kept submitting transactions, leaving already-deployed sub-fee contracts stranded on chain and unreferenced. Deployers that pass an explicit `chainTimeoutMs` are unaffected, including `HyperlaneCoreDeployer`, which keeps its own 10 minute default.
+- 3ced099: Pausable hooks were deployed in their configured paused state before ownership was transferred.
+- a00b342: Pausable ISMs now respect the configured `paused` state. Signer-owned changes are applied directly; all others are returned as transactions.
+- b58c7eb: Tron ICA address derivation was moved back to the destination router so its `0x41` CREATE2 prefix is handled correctly, while Ethereum destinations continue to use local derivation.
+- 8d91ef8: Increased multi provider timeout to 5min
+- Updated dependencies [8bcc7ab]
+- Updated dependencies [7cf9c01]
+  - @hyperlane-xyz/deploy-sdk@9.0.0
+  - @hyperlane-xyz/provider-sdk@9.0.0
+  - @hyperlane-xyz/utils@43.0.0
+  - @hyperlane-xyz/aleo-sdk@43.0.0
+  - @hyperlane-xyz/cosmos-sdk@43.0.0
+  - @hyperlane-xyz/radix-sdk@43.0.0
+  - @hyperlane-xyz/tron-sdk@24.2.1
+  - @hyperlane-xyz/core@12.1.0
+  - @hyperlane-xyz/starknet-core@43.0.0
+
 ## 42.0.0
 
 ### Major Changes

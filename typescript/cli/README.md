@@ -12,7 +12,7 @@ To read more about interchain applications, how the protocol works, and how to i
 
 ## Setup
 
-Node 18 or newer is required.
+Node 22 or newer is required.
 
 **Option 1: Global install:**
 

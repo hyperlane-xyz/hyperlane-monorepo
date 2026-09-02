@@ -34,13 +34,8 @@ impl BuildingStage {
             // event-driven by the Building queue
             let payloads = self
                 .queue
-                .pop_n(self.state.adapter.max_batch_size() as usize)
+                .pop_n_or_wait(self.state.adapter.max_batch_size() as usize)
                 .await;
-            if payloads.is_empty() {
-                // wait for more payloads to arrive
-                tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
-                continue;
-            }
             // note: this will set the queue length metric to `length - payloads.len()`,
             // so worst case this will be lower by `max_batch_size`
             self.update_metrics().await;

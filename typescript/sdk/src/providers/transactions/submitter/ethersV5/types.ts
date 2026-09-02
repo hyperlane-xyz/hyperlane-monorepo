@@ -72,27 +72,10 @@ export type EvmIcaTxSubmitterProps = {
 // only need to widen the nested submitter (e.g. the CLI allowing its `file`
 // submitter as `internalSubmitter`; see cli/src/submitters/types.ts). The nested
 // schema is read through a thunk so a union declared later in module load order
-// (e.g. EvmSubmitterMetadataSchema) can be referenced without a TDZ error. TOut is
-// the resulting parsed type, supplied explicitly by the caller; the thunk is
-// constrained to a schema parsing exactly TOut's `internalSubmitter`, so the
-// type<->schema linkage can't be broken by passing an unrelated schema.
-export const buildEvmIcaTxSubmitterPropsSchema = <
-  TOut extends { internalSubmitter: unknown },
->(
-  // Output type is pinned to TOut's nested submitter so a mismatched schema (e.g.
-  // `() => z.string()`) is rejected; the input type stays open because zod infers
-  // a different input than output for fields with defaults (e.g. GnosisTxBuilder
-  // `version`), and the union's input would otherwise not satisfy ZodSchema<T>.
-  getInternalSubmitterSchema: () => z.ZodType<
-    TOut['internalSubmitter'],
-    z.ZodTypeDef,
-    any
-  >,
-): z.ZodSchema<TOut> =>
-  // @ts-expect-error due to zod3 type inference logic even if the
-  // EV5GnosisSafeTxBuilderPropsSchema defines the version field with a default value
-  // it is inferred recursively as an optional field making typescript complain that
-  // the nested submitter schema can't be used here.
+// (e.g. EvmSubmitterMetadataSchema) can be referenced without a TDZ error.
+export const buildEvmIcaTxSubmitterPropsSchema = <TInternalSubmitter>(
+  getInternalSubmitterSchema: () => z.ZodType<TInternalSubmitter, unknown>,
+) =>
   z.lazy(() =>
     z.object({
       type: z.literal(TxSubmitterType.INTERCHAIN_ACCOUNT),
@@ -106,10 +89,10 @@ export const buildEvmIcaTxSubmitterPropsSchema = <
     }),
   );
 
-export const EvmIcaTxSubmitterPropsSchema: z.ZodSchema<EvmIcaTxSubmitterProps> =
-  buildEvmIcaTxSubmitterPropsSchema<EvmIcaTxSubmitterProps>(
-    () => EvmSubmitterMetadataSchema,
-  );
+export const EvmIcaTxSubmitterPropsSchema: z.ZodType<EvmIcaTxSubmitterProps> =
+  buildEvmIcaTxSubmitterPropsSchema<
+    EvmIcaTxSubmitterProps['internalSubmitter']
+  >(() => EvmSubmitterMetadataSchema);
 
 export type EvmTimelockControllerSubmitterProps = {
   type: TxSubmitterType.TIMELOCK_CONTROLLER;
@@ -122,17 +105,10 @@ export type EvmTimelockControllerSubmitterProps = {
 };
 
 export const buildEvmTimelockControllerSubmitterPropsSchema = <
-  TOut extends { proposerSubmitter: unknown },
+  TProposerSubmitter,
 >(
-  // See buildEvmIcaTxSubmitterPropsSchema: output pinned to the nested submitter,
-  // input left open due to zod default-field input/output divergence.
-  getProposerSubmitterSchema: () => z.ZodType<
-    TOut['proposerSubmitter'],
-    z.ZodTypeDef,
-    any
-  >,
-): z.ZodSchema<TOut> =>
-  // @ts-expect-error same as the ICA
+  getProposerSubmitterSchema: () => z.ZodType<TProposerSubmitter, unknown>,
+) =>
   z.lazy(() =>
     z.object({
       type: z.literal(TxSubmitterType.TIMELOCK_CONTROLLER),
@@ -145,10 +121,10 @@ export const buildEvmTimelockControllerSubmitterPropsSchema = <
     }),
   );
 
-export const EvmTimelockControllerSubmitterPropsSchema: z.ZodSchema<EvmTimelockControllerSubmitterProps> =
-  buildEvmTimelockControllerSubmitterPropsSchema<EvmTimelockControllerSubmitterProps>(
-    () => EvmSubmitterMetadataSchema,
-  );
+export const EvmTimelockControllerSubmitterPropsSchema: z.ZodType<EvmTimelockControllerSubmitterProps> =
+  buildEvmTimelockControllerSubmitterPropsSchema<
+    EvmTimelockControllerSubmitterProps['proposerSubmitter']
+  >(() => EvmSubmitterMetadataSchema);
 
 export const EvmSubmitterMetadataSchema = z.union([
   z.object({

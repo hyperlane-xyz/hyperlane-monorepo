@@ -145,7 +145,9 @@ export const OpL1TokenConfigSchema = NativeTokenConfigSchema.omit({
     portal: z.string(),
     version: z.number(),
   })
-  .merge(OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }));
+  .extend(
+    OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }).shape,
+  );
 
 export type OpL1TokenConfig = z.infer<typeof OpL1TokenConfigSchema>;
 export const isOpL1TokenConfig = isCompliant(OpL1TokenConfigSchema);
@@ -225,7 +227,7 @@ export const XERC20TokenConfigSchema = CollateralTokenConfigSchema.omit({
   .extend({
     type: z.enum([TokenType.XERC20, TokenType.XERC20Lockbox]),
   })
-  .merge(xERC20TokenMetadataSchema);
+  .extend(xERC20TokenMetadataSchema.shape);
 
 export type XERC20LimitsTokenConfig = z.infer<typeof XERC20TokenConfigSchema>;
 export const isXERC20TokenConfig = isCompliant(XERC20TokenConfigSchema);
@@ -252,7 +254,9 @@ export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
       ),
     predicateWrapper: PredicateWrapperConfigSchema.optional(),
   })
-  .merge(OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }));
+  .extend(
+    OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }).shape,
+  );
 
 export type CctpTokenConfig = z.infer<typeof CctpTokenConfigSchema>;
 export const isCctpTokenConfig = isCompliant(CctpTokenConfigSchema);
@@ -362,7 +366,7 @@ export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.synthetic, TokenType.syntheticUri]),
   initialSupply: z.string().or(z.number()).optional(),
   predicateWrapper: PredicateWrapperConfigSchema.optional(),
-  metadataUri: z.string().url().optional(),
+  metadataUri: z.url().optional(),
   token: z.string().optional(),
 });
 export type SyntheticTokenConfig = z.infer<typeof SyntheticTokenConfigSchema>;
@@ -462,6 +466,7 @@ export enum OwnerStatus {
 }
 export const HypTokenRouterVirtualConfigSchema = z.object({
   contractVerificationStatus: z.record(
+    z.string(),
     z.enum([
       ContractVerificationStatus.Error,
       ContractVerificationStatus.Skipped,
@@ -470,6 +475,7 @@ export const HypTokenRouterVirtualConfigSchema = z.object({
     ]),
   ),
   ownerStatus: z.record(
+    z.string(),
     z.enum([
       OwnerStatus.Error,
       OwnerStatus.Skipped,
@@ -483,12 +489,12 @@ export type HypTokenRouterVirtualConfig = z.infer<
   typeof HypTokenRouterVirtualConfigSchema
 >;
 
-export const UnknownTokenConfigSchema = TokenMetadataSchema.partial()
-  .extend({
+export const UnknownTokenConfigSchema = z.looseObject(
+  TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.unknown),
     predicateWrapper: PredicateWrapperConfigSchema.optional(),
-  })
-  .passthrough();
+  }).shape,
+);
 export type UnknownTokenConfig = z.infer<typeof UnknownTokenConfigSchema>;
 export const isUnknownTokenConfig = isCompliant(UnknownTokenConfigSchema);
 
@@ -573,7 +579,7 @@ export const HypTokenRouterConfigSchema = z.preprocess(
 export type HypTokenRouterConfig = z.infer<typeof HypTokenRouterConfigSchema>;
 
 export type DerivedTokenRouterConfig = z.infer<typeof HypTokenConfigSchema> &
-  z.infer<typeof GasRouterConfigSchema> &
+  Omit<z.infer<typeof GasRouterConfigSchema>, keyof DerivedRouterConfig> &
   DerivedRouterConfig;
 
 export type DerivedWarpRouteDeployConfig = ChainMap<DerivedTokenRouterConfig>;
@@ -663,7 +669,7 @@ function populateFeeOwner(params: {
 }
 
 export const WarpRouteDeployConfigSchema = z
-  .record(HypTokenRouterConfigMailboxOptionalSchema)
+  .record(z.string(), HypTokenRouterConfigMailboxOptionalSchema)
   .refine((configMap) => {
     const entries = Object.entries(configMap);
     return (
@@ -789,6 +795,7 @@ export const WarpRouteDeployConfigSchema = z
 export type WarpRouteDeployConfig = z.infer<typeof WarpRouteDeployConfigSchema>;
 
 const _RequiredMailboxSchema = z.record(
+  z.string(),
   z.object({
     mailbox: z.string(),
   }),

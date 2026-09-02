@@ -6,13 +6,15 @@ use eyre::eyre;
 use futures_util::future::join_all;
 use serde_json::json;
 use solana_client::rpc_response::{Response, RpcSimulateTransactionResult};
-use solana_commitment_config::CommitmentConfig;
 use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_sdk::{
     instruction::AccountMeta,
     message::Message,
     pubkey::Pubkey,
     signature::{Signature, Signer},
+};
+use solana_transaction_status::{
+    TransactionConfirmationStatus, TransactionStatus as SealevelTransactionStatus,
 };
 
 use hyperlane_sealevel::SealevelTxType;
@@ -56,6 +58,8 @@ use crate::{
 };
 
 const TX_RESUBMISSION_BLOCK_TIME_MULTIPLIER: f32 = 3.0;
+const STATUS_TX_BATCH_SIZE: usize = 16;
+const MAX_SIGNATURES_PER_STATUS_REQUEST: usize = 256;
 
 #[derive(Default, Clone, Copy, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum EstimateFreshnessCache {
@@ -292,42 +296,52 @@ impl SealevelAdapter {
         let signature = Signature::try_from(tx_hash.as_ref())
             .map_err(|e| LanderError::TxSubmissionError(format!("Invalid signature: {e}")))?;
 
-        // query the tx hash from most to least finalized to learn what level of finality it has
-        // the calls below can be parallelized if needed, but for now avoid rate limiting
+        let status = self
+            .signature_status_results(std::slice::from_ref(&signature))
+            .await?
+            .into_iter()
+            .next()
+            .expect("single-signature result length was validated")?;
+        let Some(status) = status else {
+            return Err(LanderError::TxHashNotFound(format!(
+                "Transaction signature {signature} was not found"
+            )));
+        };
 
-        let tx_resp = self
+        Ok(Self::classify_signature_status(status))
+    }
+
+    async fn signature_status_results(
+        &self,
+        signatures: &[Signature],
+    ) -> Result<Vec<ChainResult<Option<SealevelTransactionStatus>>>, LanderError> {
+        let statuses = self
             .client
-            .get_transaction_with_commitment(signature, CommitmentConfig::finalized())
+            .get_signature_statuses_with_history(signatures)
             .await;
-
-        if tx_resp.is_ok() {
-            info!("transaction finalized");
-            return Ok(TransactionStatus::Finalized);
+        if statuses.len() != signatures.len() {
+            return Err(LanderError::NetworkError(format!(
+                "Signature status response length {} did not match request length {}",
+                statuses.len(),
+                signatures.len()
+            )));
         }
+        Ok(statuses)
+    }
 
-        let tx_resp = self
-            .client
-            .get_transaction_with_commitment(signature, CommitmentConfig::confirmed())
-            .await;
-
-        // the "confirmed" commitment is equivalent to being "included" in a block on evm
-        if tx_resp.is_ok() {
-            info!(?tx_hash, "transaction included");
-            return Ok(TransactionStatus::Included);
-        }
-
-        match self
-            .client
-            .get_transaction_with_commitment(signature, CommitmentConfig::processed())
-            .await
-        {
-            Ok(_) => {
-                info!("transaction is in mempool");
-                Ok(TransactionStatus::Mempool)
+    fn classify_signature_status(status: SealevelTransactionStatus) -> TransactionStatus {
+        match status.confirmation_status() {
+            TransactionConfirmationStatus::Finalized => {
+                info!("transaction finalized");
+                TransactionStatus::Finalized
             }
-            Err(err) => {
-                warn!(?err, "Failed to get transaction status by hash");
-                Err(LanderError::TxHashNotFound(err.to_string()))
+            TransactionConfirmationStatus::Confirmed => {
+                info!("transaction included");
+                TransactionStatus::Included
+            }
+            TransactionConfirmationStatus::Processed => {
+                info!("transaction is in mempool");
+                TransactionStatus::Mempool
             }
         }
     }
@@ -448,6 +462,75 @@ impl AdaptsChain for SealevelAdapter {
         let status = self.get_tx_hash_status(hash).await?;
         info!(?hash, ?status, "got transaction hash status");
         Ok(status)
+    }
+
+    async fn tx_statuses(
+        &self,
+        txs: &[Transaction],
+    ) -> Vec<Result<TransactionStatus, LanderError>> {
+        let mut statuses_by_tx = (0..txs.len()).map(|_| Vec::new()).collect::<Vec<_>>();
+        let mut signatures = Vec::new();
+
+        for (tx_index, tx) in txs.iter().enumerate() {
+            for hash in &tx.tx_hashes {
+                match Signature::try_from(hash.as_ref()) {
+                    Ok(signature) => signatures.push((tx_index, signature)),
+                    Err(err) => statuses_by_tx[tx_index].push(Err(LanderError::TxSubmissionError(
+                        format!("Invalid signature: {err}"),
+                    ))),
+                }
+            }
+        }
+
+        for signature_batch in signatures.chunks(MAX_SIGNATURES_PER_STATUS_REQUEST) {
+            let batch_signatures = signature_batch
+                .iter()
+                .map(|(_, signature)| *signature)
+                .collect::<Vec<_>>();
+            let batch_statuses: Vec<Result<Option<SealevelTransactionStatus>, LanderError>> =
+                match self.signature_status_results(&batch_signatures).await {
+                    Ok(statuses) => statuses
+                        .into_iter()
+                        .map(|status| {
+                            status.map_err(|error| LanderError::NetworkError(error.to_string()))
+                        })
+                        .collect(),
+                    Err(error) => (0..signature_batch.len())
+                        .map(|_| Err(LanderError::NetworkError(error.to_string())))
+                        .collect(),
+                };
+
+            for ((tx_index, signature), status) in signature_batch.iter().zip(batch_statuses) {
+                let status = status.and_then(|status| {
+                    status.map(Self::classify_signature_status).ok_or_else(|| {
+                        LanderError::TxHashNotFound(format!(
+                            "Transaction signature {signature} was not found"
+                        ))
+                    })
+                });
+                statuses_by_tx[*tx_index].push(status);
+            }
+        }
+
+        statuses_by_tx
+            .into_iter()
+            .map(|mut statuses| {
+                if statuses.iter().all(Result::is_err) {
+                    if let Some(index) = statuses.iter().position(|status| {
+                        status.as_ref().is_err_and(|error| error.is_infra_error())
+                    }) {
+                        statuses.swap_remove(index)?;
+                    }
+                }
+                Ok(TransactionStatus::classify_tx_status_from_hash_statuses(
+                    statuses,
+                ))
+            })
+            .collect()
+    }
+
+    fn tx_status_batch_size(&self) -> usize {
+        STATUS_TX_BATCH_SIZE
     }
 
     async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {

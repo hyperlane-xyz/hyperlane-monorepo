@@ -1,7 +1,7 @@
 import { confirm } from '@inquirer/prompts';
 import fs from 'fs';
 import path from 'path';
-import { fromZodError } from 'zod-validation-error';
+import { z } from 'zod';
 
 import {
   type RebalancerConfigFileInput,
@@ -66,7 +66,7 @@ export class RebalancerHelmManager extends HelmManager {
     const config: RebalancerConfigFileInput = readYaml(rebalancerConfigFile);
     const validationResult = RebalancerConfigSchema.safeParse(config);
     if (!validationResult.success) {
-      throw new Error(fromZodError(validationResult.error).message);
+      throw new Error(z.prettifyError(validationResult.error));
     }
 
     const chainNames = getStrategyChainNames(validationResult.data.strategy);

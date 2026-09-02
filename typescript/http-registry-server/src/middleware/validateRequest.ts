@@ -1,21 +1,22 @@
 import { NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
-import { fromZodError } from 'zod-validation-error';
 
 import { AppConstants } from '../constants/index.js';
 import { ApiError } from '../errors/ApiError.js';
 
-export function validateQueryParams<T extends z.ZodTypeAny>(schema: T) {
+export function validateQueryParams<Output extends object>(
+  schema: z.ZodType<Output>,
+) {
+  const compiledSchema = z.compile(schema);
   return (req: Request, _res: Response, next: NextFunction) => {
-    const parsed = schema.safeParse(req.query);
+    const parsed = compiledSchema.safeParse(req.query);
     if (parsed.success) {
       Object.assign(req.query, parsed.data);
       next();
     } else {
-      const validationError = fromZodError(parsed.error);
       next(
         new ApiError(
-          `Validation error in query parameters: ${validationError.message}`,
+          `Validation error in query parameters: ${z.prettifyError(parsed.error)}`,
           AppConstants.HTTP_STATUS_BAD_REQUEST,
         ),
       );
@@ -23,20 +24,20 @@ export function validateQueryParams<T extends z.ZodTypeAny>(schema: T) {
   };
 }
 
-export function validateRequestParam<T extends z.ZodTypeAny>(
+export function validateRequestParam<Output extends string | string[]>(
   name: string,
-  schema: T,
+  schema: z.ZodType<Output>,
 ) {
+  const compiledSchema = z.compile(schema);
   return (req: Request, _res: Response, next: NextFunction) => {
-    const parsed = schema.safeParse(req.params[name]);
+    const parsed = compiledSchema.safeParse(req.params[name]);
     if (parsed.success) {
       req.params[name] = parsed.data;
       next();
     } else {
-      const validationError = fromZodError(parsed.error);
       next(
         new ApiError(
-          `Validation error for param '${name}': ${validationError.message}`,
+          `Validation error for param '${name}': ${z.prettifyError(parsed.error)}`,
           AppConstants.HTTP_STATUS_BAD_REQUEST,
         ),
       );
@@ -44,17 +45,17 @@ export function validateRequestParam<T extends z.ZodTypeAny>(
   };
 }
 
-export function validateBody<T extends z.ZodTypeAny>(schema: T) {
+export function validateBody<Output>(schema: z.ZodType<Output>) {
+  const compiledSchema = z.compile(schema);
   return (req: Request, _res: Response, next: NextFunction) => {
-    const parsed = schema.safeParse(req.body);
+    const parsed = compiledSchema.safeParse(req.body);
     if (parsed.success) {
       req.body = parsed.data; // Assign the parsed (and potentially transformed) body back
       next();
     } else {
-      const validationError = fromZodError(parsed.error);
       next(
         new ApiError(
-          `Validation error in body: ${validationError.message}`,
+          `Validation error in body: ${z.prettifyError(parsed.error)}`,
           AppConstants.HTTP_STATUS_BAD_REQUEST,
         ),
       );
@@ -62,20 +63,20 @@ export function validateBody<T extends z.ZodTypeAny>(schema: T) {
   };
 }
 
-export function validateQueryParam<T extends z.ZodTypeAny>(
+export function validateQueryParam<Output>(
   name: string,
-  schema: T,
+  schema: z.ZodType<Output>,
 ) {
+  const compiledSchema = z.compile(schema);
   return (req: Request, _res: Response, next: NextFunction) => {
-    const parsed = schema.safeParse(req.query[name]);
+    const parsed = compiledSchema.safeParse(req.query[name]);
     if (parsed.success) {
-      req.query[name] = parsed.data;
+      Object.assign(req.query, { [name]: parsed.data });
       next();
     } else {
-      const validationError = fromZodError(parsed.error);
       next(
         new ApiError(
-          `Validation error in query: ${validationError.message}`,
+          `Validation error in query: ${z.prettifyError(parsed.error)}`,
           AppConstants.HTTP_STATUS_BAD_REQUEST,
         ),
       );

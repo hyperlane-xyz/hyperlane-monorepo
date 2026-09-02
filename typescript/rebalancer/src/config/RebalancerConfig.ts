@@ -1,5 +1,4 @@
-import type { z } from 'zod';
-import { fromZodError } from 'zod-validation-error';
+import { z } from 'zod';
 
 import type { ProtocolType } from '@hyperlane-xyz/utils';
 import { readYamlOrJson } from '@hyperlane-xyz/utils/fs';
@@ -36,7 +35,7 @@ export class RebalancerConfig {
     const validationResult = RebalancerConfigSchema.safeParse(config);
 
     if (!validationResult.success) {
-      throw new Error(fromZodError(validationResult.error).message);
+      throw new Error(z.prettifyError(validationResult.error));
     }
 
     const {

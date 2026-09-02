@@ -1,5 +1,41 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 44.0.2
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@44.0.2
+- @hyperlane-xyz/utils@44.0.2
+- @hyperlane-xyz/provider-sdk@10.0.2
+
+## 44.0.1
+
+### Patch Changes
+
+- Updated dependencies [f269e03]
+  - @hyperlane-xyz/provider-sdk@10.0.1
+  - @hyperlane-xyz/cosmos-types@44.0.1
+  - @hyperlane-xyz/utils@44.0.1
+
+## 44.0.0
+
+### Patch Changes
+
+- Updated dependencies [6fbe5ad]
+  - @hyperlane-xyz/utils@44.0.0
+  - @hyperlane-xyz/provider-sdk@10.0.0
+  - @hyperlane-xyz/cosmos-types@44.0.0
+
+## 43.0.0
+
+### Patch Changes
+
+- Updated dependencies [8bcc7ab]
+- Updated dependencies [7cf9c01]
+  - @hyperlane-xyz/provider-sdk@9.0.0
+  - @hyperlane-xyz/utils@43.0.0
+  - @hyperlane-xyz/cosmos-types@43.0.0
+
 ## 42.0.0
 
 ### Patch Changes

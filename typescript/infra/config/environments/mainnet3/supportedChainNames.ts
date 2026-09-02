@@ -7,7 +7,7 @@ export const mainnet3SupportedChainNames = [
   'apechain',
   'appchain',
   'arbitrum',
-  // 'arc',
+  'arc',
   'avalanche',
   'base',
   'berachain',
