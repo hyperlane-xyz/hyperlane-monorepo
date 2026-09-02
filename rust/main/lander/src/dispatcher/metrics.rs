@@ -1,7 +1,7 @@
 // TODO: Re-enable clippy warnings
 #![allow(dead_code)]
 
-use std::time::UNIX_EPOCH;
+use std::time::{Duration, UNIX_EPOCH};
 
 use hyperlane_core::U256;
 use prometheus::{
@@ -29,6 +29,11 @@ pub struct DispatcherMetrics {
     pub building_stage_queue_length: IntGaugeVec,
     pub inclusion_stage_pool_length: IntGaugeVec,
     pub finality_stage_pool_length: IntGaugeVec,
+
+    /// Time to read statuses and apply a stage's ordered mutations.
+    pub status_scan_duration_milliseconds: IntGaugeVec,
+    /// Age since the least recently checked transaction's last status read.
+    pub oldest_unchecked_transaction_age_seconds: IntGaugeVec,
 
     // tracks inclusion stage errors
     pub inclusion_stage_error: IntCounterVec,
@@ -95,6 +100,22 @@ impl DispatcherMetrics {
                 "The number of transactions in the finality stage pool",
             ),
             &["destination",],
+            registry.clone()
+        )?;
+        let status_scan_duration_milliseconds = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced("status_scan_duration_milliseconds"),
+                "Duration of the latest transaction status scan",
+            ),
+            &["destination", "stage"],
+            registry.clone()
+        )?;
+        let oldest_unchecked_transaction_age_seconds = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced("oldest_unchecked_transaction_age_seconds"),
+                "Age since the oldest transaction status check at scan start",
+            ),
+            &["destination", "stage"],
             registry.clone()
         )?;
 
@@ -214,6 +235,8 @@ impl DispatcherMetrics {
             building_stage_queue_length,
             inclusion_stage_pool_length,
             finality_stage_pool_length,
+            status_scan_duration_milliseconds,
+            oldest_unchecked_transaction_age_seconds,
             batched_transactions,
             dropped_payloads,
             dropped_transactions,
@@ -265,6 +288,28 @@ impl DispatcherMetrics {
                 .set(length as i64),
             _ => {}
         }
+    }
+
+    pub fn update_status_scan_duration_metric(
+        &self,
+        stage: &str,
+        duration: Duration,
+        domain: &str,
+    ) {
+        self.status_scan_duration_milliseconds
+            .with_label_values(&[domain, stage])
+            .set(i64::try_from(duration.as_millis()).unwrap_or(i64::MAX));
+    }
+
+    pub fn update_oldest_unchecked_transaction_age_metric(
+        &self,
+        stage: &str,
+        oldest_unchecked_age: Duration,
+        domain: &str,
+    ) {
+        self.oldest_unchecked_transaction_age_seconds
+            .with_label_values(&[domain, stage])
+            .set(i64::try_from(oldest_unchecked_age.as_secs()).unwrap_or(i64::MAX));
     }
 
     pub fn update_dropped_payloads_metric(&self, reason: &str, domain: &str) {
@@ -389,4 +434,34 @@ pub struct PostInclusionMetricsSource {
     pub priority_fee: Option<u64>,
     // gas limit set for the transaction, if applicable
     pub gas_limit: Option<u64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::DispatcherMetrics;
+
+    #[test]
+    fn status_scan_metrics_are_exported() {
+        let metrics = DispatcherMetrics::dummy_instance();
+        metrics.update_status_scan_duration_metric(
+            "InclusionStage",
+            Duration::from_millis(123),
+            "test",
+        );
+        metrics.update_oldest_unchecked_transaction_age_metric(
+            "InclusionStage",
+            Duration::from_secs(45),
+            "test",
+        );
+        let gathered = String::from_utf8(metrics.gather().unwrap()).unwrap();
+
+        assert!(gathered.contains(
+            "hyperlane_lander_status_scan_duration_milliseconds{destination=\"test\",stage=\"InclusionStage\"} 123"
+        ));
+        assert!(gathered.contains(
+            "hyperlane_lander_oldest_unchecked_transaction_age_seconds{destination=\"test\",stage=\"InclusionStage\"} 45"
+        ));
+    }
 }

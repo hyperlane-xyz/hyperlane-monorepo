@@ -263,6 +263,59 @@ async fn test_processing_included_txs() {
     .await;
 }
 
+#[tokio::test(start_paused = true)]
+async fn completed_prefix_is_applied_before_later_status_error() {
+    let mut earlier_tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+    let mut later_tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+    let now = chrono::Utc::now();
+    earlier_tx.creation_timestamp = now - chrono::Duration::seconds(2);
+    later_tx.creation_timestamp = now - chrono::Duration::seconds(1);
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_secs(1));
+    let later_uuid = later_tx.uuid.clone();
+    mock_adapter.expect_tx_status().returning(move |tx| {
+        (tx.uuid != later_uuid)
+            .then_some(TransactionStatus::Included)
+            .ok_or_else(|| LanderError::TxSubmissionError("status read failed".to_string()))
+    });
+
+    let (payload_db, tx_db, _) = tmp_dbs();
+    let state = DispatcherState::new(
+        payload_db,
+        tx_db,
+        Arc::new(mock_adapter),
+        DispatcherMetrics::dummy_instance(),
+        "test".to_string(),
+    );
+    let pool = InclusionStagePool::default();
+    pool.lock()
+        .await
+        .insert(earlier_tx.uuid.clone(), earlier_tx.clone());
+    pool.lock()
+        .await
+        .insert(later_tx.uuid.clone(), later_tx.clone());
+    let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(2);
+
+    let scan_pool = pool.clone();
+    let scan_state = state.clone();
+    let scan = tokio::spawn(async move {
+        InclusionStage::process_txs_step(&scan_pool, &finality_stage_sender, &scan_state, "test")
+            .await
+    });
+
+    let forwarded = tokio::time::timeout(Duration::from_millis(1), finality_stage_receiver.recv())
+        .await
+        .expect("the completed prefix should be applied before the later error")
+        .expect("the finality stage receiver should remain open");
+    assert_eq!(forwarded.uuid, earlier_tx.uuid);
+    assert!(!pool.lock().await.contains_key(&earlier_tx.uuid));
+    assert!(pool.lock().await.contains_key(&later_tx.uuid));
+
+    scan.await.unwrap().unwrap();
+}
+
 #[tokio::test]
 async fn test_unincluded_txs_reach_mempool() {
     const TXS_TO_PROCESS: usize = 3;

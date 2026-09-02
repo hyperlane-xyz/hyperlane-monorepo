@@ -2,12 +2,12 @@ use std::{
     collections::{HashMap, VecDeque},
     future::Future,
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use derive_new::new;
 use eyre::{eyre, Result};
-use futures_util::future::try_join_all;
+use futures_util::{future::try_join_all, StreamExt};
 use tokio::{
     sync::{mpsc, Mutex},
     time::sleep,
@@ -22,7 +22,8 @@ use crate::{
 };
 
 use super::{
-    building_stage::BuildingStageQueue, utils::call_until_success_or_nonretryable_error,
+    building_stage::BuildingStageQueue,
+    utils::{buffer_ordered_bounded, call_until_success_or_nonretryable_error},
     DispatcherState,
 };
 
@@ -31,6 +32,7 @@ pub use pool::FinalityStagePool;
 mod pool;
 
 pub const STAGE_NAME: &str = "FinalityStage";
+const STATUS_READ_CONCURRENCY: usize = 16;
 
 pub struct FinalityStage {
     pub(crate) pool: FinalityStagePool,
@@ -117,33 +119,93 @@ impl FinalityStage {
                 .update_liveness_metric(format!("{STAGE_NAME}::process_txs").as_str(), &domain);
             // evaluate the pool every block
             sleep(*estimated_block_time).await;
-
-            let pool_snapshot = pool.snapshot().await;
-            state.metrics.update_queue_length_metric(
-                STAGE_NAME,
-                pool_snapshot.len() as u64,
-                &domain,
-            );
-            info!(pool_size=?pool_snapshot.len() , "Processing transactions in finality pool");
-            for (_, tx) in pool_snapshot {
-                if let Err(err) = Self::try_process_tx(
-                    tx.clone(),
-                    pool.clone(),
-                    building_stage_queue.clone(),
-                    &state,
-                )
-                .await
-                {
-                    error!(
-                        ?err,
-                        ?tx,
-                        "Error processing finality stage transaction. Skipping for now"
-                    );
-                }
-            }
+            Self::process_txs_step(&pool, &building_stage_queue, &state, &domain).await?;
         }
     }
 
+    pub async fn process_txs_step(
+        pool: &FinalityStagePool,
+        building_stage_queue: &BuildingStageQueue,
+        state: &DispatcherState,
+        domain: &str,
+    ) -> Result<(), LanderError> {
+        state
+            .metrics
+            .update_liveness_metric(format!("{STAGE_NAME}::process_txs").as_str(), domain);
+        let scan_started = Instant::now();
+        let mut pool_snapshot = pool.snapshot().await.into_values().collect::<Vec<_>>();
+        state
+            .metrics
+            .update_queue_length_metric(STAGE_NAME, pool_snapshot.len() as u64, domain);
+        let now = chrono::Utc::now();
+        let oldest_unchecked_age = pool_snapshot
+            .iter()
+            .filter_map(|tx| {
+                now.signed_duration_since(tx.last_status_check.unwrap_or(tx.creation_timestamp))
+                    .to_std()
+                    .ok()
+            })
+            .max()
+            .unwrap_or_default();
+        state
+            .metrics
+            .update_oldest_unchecked_transaction_age_metric(
+                STAGE_NAME,
+                oldest_unchecked_age,
+                domain,
+            );
+        super::utils::sort_transactions_for_mutation(&mut pool_snapshot);
+        info!(pool_size=?pool_snapshot.len() , "Processing transactions in finality pool");
+
+        let status_reads = pool_snapshot.into_iter().map(|snapshot_tx| async move {
+            let (checked_tx, status) = Self::read_tx_status(snapshot_tx.clone(), state).await;
+            (snapshot_tx, checked_tx, status)
+        });
+        let status_reads = buffer_ordered_bounded(status_reads, STATUS_READ_CONCURRENCY);
+        futures_util::pin_mut!(status_reads);
+
+        while let Some((snapshot_tx, checked_tx, status)) = status_reads.next().await {
+            if !pool
+                .replace_if_unchanged(&snapshot_tx, checked_tx.clone())
+                .await
+            {
+                info!(tx_uuid = ?snapshot_tx.uuid, "Skipping stale transaction status result");
+                continue;
+            }
+            match status {
+                Ok(status) => {
+                    if let Err(err) = Self::try_process_tx_with_next_status(
+                        checked_tx.clone(),
+                        status,
+                        pool.clone(),
+                        building_stage_queue.clone(),
+                        state,
+                    )
+                    .await
+                    {
+                        error!(
+                            ?err,
+                            tx = ?checked_tx,
+                            "Error processing finality stage transaction. Skipping for now"
+                        );
+                    }
+                }
+                Err(err) => error!(
+                    ?err,
+                    tx = ?checked_tx,
+                    "Error reading finality stage transaction status. Skipping for now"
+                ),
+            }
+        }
+        state.metrics.update_status_scan_duration_metric(
+            STAGE_NAME,
+            scan_started.elapsed(),
+            domain,
+        );
+        Ok(())
+    }
+
+    #[cfg(test)]
     #[instrument(
         skip(tx, pool, building_stage_queue, state),
         name = "FinalityStage::try_process_tx"
@@ -153,24 +215,53 @@ impl FinalityStage {
             payloads = ?tx.payload_details
     ))]
     pub async fn try_process_tx(
-        mut tx: Transaction,
+        tx: Transaction,
         pool: FinalityStagePool,
         building_stage_queue: BuildingStageQueue,
         state: &DispatcherState,
     ) -> Result<(), LanderError> {
         info!(?tx, "Processing finality stage transaction");
+        let (tx, tx_status) = Self::read_tx_status(tx, state).await;
+        Self::try_process_tx_with_next_status(tx, tx_status?, pool, building_stage_queue, state)
+            .await
+    }
+
+    #[instrument(
+        skip_all,
+        name = "FinalityStage::read_tx_status",
+        fields(tx_uuid = ?tx.uuid, tx_status = ?tx.status, payloads = ?tx.payload_details)
+    )]
+    async fn read_tx_status(
+        mut tx: Transaction,
+        state: &DispatcherState,
+    ) -> (Transaction, Result<TransactionStatus, LanderError>) {
+        tx.last_status_check = Some(chrono::Utc::now());
         let tx_status = match &tx.status {
-            TransactionStatus::Finalized => tx.status.clone(),
+            TransactionStatus::Finalized => Ok(tx.status.clone()),
             _ => {
                 call_until_success_or_nonretryable_error(
                     || state.adapter.tx_status(&tx),
                     "Querying transaction status",
                     state,
                 )
-                .await?
+                .await
             }
         };
+        (tx, tx_status)
+    }
 
+    #[instrument(
+        skip_all,
+        name = "FinalityStage::try_process_tx_with_next_status",
+        fields(tx_uuid = ?tx.uuid, previous_tx_status = ?tx.status, next_tx_status = ?tx_status, payloads = ?tx.payload_details)
+    )]
+    async fn try_process_tx_with_next_status(
+        mut tx: Transaction,
+        tx_status: TransactionStatus,
+        pool: FinalityStagePool,
+        building_stage_queue: BuildingStageQueue,
+        state: &DispatcherState,
+    ) -> Result<(), LanderError> {
         match tx_status {
             TransactionStatus::Included => {
                 // tx is not finalized yet, keep it in the pool
