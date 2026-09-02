@@ -1,10 +1,12 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
 import { Mailbox__factory } from '@hyperlane-xyz/core';
+import { ModuleType, OnchainHookType } from '@hyperlane-xyz/sdk';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { LayerZeroRoutesSchema } from '../../src/services/LayerZeroPacketService.js';
+import { resolveLayerZeroRoutes } from '../../src/services/layerZeroRouteResolver.js';
+import type { LayerZeroRouterReader } from '../../src/services/layerZeroRouteResolver.js';
 import {
   countMatchingHyperlaneDispatches,
   encodeLayerZeroPayload,
@@ -13,42 +15,126 @@ import {
   resolveLayerZeroReceiveLibrary,
 } from '../../src/services/layerZeroPacketMatcher.js';
 
-describe('LayerZeroRoutesSchema', () => {
-  const chain = (
-    layerZeroDomainId: number,
-    router = ethers.Wallet.createRandom().address,
-  ) => ({
-    mailbox: ethers.Wallet.createRandom().address,
-    endpoint: ethers.Wallet.createRandom().address,
-    layerZeroDomainId,
-    router,
+describe('resolveLayerZeroRoutes', () => {
+  const originDomain = 1_000;
+  const destinationDomain = 2_000;
+  const originEid = 30_101;
+  const destinationEid = 30_110;
+  const originRouter = ethers.Wallet.createRandom().address;
+  const destinationRouter = ethers.Wallet.createRandom().address;
+
+  function reader({
+    domain,
+    eid,
+    peer,
+    peerEid,
+    moduleType,
+  }: {
+    domain: number;
+    eid: number;
+    peer: string;
+    peerEid: number;
+    moduleType: ModuleType;
+  }): LayerZeroRouterReader {
+    return {
+      endpoint: async () => ethers.Wallet.createRandom().address,
+      hookType: async () => OnchainHookType.LAYER_ZERO,
+      localDomain: async () => domain,
+      localEid: async () => eid,
+      mailbox: async () => ethers.Wallet.createRandom().address,
+      moduleType: async () => moduleType,
+      remoteConfigs: async () => peerEid,
+      routers: async () => addressToBytes32(peer),
+    };
+  }
+
+  function connector(originPeer = destinationRouter) {
+    const readers = new Map<string, LayerZeroRouterReader>([
+      [
+        `${originDomain}:${originRouter.toLowerCase()}`,
+        reader({
+          domain: originDomain,
+          eid: originEid,
+          peer: originPeer,
+          peerEid: destinationEid,
+          moduleType: ModuleType.NULL,
+        }),
+      ],
+      [
+        `${destinationDomain}:${destinationRouter.toLowerCase()}`,
+        reader({
+          domain: destinationDomain,
+          eid: destinationEid,
+          peer: originRouter,
+          peerEid: originEid,
+          moduleType: ModuleType.CCIP_READ,
+        }),
+      ],
+    ]);
+    return (router: string, domain: number): LayerZeroRouterReader => {
+      const result = readers.get(`${domain}:${router.toLowerCase()}`);
+      if (!result) throw new Error(`Unexpected router ${router}`);
+      return result;
+    };
+  }
+
+  it('discovers a reciprocally enrolled route from the CCIP sender', async () => {
+    const routes = await resolveLayerZeroRoutes(
+      originDomain,
+      destinationDomain,
+      destinationRouter,
+      connector(),
+    );
+    expect(routes.origin.router).to.equal(originRouter);
+    expect(routes.origin.layerZeroDomainId).to.equal(originEid);
+    expect(routes.destination.router).to.equal(destinationRouter);
+    expect(routes.destination.layerZeroDomainId).to.equal(destinationEid);
   });
 
-  it('accepts policy-scoped meshes with unique LayerZero domain IDs and routers', () => {
-    expect(
-      LayerZeroRoutesSchema.safeParse({
-        policyA: { chainA: chain(101), chainB: chain(102) },
-        policyB: { chainA: chain(201), chainB: chain(202) },
-      }).success,
-    ).to.be.true;
+  it('rejects routes without reciprocal enrollment', async () => {
+    let error: unknown;
+    try {
+      await resolveLayerZeroRoutes(
+        originDomain,
+        destinationDomain,
+        destinationRouter,
+        connector(ethers.Wallet.createRandom().address),
+      );
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error)
+      .to.be.an('error')
+      .with.property('message')
+      .that.includes('not reciprocally enrolled');
   });
 
-  it('rejects duplicate LayerZero domain IDs within a mesh', () => {
-    expect(
-      LayerZeroRoutesSchema.safeParse({
-        policyA: { chainA: chain(101), chainB: chain(101) },
-      }).success,
-    ).to.be.false;
-  });
-
-  it('rejects a router assigned to multiple policies on one chain', () => {
-    const router = ethers.Wallet.createRandom().address;
-    expect(
-      LayerZeroRoutesSchema.safeParse({
-        policyA: { chainA: chain(101, router) },
-        policyB: { chainA: chain(201, router) },
-      }).success,
-    ).to.be.false;
+  it('rejects a destination router that is not a CCIP-read ISM', async () => {
+    const connect = connector();
+    let error: unknown;
+    try {
+      await resolveLayerZeroRoutes(
+        originDomain,
+        destinationDomain,
+        originRouter,
+        (router, domain) =>
+          domain === destinationDomain
+            ? reader({
+                domain,
+                eid: destinationEid,
+                peer: originRouter,
+                peerEid: originEid,
+                moduleType: ModuleType.NULL,
+              })
+            : connect(router, domain),
+      );
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error)
+      .to.be.an('error')
+      .with.property('message')
+      .that.includes('not a CCIP-read ISM');
   });
 });
 
