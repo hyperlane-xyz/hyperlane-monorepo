@@ -70,8 +70,13 @@ for_each_patch _apply_patch
 # shellcheck disable=SC2086
 node patch-isContract.mjs $ISCONTRACT_FILES
 
-# Compile with tron-solc
-NODE_OPTIONS='--import tsx/esm' hardhat --config tron-hardhat.config.cts compile
+# Compile core and Warp entrypoints separately because the complete repository
+# exceeds tron-solc's WASM input limit. Both passes write into one artifact tree.
+TRON_BUILD_TARGET=core NODE_OPTIONS='--import tsx/esm' hardhat --config tron-hardhat.config.cts compile --force
+TRON_BUILD_TARGET=warp NODE_OPTIONS='--import tsx/esm' hardhat --config tron-hardhat.config.cts compile --force
+
+# Regenerate once from the combined artifacts produced by both compiler passes.
+NODE_OPTIONS='--import tsx/esm' hardhat --config tron-hardhat.config.cts typechain
 
 # Compile generated tron typechain TS into JS for package consumers.
 pnpm exec tsc --project tsconfig.tron-typechain.json
