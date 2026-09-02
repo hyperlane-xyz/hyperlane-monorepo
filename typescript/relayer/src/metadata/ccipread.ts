@@ -4,6 +4,7 @@ import { AbstractCcipReadIsm__factory } from '@hyperlane-xyz/core';
 import {
   HyperlaneCore,
   IsmType,
+  LayerZeroV2IsmConfig,
   OffchainLookupIsmConfig,
   WormholeIsmConfig,
   offchainLookupRequestMessageHash,
@@ -57,7 +58,11 @@ function extractRevertData(error: unknown): string | undefined {
  */
 export type OffchainLookupContextConfig =
   | OffchainLookupIsmConfig
-  | (WormholeIsmConfig & { type: typeof IsmType.WORMHOLE_VAA });
+  | (WormholeIsmConfig & { type: typeof IsmType.WORMHOLE_VAA })
+  | Extract<
+      LayerZeroV2IsmConfig,
+      { type: typeof IsmType.LAYER_ZERO_V2_CCIP_READ }
+    >;
 
 export class OffchainLookupMetadataBuilder implements MetadataBuilder {
   readonly type = IsmType.OFFCHAIN_LOOKUP;
@@ -160,6 +165,9 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
             metadata: ensure0x(responseJson.data),
           };
         }
+        this.core.logger.warn(
+          `CCIP-read metadata fetch returned ${res.status} for ${url}: ${JSON.stringify(responseJson)}`,
+        );
       } catch (error) {
         this.core.logger.warn(
           `CCIP-read metadata fetch failed for ${url}: ${error}`,
