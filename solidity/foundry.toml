@@ -3,6 +3,12 @@ src = 'contracts'
 script = 'script'
 out = 'out'
 libs = ["dependencies", "lib"]
+remappings = [
+    "@layerzerolabs/lz-evm-messagelib-v2/=dependencies/layerzero-v2-2.0.2/packages/layerzero-v2/evm/messagelib/",
+    "@layerzerolabs/lz-evm-protocol-v2/=dependencies/layerzero-v2-2.0.2/packages/layerzero-v2/evm/protocol/",
+    "@layerzerolabs/oapp-evm/=dependencies/layerzero-v2-2.0.2/packages/layerzero-v2/evm/oapp/",
+    "solidity-bytes-utils/=node_modules/solidity-bytes-utils/",
+]
 test = 'test'
 cache_path = 'forge-cache'
 solc_version = '0.8.33'
@@ -54,8 +60,12 @@ remappings = [
     "@arbitrum/nitro-contracts/src/=dependencies/@arbitrum-nitro-contracts-1.2.1/src/",
     "@chainlink/contracts-ccip/src/v0.8/=dependencies/@chainlink-contracts-ccip-1.5.0/contracts/src/v0.8/",
     "@eth-optimism/contracts/=dependencies/@eth-optimism-contracts-0.6.0/packages/contracts/contracts/",
+    "@layerzerolabs/lz-evm-messagelib-v2/=dependencies/layerzero-v2-2.0.2/packages/layerzero-v2/evm/messagelib/",
+    "@layerzerolabs/lz-evm-protocol-v2/=dependencies/layerzero-v2-2.0.2/packages/layerzero-v2/evm/protocol/",
+    "@layerzerolabs/oapp-evm/=dependencies/layerzero-v2-2.0.2/packages/layerzero-v2/evm/oapp/",
     "forge-std/=dependencies/forge-std-1.9.2/src/",
     "ds-test/=dependencies/forge-std-1.9.2/lib/ds-test/src/",
+    "solidity-bytes-utils/=node_modules/solidity-bytes-utils/",
 ]
 
 [rpc_endpoints]
@@ -82,6 +92,7 @@ forge-std = "1.9.2"
 "@predicate-contracts" = { version = "2.2.2", git = "https://github.com/predicatelabs/predicate-contracts.git", tag = "v2.2.2" }
 permit2 = { version = "1.0.0", git = "https://github.com/Uniswap/permit2", branch = "main" }
 wormhole-solidity-sdk = { version = "1.1.0", git = "https://github.com/wormhole-foundation/wormhole-solidity-sdk.git", tag = "v1.1.0" }
+layerzero-v2 = { version = "2.0.2", git = "https://github.com/LayerZero-Labs/LayerZero-v2.git", rev = "9c741e7f9790639537b1710a203bcdfd73b0b9ac" }
 
 [soldeer]
 remappings_generate = false  # We'll manage remappings manually to preserve import paths
