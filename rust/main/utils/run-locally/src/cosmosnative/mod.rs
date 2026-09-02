@@ -19,7 +19,7 @@ use crate::{
     fetch_metric, log,
     metrics::agent_balance_sum,
     program::Program,
-    utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle},
+    utils::{as_task, concat_path, start_postgres, stop_child, AgentHandles, TaskHandle},
     AGENT_BIN_PATH,
 };
 
@@ -290,14 +290,7 @@ fn run_locally() {
     .unwrap();
 
     log!("Running postgres db...");
-    let postgres = Program::new("docker")
-        .cmd("run")
-        .flag("rm")
-        .arg("name", "scraper-testnet-postgres")
-        .arg("env", "POSTGRES_PASSWORD=47221c18c610")
-        .arg("publish", "5432:5432")
-        .cmd("postgres:14")
-        .spawn("SQL", None);
+    let postgres = start_postgres();
 
     crate::utils::wait_for_postgres();
 

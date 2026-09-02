@@ -193,6 +193,40 @@ pub fn get_ts_infra_path() -> PathBuf {
     concat_path(git_workspace_path, "typescript/infra")
 }
 
+const POSTGRES_IMAGE: &str = "postgres:14";
+
+/// Start the test Postgres container after ensuring its image is available.
+///
+/// `docker run` pulls a missing image in the foreground. If it is spawned and
+/// readiness polling starts immediately, a cold pull consumes the readiness
+/// timeout before the container exists. Pulling first keeps image acquisition
+/// separate from the bounded database startup check.
+pub fn start_postgres() -> AgentHandles {
+    let image_available = Program::new("docker")
+        .cmd("image")
+        .cmd("inspect")
+        .cmd(POSTGRES_IMAGE)
+        .run_to_success()
+        .join();
+    if !image_available {
+        log!("Pulling {}...", POSTGRES_IMAGE);
+        Program::new("docker")
+            .cmd("pull")
+            .cmd(POSTGRES_IMAGE)
+            .run()
+            .join();
+    }
+
+    Program::new("docker")
+        .cmd("run")
+        .flag("rm")
+        .arg("name", "scraper-testnet-postgres")
+        .arg("env", "POSTGRES_PASSWORD=47221c18c610")
+        .arg("publish", "5432:5432")
+        .cmd(POSTGRES_IMAGE)
+        .spawn("SQL", None)
+}
+
 /// Poll postgres container until pg_isready succeeds.
 #[allow(dead_code)]
 pub fn wait_for_postgres() {

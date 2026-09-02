@@ -84,3 +84,28 @@ async fn test_len_is_correct_after_operations() {
     let _ = queue.pop_n(1).await;
     assert_eq!(queue.len().await, 0);
 }
+
+#[tokio::test]
+async fn test_duplicate_payload_is_only_queued_once() {
+    let queue = BuildingStageQueue::new();
+    let payload = FullPayload::random();
+
+    queue.push_back(payload.clone()).await;
+    queue.push_back(payload.clone()).await;
+
+    assert_eq!(queue.pop_n(2).await, vec![payload]);
+}
+
+#[tokio::test]
+async fn test_push_wakes_waiting_consumer() {
+    let queue = BuildingStageQueue::new();
+    let payload = FullPayload::random();
+    let waiter = tokio::spawn({
+        let queue = queue.clone();
+        async move { queue.pop_n_or_wait(1).await }
+    });
+
+    queue.push_back(payload.clone()).await;
+
+    assert_eq!(waiter.await.unwrap(), vec![payload]);
+}
