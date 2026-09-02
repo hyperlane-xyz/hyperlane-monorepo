@@ -85,7 +85,7 @@ RUN NODE_VER=$(ls "$NODENV_ROOT/plugins/node-build/share/node-build/" \
     nodenv install "$NODE_VER" && \
     nodenv global "$NODE_VER" && \
     nodenv rehash && \
-    npm install --global pnpm@12.1.0 && \
+    npm install --global pnpm@12.3.0 && \
     nodenv rehash
 
 # --------------------------------------------------------------------------

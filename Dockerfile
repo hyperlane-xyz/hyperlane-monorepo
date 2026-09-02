@@ -18,7 +18,7 @@ SHELL ["/bin/sh", "-c"]
 
 # Copy package.json first for dependency layer caching
 COPY package.json ./
-RUN npm install --global pnpm@12.1.0
+RUN npm install --global pnpm@12.3.0
 
 # Copy remaining config files
 COPY pnpm-lock.yaml pnpm-workspace.yaml ./

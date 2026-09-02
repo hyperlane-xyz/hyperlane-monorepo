@@ -8,7 +8,7 @@ export NVM_DIR="${NVM_DIR:-/root/.nvm}"
 # Node 24
 nvm use 24
 nvm alias default 24
-npm install --global pnpm@12.1.0
+npm install --global pnpm@12.3.0
 
 # Foundry
 curl -fsSL https://foundry.paradigm.xyz | bash
