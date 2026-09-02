@@ -7,7 +7,7 @@ minimumReleaseAgeExclude:
   - '@oxlint/*'
   - oxfmt
   - oxlint
-  - zod@4.5.2
+  - zod@4.5.4
 
 packages:
   - 'solhint-plugin'
@@ -35,7 +35,7 @@ catalog:
   '@google-cloud/pino-logging-gcp-config': ^1.3.5
 
   # Validation
-  zod: ^4.5.2
+  zod: ^4.5.4
 
   # HTTP
   express-rate-limit: ^8.3.1
