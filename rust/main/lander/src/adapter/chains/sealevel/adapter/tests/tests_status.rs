@@ -45,7 +45,7 @@ async fn signature_status_uses_one_rpc_call() {
     client
         .expect_get_signature_statuses_with_history()
         .times(1)
-        .returning(|_| Ok(signature_status_response(None)));
+        .returning(|_| signature_status_response(None));
     let adapter = adapter_with_mock_client(client);
 
     let status = adapter.get_tx_hash_status(H512::zero()).await;
@@ -59,7 +59,11 @@ async fn signature_status_provider_error_is_infrastructure_error() {
     client
         .expect_get_signature_statuses_with_history()
         .times(1)
-        .returning(|_| Err(ChainCommunicationError::from_other_str("RPC unavailable")));
+        .returning(|_| {
+            vec![Err(ChainCommunicationError::from_other_str(
+                "RPC unavailable",
+            ))]
+        });
     let adapter = adapter_with_mock_client(client);
 
     let status = adapter.get_tx_hash_status(H512::zero()).await;
@@ -80,11 +84,11 @@ async fn transaction_statuses_share_one_rpc_batch() {
         .returning(|_| {
             let mut confirmed = finalized_signature_status();
             confirmed.confirmation_status = Some(TransactionConfirmationStatus::Confirmed);
-            Ok(signature_statuses_response(vec![
+            signature_statuses_response(vec![
                 Some(finalized_signature_status()),
                 Some(confirmed),
                 None,
-            ]))
+            ])
         });
     let adapter = adapter_with_mock_client(client);
     let transactions = vec![transaction(), transaction(), transaction()];
@@ -113,12 +117,12 @@ async fn transaction_statuses_align_mixed_multi_hash_results() {
             confirmed.confirmation_status = Some(TransactionConfirmationStatus::Confirmed);
             let mut processed = finalized_signature_status();
             processed.confirmation_status = Some(TransactionConfirmationStatus::Processed);
-            Ok(signature_statuses_response(vec![
+            signature_statuses_response(vec![
                 None,
                 Some(confirmed),
                 Some(processed),
                 Some(finalized_signature_status()),
-            ]))
+            ])
         });
     let adapter = adapter_with_mock_client(client);
     let transactions = vec![
@@ -147,17 +151,13 @@ async fn transaction_statuses_split_at_256_signatures() {
         .withf(|signatures| signatures.len() == 256)
         .times(1)
         .in_sequence(&mut sequence)
-        .returning(|_| Ok(signature_statuses_response(vec![None; 256])));
+        .returning(|_| signature_statuses_response(vec![None; 256]));
     client
         .expect_get_signature_statuses_with_history()
         .withf(|signatures| signatures.len() == 1)
         .times(1)
         .in_sequence(&mut sequence)
-        .returning(|_| {
-            Ok(signature_statuses_response(vec![Some(
-                finalized_signature_status(),
-            )]))
-        });
+        .returning(|_| signature_statuses_response(vec![Some(finalized_signature_status())]));
     let adapter = adapter_with_mock_client(client);
     let transaction = transaction_with_hashes((0..257).map(hash));
 
@@ -179,14 +179,18 @@ async fn transaction_statuses_surface_partial_rpc_failure() {
         .returning(|_| {
             let mut confirmed = finalized_signature_status();
             confirmed.confirmation_status = Some(TransactionConfirmationStatus::Confirmed);
-            Ok(signature_statuses_response(vec![Some(confirmed); 256]))
+            signature_statuses_response(vec![Some(confirmed); 256])
         });
     client
         .expect_get_signature_statuses_with_history()
         .withf(|signatures| signatures.len() == 1)
         .times(1)
         .in_sequence(&mut sequence)
-        .returning(|_| Err(ChainCommunicationError::from_other_str("RPC unavailable")));
+        .returning(|_| {
+            vec![Err(ChainCommunicationError::from_other_str(
+                "RPC unavailable",
+            ))]
+        });
     let adapter = adapter_with_mock_client(client);
     let transactions = vec![
         transaction_with_hashes((0..256).map(hash)),
@@ -206,7 +210,7 @@ async fn transaction_statuses_reject_short_response() {
         .expect_get_signature_statuses_with_history()
         .withf(|signatures| signatures.len() == 2)
         .times(1)
-        .returning(|_| Ok(signature_status_response(None)));
+        .returning(|_| signature_status_response(None));
     let adapter = adapter_with_mock_client(client);
     let transactions = vec![
         transaction_with_hashes([hash(1)]),
@@ -218,6 +222,34 @@ async fn transaction_statuses_reject_short_response() {
     assert!(statuses
         .iter()
         .all(|status| matches!(status, Err(LanderError::NetworkError(_)))));
+}
+
+#[tokio::test]
+async fn transaction_statuses_preserve_resolved_entries_with_ambiguous_sibling() {
+    let mut client = MockClient::new();
+    client
+        .expect_get_signature_statuses_with_history()
+        .withf(|signatures| signatures.len() == 3)
+        .times(1)
+        .returning(|_| {
+            vec![
+                Ok(Some(finalized_signature_status())),
+                Ok(Some(finalized_signature_status())),
+                Err(ChainCommunicationError::from_other_str("RPC unavailable")),
+            ]
+        });
+    let adapter = adapter_with_mock_client(client);
+    let transactions = vec![
+        transaction_with_hashes([hash(1)]),
+        transaction_with_hashes([hash(2)]),
+        transaction_with_hashes([hash(3)]),
+    ];
+
+    let statuses = adapter.tx_statuses(&transactions).await;
+
+    assert_eq!(statuses[0].as_ref().unwrap(), &TransactionStatus::Finalized);
+    assert_eq!(statuses[1].as_ref().unwrap(), &TransactionStatus::Finalized);
+    assert!(matches!(statuses[2], Err(LanderError::NetworkError(_))));
 }
 
 #[test]

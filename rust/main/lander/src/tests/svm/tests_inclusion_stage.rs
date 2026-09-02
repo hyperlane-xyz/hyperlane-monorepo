@@ -124,7 +124,7 @@ async fn test_svm_inclusion_gas_spike() {
             } else {
                 processed_signature_status()
             };
-            Ok(signature_statuses_response(vec![Some(status)]))
+            signature_statuses_response(vec![Some(status)])
         });
 
     let mut submitter = MockSubmitter::new();
@@ -200,7 +200,7 @@ async fn test_svm_inclusion_escalate_but_old_hash_finalized() {
             } else {
                 assert_eq!(signatures, &[signature1, signature2]);
             }
-            Ok(signature_statuses_response(
+            signature_statuses_response(
                 signatures
                     .iter()
                     .map(|signature| {
@@ -211,7 +211,7 @@ async fn test_svm_inclusion_escalate_but_old_hash_finalized() {
                         })
                     })
                     .collect(),
-            ))
+            )
         });
 
     let oracle = MockOracle::new();
@@ -676,12 +676,7 @@ fn mock_get_signature_statuses_finalized(mock_provider: &mut MockClient, times: 
         .expect_get_signature_statuses_with_history()
         .times(times)
         .returning(|signatures| {
-            Ok(signature_statuses_response(vec![
-                Some(
-                    finalized_signature_status()
-                );
-                signatures.len()
-            ]))
+            signature_statuses_response(vec![Some(finalized_signature_status()); signatures.len()])
         });
 }
 

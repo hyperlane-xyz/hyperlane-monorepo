@@ -296,23 +296,37 @@ impl SealevelAdapter {
         let signature = Signature::try_from(tx_hash.as_ref())
             .map_err(|e| LanderError::TxSubmissionError(format!("Invalid signature: {e}")))?;
 
-        let response = self
-            .client
-            .get_signature_statuses_with_history(&[signature])
-            .await?;
-        if response.value.len() != 1 {
-            return Err(LanderError::NetworkError(format!(
-                "Signature status response length {} did not match request length 1",
-                response.value.len()
-            )));
-        }
-        let Some(status) = response.value.into_iter().next().flatten() else {
+        let status = self
+            .signature_status_results(std::slice::from_ref(&signature))
+            .await?
+            .into_iter()
+            .next()
+            .expect("single-signature result length was validated")?;
+        let Some(status) = status else {
             return Err(LanderError::TxHashNotFound(format!(
                 "Transaction signature {signature} was not found"
             )));
         };
 
         Ok(Self::classify_signature_status(status))
+    }
+
+    async fn signature_status_results(
+        &self,
+        signatures: &[Signature],
+    ) -> Result<Vec<ChainResult<Option<SealevelTransactionStatus>>>, LanderError> {
+        let statuses = self
+            .client
+            .get_signature_statuses_with_history(signatures)
+            .await;
+        if statuses.len() != signatures.len() {
+            return Err(LanderError::NetworkError(format!(
+                "Signature status response length {} did not match request length {}",
+                statuses.len(),
+                signatures.len()
+            )));
+        }
+        Ok(statuses)
     }
 
     fn classify_signature_status(status: SealevelTransactionStatus) -> TransactionStatus {
@@ -473,45 +487,28 @@ impl AdaptsChain for SealevelAdapter {
                 .iter()
                 .map(|(_, signature)| *signature)
                 .collect::<Vec<_>>();
-            match self
-                .client
-                .get_signature_statuses_with_history(&batch_signatures)
-                .await
-            {
-                Ok(response) => {
-                    if response.value.len() != signature_batch.len() {
-                        let error = format!(
-                            "Signature status response length {} did not match request length {}",
-                            response.value.len(),
-                            signature_batch.len()
-                        );
-                        for (tx_index, _) in signature_batch {
-                            statuses_by_tx[*tx_index]
-                                .push(Err(LanderError::NetworkError(error.clone())));
-                        }
-                        continue;
-                    }
-                    let mut response_statuses = response.value.into_iter();
-                    for (tx_index, signature) in signature_batch {
-                        let status = response_statuses
-                            .next()
-                            .flatten()
-                            .map(Self::classify_signature_status)
-                            .ok_or_else(|| {
-                                LanderError::TxHashNotFound(format!(
-                                    "Transaction signature {signature} was not found"
-                                ))
-                            });
-                        statuses_by_tx[*tx_index].push(status);
-                    }
-                }
-                Err(err) => {
-                    let message = err.to_string();
-                    for (tx_index, _) in signature_batch {
-                        statuses_by_tx[*tx_index]
-                            .push(Err(LanderError::NetworkError(message.clone())));
-                    }
-                }
+            let batch_statuses: Vec<Result<Option<SealevelTransactionStatus>, LanderError>> =
+                match self.signature_status_results(&batch_signatures).await {
+                    Ok(statuses) => statuses
+                        .into_iter()
+                        .map(|status| {
+                            status.map_err(|error| LanderError::NetworkError(error.to_string()))
+                        })
+                        .collect(),
+                    Err(error) => (0..signature_batch.len())
+                        .map(|_| Err(LanderError::NetworkError(error.to_string())))
+                        .collect(),
+                };
+
+            for ((tx_index, signature), status) in signature_batch.iter().zip(batch_statuses) {
+                let status = status.and_then(|status| {
+                    status.map(Self::classify_signature_status).ok_or_else(|| {
+                        LanderError::TxHashNotFound(format!(
+                            "Transaction signature {signature} was not found"
+                        ))
+                    })
+                });
+                statuses_by_tx[*tx_index].push(status);
             }
         }
 
