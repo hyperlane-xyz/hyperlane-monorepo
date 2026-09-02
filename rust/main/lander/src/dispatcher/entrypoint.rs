@@ -13,7 +13,7 @@ use crate::{
     payload::{FullPayload, PayloadStatus, PayloadUuid},
 };
 
-use super::{metrics::DispatcherMetrics, DispatcherSettings, DispatcherState};
+use super::DispatcherState;
 
 #[async_trait]
 pub trait Entrypoint {
@@ -32,18 +32,8 @@ pub struct DispatcherEntrypoint {
 }
 
 impl DispatcherEntrypoint {
-    pub async fn try_from_settings(
-        settings: DispatcherSettings,
-        metrics: DispatcherMetrics,
-    ) -> Result<Self> {
-        Ok(Self {
-            inner: DispatcherState::try_from_settings(settings, metrics).await?,
-        })
-    }
-
-    /// Create a DispatcherEntrypoint from a DispatcherState (for testing)
-    #[cfg(any(test, feature = "integration_test"))]
-    pub fn from_inner(inner: DispatcherState) -> Self {
+    /// Create an entrypoint from shared dispatcher state.
+    pub(crate) fn from_inner(inner: DispatcherState) -> Self {
         Self { inner }
     }
 }

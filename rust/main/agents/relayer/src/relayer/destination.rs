@@ -36,8 +36,6 @@ pub enum FactoryError {
     ApplicationOperationVerifierCreationFailed(String, String),
     #[error("Failed to create dispatcher for domain {0}: {1}")]
     DispatcherCreationFailed(String, String),
-    #[error("Failed to create dispatcher entrypoint for domain {0}: {1}")]
-    DispatcherEntrypointCreationFailed(String, String),
     #[error("Failed to create mailbox for domain {0}: {1}")]
     MailboxCreationFailed(String, String),
     #[error("Failed to create destination for domain {0} due to missing configuration")]
@@ -174,26 +172,19 @@ impl DestinationFactory {
             metrics: self.core_metrics.clone(),
         };
 
-        let mut start_entity_init = Instant::now();
-        let dispatcher_entrypoint = DispatcherEntrypoint::try_from_settings(
-            dispatcher_settings.clone(),
-            dispatcher_metrics.clone(),
-        )
-        .await
-        .map_err(|e| {
-            FactoryError::DispatcherEntrypointCreationFailed(domain.to_string(), e.to_string())
-        })?;
-        self.measure(domain, "dispatcher_entrypoint", start_entity_init.elapsed());
-
-        start_entity_init = Instant::now();
-        let dispatcher = Dispatcher::try_from_settings(
-            dispatcher_settings.clone(),
+        let start_entity_init = Instant::now();
+        let (dispatcher_entrypoint, dispatcher) = Dispatcher::try_from_settings(
+            dispatcher_settings,
             domain.to_string(),
-            dispatcher_metrics.clone(),
+            dispatcher_metrics,
         )
         .await
         .map_err(|e| FactoryError::DispatcherCreationFailed(domain.to_string(), e.to_string()))?;
-        self.measure(domain, "dispatcher", start_entity_init.elapsed());
+        self.measure(
+            domain,
+            "dispatcher_and_entrypoint",
+            start_entity_init.elapsed(),
+        );
 
         Ok((Some(dispatcher_entrypoint), Some(dispatcher)))
     }
