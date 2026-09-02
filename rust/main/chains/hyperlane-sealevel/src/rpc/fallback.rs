@@ -4,8 +4,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use solana_client::rpc_config::RpcProgramAccountsConfig;
 use solana_client::rpc_response::{
-    Response, RpcConfirmedTransactionStatusWithSignature, RpcResponseContext,
-    RpcSimulateTransactionResult,
+    Response, RpcConfirmedTransactionStatusWithSignature, RpcSimulateTransactionResult,
 };
 use solana_commitment_config::CommitmentConfig;
 use solana_sdk::hash::Hash;
@@ -68,20 +67,13 @@ fn all_signature_statuses_finalized(
 fn merge_signature_status_responses(
     signature_count: usize,
     responses: Vec<ChainResult<Response<Vec<Option<TransactionStatus>>>>>,
-) -> ChainResult<Response<Vec<Option<TransactionStatus>>>> {
-    let mut context = None;
+) -> Vec<ChainResult<Option<TransactionStatus>>> {
     let mut statuses = vec![None; signature_count];
     let mut errors = Vec::new();
 
     for response in responses {
         match response {
             Ok(response) => {
-                if context
-                    .as_ref()
-                    .is_none_or(|current: &RpcResponseContext| response.context.slot > current.slot)
-                {
-                    context = Some(response.context);
-                }
                 for (current, candidate) in statuses.iter_mut().zip(response.value) {
                     let should_replace = candidate.as_ref().is_some_and(|candidate| {
                         current.as_ref().is_none_or(|current| {
@@ -100,17 +92,16 @@ fn merge_signature_status_responses(
         }
     }
 
-    let Some(context) = context else {
-        return Err(RpcClientError::FallbackProvidersFailed(errors).into());
-    };
-    if !errors.is_empty() && statuses.iter().any(Option::is_none) {
-        return Err(RpcClientError::FallbackProvidersFailed(errors).into());
-    }
-
-    Ok(Response {
-        context,
-        value: statuses,
-    })
+    let fallback_error =
+        (!errors.is_empty()).then(|| RpcClientError::FallbackProvidersFailed(errors).to_string());
+    statuses
+        .into_iter()
+        .map(|status| match (status, &fallback_error) {
+            (Some(status), _) => Ok(Some(status)),
+            (None, None) => Ok(None),
+            (None, Some(error)) => Err(ChainCommunicationError::from_other_str(error)),
+        })
+        .collect()
 }
 
 /// Defines methods required to submit transactions to Sealevel chains
@@ -146,10 +137,12 @@ pub trait SubmitSealevelRpc: Send + Sync {
     ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
 
     /// Requests transaction statuses from recent and rooted history.
+    /// Returns exactly one result per input signature so a provider failure only
+    /// marks unresolved entries as ambiguous.
     async fn get_signature_statuses_with_history(
         &self,
         signatures: &[Signature],
-    ) -> ChainResult<Response<Vec<Option<TransactionStatus>>>>;
+    ) -> Vec<ChainResult<Option<TransactionStatus>>>;
 
     /// Simulates Sealevel legacy transaction
     async fn simulate_transaction(
@@ -209,7 +202,7 @@ impl SubmitSealevelRpc for SealevelFallbackRpcClient {
     async fn get_signature_statuses_with_history(
         &self,
         signatures: &[Signature],
-    ) -> ChainResult<Response<Vec<Option<TransactionStatus>>>> {
+    ) -> Vec<ChainResult<Option<TransactionStatus>>> {
         SealevelFallbackRpcClient::get_signature_statuses_with_history(self, signatures).await
     }
 
@@ -537,10 +530,12 @@ impl SealevelFallbackRpcClient {
     }
 
     /// Get signature statuses, including rooted transaction history.
+    /// Resolved statuses survive partial fallback-provider failures; unresolved
+    /// entries carry individual errors.
     pub async fn get_signature_statuses_with_history(
         &self,
         signatures: &[Signature],
-    ) -> ChainResult<Response<Vec<Option<TransactionStatus>>>> {
+    ) -> Vec<ChainResult<Option<TransactionStatus>>> {
         let signature_count = signatures.len();
         let responses = self
             .fallback_provider
@@ -575,6 +570,7 @@ impl Debug for SealevelFallbackRpcClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use solana_client::rpc_response::RpcResponseContext;
 
     fn status(confirmation_status: TransactionConfirmationStatus) -> TransactionStatus {
         TransactionStatus {
@@ -613,12 +609,11 @@ mod tests {
                     ],
                 )),
             ],
-        )
-        .unwrap();
+        );
 
-        assert_eq!(merged.context.slot, 11);
-        assert!(merged.value.into_iter().all(|status| {
-            status.unwrap().confirmation_status() == TransactionConfirmationStatus::Finalized
+        assert!(merged.into_iter().all(|status| {
+            status.unwrap().unwrap().confirmation_status()
+                == TransactionConfirmationStatus::Finalized
         }));
     }
 
@@ -653,7 +648,7 @@ mod tests {
             ],
         );
 
-        assert!(merged.is_err());
+        assert!(merged[0].is_err());
     }
 
     #[test]
@@ -661,10 +656,31 @@ mod tests {
         let merged = merge_signature_status_responses(
             1,
             vec![Ok(response(10, vec![None])), Ok(response(11, vec![None]))],
-        )
-        .unwrap();
+        );
 
-        assert_eq!(merged.value, vec![None]);
+        assert!(matches!(merged.as_slice(), [Ok(None)]));
+    }
+
+    #[test]
+    fn signature_status_merge_preserves_resolved_entries_with_provider_failure() {
+        let merged = merge_signature_status_responses(
+            3,
+            vec![
+                Ok(response(
+                    10,
+                    vec![
+                        Some(status(TransactionConfirmationStatus::Finalized)),
+                        Some(status(TransactionConfirmationStatus::Finalized)),
+                        None,
+                    ],
+                )),
+                Err(ChainCommunicationError::from_other_str("RPC unavailable")),
+            ],
+        );
+
+        assert!(matches!(merged[0], Ok(Some(_))));
+        assert!(matches!(merged[1], Ok(Some(_))));
+        assert!(merged[2].is_err());
     }
 
     #[test]

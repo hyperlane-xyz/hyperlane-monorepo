@@ -12,15 +12,15 @@ use solana_sdk::{
 };
 use solana_system_interface::instruction as system_instruction;
 use tokio::{select, sync::mpsc};
-use tracing::info;
 use tracing_test::traced_test;
 
 use crate::{
     adapter::{
         chains::sealevel::{
             adapter::tests::tests_common::{
-                finalized_signature_status, processed_signature_status, signature_status_response,
-                svm_block, MockClient, MockOracle, MockSubmitter, MockSvmProvider,
+                finalized_signature_status, processed_signature_status,
+                signature_statuses_response, svm_block, MockClient, MockOracle, MockSubmitter,
+                MockSvmProvider,
             },
             transaction::{Precursor, TransactionFactory},
             SealevelAdapter,
@@ -44,7 +44,7 @@ async fn test_svm_inclusion_happy_path() {
 
     let mut client = MockClient::new();
     mock_simulate_transaction(&mut client);
-    mock_finalized_signature_status(&mut client, 1);
+    mock_get_signature_statuses_finalized(&mut client, 1);
     mock_get_block_with_commitment(&mut client);
     let oracle = MockOracle::new();
     let mut provider = MockSvmProvider::new();
@@ -119,16 +119,12 @@ async fn test_svm_inclusion_gas_spike() {
         .returning(move |signatures| {
             assert_eq!(signatures.len(), 1);
             status_call_counter += 1;
-            info!(
-                ?status_call_counter,
-                "calling get_signature_statuses_with_history"
-            );
             let status = if status_call_counter == 4 {
                 finalized_signature_status()
             } else {
                 processed_signature_status()
             };
-            Ok(signature_status_response(Some(status)))
+            signature_statuses_response(vec![Some(status)])
         });
 
     let mut submitter = MockSubmitter::new();
@@ -192,27 +188,30 @@ async fn test_svm_inclusion_escalate_but_old_hash_finalized() {
     mock_simulate_transaction(&mut client);
     mock_get_block_with_commitment(&mut client);
 
-    // The first signature becomes finalized on its third status check while the
-    // replacement signature remains processed.
-    let mut signature1_status_checks = 0;
+    // Simulate the first signature being finalized after two resubmission scans.
+    let mut status_call_counter = 0;
     client
         .expect_get_signature_statuses_with_history()
-        .times(5)
+        .times(3)
         .returning(move |signatures| {
-            assert_eq!(signatures.len(), 1);
-            let signature = signatures[0];
-            let status = if signature == signature1 {
-                signature1_status_checks += 1;
-                if signature1_status_checks == 3 {
-                    finalized_signature_status()
-                } else {
-                    processed_signature_status()
-                }
+            status_call_counter += 1;
+            if status_call_counter == 1 {
+                assert_eq!(signatures, &[signature1]);
             } else {
-                assert_eq!(signature, signature2);
-                processed_signature_status()
-            };
-            Ok(signature_status_response(Some(status)))
+                assert_eq!(signatures, &[signature1, signature2]);
+            }
+            signature_statuses_response(
+                signatures
+                    .iter()
+                    .map(|signature| {
+                        Some(if status_call_counter == 3 && *signature == signature1 {
+                            finalized_signature_status()
+                        } else {
+                            processed_signature_status()
+                        })
+                    })
+                    .collect(),
+            )
         });
 
     let oracle = MockOracle::new();
@@ -303,7 +302,7 @@ async fn test_svm_inclusion_send_returns_blockhash_not_found() {
     let mut client = MockClient::new();
     mock_simulate_transaction(&mut client);
     mock_get_block_with_commitment(&mut client);
-    mock_finalized_signature_status(&mut client, 1);
+    mock_get_signature_statuses_finalized(&mut client, 1);
 
     let oracle = MockOracle::new();
     let mut provider = MockSvmProvider::new();
@@ -374,7 +373,7 @@ async fn test_svm_failure_to_estimate_costs_causes_tx_to_be_dropped() {
     let mut client = MockClient::new();
     mock_simulate_transaction(&mut client);
     mock_get_block_with_commitment(&mut client);
-    mock_finalized_signature_status(&mut client, 0);
+    mock_get_signature_statuses_finalized(&mut client, 0);
 
     let oracle = MockOracle::new();
     let mut provider = MockSvmProvider::new();
@@ -672,15 +671,12 @@ fn mock_confirm_transaction(mock_submitter: &mut MockSubmitter) {
         .returning(move |_, _| Ok(true));
 }
 
-fn mock_finalized_signature_status(mock_provider: &mut MockClient, times: usize) {
+fn mock_get_signature_statuses_finalized(mock_provider: &mut MockClient, times: usize) {
     mock_provider
         .expect_get_signature_statuses_with_history()
         .times(times)
         .returning(|signatures| {
-            assert_eq!(signatures.len(), 1);
-            Ok(signature_status_response(
-                Some(finalized_signature_status()),
-            ))
+            signature_statuses_response(vec![Some(finalized_signature_status()); signatures.len()])
         });
 }
 

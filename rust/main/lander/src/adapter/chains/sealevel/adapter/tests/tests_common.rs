@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use mockall::mock;
-use solana_client::rpc_response::{Response, RpcResponseContext, RpcSimulateTransactionResult};
+use solana_client::rpc_response::RpcSimulateTransactionResult;
 use solana_commitment_config::CommitmentConfig;
 use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_sdk::account::Account;
@@ -63,7 +63,7 @@ mock! {
         async fn get_signature_statuses_with_history(
             &self,
             signatures: &[Signature],
-        ) -> ChainResult<Response<Vec<Option<SealevelTransactionStatus>>>>;
+        ) -> Vec<ChainResult<Option<SealevelTransactionStatus>>>;
 
         async fn simulate_transaction(
             &self,
@@ -276,11 +276,7 @@ fn mock_client() -> MockClient {
         .returning(move |_, _| Ok(svm_block()));
     client
         .expect_get_signature_statuses_with_history()
-        .returning(move |_| {
-            Ok(signature_status_response(
-                Some(finalized_signature_status()),
-            ))
-        });
+        .returning(move |_| signature_status_response(Some(finalized_signature_status())));
     let result_clone = result.clone();
     client
         .expect_simulate_transaction()
@@ -293,14 +289,14 @@ fn mock_client() -> MockClient {
 
 pub fn signature_status_response(
     status: Option<SealevelTransactionStatus>,
-) -> Response<Vec<Option<SealevelTransactionStatus>>> {
-    Response {
-        context: RpcResponseContext {
-            slot: 43,
-            api_version: None,
-        },
-        value: vec![status],
-    }
+) -> Vec<ChainResult<Option<SealevelTransactionStatus>>> {
+    signature_statuses_response(vec![status])
+}
+
+pub fn signature_statuses_response(
+    statuses: Vec<Option<SealevelTransactionStatus>>,
+) -> Vec<ChainResult<Option<SealevelTransactionStatus>>> {
+    statuses.into_iter().map(Ok).collect()
 }
 
 pub fn finalized_signature_status() -> SealevelTransactionStatus {

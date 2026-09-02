@@ -23,7 +23,10 @@ use crate::{
 
 use super::{
     building_stage::BuildingStageQueue,
-    utils::{buffer_ordered_bounded, call_until_success_or_nonretryable_error},
+    utils::{
+        buffer_ordered_bounded, call_until_success_or_nonretryable_error,
+        read_transaction_status_batch, FinalizedStatusRead,
+    },
     DispatcherState,
 };
 
@@ -157,11 +160,29 @@ impl FinalityStage {
         super::utils::sort_transactions_for_mutation(&mut pool_snapshot);
         info!(pool_size=?pool_snapshot.len() , "Processing transactions in finality pool");
 
-        let status_reads = pool_snapshot.into_iter().map(|snapshot_tx| async move {
-            let (checked_tx, status) = Self::read_tx_status(snapshot_tx.clone(), state).await;
-            (snapshot_tx, checked_tx, status)
-        });
-        let status_reads = buffer_ordered_bounded(status_reads, STATUS_READ_CONCURRENCY);
+        let status_batch_size = state
+            .adapter
+            .tx_status_batch_size()
+            .clamp(1, STATUS_READ_CONCURRENCY);
+        let status_reads = if status_batch_size == 1 {
+            let status_reads = pool_snapshot.into_iter().map(|snapshot_tx| async move {
+                let (checked_tx, status) = Self::read_tx_status(snapshot_tx.clone(), state).await;
+                (snapshot_tx, checked_tx, status)
+            });
+            buffer_ordered_bounded(status_reads, STATUS_READ_CONCURRENCY).boxed()
+        } else {
+            let status_batch_concurrency = STATUS_READ_CONCURRENCY.div_ceil(status_batch_size);
+            let status_batches = pool_snapshot
+                .chunks(status_batch_size)
+                .map(<[Transaction]>::to_vec)
+                .collect::<Vec<_>>();
+            let status_reads = status_batches.into_iter().map(|batch| {
+                read_transaction_status_batch(state, batch, FinalizedStatusRead::TrustPersisted)
+            });
+            buffer_ordered_bounded(status_reads, status_batch_concurrency)
+                .flat_map(futures_util::stream::iter)
+                .boxed()
+        };
         futures_util::pin_mut!(status_reads);
 
         while let Some((snapshot_tx, checked_tx, status)) = status_reads.next().await {
