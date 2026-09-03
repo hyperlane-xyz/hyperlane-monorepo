@@ -4,7 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use broadcast::BroadcastMpscSender;
+use broadcast::{BroadcastMpscSender, IndexingNotification};
 use cursors::*;
 use derive_new::new;
 use eyre::Result;
@@ -53,7 +53,7 @@ pub struct ContractSync<T: Indexable, S: HyperlaneLogStore<T>, I: Indexer<T>> {
     store: S,
     indexer: I,
     metrics: ContractSyncMetrics,
-    broadcast_sender: Option<BroadcastMpscSender<H512>>,
+    broadcast_sender: Option<BroadcastMpscSender<IndexingNotification>>,
     _phantom: PhantomData<T>,
 }
 
@@ -93,7 +93,7 @@ where
         &self.domain
     }
 
-    fn get_broadcaster(&self) -> Option<BroadcastMpscSender<H512>> {
+    fn get_broadcaster(&self) -> Option<BroadcastMpscSender<IndexingNotification>> {
         self.broadcast_sender.clone()
     }
 
@@ -200,7 +200,7 @@ where
         domain: HyperlaneDomain,
         indexer: I,
         store: Arc<Mutex<S>>,
-        mut recv: MpscReceiver<H512>,
+        mut recv: MpscReceiver<IndexingNotification>,
         stored_logs_metric: GenericCounter<AtomicU64>,
         liveness_metric: GenericGauge<AtomicI64>,
     ) {
@@ -212,7 +212,7 @@ where
 
         loop {
             Self::update_liveness_metric(&liveness_metric);
-            let tx_id = match loop {
+            let notification = match loop {
                 tokio::select! {
                     tx_id = recv.recv() => break tx_id,
                     _ = liveness_interval.tick() => {
@@ -220,12 +220,13 @@ where
                     }
                 }
             } {
-                Some(tx_id) => tx_id,
+                Some(notification) => notification,
                 None => {
                     tracing::error!("Error: channel has closed");
                     break;
                 }
             };
+            let tx_id = notification.tx_id;
 
             let logs = match indexer.fetch_logs_by_tx_hash(tx_id).await {
                 Ok(logs) => logs,
@@ -269,7 +270,7 @@ where
         indexer: I,
         store: Arc<Mutex<S>>,
         mut cursor: Box<dyn ContractSyncCursor<T>>,
-        broadcast_sender: Option<BroadcastMpscSender<H512>>,
+        broadcast_sender: Option<BroadcastMpscSender<IndexingNotification>>,
         stored_logs_metric: GenericCounter<AtomicU64>,
         indexed_height_metric: GenericGauge<AtomicI64>,
         liveness_metric: GenericGauge<AtomicI64>,
@@ -339,11 +340,16 @@ where
             if let Some(tx) = broadcast_sender.as_ref() {
                 // If multiple logs occur in the same transaction they'll have the same transaction_id.
                 // Deduplicate their txids to avoid doing wasteful queries in txid indexer
-                let unique_txids: HashSet<_> =
-                    logs.iter().map(|(_, meta)| meta.transaction_id).collect();
+                let mut transactions = std::collections::HashMap::<_, Vec<_>>::new();
+                for (log, meta) in &logs {
+                    transactions
+                        .entry(meta.transaction_id)
+                        .or_default()
+                        .push(log.sequence);
+                }
 
-                for tx_id in unique_txids {
-                    if let Err(err) = tx.send(tx_id).await {
+                for (tx_id, sequences) in transactions {
+                    if let Err(err) = tx.send(IndexingNotification { tx_id, sequences }).await {
                         trace!(?err, "Error sending txid to receiver");
                     }
                 }
@@ -613,7 +619,7 @@ mod tests {
         assert!(!task.is_finished());
 
         sender
-            .send(H512::zero())
+            .send(IndexingNotification::from_tx_id(H512::zero()))
             .await
             .expect("idle receiver should remain connected");
         run_pending_tasks().await;
@@ -649,7 +655,7 @@ pub trait ContractSyncer<T>: Send + Sync {
     fn domain(&self) -> &HyperlaneDomain;
 
     /// If this syncer is also a broadcaster, return the channel to receive txids
-    fn get_broadcaster(&self) -> Option<BroadcastMpscSender<H512>>;
+    fn get_broadcaster(&self) -> Option<BroadcastMpscSender<IndexingNotification>>;
 }
 
 #[derive(new)]
@@ -659,7 +665,7 @@ pub struct SyncOptions<T> {
     // Might want to refactor into an enum later, where we either index with a cursor or rely on receiving
     // txids from a channel to other indexing tasks
     cursor: Option<Box<dyn ContractSyncCursor<T>>>,
-    tx_id_receiver: Option<MpscReceiver<H512>>,
+    tx_id_receiver: Option<MpscReceiver<IndexingNotification>>,
 }
 
 impl<T> From<Box<dyn ContractSyncCursor<T>>> for SyncOptions<T> {
@@ -711,7 +717,7 @@ where
         ContractSync::domain(self)
     }
 
-    fn get_broadcaster(&self) -> Option<BroadcastMpscSender<H512>> {
+    fn get_broadcaster(&self) -> Option<BroadcastMpscSender<IndexingNotification>> {
         ContractSync::get_broadcaster(self)
     }
 }
@@ -756,7 +762,7 @@ where
         ContractSync::domain(self)
     }
 
-    fn get_broadcaster(&self) -> Option<BroadcastMpscSender<H512>> {
+    fn get_broadcaster(&self) -> Option<BroadcastMpscSender<IndexingNotification>> {
         ContractSync::get_broadcaster(self)
     }
 }
