@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     sync::Mutex,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -19,6 +19,61 @@ const ENDED_EVENT: &str = "ended";
 struct MetadataWaitStart {
     instant: Instant,
     unix_timestamp_seconds: i64,
+}
+
+#[derive(Debug, Default)]
+struct AppMetadataWaits {
+    by_message: HashMap<H256, MetadataWaitStart>,
+    timestamp_counts: BTreeMap<i64, usize>,
+}
+
+impl AppMetadataWaits {
+    fn insert(&mut self, message_id: H256, start: MetadataWaitStart) -> bool {
+        match self.by_message.entry(message_id) {
+            std::collections::hash_map::Entry::Occupied(_) => return false,
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(start);
+            }
+        }
+        self.timestamp_counts
+            .entry(start.unix_timestamp_seconds)
+            .and_modify(|count| *count = count.saturating_add(1))
+            .or_insert(1);
+        true
+    }
+
+    fn remove(&mut self, message_id: &H256) -> Option<MetadataWaitStart> {
+        let removed = self.by_message.remove(message_id)?;
+        let remove_timestamp = self
+            .timestamp_counts
+            .get_mut(&removed.unix_timestamp_seconds)
+            .map(|count| {
+                *count = count.saturating_sub(1);
+                *count == 0
+            })
+            .unwrap_or_default();
+        debug_assert!(
+            self.timestamp_counts
+                .contains_key(&removed.unix_timestamp_seconds),
+            "tracked wait timestamp must have a count"
+        );
+        if remove_timestamp {
+            self.timestamp_counts
+                .remove(&removed.unix_timestamp_seconds);
+        }
+        Some(removed)
+    }
+
+    fn oldest_timestamp_seconds(&self) -> i64 {
+        self.timestamp_counts
+            .first_key_value()
+            .map(|(timestamp, _)| *timestamp)
+            .unwrap_or_default()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.by_message.is_empty()
+    }
 }
 
 #[cfg(test)]
@@ -165,11 +220,40 @@ mod tests {
             expected_oldest
         );
     }
+
+    #[test]
+    fn metadata_wait_tracker_keeps_an_ordered_oldest_timestamp() {
+        let mut waits = AppMetadataWaits::default();
+        let first_id = H256::from_low_u64_be(1);
+        let second_id = H256::from_low_u64_be(2);
+        let third_id = H256::from_low_u64_be(3);
+        let now = Instant::now();
+
+        for (message_id, unix_timestamp_seconds) in
+            [(first_id, 20), (second_id, 10), (third_id, 10)]
+        {
+            assert!(waits.insert(
+                message_id,
+                MetadataWaitStart {
+                    instant: now,
+                    unix_timestamp_seconds,
+                },
+            ));
+        }
+        assert_eq!(waits.oldest_timestamp_seconds(), 10);
+
+        waits.remove(&second_id).unwrap();
+        assert_eq!(waits.oldest_timestamp_seconds(), 10);
+        waits.remove(&third_id).unwrap();
+        assert_eq!(waits.oldest_timestamp_seconds(), 20);
+        waits.remove(&first_id).unwrap();
+        assert_eq!(waits.oldest_timestamp_seconds(), 0);
+    }
 }
 
 #[derive(Debug, Default)]
 struct MetadataWaitTracker {
-    by_app_context: Mutex<HashMap<String, HashMap<H256, MetadataWaitStart>>>,
+    by_app_context: Mutex<HashMap<String, AppMetadataWaits>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -278,28 +362,21 @@ impl MessageSubmissionMetrics {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let app_waits = waits.entry(app_context.to_owned()).or_default();
-        let (first_observation, start) = match app_waits.entry(message_id) {
-            std::collections::hash_map::Entry::Occupied(entry) => (false, *entry.get()),
-            std::collections::hash_map::Entry::Vacant(entry) => {
-                let start = MetadataWaitStart {
-                    instant: now,
-                    unix_timestamp_seconds,
-                };
-                entry.insert(start);
-                (true, start)
-            }
-        };
+        let start = app_waits
+            .by_message
+            .get(&message_id)
+            .copied()
+            .unwrap_or(MetadataWaitStart {
+                instant: now,
+                unix_timestamp_seconds,
+            });
+        let first_observation = app_waits.insert(message_id, start);
         if first_observation {
             let labels = [app_context, self.origin.as_str(), self.destination.as_str()];
             self.metadata_wait_active.with_label_values(&labels).inc();
-            let oldest = app_waits
-                .values()
-                .map(|start| start.unix_timestamp_seconds)
-                .min()
-                .unwrap_or(unix_timestamp_seconds);
             self.metadata_wait_oldest_timestamp_seconds
                 .with_label_values(&labels)
-                .set(oldest);
+                .set(app_waits.oldest_timestamp_seconds());
         }
 
         self.metadata_wait_event_count
@@ -332,11 +409,7 @@ impl MessageSubmissionMetrics {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let app_waits = waits.get_mut(app_context)?;
         let removed = app_waits.remove(&message_id)?;
-        let next_oldest = app_waits
-            .values()
-            .map(|start| start.unix_timestamp_seconds)
-            .min()
-            .unwrap_or_default();
+        let next_oldest = app_waits.oldest_timestamp_seconds();
         let remove_app_context = app_waits.is_empty();
         if remove_app_context {
             waits.remove(app_context);
