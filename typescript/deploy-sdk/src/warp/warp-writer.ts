@@ -26,9 +26,13 @@ import {
   mergeHookArtifacts,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import {
+  type ContextualAddress,
   DeployedIsmAddress,
   IsmArtifactConfig,
+  IsmArtifactResolutionOperation,
+  assertRateLimitedIsmRecipientsUnset,
   mergeIsmArtifacts,
+  resolveIsmArtifact,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
@@ -40,13 +44,25 @@ import {
   buildFeeReadContextFromWarpArtifactConfig,
   resolveFeeTokenFromWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { assert, isNullish, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  addressToBytes32,
+  assert,
+  isNullish,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { createFeeWriter } from '../fee/fee-writer.js';
 import { HookWriter, createHookWriter } from '../hook/hook-writer.js';
 import { IsmWriter, createIsmWriter } from '../ism/generic-ism-writer.js';
 
 import { WarpTokenReader } from './warp-reader.js';
+
+function warpRouterContext(address: string): ContextualAddress {
+  return {
+    address,
+    toBytes32: () => addressToBytes32(address).toLowerCase(),
+  };
+}
 
 /**
  * Factory function to create a WarpTokenWriter instance.
@@ -86,7 +102,7 @@ export function createWarpTokenWriter(
  * Key features:
  * - Extends WarpTokenReader to inherit read() functionality
  * - Works with pure Artifact API (WarpArtifactConfig)
- * - Handles nested ISM deployment before warp token deployment
+ * - Handles nested ISM deployment after warp token deployment
  * - Delegates to typed writers from artifact manager for specific warp token types
  * - Protocol-agnostic through artifact manager abstraction
  */
@@ -111,7 +127,8 @@ export class WarpTokenWriter
 
   /**
    * Creates a new warp token by deploying it on-chain.
-   * If the warp token has a nested ISM artifact, deploys the ISM first.
+   * If the warp token has a new nested ISM artifact, deploys it after the
+   * router so its config can use the router address.
    *
    * @param artifact The warp token configuration to deploy
    * @returns A tuple of [deployed artifact, transaction receipts]
@@ -128,21 +145,12 @@ export class WarpTokenWriter
       );
     }
 
-    // Deploy ISM if configured as a NEW artifact
-    let onChainIsmArtifact:
-      | ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddress>
-      | undefined;
-    if (config.interchainSecurityModule) {
-      if (isArtifactNew(config.interchainSecurityModule)) {
-        const [deployedIsm, ismReceipts] = await this.ismWriter.create(
-          config.interchainSecurityModule,
-        );
-        allReceipts.push(...ismReceipts);
-
-        onChainIsmArtifact = deployedIsm;
-      } else {
-        onChainIsmArtifact = config.interchainSecurityModule;
-      }
+    const configuredIsm = config.interchainSecurityModule;
+    if (configuredIsm) {
+      assertRateLimitedIsmRecipientsUnset(
+        configuredIsm,
+        this.chainMetadata.name,
+      );
     }
 
     // Deploy Hook if configured as a NEW artifact
@@ -169,17 +177,13 @@ export class WarpTokenWriter
       }
     }
 
-    // Deploy warp WITHOUT fee — the fee is deployed and attached post-warp
-    // so that (a) the fee program can be initialized with the warp's
-    // settlement asset already known (e.g. SVM synthetic mints, which only
-    // exist post-deploy), and (b) the fee can be deployed with its real
-    // owner from the start rather than via a signer-as-initial-owner /
-    // TransferOwnership dance.
+    // Deploy warp WITHOUT an ISM or fee. Both are attached post-warp, and NEW
+    // artifacts are deployed first once the router address is available.
     const rawArtifact: ArtifactNew<RawWarpArtifactConfig> = {
       artifactState: ArtifactState.NEW,
       config: {
         ...config,
-        interchainSecurityModule: onChainIsmArtifact,
+        interchainSecurityModule: undefined,
         hook: onChainHookArtifact,
         fee: undefined,
       },
@@ -188,6 +192,30 @@ export class WarpTokenWriter
     const writer = this.artifactManager.createWriter(config.type, this.signer);
     const [deployed, tokenReceipts] = await writer.create(rawArtifact);
     allReceipts.push(...tokenReceipts);
+
+    // Deploy / resolve the ISM now that the warp address is known.
+    let onChainIsmArtifact:
+      | ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddress>
+      | undefined;
+    if (configuredIsm) {
+      if (isArtifactUnderived(configuredIsm)) {
+        onChainIsmArtifact = configuredIsm;
+      } else {
+        const resolvedIsm = resolveIsmArtifact(configuredIsm, {
+          operation: IsmArtifactResolutionOperation.CREATE,
+          warpRouter: warpRouterContext(deployed.deployed.address),
+          context: this.chainMetadata.name,
+        });
+        if (isArtifactNew(resolvedIsm)) {
+          const [deployedIsm, ismReceipts] =
+            await this.ismWriter.create(resolvedIsm);
+          allReceipts.push(...ismReceipts);
+          onChainIsmArtifact = deployedIsm;
+        } else {
+          onChainIsmArtifact = resolvedIsm;
+        }
+      }
+    }
 
     // Deploy / resolve the fee now that the warp is on-chain and its
     // settlement asset is known.
@@ -219,18 +247,33 @@ export class WarpTokenWriter
       }
     }
 
-    // Attach the fee to the warp via the regular update path. The warp diff
-    // emits the SetTokenFeeConfig tx (current=no-fee, expected=fee); the
-    // fee writer's read sees current=expected since we just deployed it,
-    // so no fee-program diff txs are emitted.
-    if (onChainFeeArtifact) {
+    // Attach the ISM and fee to the warp via the regular update path.
+    if (onChainIsmArtifact || onChainFeeArtifact) {
+      const ismToAttach = onChainIsmArtifact
+        ? {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: onChainIsmArtifact.deployed.address },
+          }
+        : undefined;
+      const feeToAttach = onChainFeeArtifact
+        ? {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: onChainFeeArtifact.deployed.address },
+          }
+        : undefined;
+      const hookToAttach = onChainHookArtifact
+        ? {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: onChainHookArtifact.deployed.address },
+          }
+        : undefined;
       const attachTxs = await this.update({
         artifactState: ArtifactState.DEPLOYED,
         config: {
           ...config,
-          interchainSecurityModule: onChainIsmArtifact,
-          hook: onChainHookArtifact,
-          fee: onChainFeeArtifact,
+          interchainSecurityModule: ismToAttach,
+          hook: hookToAttach,
+          fee: feeToAttach,
         },
         deployed: deployed.deployed,
       });
@@ -314,8 +357,17 @@ export class WarpTokenWriter
       | undefined;
 
     if (expectedIsm && !isArtifactUnderived(expectedIsm)) {
+      // Resolve before merging: mergeIsmArtifacts returns a compositeIsm's
+      // expected config verbatim, so a router-derived recipient has to be in
+      // place already for both the NEW and the DEPLOYED branch below.
+      const resolvedIsm = resolveIsmArtifact(expectedIsm, {
+        operation: IsmArtifactResolutionOperation.UPDATE,
+        warpRouter: warpRouterContext(deployed.address),
+        context: this.chainMetadata.name,
+      });
+
       // NEW or DEPLOYED: Merge with current and decide deploy vs update
-      const mergedIsmConfig = mergeIsmArtifacts(currentIsm, expectedIsm);
+      const mergedIsmConfig = mergeIsmArtifacts(currentIsm, resolvedIsm);
 
       if (isArtifactNew(mergedIsmConfig)) {
         // Deploy new ISM

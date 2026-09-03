@@ -10,6 +10,7 @@ import type {
 import {
   ArtifactState,
   isArtifactDeployed,
+  isArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 import type {
@@ -17,9 +18,13 @@ import type {
   HookArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import type {
+  CompositeIsmArtifactConfig,
+  CompositeIsmNodeArtifactConfig,
   DeployedIsmArtifact,
   IsmArtifactConfig,
+  RoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
+import { CompositeIsmNodeType, IsmType } from '@hyperlane-xyz/provider-sdk/ism';
 import type {
   AnnotatedTx,
   TxReceipt,
@@ -378,7 +383,7 @@ describe('WarpTokenWriter', () => {
 
   describe('update() - ISM Updates', () => {
     const createIsmConfig = (
-      type: 'messageIdMultisigIsm',
+      type: typeof IsmType.MESSAGE_ID_MULTISIG,
       validators: string[],
     ): IsmArtifactConfig => ({
       type,
@@ -387,7 +392,7 @@ describe('WarpTokenWriter', () => {
     });
 
     it('should deploy new ISM', async () => {
-      const newIsmConfig = createIsmConfig('messageIdMultisigIsm', [
+      const newIsmConfig = createIsmConfig(IsmType.MESSAGE_ID_MULTISIG, [
         '0xVALIDATOR',
       ]);
 
@@ -434,7 +439,7 @@ describe('WarpTokenWriter', () => {
     });
 
     it('should update existing ISM in-place when type is unchanged', async () => {
-      const ismConfig = createIsmConfig('messageIdMultisigIsm', [
+      const ismConfig = createIsmConfig(IsmType.MESSAGE_ID_MULTISIG, [
         '0xVALIDATOR1',
       ]);
 
@@ -483,7 +488,7 @@ describe('WarpTokenWriter', () => {
 
     it('should replace existing ISM when type changes', async () => {
       // Setup current artifact with existing ISM
-      const currentIsmConfig = createIsmConfig('messageIdMultisigIsm', [
+      const currentIsmConfig = createIsmConfig(IsmType.MESSAGE_ID_MULTISIG, [
         '0xVALIDATOR1',
       ]);
 
@@ -504,7 +509,7 @@ describe('WarpTokenWriter', () => {
 
       // New ISM config
       const newIsmConfig: IsmArtifactConfig = {
-        type: 'merkleRootMultisigIsm',
+        type: IsmType.MERKLE_ROOT_MULTISIG,
         validators: ['0xVALIDATOR2'],
         threshold: 1,
       };
@@ -586,6 +591,551 @@ describe('WarpTokenWriter', () => {
       // Neither case should trigger ISM creation
       expect(mockIsmWriter.create.callCount).to.equal(createCountAfterNoIsm);
       expect(mockIsmWriter.create.callCount).to.equal(0);
+    });
+  });
+
+  describe('rateLimited recipient resolution', () => {
+    const COMPOSITE_OWNER = OWNER_ADDRESS;
+    const OTHER_RECIPIENT = `0x${'9999'.padStart(64, '0')}`;
+
+    const rateLimited = (recipient?: string): CompositeIsmNodeArtifactConfig =>
+      recipient === undefined
+        ? {
+            type: CompositeIsmNodeType.RATE_LIMITED,
+            maxCapacity: '86400',
+            mailbox: MAILBOX_ADDRESS,
+          }
+        : {
+            type: CompositeIsmNodeType.RATE_LIMITED,
+            maxCapacity: '86400',
+            mailbox: MAILBOX_ADDRESS,
+            recipient,
+          };
+
+    // Nested one level down so the tests exercise the recursive walk rather
+    // than a root-only special case.
+    const compositeWith = (
+      node: CompositeIsmNodeArtifactConfig,
+    ): CompositeIsmArtifactConfig => ({
+      type: IsmType.COMPOSITE,
+      owner: COMPOSITE_OWNER,
+      root: {
+        type: CompositeIsmNodeType.AGGREGATION,
+        threshold: 1,
+        subIsms: [{ type: CompositeIsmNodeType.TEST, accept: true }, node],
+      },
+    });
+
+    const extractRateLimited = (
+      config: IsmArtifactConfig,
+    ): CompositeIsmNodeArtifactConfig => {
+      assert(config.type === IsmType.COMPOSITE, 'expected compositeIsm');
+      assert(
+        config.root.type === CompositeIsmNodeType.AGGREGATION,
+        'expected aggregation root',
+      );
+      return config.root.subIsms[1];
+    };
+
+    const deployedCompositeIsm = (
+      config: CompositeIsmArtifactConfig,
+    ): DeployedIsmArtifact => ({
+      artifactState: ArtifactState.DEPLOYED,
+      config,
+      deployed: { address: ISM_ADDRESS },
+    });
+
+    const routingWith = (
+      nestedConfig: IsmArtifactConfig,
+    ): RoutingIsmArtifactConfig => ({
+      type: IsmType.ROUTING,
+      owner: COMPOSITE_OWNER,
+      domains: {
+        [REMOTE_DOMAIN_ID_1]: {
+          artifactState: ArtifactState.NEW,
+          config: nestedConfig,
+        },
+      },
+    });
+
+    const extractRoutingDomain = (
+      config: IsmArtifactConfig,
+    ): IsmArtifactConfig => {
+      assert(config.type === IsmType.ROUTING, 'expected domainRoutingIsm');
+      const domainIsm = config.domains[REMOTE_DOMAIN_ID_1];
+      assert(domainIsm, `expected domain ${REMOTE_DOMAIN_ID_1}`);
+      assert(!isArtifactUnderived(domainIsm), 'expected expanded domain ISM');
+      return domainIsm.config;
+    };
+
+    // Stub-typed view of MockRawWarpWriter so the ordering assertions below
+    // can reach Sinon's call bookkeeping.
+    interface StubbedRawWarpWriter {
+      read: Sinon.SinonStub;
+      create: Sinon.SinonStub;
+      update: Sinon.SinonStub;
+    }
+
+    let warpWriterStub: StubbedRawWarpWriter;
+    let sendStub: Sinon.SinonStub;
+
+    beforeEach(() => {
+      sendStub = Sinon.stub().resolves({});
+      Object.assign(mockSigner, { sendAndConfirmTransaction: sendStub });
+
+      warpWriterStub = {
+        read: Sinon.stub(),
+        create: Sinon.stub().resolves([
+          {
+            artifactState: ArtifactState.DEPLOYED,
+            config: actualConfig,
+            deployed: { address: TOKEN_ADDRESS },
+          },
+          [],
+        ]),
+        update: Sinon.stub().resolves([]),
+      } satisfies MockRawWarpWriter;
+      mockArtifactManager.createWriter.returns(warpWriterStub);
+      mockIsmWriter.update.resolves([]);
+    });
+
+    describe('create()', () => {
+      it('deploys the ISM after the router and points every recipient at it', async () => {
+        const ismConfig = compositeWith(rateLimited());
+        mockIsmWriter.create.resolves([deployedCompositeIsm(ismConfig), []]);
+
+        await writer.create({
+          artifactState: ArtifactState.NEW,
+          config: {
+            ...actualConfig,
+            interchainSecurityModule: {
+              artifactState: ArtifactState.NEW,
+              config: ismConfig,
+            },
+          },
+        });
+
+        expect(mockIsmWriter.create.callCount).to.equal(1);
+        expect(warpWriterStub.create.calledBefore(mockIsmWriter.create)).to.be
+          .true;
+        expect(
+          extractRateLimited(mockIsmWriter.create.firstCall.args[0].config),
+        ).to.deep.equal(rateLimited(TOKEN_ADDRESS));
+      });
+
+      it('defers and resolves a composite nested inside a domainRoutingIsm artifact', async () => {
+        const routingConfig = routingWith(compositeWith(rateLimited()));
+        mockIsmWriter.create.resolves([
+          {
+            artifactState: ArtifactState.DEPLOYED,
+            config: routingConfig,
+            deployed: { address: ISM_ADDRESS },
+          },
+          [],
+        ]);
+
+        await writer.create({
+          artifactState: ArtifactState.NEW,
+          config: {
+            ...actualConfig,
+            interchainSecurityModule: {
+              artifactState: ArtifactState.NEW,
+              config: routingConfig,
+            },
+          },
+        });
+
+        expect(warpWriterStub.create.calledBefore(mockIsmWriter.create)).to.be
+          .true;
+        const rawConfig = warpWriterStub.create.firstCall.args[0].config;
+        expect(rawConfig.interchainSecurityModule).to.be.undefined;
+        expect(rawConfig.remoteRouters).to.deep.equal(
+          actualConfig.remoteRouters,
+        );
+
+        const resolvedRouting = mockIsmWriter.create.firstCall.args[0].config;
+        const nestedComposite = extractRoutingDomain(resolvedRouting);
+        expect(extractRateLimited(nestedComposite)).to.deep.equal(
+          rateLimited(TOKEN_ADDRESS),
+        );
+      });
+
+      it('preserves a DEPLOYED descendant of a NEW routing ISM', async () => {
+        const deployedDomainIsm = deployedCompositeIsm(
+          compositeWith(rateLimited(TOKEN_ADDRESS)),
+        );
+        const routingConfig: RoutingIsmArtifactConfig = {
+          type: IsmType.ROUTING,
+          owner: COMPOSITE_OWNER,
+          domains: { [REMOTE_DOMAIN_ID_1]: deployedDomainIsm },
+        };
+        mockIsmWriter.create.resolves([
+          {
+            artifactState: ArtifactState.DEPLOYED,
+            config: routingConfig,
+            deployed: { address: ISM_ADDRESS },
+          },
+          [],
+        ]);
+
+        await writer.create({
+          artifactState: ArtifactState.NEW,
+          config: {
+            ...actualConfig,
+            interchainSecurityModule: {
+              artifactState: ArtifactState.NEW,
+              config: routingConfig,
+            },
+          },
+        });
+
+        const resolved = mockIsmWriter.create.firstCall.args[0].config;
+        assert(resolved.type === IsmType.ROUTING, 'expected routing ISM');
+        expect(resolved.domains[REMOTE_DOMAIN_ID_1]).to.equal(
+          deployedDomainIsm,
+        );
+      });
+
+      it('preserves an UNDERIVED descendant of a NEW routing ISM', async () => {
+        const underivedDomainIsm = {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: ISM_ADDRESS },
+        } satisfies RoutingIsmArtifactConfig['domains'][number];
+        const routingConfig: RoutingIsmArtifactConfig = {
+          type: IsmType.ROUTING,
+          owner: COMPOSITE_OWNER,
+          domains: { [REMOTE_DOMAIN_ID_1]: underivedDomainIsm },
+        };
+        mockIsmWriter.create.resolves([
+          {
+            artifactState: ArtifactState.DEPLOYED,
+            config: routingConfig,
+            deployed: { address: ISM_ADDRESS },
+          },
+          [],
+        ]);
+
+        await writer.create({
+          artifactState: ArtifactState.NEW,
+          config: {
+            ...actualConfig,
+            interchainSecurityModule: {
+              artifactState: ArtifactState.NEW,
+              config: routingConfig,
+            },
+          },
+        });
+
+        const resolved = mockIsmWriter.create.firstCall.args[0].config;
+        assert(resolved.type === IsmType.ROUTING, 'expected routing ISM');
+        expect(resolved.domains[REMOTE_DOMAIN_ID_1]).to.equal(
+          underivedDomainIsm,
+        );
+      });
+
+      it('validates a rateLimited descendant in a DEPLOYED routing ISM', async () => {
+        const deployedDomainIsm = deployedCompositeIsm(
+          compositeWith(rateLimited(TOKEN_ADDRESS)),
+        );
+        const routingIsm: DeployedIsmArtifact = {
+          artifactState: ArtifactState.DEPLOYED,
+          config: {
+            type: IsmType.ROUTING,
+            owner: COMPOSITE_OWNER,
+            domains: { [REMOTE_DOMAIN_ID_1]: deployedDomainIsm },
+          },
+          deployed: { address: ISM_ADDRESS },
+        };
+
+        const [deployed] = await writer.create({
+          artifactState: ArtifactState.NEW,
+          config: {
+            ...actualConfig,
+            interchainSecurityModule: routingIsm,
+          },
+        });
+
+        expect(mockIsmWriter.create.callCount).to.equal(0);
+        expect(mockIsmWriter.update.callCount).to.equal(0);
+        expect(deployed.config.interchainSecurityModule).to.equal(routingIsm);
+      });
+
+      it('rejects a mismatched rateLimited descendant in a DEPLOYED routing ISM', async () => {
+        const routingIsm: DeployedIsmArtifact = {
+          artifactState: ArtifactState.DEPLOYED,
+          config: {
+            type: IsmType.ROUTING,
+            owner: COMPOSITE_OWNER,
+            domains: {
+              [REMOTE_DOMAIN_ID_1]: deployedCompositeIsm(
+                compositeWith(rateLimited(OTHER_RECIPIENT)),
+              ),
+            },
+          },
+          deployed: { address: ISM_ADDRESS },
+        };
+
+        await expect(
+          writer.create({
+            artifactState: ArtifactState.NEW,
+            config: {
+              ...actualConfig,
+              interchainSecurityModule: routingIsm,
+            },
+          }),
+        ).to.be.rejectedWith(/does not match/);
+
+        expect(warpWriterStub.create.callCount).to.equal(1);
+        expect(mockIsmWriter.create.callCount).to.equal(0);
+      });
+
+      it('withholds the NEW ISM but preserves the router config', async () => {
+        const ismConfig = compositeWith(rateLimited());
+        mockIsmWriter.create.resolves([deployedCompositeIsm(ismConfig), []]);
+
+        const [deployed] = await writer.create({
+          artifactState: ArtifactState.NEW,
+          config: {
+            ...actualConfig,
+            interchainSecurityModule: {
+              artifactState: ArtifactState.NEW,
+              config: ismConfig,
+            },
+          },
+        });
+
+        const rawConfig = warpWriterStub.create.firstCall.args[0].config;
+        expect(rawConfig.interchainSecurityModule).to.be.undefined;
+        expect(rawConfig.remoteRouters).to.deep.equal(
+          actualConfig.remoteRouters,
+        );
+        expect(rawConfig.destinationGas).to.deep.equal(
+          actualConfig.destinationGas,
+        );
+        expect(deployed.config.remoteRouters).to.deep.equal(
+          actualConfig.remoteRouters,
+        );
+        expect(deployed.config.destinationGas).to.deep.equal(
+          actualConfig.destinationGas,
+        );
+        expect(deployed.config.interchainSecurityModule).to.deep.equal(
+          deployedCompositeIsm(ismConfig),
+        );
+      });
+
+      it('rejects a hand-written recipient before deploying anything', async () => {
+        const ismConfig = compositeWith(rateLimited(TOKEN_ADDRESS));
+
+        await expect(
+          writer.create({
+            artifactState: ArtifactState.NEW,
+            config: {
+              ...actualConfig,
+              interchainSecurityModule: {
+                artifactState: ArtifactState.NEW,
+                config: ismConfig,
+              },
+            },
+          }),
+        ).to.be.rejectedWith(/recipient/);
+
+        expect(mockIsmWriter.create.callCount).to.equal(0);
+        expect(warpWriterStub.create.callCount).to.equal(0);
+      });
+
+      it('post-deploys a composite ISM without a rateLimited node', async () => {
+        const ismConfig: CompositeIsmArtifactConfig = {
+          type: IsmType.COMPOSITE,
+          owner: COMPOSITE_OWNER,
+          root: { type: CompositeIsmNodeType.TEST, accept: true },
+        };
+        mockIsmWriter.create.resolves([deployedCompositeIsm(ismConfig), []]);
+
+        await writer.create({
+          artifactState: ArtifactState.NEW,
+          config: {
+            ...actualConfig,
+            interchainSecurityModule: {
+              artifactState: ArtifactState.NEW,
+              config: ismConfig,
+            },
+          },
+        });
+
+        expect(warpWriterStub.create.calledBefore(mockIsmWriter.create)).to.be
+          .true;
+        const rawConfig = warpWriterStub.create.firstCall.args[0].config;
+        expect(rawConfig.interchainSecurityModule).to.be.undefined;
+        expect(rawConfig.remoteRouters).to.deep.equal(
+          actualConfig.remoteRouters,
+        );
+      });
+
+      it('post-deploys a non-composite ISM', async () => {
+        const ismConfig: IsmArtifactConfig = { type: IsmType.TEST_ISM };
+        mockIsmWriter.create.resolves([
+          {
+            artifactState: ArtifactState.DEPLOYED,
+            config: ismConfig,
+            deployed: { address: ISM_ADDRESS },
+          },
+          [],
+        ]);
+
+        await writer.create({
+          artifactState: ArtifactState.NEW,
+          config: {
+            ...actualConfig,
+            interchainSecurityModule: {
+              artifactState: ArtifactState.NEW,
+              config: ismConfig,
+            },
+          },
+        });
+
+        expect(warpWriterStub.create.calledBefore(mockIsmWriter.create)).to.be
+          .true;
+        const rawConfig = warpWriterStub.create.firstCall.args[0].config;
+        expect(rawConfig.interchainSecurityModule).to.be.undefined;
+        expect(rawConfig.destinationGas).to.deep.equal(
+          actualConfig.destinationGas,
+        );
+      });
+    });
+
+    describe('update()', () => {
+      it('fills an unset recipient with the existing router address', async () => {
+        const ismConfig = compositeWith(rateLimited());
+        mockIsmWriter.create.resolves([deployedCompositeIsm(ismConfig), []]);
+
+        await writer.update({
+          ...baseDeployedArtifact,
+          config: {
+            ...actualConfig,
+            interchainSecurityModule: {
+              artifactState: ArtifactState.NEW,
+              config: ismConfig,
+            },
+          },
+        });
+
+        expect(mockIsmWriter.create.callCount).to.equal(1);
+        expect(
+          extractRateLimited(mockIsmWriter.create.firstCall.args[0].config),
+        ).to.deep.equal(rateLimited(TOKEN_ADDRESS));
+      });
+
+      it('resolves a composite nested inside a domainRoutingIsm artifact', async () => {
+        const routingConfig = routingWith(compositeWith(rateLimited()));
+        mockIsmWriter.create.resolves([
+          {
+            artifactState: ArtifactState.DEPLOYED,
+            config: routingConfig,
+            deployed: { address: ISM_ADDRESS },
+          },
+          [],
+        ]);
+
+        await writer.update({
+          ...baseDeployedArtifact,
+          config: {
+            ...actualConfig,
+            interchainSecurityModule: {
+              artifactState: ArtifactState.NEW,
+              config: routingConfig,
+            },
+          },
+        });
+
+        const resolvedRouting = mockIsmWriter.create.firstCall.args[0].config;
+        const nestedComposite = extractRoutingDomain(resolvedRouting);
+        expect(extractRateLimited(nestedComposite)).to.deep.equal(
+          rateLimited(TOKEN_ADDRESS),
+        );
+      });
+
+      it('accepts attaching a new composite ISM whose recipient names the existing router', async () => {
+        const ismConfig = compositeWith(rateLimited(TOKEN_ADDRESS));
+        mockIsmWriter.create.resolves([deployedCompositeIsm(ismConfig), []]);
+
+        await writer.update({
+          ...baseDeployedArtifact,
+          config: {
+            ...actualConfig,
+            interchainSecurityModule: {
+              artifactState: ArtifactState.NEW,
+              config: ismConfig,
+            },
+          },
+        });
+
+        expect(mockIsmWriter.create.callCount).to.equal(1);
+        expect(
+          extractRateLimited(mockIsmWriter.create.firstCall.args[0].config),
+        ).to.deep.equal(rateLimited(TOKEN_ADDRESS));
+      });
+
+      it('accepts an already-deployed composite ISM whose recipient names the router', async () => {
+        const ismConfig = compositeWith(rateLimited(TOKEN_ADDRESS));
+        readStub.resolves({
+          ...baseDeployedArtifact,
+          config: {
+            ...actualConfig,
+            interchainSecurityModule: deployedCompositeIsm(ismConfig),
+          },
+        });
+
+        await writer.update({
+          ...baseDeployedArtifact,
+          config: {
+            ...actualConfig,
+            interchainSecurityModule: deployedCompositeIsm(ismConfig),
+          },
+        });
+
+        expect(mockIsmWriter.create.callCount).to.equal(0);
+        expect(mockIsmWriter.update.callCount).to.equal(1);
+        expect(
+          extractRateLimited(mockIsmWriter.update.firstCall.args[0].config),
+        ).to.deep.equal(rateLimited(TOKEN_ADDRESS));
+      });
+
+      it('rejects a recipient naming a different address', async () => {
+        const ismConfig = compositeWith(rateLimited(OTHER_RECIPIENT));
+
+        await expect(
+          writer.update({
+            ...baseDeployedArtifact,
+            config: {
+              ...actualConfig,
+              interchainSecurityModule: {
+                artifactState: ArtifactState.NEW,
+                config: ismConfig,
+              },
+            },
+          }),
+        ).to.be.rejectedWith(TOKEN_ADDRESS);
+
+        expect(mockIsmWriter.create.callCount).to.equal(0);
+        expect(mockIsmWriter.update.callCount).to.equal(0);
+      });
+
+      it('leaves an ISM referenced only by address alone', async () => {
+        const updateTxs = await writer.update({
+          ...baseDeployedArtifact,
+          config: {
+            ...actualConfig,
+            interchainSecurityModule: {
+              artifactState: ArtifactState.UNDERIVED,
+              deployed: { address: ISM_ADDRESS },
+            },
+          },
+        });
+
+        expect(mockIsmWriter.create.callCount).to.equal(0);
+        expect(mockIsmWriter.update.callCount).to.equal(0);
+        expect(updateTxs).to.deep.equal([]);
+      });
     });
   });
 
@@ -778,7 +1328,7 @@ describe('WarpTokenWriter', () => {
   describe('update() - Complex Scenarios', () => {
     it('should handle ISM + router updates in single call', async () => {
       const newIsmConfig: IsmArtifactConfig = {
-        type: 'messageIdMultisigIsm',
+        type: IsmType.MESSAGE_ID_MULTISIG,
         validators: ['0xVALIDATOR'],
         threshold: 1,
       };
@@ -841,7 +1391,7 @@ describe('WarpTokenWriter', () => {
     it('should handle ownership + ISM + router updates', async () => {
       const newOwner = '0x9999999999999999999999999999999999999999';
       const newIsmConfig: IsmArtifactConfig = {
-        type: 'messageIdMultisigIsm',
+        type: IsmType.MESSAGE_ID_MULTISIG,
         validators: ['0xVALIDATOR'],
         threshold: 1,
       };
@@ -934,7 +1484,7 @@ describe('WarpTokenWriter', () => {
 
     it('should create warp token with new ISM', async () => {
       const newIsmConfig: IsmArtifactConfig = {
-        type: 'messageIdMultisigIsm',
+        type: IsmType.MESSAGE_ID_MULTISIG,
         validators: ['0xVALIDATOR'],
         threshold: 1,
       };
@@ -955,19 +1505,20 @@ describe('WarpTokenWriter', () => {
       };
 
       mockIsmWriter.create.resolves([deployedIsm, []]);
+      mockIsmWriter.update.resolves([]);
 
-      const mockWriter: MockRawWarpWriter = {
+      const mockWriter = {
         read: Sinon.stub(),
         create: Sinon.stub().resolves([
           {
             artifactState: ArtifactState.DEPLOYED,
-            config: configWithIsm,
+            config: actualConfig,
             deployed: { address: TOKEN_ADDRESS },
           },
           [],
         ]),
-        update: Sinon.stub(),
-      };
+        update: Sinon.stub().resolves([]),
+      } satisfies MockRawWarpWriter;
 
       mockArtifactManager.createWriter.returns(mockWriter);
 
@@ -979,6 +1530,10 @@ describe('WarpTokenWriter', () => {
       const [deployed, receipts] = await writer.create(artifact);
 
       expect(mockIsmWriter.create.callCount).to.equal(1);
+      expect(mockWriter.create.calledBefore(mockIsmWriter.create)).to.be.true;
+      expect(
+        mockWriter.create.firstCall.args[0].config.interchainSecurityModule,
+      ).to.be.undefined;
       expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
       expect(deployed.deployed.address).to.equal(TOKEN_ADDRESS);
       expect(receipts).to.be.an('array');
@@ -986,7 +1541,7 @@ describe('WarpTokenWriter', () => {
 
     it('should create warp token with existing ISM', async () => {
       const existingIsmConfig: IsmArtifactConfig = {
-        type: 'messageIdMultisigIsm',
+        type: IsmType.MESSAGE_ID_MULTISIG,
         validators: ['0xVALIDATOR'],
         threshold: 1,
       };
@@ -1000,18 +1555,19 @@ describe('WarpTokenWriter', () => {
         },
       };
 
-      const mockWriter: MockRawWarpWriter = {
+      mockIsmWriter.update.resolves([]);
+      const mockWriter = {
         read: Sinon.stub(),
         create: Sinon.stub().resolves([
           {
             artifactState: ArtifactState.DEPLOYED,
-            config: configWithExistingIsm,
+            config: actualConfig,
             deployed: { address: TOKEN_ADDRESS },
           },
           [],
         ]),
-        update: Sinon.stub(),
-      };
+        update: Sinon.stub().resolves([]),
+      } satisfies MockRawWarpWriter;
 
       mockArtifactManager.createWriter.returns(mockWriter);
 
@@ -1024,6 +1580,17 @@ describe('WarpTokenWriter', () => {
 
       // Should not create new ISM
       expect(mockIsmWriter.create.called).to.be.false;
+      expect(mockIsmWriter.update.called).to.be.false;
+      expect(
+        mockWriter.create.firstCall.args[0].config.interchainSecurityModule,
+      ).to.be.undefined;
+      expect(mockWriter.update.callCount).to.equal(1);
+      expect(
+        mockWriter.update.firstCall.args[0].config.interchainSecurityModule,
+      ).to.deep.equal({
+        artifactState: ArtifactState.UNDERIVED,
+        deployed: { address: ISM_ADDRESS },
+      });
       expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
       expect(deployed.deployed.address).to.equal(TOKEN_ADDRESS);
       expect(receipts).to.be.an('array');
@@ -1223,9 +1790,7 @@ describe('WarpTokenWriter', () => {
     });
 
     beforeEach(() => {
-      // Singleton stubs so both createFeeWriter calls in create() — the
-      // explicit fee deploy and the one inside this.update() that attaches
-      // the fee to the warp — reference the same mocks.
+      // Singleton stubs for the fee deployment performed by create().
       mockFeeCreateStub = Sinon.stub().resolves([deployedFee, []]);
       mockFeeUpdateStubForCreate = Sinon.stub().resolves([]);
       currentFeeCreateManager = {
@@ -1270,11 +1835,12 @@ describe('WarpTokenWriter', () => {
         },
         [],
       ]);
+      const updateStub = Sinon.stub().resolves([]);
 
       mockArtifactManager.createWriter.returns({
         read: Sinon.stub(),
         create: createStub,
-        update: Sinon.stub().resolves([]),
+        update: updateStub,
       });
 
       const artifact: ArtifactNew<WarpArtifactConfig> = {
@@ -1294,13 +1860,14 @@ describe('WarpTokenWriter', () => {
       const feeArtifactArg = mockFeeCreateStub.firstCall.args[0];
       expect(feeArtifactArg.config.token).to.equal('uhyp');
 
-      // Attach goes through this.update(), which sees current.fee=undefined
-      // and expected.fee=DEPLOYED → emits the SetFee tx via the warp diff
-      // path and runs feeWriter.update for the fee-program diff (no-op
-      // here since the fee was just deployed).
-      expect(mockFeeUpdateStubForCreate.calledOnce).to.be.true;
-      const updateArtifactArg = mockFeeUpdateStubForCreate.firstCall.args[0];
-      expect(updateArtifactArg.deployed.address).to.equal(FEE_ADDRESS);
+      // Attach references the deployed fee by address. It must not mutate the
+      // freshly deployed fee program through feeWriter.update().
+      expect(mockFeeUpdateStubForCreate.called).to.be.false;
+      expect(updateStub.calledOnce).to.be.true;
+      expect(updateStub.firstCall.args[0].config.fee).to.deep.equal({
+        artifactState: ArtifactState.UNDERIVED,
+        deployed: { address: FEE_ADDRESS },
+      });
 
       // Returned artifact should include the deployed fee.
       expect(deployed.config.fee).to.not.be.undefined;
