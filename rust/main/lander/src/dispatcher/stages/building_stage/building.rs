@@ -1,6 +1,7 @@
 use std::{collections::VecDeque, sync::Arc};
 
 use derive_new::new;
+use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
 use tokio::sync::{mpsc, Mutex};
 use tracing::{error, info, instrument, warn};
 
@@ -47,7 +48,11 @@ impl BuildingStage {
     #[instrument(skip_all, fields(payload_and_message_ids = ?payloads.iter().map(|p| (p.details.uuid.to_string(), p.details.metadata.clone())).collect::<Vec<_>>()))]
     async fn build_transactions(&self, payloads: &Vec<FullPayload>) {
         info!(?payloads, "Building transactions from payloads");
-        let tx_building_results = self.state.adapter.build_transactions(payloads).await;
+        let tx_building_results = with_rpc_operation(
+            RpcOperation::TransactionLifecycle,
+            self.state.adapter.build_transactions(payloads),
+        )
+        .await;
 
         for tx_building_result in tx_building_results {
             // push payloads that failed to be processed (but didn't fail simulation)
