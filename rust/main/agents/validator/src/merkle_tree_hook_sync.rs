@@ -1,5 +1,9 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
+use async_trait::async_trait;
 use eyre::{bail, eyre, Context, Result};
 use futures_util::{future::BoxFuture, FutureExt, SinkExt, StreamExt};
 use prometheus::IntGauge;
@@ -18,8 +22,8 @@ use hyperlane_base::{
     ContractSyncer, SequencedDataContractSync,
 };
 use hyperlane_core::{
-    bytes_to_address, IndexMode, Indexed, LogMeta, MerkleTreeHook, MerkleTreeInsertion,
-    ReorgPeriod, H256,
+    bytes_to_address, HyperlaneLogStore, HyperlaneSequenceAwareIndexerStoreReader, IndexMode,
+    Indexed, LogMeta, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, H256,
 };
 
 const RETRY_DELAY: Duration = Duration::from_secs(5);
@@ -32,6 +36,98 @@ const CANONICAL_RETRY_DELAY: Duration = Duration::from_secs(1);
 const CANONICAL_FETCH_ATTEMPTS: usize = 3;
 const EVENT_TYPE: &str = "merkle_tree_insertion";
 const NEXT_SEQUENCE_KEY: &str = "merkle_tree_hook_websocket_next_sequence_";
+// Bound crash recovery scans without writing the cursor for every replayed leaf.
+const NEXT_SEQUENCE_PERSIST_INTERVAL: u32 = 256;
+pub(crate) type MerkleTreeCursorState = Arc<Mutex<Option<u32>>>;
+
+pub(crate) fn merkle_tree_cursor_state() -> MerkleTreeCursorState {
+    Arc::new(Mutex::new(None))
+}
+
+/// Keeps RPC fallback writes on the same bounded-recovery cursor as WebSocket writes.
+#[derive(Clone, Debug)]
+pub(crate) struct CheckpointingMerkleTreeStore {
+    db: HyperlaneRocksDB,
+    next_sequence: MerkleTreeCursorState,
+}
+
+impl CheckpointingMerkleTreeStore {
+    pub(crate) fn new(db: HyperlaneRocksDB, next_sequence: MerkleTreeCursorState) -> Self {
+        Self { db, next_sequence }
+    }
+
+    fn refresh_cursor(&self) -> Result<()> {
+        let persisted: Option<u32> = self.db.retrieve_value_by_key(NEXT_SEQUENCE_KEY, &false)?;
+        let mut next_sequence = self
+            .next_sequence
+            .lock()
+            .map_err(|_| eyre!("Merkle tree cursor lock poisoned"))?;
+        if let Some(persisted) = persisted {
+            *next_sequence = Some(next_sequence.map_or(persisted, |cached| cached.max(persisted)));
+        }
+        Ok(())
+    }
+
+    fn advance_cursor(&self) -> Result<()> {
+        let mut next_sequence = self
+            .next_sequence
+            .lock()
+            .map_err(|_| eyre!("Merkle tree cursor lock poisoned"))?;
+        let Some(mut sequence) = *next_sequence else {
+            return Ok(());
+        };
+        while self
+            .db
+            .retrieve_merkle_tree_insertion_by_leaf_index(&sequence)?
+            .is_some()
+        {
+            sequence = sequence
+                .checked_add(1)
+                .ok_or_else(|| eyre!("Merkle tree insertion sequence exhausted"))?;
+            if sequence.is_multiple_of(NEXT_SEQUENCE_PERSIST_INTERVAL) {
+                self.db
+                    .store_value_by_key(NEXT_SEQUENCE_KEY, &false, &sequence)?;
+            }
+        }
+        *next_sequence = Some(sequence);
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl HyperlaneLogStore<MerkleTreeInsertion> for CheckpointingMerkleTreeStore {
+    async fn store_logs(&self, leaves: &[(Indexed<MerkleTreeInsertion>, LogMeta)]) -> Result<u32> {
+        self.refresh_cursor()?;
+        let mut insertions = 0_u32;
+        for (insertion, meta) in leaves {
+            if self
+                .db
+                .process_tree_insertion(insertion.inner(), meta.block_number)?
+            {
+                insertions = insertions.saturating_add(1);
+            }
+            self.advance_cursor()?;
+        }
+        Ok(insertions)
+    }
+}
+
+#[async_trait]
+impl HyperlaneSequenceAwareIndexerStoreReader<MerkleTreeInsertion>
+    for CheckpointingMerkleTreeStore
+{
+    async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<MerkleTreeInsertion>> {
+        Ok(self
+            .db
+            .retrieve_merkle_tree_insertion_by_leaf_index(&sequence)?)
+    }
+
+    async fn retrieve_log_block_number_by_sequence(&self, sequence: u32) -> Result<Option<u64>> {
+        Ok(self
+            .db
+            .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&sequence)?)
+    }
+}
 
 struct RpcFallback {
     handle: JoinHandle<()>,
@@ -143,9 +239,11 @@ pub(crate) struct MerkleTreeHookWebSocketSync {
     url: Url,
     websocket_active: IntGauge,
     fallback_active: IntGauge,
+    cursor_state: MerkleTreeCursorState,
 }
 
 impl MerkleTreeHookWebSocketSync {
+    #[cfg(test)]
     pub(crate) fn new(
         db: HyperlaneRocksDB,
         domain: u32,
@@ -153,6 +251,26 @@ impl MerkleTreeHookWebSocketSync {
         url: Url,
         websocket_active: IntGauge,
         fallback_active: IntGauge,
+    ) -> Self {
+        Self::new_with_cursor_state(
+            db,
+            domain,
+            merkle_tree_hook,
+            url,
+            websocket_active,
+            fallback_active,
+            merkle_tree_cursor_state(),
+        )
+    }
+
+    pub(crate) fn new_with_cursor_state(
+        db: HyperlaneRocksDB,
+        domain: u32,
+        merkle_tree_hook: H256,
+        url: Url,
+        websocket_active: IntGauge,
+        fallback_active: IntGauge,
+        cursor_state: MerkleTreeCursorState,
     ) -> Self {
         websocket_active.set(0);
         fallback_active.set(0);
@@ -163,6 +281,7 @@ impl MerkleTreeHookWebSocketSync {
             url,
             websocket_active,
             fallback_active,
+            cursor_state,
         }
     }
 
@@ -186,8 +305,7 @@ impl MerkleTreeHookWebSocketSync {
         {
             sequence = sequence.checked_add(1).expect("sequence is below high");
         }
-        self.db
-            .store_value_by_key(NEXT_SEQUENCE_KEY, &false, &sequence)?;
+        self.persist_next_sequence(sequence)?;
         Ok(sequence)
     }
 
@@ -201,8 +319,7 @@ impl MerkleTreeHookWebSocketSync {
                 .checked_add(1)
                 .ok_or_else(|| eyre!("Merkle tree insertion sequence exhausted"))?;
         }
-        self.db
-            .store_value_by_key(NEXT_SEQUENCE_KEY, &false, &sequence)?;
+        self.persist_next_sequence(sequence)?;
         Ok(sequence)
     }
 
@@ -413,6 +530,7 @@ impl MerkleTreeHookWebSocketSync {
                         let first_caught_up = !caught_up;
                         caught_up = true;
                         if reached_cursor {
+                            self.persist_next_sequence(*next_sequence)?;
                             if first_caught_up {
                                 lag_started_at = None;
                             }
@@ -658,11 +776,25 @@ impl MerkleTreeHookWebSocketSync {
             *next_sequence = next_sequence
                 .checked_add(1)
                 .ok_or_else(|| eyre!("Merkle tree insertion sequence exhausted"))?;
-            self.db
-                .store_value_by_key(NEXT_SEQUENCE_KEY, &false, next_sequence)?;
+            if next_sequence.is_multiple_of(NEXT_SEQUENCE_PERSIST_INTERVAL) {
+                self.persist_next_sequence(*next_sequence)?;
+            }
             return Ok(true);
         }
         Ok(false)
+    }
+
+    fn persist_next_sequence(&self, next_sequence: u32) -> Result<()> {
+        let mut persisted = self
+            .cursor_state
+            .lock()
+            .map_err(|_| eyre!("Merkle tree cursor lock poisoned"))?;
+        if (*persisted).is_none_or(|sequence| next_sequence > sequence) {
+            self.db
+                .store_value_by_key(NEXT_SEQUENCE_KEY, &false, &next_sequence)?;
+            *persisted = Some(next_sequence);
+        }
+        Ok(())
     }
 
     async fn validate_canonical_insertion(
@@ -1351,6 +1483,90 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn checkpoints_next_sequence_and_recovers_uncheckpointed_tail() {
+        let (sync, _temp_dir) = test_sync();
+        let mut next_sequence = sync.next_sequence(0).expect("initialize sequence");
+        let dependencies = test_dependencies();
+        let mut canonical_cache = Vec::new();
+
+        for sequence in 0_u32..257 {
+            let event = EventMessage {
+                data: EventData {
+                    block_number: StringOrNumber::Number(u64::from(sequence)),
+                    domain: 1,
+                    leaf_index: StringOrNumber::Number(u64::from(sequence)),
+                    merkle_tree_hook: format!("{:#x}", sync.merkle_tree_hook),
+                    message_id: format!("{:#x}", H256::from_low_u64_be(u64::from(sequence))),
+                },
+                domain: 1,
+                event_type: EVENT_TYPE.to_owned(),
+                sequence: sequence.to_string(),
+            };
+            assert!(sync
+                .process_event(
+                    event,
+                    &mut next_sequence,
+                    &dependencies,
+                    &mut canonical_cache,
+                )
+                .await
+                .expect("valid event"));
+        }
+
+        let persisted: Option<u32> = sync
+            .db
+            .retrieve_value_by_key(NEXT_SEQUENCE_KEY, &false)
+            .expect("retrieve persisted sequence");
+        assert_eq!(persisted, Some(256));
+        assert_eq!(next_sequence, 257);
+        assert_eq!(sync.next_sequence(0).expect("recover sequence"), 257);
+    }
+
+    #[tokio::test]
+    async fn rpc_fallback_writes_keep_restart_recovery_bounded() {
+        let (sync, _temp_dir) = test_sync();
+        assert_eq!(sync.next_sequence(0).expect("initialize sequence"), 0);
+        let store = CheckpointingMerkleTreeStore::new(sync.db.clone(), sync.cursor_state.clone());
+        let leaves: Vec<_> = (0_u32..600)
+            .map(|sequence| {
+                (
+                    Indexed::from(MerkleTreeInsertion::new(
+                        sequence,
+                        H256::from_low_u64_be(u64::from(sequence)),
+                    )),
+                    LogMeta {
+                        block_number: u64::from(sequence),
+                        ..Default::default()
+                    },
+                )
+            })
+            .collect();
+
+        assert_eq!(
+            store
+                .store_logs(&leaves)
+                .await
+                .expect("store fallback leaves"),
+            600
+        );
+        let persisted: Option<u32> = sync
+            .db
+            .retrieve_value_by_key(NEXT_SEQUENCE_KEY, &false)
+            .expect("retrieve fallback cursor");
+        assert_eq!(persisted, Some(512));
+        assert_eq!(sync.next_sequence(0).expect("recover fallback tail"), 600);
+        sync.persist_next_sequence(700)
+            .expect("advance shared cursor");
+        sync.persist_next_sequence(600)
+            .expect("ignore stale cursor write");
+        let persisted: Option<u32> = sync
+            .db
+            .retrieve_value_by_key(NEXT_SEQUENCE_KEY, &false)
+            .expect("retrieve monotonic cursor");
+        assert_eq!(persisted, Some(700));
+    }
+
+    #[tokio::test]
     async fn stores_valid_event_and_rejects_sequence_gap() {
         let (sync, _temp_dir) = test_sync();
         let mut next_sequence = 0;
@@ -1694,6 +1910,7 @@ mod tests {
         let starts_in_fallback = starts.clone();
         let active = sync.fallback_active.clone();
         let active_in_fallback = active.clone();
+        let db = sync.db.clone();
         let websocket_active = sync.websocket_active.clone();
         let websocket_active_after_recovery = websocket_active.clone();
         let dependencies = test_dependencies_with_count(Arc::new(AtomicUsize::new(1)));
@@ -1734,6 +1951,10 @@ mod tests {
         assert_eq!(starts.load(Ordering::SeqCst), 1);
         assert_eq!(active.get(), 0);
         assert_eq!(websocket_active.get(), 1);
+        let persisted: Option<u32> = db
+            .retrieve_value_by_key(NEXT_SEQUENCE_KEY, &false)
+            .expect("retrieve persisted sequence");
+        assert_eq!(persisted, Some(1));
     }
 
     #[tokio::test]

@@ -39,7 +39,9 @@ use hyperlane_core::{
 use hyperlane_ethereum::{RpcConnectionConf, Signers, SingletonSigner, SingletonSignerHandle};
 use hyperlane_metric::prometheus_metric::RpcRole;
 
-use crate::merkle_tree_hook_sync::MerkleTreeHookWebSocketSync;
+use crate::merkle_tree_hook_sync::{
+    merkle_tree_cursor_state, CheckpointingMerkleTreeStore, MerkleTreeHookWebSocketSync,
+};
 use crate::reorg_reporter::{
     LatestCheckpointReorgReporter, LatestCheckpointReorgReporterWithStorageWriter, ReorgReporter,
 };
@@ -902,16 +904,36 @@ impl BaseAgent for Validator {
             .await?;
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
-        let rpc_sync = settings
-            .sequenced_contract_sync::<MerkleTreeInsertion, _>(
-                &settings.origin_chain,
-                &metrics,
-                &contract_sync_metrics,
-                msg_db.clone().into(),
-                false,
-                false,
-            )
-            .await?;
+        let cursor_state = settings
+            .websocket_url
+            .as_ref()
+            .map(|_| merkle_tree_cursor_state());
+        let rpc_sync = if let Some(cursor_state) = cursor_state.clone() {
+            settings
+                .sequenced_contract_sync::<MerkleTreeInsertion, _>(
+                    &settings.origin_chain,
+                    &metrics,
+                    &contract_sync_metrics,
+                    Arc::new(CheckpointingMerkleTreeStore::new(
+                        msg_db.clone(),
+                        cursor_state,
+                    )),
+                    false,
+                    false,
+                )
+                .await?
+        } else {
+            settings
+                .sequenced_contract_sync::<MerkleTreeInsertion, _>(
+                    &settings.origin_chain,
+                    &metrics,
+                    &contract_sync_metrics,
+                    msg_db.clone().into(),
+                    false,
+                    false,
+                )
+                .await?
+        };
         let sync_source = metrics.new_int_gauge(
             "merkle_tree_hook_sync_source_active",
             "Whether a Merkle tree hook indexing source is active",
@@ -923,13 +945,14 @@ impl BaseAgent for Validator {
         let merkle_tree_hook_sync = if let Some(url) = settings.websocket_url.clone() {
             MerkleTreeHookSync::WebSocket {
                 fallback: rpc_sync,
-                websocket: Box::new(MerkleTreeHookWebSocketSync::new(
+                websocket: Box::new(MerkleTreeHookWebSocketSync::new_with_cursor_state(
                     msg_db.clone(),
                     settings.origin_chain.id(),
                     origin_chain_conf.addresses.merkle_tree_hook,
                     url,
                     websocket_active,
                     rpc_active,
+                    cursor_state.expect("WebSocket configuration initializes cursor state"),
                 )),
             }
         } else {
