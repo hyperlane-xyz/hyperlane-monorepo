@@ -35,6 +35,8 @@ pub struct MessageRetryQueueResponse {
     pub evaluated: usize,
     /// how many of the pending operations matched the retry request pattern
     pub matched: u64,
+    /// how many matching operations could not persist their manual retry
+    pub failed: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -80,6 +82,7 @@ async fn handler(
         evaluated: 0,
         matched: 0,
     };
+    let mut failed = 0_u64;
 
     // Wait for responses from relayer
     tracing::debug!(uuid = resp.uuid, "Waiting for response from relayer");
@@ -91,6 +94,13 @@ async fn handler(
         );
         resp.evaluated = resp.evaluated.saturating_add(relayer_resp.evaluated);
         resp.matched = resp.matched.saturating_add(relayer_resp.matched);
+        failed = failed.saturating_add(relayer_resp.failed);
+    }
+
+    if failed > 0 {
+        return Err(format!(
+            "Failed to persist manual retry for {failed} matching operations"
+        ));
     }
 
     Ok(Json(resp))
@@ -142,7 +152,11 @@ mod tests {
             for (op, (evaluated, matched)) in pending_operations.iter().zip(metrics) {
                 // Check that the list received by the server matches the pending operation
                 assert!(req.pattern.op_matches(op));
-                let resp = MessageRetryQueueResponse { evaluated, matched };
+                let resp = MessageRetryQueueResponse {
+                    evaluated,
+                    matched,
+                    failed: 0,
+                };
                 req.transmitter.send(resp).await.unwrap();
             }
         }

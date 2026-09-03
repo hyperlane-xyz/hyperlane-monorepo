@@ -1,4 +1,6 @@
-pub use self::storage_types::{InterchainGasExpenditureData, InterchainGasPaymentData};
+pub use self::storage_types::{
+    InterchainGasExpenditureData, InterchainGasPaymentData, PendingMessageRetryState,
+};
 pub use error::*;
 pub use rocks::*;
 
@@ -123,6 +125,30 @@ pub trait HyperlaneDb: Send + Sync {
         &self,
         message_id: &H256,
     ) -> DbResult<Option<u32>>;
+
+    /// Atomically store retry state and its legacy retry-count mirror.
+    ///
+    /// Status is normally persisted separately by the operation queue. The retry state
+    /// carries its reason to close that write boundary while its deadline is active.
+    fn store_pending_message_retry_state_by_message_id(
+        &self,
+        message_id: &H256,
+        state: &PendingMessageRetryState,
+    ) -> DbResult<()>;
+
+    /// Atomically store retry state, its legacy count mirror, and message status.
+    fn store_pending_message_retry_state_and_status_by_message_id(
+        &self,
+        message_id: &H256,
+        state: &PendingMessageRetryState,
+        status: &PendingOperationStatus,
+    ) -> DbResult<()>;
+
+    /// Retrieve durable retry state for a pending message.
+    fn retrieve_pending_message_retry_state_by_message_id(
+        &self,
+        message_id: &H256,
+    ) -> DbResult<Option<PendingMessageRetryState>>;
 
     fn store_merkle_tree_insertion_by_leaf_index(
         &self,

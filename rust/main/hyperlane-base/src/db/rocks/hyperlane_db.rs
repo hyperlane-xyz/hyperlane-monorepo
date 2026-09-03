@@ -12,7 +12,9 @@ use hyperlane_core::{
 };
 
 use crate::db::{
-    storage_types::{InterchainGasExpenditureData, InterchainGasPaymentData},
+    storage_types::{
+        InterchainGasExpenditureData, InterchainGasPaymentData, PendingMessageRetryState,
+    },
     HyperlaneDb,
 };
 
@@ -34,6 +36,8 @@ const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_
 const STATUS_BY_MESSAGE_ID: &str = "status_by_message_id_";
 const PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID: &str =
     "pending_message_retry_count_for_message_id_";
+const PENDING_MESSAGE_RETRY_STATE_FOR_MESSAGE_ID: &str =
+    "pending_message_retry_state_for_message_id_v1_";
 const MERKLE_TREE_INSERTION: &str = "merkle_tree_insertion_";
 const MERKLE_LEAF_INDEX_BY_MESSAGE_ID: &str = "merkle_leaf_index_by_message_id_";
 const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
@@ -629,6 +633,65 @@ impl HyperlaneDb for HyperlaneRocksDB {
         message_id: &H256,
     ) -> DbResult<Option<u32>> {
         self.retrieve_value_by_key(PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID, message_id)
+    }
+
+    fn store_pending_message_retry_state_by_message_id(
+        &self,
+        message_id: &H256,
+        state: &PendingMessageRetryState,
+    ) -> DbResult<()> {
+        self.store_batch([
+            (
+                PENDING_MESSAGE_RETRY_STATE_FOR_MESSAGE_ID
+                    .as_bytes()
+                    .to_vec(),
+                message_id.to_vec(),
+                state.to_vec(),
+            ),
+            (
+                PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID
+                    .as_bytes()
+                    .to_vec(),
+                message_id.to_vec(),
+                state.retry_count.to_vec(),
+            ),
+        ])
+    }
+
+    fn store_pending_message_retry_state_and_status_by_message_id(
+        &self,
+        message_id: &H256,
+        state: &PendingMessageRetryState,
+        status: &PendingOperationStatus,
+    ) -> DbResult<()> {
+        self.store_batch([
+            (
+                PENDING_MESSAGE_RETRY_STATE_FOR_MESSAGE_ID
+                    .as_bytes()
+                    .to_vec(),
+                message_id.to_vec(),
+                state.to_vec(),
+            ),
+            (
+                PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID
+                    .as_bytes()
+                    .to_vec(),
+                message_id.to_vec(),
+                state.retry_count.to_vec(),
+            ),
+            (
+                STATUS_BY_MESSAGE_ID.as_bytes().to_vec(),
+                message_id.to_vec(),
+                status.to_vec(),
+            ),
+        ])
+    }
+
+    fn retrieve_pending_message_retry_state_by_message_id(
+        &self,
+        message_id: &H256,
+    ) -> DbResult<Option<PendingMessageRetryState>> {
+        self.retrieve_value_by_key(PENDING_MESSAGE_RETRY_STATE_FOR_MESSAGE_ID, message_id)
     }
 
     fn store_merkle_tree_insertion_by_leaf_index(
