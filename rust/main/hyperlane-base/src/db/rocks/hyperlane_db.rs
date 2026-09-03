@@ -5,10 +5,11 @@ use eyre::{bail, Result};
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
-    identifiers::UniqueIdentifier, Decode, Encode, GasPaymentKey, HyperlaneDomain,
-    HyperlaneLogStore, HyperlaneMessage, HyperlaneSequenceAwareIndexerStoreReader,
-    HyperlaneWatermarkedLogStore, Indexed, InterchainGasExpenditure, InterchainGasPayment,
-    InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, PendingOperationStatus, H256, H512,
+    identifiers::UniqueIdentifier, BackwardCursorProgress, Decode, Encode, GasPaymentKey,
+    HyperlaneBackwardCursorStore, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
+    HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, Indexed,
+    InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta, LogMeta,
+    MerkleTreeInsertion, PendingOperationStatus, H256, H512,
 };
 
 use crate::db::{
@@ -41,6 +42,9 @@ const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 const PAYLOAD_UUIDS_BY_MESSAGE_ID: &str = "payload_uuids_by_message_id_";
 const MESSAGE_DISPATCHED_TX_HASH_BY_MESSAGE_ID: &str = "message_dispatched_tx_hash_by_message_id_";
+const MESSAGE_BACKWARD_CURSOR: &str = "message_backward_cursor_v1";
+const GAS_PAYMENT_BACKWARD_CURSOR: &str = "gas_payment_backward_cursor_v1";
+const MERKLE_TREE_INSERTION_BACKWARD_CURSOR: &str = "merkle_tree_insertion_backward_cursor_v1";
 
 /// Rocks DB result type
 pub type DbResult<T> = std::result::Result<T, DbError>;
@@ -78,6 +82,21 @@ impl HyperlaneRocksDB {
     /// Get the domain this database is scoped to
     pub fn domain(&self) -> &HyperlaneDomain {
         &self.0
+    }
+
+    fn retrieve_backward_cursor_progress(
+        &self,
+        key: &str,
+    ) -> Result<Option<BackwardCursorProgress>> {
+        Ok(self.retrieve_decodable("", key)?)
+    }
+
+    fn store_backward_cursor_progress(
+        &self,
+        key: &str,
+        progress: BackwardCursorProgress,
+    ) -> Result<()> {
+        Ok(self.store_encodable("", key, &progress)?)
     }
 
     /// Store a raw committed message. If message already exists, then do nothing.
@@ -398,6 +417,29 @@ impl HyperlaneSequenceAwareIndexerStoreReader<HyperlaneMessage> for HyperlaneRoc
         Ok(number)
     }
 }
+
+macro_rules! impl_backward_cursor_store {
+    ($event:ty, $key:expr) => {
+        #[async_trait]
+        impl HyperlaneBackwardCursorStore<$event> for HyperlaneRocksDB {
+            async fn retrieve_backward_cursor(&self) -> Result<Option<BackwardCursorProgress>> {
+                self.retrieve_backward_cursor_progress($key)
+            }
+
+            async fn store_backward_cursor(&self, progress: BackwardCursorProgress) -> Result<()> {
+                self.store_backward_cursor_progress($key, progress)
+            }
+
+            async fn reset_backward_cursor(&self, progress: BackwardCursorProgress) -> Result<()> {
+                self.store_backward_cursor_progress($key, progress)
+            }
+        }
+    };
+}
+
+impl_backward_cursor_store!(HyperlaneMessage, MESSAGE_BACKWARD_CURSOR);
+impl_backward_cursor_store!(InterchainGasPayment, GAS_PAYMENT_BACKWARD_CURSOR);
+impl_backward_cursor_store!(MerkleTreeInsertion, MERKLE_TREE_INSERTION_BACKWARD_CURSOR);
 
 #[async_trait]
 impl HyperlaneSequenceAwareIndexerStoreReader<MerkleTreeInsertion> for HyperlaneRocksDB {
