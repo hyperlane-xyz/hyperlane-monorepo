@@ -30,9 +30,16 @@ pub enum TxHashCacheError {
     CacheFull,
 }
 
+#[derive(Clone, Copy)]
+enum TxHashCacheEntry {
+    Reserved(u64),
+    Committed(Instant),
+}
+
 pub struct TxHashCache {
-    cache: HashMap<(String, String), Instant>,
+    cache: HashMap<(String, String), TxHashCacheEntry>,
     max_entries: usize,
+    next_reservation: u64,
     ttl: Duration,
 }
 
@@ -45,6 +52,7 @@ impl TxHashCache {
         Self {
             cache: HashMap::new(),
             max_entries,
+            next_reservation: 0,
             ttl,
         }
     }
@@ -58,28 +66,47 @@ impl TxHashCache {
             .unwrap_or(tx_hash)
             .to_lowercase();
         let key = (chain.to_owned(), normalized);
-        self.cache
-            .get(&key)
-            .is_some_and(|&ts| Instant::now().duration_since(ts) < self.ttl)
+        self.cache.get(&key).is_some_and(|entry| match entry {
+            TxHashCacheEntry::Reserved(_) => true,
+            TxHashCacheEntry::Committed(timestamp) => {
+                Instant::now().duration_since(*timestamp) < self.ttl
+            }
+        })
     }
 
-    /// Remove a previously inserted entry (used to roll back a reservation on handler error).
-    pub fn remove(&mut self, chain: &str, tx_hash: &str) {
+    fn key(chain: &str, tx_hash: &str) -> (String, String) {
         let normalized = tx_hash
             .strip_prefix("0x")
             .or_else(|| tx_hash.strip_prefix("0X"))
             .unwrap_or(tx_hash)
             .to_lowercase();
-        self.cache.remove(&(chain.to_owned(), normalized));
+        (chain.to_owned(), normalized)
+    }
+
+    fn remove_reservation(&mut self, chain: &str, tx_hash: &str, token: u64) {
+        let key = Self::key(chain, tx_hash);
+        if matches!(self.cache.get(&key), Some(TxHashCacheEntry::Reserved(current)) if *current == token)
+        {
+            self.cache.remove(&key);
+        }
+    }
+
+    fn commit_reservation(&mut self, chain: &str, tx_hash: &str, token: u64) {
+        let key = Self::key(chain, tx_hash);
+        if matches!(self.cache.get(&key), Some(TxHashCacheEntry::Reserved(current)) if *current == token)
+        {
+            self.cache
+                .insert(key, TxHashCacheEntry::Committed(Instant::now()));
+        }
     }
 
     /// Check if tx_hash was recently submitted and insert if not.
-    /// Returns `Ok(())` if new, `Err(TxHashCacheError)` if duplicate or cache full.
+    /// Returns a reservation token if new, or an error if duplicate/cache full.
     pub fn check_and_insert(
         &mut self,
         chain: String,
         tx_hash: String,
-    ) -> Result<(), TxHashCacheError> {
+    ) -> Result<u64, TxHashCacheError> {
         let now = Instant::now();
         let normalized = tx_hash
             .strip_prefix("0x")
@@ -91,15 +118,17 @@ impl TxHashCache {
         // Clean expired entries if cache is getting large (75% threshold)
         if self.cache.len() > self.max_entries.saturating_mul(3) / 4 {
             let ttl = self.ttl;
-            self.cache
-                .retain(|_, &mut timestamp| now.duration_since(timestamp) < ttl);
+            self.cache.retain(|_, entry| match entry {
+                TxHashCacheEntry::Reserved(_) => true,
+                TxHashCacheEntry::Committed(timestamp) => now.duration_since(*timestamp) < ttl,
+            });
         }
 
-        // Check for duplicate within TTL
-        if let Some(&timestamp) = self.cache.get(&key) {
-            if now.duration_since(timestamp) < self.ttl {
-                return Err(TxHashCacheError::Duplicate);
-            }
+        if self.cache.get(&key).is_some_and(|entry| match entry {
+            TxHashCacheEntry::Reserved(_) => true,
+            TxHashCacheEntry::Committed(timestamp) => now.duration_since(*timestamp) < self.ttl,
+        }) {
+            return Err(TxHashCacheError::Duplicate);
         }
 
         if self.cache.len() >= self.max_entries {
@@ -111,8 +140,10 @@ impl TxHashCache {
             return Err(TxHashCacheError::CacheFull);
         }
 
-        self.cache.insert(key, now);
-        Ok(())
+        let token = self.next_reservation;
+        self.next_reservation = self.next_reservation.wrapping_add(1);
+        self.cache.insert(key, TxHashCacheEntry::Reserved(token));
+        Ok(token)
     }
 }
 
@@ -126,30 +157,32 @@ pub struct TxHashReservation {
     cache: Arc<Mutex<TxHashCache>>,
     chain: String,
     tx_hash: String,
-    committed: bool,
+    token: u64,
 }
 
 impl TxHashReservation {
-    fn new(cache: Arc<Mutex<TxHashCache>>, chain: String, tx_hash: String) -> Self {
+    fn new(cache: Arc<Mutex<TxHashCache>>, chain: String, tx_hash: String, token: u64) -> Self {
         Self {
             cache,
             chain,
             tx_hash,
-            committed: false,
+            token,
         }
     }
 
-    /// Mark this reservation as permanent. Drop will no longer remove the entry.
-    pub fn commit(mut self) {
-        self.committed = true;
+    /// Commit the reservation and start its duplicate-detection TTL.
+    pub fn commit(self) {
+        self.cache
+            .lock()
+            .commit_reservation(&self.chain, &self.tx_hash, self.token);
     }
 }
 
 impl Drop for TxHashReservation {
     fn drop(&mut self) {
-        if !self.committed {
-            self.cache.lock().remove(&self.chain, &self.tx_hash);
-        }
+        self.cache
+            .lock()
+            .remove_reservation(&self.chain, &self.tx_hash, self.token);
     }
 }
 
@@ -441,10 +474,11 @@ async fn create_relay(
             .lock()
             .check_and_insert(req.origin_chain.clone(), req.tx_hash.clone())
         {
-            Ok(()) => Some(TxHashReservation::new(
+            Ok(token) => Some(TxHashReservation::new(
                 cache.clone(),
                 req.origin_chain.clone(),
                 req.tx_hash.clone(),
+                token,
             )),
             Err(TxHashCacheError::Duplicate) => {
                 state.record_failure("duplicate_tx");
@@ -909,4 +943,52 @@ async fn relay_work(
     Ok(Json(RelayResponse {
         messages: processed_messages,
     }))
+}
+
+#[cfg(test)]
+mod tx_hash_cache_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn commit_starts_ttl_and_stale_guard_cannot_remove_replacement() {
+        let ttl = Duration::from_millis(5);
+        let cache = Arc::new(Mutex::new(TxHashCache::new_with_ttl(10, ttl)));
+        let first_token = cache
+            .lock()
+            .check_and_insert("ethereum".to_owned(), "0x01".to_owned())
+            .expect("first reservation");
+        let first = TxHashReservation::new(
+            cache.clone(),
+            "ethereum".to_owned(),
+            "0x01".to_owned(),
+            first_token,
+        );
+
+        cache
+            .lock()
+            .remove_reservation("ethereum", "0x01", first_token);
+        let second_token = cache
+            .lock()
+            .check_and_insert("ethereum".to_owned(), "0x01".to_owned())
+            .expect("replacement reservation");
+        let second = TxHashReservation::new(
+            cache.clone(),
+            "ethereum".to_owned(),
+            "0x01".to_owned(),
+            second_token,
+        );
+
+        drop(first);
+        assert!(cache.lock().contains("ethereum", "0x01"));
+        tokio::time::sleep(ttl + ttl).await;
+        assert!(
+            cache.lock().contains("ethereum", "0x01"),
+            "an in-flight reservation must not expire"
+        );
+
+        second.commit();
+        assert!(cache.lock().contains("ethereum", "0x01"));
+        tokio::time::sleep(ttl + ttl).await;
+        assert!(!cache.lock().contains("ethereum", "0x01"));
+    }
 }

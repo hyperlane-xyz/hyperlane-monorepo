@@ -458,6 +458,47 @@ async fn test_saturated_processor_returns_503_without_partial_enqueue() {
 }
 
 #[tokio::test]
+async fn test_blocked_reservation_does_not_expire_before_handoff() {
+    let messages = vec![test_msg(ORIGIN_ID, DEST_ID, 1)];
+    let (TestHarness { state, mut rx, .. }, tx) = make_state_multi_with_capacity(
+        Arc::new(MockIndexer::with_messages(messages)),
+        ORIGIN_ID,
+        vec![DEST_ID],
+        1,
+    )
+    .await;
+    tx.send(Vec::new()).await.expect("prefill should succeed");
+
+    let cache = Arc::new(Mutex::new(TxHashCache::new_with_ttl(
+        100,
+        Duration::from_millis(1),
+    )));
+    let router = state.with_tx_hash_cache(cache.clone()).router();
+    let blocked_router = router.clone();
+    let request = tokio::spawn(async move { send_relay(blocked_router, TX_HASH).await });
+
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while !cache.lock().contains("ethereum", TX_HASH) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("request should reserve its tx hash");
+    tokio::time::sleep(Duration::from_millis(5)).await;
+
+    assert_eq!(
+        send_relay(router, TX_HASH).await,
+        StatusCode::TOO_MANY_REQUESTS,
+        "retry must not replace an in-flight reservation after the TTL"
+    );
+
+    request.abort();
+    assert!(request.await.unwrap_err().is_cancelled());
+    assert!(!cache.lock().contains("ethereum", TX_HASH));
+    assert_eq!(rx.recv().await.expect("prefilled batch").len(), 0);
+}
+
+#[tokio::test]
 async fn test_duplicate_within_ttl_rejected() {
     let msg = test_msg(ORIGIN_ID, DEST_ID, 1);
     let TestHarness {
