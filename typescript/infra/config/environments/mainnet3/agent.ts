@@ -803,6 +803,7 @@ const hyperlane: RootAgentConfig = {
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
+    websocketUrl: scraperWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayer,
@@ -876,6 +877,7 @@ const releaseCandidate: RootAgentConfig = {
   rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
+    websocketUrl: scraperWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayerRC,
@@ -1018,6 +1020,7 @@ const fastPath: RootAgentConfig = {
   rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
+    websocketUrl: scraperWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayerFastPath,
