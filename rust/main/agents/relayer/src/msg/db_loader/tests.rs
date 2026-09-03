@@ -34,6 +34,11 @@ fn notification(tx_id: H512) -> IndexingNotification {
     IndexingNotification::from_tx_id(tx_id)
 }
 
+fn only_operation(batch: QueueOperationBatch) -> QueueOperation {
+    assert_eq!(batch.len(), 1);
+    batch.into_iter().next().unwrap()
+}
+
 #[async_trait]
 impl ApplicationOperationVerifier for DummyApplicationOperationVerifier {
     async fn verify(
@@ -157,7 +162,7 @@ fn add_db_entry(db: &HyperlaneRocksDB, msg: &HyperlaneMessage, retry_count: u32)
 
 async fn finish_legacy_migration(loader: &mut MessageDbLoader) {
     while loader.migration_iterator.is_some() {
-        loader.migrate_legacy_record().await.unwrap();
+        loader.migrate_legacy_batch().await.unwrap();
         for iterator in &mut loader.destination_iterators {
             iterator.reconsider_nonces.clear();
         }
@@ -357,7 +362,10 @@ async fn index_notification_reopens_exhausted_low_range() {
 
         loader.tick().await.expect("load late low nonce");
 
-        assert_eq!(receiver.try_recv().expect("late operation").id(), late.id());
+        assert_eq!(
+            only_operation(receiver.try_recv().expect("late operation")).id(),
+            late.id()
+        );
     })
     .await;
 }
@@ -392,7 +400,10 @@ async fn index_notification_defers_reopen_until_active_low_range_exhausts() {
         assert!(loader.destination_iterators[0].low_range_reopen_pending);
 
         loader.tick().await.expect("load late gap nonce");
-        assert_eq!(receiver.try_recv().expect("late operation").id(), late.id());
+        assert_eq!(
+            only_operation(receiver.try_recv().expect("late operation")).id(),
+            late.id()
+        );
         assert!(!loader.destination_iterators[0].low_range_reopen_pending);
     })
     .await;
@@ -428,14 +439,17 @@ async fn index_notification_reopens_after_active_low_range_reaches_zero() {
 
         loader.tick().await.expect("load low range floor");
         assert_eq!(
-            receiver.try_recv().expect("floor operation").id(),
+            only_operation(receiver.try_recv().expect("floor operation")).id(),
             floor.id()
         );
         assert!(loader.destination_iterators[0].low_nonce.is_none());
         assert!(loader.destination_iterators[0].low_range_reopen_pending);
 
         loader.tick().await.expect("load late gap nonce");
-        assert_eq!(receiver.try_recv().expect("late operation").id(), late.id());
+        assert_eq!(
+            only_operation(receiver.try_recv().expect("late operation")).id(),
+            late.id()
+        );
         assert!(!loader.destination_iterators[0].low_range_reopen_pending);
     })
     .await;
@@ -488,7 +502,10 @@ async fn waited_index_notification_reopens_exhausted_low_range() {
         .await
         .expect("consumed notification should reopen low scan");
 
-        assert_eq!(receiver.try_recv().expect("late operation").id(), late.id());
+        assert_eq!(
+            only_operation(receiver.try_recv().expect("late operation")).id(),
+            late.id()
+        );
     })
     .await;
 }
@@ -512,7 +529,7 @@ async fn reopened_low_range_does_not_duplicate_in_flight_message() {
         let high = dummy_hyperlane_message(&destination_domain, 5);
         add_db_entry(&db, &high, 0);
         loader.tick().await.expect("load high operation");
-        let high_operation = receiver.try_recv().expect("high operation");
+        let high_operation = only_operation(receiver.try_recv().expect("high operation"));
         assert_eq!(high_operation.id(), high.id());
 
         loader.destination_iterators[0].low_nonce = None;
@@ -526,8 +543,8 @@ async fn reopened_low_range_does_not_duplicate_in_flight_message() {
         let late_operation = timeout(Duration::from_millis(750), async {
             loop {
                 loader.tick().await.expect("scan reopened low range");
-                if let Ok(operation) = receiver.try_recv() {
-                    break operation;
+                if let Ok(batch) = receiver.try_recv() {
+                    break only_operation(batch);
                 }
             }
         })
@@ -597,6 +614,12 @@ async fn notification_after_terminal_drop_does_not_reload_message() {
             restarted_receiver.try_recv().is_err(),
             "terminal message was reloaded after restart"
         );
+        assert_eq!(
+            db.retrieve_pending_message_at_or_after(destination_domain.id(), message.nonce)
+                .unwrap(),
+            None,
+            "terminal message index should be removed"
+        );
 
         restarted_loader.destination_iterators[0].low_nonce = None;
         notification_sender
@@ -625,10 +648,12 @@ async fn notification_after_terminal_drop_does_not_reload_message() {
         restarted_loader.drain_index_notifications().unwrap();
         assert!(restarted_loader.try_load_destination(0).await.unwrap());
         assert_eq!(
-            restarted_receiver
-                .try_recv()
-                .expect("replacement operation")
-                .id(),
+            only_operation(
+                restarted_receiver
+                    .try_recv()
+                    .expect("replacement operation"),
+            )
+            .id(),
             replacement.id()
         );
     })
@@ -848,7 +873,10 @@ async fn mismatched_id_is_repaired_and_loaded_without_restart() {
         );
 
         loader.try_load_destination(0).await.unwrap();
-        assert_eq!(receiver.try_recv().unwrap().id(), message.id());
+        assert_eq!(
+            only_operation(receiver.try_recv().unwrap()).id(),
+            message.id()
+        );
     })
     .await;
 }
@@ -883,8 +911,8 @@ async fn moved_message_reconsiders_target_without_restart() {
         ));
         let old = dummy_hyperlane_message(&destination_a, 0);
         add_db_entry(&db, &old, 0);
-        let (sender_a, _receiver_a) = mpsc::channel::<QueueOperation>(1);
-        let (sender_b, mut receiver_b) = mpsc::channel::<QueueOperation>(1);
+        let (sender_a, _receiver_a) = mpsc::channel::<QueueOperationBatch>(1);
+        let (sender_b, mut receiver_b) = mpsc::channel::<QueueOperationBatch>(1);
         let mut loader = MessageDbLoader::new(
             db.clone(),
             Default::default(),
@@ -931,7 +959,10 @@ async fn moved_message_reconsiders_target_without_restart() {
             .reconsider_nonces
             .contains(&moved.nonce));
         loader.try_load_destination(target_index).await.unwrap();
-        assert_eq!(receiver_b.try_recv().unwrap().id(), moved.id());
+        assert_eq!(
+            only_operation(receiver_b.try_recv().unwrap()).id(),
+            moved.id()
+        );
     })
     .await;
 }
@@ -990,14 +1021,17 @@ async fn indexed_message_loads_before_large_legacy_backfill_finishes() {
         loader.tick().await.unwrap();
 
         assert!(loader.migration_iterator.is_some());
-        assert_eq!(receiver.try_recv().unwrap().id(), indexed.id());
+        assert_eq!(
+            only_operation(receiver.try_recv().unwrap()).id(),
+            indexed.id()
+        );
         let newer = dummy_hyperlane_message(&destination, 65);
         add_db_entry(&db, &newer, 0);
         loader.tick().await.unwrap();
         loader.tick().await.unwrap();
         let next_ids = [
-            receiver.try_recv().unwrap().id(),
-            receiver.try_recv().unwrap().id(),
+            only_operation(receiver.try_recv().unwrap()).id(),
+            only_operation(receiver.try_recv().unwrap()).id(),
         ];
         assert!(next_ids.contains(&newer.id()));
         assert!(loader.migration_iterator.is_some());
@@ -1005,6 +1039,64 @@ async fn indexed_message_loads_before_large_legacy_backfill_finishes() {
             db.retrieve_pending_message_at_or_before(destination.id(), 0)
                 .unwrap(),
             None
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn processed_legacy_history_does_not_rescan_every_destination() {
+    test_utils::run_test_db(|db| async move {
+        const HISTORY_LEN: u32 = 1_024;
+        const DESTINATION_COUNT: u32 = 8;
+
+        let origin_domain = dummy_domain(0, "dummy_origin_domain");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin_domain, db);
+        for nonce in 0..HISTORY_LEN {
+            let message = dummy_hyperlane_message(&destination, nonce);
+            add_db_entry(&db, &message, 0);
+            db.store_message_processed(&message).unwrap();
+        }
+
+        let (mut loader, _receiver) =
+            dummy_message_loader(&origin_domain, &destination, &db, OptionalCache::new(None));
+        let mut _extra_receivers = Vec::new();
+        for destination_id in 2..=DESTINATION_COUNT {
+            let (sender, receiver) = mpsc::channel::<QueueOperationBatch>(1);
+            loader.send_channels.insert(destination_id, sender);
+            loader
+                .destination_iterators
+                .push(DestinationIndexIterator::new(
+                    destination_id,
+                    Some(HISTORY_LEN.saturating_sub(1)),
+                ));
+            _extra_receivers.push(receiver);
+        }
+
+        while loader.migration_iterator.is_some() {
+            loader.tick().await.unwrap();
+        }
+
+        let destination_index_reads: u64 = loader
+            .destination_iterators
+            .iter()
+            .map(|iterator| {
+                loader
+                    .metrics
+                    .logical_db_reads
+                    .with_label_values(&[
+                        loader.metrics.origin.as_str(),
+                        iterator.destination_label.as_ref(),
+                        "destination_index",
+                        "index",
+                    ])
+                    .get()
+            })
+            .sum();
+        assert!(
+            destination_index_reads <= u64::from(DESTINATION_COUNT).saturating_mul(2),
+            "destination indexes were rescanned during legacy history migration"
         );
     })
     .await;
@@ -1074,16 +1166,16 @@ async fn saturated_destination_does_not_block_another_destination() {
         add_db_entry(&db, &message_a, 0);
         add_db_entry(&db, &message_b, 0);
 
-        let (sender_a, mut receiver_a) = mpsc::channel::<QueueOperation>(1);
-        let (sender_b, mut receiver_b) = mpsc::channel::<QueueOperation>(1);
+        let (sender_a, mut receiver_a) = mpsc::channel::<QueueOperationBatch>(1);
+        let (sender_b, mut receiver_b) = mpsc::channel::<QueueOperationBatch>(1);
         sender_a
-            .try_send(Box::new(PendingMessage::new(
+            .try_send(vec![Box::new(PendingMessage::new(
                 message_a.clone(),
                 context_a.clone(),
                 PendingOperationStatus::FirstPrepareAttempt,
                 None,
                 DEFAULT_MAX_MESSAGE_RETRIES,
-            )))
+            ))])
             .unwrap();
         let mut loader = MessageDbLoader::new(
             db,
