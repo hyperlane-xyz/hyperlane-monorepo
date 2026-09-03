@@ -860,6 +860,7 @@ const hyperlane: RootAgentConfig = {
       tag: mainnetDockerTags.scraperProxy,
     },
     enabled: true,
+    maxAgentClients: 200,
     port: 8383,
     replicas: 1,
     resources: {

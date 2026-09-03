@@ -16,10 +16,29 @@ import {
 import { testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
 import { getAgentConfigJsonPath } from '../scripts/agent-utils.js';
 import {
-  AgentChainConfig,
+  type AgentChainConfig,
   ensureAgentChainConfigIncludesAllChainNames,
+  type RootAgentConfig,
 } from '../src/config/agent/agent.js';
 import { AgentEnvironment } from '../src/config/deploy-environment.js';
+
+function configuredScraperAgentClients(
+  agents: Record<string, RootAgentConfig>,
+): number {
+  return Object.values(agents).reduce((total, config) => {
+    const validatorClients = config.validators?.websocketUrl
+      ? config.contextChainNames.validator.reduce(
+          (sum, chain) =>
+            sum + (config.validators?.chains[chain]?.validators.length ?? 0),
+          0,
+        )
+      : 0;
+    // Reserve one connection for each relayer context as those contexts move
+    // onto the shared scraper stream.
+    const relayerClients = config.relayer ? 1 : 0;
+    return total + validatorClients + relayerClients;
+  }, 0);
+}
 
 const environmentChainConfigs = {
   mainnet3: {
@@ -47,6 +66,17 @@ describe('Agent configs', () => {
   };
 
   Object.entries(environmentAgents).forEach(([environment, agents]) => {
+    it(`leaves ${environment} shared scraper connection headroom`, () => {
+      const configuredClients = configuredScraperAgentClients(agents);
+      const maxAgentClients =
+        agents[Contexts.Hyperlane].scraperProxy?.maxAgentClients ?? 0;
+
+      expect(
+        maxAgentClients,
+        `${configuredClients} configured or planned agent clients require 25% headroom`,
+      ).to.be.at.least(Math.ceil(configuredClients * 1.25));
+    });
+
     Object.entries(agents).forEach(([context, config]) => {
       if (!config.validators) return;
 

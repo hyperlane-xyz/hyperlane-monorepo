@@ -45,7 +45,6 @@ const LISTENER_RETRY_MS = 1_000;
 const NOTIFICATION_BATCH_MS = 100;
 const NOTIFICATION_BATCH_SIZE = 1_000;
 const EXPLORER_NOTIFICATION_BATCH_SIZE = 100;
-const MAX_AGENT_CLIENTS = 100;
 const MAX_EXPLORER_CLIENTS = 400;
 const MAX_EXPLORER_CLIENTS_PER_IP = 5;
 const MAX_EXPLORER_PENDING_BYTES = 16_777_216;
@@ -179,7 +178,7 @@ export class EventWebSocketServer {
     limits: Partial<Limits> = {},
   ) {
     this.limits = {
-      maxAgentClients: MAX_AGENT_CLIENTS,
+      maxAgentClients: config.EVENT_STREAM_MAX_AGENT_CLIENTS,
       maxBufferedBytes: config.EVENT_STREAM_MAX_BUFFERED_BYTES,
       maxCatchUpMs: config.EVENT_STREAM_HISTORY_MAX_MS,
       maxCatchUpRows: config.EVENT_STREAM_HISTORY_MAX_ROWS,
@@ -208,7 +207,7 @@ export class EventWebSocketServer {
     );
     this.heartbeatTimer = setInterval(() => this.heartbeat(), HEARTBEAT_MS);
     this.logger.log(
-      `event websockets listening on ${AGENT_PATH}, ${MESSAGE_PATH} batchSize=${config.EVENT_STREAM_BATCH_SIZE} maxBufferedBytes=${this.limits.maxBufferedBytes} maxTotalBufferedBytes=${this.limits.maxTotalBufferedBytes}`,
+      `event websockets listening on ${AGENT_PATH}, ${MESSAGE_PATH} batchSize=${config.EVENT_STREAM_BATCH_SIZE} maxAgentClients=${this.limits.maxAgentClients} maxBufferedBytes=${this.limits.maxBufferedBytes} maxTotalBufferedBytes=${this.limits.maxTotalBufferedBytes}`,
     );
   }
 

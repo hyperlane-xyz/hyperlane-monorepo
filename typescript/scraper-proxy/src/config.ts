@@ -35,6 +35,12 @@ const ConfigSchema = z.object({
     .int()
     .min(1)
     .default(1_000_000),
+  EVENT_STREAM_MAX_AGENT_CLIENTS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(10_000)
+    .default(100),
   EVENT_STREAM_MAX_BUFFERED_BYTES: z.coerce
     .number()
     .int()
