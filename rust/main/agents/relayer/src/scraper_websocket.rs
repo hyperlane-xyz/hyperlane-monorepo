@@ -2033,7 +2033,7 @@ fn sequenced_persistence_frontier(
         return Ok(Some(u32::MAX));
     }
     validate_fresh_empty_stream_starts(state, domain)?;
-    let mut sequence = 0;
+    let mut sequence = state.correlation_next.get(&domain).copied().unwrap_or(0);
     let mut frontier = None;
     while state.cross_stream.complete(domain, sequence) {
         frontier = Some(sequence);
@@ -3174,6 +3174,74 @@ mod tests {
             ]
         );
         assert_eq!(staged.len, 0);
+    }
+
+    #[test]
+    fn fresh_empty_parity_advances_beyond_cross_stream_window() {
+        let sources = sources();
+        let source = &sources[&5];
+        let plan = replay_plan(&sources);
+        let caught_up = HashMap::from([
+            ((5, EventKind::Dispatch), -1),
+            ((5, EventKind::MerkleTreeInsertion), -1),
+        ]);
+        let mut state = replay_state(&plan);
+        let mut staged = StagedParity::default();
+
+        for sequence in 0..=CROSS_STREAM_WINDOW as u32 {
+            let body = sequence.to_be_bytes();
+            let message_id = dispatch_message(sequence, &body).id();
+            let dispatch = state
+                .validate(
+                    event(
+                        DISPATCH_EVENT_TYPE,
+                        sequence,
+                        dispatch_data(sequence, &body),
+                    ),
+                    &sources,
+                )
+                .expect("validate dispatch");
+            staged.push(5, dispatch).expect("stage dispatch");
+            assert!(staged
+                .drain_ready(&plan, &caught_up, &state, 5)
+                .expect("hold incomplete pair")
+                .is_empty());
+
+            let merkle = state
+                .validate(
+                    event(
+                        MERKLE_EVENT_TYPE,
+                        sequence,
+                        merkle_data_for(sequence, H256::from_low_u64_be(2), message_id, 100),
+                    ),
+                    &sources,
+                )
+                .expect("validate Merkle insertion");
+            staged.push(5, merkle).expect("stage Merkle insertion");
+            let ready = staged
+                .drain_ready(&plan, &caught_up, &state, 5)
+                .expect("drain complete pair");
+            assert_eq!(ready.len(), 2);
+
+            if let Some(anchor) = state.initialize_correlation(5, sequence) {
+                source
+                    .store_correlation_cursor(anchor)
+                    .expect("store correlation anchor");
+            }
+            let next = state
+                .advance_correlation(5)
+                .expect("advance correlation")
+                .expect("complete pair advances correlation");
+            source
+                .store_correlation_cursor(next)
+                .expect("store correlation frontier");
+        }
+
+        assert_eq!(staged.len, 0);
+        assert_eq!(
+            source.correlation_cursor().expect("correlation cursor"),
+            Some(CROSS_STREAM_WINDOW as u32 + 1)
+        );
     }
 
     #[tokio::test]
