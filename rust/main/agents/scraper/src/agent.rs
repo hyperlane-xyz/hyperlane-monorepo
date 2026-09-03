@@ -209,15 +209,14 @@ impl RawDispatchReconciliationSchedule {
         raw_dispatch_scan_slot_available(self.discovery_scan, self.full_sweep)
     }
 
-    fn scans_are_serialized(&self) -> bool {
-        self.discovery_scan.is_none() || self.full_sweep.is_none()
+    fn discovery_slot_available(&self) -> bool {
+        self.discovery_scan.is_none()
     }
 
     fn discovery_delay(&self, now: Instant) -> Duration {
-        match (self.discovery_scan, self.full_sweep) {
-            (Some(scan), _) => scan.next_page_at.saturating_duration_since(now),
-            (None, Some(_)) => Duration::MAX,
-            (None, None) => self.next_discovery_at.saturating_duration_since(now),
+        match self.discovery_scan {
+            Some(scan) => scan.next_page_at.saturating_duration_since(now),
+            None => self.next_discovery_at.saturating_duration_since(now),
         }
     }
 
@@ -230,7 +229,7 @@ impl RawDispatchReconciliationSchedule {
     }
 
     fn start_discovery(&mut self, frontier: i64, now: Instant) {
-        debug_assert!(self.scan_slot_available());
+        debug_assert!(self.discovery_slot_available());
         self.discovery_scan = RawDispatchScan::new(self.discovery_watermark, frontier, now);
         if self.discovery_scan.is_none() {
             self.next_discovery_at = instant_after(now, RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP);
@@ -267,8 +266,14 @@ impl RawDispatchReconciliationSchedule {
         result: &RawDispatchReconciliationResult,
         now: Instant,
     ) {
-        if scan.complete_page(result, now) {
-            self.discovery_watermark = self.discovery_watermark.max(scan.through_id);
+        let complete = scan.complete_page(result, now);
+        let covered_through = if complete {
+            scan.through_id
+        } else {
+            scan.after_id
+        };
+        self.discovery_watermark = self.discovery_watermark.max(covered_through);
+        if complete {
             self.full_sweep = None;
             self.next_full_sweep_at =
                 instant_after(now, RAW_DISPATCH_RECONCILIATION_FULL_SWEEP_INTERVAL);
@@ -827,7 +832,7 @@ impl Scraper {
 
                     let now = Instant::now();
                     if !cycle_failed
-                        && schedule.scan_slot_available()
+                        && schedule.discovery_slot_available()
                         && schedule.next_discovery_at <= now
                     {
                         let timer = reconciliation_metrics
@@ -955,10 +960,11 @@ impl Scraper {
                         }
                     }
 
-                    if let Some(scan) = schedule
-                        .full_sweep
-                        .filter(|scan| !cycle_failed && scan.next_page_at <= now)
-                    {
+                    if let Some(scan) = schedule.full_sweep.filter(|scan| {
+                        !cycle_failed
+                            && schedule.discovery_scan.is_none()
+                            && scan.next_page_at <= now
+                    }) {
                         let timer = reconciliation_metrics
                             .start(&domain_name, RAW_DISPATCH_SWEEP_PAGE_KIND);
                         let result = AssertUnwindSafe(store.reconcile_raw_message_dispatches(
@@ -1012,7 +1018,6 @@ impl Scraper {
                     }
 
                     reconciliation_metrics.set_pending_retries(&domain_name, retry_backoff.len());
-                    debug_assert!(schedule.scans_are_serialized());
                     max_age_metric.set(
                         retry_backoff
                             .max_unenriched_age_seconds(time::OffsetDateTime::now_utc())
@@ -1393,7 +1398,7 @@ mod test {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn active_scan_ignores_overdue_blocked_lane_deadline() {
+    async fn multi_page_full_sweep_yields_to_overdue_discovery() {
         let started_at = Instant::now();
         let mut schedule = RawDispatchReconciliationSchedule::new(0, started_at, started_at);
         tokio::time::advance(RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP).await;
@@ -1403,13 +1408,28 @@ mod test {
         let sweep = schedule
             .full_sweep
             .expect("full sweep should own scan slot");
-        assert_eq!(schedule.discovery_delay(now), Duration::MAX);
-        assert_eq!(schedule.full_sweep_delay(now), Duration::ZERO);
+        let full_page = RawDispatchReconciliationResult {
+            candidate_count: RAW_DISPATCH_RECONCILIATION_BATCH_SIZE as usize,
+            next_after_id: 100,
+            ..Default::default()
+        };
+        schedule.complete_full_sweep_page(sweep, &full_page, now);
 
-        schedule.full_sweep = Some(RawDispatchScan {
-            next_page_at: instant_after(now, RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP),
-            ..sweep
-        });
+        assert_eq!(schedule.discovery_delay(now), Duration::ZERO);
+        assert!(schedule.discovery_slot_available());
+        schedule.start_discovery(250, now);
+        assert_eq!(schedule.discovery_scan.map(|scan| scan.after_id), Some(100));
+        assert!(schedule.full_sweep.is_some());
+        assert_eq!(schedule.full_sweep_delay(now), Duration::MAX);
+
+        let discovery = schedule
+            .discovery_scan
+            .expect("discovery should preempt the parked sweep");
+        schedule.complete_discovery_page(
+            discovery,
+            &RawDispatchReconciliationResult::default(),
+            now,
+        );
         assert_eq!(
             schedule.full_sweep_delay(now),
             RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP
@@ -1442,7 +1462,7 @@ mod test {
         schedule.complete_full_sweep_page(deferred, &final_page, deferred.next_page_at);
         assert!(schedule.full_sweep.is_none());
         assert_eq!(schedule.discovery_watermark, 100);
-        assert!(schedule.scans_are_serialized());
+        assert!(schedule.scan_slot_available());
     }
 
     #[test]
