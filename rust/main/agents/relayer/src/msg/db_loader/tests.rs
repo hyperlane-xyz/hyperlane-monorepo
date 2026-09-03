@@ -121,22 +121,20 @@ fn dummy_message_loader_with_notifications(
     ));
 
     let (send_channel, receive_channel) = mpsc::channel::<QueueOperationBatch>(1);
-    (
-        MessageDbLoader::new(
-            db.clone(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            dummy_message_loader_metrics(),
-            HashMap::from([(destination_domain.id(), send_channel)]),
-            HashMap::from([(destination_domain.id(), message_context)]),
-            vec![].into(),
-            DEFAULT_MAX_MESSAGE_RETRIES,
-            index_notifications,
-        )
-        .unwrap(),
-        receive_channel,
+    let mut loader = MessageDbLoader::new(
+        db.clone(),
+        Default::default(),
+        Default::default(),
+        Default::default(),
+        dummy_message_loader_metrics(),
+        HashMap::from([(destination_domain.id(), send_channel)]),
+        HashMap::from([(destination_domain.id(), message_context)]),
+        vec![].into(),
+        DEFAULT_MAX_MESSAGE_RETRIES,
     )
+    .unwrap();
+    loader.set_index_notifications(index_notifications);
+    (loader, receive_channel)
 }
 
 fn dummy_hyperlane_message(destination: &HyperlaneDomain, nonce: u32) -> HyperlaneMessage {
@@ -929,7 +927,6 @@ async fn moved_message_reconsiders_target_without_restart() {
             ]),
             vec![].into(),
             DEFAULT_MAX_MESSAGE_RETRIES,
-            None,
         )
         .unwrap();
         finish_legacy_migration(&mut loader).await;
@@ -1193,7 +1190,6 @@ async fn saturated_destination_does_not_block_another_destination() {
             ]),
             vec![].into(),
             DEFAULT_MAX_MESSAGE_RETRIES,
-            None,
         )
         .unwrap();
 
