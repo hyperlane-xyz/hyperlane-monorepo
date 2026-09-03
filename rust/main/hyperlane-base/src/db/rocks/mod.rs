@@ -64,7 +64,7 @@ fn remove_archived_wal_files(db_path: &Path) -> Result<()> {
                     entry.path().display()
                 ))
             })?;
-            removed += 1;
+            removed = removed.saturating_add(1);
         }
     }
     if removed > 0 {
