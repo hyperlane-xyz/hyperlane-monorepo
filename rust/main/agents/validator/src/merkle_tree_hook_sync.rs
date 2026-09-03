@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use eyre::{bail, eyre, Context, Result};
 use futures_util::{future::BoxFuture, FutureExt, SinkExt, StreamExt};
 use prometheus::IntGauge;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tokio::{
     task::JoinHandle,
     time::{interval, sleep, timeout, Instant, MissedTickBehavior},
@@ -14,6 +14,10 @@ use url::Url;
 
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB},
+    scraper_websocket::{
+        EventMessage, SequenceCursor, ServerMessage as ScraperServerMessage, StringOrNumber,
+        SubscribeMessage, SubscribeStream,
+    },
     settings::IndexSettings,
     ContractSyncer, SequencedDataContractSync,
 };
@@ -552,14 +556,14 @@ impl MerkleTreeHookWebSocketSync {
     fn subscription(&self, next_sequence: u32) -> Result<String> {
         let after_sequence = next_sequence.checked_sub(1).map(i64::from).unwrap_or(-1);
         serde_json::to_string(&SubscribeMessage {
-            streams: [SubscribeStream {
-                cursors: [SequenceCursor {
+            streams: vec![SubscribeStream {
+                cursors: Some(vec![SequenceCursor {
                     address: format!("{:#x}", self.merkle_tree_hook),
-                    allow_replay: true,
-                    after_sequence: after_sequence.to_string(),
+                    allow_replay: Some(true),
+                    after_sequence: Some(after_sequence.to_string()),
                     domain: self.domain,
-                }],
-                domains: [self.domain],
+                }]),
+                domains: Some(vec![self.domain]),
                 event_type: EVENT_TYPE,
             }],
             message_type: "subscribe",
@@ -573,7 +577,7 @@ impl MerkleTreeHookWebSocketSync {
     /// Exact duplicates reuse the previously verified local row without another RPC query.
     async fn process_event(
         &self,
-        event: EventMessage,
+        event: EventMessage<EventData>,
         next_sequence: &mut u32,
         dependencies: &StreamDependencies,
         canonical_cache: &mut Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>,
@@ -591,9 +595,13 @@ impl MerkleTreeHookWebSocketSync {
         }
 
         let leaf_index = event.data.leaf_index.as_u32("leaf_index")?;
-        let sequence = event.sequence.parse::<u32>().with_context(|| {
-            format!("Invalid Merkle tree insertion sequence {}", event.sequence)
-        })?;
+        let raw_sequence = event
+            .sequence
+            .as_deref()
+            .ok_or_else(|| eyre!("Missing Merkle tree insertion sequence"))?;
+        let sequence = raw_sequence
+            .parse::<u32>()
+            .with_context(|| format!("Invalid Merkle tree insertion sequence {raw_sequence}"))?;
         if sequence != leaf_index || leaf_index > *next_sequence {
             bail!(
                 "Unexpected Merkle tree insertion sequence: expected {}, received {sequence}/{leaf_index}",
@@ -846,60 +854,6 @@ fn matches_canonical_insertion(
     }))
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SubscribeMessage<'a> {
-    streams: [SubscribeStream<'a>; 1],
-    #[serde(rename = "type")]
-    message_type: &'a str,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SubscribeStream<'a> {
-    cursors: [SequenceCursor; 1],
-    domains: [u32; 1],
-    event_type: &'a str,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SequenceCursor {
-    address: String,
-    allow_replay: bool,
-    after_sequence: String,
-    domain: u32,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-enum ServerMessage {
-    Ready,
-    Subscribed,
-    #[serde(rename_all = "camelCase")]
-    CaughtUp {
-        address: String,
-        domain: u32,
-        event_type: String,
-        sequence: String,
-    },
-    Event(EventMessage),
-    Error {
-        error: String,
-    },
-    #[serde(other)]
-    Other,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct EventMessage {
-    data: EventData,
-    domain: u32,
-    event_type: String,
-    sequence: String,
-}
-
 #[derive(Debug, Deserialize)]
 struct EventData {
     block_number: StringOrNumber,
@@ -909,30 +863,7 @@ struct EventData {
     message_id: String,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum StringOrNumber {
-    String(String),
-    Number(u64),
-}
-
-impl StringOrNumber {
-    fn as_u32(&self, field: &str) -> Result<u32> {
-        let value = self.as_u64(field)?;
-        value
-            .try_into()
-            .with_context(|| format!("{field} exceeds u32"))
-    }
-
-    fn as_u64(&self, field: &str) -> Result<u64> {
-        match self {
-            Self::String(value) => value
-                .parse()
-                .with_context(|| format!("Invalid {field} value {value}")),
-            Self::Number(value) => Ok(*value),
-        }
-    }
-}
+type ServerMessage = ScraperServerMessage<EventData>;
 
 fn parse_address(value: &str) -> Result<H256> {
     bytes_to_address(parse_hex(value)?).context("Invalid Merkle tree hook address")
@@ -1366,7 +1297,7 @@ mod tests {
             },
             domain: 1,
             event_type: EVENT_TYPE.to_owned(),
-            sequence: "0".to_owned(),
+            sequence: Some("0".to_owned()),
         };
 
         assert!(sync
@@ -1397,7 +1328,7 @@ mod tests {
                     },
                     domain: 1,
                     event_type: EVENT_TYPE.to_owned(),
-                    sequence: "0".to_owned(),
+                    sequence: Some("0".to_owned()),
                 },
                 &mut next_sequence,
                 &dependencies,
@@ -1422,7 +1353,7 @@ mod tests {
             },
             domain: 1,
             event_type: EVENT_TYPE.to_owned(),
-            sequence: "2".to_owned(),
+            sequence: Some("2".to_owned()),
         };
         assert!(sync
             .process_event(gap, &mut next_sequence, &dependencies, &mut canonical_cache,)
