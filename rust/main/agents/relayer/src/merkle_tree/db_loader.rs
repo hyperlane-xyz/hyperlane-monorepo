@@ -60,7 +60,7 @@ impl DbLoaderExt for MerkleTreeDbLoader {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
-        let mut insertions = Vec::new();
+        let mut insertions = Vec::with_capacity(MAX_LEAVES_PER_TICK);
         while insertions.len() < MAX_LEAVES_PER_TICK {
             let index = self.leaf_index + insertions.len() as u32;
             let begin = Instant::now();
@@ -197,9 +197,30 @@ mod tests {
         );
         loader.tick().await.unwrap();
         assert_eq!(loader.leaf_index, (MAX_LEAVES_PER_TICK as u32) + 5);
+        let prover_sync = loader.prover_sync.read().await;
+        let insertion_count = (MAX_LEAVES_PER_TICK as u32) + 5;
+        assert_eq!(prover_sync.count(), insertion_count);
+        for index in 0..insertion_count {
+            assert_eq!(
+                prover_sync
+                    .get_proof(index, insertion_count - 1)
+                    .unwrap()
+                    .leaf,
+                H256::from_low_u64_be(index as u64)
+            );
+        }
+        drop(prover_sync);
         assert_eq!(
-            loader.prover_sync.read().await.count(),
-            (MAX_LEAVES_PER_TICK as u32) + 5
+            loader.metrics.merkle_tree_retrieve_insertions_count.get(),
+            insertion_count as u64
+        );
+        assert_eq!(
+            loader.metrics.merkle_tree_ingest_message_ids_count.get(),
+            insertion_count as u64
+        );
+        assert_eq!(
+            loader.metrics.latest_tree_insertion_index_gauge.get(),
+            (insertion_count - 1) as i64
         );
     }
 
@@ -231,7 +252,14 @@ mod tests {
         .unwrap();
         loader.tick().await.unwrap();
         assert_eq!(loader.leaf_index, 4);
-        assert_eq!(loader.prover_sync.read().await.count(), 4);
+        let prover_sync = loader.prover_sync.read().await;
+        assert_eq!(prover_sync.count(), 4);
+        for index in 0..4 {
+            assert_eq!(
+                prover_sync.get_proof(index, 3).unwrap().leaf,
+                H256::from_low_u64_be(index as u64)
+            );
+        }
         let _ = dir;
     }
 }
