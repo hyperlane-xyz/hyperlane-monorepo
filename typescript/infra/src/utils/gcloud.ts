@@ -28,6 +28,33 @@ const kmsIamGrantQueues = new Map<string, Promise<void>>();
 const gcsBucketMutationQueues = new Map<string, Promise<void>>();
 let serviceAccountCreateQueue: Promise<void> = Promise.resolve();
 
+// google-gax uses the canonical gRPC status code for missing resources.
+const GRPC_NOT_FOUND_STATUS_CODE = 5;
+
+/**
+ * Checks a GCP error (including errors wrapped with `cause`) for a structured
+ * NOT_FOUND status. Message matching is intentionally avoided: parse errors,
+ * DNS failures, and permission errors can all contain the words "not found".
+ */
+export function isGcpNotFoundError(error: unknown): boolean {
+  const seen = new Set<object>();
+  let current = error;
+
+  while (typeof current === 'object' && current !== null) {
+    if (seen.has(current)) {
+      return false;
+    }
+    seen.add(current);
+
+    if ('code' in current && current.code === GRPC_NOT_FOUND_STATUS_CODE) {
+      return true;
+    }
+    current = 'cause' in current ? current.cause : undefined;
+  }
+
+  return false;
+}
+
 async function withKmsIamGrantQueue<T>(
   queueKey: string,
   task: () => Promise<T>,
@@ -107,6 +134,7 @@ export async function fetchGCPSecret(
     } catch (err) {
       throw new Error(
         `Error fetching GCP secret with name ${secretName}: ${err}`,
+        { cause: err },
       );
     }
   }
