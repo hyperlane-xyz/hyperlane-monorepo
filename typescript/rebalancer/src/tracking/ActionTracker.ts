@@ -30,6 +30,34 @@ import type {
   Transfer,
 } from './types.js';
 
+const DELIVERY_CHECK_CONCURRENCY = 8;
+
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = Array<R>(items.length);
+  let nextIndex = 0;
+
+  const workerCount = Math.min(concurrency, items.length);
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const index = nextIndex;
+      nextIndex++;
+
+      if (index >= items.length) {
+        return;
+      }
+
+      results[index] = await mapper(items[index]);
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
+}
+
 export interface ActionTrackerConfig {
   routersByDomain: Record<number, string>; // Domain ID → router address (source of truth for routers and domains)
   bridges: Address[]; // Bridge contract addresses for rebalance action queries
@@ -180,18 +208,24 @@ export class ActionTracker implements IActionTracker {
       }
     }
 
+    const getBlockTag = this.getConfirmedBlockTagLoader(confirmedBlockTags);
     const existingTransfers = await this.getInProgressTransfers();
-    for (const transfer of existingTransfers) {
-      const blockTag = await this.getConfirmedBlockTag(
-        transfer.destination,
-        confirmedBlockTags,
-      );
-      const delivered = await this.isMessageDelivered(
-        transfer.messageId,
-        transfer.destination,
-        blockTag,
-      );
+    const transferDeliveries = await mapWithConcurrency(
+      existingTransfers,
+      DELIVERY_CHECK_CONCURRENCY,
+      async (transfer) => {
+        const blockTag = await getBlockTag(transfer.destination);
+        const delivered = await this.isMessageDelivered(
+          transfer.messageId,
+          transfer.destination,
+          blockTag,
+        );
 
+        return { transfer, delivered };
+      },
+    );
+
+    for (const { transfer, delivered } of transferDeliveries) {
       if (delivered) {
         await this.transferStore.update(transfer.id, { status: 'complete' });
         completedTransfers++;
@@ -216,11 +250,13 @@ export class ActionTracker implements IActionTracker {
     // Check in_progress intents for completion or TTL expiry
     const inProgressIntents =
       await this.rebalanceIntentStore.getByStatus('in_progress');
-    const allInProgressActions =
-      await this.rebalanceActionStore.getByStatus('in_progress');
+    const actionsByIntent = await this.getActionsForIntents(
+      inProgressIntents.map((intent) => intent.id),
+    );
     const now = Date.now();
     for (const intent of inProgressIntents) {
-      const completedAmount = await this.getCompletedAmountForIntent(intent.id);
+      const actions = actionsByIntent.get(intent.id) ?? [];
+      const completedAmount = this.getCompletedAmount(actions);
       if (completedAmount >= intent.amount) {
         await this.rebalanceIntentStore.update(intent.id, {
           status: 'complete',
@@ -232,8 +268,8 @@ export class ActionTracker implements IActionTracker {
         });
 
         // Fail any in-progress actions associated with the expired intent
-        for (const action of allInProgressActions) {
-          if (action.intentId === intent.id) {
+        for (const action of actions) {
+          if (action.status === 'in_progress') {
             await this.rebalanceActionStore.update(action.id, {
               status: 'failed',
             });
@@ -289,10 +325,12 @@ export class ActionTracker implements IActionTracker {
       'Found inflight rebalance actions from Explorer',
     );
 
-    const allActions = await this.rebalanceActionStore.getAll();
+    const existingActionsByMessageId = await this.getActionsByMessageIds(
+      inflightMessages.map((msg) => msg.msg_id),
+    );
 
     for (const msg of inflightMessages) {
-      const existingAction = allActions.find((a) => a.messageId === msg.msg_id);
+      const existingAction = existingActionsByMessageId.get(msg.msg_id);
 
       if (!existingAction) {
         this.logger.info(
@@ -313,22 +351,27 @@ export class ActionTracker implements IActionTracker {
     // inventory_movement actions are synced separately via LiFi status API
     const inProgressActions =
       await this.rebalanceActionStore.getByStatus('in_progress');
-    for (const action of inProgressActions) {
-      // Skip actions without messageId (e.g., inventory_movement)
-      if (!action.messageId) {
-        continue;
-      }
+    const deliverableActions = inProgressActions.filter(
+      (action) => action.messageId,
+    );
+    const getBlockTag = this.getConfirmedBlockTagLoader(confirmedBlockTags);
+    const actionDeliveries = await mapWithConcurrency(
+      deliverableActions,
+      DELIVERY_CHECK_CONCURRENCY,
+      async (action) => {
+        assert(action.messageId, `Missing messageId for action ${action.id}`);
+        const blockTag = await getBlockTag(action.destination);
+        const delivered = await this.isMessageDelivered(
+          action.messageId,
+          action.destination,
+          blockTag,
+        );
 
-      const blockTag = await this.getConfirmedBlockTag(
-        action.destination,
-        confirmedBlockTags,
-      );
-      const delivered = await this.isMessageDelivered(
-        action.messageId,
-        action.destination,
-        blockTag,
-      );
+        return { action, delivered };
+      },
+    );
 
+    for (const { action, delivered } of actionDeliveries) {
       if (delivered) {
         await this.completeRebalanceAction(action.id);
         completedActions++;
@@ -525,6 +568,10 @@ export class ActionTracker implements IActionTracker {
    */
   private async getCompletedAmountForIntent(intentId: string): Promise<bigint> {
     const actions = await this.getActionsForIntent(intentId);
+    return this.getCompletedAmount(actions);
+  }
+
+  private getCompletedAmount(actions: readonly RebalanceAction[]): bigint {
     return actions
       .filter(
         (a) =>
@@ -542,17 +589,14 @@ export class ActionTracker implements IActionTracker {
   // === RebalanceAction Queries ===
 
   async getActionsByType(type: ActionType): Promise<RebalanceAction[]> {
-    const allActions = await this.rebalanceActionStore.getAll();
-    return allActions.filter((action) => action.type === type);
+    return this.rebalanceActionStore.getByField('type', type);
   }
 
   async getInflightInventoryMovements(origin: Domain): Promise<bigint> {
-    const allActions = await this.rebalanceActionStore.getAll();
-    const inflightMovements = allActions.filter(
-      (action) =>
-        action.type === 'inventory_movement' &&
-        action.status === 'in_progress' &&
-        action.origin === origin,
+    const inventoryMovements =
+      await this.getActionsByType('inventory_movement');
+    const inflightMovements = inventoryMovements.filter(
+      (action) => action.status === 'in_progress' && action.origin === origin,
     );
 
     return inflightMovements.reduce(
@@ -582,12 +626,16 @@ export class ActionTracker implements IActionTracker {
 
     const allActiveIntents = [...inProgressIntents, ...notStartedIntents];
     const partialIntents: PartialInventoryIntent[] = [];
+    const inventoryIntentIds = allActiveIntents
+      .filter((intent) => intent.executionMethod === 'inventory')
+      .map((intent) => intent.id);
+    const actionsByIntent = await this.getActionsForIntents(inventoryIntentIds);
 
     for (const intent of allActiveIntents) {
       // Only inventory execution method
       if (intent.executionMethod !== 'inventory') continue;
 
-      const actions = await this.getActionsForIntent(intent.id);
+      const actions = actionsByIntent.get(intent.id) ?? [];
 
       // Check for in-flight inventory_movement actions
       // Skip intents with active bridge movement(s). Movements still `pending` on
@@ -669,8 +717,35 @@ export class ActionTracker implements IActionTracker {
    * Get all actions associated with a specific intent.
    */
   async getActionsForIntent(intentId: string): Promise<RebalanceAction[]> {
-    const allActions = await this.rebalanceActionStore.getAll();
-    return allActions.filter((a) => a.intentId === intentId);
+    return this.rebalanceActionStore.getByField('intentId', intentId);
+  }
+
+  async getActionsForIntents(
+    intentIds: readonly string[],
+  ): Promise<Map<string, RebalanceAction[]>> {
+    const actions = await this.rebalanceActionStore.getByFieldValues(
+      'intentId',
+      intentIds,
+    );
+    return this.groupActionsByIntent(intentIds, actions);
+  }
+
+  async getActionsByMessageIds(
+    messageIds: readonly string[],
+  ): Promise<Map<string, RebalanceAction>> {
+    const actions = await this.rebalanceActionStore.getByFieldValues(
+      'messageId',
+      messageIds,
+    );
+    const actionsByMessageId = new Map<string, RebalanceAction>();
+
+    for (const action of actions) {
+      if (action.messageId && !actionsByMessageId.has(action.messageId)) {
+        actionsByMessageId.set(action.messageId, action);
+      }
+    }
+
+    return actionsByMessageId;
   }
 
   async syncInventoryMovementActions(
@@ -682,11 +757,9 @@ export class ActionTracker implements IActionTracker {
     let failed = 0;
 
     // Get all in-progress inventory_movement actions
-    const inProgressActions =
-      await this.rebalanceActionStore.getByStatus('in_progress');
-    const inventoryMovements = inProgressActions.filter(
-      (a) => a.type === 'inventory_movement',
-    );
+    const inventoryMovements = (
+      await this.getActionsByType('inventory_movement')
+    ).filter((action) => action.status === 'in_progress');
 
     this.logger.debug(
       { count: inventoryMovements.length },
@@ -879,6 +952,46 @@ export class ActionTracker implements IActionTracker {
   }
 
   // === Private Helpers ===
+
+  private groupActionsByIntent(
+    intentIds: readonly string[],
+    actions: readonly RebalanceAction[],
+  ): Map<string, RebalanceAction[]> {
+    const actionsByIntent = new Map<string, RebalanceAction[]>();
+
+    for (const intentId of intentIds) {
+      actionsByIntent.set(intentId, []);
+    }
+
+    for (const action of actions) {
+      const intentActions = actionsByIntent.get(action.intentId);
+      if (intentActions) {
+        intentActions.push(action);
+      }
+    }
+
+    return actionsByIntent;
+  }
+
+  private getConfirmedBlockTagLoader(
+    confirmedBlockTags?: ConfirmedBlockTags,
+  ): (destination: Domain) => Promise<string | number | undefined> {
+    const cache = new Map<Domain, Promise<string | number | undefined>>();
+
+    return (destination: Domain) => {
+      const cached = cache.get(destination);
+      if (cached) {
+        return cached;
+      }
+
+      const blockTag = this.getConfirmedBlockTag(
+        destination,
+        confirmedBlockTags,
+      );
+      cache.set(destination, blockTag);
+      return blockTag;
+    };
+  }
 
   /**
    * Get the confirmed block tag for delivery checks.

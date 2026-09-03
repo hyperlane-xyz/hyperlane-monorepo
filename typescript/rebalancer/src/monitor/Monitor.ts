@@ -51,14 +51,22 @@ export class Monitor implements IMonitor {
 
   private async computeConfirmedBlockTags(): Promise<ConfirmedBlockTags> {
     const blockTags: ConfirmedBlockTags = {};
-    const chains = new Set(this.warpCore.tokens.map((t) => t.chainName));
-
-    for (const chain of chains) {
-      blockTags[chain] = await getConfirmedBlockTag(
-        this.warpCore.multiProvider,
+    const chains = Array.from(
+      new Set(this.warpCore.tokens.map((t) => t.chainName)),
+    );
+    const results = await Promise.all(
+      chains.map(async (chain) => ({
         chain,
-        this.logger,
-      );
+        blockTag: await getConfirmedBlockTag(
+          this.warpCore.multiProvider,
+          chain,
+          this.logger,
+        ),
+      })),
+    );
+
+    for (const { chain, blockTag } of results) {
+      blockTags[chain] = blockTag;
     }
 
     return blockTags;
@@ -112,30 +120,30 @@ export class Monitor implements IMonitor {
           const confirmedBlockTags = await this.computeConfirmedBlockTags();
 
           const event: MonitorEvent = {
-            tokensInfo: [],
+            tokensInfo: await Promise.all(
+              this.warpCore.tokens.map(async (token) => {
+                this.logger.debug(
+                  {
+                    chain: token.chainName,
+                    tokenSymbol: token.symbol,
+                    tokenAddress: token.addressOrDenom,
+                  },
+                  'Checking token',
+                );
+                const blockTag = confirmedBlockTags[token.chainName];
+                const bridgedSupply = await this.getTokenBridgedSupply(
+                  token,
+                  blockTag,
+                );
+
+                return {
+                  token,
+                  bridgedSupply,
+                };
+              }),
+            ),
             confirmedBlockTags,
           };
-
-          for (const token of this.warpCore.tokens) {
-            this.logger.debug(
-              {
-                chain: token.chainName,
-                tokenSymbol: token.symbol,
-                tokenAddress: token.addressOrDenom,
-              },
-              'Checking token',
-            );
-            const blockTag = confirmedBlockTags[token.chainName];
-            const bridgedSupply = await this.getTokenBridgedSupply(
-              token,
-              blockTag,
-            );
-
-            event.tokensInfo.push({
-              token,
-              bridgedSupply,
-            });
-          }
 
           const inventoryBalances = await this.fetchInventoryBalances();
           if (Object.keys(inventoryBalances).length > 0) {
@@ -143,11 +151,7 @@ export class Monitor implements IMonitor {
             const tokensByChain = new Map(
               this.warpCore.tokens.map((token) => [token.chainName, token]),
             );
-            // CAST: inventoryBalances keys come from configured monitor chains,
-            // but Object.entries widens them to string.
-            const inventoryBalanceEntries = Object.entries(
-              inventoryBalances,
-            ) as [ChainName, bigint][];
+            const inventoryBalanceEntries = Object.entries(inventoryBalances);
             this.logger.info(
               {
                 chainsMonitored: Object.keys(inventoryBalances).length,
