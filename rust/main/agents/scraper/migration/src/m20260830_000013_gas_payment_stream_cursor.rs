@@ -3,14 +3,14 @@ use sea_orm_migration::prelude::*;
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
-/// Assigns a commit-ordered cursor to each resolved gas payment.
+/// Assigns a commit-ordered cursor to each gas payment.
 ///
 /// PostgreSQL sequence values are allocated before commit, so the
 /// `gas_payment.id` order can differ from commit/notification order. The head
 /// row is locked until the inserting transaction commits. A second insert for
 /// the same domain/paymaster therefore cannot allocate its cursor or commit
 /// ahead of the first allocator. Existing row IDs remain valid cursors; each
-/// head starts at that stream's highest resolved legacy ID, avoiding an
+/// head starts at that stream's highest legacy ID, avoiding an
 /// outbox-row rewrite for historical payments. The legacy boundary is kept
 /// separately and never advanced, allowing indexed physical-ID replay below
 /// the boundary and indexed commit-cursor replay above it.
@@ -62,7 +62,6 @@ impl MigrationTrait for Migration {
                   MAX(id),
                   MAX(id)
                 FROM gas_payment
-                WHERE tx_id IS NOT NULL
                 GROUP BY domain, interchain_gas_paymaster;
 
                 CREATE OR REPLACE FUNCTION assign_gas_payment_stream_cursor()
@@ -72,10 +71,6 @@ impl MigrationTrait for Migration {
                 DECLARE
                   assigned_cursor bigint;
                 BEGIN
-                  IF NEW.tx_id IS NULL THEN
-                    RETURN NEW;
-                  END IF;
-
                   INSERT INTO gas_payment_stream_head (
                     domain,
                     interchain_gas_paymaster,
@@ -177,7 +172,7 @@ mod tests {
         )
         .await?;
         db.execute_unprepared(&format!(
-            "INSERT INTO gas_payment (domain, interchain_gas_paymaster, tx_id) VALUES (1, decode('{PAYMASTER}', 'hex'), 10), (1, decode('{PAYMASTER}', 'hex'), 11)"
+            "INSERT INTO gas_payment (domain, interchain_gas_paymaster, tx_id) VALUES (1, decode('{PAYMASTER}', 'hex'), 10), (1, decode('{PAYMASTER}', 'hex'), NULL)"
         ))
         .await?;
         let migration_tx = db.begin().await?;
@@ -306,7 +301,7 @@ mod tests {
         timeout(
             Duration::from_secs(2),
             db.execute_unprepared(
-                "INSERT INTO gas_payment (domain, interchain_gas_paymaster, tx_id) VALUES (1, decode('2222222222222222222222222222222222222222', 'hex'), 6)",
+                "INSERT INTO gas_payment (domain, interchain_gas_paymaster, tx_id) VALUES (1, decode('2222222222222222222222222222222222222222', 'hex'), NULL)",
             ),
         )
         .await
@@ -348,7 +343,7 @@ mod tests {
             .query_all(Statement::from_string(
                 DbBackend::Postgres,
                 format!(
-                    "EXPLAIN (COSTS OFF) SELECT id FROM gas_payment WHERE domain = 1 AND interchain_gas_paymaster = decode('{PAYMASTER}', 'hex') AND tx_id IS NOT NULL AND id > 0 AND id <= 2 ORDER BY id LIMIT 100"
+                    "EXPLAIN (COSTS OFF) SELECT id FROM gas_payment WHERE domain = 1 AND interchain_gas_paymaster = decode('{PAYMASTER}', 'hex') AND id > 0 AND id <= 2 ORDER BY id LIMIT 100"
                 ),
             ))
             .await?
