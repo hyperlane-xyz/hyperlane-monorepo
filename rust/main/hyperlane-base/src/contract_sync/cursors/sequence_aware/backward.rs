@@ -1315,6 +1315,10 @@ mod test {
     }
 
     mod sequence_range {
+        use std::sync::Mutex;
+
+        use hyperlane_core::{ChainResult, Indexer};
+
         use super::*;
 
         const INDEX_MODE: IndexMode = IndexMode::Sequence;
@@ -1752,6 +1756,76 @@ mod test {
                     .get(),
                 8
             );
+        }
+
+        #[derive(Debug, Default)]
+        struct RotatingFailFastFailureIndexer {
+            next_sequence: Mutex<Option<u32>>,
+            calls: Mutex<Vec<u32>>,
+        }
+
+        #[async_trait]
+        impl Indexer<MockSequencedData> for RotatingFailFastFailureIndexer {
+            async fn fetch_logs_in_range(
+                &self,
+                range: RangeInclusive<u32>,
+            ) -> ChainResult<Vec<(Indexed<MockSequencedData>, LogMeta)>> {
+                let mut next_sequence = self
+                    .next_sequence
+                    .lock()
+                    .expect("next sequence mutex poisoned");
+                let sequence = next_sequence
+                    .filter(|sequence| range.contains(sequence))
+                    .unwrap_or(*range.start());
+                self.calls
+                    .lock()
+                    .expect("calls mutex poisoned")
+                    .push(sequence);
+                *next_sequence = Some(if sequence == *range.end() {
+                    *range.start()
+                } else {
+                    sequence.saturating_add(1)
+                });
+
+                Ok(vec![])
+            }
+
+            async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+                Ok(0)
+            }
+        }
+
+        #[tokio::test]
+        async fn test_rotating_fail_fast_failures_keep_gap_backoff_at_cap() {
+            let mut cursor =
+                get_test_backward_sequence_aware_sync_cursor(INDEX_MODE, 20, LOWEST_SEQUENCE).await;
+            let indexer = RotatingFailFastFailureIndexer::default();
+            let range = 79..=99;
+            let expected_delays = [5, 10, 20, 40, 80, 160, 300, 300, 300];
+
+            for (attempt, expected_delay) in expected_delays.into_iter().enumerate() {
+                cursor.sequence_gap_retry_at = None;
+                assert_eq!(cursor.get_next_range().await.unwrap(), Some(range.clone()));
+
+                let logs = indexer.fetch_logs_in_range(range.clone()).await.unwrap();
+                assert!(logs.is_empty());
+                cursor.update(logs, range.clone()).await.unwrap();
+
+                let calls = indexer.calls.lock().expect("calls mutex poisoned");
+                assert_eq!(calls.len(), attempt + 1);
+                assert_eq!(calls[attempt], 79 + attempt as u32);
+                drop(calls);
+                assert_eq!(cursor.sequence_gap_retries, attempt as u32 + 1);
+                assert_eq!(
+                    cursor
+                        .metrics
+                        .cursor_sequence_gap_backoff_seconds
+                        .with_label_values(&["mock_indexable", "test"])
+                        .get(),
+                    expected_delay
+                );
+                assert_eq!(cursor.get_next_range().await.unwrap(), None);
+            }
         }
 
         #[tracing_test::traced_test]
