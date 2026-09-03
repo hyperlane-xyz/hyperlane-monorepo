@@ -487,7 +487,6 @@ impl MessageDbLoader {
         destination_ctxs: HashMap<u32, Arc<MessageContext>>,
         metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
         max_retries: u32,
-        index_notifications: Option<Receiver<IndexingNotification>>,
     ) -> Result<Self> {
         let (migration_iterator, highest_seen_nonce) =
             LegacyMessageIterator::new(Arc::new(db.clone()) as Arc<dyn HyperlaneDb>)?;
@@ -511,8 +510,15 @@ impl MessageDbLoader {
             next_destination: 0,
             destination_scan_pending: true,
             max_retries,
-            index_notifications,
+            index_notifications: None,
         })
+    }
+
+    pub fn set_index_notifications(
+        &mut self,
+        index_notifications: Option<Receiver<IndexingNotification>>,
+    ) {
+        self.index_notifications = index_notifications;
     }
 
     /// Discard already-observed index notifications so this receiver cannot
@@ -913,7 +919,7 @@ impl MessageDbLoaderMetricsShared {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MessageDbLoaderMetrics {
     last_known_message_nonce_gauge: IntGauge,
     origin: String,
