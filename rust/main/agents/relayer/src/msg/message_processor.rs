@@ -32,7 +32,6 @@ use crate::msg::pending_message::CONFIRM_DELAY;
 use crate::server::operations::message_retry::MessageRetryRequest;
 
 use super::op_batch::OperationBatch;
-use super::op_queue::OperationPriorityQueue;
 use super::{op_queue::OpQueue, QueueOperationBatch};
 
 use stage::prepare;
@@ -162,8 +161,8 @@ impl MessageProcessor {
         }
     }
 
-    pub async fn prepare_queue(&self) -> OperationPriorityQueue {
-        self.prepare_queue.queue.clone()
+    pub async fn prepare_queue(&self) -> OpQueue {
+        self.prepare_queue.clone()
     }
 
     pub fn spawn(self) -> JoinHandle<()> {
@@ -397,9 +396,7 @@ async fn prepare_classic_task(
             continue;
         }
 
-        let Some(batch) = get_batch_or_wait(&mut prepare_queue, max_batch_size).await else {
-            continue;
-        };
+        let batch = get_batch_or_wait(&mut prepare_queue, max_batch_size).await;
 
         process_batch(
             domain.clone(),
@@ -433,9 +430,7 @@ async fn prepare_lander_task(
             continue;
         }
 
-        let Some(batch) = get_batch_or_wait(&mut prepare_queue, max_batch_size).await else {
-            continue;
-        };
+        let batch = get_batch_or_wait(&mut prepare_queue, max_batch_size).await;
 
         let batch_to_process = prepare::filter_operations_for_preparation(
             entrypoint.clone() as Arc<dyn Entrypoint + Send + Sync>,
@@ -475,14 +470,13 @@ async fn apply_backpressure(submit_queue: &OpQueue, max_len: &Option<u32>) -> bo
 }
 
 /// Helper method to get a batch from the queue or wait if the queue is empty.
-async fn get_batch_or_wait(queue: &mut OpQueue, batch_size: u32) -> Option<Vec<QueueOperation>> {
-    let batch = queue.pop_many(batch_size as usize).await;
-    if batch.is_empty() {
-        // Queue is empty, wait before retrying to prevent burning CPU.
-        sleep(Duration::from_millis(100)).await;
-        None
-    } else {
-        Some(batch)
+async fn get_batch_or_wait(queue: &mut OpQueue, batch_size: u32) -> Vec<QueueOperation> {
+    loop {
+        let (batch, next_deadline) = queue.pop_many_ready(batch_size as usize).await;
+        if !batch.is_empty() {
+            return batch;
+        }
+        queue.wait_for_ready(next_deadline).await;
     }
 }
 
@@ -502,17 +496,6 @@ async fn process_batch(
         task_prep_futures.push(op.prepare());
     }
     let res = join_all(task_prep_futures).await;
-    let not_ready_count = res
-        .iter()
-        .filter(|r| {
-            matches!(
-                r,
-                PendingOperationResult::NotReady | PendingOperationResult::Reprepare(_)
-            )
-        })
-        .count();
-
-    let batch_len = batch.len();
     for (op, prepare_result) in batch.into_iter().zip(res.into_iter()) {
         let app_context = op.app_context();
         match prepare_result {
@@ -545,10 +528,6 @@ async fn process_batch(
                     .await;
             }
         }
-    }
-    if not_ready_count == batch_len {
-        // none of the operations are ready yet, so wait for a little bit
-        sleep(Duration::from_millis(500)).await;
     }
 }
 

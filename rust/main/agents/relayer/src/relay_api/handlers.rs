@@ -11,7 +11,7 @@ use hyperlane_core::{
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::Sender;
@@ -804,8 +804,8 @@ async fn relay_work(
         nonce: u32,
     }
 
-    let mut batches: HashMap<u32, (Sender<QueueOperationBatch>, QueueOperationBatch)> =
-        HashMap::new();
+    let mut batches: BTreeMap<u32, (Sender<QueueOperationBatch>, QueueOperationBatch)> =
+        BTreeMap::new();
     let mut sent_messages = Vec::with_capacity(validated.len());
     for validated_message in validated {
         let ValidatedMessage {
@@ -833,23 +833,36 @@ async fn relay_work(
         });
     }
 
-    let mut reserved_batches = Vec::with_capacity(batches.len());
-    for (destination, (send_channel, batch)) in batches {
-        match send_channel.reserve_owned().await {
-            Ok(permit) => reserved_batches.push((permit, batch)),
-            Err(error) => {
-                error!(
-                    destination_domain = destination,
-                    %error,
-                    "Processor channel closed before transaction handoff"
-                );
-                state.record_failure("send_failed");
-                return Err(ServerError::InternalError(
-                    "Failed to reserve processor channel capacity".to_string(),
-                ));
+    const PROCESSOR_CAPACITY_TIMEOUT: Duration = Duration::from_millis(250);
+    let admission_started = Instant::now();
+    let reserve_batches = async {
+        let mut reserved_batches = Vec::with_capacity(batches.len());
+        for (destination, (send_channel, batch)) in batches {
+            match send_channel.reserve_owned().await {
+                Ok(permit) => reserved_batches.push((permit, batch)),
+                Err(error) => {
+                    error!(
+                        destination_domain = destination,
+                        %error,
+                        "Processor channel closed before transaction handoff"
+                    );
+                    state.record_failure("send_failed");
+                    return Err(ServerError::InternalError(
+                        "Failed to reserve processor channel capacity".to_string(),
+                    ));
+                }
             }
         }
-    }
+        Ok(reserved_batches)
+    };
+    let reservation = tokio::time::timeout(PROCESSOR_CAPACITY_TIMEOUT, reserve_batches).await;
+    state
+        .metrics
+        .observe_processor_admission(admission_started.elapsed());
+    let reserved_batches = reservation.map_err(|_| {
+        state.record_failure("processor_saturated");
+        ServerError::ServiceUnavailable("Processor capacity unavailable".to_string())
+    })??;
 
     if let Some(reservation) = maybe_reservation {
         reservation.commit();

@@ -33,8 +33,8 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion,
-    PendingOperation, H512, U256,
+    HyperlaneDomain, HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion, H512,
+    U256,
 };
 use lander::{CommandEntrypoint, DispatcherMetrics};
 
@@ -59,6 +59,7 @@ use crate::{
             BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
             IsmCachePolicyClassifier,
         },
+        op_queue::OpQueue,
         pending_message::MessageContext,
         QueueOperationBatch,
     },
@@ -598,14 +599,7 @@ impl BaseAgent for Relayer {
     }
 }
 
-type PrepQueue = HashMap<
-    u32,
-    Arc<
-        tokio::sync::Mutex<
-            std::collections::BinaryHeap<std::cmp::Reverse<Box<dyn PendingOperation + 'static>>>,
-        >,
-    >,
->;
+type PrepQueue = HashMap<u32, OpQueue>;
 impl Relayer {
     async fn build_router(
         &self,

@@ -1,4 +1,4 @@
-use std::{cmp::Reverse, collections::HashMap, str::FromStr, sync::Arc};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use axum::{extract::State, http::StatusCode, routing, Json, Router};
 use derive_new::new;
@@ -10,14 +10,14 @@ use hyperlane_core::{PendingOperationStatus, ReprepareReason, H256};
 use serde::{Deserialize, Serialize};
 
 use crate::msg::{
-    op_queue::OperationPriorityQueue,
+    op_queue::OpQueue,
     pending_message::{MessageContext, PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES},
 };
 
 #[derive(Clone, new)]
 pub struct ServerState {
     pub dbs: HashMap<u32, HyperlaneRocksDB>,
-    pub op_queues: HashMap<u32, OperationPriorityQueue>,
+    pub op_queues: HashMap<u32, OpQueue>,
     pub msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
 }
 
@@ -155,10 +155,7 @@ async fn handler(
     // just a debug to show what was inserted into the prepare queue
     let message_str = format!("{pending_message:?}");
 
-    prep_queue
-        .lock()
-        .await
-        .push(Reverse(Box::new(pending_message)));
+    prep_queue.push(Box::new(pending_message), None).await;
 
     let resp = ResponseBody {
         pending_message: message_str,
@@ -168,7 +165,7 @@ async fn handler(
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, sync::Arc};
+    use std::{collections::HashMap, sync::Arc, time::Duration};
 
     use axum::{
         body::Body,
@@ -182,10 +179,13 @@ mod tests {
         db::{HyperlaneRocksDB, DB},
     };
     use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain};
+    use hyperlane_test::mocks::MockMailboxContract;
+    use tokio::sync::{broadcast, Mutex};
 
     use super::*;
     use crate::{
         msg::db_loader::tests::dummy_cache_metrics,
+        msg::op_queue::tests::dummy_metrics_and_label,
         test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder},
     };
 
@@ -193,7 +193,9 @@ mod tests {
     struct TestServerSetup {
         pub app: Router,
         pub dbs: HashMap<u32, HyperlaneRocksDB>,
-        pub op_queues: HashMap<u32, OperationPriorityQueue>,
+        pub op_queues: HashMap<u32, OpQueue>,
+        pub _retry_sender:
+            broadcast::Sender<crate::server::operations::message_retry::MessageRetryRequest>,
     }
 
     fn setup_test_server(domains: &[HyperlaneDomain]) -> TestServerSetup {
@@ -207,9 +209,20 @@ mod tests {
             })
             .collect();
 
-        let op_queues: HashMap<u32, OperationPriorityQueue> = domains
+        let retry_sender = broadcast::Sender::new(10);
+        let op_queues: HashMap<u32, OpQueue> = domains
             .iter()
-            .map(|domain| (domain.id(), OperationPriorityQueue::default()))
+            .map(|domain| {
+                let (metrics, label) = dummy_metrics_and_label();
+                (
+                    domain.id(),
+                    OpQueue::new(
+                        metrics,
+                        label,
+                        Arc::new(Mutex::new(retry_sender.subscribe())),
+                    ),
+                )
+            })
             .collect();
 
         let cache = OptionalCache::new(Some(MeteredCache::new(
@@ -227,8 +240,13 @@ mod tests {
             for destination_domain in domains.iter() {
                 let base_metadata_builder =
                     dummy_metadata_builder(origin_domain, destination_domain, db, cache.clone());
-                let msg_ctx =
+                let mut msg_ctx =
                     dummy_message_context(Arc::new(base_metadata_builder), db, cache.clone());
+                let mut mailbox = MockMailboxContract::new_with_default_ism(H256::zero());
+                mailbox
+                    .expect__domain()
+                    .return_const(destination_domain.clone());
+                msg_ctx.destination_mailbox = Arc::new(mailbox);
                 msg_ctxs.insert(
                     (origin_domain.id(), destination_domain.id()),
                     Arc::new(msg_ctx),
@@ -243,6 +261,7 @@ mod tests {
             app,
             dbs,
             op_queues,
+            _retry_sender: retry_sender,
         }
     }
 
@@ -286,6 +305,7 @@ mod tests {
             app,
             dbs,
             op_queues,
+            _retry_sender,
         } = setup_test_server(domains);
 
         let message = HyperlaneMessage {
@@ -308,10 +328,62 @@ mod tests {
         let op_queue_len = op_queues
             .get(&(KnownHyperlaneDomain::Ethereum as u32))
             .expect("Queue not found")
-            .lock()
-            .await
-            .len();
+            .len()
+            .await;
         assert_eq!(op_queue_len, 1);
+    }
+
+    #[tokio::test]
+    async fn test_reprocess_message_wakes_empty_prepare_queue() {
+        let domains = &[
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        ];
+        let TestServerSetup {
+            app,
+            dbs,
+            op_queues,
+            _retry_sender,
+        } = setup_test_server(domains);
+        let message = HyperlaneMessage {
+            version: 0,
+            nonce: 100,
+            origin: KnownHyperlaneDomain::Arbitrum as u32,
+            sender: H256::from_low_u64_be(100),
+            destination: KnownHyperlaneDomain::Ethereum as u32,
+            recipient: H256::from_low_u64_be(200),
+            body: Vec::new(),
+        };
+        let expected_id = message.id();
+        insert_message(&dbs, &domains[0], &message, 1000);
+
+        let mut queue = op_queues
+            .get(&(KnownHyperlaneDomain::Ethereum as u32))
+            .expect("Queue not found")
+            .clone();
+        let waiter = tokio::spawn(async move {
+            loop {
+                let (batch, deadline) = queue.pop_many_ready(1).await;
+                if let Some(operation) = batch.into_iter().next() {
+                    break operation;
+                }
+                queue.wait_for_ready(deadline).await;
+            }
+        });
+        tokio::task::yield_now().await;
+
+        let response = send_request(
+            app,
+            KnownHyperlaneDomain::Arbitrum as u32,
+            format!("0x{expected_id:x}"),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let operation = tokio::time::timeout(Duration::from_secs(1), waiter)
+            .await
+            .expect("reprocessed message should wake prepare queue")
+            .expect("waiter should not panic");
+        assert_eq!(operation.id(), expected_id);
     }
 
     #[tracing_test::traced_test]
@@ -342,9 +414,8 @@ mod tests {
         let op_queue_len = op_queues
             .get(&(KnownHyperlaneDomain::Arbitrum as u32))
             .expect("Queue not found")
-            .lock()
-            .await
-            .len();
+            .len()
+            .await;
         assert_eq!(op_queue_len, 0);
     }
 }
