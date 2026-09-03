@@ -3499,7 +3499,7 @@ mod tests {
     }
 
     #[test]
-    fn authority_requires_every_stream_gate_and_restores_fallback() {
+    fn authority_requires_every_stream_gate_restores_fallback_and_reactivates() {
         let fixture = fixture();
         let metrics = CoreMetrics::new("scraper-authority-test", 9090, Registry::new())
             .expect("create test metrics");
@@ -3535,6 +3535,26 @@ mod tests {
 
         monitor.deactivate_authority();
         assert!(!*receiver.borrow());
+
+        monitor.set_active(false);
+        monitor.set_caught_up(false);
+        monitor.set_active(true);
+        for source in monitor.sources.values() {
+            for kind in [
+                EventKind::Dispatch,
+                EventKind::GasPayment,
+                EventKind::MerkleTreeInsertion,
+            ] {
+                monitor.set_source_caught_up(source, kind, true);
+            }
+            monitor.refresh_parity_ready(source);
+            monitor
+                .fresh
+                .with_label_values(&[source.chain.as_str()])
+                .set(1);
+        }
+        monitor.maybe_activate_authority();
+        assert!(*receiver.borrow());
     }
 
     #[test]
