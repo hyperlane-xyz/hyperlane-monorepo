@@ -97,6 +97,17 @@ fn test_hedge_metrics() -> (
 fn hedge_allowlist_requires_pinned_reads() {
     let block_hash = json!(format!("0x{}", "11".repeat(32)));
 
+    for method in [
+        METHOD_CHAIN_ID,
+        METHOD_GET_BLOCK_BY_HASH,
+        METHOD_GET_BALANCE,
+        METHOD_GET_CODE,
+        METHOD_GET_STORAGE_AT,
+        METHOD_GET_PROOF,
+    ] {
+        assert!(is_hedgeable_method(method), "{method}");
+    }
+
     assert!(is_hedgeable_read(METHOD_CHAIN_ID, &Value::Null));
     assert!(is_hedgeable_read(
         METHOD_GET_BLOCK_BY_HASH,
@@ -146,6 +157,7 @@ fn hedge_allowlist_requires_pinned_reads() {
         "eth_feeHistory",
         "eth_estimateGas",
     ] {
+        assert!(!is_hedgeable_method(excluded), "{excluded}");
         assert!(!is_hedgeable_read(excluded, &json!([])), "{excluded}");
     }
 }

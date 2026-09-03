@@ -55,6 +55,18 @@ fn is_hedgeable_read(method: &str, params: &Value) -> bool {
     }
 }
 
+fn is_hedgeable_method(method: &str) -> bool {
+    matches!(
+        method,
+        METHOD_CHAIN_ID
+            | METHOD_GET_BLOCK_BY_HASH
+            | METHOD_GET_BALANCE
+            | METHOD_GET_CODE
+            | METHOD_GET_STORAGE_AT
+            | METHOD_GET_PROOF
+    )
+}
+
 fn is_immutable_block_selector(selector: &Value) -> bool {
     selector
         .as_object()
@@ -212,12 +224,14 @@ where
         } else if method == METHOD_GET_TRANSACTION_RECEIPT && self.consider_null_transaction_receipt
         {
             self.fallback_transaction_receipt(method, params).await
-        } else if let Some(config) = self.hedge_config.filter(|_| {
-            serde_json::to_value(&params)
-                .map(|params| is_hedgeable_read(method, &params))
-                .unwrap_or(false)
-        }) {
-            self.fallback_hedged(method, params, config).await
+        } else if let Some(config) = self.hedge_config.filter(|_| is_hedgeable_method(method)) {
+            let serialized_params = serde_json::to_value(&params)?;
+            if is_hedgeable_read(method, &serialized_params) {
+                self.fallback_hedged(method, serialized_params, config)
+                    .await
+            } else {
+                self.fallback_serialized(method, serialized_params).await
+            }
         } else {
             self.fallback(method, params).await
         }
@@ -233,17 +247,15 @@ where
         + 'static,
     JsonRpcBlockGetter<C>: BlockNumberGetter + 'static,
 {
-    async fn fallback_hedged<T, R>(
+    async fn fallback_hedged<R>(
         &self,
         method: &str,
-        params: T,
+        params: Value,
         config: FallbackHedgeConfig,
     ) -> Result<R, ProviderError>
     where
-        T: Serialize,
         R: DeserializeOwned,
     {
-        let params = serde_json::to_value(params)?;
         let request_started = Instant::now();
         let mut errors = Vec::new();
 
@@ -561,9 +573,15 @@ where
         T: Serialize,
         R: DeserializeOwned,
     {
-        use CategorizedResponse::*;
-
         let params = serde_json::to_value(params).expect("valid");
+        self.fallback_serialized(method, params).await
+    }
+
+    async fn fallback_serialized<R>(&self, method: &str, params: Value) -> Result<R, ProviderError>
+    where
+        R: DeserializeOwned,
+    {
+        use CategorizedResponse::*;
 
         let mut errors: Vec<ProviderError> = vec![];
         // make sure we do at least 4 total retries.
