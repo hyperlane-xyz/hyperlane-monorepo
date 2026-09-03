@@ -9,11 +9,14 @@ use tokio_metrics::TaskMonitor;
 use tracing::info_span;
 
 use hyperlane_base::{
+    broadcast::IndexingNotification,
     cache::{LocalCache, MeteredCache, MeteredCacheConfig, MeteredCacheMetrics, OptionalCache},
     db::{test_utils, DbError, HyperlaneRocksDB},
     tests::mock_hyperlane_db::MockHyperlaneDb as MockDb,
 };
-use hyperlane_core::{test_utils::dummy_domain, PendingOperationResult, PendingOperationStatus};
+use hyperlane_core::{
+    test_utils::dummy_domain, PendingOperationResult, PendingOperationStatus, H512,
+};
 use hyperlane_operation_verifier::{
     ApplicationOperationVerifier, ApplicationOperationVerifierReport,
 };
@@ -26,6 +29,10 @@ use crate::{
 use super::*;
 
 pub struct DummyApplicationOperationVerifier {}
+
+fn notification(tx_id: H512) -> IndexingNotification {
+    IndexingNotification::from_tx_id(tx_id)
+}
 
 #[async_trait]
 impl ApplicationOperationVerifier for DummyApplicationOperationVerifier {
@@ -98,7 +105,7 @@ fn dummy_message_loader_with_notifications(
     destination_domain: &HyperlaneDomain,
     db: &HyperlaneRocksDB,
     cache: OptionalCache<MeteredCache<LocalCache>>,
-    index_notifications: Option<Receiver<H512>>,
+    index_notifications: Option<Receiver<IndexingNotification>>,
 ) -> (MessageDbLoader, Receiver<QueueOperationBatch>) {
     let base_metadata_builder =
         dummy_metadata_builder(origin_domain, destination_domain, db, cache.clone());
@@ -175,7 +182,7 @@ async fn test_idle_tick_wakes_on_index_notification() {
         let notify = async move {
             sleep(Duration::from_millis(20)).await;
             notification_sender
-                .send(H512::zero())
+                .send(notification(H512::zero()))
                 .await
                 .expect("notification receiver should remain open");
         };
@@ -261,7 +268,7 @@ async fn test_drain_index_notifications_clears_backlog() {
         let (notification_sender, notification_receiver) = mpsc::channel(3);
         for txid in 0..3 {
             notification_sender
-                .try_send(H512::from_low_u64_be(txid))
+                .try_send(notification(H512::from_low_u64_be(txid)))
                 .expect("notification channel should have capacity");
         }
         let (mut loader, _) = dummy_message_loader_with_notifications(
@@ -272,15 +279,53 @@ async fn test_drain_index_notifications_clears_backlog() {
             Some(notification_receiver),
         );
 
-        loader.drain_index_notifications();
+        loader.drain_index_notifications().unwrap();
 
         assert_eq!(
             loader.index_notifications.as_ref().map(Receiver::len),
             Some(0)
         );
         notification_sender
-            .try_send(H512::from_low_u64_be(3))
+            .try_send(notification(H512::from_low_u64_be(3)))
             .expect("draining should free channel capacity");
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn index_notification_reconsiders_only_its_destination() {
+    test_utils::run_test_db(|db| async move {
+        let origin_domain = dummy_domain(0, "dummy_origin_domain");
+        let destination_domain = dummy_domain(1, "dummy_destination_domain");
+        let other_destination = dummy_domain(2, "other_destination_domain");
+        let db = HyperlaneRocksDB::new(&origin_domain, db);
+        let (mut loader, _) = dummy_message_loader(
+            &origin_domain,
+            &destination_domain,
+            &db,
+            OptionalCache::new(None),
+        );
+        loader.destination_iterators[0].high_nonce = Some(100);
+        loader.destination_iterators[0].low_nonce = None;
+        let mut other = DestinationIndexIterator::new(other_destination.id(), Some(99));
+        other.low_nonce = None;
+        loader.destination_iterators.push(other);
+
+        let late = dummy_hyperlane_message(&destination_domain, 95);
+        add_db_entry(&db, &late, 0);
+        loader
+            .apply_index_notification(IndexingNotification {
+                tx_id: H512::from_low_u64_be(95),
+                sequences: vec![Some(95)],
+            })
+            .unwrap();
+
+        assert!(loader.destination_iterators[0]
+            .reconsider_nonces
+            .contains(&95));
+        assert!(loader.destination_iterators[1].reconsider_nonces.is_empty());
+        assert!(!loader.destination_iterators[1].low_range_reopen_pending);
+        assert_eq!(loader.destination_iterators[1].low_nonce, None);
     })
     .await;
 }
@@ -306,7 +351,7 @@ async fn index_notification_reopens_exhausted_low_range() {
         let late = dummy_hyperlane_message(&destination_domain, 1);
         add_db_entry(&db, &late, 0);
         notification_sender
-            .send(H512::from_low_u64_be(1))
+            .send(notification(H512::from_low_u64_be(1)))
             .await
             .expect("send index notification");
 
@@ -338,10 +383,10 @@ async fn index_notification_defers_reopen_until_active_low_range_exhausts() {
         let late = dummy_hyperlane_message(&destination_domain, 95);
         add_db_entry(&db, &late, 0);
         notification_sender
-            .send(H512::from_low_u64_be(95))
+            .send(notification(H512::from_low_u64_be(95)))
             .await
             .expect("send index notification");
-        loader.drain_index_notifications();
+        loader.drain_index_notifications().unwrap();
 
         assert_eq!(loader.destination_iterators[0].low_nonce, Some(89));
         assert!(loader.destination_iterators[0].low_range_reopen_pending);
@@ -376,10 +421,10 @@ async fn index_notification_reopens_after_active_low_range_reaches_zero() {
         add_db_entry(&db, &floor, 0);
         add_db_entry(&db, &late, 0);
         notification_sender
-            .send(H512::from_low_u64_be(95))
+            .send(notification(H512::from_low_u64_be(95)))
             .await
             .expect("send index notification");
-        loader.drain_index_notifications();
+        loader.drain_index_notifications().unwrap();
 
         loader.tick().await.expect("load low range floor");
         assert_eq!(
@@ -430,7 +475,7 @@ async fn waited_index_notification_reopens_exhausted_low_range() {
             sleep(Duration::from_millis(20)).await;
             add_db_entry(&db, &late, 0);
             notification_sender
-                .send(H512::from_low_u64_be(1))
+                .send(notification(H512::from_low_u64_be(1)))
                 .await
                 .expect("send index notification");
         };
@@ -474,7 +519,7 @@ async fn reopened_low_range_does_not_duplicate_in_flight_message() {
         let late = dummy_hyperlane_message(&destination_domain, 1);
         add_db_entry(&db, &late, 0);
         notification_sender
-            .send(H512::from_low_u64_be(1))
+            .send(notification(H512::from_low_u64_be(1)))
             .await
             .expect("send index notification");
 
@@ -555,10 +600,10 @@ async fn notification_after_terminal_drop_does_not_reload_message() {
 
         restarted_loader.destination_iterators[0].low_nonce = None;
         notification_sender
-            .send(H512::from_low_u64_be(1))
+            .send(notification(H512::from_low_u64_be(1)))
             .await
             .expect("send index notification");
-        restarted_loader.drain_index_notifications();
+        restarted_loader.drain_index_notifications().unwrap();
         assert!(restarted_loader.try_load_destination(0).await.unwrap());
         assert!(
             restarted_receiver.try_recv().is_err(),
@@ -574,10 +619,10 @@ async fn notification_after_terminal_drop_does_not_reload_message() {
             .unwrap());
         restarted_loader.destination_iterators[0].low_nonce = None;
         notification_sender
-            .send(H512::from_low_u64_be(2))
+            .send(notification(H512::from_low_u64_be(2)))
             .await
             .expect("send replacement notification");
-        restarted_loader.drain_index_notifications();
+        restarted_loader.drain_index_notifications().unwrap();
         assert!(restarted_loader.try_load_destination(0).await.unwrap());
         assert_eq!(
             restarted_receiver

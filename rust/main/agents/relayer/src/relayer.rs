@@ -23,7 +23,7 @@ use tokio_metrics::TaskMonitor;
 use tracing::{debug, error, info, info_span, Instrument};
 
 use hyperlane_base::{
-    broadcast::BroadcastMpscSender,
+    broadcast::{BroadcastMpscSender, IndexingNotification},
     cache::{LocalCache, MeteredCache, MeteredCacheConfig, OptionalCache},
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
@@ -33,8 +33,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion, H512,
-    U256,
+    HyperlaneDomain, HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion, U256,
 };
 use lander::{CommandEntrypoint, DispatcherMetrics};
 
@@ -789,7 +788,7 @@ impl Relayer {
     async fn run_interchain_gas_payment_sync(
         &self,
         origin: &Origin,
-        tx_id_receiver: Option<MpscReceiver<H512>>,
+        tx_id_receiver: Option<MpscReceiver<IndexingNotification>>,
         task_monitor: TaskMonitor,
     ) -> eyre::Result<Option<JoinHandle<()>>> {
         let contract_sync = match origin.interchain_gas_payment_sync.as_ref() {
@@ -830,7 +829,7 @@ impl Relayer {
         index_settings: IndexSettings,
         contract_sync: Arc<dyn ContractSyncer<InterchainGasPayment>>,
         chain_metrics: ChainMetrics,
-        tx_id_receiver: Option<MpscReceiver<H512>>,
+        tx_id_receiver: Option<MpscReceiver<IndexingNotification>>,
     ) {
         let cursor = match Self::instantiate_cursor_with_retries(
             contract_sync.clone(),
@@ -855,7 +854,7 @@ impl Relayer {
     async fn run_merkle_tree_hook_sync(
         &self,
         origin: &Origin,
-        tx_id_receiver: Option<MpscReceiver<H512>>,
+        tx_id_receiver: Option<MpscReceiver<IndexingNotification>>,
         task_monitor: TaskMonitor,
     ) -> eyre::Result<JoinHandle<()>> {
         let chain_metrics = self.chain_metrics.clone();
@@ -889,7 +888,7 @@ impl Relayer {
         index_settings: IndexSettings,
         contract_sync: Arc<dyn ContractSyncer<MerkleTreeInsertion>>,
         chain_metrics: ChainMetrics,
-        tx_id_receiver: Option<MpscReceiver<H512>>,
+        tx_id_receiver: Option<MpscReceiver<IndexingNotification>>,
     ) {
         let cursor_instantiation_result =
             Self::instantiate_cursor_with_retries(contract_sync.clone(), index_settings.clone())
@@ -917,7 +916,7 @@ impl Relayer {
         &self,
         origin: &Origin,
         send_channels: HashMap<u32, Sender<QueueOperationBatch>>,
-        index_notifications: Option<MpscReceiver<H512>>,
+        index_notifications: Option<MpscReceiver<IndexingNotification>>,
         task_monitor: TaskMonitor,
         shared_metrics: &MessageDbLoaderMetricsShared,
     ) -> eyre::Result<JoinHandle<()>> {

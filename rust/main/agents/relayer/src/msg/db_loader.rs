@@ -12,10 +12,11 @@ use ethers::utils::hex;
 use eyre::Result;
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use hyperlane_base::{
+    broadcast::IndexingNotification,
     db::{HyperlaneDb, HyperlaneRocksDB},
     CoreMetrics,
 };
-use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, QueueOperation, H256, H512};
+use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, QueueOperation, H256};
 use parking_lot::Mutex;
 use prometheus::{HistogramVec, IntCounterVec, IntGauge, IntGaugeVec};
 use tokio::sync::mpsc::{error::TryRecvError, error::TrySendError, Receiver, Sender};
@@ -50,7 +51,7 @@ pub struct MessageDbLoader {
     destination_iterators: Vec<DestinationIndexIterator>,
     next_destination: usize,
     max_retries: u32,
-    index_notifications: Option<Receiver<H512>>,
+    index_notifications: Option<Receiver<IndexingNotification>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -438,7 +439,7 @@ impl DbLoaderExt for MessageDbLoader {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
-        self.drain_index_notifications();
+        self.drain_index_notifications()?;
         self.metrics
             .update_ingress_depths(&self.send_channels, &self.destination_iterators);
 
@@ -476,7 +477,7 @@ impl MessageDbLoader {
         destination_ctxs: HashMap<u32, Arc<MessageContext>>,
         metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
         max_retries: u32,
-        index_notifications: Option<Receiver<H512>>,
+        index_notifications: Option<Receiver<IndexingNotification>>,
     ) -> Result<Self> {
         let (migration_iterator, highest_seen_nonce) =
             LegacyMessageIterator::new(Arc::new(db.clone()) as Arc<dyn HyperlaneDb>)?;
@@ -505,13 +506,13 @@ impl MessageDbLoader {
 
     /// Discard already-observed index notifications so this receiver cannot
     /// backpressure the message indexer while the loader is processing a backlog.
-    fn drain_index_notifications(&mut self) {
+    fn drain_index_notifications(&mut self) -> Result<()> {
         let mut disconnected = false;
-        let mut received = false;
+        let mut notifications = Vec::new();
         if let Some(receiver) = self.index_notifications.as_mut() {
             loop {
                 match receiver.try_recv() {
-                    Ok(_) => received = true,
+                    Ok(notification) => notifications.push(notification),
                     Err(TryRecvError::Empty) => break,
                     Err(TryRecvError::Disconnected) => {
                         disconnected = true;
@@ -523,9 +524,44 @@ impl MessageDbLoader {
         if disconnected {
             self.index_notifications = None;
         }
-        if received {
+        for notification in notifications {
+            if let Err(err) = self.apply_index_notification(notification) {
+                self.request_low_range_reopens();
+                return Err(err);
+            }
+        }
+        Ok(())
+    }
+
+    fn apply_index_notification(&mut self, notification: IndexingNotification) -> Result<()> {
+        let mut fallback_reopen =
+            notification.sequences.is_empty() || notification.sequences.iter().any(Option::is_none);
+        for nonce in notification.sequences.into_iter().flatten() {
+            self.metrics
+                .logical_db_reads
+                .with_label_values(&[
+                    self.metrics.origin.as_str(),
+                    "all",
+                    "notification",
+                    "message",
+                ])
+                .inc();
+            let Some(message) = self.db.retrieve_message_by_nonce(nonce)? else {
+                fallback_reopen = true;
+                continue;
+            };
+            if let Some(iterator) = self
+                .destination_iterators
+                .iter_mut()
+                .find(|iterator| iterator.destination == message.destination)
+            {
+                iterator.reconsider(nonce);
+            }
+        }
+        if fallback_reopen {
             self.request_low_range_reopens();
         }
+        Ok(())
     }
 
     fn request_low_range_reopens(&mut self) {
@@ -553,27 +589,31 @@ impl MessageDbLoader {
             }
         };
 
-        let (disconnected, received) = if let Some(receiver) = self.index_notifications.as_mut() {
+        let (disconnected, notification) = if let Some(receiver) = self.index_notifications.as_mut()
+        {
             tokio::select! {
                 notification = receiver.recv() => match notification {
-                    Some(_) => (false, true),
-                    None => (true, false),
+                    Some(notification) => (false, Some(notification)),
+                    None => (true, None),
                 },
-                _ = capacity_wait => (false, false),
-                _ = tokio::time::sleep(FALLBACK_POLL_INTERVAL) => (false, false),
+                _ = capacity_wait => (false, None),
+                _ = tokio::time::sleep(FALLBACK_POLL_INTERVAL) => (false, None),
             }
         } else {
             tokio::select! {
-                _ = capacity_wait => (false, false),
-                _ = tokio::time::sleep(FALLBACK_POLL_INTERVAL) => (false, false),
+                _ = capacity_wait => (false, None),
+                _ = tokio::time::sleep(FALLBACK_POLL_INTERVAL) => (false, None),
             }
         };
 
         if disconnected {
             self.index_notifications = None;
         }
-        if received {
-            self.request_low_range_reopens();
+        if let Some(notification) = notification {
+            if let Err(err) = self.apply_index_notification(notification) {
+                debug!(?err, "Failed to apply index notification");
+                self.request_low_range_reopens();
+            }
         }
     }
 
