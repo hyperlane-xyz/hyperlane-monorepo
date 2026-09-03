@@ -618,6 +618,11 @@ async fn notification_after_terminal_drop_does_not_reload_message() {
             None,
             "terminal message index should be removed"
         );
+        assert!(
+            db.retrieve_terminally_dropped_message(&message.id())
+                .unwrap(),
+            "terminal marker must survive pending-index cleanup"
+        );
 
         restarted_loader.destination_iterators[0].low_nonce = None;
         notification_sender
@@ -631,6 +636,38 @@ async fn notification_after_terminal_drop_does_not_reload_message() {
             "terminal message was reloaded"
         );
 
+        db.store_message(&message, 0)
+            .expect("duplicate indexing should reconcile the pending index");
+        drop(restarted_loader);
+        drop(restarted_receiver);
+
+        let (replacement_notification_sender, replacement_notification_receiver) = mpsc::channel(1);
+        let (mut duplicate_restart, mut duplicate_receiver) =
+            dummy_message_loader_with_notifications(
+                &origin_domain,
+                &destination_domain,
+                &db,
+                OptionalCache::new(None),
+                Some(replacement_notification_receiver),
+            );
+        finish_legacy_migration(&mut duplicate_restart).await;
+        assert!(duplicate_restart.try_load_destination(0).await.unwrap());
+        assert!(
+            duplicate_receiver.try_recv().is_err(),
+            "duplicate indexing reloaded a terminal message after restart"
+        );
+        assert!(
+            db.retrieve_terminally_dropped_message(&message.id())
+                .unwrap(),
+            "terminal marker must survive duplicate cleanup"
+        );
+        assert_eq!(
+            db.retrieve_pending_message_at_or_after(destination_domain.id(), message.nonce)
+                .unwrap(),
+            None,
+            "duplicate terminal index should be removed"
+        );
+
         let terminal_message_id = message.id();
         let mut replacement = message;
         replacement.body.push(1);
@@ -638,16 +675,16 @@ async fn notification_after_terminal_drop_does_not_reload_message() {
         assert!(!db
             .retrieve_terminally_dropped_message(&terminal_message_id)
             .unwrap());
-        restarted_loader.destination_iterators[0].low_nonce = None;
-        notification_sender
+        duplicate_restart.destination_iterators[0].low_nonce = None;
+        replacement_notification_sender
             .send(notification(H512::from_low_u64_be(2)))
             .await
             .expect("send replacement notification");
-        restarted_loader.drain_index_notifications().unwrap();
-        assert!(restarted_loader.try_load_destination(0).await.unwrap());
+        duplicate_restart.drain_index_notifications().unwrap();
+        assert!(duplicate_restart.try_load_destination(0).await.unwrap());
         assert_eq!(
             only_operation(
-                restarted_receiver
+                duplicate_receiver
                     .try_recv()
                     .expect("replacement operation"),
             )

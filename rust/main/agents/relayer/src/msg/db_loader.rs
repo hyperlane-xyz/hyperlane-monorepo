@@ -790,7 +790,8 @@ impl MessageDbLoader {
             ])
             .inc();
         if self.db.retrieve_terminally_dropped_message(&message.id())? {
-            self.db.delete_pending_message_index(&message)?;
+            self.db
+                .delete_pending_message_index_by_nonce(destination, nonce)?;
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }
