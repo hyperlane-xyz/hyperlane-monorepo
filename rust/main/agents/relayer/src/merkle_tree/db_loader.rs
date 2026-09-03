@@ -23,11 +23,7 @@ use super::builder::MerkleTreeBuilder;
 
 const PREFIX: &str = "db_loader::merkle_tree";
 
-/// Maximum number of consecutive leaves ingested in a single tick.
-///
-/// A backlog previously cost one tick turn plus one prover write-lock
-/// acquisition per leaf. Batching amortizes that overhead while keeping the
-/// write-guard hold bounded; leaves are still ingested in strict index order.
+/// Maximum consecutive leaves ingested under one prover write lock.
 const MAX_LEAVES_PER_TICK: usize = 32;
 
 /// Finds unprocessed merkle tree insertions and adds them to the prover sync
@@ -64,8 +60,6 @@ impl DbLoaderExt for MerkleTreeDbLoader {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
-        // Collect a bounded run of consecutive leaves without holding the
-        // prover lock, so DB reads never block proof readers.
         let mut insertions = Vec::new();
         while insertions.len() < MAX_LEAVES_PER_TICK {
             let index = self.leaf_index + insertions.len() as u32;
@@ -85,16 +79,11 @@ impl DbLoaderExt for MerkleTreeDbLoader {
             return Ok(());
         }
 
-        // Ingest the whole batch under a single write-guard acquisition.
-        // `leaf_index` advances only past successfully ingested leaves, so a
-        // mid-batch failure replays from the failed leaf exactly as before.
         let begin = {
-            // drop the guard at the end of this block
             let mut guard = self.prover_sync.write().await;
             let begin = Instant::now();
             for insertion in &insertions {
                 guard.ingest_message_id(insertion.message_id())?;
-                // Increase the leaf index to move on to the next leaf
                 self.leaf_index += 1;
             }
             begin
@@ -216,8 +205,6 @@ mod tests {
 
     #[tokio::test]
     async fn tick_on_gap_advances_only_past_present_leaves() {
-        // Leaves 0,1 present; leaf 2 missing; leaf 3 present. The loader must
-        // stop at the gap and resume from it, never skipping leaf 2.
         let dir = tempfile::tempdir().unwrap();
         let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
         let db = HyperlaneRocksDB::new(&domain, DB::from_path(dir.path()).unwrap());
@@ -237,7 +224,6 @@ mod tests {
         );
         loader.tick().await.unwrap();
         assert_eq!(loader.leaf_index, 2);
-        // Fill the gap; the next tick picks up exactly where it stopped.
         db.store_merkle_tree_insertion_by_leaf_index(
             &2,
             &MerkleTreeInsertion::new(2, H256::from_low_u64_be(2)),
