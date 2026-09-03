@@ -6,7 +6,8 @@
     "./tests/**/cctpMessageMatcher.test.ts",
     "./tests/**/WormholeVaaService.test.ts",
     "./tests/**/WormholeVaaFetcher.test.ts",
-    "./tests/**/wormholeVaaMatcher.test.ts"
+    "./tests/**/wormholeVaaMatcher.test.ts",
+    "./tests/**/layerZeroPacketMatcher.test.ts"
   ],
   "exit": true
 }

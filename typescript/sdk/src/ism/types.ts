@@ -39,8 +39,13 @@ import { WormholeConsistencyLevelFields } from '../wormhole/consistency.js';
 import {
   ZBigNumberish,
   ZBytes32String,
+  ZChainName,
   ZHash,
 } from '../metadata/customZodTypes.js';
+import {
+  LayerZeroV2AddressSchema,
+  LayerZeroV2PathwaySchema,
+} from '../layerzero/types.js';
 import {
   ChainMap,
   OwnableConfig,
@@ -115,6 +120,10 @@ export const IsmType = {
   WORMHOLE_EXECUTOR: 'wormholeExecutorIsm',
   /** Combined Wormhole hook/ISM router, CCIP-read VAA delivery. */
   WORMHOLE_VAA: 'wormholeVaaIsm',
+  /** Combined LayerZero V2 hook/ISM router, Executor callback delivery. */
+  LAYER_ZERO_V2_CALLBACK: 'layerZeroV2CallbackIsm',
+  /** Combined LayerZero V2 hook/ISM router, CCIP-read packet delivery. */
+  LAYER_ZERO_V2_CCIP_READ: 'layerZeroV2CcipReadIsm',
   UNKNOWN: 'unknownIsm',
 } as const;
 
@@ -126,6 +135,8 @@ export type DeployableIsmType = Exclude<
   | typeof IsmType.UNKNOWN
   | typeof IsmType.WORMHOLE_EXECUTOR
   | typeof IsmType.WORMHOLE_VAA
+  | typeof IsmType.LAYER_ZERO_V2_CALLBACK
+  | typeof IsmType.LAYER_ZERO_V2_CCIP_READ
 >;
 
 // ISM types that can be updated in-place on EVM chains (consumed by
@@ -204,6 +215,7 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     // The Executor router is preauthorized before process, so Hyperlane
     // supplies no metadata.
     case IsmType.WORMHOLE_EXECUTOR:
+    case IsmType.LAYER_ZERO_V2_CALLBACK:
       return ModuleType.NULL;
     case IsmType.ARB_L2_TO_L1:
       return ModuleType.ARB_L2_TO_L1;
@@ -214,6 +226,7 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.OFFCHAIN_LOOKUP:
     // The direct-VAA router receives its VAA through the generic CCIP-read path.
     case IsmType.WORMHOLE_VAA:
+    case IsmType.LAYER_ZERO_V2_CCIP_READ:
       return ModuleType.CCIP_READ;
     case IsmType.COMPOSITE:
       return ModuleType.COMPOSITE;
@@ -259,6 +272,7 @@ export type NetFlowRateLimitedHookIsmConfig = z.infer<
 export type DelayedFlowRouterHookIsmConfig = z.infer<
   typeof DelayedFlowRouterHookIsmConfigSchema
 >;
+export type LayerZeroV2IsmConfig = z.infer<typeof LayerZeroV2IsmConfigSchema>;
 
 export type NullIsmConfig =
   | TestIsmConfig
@@ -345,6 +359,7 @@ export type IsmConfig =
   | OffchainLookupIsmConfig
   | InterchainAccountRouterIsm
   | WormholeIsmConfig
+  | LayerZeroV2IsmConfig
   | UnknownIsmConfig;
 
 export type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
@@ -380,6 +395,8 @@ export type DeployedIsmType = {
   // generic interface is all this map needs to express.
   [IsmType.WORMHOLE_EXECUTOR]: IInterchainSecurityModule;
   [IsmType.WORMHOLE_VAA]: IInterchainSecurityModule;
+  [IsmType.LAYER_ZERO_V2_CALLBACK]: IInterchainSecurityModule;
+  [IsmType.LAYER_ZERO_V2_CCIP_READ]: IInterchainSecurityModule;
   [IsmType.UNKNOWN]: IInterchainSecurityModule;
 };
 
@@ -570,6 +587,27 @@ export const OffchainLookupIsmConfigSchema = OwnableSchema.extend({
   type: z.literal(IsmType.OFFCHAIN_LOOKUP),
   urls: z.array(z.string().url()),
 });
+
+const LayerZeroV2BaseIsmSchema = OwnableSchema.extend({
+  endpoint: LayerZeroV2AddressSchema,
+  /** Optional deployment-time assertion against Endpoint.eid(). */
+  layerZeroDomainId: z.number().int().positive().max(0xffffffff).optional(),
+  pathways: z.record(ZChainName, LayerZeroV2PathwaySchema),
+});
+
+export const LayerZeroV2CallbackIsmSchema = LayerZeroV2BaseIsmSchema.extend({
+  type: z.literal(IsmType.LAYER_ZERO_V2_CALLBACK),
+});
+
+export const LayerZeroV2CcipReadIsmSchema = LayerZeroV2BaseIsmSchema.extend({
+  type: z.literal(IsmType.LAYER_ZERO_V2_CCIP_READ),
+  urls: z.array(z.string().url()).min(1),
+});
+
+export const LayerZeroV2IsmConfigSchema = z.union([
+  LayerZeroV2CallbackIsmSchema,
+  LayerZeroV2CcipReadIsmSchema,
+]);
 
 export const isOffchainLookupIsmConfig = isCompliant(
   OffchainLookupIsmConfigSchema,
@@ -1096,6 +1134,7 @@ export const BaseIsmConfigSchema: z.ZodType<IsmConfig, z.ZodTypeDef, unknown> =
     OffchainLookupIsmConfigSchema,
     InterchainAccountRouterIsmSchema,
     WormholeIsmConfigSchema,
+    LayerZeroV2IsmConfigSchema,
     UnknownIsmConfigSchema,
   ]);
 

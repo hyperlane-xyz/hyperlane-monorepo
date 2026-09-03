@@ -39,6 +39,8 @@ import { getChainNameFromCCIPSelector } from '../ccip/utils.js';
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { DispatchedMessage } from '../core/types.js';
 import { OnchainHookType } from '../hook/types.js';
+import { EvmLayerZeroV2HookIsmReader } from '../layerzero/EvmLayerZeroV2HookIsmReader.js';
+import { LayerZeroV2Variant } from '../layerzero/types.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
@@ -60,6 +62,7 @@ import {
   DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
+  LayerZeroV2IsmConfig,
   MailboxDefaultIsmConfig,
   ModuleType,
   MultisigIsmConfig,
@@ -102,6 +105,8 @@ const NON_REDEPLOYABLE_ISM_TYPES = new Set<IsmType>([
   IsmType.INTERCHAIN_ACCOUNT_ROUTING,
   IsmType.WORMHOLE_EXECUTOR,
   IsmType.WORMHOLE_VAA,
+  IsmType.LAYER_ZERO_V2_CALLBACK,
+  IsmType.LAYER_ZERO_V2_CCIP_READ,
 ]);
 
 export class EvmIsmReader extends HyperlaneReader implements IsmReader {
@@ -213,7 +218,11 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
             address,
             moduleType,
           );
-          derivedIsmConfig = wormhole ?? (await this.deriveNullConfig(address));
+          const layerZero = wormhole
+            ? undefined
+            : await this.tryDeriveLayerZeroV2IsmConfig(address, moduleType);
+          derivedIsmConfig =
+            wormhole ?? layerZero ?? (await this.deriveNullConfig(address));
           break;
         }
         case ModuleType.CCIP_READ: {
@@ -221,8 +230,13 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
             address,
             moduleType,
           );
+          const layerZero = wormhole
+            ? undefined
+            : await this.tryDeriveLayerZeroV2IsmConfig(address, moduleType);
           derivedIsmConfig =
-            wormhole ?? (await this.deriveOffchainLookupConfig(address));
+            wormhole ??
+            layerZero ??
+            (await this.deriveOffchainLookupConfig(address));
           break;
         }
         case ModuleType.ARB_L2_TO_L1:
@@ -239,6 +253,66 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     }
 
     return derivedIsmConfig;
+  }
+
+  private async tryDeriveLayerZeroV2IsmConfig(
+    address: Address,
+    moduleType: ModuleType,
+  ): Promise<WithAddress<LayerZeroV2IsmConfig> | undefined> {
+    try {
+      const hookType = await IPostDispatchHook__factory.connect(
+        address,
+        this.provider,
+      ).hookType();
+      if (hookType !== OnchainHookType.LAYER_ZERO) return undefined;
+
+      const reader = new EvmLayerZeroV2HookIsmReader(
+        this.multiProvider,
+        this.chain,
+      );
+      const variant =
+        moduleType === ModuleType.NULL
+          ? LayerZeroV2Variant.Callback
+          : LayerZeroV2Variant.CcipRead;
+      const config = await reader.deriveLayerZeroConfig(address, variant);
+      const pathways = Object.fromEntries(
+        Object.entries(config.remoteRouters).map(([chain, remote]) => [
+          chain,
+          {
+            layerZeroDomainId: remote.layerZeroDomainId,
+            sendLibrary: remote.sendLibrary,
+            receiveLibrary: remote.receiveLibrary,
+            receiveLibraryGracePeriod: remote.receiveLibraryGracePeriod,
+            receiveLibraryTimeout: remote.receiveLibraryTimeout,
+            sendConfig: remote.sendConfig,
+            receiveConfig: remote.receiveConfig,
+            effectiveSendConfig: remote.effectiveSendConfig,
+            effectiveReceiveConfig: remote.effectiveReceiveConfig,
+          },
+        ]),
+      );
+      return variant === LayerZeroV2Variant.Callback
+        ? {
+            address,
+            type: IsmType.LAYER_ZERO_V2_CALLBACK,
+            owner: config.owner,
+            endpoint: config.endpoint,
+            layerZeroDomainId: config.layerZeroDomainId,
+            pathways,
+          }
+        : {
+            address,
+            type: IsmType.LAYER_ZERO_V2_CCIP_READ,
+            owner: config.owner,
+            endpoint: config.endpoint,
+            layerZeroDomainId: config.layerZeroDomainId,
+            pathways,
+            urls: config.urls ?? [],
+          };
+    } catch (error) {
+      if (isMissingSelectorCallException(error)) return undefined;
+      throw error;
+    }
   }
 
   async deriveOffchainLookupConfig(

@@ -80,6 +80,30 @@ A lightweight Express server for CCIP Read/Write commitments, using Zod validati
 - `POST /getCallsFromCommitment`  
   CCIP-Read endpoint (uses ABI handler) to fetch & re-encode calls for a given commitment ID.
 
+### LayerZero V2 packet lookup
+
+Enable the module with `ENABLED_MODULES=layerzero` and configure:
+
+```env
+HYPERLANE_EXPLORER_URL=https://explorer.hyperlane.xyz/graphql
+```
+
+The CCIP `sender` identifies the destination combined hook/ISM. The server
+discovers its origin peer, Mailboxes, Endpoint V2 contracts, and LayerZero
+domain IDs from reciprocal on-chain enrollment. RPC URLs come from the
+Hyperlane registry selected by `REGISTRY_URI`; no deployment-address mapping is
+required. The module exposes the CCIP-read endpoints:
+
+- `GET /layerzero/getLayerZeroPacket/:sender/:callData.json`
+- `POST /layerzero/getLayerZeroPacket`
+
+The service finds the exact `PacketSent` event in the Hyperlane dispatch
+receipt, validates every pathway and payload field, resolves current/grace
+receive libraries from Endpoint state, and simulates `commitVerification`
+before returning `(receiveLibrary, packet)`.
+The destination contract repeats all security checks; the server is untrusted
+availability infrastructure.
+
 ## Notes
 
 - SQLite is recommended only for local dev. In production, Prisma will use whatever database is specified by `DATABASE_URL`.

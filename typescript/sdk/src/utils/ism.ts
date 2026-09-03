@@ -15,6 +15,7 @@ import {
   DelayedFlowRouterHookIsmConfig,
   IsmConfig,
   IsmType,
+  LayerZeroV2IsmConfig,
   NetFlowRateLimitedHookIsmConfig,
   WormholeIsmConfig,
 } from '../ism/types.js';
@@ -128,7 +129,10 @@ export type HybridHookIsmConfig =
 /** Combined hook/ISM leaves handled as opaque shared instances by generic
  * EVM reconciliation. Flow-control hybrids remain a narrower subset used by
  * the warp hybrid deployment planner. */
-export type CombinedHookIsmConfig = HybridHookIsmConfig | WormholeIsmConfig;
+export type CombinedHookIsmConfig =
+  | HybridHookIsmConfig
+  | WormholeIsmConfig
+  | LayerZeroV2IsmConfig;
 
 /**
  * True if a warp-route hybrid hook/ISM node (NET_FLOW_RATE_LIMITED or
@@ -175,7 +179,9 @@ export function isCombinedHookIsmNode(
   return (
     isRecord(node) &&
     (node.type === IsmType.WORMHOLE_EXECUTOR ||
-      node.type === IsmType.WORMHOLE_VAA)
+      node.type === IsmType.WORMHOLE_VAA ||
+      node.type === IsmType.LAYER_ZERO_V2_CALLBACK ||
+      node.type === IsmType.LAYER_ZERO_V2_CCIP_READ)
   );
 }
 
