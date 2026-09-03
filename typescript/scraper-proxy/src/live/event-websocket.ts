@@ -627,9 +627,19 @@ export class EventWebSocketServer {
     const key = sequenceKey(cursor.domain, cursor.address);
     const { first, last } = await this.sequenceBounds(eventType, cursor);
     if (last < first) {
-      throw new Error(
-        `No ${eventType} history for domain ${cursor.domain} address ${displayAddress(cursor.address)}`,
-      );
+      if (cursor.afterSequence !== undefined && cursor.afterSequence !== -1n) {
+        throw new Error(
+          `No ${eventType} history for domain ${cursor.domain} address ${displayAddress(cursor.address)}`,
+        );
+      }
+      subscription.sequences.set(key, last);
+      return this.sendAndWait(socket, {
+        address: displayAddress(cursor.address),
+        domain: cursor.domain,
+        eventType,
+        sequence: last.toString(),
+        type: 'caught_up',
+      });
     }
     const requestedAfter = cursor.afterSequence ?? last;
     if (requestedAfter > last && !cursor.allowReplay) {
