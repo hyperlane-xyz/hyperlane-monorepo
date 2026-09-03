@@ -1313,6 +1313,36 @@ async fn backfill_restores_validated_snapshot_and_replays_tail() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn backfill_restores_snapshot_at_target_without_replay() {
+    let (domain, _, checkpoint_at_snapshot, _, snapshot) = three_leaf_snapshot_fixture();
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let target = CheckpointAtBlock {
+        checkpoint: checkpoint_at_snapshot.checkpoint.clone(),
+        block_height: Some(1),
+    };
+    let signed_at_snapshot = signer.sign(checkpoint_at_snapshot).await.unwrap();
+
+    let db = MockDb::new();
+    let mut checkpoint_syncer = MockCheckpointSyncer::new();
+    checkpoint_syncer
+        .expect_read_merkle_snapshot()
+        .once()
+        .return_once(move || Ok(Some(snapshot)));
+    checkpoint_syncer
+        .expect_fetch_checkpoint()
+        .once()
+        .return_once(move |_| Ok(Some(signed_at_snapshot)));
+    checkpoint_syncer
+        .expect_write_merkle_snapshot()
+        .withf(|snapshot| snapshot.index == 1)
+        .once()
+        .returning(|_| Ok(()));
+
+    let submitter = snapshot_test_submitter(domain, signer, checkpoint_syncer, db);
+    submitter.backfill_checkpoint_submitter(target).await;
+}
+
+#[tokio::test(start_paused = true)]
 async fn backfill_rebuilds_tree_when_snapshot_is_corrupt() {
     let (domain, insertions, _, target, mut snapshot) = three_leaf_snapshot_fixture();
     snapshot.root = H256::from_low_u64_be(0xdead);

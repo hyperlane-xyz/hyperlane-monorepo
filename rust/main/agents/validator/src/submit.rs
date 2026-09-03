@@ -95,8 +95,6 @@ impl ValidatorSubmitter {
     /// Submits signed checkpoints from index 0 until the target checkpoint (inclusive).
     /// Runs idly forever once the target checkpoint is reached to avoid exiting the task.
     pub(crate) async fn backfill_checkpoint_submitter(self, target_checkpoint: CheckpointAtBlock) {
-        // Resume from a validated snapshot when possible: the ingest loop below
-        // replays only the tail from the local database instead of all history.
         let mut tree = self
             .restored_snapshot_tree(target_checkpoint.index)
             .await
@@ -104,8 +102,6 @@ impl ValidatorSubmitter {
         self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint)
             .await;
 
-        // Persist the completed tree for the next restart. Best-effort: a
-        // failed snapshot write only costs the next restart a full rebuild.
         match MerkleTreeSnapshot::capture(&tree) {
             Ok(snapshot) => {
                 if let Err(err) = self
@@ -432,12 +428,7 @@ impl ValidatorSubmitter {
         }
     }
 
-    /// Restores a previously persisted merkle-tree snapshot after proving it
-    /// still matches this validator's stored checkpoint at the snapshot index:
-    /// the checkpoint must exist, recover to this validator, and carry the
-    /// snapshot root. Anything else yields `None` (full rebuild as before).
-    /// A snapshot at or past the target is also discarded: replaying from it
-    /// would trip the tree-ahead-of-checkpoint assertion.
+    /// Restores a snapshot after validating it against the signed checkpoint.
     async fn restored_snapshot_tree(&self, target_index: u32) -> Option<IncrementalMerkle> {
         let snapshot = match self.checkpoint_syncer.read_merkle_snapshot().await {
             Ok(Some(snapshot)) => snapshot,
@@ -447,10 +438,10 @@ impl ValidatorSubmitter {
                 return None;
             }
         };
-        if snapshot.index >= target_index {
+        if snapshot.index > target_index {
             debug!(
                 snapshot_index = snapshot.index,
-                target_index, "Snapshot at or past target, rebuilding tree"
+                target_index, "Snapshot is ahead of target, rebuilding tree"
             );
             return None;
         }
@@ -469,7 +460,7 @@ impl ValidatorSubmitter {
             Ok(Some(existing)) => match existing.recover() {
                 Ok(signer)
                     if signer == self.signer.eth_address()
-                        && existing.value.root == snapshot.root =>
+                        && existing.value.checkpoint == self.checkpoint(&tree) =>
                 {
                     info!(
                         snapshot_index = snapshot.index,
