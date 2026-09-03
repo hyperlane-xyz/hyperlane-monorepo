@@ -8,6 +8,7 @@ use prometheus::{CounterVec, IntCounterVec};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use crate::rpc_operation::current_rpc_operation;
 use crate::utils::url_to_host_info;
 
 /// Expected label names for the metric.
@@ -30,6 +31,7 @@ pub const REQUEST_COUNT_LABELS: &[&str] = &[
     "method",
     "status",
     "rpc_role",
+    "operation",
 ];
 /// Help string for the metric.
 pub const REQUEST_COUNT_HELP: &str = "Total number of requests made to this client";
@@ -42,6 +44,7 @@ pub const REQUEST_DURATION_SECONDS_LABELS: &[&str] = &[
     "method",
     "status",
     "rpc_role",
+    "operation",
 ];
 /// Help string for the metric.
 pub const REQUEST_DURATION_SECONDS_HELP: &str = "Total number of seconds spent making requests";
@@ -119,6 +122,7 @@ impl PrometheusClientMetrics {
             "method" => method,
             "status" => if success { "success" } else { "failure" },
             "rpc_role" => config.rpc_role.as_str(),
+            "operation" => current_rpc_operation().as_str(),
         };
         if let Some(counter) = &self.request_count {
             counter.with(&labels).inc()
@@ -270,9 +274,17 @@ impl PrometheusConfigExt for PrometheusConfig {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Instant;
+
+    use prometheus::{IntCounterVec, Opts};
     use url::Url;
 
-    use super::{ChainInfo, ClientConnectionType, PrometheusConfig, PrometheusConfigExt};
+    use crate::rpc_operation::{with_rpc_operation, RpcOperation};
+
+    use super::{
+        ChainInfo, ClientConnectionType, PrometheusClientMetricsBuilder, PrometheusConfig,
+        PrometheusConfigExt, REQUEST_COUNT_LABELS,
+    };
 
     #[test]
     fn test_node_host() {
@@ -309,5 +321,60 @@ mod tests {
             let actual = config.node_host();
             assert_eq!(actual, expected);
         }
+    }
+
+    #[tokio::test]
+    async fn request_metrics_include_operation_scope() {
+        let request_count = IntCounterVec::new(
+            Opts::new("test_request_count", "test request count"),
+            REQUEST_COUNT_LABELS,
+        )
+        .expect("valid request metric");
+        let metrics = PrometheusClientMetricsBuilder::default()
+            .request_count(request_count.clone())
+            .build()
+            .expect("valid client metrics");
+        let config = PrometheusConfig::from_url(
+            &Url::parse("https://rpc.example.com").expect("valid URL"),
+            ClientConnectionType::Rpc,
+            Some(ChainInfo {
+                name: Some("test-chain".to_string()),
+            }),
+        );
+
+        with_rpc_operation(RpcOperation::RelayerDelivery, async {
+            metrics.increment_metrics(&config, "eth_call", Instant::now(), true);
+        })
+        .await;
+        metrics.increment_metrics(&config, "eth_call", Instant::now(), true);
+
+        assert_eq!(
+            request_count
+                .with_label_values(&[
+                    "rpc.example.com:443",
+                    "rpc",
+                    "test-chain",
+                    "eth_call",
+                    "success",
+                    "primary",
+                    "relayer_delivery",
+                ])
+                .get(),
+            1,
+        );
+        assert_eq!(
+            request_count
+                .with_label_values(&[
+                    "rpc.example.com:443",
+                    "rpc",
+                    "test-chain",
+                    "eth_call",
+                    "success",
+                    "primary",
+                    "unattributed",
+                ])
+                .get(),
+            1,
+        );
     }
 }
