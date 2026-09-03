@@ -47,6 +47,11 @@ where
         self.request::<_, u64>(METHOD_CALL, json!([{}, "finalized"]))
             .await
     }
+
+    async fn finalized_balance_test_call(&self) -> Result<u64, ProviderError> {
+        self.request::<_, u64>(METHOD_GET_BALANCE, json!(["0x1234", "finalized"]))
+            .await
+    }
 }
 
 fn hedge_config(delay: Duration, attempt_timeout: Duration) -> FallbackHedgeConfig {
@@ -89,7 +94,7 @@ fn test_hedge_metrics() -> (
 }
 
 #[test]
-fn hedge_allowlist_requires_immutable_or_finalized_reads() {
+fn hedge_allowlist_requires_pinned_reads() {
     let block_hash = json!(format!("0x{}", "11".repeat(32)));
 
     assert!(is_hedgeable_read(METHOD_CHAIN_ID, &Value::Null));
@@ -97,12 +102,12 @@ fn hedge_allowlist_requires_immutable_or_finalized_reads() {
         METHOD_GET_BLOCK_BY_HASH,
         &json!([block_hash, false])
     ));
-    assert!(is_hedgeable_read(
-        METHOD_GET_BLOCK_BY_NUMBER,
+    assert!(!is_hedgeable_read(
+        "eth_getBlockByNumber",
         &json!(["safe", false])
     ));
     for method in [METHOD_GET_BALANCE, METHOD_GET_CODE] {
-        assert!(is_hedgeable_read(method, &json!(["0x1234", "finalized"])));
+        assert!(!is_hedgeable_read(method, &json!(["0x1234", "finalized"])));
         assert!(is_hedgeable_read(
             method,
             &json!(["0x1234", { "blockHash": block_hash }])
@@ -110,7 +115,7 @@ fn hedge_allowlist_requires_immutable_or_finalized_reads() {
         assert!(!is_hedgeable_read(method, &json!(["0x1234", "latest"])));
     }
     for method in [METHOD_GET_STORAGE_AT, METHOD_GET_PROOF] {
-        assert!(is_hedgeable_read(
+        assert!(!is_hedgeable_read(
             method,
             &json!(["0x1234", [], "finalized"])
         ));
@@ -143,6 +148,29 @@ fn hedge_allowlist_requires_immutable_or_finalized_reads() {
     ] {
         assert!(!is_hedgeable_read(excluded, &json!([])), "{excluded}");
     }
+}
+
+#[tokio::test]
+async fn finalized_tag_reads_preserve_primary_freshness() {
+    let providers = vec![
+        EthereumProviderMock::new(Some(Duration::from_millis(20))),
+        EthereumProviderMock::new(None),
+    ];
+    push_read_response(&providers[0], MockReadResponse::Success(100));
+    push_read_response(&providers[1], MockReadResponse::Success(99));
+    let fallback = FallbackProviderBuilder::default()
+        .add_providers(providers)
+        .build();
+    let provider = EthereumFallbackProvider::new(fallback, false).with_hedging(
+        Some(hedge_config(
+            Duration::from_millis(1),
+            Duration::from_millis(100),
+        )),
+        None,
+    );
+
+    assert_eq!(provider.finalized_balance_test_call().await.unwrap(), 100);
+    assert_eq!(ProviderMock::get_call_counts(&provider).await, vec![1, 0]);
 }
 
 #[tokio::test]

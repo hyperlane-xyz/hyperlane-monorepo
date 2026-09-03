@@ -30,7 +30,6 @@ const METHOD_GET_TRANSACTION_RECEIPT: &str = "eth_getTransactionReceipt";
 const METHOD_CHAIN_ID: &str = "eth_chainId";
 const METHOD_GET_BALANCE: &str = "eth_getBalance";
 const METHOD_GET_BLOCK_BY_HASH: &str = "eth_getBlockByHash";
-const METHOD_GET_BLOCK_BY_NUMBER: &str = "eth_getBlockByNumber";
 const METHOD_GET_CODE: &str = "eth_getCode";
 const METHOD_GET_PROOF: &str = "eth_getProof";
 const METHOD_GET_STORAGE_AT: &str = "eth_getStorageAt";
@@ -46,9 +45,6 @@ fn is_hedgeable_read(method: &str, params: &Value) -> bool {
         METHOD_GET_BLOCK_BY_HASH => params
             .and_then(|params| params.first())
             .is_some_and(is_block_hash),
-        METHOD_GET_BLOCK_BY_NUMBER => params
-            .and_then(|params| params.first())
-            .is_some_and(is_finalized_tag),
         METHOD_GET_BALANCE | METHOD_GET_CODE => params
             .and_then(|params| params.get(1))
             .is_some_and(is_immutable_block_selector),
@@ -60,15 +56,10 @@ fn is_hedgeable_read(method: &str, params: &Value) -> bool {
 }
 
 fn is_immutable_block_selector(selector: &Value) -> bool {
-    is_finalized_tag(selector)
-        || selector
-            .as_object()
-            .and_then(|selector| selector.get("blockHash"))
-            .is_some_and(is_block_hash)
-}
-
-fn is_finalized_tag(selector: &Value) -> bool {
-    matches!(selector.as_str(), Some("safe" | "finalized"))
+    selector
+        .as_object()
+        .and_then(|selector| selector.get("blockHash"))
+        .is_some_and(is_block_hash)
 }
 
 fn is_block_hash(value: &Value) -> bool {

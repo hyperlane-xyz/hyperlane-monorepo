@@ -14,7 +14,7 @@ use serde::Serialize;
 use tokio::time::sleep;
 
 use crate::rpc_clients::fallback::{
-    METHOD_CALL, METHOD_GET_BLOCK_BY_HASH, METHOD_GET_TRANSACTION_RECEIPT,
+    METHOD_CALL, METHOD_GET_BALANCE, METHOD_GET_BLOCK_BY_HASH, METHOD_GET_TRANSACTION_RECEIPT,
     METHOD_SEND_RAW_TRANSACTION,
 };
 
@@ -134,7 +134,10 @@ impl JsonRpcClient for EthereumProviderMock {
                 }
             });
         }
-        if matches!(method, METHOD_GET_BLOCK_BY_HASH | METHOD_CALL) {
+        if matches!(
+            method,
+            METHOD_GET_BLOCK_BY_HASH | METHOD_GET_BALANCE | METHOD_CALL
+        ) {
             return match self.responses.immutable_read.lock().unwrap().pop_front() {
                 Some(MockReadResponse::Success(value)) => serde_json::from_value(value.into())
                     .map_err(|err| HttpClientError::SerdeJson {
