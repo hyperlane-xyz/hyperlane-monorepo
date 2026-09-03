@@ -2,6 +2,7 @@ import {
   Address,
   HexString,
   ProtocolType,
+  assert,
   objFilter,
   objMap,
   pick,
@@ -20,14 +21,13 @@ import {
   EthersV5Provider,
   PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
   ProviderType,
-  TypedTransaction,
   TypedProvider,
 } from './ProviderType.js';
 import { defaultZKSyncProviderBuilder } from './builders/zksync.js';
 import type { ProviderBuilderFn } from './providerBuilders.js';
 import {
   TransactionFeeEstimate,
-  TransactionFeeEstimateOptions,
+  TransactionFeeEstimateTransactionOptions,
   estimateTransactionFee,
 } from './transactionFeeEstimators.js';
 
@@ -195,20 +195,51 @@ export class MultiProviderAdapter<
     };
   }
 
-  estimateTransactionFee({
-    chainNameOrId,
-    transaction,
-    sender,
-    senderPubKey,
-    ignoreSenderBalance,
-  }: {
-    chainNameOrId: ChainNameOrId;
-    transaction: TypedTransaction;
-    sender: Address;
-    senderPubKey?: HexString;
-  } & TransactionFeeEstimateOptions): Promise<TransactionFeeEstimate> {
+  estimateTransactionFee(
+    params: {
+      chainNameOrId: ChainNameOrId;
+      sender: Address;
+      senderPubKey?: HexString;
+    } & TransactionFeeEstimateTransactionOptions,
+  ): Promise<TransactionFeeEstimate> {
+    assert(
+      params.fallbackGasUnits === undefined ||
+        params.ignoreSenderBalance === true,
+      'fallbackGasUnits requires ignoreSenderBalance: true',
+    );
+    const {
+      chainNameOrId,
+      transaction,
+      sender,
+      senderPubKey,
+      ignoreSenderBalance,
+    } = params;
     const provider = this.getProvider(chainNameOrId, transaction.type);
     const chainMetadata = this.getChainMetadata(chainNameOrId);
+    if (
+      transaction.type === ProviderType.EthersV5 ||
+      transaction.type === ProviderType.Viem
+    ) {
+      if (params.ignoreSenderBalance === true) {
+        return estimateTransactionFee({
+          transaction,
+          provider,
+          chainMetadata,
+          sender,
+          senderPubKey,
+          ignoreSenderBalance: true,
+          fallbackGasUnits: params.fallbackGasUnits,
+        });
+      }
+      return estimateTransactionFee({
+        transaction,
+        provider,
+        chainMetadata,
+        sender,
+        senderPubKey,
+        ignoreSenderBalance: false,
+      });
+    }
     return estimateTransactionFee({
       transaction,
       provider,
