@@ -953,10 +953,12 @@ mod tx_hash_cache_tests {
     async fn commit_starts_ttl_and_stale_guard_cannot_remove_replacement() {
         let ttl = Duration::from_millis(5);
         let cache = Arc::new(Mutex::new(TxHashCache::new_with_ttl(10, ttl)));
-        let first_token = cache
+        let Ok(first_token) = cache
             .lock()
             .check_and_insert("ethereum".to_owned(), "0x01".to_owned())
-            .expect("first reservation");
+        else {
+            panic!("first reservation");
+        };
         let first = TxHashReservation::new(
             cache.clone(),
             "ethereum".to_owned(),
@@ -967,10 +969,12 @@ mod tx_hash_cache_tests {
         cache
             .lock()
             .remove_reservation("ethereum", "0x01", first_token);
-        let second_token = cache
+        let Ok(second_token) = cache
             .lock()
             .check_and_insert("ethereum".to_owned(), "0x01".to_owned())
-            .expect("replacement reservation");
+        else {
+            panic!("replacement reservation");
+        };
         let second = TxHashReservation::new(
             cache.clone(),
             "ethereum".to_owned(),
