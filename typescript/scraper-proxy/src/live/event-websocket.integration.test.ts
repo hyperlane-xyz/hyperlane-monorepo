@@ -43,8 +43,7 @@ const db: EventDatabase = {
       const durable = [...gasPaymentRows.entries()].filter(
         ([, payment]) =>
           payment.domain === values[0] &&
-          payment.interchain_gas_paymaster === values[1] &&
-          payment.tx_id != null,
+          payment.interchain_gas_paymaster === values[1],
       );
       const legacyMaxId = durable.reduce((max, [id, payment]) => {
         if (payment.scraper_stream_cursor !== undefined) return max;
@@ -115,7 +114,6 @@ const db: EventDatabase = {
             ([id, payment]) =>
               payment.domain === values[0] &&
               payment.interchain_gas_paymaster === values[1] &&
-              payment.tx_id != null &&
               payment.scraper_stream_cursor === undefined &&
               BigInt(id) > after &&
               BigInt(id) <= through,
@@ -141,7 +139,6 @@ const db: EventDatabase = {
             (payment) =>
               payment.domain === values[0] &&
               payment.interchain_gas_paymaster === values[1] &&
-              payment.tx_id != null &&
               testStreamCursor(payment) !== undefined &&
               (testStreamCursor(payment) ?? 0n) > after &&
               (testStreamCursor(payment) ?? 0n) <= through,
@@ -168,10 +165,7 @@ const db: EventDatabase = {
               {
                 notification_id: id,
                 ...event,
-                scraper_stream_cursor:
-                  event.tx_id == null
-                    ? null
-                    : (event.scraper_stream_cursor ?? id),
+                scraper_stream_cursor: event.scraper_stream_cursor ?? id,
               },
             ]
           : [];
@@ -615,11 +609,10 @@ void it('bounds gas payment stream cursor replay', async () => {
   gasPaymentRows.clear();
 });
 
-void it('replays sparse legacy gas payment IDs and resumes without duplicates', async (context) => {
+void it('streams legacy and mapped gas payments without transaction metadata', async (context) => {
   gasPaymentRows.clear();
   gasPaymentRows.set('10', gasPaymentRow('10', '100'));
   gasPaymentRows.set('14', gasPaymentRow('14', null));
-  gasPaymentRows.set('20', gasPaymentRow('20', '200'));
   const completions = delayServerSendCompletions(context);
   const socket = new WebSocket(url);
   const messages: Record<string, unknown>[] = [];
@@ -651,22 +644,28 @@ void it('replays sparse legacy gas payment IDs and resumes without duplicates', 
   await waitUntil(() => eventStreamCursors(messages).includes('10'));
   await waitUntil(() => completions.length === 1);
   notify('scraper_event', gasPaymentNotification('14'));
-  gasPaymentRows.set('30', gasPaymentRow('30', '300', '21'));
+  gasPaymentRows.set('30', gasPaymentRow('30', null, '15'));
   notify('scraper_event', gasPaymentNotification('30'));
   await waitUntil(() => notifiedIds.has('14') && notifiedIds.has('30'));
   completions.shift()?.();
-  await waitUntil(() => eventStreamCursors(messages).includes('20'));
+  await waitUntil(() => eventStreamCursors(messages).includes('14'));
   await waitUntil(() => completions.length === 1);
   completions.shift()?.();
   const caughtUp = await waitFor(messages, 'caught_up');
-  assert.equal(caughtUp.streamCursor, '20');
-  assert.equal(caughtUp.legacyMaxStreamCursor, '20');
+  assert.equal(caughtUp.streamCursor, '14');
+  assert.equal(caughtUp.legacyMaxStreamCursor, '14');
   await waitUntil(() => completions.length === 1);
   completions.shift()?.();
-  await waitUntil(() => eventStreamCursors(messages).includes('21'));
+  await waitUntil(() => eventStreamCursors(messages).includes('15'));
   await waitUntil(() => completions.length === 1);
   completions.shift()?.();
-  assert.deepEqual(eventStreamCursors(messages), ['10', '20', '21']);
+  assert.deepEqual(eventStreamCursors(messages), ['10', '14', '15']);
+  assert.deepEqual(
+    messages
+      .filter(({ type }) => type === 'event')
+      .map(({ data }) => record(data).tx_id),
+    ['100', null, null],
+  );
   assert.deepEqual(
     messages
       .filter(
@@ -674,7 +673,7 @@ void it('replays sparse legacy gas payment IDs and resumes without duplicates', 
           type === 'event' && eventType === 'gas_payment',
       )
       .map(({ legacyMaxStreamCursor }) => legacyMaxStreamCursor),
-    ['20', '20', '20'],
+    ['14', '14', '14'],
   );
 
   socket.close();
@@ -693,7 +692,7 @@ void it('replays sparse legacy gas payment IDs and resumes without duplicates', 
               cursors: [
                 {
                   address: gasPaymaster,
-                  afterStreamCursor: '21',
+                  afterStreamCursor: '15',
                   domain: 1,
                 },
               ],
@@ -707,8 +706,8 @@ void it('replays sparse legacy gas payment IDs and resumes without duplicates', 
     }
   });
   const resumedMarker = await waitFor(resumedMessages, 'caught_up');
-  assert.equal(resumedMarker.streamCursor, '21');
-  assert.equal(resumedMarker.legacyMaxStreamCursor, '20');
+  assert.equal(resumedMarker.streamCursor, '15');
+  assert.equal(resumedMarker.legacyMaxStreamCursor, '14');
   await waitUntil(() => completions.length === 1);
   completions.shift()?.();
 
@@ -718,10 +717,10 @@ void it('replays sparse legacy gas payment IDs and resumes without duplicates', 
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual(eventStreamCursors(resumedMessages), []);
 
-  gasPaymentRows.set('42', gasPaymentRow('42', '420', '22'));
+  gasPaymentRows.set('42', gasPaymentRow('42', '420', '16'));
   notify('scraper_event', gasPaymentNotification('42'));
-  await waitUntil(() => eventStreamCursors(resumedMessages).includes('22'));
-  assert.deepEqual(eventStreamCursors(resumedMessages), ['22']);
+  await waitUntil(() => eventStreamCursors(resumedMessages).includes('16'));
+  assert.deepEqual(eventStreamCursors(resumedMessages), ['16']);
   await waitUntil(() => completions.length === 1);
   completions.shift()?.();
   resumed.close();
@@ -1797,7 +1796,7 @@ function gasPaymentRow(
     sequence: null,
     ...(streamCursor === undefined
       ? {}
-      : { scraper_stream_cursor: txId == null ? null : streamCursor }),
+      : { scraper_stream_cursor: streamCursor }),
     time_created: new Date(0).toISOString(),
     tx_id: txId,
   };

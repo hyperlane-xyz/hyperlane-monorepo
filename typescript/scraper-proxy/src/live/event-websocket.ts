@@ -954,7 +954,7 @@ export class EventWebSocketServer {
   ): Promise<Row[]> {
     const stream = STREAMS.gas_payment;
     return this.db.queryLive<Row>(
-      `SELECT ${columns(stream, 'event_row')}, ${q('event_row')}.${q('id')} AS ${q(STREAM_CURSOR_COLUMN)} FROM ${q(stream.table)} AS ${q('event_row')} WHERE ${q('event_row')}.${q(stream.domain)} = $1 AND ${q('event_row')}.${q('interchain_gas_paymaster')} = $2::bytea AND ${q('event_row')}.${q('tx_id')} IS NOT NULL AND ${q('event_row')}.${q('id')} > $3::bigint AND ${q('event_row')}.${q('id')} <= $4::bigint ORDER BY ${q('event_row')}.${q('id')} ASC LIMIT $5`,
+      `SELECT ${columns(stream, 'event_row')}, ${q('event_row')}.${q('id')} AS ${q(STREAM_CURSOR_COLUMN)} FROM ${q(stream.table)} AS ${q('event_row')} WHERE ${q('event_row')}.${q(stream.domain)} = $1 AND ${q('event_row')}.${q('interchain_gas_paymaster')} = $2::bytea AND ${q('event_row')}.${q('id')} > $3::bigint AND ${q('event_row')}.${q('id')} <= $4::bigint ORDER BY ${q('event_row')}.${q('id')} ASC LIMIT $5`,
       [
         cursor.domain,
         cursor.address,
@@ -1147,7 +1147,7 @@ export class EventWebSocketServer {
         : '';
     const cursorProjection =
       eventType === 'gas_payment'
-        ? `, CASE WHEN ${q('event_row')}.${q('tx_id')} IS NULL THEN NULL ELSE ${gasPaymentCursorExpression()} END AS ${q(STREAM_CURSOR_COLUMN)}`
+        ? `, ${gasPaymentCursorExpression()} AS ${q(STREAM_CURSOR_COLUMN)}`
         : '';
     const rows = await this.db.queryLive<NotifiedRow>(
       `SELECT ${q('event_row')}.${q('id')} AS ${q('notification_id')}, ${columns(stream, 'event_row')}${cursorProjection} FROM ${q(stream.table)} AS ${q('event_row')}${gasPaymentCursor} WHERE ${q('event_row')}.${q('id')} = ANY($1::bigint[]) ORDER BY ${q('event_row')}.${q('id')} ASC`,
@@ -1529,7 +1529,6 @@ function gasPaymentStreamCursor(
   row: Row,
 ): { address: string; value: bigint } | undefined {
   if (eventType !== 'gas_payment') return undefined;
-  if (row.tx_id == null) return undefined;
   const address = row.interchain_gas_paymaster;
   if (typeof address !== 'string') {
     throw new Error('Invalid interchain_gas_paymaster in event row');
