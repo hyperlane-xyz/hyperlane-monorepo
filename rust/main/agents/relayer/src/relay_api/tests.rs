@@ -268,6 +268,61 @@ async fn make_state_multi_with_capacity(
     )
 }
 
+async fn make_state_with_distinct_channels(
+    indexer: Arc<dyn Indexer<HyperlaneMessage>>,
+    origin: u32,
+    dests: &[u32],
+    channel_capacity: usize,
+) -> (
+    ServerState,
+    HashMap<u32, mpsc::Sender<QueueOperationBatch>>,
+    HashMap<u32, mpsc::Receiver<QueueOperationBatch>>,
+    TempDir,
+) {
+    let tempdir = TempDir::new().unwrap();
+    let db = test_utils::setup_db(tempdir.path().to_str().unwrap().to_owned());
+    let domain = HyperlaneDomain::new_test_domain("relay_api_distinct_channels_test");
+    let rocks_db = HyperlaneRocksDB::new(&domain, db);
+    let mock_builder = build_mock_base_builder(domain.clone(), domain.clone());
+    let msg_ctx = Arc::new(MessageContext {
+        destination_mailbox: Arc::new(mock_mailbox()),
+        origin_db: Arc::new(rocks_db.clone()),
+        cache: OptionalCache::new(None),
+        metadata_builder: Arc::new(mock_builder),
+        origin_gas_payment_enforcer: Arc::new(RwLock::new(GasPaymentEnforcer::new(
+            [],
+            rocks_db.clone(),
+        ))),
+        transaction_gas_limit: None,
+        metrics: dummy_submission_metrics(),
+        application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
+    });
+    let mut indexers = HashMap::new();
+    indexers.insert("ethereum".to_string(), indexer);
+    let mut dbs = HashMap::new();
+    dbs.insert(origin, rocks_db);
+    let mut send_channels = HashMap::new();
+    let mut retained_senders = HashMap::new();
+    let mut receivers = HashMap::new();
+    let mut msg_ctxs = HashMap::new();
+    for &dest in dests {
+        let (tx, rx) = mpsc::channel(channel_capacity);
+        retained_senders.insert(dest, tx.clone());
+        send_channels.insert(dest, tx);
+        receivers.insert(dest, rx);
+        msg_ctxs.insert((origin, dest), msg_ctx.clone());
+    }
+    let state = ServerState::new(
+        indexers,
+        HashMap::new(),
+        dbs,
+        send_channels,
+        msg_ctxs,
+        RelayApiMetrics::new(&Registry::new()).unwrap(),
+    );
+    (state, retained_senders, receivers, tempdir)
+}
+
 fn relay_request(tx_hash: &str) -> Request<Body> {
     Request::builder()
         .method("POST")
@@ -678,6 +733,37 @@ async fn test_partial_send_failure_releases_dedup_for_retry() {
         StatusCode::TOO_MANY_REQUESTS,
         "after 500, same tx_hash must not be blocked by dedup cache"
     );
+}
+
+#[tokio::test]
+async fn test_multi_destination_capacity_is_reserved_in_domain_order() {
+    let low = DEST_ID;
+    let high = DEST_ID + 1;
+    let indexer = Arc::new(MockIndexer::with_messages(vec![
+        test_msg(ORIGIN_ID, high, 1),
+        test_msg(ORIGIN_ID, low, 2),
+    ]));
+    let (state, senders, mut receivers, _tempdir) =
+        make_state_with_distinct_channels(indexer, ORIGIN_ID, &[high, low], 1).await;
+    let low_sender = senders.get(&low).unwrap();
+    low_sender.send(Vec::new()).await.unwrap();
+
+    let relay = tokio::spawn(send_relay(state.router(), TX_HASH));
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    assert_eq!(
+        senders.get(&high).unwrap().capacity(),
+        1,
+        "higher destination capacity must remain free while lower is blocked"
+    );
+
+    receivers.get_mut(&low).unwrap().recv().await.unwrap();
+    let status = tokio::time::timeout(Duration::from_secs(1), relay)
+        .await
+        .expect("relay should not deadlock")
+        .unwrap();
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(receivers.get(&low).unwrap().len(), 1);
+    assert_eq!(receivers.get(&high).unwrap().len(), 1);
 }
 
 #[tokio::test]

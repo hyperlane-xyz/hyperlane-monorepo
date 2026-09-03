@@ -72,6 +72,16 @@ impl DB {
     /// Opens db at `db_path` and creates if missing
     #[tracing::instrument(err)]
     pub fn from_path(db_path: &Path) -> Result<DB> {
+        Self::from_path_with_options(db_path, false)
+    }
+
+    /// Opens a DB with archived WAL retained for rollback-derived index recovery.
+    #[tracing::instrument(err)]
+    pub fn from_path_with_rollback_wal(db_path: &Path) -> Result<DB> {
+        Self::from_path_with_options(db_path, true)
+    }
+
+    fn from_path_with_options(db_path: &Path, retain_rollback_wal: bool) -> Result<DB> {
         let path = {
             let mut path = db_path
                 .parent()
@@ -92,8 +102,10 @@ impl DB {
 
         let mut opts = Options::default();
         opts.create_if_missing(true);
-        opts.set_wal_ttl_seconds(ROLLBACK_WAL_RETENTION_SECONDS);
-        opts.set_wal_size_limit_mb(ROLLBACK_WAL_SIZE_LIMIT_MB);
+        if retain_rollback_wal {
+            opts.set_wal_ttl_seconds(ROLLBACK_WAL_RETENTION_SECONDS);
+            opts.set_wal_size_limit_mb(ROLLBACK_WAL_SIZE_LIMIT_MB);
+        }
 
         Rocks::open(&opts, &path)
             .map_err(|e| DbError::OpeningError {

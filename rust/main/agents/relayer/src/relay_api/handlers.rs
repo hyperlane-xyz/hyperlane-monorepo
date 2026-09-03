@@ -804,6 +804,7 @@ async fn relay_work(
         nonce: u32,
     }
 
+    // Canonical permit order prevents cross-request AB/BA deadlocks.
     let mut batches: BTreeMap<u32, (Sender<QueueOperationBatch>, QueueOperationBatch)> =
         BTreeMap::new();
     let mut sent_messages = Vec::with_capacity(validated.len());

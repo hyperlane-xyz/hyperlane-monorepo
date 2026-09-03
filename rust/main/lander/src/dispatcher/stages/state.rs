@@ -138,7 +138,7 @@ impl DispatcherState {
     ) -> Result<Self> {
         let db = match settings.db {
             DatabaseOrPath::Database(db) => db,
-            DatabaseOrPath::Path(path) => DB::from_path(&path)?,
+            DatabaseOrPath::Path(path) => DB::from_path_with_rollback_wal(&path)?,
         };
         let rocksdb = Arc::new(HyperlaneRocksDB::new(&settings.domain, db));
         let adapter = AdapterFactory::build(
