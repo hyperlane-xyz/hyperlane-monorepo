@@ -44,7 +44,7 @@ use crate::universal_router_reveal::{
 use crate::utils::sanitize_dynamic_accounts;
 use crate::{
     ConnectionConf, ProcessAltOverride, SealevelKeypair, SealevelProvider,
-    SealevelProviderForLander,
+    SealevelProviderForLander, SealevelTransactionFormat,
 };
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
@@ -74,17 +74,23 @@ lazy_static! {
     ]);
 }
 
-/// Sealevel process instruction payload with optional ALT address.
+/// Sealevel process instruction payload with any ALT addresses to compile against.
 ///
-/// ALT (Address Lookup Table) is optional and helps reduce transaction size
-/// by allowing accounts to be referenced by 1-byte index rather than 32-byte pubkey.
-/// When provided, the ALT is assumed to be static and lazily loaded by the tx builder.
+/// ALTs (Address Lookup Tables) are optional and help reduce transaction size by
+/// allowing accounts to be referenced by a 1-byte index rather than a 32-byte pubkey.
+/// A process tx may need several: typically one core ALT plus one or more
+/// warp-route-specific ALTs. Versioned ALT sets are assumed to be static and are
+/// lazily loaded by the tx builder.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SealevelProcessPayload {
     /// The process instruction to execute
     pub instruction: Instruction,
-    /// Optional ALT address for versioned transactions
-    pub alt_address: Option<Pubkey>,
+    /// Selects a legacy transaction or a versioned transaction with non-empty ALTs.
+    ///
+    /// Accepts the legacy singular `alt_address` key (scalar or null) so payloads
+    /// persisted by an older relayer keep deserializing after upgrade.
+    #[serde(default, alias = "alt_address")]
+    pub alt_addresses: SealevelTransactionFormat,
 }
 
 /// A reference to a Mailbox contract on some Sealevel chain
@@ -107,9 +113,9 @@ pub struct SealevelMailbox {
     signer: Option<SealevelKeypair>,
     priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     tx_submitter: Arc<dyn TransactionSubmitter>,
-    /// Optional ALT address for versioned transactions (from config)
-    mailbox_process_alt: Option<Pubkey>,
-    /// Per-message ALT overrides (first match wins, falls back to mailbox_process_alt)
+    /// ALT addresses for versioned transactions (from config).
+    mailbox_process_alts: SealevelTransactionFormat,
+    /// Per-message ALT overrides (first match wins, falls back to mailbox_process_alts)
     process_alt_overrides: Vec<ProcessAltOverride>,
 
     system_program: Pubkey,
@@ -153,7 +159,7 @@ impl SealevelMailbox {
             signer,
             priority_fee_oracle: conf.priority_fee_oracle.create_oracle(),
             tx_submitter,
-            mailbox_process_alt: conf.mailbox_process_alt,
+            mailbox_process_alts: conf.mailbox_process_alts.clone(),
             process_alt_overrides: conf.process_alt_overrides.clone(),
             provider,
             system_program,
@@ -424,9 +430,9 @@ impl SealevelMailbox {
 
         Ok(SealevelProcessPayload {
             instruction,
-            alt_address: resolve_process_alt(
+            alt_addresses: resolve_process_alts(
                 &self.process_alt_overrides,
-                self.mailbox_process_alt,
+                &self.mailbox_process_alts,
                 message,
             ),
         })
@@ -582,7 +588,7 @@ impl Mailbox for SealevelMailbox {
                 payer,
                 self.tx_submitter.clone(),
                 self.priority_fee_oracle.clone(),
-                payload.alt_address,
+                payload.alt_addresses,
                 &additional_signers,
             )
             .await?;
@@ -643,7 +649,7 @@ impl Mailbox for SealevelMailbox {
                 payer,
                 self.tx_submitter.clone(),
                 self.priority_fee_oracle.clone(),
-                payload.alt_address,
+                &payload.alt_addresses,
             )
             .await;
 
@@ -659,7 +665,7 @@ impl Mailbox for SealevelMailbox {
                         payer,
                         self.tx_submitter.clone(),
                         self.priority_fee_oracle.clone(),
-                        payload.alt_address,
+                        &payload.alt_addresses,
                     )
                     .await?;
                 return Ok(TxCostEstimate {
@@ -813,31 +819,45 @@ impl SealevelMailbox {
     }
 }
 
-/// Resolve which ALT to use for a given message.
+/// Resolve which ALTs to use for a given message.
 /// Checks per-message overrides first (first match wins), then falls back to
-/// the given fallback ALT.
+/// the given fallback ALTs.
+///
+/// A matching override replaces the fallback entirely rather than extending it:
+/// an override lists the full ALT set for those messages (typically the core ALT
+/// followed by the route's warp-specific ALTs), so merging would risk exceeding
+/// the per-transaction lookup limit with duplicates.
 ///
 /// Note: an empty `matchingList` (`[]` / `MatchingList(None)`) will never match
 /// because `msg_matches` is called with `default: false`. Use `[{}]` (a wildcard
 /// rule) if you want to match all messages.
-fn resolve_process_alt(
+fn resolve_process_alts(
     overrides: &[ProcessAltOverride],
-    fallback: Option<Pubkey>,
+    fallback: &SealevelTransactionFormat,
     message: &HyperlaneMessage,
-) -> Option<Pubkey> {
+) -> SealevelTransactionFormat {
     for entry in overrides {
         if entry.matching_list.msg_matches(message, false) {
-            debug!(alt = ?entry.alt_address, "Using per-message ALT override");
-            return Some(entry.alt_address);
+            debug!(alts = ?entry.alt_addresses, "Using per-message ALT override");
+            return SealevelTransactionFormat::V0 {
+                alt_addresses: entry.alt_addresses.clone(),
+            };
         }
     }
-    fallback
+    fallback.clone()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::NonEmptyAltAddresses;
     use hyperlane_core::matching_list::MatchingList;
+    use solana_sdk::{
+        hash::Hash,
+        message::{v0::Message as MessageV0, AddressLookupTableAccount, VersionedMessage},
+        signature::Signature,
+        transaction::VersionedTransaction,
+    };
 
     fn test_message(recipient: H256) -> HyperlaneMessage {
         HyperlaneMessage {
@@ -861,6 +881,16 @@ mod tests {
         format!("0x{h:x}")
     }
 
+    fn non_empty_alts(addresses: Vec<Pubkey>) -> NonEmptyAltAddresses {
+        NonEmptyAltAddresses::try_from(addresses).unwrap()
+    }
+
+    fn versioned_alts(addresses: Vec<Pubkey>) -> SealevelTransactionFormat {
+        SealevelTransactionFormat::V0 {
+            alt_addresses: non_empty_alts(addresses),
+        }
+    }
+
     #[test]
     fn test_resolve_alt_override_match() {
         let alt_key = Pubkey::new_unique();
@@ -873,12 +903,12 @@ mod tests {
                 r#"[{{"recipientaddress": "{recipient_a_hex}"}}]"#
             ))
             .unwrap(),
-            alt_address: alt_key,
+            alt_addresses: non_empty_alts(vec![alt_key]),
         }];
 
         let msg = test_message(recipient_a);
-        let result = resolve_process_alt(&overrides, Some(fallback_key), &msg);
-        assert_eq!(result, Some(alt_key));
+        let result = resolve_process_alts(&overrides, &versioned_alts(vec![fallback_key]), &msg);
+        assert_eq!(result, versioned_alts(vec![alt_key]));
     }
 
     #[test]
@@ -894,21 +924,21 @@ mod tests {
                 r#"[{{"recipientaddress": "{recipient_a_hex}"}}]"#
             ))
             .unwrap(),
-            alt_address: alt_key,
+            alt_addresses: non_empty_alts(vec![alt_key]),
         }];
 
         // recipient_b should not match recipient_a
         let msg = test_message(recipient_b);
-        let result = resolve_process_alt(&overrides, Some(fallback_key), &msg);
-        assert_eq!(result, Some(fallback_key));
+        let result = resolve_process_alts(&overrides, &versioned_alts(vec![fallback_key]), &msg);
+        assert_eq!(result, versioned_alts(vec![fallback_key]));
     }
 
     #[test]
     fn test_resolve_alt_no_match_no_fallback() {
         let overrides = vec![];
         let msg = test_message(H256::zero());
-        let result = resolve_process_alt(&overrides, None, &msg);
-        assert_eq!(result, None);
+        let result = resolve_process_alts(&overrides, &SealevelTransactionFormat::Legacy, &msg);
+        assert_eq!(result, SealevelTransactionFormat::Legacy);
     }
 
     #[test]
@@ -918,12 +948,12 @@ mod tests {
         // An empty matching list (no rules) should NOT match any message
         let overrides = vec![ProcessAltOverride {
             matching_list: serde_json::from_str::<MatchingList>(r#"[]"#).unwrap(),
-            alt_address: alt_key,
+            alt_addresses: non_empty_alts(vec![alt_key]),
         }];
 
         let msg = test_message(h256_from_u8(1));
-        let result = resolve_process_alt(&overrides, None, &msg);
-        assert_eq!(result, None);
+        let result = resolve_process_alts(&overrides, &SealevelTransactionFormat::Legacy, &msg);
+        assert_eq!(result, SealevelTransactionFormat::Legacy);
     }
 
     #[test]
@@ -935,16 +965,263 @@ mod tests {
         let overrides = vec![
             ProcessAltOverride {
                 matching_list: serde_json::from_str::<MatchingList>(r#"[{}]"#).unwrap(),
-                alt_address: alt1,
+                alt_addresses: non_empty_alts(vec![alt1]),
             },
             ProcessAltOverride {
                 matching_list: serde_json::from_str::<MatchingList>(r#"[{}]"#).unwrap(),
-                alt_address: alt2,
+                alt_addresses: non_empty_alts(vec![alt2]),
             },
         ];
 
         let msg = test_message(H256::zero());
-        let result = resolve_process_alt(&overrides, None, &msg);
-        assert_eq!(result, Some(alt1));
+        let result = resolve_process_alts(&overrides, &SealevelTransactionFormat::Legacy, &msg);
+        assert_eq!(result, versioned_alts(vec![alt1]));
+    }
+
+    #[test]
+    fn test_resolve_alt_override_returns_every_alt_in_order() {
+        let core_alt = Pubkey::new_unique();
+        let warp_alt_a = Pubkey::new_unique();
+        let warp_alt_b = Pubkey::new_unique();
+
+        let overrides = vec![ProcessAltOverride {
+            matching_list: serde_json::from_str::<MatchingList>(r#"[{}]"#).unwrap(),
+            alt_addresses: non_empty_alts(vec![core_alt, warp_alt_a, warp_alt_b]),
+        }];
+
+        let msg = test_message(H256::zero());
+        let result = resolve_process_alts(&overrides, &SealevelTransactionFormat::Legacy, &msg);
+
+        // Order is load-bearing: MessageV0::try_compile assigns account indexes by
+        // ALT position, so core must stay ahead of the warp-specific tables.
+        assert_eq!(
+            result,
+            versioned_alts(vec![core_alt, warp_alt_a, warp_alt_b])
+        );
+    }
+
+    #[test]
+    fn test_resolve_alt_falls_back_to_every_configured_alt() {
+        let fallback_a = Pubkey::new_unique();
+        let fallback_b = Pubkey::new_unique();
+
+        let msg = test_message(H256::zero());
+        let result = resolve_process_alts(&[], &versioned_alts(vec![fallback_a, fallback_b]), &msg);
+
+        assert_eq!(result, versioned_alts(vec![fallback_a, fallback_b]));
+    }
+
+    #[test]
+    fn test_resolve_alt_override_replaces_rather_than_extends_fallback() {
+        let fallback = Pubkey::new_unique();
+        let override_alt = Pubkey::new_unique();
+
+        let overrides = vec![ProcessAltOverride {
+            matching_list: serde_json::from_str::<MatchingList>(r#"[{}]"#).unwrap(),
+            alt_addresses: non_empty_alts(vec![override_alt]),
+        }];
+
+        let msg = test_message(H256::zero());
+        let result = resolve_process_alts(&overrides, &versioned_alts(vec![fallback]), &msg);
+
+        assert_eq!(result, versioned_alts(vec![override_alt]));
+    }
+
+    fn test_instruction() -> Instruction {
+        Instruction {
+            program_id: Pubkey::new_unique(),
+            accounts: vec![],
+            data: vec![],
+        }
+    }
+
+    /// Mirrors the pre-migration on-disk shape of `SealevelProcessPayload`.
+    ///
+    /// Serializing this and deserializing as the current type is what a relayer
+    /// upgrade actually does to payloads already queued in the database, so it
+    /// exercises the real wire format rather than a hand-written approximation
+    /// (`Pubkey` serializes as a 32-byte array here, not a base58 string).
+    #[derive(serde::Serialize)]
+    struct LegacyProcessPayload {
+        instruction: Instruction,
+        alt_address: Option<Pubkey>,
+    }
+
+    #[derive(serde::Serialize)]
+    struct NoAltProcessPayload {
+        instruction: Instruction,
+    }
+
+    #[test]
+    fn test_payload_accepts_legacy_singular_alt_address() {
+        let alt = Pubkey::new_unique();
+        let legacy = LegacyProcessPayload {
+            instruction: test_instruction(),
+            alt_address: Some(alt),
+        };
+        let encoded = serde_json::to_string(&legacy).unwrap();
+
+        let payload: SealevelProcessPayload = serde_json::from_str(&encoded).unwrap();
+
+        assert_eq!(payload.alt_addresses, versioned_alts(vec![alt]));
+    }
+
+    #[test]
+    fn test_payload_accepts_legacy_null_alt_address() {
+        let legacy = LegacyProcessPayload {
+            instruction: test_instruction(),
+            alt_address: None,
+        };
+        let encoded = serde_json::to_string(&legacy).unwrap();
+
+        let payload: SealevelProcessPayload = serde_json::from_str(&encoded).unwrap();
+
+        assert_eq!(payload.alt_addresses, SealevelTransactionFormat::Legacy);
+    }
+
+    #[test]
+    fn test_payload_accepts_plural_alt_addresses() {
+        let alt_a = Pubkey::new_unique();
+        let alt_b = Pubkey::new_unique();
+        let payload = SealevelProcessPayload {
+            instruction: test_instruction(),
+            alt_addresses: versioned_alts(vec![alt_a, alt_b]),
+        };
+        let encoded = serde_json::to_string(&payload).unwrap();
+
+        let decoded: SealevelProcessPayload = serde_json::from_str(&encoded).unwrap();
+
+        assert_eq!(decoded.alt_addresses, versioned_alts(vec![alt_a, alt_b]));
+    }
+
+    #[test]
+    fn test_payload_rejects_empty_plural_alt_addresses() {
+        let encoded = serde_json::json!({
+            "instruction": test_instruction(),
+            "alt_addresses": [],
+        });
+
+        assert!(serde_json::from_value::<SealevelProcessPayload>(encoded).is_err());
+    }
+
+    #[test]
+    fn test_payload_accepts_missing_alt_field() {
+        let encoded = serde_json::to_string(&NoAltProcessPayload {
+            instruction: test_instruction(),
+        })
+        .unwrap();
+
+        let payload: SealevelProcessPayload = serde_json::from_str(&encoded).unwrap();
+
+        assert_eq!(payload.alt_addresses, SealevelTransactionFormat::Legacy);
+    }
+
+    #[test]
+    fn test_payload_round_trips_plural_alt_addresses() {
+        let payload = SealevelProcessPayload {
+            instruction: test_instruction(),
+            alt_addresses: versioned_alts(vec![Pubkey::new_unique(), Pubkey::new_unique()]),
+        };
+
+        let encoded = serde_json::to_string(&payload).unwrap();
+        let decoded: SealevelProcessPayload = serde_json::from_str(&encoded).unwrap();
+
+        assert_eq!(decoded.alt_addresses, payload.alt_addresses);
+    }
+
+    fn serialized_process_tx_size(
+        payer: Pubkey,
+        instruction: Instruction,
+        alts: &[AddressLookupTableAccount],
+    ) -> usize {
+        let message = MessageV0::try_compile(&payer, &[instruction], alts, Hash::default())
+            .expect("process instruction should compile");
+        let transaction = VersionedTransaction {
+            signatures: vec![Signature::default()],
+            message: VersionedMessage::V0(message),
+        };
+        bincode::serialize(&transaction).unwrap().len()
+    }
+
+    /// Regression fixture for the Base -> Solana USDC composite-ISM route.
+    ///
+    /// The mailbox, recipient, fallback ISM, mint, origin, and nonce match
+    /// `svm-composite-ism-test-{config,deploy}.yaml`; generated pubkeys stand in
+    /// for message-specific PDAs and the freshly-deployed composite program.
+    /// The account cardinality and process payload use the real Mailbox.process
+    /// wire encoding. This keeps the test deterministic while exercising the
+    /// exact Solana v0 compilation and serialization limit that blocked delivery.
+    #[test]
+    fn test_composite_ism_usdc_process_fits_with_core_and_warp_alts() {
+        const SOLANA_TRANSACTION_SIZE_LIMIT: usize = 1232;
+        let payer = Pubkey::new_unique();
+        let mailbox = Pubkey::from_str("E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi").unwrap();
+        let recipient = Pubkey::from_str("4U8MZmUnwVb3rEsuX7xZcHjm3Jb4oCv1N8rwh6R1TKFV").unwrap();
+        let fallback_ism = Pubkey::from_str("LwNfVYMDzAe5dCJgA5CipTZcT34Eyf74zLr81K91jxk").unwrap();
+        let usdc_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").unwrap();
+
+        let message = HyperlaneMessage {
+            version: 3,
+            nonce: 2_167_789,
+            origin: 8453,
+            sender: H256::zero(),
+            destination: 1_399_811_149,
+            recipient: recipient.to_bytes().into(),
+            body: vec![0; 64],
+        };
+        let data =
+            hyperlane_sealevel_mailbox::instruction::Instruction::InboxProcess(InboxProcess {
+                // Real aggregation metadata varies with validator signatures;
+                // this length conservatively represents the live 3-of-N proof.
+                metadata: vec![0; 384],
+                message: message.to_vec(),
+            })
+            .into_instruction_data()
+            .unwrap();
+
+        let mut static_accounts = vec![
+            Pubkey::from_str(SYSTEM_PROGRAM).unwrap(),
+            Pubkey::new_unique(), // inbox
+            Pubkey::from_str(SPL_NOOP).unwrap(),
+            recipient,
+            fallback_ism,
+            usdc_mint,
+        ];
+        while static_accounts.len() < 42 {
+            static_accounts.push(Pubkey::new_unique());
+        }
+        let mut account_metas = vec![AccountMeta::new_readonly(payer, true)];
+        account_metas.extend(
+            static_accounts
+                .iter()
+                .map(|address| AccountMeta::new_readonly(*address, false)),
+        );
+        let instruction = Instruction {
+            program_id: mailbox,
+            accounts: account_metas,
+            data,
+        };
+
+        let core_alt = AddressLookupTableAccount {
+            key: Pubkey::new_unique(),
+            addresses: static_accounts[..6].to_vec(),
+        };
+        let warp_alt = AddressLookupTableAccount {
+            key: Pubkey::new_unique(),
+            addresses: static_accounts[6..38].to_vec(),
+        };
+
+        let core_only_size =
+            serialized_process_tx_size(payer, instruction.clone(), std::slice::from_ref(&core_alt));
+        let complete_size = serialized_process_tx_size(payer, instruction, &[core_alt, warp_alt]);
+
+        assert!(
+            core_only_size > SOLANA_TRANSACTION_SIZE_LIMIT,
+            "fixture must reproduce the oversized core-only transaction, got {core_only_size} bytes"
+        );
+        assert!(
+            complete_size <= SOLANA_TRANSACTION_SIZE_LIMIT,
+            "core + warp ALTs must fit, got {complete_size} bytes"
+        );
     }
 }
