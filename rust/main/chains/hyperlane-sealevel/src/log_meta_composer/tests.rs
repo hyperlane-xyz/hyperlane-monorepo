@@ -1,9 +1,26 @@
 use std::fs;
 use std::path::PathBuf;
 
-use hyperlane_core::{LogMeta, U256};
-use solana_transaction_status::{EncodedTransactionWithStatusMeta, UiConfirmedBlock};
+use async_trait::async_trait;
+use hyperlane_core::{ChainCommunicationError, ChainResult, LogMeta, U256};
+use mockall::{mock, predicate::eq};
+use solana_client::{
+    client_error::{ClientError, ClientErrorKind},
+    rpc_request::{RpcError, RpcResponseErrorData},
+    rpc_response::RpcSimulateTransactionResult,
+};
+use solana_commitment_config::CommitmentConfig;
+use solana_sdk::{
+    pubkey::Pubkey,
+    signature::Signature,
+    transaction::{Transaction, VersionedTransaction},
+};
+use solana_transaction_status::{
+    EncodedConfirmedTransactionWithStatusMeta, EncodedTransactionWithStatusMeta, UiConfirmedBlock,
+};
 
+use crate::error::HyperlaneSealevelError;
+use crate::fallback::SubmitSealevelRpc;
 use crate::log_meta_composer::{
     is_interchain_payment_instruction, is_message_delivery_instruction,
     is_message_dispatch_instruction, search_transactions,
@@ -11,6 +28,37 @@ use crate::log_meta_composer::{
 use crate::utils::{decode_h256, decode_h512, decode_pubkey};
 
 use super::LogMetaComposer;
+
+mock! {
+    RpcClient {}
+
+    #[async_trait]
+    impl SubmitSealevelRpc for RpcClient {
+        async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock>;
+
+        async fn get_block_with_commitment(
+            &self,
+            slot: u64,
+            commitment: CommitmentConfig,
+        ) -> ChainResult<UiConfirmedBlock>;
+
+        async fn get_transaction_with_commitment(
+            &self,
+            signature: Signature,
+            commitment: CommitmentConfig,
+        ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
+
+        async fn simulate_transaction(
+            &self,
+            transaction: &Transaction,
+        ) -> ChainResult<RpcSimulateTransactionResult>;
+
+        async fn simulate_versioned_transaction(
+            &self,
+            transaction: &VersionedTransaction,
+        ) -> ChainResult<RpcSimulateTransactionResult>;
+    }
+}
 
 #[test]
 pub fn test_search_dispatched_message_transaction() {
@@ -229,6 +277,140 @@ fn test_log_meta_block_with_txn_interchain_payment_search_solaxy() {
     });
 }
 
+#[tokio::test]
+async fn resolves_log_meta_from_previous_slot_when_recorded_slot_has_no_match() {
+    let (composer, payment_pda_account, matching_block) = solaxy_payment_fixture();
+    let expected_block_hash = decode_h256(&matching_block.blockhash).expect("valid block hash");
+    let mut recorded_block = matching_block.clone();
+    recorded_block.transactions = Some(vec![]);
+
+    let recorded_slot = 10_001;
+    let previous_slot = recorded_slot - 1;
+    let mut rpc_client = MockRpcClient::new();
+    rpc_client
+        .expect_get_block()
+        .with(eq(recorded_slot))
+        .once()
+        .return_once(move |_| Ok(recorded_block));
+    rpc_client
+        .expect_get_block()
+        .with(eq(previous_slot))
+        .once()
+        .return_once(move |_| Ok(matching_block));
+
+    let log_meta = composer
+        .resolve_log_meta(
+            &rpc_client,
+            U256::zero(),
+            &payment_pda_account,
+            recorded_slot,
+        )
+        .await
+        .expect("log meta lookup succeeds")
+        .expect("previous slot matches");
+
+    assert_eq!(log_meta.block_number, previous_slot);
+    assert_eq!(log_meta.block_hash, expected_block_hash);
+    assert!(!log_meta.transaction_id.is_zero());
+}
+
+#[tokio::test]
+async fn resolves_log_meta_from_previous_slot_when_recorded_block_is_unavailable() {
+    let (composer, payment_pda_account, matching_block) = solaxy_payment_fixture();
+
+    let recorded_slot = 10_001;
+    let previous_slot = recorded_slot - 1;
+    let mut rpc_client = MockRpcClient::new();
+    rpc_client
+        .expect_get_block()
+        .with(eq(recorded_slot))
+        .once()
+        .return_once(|_| Err(block_unavailable_error()));
+    rpc_client
+        .expect_get_block()
+        .with(eq(previous_slot))
+        .once()
+        .return_once(move |_| Ok(matching_block));
+
+    let log_meta = composer
+        .resolve_log_meta(
+            &rpc_client,
+            U256::zero(),
+            &payment_pda_account,
+            recorded_slot,
+        )
+        .await
+        .expect("log meta lookup succeeds")
+        .expect("previous slot matches");
+
+    assert_eq!(log_meta.block_number, previous_slot);
+    assert!(!log_meta.transaction_id.is_zero());
+}
+
+#[tokio::test]
+async fn previous_slot_rpc_failure_preserves_basic_log_meta_fallback() {
+    let (composer, payment_pda_account, mut recorded_block) = solaxy_payment_fixture();
+    recorded_block.transactions = Some(vec![]);
+
+    let recorded_slot = 10_001;
+    let previous_slot = recorded_slot - 1;
+    let mut rpc_client = MockRpcClient::new();
+    rpc_client
+        .expect_get_block()
+        .with(eq(recorded_slot))
+        .once()
+        .return_once(move |_| Ok(recorded_block));
+    rpc_client
+        .expect_get_block()
+        .with(eq(previous_slot))
+        .once()
+        .return_once(|_| {
+            Err(ChainCommunicationError::from_other_str(
+                "previous slot RPC failed",
+            ))
+        });
+
+    let log_meta = composer
+        .resolve_log_meta(
+            &rpc_client,
+            U256::zero(),
+            &payment_pda_account,
+            recorded_slot,
+        )
+        .await
+        .expect("optional previous-slot failure is non-fatal");
+
+    assert!(log_meta.is_none());
+}
+
+#[tokio::test]
+async fn transient_recorded_slot_error_remains_retryable() {
+    let (composer, payment_pda_account, _) = solaxy_payment_fixture();
+
+    let recorded_slot = 10_001;
+    let mut rpc_client = MockRpcClient::new();
+    rpc_client
+        .expect_get_block()
+        .with(eq(recorded_slot))
+        .once()
+        .return_once(|_| {
+            Err(ChainCommunicationError::from_other_str(
+                "transient RPC failure",
+            ))
+        });
+
+    let result = composer
+        .resolve_log_meta(
+            &rpc_client,
+            U256::zero(),
+            &payment_pda_account,
+            recorded_slot,
+        )
+        .await;
+
+    assert!(result.is_err());
+}
+
 fn read_json(path: &str) -> String {
     let relative = PathBuf::new().join("src/log_meta_composer/").join(path);
     let absolute = fs::canonicalize(relative).expect("cannot find path");
@@ -239,4 +421,34 @@ fn transactions(json: &str) -> Vec<EncodedTransactionWithStatusMeta> {
     let transaction = serde_json::from_str::<EncodedTransactionWithStatusMeta>(json).unwrap();
     let transactions = vec![transaction];
     transactions
+}
+
+fn solaxy_payment_fixture() -> (LogMetaComposer, Pubkey, UiConfirmedBlock) {
+    let igp_program_id =
+        decode_pubkey("VG7YDF5Am2hrgyydE2ufdusdtw5DjgzXJLFxn9p8ehU").expect("valid IGP program ID");
+    let payment_pda_account =
+        decode_pubkey("4hWzwVjSd2Mi9kKxJuYGEL9j4dPnTtLSSBp3txR1egPM").expect("valid payment PDA");
+    let composer = LogMetaComposer::new(
+        igp_program_id,
+        "interchain gas payment".to_owned(),
+        is_interchain_payment_instruction,
+    );
+    let block = serde_json::from_str(&read_json(
+        "dispatch_message_block_interchain_payment_search_solaxy.json",
+    ))
+    .expect("valid Solaxy block fixture");
+    (composer, payment_pda_account, block)
+}
+
+fn block_unavailable_error() -> ChainCommunicationError {
+    use solana_client::rpc_custom_error::JSON_RPC_SERVER_ERROR_SLOT_SKIPPED;
+
+    HyperlaneSealevelError::ClientError(Box::new(ClientError::from(ClientErrorKind::RpcError(
+        RpcError::RpcResponseError {
+            code: JSON_RPC_SERVER_ERROR_SLOT_SKIPPED,
+            message: "slot skipped".to_owned(),
+            data: RpcResponseErrorData::Empty,
+        },
+    ))))
+    .into()
 }

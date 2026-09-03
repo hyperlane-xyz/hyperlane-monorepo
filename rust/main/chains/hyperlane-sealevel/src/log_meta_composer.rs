@@ -6,11 +6,12 @@ use solana_transaction_status::{
     UiCompiledInstruction, UiConfirmedBlock, UiInstruction, UiMessage, UiTransaction,
     UiTransactionStatusMeta,
 };
-use tracing::warn;
+use tracing::{info, warn};
 
-use hyperlane_core::{LogMeta, H512, U256};
+use hyperlane_core::{ChainResult, LogMeta, H512, U256};
 
-use crate::error::HyperlaneSealevelError;
+use crate::error::{is_get_block_unresolvable_after_retries, HyperlaneSealevelError};
+use crate::fallback::SubmitSealevelRpc;
 use crate::utils::{decode_h256, decode_h512, from_base58};
 
 #[derive(Debug)]
@@ -83,6 +84,101 @@ impl LogMetaComposer {
         };
 
         Ok(log_meta)
+    }
+
+    /// Resolves log metadata from the recorded slot, then checks the preceding
+    /// slot when the recorded block is unavailable or lacks the expected
+    /// transaction. Some Sealevel chains record an event PDA one slot after
+    /// its transaction was included.
+    ///
+    /// The preceding slot is only an enrichment path: it must contain exactly
+    /// one matching program instruction operating on the event PDA. Any
+    /// failure there returns `Ok(None)` so callers retain the basic-log-meta
+    /// fallback and sequence-aware indexing cannot stall.
+    pub async fn resolve_log_meta(
+        &self,
+        rpc_client: &dyn SubmitSealevelRpc,
+        log_index: U256,
+        pda_pubkey: &Pubkey,
+        recorded_slot: Slot,
+    ) -> ChainResult<Option<LogMeta>> {
+        match rpc_client.get_block(recorded_slot).await {
+            Ok(block) => match self.log_meta(block, log_index, pda_pubkey, &recorded_slot) {
+                Ok(log_meta) => return Ok(Some(log_meta)),
+                Err(HyperlaneSealevelError::NoTransactions(err)) => {
+                    warn!(
+                        %err,
+                        ?pda_pubkey,
+                        recorded_slot,
+                        transaction = %self.transaction_description,
+                        "Expected transaction was not found in recorded slot; checking previous slot",
+                    );
+                }
+                Err(err @ HyperlaneSealevelError::TooManyTransactions(_)) => {
+                    warn!(
+                        ?err,
+                        ?pda_pubkey,
+                        recorded_slot,
+                        transaction = %self.transaction_description,
+                        "Recorded slot contains ambiguous matching transactions; falling back to basic log meta",
+                    );
+                    return Ok(None);
+                }
+                Err(err) => return Err(err.into()),
+            },
+            Err(err) if is_get_block_unresolvable_after_retries(&err) => {
+                warn!(
+                    ?err,
+                    ?pda_pubkey,
+                    recorded_slot,
+                    transaction = %self.transaction_description,
+                    "Recorded block is unavailable after provider retries; checking previous slot",
+                );
+            }
+            Err(err) => return Err(err),
+        }
+
+        let Some(previous_slot) = recorded_slot.checked_sub(1) else {
+            return Ok(None);
+        };
+        let previous_block = match rpc_client.get_block(previous_slot).await {
+            Ok(block) => block,
+            Err(err) => {
+                warn!(
+                    ?err,
+                    ?pda_pubkey,
+                    recorded_slot,
+                    previous_slot,
+                    transaction = %self.transaction_description,
+                    "Could not inspect previous slot; falling back to basic log meta",
+                );
+                return Ok(None);
+            }
+        };
+
+        match self.log_meta(previous_block, log_index, pda_pubkey, &previous_slot) {
+            Ok(log_meta) => {
+                info!(
+                    ?pda_pubkey,
+                    recorded_slot,
+                    previous_slot,
+                    transaction = %self.transaction_description,
+                    "Resolved log metadata from previous slot",
+                );
+                Ok(Some(log_meta))
+            }
+            Err(err) => {
+                warn!(
+                    ?err,
+                    ?pda_pubkey,
+                    recorded_slot,
+                    previous_slot,
+                    transaction = %self.transaction_description,
+                    "Could not resolve log metadata from previous slot; falling back to basic log meta",
+                );
+                Ok(None)
+            }
+        }
     }
 }
 
