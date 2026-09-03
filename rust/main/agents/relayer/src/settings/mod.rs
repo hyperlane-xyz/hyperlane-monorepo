@@ -73,8 +73,10 @@ pub struct RelayerSettings {
     pub tx_id_indexing_enabled: bool,
     /// Whether to enable IGP indexing.
     pub igp_indexing_enabled: bool,
-    /// Optional scraper-proxy WebSocket used for shadow stream validation.
+    /// Optional scraper-proxy WebSocket used for shared indexing.
     pub websocket_url: Option<url::Url>,
+    /// Whether a healthy scraper-proxy stream may replace direct RPC indexing.
+    pub websocket_authority_enabled: bool,
     /// Whether to enable the relay API endpoint (default: false)
     ///
     /// # Deployment requirement
@@ -419,6 +421,17 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                 );
             }
         }
+        let websocket_authority_enabled = p
+            .chain(&mut err)
+            .get_opt_key("websocketAuthorityEnabled")
+            .parse_bool()
+            .unwrap_or(false);
+        if websocket_authority_enabled && websocket_url.is_none() {
+            err.push(
+                cwp.clone(),
+                eyre::eyre!("`websocketAuthorityEnabled` requires `websocketUrl`"),
+            );
+        }
 
         let relay_api_enabled = p
             .chain(&mut err)
@@ -497,6 +510,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             tx_id_indexing_enabled,
             igp_indexing_enabled,
             websocket_url,
+            websocket_authority_enabled,
             relay_api_enabled,
             relay_api_port,
             relay_api_rate_limit_max_requests,
@@ -709,5 +723,20 @@ mod test {
         .to_string();
 
         assert!(error.contains("must use ws:// or wss://"));
+    }
+
+    #[test]
+    fn scraper_authority_requires_websocket_url() {
+        let error = parse_settings(json!({
+            "relaychains": "legacy",
+            "websocketauthorityenabled": true,
+            "chains": {
+                "legacy": chain_config("legacy", 1000),
+            },
+        }))
+        .expect_err("authority without a WebSocket URL must reject")
+        .to_string();
+
+        assert!(error.contains("requires `websocketUrl`"));
     }
 }
