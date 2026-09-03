@@ -3,7 +3,8 @@ use std::path::PathBuf;
 use async_trait::async_trait;
 use eyre::{Context, Result};
 use hyperlane_core::{
-    ReorgEvent, ReorgEventResponse, SignedAnnouncement, SignedCheckpointWithMessageId,
+    accumulator::incremental::MerkleTreeSnapshot, ReorgEvent, ReorgEventResponse,
+    SignedAnnouncement, SignedCheckpointWithMessageId,
 };
 use prometheus::IntGauge;
 use tracing::error;
@@ -35,6 +36,10 @@ impl LocalStorage {
 
     fn latest_index_file_path(&self) -> PathBuf {
         self.path.join("index.json")
+    }
+
+    fn merkle_snapshot_file_path(&self) -> PathBuf {
+        self.path.join("merkle_snapshot.json")
     }
 
     fn announcement_file_path(&self) -> PathBuf {
@@ -79,6 +84,23 @@ impl CheckpointSyncer for LocalStorage {
         tokio::fs::write(&path, index.to_string())
             .await
             .with_context(|| format!("Writing index to {path:?}"))?;
+        Ok(())
+    }
+
+    async fn read_merkle_snapshot(&self) -> Result<Option<MerkleTreeSnapshot>> {
+        let Ok(data) = tokio::fs::read(self.merkle_snapshot_file_path()).await else {
+            return Ok(None);
+        };
+        let snapshot = serde_json::from_slice(&data)?;
+        Ok(Some(snapshot))
+    }
+
+    async fn write_merkle_snapshot(&self, snapshot: &MerkleTreeSnapshot) -> Result<()> {
+        let serialized_snapshot = serde_json::to_string(snapshot)?;
+        let path = self.merkle_snapshot_file_path();
+        tokio::fs::write(&path, &serialized_snapshot)
+            .await
+            .with_context(|| format!("Writing merkle snapshot to {path:?}"))?;
         Ok(())
     }
 

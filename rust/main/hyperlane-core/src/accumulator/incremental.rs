@@ -107,6 +107,54 @@ impl IncrementalMerkle {
     }
 }
 
+/// A persisted snapshot of an `IncrementalMerkle`: just the O(depth) frontier
+/// plus the leaf count (about a kilobyte), not the full tree. A validator
+/// restart can restore this instead of re-ingesting every historical leaf from
+/// the local database, then replay only the tail and let the usual
+/// root-equality check against the correctness checkpoint prove the result.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct MerkleTreeSnapshot {
+    /// Index of the last leaf covered by the snapshot (`count - 1`).
+    pub index: u32,
+    /// Tree root at the snapshot index.
+    pub root: H256,
+    /// Borsh-serialized `IncrementalMerkle`.
+    pub tree: Vec<u8>,
+}
+
+impl MerkleTreeSnapshot {
+    /// Capture the current tree state. Fails on an empty tree, which has no
+    /// meaningful index.
+    pub fn capture(tree: &IncrementalMerkle) -> eyre::Result<Self> {
+        if tree.count() == 0 {
+            eyre::bail!("Cannot snapshot an empty merkle tree");
+        }
+        Ok(Self {
+            index: (tree.count() as u32).saturating_sub(1),
+            root: tree.root(),
+            tree: borsh::to_vec(tree)?,
+        })
+    }
+
+    /// Restore the tree, verifying the bytes actually decode to the claimed
+    /// index and root. Callers must additionally check the root against a
+    /// trusted checkpoint before replaying onto the restored tree.
+    pub fn restore(&self) -> eyre::Result<IncrementalMerkle> {
+        let tree: IncrementalMerkle = borsh::from_slice(&self.tree)?;
+        if tree.count() == 0 || (tree.count() as u32).saturating_sub(1) != self.index {
+            eyre::bail!(
+                "Snapshot index {} does not match decoded tree count {}",
+                self.index,
+                tree.count(),
+            );
+        }
+        if tree.root() != self.root {
+            eyre::bail!("Snapshot root does not match decoded tree root");
+        }
+        Ok(tree)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -140,6 +188,29 @@ mod test {
         let serialized = borsh::to_vec(&tree).unwrap();
         let deserialized: IncrementalMerkle = borsh::from_slice(&serialized).unwrap();
         assert_eq!(tree, deserialized);
+    }
+
+    #[test]
+    fn snapshot_capture_restore_round_trip() {
+        let mut tree = IncrementalMerkle::default();
+        assert!(MerkleTreeSnapshot::capture(&tree).is_err());
+        for i in 0..17u64 {
+            tree.ingest(H256::from_low_u64_be(i));
+        }
+        let snapshot = MerkleTreeSnapshot::capture(&tree).unwrap();
+        assert_eq!(snapshot.index, 16);
+        assert_eq!(snapshot.root, tree.root());
+        // ~1 KiB frontier, not the full tree.
+        assert!(snapshot.tree.len() < 2048);
+        let restored = snapshot.restore().unwrap();
+        assert_eq!(restored, tree);
+
+        let mut tampered = snapshot.clone();
+        tampered.root = H256::from_low_u64_be(0xdead);
+        assert!(tampered.restore().is_err());
+        let mut misindexed = snapshot.clone();
+        misindexed.index += 1;
+        assert!(misindexed.restore().is_err());
     }
 }
 
