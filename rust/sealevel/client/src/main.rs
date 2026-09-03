@@ -155,6 +155,9 @@ pub(crate) struct AltCreateCmd {
     /// Mailbox program ID (inbox PDA derived from this)
     #[arg(long)]
     pub mailbox: Pubkey,
+    /// Additional addresses to include in the ALT.
+    #[arg(long = "additional-address")]
+    pub additional_addresses: Vec<Pubkey>,
     /// Output format (text or json)
     #[arg(long, default_value = "text")]
     pub output_format: AltOutputFormat,
