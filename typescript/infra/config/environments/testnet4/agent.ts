@@ -138,6 +138,9 @@ const contextBase = {
   },
 } as const;
 
+const scraperWebsocketUrl =
+  'ws://scraper-proxy.testnet4.svc.cluster.local:8383/agents';
+
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
@@ -343,6 +346,7 @@ const hyperlane: RootAgentConfig = {
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
+    websocketUrl: scraperWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.validator,
@@ -357,6 +361,18 @@ const hyperlane: RootAgentConfig = {
       tag: testnetDockerTags.scraper,
     },
     resources: scraperResources,
+  },
+  scraperProxy: {
+    docker: {
+      repo: DockerImageRepos.NODE_SERVICES,
+      tag: testnetDockerTags.scraperProxy,
+    },
+    enabled: true,
+    port: 8383,
+    replicas: 1,
+    resources: {
+      requests: { cpu: '500m', memory: '1Gi' },
+    },
   },
 };
 
@@ -396,6 +412,7 @@ const releaseCandidate: RootAgentConfig = {
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
+    websocketUrl: scraperWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.validatorRC,
@@ -445,6 +462,7 @@ const neutron: RootAgentConfig = {
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
+    websocketUrl: scraperWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.validatorRC,
@@ -483,6 +501,7 @@ const fastPath: RootAgentConfig = {
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
+    websocketUrl: scraperWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.validatorFastPath,

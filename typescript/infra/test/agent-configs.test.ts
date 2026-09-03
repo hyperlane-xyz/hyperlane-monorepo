@@ -41,6 +41,23 @@ const environmentChainConfigs = {
 };
 
 describe('Agent configs', () => {
+  const environmentAgents = {
+    mainnet3: mainnet3Agents,
+    testnet4: testnet4Agents,
+  };
+
+  Object.entries(environmentAgents).forEach(([environment, agents]) => {
+    Object.entries(agents).forEach(([context, config]) => {
+      if (!config.validators) return;
+
+      it(`configures ${environment}/${context} validators for the shared scraper`, () => {
+        expect(config.validators?.websocketUrl).to.equal(
+          `ws://scraper-proxy.${environment}.svc.cluster.local:8383/agents`,
+        );
+      });
+    });
+  });
+
   it('polls fastpath relayer indexes every two seconds', () => {
     expect(
       mainnet3Agents[Contexts.FastPath].relayer?.interval,
