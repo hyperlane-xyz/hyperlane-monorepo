@@ -28,6 +28,8 @@ use super::{
 };
 use crate::{db_loader::DbLoaderExt, settings::matching_list::MatchingList};
 
+const LEGACY_MIGRATION_BATCH_SIZE: usize = 256;
+
 /// Finds unprocessed messages from an origin and submits them through a channel
 /// for to the appropriate destination.
 #[allow(clippy::too_many_arguments)]
@@ -50,6 +52,7 @@ pub struct MessageDbLoader {
     migration_iterator: Option<LegacyMessageIterator>,
     destination_iterators: Vec<DestinationIndexIterator>,
     next_destination: usize,
+    destination_scan_pending: bool,
     max_retries: u32,
     index_notifications: Option<Receiver<IndexingNotification>>,
 }
@@ -440,24 +443,31 @@ impl DbLoaderExt for MessageDbLoader {
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
         self.drain_index_notifications()?;
-        self.metrics
-            .update_ingress_depths(&self.send_channels, &self.destination_iterators);
+        let migration_was_active = self.migration_iterator.is_some();
+        self.migrate_legacy_batch().await?;
 
-        self.migrate_legacy_record().await?;
+        if self.destination_scan_pending {
+            self.metrics
+                .update_ingress_depths(&self.send_channels, &self.destination_iterators);
 
-        let destination_count = self.destination_iterators.len();
-        for _ in 0..destination_count {
-            let index = self.next_destination;
-            self.next_destination = (self.next_destination + 1) % destination_count;
-            if self.try_load_destination(index).await? {
-                return Ok(());
+            let destination_count = self.destination_iterators.len();
+            for _ in 0..destination_count {
+                let index = self.next_destination;
+                self.next_destination = (self.next_destination + 1) % destination_count;
+                if self.try_load_destination(index).await? {
+                    return Ok(());
+                }
             }
+            self.destination_scan_pending = false;
         }
 
         let migration_blocked = self
             .destination_iterators
             .iter()
             .any(|iterator| !iterator.reconsider_nonces.is_empty());
+        if migration_was_active && self.migration_iterator.is_none() {
+            return Ok(());
+        }
         if self.migration_iterator.is_none() || migration_blocked {
             self.wait_for_work().await;
         }
@@ -499,6 +509,7 @@ impl MessageDbLoader {
             db,
             destination_iterators,
             next_destination: 0,
+            destination_scan_pending: true,
             max_retries,
             index_notifications,
         })
@@ -534,6 +545,7 @@ impl MessageDbLoader {
     }
 
     fn apply_index_notification(&mut self, notification: IndexingNotification) -> Result<()> {
+        self.destination_scan_pending = true;
         let mut fallback_reopen =
             notification.sequences.is_empty() || notification.sequences.iter().any(Option::is_none);
         for nonce in notification.sequences.into_iter().flatten() {
@@ -565,6 +577,7 @@ impl MessageDbLoader {
     }
 
     fn request_low_range_reopens(&mut self) {
+        self.destination_scan_pending = true;
         for iterator in &mut self.destination_iterators {
             iterator.request_low_range_reopen();
         }
@@ -615,9 +628,10 @@ impl MessageDbLoader {
                 self.request_low_range_reopens();
             }
         }
+        self.destination_scan_pending = true;
     }
 
-    async fn migrate_legacy_record(&mut self) -> Result<()> {
+    async fn migrate_legacy_batch(&mut self) -> Result<()> {
         if self
             .destination_iterators
             .iter()
@@ -633,24 +647,31 @@ impl MessageDbLoader {
             .scan_duration_seconds
             .with_label_values(&[self.metrics.origin.as_str(), "all", "migration"])
             .start_timer();
-        if let Some(message) = iterator.try_get_next_message(&self.metrics).await? {
-            let destination = message.destination.to_string();
-            self.metrics
-                .logical_db_reads
-                .with_label_values(&[
-                    self.metrics.origin.as_str(),
-                    destination.as_str(),
-                    "migration",
-                    "reconcile",
-                ])
-                .inc_by(2);
-            self.db.reconcile_pending_message_index(&message)?;
-            if let Some(iterator) = self
-                .destination_iterators
-                .iter_mut()
-                .find(|iterator| iterator.destination == message.destination)
-            {
-                iterator.reconsider(message.nonce);
+        for _ in 0..LEGACY_MIGRATION_BATCH_SIZE {
+            if let Some(message) = iterator.try_get_next_message(&self.metrics).await? {
+                let destination = message.destination.to_string();
+                self.metrics
+                    .logical_db_reads
+                    .with_label_values(&[
+                        self.metrics.origin.as_str(),
+                        destination.as_str(),
+                        "migration",
+                        "reconcile",
+                    ])
+                    .inc_by(2);
+                self.db.reconcile_pending_message_index(&message)?;
+                if let Some(iterator) = self
+                    .destination_iterators
+                    .iter_mut()
+                    .find(|iterator| iterator.destination == message.destination)
+                {
+                    iterator.reconsider(message.nonce);
+                }
+                self.destination_scan_pending = true;
+                break;
+            }
+            if iterator.migration_complete() {
+                break;
             }
         }
         if iterator.migration_complete() {
@@ -763,6 +784,7 @@ impl MessageDbLoader {
             ])
             .inc();
         if self.db.retrieve_terminally_dropped_message(&message.id())? {
+            self.db.delete_pending_message_index(&message)?;
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }

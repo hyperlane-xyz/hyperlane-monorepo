@@ -3,7 +3,7 @@ use std::{
     fmt::{Debug, Formatter},
     hash::Hash,
     sync::Arc,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use async_trait::async_trait;
@@ -73,6 +73,7 @@ mod origin;
 
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
+const MESSAGE_DB_LOADER_INIT_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 const ADVANCED_LOG_META: bool = false;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
@@ -507,22 +508,34 @@ impl BaseAgent for Relayer {
             };
             tasks.push(merkle_tree_hook_sync);
 
-            let message_db_loader = match self.run_message_db_loader(
-                origin,
-                send_channels.clone(),
-                BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
-                task_monitor.clone(),
-                &message_db_loader_metrics,
-            ) {
-                Ok(task) => task,
-                Err(err) => {
-                    Self::record_critical_error(
-                        origin_domain,
-                        &self.chain_metrics,
-                        &err,
-                        "Failed to run message db loader",
-                    );
-                    continue;
+            let mut message_db_loader_init_failed = false;
+            let message_db_loader = loop {
+                let index_notifications =
+                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await;
+                match self.run_message_db_loader(
+                    origin,
+                    send_channels.clone(),
+                    index_notifications,
+                    task_monitor.clone(),
+                    &message_db_loader_metrics,
+                ) {
+                    Ok(task) => {
+                        if message_db_loader_init_failed {
+                            self.chain_metrics
+                                .set_critical_error(origin_domain.name(), false);
+                        }
+                        break task;
+                    }
+                    Err(err) => {
+                        message_db_loader_init_failed = true;
+                        Self::record_critical_error(
+                            origin_domain,
+                            &self.chain_metrics,
+                            &err,
+                            "Failed to run message db loader; retrying",
+                        );
+                        tokio::time::sleep(MESSAGE_DB_LOADER_INIT_RETRY_INTERVAL).await;
+                    }
                 }
             };
             tasks.push(message_db_loader);
