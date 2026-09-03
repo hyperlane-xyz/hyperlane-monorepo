@@ -1047,7 +1047,8 @@ impl BaseAgent for Validator {
         let merkle_tree_hook_sync = match self
             .try_n_times_to_run_merkle_tree_hook_sync(
                 CURSOR_INSTANTIATION_ATTEMPTS,
-                tip_tree.count()
+                tip_tree
+                    .count()
                     .try_into()
                     .expect("Merkle tree leaf count must fit in u32"),
             )
