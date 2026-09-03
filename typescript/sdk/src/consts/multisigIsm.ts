@@ -333,15 +333,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   celo: {
-    threshold: 4,
+    threshold: 3,
     validators: [
       {
         address: '0x63478422679303c3e4fc611b771fa4a707ef7f4a',
         alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0xeb0c31e2f2671d724a2589d4a8eca91b97559148',
-        alias: 'Imperator',
       },
       {
         address: '0x033e391e9fc57a7b5dd6c91b69be9a1ed11c4986',
@@ -505,10 +501,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xb683b742b378632a5f73a2a5a45801b3489bba44',
         alias: 'AVS: Luganodes',
       },
-      {
-        address: '0x3786083ca59dc806d894104e65a13a70c2b39276',
-        alias: 'Imperator',
-      },
       DEFAULT_MITOSIS_VALIDATOR,
       {
         address: '0x29d783efb698f9a2d3045ef4314af1f5674f52c5',
@@ -593,10 +585,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0x1c3C3013B863Cf666499Da1A61949AE396E3Ab82',
         alias: 'Enigma',
-      },
-      {
-        address: '0x573e960e07ad74ea2c5f1e3c31b2055994b12797',
-        alias: 'Imperator',
       },
       DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
@@ -790,7 +778,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   lisk: {
-    threshold: 5,
+    threshold: 4,
     validators: [
       {
         address: '0xc0b282aa5bac43fee83cf71dc3dd1797c1090ea5',
@@ -800,10 +788,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0x3DA4ee2801Ec6CC5faD73DBb94B10A203ADb3d9e',
         alias: 'Enigma',
-      },
-      {
-        address: '0x4df6e8878992c300e7bfe98cac6bf7d3408b9cbf',
-        alias: 'Imperator',
       },
       {
         address: '0xf0da628f3fb71652d48260bad4691054045832ce',
@@ -886,17 +870,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   metal: {
-    threshold: 4,
+    threshold: 3,
     validators: [
       {
         address: '0xd9f7f1a05826197a93df51e86cefb41dfbfb896a',
         alias: AW_VALIDATOR_ALIAS,
       },
-      {
-        address: '0x01e3909133d20c05bbc94247769235d30101f748',
-        alias: 'Imperator',
-      },
-
       {
         address: '0xaba06266f47e3ef554d218b879bd86114a8dabd4',
         alias: 'Enigma',
@@ -963,7 +942,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   mode: {
-    threshold: 4,
+    threshold: 3,
     validators: [
       {
         address: '0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7',
@@ -973,10 +952,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0x65C140e3a05F33192384AffEF985696Fe3cDDE42',
         alias: 'Enigma',
-      },
-      {
-        address: '0x20eade18ea2af6dfd54d72b3b5366b40fcb47f4b',
-        alias: 'Imperator',
       },
       {
         address: '0x485a4f0009d9afbbf44521016f9b8cdd718e36ea',
@@ -1025,7 +1000,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   optimism: {
-    threshold: 4,
+    threshold: 3,
     validators: [
       {
         address: '0x20349eadc6c72e94ce38268b96692b1a5c20de4f',
@@ -1035,10 +1010,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0xd8c1cCbfF28413CE6c6ebe11A3e29B0D8384eDbB',
         alias: 'Enigma',
-      },
-      {
-        address: '0x1b9e5f36c4bfdb0e3f0df525ef5c888a4459ef99',
-        alias: 'Imperator',
       },
       {
         address: '0xf9dfaa5c20ae1d84da4b2696b8dc80c919e48b12',
@@ -1281,15 +1252,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   soneium: {
-    threshold: 4,
+    threshold: 3,
     validators: [
       {
         address: '0xd4b7af853ed6a2bfc329ecef545df90c959cbee8',
         alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0x9f4fa50ce49815b0932428a0eb1988382cef4a97',
-        alias: 'Imperator',
       },
       {
         address: '0x8d2f8ebd61d055d58768cf3b07cb2fb565d87716',
@@ -1508,10 +1475,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       {
-        address: '0xa2549be30fb852c210c2fe8e7639039dca779936',
-        alias: 'Imperator',
-      },
-      {
         address: '0xbcbed4d11e946844162cd92c6d09d1cf146b4006',
         alias: 'Enigma',
       },
@@ -1543,15 +1506,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   worldchain: {
-    threshold: 4,
+    threshold: 3,
     validators: [
       {
         address: '0x31048785845325b22817448b68d08f8a8fe36854',
         alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0x11e2a683e83617f186614071e422b857256a9aae',
-        alias: 'Imperator',
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_ZEE_PRIME_VALIDATOR,
