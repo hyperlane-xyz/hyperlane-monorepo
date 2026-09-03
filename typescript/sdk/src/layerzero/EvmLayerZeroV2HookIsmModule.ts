@@ -20,6 +20,13 @@ import { ChainMap, ChainName } from '../types.js';
 
 import { EvmLayerZeroV2HookIsmReader } from './EvmLayerZeroV2HookIsmReader.js';
 import {
+  encodeLayerZeroV2ExecutorConfig,
+  encodeLayerZeroV2UlnConfig,
+  layerZeroV2ReceiveConfigParams,
+  layerZeroV2SendConfigParams,
+  LayerZeroV2ConfigType,
+} from './configCodec.js';
+import {
   DerivedLayerZeroV2HookIsmConfig,
   LayerZeroV2HookIsmConfig,
   LayerZeroV2HookIsmSchema,
@@ -33,7 +40,6 @@ const ENDPOINT_ABI = [
   'function eid() view returns (uint32)',
   'function nativeToken() view returns (address)',
   'function delegates(address) view returns (address)',
-  'function getConfig(address,address,uint32,uint32) view returns (bytes)',
 ];
 const CCIP_READ_IFACE = new utils.Interface(['function setUrls(string[])']);
 
@@ -66,16 +72,18 @@ function remoteEnrollment(
     receiveLibraryTimeout:
       remote.receiveLibraryTimeout?.library ?? constants.AddressZero,
     receiveLibraryTimeoutExpiry: remote.receiveLibraryTimeout?.expiry ?? 0,
-    sendConfig: remote.sendConfig.map((param) => ({
+    sendConfig: layerZeroV2SendConfigParams(remote.sendConfig).map((param) => ({
       eid: remote.layerZeroDomainId,
       configType: param.configType,
       config: param.config,
     })),
-    receiveConfig: remote.receiveConfig.map((param) => ({
-      eid: remote.layerZeroDomainId,
-      configType: param.configType,
-      config: param.config,
-    })),
+    receiveConfig: layerZeroV2ReceiveConfigParams(remote.receiveConfig).map(
+      (param) => ({
+        eid: remote.layerZeroDomainId,
+        configType: param.configType,
+        config: param.config,
+      }),
+    ),
   };
 }
 
@@ -177,10 +185,7 @@ export class EvmLayerZeroV2HookIsmModule {
         continue;
       }
       assert(actual, `Missing current LayerZero route for ${remoteChain}`);
-      const changedConfig = await this.changedLayerZeroConfigs(
-        current.endpoint,
-        remote,
-      );
+      const changedConfig = this.changedLayerZeroConfigs(actual, remote);
       let callbackChanged = false;
       if (target.type === LayerZeroV2Variant.Callback) {
         assert(
@@ -271,54 +276,49 @@ export class EvmLayerZeroV2HookIsmModule {
     );
   }
 
-  private async changedLayerZeroConfigs(
-    endpointAddress: Address,
-    remote: LayerZeroV2RemoteRouterConfig,
-  ): Promise<{
+  private changedLayerZeroConfigs(
+    current: LayerZeroV2RemoteRouterConfig,
+    target: LayerZeroV2RemoteRouterConfig,
+  ): {
     sendConfig: LayerZeroV2ConfigParam[];
     receiveConfig: LayerZeroV2ConfigParam[];
-  }> {
-    const endpoint = new Contract(
-      endpointAddress,
-      ENDPOINT_ABI,
-      this.multiProvider.getProvider(this.chain),
-    );
-    const result = { sendConfig: [], receiveConfig: [] } as {
-      sendConfig: Array<{
-        eid: number;
-        configType: 1 | 2;
-        config: string;
-      }>;
-      receiveConfig: Array<{
-        eid: number;
-        configType: 1 | 2;
-        config: string;
-      }>;
+  } {
+    const result: {
+      sendConfig: LayerZeroV2ConfigParam[];
+      receiveConfig: LayerZeroV2ConfigParam[];
+    } = { sendConfig: [], receiveConfig: [] };
+    const addIfChanged = (
+      destination: LayerZeroV2ConfigParam[],
+      configType: 1 | 2,
+      currentConfig: string,
+      targetConfig: string,
+    ) => {
+      if (currentConfig.toLowerCase() !== targetConfig.toLowerCase()) {
+        destination.push({
+          eid: target.layerZeroDomainId,
+          configType,
+          config: targetConfig,
+        });
+      }
     };
-    for (const [library, params, direction] of [
-      [remote.sendLibrary, remote.sendConfig, 'send'],
-      [remote.receiveLibrary, remote.receiveConfig, 'receive'],
-    ] as const) {
-      const changed = [];
-      for (const param of params) {
-        const actual: string = await endpoint.getConfig(
-          this.address,
-          library,
-          remote.layerZeroDomainId,
-          param.configType,
-        );
-        if (actual.toLowerCase() !== param.config.toLowerCase()) {
-          changed.push({
-            eid: remote.layerZeroDomainId,
-            configType: param.configType,
-            config: param.config,
-          });
-        }
-      }
-      if (changed.length > 0) {
-        result[`${direction}Config`] = changed;
-      }
-    }
+    addIfChanged(
+      result.sendConfig,
+      LayerZeroV2ConfigType.Executor,
+      encodeLayerZeroV2ExecutorConfig(current.sendConfig.executor),
+      encodeLayerZeroV2ExecutorConfig(target.sendConfig.executor),
+    );
+    addIfChanged(
+      result.sendConfig,
+      LayerZeroV2ConfigType.Uln,
+      encodeLayerZeroV2UlnConfig(current.sendConfig.uln),
+      encodeLayerZeroV2UlnConfig(target.sendConfig.uln),
+    );
+    addIfChanged(
+      result.receiveConfig,
+      LayerZeroV2ConfigType.Uln,
+      encodeLayerZeroV2UlnConfig(current.receiveConfig.uln),
+      encodeLayerZeroV2UlnConfig(target.receiveConfig.uln),
+    );
     return result;
   }
 

@@ -1226,5 +1226,6 @@ export type {
 } from './wormhole/types.js';
 export * from './layerzero/types.js';
 export * from './layerzero/config.js';
+export * from './layerzero/configCodec.js';
 export * from './layerzero/EvmLayerZeroV2HookIsmReader.js';
 export * from './layerzero/EvmLayerZeroV2HookIsmModule.js';

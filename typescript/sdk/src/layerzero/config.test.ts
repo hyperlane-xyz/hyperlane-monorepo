@@ -10,9 +10,21 @@ import {
   materializeLayerZeroV2WarpConfig,
   pairLayerZeroV2Configs,
 } from './config.js';
-import { LayerZeroV2PathwaySchema, LayerZeroV2Variant } from './types.js';
+import {
+  LayerZeroV2ConfigMode,
+  LayerZeroV2PathwaySchema,
+  LayerZeroV2Variant,
+} from './types.js';
 
 const address = () => ethers.Wallet.createRandom().address;
+
+const defaultSendConfig = () => ({
+  executor: { type: LayerZeroV2ConfigMode.Default },
+  uln: { type: LayerZeroV2ConfigMode.Default },
+});
+const defaultReceiveConfig = () => ({
+  uln: { type: LayerZeroV2ConfigMode.Default },
+});
 
 function callbackConfig(): Record<string, LayerZeroV2WarpChainConfig> {
   const endpointA = address();
@@ -44,8 +56,8 @@ function callbackConfig(): Record<string, LayerZeroV2WarpChainConfig> {
             sendLibrary: libraryA,
             receiveLibrary: libraryA,
             receiveLibraryGracePeriod: 0,
-            sendConfig: [],
-            receiveConfig: [],
+            sendConfig: defaultSendConfig(),
+            receiveConfig: defaultReceiveConfig(),
           },
         },
       },
@@ -67,8 +79,8 @@ function callbackConfig(): Record<string, LayerZeroV2WarpChainConfig> {
             sendLibrary: libraryB,
             receiveLibrary: libraryB,
             receiveLibraryGracePeriod: 0,
-            sendConfig: [],
-            receiveConfig: [],
+            sendConfig: defaultSendConfig(),
+            receiveConfig: defaultReceiveConfig(),
           },
         },
       },
@@ -120,8 +132,8 @@ describe('LayerZero V2 warp config', () => {
               sendLibrary: address(),
               receiveLibrary: address(),
               receiveLibraryGracePeriod: 0,
-              sendConfig: [],
-              receiveConfig: [],
+              sendConfig: defaultSendConfig(),
+              receiveConfig: defaultReceiveConfig(),
             },
           },
         },
@@ -132,37 +144,79 @@ describe('LayerZero V2 warp config', () => {
     );
   });
 
-  it('canonicalizes and validates Endpoint config types', () => {
+  it('canonicalizes and validates typed overrides', () => {
+    const lowerDvn = '0x0000000000000000000000000000000000000001';
+    const higherDvn = '0x0000000000000000000000000000000000000002';
     const pathway = {
       layerZeroDomainId: 102,
       sendLibrary: address(),
       receiveLibrary: address(),
       receiveLibraryGracePeriod: 0,
-      sendConfig: [
-        { configType: 2, config: '0x1234' },
-        { configType: 1, config: '0xabcd' },
-      ],
-      receiveConfig: [],
+      sendConfig: {
+        executor: {
+          type: LayerZeroV2ConfigMode.Override,
+          maxMessageSize: 20_000,
+        },
+        uln: {
+          type: LayerZeroV2ConfigMode.Override,
+          confirmations: 12,
+          requiredDVNs: [higherDvn, lowerDvn],
+          optionalDVNs: [],
+        },
+      },
+      receiveConfig: defaultReceiveConfig(),
     };
     const parsed = LayerZeroV2PathwaySchema.parse(pathway);
-    expect(parsed.sendConfig.map(({ configType }) => configType)).to.deep.equal(
-      [1, 2],
-    );
+    expect(parsed.sendConfig.uln).to.include({
+      type: LayerZeroV2ConfigMode.Override,
+      confirmations: 12n,
+    });
+    expect(
+      parsed.sendConfig.uln.type === LayerZeroV2ConfigMode.Override
+        ? parsed.sendConfig.uln.requiredDVNs
+        : undefined,
+    ).to.deep.equal([lowerDvn, higherDvn]);
+    expect(
+      parsed.sendConfig.uln.type === LayerZeroV2ConfigMode.Override
+        ? parsed.sendConfig.uln.optionalDVNThreshold
+        : undefined,
+    ).to.equal(0);
     expect(() =>
       LayerZeroV2PathwaySchema.parse({
         ...pathway,
-        sendConfig: [
-          { configType: 2, config: '0x1234' },
-          { configType: 2, config: '0xabcd' },
-        ],
+        sendConfig: {
+          ...pathway.sendConfig,
+          uln: {
+            type: LayerZeroV2ConfigMode.Override,
+            requiredDVNs: [lowerDvn, lowerDvn],
+          },
+        },
       }),
-    ).to.throw('Duplicate LayerZero config type 2');
+    ).to.throw('Duplicate LayerZero DVN');
     expect(() =>
       LayerZeroV2PathwaySchema.parse({
         ...pathway,
-        receiveConfig: [{ configType: 1, config: '0x1234' }],
+        receiveConfig: {
+          uln: {
+            type: LayerZeroV2ConfigMode.Override,
+            optionalDVNs: [lowerDvn],
+            optionalDVNThreshold: 2,
+          },
+        },
       }),
-    ).to.throw('receive config only supports ULN config type 2');
+    ).to.throw('between 1 and the DVN count');
+    expect(() =>
+      LayerZeroV2PathwaySchema.parse({
+        ...pathway,
+        receiveConfig: {
+          uln: {
+            type: LayerZeroV2ConfigMode.Override,
+            requiredDVNs: [],
+            optionalDVNs: [],
+          },
+        },
+      }),
+    ).to.throw('retain at least one DVN');
     expect(() =>
       LayerZeroV2PathwaySchema.parse({
         ...pathway,
@@ -172,9 +226,27 @@ describe('LayerZero V2 warp config', () => {
     expect(() =>
       LayerZeroV2PathwaySchema.parse({
         ...pathway,
-        sendConfig: [{ configType: 1, config: '0x' }],
+        sendConfig: {
+          ...pathway.sendConfig,
+          executor: {
+            type: LayerZeroV2ConfigMode.Override,
+            executor: ethers.constants.AddressZero,
+          },
+        },
       }),
-    ).to.throw();
+    ).to.throw('nonzero EVM address');
+    expect(() =>
+      LayerZeroV2PathwaySchema.parse({
+        ...pathway,
+        sendConfig: {
+          ...pathway.sendConfig,
+          executor: {
+            type: LayerZeroV2ConfigMode.Default,
+            maxMessageSize: 20_000,
+          },
+        },
+      }),
+    ).to.throw('Unrecognized key');
   });
 
   it('materializes omitted pathway defaults', () => {
@@ -184,7 +256,7 @@ describe('LayerZero V2 warp config', () => {
       receiveLibrary: address(),
     });
     expect(parsed.receiveLibraryGracePeriod).to.equal(0);
-    expect(parsed.sendConfig).to.deep.equal([]);
-    expect(parsed.receiveConfig).to.deep.equal([]);
+    expect(parsed.sendConfig).to.deep.equal(defaultSendConfig());
+    expect(parsed.receiveConfig).to.deep.equal(defaultReceiveConfig());
   });
 });

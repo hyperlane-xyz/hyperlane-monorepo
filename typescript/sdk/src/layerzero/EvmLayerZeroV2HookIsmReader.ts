@@ -3,7 +3,7 @@ import {
   LayerZeroV2CcipReadHookIsm__factory,
 } from '@hyperlane-xyz/core';
 import { Address, bytes32ToAddress } from '@hyperlane-xyz/utils';
-import { Contract } from 'ethers';
+import { BigNumberish, Contract } from 'ethers';
 
 import { OnchainHookType } from '../hook/types.js';
 import { ModuleType } from '../ism/types.js';
@@ -15,6 +15,13 @@ import {
   LayerZeroV2RemoteRouterConfig,
   LayerZeroV2Variant,
 } from './types.js';
+import {
+  decodeLayerZeroV2AppExecutorConfig,
+  decodeLayerZeroV2AppUlnConfig,
+  decodeLayerZeroV2EffectiveExecutorConfig,
+  decodeLayerZeroV2EffectiveUlnConfig,
+  LayerZeroV2ConfigType,
+} from './configCodec.js';
 
 const ENDPOINT_READ_ABI = [
   'function getSendLibrary(address,uint32) view returns (address)',
@@ -23,8 +30,10 @@ const ENDPOINT_READ_ABI = [
   'function delegates(address) view returns (address)',
   'function getConfig(address,address,uint32,uint32) view returns (bytes)',
 ];
-const LAYER_ZERO_V2_SEND_CONFIG_TYPES = [1, 2] as const;
-const LAYER_ZERO_V2_RECEIVE_CONFIG_TYPES = [2] as const;
+const MESSAGE_LIBRARY_READ_ABI = [
+  'function executorConfigs(address,uint32) view returns (uint32 maxMessageSize,address executor)',
+  'function getAppUlnConfig(address,uint32) view returns (tuple(uint64 confirmations,uint8 requiredDVNCount,uint8 optionalDVNCount,uint8 optionalDVNThreshold,address[] requiredDVNs,address[] optionalDVNs))',
+];
 
 export class EvmLayerZeroV2HookIsmReader {
   constructor(
@@ -91,22 +100,13 @@ export class EvmLayerZeroV2HookIsmReader {
             endpoint.getReceiveLibrary(address, remoteEid),
             endpoint.receiveLibraryTimeout(address, remoteEid),
           ]);
-        const [sendConfig, receiveConfig] = await Promise.all([
-          this.deriveLibraryConfig(
-            endpoint,
-            address,
-            sendLibrary,
-            remoteEid,
-            LAYER_ZERO_V2_SEND_CONFIG_TYPES,
-          ),
-          this.deriveLibraryConfig(
-            endpoint,
-            address,
-            receive[0],
-            remoteEid,
-            LAYER_ZERO_V2_RECEIVE_CONFIG_TYPES,
-          ),
-        ]);
+        const configs = await this.deriveLibraryConfigs(
+          endpoint,
+          address,
+          sendLibrary,
+          receive[0],
+          remoteEid,
+        );
         const chainName =
           this.multiProvider.tryGetChainName(domain) ?? domain.toString();
         const remote: LayerZeroV2RemoteRouterConfig = {
@@ -115,8 +115,7 @@ export class EvmLayerZeroV2HookIsmReader {
           sendLibrary,
           receiveLibrary: receive[0],
           receiveLibraryGracePeriod: 0,
-          sendConfig,
-          receiveConfig,
+          ...configs,
           ...(timeout[0] !== '0x0000000000000000000000000000000000000000'
             ? {
                 receiveLibraryTimeout: {
@@ -154,26 +153,94 @@ export class EvmLayerZeroV2HookIsmReader {
     };
   }
 
-  private async deriveLibraryConfig(
+  private async deriveLibraryConfigs(
     endpoint: Contract,
     oapp: Address,
-    library: Address,
+    sendLibraryAddress: Address,
+    receiveLibraryAddress: Address,
     eid: number,
-    configTypes: readonly (1 | 2)[],
-  ): Promise<Array<{ configType: 1 | 2; config: string }>> {
-    const entries = await Promise.all(
-      configTypes.map(async (configType) => {
-        const config: string = await endpoint.getConfig(
-          oapp,
-          library,
-          eid,
-          configType,
-        );
-        return config === '0x' ? undefined : { configType, config };
-      }),
+  ): Promise<
+    Pick<
+      LayerZeroV2RemoteRouterConfig,
+      | 'sendConfig'
+      | 'receiveConfig'
+      | 'effectiveSendConfig'
+      | 'effectiveReceiveConfig'
+    >
+  > {
+    const provider = this.multiProvider.getProvider(this.chain);
+    const sendLibrary = new Contract(
+      sendLibraryAddress,
+      MESSAGE_LIBRARY_READ_ABI,
+      provider,
     );
-    return entries.filter(
-      (entry): entry is { configType: 1 | 2; config: string } => !!entry,
+    const receiveLibrary = new Contract(
+      receiveLibraryAddress,
+      MESSAGE_LIBRARY_READ_ABI,
+      provider,
     );
+    const [
+      appExecutor,
+      appSendUln,
+      appReceiveUln,
+      effectiveExecutor,
+      effectiveSendUln,
+      effectiveReceiveUln,
+    ] = await Promise.all([
+      sendLibrary.executorConfigs(oapp, eid),
+      sendLibrary.getAppUlnConfig(oapp, eid),
+      receiveLibrary.getAppUlnConfig(oapp, eid),
+      endpoint.getConfig(
+        oapp,
+        sendLibraryAddress,
+        eid,
+        LayerZeroV2ConfigType.Executor,
+      ),
+      endpoint.getConfig(
+        oapp,
+        sendLibraryAddress,
+        eid,
+        LayerZeroV2ConfigType.Uln,
+      ),
+      endpoint.getConfig(
+        oapp,
+        receiveLibraryAddress,
+        eid,
+        LayerZeroV2ConfigType.Uln,
+      ),
+    ]);
+    const appUlnConfig = (config: {
+      confirmations: BigNumberish;
+      requiredDVNCount: number;
+      optionalDVNCount: number;
+      optionalDVNThreshold: number;
+      requiredDVNs: Address[];
+      optionalDVNs: Address[];
+    }) =>
+      decodeLayerZeroV2AppUlnConfig(
+        config.confirmations,
+        config.requiredDVNCount,
+        config.optionalDVNCount,
+        config.optionalDVNThreshold,
+        config.requiredDVNs,
+        config.optionalDVNs,
+      );
+    return {
+      sendConfig: {
+        executor: decodeLayerZeroV2AppExecutorConfig(
+          Number(appExecutor.maxMessageSize),
+          appExecutor.executor,
+        ),
+        uln: appUlnConfig(appSendUln),
+      },
+      receiveConfig: { uln: appUlnConfig(appReceiveUln) },
+      effectiveSendConfig: {
+        executor: decodeLayerZeroV2EffectiveExecutorConfig(effectiveExecutor),
+        uln: decodeLayerZeroV2EffectiveUlnConfig(effectiveSendUln),
+      },
+      effectiveReceiveConfig: {
+        uln: decodeLayerZeroV2EffectiveUlnConfig(effectiveReceiveUln),
+      },
+    };
   }
 }

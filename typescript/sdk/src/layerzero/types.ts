@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { Address, isAddressEvm } from '@hyperlane-xyz/utils';
+import { Address, isAddressEvm, isZeroishAddress } from '@hyperlane-xyz/utils';
 
 import { ZBigNumberish, ZChainName } from '../metadata/customZodTypes.js';
 import { ChainMap, OwnableSchema } from '../types.js';
@@ -16,36 +16,190 @@ export const LayerZeroV2AddressSchema = z
   .string()
   .refine(isAddressEvm, 'must be a valid EVM address');
 
+const LayerZeroV2ConfigAddressSchema = LayerZeroV2AddressSchema.refine(
+  (address) => !isZeroishAddress(address),
+  'must be a nonzero EVM address',
+);
+
 const MAX_UINT128 = (1n << 128n) - 1n;
+const MAX_UINT64 = (1n << 64n) - 1n;
 export const LayerZeroV2CallbackGasLimitSchema = ZBigNumberish.refine(
   (value) => value > 0n && value <= MAX_UINT128,
   'callbackGasLimit must fit a nonzero uint128',
 );
 
-export const LayerZeroV2ConfigParamSchema = z.object({
-  configType: z.union([z.literal(1), z.literal(2)]),
-  config: z.string().regex(/^0x(?:[0-9a-fA-F]{2})+$/),
-});
+export const LayerZeroV2ConfigMode = {
+  Default: 'default',
+  Override: 'override',
+} as const;
 
-const LayerZeroV2ConfigParamsSchema = z
-  .array(LayerZeroV2ConfigParamSchema)
-  .default([])
-  .superRefine((params, ctx) => {
-    const seen = new Set<number>();
-    params.forEach((param, index) => {
-      if (seen.has(param.configType)) {
+const LayerZeroV2DefaultConfigSchema = z
+  .object({
+    type: z.literal(LayerZeroV2ConfigMode.Default),
+  })
+  .strict();
+
+const LayerZeroV2ExecutorOverrideSchema = z
+  .object({
+    type: z.literal(LayerZeroV2ConfigMode.Override),
+    maxMessageSize: z.number().int().positive().max(0xffffffff).optional(),
+    executor: LayerZeroV2ConfigAddressSchema.optional(),
+  })
+  .strict()
+  .refine(
+    ({ maxMessageSize, executor }) =>
+      maxMessageSize !== undefined || executor !== undefined,
+    'Executor override must set maxMessageSize or executor',
+  );
+
+export const LayerZeroV2ExecutorConfigSchema = z.union([
+  LayerZeroV2DefaultConfigSchema,
+  LayerZeroV2ExecutorOverrideSchema,
+]);
+
+const LayerZeroV2DvnListSchema = z
+  .array(LayerZeroV2ConfigAddressSchema)
+  .max(127)
+  .superRefine((dvns, ctx) => {
+    const seen = new Set<string>();
+    dvns.forEach((dvn, index) => {
+      const normalized = dvn.toLowerCase();
+      if (seen.has(normalized)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: [index, 'configType'],
-          message: `Duplicate LayerZero config type ${param.configType}`,
+          path: [index],
+          message: `Duplicate LayerZero DVN ${dvn}`,
         });
       }
-      seen.add(param.configType);
+      seen.add(normalized);
     });
   })
-  .transform((params) =>
-    [...params].sort((a, b) => a.configType - b.configType),
+  .transform((dvns) =>
+    [...dvns].sort((a, b) => {
+      const left = BigInt(a.toLowerCase());
+      const right = BigInt(b.toLowerCase());
+      return left < right ? -1 : left > right ? 1 : 0;
+    }),
   );
+
+const LayerZeroV2UlnOverrideSchema = z
+  .object({
+    type: z.literal(LayerZeroV2ConfigMode.Override),
+    confirmations: ZBigNumberish.refine(
+      (value) => value <= MAX_UINT64,
+      'confirmations must fit uint64',
+    ).optional(),
+    requiredDVNs: LayerZeroV2DvnListSchema.optional(),
+    optionalDVNs: LayerZeroV2DvnListSchema.optional(),
+    optionalDVNThreshold: z.number().int().nonnegative().max(127).optional(),
+  })
+  .strict()
+  .superRefine((config, ctx) => {
+    if (
+      config.confirmations === undefined &&
+      config.requiredDVNs === undefined &&
+      config.optionalDVNs === undefined
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'ULN override must configure at least one field',
+      });
+    }
+    if (config.optionalDVNs === undefined) {
+      if (config.optionalDVNThreshold !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['optionalDVNThreshold'],
+          message: 'optionalDVNThreshold requires optionalDVNs',
+        });
+      }
+      return;
+    }
+    const expectedThreshold = config.optionalDVNs.length === 0 ? 0 : undefined;
+    if (
+      expectedThreshold === 0 &&
+      config.optionalDVNThreshold !== undefined &&
+      config.optionalDVNThreshold !== 0
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['optionalDVNThreshold'],
+        message: 'Empty optionalDVNs requires threshold 0',
+      });
+    }
+    if (
+      config.optionalDVNs.length > 0 &&
+      (config.optionalDVNThreshold === undefined ||
+        config.optionalDVNThreshold === 0 ||
+        config.optionalDVNThreshold > config.optionalDVNs.length)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['optionalDVNThreshold'],
+        message: 'Optional DVN threshold must be between 1 and the DVN count',
+      });
+    }
+    if (config.requiredDVNs?.length === 0 && config.optionalDVNs.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'ULN config must retain at least one DVN',
+      });
+    }
+  })
+  .transform((config) =>
+    config.optionalDVNs?.length === 0 &&
+    config.optionalDVNThreshold === undefined
+      ? { ...config, optionalDVNThreshold: 0 }
+      : config,
+  );
+
+export const LayerZeroV2UlnConfigSchema = z.union([
+  LayerZeroV2DefaultConfigSchema,
+  LayerZeroV2UlnOverrideSchema,
+]);
+
+export const LayerZeroV2SendConfigSchema = z
+  .object({
+    executor: LayerZeroV2ExecutorConfigSchema.default(() => ({
+      type: LayerZeroV2ConfigMode.Default,
+    })),
+    uln: LayerZeroV2UlnConfigSchema.default(() => ({
+      type: LayerZeroV2ConfigMode.Default,
+    })),
+  })
+  .default({});
+
+export const LayerZeroV2ReceiveConfigSchema = z
+  .object({
+    uln: LayerZeroV2UlnConfigSchema.default(() => ({
+      type: LayerZeroV2ConfigMode.Default,
+    })),
+  })
+  .default({});
+
+export const LayerZeroV2EffectiveExecutorConfigSchema = z.object({
+  maxMessageSize: z.number().int().positive().max(0xffffffff),
+  executor: LayerZeroV2AddressSchema,
+});
+
+export const LayerZeroV2EffectiveUlnConfigSchema = z.object({
+  confirmations: ZBigNumberish.refine(
+    (value) => value <= MAX_UINT64,
+    'confirmations must fit uint64',
+  ),
+  requiredDVNs: LayerZeroV2DvnListSchema,
+  optionalDVNs: LayerZeroV2DvnListSchema,
+  optionalDVNThreshold: z.number().int().nonnegative().max(127),
+});
+
+export const LayerZeroV2EffectiveSendConfigSchema = z.object({
+  executor: LayerZeroV2EffectiveExecutorConfigSchema,
+  uln: LayerZeroV2EffectiveUlnConfigSchema,
+});
+
+export const LayerZeroV2EffectiveReceiveConfigSchema = z.object({
+  uln: LayerZeroV2EffectiveUlnConfigSchema,
+});
 
 const LayerZeroV2PathwayBaseSchema = z.object({
   /** LayerZero calls this the remote Endpoint ID (EID). */
@@ -59,33 +213,21 @@ const LayerZeroV2PathwayBaseSchema = z.object({
       expiry: z.number().int().positive(),
     })
     .optional(),
-  sendConfig: LayerZeroV2ConfigParamsSchema,
-  receiveConfig: LayerZeroV2ConfigParamsSchema,
+  sendConfig: LayerZeroV2SendConfigSchema,
+  receiveConfig: LayerZeroV2ReceiveConfigSchema,
+  /** Effective values after LayerZero applies defaults; informational only. */
+  effectiveSendConfig: LayerZeroV2EffectiveSendConfigSchema.optional(),
+  /** Effective values after LayerZero applies defaults; informational only. */
+  effectiveReceiveConfig: LayerZeroV2EffectiveReceiveConfigSchema.optional(),
 });
 
-function validateLayerZeroV2Pathway(
-  pathway: z.infer<typeof LayerZeroV2PathwayBaseSchema>,
-  ctx: z.RefinementCtx,
-): void {
-  pathway.receiveConfig.forEach((param, index) => {
-    if (param.configType !== 2) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['receiveConfig', index, 'configType'],
-        message: 'LayerZero receive config only supports ULN config type 2',
-      });
-    }
-  });
-}
-
-export const LayerZeroV2PathwaySchema =
-  LayerZeroV2PathwayBaseSchema.superRefine(validateLayerZeroV2Pathway);
+export const LayerZeroV2PathwaySchema = LayerZeroV2PathwayBaseSchema;
 
 export const LayerZeroV2RemoteRouterSchema =
   LayerZeroV2PathwayBaseSchema.extend({
     router: LayerZeroV2AddressSchema,
     callbackGasLimit: LayerZeroV2CallbackGasLimitSchema.optional(),
-  }).superRefine(validateLayerZeroV2Pathway);
+  });
 
 export const LayerZeroV2HookIsmSchema = OwnableSchema.extend({
   type: z.union([
@@ -149,6 +291,20 @@ export const LayerZeroV2HookIsmSchema = OwnableSchema.extend({
 });
 
 export type LayerZeroV2HookIsmConfig = z.infer<typeof LayerZeroV2HookIsmSchema>;
+export type LayerZeroV2ExecutorConfig = z.infer<
+  typeof LayerZeroV2ExecutorConfigSchema
+>;
+export type LayerZeroV2UlnConfig = z.infer<typeof LayerZeroV2UlnConfigSchema>;
+export type LayerZeroV2SendConfig = z.infer<typeof LayerZeroV2SendConfigSchema>;
+export type LayerZeroV2ReceiveConfig = z.infer<
+  typeof LayerZeroV2ReceiveConfigSchema
+>;
+export type LayerZeroV2EffectiveExecutorConfig = z.infer<
+  typeof LayerZeroV2EffectiveExecutorConfigSchema
+>;
+export type LayerZeroV2EffectiveUlnConfig = z.infer<
+  typeof LayerZeroV2EffectiveUlnConfigSchema
+>;
 export type LayerZeroV2RemoteRouterConfig = z.infer<
   typeof LayerZeroV2RemoteRouterSchema
 >;
