@@ -34,9 +34,21 @@ use crate::{
 
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 const RAW_DISPATCH_RECONCILIATION_BATCH_SIZE: u64 = 100;
-const RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP: Duration = Duration::from_secs(60);
+// Reconciliation is a fallback for dispatches that fail inline enrichment. Five minutes keeps
+// recovery prompt while cutting steady-state anti-join scans by 80% relative to the old minute.
+const RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP: Duration = Duration::from_secs(5 * 60);
 const RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP: Duration = Duration::from_secs(2);
 const LIVENESS_UPDATE_INTERVAL: Duration = Duration::from_secs(30);
+
+fn raw_dispatch_reconciliation_initial_delay(domain_id: u32) -> Duration {
+    // Multiplication mixes small, sequential domain IDs before placing each chain in a stable
+    // phase of the polling window. This avoids a synchronized DB burst after scraper restarts.
+    let offset = u64::from(domain_id)
+        .wrapping_mul(2_654_435_761)
+        .checked_rem(RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP.as_secs())
+        .unwrap_or_default();
+    Duration::from_secs(offset)
+}
 
 fn raw_dispatch_reconciliation_scan_complete(result: &RawDispatchReconciliationResult) -> bool {
     result.candidate_count < RAW_DISPATCH_RECONCILIATION_BATCH_SIZE as usize
@@ -467,6 +479,13 @@ impl Scraper {
                 let mut retry_backoff = RawDispatchRetryBackoff::default();
                 let mut max_age_seen_this_scan = 0_u64;
 
+                update_liveness_metric(&liveness_metric);
+                sleep_with_liveness(
+                    raw_dispatch_reconciliation_initial_delay(domain.id()),
+                    &liveness_metric,
+                )
+                .await;
+
                 loop {
                     update_liveness_metric(&liveness_metric);
 
@@ -846,6 +865,18 @@ mod test {
         );
     }
 
+    #[test]
+    fn raw_dispatch_initial_delay_is_stable_and_bounded() {
+        let ethereum_delay = raw_dispatch_reconciliation_initial_delay(1);
+
+        assert_eq!(ethereum_delay, raw_dispatch_reconciliation_initial_delay(1));
+        assert!(ethereum_delay < RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP);
+        assert_ne!(
+            ethereum_delay,
+            raw_dispatch_reconciliation_initial_delay(10)
+        );
+    }
+
     #[tokio::test(start_paused = true)]
     async fn backed_off_final_page_wait_updates_liveness_and_bounds_queries() {
         let liveness = IntGauge::new("test_backoff_liveness", "test backoff liveness")
@@ -882,7 +913,12 @@ mod test {
         assert!(liveness.get() > 0);
         assert_eq!(query_count.load(Ordering::SeqCst), 1);
 
-        tokio::time::advance(LIVENESS_UPDATE_INTERVAL).await;
+        tokio::time::advance(
+            RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP
+                .checked_sub(LIVENESS_UPDATE_INTERVAL)
+                .expect("idle sleep exceeds one liveness interval"),
+        )
+        .await;
         run_pending_tasks().await;
         assert_eq!(query_count.load(Ordering::SeqCst), 2);
 
