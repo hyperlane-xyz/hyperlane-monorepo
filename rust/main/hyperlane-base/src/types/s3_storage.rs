@@ -14,7 +14,8 @@ use tokio::sync::OnceCell;
 use tracing::error;
 
 use hyperlane_core::{
-    ReorgEvent, ReorgEventResponse, SignedAnnouncement, SignedCheckpointWithMessageId,
+    accumulator::incremental::MerkleTreeSnapshot, ReorgEvent, ReorgEventResponse,
+    SignedAnnouncement, SignedCheckpointWithMessageId,
 };
 
 use crate::CheckpointSyncer;
@@ -196,6 +197,10 @@ impl S3Storage {
         "checkpoint_latest_index.json".to_owned()
     }
 
+    fn merkle_snapshot_key() -> String {
+        "merkle_snapshot.json".to_owned()
+    }
+
     fn metadata_key() -> String {
         "metadata_latest.json".to_owned()
     }
@@ -235,6 +240,21 @@ impl CheckpointSyncer for S3Storage {
     async fn write_latest_index(&self, index: u32) -> Result<()> {
         let serialized_index = serde_json::to_string(&index)?;
         self.write_to_bucket(S3Storage::latest_index_key(), &serialized_index)
+            .await?;
+        Ok(())
+    }
+
+    async fn read_merkle_snapshot(&self) -> Result<Option<MerkleTreeSnapshot>> {
+        self.anonymously_read_from_bucket(S3Storage::merkle_snapshot_key())
+            .await?
+            .map(|data| serde_json::from_slice(&data))
+            .transpose()
+            .map_err(Into::into)
+    }
+
+    async fn write_merkle_snapshot(&self, snapshot: &MerkleTreeSnapshot) -> Result<()> {
+        let serialized_snapshot = serde_json::to_string(snapshot)?;
+        self.write_to_bucket(S3Storage::merkle_snapshot_key(), &serialized_snapshot)
             .await?;
         Ok(())
     }

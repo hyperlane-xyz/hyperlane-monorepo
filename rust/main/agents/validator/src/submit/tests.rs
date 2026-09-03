@@ -56,6 +56,8 @@ mockall::mock! {
 
     #[async_trait]
     impl CheckpointSyncer for CheckpointSyncer {
+        async fn read_merkle_snapshot(&self) -> Result<Option<MerkleTreeSnapshot>>;
+        async fn write_merkle_snapshot(&self, snapshot: &MerkleTreeSnapshot) -> Result<()>;
         async fn latest_index(&self) -> Result<Option<u32>>;
         async fn write_latest_index(&self, index: u32) -> Result<()>;
         async fn update_latest_index(&self, index: u32) -> Result<()>;
@@ -1192,4 +1194,161 @@ async fn sign_and_submit_checkpoint_different_signature() {
         .await;
 
     logs_contain("Checkpoint already submitted, but with different signature, overwriting");
+}
+
+fn snapshot_test_submitter(
+    domain: HyperlaneDomain,
+    signer: Signers,
+    checkpoint_syncer: MockCheckpointSyncer,
+    db: MockDb,
+) -> ValidatorSubmitter {
+    let mut merkle_tree_hook = MockMerkleTreeHook::new();
+    merkle_tree_hook.expect_address().returning(H256::zero);
+    merkle_tree_hook
+        .expect_domain()
+        .return_const(domain.clone());
+    ValidatorSubmitter::new(
+        Duration::from_secs(1),
+        ReorgPeriod::from_blocks(1),
+        Arc::new(merkle_tree_hook),
+        Arc::new(MockMerkleTreeHook::new()),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(checkpoint_syncer),
+        Arc::new(db),
+        dummy_metrics(),
+        50,
+        Arc::new(MockReorgReporter::new()),
+        dummy_readiness(),
+    )
+}
+
+fn three_leaf_snapshot_fixture() -> (
+    HyperlaneDomain,
+    Vec<MerkleTreeInsertion>,
+    CheckpointWithMessageId,
+    CheckpointAtBlock,
+    MerkleTreeSnapshot,
+) {
+    let domain = dummy_domain(0, "dummy_domain");
+    let insertions: Vec<MerkleTreeInsertion> = (0..3)
+        .map(|i| MerkleTreeInsertion::new(i, H256::from_low_u64_be(11 * (i as u64 + 1))))
+        .collect();
+
+    let mut tree = IncrementalMerkle::default();
+    for insertion in insertions.iter().take(2) {
+        tree.ingest(insertion.message_id());
+    }
+    let checkpoint_at_snapshot = CheckpointWithMessageId {
+        checkpoint: Checkpoint {
+            root: tree.root(),
+            merkle_tree_hook_address: H256::zero(),
+            mailbox_domain: domain.id(),
+            index: 1,
+        },
+        message_id: insertions[1].message_id(),
+    };
+    let snapshot = MerkleTreeSnapshot::capture(&tree).unwrap();
+    tree.ingest(insertions[2].message_id());
+    let target = CheckpointAtBlock {
+        checkpoint: Checkpoint {
+            root: tree.root(),
+            merkle_tree_hook_address: H256::zero(),
+            mailbox_domain: domain.id(),
+            index: 2,
+        },
+        block_height: Some(1),
+    };
+    (domain, insertions, checkpoint_at_snapshot, target, snapshot)
+}
+
+#[tokio::test(start_paused = true)]
+async fn backfill_restores_validated_snapshot_and_replays_tail() {
+    let (domain, insertions, checkpoint_at_snapshot, target, snapshot) =
+        three_leaf_snapshot_fixture();
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let signed_at_snapshot = signer.sign(checkpoint_at_snapshot).await.unwrap();
+
+    // Only the post-snapshot leaf is read from the local database.
+    let mut db = MockDb::new();
+    db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
+        .with(mockall::predicate::eq(2))
+        .times(1)
+        .returning(move |_| Ok(Some(insertions[2])));
+
+    let mut checkpoint_syncer = MockCheckpointSyncer::new();
+    checkpoint_syncer
+        .expect_read_merkle_snapshot()
+        .times(1)
+        .return_once(move || Ok(Some(snapshot)));
+    // One validation read for the snapshot, one fetch for the tail checkpoint.
+    checkpoint_syncer
+        .expect_fetch_checkpoint()
+        .times(2)
+        .returning(move |index| {
+            if index == 1 {
+                Ok(Some(signed_at_snapshot.clone()))
+            } else {
+                Ok(None)
+            }
+        });
+    checkpoint_syncer
+        .expect_write_checkpoint()
+        .times(1)
+        .returning(|_| Ok(()));
+    checkpoint_syncer
+        .expect_update_latest_index()
+        .with(mockall::predicate::eq(2))
+        .once()
+        .returning(|_| Ok(()));
+    // The completed tree is persisted for the next restart.
+    checkpoint_syncer
+        .expect_write_merkle_snapshot()
+        .withf(|snapshot| snapshot.index == 2)
+        .times(1)
+        .returning(|_| Ok(()));
+
+    let submitter = snapshot_test_submitter(domain, signer, checkpoint_syncer, db);
+    submitter.backfill_checkpoint_submitter(target).await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn backfill_rebuilds_tree_when_snapshot_is_corrupt() {
+    let (domain, insertions, _, target, mut snapshot) = three_leaf_snapshot_fixture();
+    snapshot.root = H256::from_low_u64_be(0xdead);
+
+    let mut db = MockDb::new();
+    db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
+        .times(3)
+        .returning(move |sequence| Ok(Some(insertions[*sequence as usize])));
+
+    let mut checkpoint_syncer = MockCheckpointSyncer::new();
+    checkpoint_syncer
+        .expect_read_merkle_snapshot()
+        .times(1)
+        .return_once(move || Ok(Some(snapshot)));
+    // No validation read happens for an undecodable snapshot; every checkpoint
+    // is fetched and written as in a cold backfill.
+    checkpoint_syncer
+        .expect_fetch_checkpoint()
+        .times(3)
+        .returning(|_| Ok(None));
+    checkpoint_syncer
+        .expect_write_checkpoint()
+        .times(3)
+        .returning(|_| Ok(()));
+    checkpoint_syncer
+        .expect_update_latest_index()
+        .with(mockall::predicate::eq(2))
+        .once()
+        .returning(|_| Ok(()));
+    checkpoint_syncer
+        .expect_write_merkle_snapshot()
+        .withf(|snapshot| snapshot.index == 2)
+        .times(1)
+        .returning(|_| Ok(()));
+
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let submitter = snapshot_test_submitter(domain, signer, checkpoint_syncer, db);
+    submitter.backfill_checkpoint_submitter(target).await;
 }

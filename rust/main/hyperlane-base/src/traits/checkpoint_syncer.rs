@@ -4,12 +4,27 @@ use async_trait::async_trait;
 use eyre::{Report, Result};
 
 use hyperlane_core::{
-    ReorgEvent, ReorgEventResponse, SignedAnnouncement, SignedCheckpointWithMessageId,
+    accumulator::incremental::MerkleTreeSnapshot, ReorgEvent, ReorgEventResponse,
+    SignedAnnouncement, SignedCheckpointWithMessageId,
 };
 
 /// A generic trait to read/write Checkpoints offchain
 #[async_trait]
 pub trait CheckpointSyncer: Debug + Send + Sync {
+    /// Read the persisted merkle-tree snapshot, if any. The snapshot covers the
+    /// tree through `snapshot.index`; a restart restores it and replays only
+    /// the tail from the local database instead of re-ingesting all history.
+    ///
+    /// Defaults to `None` (no snapshot, full rebuild as before). Backends that
+    /// cannot persist the marker keep this default and safely degrade.
+    async fn read_merkle_snapshot(&self) -> Result<Option<MerkleTreeSnapshot>> {
+        Ok(None)
+    }
+    /// Writes the merkle-tree snapshot. Best-effort: backends without durable
+    /// marker support keep the default no-op and degrade to full rebuilds.
+    async fn write_merkle_snapshot(&self, _snapshot: &MerkleTreeSnapshot) -> Result<()> {
+        Ok(())
+    }
     /// Read the highest index of this Syncer
     async fn latest_index(&self) -> Result<Option<u32>>;
     /// Writes the highest index of this Syncer

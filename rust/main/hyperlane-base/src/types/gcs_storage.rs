@@ -3,7 +3,8 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::{bail, Result};
 use hyperlane_core::{
-    ReorgEvent, ReorgEventResponse, SignedAnnouncement, SignedCheckpointWithMessageId,
+    accumulator::incremental::MerkleTreeSnapshot, ReorgEvent, ReorgEventResponse,
+    SignedAnnouncement, SignedCheckpointWithMessageId,
 };
 use std::fmt;
 use tracing::{error, info, instrument};
@@ -16,6 +17,7 @@ use ya_gcp::{
 };
 
 const LATEST_INDEX_KEY: &str = "gcsLatestIndexKey";
+const MERKLE_SNAPSHOT_KEY: &str = "gcsMerkleSnapshotKey";
 const METADATA_KEY: &str = "gcsMetadataKey";
 const ANNOUNCEMENT_KEY: &str = "gcsAnnouncementKey";
 const REORG_FLAG_KEY: &str = "gcsReorgFlagKey";
@@ -211,6 +213,32 @@ impl CheckpointSyncer for GcsStorageClient {
     async fn write_latest_index(&self, index: u32) -> Result<()> {
         let data = serde_json::to_vec(&index)?;
         self.upload_and_log(&self.object_path(LATEST_INDEX_KEY), data)
+            .await
+    }
+
+    #[instrument(skip(self))]
+    async fn read_merkle_snapshot(&self) -> Result<Option<MerkleTreeSnapshot>> {
+        match self
+            .inner
+            .get_object(&self.bucket, self.object_path(MERKLE_SNAPSHOT_KEY))
+            .await
+        {
+            Ok(data) => Ok(Some(serde_json::from_slice(data.as_ref())?)),
+            Err(e) => match e {
+                // never written before to this bucket
+                ObjectError::InvalidName(_) => Ok(None),
+                ObjectError::Failure(Error::HttpStatus(HttpStatusError(StatusCode::NOT_FOUND))) => {
+                    Ok(None)
+                }
+                _ => bail!(e),
+            },
+        }
+    }
+
+    #[instrument(skip(self, snapshot))]
+    async fn write_merkle_snapshot(&self, snapshot: &MerkleTreeSnapshot) -> Result<()> {
+        let data = serde_json::to_vec(snapshot)?;
+        self.upload_and_log(&self.object_path(MERKLE_SNAPSHOT_KEY), data)
             .await
     }
 
