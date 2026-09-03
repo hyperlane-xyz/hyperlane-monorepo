@@ -393,6 +393,19 @@ mod tests {
     use crate::db::{ScraperDb, StorableMessage};
 
     #[tokio::test]
+    async fn store_dispatched_messages_empty_input_executes_no_queries() {
+        let mock_db = MockDatabase::new(DatabaseBackend::Postgres).into_connection();
+        let scraper_db = ScraperDb::with_connection(mock_db);
+
+        let stored = scraper_db
+            .store_dispatched_messages(0, &H256::zero(), std::iter::empty::<StorableMessage<'_>>())
+            .await
+            .expect("empty stores should be a no-op");
+
+        assert_eq!(stored, 0);
+    }
+
+    #[tokio::test]
     async fn test_store_dispatched_messages_transaction() {
         const MESSAGE_AMOUNT: usize = 10000;
         let results = (0..MESSAGE_AMOUNT)
