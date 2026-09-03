@@ -8,6 +8,7 @@ use chrono::{DateTime, Utc};
 use derive_new::new;
 use eyre::{eyre, Result};
 use futures_util::{future::try_join_all, try_join, StreamExt};
+use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::sleep;
 use tracing::{error, info, info_span, instrument, warn, Instrument};
@@ -339,7 +340,12 @@ impl InclusionStage {
                 "Checking for any transactions that needs reprocessing"
             );
 
-            let txs = match state.adapter.get_reprocess_txs().await {
+            let txs = match with_rpc_operation(
+                RpcOperation::TransactionLifecycle,
+                state.adapter.get_reprocess_txs(),
+            )
+            .await
+            {
                 Ok(s) => s,
                 Err(err) => {
                     poll_rate = base_poll_rate;
@@ -453,7 +459,12 @@ impl InclusionStage {
                 info!(tx_uuid = ?tx.uuid, ?tx_status, "Transaction is pending inclusion");
                 update_tx_status(state, &mut tx, tx_status.clone()).await?;
                 pool.lock().await.insert(tx.uuid.clone(), tx.clone());
-                if !state.adapter.tx_ready_for_resubmission(&tx).await {
+                if !with_rpc_operation(
+                    RpcOperation::TransactionLifecycle,
+                    state.adapter.tx_ready_for_resubmission(&tx),
+                )
+                .await
+                {
                     info!(?tx, "Transaction is not ready for resubmission");
                     return Ok(());
                 }
@@ -534,7 +545,7 @@ impl InclusionStage {
         call_until_success_or_nonretryable_error(
             || async {
                 let mut tx_guard = tx_shared.lock().await;
-                let submit_result = state.adapter.submit(&mut tx_guard).await;
+                let submit_result = with_rpc_operation(RpcOperation::TransactionLifecycle, state.adapter.submit(&mut tx_guard)).await;
 
                 match submit_result {
                     Ok(()) => Ok(()),
@@ -563,7 +574,11 @@ impl InclusionStage {
                 let tx_clone = tx.clone();
                 async move {
                     let mut tx_clone_inner = tx_clone;
-                    state.adapter.estimate_tx(&mut tx_clone_inner).await?;
+                    with_rpc_operation(
+                        RpcOperation::RelayerEstimate,
+                        state.adapter.estimate_tx(&mut tx_clone_inner),
+                    )
+                    .await?;
                     Ok(tx_clone_inner)
                 }
             },
@@ -588,7 +603,11 @@ impl InclusionStage {
                 let tx_clone = tx.clone();
                 async move {
                     let mut tx_clone_inner = tx_clone;
-                    let failed_payloads = state.adapter.simulate_tx(&mut tx_clone_inner).await?;
+                    let failed_payloads = with_rpc_operation(
+                        RpcOperation::RelayerEstimate,
+                        state.adapter.simulate_tx(&mut tx_clone_inner),
+                    )
+                    .await?;
                     Ok((tx_clone_inner, failed_payloads))
                 }
             },

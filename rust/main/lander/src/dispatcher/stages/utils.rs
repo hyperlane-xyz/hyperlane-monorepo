@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::{future::Future, time::Duration};
 
 use futures_util::{stream, Stream, StreamExt};
+use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
 use tokio::time::sleep;
 use tracing::{error, info, instrument};
 
@@ -84,7 +85,11 @@ pub(super) async fn read_transaction_status_batch(
     state
         .metrics
         .observe_status_read_batch(stage, query_txs.len(), &state.domain);
-    let queried_statuses = state.adapter.tx_statuses(&query_txs).await;
+    let queried_statuses = with_rpc_operation(
+        RpcOperation::TransactionLifecycle,
+        state.adapter.tx_statuses(&query_txs),
+    )
+    .await;
     assert_eq!(
         queried_statuses.len(),
         query_txs.len(),

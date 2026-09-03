@@ -6,5 +6,7 @@
 
 /// Prometheus metric related code
 pub mod prometheus_metric;
+/// Fixed-cardinality RPC operation attribution.
+pub mod rpc_operation;
 /// utils for some metrics handling code
 pub mod utils;
