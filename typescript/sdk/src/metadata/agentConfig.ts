@@ -591,7 +591,13 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     )
     .optional()
     .describe(
-      'Scraper-proxy WebSocket URL used to shadow dispatch and Merkle streams.',
+      'Scraper-proxy WebSocket URL used for shared dispatch, Merkle, and gas-payment indexing.',
+    ),
+  websocketAuthorityEnabled: z
+    .boolean()
+    .optional()
+    .describe(
+      'Whether a healthy scraper-proxy stream may replace direct RPC indexing. Defaults to false.',
     ),
   relayApiEnabled: z
     .boolean()

@@ -58,6 +58,8 @@ const MAX_PENDING_NOTIFICATIONS = 10_000;
 const GAS_PAYMENT_STREAM_CURSOR = 'gas_payment_stream_cursor';
 const GAS_PAYMENT_STREAM_HEAD = 'gas_payment_stream_head';
 const STREAM_CURSOR_COLUMN = 'scraper_stream_cursor';
+const GAS_PAYMENT_TRANSACTION = 'event_transaction';
+const GAS_PAYMENT_BLOCK = 'event_block';
 
 type Row = Record<string, unknown>;
 type NotifiedRow = Row & { notification_id: number | string };
@@ -954,7 +956,7 @@ export class EventWebSocketServer {
   ): Promise<Row[]> {
     const stream = STREAMS.gas_payment;
     return this.db.queryLive<Row>(
-      `SELECT ${columns(stream, 'event_row')}, ${q('event_row')}.${q('id')} AS ${q(STREAM_CURSOR_COLUMN)} FROM ${q(stream.table)} AS ${q('event_row')} WHERE ${q('event_row')}.${q(stream.domain)} = $1 AND ${q('event_row')}.${q('interchain_gas_paymaster')} = $2::bytea AND ${q('event_row')}.${q('id')} > $3::bigint AND ${q('event_row')}.${q('id')} <= $4::bigint ORDER BY ${q('event_row')}.${q('id')} ASC LIMIT $5`,
+      `SELECT ${gasPaymentColumns(stream)}, ${q('event_row')}.${q('id')} AS ${q(STREAM_CURSOR_COLUMN)} FROM ${q(stream.table)} AS ${q('event_row')}${gasPaymentMetadataJoins('LEFT JOIN')} WHERE ${q('event_row')}.${q(stream.domain)} = $1 AND ${q('event_row')}.${q('interchain_gas_paymaster')} = $2::bytea AND ${q('event_row')}.${q('id')} > $3::bigint AND ${q('event_row')}.${q('id')} <= $4::bigint ORDER BY ${q('event_row')}.${q('id')} ASC LIMIT $5`,
       [
         cursor.domain,
         cursor.address,
@@ -972,7 +974,7 @@ export class EventWebSocketServer {
   ): Promise<Row[]> {
     const stream = STREAMS.gas_payment;
     return this.db.queryLive<Row>(
-      `SELECT ${columns(stream, 'event_row')}, ${q('event_cursor')}.${q('stream_cursor')} AS ${q(STREAM_CURSOR_COLUMN)} FROM ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} INNER JOIN ${q(stream.table)} AS ${q('event_row')} ON ${q('event_row')}.${q('id')} = ${q('event_cursor')}.${q('gas_payment_id')} WHERE ${q('event_cursor')}.${q('domain')} = $1 AND ${q('event_cursor')}.${q('interchain_gas_paymaster')} = $2::bytea AND ${q('event_cursor')}.${q('stream_cursor')} > $3::bigint AND ${q('event_cursor')}.${q('stream_cursor')} <= $4::bigint ORDER BY ${q('event_cursor')}.${q('stream_cursor')} ASC LIMIT $5`,
+      `SELECT ${gasPaymentColumns(stream)}, ${q('event_cursor')}.${q('stream_cursor')} AS ${q(STREAM_CURSOR_COLUMN)} FROM ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} INNER JOIN ${q(stream.table)} AS ${q('event_row')} ON ${q('event_row')}.${q('id')} = ${q('event_cursor')}.${q('gas_payment_id')}${gasPaymentMetadataJoins()} WHERE ${q('event_cursor')}.${q('domain')} = $1 AND ${q('event_cursor')}.${q('interchain_gas_paymaster')} = $2::bytea AND ${q('event_cursor')}.${q('stream_cursor')} > $3::bigint AND ${q('event_cursor')}.${q('stream_cursor')} <= $4::bigint ORDER BY ${q('event_cursor')}.${q('stream_cursor')} ASC LIMIT $5`,
       [
         cursor.domain,
         cursor.address,
@@ -1145,12 +1147,18 @@ export class EventWebSocketServer {
       eventType === 'gas_payment'
         ? ` LEFT JOIN ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} ON ${q('event_cursor')}.${q('gas_payment_id')} = ${q('event_row')}.${q('id')}`
         : '';
+    const gasPaymentMetadata =
+      eventType === 'gas_payment' ? gasPaymentMetadataJoins('LEFT JOIN') : '';
+    const eventProjection =
+      eventType === 'gas_payment'
+        ? gasPaymentColumns(stream)
+        : columns(stream, 'event_row');
     const cursorProjection =
       eventType === 'gas_payment'
         ? `, ${gasPaymentCursorExpression()} AS ${q(STREAM_CURSOR_COLUMN)}`
         : '';
     const rows = await this.db.queryLive<NotifiedRow>(
-      `SELECT ${q('event_row')}.${q('id')} AS ${q('notification_id')}, ${columns(stream, 'event_row')}${cursorProjection} FROM ${q(stream.table)} AS ${q('event_row')}${gasPaymentCursor} WHERE ${q('event_row')}.${q('id')} = ANY($1::bigint[]) ORDER BY ${q('event_row')}.${q('id')} ASC`,
+      `SELECT ${q('event_row')}.${q('id')} AS ${q('notification_id')}, ${eventProjection}${cursorProjection} FROM ${q(stream.table)} AS ${q('event_row')}${gasPaymentMetadata}${gasPaymentCursor} WHERE ${q('event_row')}.${q('id')} = ANY($1::bigint[]) ORDER BY ${q('event_row')}.${q('id')} ASC`,
       [[...expected.keys()]],
     );
     const returned = new Set<string>();
@@ -1471,6 +1479,19 @@ function columns(stream: Stream, relation?: string): string {
   return relation
     ? stream.columns.map((column) => `${q(relation)}.${q(column)}`).join(', ')
     : stream.projection;
+}
+
+function gasPaymentColumns(stream: Stream): string {
+  return [
+    columns(stream, 'event_row'),
+    `${q(GAS_PAYMENT_TRANSACTION)}.${q('hash')} AS ${q('origin_tx_hash')}`,
+    `${q(GAS_PAYMENT_BLOCK)}.${q('hash')} AS ${q('origin_block_hash')}`,
+    `${q(GAS_PAYMENT_BLOCK)}.${q('height')} AS ${q('origin_block_height')}`,
+  ].join(', ');
+}
+
+function gasPaymentMetadataJoins(join = 'INNER JOIN'): string {
+  return ` ${join} ${q('transaction')} AS ${q(GAS_PAYMENT_TRANSACTION)} ON ${q(GAS_PAYMENT_TRANSACTION)}.${q('id')} = ${q('event_row')}.${q('tx_id')} ${join} ${q('block')} AS ${q(GAS_PAYMENT_BLOCK)} ON ${q(GAS_PAYMENT_BLOCK)}.${q('id')} = ${q(GAS_PAYMENT_TRANSACTION)}.${q('block_id')}`;
 }
 
 function gasPaymentCursorExpression(): string {

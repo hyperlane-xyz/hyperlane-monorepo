@@ -1792,6 +1792,9 @@ function gasPaymentRow(
     log_index: '0',
     msg_id: msgId,
     origin: 1,
+    origin_block_hash: `\\x${'02'.repeat(32)}`,
+    origin_block_height: '100',
+    origin_tx_hash: `\\x${'03'.repeat(32)}`,
     payment: '1000',
     sequence: null,
     ...(streamCursor === undefined

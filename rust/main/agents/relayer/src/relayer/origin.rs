@@ -32,6 +32,7 @@ pub struct Origin {
     pub gas_payment_enforcer: Arc<RwLock<GasPaymentEnforcer>>,
     pub prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     pub message_sync: MessageSync,
+    pub message_sequence_indexer: SequenceIndexer<HyperlaneMessage>,
     /// The underlying mailbox indexer shared with `message_sync`. Exposed so the relay
     /// API can reuse the existing RPC connection instead of opening a new one.
     pub message_indexer: Arc<dyn Indexer<HyperlaneMessage>>,
@@ -137,7 +138,7 @@ impl Factory for OriginFactory {
         };
 
         let hyperlane_db = Arc::new(db.clone());
-        let (message_sync, message_indexer) = {
+        let (message_sync, message_sequence_indexer, message_indexer) = {
             let start_entity_init = Instant::now();
             let res = self
                 .init_message_sync(&domain, chain_conf, hyperlane_db.clone())
@@ -185,6 +186,7 @@ impl Factory for OriginFactory {
             gas_payment_enforcer: Arc::new(RwLock::new(gas_payment_enforcer)),
             prover_sync: Arc::new(RwLock::new(prover_sync)),
             message_sync,
+            message_sequence_indexer,
             message_indexer,
             interchain_gas_payment_sync,
             igp_indexer,
@@ -233,7 +235,14 @@ impl OriginFactory {
         domain: &HyperlaneDomain,
         chain_conf: &ChainConf,
         db: Arc<HyperlaneRocksDB>,
-    ) -> Result<(MessageSync, Arc<dyn Indexer<HyperlaneMessage>>), FactoryError> {
+    ) -> Result<
+        (
+            MessageSync,
+            SequenceIndexer<HyperlaneMessage>,
+            Arc<dyn Indexer<HyperlaneMessage>>,
+        ),
+        FactoryError,
+    > {
         let (sync, seq_indexer) = match HyperlaneMessage::indexing_cursor(domain.domain_protocol())
         {
             CursorType::SequenceAware => Self::build_sequenced_contract_sync(
@@ -263,8 +272,8 @@ impl OriginFactory {
         }?;
         // Arc<dyn SequenceAwareIndexer<T>> implements Indexer<T> via auto_impl(Arc);
         // wrap in an outer Arc to satisfy Arc<dyn Indexer<T>>.
-        let indexer: Arc<dyn Indexer<HyperlaneMessage>> = Arc::new(seq_indexer);
-        Ok((sync, indexer))
+        let indexer: Arc<dyn Indexer<HyperlaneMessage>> = Arc::new(seq_indexer.clone());
+        Ok((sync, seq_indexer, indexer))
     }
 
     async fn init_igp_sync(

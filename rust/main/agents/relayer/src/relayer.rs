@@ -3,7 +3,7 @@ use std::{
     fmt::{Debug, Formatter},
     hash::Hash,
     sync::Arc,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use async_trait::async_trait;
@@ -15,12 +15,12 @@ use tokio::{
     sync::{
         broadcast::Sender as BroadcastSender,
         mpsc::{self, Receiver as MpscReceiver, Sender},
-        RwLock,
+        watch, RwLock,
     },
-    task::JoinHandle,
+    task::{JoinHandle, JoinSet},
 };
 use tokio_metrics::TaskMonitor;
-use tracing::{debug, error, info, info_span, Instrument};
+use tracing::{debug, error, info, info_span, warn, Instrument};
 
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
@@ -113,6 +113,7 @@ pub struct Relayer {
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
     scraper_websocket_monitor: Option<ScraperWebSocketMonitor>,
+    scraper_websocket_authority: Option<watch::Receiver<bool>>,
     /// Tokio console server
     pub tokio_console_server: Option<console_subscriber::Server>,
 
@@ -300,12 +301,24 @@ impl BaseAgent for Relayer {
                     origin.chain_conf.addresses.merkle_tree_hook,
                     origin.database.clone(),
                 )
+                .with_broadcaster(origin.message_sync.get_broadcaster())
+                .with_freshness_indexer(origin.message_sequence_indexer.clone())
             })
             .collect();
         let scraper_websocket_monitor = settings
             .websocket_url
-            .map(|url| ScraperWebSocketMonitor::new(url, scraper_sources, &core_metrics))
+            .map(|url| {
+                ScraperWebSocketMonitor::new_with_authority(
+                    url,
+                    scraper_sources,
+                    &core_metrics,
+                    settings.websocket_authority_enabled,
+                )
+            })
             .transpose()?;
+        let scraper_websocket_authority = scraper_websocket_monitor
+            .as_ref()
+            .and_then(ScraperWebSocketMonitor::authority_receiver);
 
         debug!(elapsed = ?start.elapsed(), event = "fully initialized", "Relayer startup duration measurement");
 
@@ -332,6 +345,7 @@ impl BaseAgent for Relayer {
             chain_metrics,
             runtime_metrics,
             scraper_websocket_monitor,
+            scraper_websocket_authority,
             tokio_console_server: Some(tokio_console_server),
             origins,
             destinations,
@@ -479,64 +493,72 @@ impl BaseAgent for Relayer {
         start_entity_init = Instant::now();
         for (origin_domain, origin) in self.origins.iter() {
             let maybe_broadcaster = origin.message_sync.get_broadcaster();
-
-            let message_sync = match self.run_message_sync(origin, task_monitor.clone()).await {
-                Ok(task) => task,
-                Err(err) => {
-                    Self::record_critical_error(
-                        origin_domain,
-                        &self.chain_metrics,
-                        &err,
-                        "Failed to run message sync",
-                    );
-                    continue;
-                }
-            };
-            tasks.push(message_sync);
-
-            let interchain_gas_payment_sync = match self
-                .run_interchain_gas_payment_sync(
+            if let Some(authority) = self.scraper_websocket_authority.clone() {
+                tasks.push(self.run_rpc_sync_supervisor(
                     origin,
-                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
+                    authority,
+                    maybe_broadcaster.clone(),
                     task_monitor.clone(),
-                )
-                .await
-            {
-                Ok(task) => task,
-                Err(err) => {
-                    Self::record_critical_error(
-                        &origin.domain,
-                        &self.chain_metrics,
-                        &err,
-                        "Failed to run interchain gas payment sync",
-                    );
-                    continue;
+                ));
+            } else {
+                let message_sync = match self.run_message_sync(origin, task_monitor.clone()).await {
+                    Ok(task) => task,
+                    Err(err) => {
+                        Self::record_critical_error(
+                            origin_domain,
+                            &self.chain_metrics,
+                            &err,
+                            "Failed to run message sync",
+                        );
+                        continue;
+                    }
+                };
+                tasks.push(message_sync);
+
+                let interchain_gas_payment_sync = match self
+                    .run_interchain_gas_payment_sync(
+                        origin,
+                        BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
+                        task_monitor.clone(),
+                    )
+                    .await
+                {
+                    Ok(task) => task,
+                    Err(err) => {
+                        Self::record_critical_error(
+                            &origin.domain,
+                            &self.chain_metrics,
+                            &err,
+                            "Failed to run interchain gas payment sync",
+                        );
+                        continue;
+                    }
+                };
+                if let Some(task) = interchain_gas_payment_sync {
+                    tasks.push(task);
                 }
-            };
-            if let Some(task) = interchain_gas_payment_sync {
-                tasks.push(task);
+
+                let merkle_tree_hook_sync = match self
+                    .run_merkle_tree_hook_sync(
+                        origin,
+                        BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
+                        task_monitor.clone(),
+                    )
+                    .await
+                {
+                    Ok(task) => task,
+                    Err(err) => {
+                        Self::record_critical_error(
+                            origin_domain,
+                            &self.chain_metrics,
+                            &err,
+                            "Failed to run merkle tree hook sync",
+                        );
+                        continue;
+                    }
+                };
+                tasks.push(merkle_tree_hook_sync);
             }
-
-            let merkle_tree_hook_sync = match self
-                .run_merkle_tree_hook_sync(
-                    origin,
-                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
-                    task_monitor.clone(),
-                )
-                .await
-            {
-                Ok(task) => task,
-                Err(err) => {
-                    Self::record_critical_error(
-                        origin_domain,
-                        &self.chain_metrics,
-                        &err,
-                        "Failed to run merkle tree hook sync",
-                    );
-                    continue;
-                }
-            };
-            tasks.push(merkle_tree_hook_sync);
 
             let message_db_loader = match self.run_message_db_loader(
                 origin,
@@ -770,6 +792,122 @@ impl Relayer {
             None,
         )
         .await
+    }
+
+    fn run_rpc_sync_supervisor(
+        &self,
+        origin: &Origin,
+        mut authority: watch::Receiver<bool>,
+        broadcaster: Option<BroadcastMpscSender<H512>>,
+        task_monitor: TaskMonitor,
+    ) -> JoinHandle<()> {
+        let origin_domain = origin.domain.clone();
+        let index_settings = origin.chain_conf.index_settings().clone();
+        let message_sync = origin.message_sync.clone();
+        let gas_payment_sync = origin.interchain_gas_payment_sync.clone();
+        let merkle_sync = origin.merkle_tree_hook_sync.clone();
+        let chain_metrics = self.chain_metrics.clone();
+        tokio::spawn(async move {
+            let mut authority_channel_open = true;
+            loop {
+                while authority_channel_open && *authority.borrow_and_update() {
+                    if authority.changed().await.is_err() {
+                        warn!(
+                            chain = origin_domain.name(),
+                            "Scraper authority channel closed; restoring RPC indexing"
+                        );
+                        authority_channel_open = false;
+                    }
+                }
+
+                let mut syncs = JoinSet::new();
+                let message_origin = origin_domain.clone();
+                let message_index_settings = index_settings.clone();
+                let message_chain_metrics = chain_metrics.clone();
+                let message_contract_sync = message_sync.clone();
+                syncs.spawn(TaskMonitor::instrument(
+                    &task_monitor,
+                    async move {
+                        Self::message_sync_task(
+                            &message_origin,
+                            message_contract_sync,
+                            message_index_settings,
+                            message_chain_metrics,
+                        )
+                        .await;
+                    }
+                    .instrument(info_span!("MessageSync")),
+                ));
+
+                if let Some(contract_sync) = gas_payment_sync.clone() {
+                    let gas_origin = origin_domain.clone();
+                    let gas_index_settings = index_settings.clone();
+                    let gas_chain_metrics = chain_metrics.clone();
+                    let gas_receiver =
+                        BroadcastMpscSender::map_get_receiver(broadcaster.as_ref()).await;
+                    syncs.spawn(TaskMonitor::instrument(
+                        &task_monitor,
+                        async move {
+                            Self::interchain_gas_payments_sync_task(
+                                &gas_origin,
+                                gas_index_settings,
+                                contract_sync,
+                                gas_chain_metrics,
+                                gas_receiver,
+                            )
+                            .await;
+                        }
+                        .instrument(info_span!("IgpSync")),
+                    ));
+                }
+
+                let merkle_origin = origin_domain.clone();
+                let merkle_index_settings = index_settings.clone();
+                let merkle_chain_metrics = chain_metrics.clone();
+                let merkle_contract_sync = merkle_sync.clone();
+                let merkle_receiver =
+                    BroadcastMpscSender::map_get_receiver(broadcaster.as_ref()).await;
+                syncs.spawn(TaskMonitor::instrument(
+                    &task_monitor,
+                    async move {
+                        Self::merkle_tree_hook_sync_task(
+                            &merkle_origin,
+                            merkle_index_settings,
+                            merkle_contract_sync,
+                            merkle_chain_metrics,
+                            merkle_receiver,
+                        )
+                        .await;
+                    }
+                    .instrument(info_span!("MerkleTreeHookSync")),
+                ));
+
+                tokio::select! {
+                    changed = authority.changed(), if authority_channel_open => {
+                        if changed.is_err() {
+                            authority_channel_open = false;
+                            warn!(chain = origin_domain.name(), "Scraper authority channel closed; retaining RPC indexing");
+                            let completed = syncs.join_next().await;
+                            warn!(chain = origin_domain.name(), ?completed, "RPC indexing task exited; restarting fallback");
+                        }
+                    }
+                    completed = syncs.join_next() => {
+                        warn!(chain = origin_domain.name(), ?completed, "RPC indexing task exited; restarting fallback");
+                    }
+                }
+                syncs.abort_all();
+                while syncs.join_next().await.is_some() {}
+
+                if *authority.borrow_and_update() {
+                    info!(
+                        chain = origin_domain.name(),
+                        "Paused direct RPC indexing after scraper cutover"
+                    );
+                } else {
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                }
+            }
+        })
     }
 
     async fn run_message_sync(
