@@ -20,7 +20,7 @@ use hyperlane_metric::prometheus_metric::{
 use parking_lot::Mutex;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
-use tokio::sync::Mutex as AsyncMutex;
+use tokio::sync::oneshot;
 
 const DYNAMIC_BLOCK_CACHE_TTL: Duration = Duration::from_millis(250);
 const GET_BLOCK_BY_NUMBER_RPC: &str = "eth_getBlockByNumber";
@@ -40,8 +40,34 @@ struct RequestCacheKey {
 
 struct EndpointRequestCache {
     responses: Mutex<HashMap<RequestCacheKey, (Instant, Value)>>,
-    singleflight: Mutex<HashMap<RequestCacheKey, Arc<AsyncMutex<()>>>>,
+    singleflight: Mutex<HashMap<RequestCacheKey, Vec<oneshot::Sender<()>>>>,
     ttl: Duration,
+}
+
+enum SingleflightRole {
+    Leader(InFlightLeader),
+    Follower(oneshot::Receiver<()>),
+}
+
+struct InFlightLeader {
+    cache: Arc<EndpointRequestCache>,
+    key: RequestCacheKey,
+    completed: bool,
+}
+
+impl InFlightLeader {
+    fn complete(mut self) {
+        self.cache.finish_singleflight(&self.key);
+        self.completed = true;
+    }
+}
+
+impl Drop for InFlightLeader {
+    fn drop(&mut self) {
+        if !self.completed {
+            self.cache.finish_singleflight(&self.key);
+        }
+    }
 }
 
 impl EndpointRequestCache {
@@ -73,12 +99,27 @@ impl EndpointRequestCache {
         self.responses.lock().remove(key);
     }
 
-    fn singleflight(&self, key: &RequestCacheKey) -> Arc<AsyncMutex<()>> {
-        self.singleflight
-            .lock()
-            .entry(key.clone())
-            .or_insert_with(|| Arc::new(AsyncMutex::new(())))
-            .clone()
+    fn singleflight(self: &Arc<Self>, key: &RequestCacheKey) -> SingleflightRole {
+        let mut singleflight = self.singleflight.lock();
+        if let Some(waiters) = singleflight.get_mut(key) {
+            let (sender, receiver) = oneshot::channel();
+            waiters.push(sender);
+            return SingleflightRole::Follower(receiver);
+        }
+
+        singleflight.insert(key.clone(), Vec::new());
+        SingleflightRole::Leader(InFlightLeader {
+            cache: self.clone(),
+            key: key.clone(),
+            completed: false,
+        })
+    }
+
+    fn finish_singleflight(&self, key: &RequestCacheKey) {
+        let waiters = self.singleflight.lock().remove(key).unwrap_or_default();
+        for waiter in waiters {
+            let _ = waiter.send(());
+        }
     }
 }
 
@@ -248,16 +289,43 @@ where
                 cache.remove(&key);
             }
 
-            let singleflight = cache.singleflight(&key);
-            let _guard = singleflight.lock().await;
-            if let Some(response) = cache.get(&key) {
-                if let Some(response) = deserialize_response(response) {
+            let leader = match cache.singleflight(&key) {
+                SingleflightRole::Leader(leader) => leader,
+                SingleflightRole::Follower(waiter) => {
+                    let _ = waiter.await;
+                    if let Some(response) = cache.get(&key) {
+                        if let Some(response) = deserialize_response(response) {
+                            self.metrics.increment_request_cache_metric(
+                                &self.config,
+                                method,
+                                "cache_hit",
+                            );
+                            return Ok(response);
+                        }
+                        cache.remove(&key);
+                    }
+
+                    // The leader failed or was cancelled. Release this generation's
+                    // followers together instead of serializing retries behind the key.
+                    self.metrics.increment_request_cache_metric(
+                        &self.config,
+                        method,
+                        "upstream_read",
+                    );
+                    let start = Instant::now();
+                    let result = self.inner.request(method, params).await;
                     self.metrics
-                        .increment_request_cache_metric(&self.config, method, "cache_hit");
-                    return Ok(response);
+                        .increment_metrics(&self.config, method, start, result.is_ok());
+                    if result.is_err() {
+                        self.metrics.increment_request_cache_metric(
+                            &self.config,
+                            method,
+                            "upstream_error",
+                        );
+                    }
+                    return result;
                 }
-                cache.remove(&key);
-            }
+            };
 
             self.metrics
                 .increment_request_cache_metric(&self.config, method, "upstream_read");
@@ -281,6 +349,7 @@ where
 
             if let Some(decoded) = deserialize_response(response.clone()) {
                 cache.insert(key, response);
+                leader.complete();
                 return Ok(decoded);
             }
 
@@ -360,6 +429,7 @@ mod tests {
         failures: usize,
         first_call_started: Option<Arc<Notify>>,
         block_first_call: Option<Arc<Notify>>,
+        block_after_first_call: Option<Arc<Barrier>>,
         heights: Option<Arc<StdMutex<VecDeque<u64>>>>,
     }
 
@@ -380,6 +450,8 @@ mod tests {
                 if let Some(release) = &self.block_first_call {
                     release.notified().await;
                 }
+            } else if let Some(barrier) = &self.block_after_first_call {
+                barrier.wait().await;
             }
             if call < self.failures {
                 let text = "invalid json".to_owned();
@@ -563,6 +635,58 @@ mod tests {
             U64::from(100_u64)
         );
         assert_eq!(calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn failed_leader_releases_current_followers_together() {
+        let started = Arc::new(Notify::new());
+        let release_leader = Arc::new(Notify::new());
+        let followers_started = Arc::new(Barrier::new(8));
+        let inner = CountingClient {
+            failures: 1,
+            first_call_started: Some(started.clone()),
+            block_first_call: Some(release_leader.clone()),
+            block_after_first_call: Some(followers_started.clone()),
+            ..CountingClient::default()
+        };
+        let calls = inner.calls.clone();
+        let client = cached_client(
+            "failed-leader-endpoint",
+            inner,
+            PrometheusClientMetrics::default(),
+            Duration::from_secs(1),
+        );
+        let barrier = Arc::new(Barrier::new(8));
+        let started_wait = started.notified();
+
+        let tasks = (0..8)
+            .map(|_| {
+                let client = client.clone();
+                let barrier = barrier.clone();
+                tokio::spawn(async move {
+                    barrier.wait().await;
+                    client.request::<_, U64>(BLOCK_NUMBER_RPC, ()).await
+                })
+            })
+            .collect::<Vec<_>>();
+
+        started_wait.await;
+        release_leader.notify_waiters();
+        tokio::time::timeout(Duration::from_secs(1), followers_started.wait())
+            .await
+            .expect("all followers should retry without serializing");
+
+        let mut successes = 0;
+        let mut failures = 0;
+        for task in tasks {
+            match task.await.expect("task should not panic") {
+                Ok(_) => successes += 1,
+                Err(_) => failures += 1,
+            }
+        }
+        assert_eq!(successes, 7);
+        assert_eq!(failures, 1);
+        assert_eq!(calls.load(Ordering::SeqCst), 8);
     }
 
     #[tokio::test]
