@@ -152,6 +152,39 @@ describe('hyperlane warp read e2e tests', async function () {
       expect(warpReadResult[CHAIN_NAME_3]).not.to.be.undefined;
       expect(warpReadResult[CHAIN_NAME_3].type).to.equal(TokenType.native);
     });
+
+    it('should skip reading excluded route chains', async () => {
+      const readOutputPath = `${TEMP_PATH}/warp-read-skip-chain.yaml`;
+      const warpRouteId = 'READSKIP/ethereum-warp-read-skip';
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.synthetic,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.native,
+          mailbox: chain3Addresses.mailbox,
+          owner: ownerAddress,
+        },
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, warpRouteId);
+
+      const output = await hyperlaneWarp
+        .readRaw({
+          warpRouteId,
+          outputPath: readOutputPath,
+          skipChains: [CHAIN_NAME_3],
+        })
+        .nothrow();
+
+      expect(output.exitCode).to.equal(0);
+      const warpReadResult: WarpRouteDeployConfig =
+        readYamlOrJson(readOutputPath);
+      expect(Object.keys(warpReadResult)).to.deep.equal([CHAIN_NAME_2]);
+    });
   });
 
   describe('hyperlane warp read --warpRouteId ...', () => {

@@ -65,6 +65,7 @@ import {
   TOKEN_CROSS_COLLATERAL_STANDARDS,
   altVmChainLookup,
   assertDelayedFlowRoutePreconditions,
+  assertDelayedFlowRouteCoverage,
   buildDelayedFlowEnrollmentTxs,
   deriveDelayedFlowEnrollmentTargets,
   enrollCrossChainRouters,
@@ -137,6 +138,7 @@ import {
 interface DeployParams {
   context: WriteCommandContext;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  referenceWarpDeployConfig?: WarpRouteDeployConfig;
 }
 
 interface WarpApplyParams extends DeployParams {
@@ -166,10 +168,12 @@ function assertWarpApplyTimelocksSupportedByProtocols({
 export async function runWarpRouteDeploy({
   context,
   warpDeployConfig,
+  referenceWarpDeployConfig = warpDeployConfig,
   warpRouteId,
 }: {
   context: WriteCommandContext;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  referenceWarpDeployConfig?: WarpRouteDeployConfig;
   warpRouteId?: string;
 }) {
   const {
@@ -192,6 +196,7 @@ export async function runWarpRouteDeploy({
   const deploymentParams = {
     context,
     warpDeployConfig,
+    referenceWarpDeployConfig,
   };
 
   await runDeployPlanStep(deploymentParams);
@@ -314,7 +319,7 @@ export async function runWarpRouteDeploy({
 
   await writeDeploymentArtifacts(warpCoreConfig, context, warpRouteIdOptions);
   await context.registry.addWarpRouteConfig(
-    warpDeployConfig,
+    referenceWarpDeployConfig,
     warpRouteIdOptions,
   );
 
@@ -534,8 +539,13 @@ export async function runWarpRouteApply(
     warpDeployConfig,
   });
   planWarpRouteHybrids({ multiProvider, warpDeployConfig });
-  // Checked against the whole route config, before the extension deploys any
-  // chain: a delayed-flow route only works when every leg carries an instance.
+  const referenceWarpDeployConfig =
+    params.referenceWarpDeployConfig ?? warpDeployConfig;
+  // Coverage is route-wide, while nonce reads remain scoped to active chains.
+  assertDelayedFlowRouteCoverage({
+    multiProvider,
+    warpDeployConfig: referenceWarpDeployConfig,
+  });
   await assertDelayedFlowRoutePreconditions({
     multiProvider,
     warpDeployConfig,
@@ -575,7 +585,7 @@ export async function runWarpRouteApply(
     { ...params, warpDeployConfig: intermediateOwnerConfig },
     apiKeys,
     warpCoreConfig,
-    warpDeployConfig,
+    referenceWarpDeployConfig,
   );
 
   // Then create and submit update transactions
@@ -650,7 +660,7 @@ export async function extendWarpRoute(
   params: WarpApplyParams,
   apiKeys: ChainMap<string>,
   warpCoreConfig: WarpCoreConfig,
-  targetWarpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+  targetWarpDeployConfig: WarpRouteDeployConfig,
 ): Promise<WarpCoreConfig> {
   const { context, warpDeployConfig } = params;
   const { existingConfigs, initialExtendedConfigs, warpCoreConfigByChain } =
@@ -674,28 +684,24 @@ export async function extendWarpRoute(
       ),
   );
 
+  const activeExistingChains = new Set(Object.keys(filteredExistingConfigs));
   const filteredWarpCoreConfigByChain = objFilter(
     warpCoreConfigByChain,
     (chainName, _): _ is (typeof warpCoreConfigByChain)[string] =>
-      context.supportedProtocols.includes(
-        context.multiProvider.getProtocol(chainName),
-      ),
+      activeExistingChains.has(chainName),
+  );
+  // Preserve skipped and unsupported existing chains without probing them.
+  const preservedWarpCoreConfigs = warpCoreConfig.tokens.filter(
+    (token) =>
+      !activeExistingChains.has(token.chainName) &&
+      !!targetWarpDeployConfig[token.chainName],
   );
 
-  // Get the non compatible chains that should not be unenrolled/removed after the extension
-  // otherwise the update will generate unenroll transactions
-  const nonCompatibleWarpCoreConfigs: WarpCoreConfig['tokens'] = Object.entries(
-    warpCoreConfigByChain,
-  )
-    .filter(
-      ([chainName]) =>
-        !context.supportedProtocols.includes(
-          context.multiProvider.getProtocol(chainName),
-        ) && !!warpDeployConfig[chainName],
-    )
-    .map(([_, config]) => config);
-
   const filteredExtendedChains = Object.keys(filteredExtendedConfigs);
+  assert(
+    !context.skipChains?.length || filteredExtendedChains.length === 0,
+    `Cannot extend a warp route while skipping chains. Apply the extension after all route chains are available.`,
+  );
   if (filteredExtendedChains.length === 0) {
     return warpCoreConfig;
   }
@@ -791,9 +797,8 @@ export async function extendWarpRoute(
     await getWarpCoreConfig(params, mergedRouters);
   WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
 
-  // Re-add the non compatible chains to the warp core config so that expanding the config
-  // to get the proper remote routers and gas config works as expected
-  updatedWarpCoreConfig.tokens.push(...nonCompatibleWarpCoreConfigs);
+  // Re-add existing chains that were excluded from this run.
+  updatedWarpCoreConfig.tokens.push(...preservedWarpCoreConfigs);
 
   // Preserve metadata fields from existing config that generateTokenConfigs doesn't include
   // (e.g. logoURI, coinGeckoId, igpTokenAddressOrDenom, scale).
@@ -906,6 +911,8 @@ async function updateExistingWarpRoute(
   const expandedWarpDeployConfig = await expandWarpDeployConfig({
     multiProvider,
     warpDeployConfig,
+    referenceWarpDeployConfig:
+      params.referenceWarpDeployConfig ?? warpDeployConfig,
     deployedRoutersAddresses,
   });
 

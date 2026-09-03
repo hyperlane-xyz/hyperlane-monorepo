@@ -77,17 +77,20 @@ export class HyperlaneE2EWarpTestCommands {
     warpAddress,
     outputPath,
     warpRouteId,
+    skipChains,
   }: {
     chain?: string;
     warpAddress?: string;
     warpRouteId?: string;
     outputPath?: string;
+    skipChains?: string[];
   }): ProcessPromise {
     return $`${localTestRunCmdPrefix()} hyperlane warp read \
             --registry ${this.registryPath} \
             ${warpAddress ? ['--address', warpAddress] : []} \
             ${chain ? ['--chain', chain] : []} \
             ${warpRouteId ? ['--warp-route-id', warpRouteId] : []} \
+            ${skipChains?.length ? ['--skip-chains', ...skipChains] : []} \
             --verbosity debug \
             ${outputPath || this.outputPath ? ['--out', outputPath || this.outputPath] : []}`;
   }
