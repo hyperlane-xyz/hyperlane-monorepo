@@ -701,20 +701,20 @@ impl PendingMessage {
     ) -> Option<Self> {
         let retry_state = Self::get_retry_state(ctx.origin_db.clone(), &message);
         let legacy_num_retries = Self::get_num_retries(ctx.origin_db.clone(), &message);
-        let (num_retries, mut retry_state) =
+        let (mut num_retries, mut retry_state) =
             Self::reconcile_retry_state(retry_state, legacy_num_retries, &message.id());
-        if Self::should_skip(num_retries, max_retries) {
-            return None;
-        }
         let mut message_status = Self::get_message_status(ctx.origin_db.clone(), &message);
         // Old binaries persist Manual status without clearing the versioned deadline. On
-        // roll-forward the operator's manual retry remains authoritative at equal counts.
-        if message_status == PendingOperationStatus::Retry(ReprepareReason::Manual)
-            && retry_state
-                .as_ref()
-                .is_some_and(|state| state.next_attempt_at_millis.is_some())
+        // roll-forward the operator's manual retry remains authoritative, including at
+        // the retry ceiling. Normalize it to the same zero-count state as new binaries.
+        let manual_retry = message_status == PendingOperationStatus::Retry(ReprepareReason::Manual);
+        if manual_retry
+            && (num_retries != 0
+                || retry_state
+                    .as_ref()
+                    .is_some_and(|state| state.next_attempt_at_millis.is_some()))
         {
-            let normalized = PendingMessageRetryState::new(num_retries, None, None, None);
+            let normalized = PendingMessageRetryState::new(0, None, None, None);
             if let Err(err) = ctx
                 .origin_db
                 .store_pending_message_retry_state_and_status_by_message_id(
@@ -724,8 +724,13 @@ impl PendingMessage {
                 )
             {
                 warn!(message_id = ?message.id(), %err, "Failed to normalize legacy manual retry state");
+            } else {
+                num_retries = 0;
+                retry_state = Some(normalized);
             }
-            retry_state = Some(normalized);
+        }
+        if Self::should_skip(num_retries, max_retries) && !manual_retry {
+            return None;
         }
         let reprepare_reason = match &message_status {
             PendingOperationStatus::Retry(r) => Some(r.clone()),
@@ -1176,10 +1181,8 @@ impl PendingMessage {
     }
 
     fn reset_attempts(&mut self) -> bool {
-        self.next_attempt_after = None;
-        self.last_attempted_at = Instant::now();
-        let status = self.status.clone();
-        let state = PendingMessageRetryState::new(self.num_retries, None, None, None);
+        let status = PendingOperationStatus::Retry(ReprepareReason::Manual);
+        let state = PendingMessageRetryState::new(0, None, None, None);
         if let Err(e) = self
             .ctx
             .origin_db
@@ -1192,6 +1195,10 @@ impl PendingMessage {
             warn!(message_id = ?self.message.id(), err = %e, "Persisting manual retry reset failed for message");
             return false;
         }
+        self.status = status;
+        self.num_retries = 0;
+        self.next_attempt_after = None;
+        self.last_attempted_at = Instant::now();
         true
     }
 
@@ -1563,6 +1570,47 @@ mod test {
         );
     }
 
+    #[test]
+    fn failed_manual_retry_commit_leaves_memory_unchanged() {
+        let origin_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+        let destination_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let cache = OptionalCache::new(None);
+        let temp_dir = tempfile::tempdir().expect("temp db directory");
+        let db = DB::from_path(temp_dir.path()).expect("open temp db");
+        let base_db = HyperlaneRocksDB::new(&origin_domain, db);
+        let base_metadata_builder =
+            dummy_metadata_builder(&origin_domain, &destination_domain, &base_db, cache.clone());
+        let mut ctx = dummy_message_context(Arc::new(base_metadata_builder), &base_db, cache);
+        let mut failing_db = MockDb::new();
+        failing_db
+            .expect_store_pending_message_retry_state_and_status_by_message_id()
+            .withf(|_, state, status| {
+                state.retry_count == 0
+                    && *status == PendingOperationStatus::Retry(ReprepareReason::Manual)
+            })
+            .returning(|_, _, _| Err(DbError::Other("injected failure".to_owned())));
+        ctx.origin_db = Arc::new(failing_db);
+
+        let original_status = PendingOperationStatus::Retry(ReprepareReason::ErrorSubmitting);
+        let mut pending = PendingMessage::new(
+            HyperlaneMessage::default(),
+            Arc::new(ctx),
+            original_status.clone(),
+            None,
+            DEFAULT_MAX_MESSAGE_RETRIES,
+        );
+        pending.num_retries = 5;
+        let deadline = Instant::now() + Duration::from_secs(60);
+        pending.next_attempt_after = Some(deadline);
+        let attempted_at = pending.last_attempted_at;
+
+        assert!(!pending.reset_attempts());
+        assert_eq!(pending.status, original_status);
+        assert_eq!(pending.num_retries, 5);
+        assert_eq!(pending.next_attempt_after, Some(deadline));
+        assert_eq!(pending.last_attempted_at, attempted_at);
+    }
+
     #[tokio::test]
     async fn restores_durable_deadline_and_falls_back_from_malformed_state() {
         let origin_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
@@ -1714,7 +1762,6 @@ mod test {
         assert!(remaining > Duration::from_secs(58));
         assert!(remaining <= Duration::from_secs(60));
 
-        restored.set_status(PendingOperationStatus::Retry(ReprepareReason::Manual));
         assert!(restored.reset_attempts());
         assert_eq!(
             base_db
@@ -1726,7 +1773,7 @@ mod test {
             .retrieve_pending_message_retry_state_by_message_id(&message.id())
             .expect("read manual retry state")
             .expect("manual retry state");
-        assert_eq!(manual_state.retry_count, 3);
+        assert_eq!(manual_state.retry_count, 0);
         assert_eq!(manual_state.next_attempt_at_millis, None);
         assert_eq!(manual_state.retry_delay_millis, None);
         assert_eq!(manual_state.reason, None);
@@ -1742,6 +1789,36 @@ mod test {
             PendingOperationStatus::Retry(ReprepareReason::Manual)
         );
         assert_eq!(manual.next_attempt_after(), None);
+        assert_eq!(manual.get_retries(), 0);
+
+        // A manual retry written by an old binary at the retry ceiling must also
+        // survive restart and normalize to the new zero-count representation.
+        let ceiling_state = PendingMessageRetryState::new(
+            DEFAULT_MAX_MESSAGE_RETRIES,
+            Some(unix_millis(SystemTime::now() + Duration::from_secs(60))),
+            Some(60_000),
+            Some(ReprepareReason::ErrorSubmitting),
+        );
+        base_db
+            .store_pending_message_retry_state_and_status_by_message_id(
+                &message.id(),
+                &ceiling_state,
+                &PendingOperationStatus::Retry(ReprepareReason::Manual),
+            )
+            .expect("store ceiling manual retry");
+        let ceiling_manual = PendingMessage::maybe_from_persisted_retries(
+            message.clone(),
+            ctx.clone(),
+            None,
+            DEFAULT_MAX_MESSAGE_RETRIES,
+        )
+        .expect("restore ceiling manual retry");
+        assert_eq!(ceiling_manual.get_retries(), 0);
+        assert_eq!(ceiling_manual.next_attempt_after(), None);
+        assert_eq!(
+            ceiling_manual.status(),
+            PendingOperationStatus::Retry(ReprepareReason::Manual)
+        );
 
         let expired_state = PendingMessageRetryState::new(
             3,
@@ -1750,7 +1827,11 @@ mod test {
             Some(ReprepareReason::CouldNotFetchMetadata),
         );
         base_db
-            .store_pending_message_retry_state_by_message_id(&message.id(), &expired_state)
+            .store_pending_message_retry_state_and_status_by_message_id(
+                &message.id(),
+                &expired_state,
+                &PendingOperationStatus::Retry(ReprepareReason::CouldNotFetchMetadata),
+            )
             .expect("store expired retry state");
         let expired = PendingMessage::maybe_from_persisted_retries(
             message.clone(),

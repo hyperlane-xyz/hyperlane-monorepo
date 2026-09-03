@@ -148,8 +148,10 @@ impl OpQueue {
                     })
                     .collect::<Vec<_>>();
                 if matched {
-                    op.set_status(PendingOperationStatus::Retry(ReprepareReason::Manual));
                     let reset_succeeded = op.reset_attempts();
+                    if reset_succeeded {
+                        op.set_status(PendingOperationStatus::Retry(ReprepareReason::Manual));
+                    }
                     for i in matching_requests {
                         let retry_response = &mut retry_responses[i];
                         if reset_succeeded {
