@@ -196,6 +196,10 @@ impl S3Storage {
         "checkpoint_latest_index.json".to_owned()
     }
 
+    fn backfill_floor_key() -> String {
+        "checkpoint_backfill_floor.json".to_owned()
+    }
+
     fn metadata_key() -> String {
         "metadata_latest.json".to_owned()
     }
@@ -235,6 +239,21 @@ impl CheckpointSyncer for S3Storage {
     async fn write_latest_index(&self, index: u32) -> Result<()> {
         let serialized_index = serde_json::to_string(&index)?;
         self.write_to_bucket(S3Storage::latest_index_key(), &serialized_index)
+            .await?;
+        Ok(())
+    }
+
+    async fn backfill_floor_index(&self) -> Result<Option<u32>> {
+        self.anonymously_read_from_bucket(S3Storage::backfill_floor_key())
+            .await?
+            .map(|data| serde_json::from_slice(&data))
+            .transpose()
+            .map_err(Into::into)
+    }
+
+    async fn write_backfill_floor_index(&self, index: u32) -> Result<()> {
+        let serialized_index = serde_json::to_string(&index)?;
+        self.write_to_bucket(S3Storage::backfill_floor_key(), &serialized_index)
             .await?;
         Ok(())
     }

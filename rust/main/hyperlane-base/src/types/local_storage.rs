@@ -37,6 +37,10 @@ impl LocalStorage {
         self.path.join("index.json")
     }
 
+    fn backfill_floor_file_path(&self) -> PathBuf {
+        self.path.join("backfill_floor.json")
+    }
+
     fn announcement_file_path(&self) -> PathBuf {
         self.path.join("announcement.json")
     }
@@ -79,6 +83,26 @@ impl CheckpointSyncer for LocalStorage {
         tokio::fs::write(&path, index.to_string())
             .await
             .with_context(|| format!("Writing index to {path:?}"))?;
+        Ok(())
+    }
+
+    async fn backfill_floor_index(&self) -> Result<Option<u32>> {
+        match tokio::fs::read(self.backfill_floor_file_path())
+            .await
+            .and_then(|data| {
+                String::from_utf8(data)
+                    .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))
+            }) {
+            Ok(data) => Ok(Some(data.parse()?)),
+            _ => Ok(None),
+        }
+    }
+
+    async fn write_backfill_floor_index(&self, index: u32) -> Result<()> {
+        let path = self.backfill_floor_file_path();
+        tokio::fs::write(&path, index.to_string())
+            .await
+            .with_context(|| format!("Writing backfill floor to {path:?}"))?;
         Ok(())
     }
 

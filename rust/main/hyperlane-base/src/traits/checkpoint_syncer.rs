@@ -10,6 +10,25 @@ use hyperlane_core::{
 /// A generic trait to read/write Checkpoints offchain
 #[async_trait]
 pub trait CheckpointSyncer: Debug + Send + Sync {
+    /// Read the backfill floor of this Syncer: the highest checkpoint index such
+    /// that every checkpoint in `[0, floor]` was fully verified (fetched,
+    /// signature-recovered and value-matched, or written by this validator).
+    /// Unlike `latest_index` — which advances after the first submitted chunk,
+    /// before history is complete — the floor only advances once a full
+    /// backfill drain is verified, so restarts can skip re-submitting history.
+    ///
+    /// Defaults to `None` (no floor, full backfill as before). Backends that
+    /// cannot persist the marker keep this default and safely degrade to full
+    /// backfills.
+    async fn backfill_floor_index(&self) -> Result<Option<u32>> {
+        Ok(None)
+    }
+    /// Writes the backfill floor of this Syncer. Best-effort: backends without
+    /// durable marker support keep the default no-op and degrade to full
+    /// backfills on restart.
+    async fn write_backfill_floor_index(&self, _index: u32) -> Result<()> {
+        Ok(())
+    }
     /// Read the highest index of this Syncer
     async fn latest_index(&self) -> Result<Option<u32>>;
     /// Writes the highest index of this Syncer

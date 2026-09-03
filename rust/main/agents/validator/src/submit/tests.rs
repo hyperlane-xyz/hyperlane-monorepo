@@ -56,6 +56,8 @@ mockall::mock! {
 
     #[async_trait]
     impl CheckpointSyncer for CheckpointSyncer {
+        async fn backfill_floor_index(&self) -> Result<Option<u32>>;
+        async fn write_backfill_floor_index(&self, index: u32) -> Result<()>;
         async fn latest_index(&self) -> Result<Option<u32>>;
         async fn write_latest_index(&self, index: u32) -> Result<()>;
         async fn update_latest_index(&self, index: u32) -> Result<()>;
@@ -264,6 +266,10 @@ async fn missing_merkle_insertion_blocks_readiness_until_indexer_recovers() {
         .return_const(domain.clone());
 
     let mut checkpoint_syncer = MockCheckpointSyncer::new();
+    checkpoint_syncer
+        .expect_backfill_floor_index()
+        .times(1)
+        .returning(|| Ok(None));
     checkpoint_syncer
         .expect_fetch_checkpoint()
         .once()
@@ -901,6 +907,10 @@ async fn reorg_is_detected_and_persisted_to_checkpoint_storage() {
     // and not submit any checkpoints (this is checked implicitly, by not setting any `expect`s)
     let unix_timestamp = chrono::Utc::now().timestamp() as u64;
     let mut mock_checkpoint_syncer = MockCheckpointSyncer::new();
+    mock_checkpoint_syncer
+        .expect_backfill_floor_index()
+        .times(1)
+        .returning(|| Ok(None));
     let mock_onchain_merkle_tree_clone = mock_onchain_merkle_tree.clone();
     mock_checkpoint_syncer
         .expect_write_reorg_status()
@@ -1192,4 +1202,176 @@ async fn sign_and_submit_checkpoint_different_signature() {
         .await;
 
     logs_contain("Checkpoint already submitted, but with different signature, overwriting");
+}
+
+fn three_checkpoint_fixture() -> (
+    HyperlaneDomain,
+    Vec<MerkleTreeInsertion>,
+    CheckpointWithMessageId,
+    CheckpointAtBlock,
+) {
+    let domain = dummy_domain(0, "dummy_domain");
+    let insertions: Vec<MerkleTreeInsertion> = (0..3)
+        .map(|i| MerkleTreeInsertion::new(i, H256::from_low_u64_be(11 * (i as u64 + 1))))
+        .collect();
+
+    let mut tree = IncrementalMerkle::default();
+    for insertion in insertions.iter().take(2) {
+        tree.ingest(insertion.message_id());
+    }
+    let expected_at_floor = CheckpointWithMessageId {
+        checkpoint: Checkpoint {
+            root: tree.root(),
+            merkle_tree_hook_address: H256::zero(),
+            mailbox_domain: domain.id(),
+            index: 1,
+        },
+        message_id: insertions[1].message_id(),
+    };
+    tree.ingest(insertions[2].message_id());
+    let target = CheckpointAtBlock {
+        checkpoint: Checkpoint {
+            root: tree.root(),
+            merkle_tree_hook_address: H256::zero(),
+            mailbox_domain: domain.id(),
+            index: 2,
+        },
+        block_height: Some(1),
+    };
+    (domain, insertions, expected_at_floor, target)
+}
+
+fn floor_test_submitter(
+    domain: HyperlaneDomain,
+    signer: Signers,
+    checkpoint_syncer: MockCheckpointSyncer,
+    db: MockDb,
+) -> ValidatorSubmitter {
+    let mut merkle_tree_hook = MockMerkleTreeHook::new();
+    merkle_tree_hook.expect_address().returning(H256::zero);
+    merkle_tree_hook
+        .expect_domain()
+        .return_const(domain.clone());
+    ValidatorSubmitter::new(
+        Duration::from_secs(1),
+        ReorgPeriod::from_blocks(1),
+        Arc::new(merkle_tree_hook),
+        Arc::new(MockMerkleTreeHook::new()),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(checkpoint_syncer),
+        Arc::new(db),
+        dummy_metrics(),
+        50,
+        Arc::new(MockReorgReporter::new()),
+        dummy_readiness(),
+    )
+}
+
+#[tokio::test(start_paused = true)]
+async fn validated_floor_skips_verified_history() {
+    let (domain, insertions, expected_at_floor, target) = three_checkpoint_fixture();
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let signed_at_floor = signer.sign(expected_at_floor).await.unwrap();
+
+    let mut db = MockDb::new();
+    db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
+        .times(3)
+        .returning(move |sequence| Ok(Some(insertions[*sequence as usize])));
+
+    let written = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let mut checkpoint_syncer = MockCheckpointSyncer::new();
+    checkpoint_syncer
+        .expect_backfill_floor_index()
+        .times(1)
+        .returning(|| Ok(Some(1)));
+    checkpoint_syncer
+        .expect_fetch_checkpoint()
+        .times(2)
+        .returning(move |index| {
+            if index == 1 {
+                Ok(Some(signed_at_floor.clone()))
+            } else {
+                Ok(None)
+            }
+        });
+    checkpoint_syncer
+        .expect_write_checkpoint()
+        .times(1)
+        .returning({
+            let written = Arc::clone(&written);
+            move |signed| {
+                written.lock().unwrap().push(signed.value.index);
+                Ok(())
+            }
+        });
+    checkpoint_syncer
+        .expect_update_latest_index()
+        .with(mockall::predicate::eq(2))
+        .once()
+        .returning(|_| Ok(()));
+
+    let submitter = floor_test_submitter(domain, signer, checkpoint_syncer, db);
+    submitter
+        .submit_checkpoints_until_correctness_checkpoint(&mut IncrementalMerkle::default(), &target)
+        .await;
+
+    // Only the post-floor checkpoint is fetched, signed and written: a single
+    // validation read replaces the per-checkpoint fetch + recover loop.
+    assert_eq!(*written.lock().unwrap(), vec![2]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn mismatched_floor_submits_full_history() {
+    let (domain, insertions, expected_at_floor, target) = three_checkpoint_fixture();
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let wrong_signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let wrongly_signed = wrong_signer.sign(expected_at_floor).await.unwrap();
+
+    let mut db = MockDb::new();
+    db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
+        .times(3)
+        .returning(move |sequence| Ok(Some(insertions[*sequence as usize])));
+
+    let written = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let mut checkpoint_syncer = MockCheckpointSyncer::new();
+    checkpoint_syncer
+        .expect_backfill_floor_index()
+        .times(1)
+        .returning(|| Ok(Some(1)));
+    checkpoint_syncer
+        .expect_fetch_checkpoint()
+        .times(4)
+        .returning(move |index| {
+            if index == 1 {
+                Ok(Some(wrongly_signed.clone()))
+            } else {
+                Ok(None)
+            }
+        });
+    checkpoint_syncer
+        .expect_write_checkpoint()
+        .times(3)
+        .returning({
+            let written = Arc::clone(&written);
+            move |signed| {
+                written.lock().unwrap().push(signed.value.index);
+                Ok(())
+            }
+        });
+    checkpoint_syncer
+        .expect_update_latest_index()
+        .with(mockall::predicate::eq(2))
+        .once()
+        .returning(|_| Ok(()));
+
+    let submitter = floor_test_submitter(domain, signer, checkpoint_syncer, db);
+    submitter
+        .submit_checkpoints_until_correctness_checkpoint(&mut IncrementalMerkle::default(), &target)
+        .await;
+
+    // A floor that fails validation submits everything, like today.
+    let mut written = written.lock().unwrap().clone();
+    written.sort_unstable();
+    assert_eq!(written, vec![0, 1, 2]);
 }

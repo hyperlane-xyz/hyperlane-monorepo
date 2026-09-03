@@ -16,6 +16,7 @@ use ya_gcp::{
 };
 
 const LATEST_INDEX_KEY: &str = "gcsLatestIndexKey";
+const BACKFILL_FLOOR_KEY: &str = "gcsBackfillFloorKey";
 const METADATA_KEY: &str = "gcsMetadataKey";
 const ANNOUNCEMENT_KEY: &str = "gcsAnnouncementKey";
 const REORG_FLAG_KEY: &str = "gcsReorgFlagKey";
@@ -211,6 +212,32 @@ impl CheckpointSyncer for GcsStorageClient {
     async fn write_latest_index(&self, index: u32) -> Result<()> {
         let data = serde_json::to_vec(&index)?;
         self.upload_and_log(&self.object_path(LATEST_INDEX_KEY), data)
+            .await
+    }
+
+    #[instrument(skip(self))]
+    async fn backfill_floor_index(&self) -> Result<Option<u32>> {
+        match self
+            .inner
+            .get_object(&self.bucket, self.object_path(BACKFILL_FLOOR_KEY))
+            .await
+        {
+            Ok(data) => Ok(Some(serde_json::from_slice(data.as_ref())?)),
+            Err(e) => match e {
+                // never written before to this bucket
+                ObjectError::InvalidName(_) => Ok(None),
+                ObjectError::Failure(Error::HttpStatus(HttpStatusError(StatusCode::NOT_FOUND))) => {
+                    Ok(None)
+                }
+                _ => bail!(e),
+            },
+        }
+    }
+
+    #[instrument(skip(self, index))]
+    async fn write_backfill_floor_index(&self, index: u32) -> Result<()> {
+        let data = serde_json::to_vec(&index)?;
+        self.upload_and_log(&self.object_path(BACKFILL_FLOOR_KEY), data)
             .await
     }
 

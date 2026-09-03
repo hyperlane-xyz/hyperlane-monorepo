@@ -99,6 +99,26 @@ impl ValidatorSubmitter {
         self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint)
             .await;
 
+        // The full range `[0, target]` is now verified present and matching in
+        // storage (every queued checkpoint was either already matching or just
+        // written), so persist the floor: the next restart skips re-fetching
+        // and re-recovering history and resumes from the tail.
+        call_and_retry_indefinitely(|| {
+            let self_clone = self.clone();
+            let target_index = target_checkpoint.index;
+            Box::pin(async move {
+                match self_clone
+                    .checkpoint_syncer
+                    .write_backfill_floor_index(target_index)
+                    .await
+                {
+                    Ok(()) => Ok(()),
+                    Err(error) => Err(error.into()),
+                }
+            })
+        })
+        .await;
+
         info!(
             ?target_checkpoint,
             "Backfill checkpoint submitter successfully reached target checkpoint"
@@ -280,6 +300,24 @@ impl ValidatorSubmitter {
         let mut checkpoint_queue = vec![];
         let mut blocked_insertion_operation: Option<String> = None;
 
+        // A previous run may have fully verified every checkpoint up to the
+        // backfill floor. `latest_index` cannot serve this purpose: it advances
+        // after the first submitted chunk, before history is complete.
+        let floor_index = match self.checkpoint_syncer.backfill_floor_index().await {
+            Ok(floor) => floor,
+            Err(err) => {
+                warn!(
+                    ?err,
+                    "Failed to read backfill floor, submitting full history"
+                );
+                None
+            }
+        };
+        // Validate the floor against this run's tree at most at the target: a
+        // floor at or past the target still needs a check before trusting it.
+        let validation_index = floor_index.map(|floor| floor.min(correctness_checkpoint.index));
+        let mut expected_at_validation_index: Option<CheckpointWithMessageId> = None;
+
         // If the correctness checkpoint is ahead of the tree, we need to ingest more messages.
         //
         // tree.index() will panic if the tree is empty, so we use tree.count() instead
@@ -323,10 +361,16 @@ impl ValidatorSubmitter {
 
             let checkpoint = self.checkpoint(tree);
 
-            checkpoint_queue.push(CheckpointWithMessageId {
+            let queued = CheckpointWithMessageId {
                 checkpoint,
                 message_id,
-            });
+            };
+            // Capture what the checkpoint at the validation index must be, so
+            // the persisted floor can be checked against this run's tree.
+            if validation_index == Some(queued.index) {
+                expected_at_validation_index = Some(queued);
+            }
+            checkpoint_queue.push(queued);
         }
 
         info!(
@@ -385,6 +429,23 @@ impl ValidatorSubmitter {
             panic!("{panic_message}");
         }
 
+        // The tree root is verified above, so checkpoints at or below a validated
+        // floor need no re-fetch, re-sign, or rewrite: drop them before the
+        // per-checkpoint submission loop.
+        if let Some(floor) = self
+            .validated_backfill_floor(floor_index, validation_index, expected_at_validation_index)
+            .await
+        {
+            let queued = checkpoint_queue.len();
+            checkpoint_queue.retain(|checkpoint| checkpoint.index > floor);
+            info!(
+                floor,
+                skipped = queued - checkpoint_queue.len(),
+                remaining = checkpoint_queue.len(),
+                "Skipped checkpoints at or below the validated backfill floor"
+            );
+        }
+
         tracing::info!(
             elapsed=?start.elapsed(),
             checkpoint_queue_len = checkpoint_queue.len(),
@@ -403,6 +464,67 @@ impl ValidatorSubmitter {
                 index = checkpoint.index,
                 "Signed all queued checkpoints until index"
             );
+        }
+    }
+
+    /// Returns the persisted backfill floor if a single storage read proves it
+    /// still matches this run's tree: the stored checkpoint at the validation
+    /// index must exist, recover to this validator, and equal the locally
+    /// computed value. Anything else (missing, mismatched, unreadable floor)
+    /// yields `None`, i.e. submit the full history as before.
+    async fn validated_backfill_floor(
+        &self,
+        floor_index: Option<u32>,
+        validation_index: Option<u32>,
+        expected_at_validation_index: Option<CheckpointWithMessageId>,
+    ) -> Option<u32> {
+        let floor = floor_index?;
+        let validation_index = validation_index?;
+        let expected = expected_at_validation_index?;
+        match self
+            .checkpoint_syncer
+            .fetch_checkpoint(validation_index)
+            .await
+        {
+            Ok(Some(existing)) => match existing.recover() {
+                Ok(signer) if signer == self.signer.eth_address() && existing.value == expected => {
+                    Some(floor)
+                }
+                Ok(signer) => {
+                    warn!(
+                        floor,
+                        validation_index,
+                        ?signer,
+                        "Backfill floor checkpoint mismatch, submitting full history"
+                    );
+                    None
+                }
+                Err(err) => {
+                    warn!(
+                        floor,
+                        validation_index,
+                        ?err,
+                        "Backfill floor checkpoint recovery failed, submitting full history"
+                    );
+                    None
+                }
+            },
+            Ok(None) => {
+                warn!(
+                    floor,
+                    validation_index, "Backfill floor checkpoint missing, submitting full history"
+                );
+                None
+            }
+            Err(err) => {
+                warn!(
+                    floor,
+                    validation_index,
+                    ?err,
+                    "Backfill floor checkpoint fetch failed, submitting full history"
+                );
+                None
+            }
         }
     }
 
@@ -550,7 +672,7 @@ impl ValidatorSubmitter {
                                 return Err(error);
                             }
                         };
-                        tracing::info!(
+                        tracing::debug!(
                             index = checkpoint_index,
                             wrote_checkpoint,
                             elapsed=?start.elapsed(),
