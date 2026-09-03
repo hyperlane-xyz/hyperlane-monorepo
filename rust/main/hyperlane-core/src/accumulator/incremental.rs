@@ -130,7 +130,7 @@ impl MerkleTreeSnapshot {
             eyre::bail!("Cannot snapshot an empty merkle tree");
         }
         Ok(Self {
-            index: (tree.count() as u32).saturating_sub(1),
+            index: tree.index(),
             root: tree.root(),
             tree: borsh::to_vec(tree)?,
         })
@@ -141,7 +141,10 @@ impl MerkleTreeSnapshot {
     /// trusted checkpoint before replaying onto the restored tree.
     pub fn restore(&self) -> eyre::Result<IncrementalMerkle> {
         let tree: IncrementalMerkle = borsh::from_slice(&self.tree)?;
-        if tree.count() == 0 || (tree.count() as u32).saturating_sub(1) != self.index {
+        let decoded_index = u32::try_from(tree.count())
+            .ok()
+            .and_then(|count| count.checked_sub(1));
+        if decoded_index != Some(self.index) {
             eyre::bail!(
                 "Snapshot index {} does not match decoded tree count {}",
                 self.index,
@@ -211,6 +214,22 @@ mod test {
         let mut misindexed = snapshot.clone();
         misindexed.index += 1;
         assert!(misindexed.restore().is_err());
+
+        // `IncrementalMerkle` is limited to a 32-bit leaf count. On 64-bit
+        // hosts, a malformed count with the same low 32 bits produces the same
+        // root; reject it instead of allowing the index conversion to wrap.
+        #[cfg(target_pointer_width = "64")]
+        {
+            let mut oversized_tree = tree.clone();
+            oversized_tree.count += (u32::MAX as usize) + 1;
+            assert_eq!(oversized_tree.root(), tree.root());
+            let oversized = MerkleTreeSnapshot {
+                index: snapshot.index,
+                root: snapshot.root,
+                tree: borsh::to_vec(&oversized_tree).expect("oversized test tree should serialize"),
+            };
+            assert!(oversized.restore().is_err());
+        }
     }
 }
 
