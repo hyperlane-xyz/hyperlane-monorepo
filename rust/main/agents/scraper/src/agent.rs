@@ -12,11 +12,11 @@ use hyperlane_core::{
     rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneLogStore,
     HyperlaneMessage, IndexMode, InterchainGasPayment, MerkleTreeInsertion, SameChainCcrSwap, H512,
 };
-use prometheus::{IntGauge, IntGaugeVec};
+use prometheus::{HistogramVec, IntCounterVec, IntGauge, IntGaugeVec};
 use tokio::{
     sync::mpsc::Receiver as MpscReceiver,
     task::JoinHandle,
-    time::{interval, sleep, MissedTickBehavior},
+    time::{interval, sleep, Instant, MissedTickBehavior},
 };
 use tracing::{info, info_span, instrument, trace, warn, Instrument};
 
@@ -38,7 +38,114 @@ const RAW_DISPATCH_RECONCILIATION_BATCH_SIZE: u64 = 100;
 // recovery prompt while cutting steady-state anti-join scans by 80% relative to the old minute.
 const RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP: Duration = Duration::from_secs(5 * 60);
 const RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP: Duration = Duration::from_secs(2);
+// A full sweep is only a correctness fallback for sequence commit-order races and old rows whose
+// body is populated after the incremental watermark passes them. Thirty minutes cuts historical
+// anti-joins by 83% while bounding those exceptional discoveries to half an hour.
+const RAW_DISPATCH_RECONCILIATION_FULL_SWEEP_INTERVAL: Duration = Duration::from_secs(30 * 60);
+const RAW_DISPATCH_RECONCILIATION_RETRY_BATCH_SIZE: usize = 100;
 const LIVENESS_UPDATE_INTERVAL: Duration = Duration::from_secs(30);
+
+const RAW_DISPATCH_DISCOVERY_FRONTIER_KIND: &str = "discovery_frontier";
+const RAW_DISPATCH_DISCOVERY_PAGE_KIND: &str = "discovery_page";
+const RAW_DISPATCH_RETRY_PAGE_KIND: &str = "retry_page";
+const RAW_DISPATCH_SWEEP_FRONTIER_KIND: &str = "sweep_frontier";
+const RAW_DISPATCH_SWEEP_PAGE_KIND: &str = "sweep_page";
+
+#[derive(Debug, Clone, Copy)]
+struct RawDispatchScan {
+    after_id: i64,
+    through_id: i64,
+    next_page_at: Instant,
+}
+
+impl RawDispatchScan {
+    fn new(after_id: i64, through_id: i64, now: Instant) -> Option<Self> {
+        (through_id > after_id).then_some(Self {
+            after_id,
+            through_id,
+            next_page_at: now,
+        })
+    }
+
+    /// Returns true once the snapshot is exhausted. A full page advances only to the last row
+    /// returned; a short page proves that every candidate through the immutable frontier was read.
+    fn complete_page(&mut self, result: &RawDispatchReconciliationResult, now: Instant) -> bool {
+        if raw_dispatch_reconciliation_scan_complete(result) {
+            true
+        } else {
+            self.after_id = result.next_after_id;
+            self.next_page_at = instant_after(now, RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP);
+            false
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct RawDispatchReconciliationMetrics {
+    operations: IntCounterVec,
+    duration: HistogramVec,
+    pending_retries: IntGaugeVec,
+    retry_capacity_overflows: IntCounterVec,
+}
+
+impl RawDispatchReconciliationMetrics {
+    fn new(metrics: &CoreMetrics) -> Self {
+        let operations = metrics
+            .new_int_counter(
+                "raw_message_dispatch_reconciliation_operations",
+                "Number of raw dispatch reconciliation operations",
+                &["chain", "kind"],
+            )
+            .expect("failed to register raw dispatch reconciliation operation metric");
+        let duration = metrics
+            .new_histogram(
+                "raw_message_dispatch_reconciliation_duration_seconds",
+                "Raw dispatch reconciliation operation duration",
+                &["chain", "kind"],
+                vec![0.01, 0.1, 0.5, 1.0, 5.0, 15.0, 30.0, 60.0, 120.0],
+            )
+            .expect("failed to register raw dispatch reconciliation duration metric");
+        let pending_retries = metrics
+            .new_int_gauge(
+                "raw_message_dispatch_reconciliation_pending_retries",
+                "Raw dispatch rows waiting for a direct retry",
+                &["chain"],
+            )
+            .expect("failed to register raw dispatch reconciliation retry metric");
+        let retry_capacity_overflows = metrics
+            .new_int_counter(
+                "raw_message_dispatch_reconciliation_retry_capacity_overflows",
+                "Number of missing raw dispatches left to the completeness sweep because the direct retry set was full",
+                &["chain"],
+            )
+            .expect("failed to register raw dispatch reconciliation retry overflow metric");
+        Self {
+            operations,
+            duration,
+            pending_retries,
+            retry_capacity_overflows,
+        }
+    }
+
+    fn start(&self, chain: &str, kind: &str) -> prometheus::HistogramTimer {
+        self.operations.with_label_values(&[chain, kind]).inc();
+        self.duration
+            .with_label_values(&[chain, kind])
+            .start_timer()
+    }
+
+    fn set_pending_retries(&self, chain: &str, count: usize) {
+        self.pending_retries
+            .with_label_values(&[chain])
+            .set(count.try_into().unwrap_or(i64::MAX));
+    }
+
+    fn add_retry_capacity_overflows(&self, chain: &str, count: usize) {
+        self.retry_capacity_overflows
+            .with_label_values(&[chain])
+            .inc_by(count as u64);
+    }
+}
 
 fn raw_dispatch_reconciliation_initial_delay(domain_id: u32) -> Duration {
     // Multiplication mixes small, sequential domain IDs before placing each chain in a stable
@@ -50,18 +157,139 @@ fn raw_dispatch_reconciliation_initial_delay(domain_id: u32) -> Duration {
     Duration::from_secs(offset)
 }
 
+fn instant_after(now: Instant, duration: Duration) -> Instant {
+    now.checked_add(duration).unwrap_or(now)
+}
+
+fn failed_lane_retry_at(now: Instant) -> Instant {
+    // Keep the failed lane asleep for two global cooldowns. When the first cooldown expires,
+    // another due lane gets a turn instead of the same failure monopolizing every wake.
+    let delay = RPC_RETRY_SLEEP_DURATION
+        .checked_mul(2)
+        .unwrap_or(Duration::MAX);
+    instant_after(now, delay)
+}
+
 fn raw_dispatch_reconciliation_scan_complete(result: &RawDispatchReconciliationResult) -> bool {
     result.candidate_count < RAW_DISPATCH_RECONCILIATION_BATCH_SIZE as usize
 }
 
-fn raw_dispatch_reconciliation_sleep(result: &RawDispatchReconciliationResult) -> Duration {
-    if raw_dispatch_reconciliation_scan_complete(result) {
-        result
-            .next_retry_delay
-            .unwrap_or(RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP)
-            .min(RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP)
-    } else {
-        RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP
+fn raw_dispatch_scan_slot_available(
+    discovery_scan: Option<RawDispatchScan>,
+    full_sweep: Option<RawDispatchScan>,
+) -> bool {
+    discovery_scan.is_none() && full_sweep.is_none()
+}
+
+#[derive(Debug)]
+struct RawDispatchReconciliationSchedule {
+    discovery_watermark: i64,
+    discovery_scan: Option<RawDispatchScan>,
+    full_sweep: Option<RawDispatchScan>,
+    next_discovery_at: Instant,
+    next_full_sweep_at: Instant,
+    retry_not_before: Instant,
+    global_not_before: Instant,
+}
+
+impl RawDispatchReconciliationSchedule {
+    fn new(discovery_watermark: i64, now: Instant, global_not_before: Instant) -> Self {
+        Self {
+            discovery_watermark,
+            discovery_scan: None,
+            full_sweep: None,
+            next_discovery_at: instant_after(now, RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP),
+            next_full_sweep_at: now,
+            retry_not_before: now,
+            global_not_before,
+        }
+    }
+
+    fn scan_slot_available(&self) -> bool {
+        raw_dispatch_scan_slot_available(self.discovery_scan, self.full_sweep)
+    }
+
+    fn scans_are_serialized(&self) -> bool {
+        self.discovery_scan.is_none() || self.full_sweep.is_none()
+    }
+
+    fn start_discovery(&mut self, frontier: i64, now: Instant) {
+        debug_assert!(self.scan_slot_available());
+        self.discovery_scan = RawDispatchScan::new(self.discovery_watermark, frontier, now);
+        if self.discovery_scan.is_none() {
+            self.next_discovery_at = instant_after(now, RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP);
+        }
+    }
+
+    fn start_full_sweep(&mut self, frontier: i64, now: Instant) {
+        debug_assert!(self.scan_slot_available());
+        self.full_sweep = RawDispatchScan::new(0, frontier, now);
+        if self.full_sweep.is_none() {
+            self.next_full_sweep_at =
+                instant_after(now, RAW_DISPATCH_RECONCILIATION_FULL_SWEEP_INTERVAL);
+        }
+    }
+
+    fn complete_discovery_page(
+        &mut self,
+        mut scan: RawDispatchScan,
+        result: &RawDispatchReconciliationResult,
+        now: Instant,
+    ) {
+        if scan.complete_page(result, now) {
+            self.discovery_watermark = self.discovery_watermark.max(scan.through_id);
+            self.discovery_scan = None;
+            self.next_discovery_at = instant_after(now, RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP);
+        } else {
+            self.discovery_scan = Some(scan);
+        }
+    }
+
+    fn complete_full_sweep_page(
+        &mut self,
+        mut scan: RawDispatchScan,
+        result: &RawDispatchReconciliationResult,
+        now: Instant,
+    ) {
+        if scan.complete_page(result, now) {
+            self.discovery_watermark = self.discovery_watermark.max(scan.through_id);
+            self.full_sweep = None;
+            self.next_full_sweep_at =
+                instant_after(now, RAW_DISPATCH_RECONCILIATION_FULL_SWEEP_INTERVAL);
+        } else {
+            self.full_sweep = Some(scan);
+        }
+    }
+
+    fn defer_retry_lane(&mut self, now: Instant) {
+        self.global_not_before = instant_after(now, RPC_RETRY_SLEEP_DURATION);
+        self.retry_not_before = failed_lane_retry_at(now);
+    }
+
+    fn defer_discovery_frontier(&mut self, now: Instant) {
+        self.global_not_before = instant_after(now, RPC_RETRY_SLEEP_DURATION);
+        self.next_discovery_at = failed_lane_retry_at(now);
+    }
+
+    fn defer_discovery_page(&mut self, scan: RawDispatchScan, now: Instant) {
+        self.global_not_before = instant_after(now, RPC_RETRY_SLEEP_DURATION);
+        self.discovery_scan = Some(RawDispatchScan {
+            next_page_at: failed_lane_retry_at(now),
+            ..scan
+        });
+    }
+
+    fn defer_sweep_frontier(&mut self, now: Instant) {
+        self.global_not_before = instant_after(now, RPC_RETRY_SLEEP_DURATION);
+        self.next_full_sweep_at = failed_lane_retry_at(now);
+    }
+
+    fn defer_sweep_page(&mut self, scan: RawDispatchScan, now: Instant) {
+        self.global_not_before = instant_after(now, RPC_RETRY_SLEEP_DURATION);
+        self.full_sweep = Some(RawDispatchScan {
+            next_page_at: failed_lane_retry_at(now),
+            ..scan
+        });
     }
 }
 
@@ -108,6 +336,7 @@ pub struct Scraper {
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
     raw_dispatch_unenriched_max_age: IntGaugeVec,
+    raw_dispatch_reconciliation_metrics: RawDispatchReconciliationMetrics,
 }
 
 #[derive(Debug)]
@@ -146,6 +375,7 @@ impl BaseAgent for Scraper {
                 &["chain"],
             )
             .expect("failed to register raw dispatch reconciliation age metric");
+        let raw_dispatch_reconciliation_metrics = RawDispatchReconciliationMetrics::new(&metrics);
 
         let scrapers = Self::build_chain_scrapers(
             &settings,
@@ -168,6 +398,7 @@ impl BaseAgent for Scraper {
             chain_metrics,
             runtime_metrics,
             raw_dispatch_unenriched_max_age,
+            raw_dispatch_reconciliation_metrics,
         })
     }
 
@@ -322,6 +553,7 @@ impl Scraper {
             domain.clone(),
             self.contract_sync_metrics.clone(),
             self.raw_dispatch_unenriched_max_age.clone(),
+            self.raw_dispatch_reconciliation_metrics.clone(),
             store.clone(),
         ));
 
@@ -459,6 +691,7 @@ impl Scraper {
         domain: HyperlaneDomain,
         contract_sync_metrics: Arc<ContractSyncMetrics>,
         raw_dispatch_unenriched_max_age: IntGaugeVec,
+        reconciliation_metrics: RawDispatchReconciliationMetrics,
         store: HyperlaneDbStore,
     ) -> JoinHandle<()> {
         let domain_name = domain.name().to_owned();
@@ -475,9 +708,7 @@ impl Scraper {
                 ]);
                 let max_age_metric =
                     raw_dispatch_unenriched_max_age.with_label_values(&[&domain_name]);
-                let mut next_after_id = 0;
                 let mut retry_backoff = RawDispatchRetryBackoff::default();
-                let mut max_age_seen_this_scan = 0_u64;
 
                 update_liveness_metric(&liveness_metric);
                 sleep_with_liveness(
@@ -486,79 +717,319 @@ impl Scraper {
                 )
                 .await;
 
+                let initial_frontier =
+                    AssertUnwindSafe(store.latest_reconcilable_raw_dispatch_id())
+                        .catch_unwind()
+                        .await;
+                let (discovery_watermark, global_not_before) = match initial_frontier {
+                    Ok(Ok(frontier)) => (frontier, Instant::now()),
+                    Ok(Err(err)) => {
+                        warn!(
+                            ?err,
+                            domain = domain_name,
+                            "Failed to initialize raw dispatch discovery watermark"
+                        );
+                        let now = Instant::now();
+                        (0, instant_after(now, RPC_RETRY_SLEEP_DURATION))
+                    }
+                    Err(_) => {
+                        warn!(
+                            domain = domain_name,
+                            "Raw dispatch discovery watermark initialization panicked; retrying"
+                        );
+                        let now = Instant::now();
+                        (0, instant_after(now, RPC_RETRY_SLEEP_DURATION))
+                    }
+                };
+                let now = Instant::now();
+                let mut schedule = RawDispatchReconciliationSchedule::new(
+                    discovery_watermark,
+                    now,
+                    global_not_before,
+                );
+
                 loop {
                     update_liveness_metric(&liveness_metric);
+                    let now = Instant::now();
+                    if schedule.global_not_before > now {
+                        sleep_with_liveness(
+                            schedule.global_not_before.saturating_duration_since(now),
+                            &liveness_metric,
+                        )
+                        .await;
+                        continue;
+                    }
+                    let mut cycle_failed = false;
 
-                    let result = AssertUnwindSafe(store.reconcile_raw_message_dispatches(
-                        next_after_id,
-                        RAW_DISPATCH_RECONCILIATION_BATCH_SIZE,
-                        &mut retry_backoff,
-                    ))
-                    .catch_unwind()
-                    .await;
-
-                    match result {
-                        Ok(Ok(result)) if result.candidate_count == 0 && next_after_id > 0 => {
-                            next_after_id = 0;
-                            max_age_seen_this_scan = 0;
-                            sleep_with_liveness(
-                                raw_dispatch_reconciliation_sleep(&result),
-                                &liveness_metric,
-                            )
-                            .await;
-                        }
-                        Ok(Ok(result)) if result.candidate_count == 0 => {
-                            max_age_metric.set(0);
-                            max_age_seen_this_scan = 0;
-                            sleep_with_liveness(
-                                RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP,
-                                &liveness_metric,
-                            )
-                            .await;
-                        }
-                        Ok(Ok(result)) => {
-                            next_after_id = result.next_after_id;
-                            max_age_seen_this_scan =
-                                max_age_seen_this_scan.max(result.max_unenriched_age_seconds);
-                            max_age_metric
-                                .set(max_age_seen_this_scan.try_into().unwrap_or(i64::MAX));
-                            stored_events_metric.inc_by(result.stored_count.into());
-                            info!(
-                                candidates = result.candidate_count,
-                                attempted = result.attempted_count,
-                                skipped_backoff = result.skipped_backoff_count,
-                                stored = result.stored_count,
-                                next_after_id,
-                                max_unenriched_age_seconds = max_age_seen_this_scan,
-                                domain = domain_name,
-                                "Reconciled raw message dispatches"
-                            );
-                            if raw_dispatch_reconciliation_scan_complete(&result) {
-                                next_after_id = 0;
-                                max_age_seen_this_scan = 0;
+                    let due_raw_ids = retry_backoff.due_raw_ids(
+                        time::OffsetDateTime::now_utc(),
+                        RAW_DISPATCH_RECONCILIATION_RETRY_BATCH_SIZE,
+                    );
+                    if schedule.retry_not_before <= now && !due_raw_ids.is_empty() {
+                        let timer = reconciliation_metrics
+                            .start(&domain_name, RAW_DISPATCH_RETRY_PAGE_KIND);
+                        let result = AssertUnwindSafe(
+                            store.retry_raw_message_dispatches(&due_raw_ids, &mut retry_backoff),
+                        )
+                        .catch_unwind()
+                        .await;
+                        timer.observe_duration();
+                        match result {
+                            Ok(Ok(result)) => {
+                                stored_events_metric.inc_by(result.stored_count.into());
+                                info!(
+                                    kind = RAW_DISPATCH_RETRY_PAGE_KIND,
+                                    requested = due_raw_ids.len(),
+                                    candidates = result.candidate_count,
+                                    attempted = result.attempted_count,
+                                    stored = result.stored_count,
+                                    domain = domain_name,
+                                    "Reconciled raw message dispatches"
+                                );
                             }
-                            sleep_with_liveness(
-                                raw_dispatch_reconciliation_sleep(&result),
-                                &liveness_metric,
-                            )
-                            .await;
-                        }
-                        Ok(Err(err)) => {
-                            warn!(
-                                ?err,
-                                domain = domain_name,
-                                "Failed to reconcile raw message dispatches"
-                            );
-                            sleep(RPC_RETRY_SLEEP_DURATION).await;
-                        }
-                        Err(_) => {
-                            warn!(
-                                domain = domain_name,
-                                "Raw message dispatch reconciliation panicked; retrying"
-                            );
-                            sleep(RPC_RETRY_SLEEP_DURATION).await;
+                            Ok(Err(err)) => {
+                                warn!(
+                                    ?err,
+                                    kind = RAW_DISPATCH_RETRY_PAGE_KIND,
+                                    domain = domain_name,
+                                    "Failed to reconcile raw message dispatches"
+                                );
+                                schedule.defer_retry_lane(Instant::now());
+                                cycle_failed = true;
+                            }
+                            Err(_) => {
+                                warn!(
+                                    kind = RAW_DISPATCH_RETRY_PAGE_KIND,
+                                    domain = domain_name,
+                                    "Raw message dispatch reconciliation panicked; retrying"
+                                );
+                                schedule.defer_retry_lane(Instant::now());
+                                cycle_failed = true;
+                            }
                         }
                     }
+
+                    let now = Instant::now();
+                    if !cycle_failed
+                        && schedule.scan_slot_available()
+                        && schedule.next_discovery_at <= now
+                    {
+                        let timer = reconciliation_metrics
+                            .start(&domain_name, RAW_DISPATCH_DISCOVERY_FRONTIER_KIND);
+                        let frontier =
+                            AssertUnwindSafe(store.latest_reconcilable_raw_dispatch_id())
+                                .catch_unwind()
+                                .await;
+                        timer.observe_duration();
+                        match frontier {
+                            Ok(Ok(frontier)) => schedule.start_discovery(frontier, now),
+                            Ok(Err(err)) => {
+                                warn!(
+                                    ?err,
+                                    kind = RAW_DISPATCH_DISCOVERY_FRONTIER_KIND,
+                                    domain = domain_name,
+                                    "Failed to snapshot raw dispatch reconciliation frontier"
+                                );
+                                schedule.defer_discovery_frontier(Instant::now());
+                                cycle_failed = true;
+                            }
+                            Err(_) => {
+                                warn!(
+                                    kind = RAW_DISPATCH_DISCOVERY_FRONTIER_KIND,
+                                    domain = domain_name,
+                                    "Raw dispatch reconciliation frontier query panicked; retrying"
+                                );
+                                schedule.defer_discovery_frontier(Instant::now());
+                                cycle_failed = true;
+                            }
+                        }
+                    }
+
+                    if let Some(scan) = schedule
+                        .discovery_scan
+                        .filter(|scan| !cycle_failed && scan.next_page_at <= now)
+                    {
+                        let timer = reconciliation_metrics
+                            .start(&domain_name, RAW_DISPATCH_DISCOVERY_PAGE_KIND);
+                        let result = AssertUnwindSafe(store.reconcile_raw_message_dispatches(
+                            scan.after_id,
+                            scan.through_id,
+                            RAW_DISPATCH_RECONCILIATION_BATCH_SIZE,
+                            &mut retry_backoff,
+                        ))
+                        .catch_unwind()
+                        .await;
+                        timer.observe_duration();
+                        match result {
+                            Ok(Ok(result)) => {
+                                stored_events_metric.inc_by(result.stored_count.into());
+                                info!(
+                                    kind = RAW_DISPATCH_DISCOVERY_PAGE_KIND,
+                                    candidates = result.candidate_count,
+                                    attempted = result.attempted_count,
+                                    skipped_backoff = result.skipped_backoff_count,
+                                    stored = result.stored_count,
+                                    retry_capacity_overflows = result.untracked_count,
+                                    after_id = scan.after_id,
+                                    through_id = scan.through_id,
+                                    domain = domain_name,
+                                    "Reconciled raw message dispatches"
+                                );
+                                reconciliation_metrics.add_retry_capacity_overflows(
+                                    &domain_name,
+                                    result.untracked_count,
+                                );
+                                schedule.complete_discovery_page(scan, &result, Instant::now());
+                            }
+                            Ok(Err(err)) => {
+                                warn!(
+                                    ?err,
+                                    kind = RAW_DISPATCH_DISCOVERY_PAGE_KIND,
+                                    domain = domain_name,
+                                    "Failed to reconcile raw message dispatches"
+                                );
+                                schedule.defer_discovery_page(scan, Instant::now());
+                                cycle_failed = true;
+                            }
+                            Err(_) => {
+                                warn!(
+                                    kind = RAW_DISPATCH_DISCOVERY_PAGE_KIND,
+                                    domain = domain_name,
+                                    "Raw message dispatch reconciliation panicked; retrying"
+                                );
+                                schedule.defer_discovery_page(scan, Instant::now());
+                                cycle_failed = true;
+                            }
+                        }
+                    }
+
+                    let now = Instant::now();
+                    if !cycle_failed
+                        && schedule.scan_slot_available()
+                        && schedule.next_full_sweep_at <= now
+                    {
+                        let timer = reconciliation_metrics
+                            .start(&domain_name, RAW_DISPATCH_SWEEP_FRONTIER_KIND);
+                        let frontier =
+                            AssertUnwindSafe(store.latest_reconcilable_raw_dispatch_id())
+                                .catch_unwind()
+                                .await;
+                        timer.observe_duration();
+                        match frontier {
+                            Ok(Ok(frontier)) => schedule.start_full_sweep(frontier, now),
+                            Ok(Err(err)) => {
+                                warn!(
+                                    ?err,
+                                    kind = RAW_DISPATCH_SWEEP_FRONTIER_KIND,
+                                    domain = domain_name,
+                                    "Failed to snapshot raw dispatch reconciliation frontier"
+                                );
+                                schedule.defer_sweep_frontier(Instant::now());
+                                cycle_failed = true;
+                            }
+                            Err(_) => {
+                                warn!(
+                                    kind = RAW_DISPATCH_SWEEP_FRONTIER_KIND,
+                                    domain = domain_name,
+                                    "Raw dispatch reconciliation frontier query panicked; retrying"
+                                );
+                                schedule.defer_sweep_frontier(Instant::now());
+                                cycle_failed = true;
+                            }
+                        }
+                    }
+
+                    if let Some(scan) = schedule
+                        .full_sweep
+                        .filter(|scan| !cycle_failed && scan.next_page_at <= now)
+                    {
+                        let timer = reconciliation_metrics
+                            .start(&domain_name, RAW_DISPATCH_SWEEP_PAGE_KIND);
+                        let result = AssertUnwindSafe(store.reconcile_raw_message_dispatches(
+                            scan.after_id,
+                            scan.through_id,
+                            RAW_DISPATCH_RECONCILIATION_BATCH_SIZE,
+                            &mut retry_backoff,
+                        ))
+                        .catch_unwind()
+                        .await;
+                        timer.observe_duration();
+                        match result {
+                            Ok(Ok(result)) => {
+                                stored_events_metric.inc_by(result.stored_count.into());
+                                info!(
+                                    kind = RAW_DISPATCH_SWEEP_PAGE_KIND,
+                                    candidates = result.candidate_count,
+                                    attempted = result.attempted_count,
+                                    skipped_backoff = result.skipped_backoff_count,
+                                    stored = result.stored_count,
+                                    retry_capacity_overflows = result.untracked_count,
+                                    after_id = scan.after_id,
+                                    through_id = scan.through_id,
+                                    domain = domain_name,
+                                    "Reconciled raw message dispatches"
+                                );
+                                reconciliation_metrics.add_retry_capacity_overflows(
+                                    &domain_name,
+                                    result.untracked_count,
+                                );
+                                schedule.complete_full_sweep_page(scan, &result, Instant::now());
+                            }
+                            Ok(Err(err)) => {
+                                warn!(
+                                    ?err,
+                                    kind = RAW_DISPATCH_SWEEP_PAGE_KIND,
+                                    domain = domain_name,
+                                    "Failed to reconcile raw message dispatches"
+                                );
+                                schedule.defer_sweep_page(scan, Instant::now());
+                            }
+                            Err(_) => {
+                                warn!(
+                                    kind = RAW_DISPATCH_SWEEP_PAGE_KIND,
+                                    domain = domain_name,
+                                    "Raw message dispatch reconciliation panicked; retrying"
+                                );
+                                schedule.defer_sweep_page(scan, Instant::now());
+                            }
+                        }
+                    }
+
+                    reconciliation_metrics.set_pending_retries(&domain_name, retry_backoff.len());
+                    debug_assert!(schedule.scans_are_serialized());
+                    max_age_metric.set(
+                        retry_backoff
+                            .max_unenriched_age_seconds(time::OffsetDateTime::now_utc())
+                            .try_into()
+                            .unwrap_or(i64::MAX),
+                    );
+
+                    let now = Instant::now();
+                    let retry_delay = retry_backoff
+                        .next_retry_delay(time::OffsetDateTime::now_utc())
+                        .unwrap_or(Duration::MAX);
+                    let retry_delay = if schedule.retry_not_before > now {
+                        retry_delay.max(schedule.retry_not_before.saturating_duration_since(now))
+                    } else {
+                        retry_delay
+                    };
+                    let discovery_delay = schedule
+                        .discovery_scan
+                        .map(|scan| scan.next_page_at.saturating_duration_since(now))
+                        .unwrap_or_else(|| {
+                            schedule.next_discovery_at.saturating_duration_since(now)
+                        });
+                    let sweep_delay = schedule
+                        .full_sweep
+                        .map(|scan| scan.next_page_at.saturating_duration_since(now))
+                        .unwrap_or_else(|| {
+                            schedule.next_full_sweep_at.saturating_duration_since(now)
+                        });
+                    sleep_with_liveness(
+                        retry_delay.min(discovery_delay).min(sweep_delay),
+                        &liveness_metric,
+                    )
+                    .await;
                 }
             }
             .instrument(info_span!("RawDispatchReconciliation", chain=%span_domain_name)),
@@ -841,28 +1312,107 @@ mod test {
     }
 
     #[test]
-    fn raw_dispatch_scan_uses_backlog_delay_until_final_page() {
+    fn raw_dispatch_scan_distinguishes_full_and_final_pages() {
         let full_page = RawDispatchReconciliationResult {
             candidate_count: RAW_DISPATCH_RECONCILIATION_BATCH_SIZE as usize,
-            next_retry_delay: Some(Duration::from_secs(900)),
             ..Default::default()
         };
         let final_page = RawDispatchReconciliationResult {
             candidate_count: 1,
-            next_retry_delay: Some(Duration::from_secs(900)),
             ..Default::default()
         };
 
         assert!(!raw_dispatch_reconciliation_scan_complete(&full_page));
-        assert_eq!(
-            raw_dispatch_reconciliation_sleep(&full_page),
-            RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP
-        );
         assert!(raw_dispatch_reconciliation_scan_complete(&final_page));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn raw_dispatch_scan_advances_only_after_a_full_page() {
+        let started_at = Instant::now();
+        let mut scan = RawDispatchScan::new(10, 250, started_at)
+            .expect("frontier beyond the cursor should start a scan");
+        let full_page = RawDispatchReconciliationResult {
+            candidate_count: RAW_DISPATCH_RECONCILIATION_BATCH_SIZE as usize,
+            next_after_id: 110,
+            ..Default::default()
+        };
+
+        assert!(!scan.complete_page(&full_page, started_at));
+        assert_eq!(scan.after_id, 110);
         assert_eq!(
-            raw_dispatch_reconciliation_sleep(&final_page),
-            RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP
+            scan.next_page_at,
+            instant_after(started_at, RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP)
         );
+
+        let final_page = RawDispatchReconciliationResult {
+            candidate_count: 0,
+            ..Default::default()
+        };
+        assert!(scan.complete_page(&final_page, scan.next_page_at));
+        assert_eq!(scan.through_id, 250);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn raw_dispatch_scan_uses_an_immutable_frontier() {
+        let now = Instant::now();
+
+        assert!(RawDispatchScan::new(50, 50, now).is_none());
+        let scan = RawDispatchScan::new(50, 75, now)
+            .expect("new rows beyond the watermark should start a scan");
+        assert_eq!(scan.after_id, 50);
+        assert_eq!(scan.through_id, 75);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn failed_lane_stays_backed_off_after_global_cooldown() {
+        let failure_at = Instant::now();
+        let global_retry_at = instant_after(failure_at, RPC_RETRY_SLEEP_DURATION);
+        let lane_retry_at = failed_lane_retry_at(failure_at);
+
+        tokio::time::advance(RPC_RETRY_SLEEP_DURATION).await;
+        let next_wake = Instant::now();
+
+        assert_eq!(next_wake, global_retry_at);
+        assert!(lane_retry_at > next_wake);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn discovery_and_completeness_scans_share_one_slot() {
+        let now = Instant::now();
+        let active_scan = RawDispatchScan::new(0, 10, now);
+
+        assert!(raw_dispatch_scan_slot_available(None, None));
+        assert!(!raw_dispatch_scan_slot_available(active_scan, None));
+        assert!(!raw_dispatch_scan_slot_available(None, active_scan));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn reconciliation_schedule_preserves_progress_and_yields_failed_lanes() {
+        let started_at = Instant::now();
+        let mut schedule = RawDispatchReconciliationSchedule::new(50, started_at, started_at);
+
+        schedule.defer_retry_lane(started_at);
+        tokio::time::advance(RPC_RETRY_SLEEP_DURATION).await;
+        let after_global_cooldown = Instant::now();
+        assert!(schedule.retry_not_before > after_global_cooldown);
+
+        schedule.start_full_sweep(100, after_global_cooldown);
+        assert!(!schedule.scan_slot_available());
+        assert!(schedule.discovery_scan.is_none());
+        let sweep = schedule.full_sweep.expect("sweep should be active");
+
+        schedule.defer_sweep_page(sweep, after_global_cooldown);
+        let deferred = schedule
+            .full_sweep
+            .expect("failed sweep should retain its cursor");
+        assert_eq!(deferred.after_id, sweep.after_id);
+        assert_eq!(deferred.through_id, sweep.through_id);
+
+        let final_page = RawDispatchReconciliationResult::default();
+        schedule.complete_full_sweep_page(deferred, &final_page, deferred.next_page_at);
+        assert!(schedule.full_sweep.is_none());
+        assert_eq!(schedule.discovery_watermark, 100);
+        assert!(schedule.scans_are_serialized());
     }
 
     #[test]
@@ -887,16 +1437,7 @@ mod test {
         let task = tokio::spawn(async move {
             loop {
                 task_query_count.fetch_add(1, Ordering::SeqCst);
-                let final_page = RawDispatchReconciliationResult {
-                    candidate_count: 1,
-                    next_retry_delay: Some(Duration::from_secs(900)),
-                    ..Default::default()
-                };
-                sleep_with_liveness(
-                    raw_dispatch_reconciliation_sleep(&final_page),
-                    &task_liveness,
-                )
-                .await;
+                sleep_with_liveness(RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP, &task_liveness).await;
             }
         });
 
