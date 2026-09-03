@@ -11,7 +11,7 @@ import {
 import { ProtocolType, objOmitKeys } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-import { getChain } from '../../config/registry.js';
+import { getChain, getRegistry } from '../../config/registry.js';
 import {
   AgentConfigHelper,
   AgentContextConfig,
@@ -26,6 +26,7 @@ import {
   RelayerConfigMapConfig,
   RelayerDbBootstrapConfig,
   RelayerEnvConfig,
+  buildWarpRouteProcessAltOverrides,
 } from '../config/agent/relayer.js';
 import { ScraperConfigHelper } from '../config/agent/scraper.js';
 import type { ScraperProxyConfig } from '../config/agent/scraper-proxy.js';
@@ -220,12 +221,26 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
   async helmValues(): Promise<HelmRootAgentValues> {
     const values = await super.helmValues();
 
-    // Inject per-chain processAltOverrides into Sealevel chain configs
-    const processAltOverrides =
+    // Known app contexts whose names resolve to registered warp routes get
+    // destination-process ALTs automatically. Explicit overrides retain
+    // precedence and are useful for non-registry applications.
+    const registry = getRegistry();
+    const registeredWarpRoutes = (
+      this.config.relayerConfig.metricAppContextsGetter?.() ?? []
+    ).flatMap(({ name }) => {
+      const route = registry.getWarpRoute(name);
+      return route ? [route] : [];
+    });
+    const generatedProcessAltOverrides =
+      buildWarpRouteProcessAltOverrides(registeredWarpRoutes);
+    const configuredProcessAltOverrides =
       this.config.relayerConfig.processAltOverrides ?? {};
     values.hyperlane.chains = values.hyperlane.chains.map((chain) => {
-      const overrides = processAltOverrides[chain.name];
-      if (overrides && overrides.length > 0) {
+      const overrides = [
+        ...(configuredProcessAltOverrides[chain.name] ?? []),
+        ...(generatedProcessAltOverrides[chain.name] ?? []),
+      ];
+      if (overrides.length > 0) {
         return { ...chain, processAltOverrides: JSON.stringify(overrides) };
       }
       return chain;

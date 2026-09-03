@@ -232,12 +232,12 @@ impl SealevelAdapter {
                 &self.keypair,
                 self.submitter.clone(),
                 self.oracle.clone(),
-                precursor.alt_address,
+                &precursor.alt_addresses,
             )
             .await?;
         Ok(SealevelTxPrecursor::new(
             precursor.instruction.clone(),
-            precursor.alt_address,
+            precursor.alt_addresses.clone(),
             estimate,
         ))
     }
@@ -263,7 +263,7 @@ impl SealevelAdapter {
     ) -> ChainResult<SealevelTxType> {
         let SealevelTxPrecursor {
             instruction,
-            alt_address,
+            alt_addresses,
             estimate,
         } = precursor;
 
@@ -285,7 +285,7 @@ impl SealevelAdapter {
                 &self.keypair,
                 self.submitter.clone(),
                 sign,
-                *alt_address,
+                alt_addresses,
                 &additional_signers,
             )
             .await

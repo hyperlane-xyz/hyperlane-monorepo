@@ -19,7 +19,10 @@ use solana_sdk::{
 use solana_system_interface::program as system_program;
 use tracing::{info, instrument};
 
-use crate::{ConnectionConf, SealevelKeypair, SealevelProvider, TransactionSubmitter};
+use crate::{
+    ConnectionConf, SealevelKeypair, SealevelProvider, SealevelTransactionFormat,
+    TransactionSubmitter,
+};
 
 /// A reference to a ValidatorAnnounce contract on some Sealevel chain
 pub struct SealevelValidatorAnnounce {
@@ -206,8 +209,8 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
                 payer,
                 self.tx_submitter.clone(),
                 self.conn.priority_fee_oracle.create_oracle(),
-                None, // ALT not used for validator announce
-                &[],  // no additional signers
+                SealevelTransactionFormat::Legacy,
+                &[], // no additional signers
             )
             .await?;
 

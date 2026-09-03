@@ -195,19 +195,34 @@ const AgentSealevelChainMetadataSchema = z.object({
       url: z.string().optional(),
     })
     .optional(),
+  mailboxProcessAlt: z
+    .string()
+    .optional()
+    .describe('Legacy single ALT for Mailbox.process transactions.'),
+  mailboxProcessAlts: z
+    .array(z.string())
+    .min(1)
+    .optional()
+    .describe('ALTs used for Mailbox.process transactions, in compile order.'),
   processAltOverrides: z
     .union([
       z.array(
-        z.object({
-          matchingList: MatchingListSchema,
-          addressLookupTable: z.string(),
-        }),
+        z.union([
+          z.object({
+            matchingList: MatchingListSchema,
+            addressLookupTable: z.string(),
+          }),
+          z.object({
+            matchingList: MatchingListSchema,
+            addressLookupTables: z.array(z.string()).min(1),
+          }),
+        ]),
       ),
       z.string().min(1),
     ])
     .optional()
     .describe(
-      'Per-message ALT overrides. Array of {matchingList, addressLookupTable} or JSON string.',
+      'Per-message ALT overrides. Accepts legacy addressLookupTable or plural addressLookupTables.',
     ),
   urReveal: z
     .object({

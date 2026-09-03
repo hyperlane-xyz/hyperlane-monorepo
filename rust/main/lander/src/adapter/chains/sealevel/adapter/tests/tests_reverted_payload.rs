@@ -3,6 +3,7 @@ use solana_sdk::{account::Account, pubkey::Pubkey};
 use uuid::Uuid;
 
 use hyperlane_core::identifiers::UniqueIdentifier;
+use hyperlane_sealevel::SealevelTransactionFormat;
 
 use crate::{
     adapter::chains::sealevel::SealevelTxPrecursor,
@@ -49,7 +50,7 @@ fn create_transaction_with_payload_details_and_status(
         tx_hashes: vec![],
         vm_specific_data: VmSpecificTxData::Svm(Box::new(SealevelTxPrecursor::new(
             instruction(),
-            None,
+            SealevelTransactionFormat::Legacy,
             estimate(),
         ))),
         payload_details,

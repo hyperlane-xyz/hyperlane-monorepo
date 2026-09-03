@@ -33,7 +33,7 @@ use hyperlane_base::db::{HyperlaneRocksDB, DB};
 use hyperlane_core::{ChainResult, HyperlaneDomain, KnownHyperlaneDomain};
 use hyperlane_sealevel::{
     fallback::SubmitSealevelRpc, PriorityFeeOracle, SealevelKeypair, SealevelProviderForLander,
-    SealevelTxCostEstimate, SealevelTxType, TransactionSubmitter,
+    SealevelTransactionFormat, SealevelTxCostEstimate, SealevelTxType, TransactionSubmitter,
 };
 
 use lander::{
@@ -93,7 +93,7 @@ mock! {
             payer: &'a SealevelKeypair,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             sign: bool,
-            alt_address: Option<Pubkey>,
+            alt_addresses: &SealevelTransactionFormat,
             additional_signers: &'a [&'a SealevelKeypair],
         ) -> ChainResult<SealevelTxType>;
 
@@ -103,7 +103,7 @@ mock! {
             payer: &SealevelKeypair,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
-            alt_address: Option<Pubkey>,
+            alt_addresses: &SealevelTransactionFormat,
         ) -> ChainResult<SealevelTxCostEstimate>;
 
         async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTxType) -> ChainResult<()>;
@@ -308,14 +308,16 @@ fn encoded_svm_transaction() -> EncodedConfirmedTransactionWithStatusMeta {
 }
 
 fn create_sealevel_payload() -> FullPayload {
-    create_sealevel_payload_with_alt(None)
+    create_sealevel_payload_with_alts(vec![])
 }
 
-fn create_sealevel_payload_with_alt(alt_address: Option<Pubkey>) -> FullPayload {
+fn create_sealevel_payload_with_alts(alt_addresses: Vec<Pubkey>) -> FullPayload {
     let instruction = ComputeBudgetInstruction::set_compute_unit_limit(GAS_LIMIT);
     let process_payload = hyperlane_sealevel::SealevelProcessPayload {
         instruction,
-        alt_address,
+        alt_addresses: hyperlane_sealevel::NonEmptyAltAddresses::try_from(alt_addresses)
+            .map(|alt_addresses| SealevelTransactionFormat::V0 { alt_addresses })
+            .unwrap_or_default(),
     };
     let data = serde_json::to_vec(&process_payload).unwrap();
 
@@ -420,7 +422,7 @@ async fn test_sealevel_payload_reaches_finalized_status() {
 async fn test_sealevel_versioned_tx_payload_reaches_finalized_status() {
     // Create payload with ALT address to trigger versioned transaction
     let alt_address = Pubkey::new_unique();
-    let payload = create_sealevel_payload_with_alt(Some(alt_address));
+    let payload = create_sealevel_payload_with_alts(vec![alt_address]);
 
     // Create Sealevel adapter with mocked providers for versioned transactions
     let client = create_sealevel_client();
@@ -631,7 +633,7 @@ async fn test_sealevel_payload_estimation_failure_results_in_dropped() {
 async fn test_sealevel_versioned_tx_estimation_failure_results_in_dropped() {
     // Create payload with ALT address to use versioned transaction path
     let alt_address = Pubkey::new_unique();
-    let payload = create_sealevel_payload_with_alt(Some(alt_address));
+    let payload = create_sealevel_payload_with_alts(vec![alt_address]);
 
     // Create Sealevel adapter with estimation failure
     let client = create_sealevel_client();

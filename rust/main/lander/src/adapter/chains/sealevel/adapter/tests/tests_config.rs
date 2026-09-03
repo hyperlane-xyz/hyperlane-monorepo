@@ -4,6 +4,7 @@ use hyperlane_base::settings::{ChainConf, ChainConnectionConf, SignerConf};
 use hyperlane_core::{
     config::OpSubmissionConfig, HyperlaneDomain, KnownHyperlaneDomain, ReorgPeriod, SubmitterType,
 };
+use hyperlane_sealevel::SealevelTransactionFormat;
 
 use crate::adapter::AdaptsChain;
 
@@ -36,7 +37,7 @@ fn test_configuration_fields() {
             native_token: Default::default(),
             priority_fee_oracle: Default::default(),
             transaction_submitter: Default::default(),
-            mailbox_process_alt: None,
+            mailbox_process_alts: SealevelTransactionFormat::Legacy,
             process_alt_overrides: vec![],
             ur_reveal: None,
         }),

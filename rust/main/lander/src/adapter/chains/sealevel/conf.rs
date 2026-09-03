@@ -56,7 +56,9 @@ mod tests {
         config::OpSubmissionConfig, HyperlaneDomain, KnownHyperlaneDomain, ReorgPeriod,
         SubmitterType, H256,
     };
-    use hyperlane_sealevel::{create_keypair as create_raw_keypair, SealevelKeypair};
+    use hyperlane_sealevel::{
+        create_keypair as create_raw_keypair, SealevelKeypair, SealevelTransactionFormat,
+    };
     use solana_sdk::signature::Signer;
 
     use super::create_identity_keypair;
@@ -78,7 +80,7 @@ mod tests {
                 native_token: Default::default(),
                 priority_fee_oracle: Default::default(),
                 transaction_submitter: Default::default(),
-                mailbox_process_alt: None,
+                mailbox_process_alts: SealevelTransactionFormat::Legacy,
                 process_alt_overrides: vec![],
                 ur_reveal: None,
             }),

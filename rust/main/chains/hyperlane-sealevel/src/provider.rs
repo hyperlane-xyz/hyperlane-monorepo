@@ -35,7 +35,7 @@ use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
 };
 
-use crate::alt::fetch_alt;
+use crate::alt::{fetch_alt, NonEmptyAltAddresses};
 use crate::error::HyperlaneSealevelError;
 use crate::fallback::{SealevelFallbackRpcClient, SubmitSealevelRpc};
 use crate::priority_fee::PriorityFeeOracle;
@@ -43,7 +43,7 @@ use crate::provider::recipient::RecipientProvider;
 use crate::provider::transaction::{parsed_message, txn};
 use crate::tx_type::SealevelTxType;
 use crate::utils::{decode_h256, decode_h512, decode_pubkey};
-use crate::{ConnectionConf, SealevelKeypair, TransactionSubmitter};
+use crate::{ConnectionConf, SealevelKeypair, SealevelTransactionFormat, TransactionSubmitter};
 
 mod recipient;
 mod transaction;
@@ -80,8 +80,7 @@ impl Default for SealevelTxCostEstimate {
 #[allow(clippy::too_many_arguments)]
 pub trait SealevelProviderForLander: Send + Sync {
     /// Creates Sealevel transaction for instruction.
-    /// Returns `SealevelTxType::Versioned` with ALT if `alt_address` is provided,
-    /// or `SealevelTxType::Legacy` otherwise.
+    /// Builds the transaction representation selected by `alt_addresses`.
     async fn create_transaction_for_instruction<'a>(
         &self,
         compute_unit_limit: u32,
@@ -90,19 +89,19 @@ pub trait SealevelProviderForLander: Send + Sync {
         payer: &'a SealevelKeypair,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         sign: bool,
-        alt_address: Option<Pubkey>,
+        alt_addresses: &SealevelTransactionFormat,
         additional_signers: &'a [&'a SealevelKeypair],
     ) -> ChainResult<SealevelTxType>;
 
     /// Estimates cost for Sealevel instruction.
-    /// Uses ALT for simulation if `alt_address` is provided.
+    /// Uses the same transaction representation as submission.
     async fn get_estimated_costs_for_instruction(
         &self,
         instruction: Instruction,
         payer: &SealevelKeypair,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
-        alt_address: Option<Pubkey>,
+        alt_addresses: &SealevelTransactionFormat,
     ) -> ChainResult<SealevelTxCostEstimate>;
 
     /// Waits for Sealevel transaction confirmation with processed commitment level
@@ -136,7 +135,10 @@ pub struct SealevelProvider {
     /// Lazily fetched ALT cache for transaction size reduction.
     /// Maps ALT address to fetched account data. ALTs are assumed static once fetched.
     /// Note: Keep the number of different ALTs small to avoid memory bloat.
-    alt_cache: Arc<RwLock<HashMap<Pubkey, AddressLookupTableAccount>>>,
+    alt_cache: Arc<RwLock<HashMap<Pubkey, Arc<AddressLookupTableAccount>>>>,
+    /// Materialized ALT sets in compile order. This avoids cloning every ALT's
+    /// account-address vector for every simulation and submission.
+    alt_set_cache: Arc<RwLock<HashMap<NonEmptyAltAddresses, Arc<[AddressLookupTableAccount]>>>>,
 }
 
 impl std::fmt::Debug for SealevelProvider {
@@ -150,8 +152,7 @@ impl std::fmt::Debug for SealevelProvider {
 #[async_trait]
 impl SealevelProviderForLander for SealevelProvider {
     /// Creates a transaction for a given instruction.
-    /// Returns `SealevelTxType::Versioned` with ALT if `alt_address` is provided,
-    /// or `SealevelTxType::Legacy` otherwise.
+    /// Builds the transaction representation selected by `alt_addresses`.
     /// If `sign` is true, the transaction will be signed.
     async fn create_transaction_for_instruction<'a>(
         &self,
@@ -161,7 +162,7 @@ impl SealevelProviderForLander for SealevelProvider {
         payer: &'a SealevelKeypair,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         sign: bool,
-        alt_address: Option<Pubkey>,
+        alt_addresses: &SealevelTransactionFormat,
         additional_signers: &'a [&'a SealevelKeypair],
     ) -> ChainResult<SealevelTxType> {
         let instructions = vec![
@@ -189,57 +190,62 @@ impl SealevelProviderForLander for SealevelProvider {
             Hash::default()
         };
 
-        // Build versioned transaction with ALT if provided, otherwise legacy
-        if let Some(alt_pubkey) = alt_address {
-            // Lazily fetch ALT if not cached
-            let alt_account = self.get_or_fetch_alt(alt_pubkey).await?;
+        match alt_addresses {
+            SealevelTransactionFormat::V0 { alt_addresses } => {
+                // Lazily fetch any ALTs not already cached, preserving config order so
+                // account indexes stay deterministic across runs.
+                let alt_accounts = self.get_or_fetch_alts(alt_addresses).await?;
 
-            let message = MessageV0::try_compile(
-                &payer.pubkey(),
-                &instructions,
-                &[alt_account],
-                recent_blockhash,
-            )
-            .map_err(ChainCommunicationError::from_other)?;
+                let message = MessageV0::try_compile(
+                    &payer.pubkey(),
+                    &instructions,
+                    alt_accounts.as_ref(),
+                    recent_blockhash,
+                )
+                .map_err(ChainCommunicationError::from_other)?;
 
-            let versioned_tx = if sign {
-                // Build signer list after all awaits to avoid Send issues with &dyn Signer.
-                let all_signers: Vec<&dyn Signer> = std::iter::once(payer.keypair() as &dyn Signer)
-                    .chain(
-                        additional_signers
-                            .iter()
-                            .map(|k| k.keypair() as &dyn Signer),
-                    )
-                    .collect();
-                VersionedTransaction::try_new(VersionedMessage::V0(message), &all_signers)
-                    .map_err(ChainCommunicationError::from_other)?
-            } else {
-                let num_required_signatures = message.header.num_required_signatures as usize;
-                VersionedTransaction {
-                    signatures: vec![Signature::default(); num_required_signatures],
-                    message: VersionedMessage::V0(message),
-                }
-            };
+                let versioned_tx = if sign {
+                    // Build signer list after all awaits to avoid Send issues with &dyn Signer.
+                    let all_signers: Vec<&dyn Signer> =
+                        std::iter::once(payer.keypair() as &dyn Signer)
+                            .chain(
+                                additional_signers
+                                    .iter()
+                                    .map(|k| k.keypair() as &dyn Signer),
+                            )
+                            .collect();
+                    VersionedTransaction::try_new(VersionedMessage::V0(message), &all_signers)
+                        .map_err(ChainCommunicationError::from_other)?
+                } else {
+                    let num_required_signatures = message.header.num_required_signatures as usize;
+                    VersionedTransaction {
+                        signatures: vec![Signature::default(); num_required_signatures],
+                        message: VersionedMessage::V0(message),
+                    }
+                };
 
-            Ok(SealevelTxType::Versioned(versioned_tx))
-        } else {
-            // No ALT - use pure legacy Transaction (NOT wrapped in VersionedTransaction)
-            let message = Message::new(&instructions, Some(&payer.pubkey()));
-            let legacy_tx = if sign {
-                // Build signer list after all awaits to avoid Send issues with &dyn Signer.
-                let all_signers: Vec<&dyn Signer> = std::iter::once(payer.keypair() as &dyn Signer)
-                    .chain(
-                        additional_signers
-                            .iter()
-                            .map(|k| k.keypair() as &dyn Signer),
-                    )
-                    .collect();
-                Transaction::new(&all_signers, message, recent_blockhash)
-            } else {
-                Transaction::new_unsigned(message)
-            };
+                Ok(SealevelTxType::Versioned(versioned_tx))
+            }
+            SealevelTransactionFormat::Legacy => {
+                // No ALT - use pure legacy Transaction (NOT wrapped in VersionedTransaction)
+                let message = Message::new(&instructions, Some(&payer.pubkey()));
+                let legacy_tx = if sign {
+                    // Build signer list after all awaits to avoid Send issues with &dyn Signer.
+                    let all_signers: Vec<&dyn Signer> =
+                        std::iter::once(payer.keypair() as &dyn Signer)
+                            .chain(
+                                additional_signers
+                                    .iter()
+                                    .map(|k| k.keypair() as &dyn Signer),
+                            )
+                            .collect();
+                    Transaction::new(&all_signers, message, recent_blockhash)
+                } else {
+                    Transaction::new_unsigned(message)
+                };
 
-            Ok(SealevelTxType::Legacy(legacy_tx))
+                Ok(SealevelTxType::Legacy(legacy_tx))
+            }
         }
     }
 
@@ -252,7 +258,7 @@ impl SealevelProviderForLander for SealevelProvider {
         payer: &SealevelKeypair,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
-        alt_address: Option<Pubkey>,
+        alt_addresses: &SealevelTransactionFormat,
     ) -> ChainResult<SealevelTxCostEstimate> {
         // Build a transaction that sets the max compute units and a dummy compute unit price.
         // This is used for simulation to get the actual compute unit limit. We set dummy values
@@ -266,7 +272,7 @@ impl SealevelProviderForLander for SealevelProvider {
                 payer,
                 tx_submitter,
                 false,
-                alt_address,
+                alt_addresses,
                 &[],
             )
             .await?;
@@ -430,7 +436,37 @@ impl SealevelProvider {
             native_token,
             recipient_provider,
             alt_cache: Arc::new(RwLock::new(HashMap::new())),
+            alt_set_cache: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    /// Lazily fetches each ALT from the chain if not already cached.
+    ///
+    /// Order is preserved: `MessageV0::try_compile` assigns account indexes by ALT
+    /// position, so a stable order keeps compiled transactions deterministic.
+    async fn get_or_fetch_alts(
+        &self,
+        alt_addresses: &NonEmptyAltAddresses,
+    ) -> ChainResult<Arc<[AddressLookupTableAccount]>> {
+        {
+            let cache = self.alt_set_cache.read().await;
+            if let Some(alt_accounts) = cache.get(alt_addresses) {
+                return Ok(Arc::clone(alt_accounts));
+            }
+        }
+
+        let mut alt_accounts = Vec::with_capacity(alt_addresses.as_slice().len());
+        for alt_address in alt_addresses.as_slice() {
+            let alt_account = self.get_or_fetch_alt(*alt_address).await?;
+            alt_accounts.push((*alt_account).clone());
+        }
+        let alt_accounts: Arc<[AddressLookupTableAccount]> = alt_accounts.into();
+
+        let mut cache = self.alt_set_cache.write().await;
+        let cached = cache
+            .entry(alt_addresses.clone())
+            .or_insert_with(|| Arc::clone(&alt_accounts));
+        Ok(Arc::clone(cached))
     }
 
     /// Lazily fetches an ALT from the chain if not already cached.
@@ -438,17 +474,17 @@ impl SealevelProvider {
     async fn get_or_fetch_alt(
         &self,
         alt_address: Pubkey,
-    ) -> ChainResult<AddressLookupTableAccount> {
+    ) -> ChainResult<Arc<AddressLookupTableAccount>> {
         // Check cache first (read lock)
         {
             let cache = self.alt_cache.read().await;
             if let Some(alt_account) = cache.get(&alt_address) {
-                return Ok(alt_account.clone());
+                return Ok(Arc::clone(alt_account));
             }
         }
 
         // Not cached - fetch from chain and cache (write lock)
-        let alt_account = fetch_alt(&self.rpc_client, alt_address).await?;
+        let alt_account = Arc::new(fetch_alt(&self.rpc_client, alt_address).await?);
         tracing::info!(
             domain = %self.domain,
             alt_address = %alt_address,
@@ -457,8 +493,10 @@ impl SealevelProvider {
         );
 
         let mut cache = self.alt_cache.write().await;
-        cache.insert(alt_address, alt_account.clone());
-        Ok(alt_account)
+        let cached = cache
+            .entry(alt_address)
+            .or_insert_with(|| Arc::clone(&alt_account));
+        Ok(Arc::clone(cached))
     }
 
     /// Get an rpc client
@@ -526,7 +564,7 @@ impl SealevelProvider {
     }
 
     /// Builds a transaction with estimated costs for a given instruction.
-    /// Returns `SealevelTxType::Versioned` with ALT if `alt_address` is provided,
+    /// Returns `SealevelTxType::Versioned` with ALTs if `alt_addresses` is non-empty,
     /// or `SealevelTxType::Legacy` otherwise.
     ///
     /// `additional_signers` are extra keypairs that must co-sign the transaction (e.g. the
@@ -538,7 +576,7 @@ impl SealevelProvider {
         payer: &SealevelKeypair,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
-        alt_address: Option<Pubkey>,
+        alt_addresses: SealevelTransactionFormat,
         additional_signers: &[&SealevelKeypair],
     ) -> ChainResult<SealevelTxType> {
         // Get the estimated costs for the instruction.
@@ -551,7 +589,7 @@ impl SealevelProvider {
                 payer,
                 tx_submitter.clone(),
                 priority_fee_oracle,
-                alt_address,
+                &alt_addresses,
             )
             .await?;
 
@@ -571,7 +609,7 @@ impl SealevelProvider {
                     payer,
                     tx_submitter,
                     true,
-                    alt_address,
+                    &alt_addresses,
                     &[],
                 )
                 .await?;
@@ -587,7 +625,7 @@ impl SealevelProvider {
                 payer,
                 tx_submitter,
                 false,
-                alt_address,
+                &alt_addresses,
                 &[],
             )
             .await?;
@@ -929,6 +967,7 @@ mod tests {
             native_token: NativeToken::default(),
             recipient_provider: RecipientProvider::new(&[]),
             alt_cache: Arc::new(RwLock::new(HashMap::new())),
+            alt_set_cache: Arc::new(RwLock::new(HashMap::new())),
         };
 
         let chain_info = provider
