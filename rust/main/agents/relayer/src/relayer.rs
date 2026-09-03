@@ -181,7 +181,7 @@ impl BaseAgent for Relayer {
         let cache = OptionalCache::new(inner_cache);
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized cache", "Relayer startup duration measurement");
 
-        let db = DB::from_path(&settings.db)?;
+        let db = DB::from_path_with_rollback_wal(&settings.db)?;
 
         start_entity_init = Instant::now();
         let origins =
