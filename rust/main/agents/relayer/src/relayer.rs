@@ -15,7 +15,7 @@ use tokio::{
     sync::{
         broadcast::Sender as BroadcastSender,
         mpsc::{self, Receiver as MpscReceiver, Sender},
-        watch, RwLock,
+        RwLock,
     },
     task::{JoinHandle, JoinSet},
 };
@@ -42,7 +42,7 @@ use crate::relay_api::{
     handlers::{RateLimiter, ServerState as RelayApiState, TxHashCache},
     RelayApiMetrics,
 };
-use crate::scraper_websocket::{ScraperSource, ScraperWebSocketMonitor};
+use crate::scraper_websocket::{ScraperAuthorityReceiver, ScraperSource, ScraperWebSocketMonitor};
 use crate::{db_loader::DbLoader, relayer::origin::Origin, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 use crate::{
     db_loader::DbLoaderExt,
@@ -113,7 +113,7 @@ pub struct Relayer {
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
     scraper_websocket_monitor: Option<ScraperWebSocketMonitor>,
-    scraper_websocket_authority: Option<watch::Receiver<bool>>,
+    scraper_websocket_authority: Option<ScraperAuthorityReceiver>,
     /// Tokio console server
     pub tokio_console_server: Option<console_subscriber::Server>,
 
@@ -797,7 +797,7 @@ impl Relayer {
     fn run_rpc_sync_supervisor(
         &self,
         origin: &Origin,
-        mut authority: watch::Receiver<bool>,
+        mut authority: ScraperAuthorityReceiver,
         broadcaster: Option<BroadcastMpscSender<H512>>,
         task_monitor: TaskMonitor,
     ) -> JoinHandle<()> {
@@ -810,7 +810,9 @@ impl Relayer {
         tokio::spawn(async move {
             let mut authority_channel_open = true;
             loop {
-                while authority_channel_open && *authority.borrow_and_update() {
+                let mut command = authority.borrow_and_update();
+                while authority_channel_open && command.desired {
+                    authority.mark_paused(origin_domain.id(), command.generation);
                     if authority.changed().await.is_err() {
                         warn!(
                             chain = origin_domain.name(),
@@ -818,7 +820,10 @@ impl Relayer {
                         );
                         authority_channel_open = false;
                     }
+                    command = authority.borrow_and_update();
                 }
+
+                authority.mark_running(origin_domain.id());
 
                 let mut syncs = JoinSet::new();
                 let message_origin = origin_domain.clone();
@@ -898,7 +903,9 @@ impl Relayer {
                 syncs.abort_all();
                 while syncs.join_next().await.is_some() {}
 
-                if *authority.borrow_and_update() {
+                let command = authority.borrow_and_update();
+                if command.desired {
+                    authority.mark_paused(origin_domain.id(), command.generation);
                     info!(
                         chain = origin_domain.name(),
                         "Paused direct RPC indexing after scraper cutover"

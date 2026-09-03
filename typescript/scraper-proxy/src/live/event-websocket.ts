@@ -974,7 +974,7 @@ export class EventWebSocketServer {
   ): Promise<Row[]> {
     const stream = STREAMS.gas_payment;
     return this.db.queryLive<Row>(
-      `SELECT ${gasPaymentColumns(stream)}, ${q('event_cursor')}.${q('stream_cursor')} AS ${q(STREAM_CURSOR_COLUMN)} FROM ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} INNER JOIN ${q(stream.table)} AS ${q('event_row')} ON ${q('event_row')}.${q('id')} = ${q('event_cursor')}.${q('gas_payment_id')}${gasPaymentMetadataJoins()} WHERE ${q('event_cursor')}.${q('domain')} = $1 AND ${q('event_cursor')}.${q('interchain_gas_paymaster')} = $2::bytea AND ${q('event_cursor')}.${q('stream_cursor')} > $3::bigint AND ${q('event_cursor')}.${q('stream_cursor')} <= $4::bigint ORDER BY ${q('event_cursor')}.${q('stream_cursor')} ASC LIMIT $5`,
+      `SELECT ${gasPaymentColumns(stream)}, ${q('event_cursor')}.${q('stream_cursor')} AS ${q(STREAM_CURSOR_COLUMN)} FROM ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} INNER JOIN ${q(stream.table)} AS ${q('event_row')} ON ${q('event_row')}.${q('id')} = ${q('event_cursor')}.${q('gas_payment_id')}${gasPaymentMetadataJoins('LEFT JOIN')} WHERE ${q('event_cursor')}.${q('domain')} = $1 AND ${q('event_cursor')}.${q('interchain_gas_paymaster')} = $2::bytea AND ${q('event_cursor')}.${q('stream_cursor')} > $3::bigint AND ${q('event_cursor')}.${q('stream_cursor')} <= $4::bigint ORDER BY ${q('event_cursor')}.${q('stream_cursor')} ASC LIMIT $5`,
       [
         cursor.domain,
         cursor.address,

@@ -11,7 +11,7 @@ export const SEQUENCED_EVENT_TYPES = [
   'merkle_tree_insertion',
 ] as const;
 export const GAS_PAYMENT_CURSOR_EVENT_TYPES = ['gas_payment'] as const;
-export const STREAM_CURSOR_VERSIONS = { gas_payment: 2 } as const;
+export const STREAM_CURSOR_VERSIONS = { gas_payment: 3 } as const;
 
 const CURSOR_ADDRESS = /^(?:0x|\\x)?(?:[\da-fA-F]{40}|[\da-fA-F]{64})$/;
 
