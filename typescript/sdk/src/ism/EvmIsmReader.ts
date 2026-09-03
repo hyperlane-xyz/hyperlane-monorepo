@@ -286,6 +286,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
             receiveLibraryTimeout: remote.receiveLibraryTimeout,
             sendConfig: remote.sendConfig,
             receiveConfig: remote.receiveConfig,
+            effectiveSendConfig: remote.effectiveSendConfig,
+            effectiveReceiveConfig: remote.effectiveReceiveConfig,
           },
         ]),
       );

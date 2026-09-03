@@ -12,6 +12,7 @@ import {
   findLayerZeroV2Hooks,
   HookType,
   IsmType,
+  LayerZeroV2ConfigMode,
   LayerZeroV2Variant,
   TokenType,
 } from '@hyperlane-xyz/sdk';
@@ -50,7 +51,8 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
   };
   let mailboxes: Record<string, Address>;
   let endpoints: Record<string, Address>;
-  let libraries: Record<string, Address>;
+  let sendLibraries: Record<string, Address>;
+  let receiveLibraries: Record<string, Address>;
 
   before(async () => {
     const cores = await Promise.all(
@@ -66,7 +68,8 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
       key: ANVIL_KEY,
     });
     endpoints = {};
-    libraries = {};
+    sendLibraries = {};
+    receiveLibraries = {};
     for (const chain of chains) {
       multiProvider.setSigner(
         chain,
@@ -77,7 +80,12 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
         new MockLayerZeroEndpointV2__factory(),
         [eids[chain]],
       );
-      const library = await multiProvider.handleDeploy(
+      const sendLibrary = await multiProvider.handleDeploy(
+        chain,
+        new MockLayerZeroReceiveUln__factory(),
+        [endpoint.address],
+      );
+      const receiveLibrary = await multiProvider.handleDeploy(
         chain,
         new MockLayerZeroReceiveUln__factory(),
         [endpoint.address],
@@ -86,10 +94,17 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
         chain,
         endpoint
           .connect(multiProvider.getSigner(chain))
-          .registerMockLibrary(library.address),
+          .registerMockLibrary(sendLibrary.address),
+      );
+      await multiProvider.handleTx(
+        chain,
+        endpoint
+          .connect(multiProvider.getSigner(chain))
+          .registerMockLibrary(receiveLibrary.address),
       );
       endpoints[chain] = endpoint.address;
-      libraries[chain] = library.address;
+      sendLibraries[chain] = sendLibrary.address;
+      receiveLibraries[chain] = receiveLibrary.address;
     }
   });
 
@@ -118,11 +133,14 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
           pathways: {
             [remote]: {
               layerZeroDomainId: eids[remote],
-              sendLibrary: libraries[chain],
-              receiveLibrary: libraries[chain],
+              sendLibrary: sendLibraries[chain],
+              receiveLibrary: receiveLibraries[chain],
               receiveLibraryGracePeriod: 0,
-              sendConfig: [],
-              receiveConfig: [],
+              sendConfig: {
+                executor: { type: 'default' },
+                uln: { type: 'default' },
+              },
+              receiveConfig: { uln: { type: 'default' } },
             },
           },
           ...(variant === LayerZeroV2Variant.CcipRead
@@ -149,6 +167,12 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
         ];
       }),
     ) as WarpRouteDeployConfigMailboxRequired;
+  }
+
+  function orderedDvns(chain: string): Address[] {
+    return [sendLibraries[chain], receiveLibraries[chain]].toSorted((a, b) =>
+      a.toLowerCase().localeCompare(b.toLowerCase()),
+    );
   }
 
   for (const [variant, symbol] of [
@@ -203,6 +227,17 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
         expect(derived.remoteRouters[remote].router.toLowerCase()).to.equal(
           combined[remote].toLowerCase(),
         );
+        expect(derived.remoteRouters[remote].sendConfig).to.deep.equal({
+          executor: { type: LayerZeroV2ConfigMode.Default },
+          uln: { type: LayerZeroV2ConfigMode.Default },
+        });
+        expect(derived.remoteRouters[remote].receiveConfig).to.deep.equal({
+          uln: { type: LayerZeroV2ConfigMode.Default },
+        });
+        expect(
+          derived.remoteRouters[remote].effectiveSendConfig?.executor
+            .maxMessageSize,
+        ).to.equal(10_000);
       }
       const check = await hyperlaneWarpCheck(routeId);
       expect(check.exitCode).to.equal(0);
@@ -210,6 +245,40 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
       const updatedConfig = configFor(variant, symbol);
       for (const chain of chains) {
         const remote = chain === CHAIN_NAME_2 ? CHAIN_NAME_3 : CHAIN_NAME_2;
+        const requiredDVNs = orderedDvns(chain);
+        const ism = updatedConfig[chain].interchainSecurityModule;
+        assert(
+          typeof ism !== 'string' &&
+            ism &&
+            (ism.type === IsmType.LAYER_ZERO_V2_CALLBACK ||
+              ism.type === IsmType.LAYER_ZERO_V2_CCIP_READ),
+          `Missing LayerZero ISM on ${chain}`,
+        );
+        const pathway = ism.pathways[remote];
+        assert(pathway, `Missing ${chain} -> ${remote} pathway`);
+        pathway.sendConfig = {
+          executor: {
+            type: LayerZeroV2ConfigMode.Override,
+            maxMessageSize: 20_000,
+            executor: sendLibraries[chain],
+          },
+          uln: {
+            type: LayerZeroV2ConfigMode.Override,
+            confirmations: 15n,
+            requiredDVNs,
+            optionalDVNs: [],
+            optionalDVNThreshold: 0,
+          },
+        };
+        pathway.receiveConfig = {
+          uln: {
+            type: LayerZeroV2ConfigMode.Override,
+            confirmations: 20n,
+            requiredDVNs,
+            optionalDVNs: [],
+            optionalDVNThreshold: 0,
+          },
+        };
         if (variant === LayerZeroV2Variant.Callback) {
           const hook = findLayerZeroV2Hooks(updatedConfig[chain].hook)[0];
           assert(
@@ -240,6 +309,7 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
 
       for (const chain of chains) {
         const remote = chain === CHAIN_NAME_2 ? CHAIN_NAME_3 : CHAIN_NAME_2;
+        const requiredDVNs = orderedDvns(chain);
         const derived = await new EvmLayerZeroV2HookIsmReader(
           multiProvider,
           chain,
@@ -254,9 +324,158 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
             'http://127.0.0.1:3001/layerzero/getLayerZeroPacket',
           ]);
         }
+        expect(derived.remoteRouters[remote].sendConfig).to.deep.equal({
+          executor: {
+            type: LayerZeroV2ConfigMode.Override,
+            maxMessageSize: 20_000,
+            executor: sendLibraries[chain],
+          },
+          uln: {
+            type: LayerZeroV2ConfigMode.Override,
+            confirmations: 15n,
+            requiredDVNs,
+            optionalDVNs: [],
+            optionalDVNThreshold: 0,
+          },
+        });
+        expect(derived.remoteRouters[remote].receiveConfig).to.deep.equal({
+          uln: {
+            type: LayerZeroV2ConfigMode.Override,
+            confirmations: 20n,
+            requiredDVNs,
+            optionalDVNs: [],
+            optionalDVNThreshold: 0,
+          },
+        });
+        expect(derived.remoteRouters[remote].effectiveSendConfig).to.deep.equal(
+          {
+            executor: {
+              maxMessageSize: 20_000,
+              executor: sendLibraries[chain],
+            },
+            uln: {
+              confirmations: 15n,
+              requiredDVNs,
+              optionalDVNs: [],
+              optionalDVNThreshold: 0,
+            },
+          },
+        );
+        expect(
+          derived.remoteRouters[remote].effectiveReceiveConfig,
+        ).to.deep.equal({
+          uln: {
+            confirmations: 20n,
+            requiredDVNs,
+            optionalDVNs: [],
+            optionalDVNThreshold: 0,
+          },
+        });
       }
       const postApplyCheck = await hyperlaneWarpCheck(routeId);
       expect(postApplyCheck.exitCode).to.equal(0);
+
+      for (const chain of chains) {
+        const remote = chain === CHAIN_NAME_2 ? CHAIN_NAME_3 : CHAIN_NAME_2;
+        const ism = updatedConfig[chain].interchainSecurityModule;
+        assert(
+          typeof ism !== 'string' &&
+            ism &&
+            (ism.type === IsmType.LAYER_ZERO_V2_CALLBACK ||
+              ism.type === IsmType.LAYER_ZERO_V2_CCIP_READ),
+          `Missing LayerZero ISM on ${chain}`,
+        );
+        const pathway = ism.pathways[remote];
+        assert(pathway, `Missing ${chain} -> ${remote} pathway`);
+        assert(
+          pathway.sendConfig.uln.type === LayerZeroV2ConfigMode.Override &&
+            pathway.receiveConfig.uln.type === LayerZeroV2ConfigMode.Override,
+          `Missing LayerZero ULN overrides on ${chain}`,
+        );
+        const unorderedDvns = orderedDvns(chain).toReversed();
+        pathway.sendConfig.uln.requiredDVNs = unorderedDvns;
+        pathway.receiveConfig.uln.requiredDVNs = unorderedDvns;
+      }
+      writeYamlOrJson(registryDeployPath, updatedConfig);
+
+      const unorderedCheck = await hyperlaneWarpCheck(routeId);
+      expect(unorderedCheck.exitCode).to.equal(0);
+      const unorderedApply = await hyperlaneWarpApply(routeId);
+      expect(unorderedApply.exitCode).to.equal(0);
+      expect(unorderedApply.stdout).to.include(
+        'Warp config is the same as target. No updates needed.',
+      );
+
+      for (const chain of chains) {
+        const remote = chain === CHAIN_NAME_2 ? CHAIN_NAME_3 : CHAIN_NAME_2;
+        const ism = updatedConfig[chain].interchainSecurityModule;
+        assert(
+          typeof ism !== 'string' &&
+            ism &&
+            (ism.type === IsmType.LAYER_ZERO_V2_CALLBACK ||
+              ism.type === IsmType.LAYER_ZERO_V2_CCIP_READ),
+          `Missing LayerZero ISM on ${chain}`,
+        );
+        const pathway = ism.pathways[remote];
+        assert(pathway, `Missing ${chain} -> ${remote} pathway`);
+        pathway.sendConfig = {
+          executor: { type: LayerZeroV2ConfigMode.Default },
+          uln: { type: LayerZeroV2ConfigMode.Default },
+        };
+        pathway.receiveConfig = {
+          uln: { type: LayerZeroV2ConfigMode.Default },
+        };
+      }
+      writeYamlOrJson(registryDeployPath, updatedConfig);
+
+      const resetApply = await hyperlaneWarpApply(routeId);
+      expect(resetApply.exitCode).to.equal(0);
+      for (const chain of chains) {
+        const remote = chain === CHAIN_NAME_2 ? CHAIN_NAME_3 : CHAIN_NAME_2;
+        const derived = await new EvmLayerZeroV2HookIsmReader(
+          multiProvider,
+          chain,
+        ).deriveLayerZeroConfig(combined[chain]);
+        expect(derived.remoteRouters[remote].sendConfig).to.deep.equal({
+          executor: { type: LayerZeroV2ConfigMode.Default },
+          uln: { type: LayerZeroV2ConfigMode.Default },
+        });
+        expect(derived.remoteRouters[remote].receiveConfig).to.deep.equal({
+          uln: { type: LayerZeroV2ConfigMode.Default },
+        });
+        expect(derived.remoteRouters[remote].effectiveSendConfig).to.deep.equal(
+          {
+            executor: {
+              maxMessageSize: 10_000,
+              executor: sendLibraries[chain],
+            },
+            uln: {
+              confirmations: 12n,
+              requiredDVNs: [sendLibraries[chain]],
+              optionalDVNs: [],
+              optionalDVNThreshold: 0,
+            },
+          },
+        );
+        expect(
+          derived.remoteRouters[remote].effectiveReceiveConfig,
+        ).to.deep.equal({
+          uln: {
+            confirmations: 12n,
+            requiredDVNs: [receiveLibraries[chain]],
+            optionalDVNs: [],
+            optionalDVNThreshold: 0,
+          },
+        });
+      }
+      const postResetCheck = await hyperlaneWarpCheck(routeId);
+      expect(postResetCheck.exitCode).to.equal(0);
+
+      const idempotentApply = await hyperlaneWarpApply(routeId);
+      expect(idempotentApply.exitCode).to.equal(0);
+      expect(idempotentApply.stdout).to.include(
+        'Warp config is the same as target. No updates needed.',
+      );
     });
   }
 });

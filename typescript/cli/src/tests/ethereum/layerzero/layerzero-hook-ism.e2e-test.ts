@@ -187,8 +187,11 @@ describe('LayerZero V2 combined hook/ISM message E2E', function () {
                 sendLibrary: fixtures[chain].library,
                 receiveLibrary: fixtures[chain].library,
                 receiveLibraryGracePeriod: 0,
-                sendConfig: [],
-                receiveConfig: [],
+                sendConfig: {
+                  executor: { type: 'default' },
+                  uln: { type: 'default' },
+                },
+                receiveConfig: { uln: { type: 'default' } },
                 ...(variant === LayerZeroV2Variant.Callback
                   ? { callbackGasLimit: 250_000n }
                   : {}),

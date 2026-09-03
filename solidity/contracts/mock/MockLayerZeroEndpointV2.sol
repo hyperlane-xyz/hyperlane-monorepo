@@ -7,6 +7,18 @@ import {SetConfigParam as LayerZeroSetConfigParam} from "@layerzerolabs/lz-evm-p
 import {GUID} from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/GUID.sol";
 import {Errors} from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/Errors.sol";
 
+interface IMockLayerZeroConfigLibrary {
+    function getDefaultConfig(
+        uint32 configType
+    ) external view returns (bytes memory);
+
+    function getEffectiveConfig(
+        address oapp,
+        uint32 remoteEid,
+        uint32 configType
+    ) external view returns (bytes memory);
+}
+
 contract MockLayerZeroEndpointV2 {
     struct ReceiveLibraryTimeout {
         address libraryAddress;
@@ -322,7 +334,28 @@ contract MockLayerZeroEndpointV2 {
         uint32 remoteEid,
         uint32 configType
     ) external view returns (bytes memory) {
-        return configs[oapp][libraryAddress][remoteEid][configType];
+        try
+            IMockLayerZeroConfigLibrary(libraryAddress).getEffectiveConfig(
+                oapp,
+                remoteEid,
+                configType
+            )
+        returns (bytes memory effectiveConfig) {
+            return effectiveConfig;
+        } catch {}
+        bytes memory config = configs[oapp][libraryAddress][remoteEid][
+            configType
+        ];
+        if (config.length != 0) return config;
+        try
+            IMockLayerZeroConfigLibrary(libraryAddress).getDefaultConfig(
+                configType
+            )
+        returns (bytes memory defaultConfig) {
+            return defaultConfig;
+        } catch {
+            return config;
+        }
     }
 
     function _authorize(address oapp) internal view {

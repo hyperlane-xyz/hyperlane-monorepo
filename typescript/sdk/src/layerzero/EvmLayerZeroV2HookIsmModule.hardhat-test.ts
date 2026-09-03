@@ -15,13 +15,25 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmLayerZeroV2HookIsmModule } from './EvmLayerZeroV2HookIsmModule.js';
 import { EvmLayerZeroV2HookIsmReader } from './EvmLayerZeroV2HookIsmReader.js';
-import { LayerZeroV2MeshConfig, LayerZeroV2Variant } from './types.js';
+import {
+  LayerZeroV2ConfigMode,
+  LayerZeroV2MeshConfig,
+  LayerZeroV2Variant,
+} from './types.js';
 
 describe('EvmLayerZeroV2HookIsmModule', () => {
   const chainA = TestChainName.test1;
   const chainB = TestChainName.test2;
   let signer: SignerWithAddress;
   let multiProvider: MultiProvider;
+
+  const defaultSendConfig = () => ({
+    executor: { type: LayerZeroV2ConfigMode.Default },
+    uln: { type: LayerZeroV2ConfigMode.Default },
+  });
+  const defaultReceiveConfig = () => ({
+    uln: { type: LayerZeroV2ConfigMode.Default },
+  });
 
   before(async () => {
     [signer] = await hre.ethers.getSigners();
@@ -84,8 +96,29 @@ describe('EvmLayerZeroV2HookIsmModule', () => {
               library: receiveLibraryA.address,
               expiry: timeoutExpiry,
             },
-            sendConfig: [{ configType: 1, config: '0x1234' }],
-            receiveConfig: [{ configType: 2, config: '0xabcd' }],
+            sendConfig: {
+              executor: {
+                type: LayerZeroV2ConfigMode.Override,
+                maxMessageSize: 20_000,
+                executor: signer.address,
+              },
+              uln: {
+                type: LayerZeroV2ConfigMode.Override,
+                confirmations: 15n,
+                requiredDVNs: [signer.address],
+                optionalDVNs: [],
+                optionalDVNThreshold: 0,
+              },
+            },
+            receiveConfig: {
+              uln: {
+                type: LayerZeroV2ConfigMode.Override,
+                confirmations: 20n,
+                requiredDVNs: [signer.address],
+                optionalDVNs: [],
+                optionalDVNThreshold: 0,
+              },
+            },
             callbackGasLimit: 250_000n,
           },
         },
@@ -103,8 +136,8 @@ describe('EvmLayerZeroV2HookIsmModule', () => {
             sendLibrary: sendLibraryB.address,
             receiveLibrary: receiveLibraryB.address,
             receiveLibraryGracePeriod: 0,
-            sendConfig: [],
-            receiveConfig: [],
+            sendConfig: defaultSendConfig(),
+            receiveConfig: defaultReceiveConfig(),
             callbackGasLimit: 300_000n,
           },
         },
@@ -127,15 +160,88 @@ describe('EvmLayerZeroV2HookIsmModule', () => {
     expect(
       derived.remoteRouters[chainB].receiveLibraryTimeout?.expiry,
     ).to.equal(timeoutExpiry);
-    expect(derived.remoteRouters[chainB].sendConfig).to.deep.equal([
-      { configType: 1, config: '0x1234' },
-    ]);
-    expect(derived.remoteRouters[chainB].receiveConfig).to.deep.equal([
-      { configType: 2, config: '0xabcd' },
-    ]);
+    expect(derived.remoteRouters[chainB].sendConfig).to.deep.equal(
+      mesh[chainA].remoteRouters[chainB].sendConfig,
+    );
+    expect(derived.remoteRouters[chainB].receiveConfig).to.deep.equal(
+      mesh[chainA].remoteRouters[chainB].receiveConfig,
+    );
+    expect(derived.remoteRouters[chainB].effectiveSendConfig).to.deep.equal({
+      executor: {
+        maxMessageSize: 20_000,
+        executor: signer.address,
+      },
+      uln: {
+        confirmations: 15n,
+        requiredDVNs: [signer.address],
+        optionalDVNs: [],
+        optionalDVNThreshold: 0,
+      },
+    });
     expect(await endpointA.delegates(addresses[chainA])).to.equal(
       hre.ethers.constants.AddressZero,
     );
+
+    const derivedDefaults = await new EvmLayerZeroV2HookIsmReader(
+      multiProvider,
+      chainB,
+    ).deriveLayerZeroConfig(addresses[chainB]);
+    expect(derivedDefaults.remoteRouters[chainA].sendConfig).to.deep.equal(
+      defaultSendConfig(),
+    );
+    expect(
+      derivedDefaults.remoteRouters[chainA].effectiveSendConfig,
+    ).to.deep.equal({
+      executor: {
+        maxMessageSize: 10_000,
+        executor: sendLibraryB.address,
+      },
+      uln: {
+        confirmations: 12n,
+        requiredDVNs: [sendLibraryB.address],
+        optionalDVNs: [],
+        optionalDVNThreshold: 0,
+      },
+    });
+
+    const configuredMesh = EvmLayerZeroV2HookIsmModule.withDeployedRouters(
+      mesh,
+      addresses,
+    );
+    const explicitDefaults = {
+      type: 'override' as const,
+      confirmations: 12n,
+      requiredDVNs: [sendLibraryB.address],
+      optionalDVNs: [],
+      optionalDVNThreshold: 0,
+    };
+    const pinDefaultValues = await new EvmLayerZeroV2HookIsmModule(
+      multiProvider,
+      chainB,
+      addresses[chainB],
+    ).update({
+      ...configuredMesh[chainB],
+      remoteRouters: {
+        [chainA]: {
+          ...configuredMesh[chainB].remoteRouters[chainA],
+          sendConfig: {
+            executor: {
+              type: LayerZeroV2ConfigMode.Override,
+              maxMessageSize: 10_000,
+              executor: sendLibraryB.address,
+            },
+            uln: explicitDefaults,
+          },
+          receiveConfig: {
+            uln: {
+              ...explicitDefaults,
+              requiredDVNs: [receiveLibraryB.address],
+            },
+          },
+        },
+      },
+    });
+    expect(pinDefaultValues).to.have.length(1);
 
     const reconciled = await EvmLayerZeroV2HookIsmModule.reconcileMesh(
       multiProvider,
@@ -156,7 +262,14 @@ describe('EvmLayerZeroV2HookIsmModule', () => {
               library: receiveLibraryA.address,
               expiry: timeoutExpiry + 100,
             },
-            sendConfig: [{ configType: 1, config: '0x5678' }],
+            sendConfig: {
+              ...mesh[chainA].remoteRouters[chainB].sendConfig,
+              executor: {
+                type: LayerZeroV2ConfigMode.Override,
+                maxMessageSize: 30_000,
+                executor: signer.address,
+              },
+            },
             callbackGasLimit: 275_000n,
           },
         },
@@ -194,9 +307,9 @@ describe('EvmLayerZeroV2HookIsmModule', () => {
       chainA,
     ).deriveLayerZeroConfig(addresses[chainA]);
     expect(updated.remoteRouters[chainB].callbackGasLimit).to.equal(275_000n);
-    expect(updated.remoteRouters[chainB].sendConfig).to.deep.equal([
-      { configType: 1, config: '0x5678' },
-    ]);
+    expect(updated.remoteRouters[chainB].sendConfig).to.deep.equal(
+      updatedMesh[chainA].remoteRouters[chainB].sendConfig,
+    );
     expect(
       updated.remoteRouters[chainB].receiveLibraryTimeout?.expiry,
     ).to.equal(timeoutExpiry + 100);
@@ -246,5 +359,58 @@ describe('EvmLayerZeroV2HookIsmModule', () => {
     expect(migrated.remoteRouters[chainB].receiveLibrary).to.equal(
       receiveLibraryA.address,
     );
+
+    const resetMesh: LayerZeroV2MeshConfig = {
+      ...migrationMesh,
+      [chainA]: {
+        ...migrationMesh[chainA],
+        remoteRouters: {
+          [chainB]: {
+            ...migrationMesh[chainA].remoteRouters[chainB],
+            sendConfig: defaultSendConfig(),
+            receiveConfig: defaultReceiveConfig(),
+          },
+        },
+      },
+    };
+    const reset = await EvmLayerZeroV2HookIsmModule.reconcileMesh(
+      multiProvider,
+      resetMesh,
+      addresses,
+    );
+    expect(reset.transactions[chainA]).to.have.length(1);
+    const resetTx = reset.transactions[chainA][0];
+    if (!resetTx.data) throw new Error('Missing reset transaction data');
+    const parsedReset =
+      LayerZeroV2CallbackHookIsm__factory.createInterface().parseTransaction({
+        data: resetTx.data,
+      });
+    expect(parsedReset.args.updates[0].sendConfig).to.have.length(2);
+    expect(parsedReset.args.updates[0].receiveConfig).to.have.length(1);
+    await multiProvider.handleTx(
+      chainA,
+      await signer.sendTransaction({
+        to: resetTx.to,
+        data: resetTx.data,
+        value: resetTx.value,
+      }),
+    );
+    const resetDerived = await new EvmLayerZeroV2HookIsmReader(
+      multiProvider,
+      chainA,
+    ).deriveLayerZeroConfig(addresses[chainA]);
+    expect(resetDerived.remoteRouters[chainB].sendConfig).to.deep.equal(
+      defaultSendConfig(),
+    );
+    expect(resetDerived.remoteRouters[chainB].receiveConfig).to.deep.equal(
+      defaultReceiveConfig(),
+    );
+    expect(
+      await new EvmLayerZeroV2HookIsmModule(
+        multiProvider,
+        chainA,
+        addresses[chainA],
+      ).update(resetDerived),
+    ).to.deep.equal([]);
   });
 });
