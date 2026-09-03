@@ -1,18 +1,29 @@
 import { expect } from 'chai';
 
 import {
+  isArtifactDeployed,
+  isArtifactUnderived,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import {
   type ChainAddresses,
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
-import { SealevelSigner, createRpc } from '@hyperlane-xyz/sealevel-sdk';
+import {
+  SealevelAddressLookupTableReader,
+  SealevelSigner,
+  SvmWarpArtifactManager,
+  createRpc,
+  createWarpAltReader,
+} from '@hyperlane-xyz/sealevel-sdk';
 import { airdropSol } from '@hyperlane-xyz/sealevel-sdk/testing';
 import {
+  IsmType,
   TokenFeeType,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -94,6 +105,29 @@ describe('hyperlane warp alt CLI e2e tests (Sealevel)', function () {
         decimals: 9,
         mailbox: mailboxAddress,
         owner: ownerAddress,
+        // Mirrors the live Base -> Solana USDC route that exposed oversized
+        // Mailbox.process transactions.
+        interchainSecurityModule: {
+          type: IsmType.COMPOSITE,
+          owner: ownerAddress,
+          root: {
+            type: 'aggregation',
+            threshold: 3,
+            subIsms: [
+              { type: 'pausable', paused: false },
+              {
+                type: 'rateLimited',
+                mailbox: mailboxAddress,
+                maxCapacity: '1000000',
+                recipient: addressToBytes32(ownerAddress),
+              },
+              {
+                type: 'fallbackRouting',
+                fallbackIsm: 'LwNfVYMDzAe5dCJgA5CipTZcT34Eyf74zLr81K91jxk',
+              },
+            ],
+          },
+        },
       },
     };
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, config);
@@ -111,16 +145,51 @@ describe('hyperlane warp alt CLI e2e tests (Sealevel)', function () {
 
     const postCreate: WarpCoreConfig = readYamlOrJson(warpCorePath);
     const altEntry = postCreate.options?.sealevel?.altAddresses?.[CHAIN_NAME];
-    expect(altEntry, 'sealevel.altAddresses entry written').to.be.an('object');
-    expect(altEntry!.core, 'core ALT is a non-empty string')
+    assert(altEntry, 'sealevel.altAddresses entry written');
+    expect(altEntry.core, 'core ALT is a non-empty string')
       .to.be.a('string')
       .and.to.have.length.greaterThan(0);
-    expect(altEntry!.warpSpecific, 'warpSpecific is non-empty array')
+    expect(altEntry.warpSpecific, 'warpSpecific is non-empty array')
       .to.be.an('array')
       .with.lengthOf(1);
-    expect(altEntry!.warpSpecific[0])
+    expect(altEntry.warpSpecific[0])
       .to.be.a('string')
       .and.to.have.length.greaterThan(0);
+
+    const rpc = createRpc(
+      TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1.rpcUrl,
+    );
+    const warpAddress = warpCommands.getDeployedWarpAddress(
+      CHAIN_NAME,
+      warpCorePath,
+    );
+    const warp = await new SvmWarpArtifactManager(rpc, {
+      chainName: CHAIN_NAME,
+    }).readWarpToken(warpAddress);
+    const ism = warp.config.interchainSecurityModule;
+    assert(
+      ism && (isArtifactDeployed(ism) || isArtifactUnderived(ism)),
+      'expected deployed custom ISM',
+    );
+    const derivedWarpSpecific = await createWarpAltReader(
+      TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
+    )
+      .createReader(warp.config.type)
+      .deriveWarpRouteAddresses(warp);
+    expect(
+      derivedWarpSpecific.map(({ address }) => address),
+      'deriveWarpRouteAddresses includes the custom ISM',
+    ).to.include(ism.deployed.address);
+    const altReader = new SealevelAddressLookupTableReader(rpc);
+    const warpSpecificAddresses = (
+      await Promise.all(
+        altEntry.warpSpecific.map((address) => altReader.read(address)),
+      )
+    ).flatMap((alt) => alt.config.addresses);
+    expect(
+      warpSpecificAddresses,
+      'warp-specific ALT contains custom ISM program',
+    ).to.include(ism.deployed.address);
 
     // `warp alt read` exits 0 and prints the on-chain ALT contents.
     await warpCommands.altRead(warpRouteId);
