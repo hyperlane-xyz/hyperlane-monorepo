@@ -440,7 +440,7 @@ impl ValidatorSubmitter {
             checkpoint_queue.retain(|checkpoint| checkpoint.index > floor);
             info!(
                 floor,
-                skipped = queued - checkpoint_queue.len(),
+                skipped = queued.saturating_sub(checkpoint_queue.len()),
                 remaining = checkpoint_queue.len(),
                 "Skipped checkpoints at or below the validated backfill floor"
             );
