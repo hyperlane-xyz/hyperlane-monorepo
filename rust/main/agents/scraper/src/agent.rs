@@ -213,6 +213,22 @@ impl RawDispatchReconciliationSchedule {
         self.discovery_scan.is_none() || self.full_sweep.is_none()
     }
 
+    fn discovery_delay(&self, now: Instant) -> Duration {
+        match (self.discovery_scan, self.full_sweep) {
+            (Some(scan), _) => scan.next_page_at.saturating_duration_since(now),
+            (None, Some(_)) => Duration::MAX,
+            (None, None) => self.next_discovery_at.saturating_duration_since(now),
+        }
+    }
+
+    fn full_sweep_delay(&self, now: Instant) -> Duration {
+        match (self.full_sweep, self.discovery_scan) {
+            (Some(scan), _) => scan.next_page_at.saturating_duration_since(now),
+            (None, Some(_)) => Duration::MAX,
+            (None, None) => self.next_full_sweep_at.saturating_duration_since(now),
+        }
+    }
+
     fn start_discovery(&mut self, frontier: i64, now: Instant) {
         debug_assert!(self.scan_slot_available());
         self.discovery_scan = RawDispatchScan::new(self.discovery_watermark, frontier, now);
@@ -1013,18 +1029,8 @@ impl Scraper {
                     } else {
                         retry_delay
                     };
-                    let discovery_delay = schedule
-                        .discovery_scan
-                        .map(|scan| scan.next_page_at.saturating_duration_since(now))
-                        .unwrap_or_else(|| {
-                            schedule.next_discovery_at.saturating_duration_since(now)
-                        });
-                    let sweep_delay = schedule
-                        .full_sweep
-                        .map(|scan| scan.next_page_at.saturating_duration_since(now))
-                        .unwrap_or_else(|| {
-                            schedule.next_full_sweep_at.saturating_duration_since(now)
-                        });
+                    let discovery_delay = schedule.discovery_delay(now);
+                    let sweep_delay = schedule.full_sweep_delay(now);
                     sleep_with_liveness(
                         retry_delay.min(discovery_delay).min(sweep_delay),
                         &liveness_metric,
@@ -1384,6 +1390,30 @@ mod test {
         assert!(raw_dispatch_scan_slot_available(None, None));
         assert!(!raw_dispatch_scan_slot_available(active_scan, None));
         assert!(!raw_dispatch_scan_slot_available(None, active_scan));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn active_scan_ignores_overdue_blocked_lane_deadline() {
+        let started_at = Instant::now();
+        let mut schedule = RawDispatchReconciliationSchedule::new(0, started_at, started_at);
+        tokio::time::advance(RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP).await;
+        let now = Instant::now();
+
+        schedule.start_full_sweep(200, now);
+        let sweep = schedule
+            .full_sweep
+            .expect("full sweep should own scan slot");
+        assert_eq!(schedule.discovery_delay(now), Duration::MAX);
+        assert_eq!(schedule.full_sweep_delay(now), Duration::ZERO);
+
+        schedule.full_sweep = Some(RawDispatchScan {
+            next_page_at: instant_after(now, RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP),
+            ..sweep
+        });
+        assert_eq!(
+            schedule.full_sweep_delay(now),
+            RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP
+        );
     }
 
     #[tokio::test(start_paused = true)]
