@@ -22,9 +22,8 @@ const LATEST_INDEX_METHOD: &str = "latest_index";
 // uses `latest_index` for metrics, so it is unaffected by this TTL.
 const LATEST_INDEX_CACHE_TTL: Duration = Duration::from_secs(2);
 const MAX_INFLIGHT_CHECKPOINTS: u64 = 1024;
-// Normally each completed flight is invalidated immediately. This short TTL is
-// a cancellation-safety backstop if a caller is dropped between completion and
-// the asynchronous invalidation.
+// Retain completed flights briefly so a delayed waiter cannot invalidate a
+// newer generation. Errors and non-cacheable values are retried after the TTL.
 const INFLIGHT_RESULT_TTL: Duration = Duration::from_millis(100);
 
 type InflightResult<T> = std::result::Result<T, Arc<str>>;
@@ -238,8 +237,6 @@ where
                 }
             })
             .await;
-        self.inflight_latest_index.invalidate(&()).await;
-
         Self::clone_inflight_result(&result)
     }
 
@@ -291,8 +288,6 @@ where
                 }
             })
             .await;
-        self.inflight_checkpoints.invalidate(&index).await;
-
         Self::clone_inflight_result(&result)
     }
 
@@ -583,9 +578,12 @@ mod tests {
 
         let first = syncer.fetch_checkpoint(10).await.expect("first fetch");
         let second = syncer.fetch_checkpoint(10).await.expect("second fetch");
+        tokio::time::sleep(INFLIGHT_RESULT_TTL + Duration::from_millis(10)).await;
+        let third = syncer.fetch_checkpoint(10).await.expect("third fetch");
 
         assert_eq!(first, None);
-        assert_eq!(second, Some(signed_checkpoint));
+        assert_eq!(second, None);
+        assert_eq!(third, Some(signed_checkpoint));
         assert_eq!(fetch_count.load(Ordering::Relaxed), 2);
     }
 
@@ -652,6 +650,7 @@ mod tests {
         );
 
         let first = syncer.fetch_checkpoint(10).await.expect("first fetch");
+        tokio::time::sleep(INFLIGHT_RESULT_TTL + Duration::from_millis(10)).await;
         let second = syncer.fetch_checkpoint(10).await.expect("second fetch");
 
         assert_eq!(first, Some(signed_checkpoint.clone()));
@@ -676,6 +675,7 @@ mod tests {
         );
 
         let first = syncer.fetch_checkpoint(10).await.expect("first fetch");
+        tokio::time::sleep(INFLIGHT_RESULT_TTL + Duration::from_millis(10)).await;
         let second = syncer.fetch_checkpoint(10).await.expect("second fetch");
 
         assert_eq!(first, Some(signed_checkpoint.clone()));
@@ -758,9 +758,12 @@ mod tests {
 
         let first = syncer.latest_index().await.expect("first fetch");
         let second = syncer.latest_index().await.expect("second fetch");
+        tokio::time::sleep(INFLIGHT_RESULT_TTL + Duration::from_millis(10)).await;
+        let third = syncer.latest_index().await.expect("third fetch");
 
         assert_eq!(first, None);
-        assert_eq!(second, Some(10));
+        assert_eq!(second, None);
+        assert_eq!(third, Some(10));
         assert_eq!(latest_index_count.load(Ordering::Relaxed), 2);
     }
 
@@ -892,6 +895,13 @@ mod tests {
         assert!(error.to_string().contains("transient backend error"));
         assert_eq!(fetch_count.load(Ordering::Relaxed), 1);
 
+        let same_flight_error = syncer.fetch_checkpoint(10).await.unwrap_err();
+        assert!(same_flight_error
+            .to_string()
+            .contains("transient backend error"));
+        assert_eq!(fetch_count.load(Ordering::Relaxed), 1);
+
+        tokio::time::sleep(INFLIGHT_RESULT_TTL + Duration::from_millis(10)).await;
         assert_eq!(
             syncer.fetch_checkpoint(10).await.unwrap(),
             Some(signed_checkpoint)
