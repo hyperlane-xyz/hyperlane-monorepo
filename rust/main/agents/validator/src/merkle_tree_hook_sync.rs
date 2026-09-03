@@ -9,6 +9,7 @@ use futures_util::{future::BoxFuture, FutureExt, SinkExt, StreamExt};
 use prometheus::IntGauge;
 use serde::{Deserialize, Serialize};
 use tokio::{
+    sync::Notify,
     task::JoinHandle,
     time::{interval, sleep, timeout, Instant, MissedTickBehavior},
 };
@@ -240,6 +241,7 @@ pub(crate) struct MerkleTreeHookWebSocketSync {
     websocket_active: IntGauge,
     fallback_active: IntGauge,
     cursor_state: MerkleTreeCursorState,
+    checkpoint_wake: Arc<Notify>,
 }
 
 impl MerkleTreeHookWebSocketSync {
@@ -251,6 +253,7 @@ impl MerkleTreeHookWebSocketSync {
         url: Url,
         websocket_active: IntGauge,
         fallback_active: IntGauge,
+        checkpoint_wake: Arc<Notify>,
     ) -> Self {
         Self::new_with_cursor_state(
             db,
@@ -260,9 +263,11 @@ impl MerkleTreeHookWebSocketSync {
             websocket_active,
             fallback_active,
             merkle_tree_cursor_state(),
+            checkpoint_wake,
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_with_cursor_state(
         db: HyperlaneRocksDB,
         domain: u32,
@@ -271,6 +276,7 @@ impl MerkleTreeHookWebSocketSync {
         websocket_active: IntGauge,
         fallback_active: IntGauge,
         cursor_state: MerkleTreeCursorState,
+        checkpoint_wake: Arc<Notify>,
     ) -> Self {
         websocket_active.set(0);
         fallback_active.set(0);
@@ -282,6 +288,7 @@ impl MerkleTreeHookWebSocketSync {
             websocket_active,
             fallback_active,
             cursor_state,
+            checkpoint_wake,
         }
     }
 
@@ -779,6 +786,9 @@ impl MerkleTreeHookWebSocketSync {
             if next_sequence.is_multiple_of(NEXT_SEQUENCE_PERSIST_INTERVAL) {
                 self.persist_next_sequence(*next_sequence)?;
             }
+            // Canonical validation and durable insertion have already succeeded. This is
+            // only a wake hint; the submitter still re-reads the hook before signing.
+            self.checkpoint_wake.notify_one();
             return Ok(true);
         }
         Ok(false)
@@ -1094,7 +1104,7 @@ mod tests {
     };
 
     use async_trait::async_trait;
-    use futures_util::{future::pending, SinkExt, StreamExt};
+    use futures_util::{future::pending, FutureExt, SinkExt, StreamExt};
     use hyperlane_base::db::{HyperlaneDb, DB};
     use hyperlane_core::{
         ChainResult, CheckpointAtBlock, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
@@ -1177,6 +1187,7 @@ mod tests {
                 Url::parse("ws://localhost/agents").expect("test URL"),
                 IntGauge::new("test_websocket_active", "test").expect("test gauge"),
                 IntGauge::new("test_fallback_active", "test").expect("test gauge"),
+                Arc::new(Notify::new()),
             ),
             temp_dir,
         )
@@ -1594,6 +1605,7 @@ mod tests {
             )
             .await
             .expect("valid event"));
+        assert!(sync.checkpoint_wake.notified().now_or_never().is_some());
         assert_eq!(next_sequence, 1);
         assert_eq!(
             sync.db
@@ -1621,6 +1633,7 @@ mod tests {
             )
             .await
             .expect("matching fallback insertion"));
+        assert!(sync.checkpoint_wake.notified().now_or_never().is_none());
         assert_eq!(next_sequence, 1);
         assert_eq!(
             sync.db
@@ -1644,6 +1657,7 @@ mod tests {
             .process_event(gap, &mut next_sequence, &dependencies, &mut canonical_cache,)
             .await
             .is_err());
+        assert!(sync.checkpoint_wake.notified().now_or_never().is_none());
     }
 
     #[test]

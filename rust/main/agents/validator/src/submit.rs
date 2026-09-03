@@ -4,7 +4,7 @@ use std::vec;
 
 use futures::future::join_all;
 use prometheus::IntGauge;
-use tokio::time::sleep;
+use tokio::{sync::Notify, time::sleep};
 use tracing::{debug, error, info, warn};
 
 use hyperlane_base::db::HyperlaneDb;
@@ -40,6 +40,7 @@ pub(crate) struct ValidatorSubmitter {
     max_sign_concurrency: usize,
     reorg_reporter: Arc<dyn ReorgReporter>,
     readiness: Arc<ValidatorReadiness>,
+    checkpoint_wake: Option<Arc<Notify>>,
 }
 
 impl ValidatorSubmitter {
@@ -71,6 +72,23 @@ impl ValidatorSubmitter {
             max_sign_concurrency,
             reorg_reporter,
             readiness,
+            checkpoint_wake: None,
+        }
+    }
+
+    pub(crate) fn with_checkpoint_wake(mut self, checkpoint_wake: Option<Arc<Notify>>) -> Self {
+        self.checkpoint_wake = checkpoint_wake;
+        self
+    }
+
+    async fn wait_for_checkpoint_check(&self) {
+        if let Some(checkpoint_wake) = &self.checkpoint_wake {
+            tokio::select! {
+                _ = sleep(self.interval) => {}
+                _ = checkpoint_wake.notified() => {}
+            }
+        } else {
+            sleep(self.interval).await;
         }
     }
 
@@ -158,7 +176,7 @@ impl ValidatorSubmitter {
                         tree_count = tree.count(),
                         "Latest checkpoint is behind tree, sleeping briefly"
                     );
-                    sleep(self.interval).await;
+                    self.wait_for_checkpoint_check().await;
                     continue;
                 }
 
@@ -183,7 +201,7 @@ impl ValidatorSubmitter {
                         tree_count = tree.count(),
                         "Latest checkpoint is behind tree, sleeping briefly"
                     );
-                    sleep(self.interval).await;
+                    self.wait_for_checkpoint_check().await;
                     continue;
                 }
 
@@ -208,7 +226,7 @@ impl ValidatorSubmitter {
                     .set(correctness_checkpoint.index as i64);
                 self.metrics.reached_initial_consistency.set(1);
 
-                sleep(self.interval).await;
+                self.wait_for_checkpoint_check().await;
                 continue;
             }
 
@@ -242,7 +260,7 @@ impl ValidatorSubmitter {
                     tree_count = tree.count(),
                     "Latest checkpoint is behind tree, sleeping briefly"
                 );
-                sleep(self.interval).await;
+                self.wait_for_checkpoint_check().await;
                 continue;
             }
             self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &latest_checkpoint)
@@ -255,7 +273,7 @@ impl ValidatorSubmitter {
             // Set that initial consistency has been reached on first loop run. Subsequent runs are idempotent.
             self.metrics.reached_initial_consistency.set(1);
 
-            sleep(self.interval).await;
+            self.wait_for_checkpoint_check().await;
         }
     }
 
