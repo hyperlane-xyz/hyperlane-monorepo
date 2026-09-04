@@ -42,6 +42,7 @@ use crate::relay_api::{
     handlers::{RateLimiter, ServerState as RelayApiState, TxHashCache},
     RelayApiMetrics,
 };
+use crate::scraper_websocket::{ScraperSource, ScraperWebSocketMonitor};
 use crate::{db_loader::DbLoader, relayer::origin::Origin, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 use crate::{
     db_loader::DbLoaderExt,
@@ -111,6 +112,7 @@ pub struct Relayer {
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
+    scraper_websocket_monitor: Option<ScraperWebSocketMonitor>,
     /// Tokio console server
     pub tokio_console_server: Option<console_subscriber::Server>,
 
@@ -287,6 +289,23 @@ impl BaseAgent for Relayer {
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized message contexts", "Relayer startup duration measurement");
 
+        let scraper_sources = origins
+            .iter()
+            .map(|(domain, origin)| {
+                ScraperSource::new(
+                    domain.name().to_owned(),
+                    origin.database.clone(),
+                    domain.id(),
+                    origin.chain_conf.addresses.mailbox,
+                    origin.chain_conf.addresses.merkle_tree_hook,
+                )
+            })
+            .collect();
+        let scraper_websocket_monitor = settings
+            .websocket_url
+            .map(|url| ScraperWebSocketMonitor::new(url, scraper_sources, &core_metrics))
+            .transpose()?;
+
         debug!(elapsed = ?start.elapsed(), event = "fully initialized", "Relayer startup duration measurement");
 
         Ok(Self {
@@ -311,6 +330,7 @@ impl BaseAgent for Relayer {
             agent_metrics,
             chain_metrics,
             runtime_metrics,
+            scraper_websocket_monitor,
             tokio_console_server: Some(tokio_console_server),
             origins,
             destinations,
@@ -325,6 +345,18 @@ impl BaseAgent for Relayer {
         let mut tasks = vec![];
 
         let task_monitor = tokio_metrics::TaskMonitor::new();
+        if let Some(monitor) = self.scraper_websocket_monitor.take() {
+            let scraper_websocket = tokio::task::Builder::new()
+                .name("scraper_websocket_shadow")
+                .spawn(TaskMonitor::instrument(
+                    &task_monitor,
+                    monitor
+                        .run()
+                        .instrument(info_span!("ScraperWebSocketShadow")),
+                ))
+                .expect("spawning tokio task from Builder is infallible");
+            tasks.push(scraper_websocket);
+        }
         if let Some(tokio_console_server) = self.tokio_console_server.take() {
             let console_server = tokio::task::Builder::new()
                 .name("tokio_console_server")

@@ -581,6 +581,18 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .boolean()
     .optional()
     .describe('Whether to enable IGP indexing'),
+  websocketUrl: z
+    .url()
+    .refine(
+      (value) => value.startsWith('ws://') || value.startsWith('wss://'),
+      {
+        message: 'websocketUrl must use ws:// or wss://',
+      },
+    )
+    .optional()
+    .describe(
+      'Scraper-proxy WebSocket URL used to shadow dispatch and Merkle streams.',
+    ),
   relayApiEnabled: z
     .boolean()
     .optional()

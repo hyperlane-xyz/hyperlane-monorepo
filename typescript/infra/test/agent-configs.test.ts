@@ -78,13 +78,22 @@ describe('Agent configs', () => {
     });
 
     Object.entries(agents).forEach(([context, config]) => {
-      if (!config.validators) return;
+      const { relayer, validators } = config;
+      if (validators) {
+        it(`configures ${environment}/${context} validators for the shared scraper`, () => {
+          expect(validators.websocketUrl).to.equal(
+            `ws://scraper-proxy.${environment}.svc.cluster.local:8383/agents`,
+          );
+        });
+      }
 
-      it(`configures ${environment}/${context} validators for the shared scraper`, () => {
-        expect(config.validators?.websocketUrl).to.equal(
-          `ws://scraper-proxy.${environment}.svc.cluster.local:8383/agents`,
-        );
-      });
+      if (relayer) {
+        it(`configures ${environment}/${context} relayers for the shared scraper`, () => {
+          expect(relayer.websocketUrl).to.equal(
+            `ws://scraper-proxy.${environment}.svc.cluster.local:8383/agents`,
+          );
+        });
+      }
     });
   });
 

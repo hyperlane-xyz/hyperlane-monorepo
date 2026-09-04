@@ -543,7 +543,7 @@ void it('enforces the catch-up deadline while pending rows replenish', async (co
   }
 });
 
-void it('rejects an empty historical cursor instead of reporting caught up', async () => {
+void it('reports a fresh empty historical cursor at -1', async () => {
   const socket = new WebSocket(url);
   const messages: Record<string, unknown>[] = [];
   socket.on('message', (data) => {
@@ -554,7 +554,38 @@ void it('rejects an empty historical cursor instead of reporting caught up', asy
         JSON.stringify({
           streams: [
             {
-              cursors: [{ address: emptyHook, afterSequence: '-1', domain: 1 }],
+              cursors: [{ address: emptyHook, domain: 1 }],
+              eventType: 'merkle_tree_insertion',
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+  const message = await waitFor(messages, 'caught_up');
+  assert.equal(message.address, '0xcccccccccccccccccccccccccccccccccccccccc');
+  assert.equal(message.sequence, '-1');
+  assert.equal(
+    messages.some(({ type }) => type === 'error'),
+    false,
+  );
+  socket.close();
+  await new Promise<void>((resolve) => socket.once('close', resolve));
+});
+
+void it('rejects a durable cursor when its history is empty', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [{ address: emptyHook, afterSequence: '0', domain: 1 }],
               eventType: 'merkle_tree_insertion',
             },
           ],
@@ -567,6 +598,49 @@ void it('rejects an empty historical cursor instead of reporting caught up', asy
   assert.equal(message.error, 'Failed to catch up merkle_tree_insertion');
   assert.equal(
     messages.some(({ type }) => type === 'caught_up'),
+    false,
+  );
+  socket.close();
+  await new Promise<void>((resolve) => socket.once('close', resolve));
+});
+
+void it('catches up populated and fresh empty origins together', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [
+                { address: hookA, afterSequence: '-1', domain: 1 },
+                { address: emptyHook, domain: 2 },
+              ],
+              eventType: 'merkle_tree_insertion',
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+  await waitUntil(
+    () => messages.filter(({ type }) => type === 'caught_up').length === 2,
+  );
+  assert.deepEqual(
+    messages
+      .filter(({ type }) => type === 'caught_up')
+      .map(({ domain, sequence }) => [domain, sequence]),
+    [
+      [1, '0'],
+      [2, '-1'],
+    ],
+  );
+  assert.equal(
+    messages.some(({ type }) => type === 'error'),
     false,
   );
   socket.close();
