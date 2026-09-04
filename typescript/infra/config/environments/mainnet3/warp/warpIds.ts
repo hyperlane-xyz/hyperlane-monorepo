@@ -6,7 +6,6 @@ export enum WarpRouteIds {
   ArbitrumTIA = 'TIA/arbitrum',
   BaseSolanamainnetTONY = 'TONY/base-solanamainnet',
   CarrChainCARR = 'CARR/carrchain',
-  ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP = 'TRUMP/arbitrum-avalanche-base-flowmainnet-form-optimism-solanamainnet-worldchain',
   EclipseEthereumApxEth = 'APXETH/eclipsemainnet-ethereum',
   EclipseUSDC = 'USDC/eclipsemainnet',
   EclipseUSDCSTAGE = 'USDCSTAGE/eclipsemainnet',
@@ -21,7 +20,6 @@ export enum WarpRouteIds {
   EclipseSolanaKySOL = 'kySOL/kyros',
   EclipseSolanaSOL = 'SOL/eclipsemainnet-solanamainnet',
   EclipseSolanaWIF = 'WIF/eclipsemainnet-solanamainnet',
-  EthereumFlowCbBTC = 'CBBTC/ethereum-flowmainnet',
   EthereumInkUSDC = 'USDC/ethereum-ink',
   EthereumLineaTURTLE = 'TURTLE/ethereum-linea',
   EthereumSeiFastUSD = 'FASTUSD/ethereum-sei',
@@ -39,13 +37,6 @@ export enum WarpRouteIds {
   // dropped; their warp-route monitors are retained for the remaining live legs until
   // scroll/zoramainnet are fully decommissioned from the registry.
   ArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDC = 'USDC/arbitrum-base-ethereum-lisk-optimism-polygon-zeronetwork',
-  AppchainBaseUSDC = 'USDC/appchain-base',
-  BaseEthereumSuperseedCBBTC = 'CBBTC/base-ethereum-superseed',
-  SuperseedUSDC = 'USDC/superseed',
-  EthereumSuperseedUSDT = 'USDT/ethereum-superseed',
-  OptimismSuperseedOP = 'OP/optimism-superseed',
-  SolanaSoonBonk = 'Bonk/solanamainnet-soon',
-  SolanaSoonSOL = 'SOL/solanamainnet-soon',
   SolanaSonicsvmSOL = 'SOL/solanamainnet-sonicsvm',
   SolanaSonicsvmSONIC = 'SONIC/solanamainnet-sonicsvm',
   SolanaSonicsvmSPICE = 'SPICE/solanamainnet-sonicsvm',
@@ -65,17 +56,6 @@ export enum WarpRouteIds {
   BscHyperevmEnzoBTC = 'enzoBTC/bsc-hyperevm',
   BscHyperevmSTBTC = 'stBTC/bsc-hyperevm',
   MitosisMITO = 'MITO/mitosis',
-  // Soon Routes
-  SolanaSoonAi16z = 'ai16z/solanamainnet-soon',
-  SolanaSoonELIZA = 'ELIZA/solanamainnet-soon',
-  SolanaSoonMEW = 'MEW/solanamainnet-soon',
-  SolanaSoonPnut = 'Pnut/solanamainnet-soon',
-  SolanaSoonWIF = 'WIF/solanamainnet-soon',
-  SolanaSoonPOPCAT = 'POPCAT/solanamainnet-soon',
-  SolanaSoonGIGA = 'GIGA/solanamainnet-soon',
-  SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
-  SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
-
   SubtensorUSDC = 'USDC/subtensor',
   ParadexUSDC = 'USDC/paradex',
 

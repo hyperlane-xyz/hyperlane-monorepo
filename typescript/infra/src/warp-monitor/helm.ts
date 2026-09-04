@@ -33,7 +33,6 @@ import { execCmdAndParseJson, getInfraPath } from '../utils/utils.js';
 const ataPayerAlertThreshold: ChainMap<number> = {
   eclipsemainnet: 0.01,
   solanamainnet: 0.2,
-  soon: 0.01,
   sonicsvm: 0.1,
 };
 

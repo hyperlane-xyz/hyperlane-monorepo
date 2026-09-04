@@ -80,14 +80,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.ReleaseCandidate]: [Role.Relayer],
     [Contexts.FastPath]: [Role.Relayer],
   },
-  chainsToSkip: [
-    'appchain',
-    'flowmainnet',
-    'immutablezkevmmainnet',
-    'mocachain',
-    'nesa',
-    'tac',
-  ],
+  chainsToSkip: ['mocachain', 'nesa', 'tac'],
   // desired balance config, must be set for each chain
   desiredBalancePerChain: desiredRelayerBalancePerChain,
   // desired rebalancer balance config
@@ -126,7 +119,6 @@ export const keyFunderConfig: KeyFunderConfig<
     // ignore non-evm chains
     eclipsemainnet: '0',
     solanamainnet: '0',
-    soon: '0',
     sonicsvm: '0',
   },
   // Temporarily disabled while the sweep destination is moved to Turnkey treasury custody.

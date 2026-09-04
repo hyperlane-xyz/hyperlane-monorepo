@@ -9,7 +9,7 @@ export const awTimelocks: ChainMap<Address> = {
   // Jul 18, 2025 - Timelocks for v2 "Abacus Works" ICAs
   // ----------------------------------------------------------
   apechain: '0x1A4E4661b0027b859bF5c671d599f02dE68f0345',
-  appchain: '0xf2F83b26d56f0e9B9Bd81efAb9e0ECB9ba5708be',
+
   arbitrum: '0x8abE651230Ce65f546eb78C9Ed7fe54e15650224',
   avalanche: '0xFd3617B8c53c59F9642C8a5ec0ae5CD4E72bC72E',
   base: '0xe38714D00cAa906065D872D177C1374C847035fF',
@@ -19,12 +19,10 @@ export const awTimelocks: ChainMap<Address> = {
   bsc: '0x09F4D4e765A911B867263d4Ff5e73323281De80D',
   celo: '0xb527ea7ff1B14fEb9FFF98b5Cd750Bd311cD598F',
   coti: '0x4Fea96D613F51fF83459d101e256Cd165a1e73BB',
-  flowmainnet: '0x3D6597Ae622D6223d60a57E92c2F259283dD2D69',
   fraxtal: '0x09F478e8dEB9Ef466025bf96d13cd9DC56881E18',
   galactica: '0xF100a80D9e47518a14C68Fca0a113E849be27411',
   gnosis: '0x04587eF285B3028E281f21Ad94C7a16bE138381D',
   hyperevm: '0x677fbdE16AC399Bcd1d136b822939ea1b50D31E2',
-  immutablezkevmmainnet: '0x3de63b62BeF9Da290F51f856cA9F3dB4225EDc05',
   ink: '0xED56728fb977b0bBdacf65bCdD5e17Bb7e84504f',
   katana: '0x9C6e8d989ea7F212e679191BEb44139d83ac927a',
   linea: '0x3A2e96403d076e9f953166A9E4c61bcD9D164CFe',
@@ -40,7 +38,6 @@ export const awTimelocks: ChainMap<Address> = {
   soneium: '0x39d3c2Cf646447ee302178EDBe5a15E13B6F33aC',
   sonic: '0x591273A518b59B4E9E4c104B001Fee4B9920244F',
   subtensor: '0x678230D21ab989A2D65363373Dd45B6a08c2A3EC',
-  superseed: '0xEd9c6B30482ACe8De6366a1858D0702111852449',
   swell: '0xc82C44E3b5fA9fa9915F4c09fB0b5bb9e417625c',
   tac: '0x9c64f327F0140DeBd430aab3E2F1d6cbcA921227',
   taiko: '0x61683848c92927376DE30F3B52558655c13269d1',

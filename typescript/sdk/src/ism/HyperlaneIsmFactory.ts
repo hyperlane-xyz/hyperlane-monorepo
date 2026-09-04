@@ -122,7 +122,6 @@ const domainRoutingInitializationSize = (destination: ChainName) => {
   if (
     destination === 'sei' ||
     destination === 'xlayer' ||
-    destination === 'flowmainnet' ||
     destination === 'eni' ||
     destination === 'megaeth' ||
     destination === 'pulsechain'

@@ -395,26 +395,6 @@ export const validatorChainConfig = (
         'apechain',
       ),
     },
-    flowmainnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('flowmainnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'flowmainnet',
-      ),
-    },
-    immutablezkevmmainnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('immutablezkevmmainnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'immutablezkevmmainnet',
-      ),
-    },
     metal: {
       interval: 5,
       reorgPeriod: getReorgPeriod('metal'),
@@ -425,16 +405,6 @@ export const validatorChainConfig = (
         'metal',
       ),
     },
-    superseed: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('superseed'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'superseed',
-      ),
-    },
     unichain: {
       interval: 5,
       reorgPeriod: getReorgPeriod('unichain'),
@@ -443,16 +413,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'unichain',
-      ),
-    },
-    appchain: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('appchain'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'appchain',
       ),
     },
     ink: {
@@ -483,16 +443,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'sonic',
-      ),
-    },
-    soon: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('soon'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'soon',
       ),
     },
     abstract: {

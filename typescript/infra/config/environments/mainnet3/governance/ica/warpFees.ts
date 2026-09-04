@@ -14,7 +14,6 @@ export const warpFeesIcas: ChainMap<Address> = {
   // ----------------------------------------------------------
   adichain: '0x54818CBcAC326d1D7C1c194BF13E038AA79327EE',
   apechain: '0x46D9c004f83D4187CEED673b65d453613A01cB74',
-  appchain: '0x6b5640629691f2340f96458aE8af2E519CDa6771',
   avalanche: '0xDE41E9C00B8aCb0e0013Bc197560e6bA5E7c3E67',
   berachain: '0x6CdC19aABeE4E1e992f9C3e81E317ea32054EF6b',
   blast: '0xcF70C21d27763A59f698Efb06365c1a10aCCc543',
@@ -31,7 +30,6 @@ export const warpFeesIcas: ChainMap<Address> = {
   galactica: '0xC3cD5e1593cF17aA3CaD3034A244e6B7C21B3158',
   gnosis: '0x4d0d7Fc54Aa268633FDcE47ddD8052F912107854',
   hyperevm: '0x4831E1E44E907B5f12C660252f3B3b5483213C44',
-  immutablezkevmmainnet: '0xdadDBCf8B9E28Bc9F7F04B9ba97D4ad7662bF88d',
   ink: '0x77B326B3AE95973e875b2cb48C992e3F9B0A03d4',
   katana: '0xB022F0D905ECa6e5272cE4ab0B0DEd9cD8441bF5',
   krown: '0x4EaA3148d02e8c49fdbf78A784309b10D1877D4D',
@@ -55,7 +53,6 @@ export const warpFeesIcas: ChainMap<Address> = {
   sonic: '0xa84eaFd11c6E3ce97a9481aDc8962658f40bF81D',
   stable: '0xfa53734dBf1d9826b41Ea6A816396f0750ecD1a5',
   subtensor: '0xAF4bEd592d14b495bD22410C29df588BA089Ed37',
-  superseed: '0xfdF8BbbbD2254230Ea1effB70D29F91F469bA3a4',
   tac: '0x303E012892fe6b051A14743B04a4Df42Bd9D2930',
   taiko: '0xf82545603804Ace633E22Cf72a92210e5DB2B2fe',
   worldchain: '0xD9F36efa46100fB11AE6546CAb532e52974E4c18',

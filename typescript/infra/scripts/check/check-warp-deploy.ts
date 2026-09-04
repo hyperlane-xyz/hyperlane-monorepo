@@ -46,7 +46,6 @@ const ROUTES_TO_SKIP: string[] = [
   'WSTETH/ethereum-form',
   'USDT/ethereum-form',
   'USDC/ethereum-form',
-  'TRUMP/arbitrum-avalanche-base-flowmainnet-form-optimism-solanamainnet-worldchain',
   'AIXBT/base-form',
   'FORM/ethereum-form',
   'GAME/base-form',
@@ -62,7 +61,6 @@ const ROUTES_TO_SKIP: string[] = [
   // post-#9329 reader flags a false ConfigMismatch on the real on-chain
   // limits. Excluded until ENG-4414 lands (backfill limits or ignore missing).
   WarpRouteIds.BaseEthereumREZ,
-  'SUPR/base-ethereum-ink-optimism-superseed',
 ];
 
 // Name segments that mark a warp route as a non-production (staging/test)

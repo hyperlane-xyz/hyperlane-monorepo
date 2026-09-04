@@ -40,7 +40,6 @@ export const TRON_CONNECTED_CHAINS = [
   'eclipsemainnet',
   'linea',
   'mode',
-  'superseed',
   'hyperevm',
   'mantle',
   'blast',

@@ -35,15 +35,6 @@
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
-  "appchain": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 2,
-    "validators": [
-      "0x0531251bbadc1f9f19ccce3ca6b3f79f08eae1be",
-      "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
-      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
-    ]
-  },
   "arbitrum": {
     "type": "messageIdMultisigIsm",
     "threshold": 3,
@@ -210,16 +201,6 @@
       "0xef2e5bb2bc45dd092ff7f9d4d4485f022185aeae"
     ]
   },
-  "flowmainnet": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 3,
-    "validators": [
-      "0xe132235c958ca1f3f24d772e5970dd58da4c0f6e",
-      "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
-      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36",
-      "0x14ADB9e3598c395Fe3290f3ba706C3816Aa78F59"
-    ]
-  },
   "fluent": {
     "type": "messageIdMultisigIsm",
     "threshold": 3,
@@ -270,15 +251,6 @@
     "threshold": 2,
     "validators": [
       "0x485f0739639e46d3b06b1b92debe2ade56d8bfb1",
-      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
-    ]
-  },
-  "immutablezkevmmainnet": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 2,
-    "validators": [
-      "0xbdda85b19a5efbe09e52a32db1a072f043dd66da",
-      "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
@@ -629,18 +601,6 @@
       "0xd5f8196d7060b85bea491f0b52a671e05f3d10a2",
       "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36",
-      "0x5450447aee7b544c462c9352bef7cad049b0c2dc"
-    ]
-  },
-  "superseed": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 4,
-    "validators": [
-      "0xdc2b87cb555411bb138d3a4e5f7832c87fae2b88",
-      "0x68f3a3b244f6ddc135130200a6b8729e290b4240",
-      "0x6ff4554cffbc2e4e4230b78e526eab255101d05a",
-      "0x55880ac03fdf15fccff54ed6f8a83455033edd22",
-      "0x0d4c1394a255568ec0ecd11795b28d1bda183ca4",
       "0x5450447aee7b544c462c9352bef7cad049b0c2dc"
     ]
   },
