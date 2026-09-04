@@ -235,9 +235,14 @@ impl JWTBaseHttpClient {
         self.refresh_auth_token().await
     }
 
-    async fn clear_auth_token(&self) {
+    async fn clear_auth_token(&self, rejected_token: &HeaderValue) {
         let mut auth_token = self.auth_token.write().await;
-        *auth_token = None;
+        if auth_token
+            .as_ref()
+            .is_some_and(|(token, _)| token == rejected_token)
+        {
+            *auth_token = None;
+        }
     }
 }
 
@@ -255,15 +260,15 @@ impl HttpClient for JWTBaseHttpClient {
         let response = self
             .client
             .get(url)
-            .header(AUTHORIZATION, auth)
+            .header(AUTHORIZATION, auth.clone())
             .query(&query)
             .send()
             .await
             .map_err(HyperlaneAleoError::from)?;
 
-        // Two instances of the relayer might compete for the same JWT, if so clear the token early and request a new one
+        // Do not let a late rejection of an old token evict a token refreshed by another request.
         if response.status() == reqwest::StatusCode::UNAUTHORIZED {
-            self.clear_auth_token().await;
+            self.clear_auth_token(&auth).await;
         }
 
         let response = response
@@ -285,14 +290,14 @@ impl HttpClient for JWTBaseHttpClient {
         let response = self
             .client
             .get(url)
-            .header(AUTHORIZATION, auth)
+            .header(AUTHORIZATION, auth.clone())
             .query(&query)
             .send()
             .await
             .map_err(HyperlaneAleoError::from)?;
 
         if response.status() == reqwest::StatusCode::UNAUTHORIZED {
-            self.clear_auth_token().await;
+            self.clear_auth_token(&auth).await;
         }
         if response.status() == reqwest::StatusCode::NOT_FOUND {
             return Ok(None);
@@ -316,15 +321,15 @@ impl HttpClient for JWTBaseHttpClient {
         let response = self
             .client
             .post(url)
-            .header(AUTHORIZATION, auth)
+            .header(AUTHORIZATION, auth.clone())
             .json(body)
             .send()
             .await
             .map_err(HyperlaneAleoError::from)?;
 
-        // Two instances of the relayer might compete for the same JWT, if so clear the token early and request a new one
+        // Do not let a late rejection of an old token evict a token refreshed by another request.
         if response.status() == reqwest::StatusCode::UNAUTHORIZED {
-            self.clear_auth_token().await;
+            self.clear_auth_token(&auth).await;
         }
 
         let response = response
@@ -599,5 +604,27 @@ mod tests {
         let token = client.get_auth_token().await.unwrap();
         assert_eq!(token, HeaderValue::from_static("Bearer retry-token"));
         server.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn jwt_auth_stale_rejection_does_not_clear_refreshed_token() {
+        let client = JWTBaseHttpClient::new(Url::parse("http://localhost/v2").unwrap(), 0).unwrap();
+        let stale_token = HeaderValue::from_static("Bearer stale-token");
+        let refreshed_token = HeaderValue::from_static("Bearer refreshed-token");
+        *client.auth_token.write().await = Some((
+            refreshed_token.clone(),
+            Instant::now() + Duration::from_secs(60),
+        ));
+
+        client.clear_auth_token(&stale_token).await;
+
+        assert_eq!(
+            client.cached_auth_token().await,
+            Some(refreshed_token.clone())
+        );
+
+        client.clear_auth_token(&refreshed_token).await;
+
+        assert_eq!(client.cached_auth_token().await, None);
     }
 }
