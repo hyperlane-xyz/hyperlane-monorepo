@@ -6245,6 +6245,7 @@ dependencies = [
  "hyperlane-warp-route",
  "indexmap 2.12.0",
  "num-traits",
+ "prometheus",
  "rand 0.10.2",
  "rand_chacha 0.10.0",
  "reqwest 0.11.27",
