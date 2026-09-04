@@ -439,6 +439,20 @@ impl<C: AleoClient> AleoProvider<C> {
         V: TryInto<Value<N>>,
     {
         debug!("Creating ZK-Proof for: {}/{}", program_id, function_name);
+
+        // Check delegated prover availability before performing expensive local authorization.
+        // This keeps an auth or service outage from repeatedly consuming memory and CPU.
+        let delegated_prover = match self.proving_service.as_ref() {
+            Some(client) => {
+                let public_key = client.get_public_key().await.map_err(|error| {
+                    warn!(%error, "Delegated proving preflight failed");
+                    error
+                })?;
+                Some((client, public_key))
+            }
+            None => None,
+        };
+
         // Prepare VM + Authorization for execution.
         let (authorization, program_id_parsed, function_name_parsed, private_key, mut rng) = self
             .prepare_authorization::<N, I, V>(program_id, function_name, input, vm)
@@ -473,14 +487,14 @@ impl<C: AleoClient> AleoProvider<C> {
         // prover failure is retried by the relayer; falling back here can saturate Tokio's
         // blocking pool and destabilize unrelated chains.
         let start = Instant::now();
-        let transaction = match self.proving_service {
-            Some(ref client) => {
+        let transaction = match delegated_prover {
+            Some((client, public_key)) => {
                 debug!(
                     program_id,
                     function_name, "Starting delegated ZK proof generation"
                 );
                 client
-                    .proving_request(authorization, fee)
+                    .proving_request(authorization, fee, public_key)
                     .await
                     .map_err(|error| {
                         warn!(
