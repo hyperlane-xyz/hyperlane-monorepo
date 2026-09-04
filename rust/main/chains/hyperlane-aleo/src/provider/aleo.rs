@@ -33,8 +33,9 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
 use crate::{
     provider::{
-        fallback::FallbackHttpClient, AleoClient, BaseHttpClient, JWTBaseHttpClient, ProvingClient,
-        RpcClient,
+        fallback::FallbackHttpClient,
+        metric::{record_execution_phase, ExecutionPhase},
+        AleoClient, BaseHttpClient, JWTBaseHttpClient, ProvingClient, RpcClient,
     },
     utils::{get_tx_id, to_h256},
     AleoSigner, ConnectionConf, CurrentNetwork, FeeEstimate, HyperlaneAleoError,
@@ -51,6 +52,8 @@ struct FeeEstimateCacheKey {
 #[derive(Clone)]
 pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
     client: RpcClient<C>,
+    execution_metrics: PrometheusClientMetrics,
+    execution_metrics_config: hyperlane_metric::prometheus_metric::PrometheusConfig,
     domain: HyperlaneDomain,
     network: u16,
     proving_service: Option<ProvingClient<FallbackHttpClient<JWTBaseHttpClient>>>,
@@ -112,10 +115,15 @@ impl AleoProvider<FallbackHttpClient> {
         Ok(Self {
             client: RpcClient::new(FallbackHttpClient::new::<BaseHttpClient>(
                 conf.rpcs.clone(),
-                metrics,
-                chain,
+                metrics.clone(),
+                chain.clone(),
                 conf.chain_id,
             )?),
+            execution_metrics: metrics,
+            execution_metrics_config: hyperlane_metric::prometheus_metric::PrometheusConfig {
+                chain,
+                ..Default::default()
+            },
             domain,
             network: conf.chain_id,
             proving_service,
@@ -146,6 +154,8 @@ impl<C: AleoClient> AleoProvider<C> {
     ) -> Self {
         Self {
             client: RpcClient::new(client),
+            execution_metrics: Default::default(),
+            execution_metrics_config: Default::default(),
             domain,
             network: chain_id,
             proving_service: None,
@@ -443,16 +453,35 @@ impl<C: AleoClient> AleoProvider<C> {
         // Check delegated prover availability before performing expensive local authorization.
         // This keeps an auth or service outage from repeatedly consuming memory and CPU.
         if let Some(client) = self.proving_service.as_ref() {
-            client.get_public_key().await.map_err(|error| {
+            let preflight_start = Instant::now();
+            let preflight = client.get_public_key().await;
+            record_execution_phase(
+                &self.execution_metrics,
+                &self.execution_metrics_config,
+                ExecutionPhase::DelegatedProverPreflight,
+                preflight_start,
+                preflight.is_ok(),
+            );
+            preflight.map_err(|error| {
                 warn!(%error, "Delegated proving preflight failed");
                 error
             })?;
         }
 
         // Prepare VM + Authorization for execution.
-        let (authorization, program_id_parsed, function_name_parsed, private_key, mut rng) = self
+        let authorization_start = Instant::now();
+        let authorization = self
             .prepare_authorization::<N, I, V>(program_id, function_name, input, vm)
-            .await?;
+            .await;
+        record_execution_phase(
+            &self.execution_metrics,
+            &self.execution_metrics_config,
+            ExecutionPhase::Authorization,
+            authorization_start,
+            authorization.is_ok(),
+        );
+        let (authorization, program_id_parsed, function_name_parsed, private_key, mut rng) =
+            authorization?;
 
         // Calculate fees
         let base_fee = self
@@ -489,16 +518,19 @@ impl<C: AleoClient> AleoProvider<C> {
                     program_id,
                     function_name, "Starting delegated ZK proof generation"
                 );
-                client
-                    .proving_request(authorization, fee)
-                    .await
-                    .map_err(|error| {
-                        warn!(
-                            %error,
-                            "Delegated proving failed"
-                        );
-                        error
-                    })?
+                let proof_start = Instant::now();
+                let proof = client.proving_request(authorization, fee).await;
+                record_execution_phase(
+                    &self.execution_metrics,
+                    &self.execution_metrics_config,
+                    ExecutionPhase::DelegatedProverProof,
+                    proof_start,
+                    proof.is_ok(),
+                );
+                proof.map_err(|error| {
+                    warn!(%error, "Delegated proving failed");
+                    error
+                })?
             }
             None => {
                 debug!(
