@@ -518,13 +518,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn jwt_auth_preserves_http_status_errors() {
+    async fn jwt_auth_sends_content_length_and_preserves_status_errors() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
+        let (request_tx, request_rx) = mpsc::channel();
         let server = thread::spawn(move || {
             let (mut stream, _) = listener.accept().unwrap();
             let mut buffer = [0; 4096];
-            stream.read(&mut buffer).unwrap();
+            let length = stream.read(&mut buffer).unwrap();
+            request_tx
+                .send(String::from_utf8_lossy(&buffer[..length]).to_lowercase())
+                .unwrap();
             stream
                 .write_all(
                     b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
@@ -540,6 +544,10 @@ mod tests {
         let error = client.get_auth_token().await.unwrap_err();
 
         assert!(error.to_string().contains("429 Too Many Requests"));
+        assert!(request_rx
+            .recv()
+            .unwrap()
+            .contains("\r\ncontent-length: 0\r\n"));
         server.join().unwrap();
     }
 }
