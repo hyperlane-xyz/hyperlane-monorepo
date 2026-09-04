@@ -12,6 +12,8 @@ import {
 import { multisigIsmVerifyCosts } from '../consts/multisigIsmVerifyCosts.js';
 import { TokenType } from '../token/config.js';
 import {
+  CompositeIsmNodeConfig,
+  CompositeIsmNodeType,
   DelayedFlowRouterHookIsmConfig,
   IsmConfig,
   IsmType,
@@ -26,29 +28,117 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+type IsmConfigNode = Exclude<IsmConfig, Address>;
+type IsmTreeNode = IsmConfigNode | CompositeIsmNodeConfig;
+
+/** True if any node of a compositeIsm tree satisfies `matches`. */
+function compositeIsmNodeSome(
+  node: CompositeIsmNodeConfig,
+  matches: (node: IsmTreeNode) => boolean,
+): boolean {
+  if (matches(node)) return true;
+  switch (node.type) {
+    case CompositeIsmNodeType.AGGREGATION:
+      return node.subIsms.some((subIsm) =>
+        compositeIsmNodeSome(subIsm, matches),
+      );
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
+      return (
+        compositeIsmNodeSome(node.lower, matches) ||
+        compositeIsmNodeSome(node.upper, matches)
+      );
+    case CompositeIsmNodeType.ROUTING:
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
+      return Object.values(node.domains ?? {}).some((domainNode) =>
+        compositeIsmNodeSome(domainNode, matches),
+      );
+    case CompositeIsmNodeType.TRUSTED_RELAYER:
+    case CompositeIsmNodeType.MULTISIG_MESSAGE_ID:
+    case CompositeIsmNodeType.TEST:
+    case CompositeIsmNodeType.PAUSABLE:
+    case CompositeIsmNodeType.RATE_LIMITED:
+      return false;
+    default: {
+      const exhaustiveCheck: never = node;
+      return exhaustiveCheck;
+    }
+  }
+}
+
 /**
- * Extracts the ISM and Hook factory addresses from chain-specific registry addresses
- * @param registryAddresses The registry addresses for a specific chain
- * @returns The extracted ISM and Hook factory addresses
+ * True if any typed node in an ISM tree satisfies `matches`.
+ * Both switches are exhaustive so new container types must define traversal.
  */
-export function ismTreeContainsRateLimited(ism: unknown): boolean {
-  if (typeof ism !== 'object' || ism === null) return false;
-  const node = ism as Record<string, unknown>;
-  if (node.type === IsmType.RATE_LIMITED) return true;
-  if (Array.isArray(node.modules)) {
-    if (node.modules.some(ismTreeContainsRateLimited)) return true;
+function ismTreeSome(
+  ism: IsmConfig,
+  matches: (node: IsmTreeNode) => boolean,
+): boolean {
+  if (typeof ism === 'string') return false;
+  if (matches(ism)) return true;
+
+  switch (ism.type) {
+    case IsmType.AGGREGATION:
+    case IsmType.STORAGE_AGGREGATION:
+      return ism.modules.some((module) => ismTreeSome(module, matches));
+    case IsmType.ROUTING:
+    case IsmType.FALLBACK_ROUTING:
+    case IsmType.INCREMENTAL_ROUTING:
+      return Object.values(ism.domains).some((domainIsm) =>
+        ismTreeSome(domainIsm, matches),
+      );
+    case IsmType.AMOUNT_ROUTING:
+      return (
+        ismTreeSome(ism.lowerIsm, matches) || ismTreeSome(ism.upperIsm, matches)
+      );
+    case IsmType.COMPOSITE:
+      return compositeIsmNodeSome(ism.root, matches);
+    case IsmType.TEST_ISM:
+    case IsmType.OP_STACK:
+    case IsmType.PAUSABLE:
+    case IsmType.TRUSTED_RELAYER:
+    case IsmType.CCIP:
+    case IsmType.RATE_LIMITED:
+    case IsmType.BLACKLIST:
+    case IsmType.NET_FLOW_RATE_LIMITED:
+    case IsmType.DELAYED_FLOW_ROUTER:
+    case IsmType.MAILBOX_DEFAULT:
+    case IsmType.MERKLE_ROOT_MULTISIG:
+    case IsmType.MESSAGE_ID_MULTISIG:
+    case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
+    case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
+    case IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG:
+    case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
+    case IsmType.INTERCHAIN_ACCOUNT_ROUTING:
+    case IsmType.ARB_L2_TO_L1:
+    case IsmType.OFFCHAIN_LOOKUP:
+    case IsmType.UNKNOWN:
+      return false;
+    default: {
+      const exhaustiveCheck: never = ism;
+      return exhaustiveCheck;
+    }
   }
-  if (node.domains !== null && typeof node.domains === 'object') {
-    if (
-      Object.values(node.domains as Record<string, unknown>).some(
-        ismTreeContainsRateLimited,
-      )
-    )
-      return true;
-  }
-  if (ismTreeContainsRateLimited(node.lowerIsm)) return true;
-  if (ismTreeContainsRateLimited(node.upperIsm)) return true;
-  return false;
+}
+
+export function ismTreeContainsRateLimited(ism: IsmConfig): boolean {
+  return ismTreeSome(ism, (node) => node.type === IsmType.RATE_LIMITED);
+}
+
+/**
+ * True if a `rateLimited` node appears anywhere inside a `compositeIsm` in
+ * the tree.
+ *
+ * Deliberately separate from {@link ismTreeContainsRateLimited} rather than
+ * folded into it: that predicate gates the EVM `rateLimitedIsm`'s
+ * deferred-deploy machinery, which asserts an Ethereum/Tron chain
+ * (`resolveWarpIsmAndHook` and its callers in `deploy/warp.ts`). A
+ * compositeIsm is a Sealevel program and must never enter those paths.
+ */
+export function ismTreeContainsCompositeRateLimited(ism: IsmConfig): boolean {
+  return ismTreeSome(
+    ism,
+    (node) => node.type === CompositeIsmNodeType.RATE_LIMITED,
+  );
 }
 
 /**
@@ -128,8 +218,16 @@ export type HybridHookIsmConfig =
  * True if a warp-route hybrid hook/ISM node (NET_FLOW_RATE_LIMITED or
  * DELAYED_FLOW_ROUTER) exists anywhere in the ISM config tree.
  */
-export function ismTreeContainsHybridHookIsm(ism: unknown): boolean {
-  return collectHybridIsmNodesFromUnknown(ism).length > 0;
+export function ismTreeContainsHybridHookIsm(
+  ism: IsmConfig | undefined,
+): boolean {
+  if (!ism) return false;
+  return ismTreeSome(
+    ism,
+    (node) =>
+      node.type === IsmType.NET_FLOW_RATE_LIMITED ||
+      node.type === IsmType.DELAYED_FLOW_ROUTER,
+  );
 }
 
 /**
@@ -137,10 +235,13 @@ export function ismTreeContainsHybridHookIsm(ism: unknown): boolean {
  * tree. Used to keep warp-route-only and self-referential ISM types out of
  * core default-ISM configs (see core/types.ts).
  */
-export function ismTreeContainsMailboxDefaultOrHybrid(ism: unknown): boolean {
-  return (
-    ismTreeContainsHybridHookIsm(ism) ||
-    ismTreeSome(ism, (node) => node.type === IsmType.MAILBOX_DEFAULT)
+export function ismTreeContainsMailboxDefaultOrHybrid(ism: IsmConfig): boolean {
+  return ismTreeSome(
+    ism,
+    (node) =>
+      node.type === IsmType.MAILBOX_DEFAULT ||
+      node.type === IsmType.NET_FLOW_RATE_LIMITED ||
+      node.type === IsmType.DELAYED_FLOW_ROUTER,
   );
 }
 
@@ -159,29 +260,6 @@ function isHybridIsmNode(node: unknown): node is HybridHookIsmConfig {
   return (
     node.type === IsmType.NET_FLOW_RATE_LIMITED ||
     node.type === IsmType.DELAYED_FLOW_ROUTER
-  );
-}
-
-/** True if any node in the tree satisfies `matches`. */
-function ismTreeSome(
-  ism: unknown,
-  matches: (node: Record<string, unknown>) => boolean,
-): boolean {
-  if (!isRecord(ism)) return false;
-  const node = ism;
-  if (matches(node)) return true;
-
-  if (Array.isArray(node.modules)) {
-    if (node.modules.some((module) => ismTreeSome(module, matches)))
-      return true;
-  }
-  if (isRecord(node.domains)) {
-    const domains = Object.values(node.domains);
-    if (domains.some((domainIsm) => ismTreeSome(domainIsm, matches)))
-      return true;
-  }
-  return (
-    ismTreeSome(node.lowerIsm, matches) || ismTreeSome(node.upperIsm, matches)
   );
 }
 

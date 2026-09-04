@@ -22,9 +22,11 @@ import {
   ArtifactState,
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type {
-  CompositeIsmArtifactConfig,
-  CompositeIsmNodeArtifactConfig,
+import {
+  CompositeIsmNodeType,
+  IsmType,
+  type CompositeIsmArtifactConfig,
+  type CompositeIsmNodeArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   assert,
@@ -175,48 +177,51 @@ function ismNodeToArtifactConfig(
   domains: Record<number, IsmNode>,
 ): CompositeIsmNodeArtifactConfig {
   switch (node.kind) {
-    case 'trustedRelayer':
-      return { type: 'trustedRelayer', relayer: node.relayer };
-    case 'multisigMessageId':
+    case CompositeIsmNodeType.TRUSTED_RELAYER:
       return {
-        type: 'multisigMessageId',
+        type: CompositeIsmNodeType.TRUSTED_RELAYER,
+        relayer: node.relayer,
+      };
+    case CompositeIsmNodeType.MULTISIG_MESSAGE_ID:
+      return {
+        type: CompositeIsmNodeType.MULTISIG_MESSAGE_ID,
         validators: validatorBytesToHex(node.validators),
         threshold: node.threshold,
       };
-    case 'aggregation':
+    case CompositeIsmNodeType.AGGREGATION:
       return {
-        type: 'aggregation',
+        type: CompositeIsmNodeType.AGGREGATION,
         threshold: node.threshold,
         subIsms: node.subIsms.map((sub) =>
           ismNodeToArtifactConfig(sub, domains),
         ),
       };
-    case 'test':
-      return { type: 'test', accept: node.accept };
-    case 'pausable':
-      return { type: 'pausable', paused: node.paused };
-    case 'amountRouting':
+    case CompositeIsmNodeType.TEST:
+      return { type: CompositeIsmNodeType.TEST, accept: node.accept };
+    case CompositeIsmNodeType.PAUSABLE:
+      return { type: CompositeIsmNodeType.PAUSABLE, paused: node.paused };
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
       return {
-        type: 'amountRouting',
+        type: CompositeIsmNodeType.AMOUNT_ROUTING,
         threshold: node.threshold.toString(),
         lower: ismNodeToArtifactConfig(node.lower, domains),
         upper: ismNodeToArtifactConfig(node.upper, domains),
       };
-    case 'rateLimited':
+    case CompositeIsmNodeType.RATE_LIMITED:
       return {
-        type: 'rateLimited',
+        type: CompositeIsmNodeType.RATE_LIMITED,
         maxCapacity: node.maxCapacity.toString(),
         mailbox: node.mailbox,
         recipient: node.recipient ? bytesToH256Hex(node.recipient) : undefined,
       };
-    case 'routing':
+    case CompositeIsmNodeType.ROUTING:
       return {
-        type: 'routing',
+        type: CompositeIsmNodeType.ROUTING,
         domains: convertDomainsToArtifactConfig(domains),
       };
-    case 'fallbackRouting':
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
       return {
-        type: 'fallbackRouting',
+        type: CompositeIsmNodeType.FALLBACK_ROUTING,
         fallbackIsm: node.fallbackIsm,
         domains: convertDomainsToArtifactConfig(domains),
       };
@@ -246,35 +251,38 @@ function artifactConfigToIsmNode(
   node: CompositeIsmNodeArtifactConfig,
 ): IsmNode {
   switch (node.type) {
-    case 'trustedRelayer':
-      return { kind: 'trustedRelayer', relayer: parseAddress(node.relayer) };
-    case 'multisigMessageId':
+    case CompositeIsmNodeType.TRUSTED_RELAYER:
       return {
-        kind: 'multisigMessageId',
+        kind: CompositeIsmNodeType.TRUSTED_RELAYER,
+        relayer: parseAddress(node.relayer),
+      };
+    case CompositeIsmNodeType.MULTISIG_MESSAGE_ID:
+      return {
+        kind: CompositeIsmNodeType.MULTISIG_MESSAGE_ID,
         validators: node.validators.map((v) => Uint8Array.from(encodeH160(v))),
         threshold: node.threshold,
       };
-    case 'aggregation':
+    case CompositeIsmNodeType.AGGREGATION:
       return {
-        kind: 'aggregation',
+        kind: CompositeIsmNodeType.AGGREGATION,
         threshold: node.threshold,
         subIsms: node.subIsms.map(artifactConfigToIsmNode),
       };
-    case 'test':
-      return { kind: 'test', accept: node.accept };
-    case 'pausable':
-      return { kind: 'pausable', paused: node.paused };
-    case 'amountRouting':
+    case CompositeIsmNodeType.TEST:
+      return { kind: CompositeIsmNodeType.TEST, accept: node.accept };
+    case CompositeIsmNodeType.PAUSABLE:
+      return { kind: CompositeIsmNodeType.PAUSABLE, paused: node.paused };
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
       return {
-        kind: 'amountRouting',
+        kind: CompositeIsmNodeType.AMOUNT_ROUTING,
         threshold: BigInt(node.threshold),
         lower: artifactConfigToIsmNode(node.lower),
         upper: artifactConfigToIsmNode(node.upper),
       };
-    case 'rateLimited': {
+    case CompositeIsmNodeType.RATE_LIMITED: {
       const maxCapacity = BigInt(node.maxCapacity);
       return {
-        kind: 'rateLimited',
+        kind: CompositeIsmNodeType.RATE_LIMITED,
         maxCapacity,
         recipient: node.recipient
           ? Uint8Array.from(encodeH256(node.recipient))
@@ -286,11 +294,11 @@ function artifactConfigToIsmNode(
         mailbox: parseAddress(node.mailbox),
       };
     }
-    case 'routing':
-      return { kind: 'routing' };
-    case 'fallbackRouting':
+    case CompositeIsmNodeType.ROUTING:
+      return { kind: CompositeIsmNodeType.ROUTING };
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
       return {
-        kind: 'fallbackRouting',
+        kind: CompositeIsmNodeType.FALLBACK_ROUTING,
         fallbackIsm: parseAddress(node.fallbackIsm),
       };
   }
@@ -301,16 +309,16 @@ function extractDomains(
   node: CompositeIsmNodeArtifactConfig,
 ): Record<number, CompositeIsmNodeArtifactConfig> {
   switch (node.type) {
-    case 'routing':
-    case 'fallbackRouting':
+    case CompositeIsmNodeType.ROUTING:
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
       return node.domains ?? {};
-    case 'aggregation':
+    case CompositeIsmNodeType.AGGREGATION:
       for (const sub of node.subIsms) {
         const found = extractDomains(sub);
         if (Object.keys(found).length > 0) return found;
       }
       return {};
-    case 'amountRouting': {
+    case CompositeIsmNodeType.AMOUNT_ROUTING: {
       const lower = extractDomains(node.lower);
       if (Object.keys(lower).length > 0) return lower;
       return extractDomains(node.upper);
@@ -328,12 +336,12 @@ function extractDomains(
  */
 function containsRoutingNode(node: CompositeIsmNodeArtifactConfig): boolean {
   switch (node.type) {
-    case 'routing':
-    case 'fallbackRouting':
+    case CompositeIsmNodeType.ROUTING:
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
       return true;
-    case 'aggregation':
+    case CompositeIsmNodeType.AGGREGATION:
       return node.subIsms.some(containsRoutingNode);
-    case 'amountRouting':
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
       return containsRoutingNode(node.lower) || containsRoutingNode(node.upper);
     default:
       return false;
@@ -345,11 +353,11 @@ function containsFallbackRoutingNode(
   node: CompositeIsmNodeArtifactConfig,
 ): boolean {
   switch (node.type) {
-    case 'fallbackRouting':
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
       return true;
-    case 'aggregation':
+    case CompositeIsmNodeType.AGGREGATION:
       return node.subIsms.some(containsFallbackRoutingNode);
-    case 'amountRouting':
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
       return (
         containsFallbackRoutingNode(node.lower) ||
         containsFallbackRoutingNode(node.upper)
@@ -406,13 +414,13 @@ function assertValidCompositeIsmArtifactNode(
   programId?: Address,
 ): void {
   switch (node.type) {
-    case 'trustedRelayer':
+    case CompositeIsmNodeType.TRUSTED_RELAYER:
       assert(
         isAddress(node.relayer) && !isEmptyAddress(node.relayer),
         `trustedRelayer.relayer must be a non-zero Sealevel address, got: ${node.relayer}`,
       );
       break;
-    case 'multisigMessageId': {
+    case CompositeIsmNodeType.MULTISIG_MESSAGE_ID: {
       assert(
         Number.isInteger(node.threshold) &&
           node.threshold >= 1 &&
@@ -436,7 +444,7 @@ function assertValidCompositeIsmArtifactNode(
       }
       break;
     }
-    case 'aggregation':
+    case CompositeIsmNodeType.AGGREGATION:
       assert(
         Number.isInteger(node.threshold) &&
           node.threshold >= 1 &&
@@ -459,7 +467,7 @@ function assertValidCompositeIsmArtifactNode(
         ),
       );
       break;
-    case 'amountRouting':
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
       assert(
         isValidDecimalStringBoundedBy(node.threshold, ARTIFACT_U256_MAX),
         `amountRouting.threshold (${node.threshold}) must be a base-10 integer string not exceeding u256::MAX`,
@@ -477,7 +485,7 @@ function assertValidCompositeIsmArtifactNode(
         programId,
       );
       break;
-    case 'rateLimited':
+    case CompositeIsmNodeType.RATE_LIMITED:
       assert(
         isValidDecimalStringBoundedBy(node.maxCapacity, ARTIFACT_U64_MAX) &&
           BigInt(node.maxCapacity) > 0n,
@@ -489,7 +497,9 @@ function assertValidCompositeIsmArtifactNode(
       );
       assert(
         node.recipient,
-        'rateLimited.recipient is required and must be a non-zero 32-byte address',
+        'rateLimited.recipient is required and must be a non-zero 32-byte address. ' +
+          'Warp deploy and warp apply resolve it from the router the ISM protects, so it only has to be ' +
+          'written out when this ISM is deployed on its own.',
       );
       if (node.recipient) {
         try {
@@ -503,13 +513,13 @@ function assertValidCompositeIsmArtifactNode(
         );
       }
       break;
-    case 'routing':
-    case 'fallbackRouting':
+    case CompositeIsmNodeType.ROUTING:
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
       assert(
         !insideDomainIsm,
         `${node.type} is not allowed inside a domain override`,
       );
-      if (node.type === 'fallbackRouting') {
+      if (node.type === CompositeIsmNodeType.FALLBACK_ROUTING) {
         assert(
           isAddress(node.fallbackIsm) && !isEmptyAddress(node.fallbackIsm),
           `fallbackRouting.fallbackIsm must be a non-zero Sealevel address, got: ${node.fallbackIsm}`,
@@ -534,13 +544,13 @@ function assertValidCompositeIsmArtifactNode(
         assertValidCompositeIsmArtifactNode(domainNode, true, state, programId);
       }
       break;
-    case 'pausable':
+    case CompositeIsmNodeType.PAUSABLE:
       assert(
         !insideDomainIsm,
         'pausable is not allowed inside a domain override',
       );
       break;
-    case 'test':
+    case CompositeIsmNodeType.TEST:
       break;
   }
 }
@@ -622,7 +632,7 @@ export class SvmCompositeIsmReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
-        type: 'compositeIsm',
+        type: IsmType.COMPOSITE,
         owner: storage.owner,
         root: ismNodeToArtifactConfig(storage.root, domains),
       },
@@ -962,16 +972,19 @@ function stripDomains(
   node: CompositeIsmNodeArtifactConfig,
 ): CompositeIsmNodeArtifactConfig {
   switch (node.type) {
-    case 'routing':
-      return { type: 'routing' };
-    case 'fallbackRouting':
-      return { type: 'fallbackRouting', fallbackIsm: node.fallbackIsm };
-    case 'aggregation':
+    case CompositeIsmNodeType.ROUTING:
+      return { type: CompositeIsmNodeType.ROUTING };
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
+      return {
+        type: CompositeIsmNodeType.FALLBACK_ROUTING,
+        fallbackIsm: node.fallbackIsm,
+      };
+    case CompositeIsmNodeType.AGGREGATION:
       return {
         ...node,
         subIsms: node.subIsms.map(stripDomains),
       };
-    case 'amountRouting':
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
       return {
         ...node,
         lower: stripDomains(node.lower),
@@ -1004,20 +1017,20 @@ function deepEqualNode(
  */
 function normalizeForCompare(node: CompositeIsmNodeArtifactConfig): unknown {
   switch (node.type) {
-    case 'multisigMessageId':
+    case CompositeIsmNodeType.MULTISIG_MESSAGE_ID:
       return {
         ...node,
         validators: [...node.validators].map((v) => v.toLowerCase()).sort(),
       };
-    case 'rateLimited':
+    case CompositeIsmNodeType.RATE_LIMITED:
       return {
         ...node,
         maxCapacity: BigInt(node.maxCapacity).toString(),
         recipient: node.recipient?.toLowerCase(),
       };
-    case 'aggregation':
+    case CompositeIsmNodeType.AGGREGATION:
       return { ...node, subIsms: node.subIsms.map(normalizeForCompare) };
-    case 'amountRouting':
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
       return {
         ...node,
         threshold: BigInt(node.threshold).toString(),

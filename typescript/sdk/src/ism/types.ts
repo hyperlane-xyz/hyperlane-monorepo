@@ -704,6 +704,13 @@ export interface CompositeAmountRoutingNodeConfig {
   lower: CompositeIsmNodeConfig;
   upper: CompositeIsmNodeConfig;
 }
+/**
+ * Token-bucket node. Only supported inside a warp route's ISM: it meters an
+ * amount read from a fixed offset of the message body, so it is meaningless
+ * against non-warp traffic. `recipient` is the warp router the ISM protects,
+ * resolved by the deploy/apply tooling; supply it only when reproducing the
+ * output of `warp read`.
+ */
 export interface CompositeRateLimitedNodeConfig {
   type: typeof CompositeIsmNodeType.RATE_LIMITED;
   maxCapacity: string;
@@ -883,8 +890,11 @@ function validateCompositeIsmTree(
       if (isEmptyAddress(node.mailbox)) {
         addIssue('mailbox must be a non-zero address', [...path, 'mailbox']);
       }
-      if (!node.recipient || isEmptyAddress(node.recipient)) {
-        addIssue('recipient is required and must be a non-zero address', [
+      // Absence is legal: the deploy/apply tooling resolves recipient from
+      // the warp router the ISM protects. A written-out value only ever comes
+      // from round-tripping `warp read` output, and must still be non-zero.
+      if (node.recipient && isEmptyAddress(node.recipient)) {
+        addIssue('recipient must be a non-zero address', [
           ...path,
           'recipient',
         ]);

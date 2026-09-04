@@ -567,6 +567,7 @@ jobs:
           - http-signer
           - hook-igp
           - warp-alt
+          - warp-composite-ism
           - warp-cross-collateral
           - warp-fee
           - warp-fee-apply

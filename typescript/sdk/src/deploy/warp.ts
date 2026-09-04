@@ -7,7 +7,6 @@ import {
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   createHookWriter,
-  createIsmWriter,
   createWarpTokenWriter,
   validateIsmConfig,
 } from '@hyperlane-xyz/deploy-sdk';
@@ -19,10 +18,7 @@ import {
   HookConfig as ProviderHookConfig,
   hookConfigToArtifact,
 } from '@hyperlane-xyz/provider-sdk/hook';
-import {
-  IsmConfig as ProviderIsmConfig,
-  ismConfigToArtifact,
-} from '@hyperlane-xyz/provider-sdk/ism';
+import { IsmConfig as ProviderIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
   CollateralWarpConfig,
@@ -1101,16 +1097,18 @@ async function resolveWarpIsmAndHook(
         };
       }
 
-      const ism = await createWarpIsm({
-        ccipContractCache,
-        chain,
-        chainAddresses,
-        multiProvider,
-        altVmSigners,
-        contractVerifier,
-        ismFactoryDeployer,
-        warpConfig: config,
-      }); // TODO write test
+      const protocol = multiProvider.getProtocol(chain);
+      const ism =
+        protocol === ProtocolType.Ethereum || protocol === ProtocolType.Tron
+          ? await createWarpIsm({
+              ccipContractCache,
+              chain,
+              chainAddresses,
+              multiProvider,
+              contractVerifier,
+              warpConfig: config,
+            })
+          : config.interchainSecurityModule;
 
       const hook = await createWarpHook({
         ccipContractCache,
@@ -1146,7 +1144,6 @@ async function createWarpIsm({
   chain,
   chainAddresses,
   multiProvider,
-  altVmSigners,
   contractVerifier,
   warpConfig,
 }: {
@@ -1154,10 +1151,8 @@ async function createWarpIsm({
   chain: string;
   chainAddresses: Record<string, string>;
   multiProvider: MultiProvider;
-  altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
   contractVerifier?: ContractVerifier;
   warpConfig: HypTokenRouterConfig;
-  ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
 }): Promise<IsmConfig | undefined> {
   const { interchainSecurityModule } = warpConfig;
   if (
@@ -1195,38 +1190,22 @@ async function createWarpIsm({
     `Finished creating ${interchainSecurityModule.type} ISM for token on ${chain} chain.`,
   );
 
-  const protocolType = multiProvider.getProtocol(chain);
-
-  switch (protocolType) {
-    case ProtocolType.Tron:
-    case ProtocolType.Ethereum: {
-      const evmIsmModule = await EvmIsmModule.create({
-        chain,
-        mailbox: chainAddresses.mailbox,
-        multiProvider: multiProvider,
-        proxyFactoryFactories:
-          extractIsmAndHookFactoryAddresses(chainAddresses),
-        config: interchainSecurityModule,
-        ccipContractCache,
-        contractVerifier,
-      });
-      const { deployedIsm } = evmIsmModule.serialize();
-      return deployedIsm;
-    }
-    default: {
-      const signer = mustGet(altVmSigners, chain);
-      const chainLookup = altVmChainLookup(multiProvider);
-      const chainMetadata = chainLookup.getChainMetadata(chain);
-      const writer = createIsmWriter(chainMetadata, chainLookup, signer);
-      const artifact = ismConfigToArtifact(
-        // FIXME: not all ISM types are supported yet
-        interchainSecurityModule as ProviderIsmConfig,
-        chainLookup,
-      );
-      const [deployed] = await writer.create(artifact);
-      return deployed.deployed.address;
-    }
-  }
+  const protocol = multiProvider.getProtocol(chain);
+  assert(
+    protocol === ProtocolType.Ethereum || protocol === ProtocolType.Tron,
+    `Expected an Ethereum or Tron chain, got ${protocol} for ${chain}`,
+  );
+  const evmIsmModule = await EvmIsmModule.create({
+    chain,
+    mailbox: chainAddresses.mailbox,
+    multiProvider,
+    proxyFactoryFactories: extractIsmAndHookFactoryAddresses(chainAddresses),
+    config: interchainSecurityModule,
+    ccipContractCache,
+    contractVerifier,
+  });
+  const { deployedIsm } = evmIsmModule.serialize();
+  return deployedIsm;
 }
 
 async function createWarpHook({

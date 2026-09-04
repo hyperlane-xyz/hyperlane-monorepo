@@ -18,6 +18,7 @@ import { IsmConfigSchema } from '../ism/types.js';
 import type { ChainName } from '../types.js';
 import { DeployedOwnableSchema, OwnableSchema } from '../types.js';
 import {
+  ismTreeContainsCompositeRateLimited,
   ismTreeContainsMailboxDefaultOrHybrid,
   ismTreeContainsRateLimited,
 } from '../utils/ism.js';
@@ -45,7 +46,7 @@ const CoreConfigBaseSchema = OwnableSchema.extend({
  * and meter its flow, which is meaningless for chain-wide default verification.
  */
 const rejectWarpOnlyDefaultIsm = (
-  val: { defaultIsm: unknown },
+  val: { defaultIsm: IsmConfig },
   ctx: z.RefinementCtx,
 ) => {
   if (ismTreeContainsMailboxDefaultOrHybrid(val.defaultIsm)) {
@@ -58,14 +59,28 @@ const rejectWarpOnlyDefaultIsm = (
   }
 };
 
+/**
+ * Rate limiting meters an amount read from a fixed offset of the message
+ * body, which only holds for warp-route traffic, whereas a default ISM sees
+ * every message. Both spellings are rejected: the EVM `rateLimitedIsm` and a
+ * `rateLimited` node inside a Sealevel `compositeIsm` tree.
+ */
 const rejectRateLimitedDefaultIsm = (
-  val: { defaultIsm: unknown },
+  val: { defaultIsm: IsmConfig },
   ctx: z.RefinementCtx,
 ) => {
   if (ismTreeContainsRateLimited(val.defaultIsm)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'RateLimitedIsm cannot be used as a core default ISM',
+      path: ['defaultIsm'],
+    });
+  }
+  if (ismTreeContainsCompositeRateLimited(val.defaultIsm)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "A compositeIsm 'rateLimited' node cannot be used in a core default ISM",
       path: ['defaultIsm'],
     });
   }
