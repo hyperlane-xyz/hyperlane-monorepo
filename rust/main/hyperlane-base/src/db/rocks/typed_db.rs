@@ -73,6 +73,12 @@ impl TypedDB {
             .map_err(Into::into)
     }
 
+    /// Delete an encodable key
+    pub fn delete_encodable(&self, prefix: impl AsRef<[u8]>, key: impl AsRef<[u8]>) -> Result<()> {
+        self.db
+            .delete(&self.prefixed_key(prefix.as_ref(), key.as_ref()))
+    }
+
     /// Store encodable kv pair
     pub fn store_keyed_encodable<K: Encode, V: Encode>(
         &self,

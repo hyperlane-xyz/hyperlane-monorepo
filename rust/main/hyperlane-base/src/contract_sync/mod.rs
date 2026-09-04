@@ -1,6 +1,6 @@
 use std::{
-    collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration,
-    time::UNIX_EPOCH,
+    collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, ops::RangeInclusive,
+    sync::Arc, time::Duration, time::UNIX_EPOCH,
 };
 
 use async_trait::async_trait;
@@ -10,6 +10,7 @@ use derive_new::new;
 use eyre::Result;
 use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
 use tokio::sync::{mpsc::Receiver as MpscReceiver, Mutex};
+use tokio::task::JoinHandle;
 use tokio::time::{interval, sleep, MissedTickBehavior};
 use tracing::{debug, info, instrument, trace, warn, Instrument};
 
@@ -35,6 +36,18 @@ use cursors::ForwardBackwardSequenceAwareSyncCursor;
 
 const SLEEP_DURATION: Duration = Duration::from_secs(5);
 const LIVENESS_UPDATE_INTERVAL: Duration = Duration::from_secs(30);
+
+struct ContractSyncTasks {
+    cursor: JoinHandle<()>,
+    tx_id: JoinHandle<()>,
+}
+
+impl Drop for ContractSyncTasks {
+    fn drop(&mut self) {
+        self.cursor.abort();
+        self.tx_id.abort();
+    }
+}
 
 #[derive(Debug, derive_new::new)]
 #[allow(dead_code)]
@@ -91,6 +104,34 @@ where
     /// The domain that this ContractSync is running on
     pub fn domain(&self) -> &HyperlaneDomain {
         &self.domain
+    }
+
+    /// Fetch logs directly from the underlying indexer without storing them.
+    pub async fn fetch_logs_in_range(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> hyperlane_core::ChainResult<Vec<(Indexed<T>, LogMeta)>> {
+        self.indexer.fetch_logs_in_range(range).await
+    }
+
+    /// Get the latest finalized indexing position.
+    pub async fn latest_indexed_position(
+        &self,
+        mode: hyperlane_core::IndexMode,
+    ) -> hyperlane_core::ChainResult<Option<u32>>
+    where
+        I: SequenceAwareIndexer<T>,
+    {
+        match mode {
+            hyperlane_core::IndexMode::Block => {
+                self.indexer.get_finalized_block_number().await.map(Some)
+            }
+            hyperlane_core::IndexMode::Sequence => self
+                .indexer
+                .latest_sequence_count_and_tip()
+                .await
+                .map(|(count, _)| count.and_then(|count| count.checked_sub(1))),
+        }
     }
 
     fn get_broadcaster(&self) -> Option<BroadcastMpscSender<H512>> {
@@ -180,7 +221,11 @@ where
             None => tokio::task::spawn(async {}),
         };
 
-        let res = tokio::join!(tx_id_task, cursor_task);
+        let mut tasks = ContractSyncTasks {
+            cursor: cursor_task,
+            tx_id: tx_id_task,
+        };
+        let res = tokio::join!(&mut tasks.tx_id, &mut tasks.cursor);
 
         // we should never reach this because the 2 tasks should never end
         tracing::error!(chain = chain_name, label, ?res, "contract sync loop exit");
@@ -384,9 +429,10 @@ where
 #[cfg(test)]
 mod tests {
     use std::{
+        future::pending,
         ops::RangeInclusive,
         sync::{
-            atomic::{AtomicUsize, Ordering},
+            atomic::{AtomicBool, AtomicUsize, Ordering},
             Arc as StdArc,
         },
     };
@@ -470,6 +516,41 @@ mod tests {
         for _ in 0..10 {
             tokio::task::yield_now().await;
         }
+    }
+
+    struct DropFlag(StdArc<AtomicBool>);
+
+    impl Drop for DropFlag {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::SeqCst);
+        }
+    }
+
+    #[tokio::test]
+    async fn contract_sync_tasks_abort_children_on_drop() {
+        let cursor_dropped = StdArc::new(AtomicBool::new(false));
+        let tx_id_dropped = StdArc::new(AtomicBool::new(false));
+        let cursor = tokio::spawn({
+            let cursor_dropped = cursor_dropped.clone();
+            async move {
+                let _flag = DropFlag(cursor_dropped);
+                pending::<()>().await;
+            }
+        });
+        let tx_id = tokio::spawn({
+            let tx_id_dropped = tx_id_dropped.clone();
+            async move {
+                let _flag = DropFlag(tx_id_dropped);
+                pending::<()>().await;
+            }
+        });
+        run_pending_tasks().await;
+
+        drop(ContractSyncTasks { cursor, tx_id });
+        run_pending_tasks().await;
+
+        assert!(cursor_dropped.load(Ordering::SeqCst));
+        assert!(tx_id_dropped.load(Ordering::SeqCst));
     }
 
     #[tokio::test]

@@ -402,6 +402,9 @@ const contextBase = {
   },
 } as const;
 
+const scraperWebsocketUrl =
+  'ws://scraper-proxy.mainnet3.svc.cluster.local:8383/agents';
+
 const veloMessageModuleMatchingList = consistentSenderRecipientMatchingList(
   '0x2BbA7515F7cF114B45186274981888D8C2fBA15E',
 );
@@ -825,6 +828,7 @@ const hyperlane: RootAgentConfig = {
     // is opt-in per chain (quorumVerificationEnabled) and no chain has enabled it
     // yet, so rpcUrls itself must stay on Quorum consensus for now.
     rpcConsensusType: RpcConsensusType.Quorum,
+    websocketUrl: scraperWebsocketUrl,
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
     chainResourceOverrides: validatorChainResourceOverrides,
@@ -844,6 +848,7 @@ const hyperlane: RootAgentConfig = {
       tag: mainnetDockerTags.scraperProxy,
     },
     enabled: true,
+    maxAgentClients: 200,
     port: 8383,
     replicas: 1,
     resources: {
@@ -895,6 +900,7 @@ const releaseCandidate: RootAgentConfig = {
     // is opt-in per chain (quorumVerificationEnabled) and no chain has enabled it
     // yet, so rpcUrls itself must stay on Quorum consensus for now.
     rpcConsensusType: RpcConsensusType.Quorum,
+    websocketUrl: scraperWebsocketUrl,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,
     chainResourceOverrides: validatorChainResourceOverrides,
@@ -1024,6 +1030,7 @@ const fastPath: RootAgentConfig = {
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
+    websocketUrl: scraperWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.validatorFastPath,

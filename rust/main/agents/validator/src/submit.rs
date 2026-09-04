@@ -496,7 +496,6 @@ impl ValidatorSubmitter {
             Some(c) => c.index,
             None => return,
         };
-
         let arc_self = Arc::new(self.clone());
 
         let mut first_chunk = true;
@@ -569,7 +568,6 @@ impl ValidatorSubmitter {
                 remaining_checkpoints = checkpoints.len(),
                 "Signed and submitted checkpoint chunk",
             );
-
             // If it's the first chunk, update the latest index
             if first_chunk {
                 call_and_retry_indefinitely(|| {

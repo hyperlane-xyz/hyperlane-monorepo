@@ -3,6 +3,7 @@ import type { DockerConfig, KubernetesResources } from './agent.js';
 export interface ScraperProxyConfig {
   docker: DockerConfig;
   enabled: boolean;
+  maxAgentClients?: number;
   port?: number;
   replicas?: number;
   resources?: KubernetesResources;

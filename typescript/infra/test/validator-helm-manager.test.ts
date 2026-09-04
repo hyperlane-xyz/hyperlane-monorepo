@@ -24,6 +24,8 @@ describe('ValidatorHelmManager', () => {
       },
       validators: {
         rpcConsensusType: RpcConsensusType.Fallback,
+        websocketUrl:
+          'ws://scraper-proxy.mainnet3.svc.cluster.local:8383/agents',
         docker: {
           repo: 'ghcr.io/hyperlane-xyz/hyperlane-agent',
           tag: 'test',
@@ -58,6 +60,9 @@ describe('ValidatorHelmManager', () => {
     expect(values.hyperlane.chains[0].index?.interval).to.equal(1);
     expect(values.hyperlane.validator?.configs).to.have.lengthOf(1);
     expect(values.hyperlane.validator?.configs?.[0].interval).to.equal(1);
+    expect(values.hyperlane.validator?.configs?.[0].websocketUrl).to.equal(
+      'ws://scraper-proxy.mainnet3.svc.cluster.local:8383/agents',
+    );
   });
 
   it('filters blocked RPCs from the validator additional quorum pool', async () => {
