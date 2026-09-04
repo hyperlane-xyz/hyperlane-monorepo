@@ -9,6 +9,34 @@ use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusCon
 
 use crate::provider::{AleoClient, BaseHttpClient, HttpClient, HttpClientBuilder, RpcClient};
 
+#[derive(Clone, Copy)]
+pub enum ExecutionPhase {
+    DelegatedProverPreflight,
+    Authorization,
+    DelegatedProverProof,
+}
+
+impl ExecutionPhase {
+    const fn method(self) -> &'static str {
+        match self {
+            Self::DelegatedProverPreflight => "delegated_prover_preflight",
+            Self::Authorization => "aleo_authorization",
+            Self::DelegatedProverProof => "delegated_prover_proof",
+        }
+    }
+}
+
+/// Records a bounded high-level Aleo execution phase using the standard client metrics.
+pub fn record_execution_phase(
+    metrics: &PrometheusClientMetrics,
+    metrics_config: &PrometheusConfig,
+    phase: ExecutionPhase,
+    start: Instant,
+    success: bool,
+) {
+    metrics.increment_metrics(metrics_config, phase.method(), start, success);
+}
+
 /// Fallback Http Client that tries multiple RpcClients in order
 #[derive(Debug)]
 pub struct MetricHttpClient<C: AleoClient = BaseHttpClient> {
@@ -129,7 +157,14 @@ impl<C: AleoClient> HttpClient for MetricHttpClient<C> {
 
 #[cfg(test)]
 mod tests {
-    use super::MetricHttpClient;
+    use std::time::Instant;
+
+    use hyperlane_metric::prometheus_metric::{
+        ChainInfo, PrometheusClientMetricsBuilder, REQUEST_COUNT_LABELS,
+    };
+    use prometheus::{IntCounterVec, Opts};
+
+    use super::{record_execution_phase, ExecutionPhase, MetricHttpClient};
     use crate::provider::BaseHttpClient;
 
     #[test]
@@ -146,5 +181,63 @@ mod tests {
             MetricHttpClient::<BaseHttpClient>::method("transaction/broadcast"),
             "transaction_broadcast"
         );
+    }
+
+    #[test]
+    fn execution_phase_metrics_use_a_fixed_phase_label() {
+        let request_count = IntCounterVec::new(
+            Opts::new("test_request_count", "test request count"),
+            REQUEST_COUNT_LABELS,
+        )
+        .expect("valid request metric");
+        let metrics = PrometheusClientMetricsBuilder::default()
+            .request_count(request_count.clone())
+            .build()
+            .expect("valid client metrics");
+        let metrics_config = hyperlane_metric::prometheus_metric::PrometheusConfig {
+            chain: Some(ChainInfo {
+                name: Some("aleo-testnet".to_string()),
+            }),
+            ..Default::default()
+        };
+
+        for (phase, method, status) in [
+            (
+                ExecutionPhase::DelegatedProverPreflight,
+                "delegated_prover_preflight",
+                "failure",
+            ),
+            (
+                ExecutionPhase::Authorization,
+                "aleo_authorization",
+                "success",
+            ),
+            (
+                ExecutionPhase::DelegatedProverProof,
+                "delegated_prover_proof",
+                "success",
+            ),
+        ] {
+            record_execution_phase(
+                &metrics,
+                &metrics_config,
+                phase,
+                Instant::now(),
+                status == "success",
+            );
+            assert_eq!(
+                request_count
+                    .with_label_values(&[
+                        "unknown",
+                        "rpc",
+                        "aleo-testnet",
+                        method,
+                        status,
+                        "primary",
+                    ])
+                    .get(),
+                1,
+            );
+        }
     }
 }
