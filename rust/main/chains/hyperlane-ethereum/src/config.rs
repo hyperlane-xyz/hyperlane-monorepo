@@ -1,5 +1,6 @@
 use ethers::providers::Middleware;
 use ethers_core::types::{BlockId, BlockNumber};
+use std::time::Duration;
 use url::Url;
 
 use hyperlane_core::{
@@ -8,6 +9,15 @@ use hyperlane_core::{
 };
 
 static BATCH_CONTRACT_ADDRESS_DEFAULT: &str = "0xcA11bde05977b3631167028862bE2a173976CA11";
+
+/// Configuration for speculative fallback RPC reads.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FallbackHedgeConfig {
+    /// Grace period before starting a request to the next provider.
+    pub delay: Duration,
+    /// Timeout applied independently to every hedged provider attempt.
+    pub attempt_timeout: Duration,
+}
 
 /// Ethereum RPC connection configuration
 #[derive(Debug, Clone)]
@@ -53,6 +63,9 @@ pub struct ConnectionConf {
     /// we will try other providers and see if another provider returns something
     /// non-null
     pub consider_null_transaction_receipt: bool,
+    /// Optional hedging for explicitly allowlisted immutable/finalized reads.
+    /// Disabled when unset.
+    pub fallback_hedge: Option<FallbackHedgeConfig>,
 }
 
 impl ConnectionConf {

@@ -8,6 +8,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   AgentChainMetadataSchema,
   RelayerAgentConfigSchema,
+  RpcConsensusType,
   buildAgentConfig,
 } from './agentConfig.js';
 
@@ -156,6 +157,72 @@ describe('AgentChainMetadataSchema additionalQuorumRpcUrls', () => {
     if (result.success) {
       expect(result.data.customAdditionalQuorumRpcUrls).to.be.undefined;
     }
+  });
+});
+
+describe('AgentChainMetadataSchema fallback hedging', () => {
+  const baseChainMetadata = {
+    name: 'legacy',
+    domainId: 1000,
+    chainId: 1000,
+    protocol: ProtocolType.Ethereum,
+    rpcUrls: [{ http: 'http://localhost:8545' }],
+    mailbox: '0x0000000000000000000000000000000000000001',
+    interchainGasPaymaster: '0x0000000000000000000000000000000000000002',
+    validatorAnnounce: '0x0000000000000000000000000000000000000003',
+    merkleTreeHook: '0x0000000000000000000000000000000000000004',
+  };
+
+  it('parses positive fallback hedge settings', () => {
+    const result = AgentChainMetadataSchema.safeParse({
+      ...baseChainMetadata,
+      rpcConsensusType: RpcConsensusType.Fallback,
+      fallbackHedgeDelayMillis: 250,
+      fallbackHedgeTimeoutMillis: 30_000,
+    });
+
+    expect(result.success).to.be.true;
+    if (result.success) {
+      expect(result.data.fallbackHedgeDelayMillis).to.equal(250);
+      expect(result.data.fallbackHedgeTimeoutMillis).to.equal(30_000);
+    }
+  });
+
+  it('rejects zero fallback hedge settings', () => {
+    expect(
+      AgentChainMetadataSchema.safeParse({
+        ...baseChainMetadata,
+        fallbackHedgeDelayMillis: 0,
+      }).success,
+    ).to.be.false;
+  });
+
+  it('rejects a timeout without a hedge delay', () => {
+    expect(
+      AgentChainMetadataSchema.safeParse({
+        ...baseChainMetadata,
+        fallbackHedgeTimeoutMillis: 30_000,
+      }).success,
+    ).to.be.false;
+  });
+
+  it('rejects fallback hedging with non-fallback RPC consensus', () => {
+    expect(
+      AgentChainMetadataSchema.safeParse({
+        ...baseChainMetadata,
+        rpcConsensusType: RpcConsensusType.Single,
+        fallbackHedgeDelayMillis: 250,
+      }).success,
+    ).to.be.false;
+  });
+
+  it('rejects fallback hedging without explicit fallback RPC consensus', () => {
+    expect(
+      AgentChainMetadataSchema.safeParse({
+        ...baseChainMetadata,
+        fallbackHedgeDelayMillis: 250,
+      }).success,
+    ).to.be.false;
   });
 });
 

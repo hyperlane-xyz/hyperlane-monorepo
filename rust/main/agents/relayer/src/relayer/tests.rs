@@ -83,6 +83,7 @@ fn generate_test_chain_conf(
                 ..Default::default()
             },
             consider_null_transaction_receipt: false,
+            fallback_hedge: None,
         }),
         metrics_conf: PrometheusMiddlewareConf {
             contracts: HashMap::new(),

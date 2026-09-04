@@ -848,6 +848,7 @@ mod test {
                         ..Default::default()
                     },
                     consider_null_transaction_receipt: false,
+                    fallback_hedge: None,
                 }),
                 metrics_conf: PrometheusMiddlewareConf {
                     contracts: HashMap::new(),

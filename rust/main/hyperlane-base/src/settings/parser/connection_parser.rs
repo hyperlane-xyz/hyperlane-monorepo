@@ -1,4 +1,4 @@
-use std::{ops::Add, str::FromStr};
+use std::{ops::Add, str::FromStr, time::Duration};
 
 use eyre::eyre;
 use hyperlane_sealevel::{
@@ -129,11 +129,58 @@ pub fn build_ethereum_connection_conf(
         .parse_bool()
         .unwrap_or(false);
 
+    let fallback_hedge_delay_millis = chain
+        .chain(err)
+        .get_opt_key("fallbackHedgeDelayMillis")
+        .parse_u64()
+        .end();
+    let fallback_hedge_timeout_millis = chain
+        .chain(err)
+        .get_opt_key("fallbackHedgeTimeoutMillis")
+        .parse_u64()
+        .end();
+    if fallback_hedge_delay_millis == Some(0) {
+        err.push(
+            (&chain.cwp).add("fallback_hedge_delay_millis"),
+            eyre!("fallback hedge delay must be greater than zero"),
+        );
+    }
+    if fallback_hedge_timeout_millis == Some(0) {
+        err.push(
+            (&chain.cwp).add("fallback_hedge_timeout_millis"),
+            eyre!("fallback hedge timeout must be greater than zero"),
+        );
+    }
+    if fallback_hedge_timeout_millis.is_some() && fallback_hedge_delay_millis.is_none() {
+        err.push(
+            (&chain.cwp).add("fallback_hedge_timeout_millis"),
+            eyre!("fallback hedge timeout requires fallbackHedgeDelayMillis"),
+        );
+    }
+    if fallback_hedge_delay_millis.is_some() && rpc_consensus_type != "fallback" {
+        err.push(
+            (&chain.cwp).add("fallback_hedge_delay_millis"),
+            eyre!("fallback RPC hedging requires rpcConsensusType fallback"),
+        );
+    }
+    let fallback_hedge =
+        fallback_hedge_delay_millis
+            .filter(|delay| *delay > 0)
+            .map(|delay_millis| h_eth::FallbackHedgeConfig {
+                delay: Duration::from_millis(delay_millis),
+                attempt_timeout: Duration::from_millis(
+                    fallback_hedge_timeout_millis
+                        .filter(|timeout| *timeout > 0)
+                        .unwrap_or(30_000),
+                ),
+            });
+
     Some(ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
         rpc_connection: rpc_connection_conf?,
         transaction_overrides,
         op_submission_config: operation_batch,
         consider_null_transaction_receipt,
+        fallback_hedge,
     }))
 }
 
@@ -885,5 +932,75 @@ pub fn is_protocol_supported(protocol: HyperlaneDomainProtocol) -> bool {
         Ethereum | Fuel | Sealevel | Cosmos | CosmosNative | Starknet | Radix | Tron => true,
         // Aleo is feature-gated - only supported when the "aleo" feature is enabled
         Aleo => cfg!(feature = "aleo"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hyperlane_core::config::ConfigPath;
+    use serde_json::json;
+
+    use super::*;
+
+    fn parse_ethereum_hedge(value: serde_json::Value) -> (ChainConnectionConf, ConfigParsingError) {
+        let chain = ValueParser::new(ConfigPath::default(), &value);
+        let mut errors = ConfigParsingError::default();
+        let connection = build_ethereum_connection_conf(
+            &[Url::parse("http://localhost:8545").unwrap()],
+            &chain,
+            &mut errors,
+            "fallback",
+            OpSubmissionConfig::default(),
+        )
+        .unwrap();
+        (connection, errors)
+    }
+
+    #[test]
+    fn ethereum_fallback_hedging_is_default_off() {
+        let (connection, errors) = parse_ethereum_hedge(json!({}));
+        assert!(errors.is_ok());
+        let ChainConnectionConf::Ethereum(connection) = connection else {
+            panic!("expected ethereum connection");
+        };
+        assert_eq!(connection.fallback_hedge, None);
+    }
+
+    #[test]
+    fn parses_ethereum_fallback_hedge_settings() {
+        let (connection, errors) = parse_ethereum_hedge(json!({
+            "fallbackhedgedelaymillis": 250,
+            "fallbackhedgetimeoutmillis": 2_000,
+        }));
+        assert!(errors.is_ok());
+        let ChainConnectionConf::Ethereum(connection) = connection else {
+            panic!("expected ethereum connection");
+        };
+        assert_eq!(
+            connection.fallback_hedge,
+            Some(h_eth::FallbackHedgeConfig {
+                delay: Duration::from_millis(250),
+                attempt_timeout: Duration::from_secs(2),
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_ethereum_fallback_hedge_settings() {
+        let (_, zero_delay_errors) = parse_ethereum_hedge(json!({
+            "fallbackhedgedelaymillis": 0,
+        }));
+        assert!(!zero_delay_errors.is_ok());
+
+        let (_, timeout_only_errors) = parse_ethereum_hedge(json!({
+            "fallbackhedgetimeoutmillis": 2_000,
+        }));
+        assert!(!timeout_only_errors.is_ok());
+
+        let (_, non_fallback_errors) = parse_ethereum_hedge(json!({
+            "rpcconsensustype": "single",
+            "fallbackhedgedelaymillis": 250,
+        }));
+        assert!(!non_fallback_errors.is_ok());
     }
 }
