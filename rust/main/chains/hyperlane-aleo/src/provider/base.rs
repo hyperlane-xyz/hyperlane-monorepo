@@ -201,6 +201,9 @@ impl JWTBaseHttpClient {
             .map_err(HyperlaneAleoError::from)?
             .error_for_status()
             .map_err(HyperlaneAleoError::from)?;
+        let response = response
+            .error_for_status()
+            .map_err(HyperlaneAleoError::from)?;
         let result = response
             .headers()
             .get(AUTHORIZATION)
@@ -511,6 +514,32 @@ mod tests {
             .unwrap();
 
         assert_eq!(response, None);
+        server.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn jwt_auth_preserves_http_status_errors() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buffer = [0; 4096];
+            stream.read(&mut buffer).unwrap();
+            stream
+                .write_all(
+                    b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                )
+                .unwrap();
+        });
+        let url = Url::parse(&format!(
+            "http://{address}/v2?custom_rpc_header=x-auth-url:http%3A%2F%2F{address}%2Fauth"
+        ))
+        .unwrap();
+        let client = JWTBaseHttpClient::new(url, 0).unwrap();
+
+        let error = client.get_auth_token().await.unwrap_err();
+
+        assert!(error.to_string().contains("429 Too Many Requests"));
         server.join().unwrap();
     }
 }
