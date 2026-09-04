@@ -1,4 +1,4 @@
-use std::{path::Path, sync::Arc};
+use std::{fs, io::ErrorKind, path::Path, sync::Arc};
 
 use super::error::DbError;
 use rocksdb::{Direction, IteratorMode, Options, WriteBatch, WriteBatchIterator, DB as Rocks};
@@ -25,6 +25,53 @@ pub mod test_utils;
 const ROLLBACK_WAL_RETENTION_SECONDS: u64 = 7 * 24 * 60 * 60;
 // Cap the retained fast path so a high-write database cannot grow without bound.
 const ROLLBACK_WAL_SIZE_LIMIT_MB: u64 = 1_024;
+
+fn remove_archived_wal_files(db_path: &Path) -> Result<()> {
+    let archive_path = db_path.join("archive");
+    let entries = match fs::read_dir(&archive_path) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(err) => {
+            return Err(DbError::Other(format!(
+                "Failed to inspect archived RocksDB WAL at {}: {err}",
+                archive_path.display()
+            )))
+        }
+    };
+    let mut removed = 0_u64;
+    for entry in entries {
+        let entry = entry.map_err(|err| {
+            DbError::Other(format!(
+                "Failed to inspect archived RocksDB WAL entry at {}: {err}",
+                archive_path.display()
+            ))
+        })?;
+        let file_type = entry.file_type().map_err(|err| {
+            DbError::Other(format!(
+                "Failed to inspect archived RocksDB WAL file {}: {err}",
+                entry.path().display()
+            ))
+        })?;
+        let is_wal = entry
+            .file_name()
+            .to_str()
+            .and_then(|name| name.strip_suffix(".log"))
+            .is_some_and(|stem| !stem.is_empty() && stem.bytes().all(|byte| byte.is_ascii_digit()));
+        if file_type.is_file() && is_wal {
+            fs::remove_file(entry.path()).map_err(|err| {
+                DbError::Other(format!(
+                    "Failed to remove archived RocksDB WAL file {}: {err}",
+                    entry.path().display()
+                ))
+            })?;
+            removed = removed.saturating_add(1);
+        }
+    }
+    if removed > 0 {
+        info!(path=%archive_path.display(), removed, "Removed archived RocksDB WAL after disabling rollback retention");
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone)]
 /// A KV Store
@@ -72,6 +119,16 @@ impl DB {
     /// Opens db at `db_path` and creates if missing
     #[tracing::instrument(err)]
     pub fn from_path(db_path: &Path) -> Result<DB> {
+        Self::from_path_with_options(db_path, false)
+    }
+
+    /// Opens a DB with archived WAL retained for rollback-derived index recovery.
+    #[tracing::instrument(err)]
+    pub fn from_path_with_rollback_wal(db_path: &Path) -> Result<DB> {
+        Self::from_path_with_options(db_path, true)
+    }
+
+    fn from_path_with_options(db_path: &Path, retain_rollback_wal: bool) -> Result<DB> {
         let path = {
             let mut path = db_path
                 .parent()
@@ -92,16 +149,20 @@ impl DB {
 
         let mut opts = Options::default();
         opts.create_if_missing(true);
-        opts.set_wal_ttl_seconds(ROLLBACK_WAL_RETENTION_SECONDS);
-        opts.set_wal_size_limit_mb(ROLLBACK_WAL_SIZE_LIMIT_MB);
+        if retain_rollback_wal {
+            opts.set_wal_ttl_seconds(ROLLBACK_WAL_RETENTION_SECONDS);
+            opts.set_wal_size_limit_mb(ROLLBACK_WAL_SIZE_LIMIT_MB);
+        }
 
-        Rocks::open(&opts, &path)
-            .map_err(|e| DbError::OpeningError {
-                source: Box::new(e),
-                path: db_path.into(),
-                canonicalized: path,
-            })
-            .map(Into::into)
+        let rocks = Rocks::open(&opts, &path).map_err(|e| DbError::OpeningError {
+            source: Box::new(e),
+            path: db_path.into(),
+            canonicalized: path.clone(),
+        })?;
+        if !retain_rollback_wal {
+            remove_archived_wal_files(&path)?;
+        }
+        Ok(rocks.into())
     }
 
     /// Store a value in the DB
@@ -225,6 +286,8 @@ impl DbBatch {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use rocksdb::{Options, WriteBatch, DB as Rocks};
 
     use super::DB;
@@ -309,5 +372,22 @@ mod tests {
             Some(b"old-count".to_vec())
         );
         assert_eq!(db.retrieve(b"status").expect("read status"), None);
+    }
+
+    #[test]
+    fn default_reopen_removes_wal_archived_under_retention() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path().join("db");
+        drop(DB::from_path_with_rollback_wal(&db_path).unwrap());
+
+        let archive_path = db_path.join("archive");
+        fs::create_dir_all(&archive_path).unwrap();
+        fs::write(archive_path.join("000001.log"), b"retained wal").unwrap();
+        fs::write(archive_path.join("keep.txt"), b"unrelated").unwrap();
+
+        drop(DB::from_path(&db_path).unwrap());
+
+        assert!(!archive_path.join("000001.log").exists());
+        assert!(archive_path.join("keep.txt").exists());
     }
 }
