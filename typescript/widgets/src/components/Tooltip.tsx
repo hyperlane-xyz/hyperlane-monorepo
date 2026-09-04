@@ -1,5 +1,5 @@
 import { clsx } from 'clsx';
-import React, { AnchorHTMLAttributes } from 'react';
+import React, { AnchorHTMLAttributes, ReactNode } from 'react';
 import { PlacesType, Tooltip as ReactTooltip } from 'react-tooltip';
 
 import { Circle } from '../icons/Circle.js';
@@ -11,6 +11,7 @@ type Props = AnchorHTMLAttributes<HTMLAnchorElement> & {
   size?: number;
   placement?: PlacesType;
   tooltipClassName?: string;
+  icon?: ReactNode;
 };
 
 export function Tooltip({
@@ -20,6 +21,7 @@ export function Tooltip({
   placement = 'top-start',
   size = 16,
   tooltipClassName,
+  icon,
   ...rest
 }: Props) {
   return (
@@ -36,11 +38,13 @@ export function Tooltip({
         {...rest}
       >
         <Circle size={size} className="htw-bg-gray-200 htw-border-gray-300">
-          <QuestionMarkIcon
-            width={size - 2}
-            height={size - 2}
-            className="htw-opacity-60"
-          />
+          {icon ?? (
+            <QuestionMarkIcon
+              width={size - 2}
+              height={size - 2}
+              className="htw-opacity-60"
+            />
+          )}
         </Circle>
       </a>
       <ReactTooltip id={id} />
