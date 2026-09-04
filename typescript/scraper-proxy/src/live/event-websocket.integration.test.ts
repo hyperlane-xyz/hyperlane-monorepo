@@ -5,7 +5,11 @@ import { after, before, it, type TestContext } from 'node:test';
 import { WebSocket } from 'ws';
 import type { QueryResultRow } from 'pg';
 
-import { metricsRegistry, websocketCatchUps } from '../metrics.js';
+import {
+  metricsRegistry,
+  websocketCatchUps,
+  websocketSendFailures,
+} from '../metrics.js';
 import type { EventDatabase, EventWebSocketServer } from './event-websocket.js';
 import { rawData } from './websocket-data.js';
 
@@ -1014,6 +1018,84 @@ void it('releases a peer-closed Explorer queue immediately', async (context) => 
   for (const complete of completions.splice(0)) complete();
 });
 
+void it('reports an active send failure once', async (context) => {
+  const socket = new WebSocket(messagesUrl);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  await waitFor(messages, 'ready');
+  const completions = delayServerSendCompletions(context);
+  const failuresBefore = await sendFailureCount();
+
+  try {
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: msgId.slice(2) }),
+    );
+    await waitUntil(() => completions.length === 1);
+    completions.shift()?.(new Error('write failed'));
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+
+    assert.equal(await sendFailureCount(), failuresBefore + 1);
+  } finally {
+    for (const complete of completions.splice(0)) complete();
+    if (socket.readyState !== WebSocket.CLOSED) socket.terminate();
+  }
+});
+
+void it('does not report heartbeat cleanup as a send failure', async (context) => {
+  let heartbeatNotify: (channel: string, payload?: string) => void;
+  const heartbeatDb: EventDatabase = {
+    listen: async (_channels, handler) => {
+      heartbeatNotify = handler;
+      return async () => undefined;
+    },
+    queryLive: db.queryLive,
+  };
+  const heartbeatHttp = createServer();
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  const heartbeatEvents = new EventWebSocketServer(heartbeatDb, {
+    heartbeatMs: 250,
+    maxExplorerClients: 1,
+  });
+  await new Promise<void>((resolve) =>
+    heartbeatHttp.listen(0, '127.0.0.1', resolve),
+  );
+  const address = heartbeatHttp.address();
+  assert(address && typeof address !== 'string');
+  await heartbeatEvents.start(heartbeatHttp);
+  const completions = delayServerSendCompletions(context);
+  const socket = new WebSocket(`ws://127.0.0.1:${address.port}/messages`, {
+    autoPong: false,
+  });
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  const failuresBefore = await sendFailureCount();
+
+  try {
+    await waitFor(messages, 'ready');
+    heartbeatNotify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: msgId.slice(2) }),
+    );
+    await waitUntil(() => completions.length === 1);
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    completions.shift()?.(new Error('write ECANCELED'));
+    await waitUntil(
+      () => heartbeatEvents.metricsSnapshot().outboundPendingBytes === 0,
+    );
+
+    assert.equal(await sendFailureCount(), failuresBefore);
+    assert.equal(heartbeatEvents.metricsSnapshot().connections.messages, 0);
+  } finally {
+    for (const complete of completions.splice(0)) complete();
+    if (socket.readyState !== WebSocket.CLOSED) socket.terminate();
+    await heartbeatEvents.stop();
+    await new Promise<void>((resolve, reject) =>
+      heartbeatHttp.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
+
 void it('bounds aggregate Explorer outbound buffering', async () => {
   const sockets = Array.from({ length: 4 }, () => new WebSocket(messagesUrl));
   const messages: Record<string, unknown>[][] = sockets.map(() => []);
@@ -1077,8 +1159,10 @@ function liveAgent(messages: Record<string, unknown>[]): WebSocket {
   return socket;
 }
 
-function delayServerSendCompletions(context: TestContext): Array<() => void> {
-  const completions: Array<() => void> = [];
+function delayServerSendCompletions(
+  context: TestContext,
+): Array<(error?: Error) => void> {
+  const completions: Array<(error?: Error) => void> = [];
   // oxlint-disable-next-line typescript/unbound-method -- called with the socket receiver below.
   const originalSend = WebSocket.prototype.send;
   context.mock.method(
@@ -1101,7 +1185,8 @@ function delayServerSendCompletions(context: TestContext): Array<() => void> {
           message?.type === 'caught_up' ||
           message?.type === 'message_upsert');
       const completed = delay
-        ? (error?: Error) => completions.push(() => completion(error))
+        ? (error?: Error) =>
+            completions.push((override = error) => completion(override))
         : completion;
       if (typeof optionsOrCallback === 'function' || !optionsOrCallback) {
         originalSend.call(this, data, completed);
@@ -1207,6 +1292,14 @@ async function catchUpOutcome(outcome: string): Promise<number> {
   const metric = await websocketCatchUps.get();
   return (
     metric.values.find(({ labels }) => labels.outcome === outcome)?.value ?? 0
+  );
+}
+
+async function sendFailureCount(): Promise<number> {
+  const metric = await websocketSendFailures.get();
+  return (
+    metric.values.find(({ labels }) => labels.reason === 'send_error')?.value ??
+    0
   );
 }
 
