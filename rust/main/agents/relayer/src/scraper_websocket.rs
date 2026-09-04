@@ -3003,73 +3003,98 @@ impl ScraperWebSocketMonitor {
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
         loop {
             ticker.tick().await;
-            if !self.base_authority_ready() {
-                self.deactivate_authority();
-                continue;
-            }
+            self.refresh_authority_once().await;
+        }
+    }
 
-            let results = stream::iter(self.sources.values().cloned())
-                .map(|source| async move {
-                    let chain = source.chain.clone();
-                    let indexer = source
-                        .freshness_indexer
-                        .clone()
-                        .context("Missing canonical dispatch freshness indexer")?;
-                    let (canonical_count, _) = timeout(
-                        AUTHORITY_FRESHNESS_TIMEOUT,
-                        indexer.latest_sequence_count_and_tip(),
-                    )
-                    .await
-                    .context("Canonical dispatch freshness probe timed out")??;
-                    let cursor_source = source.clone();
-                    let local_cursor = tokio::task::spawn_blocking(move || {
-                        cursor_source.cursor(EventKind::Dispatch)
+    async fn refresh_authority_once(&self) {
+        if !self.base_authority_ready() {
+            self.deactivate_authority();
+            return;
+        }
+
+        let results = stream::iter(self.sources.values().cloned())
+            .map(|source| async move {
+                let chain = source.chain.clone();
+                let indexer = source
+                    .freshness_indexer
+                    .clone()
+                    .context("Missing canonical dispatch freshness indexer")?;
+                let (canonical_count, _) = timeout(
+                    AUTHORITY_FRESHNESS_TIMEOUT,
+                    indexer.latest_sequence_count_and_tip(),
+                )
+                .await
+                .context("Canonical dispatch freshness probe timed out")??;
+                let cursor_source = source.clone();
+                let (dispatch_cursor, merkle_cursor, correlation_cursor) =
+                    tokio::task::spawn_blocking(move || -> Result<_> {
+                        Ok((
+                            cursor_source.cursor(EventKind::Dispatch)?,
+                            cursor_source.cursor(EventKind::MerkleTreeInsertion)?,
+                            cursor_source.correlation_cursor()?,
+                        ))
                     })
                     .await
-                    .context("Canonical dispatch freshness cursor task failed")??;
-                    Ok::<_, eyre::Report>((
-                        chain,
-                        canonical_cursor_is_fresh(canonical_count, local_cursor)?,
+                    .context("Canonical scraper freshness cursor task failed")??;
+                Ok::<_, eyre::Report>((
+                    chain,
+                    canonical_cursors_are_fresh(
                         canonical_count,
-                        local_cursor,
-                    ))
-                })
-                .buffer_unordered(AUTHORITY_FRESHNESS_CONCURRENCY)
-                .collect::<Vec<_>>()
-                .await;
+                        dispatch_cursor,
+                        merkle_cursor,
+                        correlation_cursor,
+                    )?,
+                    canonical_count,
+                    dispatch_cursor,
+                    merkle_cursor,
+                    correlation_cursor,
+                ))
+            })
+            .buffer_unordered(AUTHORITY_FRESHNESS_CONCURRENCY)
+            .collect::<Vec<_>>()
+            .await;
 
-            let mut all_fresh = true;
-            for result in results {
-                match result {
-                    Ok((chain, is_fresh, canonical_count, local_cursor)) => {
-                        self.fresh
-                            .with_label_values(&[chain.as_str()])
-                            .set(i64::from(is_fresh));
-                        if !is_fresh {
-                            all_fresh = false;
-                            if should_warn(&self.freshness_warned_at) {
-                                warn!(
-                                    %chain,
-                                    ?canonical_count,
-                                    ?local_cursor,
-                                    "Scraper dispatch cursor is not canonically fresh"
-                                );
-                            }
-                        }
-                    }
-                    Err(err) => {
+        let mut all_fresh = true;
+        for result in results {
+            match result {
+                Ok((
+                    chain,
+                    is_fresh,
+                    canonical_count,
+                    dispatch_cursor,
+                    merkle_cursor,
+                    correlation_cursor,
+                )) => {
+                    self.fresh
+                        .with_label_values(&[chain.as_str()])
+                        .set(i64::from(is_fresh));
+                    if !is_fresh {
                         all_fresh = false;
                         if should_warn(&self.freshness_warned_at) {
-                            warn!(?err, "Canonical scraper freshness probe failed");
+                            warn!(
+                                %chain,
+                                ?canonical_count,
+                                ?dispatch_cursor,
+                                ?merkle_cursor,
+                                ?correlation_cursor,
+                                "Scraper sequenced cursors are not canonically fresh"
+                            );
                         }
                     }
                 }
+                Err(err) => {
+                    all_fresh = false;
+                    if should_warn(&self.freshness_warned_at) {
+                        warn!(?err, "Canonical scraper freshness probe failed");
+                    }
+                }
             }
-            if all_fresh {
-                self.maybe_activate_authority().await;
-            } else {
-                self.deactivate_authority();
-            }
+        }
+        if all_fresh {
+            self.maybe_activate_authority().await;
+        } else {
+            self.deactivate_authority();
         }
     }
 
@@ -3138,15 +3163,28 @@ fn should_warn(warned_at: &parking_lot::Mutex<Option<Instant>>) -> bool {
     true
 }
 
-fn canonical_cursor_is_fresh(
+fn canonical_cursors_are_fresh(
     canonical_count: Option<u32>,
-    local_cursor: Option<u32>,
+    dispatch_cursor: Option<u32>,
+    merkle_cursor: Option<u32>,
+    correlation_cursor: Option<u32>,
 ) -> Result<bool> {
-    let local_count = local_cursor
-        .map(|cursor| cursor.checked_add(1).context("Dispatch cursor exhausted"))
-        .transpose()?
-        .unwrap_or(0);
-    Ok(canonical_count.unwrap_or(0) == local_count)
+    let cursor_count = |cursor: Option<u32>, label: &str| {
+        cursor
+            .map(|cursor| {
+                cursor
+                    .checked_add(1)
+                    .with_context(|| format!("{label} cursor exhausted"))
+            })
+            .transpose()
+            .map(|count| count.unwrap_or(0))
+    };
+    let canonical_count = canonical_count.unwrap_or(0);
+    Ok(
+        cursor_count(dispatch_cursor, "Dispatch")? == canonical_count
+            && cursor_count(merkle_cursor, "Merkle")? == canonical_count
+            && correlation_cursor.unwrap_or(0) == canonical_count,
+    )
 }
 
 #[cfg(test)]
@@ -3622,9 +3660,12 @@ fn event_label(event_type: &str) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::RangeInclusive;
+
     use super::*;
+    use async_trait::async_trait;
     use hyperlane_base::db::{test_utils, DB};
-    use hyperlane_core::HyperlaneDomain;
+    use hyperlane_core::{ChainResult, HyperlaneDomain, Indexer, SequenceAwareIndexer};
     use prometheus::Registry;
     use tokio::{net::TcpListener, sync::oneshot};
     use tokio_tungstenite::accept_async;
@@ -3633,6 +3674,30 @@ mod tests {
         _temp_dir: tempfile::TempDir,
         database: HyperlaneRocksDB,
         sources: HashMap<u32, ScraperSource>,
+    }
+
+    #[derive(Debug)]
+    struct FixedSequenceIndexer(u32);
+
+    #[async_trait]
+    impl Indexer<HyperlaneMessage> for FixedSequenceIndexer {
+        async fn fetch_logs_in_range(
+            &self,
+            _range: RangeInclusive<u32>,
+        ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+            unreachable!("freshness tests only query the sequence count")
+        }
+
+        async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+            unreachable!("freshness tests only query the sequence count")
+        }
+    }
+
+    #[async_trait]
+    impl SequenceAwareIndexer<HyperlaneMessage> for FixedSequenceIndexer {
+        async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+            Ok((Some(self.0), 0))
+        }
     }
 
     fn source(database: HyperlaneRocksDB) -> ScraperSource {
@@ -3838,11 +3903,99 @@ mod tests {
     }
 
     #[test]
-    fn canonical_freshness_compares_event_count_to_durable_cursor() {
-        assert!(canonical_cursor_is_fresh(None, None).expect("empty chain is fresh"));
-        assert!(canonical_cursor_is_fresh(Some(10), Some(9)).expect("matching cursor is fresh"));
-        assert!(!canonical_cursor_is_fresh(Some(11), Some(9)).expect("lagging cursor is stale"));
-        assert!(canonical_cursor_is_fresh(Some(u32::MAX), Some(u32::MAX)).is_err());
+    fn canonical_freshness_requires_complete_correlated_frontier() {
+        assert!(canonical_cursors_are_fresh(None, None, None, None).expect("empty chain is fresh"));
+        assert!(
+            canonical_cursors_are_fresh(Some(10), Some(9), Some(9), Some(10))
+                .expect("matching cursors are fresh")
+        );
+        assert!(
+            !canonical_cursors_are_fresh(Some(10), Some(9), Some(8), Some(10))
+                .expect("lagging Merkle cursor is stale")
+        );
+        assert!(
+            !canonical_cursors_are_fresh(Some(10), Some(9), Some(9), Some(9))
+                .expect("lagging correlation cursor is stale")
+        );
+        assert!(
+            !canonical_cursors_are_fresh(Some(11), Some(9), Some(9), Some(10))
+                .expect("lagging sequenced cursors are stale")
+        );
+        assert!(canonical_cursors_are_fresh(
+            Some(u32::MAX),
+            Some(u32::MAX),
+            Some(u32::MAX),
+            Some(u32::MAX),
+        )
+        .is_err());
+    }
+
+    #[tokio::test]
+    async fn canonical_freshness_restores_fallback_then_reacquires_after_pairing() {
+        let fixture = fixture();
+        let mut source = fixture.sources[&5].clone();
+        source
+            .store_cursor(EventKind::Dispatch, 9)
+            .expect("store dispatch cursor");
+        source
+            .store_cursor(EventKind::MerkleTreeInsertion, 8)
+            .expect("store lagging Merkle cursor");
+        source
+            .store_correlation_cursor(9)
+            .expect("store lagging correlation cursor");
+        source = source.with_freshness_indexer(Arc::new(FixedSequenceIndexer(10)));
+        let metrics = CoreMetrics::new("scraper-authority-frontier-test", 9090, Registry::new())
+            .expect("create test metrics");
+        let monitor = ScraperWebSocketMonitor::new_with_authority(
+            Url::parse("ws://localhost:1").expect("test URL"),
+            vec![source],
+            &metrics,
+            true,
+        )
+        .expect("create authority monitor");
+        let mut receiver = monitor.authority_receiver().expect("authority receiver");
+        monitor.set_active(true);
+        monitor.gas_payment_enabled.store(true, Ordering::Release);
+        for source in monitor.sources.values() {
+            for kind in [
+                EventKind::Dispatch,
+                EventKind::GasPayment,
+                EventKind::MerkleTreeInsertion,
+            ] {
+                monitor.set_source_caught_up(source, kind, true);
+            }
+            monitor.refresh_parity_ready(source);
+            monitor
+                .fresh
+                .with_label_values(&[source.chain.as_str()])
+                .set(1);
+        }
+        monitor.authority_active.store(true, Ordering::Release);
+
+        monitor.refresh_authority_once().await;
+        assert!(!monitor.authority_active.load(Ordering::Acquire));
+        assert!(!receiver.borrow_and_update().desired);
+        assert_eq!(monitor.fresh.with_label_values(&["test"]).get(), 0);
+
+        let source = &monitor.sources[&5];
+        source
+            .store_cursor(EventKind::MerkleTreeInsertion, 9)
+            .expect("advance Merkle cursor");
+        source
+            .store_correlation_cursor(10)
+            .expect("advance correlation cursor");
+        let refresh = monitor.refresh_authority_once();
+        tokio::pin!(refresh);
+        assert!(timeout(Duration::from_millis(10), &mut refresh)
+            .await
+            .is_err());
+        let command = receiver.borrow_and_update();
+        assert!(command.desired);
+        monitor.authority_handoff.mark_paused(5, command.generation);
+        refresh.await;
+
+        assert!(monitor.authority_active.load(Ordering::Acquire));
+        assert_eq!(monitor.fresh.with_label_values(&["test"]).get(), 1);
     }
 
     #[tokio::test]
