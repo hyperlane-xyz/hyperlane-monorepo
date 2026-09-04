@@ -43,6 +43,10 @@ where
         .await
     }
 
+    async fn chain_id_test_call(&self) -> Result<u64, ProviderError> {
+        self.request::<_, u64>(METHOD_CHAIN_ID, ()).await
+    }
+
     async fn immutable_call_test_call(&self) -> Result<u64, ProviderError> {
         self.request::<_, u64>(METHOD_CALL, json!([{}, "finalized"]))
             .await
@@ -98,7 +102,6 @@ fn hedge_allowlist_requires_pinned_reads() {
     let block_hash = json!(format!("0x{}", "11".repeat(32)));
 
     for method in [
-        METHOD_CHAIN_ID,
         METHOD_GET_BLOCK_BY_HASH,
         METHOD_GET_BALANCE,
         METHOD_GET_CODE,
@@ -108,7 +111,6 @@ fn hedge_allowlist_requires_pinned_reads() {
         assert!(is_hedgeable_method(method), "{method}");
     }
 
-    assert!(is_hedgeable_read(METHOD_CHAIN_ID, &Value::Null));
     assert!(is_hedgeable_read(
         METHOD_GET_BLOCK_BY_HASH,
         &json!([block_hash, false])
@@ -149,6 +151,7 @@ fn hedge_allowlist_requires_pinned_reads() {
         assert!(!is_hedgeable_read(METHOD_CALL, &json!([{}, selector])));
     }
     for excluded in [
+        METHOD_CHAIN_ID,
         METHOD_SEND_RAW_TRANSACTION,
         METHOD_GET_TRANSACTION_RECEIPT,
         "eth_getLogs",
@@ -160,6 +163,29 @@ fn hedge_allowlist_requires_pinned_reads() {
         assert!(!is_hedgeable_method(excluded), "{excluded}");
         assert!(!is_hedgeable_read(excluded, &json!([])), "{excluded}");
     }
+}
+
+#[tokio::test]
+async fn chain_id_preserves_primary_identity_when_hedging_is_enabled() {
+    let providers = vec![
+        EthereumProviderMock::new(Some(Duration::from_millis(20))),
+        EthereumProviderMock::new(None),
+    ];
+    push_read_response(&providers[0], MockReadResponse::Success(1));
+    push_read_response(&providers[1], MockReadResponse::Success(2));
+    let fallback = FallbackProviderBuilder::default()
+        .add_providers(providers)
+        .build();
+    let provider = EthereumFallbackProvider::new(fallback, false).with_hedging(
+        Some(hedge_config(
+            Duration::from_millis(1),
+            Duration::from_millis(100),
+        )),
+        None,
+    );
+
+    assert_eq!(provider.chain_id_test_call().await.unwrap(), 1);
+    assert_eq!(ProviderMock::get_call_counts(&provider).await, vec![1, 0]);
 }
 
 #[tokio::test]

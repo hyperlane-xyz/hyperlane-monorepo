@@ -14,8 +14,8 @@ use serde::Serialize;
 use tokio::time::sleep;
 
 use crate::rpc_clients::fallback::{
-    METHOD_CALL, METHOD_GET_BALANCE, METHOD_GET_BLOCK_BY_HASH, METHOD_GET_TRANSACTION_RECEIPT,
-    METHOD_SEND_RAW_TRANSACTION,
+    METHOD_CALL, METHOD_CHAIN_ID, METHOD_GET_BALANCE, METHOD_GET_BLOCK_BY_HASH,
+    METHOD_GET_TRANSACTION_RECEIPT, METHOD_SEND_RAW_TRANSACTION,
 };
 
 type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
@@ -136,7 +136,7 @@ impl JsonRpcClient for EthereumProviderMock {
         }
         if matches!(
             method,
-            METHOD_GET_BLOCK_BY_HASH | METHOD_GET_BALANCE | METHOD_CALL
+            METHOD_CHAIN_ID | METHOD_GET_BLOCK_BY_HASH | METHOD_GET_BALANCE | METHOD_CALL
         ) {
             return match self.responses.immutable_read.lock().unwrap().pop_front() {
                 Some(MockReadResponse::Success(value)) => serde_json::from_value(value.into())

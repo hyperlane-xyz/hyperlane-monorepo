@@ -27,6 +27,7 @@ use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
 
 const METHOD_SEND_RAW_TRANSACTION: &str = "eth_sendRawTransaction";
 const METHOD_GET_TRANSACTION_RECEIPT: &str = "eth_getTransactionReceipt";
+#[cfg(test)]
 const METHOD_CHAIN_ID: &str = "eth_chainId";
 const METHOD_GET_BALANCE: &str = "eth_getBalance";
 const METHOD_GET_BLOCK_BY_HASH: &str = "eth_getBlockByHash";
@@ -41,7 +42,6 @@ fn is_hedgeable_read(method: &str, params: &Value) -> bool {
     // execution or revert semantics returned by a higher-priority provider.
     let params = params.as_array();
     match method {
-        METHOD_CHAIN_ID => true,
         METHOD_GET_BLOCK_BY_HASH => params
             .and_then(|params| params.first())
             .is_some_and(is_block_hash),
@@ -58,8 +58,7 @@ fn is_hedgeable_read(method: &str, params: &Value) -> bool {
 fn is_hedgeable_method(method: &str) -> bool {
     matches!(
         method,
-        METHOD_CHAIN_ID
-            | METHOD_GET_BLOCK_BY_HASH
+        METHOD_GET_BLOCK_BY_HASH
             | METHOD_GET_BALANCE
             | METHOD_GET_CODE
             | METHOD_GET_STORAGE_AT
