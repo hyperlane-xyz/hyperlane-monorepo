@@ -303,7 +303,6 @@ impl<Client: HttpClient> ProvingClient<Client> {
         &self,
         authorization: Authorization<N>,
         fee: Authorization<N>,
-        public_key: X25519PublicKey,
     ) -> ChainResult<Transaction<N>> {
         let plain_request = ProvingRequest::<N> {
             authorization,
@@ -315,8 +314,9 @@ impl<Client: HttpClient> ProvingClient<Client> {
             .to_bytes_le()
             .map_err(HyperlaneAleoError::from)?;
 
-        // Encrypt the ProvingRequest using the X25519 public key and send it to the proving
-        // service. The caller fetches the key before performing expensive local authorization.
+        // Fetch a fresh public key after authorization, then encrypt and submit the request.
+        // The caller performs an earlier preflight request to fail cheaply during outages.
+        let public_key = self.get_public_key().await?;
         let ciphertext = encrypt_message(&public_key.public_key, &bytes)?;
 
         let request = serde_json::to_value(EncryptedProvingRequest {
