@@ -39,8 +39,8 @@ const RAW_DISPATCH_RECONCILIATION_BATCH_SIZE: u64 = 100;
 const RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP: Duration = Duration::from_secs(5 * 60);
 const RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP: Duration = Duration::from_secs(2);
 // A full sweep is only a correctness fallback for sequence commit-order races and old rows whose
-// body is populated after the incremental watermark passes them. Thirty minutes cuts historical
-// anti-joins by 83% while bounding those exceptional discoveries to half an hour.
+// body is populated after the incremental watermark passes them. Start sweeps on a fixed cadence
+// so a long-running generation does not add another full interval before its successor starts.
 const RAW_DISPATCH_RECONCILIATION_FULL_SWEEP_INTERVAL: Duration = Duration::from_secs(30 * 60);
 const RAW_DISPATCH_RECONCILIATION_RETRY_BATCH_SIZE: usize = 100;
 const LIVENESS_UPDATE_INTERVAL: Duration = Duration::from_secs(30);
@@ -239,11 +239,9 @@ impl RawDispatchReconciliationSchedule {
 
     fn start_full_sweep(&mut self, frontier: i64, now: Instant) {
         debug_assert!(self.scan_slot_available());
+        self.next_full_sweep_at =
+            instant_after(now, RAW_DISPATCH_RECONCILIATION_FULL_SWEEP_INTERVAL);
         self.full_sweep = RawDispatchScan::new(0, frontier, now);
-        if self.full_sweep.is_none() {
-            self.next_full_sweep_at =
-                instant_after(now, RAW_DISPATCH_RECONCILIATION_FULL_SWEEP_INTERVAL);
-        }
     }
 
     fn complete_discovery_page(
@@ -276,8 +274,6 @@ impl RawDispatchReconciliationSchedule {
         self.discovery_watermark = self.discovery_watermark.max(covered_through);
         if complete {
             self.full_sweep = None;
-            self.next_full_sweep_at =
-                instant_after(now, RAW_DISPATCH_RECONCILIATION_FULL_SWEEP_INTERVAL);
         } else {
             self.full_sweep = Some(scan);
         }
@@ -1451,6 +1447,31 @@ mod test {
             schedule.full_sweep_delay(discovery_ready_at),
             Duration::ZERO
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn overdue_successor_sweep_starts_without_an_extra_interval() {
+        let started_at = Instant::now();
+        let mut schedule = RawDispatchReconciliationSchedule::new(0, started_at, started_at);
+
+        schedule.start_full_sweep(200, started_at);
+        let sweep = schedule
+            .full_sweep
+            .expect("full sweep should own scan slot");
+
+        tokio::time::advance(
+            RAW_DISPATCH_RECONCILIATION_FULL_SWEEP_INTERVAL + Duration::from_secs(1),
+        )
+        .await;
+        let completed_at = Instant::now();
+        schedule.complete_full_sweep_page(
+            sweep,
+            &RawDispatchReconciliationResult::default(),
+            completed_at,
+        );
+
+        assert!(schedule.full_sweep.is_none());
+        assert_eq!(schedule.full_sweep_delay(completed_at), Duration::ZERO);
     }
 
     #[tokio::test(start_paused = true)]

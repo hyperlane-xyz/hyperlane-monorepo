@@ -402,7 +402,10 @@ mod tests {
     use migration::MigratorTrait;
     use std::collections::BTreeMap;
 
-    use sea_orm::{Database, DatabaseBackend, DbErr, MockDatabase, RuntimeErr, Value};
+    use sea_orm::{
+        ConnectionTrait, Database, DatabaseBackend, DbErr, MockDatabase, RuntimeErr, Statement,
+        Value,
+    };
     use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::postgres::Postgres;
     use time::macros::{date, time};
@@ -893,6 +896,51 @@ mod tests {
             .await?;
         assert_eq!(direct_candidates.len(), 1);
         assert_eq!(direct_candidates[0].raw_id, raw_zero.id);
+
+        // A completeness page can pass an old row while its body is unavailable. Once an
+        // upsert supplies the body, only a successor sweep from zero can rediscover it.
+        db.execute(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "UPDATE raw_message_dispatch SET msg_body = NULL WHERE id = $1",
+            [raw_zero.id.into()],
+        ))
+        .await?;
+        let sweep_page = scraper_db
+            .retrieve_unenriched_raw_dispatches(1, &H256::from_low_u64_be(999), 0, i64::MAX, 10)
+            .await?;
+        assert_eq!(sweep_page.len(), 10);
+        let passed_id = sweep_page.last().expect("full sweep page").raw_id;
+        assert!(passed_id > raw_zero.id);
+
+        scraper_db
+            .store_raw_message_dispatches(
+                1,
+                &H256::from_low_u64_be(999),
+                [StorableRawMessageDispatch {
+                    msg: &messages[0],
+                    meta: &metas[0],
+                }]
+                .into_iter(),
+            )
+            .await?;
+        let same_sweep = scraper_db
+            .retrieve_unenriched_raw_dispatches(
+                1,
+                &H256::from_low_u64_be(999),
+                passed_id,
+                i64::MAX,
+                100,
+            )
+            .await?;
+        assert!(same_sweep
+            .iter()
+            .all(|candidate| candidate.raw_id != raw_zero.id));
+        let successor_sweep = scraper_db
+            .retrieve_unenriched_raw_dispatches(1, &H256::from_low_u64_be(999), 0, passed_id, 100)
+            .await?;
+        assert!(successor_sweep
+            .iter()
+            .any(|candidate| candidate.raw_id == raw_zero.id));
 
         let frontier = scraper_db
             .latest_reconcilable_raw_dispatch_id(1, &H256::from_low_u64_be(999))
