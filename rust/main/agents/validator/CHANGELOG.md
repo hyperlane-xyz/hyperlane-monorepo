@@ -1,3 +1,12 @@
+## [3.0.0] - 2026-09-04
+
+* feat(validator): quorum-verify safety-critical merkle tree reads (#9124)
+* feat(validators)!: migrate signing and checkpoint storage to GCP (#9160)
+* fix(validator): back off failed announcement retries (#9225)
+* fix(validator): expose checkpoint production readiness (#9416)
+* fix(validator): merge rpcUrls into additional quorum RPC vote (#9151)
+* fix(validator): restrict quorum RPCs to merkle tree root reads only (#9177)
+
 ## [2.3.0] - 2026-07-20
 
 * feat(tron): migrate Tron agents from gRPC to HTTP API (#8370)
