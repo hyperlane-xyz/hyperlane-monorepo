@@ -328,7 +328,13 @@
       "validatorAnnounce": "0xFC62DeF1f08793aBf0E67f69257c6be258194F72",
       "staticMerkleRootWeightedMultisigIsmFactory": "0x8Ea50255C282F89d1A14ad3F159437EE5EF0507f",
       "staticMessageIdWeightedMultisigIsmFactory": "0x06De94EfBE80A2804c5FDE2e7C4278a10575A272",
-      "quotedCalls": "0x270B3D343Dfbb67ADd7659F83F8e3e381A3369aC"
+      "quotedCalls": "0x270B3D343Dfbb67ADd7659F83F8e3e381A3369aC",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "bob": {
       "aggregationHook": "0xC3FfF5036FcFf823F329dFDcE4AfaacDB83C932E",
@@ -984,7 +990,13 @@
       "timelockController": "0x0000000000000000000000000000000000000000",
       "technicalStack": "opstack",
       "gnosisSafeTransactionServiceUrl": "https://transaction-lisk.safe.optimism.io",
-      "quotedCalls": "0x7823Ce52c254F71321a70b2b87EcC63a516008a1"
+      "quotedCalls": "0x7823Ce52c254F71321a70b2b87EcC63a516008a1",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "lukso": {
       "aggregationHook": "0x704531b3E0029166F711BBf9d65269c8615a6e91",
@@ -1513,6 +1525,12 @@
       "staticMerkleRootWeightedMultisigIsmFactory": "0xDf347f7602fFF536337c0B90cEC19CD6998427C4",
       "staticMessageIdWeightedMultisigIsmFactory": "0x816CF11aDFF6De498823F739eAfe350E82ee845D",
       "technicalStack": "other",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      },
       "transactionOverrides": {
         "gasPrice": 101000000000
       }
@@ -1635,7 +1653,13 @@
       "validatorAnnounce": "0x01aE937A7B05d187bBCBE80F44F41879D3D335a4",
       "staticMerkleRootWeightedMultisigIsmFactory": "0xdf4aA3905e0391C7763e33CB6A08fFa97221D49B",
       "staticMessageIdWeightedMultisigIsmFactory": "0x72246331d057741008751AB3976a8297Ce7267Bc",
-      "quotedCalls": "0xCe973C3D523c5De7E6068cD325114d5630f13e6C"
+      "quotedCalls": "0xCe973C3D523c5De7E6068cD325114d5630f13e6C",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "viction": {
       "aggregationHook": "0x5c7890FAf9c99dC55926F00d624D7Bc6D7ac6834",
@@ -2271,7 +2295,13 @@
         "from": 3010957
       },
       "gnosisSafeTransactionServiceUrl": "https://superseed.superchain.safe.protofire.io",
-      "quotedCalls": "0xF5cb19aba72fDbc843eCff62364e913E9BFdcb87"
+      "quotedCalls": "0xF5cb19aba72fDbc843eCff62364e913E9BFdcb87",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "unichain": {
       "blockExplorers": [
@@ -2910,7 +2940,13 @@
         "from": 707812
       },
       "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/berachain",
-      "quotedCalls": "0x4907585D5D9ac83049F67c999Efbd7d977D705Db"
+      "quotedCalls": "0x4907585D5D9ac83049F67c999Efbd7d977D705Db",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "subtensor": {
       "blockExplorers": [
@@ -3103,7 +3139,13 @@
       },
       "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
       "staticMerkleRootWeightedMultisigIsmFactory": "0xb68CD0B357a766BB31797131dE40A6a4399985a3",
-      "staticMessageIdWeightedMultisigIsmFactory": "0x5FAf06A6d58ADF3Ec3d62EE33fF3362c62bAa860"
+      "staticMessageIdWeightedMultisigIsmFactory": "0x5FAf06A6d58ADF3Ec3d62EE33fF3362c62bAa860",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "coti": {
       "blockExplorers": [
@@ -3527,7 +3569,13 @@
       "index": {
         "from": 781077
       },
-      "quotedCalls": "0x23C6D8145DDb71a24965AAAdf4CA4B095b4eC85F"
+      "quotedCalls": "0x23C6D8145DDb71a24965AAAdf4CA4B095b4eC85F",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "galactica": {
       "blockExplorers": [
@@ -4193,7 +4241,13 @@
       "storageGasOracle": "0xC4F464C89184c7870858A8B12ca822daB6ed04F3",
       "testRecipient": "0x5244d3359065C883BDfeEEff5329DE38c0Bd227e",
       "validatorAnnounce": "0x5B7a808CaA2C3F1378B07cDd46eB8ccA52F67e3B",
-      "quotedCalls": "0xA4a0bB78658E91350F3F2A3028D404AB81DFe490"
+      "quotedCalls": "0xA4a0bB78658E91350F3F2A3028D404AB81DFe490",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "monad": {
       "blockExplorers": [
@@ -4521,7 +4575,13 @@
         "from": 1452983
       },
       "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/mega",
-      "quotedCalls": "0xe3742c54e8E5564BD89F132B939e631a8a1654cE"
+      "quotedCalls": "0xe3742c54e8E5564BD89F132B939e631a8a1654cE",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "stable": {
       "blockExplorers": [
@@ -5525,7 +5585,7 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://erpc.nesa.ai"
+          "http": "https://erpc.ns.onyxpro.ai"
         }
       ],
       "technicalStack": "other",
