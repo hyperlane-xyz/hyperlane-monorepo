@@ -222,7 +222,8 @@ impl RawDispatchReconciliationSchedule {
 
     fn full_sweep_delay(&self, now: Instant) -> Duration {
         match (self.full_sweep, self.discovery_scan) {
-            (Some(scan), _) => scan.next_page_at.saturating_duration_since(now),
+            (Some(_), Some(_)) => Duration::MAX,
+            (Some(scan), None) => scan.next_page_at.saturating_duration_since(now),
             (None, Some(_)) => Duration::MAX,
             (None, None) => self.next_full_sweep_at.saturating_duration_since(now),
         }
@@ -1425,14 +1426,30 @@ mod test {
         let discovery = schedule
             .discovery_scan
             .expect("discovery should preempt the parked sweep");
+        let discovery_page = RawDispatchReconciliationResult {
+            candidate_count: RAW_DISPATCH_RECONCILIATION_BATCH_SIZE as usize,
+            next_after_id: 150,
+            ..Default::default()
+        };
+        schedule.complete_discovery_page(discovery, &discovery_page, now);
+        assert_eq!(
+            schedule.discovery_delay(now),
+            RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP
+        );
+        assert_eq!(schedule.full_sweep_delay(now), Duration::MAX);
+
+        let discovery = schedule
+            .discovery_scan
+            .expect("second discovery page should remain active");
+        let discovery_ready_at = discovery.next_page_at;
         schedule.complete_discovery_page(
             discovery,
             &RawDispatchReconciliationResult::default(),
-            now,
+            discovery_ready_at,
         );
         assert_eq!(
-            schedule.full_sweep_delay(now),
-            RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP
+            schedule.full_sweep_delay(discovery_ready_at),
+            Duration::ZERO
         );
     }
 
