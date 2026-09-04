@@ -272,14 +272,6 @@
       },
       "overhead": 166887
     },
-    "superseed": {
-      "oracleConfig": {
-        "tokenExchangeRate": "352047357782269708345",
-        "gasPrice": "252128312",
-        "tokenDecimals": 18
-      },
-      "overhead": 166887
-    },
     "tron": {
       "oracleConfig": {
         "tokenExchangeRate": "49268553277505053",

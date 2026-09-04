@@ -143,7 +143,6 @@ pub enum KnownHyperlaneDomain {
     EclipseMainnet = 1408864445,
     EdgenChain = 4207,
     Ethereum = 1,
-    FlowMainnet = 1000000747,
     Forma = 984122,
     Fraxtal = 252,
     Fuji = 43113,
@@ -152,7 +151,6 @@ pub enum KnownHyperlaneDomain {
     Gnosis = 100,
     Guru = 260,
     HyperEvm = 999,
-    ImmutableZkEvmMainnet = 1000013371,
     Ink = 57073,
     Katana = 747474,
     Kyve = 1264145989,
@@ -172,11 +170,9 @@ pub enum KnownHyperlaneDomain {
     Solaxy = 1936682104,
     Soneium = 1868,
     SonicSvm = 507150715,
-    Soon = 50075007,
     Sonic = 146,
     Starknet = 358974494,
     SubTensor = 964,
-    Superseed = 5330,
     Tac = 239,
     Taiko = 167000,
     Treasure = 61166,
@@ -392,7 +388,6 @@ impl KnownHyperlaneDomain {
             | Solaxy
             | SonicSvm
             | SonicSvmTestnet
-            | Soon
             // Local chains
             | SealevelTest1
             | SealevelTest2 => HyperlaneDomainProtocol::Sealevel,
@@ -417,7 +412,7 @@ impl KnownHyperlaneDomain {
                 HyperlaneDomainTechnicalStack::ArbitrumNitro
             }
             Base | Blast | Bob | Celo | Fraxtal | Guru | Ink | Lisk | Mantle | Metal | Metis
-            | Mode | ModeTestnet | Optimism | Soneium | Superseed | Unichain | Worldchain => {
+            | Mode | ModeTestnet | Optimism | Soneium | Unichain | Worldchain => {
                 HyperlaneDomainTechnicalStack::OpStack
             }
             Katana | Xlayer => HyperlaneDomainTechnicalStack::PolygonCDK,

@@ -302,16 +302,6 @@
       "0x0d4c1394a255568ec0ecd11795b28d1bda183ca4"
     ]
   },
-  "flowmainnet": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 3,
-    "validators": [
-      "0xe132235c958ca1f3f24d772e5970dd58da4c0f6e",
-      "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
-      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36",
-      "0x14ADB9e3598c395Fe3290f3ba706C3816Aa78F59"
-    ]
-  },
   "fluence": {
     "type": "messageIdMultisigIsm",
     "threshold": 2,
@@ -396,15 +386,6 @@
       "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36",
       "0x36f2bd8200ede5f969d63a0a28e654392c51a193"
-    ]
-  },
-  "immutablezkevmmainnet": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 2,
-    "validators": [
-      "0xbdda85b19a5efbe09e52a32db1a072f043dd66da",
-      "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
-      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
   "inevm": {
@@ -775,15 +756,6 @@
       "0x85c7a16790cfd9dad6d4abdd4e2d3f1d550c7606"
     ]
   },
-  "soon": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 2,
-    "validators": [
-      "0x0E6723b3C1eD3Db0C24347AA2cf16D28BC2a1F76",
-      "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
-      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
-    ]
-  },
   "story": {
     "type": "messageIdMultisigIsm",
     "threshold": 2,
@@ -812,18 +784,6 @@
       "0x3f489acdd341c6b4dd86293fa2cc5ecc8ccf4f84",
       "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
-    ]
-  },
-  "superseed": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 4,
-    "validators": [
-      "0xdc2b87cb555411bb138d3a4e5f7832c87fae2b88",
-      "0x68f3a3b244f6ddc135130200a6b8729e290b4240",
-      "0x6ff4554cffbc2e4e4230b78e526eab255101d05a",
-      "0x55880ac03fdf15fccff54ed6f8a83455033edd22",
-      "0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3",
-      "0x0d4c1394a255568ec0ecd11795b28d1bda183ca4"
     ]
   },
   "taiko": {

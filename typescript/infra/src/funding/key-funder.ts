@@ -50,7 +50,6 @@ const CHAINS_TO_SWEEP = new Set([
   'optimism',
   'polygon',
   'soneium',
-  'superseed',
   'unichain',
 ]);
 

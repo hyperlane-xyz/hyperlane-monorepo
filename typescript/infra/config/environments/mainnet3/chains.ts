@@ -81,22 +81,12 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //   },
   // },
   // Deploy-only overrides, set when deploying contracts
-  // immutablezkevmmainnet: {
-  //   blocks: {
-  //     confirmations: 5,
-  //   },
-  // },
   // xlayer: {
   //   blocks: {
   //     confirmations: 5,
   //   },
   // },
   // soneium: {
-  //   blocks: {
-  //     confirmations: 3,
-  //   },
-  // },
-  // flowmainnet: {
   //   blocks: {
   //     confirmations: 3,
   //   },

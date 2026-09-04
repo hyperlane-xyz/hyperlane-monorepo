@@ -40,14 +40,11 @@ export const awIcasLegacy: ChainMap<Address> = {
 
   // Nov 8, 2024 batch
   // ----------------------------------------------------------
-  flowmainnet: '0x65528D447C93CC1A1A7186CB4449d9fE0d5C1928',
-  immutablezkevmmainnet: '0x54AF0FCDCD58428f8dF3f825267DfB58f2C710eb',
   metal: '0xf1d25462e1f82BbF25b3ef7A4C94F738a30a968B',
 
   // Nov 21, 2024 batch
   // ----------------------------------------------------------
   unichain: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
-  superseed: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
 
   // Dec 13, 2024 batch
   // ----------------------------------------------------------

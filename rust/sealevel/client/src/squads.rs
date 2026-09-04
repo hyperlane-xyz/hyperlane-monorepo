@@ -18,19 +18,6 @@ const BPF_LOADER_UPGRADEABLE_PROGRAM_ID: Pubkey =
 
 const CHAIN_CORE_OWNERS: &[(&str, &[(&str, Pubkey)])] = &[
     (
-        "soon",
-        &[
-            (
-                "OLD pre-TGE owner",
-                pubkey!("E3QPSn2Upk2EiidSsUqSQpRCc7BhzWZCKpVncemz3p62"),
-            ),
-            (
-                "NEW post-TGE owner",
-                pubkey!("7Y6WDpMfNeb1b4YYbyUkF41z1DuPhvDDuWWJCHPRNa9Y"),
-            ),
-        ],
-    ),
-    (
         "solanamainnet",
         &[
             (

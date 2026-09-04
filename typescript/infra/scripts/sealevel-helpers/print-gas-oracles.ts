@@ -130,11 +130,8 @@ function getChainConnections(
       ['solanamainnet', 'starknet'],
       ['solanamainnet', 'paradex'],
       ['solanamainnet', 'bsc'],
-      ['soon', 'solanamainnet'],
-      ['soon', 'bsc'],
       // for eclipse routes
       ['eclipsemainnet', 'sonicsvm'],
-      ['eclipsemainnet', 'soon'],
       ['eclipsemainnet', 'katana'],
       ['eclipsemainnet', 'unichain'],
       ['eclipsemainnet', 'optimism'],

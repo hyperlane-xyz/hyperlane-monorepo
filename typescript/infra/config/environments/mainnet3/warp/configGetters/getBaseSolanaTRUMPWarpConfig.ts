@@ -62,16 +62,6 @@ export const getTRUMPWarpConfig = async (
         address: '0x86a2E32BB42584127a24079a4f9113EeFE80db90',
       },
     },
-    flowmainnet: {
-      ...routerConfig.flowmainnet,
-      ...syntheticToken,
-      type: TokenType.synthetic,
-      owner: abacusWorksEnvOwnerConfig.flowmainnet.owner,
-      proxyAdmin: {
-        owner: abacusWorksEnvOwnerConfig.flowmainnet.owner,
-        address: '0xB504EA900302C7Faf24Cc4F155006d6c0357Dc35',
-      },
-    },
     form: {
       ...routerConfig.form,
       ...syntheticToken,

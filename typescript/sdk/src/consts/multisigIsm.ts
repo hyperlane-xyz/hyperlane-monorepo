@@ -513,22 +513,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  flowmainnet: {
-    threshold: 3,
-    validators: [
-      {
-        address: '0xe132235c958ca1f3f24d772e5970dd58da4c0f6e',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-      {
-        address: '0x14ADB9e3598c395Fe3290f3ba706C3816Aa78F59',
-        alias: 'Flow Foundation',
-      },
-    ],
-  },
-
   fluent: {
     threshold: 3,
     validators: [
@@ -654,18 +638,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x485f0739639e46d3b06b1b92debe2ade56d8bfb1',
         alias: AW_VALIDATOR_ALIAS,
       },
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
-  immutablezkevmmainnet: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0xbdda85b19a5efbe09e52a32db1a072f043dd66da',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
@@ -1339,18 +1311,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  soon: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x0E6723b3C1eD3Db0C24347AA2cf16D28BC2a1F76',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
   stable: {
     threshold: 2,
     validators: [
@@ -1393,30 +1353,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
-      DEFAULT_ZEE_PRIME_VALIDATOR,
-    ],
-  },
-
-  superseed: {
-    threshold: 4,
-    validators: [
-      {
-        address: '0xdc2b87cb555411bb138d3a4e5f7832c87fae2b88',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0x68f3a3b244f6ddc135130200a6b8729e290b4240',
-        alias: 'Imperator',
-      },
-      {
-        address: '0x6ff4554cffbc2e4e4230b78e526eab255101d05a',
-        alias: 'Enigma',
-      },
-      {
-        address: '0x55880ac03fdf15fccff54ed6f8a83455033edd22',
-        alias: 'Luganodes',
-      },
-      DEFAULT_TESSELLATED_VALIDATOR,
       DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },

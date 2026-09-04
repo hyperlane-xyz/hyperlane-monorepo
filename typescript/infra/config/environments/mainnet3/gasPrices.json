@@ -87,10 +87,6 @@
     "amount": "0.04210292",
     "decimals": 9
   },
-  "flowmainnet": {
-    "amount": "10.038",
-    "decimals": 9
-  },
   "fluent": {
     "amount": "0.001000007",
     "decimals": 9
@@ -117,10 +113,6 @@
   },
   "igra": {
     "amount": "1000.0",
-    "decimals": 9
-  },
-  "immutablezkevmmainnet": {
-    "amount": "11.000000049",
     "decimals": 9
   },
   "ink": {
@@ -263,10 +255,6 @@
     "amount": "0.1",
     "decimals": 1
   },
-  "soon": {
-    "amount": "0.0000001",
-    "decimals": 1
-  },
   "stable": {
     "amount": "1.125",
     "decimals": 9
@@ -277,10 +265,6 @@
   },
   "subtensor": {
     "amount": "10.0",
-    "decimals": 9
-  },
-  "superseed": {
-    "amount": "0.001000252",
     "decimals": 9
   },
   "tac": {

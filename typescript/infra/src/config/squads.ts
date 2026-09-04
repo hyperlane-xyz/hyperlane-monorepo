@@ -20,11 +20,6 @@ export const squadsConfigs: ChainMap<SquadConfig> = {
     // multisigPda: 'BjKsMZUxVovbzZf3uZjdhorE1YqAtvD7yKF2E8wv2cje',
     // vault: 'BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ',
   },
-  soon: {
-    programId: 'Hz8Zg8JYFshThnKHXSZV9XJFbyYUUKBb5NJUrxDvF8PB',
-    multisigPda: '3tQm2hkauvqoRsfJg6NmUA6eMEWqFdvbiJUZUBFHXD6A',
-    vault: '7Y6WDpMfNeb1b4YYbyUkF41z1DuPhvDDuWWJCHPRNa9Y',
-  },
   eclipsemainnet: {
     programId: 'eSQDSMLf3qxwHVHeTr9amVAGmZbRLY2rFdSURandt6f',
     multisigPda: 'CSnrKeqrrLm6v9NvChYKT58mfRGYnMk8MeLGWhKvBdbk',

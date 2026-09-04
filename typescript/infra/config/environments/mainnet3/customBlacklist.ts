@@ -169,9 +169,6 @@ export const blacklistedMessageIds = [
   '0xdfe70150b55f930d689808ab39e20f44d3741f85a3d3db4b55dc18f54fa57ab8',
   // 7/1/2025
   '0x56ff5022478ba14234dd113a54a1bc129b9b86f4934b86fb4801d582735e9082',
-  // Superseed dest:
-  // 7/1/2025
-  '0x84c7565f1f0b0fc7b5571c86e9f23187d4078779f607b13f73c6016efcf90bc4',
   // Paradex USDC:
   // 8/27/2025
   '0x151135eda5f04110084c6673d23f041d9141a50bdb02de028e32fe7f4e14e7c2',
@@ -498,12 +495,4 @@ export const blacklistedMessageIds = [
   // value, recipient may have reverted". Permanently undeliverable recipient-side (~0.0001 ETH);
   // denylisting to stop endless prepare-queue retries that keep re-paging the queue-length alert.
   '0x898301d4e591195057088c29df05bb6cb5be9698f84d5b85b76831e2d80243b4',
-
-  // oUSDT/production superseed->optimism — incomplete warp extension [2026-08-28]
-  // optimism oUSDT collateral router 0x7bd2676c85cca9fa2203eba324fb8792fbd520b8 has no
-  // enrolled router for superseed (domain 5330), so Mailbox.process reverts
-  // "No router enrolled for domain: 5330" (ErrorEstimatingGas). Undeliverable until the
-  // route owner enrolls the superseed router on optimism (~0.38 oUSDT); denylisting to
-  // stop endless prepare-queue retries that keep re-paging the queue-length alert.
-  '0x64ef981504b3daed7edb87a1e02fdedc2f92500f95ac981855149fe98d5c04bd',
 ];
