@@ -151,6 +151,8 @@ export enum WarpRouteIds {
 
   // Nesa routes
   BscNES = 'NES/bsc',
+  // Legacy nesa (domain 41443) deployment, cut over to nesachain in registry #1673.
+  NesaLegacyNES = 'NES/legacy',
 
   // Igra routes
   IgraUSDC = 'USDC/igra',

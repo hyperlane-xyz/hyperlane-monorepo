@@ -172,7 +172,9 @@ export function getCore(): ChainMap<CoreConfig> {
             ...owner,
           };
 
-    if (legacyIgpChains.includes(local)) {
+    // Forma keeps the legacy IGP, but its externally managed core deployment
+    // has no pausable ISM to recover.
+    if (legacyIgpChains.includes(local) && local !== 'forma') {
       const addresses = getChainAddresses()[local];
       const requiredHookAddress = isZksyncChain
         ? addresses?.merkleTreeHook

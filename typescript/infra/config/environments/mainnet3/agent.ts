@@ -755,8 +755,10 @@ const blacklist: MatchingList = [
     originDomain: getDomainId('starknet'),
     destinationDomain: getDomainId('starknet'),
   },
-  // NES warp route paused - blacklisted pending on-chain route pause
-  ...warpRouteMatchingList(WarpRouteIds.BscNES),
+  // Legacy nesa (domain 41443) NES route remains paused on-chain; keep it
+  // blacklisted. The live NES route was cut over to nesachain (NES/bsc), which
+  // is unpaused and must NOT be blacklisted.
+  ...warpRouteMatchingList(WarpRouteIds.NesaLegacyNES),
 ];
 
 const ismCacheConfigs: Array<IsmCacheConfig> = [
