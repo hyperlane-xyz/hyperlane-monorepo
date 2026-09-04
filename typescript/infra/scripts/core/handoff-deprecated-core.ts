@@ -22,7 +22,7 @@ import { Role } from '../../src/roles.js';
 
 const originChain = 'ethereum';
 const handoffChains = [
-  // 'appchain', // Enable after Appchain is removed from AW infrastructure.
+  'appchain',
   'lumiaprism',
   'matchain',
   'prom',
@@ -56,10 +56,10 @@ const handoffs: Record<
   HandoffChain,
   { target: Address; targetType: 'eoa' | 'safe' }
 > = {
-  // appchain: {
-  //   target: '0x2D3Ff22F91E5f796EeE6e864AD71385B249c34A5',
-  //   targetType: 'safe',
-  // },
+  appchain: {
+    target: '0x2D3Ff22F91E5f796EeE6e864AD71385B249c34A5',
+    targetType: 'safe',
+  },
   lumiaprism: {
     target: '0x5FE65789a7Eb447916576aF52AefF190748c08Eb',
     targetType: 'safe',
