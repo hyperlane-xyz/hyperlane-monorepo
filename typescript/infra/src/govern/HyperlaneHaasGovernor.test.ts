@@ -340,6 +340,66 @@ describe('HyperlaneHaasGovernor', () => {
       expect(combinedMetadata?.refundAddress).to.equal(refundAddress);
     });
 
+    it('should preserve msgValue and batch equivalent metadata representations', async () => {
+      const refundAddress =
+        '0x1111111111111111111111111111111111111111' as Address;
+      const baseCallRemoteArgs = {
+        chain: TestChainName.test1,
+        destination: TestChainName.test2,
+        config: {
+          origin: TestChainName.test1,
+          owner: refundAddress,
+        },
+        innerCalls: [],
+      };
+      const calls: AnnotatedCallData[] = [
+        {
+          to: '0x2222222222222222222222222222222222222222' as Address,
+          data: '0x1111',
+          value: BigNumber.from(0),
+          description: 'Object metadata ICA call',
+          callRemoteArgs: {
+            ...baseCallRemoteArgs,
+            hookMetadata: {
+              msgValue: '123',
+              gasLimit: '100000',
+              refundAddress,
+            },
+          },
+        },
+        {
+          to: '0x3333333333333333333333333333333333333333' as Address,
+          data: '0x2222',
+          value: BigNumber.from(0),
+          description: 'Encoded metadata ICA call',
+          callRemoteArgs: {
+            ...baseCallRemoteArgs,
+            hookMetadata: formatStandardHookMetadata({
+              msgValue: 123n,
+              gasLimit: 200_000n,
+              refundAddress,
+            }),
+          },
+        },
+      ];
+      (governor as any).calls = { [TestChainName.test1]: calls };
+      mockGetCallRemote.resolves({
+        to: '0x9999999999999999999999999999999999999999',
+        data: '0xcombined',
+        value: BigNumber.from(100),
+      });
+
+      await governor.batchIcaCalls();
+
+      expect(mockGetCallRemote.calledOnce).to.be.true;
+      const combinedMetadata = parseStandardHookMetadata(
+        mockGetCallRemote.firstCall.args[0].hookMetadata,
+      );
+      expect(combinedMetadata?.msgValue).to.equal(123n);
+      expect(combinedMetadata?.gasLimit).to.equal(150_000n);
+      expect(combinedMetadata?.refundAddress).to.equal(refundAddress);
+    });
+
     it('should apply 2x buffer when hookMetadata includes refund address', async () => {
       const callRemoteArgs = {
         chain: TestChainName.test1,

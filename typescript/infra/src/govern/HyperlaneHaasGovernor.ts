@@ -194,15 +194,19 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
           typeof hookMetadata === 'string'
             ? parseStandardHookMetadata(hookMetadata)
             : undefined;
+        const hookMetadataObject =
+          typeof hookMetadata === 'object' ? hookMetadata : undefined;
         const hookMetadataIdentity = parsedHookMetadata
           ? {
               msgValue: parsedHookMetadata.msgValue.toString(),
               refundAddress: parsedHookMetadata.refundAddress,
             }
-          : typeof hookMetadata === 'object'
+          : hookMetadataObject
             ? {
-                msgValue: hookMetadata.msgValue,
-                refundAddress: hookMetadata.refundAddress,
+                msgValue: BigNumber.from(
+                  hookMetadataObject.msgValue ?? 0,
+                ).toString(),
+                refundAddress: hookMetadataObject.refundAddress,
               }
             : hookMetadata;
 
@@ -273,7 +277,11 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
             ...combinedCallRemoteArgs,
             hookMetadata: formatStandardHookMetadata({
               gasLimit: gasLimit.toBigInt(),
-              msgValue: parsedBaseHookMetadata?.msgValue,
+              msgValue:
+                parsedBaseHookMetadata?.msgValue ??
+                (baseHookMetadataObject?.msgValue !== undefined
+                  ? BigInt(baseHookMetadataObject.msgValue)
+                  : undefined),
               refundAddress:
                 parsedBaseHookMetadata?.refundAddress ??
                 baseHookMetadataObject?.refundAddress,

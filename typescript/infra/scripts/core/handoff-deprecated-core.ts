@@ -309,7 +309,8 @@ async function main(): Promise<void> {
       remoteCalls.push({
         to: callRemote.to,
         data: callRemote.data,
-        value: callRemote.value ?? BigNumber.from(0),
+        // Overpayment is refunded to safeOwner from the hook metadata.
+        value: BigNumber.from(callRemote.value ?? 0).mul(2),
       });
     }
 
