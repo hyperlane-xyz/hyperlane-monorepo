@@ -309,12 +309,6 @@ impl ScraperDb {
         messages: impl Iterator<Item = StorableMessage<'_>>,
     ) -> Result<u64> {
         let origin_mailbox = address_to_bytes(origin_mailbox);
-
-        let latest_id_before = self
-            .latest_dispatched_id(domain, origin_mailbox.clone())
-            .await?;
-
-        // we have a race condition where a message may not have been scraped yet even
         let models = messages
             .map(|storable| message::ActiveModel {
                 id: NotSet,
@@ -343,6 +337,10 @@ impl ScraperDb {
             debug!("Wrote zero new messages to database");
             return Ok(0);
         }
+
+        let latest_id_before = self
+            .latest_dispatched_id(domain, origin_mailbox.clone())
+            .await?;
 
         // ensure all chunks are inserted or none at all
         self.0
@@ -412,6 +410,19 @@ mod tests {
     use time::PrimitiveDateTime;
 
     use crate::db::{generated::message, ScraperDb, StorableMessage};
+
+    #[tokio::test]
+    async fn store_dispatched_messages_empty_input_executes_no_queries() {
+        let mock_db = MockDatabase::new(DatabaseBackend::Postgres).into_connection();
+        let scraper_db = ScraperDb::with_connection(mock_db);
+
+        let stored = scraper_db
+            .store_dispatched_messages(0, &H256::zero(), std::iter::empty::<StorableMessage<'_>>())
+            .await
+            .expect("empty stores should be a no-op");
+
+        assert_eq!(stored, 0);
+    }
 
     /// Tests store_dispatched_messages() a transaction works
     #[tokio::test]
