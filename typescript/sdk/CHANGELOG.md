@@ -1,5 +1,20 @@
 # @hyperlane-xyz/sdk
 
+## 44.0.3
+
+### Patch Changes
+
+- 6eaa8c6: Removed the deprecated appchain, immutablezkevmmainnet, flowmainnet, soon, and superseed domains and their default multisig validator configurations.
+  - @hyperlane-xyz/aleo-sdk@44.0.3
+  - @hyperlane-xyz/starknet-core@44.0.3
+  - @hyperlane-xyz/cosmos-sdk@44.0.3
+  - @hyperlane-xyz/radix-sdk@44.0.3
+  - @hyperlane-xyz/utils@44.0.3
+  - @hyperlane-xyz/deploy-sdk@10.0.3
+  - @hyperlane-xyz/core@12.1.0
+  - @hyperlane-xyz/provider-sdk@10.0.3
+  - @hyperlane-xyz/tron-sdk@25.0.3
+
 ## 44.0.2
 
 ### Patch Changes
