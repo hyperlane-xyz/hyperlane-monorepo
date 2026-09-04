@@ -86,6 +86,7 @@ type ExplorerClient = {
   sending: boolean;
 };
 type Limits = {
+  heartbeatMs: number;
   maxAgentClients: number;
   maxBufferedBytes: number;
   maxCatchUpMs: number;
@@ -147,7 +148,7 @@ const STREAMS: Record<EventType, Stream> = {
 export class EventWebSocketServer {
   private readonly logger = new Logger(EventWebSocketServer.name);
   private readonly clients = new Map<WebSocket, Client>();
-  private readonly failedSockets = new WeakSet<WebSocket>();
+  private readonly terminatedSockets = new WeakSet<WebSocket>();
   private readonly explorerClients = new Map<WebSocket, ExplorerClient>();
   private readonly explorerClientsByIp = new Map<string, number>();
   private readonly explorerNotifications = new Set<string>();
@@ -173,6 +174,7 @@ export class EventWebSocketServer {
     limits: Partial<Limits> = {},
   ) {
     this.limits = {
+      heartbeatMs: HEARTBEAT_MS,
       maxAgentClients: MAX_AGENT_CLIENTS,
       maxBufferedBytes: config.EVENT_STREAM_MAX_BUFFERED_BYTES,
       maxCatchUpMs: config.EVENT_STREAM_HISTORY_MAX_MS,
@@ -200,7 +202,10 @@ export class EventWebSocketServer {
     this.explorerServer.on('connection', (socket, request) =>
       this.connectExplorer(socket, request),
     );
-    this.heartbeatTimer = setInterval(() => this.heartbeat(), HEARTBEAT_MS);
+    this.heartbeatTimer = setInterval(
+      () => this.heartbeat(),
+      this.limits.heartbeatMs,
+    );
     this.logger.log(
       `event websockets listening on ${AGENT_PATH}, ${MESSAGE_PATH} batchSize=${config.EVENT_STREAM_BATCH_SIZE} maxBufferedBytes=${this.limits.maxBufferedBytes} maxTotalBufferedBytes=${this.limits.maxTotalBufferedBytes}`,
     );
@@ -1067,8 +1072,7 @@ export class EventWebSocketServer {
   ): void {
     for (const [socket, client] of clients) {
       if (!client.alive) {
-        this.disconnect(socket);
-        socket.terminate();
+        this.terminateSocket(socket);
         continue;
       }
       client.alive = false;
@@ -1107,7 +1111,10 @@ export class EventWebSocketServer {
     message: SerializedMessage,
     completed?: (sent: boolean) => void,
   ): boolean {
-    if (this.failedSockets.has(socket) || socket.readyState !== WebSocket.OPEN)
+    if (
+      this.terminatedSockets.has(socket) ||
+      socket.readyState !== WebSocket.OPEN
+    )
       return false;
     if (
       socket.bufferedAmount + message.bytes > this.limits.maxBufferedBytes ||
@@ -1122,25 +1129,32 @@ export class EventWebSocketServer {
       socket.send(message.text, (error) => {
         this.pendingBytes = Math.max(0, this.pendingBytes - message.bytes);
         completed?.(!error);
-        if (error) {
-          websocketSendFailures.inc({ reason: 'send_error' });
-          this.failSocket(socket, `send failed: ${error.message}`);
-        }
+        if (error) this.failSend(socket, error.message);
       });
     } catch (error) {
       this.pendingBytes = Math.max(0, this.pendingBytes - message.bytes);
       completed?.(false);
-      websocketSendFailures.inc({ reason: 'send_error' });
-      this.failSocket(socket, `send failed: ${formatError(error)}`);
+      this.failSend(socket, formatError(error));
       return false;
     }
     return true;
   }
 
   private failSocket(socket: WebSocket, reason: string): void {
-    if (this.failedSockets.has(socket)) return;
-    this.failedSockets.add(socket);
+    if (this.terminatedSockets.has(socket)) return;
     this.logger.warn(`terminating websocket: ${reason}`);
+    this.terminateSocket(socket);
+  }
+
+  private failSend(socket: WebSocket, reason: string): void {
+    if (this.terminatedSockets.has(socket)) return;
+    websocketSendFailures.inc({ reason: 'send_error' });
+    this.failSocket(socket, `send failed: ${reason}`);
+  }
+
+  private terminateSocket(socket: WebSocket): void {
+    if (this.terminatedSockets.has(socket)) return;
+    this.terminatedSockets.add(socket);
     this.disconnect(socket);
     socket.terminate();
   }
