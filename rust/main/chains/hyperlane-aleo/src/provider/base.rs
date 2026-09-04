@@ -8,7 +8,7 @@ use reqwest::header::{HeaderValue, AUTHORIZATION, CONTENT_LENGTH};
 use reqwest::Client as ReqwestClient;
 use reqwest_utils::parse_custom_rpc_headers;
 use serde::de::DeserializeOwned;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use url::Url;
 
 use hyperlane_core::{ChainCommunicationError, ChainResult};
@@ -153,6 +153,7 @@ pub struct JWTBaseHttpClient {
     base_url: Url,
     auth_url: String,
     auth_token: Arc<RwLock<Option<(HeaderValue, Instant)>>>,
+    auth_refresh: Arc<Mutex<()>>,
 }
 
 impl JWTBaseHttpClient {
@@ -176,19 +177,29 @@ impl JWTBaseHttpClient {
             client,
             base_url: append_network(url, network)?,
             auth_token: Default::default(),
+            auth_refresh: Default::default(),
             auth_url,
         })
     }
 
-    /// Gets the authentication token if it is still valid
-    pub async fn get_auth_token(&self) -> ChainResult<HeaderValue> {
-        {
-            let auth_token = self.auth_token.read().await;
-            if let Some((token, expires_at)) = &*auth_token {
-                if Instant::now() < *expires_at {
-                    return Ok(token.clone());
-                }
+    async fn cached_auth_token(&self) -> Option<HeaderValue> {
+        let auth_token = self.auth_token.read().await;
+        if let Some((token, expires_at)) = &*auth_token {
+            if Instant::now() < *expires_at {
+                return Some(token.clone());
             }
+        }
+        None
+    }
+
+    async fn refresh_auth_token(&self) -> ChainResult<HeaderValue> {
+        // Only serialize token refreshes. Requests with a valid cached token
+        // avoid this lock and unrelated API network work never holds it.
+        let _refresh_guard = self.auth_refresh.lock().await;
+
+        // Another caller may have refreshed the token while this caller waited.
+        if let Some(token) = self.cached_auth_token().await {
+            return Ok(token);
         }
 
         let response = self
@@ -212,12 +223,26 @@ impl JWTBaseHttpClient {
             .unwrap_or(Instant::now()); // Tokens last 15 minutes
         let mut auth_token = self.auth_token.write().await;
         *auth_token = Some((result.clone(), expires));
-        Ok(result.clone())
+        Ok(result)
     }
 
-    async fn clear_auth_token(&self) {
+    /// Gets the authentication token if it is still valid
+    pub async fn get_auth_token(&self) -> ChainResult<HeaderValue> {
+        if let Some(token) = self.cached_auth_token().await {
+            return Ok(token);
+        }
+
+        self.refresh_auth_token().await
+    }
+
+    async fn clear_auth_token(&self, rejected_token: &HeaderValue) {
         let mut auth_token = self.auth_token.write().await;
-        *auth_token = None;
+        if auth_token
+            .as_ref()
+            .is_some_and(|(token, _)| token == rejected_token)
+        {
+            *auth_token = None;
+        }
     }
 }
 
@@ -235,15 +260,15 @@ impl HttpClient for JWTBaseHttpClient {
         let response = self
             .client
             .get(url)
-            .header(AUTHORIZATION, auth)
+            .header(AUTHORIZATION, auth.clone())
             .query(&query)
             .send()
             .await
             .map_err(HyperlaneAleoError::from)?;
 
-        // Two instances of the relayer might compete for the same JWT, if so clear the token early and request a new one
+        // Do not let a late rejection of an old token evict a token refreshed by another request.
         if response.status() == reqwest::StatusCode::UNAUTHORIZED {
-            self.clear_auth_token().await;
+            self.clear_auth_token(&auth).await;
         }
 
         let response = response
@@ -265,14 +290,14 @@ impl HttpClient for JWTBaseHttpClient {
         let response = self
             .client
             .get(url)
-            .header(AUTHORIZATION, auth)
+            .header(AUTHORIZATION, auth.clone())
             .query(&query)
             .send()
             .await
             .map_err(HyperlaneAleoError::from)?;
 
         if response.status() == reqwest::StatusCode::UNAUTHORIZED {
-            self.clear_auth_token().await;
+            self.clear_auth_token(&auth).await;
         }
         if response.status() == reqwest::StatusCode::NOT_FOUND {
             return Ok(None);
@@ -296,15 +321,15 @@ impl HttpClient for JWTBaseHttpClient {
         let response = self
             .client
             .post(url)
-            .header(AUTHORIZATION, auth)
+            .header(AUTHORIZATION, auth.clone())
             .json(body)
             .send()
             .await
             .map_err(HyperlaneAleoError::from)?;
 
-        // Two instances of the relayer might compete for the same JWT, if so clear the token early and request a new one
+        // Do not let a late rejection of an old token evict a token refreshed by another request.
         if response.status() == reqwest::StatusCode::UNAUTHORIZED {
-            self.clear_auth_token().await;
+            self.clear_auth_token(&auth).await;
         }
 
         let response = response
@@ -327,11 +352,14 @@ mod tests {
     use std::{
         io::{Read, Write},
         net::TcpListener,
-        sync::mpsc,
+        sync::{mpsc, Arc},
         thread,
+        time::{Duration, Instant},
     };
 
+    use reqwest::header::HeaderValue;
     use serde_json::{json, Value};
+    use tokio::sync::{oneshot, Barrier};
     use url::Url;
 
     use super::{append_network, append_path, BaseHttpClient, HttpClient, JWTBaseHttpClient};
@@ -494,5 +522,109 @@ mod tests {
             .unwrap()
             .contains("\r\ncontent-length: 0\r\n"));
         server.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn jwt_auth_refresh_is_single_flight() {
+        const CALLERS: usize = 16;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let (request_tx, request_rx) = oneshot::channel();
+        let (response_tx, response_rx) = mpsc::channel();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buffer = [0; 4096];
+            stream.read(&mut buffer).unwrap();
+            request_tx.send(()).unwrap();
+            response_rx.recv().unwrap();
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nAuthorization: Bearer shared-token\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                )
+                .unwrap();
+        });
+        let url = Url::parse(&format!(
+            "http://{address}/v2?custom_rpc_header=x-auth-url:http%3A%2F%2F{address}%2Fauth"
+        ))
+        .unwrap();
+        let client = JWTBaseHttpClient::new(url, 0).unwrap();
+        *client.auth_token.write().await = Some((
+            HeaderValue::from_static("Bearer expired-token"),
+            Instant::now() - Duration::from_secs(1),
+        ));
+        let start = Arc::new(Barrier::new(CALLERS));
+        let callers = (0..CALLERS)
+            .map(|_| {
+                let client = client.clone();
+                let start = start.clone();
+                tokio::spawn(async move {
+                    start.wait().await;
+                    client.get_auth_token().await
+                })
+            })
+            .collect::<Vec<_>>();
+
+        request_rx.await.unwrap();
+        response_tx.send(()).unwrap();
+
+        for caller in callers {
+            let token = caller.await.unwrap().unwrap();
+            assert_eq!(token, HeaderValue::from_static("Bearer shared-token"));
+        }
+        server.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn jwt_auth_retries_after_refresh_error() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            for response in [
+                b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                    .as_slice(),
+                b"HTTP/1.1 200 OK\r\nAuthorization: Bearer retry-token\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                    .as_slice(),
+            ] {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut buffer = [0; 4096];
+                stream.read(&mut buffer).unwrap();
+                stream.write_all(response).unwrap();
+            }
+        });
+        let url = Url::parse(&format!(
+            "http://{address}/v2?custom_rpc_header=x-auth-url:http%3A%2F%2F{address}%2Fauth"
+        ))
+        .unwrap();
+        let client = JWTBaseHttpClient::new(url, 0).unwrap();
+
+        let error = client.get_auth_token().await.unwrap_err();
+        assert!(error.to_string().contains("429 Too Many Requests"));
+
+        let token = client.get_auth_token().await.unwrap();
+        assert_eq!(token, HeaderValue::from_static("Bearer retry-token"));
+        server.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn jwt_auth_stale_rejection_does_not_clear_refreshed_token() {
+        let client = JWTBaseHttpClient::new(Url::parse("http://localhost/v2").unwrap(), 0).unwrap();
+        let stale_token = HeaderValue::from_static("Bearer stale-token");
+        let refreshed_token = HeaderValue::from_static("Bearer refreshed-token");
+        *client.auth_token.write().await = Some((
+            refreshed_token.clone(),
+            Instant::now() + Duration::from_secs(60),
+        ));
+
+        client.clear_auth_token(&stale_token).await;
+
+        assert_eq!(
+            client.cached_auth_token().await,
+            Some(refreshed_token.clone())
+        );
+
+        client.clear_auth_token(&refreshed_token).await;
+
+        assert_eq!(client.cached_auth_token().await, None);
     }
 }
