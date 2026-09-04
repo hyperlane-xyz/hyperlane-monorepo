@@ -1,3 +1,15 @@
+## [3.0.0] - 2026-09-04
+
+* chore: deprecate 8 mainnet chains (aug 18 batch) (#9273)
+* chore: remove august 2026 deprecated chains (#9248)
+* feat(infra): restore Sonic agent support (#9288)
+* feat: sep 4 deprecations (#9455)
+* fix(core): avoid HyperlaneMessage::from panics in indexer paths (#9181)
+* fix(infra): restore Nibiru and B² agent operations (#9140)
+* fix: add timeout to FallbackProvider::call to unblock stalled providers (#9195)
+* perf(metrics): avoid redundant block detail reads (#9442)
+* perf(rust): coalesce fallback provider health probes (#9215)
+
 ## [2.3.0] - 2026-07-20
 
 * chore: jun 5 deprecations (21 chains) (#8860)

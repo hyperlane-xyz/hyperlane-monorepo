@@ -1,3 +1,8 @@
+## [3.0.0] - 2026-09-04
+
+* feat(validators)!: migrate signing and checkpoint storage to GCP (#9160)
+* fix(relayer): bound validator signature retries (#9148)
+
 ## [2.3.0] - 2026-07-20
 
 * feat(infra): token-based IGP config, reclaim, relayer guard (#8910)

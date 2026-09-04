@@ -1,3 +1,7 @@
+## [3.0.0] - 2026-09-04
+
+* fix(ci): stabilize Tron test runtime (#9105)
+
 ## [2.3.0] - 2026-07-20
 
 * fix(test): retry cosmos native e2e transactions to prevent flaky failures (#8354)

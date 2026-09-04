@@ -1,3 +1,16 @@
+## [3.0.0] - 2026-09-04
+
+* fix(lander): bound Aleo transaction status polling (#9412)
+* fix(lander): clear completed loader liveness (#9441)
+* fix(lander): escalate inclusion-stage confirmation backoff for aged txs (#9308)
+* fix(rust): persist Lander finalized nonce regressions (#9219)
+* perf(lander): batch Sealevel transaction statuses (#9429)
+* perf(lander): collapse Sealevel status reads (#9428)
+* perf(lander): index pending payloads (#9426)
+* perf(lander): parallelize transaction status reads (#9398)
+* perf(lander): share dispatcher state (#9425)
+* perf(rust): back off idle Lander reorg polling (#9223)
+
 ## [2.3.0] - 2026-07-20
 
 * feat(tron): migrate Tron agents from gRPC to HTTP API (#8370)

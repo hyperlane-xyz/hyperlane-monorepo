@@ -1,3 +1,9 @@
+## [3.0.0] - 2026-09-04
+
+* fix(aleo): avoid local proving fallback memory spike (#9422)
+* fix(aleo): encode mapping keys in RPC URLs (#9293)
+* perf(metrics): avoid redundant block detail reads (#9442)
+
 ## [2.3.0] - 2026-07-20
 
 * feat: aleo ARC-20 v2 tokens + mainnet USDC/USDT/ETH/WBTC/SOL rollout (#8969)

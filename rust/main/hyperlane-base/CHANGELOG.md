@@ -1,3 +1,10 @@
+## [3.0.0] - 2026-09-04
+
+* feat(agents): expose Tokio blocking pool metrics (#9390)
+* feat(validators)!: migrate signing and checkpoint storage to GCP (#9160)
+* fix(rust): heartbeat idle contract sync tasks (#9222)
+* perf(metrics): avoid redundant block detail reads (#9442)
+
 ## [2.3.0] - 2026-07-20
 
 * feat(tron): migrate Tron agents from gRPC to HTTP API (#8370)
