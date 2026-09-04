@@ -755,8 +755,15 @@ impl MerkleTreeHookWebSocketSync {
             bail!("Unexpected Merkle tree hook caught-up marker");
         }
         let sequence = sequence
-            .parse::<u32>()
+            .parse::<i64>()
             .context("Invalid caught-up sequence")?;
+        if sequence == -1 {
+            if next_sequence != 0 {
+                bail!("Empty caught-up marker does not match validator cursor");
+            }
+            return Ok(true);
+        }
+        let sequence = u32::try_from(sequence).context("Invalid caught-up sequence")?;
         if sequence >= next_sequence {
             bail!("Caught-up marker skipped Merkle tree insertions");
         }
@@ -1579,6 +1586,15 @@ mod tests {
             .expect("stale marker"));
         assert!(sync
             .validate_caught_up(&hook, 1, EVENT_TYPE, "2", 2)
+            .is_err());
+        assert!(sync
+            .validate_caught_up(&hook, 1, EVENT_TYPE, "-1", 0)
+            .expect("empty marker at empty cursor"));
+        assert!(sync
+            .validate_caught_up(&hook, 1, EVENT_TYPE, "-1", 1)
+            .is_err());
+        assert!(sync
+            .validate_caught_up(&hook, 1, EVENT_TYPE, "-2", 0)
             .is_err());
     }
 
