@@ -190,25 +190,16 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
         if (!call.callRemoteArgs) continue;
 
         const hookMetadata = call.callRemoteArgs.hookMetadata;
-        const parsedHookMetadata =
+        const normalizedHookMetadata =
           typeof hookMetadata === 'string'
             ? parseStandardHookMetadata(hookMetadata)
-            : undefined;
-        const hookMetadataObject =
-          typeof hookMetadata === 'object' ? hookMetadata : undefined;
-        const hookMetadataIdentity = parsedHookMetadata
-          ? {
-              msgValue: parsedHookMetadata.msgValue.toString(),
-              refundAddress: parsedHookMetadata.refundAddress,
-            }
-          : hookMetadataObject
-            ? {
-                msgValue: BigNumber.from(
-                  hookMetadataObject.msgValue ?? 0,
-                ).toString(),
-                refundAddress: hookMetadataObject.refundAddress,
-              }
             : hookMetadata;
+        const hookMetadataIdentity = normalizedHookMetadata
+          ? {
+              msgValue: BigInt(normalizedHookMetadata.msgValue ?? 0).toString(),
+              refundAddress: normalizedHookMetadata.refundAddress,
+            }
+          : hookMetadata;
 
         // Gas limits differ per inner call and must be recomputed for the batch.
         const key = [
@@ -260,13 +251,11 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
         };
 
         const baseHookMetadata = baseCallRemoteArgs.hookMetadata;
-        const parsedBaseHookMetadata =
+        const normalizedBaseHookMetadata =
           typeof baseHookMetadata === 'string'
             ? parseStandardHookMetadata(baseHookMetadata)
-            : undefined;
-        const baseHookMetadataObject =
-          typeof baseHookMetadata === 'object' ? baseHookMetadata : undefined;
-        if (parsedBaseHookMetadata || baseHookMetadataObject) {
+            : baseHookMetadata;
+        if (normalizedBaseHookMetadata) {
           const gasLimit = await this.interchainAccount.estimateIcaHandleGas({
             origin: combinedCallRemoteArgs.chain,
             destination: combinedCallRemoteArgs.destination,
@@ -277,14 +266,8 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
             ...combinedCallRemoteArgs,
             hookMetadata: formatStandardHookMetadata({
               gasLimit: gasLimit.toBigInt(),
-              msgValue:
-                parsedBaseHookMetadata?.msgValue ??
-                (baseHookMetadataObject?.msgValue !== undefined
-                  ? BigInt(baseHookMetadataObject.msgValue)
-                  : undefined),
-              refundAddress:
-                parsedBaseHookMetadata?.refundAddress ??
-                baseHookMetadataObject?.refundAddress,
+              msgValue: BigInt(normalizedBaseHookMetadata.msgValue ?? 0),
+              refundAddress: normalizedBaseHookMetadata.refundAddress,
             }),
           };
         }
