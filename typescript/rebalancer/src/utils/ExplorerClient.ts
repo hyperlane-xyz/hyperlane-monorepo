@@ -2,6 +2,7 @@ import type { Logger } from 'pino';
 
 import {
   addressToByteHexString,
+  hexOrBase58ToHex,
   isEVMLike,
   ProtocolType,
 } from '@hyperlane-xyz/utils';
@@ -24,6 +25,16 @@ export type RebalanceActionQueryParams = {
   routersByDomain: Record<number, string>; // Domain ID → router address (derive routers and domains from this)
   rebalancerAddress: string; // Include rebalancer's txs
   inventorySignerAddresses?: string[]; // Optional: also include inventory signers' txs (for inventory_deposit actions)
+  limit?: number;
+};
+
+export type OriginTransaction = {
+  originDomain: number;
+  txHash: string;
+};
+
+export type OriginTransactionQueryParams = {
+  transactions: OriginTransaction[];
   limit?: number;
 };
 
@@ -50,6 +61,17 @@ export interface IExplorerClient {
     params: RebalanceActionQueryParams,
     logger: Logger,
   ): Promise<ExplorerMessage[]>;
+  getMessagesByOriginTransactions(
+    params: OriginTransactionQueryParams,
+    logger: Logger,
+  ): Promise<ExplorerMessage[]>;
+}
+
+export function normalizeTransactionHash(txHash: string): string {
+  const hex = /^0x/i.test(txHash)
+    ? `0x${txHash.slice(2)}`
+    : hexOrBase58ToHex(txHash);
+  return hex.toLowerCase();
 }
 
 export class ExplorerClient implements IExplorerClient {
@@ -74,6 +96,10 @@ export class ExplorerClient implements IExplorerClient {
       return hex.replace(/^0x/i, '\\x').toLowerCase();
     }
     return addr.replace(/^0x/i, '\\x').toLowerCase();
+  }
+
+  private transactionHashToBytea(txHash: string): string {
+    return normalizeTransactionHash(txHash).replace(/^0x/i, '\\x');
   }
 
   /**
@@ -435,5 +461,96 @@ export class ExplorerClient implements IExplorerClient {
     const json = await res.json();
     const messages = json?.data?.message_view ?? [];
     return messages.map((msg: any) => this.normalizeExplorerMessage(msg));
+  }
+
+  /** Query messages by exact origin domain/transaction pairs, including delivered messages. */
+  async getMessagesByOriginTransactions(
+    params: OriginTransactionQueryParams,
+    logger: Logger,
+  ): Promise<ExplorerMessage[]> {
+    const { transactions, limit = Math.max(100, transactions.length * 2) } =
+      params;
+    if (transactions.length === 0) return [];
+
+    const variables = {
+      originDomains: [...new Set(transactions.map((tx) => tx.originDomain))],
+      originTxHashes: [
+        ...new Set(
+          transactions.map((tx) => this.transactionHashToBytea(tx.txHash)),
+        ),
+      ],
+      limit,
+    };
+
+    logger.debug(
+      { variables },
+      'Explorer getMessagesByOriginTransactions query',
+    );
+
+    const query = `
+      query MessagesByOriginTransactions(
+        $originDomains: [Int!],
+        $originTxHashes: [bytea!],
+        $limit: Int = 100
+      ) {
+        message_view(
+          where: {
+            _and: [
+              { origin_domain_id: { _in: $originDomains } },
+              { origin_tx_hash: { _in: $originTxHashes } }
+            ]
+          }
+          order_by: { origin_tx_id: desc }
+          limit: $limit
+        ) {
+          msg_id
+          origin_domain_id
+          destination_domain_id
+          sender
+          recipient
+          origin_tx_hash
+          origin_tx_sender
+          origin_tx_recipient
+          is_delivered
+          message_body
+          send_occurred_at
+        }
+      }`;
+
+    const res = await fetch(this.baseUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, variables }),
+    });
+
+    if (!res.ok) {
+      let errorDetails: string;
+      try {
+        errorDetails = JSON.stringify(await res.json());
+      } catch (_error) {
+        try {
+          errorDetails = await res.text();
+        } catch (_textError) {
+          errorDetails = 'Unable to read response body';
+        }
+      }
+      throw new Error(`Explorer query failed: ${res.status} ${errorDetails}`);
+    }
+
+    const json = await res.json();
+    const messages = (json?.data?.message_view ?? []).map((msg: any) =>
+      this.normalizeExplorerMessage(msg),
+    );
+    const requestedTransactions = new Set(
+      transactions.map(
+        (tx) => `${tx.originDomain}:${normalizeTransactionHash(tx.txHash)}`,
+      ),
+    );
+
+    return messages.filter((msg: ExplorerMessage) =>
+      requestedTransactions.has(
+        `${msg.origin_domain_id}:${normalizeTransactionHash(msg.origin_tx_hash)}`,
+      ),
+    );
   }
 }
