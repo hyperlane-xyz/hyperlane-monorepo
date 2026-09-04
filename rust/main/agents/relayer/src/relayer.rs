@@ -493,7 +493,8 @@ impl BaseAgent for Relayer {
         start_entity_init = Instant::now();
         for (origin_domain, origin) in self.origins.iter() {
             let maybe_broadcaster = origin.message_sync.get_broadcaster();
-            if let Some(authority) = self.scraper_websocket_authority.clone() {
+            let scraper_authority = self.scraper_websocket_authority.clone();
+            if let Some(authority) = scraper_authority.clone() {
                 tasks.push(self.run_rpc_sync_supervisor(
                     origin,
                     authority,
@@ -514,30 +515,32 @@ impl BaseAgent for Relayer {
                     }
                 };
                 tasks.push(message_sync);
+            }
 
-                let interchain_gas_payment_sync = match self
-                    .run_interchain_gas_payment_sync(
-                        origin,
-                        BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
-                        task_monitor.clone(),
-                    )
-                    .await
-                {
-                    Ok(task) => task,
-                    Err(err) => {
-                        Self::record_critical_error(
-                            &origin.domain,
-                            &self.chain_metrics,
-                            &err,
-                            "Failed to run interchain gas payment sync",
-                        );
-                        continue;
-                    }
-                };
-                if let Some(task) = interchain_gas_payment_sync {
-                    tasks.push(task);
+            let interchain_gas_payment_sync = match self
+                .run_interchain_gas_payment_sync(
+                    origin,
+                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
+                    task_monitor.clone(),
+                )
+                .await
+            {
+                Ok(task) => task,
+                Err(err) => {
+                    Self::record_critical_error(
+                        &origin.domain,
+                        &self.chain_metrics,
+                        &err,
+                        "Failed to run interchain gas payment sync",
+                    );
+                    continue;
                 }
+            };
+            if let Some(task) = interchain_gas_payment_sync {
+                tasks.push(task);
+            }
 
+            if scraper_authority.is_none() {
                 let merkle_tree_hook_sync = match self
                     .run_merkle_tree_hook_sync(
                         origin,
@@ -804,7 +807,6 @@ impl Relayer {
         let origin_domain = origin.domain.clone();
         let index_settings = origin.chain_conf.index_settings().clone();
         let message_sync = origin.message_sync.clone();
-        let gas_payment_sync = origin.interchain_gas_payment_sync.clone();
         let merkle_sync = origin.merkle_tree_hook_sync.clone();
         let chain_metrics = self.chain_metrics.clone();
         tokio::spawn(async move {
@@ -843,28 +845,6 @@ impl Relayer {
                     }
                     .instrument(info_span!("MessageSync")),
                 ));
-
-                if let Some(contract_sync) = gas_payment_sync.clone() {
-                    let gas_origin = origin_domain.clone();
-                    let gas_index_settings = index_settings.clone();
-                    let gas_chain_metrics = chain_metrics.clone();
-                    let gas_receiver =
-                        BroadcastMpscSender::map_get_receiver(broadcaster.as_ref()).await;
-                    syncs.spawn(TaskMonitor::instrument(
-                        &task_monitor,
-                        async move {
-                            Self::interchain_gas_payments_sync_task(
-                                &gas_origin,
-                                gas_index_settings,
-                                contract_sync,
-                                gas_chain_metrics,
-                                gas_receiver,
-                            )
-                            .await;
-                        }
-                        .instrument(info_span!("IgpSync")),
-                    ));
-                }
 
                 let merkle_origin = origin_domain.clone();
                 let merkle_index_settings = index_settings.clone();
@@ -908,7 +888,7 @@ impl Relayer {
                     authority.mark_paused(origin_domain.id(), command.generation);
                     info!(
                         chain = origin_domain.name(),
-                        "Paused direct RPC indexing after scraper cutover"
+                        "Paused direct RPC message and Merkle indexing after scraper cutover"
                     );
                 } else {
                     tokio::time::sleep(Duration::from_secs(5)).await;
