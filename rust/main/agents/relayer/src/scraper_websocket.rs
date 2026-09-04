@@ -1310,18 +1310,11 @@ impl StreamState {
             bail!("Gas payment event paymaster does not match configured paymaster");
         }
         let message_id = parse_h256(&data.msg_id, "gas payment message ID")?;
-        let payment = data
-            .payment
-            .parse::<U256>()
-            .context("Invalid gas payment amount")?;
-        let gas_amount = data
-            .gas_amount
-            .parse::<U256>()
-            .context("Invalid gas payment gas amount")?;
-        let log_index = data
-            .log_index
-            .parse::<U256>()
-            .context("Invalid gas payment log index")?;
+        let payment = U256::from_dec_str(&data.payment).context("Invalid gas payment amount")?;
+        let gas_amount =
+            U256::from_dec_str(&data.gas_amount).context("Invalid gas payment gas amount")?;
+        let log_index =
+            U256::from_dec_str(&data.log_index).context("Invalid gas payment log index")?;
         let sequence = data
             .sequence
             .as_deref()
