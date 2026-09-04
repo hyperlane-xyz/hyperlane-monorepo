@@ -73,6 +73,7 @@ export class SvmWarpAltManager {
       native: () =>
         new SvmNativeTokenAltWriter(
           this.chainName,
+          this.rpc,
           this.altWriter,
           existingCoreAlt,
         ),
@@ -86,6 +87,7 @@ export class SvmWarpAltManager {
       synthetic: () =>
         new SvmSyntheticTokenAltWriter(
           this.chainName,
+          this.rpc,
           this.altWriter,
           existingCoreAlt,
         ),
@@ -153,7 +155,8 @@ export class SvmWarpAltReader {
     const readers: {
       [K in WarpType]: () => SvmTokenAltReader<WarpArtifactConfigs[K]>;
     } = {
-      native: () => new SvmNativeTokenAltReader(this.chainName, this.altReader),
+      native: () =>
+        new SvmNativeTokenAltReader(this.chainName, this.rpc, this.altReader),
       collateral: () =>
         new SvmCollateralTokenAltReader(
           this.chainName,
@@ -161,7 +164,11 @@ export class SvmWarpAltReader {
           this.altReader,
         ),
       synthetic: () =>
-        new SvmSyntheticTokenAltReader(this.chainName, this.altReader),
+        new SvmSyntheticTokenAltReader(
+          this.chainName,
+          this.rpc,
+          this.altReader,
+        ),
       crossCollateral: () =>
         new SvmCrossCollateralTokenAltReader(
           this.chainName,

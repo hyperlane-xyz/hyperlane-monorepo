@@ -1,6 +1,7 @@
 pub mod composite_ism;
 pub mod sealevel_termination_invariants;
 pub mod solana;
+pub mod warp_route_composite_ism;
 
 use std::{
     fs,
@@ -38,7 +39,7 @@ pub const SOL_MESSAGES_WITH_NON_MATCHING_IGP: u32 = 1;
 pub const SUBMITTER_TYPE: SubmitterType = SubmitterType::Lander;
 
 /// These private keys are from the solana-test-validator network
-const RELAYER_KEYS: &[&str] = &[
+pub(super) const RELAYER_KEYS: &[&str] = &[
     // sealeveltest1
     "0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
     // sealeveltest2
@@ -48,7 +49,7 @@ const RELAYER_KEYS: &[&str] = &[
 ];
 
 // Single validator on sealeveltest1 only - signs checkpoints for messages to both destinations
-const SEALEVEL_VALIDATOR_KEYS: &[&str] =
+pub(super) const SEALEVEL_VALIDATOR_KEYS: &[&str] =
     &["0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"];
 
 type DynPath = Box<dyn AsRef<Path>>;

@@ -159,6 +159,17 @@ export async function deriveMailboxProcessAuthorityPda(
   ]);
 }
 
+/** Mailbox-signed authority requested by stateful composite ISM nodes. */
+export async function deriveIsmProcessAuthorityPda(
+  mailboxProgramAddress: Address,
+  ismProgramAddress: Address,
+): Promise<PdaWithBump> {
+  return derive(mailboxProgramAddress, [
+    utf8.encode('process_authority'),
+    addressEncoder.encode(ismProgramAddress),
+  ]);
+}
+
 export async function deriveMailboxDispatchedMessagePda(
   mailboxProgramAddress: Address,
   uniqueMessageAccount: Address,

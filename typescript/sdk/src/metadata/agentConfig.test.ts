@@ -159,6 +159,62 @@ describe('AgentChainMetadataSchema additionalQuorumRpcUrls', () => {
   });
 });
 
+describe('AgentChainMetadataSchema Sealevel process ALTs', () => {
+  const altA = '5iPyGCTQ2xHaCxv9A8GDJzt2tHWL8t9FK8UwG3KoQsYo';
+  const altB = '8MedWKtfT7QdMcZWDuVPx1iUrJRRZXDQpzyZAaqzQg2Z';
+  const baseChainMetadata = {
+    name: 'solanamainnet',
+    domainId: 1_399_811_149,
+    chainId: 101,
+    protocol: ProtocolType.Sealevel,
+    rpcUrls: [{ http: 'http://localhost:8899' }],
+    mailbox: 'E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi',
+    interchainGasPaymaster: 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv',
+    validatorAnnounce: 'Va1idatorAnnounce111111111111111111111111111',
+    merkleTreeHook: 'Merk1eTreeHook11111111111111111111111111111',
+  };
+
+  it('accepts legacy singular and new plural process ALT fields', () => {
+    expect(
+      AgentChainMetadataSchema.safeParse({
+        ...baseChainMetadata,
+        mailboxProcessAlt: altA,
+        processAltOverrides: [{ matchingList: [{}], addressLookupTable: altB }],
+      }).success,
+    ).to.equal(true);
+
+    const plural = AgentChainMetadataSchema.safeParse({
+      ...baseChainMetadata,
+      mailboxProcessAlts: [altA, altB],
+      processAltOverrides: [
+        { matchingList: [{}], addressLookupTables: [altA, altB] },
+      ],
+    });
+    expect(plural.success).to.equal(true);
+    if (plural.success) {
+      expect(plural.data.mailboxProcessAlts).to.deep.equal([altA, altB]);
+      expect(plural.data.processAltOverrides).to.deep.equal([
+        { matchingList: [{}], addressLookupTables: [altA, altB] },
+      ]);
+    }
+  });
+
+  it('rejects empty plural ALT lists', () => {
+    expect(
+      AgentChainMetadataSchema.safeParse({
+        ...baseChainMetadata,
+        mailboxProcessAlts: [],
+      }).success,
+    ).to.equal(false);
+    expect(
+      AgentChainMetadataSchema.safeParse({
+        ...baseChainMetadata,
+        processAltOverrides: [{ matchingList: [{}], addressLookupTables: [] }],
+      }).success,
+    ).to.equal(false);
+  });
+});
+
 describe('Agent config', () => {
   const args: Parameters<typeof buildAgentConfig> = [
     [TestChainName.test1],

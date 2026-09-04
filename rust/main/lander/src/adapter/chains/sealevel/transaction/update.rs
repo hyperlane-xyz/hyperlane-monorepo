@@ -34,7 +34,7 @@ mod tests {
         transaction::{Transaction, VmSpecificTxData},
     };
     use hyperlane_core::{H256, H512};
-    use hyperlane_sealevel::SealevelTxCostEstimate;
+    use hyperlane_sealevel::{SealevelTransactionFormat, SealevelTxCostEstimate};
     use solana_sdk::{instruction::Instruction as SealevelInstruction, pubkey::Pubkey};
 
     fn create_test_precursor() -> SealevelTxPrecursor {
@@ -45,7 +45,7 @@ mod tests {
         };
         SealevelTxPrecursor {
             instruction,
-            alt_address: None,
+            alt_addresses: SealevelTransactionFormat::Legacy,
             estimate,
         }
     }
@@ -141,7 +141,7 @@ mod tests {
                 &[1, 2, 3],
                 vec![],
             ),
-            alt_address: None,
+            alt_addresses: SealevelTransactionFormat::Legacy,
             estimate: SealevelTxCostEstimate {
                 compute_units: 300_000,
                 compute_unit_price_micro_lamports: 2000,

@@ -211,6 +211,15 @@ jobs:
           E2E_CI_TIMEOUT_SEC: '600'
           RUST_BACKTRACE: 'full'
 
+      - name: agent tests (Sealevel custom composite ISM)
+        if: ${{ matrix.e2e-type == 'sealevel' && steps.check-conditions.outputs.skip-e2e != 'true' }}
+        run: cargo test --release --package run-locally --bin run-locally --features sealevel -- sealevel::warp_route_composite_ism::test::test_warp_route_custom_composite_ism_process --exact --nocapture
+        working-directory: ./rust/main
+        env:
+          E2E_CI_MODE: 'true'
+          E2E_CI_TIMEOUT_SEC: '600'
+          RUST_BACKTRACE: 'full'
+
       - name: agent tests (Starknet)
         run: cargo test --release --package run-locally --bin run-locally --features starknet -- starknet::test --nocapture
         if: ${{ matrix.e2e-type == 'starknet' && steps.check-rust-changes.outputs.rust_changes == 'true' }}

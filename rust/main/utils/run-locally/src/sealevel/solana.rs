@@ -484,7 +484,7 @@ struct AltCreateOutput {
 }
 
 /// Parse ALT address from JSON output: {"address":"<pubkey>"}
-fn parse_alt_address_from_json(output: &[String]) -> Option<String> {
+pub(super) fn parse_alt_address_from_json(output: &[String]) -> Option<String> {
     for line in output {
         if let Ok(parsed) = serde_json::from_str::<AltCreateOutput>(line) {
             return Some(parsed.address);

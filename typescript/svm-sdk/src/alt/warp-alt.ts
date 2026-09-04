@@ -4,15 +4,18 @@ import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   isArtifactDeployed,
+  isArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type FeeArtifactConfig,
   type FeeReadContext,
   FeeType,
 } from '@hyperlane-xyz/provider-sdk/fee';
-import type {
-  DeployedWarpAddress,
-  WarpArtifactConfig,
+import {
+  type DeployedWarpAddress,
+  TokenType,
+  type WarpArtifactConfig,
+  buildFeeReadContextFromWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   assert,
@@ -29,21 +32,38 @@ import {
   SPL_TOKEN_PROGRAM_ADDRESS,
   SYSTEM_PROGRAM_ADDRESS,
 } from '../constants.js';
+import { resolveFeeSalt } from '../fee/types.js';
 import { DEFAULT_IGP_SALT } from '../hook/igp-hook.js';
+import {
+  fetchCompositeIsmStorageAccount,
+  fetchCompositeIsmDomainStorageAccount,
+  fetchMultisigIsmAccessControl,
+  fetchTestIsmStorageAccount,
+} from '../ism/ism-query.js';
 import { H256_ZERO } from '../instructions/fee.js';
 import {
+  deriveAssociatedTokenAddress,
   deriveCrossCollateralRoutePda,
   deriveFeeAccountPda,
   deriveIgpAccountPda,
   deriveIgpProgramDataPda,
   deriveIgpQuoteAuthorityPda,
   deriveIgpStandingQuotePda,
+  deriveIsmProcessAuthorityPda,
   deriveMailboxOutboxPda,
+  deriveCompositeIsmDomainPda,
+  deriveCompositeIsmStoragePda,
+  deriveMultisigIsmDomainDataPda,
   deriveOverheadIgpAccountPda,
   deriveRouteDomainPda,
   deriveStandingQuotePda,
+  deriveTestIsmStoragePda,
 } from '../pda.js';
-import type { SvmReceipt } from '../types.js';
+import type { SvmReceipt, SvmRpc } from '../types.js';
+import type {
+  CompositeIsmStorage,
+  IsmNode,
+} from '../accounts/composite-ism.js';
 
 import {
   ALT_MAX_ADDRESSES,
@@ -82,6 +102,188 @@ function annotate(address: Address, description: string): AnnotatedAltAddress {
 
 function routerLabel(router: Uint8Array): string {
   return toHexString(Buffer.from(router));
+}
+
+function collectFallbackIsms(node: IsmNode): Address[] {
+  switch (node.kind) {
+    case 'fallbackRouting':
+      return [node.fallbackIsm];
+    case 'aggregation':
+      return node.subIsms.flatMap(collectFallbackIsms);
+    case 'amountRouting':
+      return [
+        ...collectFallbackIsms(node.lower),
+        ...collectFallbackIsms(node.upper),
+      ];
+    case 'trustedRelayer':
+    case 'multisigMessageId':
+    case 'test':
+    case 'pausable':
+    case 'rateLimited':
+    case 'routing':
+      return [];
+  }
+}
+
+async function deriveFallbackIsmCandidateAddresses(
+  fallbackIsm: Address,
+  mailbox: Address,
+  originDomains: readonly number[],
+): Promise<AnnotatedAltAddress[]> {
+  const [vam, processAuthority, testStorage, ...domainPdas] = await Promise.all(
+    [
+      deriveCompositeIsmStoragePda(fallbackIsm),
+      deriveIsmProcessAuthorityPda(mailbox, fallbackIsm),
+      deriveTestIsmStoragePda(fallbackIsm),
+      ...originDomains.map((domain) =>
+        deriveCompositeIsmDomainPda(fallbackIsm, domain),
+      ),
+      ...originDomains.map((domain) =>
+        deriveMultisigIsmDomainDataPda(fallbackIsm, domain),
+      ),
+    ],
+  );
+  const [compositeDomains, multisigDomains] = [
+    domainPdas.slice(0, originDomains.length),
+    domainPdas.slice(originDomains.length),
+  ];
+
+  return [
+    annotate(fallbackIsm, 'ism.fallback.program'),
+    annotate(vam.address, 'ism.fallback.verify_account_metas'),
+    annotate(
+      processAuthority.address,
+      'ism.fallback.composite.process_authority',
+    ),
+    annotate(testStorage.address, 'ism.fallback.test_storage'),
+    ...compositeDomains.map((pda, index) =>
+      annotate(
+        pda.address,
+        `ism.fallback.composite.domain(domain=${originDomains[index]})`,
+      ),
+    ),
+    ...multisigDomains.map((pda, index) =>
+      annotate(
+        pda.address,
+        `ism.fallback.multisig_domain(domain=${originDomains[index]})`,
+      ),
+    ),
+  ];
+}
+
+/**
+ * Derives static accounts used by destination Mailbox.process ISM verification.
+ * Supported built-in ISMs are detected from their on-chain storage. Unknown
+ * third-party ISMs contribute only their program address because their dynamic
+ * account interface cannot be predicted safely off-chain.
+ */
+export async function deriveIsmProcessAltAddresses(args: {
+  rpc: SvmRpc;
+  ism: Address;
+  mailbox: Address;
+  originDomains: readonly number[];
+}): Promise<AnnotatedAltAddress[]> {
+  const { rpc, ism, mailbox, originDomains } = args;
+  const [composite, multisigAccessControl, testStorage] = await Promise.all([
+    fetchCompositeIsmStorageAccount(rpc, ism),
+    fetchMultisigIsmAccessControl(rpc, ism),
+    fetchTestIsmStorageAccount(rpc, ism),
+  ]);
+  const domainIsms = composite?.root
+    ? await Promise.all(
+        originDomains.map(async (domain) => {
+          const storage = await fetchCompositeIsmDomainStorageAccount(
+            rpc,
+            ism,
+            domain,
+          );
+          return storage?.ism ?? null;
+        }),
+      )
+    : [];
+  return deriveIsmProcessAltAddressesFromState({
+    ism,
+    mailbox,
+    originDomains,
+    composite,
+    domainIsms,
+    isMultisig: multisigAccessControl !== null,
+    isTest: testStorage !== null,
+  });
+}
+
+/** Pure derivation used after the supported ISM storage probes complete. */
+export async function deriveIsmProcessAltAddressesFromState(args: {
+  ism: Address;
+  mailbox: Address;
+  originDomains: readonly number[];
+  composite: CompositeIsmStorage | null;
+  domainIsms?: readonly (IsmNode | null)[];
+  isMultisig: boolean;
+  isTest: boolean;
+}): Promise<AnnotatedAltAddress[]> {
+  const {
+    ism,
+    mailbox,
+    originDomains,
+    composite,
+    domainIsms = [],
+    isMultisig,
+    isTest,
+  } = args;
+  const out = [annotate(ism, 'ism.program')];
+
+  if (composite?.root) {
+    const [storage, processAuthority, ...domainPdas] = await Promise.all([
+      deriveCompositeIsmStoragePda(ism),
+      deriveIsmProcessAuthorityPda(mailbox, ism),
+      ...originDomains.map((domain) =>
+        deriveCompositeIsmDomainPda(ism, domain),
+      ),
+    ]);
+    out.push(
+      annotate(storage.address, 'ism.composite.storage'),
+      annotate(processAuthority.address, 'ism.composite.process_authority'),
+      ...domainPdas.map((pda, index) =>
+        annotate(
+          pda.address,
+          `ism.composite.domain(domain=${originDomains[index]})`,
+        ),
+      ),
+    );
+
+    const fallbackIsms = [composite.root, ...domainIsms]
+      .filter((node): node is IsmNode => node !== null)
+      .flatMap(collectFallbackIsms);
+    for (const fallbackIsm of fallbackIsms) {
+      out.push(
+        ...(await deriveFallbackIsmCandidateAddresses(
+          fallbackIsm,
+          mailbox,
+          originDomains,
+        )),
+      );
+    }
+  } else if (isMultisig) {
+    const domainPdas = await Promise.all(
+      originDomains.map((domain) =>
+        deriveMultisigIsmDomainDataPda(ism, domain),
+      ),
+    );
+    out.push(
+      ...domainPdas.map((pda, index) =>
+        annotate(
+          pda.address,
+          `ism.multisig_domain(domain=${originDomains[index]})`,
+        ),
+      ),
+    );
+  } else if (isTest) {
+    const storage = await deriveTestIsmStoragePda(ism);
+    out.push(annotate(storage.address, 'ism.test_storage'));
+  }
+
+  return canonicalize(out);
 }
 
 /**
@@ -417,6 +619,105 @@ export async function deriveIgpQuoteCascadeAltAddresses(args: {
   return canonicalize(out);
 }
 
+/**
+ * Derives the fee, IGP-hook, and ISM accounts shared by every warp type.
+ * Concrete token readers add their token/plugin accounts and call this helper
+ * explicitly from their `deriveWarpRouteAddresses` implementation.
+ */
+export async function deriveWarpRouteCommonAltAddresses(args: {
+  chainName: string;
+  rpc: SvmRpc;
+  config: WarpArtifactConfig;
+  warpProgram: Address;
+  feeTokenMint: Address;
+  feeBeneficiaryToken?: { mint: Address; tokenProgram: Address };
+}): Promise<AnnotatedAltAddress[]> {
+  const {
+    chainName,
+    rpc,
+    config,
+    warpProgram,
+    feeTokenMint,
+    feeBeneficiaryToken,
+  } = args;
+  const fee = config.fee;
+  const hook = config.hook;
+  const ism = config.interchainSecurityModule;
+
+  assert(
+    isNullish(fee) || isArtifactDeployed(fee),
+    'Expected fee artifact to be expanded (DEPLOYED) or not set',
+  );
+  assert(
+    isNullish(hook) || isArtifactDeployed(hook),
+    'Expected hook artifact to be expanded (DEPLOYED) or not set',
+  );
+  assert(
+    isNullish(ism) || isArtifactDeployed(ism) || isArtifactUnderived(ism),
+    'Expected ISM artifact to be on-chain (DEPLOYED or UNDERIVED)',
+  );
+
+  const feeAddresses = (async (): Promise<AnnotatedAltAddress[]> => {
+    if (!fee) return [];
+
+    const cascade = await deriveFeeQuoteCascadeAltAddresses({
+      feeProgram: parseAddress(fee.deployed.address),
+      feeSalt: resolveFeeSalt(chainName),
+      feeConfig: fee.config,
+      feeReadContext: buildFeeReadContextFromWarpArtifactConfig(config),
+    });
+    if (!feeBeneficiaryToken) {
+      return [
+        annotate(parseAddress(fee.config.beneficiary), 'fee.beneficiary'),
+        ...cascade,
+      ];
+    }
+
+    const beneficiaryAta = await deriveAssociatedTokenAddress({
+      wallet: parseAddress(fee.config.beneficiary),
+      ...feeBeneficiaryToken,
+    });
+    return [
+      annotate(beneficiaryAta.address, 'fee.beneficiary_ata'),
+      ...cascade,
+    ];
+  })();
+
+  const igpAddresses = (async (): Promise<AnnotatedAltAddress[]> => {
+    if (hook?.config.type !== HookType.INTERCHAIN_GAS_PAYMASTER) return [];
+
+    const igpProgram = parseAddress(hook.deployed.address);
+    const igpAccount = await deriveIgpAccountPda(igpProgram, DEFAULT_IGP_SALT);
+    const enrolledDomains = new Set(Object.keys(config.remoteRouters));
+    if (config.type === TokenType.crossCollateral) {
+      for (const domain of Object.keys(config.crossCollateralRouters)) {
+        enrolledDomains.add(domain);
+      }
+    }
+
+    return deriveIgpQuoteCascadeAltAddresses({
+      igpProgram,
+      igpAccount: igpAccount.address,
+      feeTokenMint,
+      sender: warpProgram,
+      enrolledDomains: [...enrolledDomains].map(Number),
+    });
+  })();
+
+  const ismAddresses = ism
+    ? deriveIsmProcessAltAddresses({
+        rpc,
+        ism: parseAddress(ism.deployed.address),
+        mailbox: parseAddress(config.mailbox),
+        originDomains: Object.keys(config.remoteRouters).map(Number),
+      })
+    : Promise.resolve([]);
+
+  return canonicalize(
+    (await Promise.all([feeAddresses, igpAddresses, ismAddresses])).flat(),
+  );
+}
+
 export function canonicalize(
   entries: readonly AnnotatedAltAddress[],
 ): AnnotatedAltAddress[] {
@@ -499,15 +800,15 @@ export interface SvmTokenAltWriter<C> extends SvmTokenAltReader<C> {
  * Shared base for per-token-type SVM warp ALT readers. Owns the
  * `read` pass-through, the `check` set-diff against expected addresses,
  * and the `computeExpectedAltAddresses` glue (mailbox + IGP cascade
- * + per-token warp-specific bucket). Concrete subclasses implement
- * only `deriveWarpRouteAddresses` — the warp-specific address set
- * each token type contributes to the ALT.
+ * + warp-specific bucket). Concrete subclasses own the full abstract
+ * `deriveWarpRouteAddresses` implementation and reuse shared helpers explicitly.
  */
 export abstract class SvmTokenAltReaderBase<
   C extends WarpArtifactConfig,
 > implements SvmTokenAltReader<C> {
   constructor(
     protected readonly chainName: string,
+    protected readonly rpc: SvmRpc,
     protected readonly altReader: SvmAddressLookupTableReader,
   ) {}
 

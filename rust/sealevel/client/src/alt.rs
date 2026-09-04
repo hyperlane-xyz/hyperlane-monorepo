@@ -49,7 +49,7 @@ fn create_alt(ctx: &Context, cmd: &crate::AltCreateCmd) {
 
     // 4. Extend ALT with common addresses
     // Programs called via CPI are in accounts array, so they're eligible!
-    let addresses = vec![
+    let mut addresses = vec![
         solana_system_interface::program::ID,
         inbox_pda,
         SPL_NOOP,
@@ -57,6 +57,11 @@ fn create_alt(ctx: &Context, cmd: &crate::AltCreateCmd) {
         TOKEN_2022_PROGRAM, // CPI'd by synthetic warp routes
         ATA_PROGRAM,        // CPI'd by warp routes
     ];
+    for address in &cmd.additional_addresses {
+        if !addresses.contains(address) {
+            addresses.push(*address);
+        }
+    }
 
     let extend_ix = extend_lookup_table(
         alt_address,

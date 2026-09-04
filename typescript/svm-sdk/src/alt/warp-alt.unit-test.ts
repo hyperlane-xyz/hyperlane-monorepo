@@ -11,6 +11,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/fee';
 
 import { DEFAULT_ROUTER } from '../codecs/fee.js';
+import type { CompositeIsmStorage } from '../accounts/composite-ism.js';
 import { WILDCARD_DOMAIN, WILDCARD_SENDER } from '../codecs/igp.js';
 import {
   SPL_NOOP_PROGRAM_ADDRESS,
@@ -27,10 +28,15 @@ import {
   deriveIgpProgramDataPda,
   deriveIgpQuoteAuthorityPda,
   deriveIgpStandingQuotePda,
+  deriveIsmProcessAuthorityPda,
   deriveMailboxOutboxPda,
+  deriveCompositeIsmDomainPda,
+  deriveCompositeIsmStoragePda,
+  deriveMultisigIsmDomainDataPda,
   deriveOverheadIgpAccountPda,
   deriveRouteDomainPda,
   deriveStandingQuotePda,
+  deriveTestIsmStoragePda,
 } from '../pda.js';
 
 import { SvmAddressLookupTableWriter } from './address-lookup-table.js';
@@ -40,6 +46,7 @@ import {
   deriveCoreDeploymentAltAddresses,
   deriveFeeQuoteCascadeAltAddresses,
   deriveIgpQuoteCascadeAltAddresses,
+  deriveIsmProcessAltAddressesFromState,
   diffBucket,
 } from './warp-alt.js';
 
@@ -173,6 +180,152 @@ describe('deriveCoreDeploymentAltAddresses', () => {
       onlyInB,
       'expected exactly one address unique to set B',
     ).to.have.lengthOf(1);
+  });
+});
+
+describe('deriveIsmProcessAltAddressesFromState', () => {
+  const ISM = address('4U8MZmUnwVb3rEsuX7xZcHjm3Jb4oCv1N8rwh6R1TKFV');
+  const FALLBACK_ISM = address('LwNfVYMDzAe5dCJgA5CipTZcT34Eyf74zLr81K91jxk');
+  const ORIGINS = [8453, 42161];
+
+  it('includes composite, routing, rate-limit, and fallback accounts', async () => {
+    const composite: CompositeIsmStorage = {
+      bumpSeed: 1,
+      owner: null,
+      root: {
+        kind: 'aggregation',
+        threshold: 3,
+        subIsms: [
+          { kind: 'pausable', paused: false },
+          {
+            kind: 'rateLimited',
+            maxCapacity: 1n,
+            recipient: null,
+            filledLevel: 1n,
+            lastUpdated: 0n,
+            mailbox: MAILBOX,
+          },
+          {
+            kind: 'multisigMessageId',
+            validators: [],
+            threshold: 0,
+          },
+          { kind: 'fallbackRouting', fallbackIsm: FALLBACK_ISM },
+        ],
+      },
+    };
+    const result = await deriveIsmProcessAltAddressesFromState({
+      ism: ISM,
+      mailbox: MAILBOX,
+      originDomains: ORIGINS,
+      composite,
+      isMultisig: false,
+      isTest: false,
+    });
+    const addresses = new Set(addressesOf(result));
+
+    expect(addresses).to.include(
+      (await deriveCompositeIsmStoragePda(ISM)).address,
+    );
+    expect(addresses).to.include(
+      (await deriveIsmProcessAuthorityPda(MAILBOX, ISM)).address,
+    );
+    for (const domain of ORIGINS) {
+      expect(addresses).to.include(
+        (await deriveCompositeIsmDomainPda(ISM, domain)).address,
+      );
+      expect(addresses).to.include(
+        (await deriveMultisigIsmDomainDataPda(FALLBACK_ISM, domain)).address,
+      );
+    }
+    expect(addresses).to.include(FALLBACK_ISM);
+    expect(addresses).to.include(
+      (await deriveCompositeIsmStoragePda(FALLBACK_ISM)).address,
+    );
+    expect(addresses).to.include(
+      (await deriveTestIsmStoragePda(FALLBACK_ISM)).address,
+    );
+    expect(addresses).to.include(
+      (await deriveIsmProcessAuthorityPda(MAILBOX, FALLBACK_ISM)).address,
+    );
+    for (const domain of ORIGINS) {
+      expect(addresses).to.include(
+        (await deriveCompositeIsmDomainPda(FALLBACK_ISM, domain)).address,
+      );
+    }
+  });
+
+  it('includes every origin domain for a routing composite', async () => {
+    const result = await deriveIsmProcessAltAddressesFromState({
+      ism: ISM,
+      mailbox: MAILBOX,
+      originDomains: ORIGINS,
+      composite: {
+        bumpSeed: 1,
+        owner: null,
+        root: { kind: 'routing' },
+      },
+      isMultisig: false,
+      isTest: false,
+    });
+    const addresses = addressesOf(result);
+
+    for (const domain of ORIGINS) {
+      expect(addresses).to.include(
+        (await deriveCompositeIsmDomainPda(ISM, domain)).address,
+      );
+    }
+  });
+
+  it('includes fallback accounts nested in a per-domain routing node', async () => {
+    const result = await deriveIsmProcessAltAddressesFromState({
+      ism: ISM,
+      mailbox: MAILBOX,
+      originDomains: ORIGINS,
+      composite: {
+        bumpSeed: 1,
+        owner: null,
+        root: { kind: 'routing' },
+      },
+      domainIsms: [
+        { kind: 'fallbackRouting', fallbackIsm: FALLBACK_ISM },
+        null,
+      ],
+      isMultisig: false,
+      isTest: false,
+    });
+
+    expect(addressesOf(result)).to.include(FALLBACK_ISM);
+  });
+
+  it('includes per-origin domain data for a standalone multisig', async () => {
+    const result = await deriveIsmProcessAltAddressesFromState({
+      ism: ISM,
+      mailbox: MAILBOX,
+      originDomains: ORIGINS,
+      composite: null,
+      isMultisig: true,
+      isTest: false,
+    });
+
+    for (const domain of ORIGINS) {
+      expect(addressesOf(result)).to.include(
+        (await deriveMultisigIsmDomainDataPda(ISM, domain)).address,
+      );
+    }
+  });
+
+  it('does not guess private accounts for an unknown third-party ISM', async () => {
+    const result = await deriveIsmProcessAltAddressesFromState({
+      ism: ISM,
+      mailbox: MAILBOX,
+      originDomains: ORIGINS,
+      composite: null,
+      isMultisig: false,
+      isTest: false,
+    });
+
+    expect(addressesOf(result)).to.deep.equal([ISM]);
   });
 });
 
