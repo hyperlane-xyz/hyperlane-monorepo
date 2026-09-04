@@ -293,6 +293,11 @@ impl<Client: HttpClient> RpcClient<Client> {
 pub struct ProvingClient<Client: HttpClient>(Client);
 
 impl<Client: HttpClient> ProvingClient<Client> {
+    /// Requests a public key used to encrypt the proving request.
+    pub async fn get_public_key(&self) -> ChainResult<X25519PublicKey> {
+        self.0.request("pubkey", None).await
+    }
+
     /// Makes a POST request to the API
     pub async fn proving_request<N: Network>(
         &self,
@@ -309,10 +314,9 @@ impl<Client: HttpClient> ProvingClient<Client> {
             .to_bytes_le()
             .map_err(HyperlaneAleoError::from)?;
 
-        // 1. First request a new public key for encryption from the proving service
-        // 2. Encrypt the ProvingRequest using the X25519 public key
-        // 3. Send the encrypted request to the proving service and get back the decrypted response
-        let public_key: X25519PublicKey = self.0.request("pubkey", None).await?;
+        // Fetch a fresh public key after authorization, then encrypt and submit the request.
+        // The caller performs an earlier preflight request to fail cheaply during outages.
+        let public_key = self.get_public_key().await?;
         let ciphertext = encrypt_message(&public_key.public_key, &bytes)?;
 
         let request = serde_json::to_value(EncryptedProvingRequest {

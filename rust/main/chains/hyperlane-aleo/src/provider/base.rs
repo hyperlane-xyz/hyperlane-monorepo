@@ -4,7 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use reqwest::header::{HeaderValue, AUTHORIZATION};
+use reqwest::header::{HeaderValue, AUTHORIZATION, CONTENT_LENGTH};
 use reqwest::Client as ReqwestClient;
 use reqwest_utils::parse_custom_rpc_headers;
 use serde::de::DeserializeOwned;
@@ -194,8 +194,13 @@ impl JWTBaseHttpClient {
         let response = self
             .client
             .post(&self.auth_url)
+            // Some load balancers require an explicit length for empty POST requests.
+            .header(CONTENT_LENGTH, HeaderValue::from_static("0"))
             .send()
             .await
+            .map_err(HyperlaneAleoError::from)?;
+        let response = response
+            .error_for_status()
             .map_err(HyperlaneAleoError::from)?;
         let result = response
             .headers()
@@ -329,7 +334,7 @@ mod tests {
     use serde_json::{json, Value};
     use url::Url;
 
-    use super::{append_network, append_path, BaseHttpClient, HttpClient};
+    use super::{append_network, append_path, BaseHttpClient, HttpClient, JWTBaseHttpClient};
 
     #[test]
     fn appends_and_encodes_path_segments() {
@@ -454,6 +459,40 @@ mod tests {
             .unwrap();
 
         assert_eq!(response, None);
+        server.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn jwt_auth_sends_content_length_and_preserves_status_errors() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let (request_tx, request_rx) = mpsc::channel();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buffer = [0; 4096];
+            let length = stream.read(&mut buffer).unwrap();
+            request_tx
+                .send(String::from_utf8_lossy(&buffer[..length]).to_lowercase())
+                .unwrap();
+            stream
+                .write_all(
+                    b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                )
+                .unwrap();
+        });
+        let url = Url::parse(&format!(
+            "http://{address}/v2?custom_rpc_header=x-auth-url:http%3A%2F%2F{address}%2Fauth"
+        ))
+        .unwrap();
+        let client = JWTBaseHttpClient::new(url, 0).unwrap();
+
+        let error = client.get_auth_token().await.unwrap_err();
+
+        assert!(error.to_string().contains("429 Too Many Requests"));
+        assert!(request_rx
+            .recv()
+            .unwrap()
+            .contains("\r\ncontent-length: 0\r\n"));
         server.join().unwrap();
     }
 }

@@ -508,7 +508,7 @@ impl PendingOperation for PendingMessage {
             Err(e) => {
                 error!(error=?e, "Error when processing message");
                 self.clear_metadata();
-                return PendingOperationResult::Reprepare(ReprepareReason::ErrorSubmitting);
+                return self.on_reprepare::<String>(None, ReprepareReason::ErrorSubmitting);
             }
         }
     }
@@ -1260,6 +1260,7 @@ mod test {
     use hyperlane_base::tests::mock_hyperlane_db::MockHyperlaneDb as MockDb;
     use hyperlane_base::{cache::OptionalCache, db::*};
     use hyperlane_core::*;
+    use hyperlane_test::mocks::MockMailboxContract;
 
     use crate::test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder};
 
@@ -1524,6 +1525,58 @@ mod test {
             .expect("Message status not found");
 
         assert_eq!(db_status, expected_status);
+    }
+
+    #[tokio::test]
+    async fn submit_failure_advances_retry_backoff() {
+        let origin_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+        let destination_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism);
+        let cache = OptionalCache::new(None);
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db = DB::from_path(temp_dir.path()).unwrap();
+        let base_db = HyperlaneRocksDB::new(&origin_domain, db);
+        let base_metadata_builder =
+            dummy_metadata_builder(&origin_domain, &destination_domain, &base_db, cache.clone());
+        let mut message_context =
+            dummy_message_context(Arc::new(base_metadata_builder), &base_db, cache);
+
+        let mut mailbox = MockMailboxContract::new();
+        mailbox
+            .expect__domain()
+            .return_const(destination_domain.clone());
+        mailbox.expect_process().once().returning(|_, _, _| {
+            Err(ChainCommunicationError::from_other_str(
+                "delegated prover unavailable",
+            ))
+        });
+        message_context.destination_mailbox = Arc::new(mailbox);
+
+        let message = HyperlaneMessage {
+            origin: origin_domain.id(),
+            destination: destination_domain.id(),
+            ..Default::default()
+        };
+        let mut pending_message = PendingMessage::new(
+            message,
+            Arc::new(message_context),
+            PendingOperationStatus::ReadyToSubmit,
+            None,
+            DEFAULT_MAX_MESSAGE_RETRIES,
+        );
+        pending_message.submission_data = Some(Box::new(MessageSubmissionData {
+            metadata: Metadata::new(vec![]),
+            gas_limit: U256::zero(),
+        }));
+
+        let result = PendingOperation::submit(&mut pending_message).await;
+
+        assert!(matches!(
+            result,
+            PendingOperationResult::Reprepare(ReprepareReason::ErrorSubmitting)
+        ));
+        assert_eq!(pending_message.num_retries, 1);
+        assert!(pending_message.next_attempt_after > Some(Instant::now()));
     }
 
     #[test]
