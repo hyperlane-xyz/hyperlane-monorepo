@@ -2,12 +2,30 @@ use std::{ffi::FromBytesUntilNulError, str::Utf8Error};
 
 use hyperlane_core::ChainCommunicationError;
 
+/// HTTP status error returned while authenticating with a delegated prover.
+#[derive(Debug, thiserror::Error)]
+#[error("{0}")]
+pub struct DelegatedProverAuthError(#[source] reqwest::Error);
+
+impl DelegatedProverAuthError {
+    pub(crate) fn new(error: reqwest::Error) -> Self {
+        Self(error)
+    }
+
+    pub(crate) fn status(&self) -> Option<reqwest::StatusCode> {
+        self.0.status()
+    }
+}
+
 /// Errors from the crates specific to the hyperlane-aleo
 #[derive(Debug, thiserror::Error)]
 pub enum HyperlaneAleoError {
     /// Reqwest Errors
     #[error("{0}")]
     ReqwestError(#[from] reqwest::Error),
+    /// HTTP status errors from delegated prover authentication.
+    #[error("{0}")]
+    DelegatedProverAuth(#[from] DelegatedProverAuthError),
     /// Anyhow Errors
     #[error("{0}")]
     SnarkVmError(#[from] anyhow::Error),

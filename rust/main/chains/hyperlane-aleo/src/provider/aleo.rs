@@ -98,7 +98,7 @@ impl AleoProvider<FallbackHttpClient> {
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
         let proving_service = if !conf.proving_service.is_empty() {
-            let client = FallbackHttpClient::new::<JWTBaseHttpClient>(
+            let client = FallbackHttpClient::new_delegated_prover(
                 conf.proving_service.clone(),
                 metrics.clone(),
                 chain.clone(),

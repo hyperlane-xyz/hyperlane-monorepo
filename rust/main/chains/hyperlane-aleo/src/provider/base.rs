@@ -14,7 +14,7 @@ use url::Url;
 use hyperlane_core::{ChainCommunicationError, ChainResult};
 
 use crate::provider::{HttpClient, HttpClientBuilder};
-use crate::HyperlaneAleoError;
+use crate::{DelegatedProverAuthError, HyperlaneAleoError};
 
 // Default timeouts
 pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -212,7 +212,7 @@ impl JWTBaseHttpClient {
             .map_err(HyperlaneAleoError::from)?;
         let response = response
             .error_for_status()
-            .map_err(HyperlaneAleoError::from)?;
+            .map_err(|error| HyperlaneAleoError::from(DelegatedProverAuthError::new(error)))?;
         let result = response
             .headers()
             .get(AUTHORIZATION)
