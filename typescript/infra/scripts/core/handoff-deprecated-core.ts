@@ -15,13 +15,19 @@ import {
 import { Contexts } from '../../config/contexts.js';
 import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
-import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 import { GovernanceType } from '../../src/governanceTypes.js';
 import { SafeMultiSend, SignerMultiSend } from '../../src/govern/multisend.js';
 import { Role } from '../../src/roles.js';
 
 const originChain = 'ethereum';
-const handoffChains = ['vana', 'prom'] as const;
+const handoffChains = [
+  // 'appchain', // Enable after Appchain is removed from AW infrastructure.
+  'lumiaprism',
+  'matchain',
+  'prom',
+  'vana',
+] as const;
 type HandoffChain = (typeof handoffChains)[number];
 
 const ownableContractNames = [
@@ -50,6 +56,18 @@ const handoffs: Record<
   HandoffChain,
   { target: Address; targetType: 'eoa' | 'safe' }
 > = {
+  // appchain: {
+  //   target: '0x2D3Ff22F91E5f796EeE6e864AD71385B249c34A5',
+  //   targetType: 'safe',
+  // },
+  lumiaprism: {
+    target: '0x5FE65789a7Eb447916576aF52AefF190748c08Eb',
+    targetType: 'safe',
+  },
+  matchain: {
+    target: '0x485f48CdCc2F27ACE7B4BE6398ef1dD5002b65F5',
+    targetType: 'safe',
+  },
   prom: {
     target: '0x65Bf3DEEbFD82ccDadadF43FB3701aEFE1d8bb00',
     targetType: 'eoa',
@@ -132,7 +150,14 @@ async function main(): Promise<void> {
     true,
     [originChain, ...handoffChains],
   );
-  const { chainAddresses } = await getHyperlaneCore(environment, multiProvider);
+  const registry = await environmentConfig.getRegistry(true, [
+    originChain,
+    ...handoffChains,
+  ]);
+  const chainAddresses = objFilter(
+    await registry.getAddresses(),
+    (chain, _): _ is Record<string, string> => multiProvider.hasChain(chain),
+  );
   const icaChainAddresses = objFilter(
     chainAddresses,
     (chain, _): _ is Record<string, string> =>
