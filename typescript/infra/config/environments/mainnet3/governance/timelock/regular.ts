@@ -9,7 +9,6 @@ export const regularTimelocks: ChainMap<Address> = {
   // Jul 18, 2025 - Timelocks for v2 "Regular" aka "Multisig A" ICAs
   // ----------------------------------------------------------
   apechain: '0x23D26a5Fe6671B0c13E0970c15f595CF1e9a7785',
-  appchain: '0x1F45Cd63B363ebD4b1803C81f64C0aB46f3E12Aa',
   arbitrum: '0x5ADD77190737267dAeA1AbfBb618513C60379Da0',
   avalanche: '0xa1d1bFd6d7db404be39fdfE5909380037595EaC4',
   base: '0x7c7f73db8743f3f216F4AE47f9b6720D928c943F',

@@ -74,7 +74,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     adichain: true,
     aleo: true,
     apechain: true,
-    appchain: false, // disabled — deprecation per ENG-3932
     arbitrum: true,
     arc: true,
     avalanche: true,
@@ -158,7 +157,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     adichain: true,
     aleo: true,
     apechain: true,
-    appchain: false, // disabled — deprecation per ENG-3932
     arbitrum: true,
     arc: true,
     avalanche: true,
@@ -242,7 +240,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     adichain: true,
     aleo: true,
     apechain: true,
-    appchain: false, // disabled — deprecation per ENG-3932
     arbitrum: true,
     arc: true,
     avalanche: true,

@@ -49,10 +49,6 @@ export const awIcasLegacy: ChainMap<Address> = {
   unichain: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
   superseed: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
 
-  // Dec 4, 2024 batch
-  // ----------------------------------------------------------
-  appchain: '0x4F25DFFd10A6D61C365E1a605d07B2ab0E82A7E6',
-
   // Dec 13, 2024 batch
   // ----------------------------------------------------------
   // corn: '0x5926599B8Aff45f1708b804B30213babdAD78C83',

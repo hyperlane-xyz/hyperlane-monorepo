@@ -128,7 +128,6 @@ impl<'de> Deserialize<'de> for ReorgPeriod {
 pub enum KnownHyperlaneDomain {
     Abstract = 2741,
     Aleo = 1634493807,
-    AppChain = 466,
     ApeChain = 33139,
     Arbitrum = 42161,
     Avalanche = 43114,
@@ -414,7 +413,7 @@ impl KnownHyperlaneDomain {
     pub const fn domain_technical_stack(self) -> HyperlaneDomainTechnicalStack {
         use KnownHyperlaneDomain::*;
         match self {
-            ApeChain | AppChain | Arbitrum | ArbitrumSepolia | Corn | Galactica => {
+            ApeChain | Arbitrum | ArbitrumSepolia | Corn | Galactica => {
                 HyperlaneDomainTechnicalStack::ArbitrumNitro
             }
             Base | Blast | Bob | Celo | Fraxtal | Guru | Ink | Lisk | Mantle | Metal | Metis

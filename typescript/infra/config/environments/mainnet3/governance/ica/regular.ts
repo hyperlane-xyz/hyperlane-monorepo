@@ -19,7 +19,6 @@ export const regularIcas: ChainMap<Address> = {
   // Jul 2, 2025 - ICA 2.0 Migration
   // ----------------------------------------------------------
   apechain: '0x0880453D948E4D2a06F40c6Cf4eF33E4e938411f',
-  appchain: '0x863226b1F78f40a3Ab63D89910B2CC5e899CC94D',
   avalanche: '0x66C21CFa8b765318a458435519A31A5cf0F7Ae4b',
   berachain: '0xb6DD23C2Bef77e90DdDBeEdEa29a56880ED750f0',
   blast: '0x59C89E3f2481C8c062E7DeEFFF70B75fbBd0b89a',

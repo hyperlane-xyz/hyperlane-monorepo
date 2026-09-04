@@ -9,7 +9,7 @@ export const awTimelocks: ChainMap<Address> = {
   // Jul 18, 2025 - Timelocks for v2 "Abacus Works" ICAs
   // ----------------------------------------------------------
   apechain: '0x1A4E4661b0027b859bF5c671d599f02dE68f0345',
-  appchain: '0xf2F83b26d56f0e9B9Bd81efAb9e0ECB9ba5708be',
+
   arbitrum: '0x8abE651230Ce65f546eb78C9Ed7fe54e15650224',
   avalanche: '0xFd3617B8c53c59F9642C8a5ec0ae5CD4E72bC72E',
   base: '0xe38714D00cAa906065D872D177C1374C847035fF',

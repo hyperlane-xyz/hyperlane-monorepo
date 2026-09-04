@@ -445,16 +445,6 @@ export const validatorChainConfig = (
         'unichain',
       ),
     },
-    appchain: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('appchain'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'appchain',
-      ),
-    },
     ink: {
       interval: 5,
       reorgPeriod: getReorgPeriod('ink'),

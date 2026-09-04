@@ -81,7 +81,6 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.FastPath]: [Role.Relayer],
   },
   chainsToSkip: [
-    'appchain',
     'flowmainnet',
     'immutablezkevmmainnet',
     'mocachain',

@@ -16876,31 +16876,6 @@
       ]
     },
     {
-      "name": "USDC/appchain-base",
-      "matchingList": [
-        {
-          "originDomain": 466,
-          "senderAddress": [
-            "0x000000000000000000000000675c3ce7f43b00045a4dab954af36160fb57cb45"
-          ],
-          "destinationDomain": 8453,
-          "recipientAddress": [
-            "0x000000000000000000000000f6b933267d0ac9e08c4904fb39fa047ed7b6a814"
-          ]
-        },
-        {
-          "originDomain": 8453,
-          "senderAddress": [
-            "0x000000000000000000000000f6b933267d0ac9e08c4904fb39fa047ed7b6a814"
-          ],
-          "destinationDomain": 466,
-          "recipientAddress": [
-            "0x000000000000000000000000675c3ce7f43b00045a4dab954af36160fb57cb45"
-          ]
-        }
-      ]
-    },
-    {
       "name": "CBBTC/base-ethereum-superseed",
       "matchingList": [
         {

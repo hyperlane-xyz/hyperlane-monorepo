@@ -39,7 +39,6 @@ export enum WarpRouteIds {
   // dropped; their warp-route monitors are retained for the remaining live legs until
   // scroll/zoramainnet are fully decommissioned from the registry.
   ArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDC = 'USDC/arbitrum-base-ethereum-lisk-optimism-polygon-zeronetwork',
-  AppchainBaseUSDC = 'USDC/appchain-base',
   BaseEthereumSuperseedCBBTC = 'CBBTC/base-ethereum-superseed',
   SuperseedUSDC = 'USDC/superseed',
   EthereumSuperseedUSDT = 'USDT/ethereum-superseed',

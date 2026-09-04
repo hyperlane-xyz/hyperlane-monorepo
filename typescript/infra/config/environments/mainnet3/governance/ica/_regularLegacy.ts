@@ -5,7 +5,6 @@ export const regularIcasLegacy: ChainMap<Address> = {
   // Apr 19, 2025 batch
   // ----------------------------------------------------------
   apechain: '0x9422838f6fA763354756a3Aba18f34015cB4bF74',
-  appchain: '0x8A4E9b5B445504727D7a9377eA329Bb38700F8FA',
   avalanche: '0x3a1014df0202477a1222999c72bD36395904e8AB',
   bob: '0x4FB145Da6407F4F485A209332a38A5327B61f83e',
   celo: '0x20D701Ac137BB131e735B403e0471b101423dDeC',

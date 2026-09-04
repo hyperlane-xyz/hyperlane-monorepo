@@ -106,18 +106,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  appchain: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x0531251bbadc1f9f19ccce3ca6b3f79f08eae1be',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
   arbitrum: {
     threshold: 3,
     validators: [
