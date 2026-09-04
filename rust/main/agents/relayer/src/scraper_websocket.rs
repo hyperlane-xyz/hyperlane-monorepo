@@ -1,25 +1,34 @@
 //! Shadow validation of relayer inputs streamed by scraper-proxy.
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::Duration,
 };
 
 use eyre::{bail, Context, ContextCompat, Result};
 use futures_util::{SinkExt, StreamExt};
 use hyperlane_base::{
-    db::HyperlaneRocksDB,
+    db::{DbResult, HyperlaneDb, HyperlaneRocksDB},
     scraper_websocket::{
         EventMessage, SequenceCursor, ServerMessage, StringOrNumber, SubscribeMessage,
         SubscribeStream, SubscribedCursor, SubscribedStream,
     },
     CoreMetrics,
 };
-use hyperlane_core::{bytes_to_address, bytes_to_h512, HyperlaneMessage, H256, H512};
+use hyperlane_core::{
+    bytes_to_address, bytes_to_h512, HyperlaneMessage, MerkleTreeInsertion, H256, H512,
+};
 use prometheus::{IntCounterVec, IntGaugeVec};
 use serde::Deserialize;
 use sha3::{Digest, Keccak256};
-use tokio::time::{sleep, timeout, Instant};
+use tokio::{
+    sync::{OwnedSemaphorePermit, Semaphore},
+    time::{sleep, timeout, Instant},
+};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{info, warn};
 use url::Url;
@@ -28,35 +37,124 @@ const DISPATCH_EVENT_TYPE: &str = "dispatch";
 const MERKLE_EVENT_TYPE: &str = "merkle_tree_insertion";
 const READ_TIMEOUT: Duration = Duration::from_secs(75);
 const RETRY_DELAY: Duration = Duration::from_secs(5);
+const PARITY_READ_CONCURRENCY: usize = 4;
+const PARITY_QUEUE_CAPACITY: usize = 256;
+#[cfg(not(test))]
+const PARITY_READ_TIMEOUT: Duration = Duration::from_secs(5);
+#[cfg(test)]
+const PARITY_READ_TIMEOUT: Duration = Duration::from_millis(250);
+#[cfg(not(test))]
+const PARITY_RETRY_DELAY: Duration = Duration::from_secs(1);
+#[cfg(test)]
+const PARITY_RETRY_DELAY: Duration = Duration::from_millis(10);
+const PARITY_RETRY_ATTEMPTS: usize = 60;
+const PARITY_WARN_INTERVAL: Duration = Duration::from_secs(60);
 const DUPLICATE_FINGERPRINT_WINDOW: usize = 1_024;
 const CROSS_STREAM_WINDOW: usize = 1_024;
 const DISPATCH_CURSOR_PREFIX: &[u8] = b"scraper_websocket_dispatch_cursor";
 const MERKLE_CURSOR_PREFIX: &[u8] = b"scraper_websocket_merkle_cursor";
 const CORRELATION_CURSOR_PREFIX: &[u8] = b"scraper_websocket_correlation_cursor";
+const PARITY_UNHEALTHY_PREFIX: &[u8] = b"scraper_websocket_parity_unhealthy";
 
-#[derive(Clone, Debug)]
+#[cfg_attr(test, mockall::automock)]
+trait ParityDatabase: Send + Sync {
+    fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>>;
+    fn retrieve_dispatched_block_number_by_nonce(&self, nonce: &u32) -> DbResult<Option<u64>>;
+    fn retrieve_dispatched_tx_hash_by_message_id(
+        &self,
+        message_id: &H256,
+    ) -> DbResult<Option<H512>>;
+    fn retrieve_merkle_tree_insertion_by_leaf_index(
+        &self,
+        leaf_index: &u32,
+    ) -> DbResult<Option<MerkleTreeInsertion>>;
+    fn retrieve_merkle_tree_insertion_block_number_by_leaf_index(
+        &self,
+        leaf_index: &u32,
+    ) -> DbResult<Option<u64>>;
+}
+
+impl ParityDatabase for HyperlaneRocksDB {
+    fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>> {
+        HyperlaneDb::retrieve_message_by_nonce(self, nonce)
+    }
+
+    fn retrieve_dispatched_block_number_by_nonce(&self, nonce: &u32) -> DbResult<Option<u64>> {
+        HyperlaneDb::retrieve_dispatched_block_number_by_nonce(self, nonce)
+    }
+
+    fn retrieve_dispatched_tx_hash_by_message_id(
+        &self,
+        message_id: &H256,
+    ) -> DbResult<Option<H512>> {
+        HyperlaneDb::retrieve_dispatched_tx_hash_by_message_id(self, message_id)
+    }
+
+    fn retrieve_merkle_tree_insertion_by_leaf_index(
+        &self,
+        leaf_index: &u32,
+    ) -> DbResult<Option<MerkleTreeInsertion>> {
+        HyperlaneDb::retrieve_merkle_tree_insertion_by_leaf_index(self, leaf_index)
+    }
+
+    fn retrieve_merkle_tree_insertion_block_number_by_leaf_index(
+        &self,
+        leaf_index: &u32,
+    ) -> DbResult<Option<u64>> {
+        HyperlaneDb::retrieve_merkle_tree_insertion_block_number_by_leaf_index(self, leaf_index)
+    }
+}
+
+#[derive(Clone)]
 pub(crate) struct ScraperSource {
     chain: String,
-    db: HyperlaneRocksDB,
+    cursor_db: HyperlaneRocksDB,
     domain: u32,
     mailbox: H256,
     merkle_tree_hook: H256,
+    database: Arc<dyn ParityDatabase>,
 }
 
 impl ScraperSource {
     pub(crate) fn new(
         chain: String,
-        db: HyperlaneRocksDB,
         domain: u32,
         mailbox: H256,
         merkle_tree_hook: H256,
+        database: HyperlaneRocksDB,
     ) -> Self {
         Self {
             chain,
-            db,
+            cursor_db: database.clone(),
             domain,
             mailbox,
             merkle_tree_hook,
+            database: Arc::new(database),
+        }
+    }
+
+    #[cfg(test)]
+    fn with_database(
+        chain: String,
+        domain: u32,
+        mailbox: H256,
+        merkle_tree_hook: H256,
+        database: Arc<dyn ParityDatabase>,
+    ) -> Self {
+        let tempdir = tempfile::tempdir().expect("temporary scraper cursor DB");
+        let db =
+            hyperlane_base::db::test_utils::setup_db(tempdir.path().to_string_lossy().into_owned());
+        std::mem::forget(tempdir);
+        Self {
+            chain,
+            cursor_db: HyperlaneRocksDB::new(
+                &hyperlane_core::HyperlaneDomain::new_test_domain("scraper-parity-cursor"),
+                db,
+            ),
+            domain,
+            mailbox,
+            merkle_tree_hook,
+            database,
         }
     }
 
@@ -68,7 +166,7 @@ impl ScraperSource {
     }
 
     fn cursor(&self, kind: EventKind) -> Result<Option<u32>> {
-        self.db
+        self.cursor_db
             .retrieve_value_by_key(kind.cursor_prefix(), &self.address(kind))
             .context("Reading durable scraper WebSocket cursor")
     }
@@ -81,7 +179,7 @@ impl ScraperSource {
     }
 
     fn correlation_cursor(&self) -> Result<Option<u32>> {
-        self.db
+        self.cursor_db
             .retrieve_value_by_key(CORRELATION_CURSOR_PREFIX, &self.correlation_cursor_key())
             .context("Reading durable scraper correlation cursor")
     }
@@ -93,7 +191,7 @@ impl ScraperSource {
         {
             return Ok(());
         }
-        self.db
+        self.cursor_db
             .store_value_by_key(
                 CORRELATION_CURSOR_PREFIX,
                 &self.correlation_cursor_key(),
@@ -106,9 +204,22 @@ impl ScraperSource {
         if self.cursor(kind)?.is_some_and(|stored| stored >= sequence) {
             return Ok(());
         }
-        self.db
+        self.cursor_db
             .store_value_by_key(kind.cursor_prefix(), &self.address(kind), &sequence)
             .context("Storing durable scraper WebSocket cursor")
+    }
+
+    fn parity_unhealthy(&self, kind: EventKind) -> Result<bool> {
+        Ok(self
+            .cursor_db
+            .retrieve_value_by_key(PARITY_UNHEALTHY_PREFIX, &self.address(kind))?
+            .unwrap_or(false))
+    }
+
+    fn store_parity_unhealthy(&self, kind: EventKind) -> Result<()> {
+        self.cursor_db
+            .store_value_by_key(PARITY_UNHEALTHY_PREFIX, &self.address(kind), &true)
+            .context("Storing durable scraper parity health")
     }
 }
 
@@ -228,6 +339,23 @@ impl CrossStreamPair {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ParityResult {
+    Match,
+    Missing,
+    Conflict,
+}
+
+impl ParityResult {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Match => "match",
+            Self::Missing => "missing",
+            Self::Conflict => "conflict",
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 struct CrossStreamState {
     entries: HashMap<u32, BTreeMap<u32, CrossStreamPair>>,
@@ -298,11 +426,153 @@ impl CrossStreamState {
     }
 }
 
+#[derive(Debug)]
+struct ValidatedEvent {
+    kind: EventKind,
+    parity: ParityInput,
+    sequence: u32,
+    sequence_result: SequenceResult,
+}
+
+#[derive(Debug, Default)]
+struct StagedParity {
+    events: HashMap<u32, VecDeque<ValidatedEvent>>,
+    len: usize,
+}
+
+impl StagedParity {
+    fn push(&mut self, domain: u32, event: ValidatedEvent) -> Result<()> {
+        if self.len >= PARITY_QUEUE_CAPACITY {
+            bail!("Fresh scraper parity staging exceeded {PARITY_QUEUE_CAPACITY} events");
+        }
+        self.events.entry(domain).or_default().push_back(event);
+        self.len = self
+            .len
+            .checked_add(1)
+            .context("Fresh scraper parity staging length overflowed")?;
+        Ok(())
+    }
+
+    fn drain_ready(
+        &mut self,
+        plan: &SequencedReplayPlan,
+        caught_up: &HashMap<(u32, EventKind), i64>,
+        state: &StreamState,
+        domain: u32,
+    ) -> Result<VecDeque<ValidatedEvent>> {
+        if !self.events.contains_key(&domain) {
+            return Ok(VecDeque::new());
+        }
+        let Some(frontier) = sequenced_persistence_frontier(plan, caught_up, state, domain)? else {
+            return Ok(VecDeque::new());
+        };
+        let events = self
+            .events
+            .remove(&domain)
+            .expect("checked staged parity domain exists");
+        let mut ready = VecDeque::new();
+        let mut retained = VecDeque::new();
+        for event in events {
+            if event.sequence <= frontier {
+                ready.push_back(event);
+            } else {
+                retained.push_back(event);
+            }
+        }
+        self.len = self
+            .len
+            .checked_sub(ready.len())
+            .context("Fresh scraper parity staging length underflowed")?;
+        if !retained.is_empty() {
+            self.events.insert(domain, retained);
+        }
+        Ok(ready)
+    }
+
+    fn drain_all(&mut self) -> impl Iterator<Item = (u32, ValidatedEvent)> + '_ {
+        self.len = 0;
+        self.events
+            .drain()
+            .flat_map(|(domain, events)| events.into_iter().map(move |event| (domain, event)))
+    }
+}
+
+#[derive(Clone, Debug)]
+enum ParityInput {
+    Dispatch {
+        block_number: u64,
+        message: HyperlaneMessage,
+        transaction_id: H512,
+    },
+    MerkleTreeInsertion {
+        block_number: u64,
+        insertion: MerkleTreeInsertion,
+    },
+}
+
+impl ParityInput {
+    fn compare(&self, database: &dyn ParityDatabase) -> Result<ParityResult> {
+        match self {
+            Self::Dispatch {
+                block_number,
+                message,
+                transaction_id,
+            } => {
+                let local_message = database
+                    .retrieve_message_by_nonce(message.nonce)
+                    .context("Reading RPC-indexed dispatch message")?;
+                let local_block_number = database
+                    .retrieve_dispatched_block_number_by_nonce(&message.nonce)
+                    .context("Reading RPC-indexed dispatch block number")?;
+                let local_transaction_id = database
+                    .retrieve_dispatched_tx_hash_by_message_id(&message.id())
+                    .context("Reading RPC-indexed dispatch transaction ID")?;
+                if local_message.as_ref().is_some_and(|local| local != message)
+                    || local_block_number.is_some_and(|local| local != *block_number)
+                    || local_transaction_id.is_some_and(|local| local != *transaction_id)
+                {
+                    return Ok(ParityResult::Conflict);
+                }
+                if local_message.is_none()
+                    || local_block_number.is_none()
+                    || local_transaction_id.is_none()
+                {
+                    return Ok(ParityResult::Missing);
+                }
+                Ok(ParityResult::Match)
+            }
+            Self::MerkleTreeInsertion {
+                block_number,
+                insertion,
+            } => {
+                let local_insertion = database
+                    .retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index())
+                    .context("Reading RPC-indexed Merkle tree insertion")?;
+                let local_block_number = database
+                    .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&insertion.index())
+                    .context("Reading RPC-indexed Merkle insertion block number")?;
+                if local_insertion
+                    .as_ref()
+                    .is_some_and(|local| local != insertion)
+                    || local_block_number.is_some_and(|local| local != *block_number)
+                {
+                    return Ok(ParityResult::Conflict);
+                }
+                if local_insertion.is_none() || local_block_number.is_none() {
+                    return Ok(ParityResult::Missing);
+                }
+                Ok(ParityResult::Match)
+            }
+        }
+    }
+}
+
 type EventFingerprint = H256;
 
 #[derive(Debug)]
 struct StreamCursor {
     fingerprints: BTreeMap<u32, EventFingerprint>,
+    first_sequence: Option<u32>,
     next_sequence: u32,
 }
 
@@ -310,6 +580,7 @@ impl StreamCursor {
     fn from_durable_sequence(sequence: u32) -> Self {
         Self {
             fingerprints: BTreeMap::new(),
+            first_sequence: None,
             next_sequence: sequence,
         }
     }
@@ -317,6 +588,7 @@ impl StreamCursor {
     fn from_after_sequence(sequence: u32) -> Result<Self> {
         Ok(Self {
             fingerprints: BTreeMap::new(),
+            first_sequence: None,
             next_sequence: sequence
                 .checked_add(1)
                 .context("Scraper event sequence exhausted")?,
@@ -328,6 +600,7 @@ impl StreamCursor {
         fingerprints.insert(sequence, fingerprint);
         Ok(Self {
             fingerprints,
+            first_sequence: Some(sequence),
             next_sequence: sequence
                 .checked_add(1)
                 .context("Scraper event sequence exhausted")?,
@@ -360,6 +633,7 @@ impl StreamCursor {
     }
 
     fn accept(&mut self, sequence: u32, fingerprint: EventFingerprint) -> Result<()> {
+        self.first_sequence.get_or_insert(sequence);
         self.next_sequence = self
             .next_sequence
             .checked_add(1)
@@ -449,6 +723,33 @@ impl StreamState {
         Ok(())
     }
 
+    fn validate_fresh_baseline(&self, domain: u32, kind: EventKind, sequence: i64) -> Result<()> {
+        if sequence < 0 {
+            return Ok(());
+        }
+        let Some(first) = self
+            .cursors
+            .get(&(domain, kind))
+            .and_then(|cursor| cursor.first_sequence)
+        else {
+            return Ok(());
+        };
+        let baseline: u32 = sequence
+            .try_into()
+            .context("Scraper caught-up sequence exceeds u32")?;
+        let expected = baseline
+            .checked_add(1)
+            .context("Scraper caught-up sequence exhausted")?;
+        if first != expected {
+            bail!(
+                "Fresh {} scraper stream started at sequence {first}, expected {expected} after caught-up baseline {baseline}",
+                kind.label()
+            );
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
     fn latest_sequence(&self, domain: u32, kind: EventKind) -> Result<u32> {
         self.cursors
             .get(&(domain, kind))
@@ -456,11 +757,16 @@ impl StreamState {
             .latest_sequence()
     }
 
+    #[cfg(test)]
+    fn has_cursor(&self, domain: u32, kind: EventKind) -> bool {
+        self.cursors.contains_key(&(domain, kind))
+    }
+
     fn validate(
         &mut self,
         event: EventMessage<serde_json::Value>,
         sources: &HashMap<u32, ScraperSource>,
-    ) -> Result<(EventKind, SequenceResult)> {
+    ) -> Result<ValidatedEvent> {
         let source = sources
             .get(&event.domain)
             .with_context(|| format!("Unexpected scraper event domain {}", event.domain))?;
@@ -471,7 +777,7 @@ impl StreamState {
             .parse::<u32>()
             .context("Invalid scraper event sequence")?;
 
-        let (kind, fingerprint, projection) = match event.event_type.as_str() {
+        let (kind, fingerprint, projection, parity) = match event.event_type.as_str() {
             DISPATCH_EVENT_TYPE => {
                 let data: DispatchEventData =
                     serde_json::from_value(event.data).context("Invalid dispatch event payload")?;
@@ -513,21 +819,27 @@ impl StreamState {
                 let row_id = data.id.as_u64("dispatch row ID")?;
                 let row_id_bytes = row_id.to_be_bytes();
                 let origin_block_height_bytes = origin_block_height.to_be_bytes();
+                let fingerprint = event_fingerprint(&[
+                    b"dispatch",
+                    &row_id_bytes,
+                    message_id.as_ref(),
+                    origin_block_hash.as_ref(),
+                    &origin_block_height_bytes,
+                    origin_mailbox.as_ref(),
+                    origin_tx_hash.as_ref(),
+                    data.time_created.as_bytes(),
+                ]);
                 (
                     EventKind::Dispatch,
-                    event_fingerprint(&[
-                        b"dispatch",
-                        &row_id_bytes,
-                        message_id.as_ref(),
-                        origin_block_hash.as_ref(),
-                        &origin_block_height_bytes,
-                        origin_mailbox.as_ref(),
-                        origin_tx_hash.as_ref(),
-                        data.time_created.as_bytes(),
-                    ]),
+                    fingerprint,
                     ProtocolProjection {
                         block_number: origin_block_height,
                         message_id,
+                    },
+                    ParityInput::Dispatch {
+                        block_number: origin_block_height,
+                        message,
+                        transaction_id: origin_tx_hash,
                     },
                 )
             }
@@ -560,6 +872,10 @@ impl StreamState {
                         block_number,
                         message_id,
                     },
+                    ParityInput::MerkleTreeInsertion {
+                        block_number,
+                        insertion: MerkleTreeInsertion::new(leaf_index, message_id),
+                    },
                 )
             }
             event_type => bail!("Unexpected scraper event type {event_type}"),
@@ -588,7 +904,12 @@ impl StreamState {
                 }
             }
         }
-        Ok((kind, result))
+        Ok(ValidatedEvent {
+            kind,
+            parity,
+            sequence,
+            sequence_result: result,
+        })
     }
 }
 
@@ -632,11 +953,83 @@ impl HandshakeState {
     }
 }
 
+struct ParityJob {
+    generation: u64,
+    input: ParityInput,
+    queue_permit: OwnedSemaphorePermit,
+    sequence: u32,
+}
+
+#[derive(Default)]
+struct ParityQueue {
+    jobs: VecDeque<ParityJob>,
+    worker_running: bool,
+}
+
+#[derive(Debug, Default)]
+struct CorrelationGateSource {
+    cross_next: Option<u32>,
+    dispatch_match: Option<u32>,
+    durable_next: Option<u32>,
+    failed: bool,
+    merkle_match: Option<u32>,
+}
+
+impl CorrelationGateSource {
+    fn anchored(next: Option<u32>) -> Self {
+        Self {
+            cross_next: next,
+            dispatch_match: None,
+            durable_next: next,
+            failed: false,
+            merkle_match: None,
+        }
+    }
+
+    fn matched_mut(&mut self, kind: EventKind) -> &mut Option<u32> {
+        match kind {
+            EventKind::Dispatch => &mut self.dispatch_match,
+            EventKind::MerkleTreeInsertion => &mut self.merkle_match,
+        }
+    }
+
+    fn candidate(&self) -> Result<Option<u32>> {
+        let (Some(cross_next), Some(dispatch_match), Some(merkle_match)) =
+            (self.cross_next, self.dispatch_match, self.merkle_match)
+        else {
+            return Ok(None);
+        };
+        let dispatch_next = dispatch_match
+            .checked_add(1)
+            .context("Dispatch parity frontier exhausted")?;
+        let merkle_next = merkle_match
+            .checked_add(1)
+            .context("Merkle parity frontier exhausted")?;
+        Ok(Some(cross_next.min(dispatch_next).min(merkle_next)))
+    }
+}
+
+#[derive(Debug, Default)]
+struct CorrelationGate {
+    generation: u64,
+    sources: HashMap<u32, CorrelationGateSource>,
+}
+
 /// One process-wide, read-only scraper stream monitor.
 pub(crate) struct ScraperWebSocketMonitor {
     active: IntGaugeVec,
     caught_up: IntGaugeVec,
+    correlation_gate: parking_lot::Mutex<CorrelationGate>,
     events: IntCounterVec,
+    parity: IntCounterVec,
+    parity_pending: IntGaugeVec,
+    parity_queue_permit: Arc<Semaphore>,
+    parity_queues: HashMap<(u32, EventKind), Arc<parking_lot::Mutex<ParityQueue>>>,
+    parity_ready: IntGaugeVec,
+    parity_read_disabled: AtomicBool,
+    parity_read_permit: Arc<Semaphore>,
+    parity_unhealthy: Arc<parking_lot::Mutex<std::collections::HashSet<(u32, EventKind)>>>,
+    parity_warned_at: Arc<parking_lot::Mutex<Option<Instant>>>,
     sources: HashMap<u32, ScraperSource>,
     url: Url,
 }
@@ -662,32 +1055,74 @@ impl ScraperWebSocketMonitor {
             "Whether scraper-proxy replay reached the durable cursor",
             &["chain", "event_type"],
         )?;
+        let parity = metrics.new_int_counter(
+            "relayer_scraper_websocket_parity",
+            "Read-only parity outcomes for scraper-proxy events against RPC-indexed local DB records",
+            &["chain", "event_type", "result"],
+        )?;
+        let parity_pending = metrics.new_int_gauge(
+            "relayer_scraper_websocket_parity_pending",
+            "Scraper events awaiting a terminal local DB parity result",
+            &["chain", "event_type"],
+        )?;
+        let parity_ready = metrics.new_int_gauge(
+            "relayer_scraper_websocket_parity_ready",
+            "Whether every observed scraper event has terminal matching local DB parity",
+            &["chain", "event_type"],
+        )?;
         let sources = sources
             .into_iter()
             .map(|source| (source.domain, source))
             .collect::<HashMap<_, _>>();
+        let mut parity_unhealthy = HashSet::new();
+        let mut parity_queues = HashMap::new();
         for source in sources.values() {
             active.with_label_values(&[source.chain.as_str()]).set(0);
             for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
                 caught_up
                     .with_label_values(&[source.chain.as_str(), kind.label()])
                     .set(0);
+                parity_pending
+                    .with_label_values(&[source.chain.as_str(), kind.label()])
+                    .set(0);
+                parity_ready
+                    .with_label_values(&[source.chain.as_str(), kind.label()])
+                    .set(0);
+                parity_queues.insert(
+                    (source.domain, kind),
+                    Arc::new(parking_lot::Mutex::new(ParityQueue::default())),
+                );
+                if source.parity_unhealthy(kind)? {
+                    parity_unhealthy.insert((source.domain, kind));
+                }
             }
         }
         Ok(Self {
             active,
             caught_up,
+            correlation_gate: parking_lot::Mutex::new(CorrelationGate::default()),
             events,
+            parity,
+            parity_pending,
+            parity_queue_permit: Arc::new(Semaphore::new(PARITY_QUEUE_CAPACITY)),
+            parity_queues,
+            parity_ready,
+            parity_read_disabled: AtomicBool::new(false),
+            parity_read_permit: Arc::new(Semaphore::new(PARITY_READ_CONCURRENCY)),
+            parity_unhealthy: Arc::new(parking_lot::Mutex::new(parity_unhealthy)),
+            parity_warned_at: Arc::new(parking_lot::Mutex::new(None)),
             sources,
             url,
         })
     }
 
     pub(crate) async fn run(self) {
+        let monitor = Arc::new(self);
+        let mut generation = 0_u64;
         let mut state = StreamState::default();
         loop {
             let plan = loop {
-                match SequencedReplayPlan::load(&self.sources) {
+                match SequencedReplayPlan::load(&monitor.sources) {
                     Ok(plan) => break plan,
                     Err(err) => {
                         warn!(
@@ -698,23 +1133,523 @@ impl ScraperWebSocketMonitor {
                     }
                 }
             };
+            let Some(next_generation) = generation.checked_add(1) else {
+                warn!("Scraper WebSocket connection generation exhausted; stopping monitor");
+                return;
+            };
+            generation = next_generation;
             state.reset_sequenced(&plan);
-            self.set_active(false);
-            self.set_caught_up(false);
-            match self.stream(&mut state, &plan).await {
+            monitor.reset_correlation_gate(generation, &plan);
+            monitor.set_active(false);
+            monitor.set_caught_up(false);
+            match monitor.stream(&mut state, &plan, generation).await {
                 Ok(()) => warn!("Relayer scraper-proxy shadow stream closed; reconnecting"),
                 Err(err) => warn!(
                     ?err,
                     "Relayer scraper-proxy shadow stream failed; reconnecting"
                 ),
             }
-            self.set_active(false);
-            self.set_caught_up(false);
+            monitor.set_active(false);
+            monitor.set_caught_up(false);
             sleep(RETRY_DELAY).await;
         }
     }
 
-    async fn stream(&self, state: &mut StreamState, plan: &SequencedReplayPlan) -> Result<()> {
+    fn reset_correlation_gate(&self, generation: u64, plan: &SequencedReplayPlan) {
+        let sources = plan
+            .sources
+            .iter()
+            .map(|(domain, source)| {
+                (
+                    *domain,
+                    CorrelationGateSource::anchored(source.correlation_next),
+                )
+            })
+            .collect();
+        *self.correlation_gate.lock() = CorrelationGate {
+            generation,
+            sources,
+        };
+    }
+
+    fn anchor_correlation_gate(&self, generation: u64, domain: u32, sequence: u32) {
+        let mut gate = self.correlation_gate.lock();
+        if gate.generation != generation {
+            return;
+        }
+        gate.sources
+            .entry(domain)
+            .and_modify(|source| {
+                if source.durable_next.is_none() {
+                    *source = CorrelationGateSource::anchored(Some(sequence));
+                }
+            })
+            .or_insert_with(|| CorrelationGateSource::anchored(Some(sequence)));
+    }
+
+    fn note_cross_stream_next(&self, generation: u64, domain: u32, next: u32) {
+        let mut gate = self.correlation_gate.lock();
+        if gate.generation != generation {
+            return;
+        }
+        if let Some(source) = gate.sources.get_mut(&domain) {
+            source.cross_next = Some(source.cross_next.map_or(next, |current| current.max(next)));
+        }
+    }
+
+    fn finish_parity_correlation(
+        &self,
+        generation: u64,
+        domain: u32,
+        kind: EventKind,
+        sequence: u32,
+        terminal: &'static str,
+    ) -> Result<()> {
+        let source = self
+            .sources
+            .get(&domain)
+            .context("Validated scraper source is missing")?;
+        let mut gate = self.correlation_gate.lock();
+        if generation == 0 {
+            return Ok(());
+        }
+        if gate.generation != generation {
+            return Ok(());
+        }
+        let state = gate
+            .sources
+            .get_mut(&domain)
+            .context("Correlation gate omitted configured source")?;
+        if state.failed {
+            return Ok(());
+        }
+        if terminal != ParityResult::Match.label() {
+            state.failed = true;
+            return Ok(());
+        }
+
+        let durable_next = state
+            .durable_next
+            .context("Correlation parity frontier is not anchored")?;
+        let matched = state.matched_mut(kind);
+        let expected = match *matched {
+            Some(latest) => latest
+                .checked_add(1)
+                .context("Scraper parity frontier exhausted")?,
+            None => durable_next,
+        };
+        if sequence < expected {
+            return Ok(());
+        }
+        if sequence > expected {
+            state.failed = true;
+            bail!("Scraper parity frontier gap: expected sequence {expected}, received {sequence}");
+        }
+        *matched = Some(sequence);
+
+        let Some(candidate) = state.candidate()? else {
+            return Ok(());
+        };
+        if state
+            .durable_next
+            .is_some_and(|durable| durable >= candidate)
+        {
+            return Ok(());
+        }
+        if let Err(err) = source.store_correlation_cursor(candidate) {
+            state.failed = true;
+            return Err(err);
+        }
+        state.durable_next = Some(candidate);
+        Ok(())
+    }
+
+    #[cfg(test)]
+    async fn observe_parity(
+        &self,
+        domain: u32,
+        kind: EventKind,
+        parity_input: ParityInput,
+    ) -> &'static str {
+        self.note_parity_pending(domain, kind);
+        self.observe_parity_inner(domain, kind, parity_input).await
+    }
+
+    fn note_parity_pending(&self, domain: u32, kind: EventKind) {
+        let source = self
+            .sources
+            .get(&domain)
+            .expect("validated scraper event source must exist");
+        let labels = [source.chain.as_str(), kind.label()];
+        self.parity_ready.with_label_values(&labels).set(0);
+        self.parity_pending.with_label_values(&labels).inc();
+    }
+
+    fn cancel_parity_pending(&self, domain: u32, kind: EventKind) {
+        let source = self
+            .sources
+            .get(&domain)
+            .expect("validated scraper event source must exist");
+        self.parity_pending
+            .with_label_values(&[source.chain.as_str(), kind.label()])
+            .dec();
+    }
+
+    fn stage_parity(
+        &self,
+        staged: &mut StagedParity,
+        domain: u32,
+        validated: ValidatedEvent,
+    ) -> Result<()> {
+        let kind = validated.kind;
+        staged.push(domain, validated)?;
+        self.note_parity_pending(domain, kind);
+        Ok(())
+    }
+
+    async fn observe_parity_inner(
+        &self,
+        domain: u32,
+        kind: EventKind,
+        parity_input: ParityInput,
+    ) -> &'static str {
+        let source = self
+            .sources
+            .get(&domain)
+            .expect("validated scraper event source must exist");
+        let chain = source.chain.clone();
+        let event_type = kind.label();
+        let labels = [chain.as_str(), event_type];
+        self.parity_ready.with_label_values(&labels).set(0);
+        let database = source.database.clone();
+        let mut terminal = None;
+        for attempt in 1..=PARITY_RETRY_ATTEMPTS {
+            if self.parity_read_disabled.load(Ordering::Acquire) {
+                terminal = Some("error");
+                break;
+            }
+            let database = database.clone();
+            let parity_input = parity_input.clone();
+            let permit = match timeout(
+                PARITY_READ_TIMEOUT,
+                self.parity_read_permit.clone().acquire_owned(),
+            )
+            .await
+            {
+                Ok(Ok(permit)) => permit,
+                Ok(Err(_)) => unreachable!("parity semaphore is never closed"),
+                Err(_) => {
+                    self.disable_parity_reads(&chain, event_type, "read capacity timed out");
+                    terminal = Some("error");
+                    break;
+                }
+            };
+            if self.parity_read_disabled.load(Ordering::Acquire) {
+                drop(permit);
+                terminal = Some("error");
+                break;
+            }
+            let mut comparison = tokio::task::spawn_blocking(move || {
+                let _permit = permit;
+                parity_input.compare(database.as_ref())
+            });
+            match timeout(PARITY_READ_TIMEOUT, &mut comparison).await {
+                Err(_) => {
+                    self.disable_parity_reads(&chain, event_type, "blocking read timed out");
+                    terminal = Some("error");
+                    break;
+                }
+                Ok(Ok(Ok(ParityResult::Missing))) if attempt < PARITY_RETRY_ATTEMPTS => {
+                    sleep(PARITY_RETRY_DELAY).await;
+                }
+                Ok(Ok(Ok(ParityResult::Missing))) => {
+                    terminal = Some("expired");
+                    break;
+                }
+                Ok(Ok(Ok(result))) => {
+                    terminal = Some(result.label());
+                    break;
+                }
+                Ok(Ok(Err(err))) => {
+                    if should_warn(&self.parity_warned_at) {
+                        warn!(%chain, event_type, ?err, "Local DB parity comparison failed");
+                    }
+                    terminal = Some("error");
+                    break;
+                }
+                Ok(Err(err)) => {
+                    if should_warn(&self.parity_warned_at) {
+                        warn!(%chain, event_type, ?err, "Local DB parity task failed");
+                    }
+                    terminal = Some("error");
+                    break;
+                }
+            }
+        }
+        let terminal = terminal.expect("parity retry loop always produces a terminal result");
+        self.parity
+            .with_label_values(&[chain.as_str(), event_type, terminal])
+            .inc();
+        if terminal != ParityResult::Match.label() {
+            self.parity_unhealthy.lock().insert((domain, kind));
+            if should_warn(&self.parity_warned_at) {
+                warn!(%chain, event_type, result = terminal, "Scraper event did not reach matching local DB parity");
+            }
+        }
+        let pending = self.parity_pending.with_label_values(&labels);
+        pending.dec();
+        if pending.get() == 0 && !self.parity_unhealthy.lock().contains(&(domain, kind)) {
+            self.parity_ready.with_label_values(&labels).set(1);
+        }
+        terminal
+    }
+
+    fn disable_parity_reads(&self, chain: &str, event_type: &str, reason: &str) {
+        if !self.parity_read_disabled.swap(true, Ordering::AcqRel) {
+            warn!(
+                chain,
+                event_type, reason, "Disabling local DB parity reads until process restart"
+            );
+            for source in self.sources.values() {
+                for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+                    self.parity_ready
+                        .with_label_values(&[source.chain.as_str(), kind.label()])
+                        .set(0);
+                    self.parity_unhealthy.lock().insert((source.domain, kind));
+                }
+            }
+        }
+    }
+
+    async fn enqueue_accounted_parity(
+        self: &Arc<Self>,
+        domain: u32,
+        kind: EventKind,
+        parity_input: ParityInput,
+        sequence: u32,
+    ) -> bool {
+        let generation = self.correlation_gate.lock().generation;
+        if self.parity_read_disabled.load(Ordering::Acquire) {
+            return false;
+        }
+        let queue_permit = self
+            .parity_queue_permit
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("parity queue semaphore is never closed");
+        if self.parity_read_disabled.load(Ordering::Acquire) {
+            return false;
+        }
+        let queue = self
+            .parity_queues
+            .get(&(domain, kind))
+            .expect("validated scraper stream has a parity queue")
+            .clone();
+        let start_worker = {
+            let mut queue = queue.lock();
+            queue.jobs.push_back(ParityJob {
+                generation,
+                input: parity_input,
+                queue_permit,
+                sequence,
+            });
+            if queue.worker_running {
+                false
+            } else {
+                queue.worker_running = true;
+                true
+            }
+        };
+        if start_worker {
+            let monitor = self.clone();
+            tokio::spawn(async move {
+                monitor.drain_parity_queue(domain, kind, queue).await;
+            });
+        }
+        true
+    }
+
+    #[cfg(test)]
+    async fn enqueue_parity(
+        self: &Arc<Self>,
+        domain: u32,
+        kind: EventKind,
+        parity_input: ParityInput,
+        sequence: u32,
+    ) -> bool {
+        self.note_parity_pending(domain, kind);
+        let enqueued = self
+            .enqueue_accounted_parity(domain, kind, parity_input, sequence)
+            .await;
+        if !enqueued {
+            self.cancel_parity_pending(domain, kind);
+        }
+        enqueued
+    }
+
+    async fn admit_parity(
+        self: &Arc<Self>,
+        state: &mut StreamState,
+        generation: u64,
+        domain: u32,
+        validated: ValidatedEvent,
+    ) -> Result<()> {
+        if let Some(sequence) = state.initialize_correlation(domain, validated.sequence) {
+            let source = self
+                .sources
+                .get(&domain)
+                .context("Validated scraper source is missing")?;
+            source.store_correlation_cursor(sequence)?;
+            self.anchor_correlation_gate(generation, domain, sequence);
+        }
+        if let Some(next) = state.advance_correlation(domain)? {
+            self.note_cross_stream_next(generation, domain, next);
+        }
+        if !self
+            .enqueue_accounted_parity(domain, validated.kind, validated.parity, validated.sequence)
+            .await
+        {
+            self.cancel_parity_pending(domain, validated.kind);
+        }
+        Ok(())
+    }
+
+    async fn flush_staged_parity(
+        self: &Arc<Self>,
+        state: &mut StreamState,
+        plan: &SequencedReplayPlan,
+        caught_up: &HashMap<(u32, EventKind), i64>,
+        generation: u64,
+        domain: u32,
+        staged: &mut StagedParity,
+    ) -> Result<()> {
+        let mut ready = staged.drain_ready(plan, caught_up, state, domain)?;
+        while let Some(validated) = ready.pop_front() {
+            let kind = validated.kind;
+            if let Err(err) = self
+                .admit_parity(state, generation, domain, validated)
+                .await
+            {
+                self.cancel_parity_pending(domain, kind);
+                for pending in ready {
+                    self.cancel_parity_pending(domain, pending.kind);
+                }
+                return Err(err);
+            }
+        }
+        Ok(())
+    }
+
+    fn abandon_staged_parity(&self, staged: &mut StagedParity) {
+        for (domain, event) in staged.drain_all() {
+            self.cancel_parity_pending(domain, event.kind);
+        }
+    }
+
+    async fn drain_parity_queue(
+        self: Arc<Self>,
+        domain: u32,
+        kind: EventKind,
+        queue: Arc<parking_lot::Mutex<ParityQueue>>,
+    ) {
+        loop {
+            let job = {
+                let mut queue = queue.lock();
+                match queue.jobs.pop_front() {
+                    Some(job) => job,
+                    None => {
+                        queue.worker_running = false;
+                        return;
+                    }
+                }
+            };
+            let terminal = self.observe_parity_inner(domain, kind, job.input).await;
+            let source = self
+                .sources
+                .get(&domain)
+                .expect("validated scraper event source exists");
+            if terminal != ParityResult::Match.label() {
+                if let Err(err) = source.store_parity_unhealthy(kind) {
+                    warn!(%domain, event_type = kind.label(), ?err, "Persisting scraper parity failure failed; disabling parity work");
+                    self.disable_parity_reads(
+                        source.chain.as_str(),
+                        kind.label(),
+                        "durable parity failure state could not be persisted",
+                    );
+                    self.abandon_parity_queue(domain, kind, &queue);
+                    return;
+                }
+            }
+            if let Err(err) = source.store_cursor(kind, job.sequence) {
+                warn!(%domain, event_type = kind.label(), ?err, "Persisting scraper parity cursor failed; disabling parity work");
+                self.disable_parity_reads(
+                    source.chain.as_str(),
+                    kind.label(),
+                    "durable parity cursor could not be persisted",
+                );
+                self.abandon_parity_queue(domain, kind, &queue);
+                return;
+            }
+            if let Err(err) =
+                self.finish_parity_correlation(job.generation, domain, kind, job.sequence, terminal)
+            {
+                warn!(%domain, event_type = kind.label(), ?err, "Persisting scraper correlation cursor failed; disabling parity work");
+                self.disable_parity_reads(
+                    source.chain.as_str(),
+                    kind.label(),
+                    "durable correlation cursor could not be persisted",
+                );
+                self.abandon_parity_queue(domain, kind, &queue);
+                return;
+            }
+            drop(job.queue_permit);
+        }
+    }
+
+    fn abandon_parity_queue(
+        &self,
+        domain: u32,
+        kind: EventKind,
+        queue: &parking_lot::Mutex<ParityQueue>,
+    ) {
+        let dropped = {
+            let mut queue = queue.lock();
+            let dropped = queue.jobs.len();
+            queue.jobs.clear();
+            queue.worker_running = false;
+            dropped
+        };
+        let source = self
+            .sources
+            .get(&domain)
+            .expect("validated scraper event source exists");
+        self.parity_pending
+            .with_label_values(&[source.chain.as_str(), kind.label()])
+            .sub(dropped as i64);
+    }
+
+    async fn stream(
+        self: &Arc<Self>,
+        state: &mut StreamState,
+        plan: &SequencedReplayPlan,
+        generation: u64,
+    ) -> Result<()> {
+        let mut staged_parity = StagedParity::default();
+        let result = self
+            .stream_inner(state, plan, generation, &mut staged_parity)
+            .await;
+        self.abandon_staged_parity(&mut staged_parity);
+        result
+    }
+
+    async fn stream_inner(
+        self: &Arc<Self>,
+        state: &mut StreamState,
+        plan: &SequencedReplayPlan,
+        generation: u64,
+        staged_parity: &mut StagedParity,
+    ) -> Result<()> {
         let (mut socket, _) = timeout(READ_TIMEOUT, connect_async(self.url.as_str()))
             .await
             .context("Connecting to relayer scraper-proxy WebSocket timed out")?
@@ -754,40 +1689,22 @@ impl ScraperWebSocketMonitor {
                             let domain = event.domain;
                             let event_type = event_label(&event.event_type);
                             match state.validate(event, &self.sources) {
-                                Ok((kind, sequence_result)) => {
-                                    let sequence = state.latest_sequence(domain, kind)?;
-                                    let source = self
-                                        .sources
-                                        .get(&domain)
-                                        .expect("validated scraper source exists");
-                                    if sequenced_persistence_ready(
-                                        plan, &caught_up, state, domain, sequence,
-                                    )? {
-                                        if caught_up_baselines(&caught_up, domain) == Some((-1, -1))
-                                            && !state.correlation_next.contains_key(&domain)
-                                        {
-                                            for (kind, sequence) in
-                                                sequenced_cursor_write_order(state, domain)?
-                                            {
-                                                source.store_cursor(kind, sequence)?;
-                                            }
-                                        }
-                                        if let Some(sequence) =
-                                            state.initialize_correlation(domain, sequence)
-                                        {
-                                            source.store_correlation_cursor(sequence)?;
-                                        }
-                                        let correlation_next = state.advance_correlation(domain)?;
-                                        source.store_cursor(kind, sequence)?;
-                                        if let Some(sequence) = correlation_next {
-                                            source.store_correlation_cursor(sequence)?;
-                                        }
-                                    }
-                                    let result = match sequence_result {
+                                Ok(validated) => {
+                                    let result = match validated.sequence_result {
                                         SequenceResult::Accepted => "accepted",
                                         SequenceResult::Duplicate => "duplicate",
                                     };
-                                    self.record(domain, kind.label(), result);
+                                    self.record(domain, validated.kind.label(), result);
+                                    self.stage_parity(staged_parity, domain, validated)?;
+                                    self.flush_staged_parity(
+                                        state,
+                                        plan,
+                                        &caught_up,
+                                        generation,
+                                        domain,
+                                        staged_parity,
+                                    )
+                                    .await?;
                                     self.update_source_caught_up(state, plan, &caught_up, domain)?;
                                 }
                                 Err(err) => {
@@ -824,24 +1741,47 @@ impl ScraperWebSocketMonitor {
                                 bail!("Invalid negative scraper caught-up sequence {sequence}");
                             }
                             validate_caught_up_floor(plan, domain, sequence)?;
+                            if !plan.correlation_required(domain)? {
+                                state.validate_fresh_baseline(domain, kind, sequence)?;
+                            }
                             state.set_baseline(domain, kind, sequence)?;
                             if caught_up.insert((domain, kind), sequence).is_some() {
                                 bail!("Received duplicate scraper caught-up marker");
                             }
-                            if plan.correlation_required(domain)? {
-                                if sequence >= 0 {
-                                    let durable: u32 = sequence
-                                        .try_into()
-                                        .context("Scraper caught-up sequence exceeds u32")?;
-                                    source.store_cursor(kind, durable)?;
-                                }
-                            } else if let Some(baselines) =
-                                fresh_baseline_write_order(&caught_up, domain)?
+                            if !plan.correlation_required(domain)?
+                                && !state.correlation_next.contains_key(&domain)
                             {
-                                for (kind, sequence) in baselines {
-                                    source.store_cursor(kind, sequence)?;
+                                let parity_pending =
+                                    [EventKind::Dispatch, EventKind::MerkleTreeInsertion]
+                                        .into_iter()
+                                        .map(|kind| {
+                                            self.parity_pending
+                                                .with_label_values(&[
+                                                    source.chain.as_str(),
+                                                    kind.label(),
+                                                ])
+                                                .get()
+                                        })
+                                        .sum::<i64>();
+                                if parity_pending == 0 {
+                                    if let Some(baselines) =
+                                        fresh_baseline_write_order(&caught_up, domain)?
+                                    {
+                                        for (kind, sequence) in baselines {
+                                            source.store_cursor(kind, sequence)?;
+                                        }
+                                    }
                                 }
                             }
+                            self.flush_staged_parity(
+                                state,
+                                plan,
+                                &caught_up,
+                                generation,
+                                domain,
+                                staged_parity,
+                            )
+                            .await?;
                             self.update_source_caught_up(state, plan, &caught_up, domain)?;
                         }
                         ServerMessage::Error { error } => {
@@ -920,6 +1860,50 @@ impl ScraperWebSocketMonitor {
             .with_label_values(&[chain, event_type, result])
             .inc();
     }
+}
+
+fn should_warn(warned_at: &parking_lot::Mutex<Option<Instant>>) -> bool {
+    let now = Instant::now();
+    let mut warned_at = warned_at.lock();
+    if warned_at
+        .as_ref()
+        .is_some_and(|previous| now.duration_since(*previous) < PARITY_WARN_INTERVAL)
+    {
+        return false;
+    }
+    *warned_at = Some(now);
+    true
+}
+
+#[cfg(test)]
+fn fresh_baseline_allowed(
+    correlation_required: bool,
+    replay_seen: bool,
+    parity_pending: i64,
+) -> bool {
+    !correlation_required && !replay_seen && parity_pending == 0
+}
+
+#[cfg(test)]
+fn store_fresh_caught_up_baseline(
+    source: &ScraperSource,
+    kind: EventKind,
+    sequence: i64,
+    replay_floor: Option<u32>,
+    correlation_required: bool,
+    replay_seen: bool,
+    parity_pending: i64,
+) -> Result<()> {
+    if replay_floor.is_none()
+        && sequence >= 0
+        && fresh_baseline_allowed(correlation_required, replay_seen, parity_pending)
+    {
+        let durable: u32 = sequence
+            .try_into()
+            .context("Scraper caught-up sequence exceeds u32")?;
+        source.store_cursor(kind, durable)?;
+    }
+    Ok(())
 }
 
 fn subscription(
@@ -1018,9 +2002,7 @@ fn validate_fresh_empty_stream_starts(state: &StreamState, domain: u32) -> Resul
             continue;
         };
         let first = cursor
-            .fingerprints
-            .first_key_value()
-            .map(|(sequence, _)| *sequence)
+            .first_sequence
             .context("Fresh scraper stream cursor omitted its first fingerprint")?;
         if first != 0 {
             bail!(
@@ -1032,6 +2014,38 @@ fn validate_fresh_empty_stream_starts(state: &StreamState, domain: u32) -> Resul
     Ok(())
 }
 
+fn sequenced_persistence_frontier(
+    plan: &SequencedReplayPlan,
+    caught_up: &HashMap<(u32, EventKind), i64>,
+    state: &StreamState,
+    domain: u32,
+) -> Result<Option<u32>> {
+    if plan.correlation_required(domain)? {
+        return Ok(Some(u32::MAX));
+    }
+    let Some((dispatch, merkle)) = caught_up_baselines(caught_up, domain) else {
+        return Ok(None);
+    };
+    if dispatch != merkle {
+        return Ok(None);
+    }
+    if dispatch >= 0 {
+        return Ok(Some(u32::MAX));
+    }
+    validate_fresh_empty_stream_starts(state, domain)?;
+    let mut sequence = state.correlation_next.get(&domain).copied().unwrap_or(0);
+    let mut frontier = None;
+    while state.cross_stream.complete(domain, sequence) {
+        frontier = Some(sequence);
+        let Some(next) = sequence.checked_add(1) else {
+            break;
+        };
+        sequence = next;
+    }
+    Ok(frontier)
+}
+
+#[cfg(test)]
 fn sequenced_persistence_ready(
     plan: &SequencedReplayPlan,
     caught_up: &HashMap<(u32, EventKind), i64>,
@@ -1039,23 +2053,10 @@ fn sequenced_persistence_ready(
     domain: u32,
     sequence: u32,
 ) -> Result<bool> {
-    if plan.correlation_required(domain)? {
-        return Ok(true);
-    }
-    let Some((dispatch, merkle)) = caught_up_baselines(caught_up, domain) else {
-        return Ok(false);
-    };
-    if dispatch != merkle {
-        return Ok(false);
-    }
-    if dispatch >= 0 {
-        return Ok(true);
-    }
-    if state.correlation_next.contains_key(&domain) {
-        return Ok(true);
-    }
-    validate_fresh_empty_stream_starts(state, domain)?;
-    Ok(state.cross_stream.complete(domain, sequence))
+    Ok(
+        sequenced_persistence_frontier(plan, caught_up, state, domain)?
+            .is_some_and(|frontier| sequence <= frontier),
+    )
 }
 
 fn cursor_write_order(dispatch: u32, merkle: u32) -> [(EventKind, u32); 2] {
@@ -1072,6 +2073,7 @@ fn cursor_write_order(dispatch: u32, merkle: u32) -> [(EventKind, u32); 2] {
     }
 }
 
+#[cfg(test)]
 fn sequenced_cursor_write_order(state: &StreamState, domain: u32) -> Result<[(EventKind, u32); 2]> {
     Ok(cursor_write_order(
         state.latest_sequence(domain, EventKind::Dispatch)?,
@@ -1256,8 +2258,37 @@ fn event_label(event_type: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hyperlane_base::db::test_utils;
+    use hyperlane_base::db::{test_utils, DB};
     use hyperlane_core::HyperlaneDomain;
+    use prometheus::Registry;
+
+    struct Fixture {
+        _temp_dir: tempfile::TempDir,
+        database: HyperlaneRocksDB,
+        sources: HashMap<u32, ScraperSource>,
+    }
+
+    fn source(database: HyperlaneRocksDB) -> ScraperSource {
+        ScraperSource::new(
+            "test".to_owned(),
+            5,
+            H256::from_low_u64_be(1),
+            H256::from_low_u64_be(2),
+            database,
+        )
+    }
+
+    fn fixture() -> Fixture {
+        let temp_dir = tempfile::tempdir().expect("temp DB directory");
+        let db = DB::from_path(temp_dir.path()).expect("open temp DB");
+        let database =
+            HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("scraper-parity"), db);
+        Fixture {
+            _temp_dir: temp_dir,
+            database: database.clone(),
+            sources: HashMap::from([(5, source(database))]),
+        }
+    }
 
     fn sources() -> HashMap<u32, ScraperSource> {
         sources_for(&[5])
@@ -1278,14 +2309,31 @@ mod tests {
                     domain,
                     ScraperSource::new(
                         chain,
-                        db,
                         domain,
                         H256::from_low_u64_be(1),
                         H256::from_low_u64_be(2),
+                        db,
                     ),
                 )
             })
             .collect()
+    }
+
+    fn monitor(database: std::sync::Arc<dyn ParityDatabase>) -> ScraperWebSocketMonitor {
+        let metrics = CoreMetrics::new("scraper-parity-test", 9090, Registry::new())
+            .expect("create test metrics");
+        ScraperWebSocketMonitor::new(
+            Url::parse("ws://localhost:1").expect("test URL"),
+            vec![ScraperSource::with_database(
+                "test".to_owned(),
+                5,
+                H256::from_low_u64_be(1),
+                H256::from_low_u64_be(2),
+                database,
+            )],
+            &metrics,
+        )
+        .expect("create test monitor")
     }
 
     fn event(
@@ -1330,6 +2378,30 @@ mod tests {
             "sender": format!("{:#x}", message.sender),
             "time_created": "2026-08-30T00:00:00.000Z",
         })
+    }
+
+    fn dispatch_transaction_id() -> H512 {
+        bytes_to_h512(&[6_u8; 32])
+    }
+
+    fn store_dispatch(database: &HyperlaneRocksDB, message: &HyperlaneMessage) {
+        let message_id = message.id();
+        database
+            .store_message_id_by_nonce(&message.nonce, &message_id)
+            .expect("store message ID");
+        database
+            .store_message_by_id(&message_id, message)
+            .expect("store message");
+        database
+            .store_dispatched_block_number_by_nonce(&message.nonce, &100)
+            .expect("store dispatch block");
+        database
+            .store_dispatched_tx_hash_by_message_id(&message_id, &dispatch_transaction_id())
+            .expect("store dispatch transaction");
+    }
+
+    fn sequence(validated: ValidatedEvent) -> (EventKind, SequenceResult) {
+        (validated.kind, validated.sequence_result)
     }
 
     fn merkle_data(index: u32, hook: H256) -> serde_json::Value {
@@ -1395,34 +2467,41 @@ mod tests {
 
     #[test]
     fn preserves_sequence_across_reconnects() {
-        let sources = sources();
+        let fixture = fixture();
+        let sources = &fixture.sources;
         let mut contiguous = StreamState::default();
 
         assert_eq!(
-            contiguous
-                .validate(
-                    event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"seven")),
-                    &sources,
-                )
-                .expect("first event"),
+            sequence(
+                contiguous
+                    .validate(
+                        event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"seven")),
+                        sources,
+                    )
+                    .expect("first event"),
+            ),
             (EventKind::Dispatch, SequenceResult::Accepted)
         );
         assert_eq!(
-            contiguous
-                .validate(
-                    event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"seven")),
-                    &sources,
-                )
-                .expect("duplicate event after reconnect"),
+            sequence(
+                contiguous
+                    .validate(
+                        event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"seven")),
+                        sources,
+                    )
+                    .expect("duplicate event after reconnect"),
+            ),
             (EventKind::Dispatch, SequenceResult::Duplicate)
         );
         assert_eq!(
-            contiguous
-                .validate(
-                    event(DISPATCH_EVENT_TYPE, 8, dispatch_data(8, b"eight")),
-                    &sources,
-                )
-                .expect("next event after reconnect"),
+            sequence(
+                contiguous
+                    .validate(
+                        event(DISPATCH_EVENT_TYPE, 8, dispatch_data(8, b"eight")),
+                        sources,
+                    )
+                    .expect("next event after reconnect"),
+            ),
             (EventKind::Dispatch, SequenceResult::Accepted)
         );
 
@@ -1430,17 +2509,90 @@ mod tests {
         gapped
             .validate(
                 event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"seven")),
-                &sources,
+                sources,
             )
             .expect("first event before reconnect");
         assert!(gapped
             .validate(
                 event(DISPATCH_EVENT_TYPE, 9, dispatch_data(9, b"nine")),
-                &sources,
+                sources,
             )
             .expect_err("gap must reject")
             .to_string()
             .contains("expected sequence 8"));
+    }
+
+    #[test]
+    fn replayed_boundary_keeps_its_actual_sequence() {
+        let fixture = fixture();
+        let mut state = StreamState::default();
+        for sequence in 7..=20 {
+            state
+                .validate(
+                    event(
+                        DISPATCH_EVENT_TYPE,
+                        sequence,
+                        dispatch_data(sequence, &sequence.to_be_bytes()),
+                    ),
+                    &fixture.sources,
+                )
+                .expect("contiguous dispatch event");
+        }
+
+        let replayed = state
+            .validate(
+                event(
+                    DISPATCH_EVENT_TYPE,
+                    7,
+                    dispatch_data(7, &7_u32.to_be_bytes()),
+                ),
+                &fixture.sources,
+            )
+            .expect("replayed boundary event");
+
+        assert_eq!(replayed.sequence_result, SequenceResult::Duplicate);
+        assert_eq!(replayed.sequence, 7);
+        assert_eq!(
+            state
+                .latest_sequence(5, EventKind::Dispatch)
+                .expect("latest sequence"),
+            20
+        );
+    }
+
+    #[test]
+    fn caught_up_does_not_jump_pending_replay_cursor() {
+        let sources = sources();
+        let source = &sources[&5];
+        let mut replay = StreamState::default();
+        replay
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"pending")),
+                &sources,
+            )
+            .expect("replayed event");
+
+        store_fresh_caught_up_baseline(
+            source,
+            EventKind::Dispatch,
+            20,
+            None,
+            false,
+            replay.has_cursor(5, EventKind::Dispatch),
+            1,
+        )
+        .expect("skip baseline with replay pending");
+        assert_eq!(
+            source.cursor(EventKind::Dispatch).expect("cursor read"),
+            None
+        );
+
+        store_fresh_caught_up_baseline(source, EventKind::Dispatch, 20, None, false, false, 0)
+            .expect("store true fresh-start baseline");
+        assert_eq!(
+            source.cursor(EventKind::Dispatch).expect("cursor read"),
+            Some(20)
+        );
     }
 
     #[test]
@@ -1825,6 +2977,375 @@ mod tests {
     }
 
     #[test]
+    fn staged_parity_does_not_cross_unequal_fresh_markers() {
+        let sources = sources();
+        let source = &sources[&5];
+        let plan = replay_plan(&sources);
+        let mut state = replay_state(&plan);
+        let mut staged = StagedParity::default();
+        let mut caught_up = HashMap::from([((5, EventKind::Dispatch), 100)]);
+        state
+            .set_baseline(5, EventKind::Dispatch, 100)
+            .expect("set dispatch marker");
+        staged
+            .push(
+                5,
+                state
+                    .validate(
+                        event(DISPATCH_EVENT_TYPE, 101, dispatch_data(101, b"one-oh-one")),
+                        &sources,
+                    )
+                    .expect("stage dispatch after first marker"),
+            )
+            .expect("stage parity");
+        assert!(staged
+            .drain_ready(&plan, &caught_up, &state, 5)
+            .expect("read staged frontier")
+            .is_empty());
+
+        state
+            .set_baseline(5, EventKind::MerkleTreeInsertion, 90)
+            .expect("set delayed Merkle marker");
+        caught_up.insert((5, EventKind::MerkleTreeInsertion), 90);
+        assert!(staged
+            .drain_ready(&plan, &caught_up, &state, 5)
+            .expect("unequal markers do not admit parity")
+            .is_empty());
+        assert_eq!(staged.len, 1);
+        assert_eq!(
+            source.cursor(EventKind::Dispatch).expect("dispatch cursor"),
+            None
+        );
+
+        let baselines = fresh_baseline_write_order(&caught_up, 5)
+            .expect("baseline order")
+            .expect("both positive baselines");
+        source
+            .store_cursor(baselines[0].0, baselines[0].1)
+            .expect("persist lower baseline before reconnect");
+        assert_eq!(
+            replay_plan(&sources).source(5).expect("source plan").floor,
+            Some(90)
+        );
+    }
+
+    #[test]
+    fn fresh_positive_baseline_rejects_staged_sequence_gaps() {
+        let event_for = |kind, sequence| match kind {
+            EventKind::Dispatch => event(
+                DISPATCH_EVENT_TYPE,
+                sequence,
+                dispatch_data(sequence, b"message"),
+            ),
+            EventKind::MerkleTreeInsertion => event(
+                MERKLE_EVENT_TYPE,
+                sequence,
+                merkle_data_for(
+                    sequence,
+                    H256::from_low_u64_be(2),
+                    dispatch_message(sequence, b"message").id(),
+                    100,
+                ),
+            ),
+        };
+
+        for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+            let sources = sources();
+            let source = &sources[&5];
+            let mut state = StreamState::default();
+            let validated = state
+                .validate(event_for(kind, 102), &sources)
+                .expect("stage event after a gap");
+            let mut staged = StagedParity::default();
+            staged.push(5, validated).expect("stage parity");
+
+            assert!(state
+                .validate_fresh_baseline(5, kind, 100)
+                .expect_err("fresh event must immediately follow its marker")
+                .to_string()
+                .contains("expected 101"));
+            assert_eq!(staged.len, 1, "rejected parity remains unadmitted");
+            assert_eq!(source.cursor(kind).expect("stream cursor"), None);
+            assert_eq!(
+                source.correlation_cursor().expect("correlation cursor"),
+                None
+            );
+
+            let mut contiguous = StreamState::default();
+            contiguous
+                .validate(event_for(kind, 101), &sources)
+                .expect("stage contiguous event");
+            contiguous
+                .validate_fresh_baseline(5, kind, 100)
+                .expect("baseline accepts its immediate successor");
+        }
+
+        StreamState::default()
+            .validate_fresh_baseline(5, EventKind::Dispatch, 100)
+            .expect("a stream without staged events may catch up at any positive marker");
+    }
+
+    #[test]
+    fn staged_empty_parity_drains_only_complete_prefix() {
+        let sources = sources();
+        let plan = replay_plan(&sources);
+        let caught_up = HashMap::from([
+            ((5, EventKind::Dispatch), -1),
+            ((5, EventKind::MerkleTreeInsertion), -1),
+        ]);
+        let mut state = replay_state(&plan);
+        let mut staged = StagedParity::default();
+        for validated in [
+            state
+                .validate(
+                    event(DISPATCH_EVENT_TYPE, 0, dispatch_data(0, b"zero")),
+                    &sources,
+                )
+                .expect("dispatch zero"),
+            state
+                .validate(
+                    event(DISPATCH_EVENT_TYPE, 1, dispatch_data(1, b"one")),
+                    &sources,
+                )
+                .expect("dispatch one"),
+            state
+                .validate(
+                    event(
+                        MERKLE_EVENT_TYPE,
+                        0,
+                        merkle_data_for(
+                            0,
+                            H256::from_low_u64_be(2),
+                            dispatch_message(0, b"zero").id(),
+                            100,
+                        ),
+                    ),
+                    &sources,
+                )
+                .expect("Merkle zero"),
+        ] {
+            staged.push(5, validated).expect("stage parity");
+        }
+        let ready = staged
+            .drain_ready(&plan, &caught_up, &state, 5)
+            .expect("drain complete prefix")
+            .into_iter()
+            .map(|event| (event.kind, event.sequence))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            ready,
+            vec![
+                (EventKind::Dispatch, 0),
+                (EventKind::MerkleTreeInsertion, 0),
+            ]
+        );
+        assert_eq!(staged.len, 1, "dispatch one waits for Merkle one");
+
+        staged
+            .push(
+                5,
+                state
+                    .validate(
+                        event(
+                            MERKLE_EVENT_TYPE,
+                            1,
+                            merkle_data_for(
+                                1,
+                                H256::from_low_u64_be(2),
+                                dispatch_message(1, b"one").id(),
+                                100,
+                            ),
+                        ),
+                        &sources,
+                    )
+                    .expect("Merkle one"),
+            )
+            .expect("stage parity");
+        assert_eq!(
+            staged
+                .drain_ready(&plan, &caught_up, &state, 5)
+                .expect("drain next complete pair")
+                .into_iter()
+                .map(|event| (event.kind, event.sequence))
+                .collect::<Vec<_>>(),
+            vec![
+                (EventKind::Dispatch, 1),
+                (EventKind::MerkleTreeInsertion, 1),
+            ]
+        );
+        assert_eq!(staged.len, 0);
+    }
+
+    #[test]
+    fn fresh_empty_parity_advances_beyond_cross_stream_window() {
+        let sources = sources();
+        let source = &sources[&5];
+        let plan = replay_plan(&sources);
+        let caught_up = HashMap::from([
+            ((5, EventKind::Dispatch), -1),
+            ((5, EventKind::MerkleTreeInsertion), -1),
+        ]);
+        let mut state = replay_state(&plan);
+        let mut staged = StagedParity::default();
+
+        for sequence in 0..=CROSS_STREAM_WINDOW as u32 {
+            let body = sequence.to_be_bytes();
+            let message_id = dispatch_message(sequence, &body).id();
+            let dispatch = state
+                .validate(
+                    event(
+                        DISPATCH_EVENT_TYPE,
+                        sequence,
+                        dispatch_data(sequence, &body),
+                    ),
+                    &sources,
+                )
+                .expect("validate dispatch");
+            staged.push(5, dispatch).expect("stage dispatch");
+            assert!(staged
+                .drain_ready(&plan, &caught_up, &state, 5)
+                .expect("hold incomplete pair")
+                .is_empty());
+
+            let merkle = state
+                .validate(
+                    event(
+                        MERKLE_EVENT_TYPE,
+                        sequence,
+                        merkle_data_for(sequence, H256::from_low_u64_be(2), message_id, 100),
+                    ),
+                    &sources,
+                )
+                .expect("validate Merkle insertion");
+            staged.push(5, merkle).expect("stage Merkle insertion");
+            let ready = staged
+                .drain_ready(&plan, &caught_up, &state, 5)
+                .expect("drain complete pair");
+            assert_eq!(ready.len(), 2);
+
+            if let Some(anchor) = state.initialize_correlation(5, sequence) {
+                source
+                    .store_correlation_cursor(anchor)
+                    .expect("store correlation anchor");
+            }
+            let next = state
+                .advance_correlation(5)
+                .expect("advance correlation")
+                .expect("complete pair advances correlation");
+            source
+                .store_correlation_cursor(next)
+                .expect("store correlation frontier");
+        }
+
+        assert_eq!(staged.len, 0);
+        assert_eq!(
+            source.correlation_cursor().expect("correlation cursor"),
+            Some(CROSS_STREAM_WINDOW as u32 + 1)
+        );
+    }
+
+    #[tokio::test]
+    async fn fresh_empty_parity_anchors_replay_before_queue_admission() {
+        let monitor = Arc::new(monitor(Arc::new(MockParityDatabase::new())));
+        monitor.parity_read_disabled.store(true, Ordering::Release);
+        let plan = replay_plan(&monitor.sources);
+        monitor.reset_correlation_gate(1, &plan);
+        let caught_up = HashMap::from([
+            ((5, EventKind::Dispatch), -1),
+            ((5, EventKind::MerkleTreeInsertion), -1),
+        ]);
+        let mut state = replay_state(&plan);
+        let mut staged = StagedParity::default();
+
+        for event in [
+            event(DISPATCH_EVENT_TYPE, 0, dispatch_data(0, b"zero")),
+            event(DISPATCH_EVENT_TYPE, 1, dispatch_data(1, b"one")),
+        ] {
+            let validated = state
+                .validate(event, &monitor.sources)
+                .expect("validate dispatch");
+            staged.push(5, validated).expect("stage dispatch");
+            monitor
+                .flush_staged_parity(&mut state, &plan, &caught_up, 1, 5, &mut staged)
+                .await
+                .expect("unpaired dispatch remains staged");
+        }
+        assert_eq!(
+            monitor.sources[&5]
+                .correlation_cursor()
+                .expect("correlation cursor"),
+            None
+        );
+
+        let merkle_zero = state
+            .validate(
+                event(
+                    MERKLE_EVENT_TYPE,
+                    0,
+                    merkle_data_for(
+                        0,
+                        H256::from_low_u64_be(2),
+                        dispatch_message(0, b"zero").id(),
+                        100,
+                    ),
+                ),
+                &monitor.sources,
+            )
+            .expect("validate Merkle zero");
+        staged.push(5, merkle_zero).expect("stage Merkle zero");
+        monitor
+            .flush_staged_parity(&mut state, &plan, &caught_up, 1, 5, &mut staged)
+            .await
+            .expect("admit complete zero pair");
+
+        assert_eq!(
+            monitor.sources[&5]
+                .correlation_cursor()
+                .expect("correlation cursor"),
+            Some(0),
+            "the replay anchor is durable before parity workers can advance"
+        );
+        let gate = monitor.correlation_gate.lock();
+        let gate_source = gate.sources.get(&5).expect("correlation gate source");
+        assert_eq!(gate_source.durable_next, Some(0));
+        assert_eq!(gate_source.cross_next, Some(1));
+        drop(gate);
+        assert_eq!(staged.len, 1, "dispatch one waits for Merkle one");
+        for queue in monitor.parity_queues.values() {
+            assert!(queue.lock().jobs.is_empty(), "parity reads are disabled");
+        }
+    }
+
+    #[test]
+    fn staged_nonzero_empty_start_never_becomes_ready() {
+        let sources = sources();
+        let plan = replay_plan(&sources);
+        let caught_up = HashMap::from([
+            ((5, EventKind::Dispatch), -1),
+            ((5, EventKind::MerkleTreeInsertion), -1),
+        ]);
+        let mut state = replay_state(&plan);
+        let mut staged = StagedParity::default();
+        staged
+            .push(
+                5,
+                state
+                    .validate(
+                        event(DISPATCH_EVENT_TYPE, 5, dispatch_data(5, b"five")),
+                        &sources,
+                    )
+                    .expect("stage pre-marker nonzero event"),
+            )
+            .expect("stage parity");
+        assert!(staged
+            .drain_ready(&plan, &caught_up, &state, 5)
+            .expect_err("empty stream must begin at zero")
+            .to_string()
+            .contains("expected 0"));
+        assert_eq!(staged.len, 1, "invalid staged event remains unadmitted");
+    }
+
+    #[test]
     fn fresh_empty_baselines_wait_for_first_complete_pair() {
         let sources = sources();
         let source = &sources[&5];
@@ -2140,6 +3661,12 @@ mod tests {
             .store_cursor(EventKind::MerkleTreeInsertion, 90)
             .expect("store Merkle cursor");
         let plan = replay_plan(&sources);
+        let mut handshake = HandshakeState::default();
+        handshake.ready().expect("ready");
+        let request: serde_json::Value = serde_json::from_str(
+            &subscription(&sources, &plan).expect("subscription should serialize"),
+        )
+        .expect("subscription JSON");
 
         source
             .store_cursor(EventKind::Dispatch, 200)
@@ -2151,16 +3678,56 @@ mod tests {
             .store_correlation_cursor(200)
             .expect("advance correlation cursor");
 
-        let request: serde_json::Value = serde_json::from_str(
-            &subscription(&sources, &plan).expect("subscription should serialize"),
-        )
-        .expect("subscription JSON");
         assert_eq!(request["streams"][0]["cursors"][0]["afterSequence"], "89");
         assert_eq!(request["streams"][1]["cursors"][0]["afterSequence"], "89");
         let streams = subscribed_streams(&sources, &plan);
-        validate_subscription(&streams, &sources, &plan).expect("subscription confirmation");
+        handshake
+            .subscribed(&streams, &sources, &plan)
+            .expect("subscription confirmation uses captured plan");
+        handshake
+            .event()
+            .expect("caught-up accepted after confirmation");
         validate_caught_up_floor(&plan, 5, 90).expect("captured replay floor");
         assert!(validate_caught_up_floor(&plan, 5, 89).is_err());
+    }
+
+    #[test]
+    fn parity_matches_do_not_combine_across_connection_generations() {
+        let database = MockParityDatabase::new();
+        let monitor = monitor(Arc::new(database));
+        let source = &monitor.sources[&5];
+        source
+            .store_correlation_cursor(7)
+            .expect("store replay anchor");
+        let plan = SequencedReplayPlan::load(&monitor.sources).expect("replay plan");
+
+        monitor.reset_correlation_gate(1, &plan);
+        monitor.note_cross_stream_next(1, 5, 8);
+        monitor
+            .finish_parity_correlation(1, 5, EventKind::Dispatch, 7, ParityResult::Match.label())
+            .expect("old generation dispatch match");
+        assert_eq!(source.correlation_cursor().expect("cursor read"), Some(7));
+
+        monitor.reset_correlation_gate(2, &plan);
+        monitor.note_cross_stream_next(2, 5, 8);
+        monitor
+            .finish_parity_correlation(
+                2,
+                5,
+                EventKind::MerkleTreeInsertion,
+                7,
+                ParityResult::Match.label(),
+            )
+            .expect("new generation Merkle match");
+        monitor
+            .finish_parity_correlation(1, 5, EventKind::Dispatch, 7, ParityResult::Match.label())
+            .expect("late old generation completion ignored");
+        assert_eq!(source.correlation_cursor().expect("cursor read"), Some(7));
+
+        monitor
+            .finish_parity_correlation(2, 5, EventKind::Dispatch, 7, ParityResult::Match.label())
+            .expect("same generation dispatch match");
+        assert_eq!(source.correlation_cursor().expect("cursor read"), Some(8));
     }
 
     #[test]
@@ -2171,19 +3738,20 @@ mod tests {
 
     #[test]
     fn rejects_conflicting_duplicate_dispatch() {
-        let sources = sources();
+        let fixture = fixture();
+        let sources = &fixture.sources;
         let mut state = StreamState::default();
         state
             .validate(
                 event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"original")),
-                &sources,
+                sources,
             )
             .expect("first event");
 
         assert!(state
             .validate(
                 event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"conflict")),
-                &sources,
+                sources,
             )
             .expect_err("conflicting duplicate must reject")
             .to_string()
@@ -2191,11 +3759,938 @@ mod tests {
     }
 
     #[test]
+    fn dispatch_parity_handles_lag_duplicate_restart_and_conflict() {
+        let fixture = fixture();
+        let source = fixture.sources.get(&5).expect("source");
+        let message = dispatch_message(7, b"payload");
+        let data = dispatch_data(7, b"payload");
+        let mut state = StreamState::default();
+
+        let lagging = state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, data.clone()),
+                &fixture.sources,
+            )
+            .expect("lagging event");
+        assert_eq!(
+            lagging
+                .parity
+                .compare(source.database.as_ref())
+                .expect("lag comparison"),
+            ParityResult::Missing
+        );
+
+        store_dispatch(&fixture.database, &message);
+        let duplicate = state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, data.clone()),
+                &fixture.sources,
+            )
+            .expect("duplicate event");
+        assert_eq!(duplicate.sequence_result, SequenceResult::Duplicate);
+        assert_eq!(
+            duplicate
+                .parity
+                .compare(source.database.as_ref())
+                .expect("duplicate parity"),
+            ParityResult::Match
+        );
+
+        let restarted = StreamState::default()
+            .validate(event(DISPATCH_EVENT_TYPE, 7, data), &fixture.sources)
+            .expect("event after process restart");
+        assert_eq!(restarted.sequence_result, SequenceResult::Accepted);
+        assert_eq!(
+            restarted
+                .parity
+                .compare(source.database.as_ref())
+                .expect("restart parity"),
+            ParityResult::Match
+        );
+
+        let mut conflict_data = dispatch_data(7, b"payload");
+        conflict_data["origin_block_height"] = serde_json::json!("101");
+        let conflict = StreamState::default()
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, conflict_data),
+                &fixture.sources,
+            )
+            .expect("conflicting event payload");
+        assert_eq!(
+            conflict
+                .parity
+                .compare(source.database.as_ref())
+                .expect("conflict parity"),
+            ParityResult::Conflict
+        );
+    }
+
+    #[test]
+    fn dispatch_parity_survives_database_restart() {
+        let temp_dir = tempfile::tempdir().expect("temp DB directory");
+        let message = dispatch_message(7, b"payload");
+        {
+            let db = DB::from_path(temp_dir.path()).expect("open temp DB");
+            let database =
+                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("scraper-parity"), db);
+            store_dispatch(&database, &message);
+        }
+
+        let db = DB::from_path(temp_dir.path()).expect("reopen temp DB");
+        let database =
+            HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("scraper-parity"), db);
+        let sources = HashMap::from([(5, source(database))]);
+        let validated = StreamState::default()
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload")),
+                &sources,
+            )
+            .expect("dispatch after restart");
+
+        assert_eq!(
+            validated
+                .parity
+                .compare(sources.get(&5).expect("source").database.as_ref())
+                .expect("restart comparison"),
+            ParityResult::Match
+        );
+    }
+
+    #[tokio::test]
+    async fn one_shot_db_error_does_not_interrupt_next_event() {
+        let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let mut database = MockParityDatabase::new();
+        database
+            .expect_retrieve_message_by_nonce()
+            .times(2)
+            .returning({
+                let calls = calls.clone();
+                move |nonce| {
+                    if calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
+                        Err(hyperlane_base::db::DbError::Other(
+                            "one-shot read failure".to_owned(),
+                        ))
+                    } else {
+                        Ok(Some(dispatch_message(nonce, b"next")))
+                    }
+                }
+            });
+        database
+            .expect_retrieve_dispatched_block_number_by_nonce()
+            .times(1)
+            .returning(|_| Ok(Some(100)));
+        database
+            .expect_retrieve_dispatched_tx_hash_by_message_id()
+            .times(1)
+            .returning(|_| Ok(Some(dispatch_transaction_id())));
+        let monitor = monitor(std::sync::Arc::new(database));
+        monitor.set_active(true);
+        let mut state = StreamState::default();
+
+        let first = state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"first")),
+                &monitor.sources,
+            )
+            .expect("first event");
+        monitor.observe_parity(5, first.kind, first.parity).await;
+
+        let next = state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 8, dispatch_data(8, b"next")),
+                &monitor.sources,
+            )
+            .expect("next event on the same stream");
+        assert_eq!(next.sequence_result, SequenceResult::Accepted);
+        monitor.observe_parity(5, next.kind, next.parity).await;
+
+        assert_eq!(
+            monitor
+                .parity
+                .with_label_values(&["test", DISPATCH_EVENT_TYPE, "error"])
+                .get(),
+            1
+        );
+        assert_eq!(
+            monitor
+                .parity
+                .with_label_values(&["test", DISPATCH_EVENT_TYPE, "match"])
+                .get(),
+            1
+        );
+        assert_eq!(monitor.active.with_label_values(&["test"]).get(), 1);
+        assert_eq!(
+            monitor
+                .parity_ready
+                .with_label_values(&["test", DISPATCH_EVENT_TYPE])
+                .get(),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn retries_missing_parity_until_the_local_db_matches() {
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let mut database = MockParityDatabase::new();
+        database
+            .expect_retrieve_message_by_nonce()
+            .times(2)
+            .returning({
+                let calls = calls.clone();
+                move |nonce| {
+                    if calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
+                        Ok(None)
+                    } else {
+                        Ok(Some(dispatch_message(nonce, b"payload")))
+                    }
+                }
+            });
+        database
+            .expect_retrieve_dispatched_block_number_by_nonce()
+            .times(2)
+            .returning(|_| Ok(Some(100)));
+        database
+            .expect_retrieve_dispatched_tx_hash_by_message_id()
+            .times(2)
+            .returning(|_| Ok(Some(dispatch_transaction_id())));
+        let monitor = monitor(Arc::new(database));
+        let input = StreamState::default()
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload")),
+                &monitor.sources,
+            )
+            .expect("valid dispatch")
+            .parity;
+
+        monitor.observe_parity(5, EventKind::Dispatch, input).await;
+
+        assert_eq!(
+            monitor
+                .parity
+                .with_label_values(&["test", DISPATCH_EVENT_TYPE, "match"])
+                .get(),
+            1
+        );
+        assert_eq!(
+            monitor
+                .parity_pending
+                .with_label_values(&["test", DISPATCH_EVENT_TYPE])
+                .get(),
+            0
+        );
+        assert_eq!(
+            monitor
+                .parity_ready
+                .with_label_values(&["test", DISPATCH_EVENT_TYPE])
+                .get(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn staged_event_clears_parity_readiness_until_terminal() {
+        let mut database = MockParityDatabase::new();
+        database
+            .expect_retrieve_message_by_nonce()
+            .times(1)
+            .returning(|nonce| Ok(Some(dispatch_message(nonce, b"matched"))));
+        database
+            .expect_retrieve_dispatched_block_number_by_nonce()
+            .times(1)
+            .returning(|_| Ok(Some(100)));
+        database
+            .expect_retrieve_dispatched_tx_hash_by_message_id()
+            .times(1)
+            .returning(|_| Ok(Some(dispatch_transaction_id())));
+        let monitor = Arc::new(monitor(Arc::new(database)));
+        let labels = ["test", DISPATCH_EVENT_TYPE];
+        let mut state = StreamState::default();
+        let matched = state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 0, dispatch_data(0, b"matched")),
+                &monitor.sources,
+            )
+            .expect("valid matched dispatch");
+        assert_eq!(
+            monitor
+                .observe_parity(5, matched.kind, matched.parity)
+                .await,
+            ParityResult::Match.label()
+        );
+        assert_eq!(monitor.parity_pending.with_label_values(&labels).get(), 0);
+        assert_eq!(monitor.parity_ready.with_label_values(&labels).get(), 1);
+
+        let staged_event = state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 1, dispatch_data(1, b"staged")),
+                &monitor.sources,
+            )
+            .expect("valid staged dispatch");
+        let mut staged = StagedParity::default();
+        monitor
+            .stage_parity(&mut staged, 5, staged_event)
+            .expect("stage unmatched dispatch");
+        assert_eq!(monitor.parity_pending.with_label_values(&labels).get(), 1);
+        assert_eq!(monitor.parity_ready.with_label_values(&labels).get(), 0);
+
+        let queued_event = state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 2, dispatch_data(2, b"queued")),
+                &monitor.sources,
+            )
+            .expect("valid queued dispatch");
+        monitor.note_parity_pending(5, EventKind::Dispatch);
+        let queue = monitor
+            .parity_queues
+            .get(&(5, EventKind::Dispatch))
+            .expect("dispatch queue");
+        queue.lock().jobs.push_back(ParityJob {
+            generation: 1,
+            input: queued_event.parity,
+            queue_permit: monitor
+                .parity_queue_permit
+                .clone()
+                .try_acquire_owned()
+                .expect("queue permit"),
+            sequence: queued_event.sequence,
+        });
+        assert_eq!(monitor.parity_pending.with_label_values(&labels).get(), 2);
+
+        monitor.abandon_staged_parity(&mut staged);
+        assert_eq!(monitor.parity_pending.with_label_values(&labels).get(), 1);
+        assert_eq!(monitor.parity_ready.with_label_values(&labels).get(), 0);
+        monitor.abandon_parity_queue(5, EventKind::Dispatch, queue);
+        assert_eq!(monitor.parity_pending.with_label_values(&labels).get(), 0);
+    }
+
+    #[tokio::test]
+    async fn queues_parity_without_blocking_the_websocket_reader() {
+        let (entered_tx, entered_rx) = std::sync::mpsc::channel();
+        let release = Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new()));
+        let mut database = MockParityDatabase::new();
+        let read_release = release.clone();
+        database
+            .expect_retrieve_message_by_nonce()
+            .times(1)
+            .returning(move |nonce| {
+                entered_tx.send(()).expect("record parity read");
+                let (released, signal) = read_release.as_ref();
+                let mut released = released.lock();
+                while !*released {
+                    signal.wait(&mut released);
+                }
+                Ok(Some(dispatch_message(nonce, b"payload")))
+            });
+        database
+            .expect_retrieve_dispatched_block_number_by_nonce()
+            .times(1)
+            .returning(|_| Ok(Some(100)));
+        database
+            .expect_retrieve_dispatched_tx_hash_by_message_id()
+            .times(1)
+            .returning(|_| Ok(Some(dispatch_transaction_id())));
+        let monitor = Arc::new(monitor(Arc::new(database)));
+        let input = StreamState::default()
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload")),
+                &monitor.sources,
+            )
+            .expect("valid dispatch")
+            .parity;
+
+        timeout(
+            Duration::from_millis(100),
+            monitor.enqueue_parity(5, EventKind::Dispatch, input, 7),
+        )
+        .await
+        .expect("queue admission must not await the DB read");
+        tokio::task::spawn_blocking(move || entered_rx.recv_timeout(Duration::from_secs(5)))
+            .await
+            .expect("wait for blocking parity read")
+            .expect("blocking parity read started");
+        assert_eq!(
+            monitor.sources[&5]
+                .cursor(EventKind::Dispatch)
+                .expect("cursor read"),
+            None
+        );
+
+        let (released, signal) = release.as_ref();
+        *released.lock() = true;
+        signal.notify_all();
+        timeout(Duration::from_secs(1), async {
+            while monitor.sources[&5]
+                .cursor(EventKind::Dispatch)
+                .expect("cursor read")
+                != Some(7)
+            {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("ordered worker persists the terminal cursor");
+    }
+
+    #[tokio::test]
+    async fn processes_parity_in_fifo_admission_order() {
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let (entered_tx, entered_rx) = std::sync::mpsc::channel();
+        let release = Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new()));
+        let mut database = MockParityDatabase::new();
+        database
+            .expect_retrieve_message_by_nonce()
+            .times(2)
+            .returning({
+                let calls = calls.clone();
+                let release = release.clone();
+                move |nonce| {
+                    let call = calls.fetch_add(1, Ordering::SeqCst);
+                    if call == 0 {
+                        entered_tx.send(()).expect("record first parity read");
+                        let (released, signal) = release.as_ref();
+                        let mut released = released.lock();
+                        while !*released {
+                            signal.wait(&mut released);
+                        }
+                    }
+                    let body: &[u8] = if nonce == 7 { b"first" } else { b"second" };
+                    Ok(Some(dispatch_message(nonce, body)))
+                }
+            });
+        database
+            .expect_retrieve_dispatched_block_number_by_nonce()
+            .times(2)
+            .returning(|_| Ok(Some(100)));
+        database
+            .expect_retrieve_dispatched_tx_hash_by_message_id()
+            .times(2)
+            .returning(|_| Ok(Some(dispatch_transaction_id())));
+        let monitor = Arc::new(monitor(Arc::new(database)));
+        let first = StreamState::default()
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"first")),
+                &monitor.sources,
+            )
+            .expect("first dispatch");
+        let second = StreamState::default()
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 8, dispatch_data(8, b"second")),
+                &monitor.sources,
+            )
+            .expect("second dispatch");
+
+        monitor
+            .enqueue_parity(5, first.kind, first.parity, first.sequence)
+            .await;
+        tokio::task::spawn_blocking(move || entered_rx.recv_timeout(Duration::from_secs(1)))
+            .await
+            .expect("wait for first parity read")
+            .expect("first parity read started");
+        monitor
+            .enqueue_parity(5, second.kind, second.parity, second.sequence)
+            .await;
+        tokio::task::yield_now().await;
+
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            monitor.sources[&5]
+                .cursor(EventKind::Dispatch)
+                .expect("cursor read"),
+            None
+        );
+
+        let (released, signal) = release.as_ref();
+        *released.lock() = true;
+        signal.notify_all();
+        timeout(Duration::from_secs(1), async {
+            while monitor.sources[&5]
+                .cursor(EventKind::Dispatch)
+                .expect("cursor read")
+                != Some(8)
+            {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("FIFO worker persists both terminal cursors");
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn four_hung_reads_trip_circuit_without_stalling_later_work() {
+        let (entered_tx, entered_rx) = std::sync::mpsc::channel();
+        let release = Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new()));
+        let metrics = CoreMetrics::new("scraper-parity-hung-reads", 9090, Registry::new())
+            .expect("create test metrics");
+        let mut sources = Vec::new();
+
+        for domain in 1..=(PARITY_READ_CONCURRENCY + 1) as u32 {
+            let mut database = MockParityDatabase::new();
+            if domain <= PARITY_READ_CONCURRENCY as u32 {
+                let entered_tx = entered_tx.clone();
+                let release = release.clone();
+                database
+                    .expect_retrieve_message_by_nonce()
+                    .times(1)
+                    .returning(move |_| {
+                        entered_tx.send(()).expect("record hung parity read");
+                        let (released, signal) = release.as_ref();
+                        let mut released = released.lock();
+                        while !*released {
+                            signal.wait(&mut released);
+                        }
+                        Err(hyperlane_base::db::DbError::Other(
+                            "released hung read".to_owned(),
+                        ))
+                    });
+            } else {
+                database.expect_retrieve_message_by_nonce().times(0);
+            }
+            sources.push(ScraperSource::with_database(
+                format!("test-{domain}"),
+                domain,
+                H256::from_low_u64_be(1),
+                H256::from_low_u64_be(2),
+                Arc::new(database),
+            ));
+        }
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new(
+                Url::parse("ws://localhost:1").expect("test URL"),
+                sources,
+                &metrics,
+            )
+            .expect("create test monitor"),
+        );
+        for source in monitor.sources.values() {
+            for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+                monitor
+                    .parity_ready
+                    .with_label_values(&[source.chain.as_str(), kind.label()])
+                    .set(1);
+            }
+        }
+        let parity_input = |domain| ParityInput::Dispatch {
+            block_number: 100,
+            message: HyperlaneMessage {
+                version: 3,
+                nonce: domain,
+                origin: domain,
+                sender: H256::from_low_u64_be(3),
+                destination: 6,
+                recipient: H256::from_low_u64_be(4),
+                body: b"payload".to_vec(),
+            },
+            transaction_id: dispatch_transaction_id(),
+        };
+
+        for domain in 1..=PARITY_READ_CONCURRENCY as u32 {
+            monitor
+                .enqueue_parity(domain, EventKind::Dispatch, parity_input(domain), domain)
+                .await;
+        }
+        let entered = tokio::task::spawn_blocking(move || {
+            (0..PARITY_READ_CONCURRENCY)
+                .filter(|_| entered_rx.recv_timeout(Duration::from_secs(1)).is_ok())
+                .count()
+        })
+        .await
+        .expect("wait for hung parity reads");
+        assert_eq!(entered, PARITY_READ_CONCURRENCY);
+
+        let later_domain = (PARITY_READ_CONCURRENCY + 1) as u32;
+        monitor
+            .enqueue_parity(
+                later_domain,
+                EventKind::Dispatch,
+                parity_input(later_domain),
+                later_domain,
+            )
+            .await;
+        timeout(Duration::from_secs(1), async {
+            while monitor.sources[&later_domain]
+                .cursor(EventKind::Dispatch)
+                .expect("cursor read")
+                != Some(later_domain)
+            {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("later parity work terminates after circuit opens");
+        timeout(Duration::from_secs(1), async {
+            while (1..=PARITY_READ_CONCURRENCY as u32).any(|domain| {
+                monitor.sources[&domain]
+                    .cursor(EventKind::Dispatch)
+                    .expect("cursor read")
+                    != Some(domain)
+            }) {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("timed-out parity jobs terminate");
+        assert!(monitor.parity_read_disabled.load(Ordering::Acquire));
+        for domain in 1..=later_domain {
+            let source = &monitor.sources[&domain];
+            for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+                assert_eq!(
+                    monitor
+                        .parity_ready
+                        .with_label_values(&[source.chain.as_str(), kind.label()])
+                        .get(),
+                    0
+                );
+            }
+            assert!(source
+                .parity_unhealthy(EventKind::Dispatch)
+                .expect("durable parity poison"));
+        }
+        timeout(
+            Duration::from_millis(10),
+            monitor.enqueue_parity(
+                later_domain,
+                EventKind::Dispatch,
+                parity_input(later_domain),
+                later_domain + 1,
+            ),
+        )
+        .await
+        .expect("open circuit rejects queue admission immediately");
+        assert_eq!(
+            monitor.sources[&later_domain]
+                .cursor(EventKind::Dispatch)
+                .expect("cursor read"),
+            Some(later_domain)
+        );
+        assert_eq!(
+            monitor.parity_queue_permit.available_permits(),
+            PARITY_QUEUE_CAPACITY
+        );
+        assert_eq!(monitor.parity_read_permit.available_permits(), 0);
+
+        let (released, signal) = release.as_ref();
+        *released.lock() = true;
+        signal.notify_all();
+        timeout(Duration::from_secs(1), async {
+            while monitor.parity_read_permit.available_permits() != PARITY_READ_CONCURRENCY {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("released hung reads restore all permits");
+    }
+
+    #[tokio::test]
+    async fn waiter_does_not_spawn_a_read_after_circuit_opens() {
+        let mut database = MockParityDatabase::new();
+        database.expect_retrieve_message_by_nonce().times(0);
+        let monitor = Arc::new(monitor(Arc::new(database)));
+        let permits = monitor
+            .parity_read_permit
+            .clone()
+            .acquire_many_owned(PARITY_READ_CONCURRENCY as u32)
+            .await
+            .expect("reserve all read permits");
+        let waiter = {
+            let monitor = monitor.clone();
+            tokio::spawn(async move {
+                monitor
+                    .observe_parity(
+                        5,
+                        EventKind::Dispatch,
+                        ParityInput::Dispatch {
+                            block_number: 100,
+                            message: dispatch_message(7, b"payload"),
+                            transaction_id: dispatch_transaction_id(),
+                        },
+                    )
+                    .await
+            })
+        };
+        sleep(Duration::from_millis(10)).await;
+        monitor.disable_parity_reads("test", DISPATCH_EVENT_TYPE, "test circuit open");
+        drop(permits);
+
+        assert_eq!(
+            timeout(Duration::from_secs(1), waiter)
+                .await
+                .expect("waiting parity job terminates")
+                .expect("waiting parity task"),
+            "error"
+        );
+        assert_eq!(
+            monitor.parity_read_permit.available_permits(),
+            PARITY_READ_CONCURRENCY
+        );
+    }
+
+    #[tokio::test]
+    async fn terminal_failure_is_durable_before_cursor_advancement() {
+        let mut database = MockParityDatabase::new();
+        database
+            .expect_retrieve_message_by_nonce()
+            .times(1)
+            .returning(|nonce| Ok(Some(dispatch_message(nonce, b"conflict"))));
+        database
+            .expect_retrieve_dispatched_block_number_by_nonce()
+            .times(1)
+            .returning(|_| Ok(Some(100)));
+        database
+            .expect_retrieve_dispatched_tx_hash_by_message_id()
+            .times(1)
+            .returning(|_| Ok(Some(dispatch_transaction_id())));
+        let monitor = Arc::new(monitor(Arc::new(database)));
+        let input = StreamState::default()
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload")),
+                &monitor.sources,
+            )
+            .expect("valid dispatch")
+            .parity;
+        monitor
+            .enqueue_parity(5, EventKind::Dispatch, input, 7)
+            .await;
+
+        timeout(Duration::from_secs(1), async {
+            while monitor.sources[&5]
+                .cursor(EventKind::Dispatch)
+                .expect("cursor read")
+                != Some(7)
+            {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("terminal cursor persistence");
+        let source = monitor.sources[&5].clone();
+        assert!(source
+            .parity_unhealthy(EventKind::Dispatch)
+            .expect("health read"));
+
+        let metrics = CoreMetrics::new("scraper-parity-restart", 9090, Registry::new())
+            .expect("create restart metrics");
+        let restarted = ScraperWebSocketMonitor::new(
+            Url::parse("ws://localhost:1").expect("test URL"),
+            vec![source],
+            &metrics,
+        )
+        .expect("restart monitor");
+        assert!(restarted
+            .parity_unhealthy
+            .lock()
+            .contains(&(5, EventKind::Dispatch)));
+        assert_eq!(
+            restarted
+                .parity_ready
+                .with_label_values(&["test", DISPATCH_EVENT_TYPE])
+                .get(),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn bounds_parity_reads_across_origins() {
+        let (entered_tx, entered_rx) = std::sync::mpsc::channel();
+        let release = Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new()));
+        let metrics = CoreMetrics::new("scraper-parity-global-bound", 9090, Registry::new())
+            .expect("create test metrics");
+        let mut sources = Vec::new();
+
+        for domain in 1..=(PARITY_READ_CONCURRENCY + 1) as u32 {
+            let mut database = MockParityDatabase::new();
+            if domain <= PARITY_READ_CONCURRENCY as u32 {
+                let entered_tx = entered_tx.clone();
+                let release = release.clone();
+                database
+                    .expect_retrieve_message_by_nonce()
+                    .times(1)
+                    .returning(move |_| {
+                        entered_tx.send(()).expect("record entered parity read");
+                        let (released, signal) = release.as_ref();
+                        let mut released = released.lock();
+                        while !*released {
+                            signal.wait(&mut released);
+                        }
+                        Err(hyperlane_base::db::DbError::Other(
+                            "released test read".to_owned(),
+                        ))
+                    });
+            } else {
+                database
+                    .expect_retrieve_message_by_nonce()
+                    .times(1)
+                    .returning(|_| {
+                        Err(hyperlane_base::db::DbError::Other(
+                            "queued test read".to_owned(),
+                        ))
+                    });
+            }
+            sources.push(ScraperSource::with_database(
+                format!("test-{domain}"),
+                domain,
+                H256::from_low_u64_be(1),
+                H256::from_low_u64_be(2),
+                Arc::new(database),
+            ));
+        }
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new(
+                Url::parse("ws://localhost:1").expect("test URL"),
+                sources,
+                &metrics,
+            )
+            .expect("create test monitor"),
+        );
+        let parity_input = |domain| ParityInput::Dispatch {
+            block_number: 100,
+            message: HyperlaneMessage {
+                version: 3,
+                nonce: domain,
+                origin: domain,
+                sender: H256::from_low_u64_be(3),
+                destination: 6,
+                recipient: H256::from_low_u64_be(4),
+                body: b"payload".to_vec(),
+            },
+            transaction_id: dispatch_transaction_id(),
+        };
+        let mut parity_tasks = Vec::new();
+        for domain in 1..=PARITY_READ_CONCURRENCY as u32 {
+            let monitor = monitor.clone();
+            let input = parity_input(domain);
+            parity_tasks.push(tokio::spawn(async move {
+                monitor
+                    .observe_parity(domain, EventKind::Dispatch, input)
+                    .await;
+            }));
+        }
+        let entered = tokio::task::spawn_blocking(move || {
+            (0..PARITY_READ_CONCURRENCY)
+                .filter(|_| entered_rx.recv_timeout(Duration::from_secs(2)).is_ok())
+                .count()
+        })
+        .await
+        .expect("wait for blocking parity reads");
+
+        let queued_domain = (PARITY_READ_CONCURRENCY + 1) as u32;
+        let queued_chain = format!("test-{queued_domain}");
+        let queued_monitor = monitor.clone();
+        let queued_input = parity_input(queued_domain);
+        let queued = tokio::spawn(async move {
+            queued_monitor
+                .observe_parity(queued_domain, EventKind::Dispatch, queued_input)
+                .await;
+        });
+        tokio::task::yield_now().await;
+        let skipped_count = monitor
+            .parity
+            .with_label_values(&[queued_chain.as_str(), DISPATCH_EVENT_TYPE, "skipped"])
+            .get();
+        let queued_pending = monitor
+            .parity_pending
+            .with_label_values(&[queued_chain.as_str(), DISPATCH_EVENT_TYPE])
+            .get();
+
+        let (released, signal) = release.as_ref();
+        *released.lock() = true;
+        signal.notify_all();
+        for task in parity_tasks {
+            task.await.expect("parity task must not panic");
+        }
+        queued.await.expect("queued parity task must not panic");
+        timeout(Duration::from_secs(1), async {
+            while monitor.parity_read_permit.available_permits() != PARITY_READ_CONCURRENCY {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("blocking reads release global permits");
+        assert_eq!(entered, PARITY_READ_CONCURRENCY);
+        assert_eq!(queued_pending, 1);
+        assert_eq!(skipped_count, 0);
+        assert_eq!(
+            monitor.parity_read_permit.available_permits(),
+            PARITY_READ_CONCURRENCY
+        );
+    }
+
+    #[test]
+    fn rate_limits_parity_warnings() {
+        let warned_at = parking_lot::Mutex::new(None);
+        assert!(should_warn(&warned_at));
+        assert!(!should_warn(&warned_at));
+    }
+
+    #[test]
+    fn merkle_parity_handles_lag_match_and_conflict() {
+        let fixture = fixture();
+        let source = fixture.sources.get(&5).expect("source");
+        let insertion = MerkleTreeInsertion::new(1, H256::from_low_u64_be(7));
+        let data = merkle_data(1, H256::from_low_u64_be(2));
+
+        let lagging = StreamState::default()
+            .validate(event(MERKLE_EVENT_TYPE, 1, data.clone()), &fixture.sources)
+            .expect("lagging Merkle event");
+        assert_eq!(
+            lagging
+                .parity
+                .compare(source.database.as_ref())
+                .expect("lag comparison"),
+            ParityResult::Missing
+        );
+
+        fixture
+            .database
+            .store_merkle_tree_insertion_by_leaf_index(&1, &insertion)
+            .expect("store Merkle insertion");
+        fixture
+            .database
+            .store_merkle_tree_insertion_block_number_by_leaf_index(&1, &101)
+            .expect("store Merkle block");
+        let matched = StreamState::default()
+            .validate(event(MERKLE_EVENT_TYPE, 1, data), &fixture.sources)
+            .expect("matching Merkle event");
+        assert_eq!(
+            matched
+                .parity
+                .compare(source.database.as_ref())
+                .expect("match comparison"),
+            ParityResult::Match
+        );
+
+        let mut conflict_data = merkle_data(1, H256::from_low_u64_be(2));
+        conflict_data["block_number"] = serde_json::json!("102");
+        let conflict = StreamState::default()
+            .validate(event(MERKLE_EVENT_TYPE, 1, conflict_data), &fixture.sources)
+            .expect("conflicting Merkle event");
+        assert_eq!(
+            conflict
+                .parity
+                .compare(source.database.as_ref())
+                .expect("conflict comparison"),
+            ParityResult::Conflict
+        );
+    }
+
+    #[test]
     fn rejects_invalid_dispatch_payload() {
+        let fixture = fixture();
+        let mut missing_body = dispatch_data(7, b"original");
+        missing_body["msg_body"] = serde_json::Value::Null;
+        assert!(StreamState::default()
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, missing_body),
+                &fixture.sources
+            )
+            .expect_err("missing body must reject")
+            .to_string()
+            .contains("omitted message body"));
+
         let mut bad_body = dispatch_data(7, b"original");
         bad_body["msg_body"] = serde_json::json!("\\x00");
         assert!(StreamState::default()
-            .validate(event(DISPATCH_EVENT_TYPE, 7, bad_body), &sources())
+            .validate(event(DISPATCH_EVENT_TYPE, 7, bad_body), &fixture.sources)
             .expect_err("message ID mismatch must reject")
             .to_string()
             .contains("message ID"));
@@ -2203,7 +4698,7 @@ mod tests {
         let mut bad_sender = dispatch_data(7, b"original");
         bad_sender["sender"] = serde_json::json!("0x12");
         assert!(StreamState::default()
-            .validate(event(DISPATCH_EVENT_TYPE, 7, bad_sender), &sources())
+            .validate(event(DISPATCH_EVENT_TYPE, 7, bad_sender), &fixture.sources)
             .expect_err("invalid sender must reject")
             .to_string()
             .contains("address"));
@@ -2211,10 +4706,11 @@ mod tests {
 
     #[test]
     fn rejects_wrong_dispatch_mailbox() {
+        let fixture = fixture();
         let mut data = dispatch_data(7, b"payload");
         data["origin_mailbox"] = serde_json::json!(format!("{:#x}", H256::from_low_u64_be(3)));
         let error = StreamState::default()
-            .validate(event(DISPATCH_EVENT_TYPE, 7, data), &sources())
+            .validate(event(DISPATCH_EVENT_TYPE, 7, data), &fixture.sources)
             .expect_err("wrong mailbox must reject");
 
         assert!(error.to_string().contains("configured mailbox"));
@@ -2222,6 +4718,7 @@ mod tests {
 
     #[test]
     fn rejects_wrong_merkle_hook() {
+        let fixture = fixture();
         let mut state = StreamState::default();
         let error = state
             .validate(
@@ -2230,7 +4727,7 @@ mod tests {
                     1,
                     merkle_data(1, H256::from_low_u64_be(3)),
                 ),
-                &sources(),
+                &fixture.sources,
             )
             .expect_err("wrong hook must reject");
 
@@ -2239,10 +4736,11 @@ mod tests {
 
     #[test]
     fn validates_merkle_payload_fields() {
+        let fixture = fixture();
         let mut data = merkle_data(1, H256::from_low_u64_be(2));
         data["message_id"] = serde_json::json!("0x12");
         assert!(StreamState::default()
-            .validate(event(MERKLE_EVENT_TYPE, 1, data), &sources())
+            .validate(event(MERKLE_EVENT_TYPE, 1, data), &fixture.sources)
             .expect_err("invalid message ID must reject")
             .to_string()
             .contains("Merkle message ID"));
@@ -2250,10 +4748,11 @@ mod tests {
 
     #[test]
     fn rejects_fields_outside_wire_projection() {
+        let fixture = fixture();
         let mut dispatch = dispatch_data(7, b"payload");
         dispatch["time_updated"] = serde_json::json!("2026-08-30T00:00:01.000Z");
         assert!(StreamState::default()
-            .validate(event(DISPATCH_EVENT_TYPE, 7, dispatch), &sources())
+            .validate(event(DISPATCH_EVENT_TYPE, 7, dispatch), &fixture.sources)
             .expect_err("unprojected dispatch field must reject")
             .to_string()
             .contains("Invalid dispatch event payload"));
@@ -2261,7 +4760,7 @@ mod tests {
         let mut merkle = merkle_data(1, H256::from_low_u64_be(2));
         merkle["id"] = serde_json::json!(42);
         assert!(StreamState::default()
-            .validate(event(MERKLE_EVENT_TYPE, 1, merkle), &sources())
+            .validate(event(MERKLE_EVENT_TYPE, 1, merkle), &fixture.sources)
             .expect_err("unprojected Merkle field must reject")
             .to_string()
             .contains("Invalid Merkle tree insertion payload"));
@@ -2269,12 +4768,13 @@ mod tests {
 
     #[test]
     fn correlates_dispatch_and_merkle_projection() {
+        let fixture = fixture();
         let mut state = StreamState::default();
         let message = dispatch_message(7, b"payload");
         state
             .validate(
                 event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload")),
-                &sources(),
+                &fixture.sources,
             )
             .expect("dispatch should validate");
         state
@@ -2284,19 +4784,20 @@ mod tests {
                     7,
                     merkle_data_for(7, H256::from_low_u64_be(2), message.id(), 100),
                 ),
-                &sources(),
+                &fixture.sources,
             )
             .expect("matching Merkle insertion should validate");
     }
 
     #[test]
     fn rejects_cross_stream_message_and_block_mismatches() {
+        let fixture = fixture();
         let message = dispatch_message(7, b"payload");
         let mut wrong_message = StreamState::default();
         wrong_message
             .validate(
                 event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload")),
-                &sources(),
+                &fixture.sources,
             )
             .expect("dispatch should validate");
         assert!(wrong_message
@@ -2306,7 +4807,7 @@ mod tests {
                     7,
                     merkle_data_for(7, H256::from_low_u64_be(2), H256::from_low_u64_be(8), 100,),
                 ),
-                &sources(),
+                &fixture.sources,
             )
             .expect_err("message mismatch must reject")
             .to_string()
@@ -2316,7 +4817,7 @@ mod tests {
         wrong_block
             .validate(
                 event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload")),
-                &sources(),
+                &fixture.sources,
             )
             .expect("dispatch should validate");
         assert!(wrong_block
@@ -2326,7 +4827,7 @@ mod tests {
                     7,
                     merkle_data_for(7, H256::from_low_u64_be(2), message.id(), 101),
                 ),
-                &sources(),
+                &fixture.sources,
             )
             .expect_err("block mismatch must reject")
             .to_string()
