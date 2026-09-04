@@ -1,5 +1,19 @@
 # @hyperlane-xyz/widgets
 
+## 44.0.3
+
+### Patch Changes
+
+- 8a57f39: A Starknet paymaster provider factory was added for custom chains without paymaster metadata.
+- Updated dependencies [6eaa8c6]
+  - @hyperlane-xyz/sdk@44.0.3
+  - @hyperlane-xyz/aleo-sdk@44.0.3
+  - @hyperlane-xyz/cosmos-sdk@44.0.3
+  - @hyperlane-xyz/radix-sdk@44.0.3
+  - @hyperlane-xyz/utils@44.0.3
+  - @hyperlane-xyz/provider-sdk@10.0.3
+  - @hyperlane-xyz/tron-sdk@25.0.3
+
 ## 44.0.2
 
 ### Patch Changes
