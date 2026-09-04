@@ -302,16 +302,34 @@ where
     /// If all providers fail, return an error.
     pub async fn call<V>(
         &self,
+        f: impl FnMut(T) -> Pin<Box<dyn Future<Output = ChainResult<V>> + Send>>,
+    ) -> ChainResult<V> {
+        self.call_with_retry_predicate(f, |_| true).await
+    }
+
+    /// Call providers until one succeeds, without retrying a provider when
+    /// `should_retry` returns false for its error.
+    ///
+    /// Every provider is attempted once before terminal providers are excluded
+    /// from later retry rounds. This preserves fallback across independently
+    /// configured providers while avoiding repeated calls that cannot succeed.
+    pub async fn call_with_retry_predicate<V>(
+        &self,
         mut f: impl FnMut(T) -> Pin<Box<dyn Future<Output = ChainResult<V>> + Send>>,
+        should_retry: impl Fn(&crate::ChainCommunicationError) -> bool,
     ) -> ChainResult<V> {
         let mut errors = vec![];
+        let mut retryable_providers = vec![true; self.inner.providers.len()];
         // make sure we do at least 4 total retries.
-        while errors.len() <= 3 {
+        while errors.len() <= 3 && retryable_providers.iter().any(|retryable| *retryable) {
             if !errors.is_empty() {
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
             let priorities_snapshot = self.take_priorities_snapshot().await;
             for (idx, priority) in priorities_snapshot.iter().enumerate() {
+                if !retryable_providers[priority.index] {
+                    continue;
+                }
                 let provider = &self.inner.providers[priority.index];
                 let resp = self.call_provider(priority, f(provider.clone())).await;
                 let _span =
@@ -323,6 +341,7 @@ where
                             error=?e,
                             "Got error from inner fallback provider",
                         );
+                        retryable_providers[priority.index] = should_retry(&e);
                         errors.push(e);
                     }
                 }
@@ -618,6 +637,37 @@ pub mod test {
             .map(|p| p.index)
             .collect();
         assert_eq!(expected, actual);
+    }
+
+    #[tokio::test]
+    async fn test_call_with_retry_predicate_skips_terminal_provider() {
+        let terminal_provider = ProviderMock::default();
+        terminal_provider.push("terminal", true);
+        let retryable_provider = ProviderMock::default();
+        retryable_provider.push("retryable", true);
+        let fallback_provider: FallbackProvider<ProviderMock, ProviderMock> =
+            FallbackProvider::new([terminal_provider.clone(), retryable_provider.clone()]);
+
+        let result: ChainResult<()> = fallback_provider
+            .call_with_retry_predicate(
+                |provider| {
+                    let response = provider.requests()[0].0.clone();
+                    provider.push("call", true);
+                    Box::pin(async move {
+                        if response == "terminal" {
+                            Err(crate::ChainCommunicationError::BatchingFailed)
+                        } else {
+                            Err(crate::ChainCommunicationError::TransactionTimeout)
+                        }
+                    })
+                },
+                |error| !matches!(error, crate::ChainCommunicationError::BatchingFailed),
+            )
+            .await;
+
+        assert!(result.is_err());
+        assert_eq!(terminal_provider.requests().len(), 2);
+        assert_eq!(retryable_provider.requests().len(), 4);
     }
 
     #[tokio::test]
