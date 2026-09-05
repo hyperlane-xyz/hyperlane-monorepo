@@ -22,14 +22,33 @@ pub struct BroadcastMpscSender<T> {
     sender: Arc<Mutex<Vec<MpscSender<T>>>>,
 }
 
-impl BroadcastMpscSender<H512> {
+/// Cursor-indexed transaction and the stored event sequences it contained.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct IndexingNotification {
+    /// Indexed transaction id.
+    pub tx_id: H512,
+    /// Sequence numbers stored from the transaction.
+    pub sequences: Vec<Option<u32>>,
+}
+
+impl IndexingNotification {
+    /// Build a notification for a transaction without sequence metadata.
+    pub fn from_tx_id(tx_id: H512) -> Self {
+        Self {
+            tx_id,
+            sequences: Vec::new(),
+        }
+    }
+}
+
+impl<T: Clone> BroadcastMpscSender<T> {
     /// Send a message to all the receiving channels.
     // This will block if at least one of the receiving channels is full
-    pub async fn send(&self, txid: H512) -> Result<()> {
+    pub async fn send(&self, message: T) -> Result<()> {
         let mut senders = self.sender.lock().await;
         let mut index = 0;
         while index < senders.len() {
-            if senders[index].send(txid).await.is_ok() {
+            if senders[index].send(message.clone()).await.is_ok() {
                 index = index.saturating_add(1);
             } else {
                 // A closed receiver must not prevent later subscribers from
@@ -41,7 +60,7 @@ impl BroadcastMpscSender<H512> {
     }
 
     /// Get a receiver channel that will receive messages broadcasted by all the senders
-    pub async fn get_receiver(&self) -> MpscReceiver<H512> {
+    pub async fn get_receiver(&self) -> MpscReceiver<T> {
         let (sender, receiver) = tokio::sync::mpsc::channel(self.capacity);
 
         self.sender.lock().await.push(sender);
@@ -49,7 +68,7 @@ impl BroadcastMpscSender<H512> {
     }
 
     /// Utility function map an option of `BroadcastMpscSender` to an option of `MpscReceiver`
-    pub async fn map_get_receiver(maybe_self: Option<&Self>) -> Option<MpscReceiver<H512>> {
+    pub async fn map_get_receiver(maybe_self: Option<&Self>) -> Option<MpscReceiver<T>> {
         if let Some(s) = maybe_self {
             Some(s.get_receiver().await)
         } else {

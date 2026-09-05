@@ -34,12 +34,16 @@ impl DbLoader {
         let name = self.ticker.name();
         let instrumented = TaskMonitor::instrument(
             &task_monitor,
-            async move { self.main_loop().await }.instrument(span),
+            async move { self.run().await }.instrument(span),
         );
         tokio::task::Builder::new()
             .name(&name)
             .spawn(instrumented)
             .expect("spawning tokio task from Builder is infallible")
+    }
+
+    pub async fn run(self) {
+        self.main_loop().await;
     }
 
     async fn main_loop(mut self) {

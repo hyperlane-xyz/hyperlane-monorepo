@@ -3,7 +3,7 @@ use std::{
     fmt::{Debug, Formatter},
     hash::Hash,
     sync::Arc,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use async_trait::async_trait;
@@ -23,7 +23,7 @@ use tokio_metrics::TaskMonitor;
 use tracing::{debug, error, info, info_span, Instrument};
 
 use hyperlane_base::{
-    broadcast::BroadcastMpscSender,
+    broadcast::{BroadcastMpscSender, IndexingNotification},
     cache::{LocalCache, MeteredCache, MeteredCacheConfig, OptionalCache},
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
@@ -33,8 +33,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion, H512,
-    U256,
+    HyperlaneDomain, HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion, U256,
 };
 use lander::{CommandEntrypoint, DispatcherMetrics};
 
@@ -51,7 +50,7 @@ use crate::{
     metrics::message_submission::MessageSubmissionMetrics,
     msg::{
         blacklist::AddressBlacklist,
-        db_loader::{MessageDbLoader, MessageDbLoaderMetrics},
+        db_loader::{MessageDbLoader, MessageDbLoaderMetricsShared},
         message_processor::{
             MessageProcessor, MessageProcessorMetrics, MESSAGE_PROCESSOR_INGRESS_CAPACITY,
         },
@@ -74,6 +73,7 @@ mod origin;
 
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
+const MESSAGE_DB_LOADER_INIT_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 const ADVANCED_LOG_META: bool = false;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
@@ -445,6 +445,8 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started processors", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
+        let message_db_loader_metrics = MessageDbLoaderMetricsShared::new(&self.core.metrics)
+            .expect("Creating message DB loader metrics is infallible");
         for (origin_domain, origin) in self.origins.iter() {
             let maybe_broadcaster = origin.message_sync.get_broadcaster();
 
@@ -506,24 +508,13 @@ impl BaseAgent for Relayer {
             };
             tasks.push(merkle_tree_hook_sync);
 
-            let message_db_loader = match self.run_message_db_loader(
+            tasks.push(self.run_message_db_loader_supervisor(
                 origin,
                 send_channels.clone(),
-                BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
+                maybe_broadcaster,
                 task_monitor.clone(),
-            ) {
-                Ok(task) => task,
-                Err(err) => {
-                    Self::record_critical_error(
-                        origin_domain,
-                        &self.chain_metrics,
-                        &err,
-                        "Failed to run message db loader",
-                    );
-                    continue;
-                }
-            };
-            tasks.push(message_db_loader);
+                &message_db_loader_metrics,
+            ));
 
             let merkle_tree_db_loader =
                 match self.run_merkle_tree_db_loader(origin, task_monitor.clone()) {
@@ -786,7 +777,7 @@ impl Relayer {
     async fn run_interchain_gas_payment_sync(
         &self,
         origin: &Origin,
-        tx_id_receiver: Option<MpscReceiver<H512>>,
+        tx_id_receiver: Option<MpscReceiver<IndexingNotification>>,
         task_monitor: TaskMonitor,
     ) -> eyre::Result<Option<JoinHandle<()>>> {
         let contract_sync = match origin.interchain_gas_payment_sync.as_ref() {
@@ -827,7 +818,7 @@ impl Relayer {
         index_settings: IndexSettings,
         contract_sync: Arc<dyn ContractSyncer<InterchainGasPayment>>,
         chain_metrics: ChainMetrics,
-        tx_id_receiver: Option<MpscReceiver<H512>>,
+        tx_id_receiver: Option<MpscReceiver<IndexingNotification>>,
     ) {
         let cursor = match Self::instantiate_cursor_with_retries(
             contract_sync.clone(),
@@ -852,7 +843,7 @@ impl Relayer {
     async fn run_merkle_tree_hook_sync(
         &self,
         origin: &Origin,
-        tx_id_receiver: Option<MpscReceiver<H512>>,
+        tx_id_receiver: Option<MpscReceiver<IndexingNotification>>,
         task_monitor: TaskMonitor,
     ) -> eyre::Result<JoinHandle<()>> {
         let chain_metrics = self.chain_metrics.clone();
@@ -886,7 +877,7 @@ impl Relayer {
         index_settings: IndexSettings,
         contract_sync: Arc<dyn ContractSyncer<MerkleTreeInsertion>>,
         chain_metrics: ChainMetrics,
-        tx_id_receiver: Option<MpscReceiver<H512>>,
+        tx_id_receiver: Option<MpscReceiver<IndexingNotification>>,
     ) {
         let cursor_instantiation_result =
             Self::instantiate_cursor_with_retries(contract_sync.clone(), index_settings.clone())
@@ -910,14 +901,15 @@ impl Relayer {
         format!("contract::sync::{prefix}{domain}")
     }
 
-    fn run_message_db_loader(
+    fn run_message_db_loader_supervisor(
         &self,
         origin: &Origin,
         send_channels: HashMap<u32, Sender<QueueOperationBatch>>,
-        index_notifications: Option<MpscReceiver<H512>>,
+        maybe_broadcaster: Option<BroadcastMpscSender<IndexingNotification>>,
         task_monitor: TaskMonitor,
-    ) -> eyre::Result<JoinHandle<()>> {
-        let metrics = MessageDbLoaderMetrics::new(&self.core.metrics, &origin.domain);
+        shared_metrics: &MessageDbLoaderMetricsShared,
+    ) -> JoinHandle<()> {
+        let metrics = shared_metrics.for_origin(&self.core.metrics, &origin.domain);
         let destination_ctxs: HashMap<_, _> = self
             .destinations
             .keys()
@@ -948,23 +940,63 @@ impl Relayer {
                 context
             })
             .collect();
+        let database = origin.database.clone();
+        let message_whitelist = self.message_whitelist.clone();
+        let message_blacklist = self.message_blacklist.clone();
+        let address_blacklist = self.address_blacklist.clone();
+        let metric_app_contexts = self.metric_app_contexts.clone();
+        let max_retries = self.max_retries;
+        let origin_domain = origin.domain.clone();
+        let chain_metrics = self.chain_metrics.clone();
+        let task_name = format!("message_db_loader_init::{}", origin_domain.name());
+        let span = info_span!("MessageDbLoader", origin=%origin_domain.name());
+        let instrumented = TaskMonitor::instrument(
+            &task_monitor.clone(),
+            async move {
+                let mut init_failed = false;
+                let mut message_db_loader = loop {
+                    match MessageDbLoader::new(
+                        database.clone(),
+                        message_whitelist.clone(),
+                        message_blacklist.clone(),
+                        address_blacklist.clone(),
+                        metrics.clone(),
+                        send_channels.clone(),
+                        destination_ctxs.clone(),
+                        metric_app_contexts.clone(),
+                        max_retries,
+                    ) {
+                        Ok(loader) => break loader,
+                        Err(err) => {
+                            init_failed = true;
+                            Self::record_critical_error(
+                                &origin_domain,
+                                &chain_metrics,
+                                &err,
+                                "Failed to run message db loader; retrying",
+                            );
+                            tokio::time::sleep(MESSAGE_DB_LOADER_INIT_RETRY_INTERVAL).await;
+                        }
+                    }
+                };
+                message_db_loader.set_index_notifications(
+                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
+                );
+                if init_failed {
+                    chain_metrics.set_critical_error(origin_domain.name(), false);
+                }
 
-        let message_db_loader = MessageDbLoader::new(
-            origin.database.clone(),
-            self.message_whitelist.clone(),
-            self.message_blacklist.clone(),
-            self.address_blacklist.clone(),
-            metrics,
-            send_channels,
-            destination_ctxs,
-            self.metric_app_contexts.clone(),
-            self.max_retries,
-            index_notifications,
+                DbLoader::new(Box::new(message_db_loader), task_monitor)
+                    .run()
+                    .await;
+            }
+            .instrument(span),
         );
 
-        let span = info_span!("MessageDbLoader", origin=%message_db_loader.domain());
-        let db_loader = DbLoader::new(Box::new(message_db_loader), task_monitor.clone());
-        Ok(db_loader.spawn(span))
+        tokio::task::Builder::new()
+            .name(&task_name)
+            .spawn(instrumented)
+            .expect("spawning tokio task from Builder is infallible")
     }
 
     fn run_merkle_tree_db_loader(
