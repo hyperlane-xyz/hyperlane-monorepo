@@ -1522,3 +1522,53 @@ async fn sign_and_submit_checkpoint_different_signature() {
 
     logs_contain("Checkpoint already submitted, but with different signature, overwriting");
 }
+
+#[tokio::test]
+async fn unchanged_tree_checkpoint_preserves_root_index_namespace_and_block() {
+    for leaf_count in [1, 5] {
+        let mut tree = IncrementalMerkle::default();
+        for index in 0..leaf_count {
+            tree.ingest(H256::from_low_u64_be(index + 1));
+        }
+        let expected = Checkpoint {
+            root: tree.root(),
+            index: tree.index(),
+            merkle_tree_hook_address: H256::from_low_u64_be(123),
+            mailbox_domain: 17,
+        };
+        let mut hook = MockMerkleTreeHook::new();
+        hook.expect_address()
+            .return_const(expected.merkle_tree_hook_address);
+        hook.expect_domain()
+            .return_const(dummy_domain(17, "root_reuse_domain"));
+        let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+        let submitter = ValidatorSubmitter::new(
+            Duration::from_secs(1),
+            ReorgPeriod::from_blocks(1),
+            Arc::new(hook),
+            Arc::new(MockMerkleTreeHook::new()),
+            dummy_singleton_handle(),
+            signer,
+            Arc::new(MockCheckpointSyncer::new()),
+            Arc::new(MockDb::new()),
+            dummy_metrics(),
+            2,
+            Arc::new(MockReorgReporter::new()),
+            dummy_readiness(),
+        );
+        let at_block = IncrementalMerkleAtBlock {
+            tree: tree.clone(),
+            block_height: Some(42),
+        };
+        let checkpoint = submitter.checkpoint_at_block(&at_block);
+        assert_eq!(checkpoint.checkpoint, expected);
+        assert_eq!(checkpoint.block_height, Some(42));
+        // No DB reads, signing/storage calls, or reorg reports are expected when
+        // the complete checkpoint already matches and no leaves are ingested.
+        submitter
+            .submit_checkpoints_until_correctness_checkpoint(&mut tree, &checkpoint)
+            .await;
+        assert_eq!(tree.root(), expected.root);
+        assert_eq!(tree.index(), expected.index);
+    }
+}

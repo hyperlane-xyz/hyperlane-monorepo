@@ -95,17 +95,17 @@ impl ValidatorSubmitter {
         }
     }
 
-    pub(crate) fn checkpoint(&self, tree: &IncrementalMerkle) -> Checkpoint {
+    fn checkpoint(&self, root: H256, index: u32) -> Checkpoint {
         Checkpoint {
             merkle_tree_hook_address: self.merkle_tree_hook.address(),
             mailbox_domain: self.merkle_tree_hook.domain().id(),
-            root: tree.root(),
-            index: tree.index(),
+            root,
+            index,
         }
     }
 
     pub(crate) fn checkpoint_at_block(&self, tree: &IncrementalMerkleAtBlock) -> CheckpointAtBlock {
-        let checkpoint = self.checkpoint(&tree.tree);
+        let checkpoint = self.checkpoint(tree.tree.root(), tree.tree.index());
 
         CheckpointAtBlock {
             checkpoint,
@@ -349,8 +349,12 @@ impl ValidatorSubmitter {
             });
         }
 
+        let root = checkpoint_queue
+            .last()
+            .map(|checkpoint| checkpoint.root)
+            .unwrap_or_else(|| tree.root());
         info!(
-            root = ?tree.root(),
+            ?root,
             queue_length = checkpoint_queue.len(),
             "Ingested leaves into in-memory merkle tree"
         );
@@ -364,13 +368,13 @@ impl ValidatorSubmitter {
             tree.index(),
         );
 
-        let checkpoint = self.checkpoint(tree);
+        let checkpoint = self.checkpoint(root, tree.index());
 
         // If the tree's checkpoint doesn't match the correctness checkpoint, something went wrong
         // and we bail loudly.
         if checkpoint != correctness_checkpoint.checkpoint {
             let reorg_event = ReorgEvent::new(
-                tree.root(),
+                root,
                 correctness_checkpoint.root,
                 checkpoint.index,
                 chrono::Utc::now().timestamp() as u64,
