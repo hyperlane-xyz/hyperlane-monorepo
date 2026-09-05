@@ -1,4 +1,8 @@
-use std::{fmt, sync::OnceLock, time::Duration};
+use std::{
+    fmt,
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use aws_config::{timeout::TimeoutConfig, BehaviorVersion, ConfigLoader, Region};
@@ -6,6 +10,7 @@ use aws_sdk_s3::{
     error::SdkError, operation::get_object::GetObjectError as SdkGetObjectError,
     primitives::ByteStream, Client,
 };
+use bytes::Bytes;
 use dashmap::DashMap;
 use derive_new::new;
 use eyre::{bail, Result};
@@ -45,10 +50,31 @@ pub struct S3Storage {
 /// We've seen freshly created S3 clients make expensive DNS / TCP
 /// requests when creating them. This cache allows us to reuse
 /// anonymous clients across the entire agent.
-static ANONYMOUS_CLIENT_CACHE: OnceLock<DashMap<Region, OnceCell<Client>>> = OnceLock::new();
+static ANONYMOUS_CLIENT_CACHE: OnceLock<DashMap<Region, Arc<OnceCell<Client>>>> = OnceLock::new();
 
-fn get_anonymous_client_cache() -> &'static DashMap<Region, OnceCell<Client>> {
-    ANONYMOUS_CLIENT_CACHE.get_or_init(DashMap::new)
+fn anonymous_client_cell(region: Region) -> Arc<OnceCell<Client>> {
+    let cell = ANONYMOUS_CLIENT_CACHE
+        .get_or_init(DashMap::new)
+        .entry(region)
+        .or_default();
+    // Release the synchronous shard guard before the caller awaits initialization.
+    Arc::clone(&cell)
+}
+
+/// Keep a single SDK chunk without copying; fragmented bodies retain the Vec collector.
+#[derive(Debug)]
+enum S3ObjectBody {
+    Single(Bytes),
+    Collected(Vec<u8>),
+}
+
+impl AsRef<[u8]> for S3ObjectBody {
+    fn as_ref(&self) -> &[u8] {
+        match self {
+            Self::Single(bytes) => bytes.as_ref(),
+            Self::Collected(bytes) => bytes.as_ref(),
+        }
+    }
 }
 
 /// Reads a `ByteStream` chunk by chunk, aborting as soon as the cumulative size reaches
@@ -63,12 +89,23 @@ async fn read_capped_with_timeout(
     mut body: ByteStream,
     key: &str,
     timeout: Duration,
-) -> Result<Vec<u8>> {
+) -> Result<S3ObjectBody> {
     tokio::time::timeout(timeout, async {
-        let mut buf = Vec::new();
+        let mut buf = S3ObjectBody::Single(Bytes::new());
         while let Some(chunk) = body.try_next().await? {
-            buf.extend_from_slice(&chunk);
-            if buf.len() as i64 >= S3_MAX_OBJECT_SIZE {
+            if !chunk.is_empty() {
+                match &mut buf {
+                    S3ObjectBody::Single(first) if first.is_empty() => *first = chunk,
+                    S3ObjectBody::Single(first) => {
+                        let mut collected = Vec::new();
+                        collected.extend_from_slice(first);
+                        collected.extend_from_slice(&chunk);
+                        buf = S3ObjectBody::Collected(collected);
+                    }
+                    S3ObjectBody::Collected(collected) => collected.extend_from_slice(&chunk),
+                }
+            }
+            if buf.as_ref().len() as i64 >= S3_MAX_OBJECT_SIZE {
                 bail!(
                     "Object size for key {key} exceeds the {}KiB limit",
                     S3_MAX_OBJECT_SIZE / 1024
@@ -81,7 +118,7 @@ async fn read_capped_with_timeout(
     .map_err(|_| eyre::eyre!("Timed out reading object for key {key} after {timeout:?}"))?
 }
 
-async fn read_capped(body: ByteStream, key: &str) -> Result<Vec<u8>> {
+async fn read_capped(body: ByteStream, key: &str) -> Result<S3ObjectBody> {
     read_capped_with_timeout(body, key, S3_REQUEST_TIMEOUT).await
 }
 
@@ -96,13 +133,13 @@ impl fmt::Debug for S3Storage {
 }
 
 impl S3Storage {
-    async fn write_to_bucket(&self, key: String, body: &str) -> Result<()> {
+    async fn write_to_bucket(&self, key: String, body: Vec<u8>) -> Result<()> {
         self.authenticated_client()
             .await
             .put_object()
             .bucket(self.bucket.clone())
             .key(self.get_composite_key(key))
-            .body(Vec::from(body).into())
+            .body(body.into())
             .content_type("application/json")
             .send()
             .await?;
@@ -110,7 +147,7 @@ impl S3Storage {
         Ok(())
     }
 
-    async fn anonymously_read_from_bucket(&self, key: String) -> Result<Option<Vec<u8>>> {
+    async fn anonymously_read_from_bucket(&self, key: String) -> Result<Option<S3ObjectBody>> {
         let get_object_result = self
             .anonymous_client()
             .await
@@ -150,9 +187,7 @@ impl S3Storage {
     /// S3 bucket's AWS account. Additionally, this allows relayer operators to not
     /// require AWS credentials.
     async fn anonymous_client(&self) -> Client {
-        let cell = get_anonymous_client_cache()
-            .entry(self.region.clone())
-            .or_default();
+        let cell = anonymous_client_cell(self.region.clone());
 
         cell.get_or_init(|| async {
             let config = self
@@ -219,7 +254,7 @@ impl CheckpointSyncer for S3Storage {
         let ret = self
             .anonymously_read_from_bucket(S3Storage::latest_index_key())
             .await?
-            .map(|data| serde_json::from_slice(&data))
+            .map(|data| serde_json::from_slice(data.as_ref()))
             .transpose()
             .map_err(Into::into);
 
@@ -233,8 +268,8 @@ impl CheckpointSyncer for S3Storage {
     }
 
     async fn write_latest_index(&self, index: u32) -> Result<()> {
-        let serialized_index = serde_json::to_string(&index)?;
-        self.write_to_bucket(S3Storage::latest_index_key(), &serialized_index)
+        let serialized_index = serde_json::to_vec(&index)?;
+        self.write_to_bucket(S3Storage::latest_index_key(), serialized_index)
             .await?;
         Ok(())
     }
@@ -242,7 +277,7 @@ impl CheckpointSyncer for S3Storage {
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
         self.anonymously_read_from_bucket(S3Storage::checkpoint_key(index))
             .await?
-            .map(|data| serde_json::from_slice(&data))
+            .map(|data| serde_json::from_slice(data.as_ref()))
             .transpose()
             .map_err(Into::into)
     }
@@ -251,24 +286,27 @@ impl CheckpointSyncer for S3Storage {
         &self,
         signed_checkpoint: &SignedCheckpointWithMessageId,
     ) -> Result<()> {
-        let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
+        let serialized_checkpoint = serde_json::to_vec(signed_checkpoint)?;
         self.write_to_bucket(
             S3Storage::checkpoint_key(signed_checkpoint.value.index),
-            &serialized_checkpoint,
+            serialized_checkpoint,
         )
         .await?;
         Ok(())
     }
 
     async fn write_metadata(&self, serialized_metadata: &str) -> Result<()> {
-        self.write_to_bucket(S3Storage::metadata_key(), serialized_metadata)
-            .await?;
+        self.write_to_bucket(
+            S3Storage::metadata_key(),
+            serialized_metadata.as_bytes().to_vec(),
+        )
+        .await?;
         Ok(())
     }
 
     async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()> {
-        let serialized_announcement = serde_json::to_string_pretty(signed_announcement)?;
-        self.write_to_bucket(S3Storage::announcement_key(), &serialized_announcement)
+        let serialized_announcement = serde_json::to_vec_pretty(signed_announcement)?;
+        self.write_to_bucket(S3Storage::announcement_key(), serialized_announcement)
             .await?;
         Ok(())
     }
@@ -283,14 +321,14 @@ impl CheckpointSyncer for S3Storage {
     }
 
     async fn write_reorg_status(&self, reorged_event: &ReorgEvent) -> Result<()> {
-        let serialized_reorg = serde_json::to_string(reorged_event)?;
-        self.write_to_bucket(S3Storage::reorg_flag_key(), &serialized_reorg)
+        let serialized_reorg = serde_json::to_vec(reorged_event)?;
+        self.write_to_bucket(S3Storage::reorg_flag_key(), serialized_reorg)
             .await?;
         Ok(())
     }
 
     async fn write_reorg_rpc_responses(&self, reorg_log: String) -> Result<()> {
-        self.write_to_bucket(S3Storage::reorg_rpc_responses_key(), &reorg_log)
+        self.write_to_bucket(S3Storage::reorg_rpc_responses_key(), reorg_log.into_bytes())
             .await?;
         Ok(())
     }
@@ -310,18 +348,18 @@ impl CheckpointSyncer for S3Storage {
                 })
             }
         };
-        match serde_json::from_slice(&contents) {
+        match serde_json::from_slice(contents.as_ref()) {
             Ok(s) => Ok(ReorgEventResponse {
                 exists: true,
                 event: Some(s),
-                content: Some(String::from_utf8_lossy(&contents).to_string()),
+                content: Some(String::from_utf8_lossy(contents.as_ref()).to_string()),
             }),
             Err(err) => {
                 error!(?err, "Failed to parse reorg event");
                 Ok(ReorgEventResponse {
                     exists: true,
                     event: None,
-                    content: Some(String::from_utf8_lossy(&contents).to_string()),
+                    content: Some(String::from_utf8_lossy(contents.as_ref()).to_string()),
                 })
             }
         }
@@ -362,7 +400,7 @@ mod tests {
         let result = read_capped(body, "small-object")
             .await
             .expect("body under the cap must be read successfully");
-        assert_eq!(result, data);
+        assert_eq!(result.as_ref(), data);
     }
 
     #[tokio::test]
@@ -376,6 +414,95 @@ mod tests {
             .await
             .expect_err("oversized body must be rejected");
         assert!(err.to_string().contains("exceeds"));
+    }
+
+    fn fixture_body(chunks: Vec<std::io::Result<Bytes>>) -> ByteStream {
+        ByteStream::new(aws_sdk_s3::primitives::SdkBody::from_body_0_4(
+            hyper::Body::wrap_stream(futures::stream::iter(chunks)),
+        ))
+    }
+
+    #[tokio::test]
+    async fn read_capped_preserves_single_chunk_and_fragmented_bytes() {
+        let bytes = Bytes::from(vec![7; 1024]);
+        let pointer = bytes.as_ptr();
+        let single = read_capped(
+            fixture_body(vec![Ok(Bytes::new()), Ok(bytes), Ok(Bytes::new())]),
+            "single",
+        )
+        .await
+        .unwrap();
+        assert!(matches!(single, S3ObjectBody::Single(_)));
+        assert_eq!(single.as_ref().as_ptr(), pointer);
+        assert_eq!(single.as_ref(), vec![7; 1024]);
+        let fragmented = read_capped(
+            fixture_body(vec![
+                Ok(Bytes::from_static(b"abc")),
+                Ok(Bytes::new()),
+                Ok(Bytes::from_static(b"def")),
+                Ok(Bytes::from_static(b"ghi")),
+            ]),
+            "fragmented",
+        )
+        .await
+        .unwrap();
+        assert!(matches!(fragmented, S3ObjectBody::Collected(_)));
+        assert_eq!(fragmented.as_ref(), b"abcdefghi");
+        for chunks in [vec![], vec![Ok(Bytes::new())]] {
+            assert!(read_capped(fixture_body(chunks), "empty")
+                .await
+                .unwrap()
+                .as_ref()
+                .is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn read_capped_keeps_boundary_and_late_error_contracts() {
+        for chunks in [1, 2, 4] {
+            for size in [S3_MAX_OBJECT_SIZE - 1, S3_MAX_OBJECT_SIZE] {
+                let data = vec![7; size as usize];
+                let parts = data
+                    .chunks(data.len().div_ceil(chunks))
+                    .map(|part| Ok(Bytes::copy_from_slice(part)))
+                    .collect();
+                let result = read_capped(fixture_body(parts), "boundary").await;
+                if size < S3_MAX_OBJECT_SIZE {
+                    assert_eq!(result.unwrap().as_ref(), data);
+                } else {
+                    assert!(result.unwrap_err().to_string().contains("exceeds"));
+                }
+            }
+        }
+        let error = read_capped(
+            fixture_body(vec![
+                Ok(Bytes::from_static(b"partial")),
+                Err(std::io::Error::other("fixture body failure")),
+            ]),
+            "late-error",
+        )
+        .await
+        .unwrap_err();
+        assert!(format!("{error:?}").contains("fixture body failure"));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn read_capped_waits_for_eof_after_single_chunk() {
+        use futures::StreamExt;
+        let stream = futures::stream::iter([Ok::<_, std::io::Error>(Bytes::from_static(
+            b"complete-looking-object",
+        ))])
+        .chain(futures::stream::pending());
+        let body = ByteStream::new(aws_sdk_s3::primitives::SdkBody::from_body_0_4(
+            hyper::Body::wrap_stream(stream),
+        ));
+        let started = tokio::time::Instant::now();
+        let deadline = Duration::from_secs(2);
+        let error = read_capped_with_timeout(body, "missing-eof", deadline)
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("Timed out"));
+        assert_eq!(started.elapsed(), deadline);
     }
 
     /// Builds a plain HTTP-only S3 client pointed at a local mock server. Building an explicit
@@ -393,6 +520,169 @@ mod tests {
             .credentials_provider(aws_sdk_s3::config::Credentials::for_tests())
             .build();
         Client::from_conf(config)
+    }
+
+    #[tokio::test]
+    async fn checkpoint_upload_uses_compact_json_and_preserves_signed_fields() {
+        use std::sync::Arc;
+
+        use hyper::{service::service_fn, Body, Response};
+        use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, H256};
+        use hyperlane_ethereum::Signers;
+
+        let signer: Signers = "01"
+            .repeat(32)
+            .parse::<ethers::signers::LocalWallet>()
+            .unwrap()
+            .into();
+        let checkpoint = signer
+            .sign(CheckpointWithMessageId {
+                checkpoint: Checkpoint {
+                    merkle_tree_hook_address: H256::repeat_byte(0x11),
+                    mailbox_domain: 42161,
+                    root: H256::repeat_byte(0x22),
+                    index: 2_500_000,
+                },
+                message_id: H256::repeat_byte(0x33),
+            })
+            .await
+            .unwrap();
+        let expected = serde_json::to_vec(&checkpoint).unwrap();
+        let pretty = serde_json::to_vec_pretty(&checkpoint).unwrap();
+        assert!(expected.len() < pretty.len());
+        println!(
+            "checkpoint bytes: pretty={}, compact={}",
+            pretty.len(),
+            expected.len()
+        );
+        let received = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_received = Arc::clone(&received);
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            hyper::server::conn::Http::new()
+                .serve_connection(
+                    socket,
+                    service_fn(move |request: hyper::Request<Body>| {
+                        let received = Arc::clone(&server_received);
+                        async move {
+                            assert_eq!(request.method(), hyper::Method::PUT);
+                            assert_eq!(
+                                request.uri().path(),
+                                "/test-bucket/checkpoint_2500000_with_id.json"
+                            );
+                            assert_eq!(
+                                request.headers()[hyper::header::CONTENT_TYPE],
+                                "application/json"
+                            );
+                            let body = hyper::body::to_bytes(request.into_body()).await.unwrap();
+                            *received.lock().unwrap() = body.to_vec();
+                            Ok::<_, std::convert::Infallible>(
+                                Response::builder()
+                                    .header(hyper::header::CONNECTION, "close")
+                                    .body(Body::empty())
+                                    .unwrap(),
+                            )
+                        }
+                    }),
+                )
+                .await
+                .unwrap();
+        });
+        let storage = S3Storage::new("test-bucket".into(), None, Region::new("us-east-1"), None);
+        storage
+            .authenticated_client
+            .set(test_client(address))
+            .unwrap();
+        storage.write_checkpoint(&checkpoint).await.unwrap();
+        server.await.unwrap();
+        let body = received.lock().unwrap();
+        assert_eq!(*body, expected);
+        let decoded: SignedCheckpointWithMessageId = serde_json::from_slice(&body).unwrap();
+        assert_eq!(decoded.value, checkpoint.value);
+        assert_eq!(decoded.signature, checkpoint.signature);
+        assert_eq!(decoded.recover().unwrap(), checkpoint.recover().unwrap());
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
+            serde_json::from_slice::<serde_json::Value>(&pretty).unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn anonymous_client_initialization_releases_cache_lock_and_coalesces_waiters() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        use dashmap::try_result::TryResult;
+        use futures::{future::join_all, poll};
+        use tokio::sync::Notify;
+
+        let region = Region::new("test-coalesced-client-initialization");
+        let first_cell = anonymous_client_cell(region.clone());
+        let initialized = AtomicUsize::new(0);
+        let release = Notify::new();
+        let address = ([127, 0, 0, 1], 1).into();
+        let mut first = Box::pin(first_cell.get_or_init(|| async {
+            initialized.fetch_add(1, Ordering::SeqCst);
+            release.notified().await;
+            test_client(address)
+        }));
+        assert!(poll!(first.as_mut()).is_pending());
+
+        // A suspended initializer must hold zero synchronous map guards. This check
+        // cannot block the executor, even if the lock-release invariant regresses.
+        let cache = ANONYMOUS_CLIENT_CACHE.get().unwrap();
+        assert!(matches!(cache.try_get_mut(&region), TryResult::Present(_)));
+        let cells: Vec<_> = (0..20)
+            .map(|_| anonymous_client_cell(region.clone()))
+            .collect();
+        assert!(cells.iter().all(|cell| Arc::ptr_eq(cell, &first_cell)));
+        let mut waiters = Box::pin(join_all(cells.iter().map(|cell| {
+            cell.get_or_init(|| async {
+                initialized.fetch_add(1, Ordering::SeqCst);
+                test_client(address)
+            })
+        })));
+        assert!(poll!(waiters.as_mut()).is_pending());
+        assert_eq!(initialized.load(Ordering::SeqCst), 1);
+        assert!(matches!(cache.try_get_mut(&region), TryResult::Present(_)));
+
+        release.notify_one();
+        let first_client = first.await;
+        let clients = waiters.await;
+        assert_eq!(clients.len(), 20);
+        assert!(clients
+            .iter()
+            .all(|client| std::ptr::eq(*client, first_client)));
+        assert_eq!(initialized.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn anonymous_client_initialization_can_retry_after_cancellation() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        use futures::poll;
+
+        let region = Region::new("test-cancelled-client-initialization");
+        let first_cell = anonymous_client_cell(region.clone());
+        let initialized = AtomicUsize::new(0);
+        let mut cancelled = Box::pin(first_cell.get_or_init(|| async {
+            initialized.fetch_add(1, Ordering::SeqCst);
+            std::future::pending::<Client>().await
+        }));
+        assert!(poll!(cancelled.as_mut()).is_pending());
+        drop(cancelled);
+
+        let next_cell = anonymous_client_cell(region);
+        assert!(Arc::ptr_eq(&first_cell, &next_cell));
+        next_cell
+            .get_or_init(|| async {
+                initialized.fetch_add(1, Ordering::SeqCst);
+                test_client(([127, 0, 0, 1], 1).into())
+            })
+            .await;
+        assert_eq!(initialized.load(Ordering::SeqCst), 2);
+        assert!(first_cell.get().is_some());
     }
 
     /// Reads a mock HTTP server's request off `socket` up to the end of the headers. The
