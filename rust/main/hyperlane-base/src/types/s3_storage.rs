@@ -10,6 +10,7 @@ use aws_sdk_s3::{
     error::SdkError, operation::get_object::GetObjectError as SdkGetObjectError,
     primitives::ByteStream, Client,
 };
+use bytes::Bytes;
 use dashmap::DashMap;
 use derive_new::new;
 use eyre::{bail, Result};
@@ -60,6 +61,22 @@ fn anonymous_client_cell(region: Region) -> Arc<OnceCell<Client>> {
     Arc::clone(&cell)
 }
 
+/// Keep a single SDK chunk without copying; fragmented bodies retain the Vec collector.
+#[derive(Debug)]
+enum S3ObjectBody {
+    Single(Bytes),
+    Collected(Vec<u8>),
+}
+
+impl AsRef<[u8]> for S3ObjectBody {
+    fn as_ref(&self) -> &[u8] {
+        match self {
+            Self::Single(bytes) => bytes.as_ref(),
+            Self::Collected(bytes) => bytes.as_ref(),
+        }
+    }
+}
+
 /// Reads a `ByteStream` chunk by chunk, aborting as soon as the cumulative size reaches
 /// `S3_MAX_OBJECT_SIZE` - enforced against bytes actually received, not a `Content-Length`
 /// header, since an adversarial or misconfigured object store isn't obligated to report an
@@ -72,12 +89,23 @@ async fn read_capped_with_timeout(
     mut body: ByteStream,
     key: &str,
     timeout: Duration,
-) -> Result<Vec<u8>> {
+) -> Result<S3ObjectBody> {
     tokio::time::timeout(timeout, async {
-        let mut buf = Vec::new();
+        let mut buf = S3ObjectBody::Single(Bytes::new());
         while let Some(chunk) = body.try_next().await? {
-            buf.extend_from_slice(&chunk);
-            if buf.len() as i64 >= S3_MAX_OBJECT_SIZE {
+            if !chunk.is_empty() {
+                match &mut buf {
+                    S3ObjectBody::Single(first) if first.is_empty() => *first = chunk,
+                    S3ObjectBody::Single(first) => {
+                        let mut collected = Vec::new();
+                        collected.extend_from_slice(first);
+                        collected.extend_from_slice(&chunk);
+                        buf = S3ObjectBody::Collected(collected);
+                    }
+                    S3ObjectBody::Collected(collected) => collected.extend_from_slice(&chunk),
+                }
+            }
+            if buf.as_ref().len() as i64 >= S3_MAX_OBJECT_SIZE {
                 bail!(
                     "Object size for key {key} exceeds the {}KiB limit",
                     S3_MAX_OBJECT_SIZE / 1024
@@ -90,7 +118,7 @@ async fn read_capped_with_timeout(
     .map_err(|_| eyre::eyre!("Timed out reading object for key {key} after {timeout:?}"))?
 }
 
-async fn read_capped(body: ByteStream, key: &str) -> Result<Vec<u8>> {
+async fn read_capped(body: ByteStream, key: &str) -> Result<S3ObjectBody> {
     read_capped_with_timeout(body, key, S3_REQUEST_TIMEOUT).await
 }
 
@@ -119,7 +147,7 @@ impl S3Storage {
         Ok(())
     }
 
-    async fn anonymously_read_from_bucket(&self, key: String) -> Result<Option<Vec<u8>>> {
+    async fn anonymously_read_from_bucket(&self, key: String) -> Result<Option<S3ObjectBody>> {
         let get_object_result = self
             .anonymous_client()
             .await
@@ -226,7 +254,7 @@ impl CheckpointSyncer for S3Storage {
         let ret = self
             .anonymously_read_from_bucket(S3Storage::latest_index_key())
             .await?
-            .map(|data| serde_json::from_slice(&data))
+            .map(|data| serde_json::from_slice(data.as_ref()))
             .transpose()
             .map_err(Into::into);
 
@@ -249,7 +277,7 @@ impl CheckpointSyncer for S3Storage {
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
         self.anonymously_read_from_bucket(S3Storage::checkpoint_key(index))
             .await?
-            .map(|data| serde_json::from_slice(&data))
+            .map(|data| serde_json::from_slice(data.as_ref()))
             .transpose()
             .map_err(Into::into)
     }
@@ -320,18 +348,18 @@ impl CheckpointSyncer for S3Storage {
                 })
             }
         };
-        match serde_json::from_slice(&contents) {
+        match serde_json::from_slice(contents.as_ref()) {
             Ok(s) => Ok(ReorgEventResponse {
                 exists: true,
                 event: Some(s),
-                content: Some(String::from_utf8_lossy(&contents).to_string()),
+                content: Some(String::from_utf8_lossy(contents.as_ref()).to_string()),
             }),
             Err(err) => {
                 error!(?err, "Failed to parse reorg event");
                 Ok(ReorgEventResponse {
                     exists: true,
                     event: None,
-                    content: Some(String::from_utf8_lossy(&contents).to_string()),
+                    content: Some(String::from_utf8_lossy(contents.as_ref()).to_string()),
                 })
             }
         }
@@ -372,7 +400,7 @@ mod tests {
         let result = read_capped(body, "small-object")
             .await
             .expect("body under the cap must be read successfully");
-        assert_eq!(result, data);
+        assert_eq!(result.as_ref(), data);
     }
 
     #[tokio::test]
@@ -386,6 +414,95 @@ mod tests {
             .await
             .expect_err("oversized body must be rejected");
         assert!(err.to_string().contains("exceeds"));
+    }
+
+    fn fixture_body(chunks: Vec<std::io::Result<Bytes>>) -> ByteStream {
+        ByteStream::new(aws_sdk_s3::primitives::SdkBody::from_body_0_4(
+            hyper::Body::wrap_stream(futures::stream::iter(chunks)),
+        ))
+    }
+
+    #[tokio::test]
+    async fn read_capped_preserves_single_chunk_and_fragmented_bytes() {
+        let bytes = Bytes::from(vec![7; 1024]);
+        let pointer = bytes.as_ptr();
+        let single = read_capped(
+            fixture_body(vec![Ok(Bytes::new()), Ok(bytes), Ok(Bytes::new())]),
+            "single",
+        )
+        .await
+        .unwrap();
+        assert!(matches!(single, S3ObjectBody::Single(_)));
+        assert_eq!(single.as_ref().as_ptr(), pointer);
+        assert_eq!(single.as_ref(), vec![7; 1024]);
+        let fragmented = read_capped(
+            fixture_body(vec![
+                Ok(Bytes::from_static(b"abc")),
+                Ok(Bytes::new()),
+                Ok(Bytes::from_static(b"def")),
+                Ok(Bytes::from_static(b"ghi")),
+            ]),
+            "fragmented",
+        )
+        .await
+        .unwrap();
+        assert!(matches!(fragmented, S3ObjectBody::Collected(_)));
+        assert_eq!(fragmented.as_ref(), b"abcdefghi");
+        for chunks in [vec![], vec![Ok(Bytes::new())]] {
+            assert!(read_capped(fixture_body(chunks), "empty")
+                .await
+                .unwrap()
+                .as_ref()
+                .is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn read_capped_keeps_boundary_and_late_error_contracts() {
+        for chunks in [1, 2, 4] {
+            for size in [S3_MAX_OBJECT_SIZE - 1, S3_MAX_OBJECT_SIZE] {
+                let data = vec![7; size as usize];
+                let parts = data
+                    .chunks(data.len().div_ceil(chunks))
+                    .map(|part| Ok(Bytes::copy_from_slice(part)))
+                    .collect();
+                let result = read_capped(fixture_body(parts), "boundary").await;
+                if size < S3_MAX_OBJECT_SIZE {
+                    assert_eq!(result.unwrap().as_ref(), data);
+                } else {
+                    assert!(result.unwrap_err().to_string().contains("exceeds"));
+                }
+            }
+        }
+        let error = read_capped(
+            fixture_body(vec![
+                Ok(Bytes::from_static(b"partial")),
+                Err(std::io::Error::other("fixture body failure")),
+            ]),
+            "late-error",
+        )
+        .await
+        .unwrap_err();
+        assert!(format!("{error:?}").contains("fixture body failure"));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn read_capped_waits_for_eof_after_single_chunk() {
+        use futures::StreamExt;
+        let stream = futures::stream::iter([Ok::<_, std::io::Error>(Bytes::from_static(
+            b"complete-looking-object",
+        ))])
+        .chain(futures::stream::pending());
+        let body = ByteStream::new(aws_sdk_s3::primitives::SdkBody::from_body_0_4(
+            hyper::Body::wrap_stream(stream),
+        ));
+        let started = tokio::time::Instant::now();
+        let deadline = Duration::from_secs(2);
+        let error = read_capped_with_timeout(body, "missing-eof", deadline)
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("Timed out"));
+        assert_eq!(started.elapsed(), deadline);
     }
 
     /// Builds a plain HTTP-only S3 client pointed at a local mock server. Building an explicit
