@@ -133,7 +133,9 @@ RUN pnpm turbo run bundle \
 # NCC produces byte-identical copies of WASM files (~18MB each), workers,
 # and native addons in every bundle. Replace duplicates with symlinks to
 # the rebalancer (canonical) copy. Done in the builder so that only the
-# deduped result is COPY'd into the runner stage.
+# deduped result is COPY'd into the runner stage. WASM also matches across
+# filenames because NCC can swap numeric suffixes when its module graph changes.
+# Keep cross-name matching limited to WASM; JS/native paths can affect resolution.
 RUN SERVICES_DIR=/hyperlane-monorepo/services && \
     mkdir -p $SERVICES_DIR && \
     for svc in rebalancer warp-monitor ccip-server keyfunder relayer fee-quoting scraper-proxy; do \
@@ -152,6 +154,18 @@ RUN SERVICES_DIR=/hyperlane-monorepo/services && \
           rm "$target" && \
           ln -s "../${CANONICAL}/${fname}" "$target"; \
         fi; \
+      done; \
+      for target in "${svc}"/*.wasm; do \
+        [ ! -f "$target" ] && continue; \
+        [ -L "$target" ] && continue; \
+        for file in "${CANONICAL}"/*.wasm; do \
+          [ ! -f "$file" ] && continue; \
+          if cmp -s "$file" "$target"; then \
+            rm "$target" && \
+            ln -s "../${file}" "$target" || exit 1; \
+            break; \
+          fi; \
+        done; \
       done; \
       if [ -d "${CANONICAL}/prebuilds" ]; then \
         for file in ${CANONICAL}/prebuilds/linux-x64/*; do \
