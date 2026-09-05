@@ -42,21 +42,29 @@ impl ScraperDb {
         interchain_gas_paymaster: &H256,
         sequence: u32,
     ) -> Result<Option<InterchainGasPayment>> {
-        if let Some(payment) = gas_payment::Entity::find()
+        if let Some((msg_id, destination, payment, gas_amount)) = gas_payment::Entity::find()
+            .select_only()
+            .columns([
+                gas_payment::Column::MsgId,
+                gas_payment::Column::Destination,
+                gas_payment::Column::Payment,
+                gas_payment::Column::GasAmount,
+            ])
             .filter(gas_payment::Column::Origin.eq(origin))
             .filter(
                 gas_payment::Column::InterchainGasPaymaster
                     .eq(address_to_bytes(interchain_gas_paymaster)),
             )
             .filter(gas_payment::Column::Sequence.eq(sequence))
+            .into_tuple::<(Vec<u8>, i32, BigDecimal, BigDecimal)>()
             .one(&self.0)
             .await?
         {
             let payment = InterchainGasPayment {
-                message_id: H256::from_slice(&payment.msg_id),
-                destination: payment.destination as u32,
-                payment: decimal_to_u256(payment.payment),
-                gas_amount: decimal_to_u256(payment.gas_amount),
+                message_id: H256::from_slice(&msg_id),
+                destination: destination as u32,
+                payment: decimal_to_u256(payment),
+                gas_amount: decimal_to_u256(gas_amount),
             };
             Ok(Some(payment))
         } else {

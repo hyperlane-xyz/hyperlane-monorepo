@@ -4,10 +4,7 @@ use std::collections::HashSet;
 
 use eyre::{ensure, Result};
 use itertools::Itertools;
-use sea_orm::{
-    prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, QuerySelect, QueryTrait,
-    TransactionTrait,
-};
+use sea_orm::{prelude::*, ActiveValue::*, Insert, QuerySelect, QueryTrait, TransactionTrait};
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
@@ -64,17 +61,20 @@ impl ScraperDb {
         destination_mailbox: &H256,
         sequence: u32,
     ) -> Result<Option<Delivery>> {
-        if let Some(delivery) = delivered_message::Entity::find()
+        if let Some(msg_id) = delivered_message::Entity::find()
+            .select_only()
+            .column(delivered_message::Column::MsgId)
             .filter(delivered_message::Column::Domain.eq(destination_domain))
             .filter(
                 delivered_message::Column::DestinationMailbox
                     .eq(address_to_bytes(destination_mailbox)),
             )
             .filter(delivered_message::Column::Sequence.eq(sequence))
+            .into_tuple::<Vec<u8>>()
             .one(&self.0)
             .await?
         {
-            let delivery = H256::from_slice(&delivery.msg_id);
+            let delivery = H256::from_slice(&msg_id);
             Ok(Some(delivery))
         } else {
             Ok(None)
@@ -218,26 +218,32 @@ impl ScraperDb {
         origin_mailbox: &H256,
         nonce: u32,
     ) -> Result<Option<HyperlaneMessage>> {
-        #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-        enum QueryAs {
-            Nonce,
-        }
-        if let Some(message) = message::Entity::find()
+        if let Some((origin, destination, nonce, sender, recipient, body)) = message::Entity::find()
+            .select_only()
+            .columns([
+                message::Column::Origin,
+                message::Column::Destination,
+                message::Column::Nonce,
+                message::Column::Sender,
+                message::Column::Recipient,
+                message::Column::MsgBody,
+            ])
             .filter(message::Column::Origin.eq(origin_domain))
             .filter(message::Column::OriginMailbox.eq(address_to_bytes(origin_mailbox)))
             .filter(message::Column::Nonce.eq(nonce))
+            .into_tuple::<(i32, i32, i32, Vec<u8>, Vec<u8>, Option<Vec<u8>>)>()
             .one(&self.0)
             .await?
         {
             Ok(Some(HyperlaneMessage {
                 // We do not write version to the DB.
                 version: 3,
-                origin: message.origin as u32,
-                destination: message.destination as u32,
-                nonce: message.nonce as u32,
-                sender: bytes_to_address(message.sender)?,
-                recipient: bytes_to_address(message.recipient)?,
-                body: message.msg_body.unwrap_or(Vec::new()),
+                origin: origin as u32,
+                destination: destination as u32,
+                nonce: nonce as u32,
+                sender: bytes_to_address(sender)?,
+                recipient: bytes_to_address(recipient)?,
+                body: body.unwrap_or(Vec::new()),
             }))
         } else {
             Ok(None)

@@ -422,6 +422,26 @@ async fn dispatch_chunks_preserve_owned_payloads_and_replay() -> eyre::Result<()
             .await?,
         0
     );
+    // Projected reads preserve both NULL/empty and nonempty bodies without transaction metadata.
+    for nonce in [0, 3_250] {
+        let mut expected = rows().nth(nonce as usize).unwrap().msg;
+        expected.version = 3; // Message versions are reconstructed, not stored.
+        assert_eq!(
+            db.retrieve_dispatched_message_by_nonce(DOMAIN, &address, nonce)
+                .await?,
+            Some(expected)
+        );
+    }
+    for (domain, mailbox, nonce) in [
+        (DOMAIN, address, 3_251),
+        (DOMAIN + 1, address, 0),
+        (DOMAIN, H256::from_low_u64_be(2), 0),
+    ] {
+        assert!(db
+            .retrieve_dispatched_message_by_nonce(domain, &mailbox, nonce)
+            .await?
+            .is_none());
+    }
     let stored = super::generated::message::Entity::find().all(&db.0).await?;
     assert_eq!(stored.len(), 3_251);
     for row in stored {

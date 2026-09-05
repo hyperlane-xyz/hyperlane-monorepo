@@ -71,3 +71,6 @@ mod write_batches;
 
 #[cfg(test)]
 mod lookup_batches;
+
+#[cfg(test)]
+mod sequence_reads;
