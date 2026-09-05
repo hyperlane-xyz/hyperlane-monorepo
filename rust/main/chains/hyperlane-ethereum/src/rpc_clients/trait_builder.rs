@@ -106,6 +106,11 @@ pub trait BuildableWithProvider {
         true
     }
 
+    /// Whether identical dynamic block-tip reads should be coalesced per concrete endpoint.
+    fn uses_dynamic_block_cache(&self) -> bool {
+        false
+    }
+
     /// Construct a new instance of the associated trait using a connection
     /// config. This is the first step and will wrap the provider with
     /// metrics and a signer as needed.
@@ -197,7 +202,7 @@ pub trait BuildableWithProvider {
         client_metrics: &Option<PrometheusClientMetrics>,
         middleware_metrics: &Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> PrometheusJsonRpcClient<C> {
-        PrometheusJsonRpcClient::new(
+        let client = PrometheusJsonRpcClient::new(
             client,
             client_metrics.clone().unwrap_or_else(|| {
                 PrometheusClientMetricsBuilder::default()
@@ -218,7 +223,12 @@ pub trait BuildableWithProvider {
                     .map(|(_, v)| v.rpc_role)
                     .unwrap_or_default(),
             },
-        )
+        );
+        if self.uses_dynamic_block_cache() {
+            client.with_dynamic_block_cache(url.as_str())
+        } else {
+            client
+        }
     }
 
     /// Create the provider, applying any middlewares (e.g. gas oracle, signer) as needed,

@@ -3,8 +3,9 @@ use hyperlane_metric::prometheus_metric::{
     PrometheusClientMetrics, PrometheusClientMetricsBuilder, FALLBACK_HEDGE_DURATION_SECONDS_HELP,
     FALLBACK_HEDGE_DURATION_SECONDS_LABELS, FALLBACK_HEDGE_EVENT_HELP, FALLBACK_HEDGE_EVENT_LABELS,
     PROVIDER_CREATE_COUNT_HELP, PROVIDER_CREATE_COUNT_LABELS, PROVIDER_DROP_COUNT_HELP,
-    PROVIDER_DROP_COUNT_LABELS, REQUEST_COUNT_HELP, REQUEST_COUNT_LABELS,
-    REQUEST_DURATION_SECONDS_HELP, REQUEST_DURATION_SECONDS_LABELS,
+    PROVIDER_DROP_COUNT_LABELS, REQUEST_CACHE_COUNT_HELP, REQUEST_CACHE_COUNT_LABELS,
+    REQUEST_COUNT_HELP, REQUEST_COUNT_LABELS, REQUEST_DURATION_SECONDS_HELP,
+    REQUEST_DURATION_SECONDS_LABELS,
 };
 
 use crate::CoreMetrics;
@@ -22,6 +23,11 @@ pub(crate) fn create_json_rpc_client_metrics(
             "request_duration_seconds",
             REQUEST_DURATION_SECONDS_HELP,
             REQUEST_DURATION_SECONDS_LABELS,
+        )?)
+        .request_cache_count(metrics.new_int_counter(
+            "request_cache_count",
+            REQUEST_CACHE_COUNT_HELP,
+            REQUEST_CACHE_COUNT_LABELS,
         )?)
         .provider_create_count(metrics.new_int_counter(
             "provider_create_count",
