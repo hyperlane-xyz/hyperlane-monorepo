@@ -29,6 +29,18 @@ pub trait Decode {
     where
         R: std::io::Read,
         Self: Sized;
+
+    /// Decode an owned value from an available byte slice.
+    ///
+    /// The default retains the reader decoder's trailing-byte behavior. Types
+    /// with a slice-aware decoder may override this while preserving the accepted
+    /// format and failure contract; parser diagnostic positions may differ.
+    fn read_from_slice(mut bytes: &[u8]) -> Result<Self, HyperlaneProtocolError>
+    where
+        Self: Sized,
+    {
+        Self::read_from(&mut bytes)
+    }
 }
 
 #[cfg(feature = "ethers")]
@@ -343,6 +355,18 @@ mod test {
     use std::io::Cursor;
 
     use crate::{Decode, Encode, Indexed, H256};
+
+    #[test]
+    fn slice_decode_default_preserves_binary_trailing_bytes_and_errors() {
+        let bytes = [0, 0, 0, 42, 99];
+        assert_eq!(u32::read_from_slice(&bytes).unwrap(), 42);
+        assert_eq!(u32::read_from(&mut bytes.as_slice()).unwrap(), 42);
+        for bytes in [&[][..], &[0, 0, 0][..]] {
+            let reader = u32::read_from(&mut &bytes[..]).unwrap_err();
+            let slice = u32::read_from_slice(bytes).unwrap_err();
+            assert_eq!(reader.to_string(), slice.to_string());
+        }
+    }
 
     #[test]
     fn test_encoding_indexed() {
