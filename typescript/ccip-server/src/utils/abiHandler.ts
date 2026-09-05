@@ -6,6 +6,8 @@ import { z } from 'zod';
 
 import { offchainLookupRequestMessageHash } from '@hyperlane-xyz/sdk';
 
+import { AttestationPendingError } from './errors.js';
+
 const RelayerSignatureBodySchema = z.compile(
   z.object({
     sender: z.string().startsWith('0x').length(42, 'Invalid Ethereum address'),
@@ -121,14 +123,20 @@ export function createAbiHandler<
       handlerLogger.info({ reqBody: body, encoded }, 'Result encoded');
       return res.json({ data: encoded });
     } catch (err: any) {
-      handlerLogger.error(
-        {
-          reqBody: req.body,
-          error: err.message,
-          stack: err.stack,
-        },
-        `Error in ABI handler ${functionName}`,
-      );
+      if (err instanceof AttestationPendingError) {
+        // Expected polling state: keep the response contract and request metrics,
+        // but avoid repeatedly serializing calldata and stacks at error level.
+        handlerLogger.debug({ error: err.message }, 'CCTP attestation pending');
+      } else {
+        handlerLogger.error(
+          {
+            reqBody: req.body,
+            error: err.message,
+            stack: err.stack,
+          },
+          `Error in ABI handler ${functionName}`,
+        );
+      }
       return res.status(500).json({ error: err.message });
     }
   };
