@@ -3,6 +3,7 @@
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
 use std::{
+    cell::OnceCell,
     fmt,
     fmt::{Debug, Display, Formatter},
     marker::PhantomData,
@@ -280,6 +281,21 @@ pub struct ListElement {
     body_regex: Option<RegexWrapper>,
 }
 
+impl ListElement {
+    fn matches_route(
+        &self,
+        src_domain: u32,
+        src_addr: &H256,
+        dst_domain: u32,
+        dst_addr: &H256,
+    ) -> bool {
+        self.origin_domain.matches(&src_domain)
+            && self.sender_address.matches(src_addr)
+            && self.destination_domain.matches(&dst_domain)
+            && self.recipient_address.matches(dst_addr)
+    }
+}
+
 impl Display for ListElement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
@@ -352,7 +368,31 @@ impl MatchingList {
     /// Check if a message matches any of the rules.
     /// - `default`: What to return if the matching list is empty.
     pub fn msg_matches(&self, msg: &HyperlaneMessage, default: bool) -> bool {
-        self.matches(msg.into(), default)
+        let Some(rules) = &self.0 else {
+            return default;
+        };
+        // Most lists filter only addresses/domains. Hash and encode the body only
+        // when a candidate rule needs them, once per matching attempt.
+        let message_id = OnceCell::new();
+        let body = OnceCell::new();
+        rules.iter().any(|rule| {
+            rule.matches_route(msg.origin, &msg.sender, msg.destination, &msg.recipient)
+                && match &rule.message_id {
+                    Filter::Wildcard => true,
+                    Filter::Enumerated(ids) => {
+                        !ids.is_empty() && ids.contains(message_id.get_or_init(|| msg.id()))
+                    }
+                }
+                && rule
+                    .body_regex
+                    .as_ref()
+                    .map(|regex| {
+                        regex
+                            .0
+                            .is_match(body.get_or_init(|| hex::encode(&msg.body)))
+                    })
+                    .unwrap_or(true)
+        })
     }
 
     /// Check if a match info matches any of the rules.
@@ -369,10 +409,12 @@ impl MatchingList {
 fn matches_any_rule<'a>(mut rules: impl Iterator<Item = &'a ListElement>, info: MatchInfo) -> bool {
     rules.any(|rule| {
         rule.message_id.matches(&info.src_msg_id)
-            && rule.origin_domain.matches(&info.src_domain)
-            && rule.sender_address.matches(info.src_addr)
-            && rule.destination_domain.matches(&info.dst_domain)
-            && rule.recipient_address.matches(info.dst_addr)
+            && rule.matches_route(
+                info.src_domain,
+                info.src_addr,
+                info.dst_domain,
+                info.dst_addr,
+            )
             && rule
                 .body_regex
                 .as_ref()
@@ -408,6 +450,66 @@ mod test {
     use crate::{H160, H256};
 
     use super::{Filter::*, MatchInfo, MatchingList};
+
+    #[test]
+    fn message_matching_preserves_eager_results() {
+        let messages: Vec<_> = [vec![], vec![0, 0xab, 0xff], vec![0x42; 4096]]
+            .into_iter()
+            .flat_map(|body| {
+                [0, 1]
+                    .into_iter()
+                    .map(move |origin| crate::HyperlaneMessage {
+                        origin,
+                        destination: 2,
+                        sender: H256::repeat_byte(3),
+                        recipient: H256::repeat_byte(4),
+                        body: body.clone(),
+                        ..Default::default()
+                    })
+            })
+            .collect();
+        let mut lists = vec![MatchingList(None), MatchingList(Some(vec![]))];
+        for config in [
+            r"[{}]",
+            r#"[{"origindomain":1,"destinationdomain":2}]"#,
+            r#"[{"bodyregex":"^00abff$"}]"#,
+            r#"[{"bodyregex":"^$"}]"#,
+            r#"[{"bodyregex":"^0x00abff$"}]"#,
+            r#"[{"bodyregex":"^no$"},{"bodyregex":"^00abff$"}]"#,
+            r#"[{"origindomain":99,"bodyregex":".*"}, {"destinationdomain":2}]"#,
+            r#"[{}, {"bodyregex":".*"}]"#,
+            r#"[{"messageid":[]}]"#,
+        ] {
+            lists.push(serde_json::from_str(config).unwrap());
+        }
+        for field in ["senderaddress", "recipientaddress"] {
+            for address in [H256::repeat_byte(3), H256::repeat_byte(4)] {
+                lists.push(
+                    serde_json::from_value(serde_json::json!([
+                        {field: format!("{address:?}")}
+                    ]))
+                    .unwrap(),
+                );
+            }
+        }
+        lists.push(MatchingList::with_message_id(messages[0].id()));
+        lists.push(MatchingList::with_message_id(messages[3].id()));
+        lists.push(serde_json::from_str(&format!(
+            r#"[{{"messageid":"{:?}","bodyregex":"^no$"}},{{"messageid":"{:?}","bodyregex":"^00abff$"}}]"#,
+            messages[3].id(), messages[3].id(),
+        )).unwrap());
+        for list in lists {
+            for message in &messages {
+                for default in [false, true] {
+                    assert_eq!(
+                        list.msg_matches(message, default),
+                        list.matches(message.into(), default),
+                        "list {list:?}, message {message:?}, default {default}",
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn basic_config() {
