@@ -3,11 +3,10 @@ use std::fmt::{Debug, Formatter};
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 use serde::{
-    ser::{SerializeStruct, Serializer},
+    ser::{Error, SerializeStruct, Serializer},
     Deserialize, Serialize,
 };
 
-use crate::utils::bytes_to_hex;
 use crate::{Signature, H160, H256};
 
 /// An error incurred by a signer
@@ -100,7 +99,13 @@ impl<T: Signable + Serialize> Serialize for SignedType<T> {
         state.serialize_field("value", &self.value)?;
         state.serialize_field("signature", &self.signature)?;
         let sig: [u8; 65] = self.signature.into();
-        state.serialize_field("serialized_signature", &bytes_to_hex(&sig))?;
+        // The prefixed hex representation has a fixed size. Serialize it directly
+        // from the stack instead of allocating an intermediate hex String.
+        let mut encoded = [0u8; 132];
+        encoded[..2].copy_from_slice(b"0x");
+        hex::encode_to_slice(sig, &mut encoded[2..]).map_err(S::Error::custom)?;
+        let encoded = std::str::from_utf8(&encoded).map_err(S::Error::custom)?;
+        state.serialize_field("serialized_signature", encoded)?;
         state.end()
     }
 }
@@ -175,6 +180,60 @@ mod hashes {
                 hash_message(value),
                 H256::from(ethers_core::utils::hash_message(value.as_bytes()).0)
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Checkpoint, CheckpointWithMessageId, U256};
+
+    struct LegacySigned<'a>(&'a SignedType<CheckpointWithMessageId>);
+
+    impl Serialize for LegacySigned<'_> {
+        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            let mut state = serializer.serialize_struct("SignedType", 3)?;
+            state.serialize_field("value", &self.0.value)?;
+            state.serialize_field("signature", &self.0.signature)?;
+            let sig: [u8; 65] = self.0.signature.into();
+            state.serialize_field("serialized_signature", &crate::utils::bytes_to_hex(&sig))?;
+            state.end()
+        }
+    }
+
+    #[test]
+    fn signed_json_preserves_signature_encoding_and_roundtrip() {
+        for v in [0, 1, 27, 28, 255, 256, u64::MAX] {
+            for limb in [U256::zero(), U256::one(), U256::MAX] {
+                let signed = SignedType {
+                    value: CheckpointWithMessageId {
+                        checkpoint: Checkpoint {
+                            merkle_tree_hook_address: H256::repeat_byte(0x11),
+                            mailbox_domain: 42161,
+                            root: H256::repeat_byte(0x22),
+                            index: 2_500_000,
+                        },
+                        message_id: H256::repeat_byte(0x33),
+                    },
+                    signature: Signature {
+                        r: limb,
+                        s: limb,
+                        v,
+                    },
+                };
+                let json = serde_json::to_vec(&signed).unwrap();
+                assert_eq!(json, serde_json::to_vec(&LegacySigned(&signed)).unwrap());
+                assert_eq!(
+                    serde_json::to_vec_pretty(&signed).unwrap(),
+                    serde_json::to_vec_pretty(&LegacySigned(&signed)).unwrap()
+                );
+                let decoded: SignedType<CheckpointWithMessageId> =
+                    serde_json::from_slice(&json).unwrap();
+                assert_eq!(decoded, signed);
+                let json: serde_json::Value = serde_json::from_slice(&json).unwrap();
+                assert_eq!(json["serialized_signature"].as_str().unwrap().len(), 132);
+            }
         }
     }
 }
