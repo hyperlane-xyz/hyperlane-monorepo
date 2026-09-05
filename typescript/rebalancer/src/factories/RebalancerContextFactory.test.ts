@@ -156,6 +156,52 @@ describe('RebalancerContextFactory', () => {
     sandbox.restore();
   });
 
+  describe('external bridge initialization', () => {
+    async function factoryWithBridges(
+      externalBridges?: RebalancerConfig['externalBridges'],
+    ) {
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'arbitrum', protocol: ProtocolType.Ethereum },
+      ]);
+      return createFactory(
+        { ...createMockConfig(), externalBridges },
+        multiProvider,
+        {
+          tokens: [
+            createToken(
+              'ethereum',
+              TEST_ADDRESSES.ethereum,
+              TokenStandard.EvmHypCollateral,
+            ),
+            createToken(
+              'arbitrum',
+              TEST_ADDRESSES.arbitrum,
+              TokenStandard.EvmHypCollateral,
+            ),
+          ],
+        },
+      );
+    }
+
+    it('returns no bridges when no external bridge is configured', async () => {
+      const factory = await factoryWithBridges();
+      expect(await factory['buildExternalBridgeRegistry']()).to.deep.equal({});
+    });
+
+    it('awaits the configured LiFi bridge before returning the registry', async () => {
+      const factory = await factoryWithBridges({
+        lifi: { integrator: 'test-rebalancer' },
+      });
+      const registry = await factory['buildExternalBridgeRegistry']();
+      expect(Object.keys(registry)).to.deep.equal(['lifi']);
+      expect(registry.lifi?.externalBridgeId).to.equal('lifi');
+      expect(registry.lifi?.getNativeTokenAddress?.()).to.equal(
+        '0x0000000000000000000000000000000000000000',
+      );
+    });
+  });
+
   describe('create() — non-EVM chain handling', () => {
     it('should skip provider initialization for StarkNet chains', async () => {
       const { multiProvider } = createMockMultiProvider([

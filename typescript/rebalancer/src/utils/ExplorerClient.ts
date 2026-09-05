@@ -337,6 +337,9 @@ export class ExplorerClient implements IExplorerClient {
       limit = 100,
     } = params;
 
+    // Both sender and recipient must belong to bridges; an empty set cannot match.
+    if (bridges.length === 0) return [];
+
     // Derive routers and domains from routersByDomain
     const routerEntries = Object.entries(routersByDomain);
     const domains = Object.keys(routersByDomain).map(Number);

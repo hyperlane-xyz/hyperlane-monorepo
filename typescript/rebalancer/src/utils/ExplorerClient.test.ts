@@ -157,6 +157,48 @@ describe('ExplorerClient', () => {
   });
 
   describe('getInflightRebalanceActions address encoding', () => {
+    it('skips empty bridge discovery and queries freshly for supplied bridges', async () => {
+      const client = new ExplorerClient(
+        'https://explorer.test',
+        () => ProtocolType.Ethereum,
+      );
+      const bridges: string[] = [];
+      const params = {
+        bridges,
+        routersByDomain: { 1: '0x1234567890abcdef1234567890abcdef12345678' },
+        rebalancerAddress: '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+      };
+      fetchStub.rejects(new Error('offline'));
+      expect(
+        await client.getInflightRebalanceActions(params, testLogger),
+      ).to.deep.equal([]);
+      expect(fetchStub.called).to.be.false;
+      bridges.push('0x1234567890abcdef1234567890abcdef12345678');
+      await expect(
+        client.getInflightRebalanceActions(params, testLogger),
+      ).to.be.rejectedWith('offline');
+      expect(fetchStub.calledOnce).to.be.true;
+    });
+
+    it('preserves HTTP failures for nonempty bridge discovery', async () => {
+      const client = new ExplorerClient(
+        'https://explorer.test',
+        () => ProtocolType.Ethereum,
+      );
+      fetchStub.resolves(new Response('unavailable', { status: 503 }));
+      await expect(
+        client.getInflightRebalanceActions(
+          {
+            bridges: ['0x1234567890abcdef1234567890abcdef12345678'],
+            routersByDomain: {},
+            rebalancerAddress: '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+          },
+          testLogger,
+        ),
+      ).to.be.rejectedWith('Explorer query failed: 503');
+      expect(fetchStub.calledOnce).to.be.true;
+    });
+
     it('encodes mixed EVM+Solana routersByDomain in originTxRecipients', async () => {
       const evmAddr = '0x5a0e13290ec57f5e9031d01d03c6a40029cc24ea';
       const solAddr = 'E5rVV8zXwtc4TKGypCJvSBaYbgxa4XaYg5MS6N9QGdeo';
