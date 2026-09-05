@@ -308,9 +308,9 @@ impl FinalityStage {
             }
             TransactionStatus::Dropped(drop_reason) => {
                 Self::handle_dropped_transaction(
-                    tx.clone(),
+                    tx,
                     drop_reason,
-                    building_stage_queue.clone(),
+                    building_stage_queue,
                     state,
                     pool,
                 )
@@ -357,8 +357,7 @@ impl FinalityStage {
             TransactionStatus::Dropped(TxDropReason::DroppedByChain),
         )
         .await?;
-        let payloads = tx.payload_details.clone();
-        for payload in payloads.iter() {
+        for payload in &tx.payload_details {
             if let Some(full_payload) = state
                 .payload_db
                 .retrieve_payload_by_uuid(&payload.uuid)
