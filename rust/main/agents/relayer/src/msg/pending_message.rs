@@ -348,21 +348,17 @@ impl PendingOperation for PendingMessage {
             None => None,
         };
 
-        let metadata = match self.metadata.as_ref() {
-            Some(metadata) => {
-                tracing::debug!(USE_CACHE_METADATA_LOG);
-                metadata.clone()
-            }
-            _ => match self.build_metadata().await {
-                Ok(metadata) => {
-                    self.metadata = Some(metadata.clone());
-                    metadata
-                }
-                Err(err) => {
-                    return err;
-                }
+        match self.metadata.as_ref() {
+            Some(_) => tracing::debug!(USE_CACHE_METADATA_LOG),
+            None => match self.build_metadata().await {
+                Ok(metadata) => self.metadata = Some(metadata),
+                Err(err) => return err,
             },
-        };
+        }
+        let metadata = self
+            .metadata
+            .as_ref()
+            .expect("Metadata was cached or successfully built");
 
         // Estimate transaction costs for the process call. If there are issues, it's
         // likely that gas estimation has failed because the message is
@@ -379,7 +375,7 @@ impl PendingOperation for PendingMessage {
                 match self
                     .ctx
                     .destination_mailbox
-                    .process_estimate_costs(&self.message, &metadata)
+                    .process_estimate_costs(&self.message, metadata)
                     .await
                 {
                     Ok(cost) => {
@@ -444,7 +440,12 @@ impl PendingOperation for PendingMessage {
         }
 
         self.submission_data = Some(Box::new(MessageSubmissionData {
-            metadata,
+            // Retries above only need the cached metadata. Copy it once admission
+            // succeeds and the submission data needs its own owned buffer.
+            metadata: self
+                .metadata
+                .clone()
+                .expect("Successful preparation retains its metadata"),
             gas_limit,
         }));
         PendingOperationResult::Success
@@ -780,8 +781,6 @@ impl PendingMessage {
         let domain_name = mailbox.domain().name();
         let fn_key = "is_contract";
         let fn_params = self.message.recipient;
-        let provider = self.ctx.destination_mailbox.provider();
-
         // Check cache for recipient contract status
         if let Some(is_contract) = self
             .get_from_cache::<bool>(domain_name, fn_key, &fn_params)
@@ -790,6 +789,8 @@ impl PendingMessage {
             return Ok(is_contract);
         }
 
+        // Construct the provider only when the cached status cannot answer.
+        let provider = mailbox.provider();
         // Check if the recipient is a contract
         let is_contract = provider.is_contract(&fn_params).await.map_err(|err| {
             self.on_reprepare(
@@ -1264,6 +1265,295 @@ mod test {
     use crate::test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder};
 
     use super::{PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES, VALIDATOR_SIGNATURE_FAST_RETRY_MAX};
+
+    #[derive(Debug)]
+    struct ContractProvider {
+        result: Option<bool>,
+        calls: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl HyperlaneChain for ContractProvider {
+        fn domain(&self) -> &HyperlaneDomain {
+            unimplemented!()
+        }
+        fn provider(&self) -> Box<dyn HyperlaneProvider> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl HyperlaneProvider for ContractProvider {
+        async fn get_block_by_height(&self, _: u64) -> ChainResult<BlockInfo> {
+            unimplemented!()
+        }
+        async fn get_txn_by_hash(&self, _: &H512) -> ChainResult<TxnInfo> {
+            unimplemented!()
+        }
+        async fn get_balance(&self, _: String) -> ChainResult<U256> {
+            unimplemented!()
+        }
+        async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
+            unimplemented!()
+        }
+        async fn is_contract(&self, _: &H256) -> ChainResult<bool> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.result.ok_or_else(|| {
+                ChainCommunicationError::from_other_str("contract lookup unavailable")
+            })
+        }
+    }
+
+    fn pending_with_mailbox(
+        mailbox: hyperlane_test::mocks::MockMailboxContract,
+        max_gas: Option<U256>,
+    ) -> (tempfile::TempDir, PendingMessage) {
+        use crate::{
+            msg::gas_payment::GasPaymentEnforcer,
+            settings::{GasPaymentEnforcementConf, GasPaymentEnforcementPolicy},
+        };
+        use hyperlane_base::cache::{
+            LocalCache, MeteredCache, MeteredCacheConfig, MeteredCacheMetrics,
+        };
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+        let dir = tempfile::tempdir().unwrap();
+        let db = HyperlaneRocksDB::new(&domain, DB::from_path(dir.path()).unwrap());
+        let cache = OptionalCache::new(Some(MeteredCache::new(
+            LocalCache::new("pending-allocation-tests"),
+            MeteredCacheMetrics {
+                hit_count: None,
+                miss_count: None,
+            },
+            MeteredCacheConfig {
+                cache_name: "pending-allocation-tests".to_owned(),
+            },
+        )));
+        let base = dummy_metadata_builder(&domain, &domain, &db, cache.clone());
+        let mut context = dummy_message_context(Arc::new(base), &db, cache);
+        context.destination_mailbox = Arc::new(mailbox);
+        context.transaction_gas_limit = max_gas;
+        context.origin_gas_payment_enforcer =
+            Arc::new(tokio::sync::RwLock::new(GasPaymentEnforcer::new(
+                [GasPaymentEnforcementConf {
+                    policy: GasPaymentEnforcementPolicy::None,
+                    matching_list: Default::default(),
+                }],
+                db,
+            )));
+        let message = HyperlaneMessage {
+            origin: domain.id(),
+            destination: domain.id(),
+            ..Default::default()
+        };
+        (
+            dir,
+            PendingMessage::new(
+                message,
+                Arc::new(context),
+                PendingOperationStatus::FirstPrepareAttempt,
+                None,
+                DEFAULT_MAX_MESSAGE_RETRIES,
+            ),
+        )
+    }
+
+    fn contract_test_mailbox() -> hyperlane_test::mocks::MockMailboxContract {
+        let mut mailbox = hyperlane_test::mocks::MockMailboxContract::new();
+        mailbox
+            .expect__domain()
+            .return_const(HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum));
+        mailbox
+    }
+
+    #[tokio::test]
+    async fn cached_contract_status_skips_provider_construction() {
+        for expected in [false, true] {
+            let mut mailbox = contract_test_mailbox();
+            mailbox.expect__provider().times(0);
+            let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
+            pending
+                .store_to_cache(
+                    "arbitrum",
+                    "is_contract",
+                    &pending.message.recipient,
+                    &expected,
+                )
+                .await;
+            for _ in 0..10 {
+                assert_eq!(pending.is_recipient_contract().await.unwrap(), expected);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn contract_status_miss_fetches_once_and_caches_both_results() {
+        for expected in [false, true] {
+            let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let provider_calls = calls.clone();
+            let mut mailbox = contract_test_mailbox();
+            mailbox.expect__provider().times(1).returning(move || {
+                Box::new(ContractProvider {
+                    result: Some(expected),
+                    calls: provider_calls.clone(),
+                })
+            });
+            let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
+            for _ in 0..10 {
+                assert_eq!(pending.is_recipient_contract().await.unwrap(), expected);
+            }
+            assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        }
+    }
+
+    #[tokio::test]
+    async fn contract_status_error_reprepares_and_does_not_cache() {
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let provider_calls = calls.clone();
+        let mut mailbox = contract_test_mailbox();
+        mailbox.expect__provider().times(2).returning(move || {
+            Box::new(ContractProvider {
+                result: None,
+                calls: provider_calls.clone(),
+            })
+        });
+        let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
+        for _ in 0..2 {
+            assert!(matches!(
+                pending.is_recipient_contract().await,
+                Err(PendingOperationResult::Reprepare(
+                    ReprepareReason::ErrorCheckingIfRecipientIsContract
+                ))
+            ));
+        }
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+        assert_eq!(pending.num_retries, 2);
+    }
+
+    #[tokio::test]
+    async fn prepare_retains_metadata_on_success_and_clears_it_above_gas_limit() {
+        for max_gas in [None, Some(U256::one())] {
+            let mut mailbox = contract_test_mailbox();
+            mailbox.expect__provider().times(0);
+            mailbox
+                .expect__delivered()
+                .times(1)
+                .returning(|_| Ok(false));
+            mailbox
+                .expect_process_estimate_costs()
+                .times(1)
+                .withf(|_, metadata| metadata == vec![7; 1291].as_slice())
+                .returning(|_, _| {
+                    Ok(TxCostEstimate {
+                        gas_limit: U256::from(100),
+                        gas_price: FixedPointNumber::zero(),
+                        l2_gas_limit: None,
+                    })
+                });
+            let (_dir, mut pending) = pending_with_mailbox(mailbox, max_gas);
+            pending
+                .store_to_cache("arbitrum", "is_contract", &pending.message.recipient, &true)
+                .await;
+            pending.metadata = Some(Metadata::new(vec![7; 1291]));
+            let original_buffer = pending.metadata.as_ref().unwrap().as_ptr();
+            let result = pending.prepare().await;
+            if max_gas.is_some() {
+                assert!(matches!(
+                    result,
+                    PendingOperationResult::Reprepare(ReprepareReason::ExceedsMaxGasLimit)
+                ));
+                assert!(pending.metadata.is_none());
+                assert!(pending.submission_data.is_none());
+            } else {
+                assert!(matches!(result, PendingOperationResult::Success));
+                assert_eq!(pending.metadata.as_ref().unwrap().as_ptr(), original_buffer);
+                let submission = pending.submission_data.as_ref().unwrap();
+                assert_eq!(
+                    submission.metadata.as_ref(),
+                    pending.metadata.as_ref().unwrap().as_ref()
+                );
+                assert_ne!(submission.metadata.as_ptr(), original_buffer);
+                assert_eq!(submission.gas_limit, U256::from(100));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn newly_built_metadata_preserves_success_reveal_and_failure_behavior() {
+        use crate::test_utils::{
+            mock_base_builder::build_mock_base_builder, mock_ism::MockInterchainSecurityModule,
+        };
+        for outcome in ["success", "ICA: Invalid Reveal", "simulation failed"] {
+            let mut mailbox = contract_test_mailbox();
+            mailbox.expect__provider().times(0);
+            mailbox
+                .expect__delivered()
+                .times(1)
+                .returning(|_| Ok(false));
+            mailbox
+                .expect__recipient_ism()
+                .times(1)
+                .returning(|_| Ok(H256::zero()));
+            mailbox
+                .expect_process_estimate_costs()
+                .times(1)
+                .withf(|_, metadata| metadata.is_empty())
+                .returning(move |_, _| {
+                    if outcome == "success" {
+                        Ok(TxCostEstimate {
+                            gas_limit: U256::from(100),
+                            gas_price: FixedPointNumber::zero(),
+                            l2_gas_limit: None,
+                        })
+                    } else {
+                        Err(ChainCommunicationError::from_other_str(outcome))
+                    }
+                });
+            let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
+            let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+            let base = build_mock_base_builder(domain.clone(), domain.clone());
+            base.responses.push_build_ism_response(
+                H256::zero(),
+                Ok(Box::new(MockInterchainSecurityModule::new(
+                    H256::zero(),
+                    domain,
+                    ModuleType::Null,
+                ))),
+            );
+            Arc::get_mut(&mut pending.ctx).unwrap().metadata_builder = Arc::new(base);
+            pending
+                .store_to_cache("arbitrum", "is_contract", &pending.message.recipient, &true)
+                .await;
+            assert!(pending.metadata.is_none());
+            let result = pending.prepare().await;
+            match outcome {
+                "success" => {
+                    assert!(matches!(result, PendingOperationResult::Success));
+                    assert!(pending.metadata.as_ref().unwrap().is_empty());
+                    assert!(pending
+                        .submission_data
+                        .as_ref()
+                        .unwrap()
+                        .metadata
+                        .is_empty());
+                }
+                "ICA: Invalid Reveal" => {
+                    assert!(matches!(result, PendingOperationResult::Reprepare(_)));
+                    assert!(pending.metadata.as_ref().unwrap().is_empty());
+                    assert!(pending.submission_data.is_none());
+                    assert_eq!(pending.ica_reveal_attempts, 1);
+                    assert_eq!(pending.num_retries, 0);
+                }
+                _ => {
+                    assert!(matches!(
+                        result,
+                        PendingOperationResult::Reprepare(ReprepareReason::ErrorEstimatingGas)
+                    ));
+                    assert!(pending.metadata.is_none());
+                    assert!(pending.submission_data.is_none());
+                    assert_eq!(pending.num_retries, 1);
+                }
+            }
+        }
+    }
 
     #[test]
     fn test_calculate_msg_backoff_does_not_overflow() {
