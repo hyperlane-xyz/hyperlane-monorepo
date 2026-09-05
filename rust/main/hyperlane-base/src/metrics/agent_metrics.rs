@@ -13,6 +13,7 @@ use hyperlane_core::HyperlaneDomain;
 use hyperlane_core::HyperlaneProvider;
 use hyperlane_core::NativeToken;
 use hyperlane_core::ReorgPeriod;
+use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
 use maplit::hashmap;
 use prometheus::GaugeVec;
 use prometheus::IntGaugeVec;
@@ -437,8 +438,11 @@ impl ChainSpecificMetricsUpdater {
             .name(&name)
             .spawn(
                 async move {
-                    self.start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
-                        .await;
+                    with_rpc_operation(
+                        RpcOperation::AgentMetrics,
+                        self.start_updating_on_interval(METRICS_SCRAPE_INTERVAL),
+                    )
+                    .await;
                 }
                 .instrument(info_span!("MetricsUpdater")),
             )

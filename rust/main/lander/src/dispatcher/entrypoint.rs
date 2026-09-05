@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::{eyre, Result};
+use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
 use tracing::info;
 
 use crate::{
@@ -74,7 +75,11 @@ impl Entrypoint for DispatcherEntrypoint {
         &self,
         payload: &FullPayload,
     ) -> Result<Option<GasLimit>, LanderError> {
-        self.inner.adapter.estimate_gas_limit(payload).await
+        with_rpc_operation(
+            RpcOperation::RelayerEstimate,
+            self.inner.adapter.estimate_gas_limit(payload),
+        )
+        .await
     }
 }
 

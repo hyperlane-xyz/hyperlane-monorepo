@@ -24,6 +24,7 @@ use hyperlane_core::{
     MessageSubmissionData, Metadata, PendingOperation, PendingOperationResult,
     PendingOperationStatus, ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
 };
+use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
 use crate::{
@@ -273,11 +274,11 @@ impl PendingOperation for PendingMessage {
         // If the message has already been processed, e.g. due to another relayer having
         // already processed, then mark it as already-processed, and move on to
         // the next tick.
-        let is_already_delivered = match self
-            .ctx
-            .destination_mailbox
-            .delivered(self.message.id())
-            .await
+        let is_already_delivered = match with_rpc_operation(
+            RpcOperation::RelayerDelivery,
+            self.ctx.destination_mailbox.delivered(self.message.id()),
+        )
+        .await
         {
             Ok(is_delivered) => is_delivered,
             Err(err) => {
@@ -293,10 +294,13 @@ impl PendingOperation for PendingMessage {
         }
 
         // We cannot deliver to an address that is not a contract so check and drop if it isn't.
-        let is_contract = match self.is_recipient_contract().await {
-            Ok(is_contract) => is_contract,
-            Err(reprepare_reason) => return reprepare_reason,
-        };
+        let is_contract =
+            match with_rpc_operation(RpcOperation::RelayerRecipient, self.is_recipient_contract())
+                .await
+            {
+                Ok(is_contract) => is_contract,
+                Err(reprepare_reason) => return reprepare_reason,
+            };
         if !is_contract {
             info!(
                 recipient=?self.message.recipient,
@@ -322,11 +326,13 @@ impl PendingOperation for PendingMessage {
         // re-fetched on every 1s poll cycle.
         let tx_cost_estimate = match self.metadata.as_ref() {
             Some(metadata) => {
-                match self
-                    .ctx
-                    .destination_mailbox
-                    .process_estimate_costs(&self.message, metadata)
-                    .await
+                match with_rpc_operation(
+                    RpcOperation::RelayerEstimate,
+                    self.ctx
+                        .destination_mailbox
+                        .process_estimate_costs(&self.message, metadata),
+                )
+                .await
                 {
                     Ok(s) => {
                         self.ica_reveal_attempts = 0;
@@ -353,7 +359,9 @@ impl PendingOperation for PendingMessage {
                 tracing::debug!(USE_CACHE_METADATA_LOG);
                 metadata.clone()
             }
-            _ => match self.build_metadata().await {
+            _ => match with_rpc_operation(RpcOperation::RelayerMetadata, self.build_metadata())
+                .await
+            {
                 Ok(metadata) => {
                     self.metadata = Some(metadata.clone());
                     metadata
@@ -376,11 +384,13 @@ impl PendingOperation for PendingMessage {
                     message_id = ?self.message.id(),
                     "Dry-run simulating process call before submission"
                 );
-                match self
-                    .ctx
-                    .destination_mailbox
-                    .process_estimate_costs(&self.message, &metadata)
-                    .await
+                match with_rpc_operation(
+                    RpcOperation::RelayerEstimate,
+                    self.ctx
+                        .destination_mailbox
+                        .process_estimate_costs(&self.message, &metadata),
+                )
+                .await
                 {
                     Ok(cost) => {
                         self.ica_reveal_attempts = 0;
@@ -470,11 +480,13 @@ impl PendingOperation for PendingMessage {
                 message_id = ?self.message.id(),
                 "Dry-run simulating process call before submission"
             );
-            if let Err(e) = self
-                .ctx
-                .destination_mailbox
-                .process_estimate_costs(&self.message, metadata)
-                .await
+            if let Err(e) = with_rpc_operation(
+                RpcOperation::RelayerEstimate,
+                self.ctx
+                    .destination_mailbox
+                    .process_estimate_costs(&self.message, metadata),
+            )
+            .await
             {
                 warn!(
                     message_id = ?self.message.id(),
@@ -492,11 +504,15 @@ impl PendingOperation for PendingMessage {
 
         // We use the estimated gas limit from the prior call to
         // `process_estimate_costs` to avoid a second gas estimation.
-        let tx_outcome = self
-            .ctx
-            .destination_mailbox
-            .process(&self.message, &state.metadata, Some(state.gas_limit))
-            .await;
+        let tx_outcome = with_rpc_operation(
+            RpcOperation::TransactionLifecycle,
+            self.ctx.destination_mailbox.process(
+                &self.message,
+                &state.metadata,
+                Some(state.gas_limit),
+            ),
+        )
+        .await;
         match tx_outcome {
             Ok(outcome) => {
                 self.set_operation_outcome(outcome, state.gas_limit).await;
@@ -526,11 +542,11 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::NotReady;
         }
 
-        let is_delivered = match self
-            .ctx
-            .destination_mailbox
-            .delivered(self.message.id())
-            .await
+        let is_delivered = match with_rpc_operation(
+            RpcOperation::RelayerDelivery,
+            self.ctx.destination_mailbox.delivered(self.message.id()),
+        )
+        .await
         {
             Ok(is_delivered) => is_delivered,
             Err(err) => {
@@ -825,11 +841,13 @@ impl PendingMessage {
         }
 
         // Fetch the recipient ISM address
-        let ism_address = match self
-            .ctx
-            .destination_mailbox
-            .recipient_ism(self.message.recipient)
-            .await
+        let ism_address = match with_rpc_operation(
+            RpcOperation::RelayerRecipient,
+            self.ctx
+                .destination_mailbox
+                .recipient_ism(self.message.recipient),
+        )
+        .await
         {
             Ok(ism_address) => ism_address,
             Err(err) => {

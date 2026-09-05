@@ -19,6 +19,7 @@ use hyperlane_core::{
     SequenceAwareIndexer,
 };
 use hyperlane_core::{Indexed, LogMeta, H512};
+use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
 
 use crate::settings::IndexSettings;
 
@@ -188,7 +189,10 @@ where
                 .await;
             }
         };
-        let res = tokio::join!(tx_id_task, cursor_task);
+        let res = with_rpc_operation(RpcOperation::ContractSync, async {
+            tokio::join!(tx_id_task, cursor_task)
+        })
+        .await;
 
         // we should never reach this because the 2 tasks should never end
         tracing::error!(chain = chain_name, label, ?res, "contract sync loop exit");
@@ -493,6 +497,10 @@ mod tests {
     #[async_trait]
     impl ContractSyncCursor<HyperlaneMessage> for PendingCursor {
         async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
+            assert_eq!(
+                hyperlane_metric::rpc_operation::current_rpc_operation(),
+                RpcOperation::ContractSync
+            );
             pending().await
         }
 

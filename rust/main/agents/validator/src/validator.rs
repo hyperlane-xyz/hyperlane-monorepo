@@ -37,7 +37,10 @@ use hyperlane_core::{
     H256, U256,
 };
 use hyperlane_ethereum::{RpcConnectionConf, Signers, SingletonSigner, SingletonSignerHandle};
-use hyperlane_metric::prometheus_metric::RpcRole;
+use hyperlane_metric::{
+    prometheus_metric::RpcRole,
+    rpc_operation::{with_rpc_operation, RpcOperation},
+};
 
 use crate::merkle_tree_hook_sync::MerkleTreeHookWebSocketSync;
 use crate::reorg_reporter::{
@@ -1386,16 +1389,24 @@ impl Validator {
         let mut tasks = vec![];
         tasks.push(tokio::spawn(
             async move {
-                backfill_submitter
-                    .backfill_checkpoint_submitter(backfill_target)
-                    .await
+                with_rpc_operation(
+                    RpcOperation::ValidatorCheckpoint,
+                    backfill_submitter.backfill_checkpoint_submitter(backfill_target),
+                )
+                .await
             }
             .instrument(info_span!("BackfillCheckpointSubmitter")),
         ));
 
         tasks.push(tokio::spawn(
-            async move { submitter.checkpoint_submitter(tip_tree.tree).await }
-                .instrument(info_span!("TipCheckpointSubmitter")),
+            async move {
+                with_rpc_operation(
+                    RpcOperation::ValidatorCheckpoint,
+                    submitter.checkpoint_submitter(tip_tree.tree),
+                )
+                .await
+            }
+            .instrument(info_span!("TipCheckpointSubmitter")),
         ));
 
         tasks
