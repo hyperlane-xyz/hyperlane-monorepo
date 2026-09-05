@@ -172,10 +172,17 @@ impl FinalityStage {
             buffer_ordered_bounded(status_reads, STATUS_READ_CONCURRENCY).boxed()
         } else {
             let status_batch_concurrency = STATUS_READ_CONCURRENCY.div_ceil(status_batch_size);
-            let status_batches = pool_snapshot
-                .chunks(status_batch_size)
-                .map(<[Transaction]>::to_vec)
+            let batch_count = pool_snapshot.len().div_ceil(status_batch_size);
+            let mut remaining_txs = pool_snapshot.into_iter();
+            let status_batches = (0..batch_count)
+                .map(|_| {
+                    remaining_txs
+                        .by_ref()
+                        .take(status_batch_size)
+                        .collect::<Vec<_>>()
+                })
                 .collect::<Vec<_>>();
+            drop(remaining_txs);
             let status_reads = status_batches.into_iter().map(|batch| {
                 read_transaction_status_batch(state, batch, FinalizedStatusRead::TrustPersisted)
             });
