@@ -5,27 +5,18 @@ import express from 'express';
 import { pinoHttp } from 'pino-http';
 import { Registry } from 'prom-client';
 
-import { startMetricsServer } from '@hyperlane-xyz/metrics';
+import { startMetricsServer } from '@hyperlane-xyz/metrics/dist/server.js';
 import { createServiceLogger } from '@hyperlane-xyz/utils';
 
 import { getEnabledModules } from './config.js';
-import { ServiceFactory } from './services/BaseService.js';
-import { CCTPService } from './services/CCTPService.js';
-import { CallCommitmentsService } from './services/CallCommitmentsService.js';
+import { moduleRegistry } from './moduleRegistry.js';
 import { HealthService } from './services/HealthService.js';
-import { OPStackService } from './services/OPStackService.js';
 import { configureTrustProxy } from './utils/http.js';
 import {
   PrometheusMetrics,
   UnhandledErrorReason,
   initializeMetrics,
 } from './utils/prometheus.js';
-
-export const moduleRegistry: Record<string, ServiceFactory> = {
-  callCommitments: CallCommitmentsService,
-  cctp: CCTPService,
-  opstack: OPStackService,
-};
 
 async function startServer() {
   const VERSION = process.env.SERVICE_VERSION || 'dev';
