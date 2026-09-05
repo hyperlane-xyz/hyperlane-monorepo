@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::cache::FunctionCallCache;
+use crate::cache::{CacheMetricsSnapshot, FunctionCallCache};
 
 use super::{BaseCache, CacheResult, ExpirationType};
 
@@ -20,6 +20,10 @@ impl LocalCache {
 
 #[async_trait]
 impl FunctionCallCache for LocalCache {
+    fn metrics_snapshot(&self) -> CacheMetricsSnapshot {
+        self.0.metrics_snapshot()
+    }
+
     /// Cache a call result with the given parameters
     async fn cache_call_result(
         &self,

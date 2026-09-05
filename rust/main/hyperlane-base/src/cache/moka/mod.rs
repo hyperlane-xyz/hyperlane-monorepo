@@ -2,15 +2,21 @@
 mod dynamic_expiry;
 mod local_cache;
 
-use std::hash::RandomState;
+use std::{
+    hash::RandomState,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+};
 
-use moka::{future::Cache, policy::EvictionPolicy};
+use moka::{future::Cache, notification::RemovalCause, policy::EvictionPolicy};
 use serde::{de::DeserializeOwned, Serialize};
 
 pub use dynamic_expiry::{DynamicExpiry, Expiration, ExpirationType};
 pub use local_cache::LocalCache;
 
-use crate::cache::CacheError;
+use crate::cache::{CacheError, CacheMetricsSnapshot};
 
 /// A simple generic cache that stores serializable values.
 /// Supports dynamic expiration times
@@ -24,9 +30,37 @@ use crate::cache::CacheError;
 #[derive(Debug, Clone)]
 pub struct BaseCache {
     cache: Cache<String, (String, Expiration), RandomState>,
+    eviction_counts: Arc<EvictionCounts>,
 }
 
-const MAX_CACHE_CAPACITY: u64 = 50 * 1024 * 1024; // 50MB
+/// Serialized key and value byte budget. Moka's bookkeeping overhead is not included.
+const MAX_CACHE_WEIGHT_BYTES: u64 = 50 * 1024 * 1024;
+
+#[derive(Debug, Default)]
+struct EvictionCounts {
+    expired: AtomicU64,
+    size: AtomicU64,
+}
+
+impl EvictionCounts {
+    fn record(&self, cause: RemovalCause) {
+        let counter = match cause {
+            RemovalCause::Expired => &self.expired,
+            RemovalCause::Size => &self.size,
+            RemovalCause::Explicit | RemovalCause::Replaced => return,
+        };
+        counter.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn snapshot(&self, entry_count: u64, weighted_size: u64) -> CacheMetricsSnapshot {
+        CacheMetricsSnapshot {
+            entry_count: Some(entry_count),
+            weighted_size: Some(weighted_size),
+            expired_evictions: self.expired.swap(0, Ordering::Relaxed),
+            size_evictions: self.size.swap(0, Ordering::Relaxed),
+        }
+    }
+}
 
 /// The result type for cache operations, which can return a `CacheError`
 pub type CacheResult<T> = std::result::Result<T, CacheError>;
@@ -34,13 +68,40 @@ pub type CacheResult<T> = std::result::Result<T, CacheError>;
 impl BaseCache {
     /// Create a new cache with the given name
     pub fn new(name: &str) -> Self {
+        Self::with_capacity(name, MAX_CACHE_WEIGHT_BYTES)
+    }
+
+    fn with_capacity(name: &str, max_weight: u64) -> Self {
+        let eviction_counts = Arc::new(EvictionCounts::default());
+        let listener_counts = eviction_counts.clone();
         let cache = Cache::builder()
             .name(name)
             .expire_after(DynamicExpiry {})
             .eviction_policy(EvictionPolicy::lru())
-            .max_capacity(MAX_CACHE_CAPACITY)
+            .weigher(|key: &String, (value, _): &(String, Expiration)| {
+                let serialized_bytes = key.len().saturating_add(value.len()).max(1);
+                u32::try_from(serialized_bytes).unwrap_or(u32::MAX)
+            })
+            .eviction_listener(move |_, _, cause| listener_counts.record(cause))
+            .max_capacity(max_weight)
             .build();
-        Self { cache }
+        Self {
+            cache,
+            eviction_counts,
+        }
+    }
+
+    fn entry_count(&self) -> u64 {
+        self.cache.entry_count()
+    }
+
+    fn weighted_size(&self) -> u64 {
+        self.cache.weighted_size()
+    }
+
+    fn metrics_snapshot(&self) -> CacheMetricsSnapshot {
+        self.eviction_counts
+            .snapshot(self.entry_count(), self.weighted_size())
     }
 
     /// Get the value for the given key
@@ -90,7 +151,13 @@ impl BaseCache {
     /// which ensures that the count is accurate.
     pub async fn entries(&self) -> u64 {
         self.cache.run_pending_tasks().await;
-        self.cache.entry_count()
+        self.entry_count()
+    }
+
+    /// Get the weighted size of the cache after running pending maintenance.
+    pub async fn weight(&self) -> u64 {
+        self.cache.run_pending_tasks().await;
+        self.weighted_size()
     }
 
     /// Check if the cache contains a value for the given key
@@ -146,6 +213,23 @@ mod test {
 
         let cached_value = cache.get::<i32>(&key).await.unwrap();
         assert!(cached_value.is_some_and(|(v, _)| v == value));
+    }
+
+    #[tokio::test]
+    async fn serialized_values_obey_byte_capacity() {
+        let max_weight = 700;
+        let cache = BaseCache::with_capacity("weighted-test-cache", max_weight);
+
+        for key in 0..3 {
+            cache
+                .set(&key, &"x".repeat(512), ExpirationType::Never)
+                .await
+                .unwrap();
+        }
+
+        assert!(cache.weight().await <= max_weight);
+        assert!(cache.entries().await <= 1);
+        assert!(cache.metrics_snapshot().size_evictions >= 2);
     }
 
     #[tokio::test]
