@@ -100,6 +100,380 @@ fn dummy_readiness() -> Arc<ValidatorReadiness> {
     Arc::new(ValidatorReadiness::default())
 }
 
+fn submission_test_submitter(
+    syncer: MockCheckpointSyncer,
+    readiness: Arc<ValidatorReadiness>,
+) -> ValidatorSubmitter {
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    ValidatorSubmitter::new(
+        Duration::from_secs(1),
+        ReorgPeriod::from_blocks(1),
+        Arc::new(MockMerkleTreeHook::new()),
+        Arc::new(MockMerkleTreeHook::new()),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(syncer),
+        Arc::new(MockDb::new()),
+        dummy_metrics(),
+        2,
+        Arc::new(MockReorgReporter::new()),
+        readiness,
+    )
+}
+
+fn submission_checkpoint(index: u32) -> CheckpointWithMessageId {
+    CheckpointWithMessageId {
+        checkpoint: Checkpoint {
+            root: H256::zero(),
+            merkle_tree_hook_address: H256::zero(),
+            mailbox_domain: 0,
+            index,
+        },
+        message_id: H256::zero(),
+    }
+}
+
+#[test]
+fn compact_checkpoint_queue_entry_layout() {
+    let full = std::mem::size_of::<CheckpointWithMessageId>();
+    let compact = std::mem::size_of::<QueuedCheckpoint>();
+    println!("checkpoint queue logical entry bytes: {full} -> {compact}");
+    assert!(compact < full);
+}
+
+#[tokio::test(start_paused = true)]
+async fn compact_queue_replays_exact_checkpoints_only_after_final_insertion() {
+    let namespace = Checkpoint {
+        root: H256::zero(),
+        merkle_tree_hook_address: H256::from_low_u64_be(123),
+        mailbox_domain: 17,
+        index: 0,
+    };
+    let mut tree = IncrementalMerkle::default();
+    let expected: Vec<_> = (0..5)
+        .map(|index| {
+            let message_id = H256::from_low_u64_be(u64::from(index) + 1);
+            tree.ingest(message_id);
+            CheckpointWithMessageId {
+                checkpoint: Checkpoint {
+                    root: tree.root(),
+                    index,
+                    ..namespace
+                },
+                message_id,
+            }
+        })
+        .collect();
+    let final_read = Arc::new(AtomicBool::new(false));
+    let mut db = MockDb::new();
+    db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
+        .times(5)
+        .returning({
+            let expected = expected.clone();
+            let final_read = Arc::clone(&final_read);
+            move |index| {
+                let index = *index;
+                if index == 4 {
+                    final_read.store(true, Ordering::SeqCst);
+                }
+                Ok(Some(MerkleTreeInsertion::new(
+                    index,
+                    expected[index as usize].message_id,
+                )))
+            }
+        });
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let signer_address = signer.eth_address();
+    let writes = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer.expect_fetch_checkpoint().times(5).returning({
+        let final_read = Arc::clone(&final_read);
+        move |_| {
+            assert!(final_read.load(Ordering::SeqCst));
+            Ok(None)
+        }
+    });
+    syncer.expect_write_checkpoint().times(5).returning({
+        let expected = expected.clone();
+        let writes = Arc::clone(&writes);
+        move |signed| {
+            assert_eq!(signed.value, expected[signed.value.index as usize]);
+            assert_eq!(signed.recover().unwrap(), signer_address);
+            writes.lock().unwrap().push(signed.value.index);
+            Ok(())
+        }
+    });
+    syncer
+        .expect_update_latest_index()
+        .with(mockall::predicate::eq(4))
+        .once()
+        .returning(|_| Ok(()));
+    let mut hook = MockMerkleTreeHook::new();
+    hook.expect_address()
+        .return_const(namespace.merkle_tree_hook_address);
+    hook.expect_domain()
+        .return_const(dummy_domain(17, "queue_domain"));
+    let submitter = ValidatorSubmitter::new(
+        Duration::from_secs(1),
+        ReorgPeriod::from_blocks(1),
+        Arc::new(hook),
+        Arc::new(MockMerkleTreeHook::new()),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(syncer),
+        Arc::new(db),
+        dummy_metrics(),
+        2,
+        Arc::new(MockReorgReporter::new()),
+        dummy_readiness(),
+    );
+    submitter
+        .submit_checkpoints_until_correctness_checkpoint(
+            &mut IncrementalMerkle::default(),
+            &CheckpointAtBlock {
+                checkpoint: expected[4].checkpoint,
+                block_height: Some(1),
+            },
+        )
+        .await;
+    // Each chunk completes before the next starts; sibling completion order is unconstrained.
+    let writes = writes.lock().unwrap();
+    let mut first = writes[..2].to_vec();
+    first.sort_unstable();
+    let mut second = writes[2..4].to_vec();
+    second.sort_unstable();
+    assert_eq!(first, vec![3, 4]);
+    assert_eq!(second, vec![1, 2]);
+    assert_eq!(writes[4], 0);
+}
+
+#[tokio::test(start_paused = true)]
+async fn compact_queue_materializes_only_the_active_chunk() {
+    let materialized = Arc::new(AtomicUsize::new(0));
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer.expect_fetch_checkpoint().times(2).returning({
+        let attempts = Arc::clone(&attempts);
+        move |_| {
+            attempts.fetch_add(1, Ordering::SeqCst);
+            Err(eyre::eyre!("storage temporarily unavailable"))
+        }
+    });
+    let submitter = submission_test_submitter(syncer, dummy_readiness());
+    let task = tokio::spawn({
+        let materialized = Arc::clone(&materialized);
+        async move {
+            submitter
+                .sign_and_submit_checkpoints((0..100).map(move |index| {
+                    materialized.fetch_add(1, Ordering::SeqCst);
+                    QueuedCheckpoint {
+                        root: H256::zero(),
+                        index,
+                        message_id: H256::zero(),
+                    }
+                    .into_checkpoint(submission_checkpoint(99).checkpoint)
+                }))
+                .await;
+        }
+    });
+    while attempts.load(Ordering::SeqCst) < 2 {
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(materialized.load(Ordering::SeqCst), 2);
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
+    assert_eq!(materialized.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test(start_paused = true)]
+async fn checkpoint_chunks_preserve_boundaries_and_publication_across_join_all_threshold() {
+    for chunk_size in [1, 6, 30, 31, 50] {
+        let count = chunk_size * 2 + 1;
+        let writes = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut syncer = MockCheckpointSyncer::new();
+        syncer
+            .expect_fetch_checkpoint()
+            .times(count)
+            .returning(|_| Ok(None));
+        syncer.expect_write_checkpoint().times(count).returning({
+            let writes = Arc::clone(&writes);
+            move |checkpoint| {
+                writes.lock().unwrap().push(checkpoint.value.index);
+                Ok(())
+            }
+        });
+        syncer
+            .expect_update_latest_index()
+            .with(mockall::predicate::eq((count - 1) as u32))
+            .once()
+            .returning(|_| Ok(()));
+        let mut submitter = submission_test_submitter(syncer, dummy_readiness());
+        submitter.max_sign_concurrency = chunk_size;
+        let start = tokio::time::Instant::now();
+        submitter
+            .sign_and_submit_checkpoints((0..count as u32).map(submission_checkpoint))
+            .await;
+        assert_eq!(start.elapsed(), Duration::from_millis(200));
+        let writes = writes.lock().unwrap();
+        for (chunk, expected) in writes.chunks(chunk_size).zip(
+            (0..count as u32)
+                .rev()
+                .collect::<Vec<_>>()
+                .chunks(chunk_size),
+        ) {
+            let mut actual = chunk.to_vec();
+            actual.sort_unstable();
+            let mut expected = expected.to_vec();
+            expected.sort_unstable();
+            assert_eq!(actual, expected);
+        }
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn latest_index_waits_for_newest_checkpoint_but_not_older_siblings() {
+    for failing_index in [7, 8] {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let failures = Arc::new(AtomicUsize::new(0));
+        let newest_written = Arc::new(AtomicBool::new(false));
+        let published = Arc::new(AtomicBool::new(false));
+        let mut syncer = MockCheckpointSyncer::new();
+        syncer
+            .expect_fetch_checkpoint()
+            .times(3)
+            .returning(|_| Ok(None));
+        syncer.expect_write_checkpoint().times(3).returning({
+            let attempts = Arc::clone(&attempts);
+            let failures = Arc::clone(&failures);
+            let newest_written = Arc::clone(&newest_written);
+            move |checkpoint| {
+                attempts.fetch_add(1, Ordering::SeqCst);
+                if checkpoint.value.index == failing_index
+                    && failures.fetch_add(1, Ordering::SeqCst) == 0
+                {
+                    return Err(eyre::eyre!("transient checkpoint upload failure"));
+                }
+                if checkpoint.value.index == 8 {
+                    newest_written.store(true, Ordering::SeqCst);
+                }
+                Ok(())
+            }
+        });
+        syncer
+            .expect_update_latest_index()
+            .with(mockall::predicate::eq(8))
+            .once()
+            .returning({
+                let newest_written = Arc::clone(&newest_written);
+                let published = Arc::clone(&published);
+                move |_| {
+                    assert!(newest_written.load(Ordering::SeqCst));
+                    published.store(true, Ordering::SeqCst);
+                    Ok(())
+                }
+            });
+        let readiness = dummy_readiness();
+        let submitter = submission_test_submitter(syncer, Arc::clone(&readiness));
+        let task = tokio::spawn(async move {
+            submitter
+                .sign_and_submit_checkpoints(vec![
+                    submission_checkpoint(7),
+                    submission_checkpoint(8),
+                ])
+                .await;
+        });
+        while attempts.load(Ordering::SeqCst) < 2 {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(published.load(Ordering::SeqCst), failing_index == 7);
+        assert!(
+            !task.is_finished(),
+            "the failed sibling must still be retried"
+        );
+        assert_eq!(
+            readiness.snapshot().blocked_operations,
+            vec![format!("checkpoint_submission[{failing_index}]")]
+        );
+        tokio::time::advance(hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION).await;
+        task.await.unwrap();
+        assert!(published.load(Ordering::SeqCst));
+        assert_eq!(attempts.load(Ordering::SeqCst), 3);
+        assert_eq!(readiness.snapshot().state, ValidatorReadinessState::Ready);
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn latest_index_retry_does_not_repeat_checkpoint_upload() {
+    let updates = Arc::new(AtomicUsize::new(0));
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer
+        .expect_fetch_checkpoint()
+        .once()
+        .returning(|_| Ok(None));
+    syncer
+        .expect_write_checkpoint()
+        .once()
+        .returning(|_| Ok(()));
+    syncer
+        .expect_update_latest_index()
+        .with(mockall::predicate::eq(8))
+        .times(2)
+        .returning({
+            let updates = Arc::clone(&updates);
+            move |_| {
+                if updates.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Err(eyre::eyre!("latest index unavailable"))
+                } else {
+                    Ok(())
+                }
+            }
+        });
+    let readiness = dummy_readiness();
+    let submitter = submission_test_submitter(syncer, Arc::clone(&readiness));
+    let task = tokio::spawn(async move {
+        submitter
+            .sign_and_submit_checkpoints(vec![submission_checkpoint(8)])
+            .await;
+    });
+    while updates.load(Ordering::SeqCst) == 0 {
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(
+        readiness.snapshot().blocked_operations,
+        vec!["checkpoint_latest_index"]
+    );
+    tokio::time::advance(hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION).await;
+    task.await.unwrap();
+    assert_eq!(updates.load(Ordering::SeqCst), 2);
+    assert_eq!(readiness.snapshot().state, ValidatorReadinessState::Ready);
+}
+
+#[tokio::test(start_paused = true)]
+async fn only_first_checkpoint_publishes_batch_maximum() {
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer
+        .expect_fetch_checkpoint()
+        .times(3)
+        .returning(|_| Ok(None));
+    syncer
+        .expect_write_checkpoint()
+        .times(3)
+        .returning(|_| Ok(()));
+    syncer
+        .expect_update_latest_index()
+        .with(mockall::predicate::eq(8))
+        .once()
+        .returning(|_| Ok(()));
+    let submitter = submission_test_submitter(syncer, dummy_readiness());
+    submitter
+        .sign_and_submit_checkpoints(vec![
+            submission_checkpoint(7),
+            submission_checkpoint(8),
+            submission_checkpoint(8),
+        ])
+        .await;
+}
+
 #[tokio::test(start_paused = true)]
 async fn single_checkpoint_chunk_has_no_throttle_tail() {
     let checkpoint = CheckpointWithMessageId {
@@ -1192,4 +1566,126 @@ async fn sign_and_submit_checkpoint_different_signature() {
         .await;
 
     logs_contain("Checkpoint already submitted, but with different signature, overwriting");
+}
+
+#[tokio::test]
+async fn unchanged_tree_checkpoint_preserves_root_index_namespace_and_block() {
+    for leaf_count in [1, 5] {
+        let mut tree = IncrementalMerkle::default();
+        for index in 0..leaf_count {
+            tree.ingest(H256::from_low_u64_be(index + 1));
+        }
+        let expected = Checkpoint {
+            root: tree.root(),
+            index: tree.index(),
+            merkle_tree_hook_address: H256::from_low_u64_be(123),
+            mailbox_domain: 17,
+        };
+        let mut hook = MockMerkleTreeHook::new();
+        hook.expect_address()
+            .return_const(expected.merkle_tree_hook_address);
+        hook.expect_domain()
+            .return_const(dummy_domain(17, "root_reuse_domain"));
+        let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+        let submitter = ValidatorSubmitter::new(
+            Duration::from_secs(1),
+            ReorgPeriod::from_blocks(1),
+            Arc::new(hook),
+            Arc::new(MockMerkleTreeHook::new()),
+            dummy_singleton_handle(),
+            signer,
+            Arc::new(MockCheckpointSyncer::new()),
+            Arc::new(MockDb::new()),
+            dummy_metrics(),
+            2,
+            Arc::new(MockReorgReporter::new()),
+            dummy_readiness(),
+        );
+        let at_block = IncrementalMerkleAtBlock {
+            tree: tree.clone(),
+            block_height: Some(42),
+        };
+        let checkpoint = submitter.checkpoint_at_block(&at_block);
+        assert_eq!(checkpoint.checkpoint, expected);
+        assert_eq!(checkpoint.block_height, Some(42));
+        // No DB reads, signing/storage calls, or reorg reports are expected when
+        // the complete checkpoint already matches and no leaves are ingested.
+        submitter
+            .submit_checkpoints_until_correctness_checkpoint(&mut tree, &checkpoint)
+            .await;
+        assert_eq!(tree.root(), expected.root);
+        assert_eq!(tree.index(), expected.index);
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn latest_index_publication_reuses_submitter_handles_across_retries() {
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let syncer = Arc::new_cyclic(|weak: &std::sync::Weak<MockCheckpointSyncer>| {
+        let weak = weak.clone();
+        let attempts = Arc::clone(&attempts);
+        let mut syncer = MockCheckpointSyncer::new();
+        syncer
+            .expect_update_latest_index()
+            .with(mockall::predicate::eq(8))
+            .times(2)
+            .returning(move |_| {
+                assert_eq!(
+                    weak.strong_count(),
+                    1,
+                    "publication must reuse the submitter, not clone its storage handle"
+                );
+                if attempts.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Err(eyre::eyre!("latest index unavailable"))
+                } else {
+                    Ok(())
+                }
+            });
+        syncer
+    });
+    let readiness = dummy_readiness();
+    let mut submitter =
+        submission_test_submitter(MockCheckpointSyncer::new(), Arc::clone(&readiness));
+    submitter.checkpoint_syncer = syncer;
+    let submitter = Arc::new(submitter);
+    let start = tokio::time::Instant::now();
+    submitter.publish_latest_checkpoint_index(8).await;
+    assert_eq!(
+        start.elapsed(),
+        hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION
+    );
+    assert_eq!(attempts.load(Ordering::SeqCst), 2);
+    assert_eq!(Arc::strong_count(&submitter), 1);
+    assert_eq!(readiness.snapshot().state, ValidatorReadinessState::Ready);
+}
+
+#[tokio::test(start_paused = true)]
+async fn latest_index_publication_cancellation_stops_retry_and_releases_submitter() {
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer.expect_update_latest_index().once().returning({
+        let attempts = Arc::clone(&attempts);
+        move |_| {
+            attempts.fetch_add(1, Ordering::SeqCst);
+            Err(eyre::eyre!("latest index unavailable"))
+        }
+    });
+    let readiness = dummy_readiness();
+    let submitter = Arc::new(submission_test_submitter(syncer, Arc::clone(&readiness)));
+    let task = tokio::spawn({
+        let submitter = Arc::clone(&submitter);
+        async move { submitter.publish_latest_checkpoint_index(8).await }
+    });
+    while attempts.load(Ordering::SeqCst) == 0 {
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(
+        readiness.snapshot().blocked_operations,
+        vec!["checkpoint_latest_index"]
+    );
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
+    assert_eq!(Arc::strong_count(&submitter), 1);
+    tokio::time::advance(hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION).await;
+    assert_eq!(attempts.load(Ordering::SeqCst), 1);
 }

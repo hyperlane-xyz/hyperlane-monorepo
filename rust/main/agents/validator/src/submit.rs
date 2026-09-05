@@ -13,7 +13,7 @@ use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, Checkpoint, CheckpointAtBlock,
     CheckpointWithMessageId, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneSignerExt, IncrementalMerkleAtBlock,
+    HyperlaneSignerExt, IncrementalMerkleAtBlock, H256,
 };
 use hyperlane_core::{
     ChainResult, HyperlaneSigner, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType,
@@ -24,6 +24,27 @@ use crate::reorg_reporter::ReorgReporter;
 use crate::server::ValidatorReadiness;
 
 const CHECKPOINT_SUBMISSION_CHUNK_INTERVAL: Duration = Duration::from_millis(100);
+
+// All queued checkpoints share the hook address and domain of the final verified
+// checkpoint. Retain only the fields that vary until that correctness gate passes.
+struct QueuedCheckpoint {
+    root: H256,
+    index: u32,
+    message_id: H256,
+}
+
+impl QueuedCheckpoint {
+    fn into_checkpoint(self, verified_checkpoint: Checkpoint) -> CheckpointWithMessageId {
+        CheckpointWithMessageId {
+            checkpoint: Checkpoint {
+                root: self.root,
+                index: self.index,
+                ..verified_checkpoint
+            },
+            message_id: self.message_id,
+        }
+    }
+}
 
 #[derive(Clone)]
 pub(crate) struct ValidatorSubmitter {
@@ -74,17 +95,17 @@ impl ValidatorSubmitter {
         }
     }
 
-    pub(crate) fn checkpoint(&self, tree: &IncrementalMerkle) -> Checkpoint {
+    fn checkpoint(&self, root: H256, index: u32) -> Checkpoint {
         Checkpoint {
             merkle_tree_hook_address: self.merkle_tree_hook.address(),
             mailbox_domain: self.merkle_tree_hook.domain().id(),
-            root: tree.root(),
-            index: tree.index(),
+            root,
+            index,
         }
     }
 
     pub(crate) fn checkpoint_at_block(&self, tree: &IncrementalMerkleAtBlock) -> CheckpointAtBlock {
-        let checkpoint = self.checkpoint(&tree.tree);
+        let checkpoint = self.checkpoint(tree.tree.root(), tree.tree.index());
 
         CheckpointAtBlock {
             checkpoint,
@@ -321,16 +342,19 @@ impl ValidatorSubmitter {
             let message_id = insertion.message_id();
             tree.ingest(message_id);
 
-            let checkpoint = self.checkpoint(tree);
-
-            checkpoint_queue.push(CheckpointWithMessageId {
-                checkpoint,
+            checkpoint_queue.push(QueuedCheckpoint {
+                root: tree.root(),
+                index: tree.index(),
                 message_id,
             });
         }
 
+        let root = checkpoint_queue
+            .last()
+            .map(|checkpoint| checkpoint.root)
+            .unwrap_or_else(|| tree.root());
         info!(
-            root = ?tree.root(),
+            ?root,
             queue_length = checkpoint_queue.len(),
             "Ingested leaves into in-memory merkle tree"
         );
@@ -344,13 +368,13 @@ impl ValidatorSubmitter {
             tree.index(),
         );
 
-        let checkpoint = self.checkpoint(tree);
+        let checkpoint = self.checkpoint(root, tree.index());
 
         // If the tree's checkpoint doesn't match the correctness checkpoint, something went wrong
         // and we bail loudly.
         if checkpoint != correctness_checkpoint.checkpoint {
             let reorg_event = ReorgEvent::new(
-                tree.root(),
+                root,
                 correctness_checkpoint.root,
                 checkpoint.index,
                 chrono::Utc::now().timestamp() as u64,
@@ -397,7 +421,12 @@ impl ValidatorSubmitter {
                 queue_len = checkpoint_queue.len(),
                 "Reached tree consistency"
             );
-            self.sign_and_submit_checkpoints(checkpoint_queue).await;
+            self.sign_and_submit_checkpoints(
+                checkpoint_queue
+                    .into_iter()
+                    .map(move |queued| queued.into_checkpoint(checkpoint)),
+            )
+            .await;
 
             info!(
                 index = checkpoint.index,
@@ -489,19 +518,61 @@ impl ValidatorSubmitter {
         Ok(true)
     }
 
+    /// Publishes availability only after the highest checkpoint itself is durable.
+    async fn publish_latest_checkpoint_index(self: &Arc<Self>, index: u32) {
+        call_and_retry_indefinitely(|| {
+            let self_clone = self.clone();
+            Box::pin(async move {
+                let start = Instant::now();
+                let result = self_clone
+                    .checkpoint_syncer
+                    .update_latest_index(index)
+                    .await;
+                match result {
+                    Ok(()) => self_clone
+                        .readiness
+                        .mark_operation_ready("checkpoint_latest_index"),
+                    Err(error) => {
+                        let snapshot = self_clone
+                            .readiness
+                            .mark_operation_blocked("checkpoint_latest_index");
+                        warn!(
+                            operation = "checkpoint_latest_index",
+                            consecutive_failures = snapshot.consecutive_failures,
+                            failure_duration_ms = snapshot.failure_duration_ms,
+                            signing_blocked = snapshot.signing_blocked,
+                            "Validator latest checkpoint index update is blocked"
+                        );
+                        return Err(error.into());
+                    }
+                }
+                tracing::trace!(
+                    elapsed=?start.elapsed(),
+                    "Updated latest index",
+                );
+                Ok(())
+            })
+        })
+        .await;
+    }
+
     /// Signs and submits any previously unsubmitted checkpoints.
-    async fn sign_and_submit_checkpoints(&self, mut checkpoints: Vec<CheckpointWithMessageId>) {
-        // The checkpoints are ordered by index, so the last one is the highest index.
-        let last_checkpoint_index = match checkpoints.last() {
-            Some(c) => c.index,
+    async fn sign_and_submit_checkpoints<I>(&self, checkpoints: I)
+    where
+        I: IntoIterator<Item = CheckpointWithMessageId>,
+        I::IntoIter: DoubleEndedIterator + ExactSizeIterator,
+    {
+        // Reconstruct compact queue entries only as their signing chunk is consumed.
+        // The input is ordered by index, so reversing starts with the highest index.
+        let mut checkpoints = checkpoints.into_iter().rev().peekable();
+        let mut latest_index_to_publish = match checkpoints.peek() {
+            Some(c) => Some(c.index),
             None => return,
         };
 
         let arc_self = Arc::new(self.clone());
 
-        let mut first_chunk = true;
-
-        while !checkpoints.is_empty() {
+        while checkpoints.len() > 0 {
             let start = Instant::now();
 
             // Take a chunk of checkpoints, starting with the highest index.
@@ -509,56 +580,58 @@ impl ValidatorSubmitter {
             // since those are the most likely to make messages become processable.
             // A side effect is that new checkpoints will also be submitted in reverse order.
 
-            // This logic is a bit awkward, but we want control over the chunks so we can also
-            // write the latest index to the checkpoint storage after the first chunk is successful.
-            let mut chunk = Vec::with_capacity(self.max_sign_concurrency);
-            for _ in 0..self.max_sign_concurrency {
-                if let Some(cp) = checkpoints.pop() {
-                    chunk.push(cp);
-                } else {
-                    break;
-                }
-            }
-
-            let chunk_len = chunk.len();
-
-            let futures = chunk.into_iter().map(|checkpoint| {
+            // Keep bounded chunks so a storage/signing burst is paced before the next chunk.
+            let chunk_len = checkpoints.len().min(self.max_sign_concurrency);
+            let chunk = checkpoints.by_ref().take(self.max_sign_concurrency);
+            let futures = chunk.map(|checkpoint| {
                 let self_clone = arc_self.clone();
-                let operation = format!("checkpoint_submission[{}]", checkpoint.index);
-                call_and_retry_indefinitely(move || {
-                    let self_clone = self_clone.clone();
-                    let operation = operation.clone();
-                    Box::pin(async move {
-                        let start = Instant::now();
-                        let checkpoint_index = checkpoint.index;
-                        let result = self_clone.sign_and_submit_checkpoint(checkpoint).await;
-                        let wrote_checkpoint = match result {
-                            Ok(wrote_checkpoint) => {
-                                self_clone.readiness.mark_operation_ready(&operation);
-                                wrote_checkpoint
-                            }
-                            Err(error) => {
-                                let snapshot =
-                                    self_clone.readiness.mark_operation_blocked(&operation);
-                                warn!(
-                                    operation,
-                                    consecutive_failures = snapshot.consecutive_failures,
-                                    failure_duration_ms = snapshot.failure_duration_ms,
-                                    signing_blocked = snapshot.signing_blocked,
-                                    "Validator checkpoint submission is blocked"
-                                );
-                                return Err(error);
-                            }
-                        };
-                        tracing::info!(
-                            index = checkpoint_index,
-                            wrote_checkpoint,
-                            elapsed=?start.elapsed(),
-                            "Processed checkpoint",
-                        );
-                        Ok(wrote_checkpoint)
+                // The first popped checkpoint alone owns publication, even if a caller
+                // supplied the same maximum index more than once.
+                let latest_index = latest_index_to_publish.take();
+                async move {
+                    let operation = format!("checkpoint_submission[{}]", checkpoint.index);
+                    let wrote_checkpoint = call_and_retry_indefinitely(|| {
+                        let self_clone = self_clone.clone();
+                        let operation = operation.clone();
+                        Box::pin(async move {
+                            let start = Instant::now();
+                            let checkpoint_index = checkpoint.index;
+                            let result = self_clone.sign_and_submit_checkpoint(checkpoint).await;
+                            let wrote_checkpoint = match result {
+                                Ok(wrote_checkpoint) => {
+                                    self_clone.readiness.mark_operation_ready(&operation);
+                                    wrote_checkpoint
+                                }
+                                Err(error) => {
+                                    let snapshot =
+                                        self_clone.readiness.mark_operation_blocked(&operation);
+                                    warn!(
+                                        operation,
+                                        consecutive_failures = snapshot.consecutive_failures,
+                                        failure_duration_ms = snapshot.failure_duration_ms,
+                                        signing_blocked = snapshot.signing_blocked,
+                                        "Validator checkpoint submission is blocked"
+                                    );
+                                    return Err(error);
+                                }
+                            };
+                            tracing::info!(
+                                index = checkpoint_index,
+                                wrote_checkpoint,
+                                elapsed=?start.elapsed(),
+                                "Processed checkpoint",
+                            );
+                            Ok(wrote_checkpoint)
+                        })
                     })
-                })
+                    .await;
+                    // Lower checkpoints may still be retrying. The latest index is an upper
+                    // bound, not a claim that every historical checkpoint has been uploaded.
+                    if let Some(index) = latest_index {
+                        self_clone.publish_latest_checkpoint_index(index).await;
+                    }
+                    wrote_checkpoint
+                }
             });
 
             let wrote_checkpoint = join_all(futures).await.into_iter().any(|wrote| wrote);
@@ -570,48 +643,9 @@ impl ValidatorSubmitter {
                 "Signed and submitted checkpoint chunk",
             );
 
-            // If it's the first chunk, update the latest index
-            if first_chunk {
-                call_and_retry_indefinitely(|| {
-                    let self_clone = self.clone();
-                    Box::pin(async move {
-                        let start = Instant::now();
-                        let result = self_clone
-                            .checkpoint_syncer
-                            .update_latest_index(last_checkpoint_index)
-                            .await;
-                        match result {
-                            Ok(()) => self_clone
-                                .readiness
-                                .mark_operation_ready("checkpoint_latest_index"),
-                            Err(error) => {
-                                let snapshot = self_clone
-                                    .readiness
-                                    .mark_operation_blocked("checkpoint_latest_index");
-                                warn!(
-                                    operation = "checkpoint_latest_index",
-                                    consecutive_failures = snapshot.consecutive_failures,
-                                    failure_duration_ms = snapshot.failure_duration_ms,
-                                    signing_blocked = snapshot.signing_blocked,
-                                    "Validator latest checkpoint index update is blocked"
-                                );
-                                return Err(error.into());
-                            }
-                        }
-                        tracing::trace!(
-                            elapsed=?start.elapsed(),
-                            "Updated latest index",
-                        );
-                        Ok(())
-                    })
-                })
-                .await;
-                first_chunk = false;
-            }
-
             // Pace storage/signing bursts between chunks without delaying the latest-index
             // update, throttling all-existing backfills, or adding a final-chunk tail.
-            if wrote_checkpoint && !checkpoints.is_empty() {
+            if wrote_checkpoint && checkpoints.len() > 0 {
                 sleep(CHECKPOINT_SUBMISSION_CHUNK_INTERVAL).await;
             }
         }
