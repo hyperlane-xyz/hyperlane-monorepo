@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {StandardHookMetadata} from "../contracts/hooks/libs/StandardHookMetadata.sol";
 import {MockMailbox} from "../contracts/mock/MockMailbox.sol";
@@ -57,6 +58,91 @@ contract FailingIsm is IInterchainSecurityModule {
         bytes calldata
     ) external view returns (bool) {
         revert(failureMessage);
+    }
+}
+
+contract TestERC20FeeHook is AbstractPostDispatchHook {
+    using Message for bytes;
+    using SafeERC20 for IERC20;
+    using StandardHookMetadata for bytes;
+
+    IERC20 public immutable feeToken;
+    uint256 public dispatchCount;
+    uint256 public totalFees;
+    uint256 public lastMsgValue;
+    bytes32 public lastRecipient;
+    bytes32 public lastBodyHash;
+
+    constructor(IERC20 _feeToken) {
+        feeToken = _feeToken;
+    }
+
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.HookTypes.UNUSED);
+    }
+
+    function _postDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal override {
+        require(
+            metadata.feeToken(address(0)) == address(feeToken),
+            "unexpected fee token"
+        );
+
+        uint256 fee = _quoteDispatch(metadata, message);
+        feeToken.safeTransferFrom(message.senderAddress(), address(this), fee);
+
+        dispatchCount += 1;
+        totalFees += fee;
+        lastMsgValue = msg.value;
+        lastRecipient = message.recipient();
+        lastBodyHash = keccak256(message.body());
+    }
+
+    function _quoteDispatch(
+        bytes calldata,
+        bytes calldata message
+    ) internal pure override returns (uint256) {
+        return
+            1_000_000 +
+            message.body().length *
+            1_000 +
+            (uint256(message.recipient()) & 0xff);
+    }
+}
+
+contract TestUnderpullingERC20FeeHook is AbstractPostDispatchHook {
+    using Message for bytes;
+    using SafeERC20 for IERC20;
+
+    uint256 internal constant FEE = 1_000_000;
+    IERC20 public immutable feeToken;
+
+    constructor(IERC20 _feeToken) {
+        feeToken = _feeToken;
+    }
+
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.HookTypes.UNUSED);
+    }
+
+    function _postDispatch(
+        bytes calldata,
+        bytes calldata message
+    ) internal override {
+        feeToken.safeTransferFrom(
+            message.senderAddress(),
+            address(this),
+            FEE - 1
+        );
+    }
+
+    function _quoteDispatch(
+        bytes calldata,
+        bytes calldata
+    ) internal pure override returns (uint256) {
+        return FEE;
     }
 }
 
@@ -1489,6 +1575,37 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         assertEq(balanceBefore - balanceAfter, quote);
     }
 
+    function test_callRemoteCommitReveal_emptyMetadata_refundsResidual(
+        bytes32 commitment
+    ) public {
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        uint256 quote = originIcaRouter.quoteGasForCommitReveal(
+            destination,
+            50_000
+        );
+        uint256 preExistingBalance = 1 wei;
+        vm.deal(address(originIcaRouter), preExistingBalance);
+        uint256 callerBalanceBefore = address(this).balance;
+
+        originIcaRouter.callRemoteCommitReveal{value: 2 * quote}(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            originIcaRouter.hook(),
+            bytes32(0),
+            commitment
+        );
+
+        assertEq(callerBalanceBefore - address(this).balance, quote);
+        assertEq(address(originIcaRouter).balance, preExistingBalance);
+    }
+
     function testFuzz_quoteGasForCommitReveal(bytes32 commitment) public {
         // Arrange
         // We use _Router_quoteDispatch so we actually need a remote router enrolled before quoting
@@ -1693,6 +1810,202 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             feeQuote,
             "Fee tokens should be charged"
         );
+    }
+
+    function test_callRemote_withERC20Fee_usesMailboxDefaultHook() public {
+        environment.mailboxes(origin).setDefaultHook(address(erc20Igp));
+        InterchainAccountRouter defaultHookRouter = deployIcaRouter(
+            environment.mailboxes(origin),
+            IPostDispatchHook(address(0)),
+            address(this)
+        );
+        defaultHookRouter.enrollRemoteRouterAndIsm(
+            destination,
+            erc20RouterOverride,
+            ismOverride
+        );
+
+        uint256 feeQuote = defaultHookRouter.quoteGasPayment(
+            address(feeToken),
+            destination,
+            GAS_LIMIT_OVERRIDE
+        );
+        feeToken.approve(address(defaultHookRouter), feeQuote);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this),
+            address(feeToken)
+        );
+        CallLib.Call[] memory calls = getCalls(bytes32("default_hook"), 0);
+
+        defaultHookRouter.callRemote(destination, calls, hookMetadata);
+
+        assertEq(feeToken.balanceOf(address(erc20Igp)), feeQuote);
+        assertEq(feeToken.balanceOf(address(defaultHookRouter)), 0);
+        assertEq(
+            feeToken.allowance(address(defaultHookRouter), address(erc20Igp)),
+            type(uint256).max
+        );
+        assertEq(feeToken.allowance(address(defaultHookRouter), address(0)), 0);
+    }
+
+    function test_callRemote_withERC20Fee_defaultAggregationRequiresChildApproval()
+        public
+    {
+        address[] memory hooks = new address[](1);
+        hooks[0] = address(erc20Igp);
+        StaticAggregationHook aggregationHook = StaticAggregationHook(
+            new StaticAggregationHookFactory().deploy(hooks)
+        );
+        environment.mailboxes(origin).setDefaultHook(address(aggregationHook));
+
+        InterchainAccountRouter defaultHookRouter = deployIcaRouter(
+            environment.mailboxes(origin),
+            IPostDispatchHook(address(0)),
+            address(this)
+        );
+        defaultHookRouter.enrollRemoteRouterAndIsm(
+            destination,
+            erc20RouterOverride,
+            ismOverride
+        );
+
+        uint256 feeQuote = defaultHookRouter.quoteGasPayment(
+            address(feeToken),
+            destination,
+            GAS_LIMIT_OVERRIDE
+        );
+        feeToken.approve(address(defaultHookRouter), feeQuote);
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this),
+            address(feeToken)
+        );
+        CallLib.Call[] memory calls = getCalls(bytes32("aggregation"), 0);
+
+        vm.expectRevert("ERC20: insufficient allowance");
+        defaultHookRouter.callRemote(destination, calls, hookMetadata);
+
+        defaultHookRouter.approveFeeTokenForHook(
+            address(feeToken),
+            address(erc20Igp)
+        );
+        defaultHookRouter.callRemote(destination, calls, hookMetadata);
+
+        assertEq(feeToken.balanceOf(address(erc20Igp)), feeQuote);
+        assertEq(feeToken.balanceOf(address(defaultHookRouter)), 0);
+    }
+
+    function test_callRemoteWithOverrides_withERC20Fee_unenrolledDestination()
+        public
+    {
+        InterchainAccountRouter unenrolledRouter = deployIcaRouter(
+            environment.mailboxes(origin),
+            IPostDispatchHook(address(erc20Igp)),
+            address(this)
+        );
+        feeToken.approve(address(unenrolledRouter), type(uint256).max);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this),
+            address(feeToken)
+        );
+        CallLib.Call[] memory calls = getCalls(bytes32("unenrolled"), 0);
+        uint256 hookBalanceBefore = feeToken.balanceOf(address(erc20Igp));
+
+        unenrolledRouter.callRemoteWithOverrides(
+            destination,
+            erc20RouterOverride,
+            ismOverride,
+            calls,
+            hookMetadata
+        );
+
+        assertGt(feeToken.balanceOf(address(erc20Igp)), hookBalanceBefore);
+        assertEq(feeToken.balanceOf(address(unenrolledRouter)), 0);
+        assertEq(unenrolledRouter.routers(destination), bytes32(0));
+    }
+
+    function test_callRemoteWithOverrides_withERC20Fee_customHook() public {
+        TestERC20FeeHook customHook = new TestERC20FeeHook(feeToken);
+        bytes32 customRouter = bytes32(uint256(0xBEEF));
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this),
+            address(feeToken)
+        );
+        CallLib.Call[] memory calls = getCalls(bytes32("custom_hook"), 0);
+        uint256 bodyLength = 97 + abi.encode(calls).length;
+        uint256 expectedFee = 1_000_000 +
+            bodyLength *
+            1_000 +
+            (uint256(customRouter) & 0xff);
+        feeToken.approve(address(originErc20Router), expectedFee);
+        uint256 callerBalanceBefore = feeToken.balanceOf(address(this));
+
+        originErc20Router.callRemoteWithOverrides(
+            destination,
+            customRouter,
+            ismOverride,
+            calls,
+            hookMetadata,
+            bytes32(0),
+            IPostDispatchHook(address(customHook))
+        );
+
+        assertEq(customHook.dispatchCount(), 1);
+        assertEq(customHook.lastRecipient(), customRouter);
+        assertNotEq(customHook.lastBodyHash(), keccak256(bytes("")));
+        assertEq(customHook.lastMsgValue(), 0);
+        assertEq(customHook.totalFees(), expectedFee);
+        assertEq(feeToken.balanceOf(address(customHook)), expectedFee);
+        assertEq(
+            callerBalanceBefore - feeToken.balanceOf(address(this)),
+            expectedFee
+        );
+        assertEq(feeToken.balanceOf(address(erc20Igp)), 0);
+        assertEq(feeToken.balanceOf(address(originErc20Router)), 0);
+        assertEq(
+            feeToken.allowance(address(originErc20Router), address(customHook)),
+            type(uint256).max
+        );
+    }
+
+    function test_callRemoteWithOverrides_withERC20Fee_revertsWhenHookUnderpulls()
+        public
+    {
+        TestUnderpullingERC20FeeHook underpullingHook = new TestUnderpullingERC20FeeHook(
+                feeToken
+            );
+        feeToken.approve(address(originErc20Router), type(uint256).max);
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this),
+            address(feeToken)
+        );
+        CallLib.Call[] memory calls = getCalls(bytes32("underpull"), 0);
+
+        vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x01));
+        originErc20Router.callRemoteWithOverrides(
+            destination,
+            erc20RouterOverride,
+            ismOverride,
+            calls,
+            hookMetadata,
+            bytes32(0),
+            IPostDispatchHook(address(underpullingHook))
+        );
+
+        assertEq(feeToken.balanceOf(address(originErc20Router)), 0);
+        assertEq(feeToken.balanceOf(address(underpullingHook)), 0);
     }
 
     function test_feeToken_shortMetadata_returnsZeroAddress() public {
@@ -1998,6 +2311,201 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             feeBalanceBefore - feeBalanceAfter,
             totalQuote,
             "Fee tokens charged should match quoteGasForCommitReveal"
+        );
+    }
+
+    function test_callRemoteCommitReveal_withERC20Fee_nonZeroRouterBalance()
+        public
+    {
+        // Only this call's commit refund may fund its reveal. An unrelated
+        // native balance must not brick the ERC20 fee path.
+        vm.deal(address(1), 1 wei);
+        vm.prank(address(1));
+        (bool sent, ) = address(originErc20Router).call{value: 1 wei}("");
+        assertTrue(sent, "balance not sent");
+
+        uint256 revealGasLimit = 100_000;
+        uint256 totalQuote = originErc20Router.quoteGasForCommitReveal(
+            address(feeToken),
+            destination,
+            revealGasLimit
+        );
+        feeToken.approve(address(originErc20Router), totalQuote);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            revealGasLimit,
+            address(this),
+            address(feeToken)
+        );
+        uint256 feeBalanceBefore = feeToken.balanceOf(address(this));
+
+        originErc20Router.callRemoteCommitReveal{value: 0}(
+            destination,
+            erc20RouterOverride,
+            ismOverride,
+            hookMetadata,
+            IPostDispatchHook(address(erc20Igp)),
+            bytes32(0),
+            keccak256("balance_commitment")
+        );
+
+        assertEq(
+            feeBalanceBefore - feeToken.balanceOf(address(this)),
+            totalQuote,
+            "Fee tokens charged should match quoteGasForCommitReveal"
+        );
+        assertEq(
+            address(originErc20Router).balance,
+            1 wei,
+            "Native balance should be untouched by the fee token path"
+        );
+    }
+
+    function test_callRemoteCommitReveal_withERC20Fee_customHook_nonZeroRouterBalance()
+        public
+    {
+        TestERC20FeeHook customHook = new TestERC20FeeHook(feeToken);
+        bytes32 customRouter = bytes32(uint256(0xCAFE));
+        feeToken.approve(address(originErc20Router), type(uint256).max);
+
+        vm.deal(address(1), 1 wei);
+        vm.prank(address(1));
+        (bool sent, ) = address(originErc20Router).call{value: 1 wei}("");
+        assertTrue(sent, "balance not sent");
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            100_000,
+            address(this),
+            address(feeToken)
+        );
+
+        originErc20Router.callRemoteCommitReveal(
+            destination,
+            customRouter,
+            ismOverride,
+            hookMetadata,
+            IPostDispatchHook(address(customHook)),
+            bytes32(0),
+            keccak256("custom_hook_commitment")
+        );
+
+        assertEq(customHook.dispatchCount(), 2);
+        assertEq(customHook.lastRecipient(), customRouter);
+        assertEq(customHook.lastMsgValue(), 0);
+        assertEq(
+            feeToken.balanceOf(address(customHook)),
+            customHook.totalFees()
+        );
+        assertEq(feeToken.balanceOf(address(erc20Igp)), 0);
+        assertEq(feeToken.balanceOf(address(originErc20Router)), 0);
+        assertEq(address(originErc20Router).balance, 1 wei);
+    }
+
+    function test_callRemoteCommitReveal_withERC20Fee_revertsWhen_nativeValueSent()
+        public
+    {
+        uint256 revealGasLimit = 100_000;
+        uint256 totalQuote = originErc20Router.quoteGasForCommitReveal(
+            address(feeToken),
+            destination,
+            revealGasLimit
+        );
+        feeToken.approve(address(originErc20Router), totalQuote);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            revealGasLimit,
+            address(this),
+            address(feeToken)
+        );
+
+        vm.expectRevert("IGP: native value not accepted with ERC20 fee");
+        originErc20Router.callRemoteCommitReveal{value: 1 wei}(
+            destination,
+            erc20RouterOverride,
+            ismOverride,
+            hookMetadata,
+            IPostDispatchHook(address(erc20Igp)),
+            bytes32(0),
+            keccak256("mixed_commitment")
+        );
+    }
+
+    function test_callRemoteCommitReveal_withNativeFee_preservesPreExistingBalance()
+        public
+    {
+        vm.deal(address(1), 1 wei);
+        vm.prank(address(1));
+        (bool sent, ) = address(originErc20Router).call{value: 1 wei}("");
+        assertTrue(sent, "balance not sent");
+
+        uint256 revealGasLimit = 100_000;
+        uint256 quote = originErc20Router.quoteGasForCommitReveal(
+            destination,
+            revealGasLimit
+        );
+        bytes memory hookMetadata = StandardHookMetadata.formatMetadata(
+            0,
+            revealGasLimit,
+            address(this),
+            bytes("")
+        );
+
+        originErc20Router.callRemoteCommitReveal{value: quote}(
+            destination,
+            erc20RouterOverride,
+            ismOverride,
+            hookMetadata,
+            IPostDispatchHook(address(erc20Igp)),
+            bytes32(0),
+            keccak256("native_balance_commitment")
+        );
+
+        assertEq(
+            address(originErc20Router).balance,
+            1 wei,
+            "Native path should preserve the pre-existing router balance"
+        );
+    }
+
+    function testFuzz_callRemoteCommitReveal_withNativeFee_preservesPreExistingBalance(
+        uint96 preExistingBalance,
+        uint96 extraPayment,
+        bytes32 commitment
+    ) public {
+        vm.deal(address(originErc20Router), preExistingBalance);
+
+        uint256 revealGasLimit = 100_000;
+        uint256 quote = originErc20Router.quoteGasForCommitReveal(
+            destination,
+            revealGasLimit
+        );
+        uint256 payment = quote + extraPayment;
+        vm.deal(address(this), payment);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatMetadata(
+            0,
+            revealGasLimit,
+            address(this),
+            bytes("")
+        );
+
+        originErc20Router.callRemoteCommitReveal{value: payment}(
+            destination,
+            erc20RouterOverride,
+            ismOverride,
+            hookMetadata,
+            IPostDispatchHook(address(erc20Igp)),
+            bytes32(0),
+            commitment
+        );
+
+        assertEq(
+            address(originErc20Router).balance,
+            preExistingBalance,
+            "Native path should preserve arbitrary pre-existing balance"
         );
     }
 
