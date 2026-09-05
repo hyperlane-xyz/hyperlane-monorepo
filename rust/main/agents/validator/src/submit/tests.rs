@@ -100,6 +100,183 @@ fn dummy_readiness() -> Arc<ValidatorReadiness> {
     Arc::new(ValidatorReadiness::default())
 }
 
+fn submission_test_submitter(
+    syncer: MockCheckpointSyncer,
+    readiness: Arc<ValidatorReadiness>,
+) -> ValidatorSubmitter {
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    ValidatorSubmitter::new(
+        Duration::from_secs(1),
+        ReorgPeriod::from_blocks(1),
+        Arc::new(MockMerkleTreeHook::new()),
+        Arc::new(MockMerkleTreeHook::new()),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(syncer),
+        Arc::new(MockDb::new()),
+        dummy_metrics(),
+        2,
+        Arc::new(MockReorgReporter::new()),
+        readiness,
+    )
+}
+
+fn submission_checkpoint(index: u32) -> CheckpointWithMessageId {
+    CheckpointWithMessageId {
+        checkpoint: Checkpoint {
+            root: H256::zero(),
+            merkle_tree_hook_address: H256::zero(),
+            mailbox_domain: 0,
+            index,
+        },
+        message_id: H256::zero(),
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn latest_index_waits_for_newest_checkpoint_but_not_older_siblings() {
+    for failing_index in [7, 8] {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let failures = Arc::new(AtomicUsize::new(0));
+        let newest_written = Arc::new(AtomicBool::new(false));
+        let published = Arc::new(AtomicBool::new(false));
+        let mut syncer = MockCheckpointSyncer::new();
+        syncer
+            .expect_fetch_checkpoint()
+            .times(3)
+            .returning(|_| Ok(None));
+        syncer.expect_write_checkpoint().times(3).returning({
+            let attempts = Arc::clone(&attempts);
+            let failures = Arc::clone(&failures);
+            let newest_written = Arc::clone(&newest_written);
+            move |checkpoint| {
+                attempts.fetch_add(1, Ordering::SeqCst);
+                if checkpoint.value.index == failing_index
+                    && failures.fetch_add(1, Ordering::SeqCst) == 0
+                {
+                    return Err(eyre::eyre!("transient checkpoint upload failure"));
+                }
+                if checkpoint.value.index == 8 {
+                    newest_written.store(true, Ordering::SeqCst);
+                }
+                Ok(())
+            }
+        });
+        syncer
+            .expect_update_latest_index()
+            .with(mockall::predicate::eq(8))
+            .once()
+            .returning({
+                let newest_written = Arc::clone(&newest_written);
+                let published = Arc::clone(&published);
+                move |_| {
+                    assert!(newest_written.load(Ordering::SeqCst));
+                    published.store(true, Ordering::SeqCst);
+                    Ok(())
+                }
+            });
+        let readiness = dummy_readiness();
+        let submitter = submission_test_submitter(syncer, Arc::clone(&readiness));
+        let task = tokio::spawn(async move {
+            submitter
+                .sign_and_submit_checkpoints(vec![
+                    submission_checkpoint(7),
+                    submission_checkpoint(8),
+                ])
+                .await;
+        });
+        while attempts.load(Ordering::SeqCst) < 2 {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(published.load(Ordering::SeqCst), failing_index == 7);
+        assert!(
+            !task.is_finished(),
+            "the failed sibling must still be retried"
+        );
+        assert_eq!(
+            readiness.snapshot().blocked_operations,
+            vec![format!("checkpoint_submission[{failing_index}]")]
+        );
+        tokio::time::advance(hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION).await;
+        task.await.unwrap();
+        assert!(published.load(Ordering::SeqCst));
+        assert_eq!(attempts.load(Ordering::SeqCst), 3);
+        assert_eq!(readiness.snapshot().state, ValidatorReadinessState::Ready);
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn latest_index_retry_does_not_repeat_checkpoint_upload() {
+    let updates = Arc::new(AtomicUsize::new(0));
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer
+        .expect_fetch_checkpoint()
+        .once()
+        .returning(|_| Ok(None));
+    syncer
+        .expect_write_checkpoint()
+        .once()
+        .returning(|_| Ok(()));
+    syncer
+        .expect_update_latest_index()
+        .with(mockall::predicate::eq(8))
+        .times(2)
+        .returning({
+            let updates = Arc::clone(&updates);
+            move |_| {
+                if updates.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Err(eyre::eyre!("latest index unavailable"))
+                } else {
+                    Ok(())
+                }
+            }
+        });
+    let readiness = dummy_readiness();
+    let submitter = submission_test_submitter(syncer, Arc::clone(&readiness));
+    let task = tokio::spawn(async move {
+        submitter
+            .sign_and_submit_checkpoints(vec![submission_checkpoint(8)])
+            .await;
+    });
+    while updates.load(Ordering::SeqCst) == 0 {
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(
+        readiness.snapshot().blocked_operations,
+        vec!["checkpoint_latest_index"]
+    );
+    tokio::time::advance(hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION).await;
+    task.await.unwrap();
+    assert_eq!(updates.load(Ordering::SeqCst), 2);
+    assert_eq!(readiness.snapshot().state, ValidatorReadinessState::Ready);
+}
+
+#[tokio::test(start_paused = true)]
+async fn only_first_checkpoint_publishes_batch_maximum() {
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer
+        .expect_fetch_checkpoint()
+        .times(3)
+        .returning(|_| Ok(None));
+    syncer
+        .expect_write_checkpoint()
+        .times(3)
+        .returning(|_| Ok(()));
+    syncer
+        .expect_update_latest_index()
+        .with(mockall::predicate::eq(8))
+        .once()
+        .returning(|_| Ok(()));
+    let submitter = submission_test_submitter(syncer, dummy_readiness());
+    submitter
+        .sign_and_submit_checkpoints(vec![
+            submission_checkpoint(7),
+            submission_checkpoint(8),
+            submission_checkpoint(8),
+        ])
+        .await;
+}
+
 #[tokio::test(start_paused = true)]
 async fn single_checkpoint_chunk_has_no_throttle_tail() {
     let checkpoint = CheckpointWithMessageId {
