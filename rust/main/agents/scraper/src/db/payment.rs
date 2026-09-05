@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use eyre::Result;
+use eyre::{ensure, Result};
 use itertools::Itertools;
 use sea_orm::{
     prelude::*, ActiveValue::*, ConnectionTrait, Insert, QuerySelect, QueryTrait, Statement,
@@ -29,6 +29,9 @@ pub struct StorablePayment<'a> {
 }
 
 impl ScraperDb {
+    // Eleven parameters per inserted row; reads add two scope parameters.
+    const PAYMENT_STORE_CHUNK_SIZE: usize = 5_000;
+
     const PAYMENT_STORE_LOCK_NAMESPACE: i32 = 0x4859_504C;
 
     /// Get the payment associated with a sequence.
@@ -92,6 +95,25 @@ impl ScraperDb {
         interchain_gas_paymaster: &H256,
         payments: &[StorablePayment<'_>],
     ) -> Result<u64> {
+        if payments.is_empty() {
+            return Ok(0);
+        }
+        // PostgreSQL rejects repeated non-NULL conflict keys in one upsert.
+        // Retain that rejection even if keys would land in different chunks.
+        let mut resolved_keys = HashSet::new();
+        for payment in payments {
+            if let Some(tx_id) = payment.txn_id {
+                ensure!(
+                    resolved_keys.insert((
+                        payment.payment.message_id,
+                        payment.meta.log_index.as_u64(),
+                        tx_id,
+                    )),
+                    "Duplicate resolved gas payment in one batch"
+                );
+            }
+        }
+        drop(resolved_keys);
         let interchain_gas_paymaster = address_to_bytes(interchain_gas_paymaster);
 
         // Postgres unique indexes treat NULLs as distinct, so the
@@ -127,20 +149,22 @@ impl ScraperDb {
         let payment_msg_ids = payments
             .iter()
             .map(|storable| h256_to_bytes(&storable.payment.message_id))
+            .unique()
             .collect_vec();
-        let existing_payments = if payment_msg_ids.is_empty() {
-            Vec::new()
-        } else {
-            gas_payment::Entity::find()
-                .filter(gas_payment::Column::Domain.eq(domain))
-                .filter(
-                    gas_payment::Column::InterchainGasPaymaster
-                        .eq(interchain_gas_paymaster.clone()),
-                )
-                .filter(gas_payment::Column::MsgId.is_in(payment_msg_ids))
-                .all(&txn)
-                .await?
-        };
+        let mut existing_payments = Vec::new();
+        for message_ids in payment_msg_ids.chunks(Self::PAYMENT_STORE_CHUNK_SIZE) {
+            existing_payments.extend(
+                gas_payment::Entity::find()
+                    .filter(gas_payment::Column::Domain.eq(domain))
+                    .filter(
+                        gas_payment::Column::InterchainGasPaymaster
+                            .eq(interchain_gas_paymaster.clone()),
+                    )
+                    .filter(gas_payment::Column::MsgId.is_in(message_ids.iter().cloned()))
+                    .all(&txn)
+                    .await?,
+            );
+        }
         let mut seen_fallback_payments: HashSet<(Vec<u8>, i64)> = existing_payments
             .iter()
             .map(|payment| (payment.msg_id.clone(), payment.log_index))
@@ -196,27 +220,34 @@ impl ScraperDb {
             debug!("Wrote zero new gas payments to database");
             0
         } else {
-            Insert::many(models)
-                .on_conflict(
-                    OnConflict::columns([
-                        // don't need domain because TxId includes it
-                        gas_payment::Column::MsgId,
-                        gas_payment::Column::TxId,
-                        gas_payment::Column::LogIndex,
-                    ])
-                    .update_columns([
-                        gas_payment::Column::TimeCreated,
-                        gas_payment::Column::Payment,
-                        gas_payment::Column::GasAmount,
-                        gas_payment::Column::Origin,
-                        gas_payment::Column::Destination,
-                        gas_payment::Column::InterchainGasPaymaster,
-                        gas_payment::Column::Sequence,
-                    ])
-                    .to_owned(),
-                )
-                .exec(&txn)
-                .await?;
+            let mut models = models.into_iter();
+            while !models.as_slice().is_empty() {
+                let chunk = models
+                    .by_ref()
+                    .take(Self::PAYMENT_STORE_CHUNK_SIZE)
+                    .collect::<Vec<_>>();
+                Insert::many(chunk)
+                    .on_conflict(
+                        OnConflict::columns([
+                            // don't need domain because TxId includes it
+                            gas_payment::Column::MsgId,
+                            gas_payment::Column::TxId,
+                            gas_payment::Column::LogIndex,
+                        ])
+                        .update_columns([
+                            gas_payment::Column::TimeCreated,
+                            gas_payment::Column::Payment,
+                            gas_payment::Column::GasAmount,
+                            gas_payment::Column::Origin,
+                            gas_payment::Column::Destination,
+                            gas_payment::Column::InterchainGasPaymaster,
+                            gas_payment::Column::Sequence,
+                        ])
+                        .to_owned(),
+                    )
+                    .exec(&txn)
+                    .await?;
+            }
 
             gas_payment::Entity::find()
                 .filter(gas_payment::Column::Domain.eq(domain))

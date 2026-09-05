@@ -62,3 +62,6 @@ impl Clone for ScraperDb {
         Self(conn)
     }
 }
+
+#[cfg(test)]
+mod write_batches;
