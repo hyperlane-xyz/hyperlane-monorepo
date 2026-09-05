@@ -1349,7 +1349,9 @@ impl StreamState {
                 if log_index != U256::from(sequence) {
                     bail!("Gas payment fallback log index does not match its native sequence");
                 }
-                (H256::zero(), 0, H512::zero())
+                // Basic Sealevel RPC metadata retains the real slot, but the
+                // proxy's NULL transaction join cannot recover it. Keep RPC authoritative.
+                bail!("Gas payment without resolved transaction metadata omitted its canonical block height");
             }
             _ => bail!("Gas payment transaction metadata was only partially resolved"),
         };
@@ -7291,53 +7293,148 @@ mod tests {
     }
 
     #[test]
-    fn accepts_gas_payment_without_resolved_transaction_metadata() {
-        let fixture = fixture();
-        let sources = &fixture.sources;
-        let mut event = gas_payment_event(10);
-        event.data["tx_id"] = serde_json::Value::Null;
-        event.data["origin_tx_hash"] = serde_json::Value::Null;
-        event.data["origin_block_hash"] = serde_json::Value::Null;
-        event.data["origin_block_height"] = serde_json::Value::Null;
-        event.data["sequence"] = serde_json::json!("0");
-        let mut state = StreamState::default();
-        state
-            .accept_gas_payment_caught_up(
-                &scraper_address(H256::from_low_u64_be(3)),
-                5,
-                None,
-                Some("9"),
-                None,
-                &sources,
-            )
-            .expect("gas payment baseline");
+    fn unresolved_gas_metadata_preserves_rpc_indexing_in_both_arrival_orders() {
+        for rpc_first in [false, true] {
+            let fixture = fixture();
+            let source = &fixture.sources[&5];
+            let payment = Indexed::new(InterchainGasPayment {
+                message_id: H256::from_low_u64_be(7),
+                destination: 6,
+                payment: U256::from(1000),
+                gas_amount: U256::from(50000),
+            })
+            .with_sequence(0);
+            // Sealevel basic metadata retains the payment account's real slot
+            // even when transaction and block hashes could not be resolved.
+            let rpc_meta = LogMeta {
+                address: source.interchain_gas_paymaster,
+                block_number: 123_456,
+                block_hash: H256::zero(),
+                transaction_id: H512::zero(),
+                transaction_index: 0,
+                log_index: U256::zero(),
+            };
+            if rpc_first {
+                assert!(fixture
+                    .database
+                    .process_indexed_gas_payment(payment, &rpc_meta)
+                    .expect("RPC indexes the canonical slot first"));
+            }
+            let mut event = gas_payment_event(10);
+            for field in [
+                "tx_id",
+                "origin_tx_hash",
+                "origin_block_hash",
+                "origin_block_height",
+            ] {
+                event.data[field] = serde_json::Value::Null;
+            }
+            event.data["sequence"] = serde_json::json!("0");
+            let mut state = StreamState::default();
+            state
+                .accept_gas_payment_caught_up(
+                    &scraper_address(source.interchain_gas_paymaster),
+                    5,
+                    None,
+                    Some("9"),
+                    None,
+                    &fixture.sources,
+                )
+                .expect("gas payment baseline");
+            assert!(state
+                .validate(event, &fixture.sources)
+                .expect_err("unknown block height must not become authoritative metadata")
+                .to_string()
+                .contains("canonical block height"));
+            assert_eq!(state.gas_payment_rows[&5].stream_cursor, 9);
+            assert_eq!(
+                fixture
+                    .database
+                    .retrieve_gas_payment_block_by_sequence(&0)
+                    .expect("read untouched block metadata"),
+                rpc_first.then_some(rpc_meta.block_number),
+            );
+            assert_eq!(
+                fixture
+                    .database
+                    .process_indexed_gas_payment(payment, &rpc_meta)
+                    .expect("RPC indexing remains live after the shadow event"),
+                !rpc_first
+            );
+            assert_eq!(
+                fixture
+                    .database
+                    .retrieve_gas_payment_block_by_sequence(&0)
+                    .expect("read canonical slot"),
+                Some(rpc_meta.block_number),
+            );
+            let total = fixture
+                .database
+                .retrieve_gas_payment_by_gas_payment_key((*payment.inner()).into())
+                .expect("read aggregate")
+                .expect("aggregate exists");
+            assert_eq!(total.payment, U256::from(1000));
+            assert_eq!(total.gas_amount, U256::from(50000));
+        }
+    }
 
-        let input = state
-            .validate(event, &sources)
-            .expect("nullable transaction metadata is supported")
-            .gas_payment
-            .expect("gas payment input");
-        assert_eq!(input.meta.block_hash, H256::zero());
-        assert_eq!(input.meta.block_number, 0);
-        assert_eq!(input.meta.transaction_id, H512::zero());
-        assert_eq!(input.meta.log_index, U256::zero());
-        assert_eq!(input.payment.sequence, Some(0));
-
-        let source = sources.get(&5).expect("source");
-        source
-            .store_gas_payment(&input)
-            .expect("store nullable-metadata gas payment");
-        assert!(!fixture
-            .database
-            .process_indexed_gas_payment(input.payment, &input.meta)
-            .expect("dedupe the equivalent RPC fallback payment"));
-        let total = fixture
-            .database
-            .retrieve_gas_payment_by_gas_payment_key((*input.payment.inner()).into())
-            .expect("read aggregate")
-            .expect("aggregate exists");
-        assert_eq!(total.payment, U256::from(1000));
-        assert_eq!(total.gas_amount, U256::from(50000));
+    #[test]
+    fn resolved_gas_metadata_dedupes_rpc_in_both_arrival_orders() {
+        for rpc_first in [false, true] {
+            let fixture = fixture();
+            let source = &fixture.sources[&5];
+            let mut state = StreamState::default();
+            state
+                .accept_gas_payment_caught_up(
+                    &scraper_address(source.interchain_gas_paymaster),
+                    5,
+                    None,
+                    Some("9"),
+                    None,
+                    &fixture.sources,
+                )
+                .expect("gas payment baseline");
+            let mut event = gas_payment_event(10);
+            event.data["sequence"] = serde_json::json!("0");
+            let input = state
+                .validate(event, &fixture.sources)
+                .expect("resolved metadata remains supported")
+                .gas_payment
+                .expect("gas payment input");
+            let rpc_meta = LogMeta {
+                block_hash: H256::zero(),
+                transaction_id: H512::zero(),
+                ..input.meta.clone()
+            };
+            assert_eq!(rpc_meta.block_number, 100);
+            if rpc_first {
+                assert!(fixture
+                    .database
+                    .process_indexed_gas_payment(input.payment, &rpc_meta)
+                    .expect("RPC indexes first"));
+            }
+            source
+                .store_gas_payment(&input)
+                .expect("store resolved shadow payment");
+            assert!(!fixture
+                .database
+                .process_indexed_gas_payment(input.payment, &rpc_meta)
+                .expect("RPC deduplicates the same payment and canonical slot"));
+            let total = fixture
+                .database
+                .retrieve_gas_payment_by_gas_payment_key((*input.payment.inner()).into())
+                .expect("read aggregate")
+                .expect("aggregate exists");
+            assert_eq!(total.payment, U256::from(1000));
+            assert_eq!(total.gas_amount, U256::from(50000));
+            assert_eq!(
+                fixture
+                    .database
+                    .retrieve_gas_payment_block_by_sequence(&0)
+                    .expect("read canonical block"),
+                Some(100)
+            );
+        }
     }
 
     #[test]
@@ -7996,7 +8093,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn quarantines_invalid_gas_payment_without_stopping_other_streams() {
+    async fn quarantines_unresolved_gas_payment_without_stopping_other_streams() {
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind test server");
@@ -8049,10 +8146,25 @@ mod tests {
             release_rx.await.expect("release test server");
 
             let mut poison = gas_payment_event(10);
-            poison.data["interchain_gas_paymaster"] =
-                serde_json::json!(format!("{:#x}", H256::from_low_u64_be(4)));
+            for field in [
+                "tx_id",
+                "origin_tx_hash",
+                "origin_block_hash",
+                "origin_block_height",
+            ] {
+                poison.data[field] = serde_json::Value::Null;
+            }
+            poison.data["sequence"] = serde_json::json!("0");
             let message = dispatch_message(7, b"payload");
             let messages = [
+                serde_json::json!({
+                    "address": scraper_address(H256::from_low_u64_be(3)),
+                    "domain": 5,
+                    "eventType": GAS_PAYMENT_EVENT_TYPE,
+                    "legacyMaxStreamCursor": "0",
+                    "streamCursor": "9",
+                    "type": "caught_up",
+                }),
                 wire_event(poison),
                 wire_event(event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload"))),
                 wire_event(event(
@@ -8141,8 +8253,15 @@ mod tests {
             "{error}"
         );
         assert_eq!(state.gas_payment_degraded, HashSet::from([5]));
-        assert!(!state.gas_payment_rows.contains_key(&5));
+        assert_eq!(state.gas_payment_rows[&5].stream_cursor, 9);
         let source = monitor.sources.get(&5).expect("source");
+        assert_eq!(
+            source
+                .cursor_db
+                .retrieve_gas_payment_by_sequence(&0)
+                .expect("unresolved payment must not enter the authoritative index"),
+            None
+        );
         assert!(source
             .gas_payment_degraded()
             .expect("read durable degradation"));
