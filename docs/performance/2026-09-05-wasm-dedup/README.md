@@ -10,7 +10,7 @@ After the existing same-name deduplication, compare remaining regular `*.wasm` f
 
 Cross-name matching applies only to WASM. JavaScript workers and native addons retain the existing rules because their paths can affect module resolution.
 
-## Performance evidence
+## Two-bundle performance evidence
 
 Local Node 24.13.0 / NCC 0.38.4 bundles:
 
@@ -21,6 +21,47 @@ Running the actual Docker deduplication loop against these two bundles reduced r
 
 This is a two-bundle packaging fixture, with the other five service directories empty. It is not a measured full-image size, compressed layer size, runtime latency, or production improvement. Filename assignment depends on NCC's module graph; if all names already align, the fallback saves zero additional bytes. Existing same-name deduplication remains active.
 
+## Seven-service integration evidence
+
+An independent combined-stack build produced all seven service bundles: 30 build tasks passed, with 23 cache hits and all seven bundle tasks rebuilt. Applying the exact old/new Docker loops reduced retained regular-file bytes from **293,115,406 to 251,705,314**, saving **41,410,092 bytes (14.13%)** across the complete local service layout.
+
+All **108 resolved files** retained identical full SHA-256 hashes and lengths, including JavaScript and native addons. All **44 existing symlink targets** stayed unchanged. The new loop was idempotent. The only new links were `relayer/aleo_wasm.wasm` and `relayer/aleo_wasm1.wasm`, each pointing to the opposite-named Rebalancer asset. All six other services retained the same regular-byte totals.
+
+This differs from the two-bundle fixture above: the combined source graph gave Keyfunder matching canonical filenames, while Relayer had swapped suffixes. Savings depend on emitted filenames, not on a fixed affected service. See `integration-comparison.json` for service totals and exact source heads.
+
+The measurement remains a local macOS/NCC layout comparison, excluding symlink metadata. It is not a Linux or compressed-image size comparison, native-addon ABI validation, WASM execution test, or deployment result. No service was started during the seven-service comparison.
+
+### Reproduce the combined source inputs
+
+In an isolated clone, fetch the five PR heads and merge their exact recorded commits into the common base, in this order:
+
+```sh
+git fetch origin pull/9466/head pull/9467/head pull/9473/head pull/9483/head pull/9486/head
+git switch -c wasm-dedup-fixture 58e16ce875e3e312ab7344810bb159a5540f253b
+git merge --no-ff --no-edit c566d54e83cd122a5f4c34f3a44dd24a59bcfffa
+git merge --no-ff --no-edit a4c4943e9781f1722f65f9e3818ac1dc0968d332
+git merge --no-ff --no-edit 4a7b1677d72c9853e2e362b3da576a0635ded555
+git merge --no-ff --no-edit d8e5fcdf0001b415c61b81c2dbb3688e8c304cc1
+git merge --no-ff --no-edit bcd635d46f2afe21191df90b8e6cf65b830a1439
+```
+
+Relayer and fee-quoting remain at the common base. The measured integration commit was `ac515c7cf027cf100916c7aa1876d6b4ffe29112`; equivalent merges should reproduce source tree `37aab57cc68cf320279c62fc1be876869c1b48ea` even if merge timestamps produce a different commit ID. This integration commit is only a local fixture identifier; the five inputs above are published PR commits.
+
+After installing frozen dependencies, run Docker's seven-service build invocation with bounded build concurrency:
+
+```sh
+pnpm turbo run bundle --concurrency=2 \
+  --filter=@hyperlane-xyz/rebalancer \
+  --filter=@hyperlane-xyz/warp-monitor \
+  --filter=@hyperlane-xyz/ccip-server \
+  --filter=@hyperlane-xyz/keyfunder \
+  --filter=@hyperlane-xyz/relayer \
+  --filter=@hyperlane-xyz/fee-quoting \
+  --filter=@hyperlane-xyz/scraper-proxy
+```
+
+Use all seven bundle directories as `inputs` in the comparison snippet below. Compare the Dockerfile from `d8e5fcdf` against packaging source `5cb6327949c9472c56d345c1afb3cc04cf821ecc`. Hash every resolved output file, compare existing symlink targets, and rerun the new loop to verify idempotence. Subsequent documentation-only commits do not alter that shell input.
+
 ## Validation
 
 `python3 -m unittest discover -s scripts/tests -p test_ncc_wasm_dedup.py -v`
@@ -29,7 +70,7 @@ Five tests execute the production shell loop extracted from `typescript/Dockerfi
 
 The actual Keyfunder bundle also completed an offline fake-chain job in the parent, deduplicated, and relocated symlink-preserving layouts. The configured chain was skipped for funding; construction still exercised the provider, test wallet, and IGP. All three jobs exited 0 with zero network attempts. A preload blocked Node sockets and fetch; no signing or transactions occurred. Reading both WASM symlinks reproduced the original SHA-256 hashes.
 
-No full Docker build or deployment was performed. Local artifacts contain macOS native addons; Linux native packaging and the complete seven-service image remain CI/deployment validation boundaries. Docker already preserves the existing relative symlinks when copying the services directory.
+No local full Docker build or deployment was performed. The source commit `5cb6327949c9472c56d345c1afb3cc04cf821ecc` subsequently passed the [Node Services image build-and-push CI job](https://github.com/hyperlane-xyz/hyperlane-monorepo/actions/runs/33942893822). That CI result does not measure before/after compressed image size or prove deployment. Local artifacts contain macOS native addons; Linux native runtime behavior remains a deployment validation boundary. Docker already preserves the existing relative symlinks when copying the services directory.
 
 ## Reproduce the byte comparison
 
