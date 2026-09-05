@@ -1,0 +1,266 @@
+{
+  "node": "v24.13.0",
+  "parent": "a4c4943e9781f1722f65f9e3818ac1dc0968d332",
+  "warmupsPerVariant": 100,
+  "timedRequestsPerVariant": 1000,
+  "processes": 1,
+  "pairedRuns": 4,
+  "results": [
+    {
+      "name": "baseline",
+      "fields": 50,
+      "workload": "repeated",
+      "run": 0,
+      "requests": 1000,
+      "elapsedMs": 85.27224999999999
+    },
+    {
+      "name": "current",
+      "fields": 50,
+      "workload": "repeated",
+      "run": 0,
+      "requests": 1000,
+      "elapsedMs": 15.221042000000011
+    },
+    {
+      "name": "current",
+      "fields": 50,
+      "workload": "repeated",
+      "run": 1,
+      "requests": 1000,
+      "elapsedMs": 13.948333999999988
+    },
+    {
+      "name": "baseline",
+      "fields": 50,
+      "workload": "repeated",
+      "run": 1,
+      "requests": 1000,
+      "elapsedMs": 80.60225000000003
+    },
+    {
+      "name": "baseline",
+      "fields": 50,
+      "workload": "repeated",
+      "run": 2,
+      "requests": 1000,
+      "elapsedMs": 81.260625
+    },
+    {
+      "name": "current",
+      "fields": 50,
+      "workload": "repeated",
+      "run": 2,
+      "requests": 1000,
+      "elapsedMs": 13.672208999999953
+    },
+    {
+      "name": "current",
+      "fields": 50,
+      "workload": "repeated",
+      "run": 3,
+      "requests": 1000,
+      "elapsedMs": 14.081958999999983
+    },
+    {
+      "name": "baseline",
+      "fields": 50,
+      "workload": "repeated",
+      "run": 3,
+      "requests": 1000,
+      "elapsedMs": 79.20791700000007
+    },
+    {
+      "name": "baseline",
+      "fields": 50,
+      "workload": "fresh",
+      "run": 0,
+      "requests": 1000,
+      "elapsedMs": 77.13662499999998
+    },
+    {
+      "name": "current",
+      "fields": 50,
+      "workload": "fresh",
+      "run": 0,
+      "requests": 1000,
+      "elapsedMs": 79.11799999999994
+    },
+    {
+      "name": "current",
+      "fields": 50,
+      "workload": "fresh",
+      "run": 1,
+      "requests": 1000,
+      "elapsedMs": 77.94570800000008
+    },
+    {
+      "name": "baseline",
+      "fields": 50,
+      "workload": "fresh",
+      "run": 1,
+      "requests": 1000,
+      "elapsedMs": 80.56287499999985
+    },
+    {
+      "name": "baseline",
+      "fields": 50,
+      "workload": "fresh",
+      "run": 2,
+      "requests": 1000,
+      "elapsedMs": 78.18641700000012
+    },
+    {
+      "name": "current",
+      "fields": 50,
+      "workload": "fresh",
+      "run": 2,
+      "requests": 1000,
+      "elapsedMs": 84.2233749999998
+    },
+    {
+      "name": "current",
+      "fields": 50,
+      "workload": "fresh",
+      "run": 3,
+      "requests": 1000,
+      "elapsedMs": 84.40770799999996
+    },
+    {
+      "name": "baseline",
+      "fields": 50,
+      "workload": "fresh",
+      "run": 3,
+      "requests": 1000,
+      "elapsedMs": 81.64654100000007
+    },
+    {
+      "name": "baseline",
+      "fields": 250,
+      "workload": "repeated",
+      "run": 0,
+      "requests": 1000,
+      "elapsedMs": 325.33529099999987
+    },
+    {
+      "name": "current",
+      "fields": 250,
+      "workload": "repeated",
+      "run": 0,
+      "requests": 1000,
+      "elapsedMs": 51.98945800000001
+    },
+    {
+      "name": "current",
+      "fields": 250,
+      "workload": "repeated",
+      "run": 1,
+      "requests": 1000,
+      "elapsedMs": 54.30120799999986
+    },
+    {
+      "name": "baseline",
+      "fields": 250,
+      "workload": "repeated",
+      "run": 1,
+      "requests": 1000,
+      "elapsedMs": 334.160167
+    },
+    {
+      "name": "baseline",
+      "fields": 250,
+      "workload": "repeated",
+      "run": 2,
+      "requests": 1000,
+      "elapsedMs": 333.71670900000026
+    },
+    {
+      "name": "current",
+      "fields": 250,
+      "workload": "repeated",
+      "run": 2,
+      "requests": 1000,
+      "elapsedMs": 53.784917000000405
+    },
+    {
+      "name": "current",
+      "fields": 250,
+      "workload": "repeated",
+      "run": 3,
+      "requests": 1000,
+      "elapsedMs": 54.295624999999745
+    },
+    {
+      "name": "baseline",
+      "fields": 250,
+      "workload": "repeated",
+      "run": 3,
+      "requests": 1000,
+      "elapsedMs": 340.2998329999996
+    },
+    {
+      "name": "baseline",
+      "fields": 250,
+      "workload": "fresh",
+      "run": 0,
+      "requests": 1000,
+      "elapsedMs": 334.0277920000003
+    },
+    {
+      "name": "current",
+      "fields": 250,
+      "workload": "fresh",
+      "run": 0,
+      "requests": 1000,
+      "elapsedMs": 331.88862500000005
+    },
+    {
+      "name": "current",
+      "fields": 250,
+      "workload": "fresh",
+      "run": 1,
+      "requests": 1000,
+      "elapsedMs": 339.64262499999995
+    },
+    {
+      "name": "baseline",
+      "fields": 250,
+      "workload": "fresh",
+      "run": 1,
+      "requests": 1000,
+      "elapsedMs": 337.16349999999966
+    },
+    {
+      "name": "baseline",
+      "fields": 250,
+      "workload": "fresh",
+      "run": 2,
+      "requests": 1000,
+      "elapsedMs": 321.176375
+    },
+    {
+      "name": "current",
+      "fields": 250,
+      "workload": "fresh",
+      "run": 2,
+      "requests": 1000,
+      "elapsedMs": 328.830833
+    },
+    {
+      "name": "current",
+      "fields": 250,
+      "workload": "fresh",
+      "run": 3,
+      "requests": 1000,
+      "elapsedMs": 325.5854169999993
+    },
+    {
+      "name": "baseline",
+      "fields": 250,
+      "workload": "fresh",
+      "run": 3,
+      "requests": 1000,
+      "elapsedMs": 314.62545800000044
+    }
+  ]
+}
