@@ -99,6 +99,7 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
   private statsTimer?: NodeJS.Timeout;
 
   async onModuleInit(): Promise<void> {
+    await this.validateEventStreamSchema();
     if (config.DATABASE_READ_REPLICA_URL) {
       this.logger.log(
         'GraphQL db role=read-replica; connections open lazily so replica health cannot gate websocket startup',
@@ -111,7 +112,6 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
       Array.from({ length: MIN_POOL_CLIENTS }, () => this.pool().connect()),
     );
     clients.forEach((client) => client.release());
-    await this.validateEventStreamSchema();
     this.logger.log(
       `warmed ${MIN_POOL_CLIENTS} GraphQL db connections role=primary in ${Date.now() - started}ms`,
     );
