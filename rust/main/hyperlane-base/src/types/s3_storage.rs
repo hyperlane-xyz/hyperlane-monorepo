@@ -1,4 +1,8 @@
-use std::{fmt, sync::OnceLock, time::Duration};
+use std::{
+    fmt,
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use aws_config::{timeout::TimeoutConfig, BehaviorVersion, ConfigLoader, Region};
@@ -45,10 +49,15 @@ pub struct S3Storage {
 /// We've seen freshly created S3 clients make expensive DNS / TCP
 /// requests when creating them. This cache allows us to reuse
 /// anonymous clients across the entire agent.
-static ANONYMOUS_CLIENT_CACHE: OnceLock<DashMap<Region, OnceCell<Client>>> = OnceLock::new();
+static ANONYMOUS_CLIENT_CACHE: OnceLock<DashMap<Region, Arc<OnceCell<Client>>>> = OnceLock::new();
 
-fn get_anonymous_client_cache() -> &'static DashMap<Region, OnceCell<Client>> {
-    ANONYMOUS_CLIENT_CACHE.get_or_init(DashMap::new)
+fn anonymous_client_cell(region: Region) -> Arc<OnceCell<Client>> {
+    let cell = ANONYMOUS_CLIENT_CACHE
+        .get_or_init(DashMap::new)
+        .entry(region)
+        .or_default();
+    // Release the synchronous shard guard before the caller awaits initialization.
+    Arc::clone(&cell)
 }
 
 /// Reads a `ByteStream` chunk by chunk, aborting as soon as the cumulative size reaches
@@ -150,9 +159,7 @@ impl S3Storage {
     /// S3 bucket's AWS account. Additionally, this allows relayer operators to not
     /// require AWS credentials.
     async fn anonymous_client(&self) -> Client {
-        let cell = get_anonymous_client_cache()
-            .entry(self.region.clone())
-            .or_default();
+        let cell = anonymous_client_cell(self.region.clone());
 
         cell.get_or_init(|| async {
             let config = self
@@ -483,6 +490,82 @@ mod tests {
             serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
             serde_json::from_slice::<serde_json::Value>(&pretty).unwrap()
         );
+    }
+
+    #[tokio::test]
+    async fn anonymous_client_initialization_releases_cache_lock_and_coalesces_waiters() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        use dashmap::try_result::TryResult;
+        use futures::{future::join_all, poll};
+        use tokio::sync::Notify;
+
+        let region = Region::new("test-coalesced-client-initialization");
+        let first_cell = anonymous_client_cell(region.clone());
+        let initialized = AtomicUsize::new(0);
+        let release = Notify::new();
+        let address = ([127, 0, 0, 1], 1).into();
+        let mut first = Box::pin(first_cell.get_or_init(|| async {
+            initialized.fetch_add(1, Ordering::SeqCst);
+            release.notified().await;
+            test_client(address)
+        }));
+        assert!(poll!(first.as_mut()).is_pending());
+
+        // A suspended initializer must hold zero synchronous map guards. This check
+        // cannot block the executor, even if the lock-release invariant regresses.
+        let cache = ANONYMOUS_CLIENT_CACHE.get().unwrap();
+        assert!(matches!(cache.try_get_mut(&region), TryResult::Present(_)));
+        let cells: Vec<_> = (0..20)
+            .map(|_| anonymous_client_cell(region.clone()))
+            .collect();
+        assert!(cells.iter().all(|cell| Arc::ptr_eq(cell, &first_cell)));
+        let mut waiters = Box::pin(join_all(cells.iter().map(|cell| {
+            cell.get_or_init(|| async {
+                initialized.fetch_add(1, Ordering::SeqCst);
+                test_client(address)
+            })
+        })));
+        assert!(poll!(waiters.as_mut()).is_pending());
+        assert_eq!(initialized.load(Ordering::SeqCst), 1);
+        assert!(matches!(cache.try_get_mut(&region), TryResult::Present(_)));
+
+        release.notify_one();
+        let first_client = first.await;
+        let clients = waiters.await;
+        assert_eq!(clients.len(), 20);
+        assert!(clients
+            .iter()
+            .all(|client| std::ptr::eq(*client, first_client)));
+        assert_eq!(initialized.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn anonymous_client_initialization_can_retry_after_cancellation() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        use futures::poll;
+
+        let region = Region::new("test-cancelled-client-initialization");
+        let first_cell = anonymous_client_cell(region.clone());
+        let initialized = AtomicUsize::new(0);
+        let mut cancelled = Box::pin(first_cell.get_or_init(|| async {
+            initialized.fetch_add(1, Ordering::SeqCst);
+            std::future::pending::<Client>().await
+        }));
+        assert!(poll!(cancelled.as_mut()).is_pending());
+        drop(cancelled);
+
+        let next_cell = anonymous_client_cell(region);
+        assert!(Arc::ptr_eq(&first_cell, &next_cell));
+        next_cell
+            .get_or_init(|| async {
+                initialized.fetch_add(1, Ordering::SeqCst);
+                test_client(([127, 0, 0, 1], 1).into())
+            })
+            .await;
+        assert_eq!(initialized.load(Ordering::SeqCst), 2);
+        assert!(first_cell.get().is_some());
     }
 
     /// Reads a mock HTTP server's request off `socket` up to the end of the headers. The
