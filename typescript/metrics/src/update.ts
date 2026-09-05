@@ -93,7 +93,9 @@ export function updateTokenBalanceMetrics(
       gauges.warpRouteValueAtRisk
         .labels({ ...labels })
         .set(balanceInfo.valueUSD);
-      logger.info(
+      // The per-token value above already records this observation at info.
+      // Per-chain copies are derived metric detail and can dominate fleet logs.
+      logger.debug(
         {
           labels,
           valueUSD: balanceInfo.valueUSD,
