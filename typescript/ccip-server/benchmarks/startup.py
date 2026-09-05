@@ -1,6 +1,7 @@
 import argparse
 import json
 import signal
+import shutil
 import socket
 import statistics
 import subprocess
@@ -19,6 +20,10 @@ parser.add_argument('--rounds', type=int, default=5)
 args = parser.parse_args()
 if args.rounds < 1:
     parser.error('--rounds must be positive')
+node_path = shutil.which(args.node)
+if node_path is None:
+    parser.error(f'Node executable not found: {args.node}')
+node = str(Path(node_path).resolve())
 workspace = tempfile.TemporaryDirectory(prefix='ccip-startup-benchmark-')
 base = Path(workspace.name)
 registry = base / 'registry'
@@ -28,7 +33,6 @@ chain.mkdir(parents=True)
 (chain / 'metadata.yaml').write_text(json.dumps({'name': 'ethereum', 'chainId': 1, 'domainId': 1, 'protocol': 'ethereum', 'rpcUrls': [{'http': 'http://127.0.0.1:9'}], 'nativeToken': {'name': 'Ether', 'symbol': 'ETH', 'decimals': 18}}))
 (chain / 'addresses.yaml').write_text(json.dumps({'interchainAccountRouter': '0x' + '11' * 20, 'mailbox': '0x' + '22' * 20}))
 (base / 'ccip-network-disabled.mjs').write_text("import net from 'node:net';\nnet.Socket.prototype.connect=function(){throw new Error('Outbound network disabled for bundle benchmark');};\nglobalThis.fetch=async()=>{throw new Error('Outbound fetch disabled for bundle benchmark');};\nprocess.on('SIGUSR2',()=>{global.gc?.();process.stdout.write('BENCH_MEMORY '+JSON.stringify(process.memoryUsage())+'\\n');});\n")
-node = args.node
 bundles = {'parent': args.parent_bundle.resolve(), 'head': args.head_bundle.resolve()}
 
 def free_port():
