@@ -19,7 +19,6 @@ import {
   objMap,
 } from '@hyperlane-xyz/utils';
 
-import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
@@ -528,7 +527,8 @@ export class RebalancerContextFactory {
     }
 
     const externalBridgeRegistry: Partial<ExternalBridgeRegistry> =
-      externalBridgeRegistryOverride ?? this.buildExternalBridgeRegistry();
+      externalBridgeRegistryOverride ??
+      (await this.buildExternalBridgeRegistry());
 
     if (Object.keys(externalBridgeRegistry).length === 0) {
       if (externalBridgeRegistryOverride !== undefined) {
@@ -627,7 +627,9 @@ export class RebalancerContextFactory {
     return { inventoryRebalancer, externalBridgeRegistry, inventoryConfig };
   }
 
-  private buildExternalBridgeRegistry(): Partial<ExternalBridgeRegistry> {
+  private async buildExternalBridgeRegistry(): Promise<
+    Partial<ExternalBridgeRegistry>
+  > {
     const { externalBridges } = this.config;
     const registry: Partial<ExternalBridgeRegistry> = {};
 
@@ -636,6 +638,7 @@ export class RebalancerContextFactory {
         case ExternalBridgeType.LiFi: {
           const lifiConfig = externalBridges?.lifi;
           if (lifiConfig?.integrator) {
+            const { LiFiBridge } = await import('../bridges/LiFiBridge.js');
             registry[ExternalBridgeType.LiFi] = new LiFiBridge(
               {
                 integrator: lifiConfig.integrator,
