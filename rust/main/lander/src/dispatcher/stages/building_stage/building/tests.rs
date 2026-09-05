@@ -9,6 +9,7 @@ use crate::tests::test_utils::{dummy_tx, initialize_payload_db, tmp_dbs, MockAda
 use crate::transaction::{Transaction, TransactionStatus, TransactionUuid};
 
 use super::{BuildingStage, BuildingStageQueue};
+use crate::LanderError;
 
 #[tokio::test]
 async fn test_empty_queue_no_payloads_processed() {
@@ -389,4 +390,91 @@ async fn assert_db_status_for_payloads(
             .unwrap();
         assert_eq!(payload_from_db.status, expected_status);
     }
+}
+
+#[tokio::test]
+async fn borrowed_build_result_preserves_storage_channel_and_error_ownership() {
+    for closed in [false, true] {
+        let (stage, mut receiver, _) = test_setup(0, true);
+        let mut payload = FullPayload::random();
+        payload.details.success_criteria = Some(vec![7; 4096]);
+        initialize_payload_db(&stage.state.payload_db, &payload).await;
+        let result = dummy_built_tx(vec![payload], true).pop().unwrap();
+        let original = result.clone();
+        let tx = result.maybe_tx.as_ref().unwrap();
+        let pointer = tx.payload_details[0]
+            .success_criteria
+            .as_ref()
+            .unwrap()
+            .as_ptr();
+        if closed {
+            receiver.close();
+        }
+        let outcome = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            stage.handle_tx_building_result(&result),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result, original);
+        assert_eq!(
+            tx.payload_details[0]
+                .success_criteria
+                .as_ref()
+                .unwrap()
+                .as_ptr(),
+            pointer
+        );
+        let stored = stage
+            .state
+            .tx_db
+            .retrieve_transaction_by_uuid(&tx.uuid)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(stored, *tx);
+        if closed {
+            assert!(matches!(
+                outcome.unwrap_err(),
+                LanderError::NonRetryableError(_)
+            ));
+            match stage.send_tx_to_inclusion_stage(tx).await.unwrap_err() {
+                LanderError::ChannelSendFailure(error) => assert_eq!(error.0, *tx),
+                error => panic!("unexpected error: {error}"),
+            }
+        } else {
+            outcome.unwrap();
+            let received = receiver.try_recv().unwrap();
+            assert_eq!(received, *tx);
+            assert_ne!(
+                received.payload_details[0]
+                    .success_criteria
+                    .as_ref()
+                    .unwrap()
+                    .as_ptr(),
+                pointer
+            );
+            assert!(receiver.try_recv().is_err());
+        }
+    }
+}
+
+#[tokio::test]
+async fn failed_build_handoff_requeues_exact_payloads_in_order() {
+    let (stage, receiver, queue) = test_setup(1, true);
+    drop(receiver);
+    let mut first = FullPayload::random();
+    first.data = vec![3; 4096];
+    let mut second = FullPayload::random();
+    second.data = vec![4; 4096];
+    let payloads = vec![first, second];
+    for payload in &payloads {
+        initialize_payload_db(&stage.state.payload_db, payload).await;
+    }
+    stage.build_transactions(&payloads).await;
+    let requeued = tokio::time::timeout(std::time::Duration::from_secs(1), queue.pop_n_or_wait(2))
+        .await
+        .unwrap();
+    assert_eq!(requeued, payloads);
+    assert_eq!(queue.len().await, 0);
 }
