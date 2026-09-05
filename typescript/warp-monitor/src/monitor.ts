@@ -425,7 +425,7 @@ export async function updatePendingAndInventoryMetrics(
 }
 
 // Updates the metrics for a single token in a warp route. Always computes the
-// router collateral snapshot (needed for projected-deficit, a monitor-only
+// collateralized router snapshot (needed for projected-deficit, a monitor-only
 // metric) but skips emitting shared balance metrics when the route delegates
 // those to a rebalancer.
 async function updateTokenMetrics(
@@ -436,6 +436,10 @@ async function updateTokenMetrics(
   const logger = getLogger();
   const { warpCore, warpDeployConfig, warpRouteId, skipSharedBalanceMetrics } =
     route;
+  // Non-collateralized supply is only consumed by shared balance metrics.
+  // Pending and inventory collection runs separately for every router node.
+  if (skipSharedBalanceMetrics && !token.isCollateralized()) return null;
+
   let collateralSnapshot: RouterCollateralSnapshot | null = null;
 
   const promises = [
@@ -604,6 +608,7 @@ async function updateTokenMetrics(
                   warpCore.multiProvider,
                   token,
                   lockbox.lockbox,
+                  balance.tokenAddress,
                 );
 
               updateManagedLockboxBalanceMetrics(
@@ -706,6 +711,8 @@ function getCachedTokenPrice(
 export function collectCoinGeckoIds(routes: RouteRuntime[]): string[] {
   const ids = new Set<string>();
   for (const route of routes) {
+    // Monitor-only metrics use base/token amounts, never USD prices.
+    if (route.skipSharedBalanceMetrics) continue;
     for (const token of route.warpCore.tokens) {
       if (token.coinGeckoId) ids.add(token.coinGeckoId);
     }

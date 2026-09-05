@@ -274,6 +274,7 @@ export class Metrics implements IMetrics {
                     this.warpCore.multiProvider,
                     token,
                     lockbox.lockbox,
+                    balance.tokenAddress,
                   );
 
                 updateManagedLockboxBalanceMetrics(
