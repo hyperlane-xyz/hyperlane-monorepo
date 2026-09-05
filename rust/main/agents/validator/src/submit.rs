@@ -581,18 +581,9 @@ impl ValidatorSubmitter {
             // A side effect is that new checkpoints will also be submitted in reverse order.
 
             // Keep bounded chunks so a storage/signing burst is paced before the next chunk.
-            let mut chunk = Vec::with_capacity(self.max_sign_concurrency);
-            for _ in 0..self.max_sign_concurrency {
-                if let Some(cp) = checkpoints.next() {
-                    chunk.push(cp);
-                } else {
-                    break;
-                }
-            }
-
-            let chunk_len = chunk.len();
-
-            let futures = chunk.into_iter().map(|checkpoint| {
+            let chunk_len = checkpoints.len().min(self.max_sign_concurrency);
+            let chunk = checkpoints.by_ref().take(self.max_sign_concurrency);
+            let futures = chunk.map(|checkpoint| {
                 let self_clone = arc_self.clone();
                 // The first popped checkpoint alone owns publication, even if a caller
                 // supplied the same maximum index more than once.

@@ -286,6 +286,51 @@ async fn compact_queue_materializes_only_the_active_chunk() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn checkpoint_chunks_preserve_boundaries_and_publication_across_join_all_threshold() {
+    for chunk_size in [1, 6, 30, 31, 50] {
+        let count = chunk_size * 2 + 1;
+        let writes = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut syncer = MockCheckpointSyncer::new();
+        syncer
+            .expect_fetch_checkpoint()
+            .times(count)
+            .returning(|_| Ok(None));
+        syncer.expect_write_checkpoint().times(count).returning({
+            let writes = Arc::clone(&writes);
+            move |checkpoint| {
+                writes.lock().unwrap().push(checkpoint.value.index);
+                Ok(())
+            }
+        });
+        syncer
+            .expect_update_latest_index()
+            .with(mockall::predicate::eq((count - 1) as u32))
+            .once()
+            .returning(|_| Ok(()));
+        let mut submitter = submission_test_submitter(syncer, dummy_readiness());
+        submitter.max_sign_concurrency = chunk_size;
+        let start = tokio::time::Instant::now();
+        submitter
+            .sign_and_submit_checkpoints((0..count as u32).map(submission_checkpoint))
+            .await;
+        assert_eq!(start.elapsed(), Duration::from_millis(200));
+        let writes = writes.lock().unwrap();
+        for (chunk, expected) in writes.chunks(chunk_size).zip(
+            (0..count as u32)
+                .rev()
+                .collect::<Vec<_>>()
+                .chunks(chunk_size),
+        ) {
+            let mut actual = chunk.to_vec();
+            actual.sort_unstable();
+            let mut expected = expected.to_vec();
+            expected.sort_unstable();
+            assert_eq!(actual, expected);
+        }
+    }
+}
+
+#[tokio::test(start_paused = true)]
 async fn latest_index_waits_for_newest_checkpoint_but_not_older_siblings() {
     for failing_index in [7, 8] {
         let attempts = Arc::new(AtomicUsize::new(0));
