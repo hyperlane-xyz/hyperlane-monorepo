@@ -61,7 +61,11 @@ impl AggregationIsmMetadataBuilder {
         //  [????:????] ISM metadata, packed encoding
         // Initialize the range tuple part of the buffer, so the actual metadatas can
         // simply be appended to it
-        let mut buffer = vec![0; range_tuples_size];
+        let capacity = metadatas.iter().fold(range_tuples_size, |size, entry| {
+            size.saturating_add(entry.metadata.as_ref().len())
+        });
+        let mut buffer = Vec::with_capacity(capacity);
+        buffer.resize(range_tuples_size, 0);
         for SubModuleMetadata { index, metadata } in metadatas.iter_mut() {
             let range_start = buffer.len();
             buffer.extend_from_slice(metadata.as_ref());
@@ -71,11 +75,10 @@ impl AggregationIsmMetadataBuilder {
             // Also see: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/445da4fb0d8140a08c4b314e3051b7a934b0f968/solidity/contracts/libs/isms/AggregationIsmMetadata.sol#L49
             let encoded_range_start = METADATA_RANGE_SIZE.saturating_mul(2).saturating_mul(*index);
             // Overwrite the 0-initialized buffer
-            buffer.splice(
-                encoded_range_start
-                    ..encoded_range_start.saturating_add(METADATA_RANGE_SIZE.saturating_mul(2)),
-                [encode_byte_index(range_start), encode_byte_index(range_end)].concat(),
-            );
+            let range = &mut buffer[encoded_range_start
+                ..encoded_range_start.saturating_add(METADATA_RANGE_SIZE.saturating_mul(2))];
+            range[..METADATA_RANGE_SIZE].copy_from_slice(&encode_byte_index(range_start));
+            range[METADATA_RANGE_SIZE..].copy_from_slice(&encode_byte_index(range_end));
         }
         buffer
     }
@@ -873,6 +876,75 @@ mod test {
         assert_eq!(
             result.unwrap_err(),
             MetadataBuildError::AggregationThresholdNotMet(2)
+        );
+    }
+
+    fn legacy_format_metadata(metadatas: &mut [SubModuleMetadata], ism_count: usize) -> Vec<u8> {
+        // See test solidity implementation of this fn at:
+        // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/445da4fb0d8140a08c4b314e3051b7a934b0f968/solidity/test/isms/AggregationIsm.t.sol#L35
+        fn encode_byte_index(i: usize) -> [u8; 4] {
+            (i as u32).to_be_bytes()
+        }
+        let range_tuples_size = METADATA_RANGE_SIZE
+            .saturating_mul(2)
+            .saturating_mul(ism_count);
+        //  Format of metadata:
+        //  [????:????] Metadata start/end uint32 ranges, packed as uint64
+        //  [????:????] ISM metadata, packed encoding
+        // Initialize the range tuple part of the buffer, so the actual metadatas can
+        // simply be appended to it
+        let mut buffer = vec![0; range_tuples_size];
+        for SubModuleMetadata { index, metadata } in metadatas.iter_mut() {
+            let range_start = buffer.len();
+            buffer.extend_from_slice(metadata.as_ref());
+            let range_end = buffer.len();
+
+            // The new tuple starts at the end of the previous ones.
+            // Also see: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/445da4fb0d8140a08c4b314e3051b7a934b0f968/solidity/contracts/libs/isms/AggregationIsmMetadata.sol#L49
+            let encoded_range_start = METADATA_RANGE_SIZE.saturating_mul(2).saturating_mul(*index);
+            // Overwrite the 0-initialized buffer
+            buffer.splice(
+                encoded_range_start
+                    ..encoded_range_start.saturating_add(METADATA_RANGE_SIZE.saturating_mul(2)),
+                [encode_byte_index(range_start), encode_byte_index(range_end)].concat(),
+            );
+        }
+        buffer
+    }
+
+    #[test]
+    fn aggregation_formatter_matches_legacy_for_sparse_and_reordered_modules() {
+        for ism_count in [0, 1, 3, 5] {
+            for selected in 0..(1usize << ism_count) {
+                for length in [0, 1, 32, 1291, 4096] {
+                    let mut entries: Vec<_> = (0..ism_count)
+                        .filter(|index| selected & (1 << index) != 0)
+                        .map(|index| {
+                            SubModuleMetadata::new(index, Metadata::new(vec![index as u8; length]))
+                        })
+                        .collect();
+                    for reverse in [false, true] {
+                        if reverse {
+                            entries.reverse();
+                        }
+                        let expected = legacy_format_metadata(&mut entries, ism_count);
+                        assert_eq!(
+                            AggregationIsmMetadataBuilder::format_metadata(&mut entries, ism_count),
+                            expected
+                        );
+                    }
+                }
+            }
+        }
+        // Preserve the existing last-entry-wins header behavior for duplicate indices.
+        let mut entries = vec![
+            SubModuleMetadata::new(1, Metadata::new(vec![1; 17])),
+            SubModuleMetadata::new(1, Metadata::new(vec![2; 33])),
+        ];
+        let expected = legacy_format_metadata(&mut entries, 3);
+        assert_eq!(
+            AggregationIsmMetadataBuilder::format_metadata(&mut entries, 3),
+            expected
         );
     }
 
