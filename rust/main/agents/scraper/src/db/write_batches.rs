@@ -431,3 +431,42 @@ async fn dispatch_chunks_preserve_owned_payloads_and_replay() -> eyre::Result<()
     }
     Ok(())
 }
+
+#[tokio::test]
+async fn hash_lookups_read_both_chunks_without_duplicate_results_in_postgres() -> eyre::Result<()> {
+    let postgres = Postgres::default().start().await?;
+    let port = postgres.get_host_port_ipv4(5432).await?;
+    let connection = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{port}/postgres"
+    ))
+    .await?;
+    migration::Migrator::up(&connection, None).await?;
+    let db = ScraperDb::with_connection(connection);
+    let first_tx = seed_transaction(&db, 0).await?;
+    let tail_tx = seed_transaction(&db, 65_000).await?;
+    db.store_blocks(
+        DOMAIN,
+        [BlockInfo {
+            hash: H256::from_low_u64_be(65_055),
+            timestamp: 1_700_000_001,
+            number: 501,
+        }]
+        .into_iter(),
+    )
+    .await?;
+    let blocks: Vec<_> = (0..66_000).map(H256::from_low_u64_be).collect();
+    let txns: Vec<_> = (0..66_000).map(H512::from_low_u64_be).collect();
+    let found_blocks = db
+        .get_block_basic(blocks.iter().chain(blocks[55..56].iter()))
+        .await?;
+    assert_eq!(found_blocks.len(), 2);
+    assert!(found_blocks.iter().any(|row| row.hash == blocks[55]));
+    assert!(found_blocks.iter().any(|row| row.hash == blocks[65_055]));
+    let found_txns = db
+        .get_txn_ids(txns.iter().chain(txns[66..67].iter()))
+        .await?;
+    assert_eq!(found_txns.len(), 2);
+    assert_eq!(found_txns[&txns[66]], first_tx);
+    assert_eq!(found_txns[&txns[65_066]], tail_tx);
+    Ok(())
+}

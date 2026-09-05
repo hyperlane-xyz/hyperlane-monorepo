@@ -29,6 +29,9 @@ mod txn;
 pub struct ScraperDb(DbConn);
 
 impl ScraperDb {
+    // Hash lookups bind one parameter per hash; stay below PostgreSQL's 65,535 limit.
+    const HASH_LOOKUP_CHUNK_SIZE: usize = 65_000;
+
     #[instrument]
     pub async fn connect(url: &str) -> Result<Self> {
         let db = Database::connect(url).await?;
@@ -65,3 +68,6 @@ impl Clone for ScraperDb {
 
 #[cfg(test)]
 mod write_batches;
+
+#[cfg(test)]
+mod lookup_batches;

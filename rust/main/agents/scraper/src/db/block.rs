@@ -1,4 +1,5 @@
 use eyre::{Context, Result};
+use itertools::Itertools;
 use migration::OnConflict;
 use sea_orm::{
     prelude::*, sea_query::SelectStatement, ActiveValue::*, DbErr, EntityTrait, FromQueryResult,
@@ -57,17 +58,24 @@ impl ScraperDb {
         &self,
         hashes: impl Iterator<Item = &H256>,
     ) -> Result<Vec<BasicBlock>> {
-        // check database to see which blocks we already know and fetch their IDs
-        let blocks = block::Entity::find()
-            .filter(block::Column::Hash.is_in(hashes.map(h256_to_bytes)))
-            .select_only()
-            // these must align with the custom impl of FromQueryResult
-            .column_as(block::Column::Id, "id")
-            .column_as(block::Column::Hash, "hash")
-            .into_model::<BasicBlock>()
-            .all(&self.0)
-            .await
-            .context("When querying blocks")?;
+        let hashes = hashes.unique().collect_vec();
+        let mut blocks = Vec::new();
+        for hashes in hashes.chunks(Self::HASH_LOOKUP_CHUNK_SIZE) {
+            blocks.extend(
+                block::Entity::find()
+                    .filter(
+                        block::Column::Hash.is_in(hashes.iter().map(|hash| h256_to_bytes(hash))),
+                    )
+                    .select_only()
+                    // These must align with the custom impl of FromQueryResult.
+                    .column_as(block::Column::Id, "id")
+                    .column_as(block::Column::Hash, "hash")
+                    .into_model::<BasicBlock>()
+                    .all(&self.0)
+                    .await
+                    .context("When querying blocks")?,
+            );
+        }
 
         trace!(blocks = blocks.len(), "Queried block info for hashes");
         Ok(blocks)

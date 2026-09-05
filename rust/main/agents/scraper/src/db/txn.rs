@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use derive_more::Deref;
 use eyre::{eyre, Context, Result};
+use itertools::Itertools;
 use sea_orm::{
     prelude::*, sea_query::OnConflict, ActiveValue::*, DeriveColumn, EnumIter, Insert, NotSet,
     QuerySelect,
@@ -34,19 +35,25 @@ impl ScraperDb {
             Hash,
         }
 
-        // check database to see which txns we already know and fetch their IDs
-        let txns = transaction::Entity::find()
-            .filter(transaction::Column::Hash.is_in(hashes.map(h512_to_bytes)))
-            .select_only()
-            .column_as(transaction::Column::Id, QueryAs::Id)
-            .column_as(transaction::Column::Hash, QueryAs::Hash)
-            .into_values::<(i64, Vec<u8>), QueryAs>()
-            .all(&self.0)
-            .await
-            .context("When querying transactions")?
-            .into_iter()
-            .map(|(id, hash)| Ok((bytes_to_h512(&hash), id)))
-            .collect::<Result<HashMap<_, _>>>()?;
+        let hashes = hashes.unique().collect_vec();
+        let mut txns = HashMap::new();
+        for hashes in hashes.chunks(Self::HASH_LOOKUP_CHUNK_SIZE) {
+            let rows = transaction::Entity::find()
+                .filter(
+                    transaction::Column::Hash.is_in(hashes.iter().map(|hash| h512_to_bytes(hash))),
+                )
+                .select_only()
+                .column_as(transaction::Column::Id, QueryAs::Id)
+                .column_as(transaction::Column::Hash, QueryAs::Hash)
+                .into_values::<(i64, Vec<u8>), QueryAs>()
+                .all(&self.0)
+                .await
+                .context("When querying transactions")?;
+            txns.extend(
+                rows.into_iter()
+                    .map(|(id, hash)| (bytes_to_h512(&hash), id)),
+            );
+        }
 
         trace!(?txns, "Queried transaction info for hashes");
         Ok(txns)
