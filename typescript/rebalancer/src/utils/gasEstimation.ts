@@ -60,6 +60,7 @@ export interface TransferCostEstimate {
  * @param getTokenForChain - Function to get token for a chain
  * @param inventorySigner - Address of the inventory signer
  * @param logger - Logger instance
+ * @param providedGasQuote - Quote already obtained for this exact transfer-cost calculation
  * @returns Estimated gas limit for the transaction
  */
 export async function estimateTransferRemoteGas(
@@ -71,6 +72,7 @@ export async function estimateTransferRemoteGas(
   getTokenForChain: (chain: ChainName) => Token | undefined,
   inventorySigner: string,
   logger: Logger,
+  providedGasQuote?: InterchainGasQuote,
 ): Promise<bigint> {
   const originToken = getTokenForChain(originChain);
   if (!originToken) {
@@ -85,13 +87,16 @@ export async function estimateTransferRemoteGas(
     const destinationDomain = multiProvider.getDomainId(destinationChain);
     const adapter = originToken.getHypAdapter(warpCoreMultiProvider);
 
-    // Quote the IGP gas first (needed for the full transaction)
-    const gasQuote = await adapter.quoteTransferRemoteGas({
-      destination: destinationDomain,
-      sender: inventorySigner,
-      recipient: inventorySigner,
-      amount,
-    });
+    // Reuse the quote from this cost calculation when supplied; standalone
+    // estimation still obtains a fresh quote for its own transfer parameters.
+    const gasQuote =
+      providedGasQuote ??
+      (await adapter.quoteTransferRemoteGas({
+        destination: destinationDomain,
+        sender: inventorySigner,
+        recipient: inventorySigner,
+        amount,
+      }));
 
     // Populate with minimal amount for gas estimation
     // Gas cost is independent of transfer size (just a require check in _transferFromSender),
@@ -251,6 +256,7 @@ export async function calculateTransferCosts(
     getTokenForChain,
     inventorySigner,
     logger,
+    gasQuote,
   );
   const bufferedGasLimit = addBufferToGasLimit(
     BigNumber.from(estimatedGasLimit.toString()),
