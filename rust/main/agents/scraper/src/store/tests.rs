@@ -565,24 +565,60 @@ async fn test_fallback_events_persist_and_survive_restart() -> eyre::Result<()> 
     assert_eq!(
         store
             .db
-            .retrieve_dispatched_tx_id(TEST_DOMAIN_ID, &mailbox, SEQUENCE)
+            .retrieve_dispatched_block_number(TEST_DOMAIN_ID, &mailbox, SEQUENCE)
             .await?,
-        Some(transaction_db_id)
+        Some(resolved_meta.block_number)
     );
     assert_eq!(
         store
             .db
-            .retrieve_delivered_message_tx_id(TEST_DOMAIN_ID, &mailbox, SEQUENCE)
+            .retrieve_delivered_message_block_number(TEST_DOMAIN_ID, &mailbox, SEQUENCE)
             .await?,
-        Some(transaction_db_id)
+        Some(resolved_meta.block_number)
     );
     assert_eq!(
         store
             .db
-            .retrieve_payment_tx_id(TEST_DOMAIN_ID, &igp, SEQUENCE)
+            .retrieve_payment_block_number(TEST_DOMAIN_ID, &igp, SEQUENCE)
             .await?,
-        Some(transaction_db_id)
+        Some(resolved_meta.block_number)
     );
+    // Lookup scoping must survive SQL composition: another domain, address,
+    // or sequence cannot borrow this event's resolved block height.
+    for (domain, address, sequence) in [
+        (TEST_DESTINATION_DOMAIN_ID, mailbox, SEQUENCE),
+        (TEST_DOMAIN_ID, H256::from_low_u64_be(9999), SEQUENCE),
+        (TEST_DOMAIN_ID, mailbox, SEQUENCE + 100),
+    ] {
+        assert_eq!(
+            store
+                .db
+                .retrieve_dispatched_block_number(domain, &address, sequence)
+                .await?,
+            None
+        );
+        assert_eq!(
+            store
+                .db
+                .retrieve_delivered_message_block_number(domain, &address, sequence)
+                .await?,
+            None
+        );
+    }
+    for (origin, address, sequence) in [
+        (TEST_DESTINATION_DOMAIN_ID, igp, SEQUENCE),
+        (TEST_DOMAIN_ID, H256::from_low_u64_be(9999), SEQUENCE),
+        (TEST_DOMAIN_ID, igp, SEQUENCE + 100),
+    ] {
+        assert_eq!(
+            store
+                .db
+                .retrieve_payment_block_number(origin, &address, sequence)
+                .await?,
+            None
+        );
+    }
+
     let raw = store
         .db
         .retrieve_raw_message_dispatch_by_id(&message.id())

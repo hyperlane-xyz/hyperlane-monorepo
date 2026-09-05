@@ -110,7 +110,7 @@ impl HyperlaneDbStore {
             .map(|(txn_hash, block_id)| TxnWithBlockId { txn_hash, block_id });
         let txns_with_ids = self.ensure_txns(txn_hash_with_block_ids).await?;
 
-        Ok(txns_with_ids.map(move |TxnWithId { hash, id: txn_id }| TxnWithId { hash, id: txn_id }))
+        Ok(txns_with_ids)
     }
 
     /// Takes a list of transaction hashes and the block id the transaction is
