@@ -181,6 +181,7 @@ async fn test_idle_tick_wakes_on_index_notification() {
             OptionalCache::new(None),
             Some(notification_receiver),
         );
+        finish_legacy_migration(&mut loader).await;
 
         let notify = async move {
             sleep(Duration::from_millis(20)).await;
@@ -214,6 +215,7 @@ async fn test_idle_tick_retains_polling_fallback() {
             OptionalCache::new(None),
             Some(notification_receiver),
         );
+        finish_legacy_migration(&mut loader).await;
 
         let start = Instant::now();
         timeout(Duration::from_millis(1_500), loader.tick())
@@ -242,6 +244,7 @@ async fn test_idle_tick_returns_on_mid_wait_disconnect() {
             OptionalCache::new(None),
             Some(notification_receiver),
         );
+        finish_legacy_migration(&mut loader).await;
 
         let disconnect = async move {
             sleep(Duration::from_millis(20)).await;
@@ -630,7 +633,7 @@ async fn notification_after_terminal_drop_does_not_reload_message() {
             .await
             .expect("send index notification");
         restarted_loader.drain_index_notifications().unwrap();
-        assert!(restarted_loader.try_load_destination(0).await.unwrap());
+        assert!(!restarted_loader.try_load_destination(0).await.unwrap());
         assert!(
             restarted_receiver.try_recv().is_err(),
             "terminal message was reloaded"
@@ -1062,11 +1065,9 @@ async fn indexed_message_loads_before_large_legacy_backfill_finishes() {
         let newer = dummy_hyperlane_message(&destination, 65);
         add_db_entry(&db, &newer, 0);
         loader.tick().await.unwrap();
+        let first_id = only_operation(receiver.try_recv().unwrap()).id();
         loader.tick().await.unwrap();
-        let next_ids = [
-            only_operation(receiver.try_recv().unwrap()).id(),
-            only_operation(receiver.try_recv().unwrap()).id(),
-        ];
+        let next_ids = [first_id, only_operation(receiver.try_recv().unwrap()).id()];
         assert!(next_ids.contains(&newer.id()));
         assert!(loader.migration_iterator.is_some());
         assert_eq!(
@@ -1299,6 +1300,7 @@ async fn legacy_iterator_stops_at_startup_watermark() {
         if let Some(message) = iterator.try_get_next_message(&dummy_metrics).await.unwrap() {
             messages.push(message.nonce);
         }
+        iterator.advance();
     }
 
     // Migration crosses the missing nonce 1 but stops at the startup watermark.
@@ -1317,4 +1319,111 @@ fn startup_watermark_error_is_propagated() {
         .returning(|| Err(DbError::Other("watermark read failed".to_owned())));
 
     assert!(LegacyMessageIterator::new(Arc::new(mock_db)).is_err());
+}
+
+#[tokio::test]
+async fn failed_legacy_reconciliation_retries_the_same_nonce() {
+    test_utils::run_test_db(|db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, db);
+        let message = dummy_hyperlane_message(&destination, 0);
+        add_db_entry(&db, &message, 0);
+        let (mut loader, _receiver) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+
+        // Make the pending-index read fail after the legacy message/processed reads
+        // succeeded, then repair it as a transient storage failure would recover.
+        let prefix = b"pending_message_by_destination_v1_"
+            .iter()
+            .chain(destination.id().to_be_bytes().iter())
+            .copied()
+            .collect::<Vec<_>>();
+        db.store_value_by_key(prefix, &message.nonce, &true)
+            .unwrap();
+        assert!(loader.migrate_legacy_batch().await.is_err());
+        db.delete_pending_message_index(&message).unwrap();
+
+        loader.migrate_legacy_batch().await.unwrap();
+
+        assert_eq!(
+            db.retrieve_pending_message_at_or_after(destination.id(), 0)
+                .unwrap(),
+            Some((message.nonce, message.id())),
+            "failed reconciliation must not consume the legacy cursor"
+        );
+        assert!(loader.migration_iterator.is_none());
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn saturated_destination_does_not_block_legacy_migration_for_another_destination() {
+    test_utils::run_test_db(|db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination_a = dummy_domain(1, "destination_a");
+        let destination_b = dummy_domain(2, "destination_b");
+        let db = HyperlaneRocksDB::new(&origin, db);
+        let oldest_b = dummy_hyperlane_message(&destination_b, 0);
+        let middle_a = dummy_hyperlane_message(&destination_a, 1);
+        let newest_b = dummy_hyperlane_message(&destination_b, 2);
+        for message in [&oldest_b, &middle_a, &newest_b] {
+            add_db_entry(&db, message, 0);
+            db.delete_pending_message_index(message).unwrap();
+        }
+        let (mut loader, mut receiver_b) =
+            dummy_message_loader(&origin, &destination_b, &db, OptionalCache::new(None));
+        let context_a = Arc::new(dummy_message_context(
+            Arc::new(dummy_metadata_builder(
+                &origin,
+                &destination_a,
+                &db,
+                OptionalCache::new(None),
+            )),
+            &db,
+            OptionalCache::new(None),
+        ));
+        loader
+            .destination_ctxs
+            .insert(destination_a.id(), context_a);
+        let (sender_a, _receiver_a) = mpsc::channel::<QueueOperationBatch>(1);
+        loader
+            .send_channels
+            .insert(destination_a.id(), sender_a.clone());
+        loader.destination_iterators.insert(
+            0,
+            DestinationIndexIterator::new(destination_a.id(), Some(2)),
+        );
+
+        loader.tick().await.unwrap();
+        assert_eq!(
+            only_operation(receiver_b.try_recv().unwrap()).id(),
+            newest_b.id()
+        );
+        assert_eq!(loader.destination_iterators[0].low_nonce, None);
+        // A becomes saturated after its initially empty range was exhausted.
+        sender_a.try_send(Vec::new()).unwrap();
+        // Finish migration without bypassing its production scheduling gate.
+        for _ in 0..3 {
+            loader.tick().await.unwrap();
+            if !receiver_b.is_empty() {
+                break;
+            }
+        }
+        assert_eq!(
+            only_operation(
+                receiver_b
+                    .try_recv()
+                    .expect("healthy destination must finish legacy migration")
+            )
+            .id(),
+            oldest_b.id()
+        );
+        assert!(loader.migration_iterator.is_none());
+        assert!(
+            loader.destination_iterators[0].reconsider_nonces.is_empty(),
+            "migration must not accumulate blocked nonces in memory"
+        );
+    })
+    .await;
 }

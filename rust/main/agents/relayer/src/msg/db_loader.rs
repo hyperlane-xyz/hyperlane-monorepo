@@ -196,6 +196,14 @@ impl DestinationIndexIterator {
         }
     }
 
+    fn reconsider_migrated(&mut self, nonce: u32) {
+        if self.high_nonce.is_none_or(|high| nonce < high) {
+            // Migration walks descending nonces. Retain a range boundary rather
+            // than one in-memory entry per row for a saturated destination.
+            self.low_nonce = Some(self.low_nonce.map_or(nonce, |low| low.max(nonce)));
+        }
+    }
+
     fn request_low_range_reopen(&mut self) {
         if self.low_nonce.is_none() {
             self.reopen_low_range();
@@ -258,15 +266,9 @@ impl LegacyMessageIterator {
         metrics: &MessageDbLoaderMetrics,
     ) -> Result<Option<HyperlaneMessage>> {
         let status = if self.high_nonce_iter.nonce.is_some() {
-            let status = self.high_nonce_iter.try_get_next_nonce(metrics)?;
-            // Newer messages are atomically indexed, so migration stops at its startup watermark.
-            self.high_nonce_iter.nonce = None;
-            status
+            self.high_nonce_iter.try_get_next_nonce(metrics)?
         } else if self.low_nonce_iter.nonce.is_some() {
-            let status = self.low_nonce_iter.try_get_next_nonce(metrics)?;
-            // Legacy gaps are safe to cross because this iterator has a fixed startup watermark.
-            self.low_nonce_iter.iterate();
-            status
+            self.low_nonce_iter.try_get_next_nonce(metrics)?
         } else {
             return Ok(None);
         };
@@ -275,6 +277,18 @@ impl LegacyMessageIterator {
             MessageStatus::Processable(message) => Some(message),
             MessageStatus::Unindexed | MessageStatus::Processed => None,
         })
+    }
+
+    // Acknowledge only after the caller has durably reconciled the current row.
+    // Failed reconciliation and cancellation must leave the nonce retryable.
+    fn advance(&mut self) {
+        if self.high_nonce_iter.nonce.is_some() {
+            // Newer messages are atomically indexed, so migration stops at its startup watermark.
+            self.high_nonce_iter.nonce = None;
+        } else {
+            // Legacy gaps are safe to cross because this iterator has a fixed startup watermark.
+            self.low_nonce_iter.iterate();
+        }
     }
 
     fn migration_complete(&self) -> bool {
@@ -461,14 +475,10 @@ impl DbLoaderExt for MessageDbLoader {
             self.destination_scan_pending = false;
         }
 
-        let migration_blocked = self
-            .destination_iterators
-            .iter()
-            .any(|iterator| !iterator.reconsider_nonces.is_empty());
         if migration_was_active && self.migration_iterator.is_none() {
             return Ok(());
         }
-        if self.migration_iterator.is_none() || migration_blocked {
+        if self.migration_iterator.is_none() {
             self.wait_for_work().await;
         }
         Ok(())
@@ -638,13 +648,6 @@ impl MessageDbLoader {
     }
 
     async fn migrate_legacy_batch(&mut self) -> Result<()> {
-        if self
-            .destination_iterators
-            .iter()
-            .any(|iterator| !iterator.reconsider_nonces.is_empty())
-        {
-            return Ok(());
-        }
         let Some(iterator) = self.migration_iterator.as_mut() else {
             return Ok(());
         };
@@ -671,11 +674,13 @@ impl MessageDbLoader {
                     .iter_mut()
                     .find(|iterator| iterator.destination == message.destination)
                 {
-                    iterator.reconsider(message.nonce);
+                    iterator.reconsider_migrated(message.nonce);
                 }
                 self.destination_scan_pending = true;
+                iterator.advance();
                 break;
             }
+            iterator.advance();
             if iterator.migration_complete() {
                 break;
             }
