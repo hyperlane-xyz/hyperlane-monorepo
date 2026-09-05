@@ -1222,3 +1222,143 @@ fn test_aged_pending_tx_backoff_is_escalated_and_capped() {
         &fresh
     ));
 }
+
+fn retry_clone_fixture() -> Transaction {
+    let mut payload = FullPayload::default();
+    payload.details.success_criteria = Some(vec![7; 4096]);
+    dummy_tx(vec![payload], TransactionStatus::PendingInclusion)
+}
+
+#[tokio::test(start_paused = true)]
+async fn retry_attempts_start_from_original_and_return_successful_mutations() {
+    for simulate in [false, true] {
+        let tx = retry_clone_fixture();
+        let original = tx.clone();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let attempt_calls = calls.clone();
+        let mutate_attempt = move |tx: &mut Transaction| {
+            assert_eq!(tx.submission_attempts, 0);
+            let bytes = tx.payload_details[0].success_criteria.as_mut().unwrap();
+            assert_eq!(bytes.as_slice(), vec![7; 4096]);
+            let attempt = attempt_calls.fetch_add(1, Ordering::SeqCst);
+            bytes[0] = 9;
+            tx.submission_attempts = 3;
+            if attempt == 0 {
+                Err(LanderError::TxSubmissionError("retry fixture".to_owned()))
+            } else {
+                Ok(())
+            }
+        };
+        let mut adapter = MockAdapter::new();
+        if simulate {
+            adapter.expect_simulate_tx().times(2).returning(move |tx| {
+                mutate_attempt(tx)?;
+                Ok(Vec::new())
+            });
+        } else {
+            adapter
+                .expect_estimate_tx()
+                .times(2)
+                .returning(mutate_attempt);
+        }
+        let (state, _) = reprocess_test_state(adapter);
+        let result = if simulate {
+            InclusionStage::simulate_tx(tx.clone(), &state)
+                .await
+                .unwrap()
+        } else {
+            InclusionStage::estimate_tx(&tx, &state).await.unwrap()
+        };
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert_eq!(tx, original);
+        assert_eq!(result.submission_attempts, 3);
+        assert_eq!(
+            result.payload_details[0].success_criteria.as_ref().unwrap()[0],
+            9
+        );
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn retry_attempt_cancellation_discards_mutation_before_next_attempt() {
+    for simulate in [false, true] {
+        let tx = retry_clone_fixture();
+        let original = tx.clone();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let attempt_calls = calls.clone();
+        let fail_attempt = move |tx: &mut Transaction| {
+            attempt_calls.fetch_add(1, Ordering::SeqCst);
+            tx.payload_details[0].success_criteria.as_mut().unwrap()[0] = 9;
+            Err(LanderError::TxSubmissionError("retry fixture".to_owned()))
+        };
+        let mut adapter = MockAdapter::new();
+        if simulate {
+            adapter.expect_simulate_tx().times(1).returning(move |tx| {
+                fail_attempt(tx)?;
+                Ok(Vec::new())
+            });
+        } else {
+            adapter
+                .expect_estimate_tx()
+                .times(1)
+                .returning(fail_attempt);
+        }
+        let (state, _) = reprocess_test_state(adapter);
+        let timeout = Duration::from_millis(10);
+        if simulate {
+            assert!(
+                tokio::time::timeout(timeout, InclusionStage::simulate_tx(tx.clone(), &state))
+                    .await
+                    .is_err()
+            );
+        } else {
+            assert!(
+                tokio::time::timeout(timeout, InclusionStage::estimate_tx(&tx, &state))
+                    .await
+                    .is_err()
+            );
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(tx, original);
+    }
+}
+
+#[tokio::test]
+async fn retry_attempt_terminal_errors_return_without_retrying() {
+    for simulate in [false, true] {
+        let tx = retry_clone_fixture();
+        let original = tx.clone();
+        let mut adapter = MockAdapter::new();
+        if simulate {
+            adapter.expect_simulate_tx().times(1).returning(|tx| {
+                tx.submission_attempts = 3;
+                Err(LanderError::SimulationFailed(vec!["fixture".to_owned()]))
+            });
+        } else {
+            adapter.expect_estimate_tx().times(1).returning(|tx| {
+                tx.submission_attempts = 3;
+                Err(LanderError::EstimationFailed)
+            });
+        }
+        let (state, _) = reprocess_test_state(adapter);
+        let expected = if simulate {
+            LanderError::SimulationFailed(vec!["fixture".to_owned()])
+        } else {
+            LanderError::EstimationFailed
+        };
+        let expected = LanderError::NonRetryableError(expected.to_string()).to_string();
+        let actual = if simulate {
+            InclusionStage::simulate_tx(tx.clone(), &state)
+                .await
+                .unwrap_err()
+                .to_string()
+        } else {
+            InclusionStage::estimate_tx(&tx, &state)
+                .await
+                .unwrap_err()
+                .to_string()
+        };
+        assert_eq!(actual, expected);
+        assert_eq!(tx, original);
+    }
+}

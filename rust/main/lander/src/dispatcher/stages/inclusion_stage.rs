@@ -564,7 +564,7 @@ impl InclusionStage {
             || {
                 let tx_clone = tx.clone();
                 async move {
-                    let mut tx_clone_inner = tx_clone.clone();
+                    let mut tx_clone_inner = tx_clone;
                     state.adapter.estimate_tx(&mut tx_clone_inner).await?;
                     Ok(tx_clone_inner)
                 }
@@ -589,7 +589,7 @@ impl InclusionStage {
             || {
                 let tx_clone = tx.clone();
                 async move {
-                    let mut tx_clone_inner = tx_clone.clone();
+                    let mut tx_clone_inner = tx_clone;
                     let failed_payloads = state.adapter.simulate_tx(&mut tx_clone_inner).await?;
                     Ok((tx_clone_inner, failed_payloads))
                 }
