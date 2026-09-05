@@ -721,9 +721,10 @@ impl Scraper {
                         }
                     }
 
-                    ccr_cursor.update(to_block.into()).await;
-                    if let Err(e) = ccr_cursor.flush().await {
-                        warn!(?e, from_block, to_block, "Failed to flush CCR cursor; advancing anyway, next flush will catch up");
+                    if !ccr_cursor.update(to_block.into()).await {
+                        if let Err(e) = ccr_cursor.flush().await {
+                            warn!(?e, from_block, to_block, "Failed to flush CCR cursor; advancing anyway, next flush will catch up");
+                        }
                     }
                     from_block = to_block.saturating_add(1);
                 }
