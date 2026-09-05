@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use derive_more::Deref;
-use futures_util::future::join_all;
-use futures_util::stream::{FuturesUnordered, StreamExt};
+use futures_util::stream::{FuturesOrdered, FuturesUnordered, StreamExt};
 
 use derive_new::new;
 use tracing::{debug, info, instrument};
@@ -62,7 +61,11 @@ impl AggregationIsmMetadataBuilder {
         //  [????:????] ISM metadata, packed encoding
         // Initialize the range tuple part of the buffer, so the actual metadatas can
         // simply be appended to it
-        let mut buffer = vec![0; range_tuples_size];
+        let capacity = metadatas.iter().fold(range_tuples_size, |size, entry| {
+            size.saturating_add(entry.metadata.as_ref().len())
+        });
+        let mut buffer = Vec::with_capacity(capacity);
+        buffer.resize(range_tuples_size, 0);
         for SubModuleMetadata { index, metadata } in metadatas.iter_mut() {
             let range_start = buffer.len();
             buffer.extend_from_slice(metadata.as_ref());
@@ -72,11 +75,10 @@ impl AggregationIsmMetadataBuilder {
             // Also see: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/445da4fb0d8140a08c4b314e3051b7a934b0f968/solidity/contracts/libs/isms/AggregationIsmMetadata.sol#L49
             let encoded_range_start = METADATA_RANGE_SIZE.saturating_mul(2).saturating_mul(*index);
             // Overwrite the 0-initialized buffer
-            buffer.splice(
-                encoded_range_start
-                    ..encoded_range_start.saturating_add(METADATA_RANGE_SIZE.saturating_mul(2)),
-                [encode_byte_index(range_start), encode_byte_index(range_end)].concat(),
-            );
+            let range = &mut buffer[encoded_range_start
+                ..encoded_range_start.saturating_add(METADATA_RANGE_SIZE.saturating_mul(2))];
+            range[..METADATA_RANGE_SIZE].copy_from_slice(&encode_byte_index(range_start));
+            range[METADATA_RANGE_SIZE..].copy_from_slice(&encode_byte_index(range_end));
         }
         buffer
     }
@@ -192,19 +194,23 @@ impl AggregationIsmMetadataBuilder {
         &self,
         ism_addresses: Vec<H256>,
     ) -> Option<(usize, Box<dyn InterchainSecurityModule>, H256)> {
-        let sub_isms = join_all(ism_addresses.iter().map(|sub_ism_address| async {
-            let ism_and_module_type =
-                message_builder::ism_and_module_type(self.base.clone(), *sub_ism_address).await;
-            (ism_and_module_type, *sub_ism_address)
-        }))
-        .await;
-        sub_isms.into_iter().enumerate().find_map(|(index, ism)| {
-            if let (Ok((ism, ModuleType::MessageIdMultisig)), address) = ism {
-                Some((index, ism, address))
-            } else {
-                None
+        // Poll lookups concurrently, but preserve configured module priority. Once
+        // the first eligible module is known, trailing lookups need not delay it.
+        let mut sub_isms: FuturesOrdered<_> = ism_addresses
+            .iter()
+            .enumerate()
+            .map(|(index, sub_ism_address)| async move {
+                let ism_and_module_type =
+                    message_builder::ism_and_module_type(self.base.clone(), *sub_ism_address).await;
+                (index, ism_and_module_type, *sub_ism_address)
+            })
+            .collect();
+        while let Some((index, ism, address)) = sub_isms.next().await {
+            if let Ok((ism, ModuleType::MessageIdMultisig)) = ism {
+                return Some((index, ism, address));
             }
-        })
+        }
+        None
     }
 
     async fn build_message_id_aggregation_metadata(
@@ -386,10 +392,19 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
 
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
+    use std::{
+        sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        },
+        time::Duration,
+    };
 
     use ethers::utils::hex::FromHex;
-    use hyperlane_core::{KnownHyperlaneDomain, U256};
+    use hyperlane_core::{
+        ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneProvider, KnownHyperlaneDomain,
+        U256,
+    };
 
     use hyperlane_core::HyperlaneDomain;
 
@@ -461,6 +476,246 @@ mod test {
         .await
         .expect("failed to build MessageMetadataBuilder");
         AggregationIsmMetadataBuilder::new(inner)
+    }
+
+    #[derive(Debug, Default)]
+    struct LookupProgress {
+        started: AtomicUsize,
+        active: AtomicUsize,
+        completed: AtomicUsize,
+    }
+
+    struct ActiveLookup<'a>(&'a LookupProgress);
+
+    impl Drop for ActiveLookup<'_> {
+        fn drop(&mut self) {
+            self.0.active.fetch_sub(1, Ordering::SeqCst);
+        }
+    }
+
+    #[derive(Debug)]
+    struct DelayedModule {
+        inner: MockInterchainSecurityModule,
+        delay: Duration,
+        progress: Arc<LookupProgress>,
+    }
+
+    impl HyperlaneContract for DelayedModule {
+        fn address(&self) -> H256 {
+            self.inner.address()
+        }
+    }
+
+    impl HyperlaneChain for DelayedModule {
+        fn domain(&self) -> &HyperlaneDomain {
+            self.inner.domain()
+        }
+
+        fn provider(&self) -> Box<dyn HyperlaneProvider> {
+            self.inner.provider()
+        }
+    }
+
+    #[async_trait]
+    impl InterchainSecurityModule for DelayedModule {
+        async fn module_type(&self) -> ChainResult<ModuleType> {
+            self.progress.started.fetch_add(1, Ordering::SeqCst);
+            self.progress.active.fetch_add(1, Ordering::SeqCst);
+            let _active = ActiveLookup(&self.progress);
+            tokio::time::sleep(self.delay).await;
+            self.progress.completed.fetch_add(1, Ordering::SeqCst);
+            self.inner.module_type().await
+        }
+
+        async fn dry_run_verify(
+            &self,
+            message: &HyperlaneMessage,
+            metadata: &Metadata,
+        ) -> ChainResult<Option<U256>> {
+            self.inner.dry_run_verify(message, metadata).await
+        }
+    }
+
+    fn insert_delayed_module(
+        base: &MockBaseMetadataBuilder,
+        address: H256,
+        module_type: ModuleType,
+        delay: Duration,
+    ) -> Arc<LookupProgress> {
+        let progress = Arc::new(LookupProgress::default());
+        base.responses.push_build_ism_response(
+            address,
+            Ok(Box::new(DelayedModule {
+                inner: MockInterchainSecurityModule::new(address, TEST_DOMAIN.clone(), module_type),
+                delay,
+                progress: progress.clone(),
+            })),
+        );
+        progress
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn discovery_returns_before_trailing_lookup_and_cancels_it() {
+        let base = build_mock_base_builder(TEST_DOMAIN.clone(), TEST_DOMAIN.clone());
+        let first = H256::from_low_u64_be(10);
+        let trailing = H256::from_low_u64_be(11);
+        insert_delayed_module(
+            &base,
+            first,
+            ModuleType::MessageIdMultisig,
+            Duration::from_millis(100),
+        );
+        let progress =
+            insert_delayed_module(&base, trailing, ModuleType::Null, Duration::from_secs(5));
+        let builder = make_builder(base).await;
+        let start = tokio::time::Instant::now();
+
+        let (index, ism, address) = builder
+            .try_find_message_id_multisig_ism(vec![first, trailing])
+            .await
+            .unwrap();
+
+        assert_eq!((index, address, ism.address()), (0, first, first));
+        assert_eq!(start.elapsed(), Duration::from_millis(100));
+        assert_eq!(progress.started.load(Ordering::SeqCst), 1);
+        assert_eq!(progress.completed.load(Ordering::SeqCst), 0);
+        assert_eq!(progress.active.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn discovery_preserves_priority_over_completion_order() {
+        let base = build_mock_base_builder(TEST_DOMAIN.clone(), TEST_DOMAIN.clone());
+        let first = H256::from_low_u64_be(10);
+        let second = H256::from_low_u64_be(11);
+        insert_delayed_module(
+            &base,
+            first,
+            ModuleType::MessageIdMultisig,
+            Duration::from_secs(5),
+        );
+        let progress = insert_delayed_module(
+            &base,
+            second,
+            ModuleType::MessageIdMultisig,
+            Duration::from_millis(100),
+        );
+        let builder = make_builder(base).await;
+        let start = tokio::time::Instant::now();
+
+        let (index, _, address) = builder
+            .try_find_message_id_multisig_ism(vec![first, second])
+            .await
+            .unwrap();
+
+        assert_eq!((index, address), (0, first));
+        assert_eq!(start.elapsed(), Duration::from_secs(5));
+        assert_eq!(progress.completed.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn discovery_skips_failed_and_nonmatching_prefix() {
+        let base = build_mock_base_builder(TEST_DOMAIN.clone(), TEST_DOMAIN.clone());
+        let addresses: Vec<_> = (10..13).map(H256::from_low_u64_be).collect();
+        insert_failing_submodule(&base, addresses[0]);
+        insert_delayed_module(
+            &base,
+            addresses[1],
+            ModuleType::Null,
+            Duration::from_millis(200),
+        );
+        insert_delayed_module(
+            &base,
+            addresses[2],
+            ModuleType::MessageIdMultisig,
+            Duration::from_millis(100),
+        );
+        let expected = addresses[2];
+        let builder = make_builder(base).await;
+        let start = tokio::time::Instant::now();
+
+        let (index, _, address) = builder
+            .try_find_message_id_multisig_ism(addresses)
+            .await
+            .unwrap();
+
+        assert_eq!((index, address), (2, expected));
+        assert_eq!(start.elapsed(), Duration::from_millis(200));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn discovery_without_eligible_module_waits_for_all_and_returns_none() {
+        let base = build_mock_base_builder(TEST_DOMAIN.clone(), TEST_DOMAIN.clone());
+        let first = H256::from_low_u64_be(10);
+        let second = H256::from_low_u64_be(11);
+        insert_delayed_module(&base, first, ModuleType::Null, Duration::from_millis(100));
+        let progress =
+            insert_delayed_module(&base, second, ModuleType::Routing, Duration::from_secs(5));
+        let builder = make_builder(base).await;
+        let start = tokio::time::Instant::now();
+
+        assert!(builder
+            .try_find_message_id_multisig_ism(vec![first, second])
+            .await
+            .is_none());
+        assert_eq!(start.elapsed(), Duration::from_secs(5));
+        assert_eq!(progress.completed.load(Ordering::SeqCst), 1);
+        assert!(builder
+            .try_find_message_id_multisig_ism(vec![])
+            .await
+            .is_none());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn canceled_discovery_is_rebuilt_when_fast_path_fails() {
+        let base = build_mock_base_builder(TEST_DOMAIN.clone(), TEST_DOMAIN.clone());
+        let aggregation = H256::from_low_u64_be(1);
+        let first = H256::from_low_u64_be(10);
+        let trailing = H256::from_low_u64_be(11);
+        insert_aggregation_ism(&base, aggregation, vec![first, trailing], 1);
+        insert_delayed_module(
+            &base,
+            first,
+            ModuleType::MessageIdMultisig,
+            Duration::from_millis(100),
+        );
+        let progress =
+            insert_delayed_module(&base, trailing, ModuleType::Null, Duration::from_secs(5));
+        // The chosen fast path fails while constructing its multisig adapter.
+        base.responses
+            .build_multisig_ism
+            .lock()
+            .unwrap()
+            .push_back(Err(eyre::eyre!("multisig adapter unavailable")));
+        // The general path retries the canceled trailing lookup and verifies it.
+        insert_failing_submodule(&base, first);
+        insert_null_submodule(&base, trailing, Ok(Some(U256::from(100))));
+        let remaining_lookups = base.responses.build_ism.clone();
+        let builder = make_builder(base).await;
+        let start = tokio::time::Instant::now();
+
+        let metadata = builder
+            .build(
+                aggregation,
+                &HyperlaneMessage::default(),
+                MessageMetadataBuildParams::default(),
+            )
+            .await
+            .unwrap();
+
+        let mut expected = vec![0; 8];
+        expected.extend_from_slice(&16u32.to_be_bytes());
+        expected.extend_from_slice(&16u32.to_be_bytes());
+        assert_eq!(metadata.as_ref(), expected.as_slice());
+        assert_eq!(start.elapsed(), Duration::from_millis(100));
+        assert_eq!(progress.started.load(Ordering::SeqCst), 1);
+        assert_eq!(progress.completed.load(Ordering::SeqCst), 0);
+        assert_eq!(progress.active.load(Ordering::SeqCst), 0);
+        assert!(remaining_lookups
+            .lock()
+            .unwrap()
+            .get(&trailing)
+            .unwrap()
+            .is_empty());
     }
 
     // ── build tests ──────────────────────────────────────────────────────────
@@ -621,6 +876,75 @@ mod test {
         assert_eq!(
             result.unwrap_err(),
             MetadataBuildError::AggregationThresholdNotMet(2)
+        );
+    }
+
+    fn legacy_format_metadata(metadatas: &mut [SubModuleMetadata], ism_count: usize) -> Vec<u8> {
+        // See test solidity implementation of this fn at:
+        // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/445da4fb0d8140a08c4b314e3051b7a934b0f968/solidity/test/isms/AggregationIsm.t.sol#L35
+        fn encode_byte_index(i: usize) -> [u8; 4] {
+            (i as u32).to_be_bytes()
+        }
+        let range_tuples_size = METADATA_RANGE_SIZE
+            .saturating_mul(2)
+            .saturating_mul(ism_count);
+        //  Format of metadata:
+        //  [????:????] Metadata start/end uint32 ranges, packed as uint64
+        //  [????:????] ISM metadata, packed encoding
+        // Initialize the range tuple part of the buffer, so the actual metadatas can
+        // simply be appended to it
+        let mut buffer = vec![0; range_tuples_size];
+        for SubModuleMetadata { index, metadata } in metadatas.iter_mut() {
+            let range_start = buffer.len();
+            buffer.extend_from_slice(metadata.as_ref());
+            let range_end = buffer.len();
+
+            // The new tuple starts at the end of the previous ones.
+            // Also see: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/445da4fb0d8140a08c4b314e3051b7a934b0f968/solidity/contracts/libs/isms/AggregationIsmMetadata.sol#L49
+            let encoded_range_start = METADATA_RANGE_SIZE.saturating_mul(2).saturating_mul(*index);
+            // Overwrite the 0-initialized buffer
+            buffer.splice(
+                encoded_range_start
+                    ..encoded_range_start.saturating_add(METADATA_RANGE_SIZE.saturating_mul(2)),
+                [encode_byte_index(range_start), encode_byte_index(range_end)].concat(),
+            );
+        }
+        buffer
+    }
+
+    #[test]
+    fn aggregation_formatter_matches_legacy_for_sparse_and_reordered_modules() {
+        for ism_count in [0, 1, 3, 5] {
+            for selected in 0..(1usize << ism_count) {
+                for length in [0, 1, 32, 1291, 4096] {
+                    let mut entries: Vec<_> = (0..ism_count)
+                        .filter(|index| selected & (1 << index) != 0)
+                        .map(|index| {
+                            SubModuleMetadata::new(index, Metadata::new(vec![index as u8; length]))
+                        })
+                        .collect();
+                    for reverse in [false, true] {
+                        if reverse {
+                            entries.reverse();
+                        }
+                        let expected = legacy_format_metadata(&mut entries, ism_count);
+                        assert_eq!(
+                            AggregationIsmMetadataBuilder::format_metadata(&mut entries, ism_count),
+                            expected
+                        );
+                    }
+                }
+            }
+        }
+        // Preserve the existing last-entry-wins header behavior for duplicate indices.
+        let mut entries = vec![
+            SubModuleMetadata::new(1, Metadata::new(vec![1; 17])),
+            SubModuleMetadata::new(1, Metadata::new(vec![2; 33])),
+        ];
+        let expected = legacy_format_metadata(&mut entries, 3);
+        assert_eq!(
+            AggregationIsmMetadataBuilder::format_metadata(&mut entries, 3),
+            expected
         );
     }
 
