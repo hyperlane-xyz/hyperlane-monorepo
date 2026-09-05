@@ -133,6 +133,158 @@ fn submission_checkpoint(index: u32) -> CheckpointWithMessageId {
     }
 }
 
+#[test]
+fn compact_checkpoint_queue_entry_layout() {
+    let full = std::mem::size_of::<CheckpointWithMessageId>();
+    let compact = std::mem::size_of::<QueuedCheckpoint>();
+    println!("checkpoint queue logical entry bytes: {full} -> {compact}");
+    assert!(compact < full);
+}
+
+#[tokio::test(start_paused = true)]
+async fn compact_queue_replays_exact_checkpoints_only_after_final_insertion() {
+    let namespace = Checkpoint {
+        root: H256::zero(),
+        merkle_tree_hook_address: H256::from_low_u64_be(123),
+        mailbox_domain: 17,
+        index: 0,
+    };
+    let mut tree = IncrementalMerkle::default();
+    let expected: Vec<_> = (0..5)
+        .map(|index| {
+            let message_id = H256::from_low_u64_be(u64::from(index) + 1);
+            tree.ingest(message_id);
+            CheckpointWithMessageId {
+                checkpoint: Checkpoint {
+                    root: tree.root(),
+                    index,
+                    ..namespace
+                },
+                message_id,
+            }
+        })
+        .collect();
+    let final_read = Arc::new(AtomicBool::new(false));
+    let mut db = MockDb::new();
+    db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
+        .times(5)
+        .returning({
+            let expected = expected.clone();
+            let final_read = Arc::clone(&final_read);
+            move |index| {
+                let index = *index;
+                if index == 4 {
+                    final_read.store(true, Ordering::SeqCst);
+                }
+                Ok(Some(MerkleTreeInsertion::new(
+                    index,
+                    expected[index as usize].message_id,
+                )))
+            }
+        });
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let signer_address = signer.eth_address();
+    let writes = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer.expect_fetch_checkpoint().times(5).returning({
+        let final_read = Arc::clone(&final_read);
+        move |_| {
+            assert!(final_read.load(Ordering::SeqCst));
+            Ok(None)
+        }
+    });
+    syncer.expect_write_checkpoint().times(5).returning({
+        let expected = expected.clone();
+        let writes = Arc::clone(&writes);
+        move |signed| {
+            assert_eq!(signed.value, expected[signed.value.index as usize]);
+            assert_eq!(signed.recover().unwrap(), signer_address);
+            writes.lock().unwrap().push(signed.value.index);
+            Ok(())
+        }
+    });
+    syncer
+        .expect_update_latest_index()
+        .with(mockall::predicate::eq(4))
+        .once()
+        .returning(|_| Ok(()));
+    let mut hook = MockMerkleTreeHook::new();
+    hook.expect_address()
+        .return_const(namespace.merkle_tree_hook_address);
+    hook.expect_domain()
+        .return_const(dummy_domain(17, "queue_domain"));
+    let submitter = ValidatorSubmitter::new(
+        Duration::from_secs(1),
+        ReorgPeriod::from_blocks(1),
+        Arc::new(hook),
+        Arc::new(MockMerkleTreeHook::new()),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(syncer),
+        Arc::new(db),
+        dummy_metrics(),
+        2,
+        Arc::new(MockReorgReporter::new()),
+        dummy_readiness(),
+    );
+    submitter
+        .submit_checkpoints_until_correctness_checkpoint(
+            &mut IncrementalMerkle::default(),
+            &CheckpointAtBlock {
+                checkpoint: expected[4].checkpoint,
+                block_height: Some(1),
+            },
+        )
+        .await;
+    // Each chunk completes before the next starts; sibling completion order is unconstrained.
+    let writes = writes.lock().unwrap();
+    let mut first = writes[..2].to_vec();
+    first.sort_unstable();
+    let mut second = writes[2..4].to_vec();
+    second.sort_unstable();
+    assert_eq!(first, vec![3, 4]);
+    assert_eq!(second, vec![1, 2]);
+    assert_eq!(writes[4], 0);
+}
+
+#[tokio::test(start_paused = true)]
+async fn compact_queue_materializes_only_the_active_chunk() {
+    let materialized = Arc::new(AtomicUsize::new(0));
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer.expect_fetch_checkpoint().times(2).returning({
+        let attempts = Arc::clone(&attempts);
+        move |_| {
+            attempts.fetch_add(1, Ordering::SeqCst);
+            Err(eyre::eyre!("storage temporarily unavailable"))
+        }
+    });
+    let submitter = submission_test_submitter(syncer, dummy_readiness());
+    let task = tokio::spawn({
+        let materialized = Arc::clone(&materialized);
+        async move {
+            submitter
+                .sign_and_submit_checkpoints((0..100).map(move |index| {
+                    materialized.fetch_add(1, Ordering::SeqCst);
+                    QueuedCheckpoint {
+                        root: H256::zero(),
+                        index,
+                        message_id: H256::zero(),
+                    }
+                    .into_checkpoint(submission_checkpoint(99).checkpoint)
+                }))
+                .await;
+        }
+    });
+    while attempts.load(Ordering::SeqCst) < 2 {
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(materialized.load(Ordering::SeqCst), 2);
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
+    assert_eq!(materialized.load(Ordering::SeqCst), 2);
+}
+
 #[tokio::test(start_paused = true)]
 async fn latest_index_waits_for_newest_checkpoint_but_not_older_siblings() {
     for failing_index in [7, 8] {

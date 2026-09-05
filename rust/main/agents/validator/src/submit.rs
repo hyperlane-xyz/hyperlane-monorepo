@@ -13,7 +13,7 @@ use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, Checkpoint, CheckpointAtBlock,
     CheckpointWithMessageId, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneSignerExt, IncrementalMerkleAtBlock,
+    HyperlaneSignerExt, IncrementalMerkleAtBlock, H256,
 };
 use hyperlane_core::{
     ChainResult, HyperlaneSigner, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType,
@@ -24,6 +24,27 @@ use crate::reorg_reporter::ReorgReporter;
 use crate::server::ValidatorReadiness;
 
 const CHECKPOINT_SUBMISSION_CHUNK_INTERVAL: Duration = Duration::from_millis(100);
+
+// All queued checkpoints share the hook address and domain of the final verified
+// checkpoint. Retain only the fields that vary until that correctness gate passes.
+struct QueuedCheckpoint {
+    root: H256,
+    index: u32,
+    message_id: H256,
+}
+
+impl QueuedCheckpoint {
+    fn into_checkpoint(self, verified_checkpoint: Checkpoint) -> CheckpointWithMessageId {
+        CheckpointWithMessageId {
+            checkpoint: Checkpoint {
+                root: self.root,
+                index: self.index,
+                ..verified_checkpoint
+            },
+            message_id: self.message_id,
+        }
+    }
+}
 
 #[derive(Clone)]
 pub(crate) struct ValidatorSubmitter {
@@ -321,10 +342,9 @@ impl ValidatorSubmitter {
             let message_id = insertion.message_id();
             tree.ingest(message_id);
 
-            let checkpoint = self.checkpoint(tree);
-
-            checkpoint_queue.push(CheckpointWithMessageId {
-                checkpoint,
+            checkpoint_queue.push(QueuedCheckpoint {
+                root: tree.root(),
+                index: tree.index(),
                 message_id,
             });
         }
@@ -397,7 +417,12 @@ impl ValidatorSubmitter {
                 queue_len = checkpoint_queue.len(),
                 "Reached tree consistency"
             );
-            self.sign_and_submit_checkpoints(checkpoint_queue).await;
+            self.sign_and_submit_checkpoints(
+                checkpoint_queue
+                    .into_iter()
+                    .map(move |queued| queued.into_checkpoint(checkpoint)),
+            )
+            .await;
 
             info!(
                 index = checkpoint.index,
@@ -528,16 +553,22 @@ impl ValidatorSubmitter {
     }
 
     /// Signs and submits any previously unsubmitted checkpoints.
-    async fn sign_and_submit_checkpoints(&self, mut checkpoints: Vec<CheckpointWithMessageId>) {
-        // The checkpoints are ordered by index, so the last one is the highest index.
-        let mut latest_index_to_publish = match checkpoints.last() {
+    async fn sign_and_submit_checkpoints<I>(&self, checkpoints: I)
+    where
+        I: IntoIterator<Item = CheckpointWithMessageId>,
+        I::IntoIter: DoubleEndedIterator + ExactSizeIterator,
+    {
+        // Reconstruct compact queue entries only as their signing chunk is consumed.
+        // The input is ordered by index, so reversing starts with the highest index.
+        let mut checkpoints = checkpoints.into_iter().rev().peekable();
+        let mut latest_index_to_publish = match checkpoints.peek() {
             Some(c) => Some(c.index),
             None => return,
         };
 
         let arc_self = Arc::new(self.clone());
 
-        while !checkpoints.is_empty() {
+        while checkpoints.len() > 0 {
             let start = Instant::now();
 
             // Take a chunk of checkpoints, starting with the highest index.
@@ -548,7 +579,7 @@ impl ValidatorSubmitter {
             // Keep bounded chunks so a storage/signing burst is paced before the next chunk.
             let mut chunk = Vec::with_capacity(self.max_sign_concurrency);
             for _ in 0..self.max_sign_concurrency {
-                if let Some(cp) = checkpoints.pop() {
+                if let Some(cp) = checkpoints.next() {
                     chunk.push(cp);
                 } else {
                     break;
@@ -619,7 +650,7 @@ impl ValidatorSubmitter {
 
             // Pace storage/signing bursts between chunks without delaying the latest-index
             // update, throttling all-existing backfills, or adding a final-chunk tail.
-            if wrote_checkpoint && !checkpoints.is_empty() {
+            if wrote_checkpoint && checkpoints.len() > 0 {
                 sleep(CHECKPOINT_SUBMISSION_CHUNK_INTERVAL).await;
             }
         }
