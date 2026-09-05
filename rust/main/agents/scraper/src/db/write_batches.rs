@@ -470,3 +470,101 @@ async fn hash_lookups_read_both_chunks_without_duplicate_results_in_postgres() -
     assert_eq!(found_txns[&txns[65_066]], tail_tx);
     Ok(())
 }
+
+#[tokio::test]
+async fn owned_raw_payloads_and_transaction_inputs_survive_storage() -> eyre::Result<()> {
+    use super::generated::{raw_message_dispatch, transaction};
+    use super::StorableRawMessageDispatch;
+    use hyperlane_core::HyperlaneMessage;
+
+    let postgres = Postgres::default().start().await?;
+    let port = postgres.get_host_port_ipv4(5432).await?;
+    let connection = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{port}/postgres"
+    ))
+    .await?;
+    migration::Migrator::up(&connection, None).await?;
+    let db = ScraperDb::with_connection(connection);
+    let meta = LogMeta::default();
+    let address = H256::from_low_u64_be(1);
+    let messages: Vec<_> = (0..2_955u32)
+        .map(|nonce| HyperlaneMessage {
+            nonce,
+            origin: DOMAIN,
+            destination: DOMAIN,
+            body: if nonce == 0 {
+                vec![]
+            } else {
+                vec![(nonce % 251) as u8; 1_024]
+            },
+            ..Default::default()
+        })
+        .collect();
+    let rows = || {
+        messages
+            .iter()
+            .map(|msg| StorableRawMessageDispatch { msg, meta: &meta })
+    };
+    assert_eq!(
+        db.store_raw_message_dispatches(DOMAIN, &address, rows())
+            .await?,
+        2_955
+    );
+    assert_eq!(
+        db.store_raw_message_dispatches(DOMAIN, &address, rows())
+            .await?,
+        0
+    );
+    let stored = raw_message_dispatch::Entity::find().all(&db.0).await?;
+    assert_eq!(stored.len(), messages.len());
+    for row in stored {
+        assert_eq!(
+            row.msg_body.as_ref(),
+            Some(&messages[row.nonce as usize].body)
+        );
+    }
+
+    seed_transaction(&db, 0).await?;
+    let block_id = db
+        .get_block_basic([&H256::from_low_u64_be(55)].into_iter())
+        .await?[0]
+        .id;
+    let inputs = [None, Some(vec![]), Some(vec![0xab; 4_096])];
+    let transactions = || {
+        inputs
+            .iter()
+            .enumerate()
+            .map(|(index, raw_input_data)| StorableTxn {
+                block_id,
+                info: TxnInfo {
+                    hash: H512::from_low_u64_be(100 + index as u64),
+                    gas_limit: U256::one(),
+                    max_priority_fee_per_gas: None,
+                    max_fee_per_gas: None,
+                    gas_price: None,
+                    nonce: 0,
+                    sender: H256::zero(),
+                    recipient: None,
+                    receipt: Some(TxnReceiptInfo {
+                        gas_used: U256::one(),
+                        cumulative_gas_used: U256::one(),
+                        effective_gas_price: None,
+                    }),
+                    raw_input_data: raw_input_data.clone(),
+                },
+            })
+    };
+    db.store_txns(transactions()).await?;
+    db.store_txns(transactions()).await?;
+    for (index, expected) in inputs.iter().enumerate() {
+        let row = transaction::Entity::find()
+            .filter(transaction::Column::Hash.eq(hyperlane_core::h512_to_bytes(
+                &H512::from_low_u64_be(100 + index as u64),
+            )))
+            .one(&db.0)
+            .await?
+            .unwrap();
+        assert_eq!(&row.raw_input_data, expected);
+    }
+    Ok(())
+}

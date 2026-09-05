@@ -140,8 +140,13 @@ impl ScraperDb {
                 Box::pin(async move {
                     // Insert raw message dispatches in chunks, to not run into
                     // "Too many arguments" error
-                    for chunk in models.chunks(Self::STORE_RAW_MESSAGE_DISPATCH_CHUNK_SIZE) {
-                        Insert::many(chunk.to_vec())
+                    let mut models = models.into_iter();
+                    while !models.as_slice().is_empty() {
+                        let chunk: Vec<_> = models
+                            .by_ref()
+                            .take(Self::STORE_RAW_MESSAGE_DISPATCH_CHUNK_SIZE)
+                            .collect();
+                        Insert::many(chunk)
                             .on_conflict(
                                 OnConflict::column(raw_message_dispatch::Column::MsgId)
                                     .update_columns([
