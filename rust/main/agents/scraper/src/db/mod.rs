@@ -74,3 +74,6 @@ mod lookup_batches;
 
 #[cfg(test)]
 mod sequence_reads;
+
+#[cfg(test)]
+mod dispatch_transactions;

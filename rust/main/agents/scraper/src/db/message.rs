@@ -346,55 +346,26 @@ impl ScraperDb {
 
         trace!(?models, "Writing messages to database");
 
-        // ensure all chunks are inserted or none at all
-        self.0
-            .transaction::<_, (), DbErr>(|txn| {
-                Box::pin(async move {
-                    // insert messages in chunks, to not run into
-                    // "Too many arguments" error
-                    let mut models = models.into_iter();
-                    while !models.as_slice().is_empty() {
-                        let chunk: Vec<_> = models
-                            .by_ref()
-                            .take(Self::STORE_MESSAGE_CHUNK_SIZE)
-                            .collect();
-                        Insert::many(chunk)
-                            .on_conflict(
-                                OnConflict::columns([
-                                    message::Column::Origin,
-                                    message::Column::OriginMailbox,
-                                    message::Column::Nonce,
-                                ])
-                                .update_columns([
-                                    message::Column::Destination,
-                                    message::Column::Sender,
-                                    message::Column::Recipient,
-                                    message::Column::MsgBody,
-                                ])
-                                // Prefer resolved transaction metadata over a
-                                // NULL value from a later fallback replay.
-                                .value(
-                                    message::Column::OriginTxId,
-                                    Func::if_null(
-                                        Expr::col((
-                                            Alias::new("excluded"),
-                                            message::Column::OriginTxId,
-                                        )),
-                                        Expr::col((
-                                            Alias::new("message"),
-                                            message::Column::OriginTxId,
-                                        )),
-                                    ),
-                                )
-                                .to_owned(),
-                            )
-                            .exec(txn)
-                            .await?;
-                    }
-                    Ok(())
+        // A single INSERT is atomic; multiple chunks need one shared transaction.
+        if models.len() <= Self::STORE_MESSAGE_CHUNK_SIZE {
+            dispatch_insert_query(models).exec(&self.0).await?;
+        } else {
+            self.0
+                .transaction::<_, (), DbErr>(|txn| {
+                    Box::pin(async move {
+                        let mut models = models.into_iter();
+                        while !models.as_slice().is_empty() {
+                            let chunk = models
+                                .by_ref()
+                                .take(Self::STORE_MESSAGE_CHUNK_SIZE)
+                                .collect();
+                            dispatch_insert_query(chunk).exec(txn).await?;
+                        }
+                        Ok(())
+                    })
                 })
-            })
-            .await?;
+                .await?;
+        }
 
         let new_dispatch_count = self
             .dispatch_count_since_id(domain, origin_mailbox, latest_id_before)
@@ -430,6 +401,32 @@ fn delivery_insert_query(
                 ),
             )
             .to_owned(),
+    )
+}
+
+fn dispatch_insert_query(models: Vec<message::ActiveModel>) -> Insert<message::ActiveModel> {
+    Insert::many(models).on_conflict(
+        OnConflict::columns([
+            message::Column::Origin,
+            message::Column::OriginMailbox,
+            message::Column::Nonce,
+        ])
+        .update_columns([
+            message::Column::Destination,
+            message::Column::Sender,
+            message::Column::Recipient,
+            message::Column::MsgBody,
+        ])
+        // Prefer resolved transaction metadata over a
+        // NULL value from a later fallback replay.
+        .value(
+            message::Column::OriginTxId,
+            Func::if_null(
+                Expr::col((Alias::new("excluded"), message::Column::OriginTxId)),
+                Expr::col((Alias::new("message"), message::Column::OriginTxId)),
+            ),
+        )
+        .to_owned(),
     )
 }
 
