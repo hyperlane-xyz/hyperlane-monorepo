@@ -173,8 +173,18 @@ impl HyperlaneDbStore {
                 continue;
             }
 
-            self.db.store_txns(txns_to_insert.drain(..)).await?;
-            let ids = self.db.get_txn_ids(hashes_to_insert.drain(..)).await?;
+            let mut ids = self.db.store_txns(txns_to_insert.drain(..)).await?;
+            // DO NOTHING can omit concurrent winners. Read those in a fresh statement
+            // after the INSERT, rather than the INSERT's earlier snapshot.
+            let existing = self
+                .db
+                .get_txn_ids(
+                    hashes_to_insert
+                        .drain(..)
+                        .filter(|hash| !ids.contains_key(*hash)),
+                )
+                .await?;
+            ids.extend(existing);
 
             for (hash, (txn_id, _block_id)) in chunk.iter_mut() {
                 *txn_id = ids.get(hash).copied();
@@ -255,17 +265,25 @@ impl HyperlaneDbStore {
                 continue;
             }
 
-            self.db
-                .store_blocks(self.domain.id(), block_infos.into_iter())
-                .await?;
-
-            let hashes = self
+            let mut hashes: HashMap<_, _> = self
                 .db
-                .get_block_basic(blocks_to_insert.iter().map(|(hash, _)| *hash))
+                .store_blocks(self.domain.id(), block_infos.into_iter())
                 .await?
                 .into_iter()
-                .map(|b| (b.hash, b.id))
-                .collect::<HashMap<_, _>>();
+                .map(|block| (block.hash, block.id))
+                .collect();
+            // Query only requested hashes omitted by RETURNING, including conflicts
+            // and provider responses carrying a different hash than requested.
+            let existing = self
+                .db
+                .get_block_basic(
+                    blocks_to_insert
+                        .iter()
+                        .map(|(hash, _)| *hash)
+                        .filter(|hash| !hashes.contains_key(*hash)),
+                )
+                .await?;
+            hashes.extend(existing.into_iter().map(|block| (block.hash, block.id)));
 
             for (hash, block_id) in blocks_to_insert {
                 if let Some(id) = hashes.get(hash) {
@@ -381,3 +399,6 @@ mod tests {
 
 #[cfg(test)]
 mod block_tests;
+
+#[cfg(test)]
+mod returning_tests;

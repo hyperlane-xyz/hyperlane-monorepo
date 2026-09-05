@@ -2,8 +2,11 @@ use eyre::{Context, Result};
 use itertools::Itertools;
 use migration::OnConflict;
 use sea_orm::{
-    prelude::*, sea_query::SelectStatement, ActiveValue::*, DbErr, EntityTrait, FromQueryResult,
-    Insert, QueryResult, QuerySelect,
+    prelude::*,
+    sea_query::{Query, SelectStatement},
+    ActiveValue::*,
+    ConnectionTrait, DbErr, EntityTrait, FromQueryResult, Insert, QueryResult, QuerySelect,
+    QueryTrait,
 };
 use tracing::{debug, trace};
 
@@ -81,12 +84,12 @@ impl ScraperDb {
         Ok(blocks)
     }
 
-    /// Store a new block (or update an existing one)
+    /// Store blocks and return the IDs/hashes of inserted rows. Conflicts are omitted.
     pub async fn store_blocks(
         &self,
         domain: u32,
         blocks: impl Iterator<Item = BlockInfo>,
-    ) -> Result<()> {
+    ) -> Result<Vec<BasicBlock>> {
         let models = blocks
             .map(|info| block::ActiveModel {
                 id: NotSet,
@@ -98,18 +101,22 @@ impl ScraperDb {
             })
             .collect::<Vec<_>>();
 
-        debug_assert!(!models.is_empty());
+        if models.is_empty() {
+            return Ok(Vec::new());
+        }
         debug!(blocks = models.len(), "Writing blocks to database");
         trace!(?models, "Writing blocks to database");
-        match Insert::many(models)
+        let mut query = Insert::many(models)
             .on_conflict(OnConflict::new().do_nothing().to_owned())
-            .exec(&self.0)
+            .into_query();
+        query.returning(Query::returning().columns([block::Column::Id, block::Column::Hash]));
+        self.0
+            .query_all(self.0.get_database_backend().build(&query))
             .await
-        {
-            Ok(_) => Ok(()),
-            Err(DbErr::RecordNotInserted) => Ok(()),
-            Err(e) => Err(e).context("When inserting blocks"),
-        }
+            .context("When inserting blocks")?
+            .iter()
+            .map(|row| BasicBlock::from_query_result(row, "").map_err(Into::into))
+            .collect()
     }
 }
 

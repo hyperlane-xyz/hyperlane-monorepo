@@ -4,8 +4,10 @@ use derive_more::Deref;
 use eyre::{eyre, Context, Result};
 use itertools::Itertools;
 use sea_orm::{
-    prelude::*, sea_query::OnConflict, ActiveValue::*, DeriveColumn, EnumIter, Insert, NotSet,
-    QuerySelect,
+    prelude::*,
+    sea_query::{OnConflict, Query},
+    ActiveValue::*,
+    ConnectionTrait, DeriveColumn, EnumIter, Insert, NotSet, QuerySelect, QueryTrait,
 };
 use tracing::{debug, instrument, trace};
 
@@ -59,9 +61,12 @@ impl ScraperDb {
         Ok(txns)
     }
 
-    /// Store a new transaction into the database (or update an existing one).
+    /// Store transactions and return IDs by hash for inserted rows. Conflicts are omitted.
     #[instrument(skip_all)]
-    pub async fn store_txns(&self, txns: impl Iterator<Item = StorableTxn>) -> Result<()> {
+    pub async fn store_txns(
+        &self,
+        txns: impl Iterator<Item = StorableTxn>,
+    ) -> Result<HashMap<H512, i64>> {
         let models = txns
             .map(|txn| {
                 let receipt = txn
@@ -91,22 +96,32 @@ impl ScraperDb {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        debug_assert!(!models.is_empty());
+        if models.is_empty() {
+            return Ok(HashMap::new());
+        }
         debug!(txns = models.len(), "Writing txns to database");
         trace!(?models, "Writing txns to database");
-
-        match Insert::many(models)
+        let mut query = Insert::many(models)
             .on_conflict(
                 OnConflict::column(transaction::Column::Hash)
                     .do_nothing()
                     .to_owned(),
             )
-            .exec(&self.0)
+            .into_query();
+        query.returning(
+            Query::returning().columns([transaction::Column::Id, transaction::Column::Hash]),
+        );
+        self.0
+            .query_all(self.0.get_database_backend().build(&query))
             .await
-        {
-            Ok(_) => Ok(()),
-            Err(DbErr::RecordNotInserted) => Ok(()),
-            Err(e) => Err(e).context("When inserting transactions"),
-        }
+            .context("When inserting transactions")?
+            .iter()
+            .map(|row| {
+                Ok((
+                    bytes_to_h512(&row.try_get::<Vec<u8>>("", "hash")?),
+                    row.try_get("", "id")?,
+                ))
+            })
+            .collect()
     }
 }
