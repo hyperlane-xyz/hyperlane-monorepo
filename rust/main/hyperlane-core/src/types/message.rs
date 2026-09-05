@@ -18,9 +18,7 @@ pub type RawHyperlaneMessage = Vec<u8>;
 
 impl From<&HyperlaneMessage> for RawHyperlaneMessage {
     fn from(m: &HyperlaneMessage) -> Self {
-        let mut message_vec = vec![];
-        m.write_to(&mut message_vec).expect("!write_to");
-        message_vec
+        m.to_vec()
     }
 }
 
@@ -107,6 +105,13 @@ impl From<&RawHyperlaneMessage> for HyperlaneMessage {
 }
 
 impl Encode for HyperlaneMessage {
+    fn to_vec(&self) -> Vec<u8> {
+        let mut bytes =
+            Vec::with_capacity(HYPERLANE_MESSAGE_PREFIX_LEN.saturating_add(self.body.len()));
+        self.write_to(&mut bytes).expect("!alloc");
+        bytes
+    }
+
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
         W: std::io::Write,
@@ -186,6 +191,30 @@ mod tests {
 
     fn valid_message_bytes() -> RawHyperlaneMessage {
         RawHyperlaneMessage::from(&sample_message())
+    }
+
+    #[test]
+    fn owned_encodings_match_canonical_writer_at_capacity_boundaries() {
+        use crate::Encode;
+
+        for body_len in [0, 1, 4, 5, 31, 32, 63, 64, 127, 128, 4096, 65536] {
+            for nonce in [0, 42, u32::MAX] {
+                let message = HyperlaneMessage {
+                    nonce,
+                    body: (0..body_len).map(|i| i as u8).collect(),
+                    ..sample_message()
+                };
+                let mut canonical = Vec::new();
+                let written = message.write_to(&mut canonical).unwrap();
+                assert_eq!(written, HYPERLANE_MESSAGE_PREFIX_LEN + body_len);
+                assert_eq!(message.to_vec(), canonical);
+                assert_eq!(RawHyperlaneMessage::from(&message), canonical);
+                assert_eq!(
+                    HyperlaneMessage::read_from(&mut canonical.as_slice()).unwrap(),
+                    message
+                );
+            }
+        }
     }
 
     #[test]

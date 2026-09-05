@@ -151,7 +151,7 @@ impl PayloadDb for HyperlaneRocksDB {
         &self,
         payload_uuid: &PayloadUuid,
     ) -> DbResult<Option<FullPayload>> {
-        self.retrieve_value_by_key(PAYLOAD_BY_UUID_STORAGE_PREFIX, payload_uuid)
+        self.retrieve_decodable(PAYLOAD_BY_UUID_STORAGE_PREFIX, payload_uuid.as_bytes())
     }
 
     async fn store_payload_by_uuid(&self, payload: &FullPayload) -> DbResult<()> {
@@ -231,7 +231,10 @@ impl PayloadDb for HyperlaneRocksDB {
         &self,
         payload_uuid: &PayloadUuid,
     ) -> DbResult<Option<u32>> {
-        self.retrieve_value_by_key(PAYLOAD_INDEX_BY_UUID_STORAGE_PREFIX, payload_uuid)
+        self.retrieve_decodable(
+            PAYLOAD_INDEX_BY_UUID_STORAGE_PREFIX,
+            payload_uuid.as_bytes(),
+        )
     }
 
     async fn store_payload_index_by_uuid(
@@ -413,6 +416,14 @@ impl Decode for FullPayload {
     {
         // Deserialize from JSON and read from the reader, to avoid having to implement the encoding / decoding manually
         serde_json::from_reader(reader).map_err(|err| {
+            HyperlaneProtocolError::IoError(std::io::Error::other(format!(
+                "Failed to deserialize. Error: {err}"
+            )))
+        })
+    }
+
+    fn read_from_slice(bytes: &[u8]) -> Result<Self, HyperlaneProtocolError> {
+        serde_json::from_slice(bytes).map_err(|err| {
             HyperlaneProtocolError::IoError(std::io::Error::other(format!(
                 "Failed to deserialize. Error: {err}"
             )))
