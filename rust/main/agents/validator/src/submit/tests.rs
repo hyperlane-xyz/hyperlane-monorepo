@@ -1617,3 +1617,75 @@ async fn unchanged_tree_checkpoint_preserves_root_index_namespace_and_block() {
         assert_eq!(tree.index(), expected.index);
     }
 }
+
+#[tokio::test(start_paused = true)]
+async fn latest_index_publication_reuses_submitter_handles_across_retries() {
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let syncer = Arc::new_cyclic(|weak: &std::sync::Weak<MockCheckpointSyncer>| {
+        let weak = weak.clone();
+        let attempts = Arc::clone(&attempts);
+        let mut syncer = MockCheckpointSyncer::new();
+        syncer
+            .expect_update_latest_index()
+            .with(mockall::predicate::eq(8))
+            .times(2)
+            .returning(move |_| {
+                assert_eq!(
+                    weak.strong_count(),
+                    1,
+                    "publication must reuse the submitter, not clone its storage handle"
+                );
+                if attempts.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Err(eyre::eyre!("latest index unavailable"))
+                } else {
+                    Ok(())
+                }
+            });
+        syncer
+    });
+    let readiness = dummy_readiness();
+    let mut submitter =
+        submission_test_submitter(MockCheckpointSyncer::new(), Arc::clone(&readiness));
+    submitter.checkpoint_syncer = syncer;
+    let submitter = Arc::new(submitter);
+    let start = tokio::time::Instant::now();
+    submitter.publish_latest_checkpoint_index(8).await;
+    assert_eq!(
+        start.elapsed(),
+        hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION
+    );
+    assert_eq!(attempts.load(Ordering::SeqCst), 2);
+    assert_eq!(Arc::strong_count(&submitter), 1);
+    assert_eq!(readiness.snapshot().state, ValidatorReadinessState::Ready);
+}
+
+#[tokio::test(start_paused = true)]
+async fn latest_index_publication_cancellation_stops_retry_and_releases_submitter() {
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer.expect_update_latest_index().once().returning({
+        let attempts = Arc::clone(&attempts);
+        move |_| {
+            attempts.fetch_add(1, Ordering::SeqCst);
+            Err(eyre::eyre!("latest index unavailable"))
+        }
+    });
+    let readiness = dummy_readiness();
+    let submitter = Arc::new(submission_test_submitter(syncer, Arc::clone(&readiness)));
+    let task = tokio::spawn({
+        let submitter = Arc::clone(&submitter);
+        async move { submitter.publish_latest_checkpoint_index(8).await }
+    });
+    while attempts.load(Ordering::SeqCst) == 0 {
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(
+        readiness.snapshot().blocked_operations,
+        vec!["checkpoint_latest_index"]
+    );
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
+    assert_eq!(Arc::strong_count(&submitter), 1);
+    tokio::time::advance(hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION).await;
+    assert_eq!(attempts.load(Ordering::SeqCst), 1);
+}

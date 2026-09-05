@@ -519,7 +519,7 @@ impl ValidatorSubmitter {
     }
 
     /// Publishes availability only after the highest checkpoint itself is durable.
-    async fn publish_latest_checkpoint_index(&self, index: u32) {
+    async fn publish_latest_checkpoint_index(self: &Arc<Self>, index: u32) {
         call_and_retry_indefinitely(|| {
             let self_clone = self.clone();
             Box::pin(async move {
