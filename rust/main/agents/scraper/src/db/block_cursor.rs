@@ -76,8 +76,9 @@ impl BlockCursor {
         self.inner.read().await.height
     }
 
+    /// Update the in-memory height and report whether a throttled flush succeeded.
     #[instrument(skip(self), fields(cursor = ?self.inner))]
-    pub async fn update(&self, height: u64) {
+    pub async fn update(&self, height: u64) -> bool {
         let mut inner = self.inner.write().await;
 
         let old_height = inner.height;
@@ -89,10 +90,14 @@ impl BlockCursor {
         drop(inner);
 
         if should_flush {
-            if let Err(e) = self.flush().await {
-                warn!(error = ?e, "Failed to update database with new cursor. When you just started this, ensure that the migrations included this domain.")
+            match self.flush().await {
+                Ok(()) => return true,
+                Err(e) => {
+                    warn!(error = ?e, "Failed to update database with new cursor. When you just started this, ensure that the migrations included this domain.")
+                }
             }
         }
+        false
     }
 
     /// Persist the current height to the database unconditionally, bypassing the
@@ -152,3 +157,6 @@ impl ScraperDb {
         BlockCursor::new(self.clone_connection(), domain, event_type, default_height).await
     }
 }
+
+#[cfg(test)]
+mod tests;
