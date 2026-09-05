@@ -9,7 +9,7 @@ use sea_orm::{
 use tracing::{debug, instrument};
 
 use hyperlane_core::{address_to_bytes, h256_to_bytes, InterchainGasPayment, LogMeta, H256};
-use migration::OnConflict;
+use migration::{Expr, OnConflict};
 
 use crate::conversions::{decimal_to_u256, u256_to_decimal};
 use crate::date_time;
@@ -185,6 +185,7 @@ impl ScraperDb {
             .collect();
 
         let mut models = Vec::with_capacity(payments.len());
+        let mut fallback_replacements = Vec::new();
         for storable in payments {
             let identity = payment_identity(storable);
             if storable.txn_id.is_none() {
@@ -198,17 +199,7 @@ impl ScraperDb {
             } else if existing_null_payments.remove(&identity) {
                 // Replace an earlier fallback row instead of keeping both
                 // variants and double-counting it.
-                gas_payment::Entity::delete_many()
-                    .filter(gas_payment::Column::Domain.eq(domain))
-                    .filter(
-                        gas_payment::Column::InterchainGasPaymaster
-                            .eq(interchain_gas_paymaster.clone()),
-                    )
-                    .filter(gas_payment::Column::MsgId.eq(identity.0.clone()))
-                    .filter(gas_payment::Column::LogIndex.eq(identity.1))
-                    .filter(gas_payment::Column::TxId.is_null())
-                    .exec(&txn)
-                    .await?;
+                fallback_replacements.push(identity);
             }
 
             models.push(payment_model(
@@ -216,6 +207,32 @@ impl ScraperDb {
                 interchain_gas_paymaster.clone(),
                 storable,
             ));
+        }
+
+        let mut fallback_replacements = fallback_replacements.into_iter();
+        while !fallback_replacements.as_slice().is_empty() {
+            // Two parameters per identity plus domain/IGP scope. Keep deletion
+            // inside the same transaction as the replacement inserts.
+            let identities: Vec<_> = fallback_replacements
+                .by_ref()
+                .take(Self::PAYMENT_STORE_CHUNK_SIZE)
+                .collect();
+            gas_payment::Entity::delete_many()
+                .filter(gas_payment::Column::Domain.eq(domain))
+                .filter(
+                    gas_payment::Column::InterchainGasPaymaster
+                        .eq(interchain_gas_paymaster.clone()),
+                )
+                .filter(gas_payment::Column::TxId.is_null())
+                .filter(
+                    Expr::tuple([
+                        Expr::col(gas_payment::Column::MsgId).into(),
+                        Expr::col(gas_payment::Column::LogIndex).into(),
+                    ])
+                    .in_tuples(identities),
+                )
+                .exec(&txn)
+                .await?;
         }
 
         debug!(?models, "Writing gas payments to database");
