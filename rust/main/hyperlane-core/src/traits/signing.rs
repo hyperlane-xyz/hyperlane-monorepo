@@ -135,52 +135,46 @@ impl<T: Signable + Debug> Debug for SignedType<T> {
     }
 }
 
-// Copied from https://github.com/hyperlane-xyz/ethers-rs/blob/hyperlane/ethers-core/src/utils/hash.rs
-// so that we can get EIP-191 hashing without the `ethers` feature
+// EIP-191 hashing without the `ethers` feature.
 mod hashes {
-    const PREFIX: &str = "\x19Ethereum Signed Message:\n";
     use crate::H256;
     use tiny_keccak::{Hasher, Keccak};
 
-    /// Hash a message according to EIP-191.
-    ///
-    /// The data is a UTF-8 encoded string and will enveloped as follows:
-    /// `"\x19Ethereum Signed Message:\n" + message.length + message` and hashed
-    /// using keccak256.
-    pub fn hash_message<S>(message: S) -> H256
-    where
-        S: AsRef<[u8]>,
-    {
-        let message = message.as_ref();
-
-        let mut eth_message = format!("{PREFIX}{}", message.len()).into_bytes();
-        eth_message.extend_from_slice(message);
-        keccak256(&eth_message).into()
-    }
-
-    /// Compute the Keccak-256 hash of input bytes.
-    // TODO: Add Solidity Keccak256 packing support
-    pub fn keccak256<S>(bytes: S) -> [u8; 32]
-    where
-        S: AsRef<[u8]>,
-    {
+    /// Wrap a signing hash in EIP-191. Signable always supplies exactly 32 bytes.
+    pub fn hash_message(message: H256) -> H256 {
         let mut output = [0u8; 32];
         let mut hasher = Keccak::v256();
-        hasher.update(bytes.as_ref());
+        hasher.update(b"\x19Ethereum Signed Message:\n32");
+        hasher.update(message.as_ref());
         hasher.finalize(&mut output);
-        output
+        output.into()
     }
 
     #[test]
-    #[cfg(feature = "ethers")]
-    fn ensure_signed_hashes_match() {
-        assert_eq!(
-            ethers_core::utils::hash_message(b"gm crypto!"),
-            hash_message(b"gm crypto!").into()
-        );
-        assert_eq!(
-            ethers_core::utils::hash_message(b"hyperlane"),
-            hash_message(b"hyperlane").into()
-        );
+    fn signed_hashes_match_legacy_envelope() {
+        // Compare the streamed implementation with the original concatenated
+        // envelope for every repeated byte and every single-bit position.
+        let values = (0..=u8::MAX)
+            .map(H256::repeat_byte)
+            .chain((0..256).map(|bit| {
+                let mut bytes = [0; 32];
+                bytes[bit / 8] = 1 << (bit % 8);
+                H256::from(bytes)
+            }));
+        for value in values {
+            let mut envelope =
+                format!("\x19Ethereum Signed Message:\n{}", value.as_bytes().len()).into_bytes();
+            envelope.extend_from_slice(value.as_bytes());
+            let mut expected = [0; 32];
+            let mut hasher = Keccak::v256();
+            hasher.update(&envelope);
+            hasher.finalize(&mut expected);
+            assert_eq!(hash_message(value), H256::from(expected));
+            #[cfg(feature = "ethers")]
+            assert_eq!(
+                hash_message(value),
+                H256::from(ethers_core::utils::hash_message(value.as_bytes()).0)
+            );
+        }
     }
 }
