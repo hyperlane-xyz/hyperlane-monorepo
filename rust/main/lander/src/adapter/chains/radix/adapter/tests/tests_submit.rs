@@ -54,9 +54,22 @@ async fn test_radix_submit_tx() {
             ..Default::default()
         })
     });
+    let submitted = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let captured = submitted.clone();
     provider
         .expect_send_transaction()
-        .returning(|_| Ok(TransactionSubmitResponse::new(false)));
+        .times(3)
+        .returning(move |raw| {
+            let mut attempts = captured.lock().unwrap();
+            attempts.push(raw);
+            if attempts.len() == 1 {
+                Err(hyperlane_core::ChainCommunicationError::CustomError(
+                    "submission failed".to_owned(),
+                ))
+            } else {
+                Ok(TransactionSubmitResponse::new(false))
+            }
+        });
 
     let mut counter = 0;
     provider.expect_preview_tx().returning(move |_ops| {
@@ -134,6 +147,14 @@ async fn test_radix_submit_tx() {
         last_status_check: None,
     };
 
+    // Failed sends must not publish the already computed hash into the transaction.
+    let before = transaction.clone();
+    assert!(adapter.submit(&mut transaction).await.is_err());
+    assert_eq!(transaction, before);
+
+    let built = adapter.build_transaction(&transaction, 0).await.unwrap();
+    let expected_raw = built.raw.to_vec();
+
     // when
     adapter
         .submit(&mut transaction)
@@ -148,6 +169,11 @@ async fn test_radix_submit_tx() {
 
     let precursor = transaction.precursor();
     assert_eq!(precursor.tx_hash, Some(expected_hash));
+    adapter.submit(&mut transaction).await.unwrap();
+    assert_eq!(transaction.tx_hashes, vec![expected_hash]);
+    let attempts = submitted.lock().unwrap();
+    assert_eq!(attempts.len(), 3);
+    assert!(attempts.iter().all(|raw| raw == &expected_raw));
 }
 
 #[ignore]
