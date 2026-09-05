@@ -223,7 +223,7 @@ async fn test_successful_submission_notifies_reprocess_poller() {
     let (state, _) = reprocess_test_state(mock_adapter);
     let tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
 
-    InclusionStage::submit_tx(&tx, &state).await.unwrap();
+    InclusionStage::submit_tx(tx, &state).await.unwrap();
 
     tokio::time::timeout(
         Duration::from_millis(10),
@@ -1360,5 +1360,109 @@ async fn retry_attempt_terminal_errors_return_without_retrying() {
         };
         assert_eq!(actual, expected);
         assert_eq!(tx, original);
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn owned_submission_preserves_retry_mutations_and_notifies_only_on_success() {
+    for already_exists in [false, true] {
+        let tx = retry_clone_fixture();
+        let pointer = tx.payload_details[0]
+            .success_criteria
+            .as_ref()
+            .unwrap()
+            .as_ptr() as usize;
+        let calls = Arc::new(AtomicUsize::new(0));
+        let attempt_calls = calls.clone();
+        let mut adapter = MockAdapter::new();
+        adapter.expect_submit().times(2).returning(move |tx| {
+            let attempt = attempt_calls.fetch_add(1, Ordering::SeqCst);
+            let bytes = tx.payload_details[0].success_criteria.as_mut().unwrap();
+            assert_eq!(bytes.as_ptr() as usize, pointer);
+            assert_eq!(bytes[0], if attempt == 0 { 7 } else { 9 });
+            bytes[0] = if attempt == 0 { 9 } else { 11 };
+            if attempt == 0 {
+                Err(LanderError::TxSubmissionError("retry fixture".to_owned()))
+            } else if already_exists {
+                Err(LanderError::TxAlreadyExists)
+            } else {
+                Ok(())
+            }
+        });
+        let (state, _) = reprocess_test_state(adapter);
+        let task_state = state.clone();
+        let task = tokio::spawn(async move { InclusionStage::submit_tx(tx, &task_state).await });
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while calls.load(Ordering::SeqCst) == 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("first submission attempt must start");
+        assert!(tokio::time::timeout(
+            Duration::from_millis(10),
+            state.wait_for_reprocess_txs_activity()
+        )
+        .await
+        .is_err());
+        let result = task.await.unwrap().unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        let bytes = result.payload_details[0].success_criteria.as_ref().unwrap();
+        assert_eq!(bytes.as_ptr() as usize, pointer);
+        assert_eq!(bytes[0], 11);
+        tokio::time::timeout(
+            Duration::from_millis(10),
+            state.wait_for_reprocess_txs_activity(),
+        )
+        .await
+        .expect("success must notify");
+        assert!(tokio::time::timeout(
+            Duration::from_millis(10),
+            state.wait_for_reprocess_txs_activity()
+        )
+        .await
+        .is_err());
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn owned_submission_errors_and_cancellation_do_not_notify() {
+    for cancel in [false, true] {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let attempt_calls = calls.clone();
+        let mut adapter = MockAdapter::new();
+        adapter.expect_submit().times(1).returning(move |tx| {
+            attempt_calls.fetch_add(1, Ordering::SeqCst);
+            tx.payload_details[0].success_criteria.as_mut().unwrap()[0] = 9;
+            if cancel {
+                Err(LanderError::TxSubmissionError("retry fixture".to_owned()))
+            } else {
+                Err(LanderError::EstimationFailed)
+            }
+        });
+        let (state, _) = reprocess_test_state(adapter);
+        let tx = retry_clone_fixture();
+        if cancel {
+            assert!(tokio::time::timeout(
+                Duration::from_millis(10),
+                InclusionStage::submit_tx(tx, &state)
+            )
+            .await
+            .is_err());
+        } else {
+            let error = InclusionStage::submit_tx(tx, &state).await.unwrap_err();
+            assert_eq!(
+                error.to_string(),
+                LanderError::NonRetryableError(LanderError::EstimationFailed.to_string())
+                    .to_string()
+            );
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert!(tokio::time::timeout(
+            Duration::from_millis(10),
+            state.wait_for_reprocess_txs_activity()
+        )
+        .await
+        .is_err());
     }
 }

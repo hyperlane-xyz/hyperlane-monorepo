@@ -501,7 +501,7 @@ impl InclusionStage {
         tx = Self::estimate_tx(&tx, state).await?;
 
         // Submitting transaction to the node
-        tx = Self::submit_tx(&tx, state).await?;
+        tx = Self::submit_tx(tx, state).await?;
         info!(?tx, "Transaction submitted to node");
 
         state
@@ -521,37 +521,35 @@ impl InclusionStage {
     }
 
     async fn submit_tx(
-        tx: &Transaction,
+        tx: Transaction,
         state: &DispatcherState,
     ) -> Result<Transaction, LanderError> {
-        // create a temporary arcmutex so that submission retries are aware of tx fields (e.g. gas price)
-        // set by previous retries when calling `adapter.submit`
-        let tx_shared = Arc::new(Mutex::new(tx.clone()));
+        // Submission retries retain tx fields (e.g. gas price) set by previous
+        // attempts. The retry future borrows this local mutex until it completes.
+        let tx_shared = Mutex::new(tx);
         // successively calling `submit` will result in escalating gas price until the tx is accepted
         // by the node.
         // at this point, not all VMs return information about whether the tx was reverted.
         // so dropping reverted payloads has to happen in the finality step
-        let submitted_tx = call_until_success_or_nonretryable_error(
-            || {
-                let tx_shared_clone = tx_shared.clone();
-                async move {
-                    let mut tx_guard = tx_shared_clone.lock().await;
-                    let submit_result = state.adapter.submit(&mut tx_guard).await;
+        call_until_success_or_nonretryable_error(
+            || async {
+                let mut tx_guard = tx_shared.lock().await;
+                let submit_result = state.adapter.submit(&mut tx_guard).await;
 
-                    match submit_result {
-                        Ok(()) => Ok(tx_guard.clone()),
-                        Err(err) if matches!(err, LanderError::TxAlreadyExists) => {
-                            warn!(tx=?tx_guard, ?err, "Transaction resubmission failed, will check the status of transaction before dropping it");
-                            Ok(tx_guard.clone())
-                        }
-                        Err(err) => Err(err),
+                match submit_result {
+                    Ok(()) => Ok(()),
+                    Err(err) if matches!(err, LanderError::TxAlreadyExists) => {
+                        warn!(tx=?tx_guard, ?err, "Transaction resubmission failed, will check the status of transaction before dropping it");
+                        Ok(())
                     }
+                    Err(err) => Err(err),
                 }
             },
             "Submitting transaction",
             state,
         )
         .await?;
+        let submitted_tx = tx_shared.into_inner();
         state.notify_reprocess_txs_activity();
         Ok(submitted_tx)
     }
