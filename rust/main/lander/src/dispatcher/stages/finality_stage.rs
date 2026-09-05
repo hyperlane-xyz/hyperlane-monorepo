@@ -172,10 +172,17 @@ impl FinalityStage {
             buffer_ordered_bounded(status_reads, STATUS_READ_CONCURRENCY).boxed()
         } else {
             let status_batch_concurrency = STATUS_READ_CONCURRENCY.div_ceil(status_batch_size);
-            let status_batches = pool_snapshot
-                .chunks(status_batch_size)
-                .map(<[Transaction]>::to_vec)
+            let batch_count = pool_snapshot.len().div_ceil(status_batch_size);
+            let mut remaining_txs = pool_snapshot.into_iter();
+            let status_batches = (0..batch_count)
+                .map(|_| {
+                    remaining_txs
+                        .by_ref()
+                        .take(status_batch_size)
+                        .collect::<Vec<_>>()
+                })
                 .collect::<Vec<_>>();
+            drop(remaining_txs);
             let status_reads = status_batches.into_iter().map(|batch| {
                 read_transaction_status_batch(state, batch, FinalizedStatusRead::TrustPersisted)
             });
@@ -301,9 +308,9 @@ impl FinalityStage {
             }
             TransactionStatus::Dropped(drop_reason) => {
                 Self::handle_dropped_transaction(
-                    tx.clone(),
+                    tx,
                     drop_reason,
-                    building_stage_queue.clone(),
+                    building_stage_queue,
                     state,
                     pool,
                 )
@@ -350,8 +357,7 @@ impl FinalityStage {
             TransactionStatus::Dropped(TxDropReason::DroppedByChain),
         )
         .await?;
-        let payloads = tx.payload_details.clone();
-        for payload in payloads.iter() {
+        for payload in &tx.payload_details {
             if let Some(full_payload) = state
                 .payload_db
                 .retrieve_payload_by_uuid(&payload.uuid)
@@ -361,7 +367,10 @@ impl FinalityStage {
             {
                 // update payload status in db
                 state
-                    .update_status_for_payloads(&[payload.clone()], PayloadStatus::ReadyToSubmit)
+                    .update_status_for_payloads(
+                        std::slice::from_ref(payload),
+                        PayloadStatus::ReadyToSubmit,
+                    )
                     .await;
                 // cannot remove a record from the db, so
                 // just link the payload to the null tx id
