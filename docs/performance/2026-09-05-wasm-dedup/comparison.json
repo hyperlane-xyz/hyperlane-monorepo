@@ -1,0 +1,36 @@
+{
+  "parent": {
+    "regularFileBytes": 146567218,
+    "regularFiles": 28,
+    "symlinks": 5,
+    "keyfunderWasm": {
+      "aleo_wasm1.wasm": {
+        "bytes": 20704991,
+        "symlink": null,
+        "sha256Prefix": "6138bdab037f4e98"
+      },
+      "aleo_wasm.wasm": {
+        "bytes": 20705101,
+        "symlink": null,
+        "sha256Prefix": "9aaead677ec3cc79"
+      }
+    }
+  },
+  "head": {
+    "regularFileBytes": 105157126,
+    "regularFiles": 26,
+    "symlinks": 7,
+    "keyfunderWasm": {
+      "aleo_wasm1.wasm": {
+        "bytes": 20704991,
+        "symlink": "../rebalancer/aleo_wasm.wasm",
+        "sha256Prefix": "6138bdab037f4e98"
+      },
+      "aleo_wasm.wasm": {
+        "bytes": 20705101,
+        "symlink": "../rebalancer/aleo_wasm1.wasm",
+        "sha256Prefix": "9aaead677ec3cc79"
+      }
+    }
+  }
+}
