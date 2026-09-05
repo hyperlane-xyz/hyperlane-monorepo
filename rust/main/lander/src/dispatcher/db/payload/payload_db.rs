@@ -394,6 +394,13 @@ impl PayloadDb for HyperlaneRocksDB {
 }
 
 impl Encode for FullPayload {
+    fn to_vec(&self) -> Vec<u8> {
+        // Database writes need the JSON buffer itself, not a copy through write_to.
+        serde_json::to_vec(self)
+            .map_err(|_| std::io::Error::other("Failed to serialize"))
+            .expect("!alloc")
+    }
+
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
         W: Write,
@@ -447,6 +454,39 @@ mod tests {
 
     fn tmp_db() -> Arc<HyperlaneRocksDB> {
         db_in(&tempfile::tempdir().unwrap())
+    }
+
+    #[test]
+    fn payload_owned_encoding_matches_writer_and_roundtrips() {
+        use crate::payload::{DropReason, RetryReason};
+        use hyperlane_core::{Decode, Encode};
+        for length in [0, 1, 4096, 65536] {
+            for status in [
+                PayloadStatus::ReadyToSubmit,
+                PayloadStatus::Retry(RetryReason::Reorged),
+                PayloadStatus::Dropped(DropReason::FailedSimulation),
+                PayloadStatus::InTransaction(TransactionStatus::Included),
+                PayloadStatus::InTransaction(TransactionStatus::Finalized),
+            ] {
+                let payload = FullPayload {
+                    data: (0..length).map(|i| (i % 256) as u8).collect(),
+                    status,
+                    ..FullPayload::default()
+                };
+                let mut legacy = Vec::new();
+                assert_eq!(payload.write_to(&mut legacy).unwrap(), legacy.len());
+                let encoded = payload.to_vec();
+                assert_eq!(encoded, legacy);
+                assert_eq!(
+                    FullPayload::read_from(&mut encoded.as_slice()).unwrap(),
+                    payload
+                );
+                // Preserve the existing arbitrary-writer contract, including short writes.
+                let mut partial = [0; 1];
+                assert_eq!(payload.write_to(&mut partial.as_mut_slice()).unwrap(), 1);
+                assert_eq!(partial[0], encoded[0]);
+            }
+        }
     }
 
     #[tokio::test]
