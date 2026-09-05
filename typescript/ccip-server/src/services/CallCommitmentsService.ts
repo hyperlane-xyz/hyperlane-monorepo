@@ -9,11 +9,9 @@ import {
   CommitmentReadIsmService__factory,
   InterchainAccountRouter__factory,
 } from '@hyperlane-xyz/core';
-import {
-  AccountConfig,
-  InterchainAccount,
-  MultiProvider,
-} from '@hyperlane-xyz/sdk';
+import { InterchainAccount } from '@hyperlane-xyz/sdk/middleware/account/InterchainAccount';
+import type { AccountConfig } from '@hyperlane-xyz/sdk/middleware/account/types';
+import type { MultiProvider } from '@hyperlane-xyz/sdk/providers/MultiProvider';
 import {
   PostCallsIcaType,
   PostCallsLegacyType,

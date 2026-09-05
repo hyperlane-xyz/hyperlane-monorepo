@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import { DEFAULT_GITHUB_REGISTRY, IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import { MultiProvider } from '@hyperlane-xyz/sdk';
+import { MultiProvider } from '@hyperlane-xyz/sdk/providers/MultiProvider';
 
 export const REGISTRY_URI_SCHEMA = z
   .string()

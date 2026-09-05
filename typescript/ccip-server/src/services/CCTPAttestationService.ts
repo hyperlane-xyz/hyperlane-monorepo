@@ -3,6 +3,8 @@ import { Logger } from 'pino';
 
 import { assert } from '@hyperlane-xyz/utils';
 
+import { AttestationPendingError } from '../utils/errors.js';
+
 import {
   PrometheusMetrics,
   UnhandledErrorReason,
@@ -153,7 +155,7 @@ class CCTPAttestationService {
           },
           'CCTP attestation not found',
         );
-        throw new Error(`CCTP attestation is pending`);
+        throw new AttestationPendingError();
       }
 
       // This should not happen according to the CCTP API spec, but we'll log it just in case
@@ -238,7 +240,7 @@ class CCTPAttestationService {
           { messageId, messageCount: json.messages.length },
           'Could not match Circle API messages to cctpMessage — treating as pending',
         );
-        throw new Error('CCTP attestation is pending');
+        throw new AttestationPendingError();
       }
       matchingMessage = found;
     }
@@ -268,9 +270,9 @@ class CCTPAttestationService {
           );
           break;
         default:
-          logger.info({ ...context, ...matchingMessage }, errorString);
+          logger.debug({ ...context, ...matchingMessage }, errorString);
       }
-      throw new Error(errorString);
+      throw new AttestationPendingError();
     }
 
     return [matchingMessage.message, matchingMessage.attestation];
