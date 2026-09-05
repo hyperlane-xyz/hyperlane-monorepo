@@ -136,6 +136,9 @@ fn endpoint_request_cache(endpoint: String, ttl: Duration) -> Arc<EndpointReques
 }
 
 fn request_cache_key<T: Serialize>(method: &str, params: &T) -> Option<(RequestCacheKey, Value)> {
+    if !matches!(method, BLOCK_NUMBER_RPC | GET_BLOCK_BY_NUMBER_RPC) {
+        return None;
+    }
     let params = serde_json::to_value(params).ok()?;
     let method = match method {
         BLOCK_NUMBER_RPC => DynamicBlockMethod::BlockNumber,
@@ -422,6 +425,29 @@ mod tests {
     use tokio::sync::{Barrier, Notify};
 
     use super::*;
+
+    #[test]
+    fn uncacheable_methods_do_not_serialize_params() {
+        struct SerializationCounter(AtomicUsize);
+
+        impl Serialize for SerializationCounter {
+            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                serializer.serialize_unit()
+            }
+        }
+
+        let params = SerializationCounter(AtomicUsize::new(0));
+        for method in [
+            "eth_call",
+            "eth_getLogs",
+            "eth_sendRawTransaction",
+            "eth_getTransactionReceipt",
+        ] {
+            assert!(request_cache_key(method, &params).is_none());
+        }
+        assert_eq!(params.0.load(Ordering::SeqCst), 0);
+    }
 
     #[derive(Clone, Debug, Default)]
     struct CountingClient {
