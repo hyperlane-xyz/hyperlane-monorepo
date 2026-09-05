@@ -3,8 +3,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::{bail, Result};
 use hyperlane_core::{
-    accumulator::incremental::MerkleTreeSnapshot, ReorgEvent, ReorgEventResponse,
-    SignedAnnouncement, SignedCheckpointWithMessageId,
+    ReorgEvent, ReorgEventResponse, SignedAnnouncement, SignedCheckpointWithMessageId,
 };
 use std::fmt;
 use tracing::{error, info, instrument};
@@ -17,7 +16,6 @@ use ya_gcp::{
 };
 
 const LATEST_INDEX_KEY: &str = "gcsLatestIndexKey";
-const MERKLE_SNAPSHOT_KEY: &str = "gcsMerkleSnapshotKey";
 const METADATA_KEY: &str = "gcsMetadataKey";
 const ANNOUNCEMENT_KEY: &str = "gcsAnnouncementKey";
 const REORG_FLAG_KEY: &str = "gcsReorgFlagKey";
@@ -188,6 +186,8 @@ impl fmt::Debug for GcsStorageClient {
 
 #[async_trait]
 impl CheckpointSyncer for GcsStorageClient {
+    // Keep the trait's no-snapshot defaults: ya-gcp collects entire objects and
+    // cannot bound snapshot downloads before allocation. GCS uses cold replay.
     /// Read the highest index of this Syncer
     #[instrument(skip(self))]
     async fn latest_index(&self) -> Result<Option<u32>> {
@@ -213,32 +213,6 @@ impl CheckpointSyncer for GcsStorageClient {
     async fn write_latest_index(&self, index: u32) -> Result<()> {
         let data = serde_json::to_vec(&index)?;
         self.upload_and_log(&self.object_path(LATEST_INDEX_KEY), data)
-            .await
-    }
-
-    #[instrument(skip(self))]
-    async fn read_merkle_snapshot(&self) -> Result<Option<MerkleTreeSnapshot>> {
-        match self
-            .inner
-            .get_object(&self.bucket, self.object_path(MERKLE_SNAPSHOT_KEY))
-            .await
-        {
-            Ok(data) => Ok(Some(serde_json::from_slice(data.as_ref())?)),
-            Err(e) => match e {
-                // never written before to this bucket
-                ObjectError::InvalidName(_) => Ok(None),
-                ObjectError::Failure(Error::HttpStatus(HttpStatusError(StatusCode::NOT_FOUND))) => {
-                    Ok(None)
-                }
-                _ => bail!(e),
-            },
-        }
-    }
-
-    #[instrument(skip(self, snapshot))]
-    async fn write_merkle_snapshot(&self, snapshot: &MerkleTreeSnapshot) -> Result<()> {
-        let data = serde_json::to_vec(snapshot)?;
-        self.upload_and_log(&self.object_path(MERKLE_SNAPSHOT_KEY), data)
             .await
     }
 
@@ -410,6 +384,29 @@ async fn object_path_is_unprefixed_without_a_folder() {
         client.announcement_location(),
         "gs://test-bucket/gcsAnnouncementKey"
     );
+}
+
+#[tokio::test]
+async fn merkle_snapshot_uses_cold_replay_without_gcs_access() {
+    use hyperlane_core::accumulator::incremental::{IncrementalMerkle, MerkleTreeSnapshot};
+
+    // An invalid bucket makes any accidental object request fail immediately.
+    let client = GcsStorageClientBuilder::new(AuthFlow::NoAuth)
+        .build("", None)
+        .await
+        .expect("unauthenticated client");
+    let mut tree = IncrementalMerkle::default();
+    tree.ingest(hyperlane_core::H256::from_low_u64_be(1));
+    let snapshot = MerkleTreeSnapshot::capture(&tree).expect("snapshot");
+
+    assert_eq!(
+        client.read_merkle_snapshot().await.expect("no snapshot"),
+        None
+    );
+    client
+        .write_merkle_snapshot(&snapshot)
+        .await
+        .expect("no-op write");
 }
 
 #[tokio::test]

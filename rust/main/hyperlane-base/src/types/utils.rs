@@ -6,6 +6,9 @@ use rusoto_core::{HttpClient, HttpConfig};
 /// See https://github.com/hyperium/hyper/issues/2136#issuecomment-589488526
 pub const HYPER_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(15);
 
+/// Exclusive byte limit for small checkpoint-storage objects.
+pub(super) const MAX_CHECKPOINT_OBJECT_SIZE: usize = 50 * 1024;
+
 /// Create a new HTTP client with a timeout for the connection pool.
 /// This is a workaround for https://github.com/hyperium/hyper/issues/2136#issuecomment-589345238
 pub fn http_client_with_timeout() -> Result<HttpClient> {
