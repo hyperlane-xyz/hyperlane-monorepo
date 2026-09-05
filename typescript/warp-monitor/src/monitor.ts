@@ -608,6 +608,7 @@ async function updateTokenMetrics(
                   warpCore.multiProvider,
                   token,
                   lockbox.lockbox,
+                  balance.tokenAddress,
                 );
 
               updateManagedLockboxBalanceMetrics(

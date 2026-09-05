@@ -355,20 +355,22 @@ export async function getExtraLockboxBalance(
  * @param multiProvider - The multi-protocol provider
  * @param warpToken - The warp token
  * @param lockBoxAddress - The lockbox contract address
+ * @param knownCollateralTokenAddress - Address from this observation's balance read
  * @returns The token name and address of the collateral
  */
 export async function getManagedLockBoxCollateralInfo(
   multiProvider: MultiProviderAdapter,
   warpToken: Token,
   lockBoxAddress: Address,
+  knownCollateralTokenAddress?: Address,
 ): Promise<{ tokenName: string; tokenAddress: Address }> {
-  const lockBoxInstance = getManagedLockBox(
-    multiProvider,
-    warpToken.chainName,
-    lockBoxAddress,
-  );
-
-  const collateralTokenAddress = await lockBoxInstance['ERC20']();
+  const collateralTokenAddress =
+    knownCollateralTokenAddress ??
+    (await getManagedLockBox(
+      multiProvider,
+      warpToken.chainName,
+      lockBoxAddress,
+    )['ERC20']());
   const collateralTokenAdapter = new EvmTokenAdapter(
     warpToken.chainName,
     multiProvider,
