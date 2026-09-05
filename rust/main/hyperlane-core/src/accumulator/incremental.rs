@@ -64,17 +64,27 @@ impl IncrementalMerkle {
 
     /// Calculate the current tree root
     pub fn root(&self) -> H256 {
-        let mut node: H256 = Default::default();
-        let mut size = self.count;
+        // Each low zero count bit hashes the empty subtree with itself. Those
+        // nodes are already precomputed, independently of the stored branch.
+        let skip = self.count.trailing_zeros() as usize;
+        if skip >= TREE_DEPTH {
+            return ZERO_HASHES[TREE_DEPTH];
+        }
+        let mut node = ZERO_HASHES[skip];
+        let mut size = self.count >> skip;
 
-        self.branch.iter().enumerate().for_each(|(i, elem)| {
-            node = if (size & 1) == 1 {
-                hash_concat(elem, node)
-            } else {
-                hash_concat(node, ZERO_HASHES[i])
-            };
-            size /= 2;
-        });
+        self.branch
+            .iter()
+            .enumerate()
+            .skip(skip)
+            .for_each(|(i, elem)| {
+                node = if (size & 1) == 1 {
+                    hash_concat(elem, node)
+                } else {
+                    hash_concat(node, ZERO_HASHES[i])
+                };
+                size /= 2;
+            });
 
         node
     }
@@ -110,6 +120,58 @@ impl IncrementalMerkle {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    fn legacy_root(tree: &IncrementalMerkle) -> H256 {
+        let mut node: H256 = Default::default();
+        let mut size = tree.count;
+        for (i, elem) in tree.branch.iter().enumerate() {
+            node = if (size & 1) == 1 {
+                hash_concat(elem, node)
+            } else {
+                hash_concat(node, ZERO_HASHES[i])
+            };
+            size /= 2;
+        }
+        node
+    }
+
+    #[test]
+    fn root_zero_prefix_matches_legacy_for_arbitrary_branches_and_counts() {
+        let mut seed = 0x0123_4567_89ab_cdefu64;
+        let mut random = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        let counts = (0..2048)
+            .chain((0..usize::BITS).flat_map(|bit| {
+                let count = 1usize << bit;
+                [count, count.saturating_sub(1), count.saturating_add(1)]
+            }))
+            .chain([usize::MAX, usize::MAX - 1]);
+        for count in counts {
+            let branch = std::array::from_fn(|_| {
+                let mut bytes = [0; 32];
+                for chunk in bytes.chunks_mut(8) {
+                    chunk.copy_from_slice(&random().to_be_bytes());
+                }
+                H256::from(bytes)
+            });
+            let tree = IncrementalMerkle { branch, count };
+            assert_eq!(tree.root(), legacy_root(&tree), "count={count}");
+        }
+    }
+
+    #[test]
+    fn root_zero_prefix_matches_legacy_through_sequential_ingestion() {
+        let mut tree = IncrementalMerkle::default();
+        for leaf in 0..8192 {
+            assert_eq!(tree.root(), legacy_root(&tree), "leaf count={leaf}");
+            tree.ingest(H256::from_low_u64_be(leaf));
+        }
+        assert_eq!(tree.root(), legacy_root(&tree));
+    }
 
     #[test]
     fn borsh_roundtrip() {
