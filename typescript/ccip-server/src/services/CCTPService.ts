@@ -25,6 +25,13 @@ import { CCTPAttestationService } from './CCTPAttestationService.js';
 import { findMatchingCircleMessage } from './cctpMessageMatcher.js';
 import { HyperlaneService } from './HyperlaneService.js';
 
+const messageTransmitterInterface =
+  IMessageTransmitter__factory.createInterface();
+const messageSentEvent =
+  messageTransmitterInterface.getEvent('MessageSent(bytes)');
+const messageSentTopic =
+  messageTransmitterInterface.getEventTopic(messageSentEvent);
+
 const EnvSchema = z.object({
   HYPERLANE_EXPLORER_URL: z.url(),
   CCTP_ATTESTATION_URL: z.url(),
@@ -102,15 +109,15 @@ class CCTPService extends BaseService {
       'Extracting CCTP message from receipt',
     );
 
-    const iface = IMessageTransmitter__factory.createInterface();
-    const event = iface.events['MessageSent(bytes)'];
-
     const allMessages: string[] = [];
     for (const receiptLog of receipt.logs) {
+      // Most receipt logs belong to other contracts. Avoid ABI lookup and
+      // exception allocation for events that cannot contain a CCTP message.
+      if (receiptLog.topics[0]?.toLowerCase() !== messageSentTopic) continue;
       try {
-        const parsedLog = iface.parseLog(receiptLog);
+        const parsedLog = messageTransmitterInterface.parseLog(receiptLog);
         if (
-          parsedLog.name === event.name &&
+          parsedLog.name === messageSentEvent.name &&
           typeof parsedLog.args.message === 'string'
         ) {
           allMessages.push(parsedLog.args.message);
