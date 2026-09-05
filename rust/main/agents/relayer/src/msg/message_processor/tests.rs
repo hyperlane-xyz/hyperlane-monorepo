@@ -84,3 +84,4 @@ async fn test_recovery_backpressures_message_processor_ingress() {
         .await
         .expect("receive task should stop when ingress closes");
 }
+mod tests_process_batch;
