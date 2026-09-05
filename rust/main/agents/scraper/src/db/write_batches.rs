@@ -378,3 +378,56 @@ async fn bulk_events_replay_and_rollback_failed_tail_in_postgres() -> eyre::Resu
     );
     Ok(())
 }
+
+#[tokio::test]
+async fn dispatch_chunks_preserve_owned_payloads_and_replay() -> eyre::Result<()> {
+    let postgres = Postgres::default().start().await?;
+    let port = postgres.get_host_port_ipv4(5432).await?;
+    let connection = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{port}/postgres"
+    ))
+    .await?;
+    migration::Migrator::up(&connection, None).await?;
+    let db = ScraperDb::with_connection(connection);
+    let meta = LogMeta::default();
+    let address = H256::from_low_u64_be(1);
+    let rows = || {
+        (0..3_251u32).map(|nonce| super::StorableMessage {
+            msg: hyperlane_core::HyperlaneMessage {
+                nonce,
+                origin: DOMAIN,
+                destination: DOMAIN,
+                body: if nonce == 0 {
+                    vec![]
+                } else {
+                    vec![(nonce % 251) as u8; 1_024]
+                },
+                ..Default::default()
+            },
+            meta: &meta,
+            txn_id: None,
+            id_override: None,
+        })
+    };
+    assert_eq!(
+        db.store_dispatched_messages(DOMAIN, &address, rows())
+            .await?,
+        3_251
+    );
+    assert_eq!(
+        db.store_dispatched_messages(DOMAIN, &address, rows())
+            .await?,
+        0
+    );
+    let stored = super::generated::message::Entity::find().all(&db.0).await?;
+    assert_eq!(stored.len(), 3_251);
+    for row in stored {
+        let expected = if row.nonce == 0 {
+            None
+        } else {
+            Some(vec![(row.nonce % 251) as u8; 1_024])
+        };
+        assert_eq!(row.msg_body, expected);
+    }
+    Ok(())
+}

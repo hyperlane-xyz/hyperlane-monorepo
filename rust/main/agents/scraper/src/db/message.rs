@@ -346,8 +346,13 @@ impl ScraperDb {
                 Box::pin(async move {
                     // insert messages in chunks, to not run into
                     // "Too many arguments" error
-                    for chunk in models.chunks(Self::STORE_MESSAGE_CHUNK_SIZE) {
-                        Insert::many(chunk.to_vec())
+                    let mut models = models.into_iter();
+                    while !models.as_slice().is_empty() {
+                        let chunk: Vec<_> = models
+                            .by_ref()
+                            .take(Self::STORE_MESSAGE_CHUNK_SIZE)
+                            .collect();
+                        Insert::many(chunk)
                             .on_conflict(
                                 OnConflict::columns([
                                     message::Column::Origin,
