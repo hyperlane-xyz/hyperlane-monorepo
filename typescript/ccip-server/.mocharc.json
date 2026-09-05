@@ -5,7 +5,8 @@
     "./tests/**/RateLimiting.test.ts",
     "./tests/**/cctpMessageMatcher.test.ts",
     "./tests/**/CCTPService.test.ts",
-    "./tests/**/AttestationPending.test.ts"
+    "./tests/**/AttestationPending.test.ts",
+    "./tests/**/moduleRegistry.test.ts"
   ],
   "exit": true
 }

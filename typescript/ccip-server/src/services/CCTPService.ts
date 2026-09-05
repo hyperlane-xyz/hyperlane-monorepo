@@ -7,7 +7,7 @@ import {
   CctpService__factory,
   IMessageTransmitter__factory,
 } from '@hyperlane-xyz/core';
-import { MultiProvider } from '@hyperlane-xyz/sdk';
+import type { MultiProvider } from '@hyperlane-xyz/sdk/providers/MultiProvider';
 import { parseMessage } from '@hyperlane-xyz/utils';
 
 import { createAbiHandler } from '../utils/abiHandler.js';
