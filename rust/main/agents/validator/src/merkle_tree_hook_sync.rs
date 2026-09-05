@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use eyre::{bail, eyre, Context, Result};
+use eyre::{bail, eyre, Context, ContextCompat, Result};
 use futures_util::{future::BoxFuture, FutureExt, SinkExt, StreamExt};
 use prometheus::IntGauge;
 use serde::Deserialize;
@@ -15,8 +15,8 @@ use url::Url;
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB},
     scraper_websocket::{
-        EventMessage, SequenceCursor, ServerMessage as ScraperServerMessage, StringOrNumber,
-        SubscribeMessage, SubscribeStream,
+        EventMessage, SequenceCursor, ServerMessage as ScraperServerMessage, StreamCursor,
+        StringOrNumber, SubscribeMessage, SubscribeStream,
     },
     settings::IndexSettings,
     ContractSyncer, SequencedDataContractSync,
@@ -373,7 +373,7 @@ impl MerkleTreeHookWebSocketSync {
                 Message::Text(text) => match serde_json::from_str::<ServerMessage>(&text)
                     .context("Parsing Merkle tree hook WebSocket message")?
                 {
-                    ServerMessage::Ready => {
+                    ServerMessage::Ready { .. } => {
                         let next_state = subscription_state.receive_ready()?;
                         socket
                             .send(Message::Text(self.subscription(*next_sequence)?))
@@ -402,14 +402,26 @@ impl MerkleTreeHookWebSocketSync {
                         address,
                         domain,
                         event_type,
+                        legacy_max_stream_cursor,
+                        row_id,
+                        stream_cursor,
                         sequence,
                     } => {
                         subscription_state.require_subscribed("caught-up marker")?;
+                        if legacy_max_stream_cursor.is_some()
+                            || row_id.is_some()
+                            || stream_cursor.is_some()
+                        {
+                            bail!("Merkle tree hook stream received row/stream cursor caught-up marker");
+                        }
+                        let sequence = sequence
+                            .as_deref()
+                            .context("Merkle tree hook caught-up marker omitted sequence")?;
                         let reached_cursor = self.validate_caught_up(
                             &address,
                             domain,
                             &event_type,
-                            &sequence,
+                            sequence,
                             *next_sequence,
                         )?;
                         // Any valid, non-ahead marker proves historical replay has completed.
@@ -557,14 +569,15 @@ impl MerkleTreeHookWebSocketSync {
         let after_sequence = next_sequence.checked_sub(1).map(i64::from).unwrap_or(-1);
         serde_json::to_string(&SubscribeMessage {
             streams: vec![SubscribeStream {
-                cursors: Some(vec![SequenceCursor {
+                cursors: Some(vec![StreamCursor::Sequence(SequenceCursor {
                     address: format!("{:#x}", self.merkle_tree_hook),
                     allow_replay: Some(true),
                     after_sequence: Some(after_sequence.to_string()),
                     domain: self.domain,
-                }]),
+                })]),
                 domains: Some(vec![self.domain]),
                 event_type: EVENT_TYPE,
+                stream_cursor_version: None,
             }],
             message_type: "subscribe",
         })
@@ -584,6 +597,9 @@ impl MerkleTreeHookWebSocketSync {
     ) -> Result<bool> {
         if event.event_type != EVENT_TYPE {
             bail!("Unexpected WebSocket event type {}", event.event_type);
+        }
+        if event.row_id.is_some() || event.stream_cursor.is_some() {
+            bail!("Merkle tree insertion unexpectedly included a row/stream cursor");
         }
         if event.domain != self.domain || event.data.domain != self.domain {
             bail!(
@@ -1294,6 +1310,58 @@ mod tests {
         let mut next_sequence = 0;
         let dependencies = test_dependencies();
         let mut canonical_cache = Vec::new();
+        let row_cursor_event = EventMessage {
+            data: EventData {
+                block_number: StringOrNumber::String("12".to_owned()),
+                domain: 1,
+                leaf_index: StringOrNumber::Number(0),
+                merkle_tree_hook: format!("{:#x}", sync.merkle_tree_hook),
+                message_id: format!("{:#x}", H256::from_low_u64_be(4)),
+            },
+            domain: 1,
+            event_type: EVENT_TYPE.to_owned(),
+            legacy_max_stream_cursor: None,
+            row_id: Some("10".to_owned()),
+            stream_cursor: None,
+            sequence: Some("0".to_owned()),
+        };
+        assert!(sync
+            .process_event(
+                row_cursor_event,
+                &mut next_sequence,
+                &dependencies,
+                &mut canonical_cache,
+            )
+            .await
+            .expect_err("Merkle stream must reject a row cursor")
+            .to_string()
+            .contains("unexpectedly included a row/stream cursor"));
+        let stream_cursor_event = EventMessage {
+            data: EventData {
+                block_number: StringOrNumber::String("12".to_owned()),
+                domain: 1,
+                leaf_index: StringOrNumber::Number(0),
+                merkle_tree_hook: format!("{:#x}", sync.merkle_tree_hook),
+                message_id: format!("{:#x}", H256::from_low_u64_be(4)),
+            },
+            domain: 1,
+            event_type: EVENT_TYPE.to_owned(),
+            legacy_max_stream_cursor: None,
+            row_id: None,
+            stream_cursor: Some("10".to_owned()),
+            sequence: Some("0".to_owned()),
+        };
+        assert!(sync
+            .process_event(
+                stream_cursor_event,
+                &mut next_sequence,
+                &dependencies,
+                &mut canonical_cache,
+            )
+            .await
+            .expect_err("Merkle stream must reject a logical cursor")
+            .to_string()
+            .contains("unexpectedly included a row/stream cursor"));
         let event = EventMessage {
             data: EventData {
                 block_number: StringOrNumber::String("12".to_owned()),
@@ -1304,6 +1372,9 @@ mod tests {
             },
             domain: 1,
             event_type: EVENT_TYPE.to_owned(),
+            legacy_max_stream_cursor: None,
+            row_id: None,
+            stream_cursor: None,
             sequence: Some("0".to_owned()),
         };
 
@@ -1335,6 +1406,9 @@ mod tests {
                     },
                     domain: 1,
                     event_type: EVENT_TYPE.to_owned(),
+                    legacy_max_stream_cursor: None,
+                    row_id: None,
+                    stream_cursor: None,
                     sequence: Some("0".to_owned()),
                 },
                 &mut next_sequence,
@@ -1360,6 +1434,9 @@ mod tests {
             },
             domain: 1,
             event_type: EVENT_TYPE.to_owned(),
+            legacy_max_stream_cursor: None,
+            row_id: None,
+            stream_cursor: None,
             sequence: Some("2".to_owned()),
         };
         assert!(sync
@@ -1463,7 +1540,9 @@ mod tests {
                 .expect("subscription message")
                 .expect("read subscription message");
             socket
-                .send(Message::Text(r#"{"type":"subscribed"}"#.into()))
+                .send(Message::Text(
+                    r#"{"type":"subscribed","streams":[]}"#.into(),
+                ))
                 .await
                 .expect("send subscribed message");
             socket
@@ -1625,7 +1704,9 @@ mod tests {
                 .expect("subscription message")
                 .expect("read subscription message");
             socket
-                .send(Message::Text(r#"{"type":"subscribed"}"#.into()))
+                .send(Message::Text(
+                    r#"{"type":"subscribed","streams":[]}"#.into(),
+                ))
                 .await
                 .expect("send subscribed message");
             socket
@@ -1714,7 +1795,9 @@ mod tests {
                 .expect("subscription message")
                 .expect("read subscription message");
             socket
-                .send(Message::Text(r#"{"type":"subscribed"}"#.into()))
+                .send(Message::Text(
+                    r#"{"type":"subscribed","streams":[]}"#.into(),
+                ))
                 .await
                 .expect("send subscribed message");
             socket
@@ -1833,7 +1916,9 @@ mod tests {
                 .expect("subscription message")
                 .expect("read subscription message");
             socket
-                .send(Message::Text(r#"{"type":"subscribed"}"#.into()))
+                .send(Message::Text(
+                    r#"{"type":"subscribed","streams":[]}"#.into(),
+                ))
                 .await
                 .expect("send subscribed message");
             socket
@@ -1948,7 +2033,9 @@ mod tests {
                 .expect("subscription message")
                 .expect("read subscription message");
             socket
-                .send(Message::Text(r#"{"type":"subscribed"}"#.into()))
+                .send(Message::Text(
+                    r#"{"type":"subscribed","streams":[]}"#.into(),
+                ))
                 .await
                 .expect("send subscribed message");
             while calls_in_server.load(Ordering::SeqCst) == 0 {
@@ -2064,7 +2151,9 @@ mod tests {
                 .expect("subscription message")
                 .expect("read subscription message");
             socket
-                .send(Message::Text(r#"{"type":"subscribed"}"#.into()))
+                .send(Message::Text(
+                    r#"{"type":"subscribed","streams":[]}"#.into(),
+                ))
                 .await
                 .expect("send subscribed message");
             socket
