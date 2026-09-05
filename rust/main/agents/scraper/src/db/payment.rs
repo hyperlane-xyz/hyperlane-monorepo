@@ -144,16 +144,6 @@ impl ScraperDb {
         ))
         .await?;
 
-        let latest_id_before = gas_payment::Entity::find()
-            .select_only()
-            .column_as(gas_payment::Column::Id.max(), "max_id")
-            .filter(gas_payment::Column::Domain.eq(domain))
-            .into_tuple::<Option<i64>>()
-            .one(&txn)
-            .await?
-            .flatten()
-            .unwrap_or(0);
-
         let payment_msg_ids = payments
             .iter()
             .map(|storable| h256_to_bytes(&storable.payment.message_id))
@@ -217,38 +207,48 @@ impl ScraperDb {
             ));
         }
 
-        let mut fallback_replacements = fallback_replacements.into_iter();
-        while !fallback_replacements.as_slice().is_empty() {
-            // Two parameters per identity plus domain/IGP scope. Keep deletion
-            // inside the same transaction as the replacement inserts.
-            let identities: Vec<_> = fallback_replacements
-                .by_ref()
-                .take(Self::PAYMENT_STORE_CHUNK_SIZE)
-                .collect();
-            gas_payment::Entity::delete_many()
-                .filter(gas_payment::Column::Domain.eq(domain))
-                .filter(
-                    gas_payment::Column::InterchainGasPaymaster
-                        .eq(interchain_gas_paymaster.clone()),
-                )
-                .filter(gas_payment::Column::TxId.is_null())
-                .filter(
-                    Expr::tuple([
-                        Expr::col(gas_payment::Column::MsgId).into(),
-                        Expr::col(gas_payment::Column::LogIndex).into(),
-                    ])
-                    .in_tuples(identities),
-                )
-                .exec(&txn)
-                .await?;
-        }
-
         debug!(?models, "Writing gas payments to database");
 
         let new_payments_count = if models.is_empty() {
             debug!("Wrote zero new gas payments to database");
             0
         } else {
+            let latest_id_before = gas_payment::Entity::find()
+                .select_only()
+                .column_as(gas_payment::Column::Id.max(), "max_id")
+                .filter(gas_payment::Column::Domain.eq(domain))
+                .into_tuple::<Option<i64>>()
+                .one(&txn)
+                .await?
+                .flatten()
+                .unwrap_or(0);
+
+            let mut fallback_replacements = fallback_replacements.into_iter();
+            while !fallback_replacements.as_slice().is_empty() {
+                // Two parameters per identity plus domain/IGP scope. Keep deletion
+                // inside the same transaction as the replacement inserts.
+                let identities: Vec<_> = fallback_replacements
+                    .by_ref()
+                    .take(Self::PAYMENT_STORE_CHUNK_SIZE)
+                    .collect();
+                gas_payment::Entity::delete_many()
+                    .filter(gas_payment::Column::Domain.eq(domain))
+                    .filter(
+                        gas_payment::Column::InterchainGasPaymaster
+                            .eq(interchain_gas_paymaster.clone()),
+                    )
+                    .filter(gas_payment::Column::TxId.is_null())
+                    .filter(
+                        Expr::tuple([
+                            Expr::col(gas_payment::Column::MsgId).into(),
+                            Expr::col(gas_payment::Column::LogIndex).into(),
+                        ])
+                        .in_tuples(identities),
+                    )
+                    .exec(&txn)
+                    .await?;
+            }
+
             let mut models = models.into_iter();
             while !models.as_slice().is_empty() {
                 let chunk = models

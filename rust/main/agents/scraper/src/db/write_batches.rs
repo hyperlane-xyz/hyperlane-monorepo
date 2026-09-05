@@ -137,8 +137,8 @@ async fn payment_prefetch_and_insert_statements_are_bounded_and_deduplicated() {
     // 66,000 IDs exceed the old prefetch's 65,535 bind limit independently of INSERT statements.
     for count in [5_000_u32, 66_000] {
         let chunks = usize::try_from(count.div_ceil(5_000)).unwrap();
-        let mut results = vec![result("max_id", 0)];
-        results.extend((0..chunks).map(|_| Vec::new()));
+        let mut results = (0..chunks).map(|_| Vec::new()).collect::<Vec<_>>();
+        results.push(result("max_id", 0));
         results.extend((0..chunks).map(|_| result("id", 1)));
         results.push(result("num_items", i64::from(count)));
         let db = ScraperDb::with_connection(
@@ -197,6 +197,80 @@ async fn payment_prefetch_and_insert_statements_are_bounded_and_deduplicated() {
             .values
             .as_ref()
             .map_or(true, |values| values.0.len() <= usize::from(u16::MAX))));
+    }
+}
+
+#[tokio::test]
+async fn payment_fallback_replays_skip_count_baseline() {
+    for existing_tx_id in [None, Some(7)] {
+        let payments = payments(1);
+        let meta = LogMeta::default();
+        let existing = vec![BTreeMap::from([
+            (
+                "0".to_owned(),
+                Value::Bytes(Some(Box::new(hyperlane_core::h256_to_bytes(
+                    &payments[0].message_id,
+                )))),
+            ),
+            ("1".to_owned(), Value::BigInt(Some(0))),
+            ("2".to_owned(), Value::BigInt(existing_tx_id)),
+        ])];
+        let db = ScraperDb::with_connection(
+            MockDatabase::new(DatabaseBackend::Postgres)
+                .append_exec_results([MockExecResult {
+                    last_insert_id: 0,
+                    rows_affected: 1,
+                }])
+                .append_query_results([existing])
+                .into_connection(),
+        );
+        assert_eq!(
+            db.store_payments(DOMAIN, &H256::zero(), &payment_rows(&payments, &meta, None))
+                .await
+                .unwrap(),
+            0
+        );
+        let log = db.0.into_transaction_log();
+        let statements = log[0].statements();
+        assert_eq!(statements.len(), 4);
+        assert_eq!(statements[0].sql, "BEGIN");
+        assert!(statements[1].sql.contains("pg_advisory_xact_lock"));
+        assert!(statements[2].sql.contains(" IN ("));
+        assert_eq!(statements[3].sql, "COMMIT");
+    }
+}
+
+#[tokio::test]
+async fn payment_prefetch_and_baseline_errors_precede_writes() {
+    for fail_prefetch in [true, false] {
+        let mock =
+            MockDatabase::new(DatabaseBackend::Postgres).append_exec_results([MockExecResult {
+                last_insert_id: 0,
+                rows_affected: 1,
+            }]);
+        let mock = if fail_prefetch {
+            mock
+        } else {
+            mock.append_query_results([Vec::<BTreeMap<String, Value>>::new()])
+        };
+        let db = ScraperDb::with_connection(
+            mock.append_query_errors([sea_orm::DbErr::Custom("read failed".to_owned())])
+                .into_connection(),
+        );
+        let payments = payments(1);
+        let meta = LogMeta::default();
+        assert!(db
+            .store_payments(DOMAIN, &H256::zero(), &payment_rows(&payments, &meta, None))
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("read failed"));
+        let log = db.0.into_transaction_log();
+        let statements = log[0].statements();
+        assert_eq!(statements.last().unwrap().sql, "ROLLBACK");
+        assert!(!statements
+            .iter()
+            .any(|s| s.sql.starts_with("INSERT") || s.sql.starts_with("DELETE")));
     }
 }
 
@@ -596,7 +670,7 @@ async fn owned_raw_payloads_and_transaction_inputs_survive_storage() -> eyre::Re
 async fn payment_fallback_deletes_use_bounded_tuple_keys() {
     let payments = payments(6_000);
     let meta = LogMeta::default();
-    let mut results = vec![result("max_id", 0)];
+    let mut results = Vec::new();
     for chunk in payments.chunks(5_000) {
         // MockDatabase reads tuples by sorted-key position, not SQL column name.
         results.push(
@@ -617,6 +691,7 @@ async fn payment_fallback_deletes_use_bounded_tuple_keys() {
                 .collect(),
         );
     }
+    results.push(result("max_id", 0));
     results.extend([result("id", 1), result("id", 2), result("num_items", 6_000)]);
     let db = ScraperDb::with_connection(
         MockDatabase::new(DatabaseBackend::Postgres)
