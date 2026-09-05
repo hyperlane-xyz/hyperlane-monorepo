@@ -361,7 +361,10 @@ impl FinalityStage {
             {
                 // update payload status in db
                 state
-                    .update_status_for_payloads(&[payload.clone()], PayloadStatus::ReadyToSubmit)
+                    .update_status_for_payloads(
+                        std::slice::from_ref(payload),
+                        PayloadStatus::ReadyToSubmit,
+                    )
                     .await;
                 // cannot remove a record from the db, so
                 // just link the payload to the null tx id
