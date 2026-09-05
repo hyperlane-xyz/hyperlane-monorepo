@@ -3,14 +3,14 @@ use std::collections::{HashMap, HashSet};
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
-    unwrap_or_none_result, HyperlaneLogStore, HyperlaneMessage,
-    HyperlaneSequenceAwareIndexerStoreReader, Indexed, LogMeta, H512,
+    HyperlaneLogStore, HyperlaneMessage, HyperlaneSequenceAwareIndexerStoreReader, Indexed,
+    LogMeta, H512,
 };
 use time::OffsetDateTime;
 use tracing::warn;
 
 use crate::db::{StorableMessage, StorableRawMessageDispatch};
-use crate::store::storage::{txn_id_for_meta, HyperlaneDbStore, TxnWithId};
+use crate::store::storage::{txn_id_for_meta, HyperlaneDbStore};
 
 /// Label for raw message dispatch metrics
 const RAW_MESSAGE_DISPATCH_LABEL: &str = "raw_message_dispatch";
@@ -116,10 +116,9 @@ impl HyperlaneDbStore {
         &self,
         messages: &[(Indexed<HyperlaneMessage>, LogMeta)],
     ) -> Result<u32> {
-        let txns: HashMap<H512, TxnWithId> = self
+        let txns: HashMap<H512, i64> = self
             .ensure_blocks_and_txns(messages.iter().map(|r| &r.1))
             .await?
-            .map(|t| (t.hash, t))
             .collect();
         let (storable, missing_txns) = storable_messages_for_available_txns(messages, &txns);
         let stored = self
@@ -196,10 +195,9 @@ impl HyperlaneDbStore {
             });
         }
 
-        let txns: HashMap<H512, TxnWithId> = self
+        let txns: HashMap<H512, i64> = self
             .ensure_blocks_and_txns(raw_dispatches_to_attempt.iter().map(|r| &r.meta))
             .await?
-            .map(|t| (t.hash, t))
             .collect();
 
         let mut missing_tx_hashes = Vec::new();
@@ -285,7 +283,7 @@ struct MissingDispatchTxns {
 
 fn storable_messages_for_available_txns<'a>(
     messages: &'a [(Indexed<HyperlaneMessage>, LogMeta)],
-    txns: &HashMap<H512, TxnWithId>,
+    txns: &HashMap<H512, i64>,
 ) -> (Vec<StorableMessage<'a>>, Option<MissingDispatchTxns>) {
     let mut missing_dispatches: usize = 0;
     let mut missing_tx_hashes = Vec::new();
@@ -329,13 +327,9 @@ impl HyperlaneSequenceAwareIndexerStoreReader<HyperlaneMessage> for HyperlaneDbS
 
     /// Gets the block number at which the log occurred.
     async fn retrieve_log_block_number_by_sequence(&self, sequence: u32) -> Result<Option<u64>> {
-        let tx_id = unwrap_or_none_result!(
-            self.db
-                .retrieve_dispatched_tx_id(self.domain.id(), &self.mailbox_address, sequence)
-                .await?
-        );
-        let block_id = unwrap_or_none_result!(self.db.retrieve_block_id(tx_id).await?);
-        Ok(self.db.retrieve_block_number(block_id).await?)
+        self.db
+            .retrieve_dispatched_block_number(self.domain.id(), &self.mailbox_address, sequence)
+            .await
     }
 }
 
@@ -364,13 +358,7 @@ mod tests {
             (indexed_message(0), log_meta(txn_hash)),
             (indexed_message(1), log_meta(txn_hash)),
         ];
-        let txns = HashMap::from([(
-            txn_hash,
-            TxnWithId {
-                hash: txn_hash,
-                id: 7,
-            },
-        )]);
+        let txns = HashMap::from([(txn_hash, 7)]);
 
         let (storable, missing_txns) = storable_messages_for_available_txns(&messages, &txns);
 
@@ -389,22 +377,7 @@ mod tests {
             (indexed_message(1), log_meta(missing_txn_hash)),
             (indexed_message(2), log_meta(later_found_txn_hash)),
         ];
-        let txns = HashMap::from([
-            (
-                found_txn_hash,
-                TxnWithId {
-                    hash: found_txn_hash,
-                    id: 7,
-                },
-            ),
-            (
-                later_found_txn_hash,
-                TxnWithId {
-                    hash: later_found_txn_hash,
-                    id: 8,
-                },
-            ),
-        ]);
+        let txns = HashMap::from([(found_txn_hash, 7), (later_found_txn_hash, 8)]);
 
         let (storable, missing_txns) = storable_messages_for_available_txns(&messages, &txns);
 

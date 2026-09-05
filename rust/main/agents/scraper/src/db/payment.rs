@@ -3,7 +3,8 @@ use std::collections::HashSet;
 use eyre::{ensure, Result};
 use itertools::Itertools;
 use sea_orm::{
-    prelude::*, ActiveValue::*, ConnectionTrait, Insert, QuerySelect, Statement, TransactionTrait,
+    prelude::*, ActiveValue::*, ConnectionTrait, Insert, QuerySelect, QueryTrait, Statement,
+    TransactionTrait,
 };
 use tracing::{debug, instrument};
 
@@ -41,21 +42,29 @@ impl ScraperDb {
         interchain_gas_paymaster: &H256,
         sequence: u32,
     ) -> Result<Option<InterchainGasPayment>> {
-        if let Some(payment) = gas_payment::Entity::find()
+        if let Some((msg_id, destination, payment, gas_amount)) = gas_payment::Entity::find()
+            .select_only()
+            .columns([
+                gas_payment::Column::MsgId,
+                gas_payment::Column::Destination,
+                gas_payment::Column::Payment,
+                gas_payment::Column::GasAmount,
+            ])
             .filter(gas_payment::Column::Origin.eq(origin))
             .filter(
                 gas_payment::Column::InterchainGasPaymaster
                     .eq(address_to_bytes(interchain_gas_paymaster)),
             )
             .filter(gas_payment::Column::Sequence.eq(sequence))
+            .into_tuple::<(Vec<u8>, i32, BigDecimal, BigDecimal)>()
             .one(&self.0)
             .await?
         {
             let payment = InterchainGasPayment {
-                message_id: H256::from_slice(&payment.msg_id),
-                destination: payment.destination as u32,
-                payment: decimal_to_u256(payment.payment),
-                gas_amount: decimal_to_u256(payment.gas_amount),
+                message_id: H256::from_slice(&msg_id),
+                destination: destination as u32,
+                payment: decimal_to_u256(payment),
+                gas_amount: decimal_to_u256(gas_amount),
             };
             Ok(Some(payment))
         } else {
@@ -63,30 +72,28 @@ impl ScraperDb {
         }
     }
 
-    /// Get the transaction id of the gas payment associated with a sequence.
+    /// Get the block height of the gas payment associated with a sequence.
     /// Also returns `None` for payments stored with a NULL transaction id
     /// (unresolvable log meta fallback).
     #[instrument(skip(self))]
-    pub async fn retrieve_payment_tx_id(
+    pub async fn retrieve_payment_block_number(
         &self,
         origin: u32,
         interchain_gas_paymaster: &H256,
         sequence: u32,
-    ) -> Result<Option<i64>> {
-        if let Some(payment) = gas_payment::Entity::find()
+    ) -> Result<Option<u64>> {
+        let tx_id_query = gas_payment::Entity::find()
             .filter(gas_payment::Column::Origin.eq(origin))
             .filter(
                 gas_payment::Column::InterchainGasPaymaster
                     .eq(address_to_bytes(interchain_gas_paymaster)),
             )
             .filter(gas_payment::Column::Sequence.eq(sequence))
-            .one(&self.0)
-            .await?
-        {
-            Ok(payment.tx_id)
-        } else {
-            Ok(None)
-        }
+            .select_only()
+            .column(gas_payment::Column::TxId)
+            .limit(1)
+            .into_query();
+        self.retrieve_block_number_by_tx_query(tx_id_query).await
     }
 
     #[instrument(skip_all)]

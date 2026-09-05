@@ -82,7 +82,7 @@ impl HyperlaneDbStore {
     pub(crate) async fn ensure_blocks_and_txns(
         &self,
         log_meta: impl Iterator<Item = &LogMeta>,
-    ) -> Result<impl Iterator<Item = TxnWithId>> {
+    ) -> Result<impl Iterator<Item = (H512, i64)>> {
         let block_id_by_txn_hash: HashMap<H512, BlockId> = log_meta
             .filter(|meta| !meta.transaction_id.is_zero() && !meta.block_hash.is_zero())
             .map(|meta| {
@@ -98,14 +98,14 @@ impl HyperlaneDbStore {
         let blocks: HashMap<_, _> = self
             .ensure_blocks(block_id_by_txn_hash.values().copied())
             .await?
-            .map(|block| (block.hash, block))
+            .map(|block| (block.hash, block.id))
             .collect();
         trace!(?blocks, "Ensured blocks");
 
         // We ensure transactions only from blocks which are inserted into database
         let txn_hash_with_block_ids = block_id_by_txn_hash
             .into_iter()
-            .filter_map(move |(txn, block)| blocks.get(&block.hash).map(|b| (txn, b.id)))
+            .filter_map(move |(txn, block)| blocks.get(&block.hash).map(|id| (txn, *id)))
             .map(|(txn_hash, block_id)| TxnWithBlockId { txn_hash, block_id });
         let txns_with_ids = self.ensure_txns(txn_hash_with_block_ids).await?;
 
@@ -123,7 +123,7 @@ impl HyperlaneDbStore {
     async fn ensure_txns(
         &self,
         txns: impl Iterator<Item = TxnWithBlockId>,
-    ) -> Result<impl Iterator<Item = TxnWithId>> {
+    ) -> Result<impl Iterator<Item = (H512, i64)>> {
         // mapping of txn hash to (txn_id, block_id).
         let mut txns: HashMap<H512, (Option<i64>, i64)> = txns
             .map(|TxnWithBlockId { txn_hash, block_id }| (txn_hash, (None, block_id)))
@@ -173,8 +173,18 @@ impl HyperlaneDbStore {
                 continue;
             }
 
-            self.db.store_txns(txns_to_insert.drain(..)).await?;
-            let ids = self.db.get_txn_ids(hashes_to_insert.drain(..)).await?;
+            let mut ids = self.db.store_txns(txns_to_insert.drain(..)).await?;
+            // DO NOTHING can omit concurrent winners. Read those in a fresh statement
+            // after the INSERT, rather than the INSERT's earlier snapshot.
+            let existing = self
+                .db
+                .get_txn_ids(
+                    hashes_to_insert
+                        .drain(..)
+                        .filter(|hash| !ids.contains_key(*hash)),
+                )
+                .await?;
+            ids.extend(existing);
 
             for (hash, (txn_id, _block_id)) in chunk.iter_mut() {
                 *txn_id = ids.get(hash).copied();
@@ -183,8 +193,7 @@ impl HyperlaneDbStore {
 
         let ensured_txns = txns
             .into_iter()
-            .filter_map(|(hash, (txn_id, _))| txn_id.map(|id| (hash, id)))
-            .map(|(hash, id)| TxnWithId { hash, id });
+            .filter_map(|(hash, (txn_id, _))| txn_id.map(|id| (hash, id)));
 
         Ok(ensured_txns)
     }
@@ -201,14 +210,10 @@ impl HyperlaneDbStore {
         &self,
         block_ids: impl Iterator<Item = BlockId>,
     ) -> Result<impl Iterator<Item = BasicBlock>> {
-        // Mapping from block hash to block ids (hash and height)
-        let block_hash_to_block_id_map: HashMap<H256, BlockId> =
-            block_ids.map(|b| (b.hash, b)).collect();
-
-        // Mapping of block hash to `BasicBlock` which contains database block id and block hash.
-        let mut blocks: HashMap<H256, Option<BasicBlock>> = block_hash_to_block_id_map
-            .keys()
-            .map(|hash| (*hash, None))
+        // Keep the requested height beside its enrichment state. Duplicate
+        // hashes retain the last height, matching the input metadata map.
+        let mut blocks: HashMap<H256, (u64, Option<i64>)> = block_ids
+            .map(|block| (block.hash, (block.height, None)))
             .collect();
 
         let db_blocks: Vec<BasicBlock> = if !blocks.is_empty() {
@@ -222,29 +227,25 @@ impl HyperlaneDbStore {
             let _ = blocks
                 .get_mut(&block.hash)
                 .expect("We found a block that we did not request")
-                .insert(block);
+                .1
+                .insert(block.id);
         }
 
         // insert any blocks that were not known and get their IDs
         // use this vec as temporary list of mut refs so we can update their ids once we
         // have inserted them into the database.
-        // Block info is an option so we can move it, must always be Some before
-        // inserted into db.
+        // A temporary -1 id is excluded from the result unless the inserted
+        // block hash resolves to a database id on readback.
         let blocks_to_fetch = blocks
             .iter_mut()
-            .filter(|(_, block_info)| block_info.is_none());
+            .filter(|(_, (_, stored_id))| stored_id.is_none());
 
         for chunk in as_chunks(blocks_to_fetch, CHUNK_SIZE) {
             debug_assert!(!chunk.is_empty());
             let mut block_infos: Vec<BlockInfo> = Vec::with_capacity(CHUNK_SIZE);
-            let mut blocks_to_insert: Vec<&mut BasicBlock> = Vec::with_capacity(CHUNK_SIZE);
-            let mut hashes_to_insert: Vec<&H256> = Vec::with_capacity(CHUNK_SIZE);
-            for (hash, block_info) in chunk {
-                // We should have block_id in this map for every hashes
-                let block_id = block_hash_to_block_id_map
-                    .get(hash)
-                    .expect("Missing block id");
-                let block_height = block_id.height;
+            let mut blocks_to_insert: Vec<(&H256, &mut i64)> = Vec::with_capacity(CHUNK_SIZE);
+            for (hash, (block_height, stored_id)) in chunk {
+                let block_height = *block_height;
 
                 let info = match self.provider.get_block_by_height(block_height).await {
                     Ok(info) => info,
@@ -253,13 +254,9 @@ impl HyperlaneDbStore {
                         continue;
                     }
                 };
-                let basic_info_ref = block_info.insert(BasicBlock {
-                    id: -1,
-                    hash: *hash,
-                });
+                let block_id = stored_id.insert(-1);
                 block_infos.push(info);
-                blocks_to_insert.push(basic_info_ref);
-                hashes_to_insert.push(hash);
+                blocks_to_insert.push((hash, block_id));
             }
 
             // If we have no blocks to insert, we don't store them and we don't update
@@ -268,28 +265,36 @@ impl HyperlaneDbStore {
                 continue;
             }
 
-            self.db
-                .store_blocks(self.domain.id(), block_infos.into_iter())
-                .await?;
-
-            let hashes = self
+            let mut hashes: HashMap<_, _> = self
                 .db
-                .get_block_basic(hashes_to_insert.drain(..))
+                .store_blocks(self.domain.id(), block_infos.into_iter())
                 .await?
                 .into_iter()
-                .map(|b| (b.hash, b.id))
-                .collect::<HashMap<_, _>>();
+                .map(|block| (block.hash, block.id))
+                .collect();
+            // Query only requested hashes omitted by RETURNING, including conflicts
+            // and provider responses carrying a different hash than requested.
+            let existing = self
+                .db
+                .get_block_basic(
+                    blocks_to_insert
+                        .iter()
+                        .map(|(hash, _)| *hash)
+                        .filter(|hash| !hashes.contains_key(*hash)),
+                )
+                .await?;
+            hashes.extend(existing.into_iter().map(|block| (block.hash, block.id)));
 
-            for block_ref in blocks_to_insert {
-                if let Some(id) = hashes.get(&block_ref.hash) {
-                    block_ref.id = *id;
+            for (hash, block_id) in blocks_to_insert {
+                if let Some(id) = hashes.get(hash) {
+                    *block_id = *id;
                 }
             }
         }
 
-        let ensured_blocks = blocks
-            .into_iter()
-            .filter_map(|(hash, block_info)| block_info.filter(|b| b.id != -1));
+        let ensured_blocks = blocks.into_iter().filter_map(|(hash, (_, id))| {
+            id.filter(|id| *id != -1).map(|id| BasicBlock { id, hash })
+        });
 
         Ok(ensured_blocks)
     }
@@ -311,12 +316,6 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct TxnWithId {
-    pub hash: H512,
-    pub id: i64,
-}
-
 /// Resolves the database transaction id for a log's meta.
 ///
 /// - `Some(Some(id))` when the transaction was ensured in the database.
@@ -326,14 +325,11 @@ pub(crate) struct TxnWithId {
 ///   a NULL transaction relation so it remains retrievable by sequence.
 /// - `None` when the transaction could not be fetched; the event is skipped
 ///   and retried later.
-pub(crate) fn txn_id_for_meta(
-    txns: &HashMap<H512, TxnWithId>,
-    meta: &LogMeta,
-) -> Option<Option<i64>> {
+pub(crate) fn txn_id_for_meta(txns: &HashMap<H512, i64>, meta: &LogMeta) -> Option<Option<i64>> {
     if meta.transaction_id.is_zero() && meta.block_hash.is_zero() {
         Some(None)
     } else {
-        txns.get(&meta.transaction_id).map(|txn| Some(txn.id))
+        txns.get(&meta.transaction_id).copied().map(Some)
     }
 }
 
@@ -400,3 +396,9 @@ mod tests {
         let _ = as_chunks(0..1, 0);
     }
 }
+
+#[cfg(test)]
+mod block_tests;
+
+#[cfg(test)]
+mod returning_tests;

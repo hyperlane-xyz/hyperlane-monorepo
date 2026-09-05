@@ -4,12 +4,11 @@ use async_trait::async_trait;
 use eyre::Result;
 
 use hyperlane_core::{
-    unwrap_or_none_result, Delivery, HyperlaneLogStore, HyperlaneSequenceAwareIndexerStoreReader,
-    Indexed, LogMeta, H512,
+    Delivery, HyperlaneLogStore, HyperlaneSequenceAwareIndexerStoreReader, Indexed, LogMeta, H512,
 };
 
 use crate::db::StorableDelivery;
-use crate::store::storage::{txn_id_for_meta, HyperlaneDbStore, TxnWithId};
+use crate::store::storage::{txn_id_for_meta, HyperlaneDbStore};
 
 #[async_trait]
 impl HyperlaneLogStore<Delivery> for HyperlaneDbStore {
@@ -22,10 +21,9 @@ impl HyperlaneLogStore<Delivery> for HyperlaneDbStore {
         if deliveries.is_empty() {
             return Ok(0);
         }
-        let txns: HashMap<H512, TxnWithId> = self
+        let txns: HashMap<H512, i64> = self
             .ensure_blocks_and_txns(deliveries.iter().map(|r| &r.1))
             .await?
-            .map(|t| (t.hash, t))
             .collect();
         let storable = deliveries
             .iter()
@@ -67,12 +65,12 @@ impl HyperlaneSequenceAwareIndexerStoreReader<Delivery> for HyperlaneDbStore {
 
     /// Gets the block number at which the log occurred.
     async fn retrieve_log_block_number_by_sequence(&self, sequence: u32) -> Result<Option<u64>> {
-        let tx_id = unwrap_or_none_result!(
-            self.db
-                .retrieve_delivered_message_tx_id(self.domain.id(), &self.mailbox_address, sequence)
-                .await?
-        );
-        let block_id = unwrap_or_none_result!(self.db.retrieve_block_id(tx_id).await?);
-        Ok(self.db.retrieve_block_number(block_id).await?)
+        self.db
+            .retrieve_delivered_message_block_number(
+                self.domain.id(),
+                &self.mailbox_address,
+                sequence,
+            )
+            .await
     }
 }

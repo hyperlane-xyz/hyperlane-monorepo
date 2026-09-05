@@ -6,8 +6,8 @@ use itertools::Itertools;
 use tracing::debug;
 
 use hyperlane_core::{
-    unwrap_or_none_result, HyperlaneLogStore, HyperlaneSequenceAwareIndexerStoreReader, Indexed,
-    InterchainGasPayment, LogMeta, H512,
+    HyperlaneLogStore, HyperlaneSequenceAwareIndexerStoreReader, Indexed, InterchainGasPayment,
+    LogMeta, H512,
 };
 
 use crate::db::StorablePayment;
@@ -27,10 +27,9 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneDbStore {
         if payments.is_empty() {
             return Ok(0);
         }
-        let txns: HashMap<H512, crate::store::storage::TxnWithId> = self
+        let txns: HashMap<H512, i64> = self
             .ensure_blocks_and_txns(payments.iter().map(|r| &r.1))
             .await?
-            .map(|t| (t.hash, t))
             .collect();
         let storable = payments
             .iter()
@@ -88,16 +87,12 @@ impl HyperlaneSequenceAwareIndexerStoreReader<InterchainGasPayment> for Hyperlan
 
     /// Gets the block number at which the log occurred.
     async fn retrieve_log_block_number_by_sequence(&self, sequence: u32) -> Result<Option<u64>> {
-        let tx_id = unwrap_or_none_result!(
-            self.db
-                .retrieve_payment_tx_id(
-                    self.domain.id(),
-                    &self.interchain_gas_paymaster_address,
-                    sequence,
-                )
-                .await?
-        );
-        let block_id = unwrap_or_none_result!(self.db.retrieve_block_id(tx_id).await?);
-        Ok(self.db.retrieve_block_number(block_id).await?)
+        self.db
+            .retrieve_payment_block_number(
+                self.domain.id(),
+                &self.interchain_gas_paymaster_address,
+                sequence,
+            )
+            .await
     }
 }
