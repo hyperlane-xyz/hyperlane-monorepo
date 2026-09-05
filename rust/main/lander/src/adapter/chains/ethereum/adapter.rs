@@ -657,13 +657,7 @@ impl AdaptsChain for EthereumAdapter {
         use super::transaction::Precursor;
         use LanderError::TxAlreadyExists;
 
-        let tx_for_nonce = tx.clone();
-        let tx_for_gas_price = tx.clone();
-
-        let (nonce, gas_price) = try_join!(
-            self.calculate_nonce(&tx_for_nonce),
-            self.estimate_gas_price(&tx_for_gas_price)
-        )?;
+        let (nonce, gas_price) = try_join!(self.calculate_nonce(tx), self.estimate_gas_price(tx))?;
 
         // Update the transaction with nonce before checking if resubmission makes sense
         // This ensures the nonce is stored even if we decide not to resubmit due to gas price limits
