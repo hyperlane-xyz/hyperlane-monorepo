@@ -460,8 +460,9 @@ impl PendingOperation for PendingMessage {
 
         let state = self
             .submission_data
-            .clone()
+            .as_ref()
             .expect("Pending message must be prepared before it can be submitted");
+        let gas_limit = state.gas_limit;
 
         // To avoid spending gas on a tx that will revert, dry-run just before submitting.
         // Note: fail_fast (relay-API) messages never reach this method — they go through
@@ -496,11 +497,11 @@ impl PendingOperation for PendingMessage {
         let tx_outcome = self
             .ctx
             .destination_mailbox
-            .process(&self.message, &state.metadata, Some(state.gas_limit))
+            .process(&self.message, &state.metadata, Some(gas_limit))
             .await;
         match tx_outcome {
             Ok(outcome) => {
-                self.set_operation_outcome(outcome, state.gas_limit).await;
+                self.set_operation_outcome(outcome, gas_limit).await;
                 self.ctx
                     .destination_mailbox
                     .on_submitted_success(&self.message);
@@ -1553,6 +1554,114 @@ mod test {
                 }
             }
         }
+    }
+
+    #[tokio::test]
+    async fn classic_submit_borrows_metadata_and_preserves_outcomes() {
+        for outcome in ["success", "process failure", "dry-run failure"] {
+            let metadata = Metadata::new(vec![7; 1291]);
+            let original_pointer = metadata.as_ptr() as usize;
+            let mut sequence = mockall::Sequence::new();
+            let mut mailbox = contract_test_mailbox();
+            mailbox
+                .expect_process_estimate_costs()
+                .once()
+                .in_sequence(&mut sequence)
+                .withf(|_, metadata| metadata == [9; 32])
+                .returning(move |_, _| {
+                    if outcome == "dry-run failure" {
+                        Err(ChainCommunicationError::from_other_str(outcome))
+                    } else {
+                        Ok(TxCostEstimate {
+                            gas_limit: U256::from(200),
+                            gas_price: FixedPointNumber::zero(),
+                            l2_gas_limit: None,
+                        })
+                    }
+                });
+            if outcome == "dry-run failure" {
+                mailbox.expect_process().times(0);
+            } else {
+                mailbox
+                    .expect_process()
+                    .once()
+                    .in_sequence(&mut sequence)
+                    .withf(move |_, metadata, gas| {
+                        metadata.as_ptr() as usize == original_pointer
+                            && metadata == [7; 1291]
+                            && *gas == Some(U256::from(100))
+                    })
+                    .returning(move |_, _, _| {
+                        if outcome == "process failure" {
+                            Err(ChainCommunicationError::from_other_str(outcome))
+                        } else {
+                            Ok(TxOutcome {
+                                transaction_id: H512::zero(),
+                                executed: true,
+                                gas_used: U256::from(50),
+                                gas_price: FixedPointNumber::zero(),
+                            })
+                        }
+                    });
+            }
+            let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
+            pending.metadata = Some(Metadata::new(vec![9; 32]));
+            pending.submission_data = Some(Box::new(MessageSubmissionData {
+                metadata,
+                gas_limit: U256::from(100),
+            }));
+            let result = pending.submit().await;
+            assert_eq!(
+                pending.submission_data.as_ref().unwrap().metadata.as_ptr() as usize,
+                original_pointer
+            );
+            match outcome {
+                "success" => {
+                    assert!(matches!(
+                        result,
+                        PendingOperationResult::Confirm(ConfirmReason::SubmittedBySelf)
+                    ));
+                    assert!(pending.metadata.is_some());
+                    assert!(pending.submission_outcome.is_some());
+                    assert_eq!(pending.num_retries, 0);
+                }
+                "process failure" => {
+                    assert!(matches!(
+                        result,
+                        PendingOperationResult::Reprepare(ReprepareReason::ErrorSubmitting)
+                    ));
+                    assert!(pending.metadata.is_none());
+                    assert!(pending.submission_outcome.is_none());
+                    assert_eq!(pending.num_retries, 0);
+                }
+                _ => {
+                    assert!(matches!(
+                        result,
+                        PendingOperationResult::Reprepare(ReprepareReason::ErrorEstimatingGas)
+                    ));
+                    assert!(pending.metadata.is_none());
+                    assert!(pending.submission_outcome.is_none());
+                    assert_eq!(pending.num_retries, 1);
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn classic_submit_already_submitted_needs_no_prepared_state() {
+        let (_dir, mut pending) = pending_with_mailbox(contract_test_mailbox(), None);
+        pending.submitted = true;
+        assert!(matches!(
+            pending.submit().await,
+            PendingOperationResult::Success
+        ));
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "Pending message must be prepared before it can be submitted")]
+    async fn classic_submit_requires_prepared_state_before_dry_run() {
+        let (_dir, mut pending) = pending_with_mailbox(contract_test_mailbox(), None);
+        pending.submit().await;
     }
 
     #[test]
