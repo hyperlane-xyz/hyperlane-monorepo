@@ -528,24 +528,26 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
     /// `latest_checkpoint_at_block()`, so there's a single place that ever calls
     /// `quorum_hooks` for a pinned-height root read.
     async fn tree_at_block_via_quorum(&self, height: u64) -> ChainResult<IncrementalMerkleAtBlock> {
-        let results = join_all(
-            self.quorum_hooks
-                .iter()
-                .cloned()
-                .map(|(label, hook)| async move {
-                    (
-                        label,
-                        Self::with_call_timeout(hook.tree_at_block(height)).await,
-                    )
-                }),
-        )
-        .await;
-        let quorum_result = self.select_quorum_result(
-            results,
-            |a, b| a.tree == b.tree,
-            "Failed to reach quorum for merkle tree",
-        )?;
-        let base_result = self.base_hook.tree_at_block(height).await?;
+        // Both reads use the same explicit height and independently gate the result. Start
+        // them together so the base pool's latency does not follow the quorum's latency.
+        // Keep the futures owned here: an error or caller cancellation drops the other
+        // read, without leaving a background RPC task running.
+        let quorum_read = async {
+            let results = join_all(self.quorum_hooks.iter().map(|(label, hook)| async move {
+                (
+                    label.clone(),
+                    Self::with_call_timeout(hook.tree_at_block(height)).await,
+                )
+            }))
+            .await;
+            self.select_quorum_result(
+                results,
+                |a, b| a.tree == b.tree,
+                "Failed to reach quorum for merkle tree",
+            )
+        };
+        let (quorum_result, base_result) =
+            futures_util::try_join!(quorum_read, self.base_hook.tree_at_block(height),)?;
         Self::require_base_hook_agreement(
             &quorum_result,
             &base_result,
@@ -594,11 +596,11 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
             return self.tree_at_block_via_quorum(height).await;
         }
 
-        let results = join_all(self.quorum_hooks.iter().cloned().map(|(label, hook)| {
+        let results = join_all(self.quorum_hooks.iter().map(|(label, hook)| {
             let reorg_period = reorg_period.clone();
             async move {
                 (
-                    label,
+                    label.clone(),
                     Self::with_call_timeout(hook.tree(&reorg_period)).await,
                 )
             }
@@ -2079,6 +2081,159 @@ mod tests {
 
     fn quorum_rpc(label: &str, hook: MockMerkleTreeHook) -> (String, Arc<dyn MerkleTreeHook>) {
         (label.to_string(), Arc::new(hook) as Arc<dyn MerkleTreeHook>)
+    }
+
+    /// Delays a mock response without blocking the executor, and tracks owned RPC futures.
+    #[derive(Debug)]
+    struct DelayedPinnedHook {
+        inner: MockMerkleTreeHook,
+        delay: Duration,
+        active: Arc<AtomicUsize>,
+    }
+
+    impl HyperlaneChain for DelayedPinnedHook {
+        fn domain(&self) -> &HyperlaneDomain {
+            self.inner.domain()
+        }
+
+        fn provider(&self) -> Box<dyn HyperlaneProvider> {
+            self.inner.provider()
+        }
+    }
+
+    impl HyperlaneContract for DelayedPinnedHook {
+        fn address(&self) -> H256 {
+            self.inner.address()
+        }
+    }
+
+    #[async_trait]
+    impl MerkleTreeHook for DelayedPinnedHook {
+        async fn tree(&self, period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
+            self.inner.tree(period).await
+        }
+
+        async fn count(&self, period: &ReorgPeriod) -> ChainResult<u32> {
+            self.inner.count(period).await
+        }
+
+        async fn latest_checkpoint(&self, period: &ReorgPeriod) -> ChainResult<CheckpointAtBlock> {
+            self.inner.latest_checkpoint(period).await
+        }
+
+        async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
+            self.inner.latest_checkpoint_at_block(height).await
+        }
+
+        async fn tree_at_block(&self, height: u64) -> ChainResult<IncrementalMerkleAtBlock> {
+            struct ActiveRead<'a>(&'a AtomicUsize);
+            impl Drop for ActiveRead<'_> {
+                fn drop(&mut self) {
+                    self.0.fetch_sub(1, Ordering::SeqCst);
+                }
+            }
+            self.active.fetch_add(1, Ordering::SeqCst);
+            let _active = ActiveRead(&self.active);
+            sleep(self.delay).await;
+            self.inner.tree_at_block(height).await
+        }
+    }
+
+    fn delayed_pinned_hook(
+        seconds: u64,
+        fail: bool,
+        active: &Arc<AtomicUsize>,
+    ) -> Arc<dyn MerkleTreeHook> {
+        let mut inner = MockMerkleTreeHook::new();
+        // Cancellation can prevent the delayed response from being reached.
+        inner
+            .expect_tree_at_block()
+            .times(0..=1)
+            .with(mockall::predicate::eq(42))
+            .return_once(move |height| {
+                if fail {
+                    Err(ChainCommunicationError::from_other_str("RPC unavailable"))
+                } else {
+                    Ok(IncrementalMerkleAtBlock {
+                        tree: tree_with_count(5),
+                        block_height: Some(height),
+                    })
+                }
+            });
+        Arc::new(DelayedPinnedHook {
+            inner,
+            delay: Duration::from_secs(seconds),
+            active: Arc::clone(active),
+        })
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn pinned_base_and_quorum_reads_overlap() {
+        let active = Arc::new(AtomicUsize::new(0));
+        let hook = ValidatorMultiRpcQuorumMerkleTreeHook {
+            base_hook: delayed_pinned_hook(7, false, &active),
+            quorum_hooks: vec![
+                ("rpc-a".into(), delayed_pinned_hook(5, false, &active)),
+                ("rpc-b".into(), delayed_pinned_hook(5, false, &active)),
+                ("rpc-c".into(), delayed_pinned_hook(5, false, &active)),
+            ],
+        };
+        let start = Instant::now();
+        let tree = hook.tree_at_block_via_quorum(42).await.unwrap();
+        assert_eq!(tree.tree, tree_with_count(5));
+        assert_eq!(tree.block_height, Some(42));
+        assert_eq!(start.elapsed(), Duration::from_secs(7));
+        assert_eq!(active.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn pinned_read_failure_cancels_the_other_read_group() {
+        for base_fails in [false, true] {
+            let active = Arc::new(AtomicUsize::new(0));
+            let hook = ValidatorMultiRpcQuorumMerkleTreeHook {
+                base_hook: delayed_pinned_hook(
+                    if base_fails { 2 } else { 10 },
+                    base_fails,
+                    &active,
+                ),
+                quorum_hooks: vec![
+                    (
+                        "rpc-a".into(),
+                        delayed_pinned_hook(if base_fails { 10 } else { 2 }, !base_fails, &active),
+                    ),
+                    (
+                        "rpc-b".into(),
+                        delayed_pinned_hook(if base_fails { 10 } else { 2 }, !base_fails, &active),
+                    ),
+                    (
+                        "rpc-c".into(),
+                        delayed_pinned_hook(if base_fails { 10 } else { 2 }, !base_fails, &active),
+                    ),
+                ],
+            };
+            let start = Instant::now();
+            assert!(hook.tree_at_block_via_quorum(42).await.is_err());
+            assert_eq!(start.elapsed(), Duration::from_secs(2));
+            assert_eq!(active.load(Ordering::SeqCst), 0);
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn cancelling_pinned_read_drops_both_read_groups() {
+        let active = Arc::new(AtomicUsize::new(0));
+        let hook = ValidatorMultiRpcQuorumMerkleTreeHook {
+            base_hook: delayed_pinned_hook(10, false, &active),
+            quorum_hooks: ["rpc-a", "rpc-b", "rpc-c"]
+                .into_iter()
+                .map(|label| (label.into(), delayed_pinned_hook(10, false, &active)))
+                .collect(),
+        };
+        assert!(
+            timeout(Duration::from_secs(1), hook.tree_at_block_via_quorum(42))
+                .await
+                .is_err()
+        );
+        assert_eq!(active.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test(start_paused = true)]
