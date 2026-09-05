@@ -114,6 +114,11 @@ impl DB {
         Ok(self.0.get(key)?)
     }
 
+    // Keep the native value pinned only while the typed layer decodes it.
+    fn retrieve_pinned(&self, key: &[u8]) -> Result<Option<rocksdb::DBPinnableSlice<'_>>> {
+        Ok(self.0.get_pinned(key)?)
+    }
+
     /// Retrieve all values stored under a key prefix.
     pub fn retrieve_values_by_prefix(&self, prefix: &[u8]) -> Result<Vec<Vec<u8>>> {
         let mut values = Vec::new();
@@ -125,7 +130,7 @@ impl DB {
             if !key.starts_with(prefix) {
                 break;
             }
-            values.push(value.to_vec());
+            values.push(value.into_vec());
         }
         Ok(values)
     }
