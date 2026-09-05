@@ -143,3 +143,118 @@ async fn slice_decoded_records_survive_database_reopen() {
         Some(transaction)
     );
 }
+
+#[tokio::test]
+async fn uuid_point_getters_preserve_encoded_keys_errors_and_reopen() {
+    use crate::transaction::Transaction;
+    use hyperlane_core::{identifiers::UniqueIdentifier, Encode};
+    for byte in 0..=255 {
+        let key = UniqueIdentifier::new(uuid::Uuid::from_bytes([byte; 16]));
+        assert_eq!(Encode::to_vec(&key), key.as_bytes());
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let domain = KnownHyperlaneDomain::Arbitrum.into();
+    let key = UniqueIdentifier::new(uuid::Uuid::from_bytes([0x81; 16]));
+    let mut payload = FullPayload::default();
+    payload.details.uuid = key.clone();
+    payload.data = vec![17; 4096];
+    let mut transaction = dummy_tx(vec![payload.clone()], TransactionStatus::PendingInclusion);
+    transaction.uuid = key.clone();
+    let raw = DB::from_path(directory.path()).unwrap();
+    let db = HyperlaneRocksDB::new(&domain, raw.clone());
+    assert!(db.retrieve_payload_by_uuid(&key).await.unwrap().is_none());
+    assert!(db
+        .retrieve_payload_index_by_uuid(&key)
+        .await
+        .unwrap()
+        .is_none());
+    assert!(db
+        .retrieve_transaction_by_uuid(&key)
+        .await
+        .unwrap()
+        .is_none());
+    assert!(db
+        .retrieve_transaction_index_by_uuid(&key)
+        .await
+        .unwrap()
+        .is_none());
+
+    // Seed keys through the unchanged canonical Encode API, as existing databases do.
+    db.store_value_by_key("payload_by_uuid_", &key, &payload)
+        .unwrap();
+    db.store_value_by_key("transaction_by_uuid_", &key, &transaction)
+        .unwrap();
+    db.store_value_by_key("payload_index_by_uuid_", &key, &42u32)
+        .unwrap();
+    db.store_value_by_key("tx_index_by_uuid_", &key, &84u32)
+        .unwrap();
+    let other = HyperlaneRocksDB::new(&KnownHyperlaneDomain::Ethereum.into(), raw.clone());
+    assert!(other
+        .retrieve_payload_by_uuid(&key)
+        .await
+        .unwrap()
+        .is_none());
+    drop(other);
+    macro_rules! compare {
+        ($method:ident, $prefix:literal, $value:expr, $ty:ty) => {
+            assert_eq!(db.$method(&key).await.unwrap(), Some($value.clone()));
+            let encoded_key = [
+                b"arbitrum_".as_slice(),
+                $prefix.as_bytes(),
+                &Encode::to_vec(&key),
+            ]
+            .concat();
+            raw.store(&encoded_key, &[255]).unwrap();
+            let old_error = db
+                .retrieve_value_by_key::<_, $ty>($prefix, &key)
+                .unwrap_err();
+            let new_error = db.$method(&key).await.unwrap_err();
+            assert_eq!(new_error.to_string(), old_error.to_string());
+            db.store_value_by_key($prefix, &key, &$value).unwrap();
+            assert_eq!(db.$method(&key).await.unwrap(), Some($value.clone()));
+        };
+    }
+    compare!(
+        retrieve_payload_by_uuid,
+        "payload_by_uuid_",
+        payload,
+        FullPayload
+    );
+    compare!(
+        retrieve_transaction_by_uuid,
+        "transaction_by_uuid_",
+        transaction,
+        Transaction
+    );
+    compare!(
+        retrieve_payload_index_by_uuid,
+        "payload_index_by_uuid_",
+        42u32,
+        u32
+    );
+    compare!(
+        retrieve_transaction_index_by_uuid,
+        "tx_index_by_uuid_",
+        84u32,
+        u32
+    );
+    drop(db);
+    drop(raw);
+    let db = HyperlaneRocksDB::new(&domain, DB::from_path(directory.path()).unwrap());
+    assert_eq!(
+        db.retrieve_payload_by_uuid(&key).await.unwrap(),
+        Some(payload)
+    );
+    assert_eq!(
+        db.retrieve_transaction_by_uuid(&key).await.unwrap(),
+        Some(transaction)
+    );
+    assert_eq!(
+        db.retrieve_payload_index_by_uuid(&key).await.unwrap(),
+        Some(42)
+    );
+    assert_eq!(
+        db.retrieve_transaction_index_by_uuid(&key).await.unwrap(),
+        Some(84)
+    );
+}

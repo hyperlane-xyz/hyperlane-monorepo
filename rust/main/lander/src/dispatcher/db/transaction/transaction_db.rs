@@ -75,7 +75,7 @@ impl TransactionDb for HyperlaneRocksDB {
         &self,
         tx_uuid: &TransactionUuid,
     ) -> DbResult<Option<Transaction>> {
-        self.retrieve_value_by_key(TRANSACTION_BY_UUID_STORAGE_PREFIX, tx_uuid)
+        self.retrieve_decodable(TRANSACTION_BY_UUID_STORAGE_PREFIX, tx_uuid.as_bytes())
     }
 
     async fn store_transaction_by_uuid(&self, tx: &Transaction) -> DbResult<()> {
@@ -99,7 +99,7 @@ impl TransactionDb for HyperlaneRocksDB {
         &self,
         tx_uuid: &TransactionUuid,
     ) -> DbResult<Option<u32>> {
-        self.retrieve_value_by_key(TRANSACTION_INDEX_BY_UUID_STORAGE_PREFIX, tx_uuid)
+        self.retrieve_decodable(TRANSACTION_INDEX_BY_UUID_STORAGE_PREFIX, tx_uuid.as_bytes())
     }
 
     async fn store_transaction_index_by_uuid(

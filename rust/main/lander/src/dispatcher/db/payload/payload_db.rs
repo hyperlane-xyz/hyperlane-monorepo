@@ -151,7 +151,7 @@ impl PayloadDb for HyperlaneRocksDB {
         &self,
         payload_uuid: &PayloadUuid,
     ) -> DbResult<Option<FullPayload>> {
-        self.retrieve_value_by_key(PAYLOAD_BY_UUID_STORAGE_PREFIX, payload_uuid)
+        self.retrieve_decodable(PAYLOAD_BY_UUID_STORAGE_PREFIX, payload_uuid.as_bytes())
     }
 
     async fn store_payload_by_uuid(&self, payload: &FullPayload) -> DbResult<()> {
@@ -231,7 +231,10 @@ impl PayloadDb for HyperlaneRocksDB {
         &self,
         payload_uuid: &PayloadUuid,
     ) -> DbResult<Option<u32>> {
-        self.retrieve_value_by_key(PAYLOAD_INDEX_BY_UUID_STORAGE_PREFIX, payload_uuid)
+        self.retrieve_decodable(
+            PAYLOAD_INDEX_BY_UUID_STORAGE_PREFIX,
+            payload_uuid.as_bytes(),
+        )
     }
 
     async fn store_payload_index_by_uuid(
