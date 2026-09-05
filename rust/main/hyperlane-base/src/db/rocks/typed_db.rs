@@ -68,7 +68,7 @@ impl TypedDB {
     ) -> Result<Option<V>> {
         self.db
             .retrieve_pinned(&self.prefixed_key(prefix.as_ref(), key.as_ref()))?
-            .map(|v| V::read_from(&mut v.as_ref()))
+            .map(|v| V::read_from_slice(v.as_ref()))
             .transpose()
             .map_err(Into::into)
     }
@@ -101,7 +101,7 @@ impl TypedDB {
         self.db
             .retrieve_values_by_prefix(&prefix)?
             .into_iter()
-            .map(|value| V::read_from(&mut value.as_slice()).map_err(Into::into))
+            .map(|value| V::read_from_slice(&value).map_err(Into::into))
             .collect()
     }
 
@@ -188,6 +188,79 @@ impl TypedDbBatch {
 mod tests {
     use super::*;
     use hyperlane_core::{HyperlaneMessage, KnownHyperlaneDomain, MerkleTreeInsertion, H256};
+
+    #[test]
+    fn pinned_typed_read_dispatches_slice_override() {
+        #[derive(Debug, PartialEq)]
+        struct SliceDecoded(u32);
+        impl Decode for SliceDecoded {
+            fn read_from<R: std::io::Read>(
+                _: &mut R,
+            ) -> std::result::Result<Self, hyperlane_core::HyperlaneProtocolError> {
+                panic!("typed read must dispatch the slice override");
+            }
+            fn read_from_slice(
+                bytes: &[u8],
+            ) -> std::result::Result<Self, hyperlane_core::HyperlaneProtocolError> {
+                u32::read_from_slice(bytes).map(Self)
+            }
+        }
+        let directory = tempfile::tempdir().unwrap();
+        let db = DB::from_path(directory.path()).unwrap();
+        let typed = TypedDB::new(&HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum), db);
+        typed.store_encodable(b"slice_", b"key", &42u32).unwrap();
+        assert_eq!(
+            typed
+                .retrieve_decodable::<SliceDecoded>(b"slice_", b"key")
+                .unwrap(),
+            Some(SliceDecoded(42))
+        );
+        assert_eq!(
+            typed
+                .retrieve_decodables_by_prefix::<SliceDecoded>(b"slice_")
+                .unwrap(),
+            vec![SliceDecoded(42)]
+        );
+    }
+
+    #[test]
+    fn prefix_reads_preserve_order_errors_and_owned_results() {
+        let directory = tempfile::tempdir().unwrap();
+        let db = DB::from_path(directory.path()).unwrap();
+        let typed = TypedDB::new(
+            &HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            db.clone(),
+        );
+        for key in [3u32, 1, 2] {
+            typed
+                .store_keyed_encodable(b"ordered_", &key, &vec![key; 4])
+                .unwrap();
+        }
+        typed
+            .store_keyed_encodable(b"other_", &0u32, &vec![9u32])
+            .unwrap();
+        let values = typed
+            .retrieve_decodables_by_prefix::<Vec<u32>>(b"ordered_")
+            .unwrap();
+        assert_eq!(values, vec![vec![1; 4], vec![2; 4], vec![3; 4]]);
+        let malformed_key = typed.prefixed_key(b"ordered_", &2u32.to_vec());
+        db.store(&malformed_key, &[0]).unwrap();
+        assert!(typed
+            .retrieve_decodables_by_prefix::<Vec<u32>>(b"ordered_")
+            .is_err());
+        typed
+            .store_keyed_encodable(b"ordered_", &2u32, &vec![2u32; 4])
+            .unwrap();
+        assert_eq!(
+            typed
+                .retrieve_decodables_by_prefix::<Vec<u32>>(b"ordered_")
+                .unwrap(),
+            values
+        );
+        drop(typed);
+        drop(db);
+        assert_eq!(values[1], vec![2; 4]);
+    }
 
     #[test]
     fn pinned_typed_reads_preserve_values_and_domain_isolation() {

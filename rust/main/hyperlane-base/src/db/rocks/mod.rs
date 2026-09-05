@@ -130,7 +130,7 @@ impl DB {
             if !key.starts_with(prefix) {
                 break;
             }
-            values.push(value.to_vec());
+            values.push(value.into_vec());
         }
         Ok(values)
     }

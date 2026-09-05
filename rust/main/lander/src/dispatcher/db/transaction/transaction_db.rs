@@ -166,6 +166,14 @@ impl Decode for Transaction {
             )))
         })
     }
+
+    fn read_from_slice(bytes: &[u8]) -> Result<Self, HyperlaneProtocolError> {
+        serde_json::from_slice(bytes).map_err(|err| {
+            HyperlaneProtocolError::IoError(std::io::Error::other(format!(
+                "Failed to deserialize. Error: {err}"
+            )))
+        })
+    }
 }
 
 #[cfg(test)]
