@@ -3,7 +3,8 @@ use std::collections::HashSet;
 use eyre::{ensure, Result};
 use migration::OnConflict;
 use sea_orm::{
-    ActiveValue::*, ColumnTrait, DbErr, EntityTrait, Insert, QueryFilter, TransactionTrait,
+    ActiveValue::*, ColumnTrait, DbErr, EntityTrait, Insert, QueryFilter, QuerySelect,
+    TransactionTrait,
 };
 
 use hyperlane_core::{address_to_bytes, h256_to_bytes, MerkleTreeInsertion, H256};
@@ -82,19 +83,26 @@ impl ScraperDb {
         leaf_index: u32,
     ) -> Result<Option<(MerkleTreeInsertion, u64)>> {
         let row = merkle_tree_insertion::Entity::find()
+            .select_only()
+            .columns([
+                merkle_tree_insertion::Column::LeafIndex,
+                merkle_tree_insertion::Column::MessageId,
+                merkle_tree_insertion::Column::BlockNumber,
+            ])
             .filter(merkle_tree_insertion::Column::Domain.eq(domain))
             .filter(
                 merkle_tree_insertion::Column::MerkleTreeHook
                     .eq(address_to_bytes(merkle_tree_hook)),
             )
             .filter(merkle_tree_insertion::Column::LeafIndex.eq(leaf_index))
+            .into_tuple::<(i32, Vec<u8>, i64)>()
             .one(&self.0)
             .await?;
 
-        Ok(row.map(|row| {
+        Ok(row.map(|(leaf_index, message_id, block_number)| {
             (
-                MerkleTreeInsertion::new(row.leaf_index as u32, H256::from_slice(&row.message_id)),
-                row.block_number as u64,
+                MerkleTreeInsertion::new(leaf_index as u32, H256::from_slice(&message_id)),
+                block_number as u64,
             )
         }))
     }

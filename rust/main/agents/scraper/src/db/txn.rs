@@ -2,9 +2,12 @@ use std::collections::HashMap;
 
 use derive_more::Deref;
 use eyre::{eyre, Context, Result};
+use itertools::Itertools;
 use sea_orm::{
-    prelude::*, sea_query::OnConflict, ActiveValue::*, DeriveColumn, EnumIter, Insert, NotSet,
-    QuerySelect,
+    prelude::*,
+    sea_query::{OnConflict, Query},
+    ActiveValue::*,
+    ConnectionTrait, DeriveColumn, EnumIter, Insert, NotSet, QuerySelect, QueryTrait,
 };
 use tracing::{debug, instrument, trace};
 
@@ -22,21 +25,6 @@ pub struct StorableTxn {
 }
 
 impl ScraperDb {
-    pub async fn retrieve_block_id(&self, tx_id: i64) -> Result<Option<i64>> {
-        #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-        enum QueryAs {
-            BlockId,
-        }
-        let block_id = transaction::Entity::find()
-            .filter(transaction::Column::Id.eq(tx_id))
-            .select_only()
-            .column_as(transaction::Column::BlockId, QueryAs::BlockId)
-            .into_values::<i64, QueryAs>()
-            .one(&self.0)
-            .await?;
-        Ok(block_id)
-    }
-
     /// Lookup transactions and find their ids. Any transactions which are not
     /// found be excluded from the hashmap.
     pub async fn get_txn_ids(
@@ -49,27 +37,36 @@ impl ScraperDb {
             Hash,
         }
 
-        // check database to see which txns we already know and fetch their IDs
-        let txns = transaction::Entity::find()
-            .filter(transaction::Column::Hash.is_in(hashes.map(h512_to_bytes)))
-            .select_only()
-            .column_as(transaction::Column::Id, QueryAs::Id)
-            .column_as(transaction::Column::Hash, QueryAs::Hash)
-            .into_values::<(i64, Vec<u8>), QueryAs>()
-            .all(&self.0)
-            .await
-            .context("When querying transactions")?
-            .into_iter()
-            .map(|(id, hash)| Ok((bytes_to_h512(&hash), id)))
-            .collect::<Result<HashMap<_, _>>>()?;
+        let hashes = hashes.unique().collect_vec();
+        let mut txns = HashMap::new();
+        for hashes in hashes.chunks(Self::HASH_LOOKUP_CHUNK_SIZE) {
+            let rows = transaction::Entity::find()
+                .filter(
+                    transaction::Column::Hash.is_in(hashes.iter().map(|hash| h512_to_bytes(hash))),
+                )
+                .select_only()
+                .column_as(transaction::Column::Id, QueryAs::Id)
+                .column_as(transaction::Column::Hash, QueryAs::Hash)
+                .into_values::<(i64, Vec<u8>), QueryAs>()
+                .all(&self.0)
+                .await
+                .context("When querying transactions")?;
+            txns.extend(
+                rows.into_iter()
+                    .map(|(id, hash)| (bytes_to_h512(&hash), id)),
+            );
+        }
 
         trace!(?txns, "Queried transaction info for hashes");
         Ok(txns)
     }
 
-    /// Store a new transaction into the database (or update an existing one).
+    /// Store transactions and return IDs by hash for inserted rows. Conflicts are omitted.
     #[instrument(skip_all)]
-    pub async fn store_txns(&self, txns: impl Iterator<Item = StorableTxn>) -> Result<()> {
+    pub async fn store_txns(
+        &self,
+        txns: impl Iterator<Item = StorableTxn>,
+    ) -> Result<HashMap<H512, i64>> {
         let models = txns
             .map(|txn| {
                 let receipt = txn
@@ -99,22 +96,32 @@ impl ScraperDb {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        debug_assert!(!models.is_empty());
+        if models.is_empty() {
+            return Ok(HashMap::new());
+        }
         debug!(txns = models.len(), "Writing txns to database");
         trace!(?models, "Writing txns to database");
-
-        match Insert::many(models)
+        let mut query = Insert::many(models)
             .on_conflict(
                 OnConflict::column(transaction::Column::Hash)
                     .do_nothing()
                     .to_owned(),
             )
-            .exec(&self.0)
+            .into_query();
+        query.returning(
+            Query::returning().columns([transaction::Column::Id, transaction::Column::Hash]),
+        );
+        self.0
+            .query_all(self.0.get_database_backend().build(&query))
             .await
-        {
-            Ok(_) => Ok(()),
-            Err(DbErr::RecordNotInserted) => Ok(()),
-            Err(e) => Err(e).context("When inserting transactions"),
-        }
+            .context("When inserting transactions")?
+            .iter()
+            .map(|row| {
+                Ok((
+                    bytes_to_h512(&row.try_get::<Vec<u8>>("", "hash")?),
+                    row.try_get("", "id")?,
+                ))
+            })
+            .collect()
     }
 }
