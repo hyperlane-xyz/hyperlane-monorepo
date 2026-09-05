@@ -44,6 +44,9 @@ void it('keeps replica health from gating primary live queries', async (context)
     'query',
     function (this: pg.Pool, text: string) {
       queryUrls.set(text, this.options.connectionString);
+      if (text.includes('has_table_privilege')) {
+        return Promise.resolve({ rowCount: 1, rows: [readyEventStreamSchema] });
+      }
       if (text === 'SELECT pg_sleep(1)') {
         saturatedPools.add(this);
         return new Promise((resolve) => {
@@ -105,7 +108,7 @@ void it('keeps replica health from gating primary live queries', async (context)
   );
   assert.match(
     metrics,
-    /database_queries_total\{(?=[^}]*role="live_primary")(?=[^}]*outcome="success")[^}]*\} 1/,
+    /database_queries_total\{(?=[^}]*role="live_primary")(?=[^}]*outcome="success")[^}]*\} 2/,
   );
   assert.match(
     metrics,
@@ -140,9 +143,9 @@ void it('validates the event stream schema and read grants before startup', asyn
   context.mock.method(pg.Pool.prototype, 'end', () => Promise.resolve());
   const { DbService } = await import('./db.service.js');
   const db = new DbService();
+  context.after(() => db.onModuleDestroy());
 
   await db.onModuleInit();
-  await db.onModuleDestroy();
 });
 
 void it('fails startup when the live user cannot read cursor state', async (context) => {
@@ -158,7 +161,7 @@ void it('fails startup when the live user cannot read cursor state', async (cont
   context.mock.method(pg.Pool.prototype, 'end', () => Promise.resolve());
   const { DbService } = await import('./db.service.js');
   const db = new DbService();
+  context.after(() => db.onModuleDestroy());
 
   await assert.rejects(db.onModuleInit(), /cursor_readable/);
-  await db.onModuleDestroy();
 });
