@@ -1344,8 +1344,19 @@ async fn backfill_restores_snapshot_at_target_without_replay() {
 
 #[tokio::test(start_paused = true)]
 async fn backfill_rebuilds_tree_when_snapshot_is_corrupt() {
-    let (domain, insertions, _, target, mut snapshot) = three_leaf_snapshot_fixture();
+    let (_, _, _, _, mut snapshot) = three_leaf_snapshot_fixture();
     snapshot.root = H256::from_low_u64_be(0xdead);
+    assert_backfill_rebuilds_tree(Ok(Some(snapshot))).await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn backfill_rebuilds_tree_when_snapshot_is_unavailable() {
+    assert_backfill_rebuilds_tree(Ok(None)).await;
+    assert_backfill_rebuilds_tree(Err(eyre::eyre!("Snapshot exceeds size limit"))).await;
+}
+
+async fn assert_backfill_rebuilds_tree(snapshot: Result<Option<MerkleTreeSnapshot>>) {
+    let (domain, insertions, _, target, _) = three_leaf_snapshot_fixture();
 
     let mut db = MockDb::new();
     db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
@@ -1356,8 +1367,8 @@ async fn backfill_rebuilds_tree_when_snapshot_is_corrupt() {
     checkpoint_syncer
         .expect_read_merkle_snapshot()
         .times(1)
-        .return_once(move || Ok(Some(snapshot)));
-    // No validation read happens for an undecodable snapshot; every checkpoint
+        .return_once(move || snapshot);
+    // No validation read happens without a usable snapshot; every checkpoint
     // is fetched and written as in a cold backfill.
     checkpoint_syncer
         .expect_fetch_checkpoint()

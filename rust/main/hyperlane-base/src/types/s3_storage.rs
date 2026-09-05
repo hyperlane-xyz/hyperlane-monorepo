@@ -20,9 +20,11 @@ use hyperlane_core::{
 
 use crate::CheckpointSyncer;
 
+use super::utils::MAX_CHECKPOINT_OBJECT_SIZE;
+
 /// The timeout for all S3 operations.
 const S3_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
-const S3_MAX_OBJECT_SIZE: i64 = 50 * 1024; // 50KiB
+const S3_MAX_OBJECT_SIZE: i64 = MAX_CHECKPOINT_OBJECT_SIZE as i64;
 
 #[derive(Clone, new)]
 /// Type for reading/writing to S3
