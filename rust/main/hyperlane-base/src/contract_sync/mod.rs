@@ -497,6 +497,10 @@ mod tests {
     #[async_trait]
     impl ContractSyncCursor<HyperlaneMessage> for PendingCursor {
         async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
+            assert_eq!(
+                hyperlane_metric::rpc_operation::current_rpc_operation(),
+                RpcOperation::ContractSync
+            );
             pending().await
         }
 
