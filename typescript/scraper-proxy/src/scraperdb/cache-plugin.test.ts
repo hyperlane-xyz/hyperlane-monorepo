@@ -228,3 +228,48 @@ async function cachedValue(server: ApolloServer, key: number): Promise<void> {
     variables: { key },
   });
 }
+
+void it('keeps variables and refresh dynamic when reusing a parsed document', async () => {
+  let calls = 0;
+  const server = cacheServer(() => ++calls, 'Int!');
+  await server.start();
+  try {
+    const query =
+      'query($key: Int!, $ttl: Int!, $refresh: Boolean!) @cached(ttl: $ttl, refresh: $refresh) { value(key: $key) }';
+    const request = (key: number, ttl = 10, refresh = false) =>
+      server.executeOperation({
+        query,
+        variables: { key, ttl, refresh },
+      });
+    assert.equal(value(await request(1)), 1);
+    assert.equal(value(await request(2)), 2);
+    assert.equal(value(await request(1, 20)), 1);
+    assert.equal(value(await request(1, 20, true)), 3);
+    assert.equal(value(await request(1)), 3);
+    assert.equal(value(await request(2)), 2);
+    assert.equal(calls, 3);
+  } finally {
+    await server.stop();
+  }
+});
+
+void it('separates named operations in the same reusable document', async () => {
+  let calls = 0;
+  const server = cacheServer(() => ++calls, 'Int!');
+  await server.start();
+  try {
+    const query = `
+      query First($key: Int!) @cached(ttl: 10) { value(key: $key) }
+      query Second($key: Int!) @cached(ttl: 10) { value(key: $key) }
+    `;
+    const request = (operationName: string) =>
+      server.executeOperation({ query, operationName, variables: { key: 1 } });
+    assert.equal(value(await request('First')), 1);
+    assert.equal(value(await request('Second')), 2);
+    assert.equal(value(await request('First')), 1);
+    assert.equal(value(await request('Second')), 2);
+    assert.equal(calls, 2);
+  } finally {
+    await server.stop();
+  }
+});
