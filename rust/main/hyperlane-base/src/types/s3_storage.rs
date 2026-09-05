@@ -96,13 +96,13 @@ impl fmt::Debug for S3Storage {
 }
 
 impl S3Storage {
-    async fn write_to_bucket(&self, key: String, body: &str) -> Result<()> {
+    async fn write_to_bucket(&self, key: String, body: Vec<u8>) -> Result<()> {
         self.authenticated_client()
             .await
             .put_object()
             .bucket(self.bucket.clone())
             .key(self.get_composite_key(key))
-            .body(Vec::from(body).into())
+            .body(body.into())
             .content_type("application/json")
             .send()
             .await?;
@@ -233,8 +233,8 @@ impl CheckpointSyncer for S3Storage {
     }
 
     async fn write_latest_index(&self, index: u32) -> Result<()> {
-        let serialized_index = serde_json::to_string(&index)?;
-        self.write_to_bucket(S3Storage::latest_index_key(), &serialized_index)
+        let serialized_index = serde_json::to_vec(&index)?;
+        self.write_to_bucket(S3Storage::latest_index_key(), serialized_index)
             .await?;
         Ok(())
     }
@@ -251,24 +251,27 @@ impl CheckpointSyncer for S3Storage {
         &self,
         signed_checkpoint: &SignedCheckpointWithMessageId,
     ) -> Result<()> {
-        let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
+        let serialized_checkpoint = serde_json::to_vec(signed_checkpoint)?;
         self.write_to_bucket(
             S3Storage::checkpoint_key(signed_checkpoint.value.index),
-            &serialized_checkpoint,
+            serialized_checkpoint,
         )
         .await?;
         Ok(())
     }
 
     async fn write_metadata(&self, serialized_metadata: &str) -> Result<()> {
-        self.write_to_bucket(S3Storage::metadata_key(), serialized_metadata)
-            .await?;
+        self.write_to_bucket(
+            S3Storage::metadata_key(),
+            serialized_metadata.as_bytes().to_vec(),
+        )
+        .await?;
         Ok(())
     }
 
     async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()> {
-        let serialized_announcement = serde_json::to_string_pretty(signed_announcement)?;
-        self.write_to_bucket(S3Storage::announcement_key(), &serialized_announcement)
+        let serialized_announcement = serde_json::to_vec_pretty(signed_announcement)?;
+        self.write_to_bucket(S3Storage::announcement_key(), serialized_announcement)
             .await?;
         Ok(())
     }
@@ -283,14 +286,14 @@ impl CheckpointSyncer for S3Storage {
     }
 
     async fn write_reorg_status(&self, reorged_event: &ReorgEvent) -> Result<()> {
-        let serialized_reorg = serde_json::to_string(reorged_event)?;
-        self.write_to_bucket(S3Storage::reorg_flag_key(), &serialized_reorg)
+        let serialized_reorg = serde_json::to_vec(reorged_event)?;
+        self.write_to_bucket(S3Storage::reorg_flag_key(), serialized_reorg)
             .await?;
         Ok(())
     }
 
     async fn write_reorg_rpc_responses(&self, reorg_log: String) -> Result<()> {
-        self.write_to_bucket(S3Storage::reorg_rpc_responses_key(), &reorg_log)
+        self.write_to_bucket(S3Storage::reorg_rpc_responses_key(), reorg_log.into_bytes())
             .await?;
         Ok(())
     }
@@ -393,6 +396,93 @@ mod tests {
             .credentials_provider(aws_sdk_s3::config::Credentials::for_tests())
             .build();
         Client::from_conf(config)
+    }
+
+    #[tokio::test]
+    async fn checkpoint_upload_uses_compact_json_and_preserves_signed_fields() {
+        use std::sync::Arc;
+
+        use hyper::{service::service_fn, Body, Response};
+        use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, H256};
+        use hyperlane_ethereum::Signers;
+
+        let signer: Signers = "01"
+            .repeat(32)
+            .parse::<ethers::signers::LocalWallet>()
+            .unwrap()
+            .into();
+        let checkpoint = signer
+            .sign(CheckpointWithMessageId {
+                checkpoint: Checkpoint {
+                    merkle_tree_hook_address: H256::repeat_byte(0x11),
+                    mailbox_domain: 42161,
+                    root: H256::repeat_byte(0x22),
+                    index: 2_500_000,
+                },
+                message_id: H256::repeat_byte(0x33),
+            })
+            .await
+            .unwrap();
+        let expected = serde_json::to_vec(&checkpoint).unwrap();
+        let pretty = serde_json::to_vec_pretty(&checkpoint).unwrap();
+        assert!(expected.len() < pretty.len());
+        println!(
+            "checkpoint bytes: pretty={}, compact={}",
+            pretty.len(),
+            expected.len()
+        );
+        let received = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_received = Arc::clone(&received);
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            hyper::server::conn::Http::new()
+                .serve_connection(
+                    socket,
+                    service_fn(move |request: hyper::Request<Body>| {
+                        let received = Arc::clone(&server_received);
+                        async move {
+                            assert_eq!(request.method(), hyper::Method::PUT);
+                            assert_eq!(
+                                request.uri().path(),
+                                "/test-bucket/checkpoint_2500000_with_id.json"
+                            );
+                            assert_eq!(
+                                request.headers()[hyper::header::CONTENT_TYPE],
+                                "application/json"
+                            );
+                            let body = hyper::body::to_bytes(request.into_body()).await.unwrap();
+                            *received.lock().unwrap() = body.to_vec();
+                            Ok::<_, std::convert::Infallible>(
+                                Response::builder()
+                                    .header(hyper::header::CONNECTION, "close")
+                                    .body(Body::empty())
+                                    .unwrap(),
+                            )
+                        }
+                    }),
+                )
+                .await
+                .unwrap();
+        });
+        let storage = S3Storage::new("test-bucket".into(), None, Region::new("us-east-1"), None);
+        storage
+            .authenticated_client
+            .set(test_client(address))
+            .unwrap();
+        storage.write_checkpoint(&checkpoint).await.unwrap();
+        server.await.unwrap();
+        let body = received.lock().unwrap();
+        assert_eq!(*body, expected);
+        let decoded: SignedCheckpointWithMessageId = serde_json::from_slice(&body).unwrap();
+        assert_eq!(decoded.value, checkpoint.value);
+        assert_eq!(decoded.signature, checkpoint.signature);
+        assert_eq!(decoded.recover().unwrap(), checkpoint.recover().unwrap());
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
+            serde_json::from_slice::<serde_json::Value>(&pretty).unwrap()
+        );
     }
 
     /// Reads a mock HTTP server's request off `socket` up to the end of the headers. The
