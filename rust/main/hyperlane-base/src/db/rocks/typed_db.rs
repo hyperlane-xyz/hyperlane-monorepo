@@ -67,8 +67,8 @@ impl TypedDB {
         key: impl AsRef<[u8]>,
     ) -> Result<Option<V>> {
         self.db
-            .retrieve(&self.prefixed_key(prefix.as_ref(), key.as_ref()))?
-            .map(|v| V::read_from(&mut v.as_slice()))
+            .retrieve_pinned(&self.prefixed_key(prefix.as_ref(), key.as_ref()))?
+            .map(|v| V::read_from(&mut v.as_ref()))
             .transpose()
             .map_err(Into::into)
     }
@@ -181,5 +181,108 @@ impl TypedDbBatch {
     /// Atomically commit this batch.
     pub fn commit(self) -> Result<()> {
         self.batch.commit()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hyperlane_core::{HyperlaneMessage, KnownHyperlaneDomain, MerkleTreeInsertion, H256};
+
+    #[test]
+    fn pinned_typed_reads_preserve_values_and_domain_isolation() {
+        let directory = tempfile::tempdir().unwrap();
+        let db = DB::from_path(directory.path()).unwrap();
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+        let typed = TypedDB::new(&domain, db.clone());
+        let other = TypedDB::new(
+            &HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+            db.clone(),
+        );
+        let insertion = MerkleTreeInsertion::new(42, H256::repeat_byte(0x12));
+        typed
+            .store_keyed_encodable(b"leaf_", &42u32, &insertion)
+            .unwrap();
+        assert_eq!(
+            typed
+                .retrieve_keyed_decodable::<_, MerkleTreeInsertion>(b"leaf_", &42u32)
+                .unwrap(),
+            Some(insertion)
+        );
+        assert!(other
+            .retrieve_keyed_decodable::<_, MerkleTreeInsertion>(b"leaf_", &42u32)
+            .unwrap()
+            .is_none());
+        for length in [0, 1, 4096] {
+            let message = HyperlaneMessage {
+                body: vec![0xab; length],
+                ..Default::default()
+            };
+            typed
+                .store_encodable(b"message_", b"key", &message)
+                .unwrap();
+            let encoded = db
+                .retrieve(&typed.prefixed_key(b"message_", b"key"))
+                .unwrap()
+                .unwrap();
+            let legacy = HyperlaneMessage::read_from(&mut encoded.as_slice()).unwrap();
+            let pinned: HyperlaneMessage = typed
+                .retrieve_decodable(b"message_", b"key")
+                .unwrap()
+                .unwrap();
+            assert_eq!(pinned, legacy);
+            assert_eq!(pinned, message);
+        }
+    }
+
+    #[test]
+    fn pinned_typed_reads_propagate_decode_errors_and_release_the_value() {
+        let directory = tempfile::tempdir().unwrap();
+        let db = DB::from_path(directory.path()).unwrap();
+        let typed = TypedDB::new(
+            &HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            db.clone(),
+        );
+        assert!(typed
+            .retrieve_decodable::<HyperlaneMessage>(b"message_", b"key")
+            .unwrap()
+            .is_none());
+        let key = typed.prefixed_key(b"message_", b"key");
+        db.store(&key, &[1, 2]).unwrap();
+        let error = typed
+            .retrieve_decodable::<HyperlaneMessage>(b"message_", b"key")
+            .unwrap_err();
+        assert!(matches!(error, DbError::HyperlaneError(_)));
+
+        let message = HyperlaneMessage {
+            body: vec![0xab; 4096],
+            ..Default::default()
+        };
+        typed
+            .store_encodable(b"message_", b"key", &message)
+            .unwrap();
+        let decoded: HyperlaneMessage = typed
+            .retrieve_decodable(b"message_", b"key")
+            .unwrap()
+            .unwrap();
+        let replacement = HyperlaneMessage {
+            body: vec![0xcd; 32],
+            ..Default::default()
+        };
+        typed
+            .store_encodable(b"message_", b"key", &replacement)
+            .unwrap();
+        assert_eq!(
+            typed
+                .retrieve_decodable::<HyperlaneMessage>(b"message_", b"key")
+                .unwrap(),
+            Some(replacement)
+        );
+        drop(typed);
+        drop(db);
+        // The decoded object owns its body; no native database pin escapes.
+        assert_eq!(decoded, message);
+        let reopened = DB::from_path(directory.path()).unwrap();
+        assert!(reopened.retrieve(&key).unwrap().is_some());
     }
 }
