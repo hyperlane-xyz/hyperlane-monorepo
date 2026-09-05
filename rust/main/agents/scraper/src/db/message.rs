@@ -1,6 +1,8 @@
 #![allow(dead_code)] // TODO: `rustc` 1.80.1 clippy issue
 
-use eyre::Result;
+use std::collections::HashSet;
+
+use eyre::{ensure, Result};
 use itertools::Itertools;
 use sea_orm::{
     prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, QuerySelect, TransactionTrait,
@@ -49,6 +51,9 @@ impl ScraperDb {
     /// u16::MAX (65_535u16) is the maximum amount of parameters we can
     /// have for Postgres. So 65000 / 20 = 3250
     const STORE_MESSAGE_CHUNK_SIZE: usize = 3250;
+
+    // Six bound columns per delivery; conflict expressions add no parameters.
+    const STORE_DELIVERY_CHUNK_SIZE: usize = 10_000;
 
     /// Get the delivered message associated with a sequence.
     #[instrument(skip(self))]
@@ -143,54 +148,57 @@ impl ScraperDb {
         deliveries: impl Iterator<Item = StorableDelivery<'_>>,
     ) -> Result<u64> {
         let destination_mailbox = address_to_bytes(&destination_mailbox);
-        let latest_id_before = self
-            .latest_deliveries_id(domain, destination_mailbox.clone())
-            .await?;
         // we have a race condition where a message may not have been scraped yet even
         // though we have received news of delivery on this chain, so the
         // message IDs are looked up in a separate "thread".
-        let models: Vec<delivered_message::ActiveModel> = deliveries
-            .map(|delivery| delivered_message::ActiveModel {
-                id: NotSet,
-                time_created: Set(date_time::now()),
-                msg_id: Unchanged(h256_to_bytes(&delivery.message_id)),
-                domain: Unchanged(domain as i32),
-                destination_mailbox: Unchanged(destination_mailbox.clone()),
-                destination_tx_id: Set(delivery.txn_id),
-                sequence: Set(delivery.sequence),
+        let mut message_ids = HashSet::new();
+        let models = deliveries
+            .map(|delivery| {
+                // Preserve single-upsert rejection across chunk boundaries.
+                ensure!(
+                    message_ids.insert(delivery.message_id),
+                    "Duplicate delivery message id in one batch"
+                );
+                Ok(delivered_message::ActiveModel {
+                    id: NotSet,
+                    time_created: Set(date_time::now()),
+                    msg_id: Unchanged(h256_to_bytes(&delivery.message_id)),
+                    domain: Unchanged(domain as i32),
+                    destination_mailbox: Unchanged(destination_mailbox.clone()),
+                    destination_tx_id: Set(delivery.txn_id),
+                    sequence: Set(delivery.sequence),
+                })
             })
-            .collect_vec();
+            .collect::<Result<Vec<_>>>()?;
+        drop(message_ids);
+        if models.is_empty() {
+            return Ok(0);
+        }
+        let latest_id_before = self
+            .latest_deliveries_id(domain, destination_mailbox.clone())
+            .await?;
 
         trace!(?models, "Writing delivered messages to database");
 
-        if models.is_empty() {
-            debug!("Wrote zero new delivered messages to database");
-            return Ok(0);
+        if models.len() <= Self::STORE_DELIVERY_CHUNK_SIZE {
+            delivery_insert_query(models).exec(&self.0).await?;
+        } else {
+            self.0
+                .transaction::<_, (), DbErr>(|txn| {
+                    Box::pin(async move {
+                        let mut models = models.into_iter();
+                        while !models.as_slice().is_empty() {
+                            let chunk = models
+                                .by_ref()
+                                .take(Self::STORE_DELIVERY_CHUNK_SIZE)
+                                .collect();
+                            delivery_insert_query(chunk).exec(txn).await?;
+                        }
+                        Ok(())
+                    })
+                })
+                .await?;
         }
-
-        Insert::many(models)
-            .on_conflict(
-                OnConflict::columns([delivered_message::Column::MsgId])
-                    // A fallback replay must not discard transaction metadata
-                    // that was resolved by an earlier scrape. This still lets
-                    // a later resolved scrape enrich an existing NULL row.
-                    .value(
-                        delivered_message::Column::DestinationTxId,
-                        Func::if_null(
-                            Expr::col((
-                                Alias::new("excluded"),
-                                delivered_message::Column::DestinationTxId,
-                            )),
-                            Expr::col((
-                                Alias::new("delivered_message"),
-                                delivered_message::Column::DestinationTxId,
-                            )),
-                        ),
-                    )
-                    .to_owned(),
-            )
-            .exec(&self.0)
-            .await?;
 
         let new_deliveries_count = self
             .deliveries_count_since_id(domain, destination_mailbox, latest_id_before)
@@ -310,10 +318,6 @@ impl ScraperDb {
     ) -> Result<u64> {
         let origin_mailbox = address_to_bytes(origin_mailbox);
 
-        let latest_id_before = self
-            .latest_dispatched_id(domain, origin_mailbox.clone())
-            .await?;
-
         // we have a race condition where a message may not have been scraped yet even
         let models = messages
             .map(|storable| message::ActiveModel {
@@ -337,57 +341,35 @@ impl ScraperDb {
             })
             .collect_vec();
 
-        trace!(?models, "Writing messages to database");
-
         if models.is_empty() {
-            debug!("Wrote zero new messages to database");
             return Ok(0);
         }
-
-        // ensure all chunks are inserted or none at all
-        self.0
-            .transaction::<_, (), DbErr>(|txn| {
-                Box::pin(async move {
-                    // insert messages in chunks, to not run into
-                    // "Too many arguments" error
-                    for chunk in models.chunks(Self::STORE_MESSAGE_CHUNK_SIZE) {
-                        Insert::many(chunk.to_vec())
-                            .on_conflict(
-                                OnConflict::columns([
-                                    message::Column::Origin,
-                                    message::Column::OriginMailbox,
-                                    message::Column::Nonce,
-                                ])
-                                .update_columns([
-                                    message::Column::Destination,
-                                    message::Column::Sender,
-                                    message::Column::Recipient,
-                                    message::Column::MsgBody,
-                                ])
-                                // Prefer resolved transaction metadata over a
-                                // NULL value from a later fallback replay.
-                                .value(
-                                    message::Column::OriginTxId,
-                                    Func::if_null(
-                                        Expr::col((
-                                            Alias::new("excluded"),
-                                            message::Column::OriginTxId,
-                                        )),
-                                        Expr::col((
-                                            Alias::new("message"),
-                                            message::Column::OriginTxId,
-                                        )),
-                                    ),
-                                )
-                                .to_owned(),
-                            )
-                            .exec(txn)
-                            .await?;
-                    }
-                    Ok(())
-                })
-            })
+        let latest_id_before = self
+            .latest_dispatched_id(domain, origin_mailbox.clone())
             .await?;
+
+        trace!(?models, "Writing messages to database");
+
+        // A single INSERT is atomic; multiple chunks need one shared transaction.
+        if models.len() <= Self::STORE_MESSAGE_CHUNK_SIZE {
+            dispatch_insert_query(models).exec(&self.0).await?;
+        } else {
+            self.0
+                .transaction::<_, (), DbErr>(|txn| {
+                    Box::pin(async move {
+                        let mut models = models.into_iter();
+                        while !models.as_slice().is_empty() {
+                            let chunk = models
+                                .by_ref()
+                                .take(Self::STORE_MESSAGE_CHUNK_SIZE)
+                                .collect();
+                            dispatch_insert_query(chunk).exec(txn).await?;
+                        }
+                        Ok(())
+                    })
+                })
+                .await?;
+        }
 
         let new_dispatch_count = self
             .dispatch_count_since_id(domain, origin_mailbox, latest_id_before)
@@ -399,6 +381,57 @@ impl ScraperDb {
         );
         Ok(new_dispatch_count)
     }
+}
+
+fn delivery_insert_query(
+    models: Vec<delivered_message::ActiveModel>,
+) -> Insert<delivered_message::ActiveModel> {
+    Insert::many(models).on_conflict(
+        OnConflict::columns([delivered_message::Column::MsgId])
+            // A fallback replay must not discard transaction metadata
+            // that was resolved by an earlier scrape. This still lets
+            // a later resolved scrape enrich an existing NULL row.
+            .value(
+                delivered_message::Column::DestinationTxId,
+                Func::if_null(
+                    Expr::col((
+                        Alias::new("excluded"),
+                        delivered_message::Column::DestinationTxId,
+                    )),
+                    Expr::col((
+                        Alias::new("delivered_message"),
+                        delivered_message::Column::DestinationTxId,
+                    )),
+                ),
+            )
+            .to_owned(),
+    )
+}
+
+fn dispatch_insert_query(models: Vec<message::ActiveModel>) -> Insert<message::ActiveModel> {
+    Insert::many(models).on_conflict(
+        OnConflict::columns([
+            message::Column::Origin,
+            message::Column::OriginMailbox,
+            message::Column::Nonce,
+        ])
+        .update_columns([
+            message::Column::Destination,
+            message::Column::Sender,
+            message::Column::Recipient,
+            message::Column::MsgBody,
+        ])
+        // Prefer resolved transaction metadata over a
+        // NULL value from a later fallback replay.
+        .value(
+            message::Column::OriginTxId,
+            Func::if_null(
+                Expr::col((Alias::new("excluded"), message::Column::OriginTxId)),
+                Expr::col((Alias::new("message"), message::Column::OriginTxId)),
+            ),
+        )
+        .to_owned(),
+    )
 }
 
 #[cfg(test)]

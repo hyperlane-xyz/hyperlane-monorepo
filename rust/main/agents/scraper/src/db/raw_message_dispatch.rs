@@ -134,95 +134,26 @@ impl ScraperDb {
             .latest_raw_dispatch_id(origin_domain, origin_mailbox.clone())
             .await?;
 
-        // Ensure all chunks are inserted or none at all
-        self.0
-            .transaction::<_, (), DbErr>(|txn| {
-                Box::pin(async move {
-                    // Insert raw message dispatches in chunks, to not run into
-                    // "Too many arguments" error
-                    for chunk in models.chunks(Self::STORE_RAW_MESSAGE_DISPATCH_CHUNK_SIZE) {
-                        Insert::many(chunk.to_vec())
-                            .on_conflict(
-                                OnConflict::column(raw_message_dispatch::Column::MsgId)
-                                    .update_columns([
-                                        raw_message_dispatch::Column::TimeUpdated,
-                                        raw_message_dispatch::Column::DestinationDomain,
-                                        raw_message_dispatch::Column::Sender,
-                                        raw_message_dispatch::Column::Recipient,
-                                        raw_message_dispatch::Column::MsgBody,
-                                    ])
-                                    // Preserve resolved hashes across a later
-                                    // basic-meta fallback, while still updating
-                                    // the body and other fields on legacy rows.
-                                    .value(
-                                        raw_message_dispatch::Column::OriginTxHash,
-                                        Expr::case(
-                                            Expr::col((
-                                                Alias::new("excluded"),
-                                                raw_message_dispatch::Column::OriginTxHash,
-                                            ))
-                                            .ne(h512_to_bytes(&H512::zero())),
-                                            Expr::col((
-                                                Alias::new("excluded"),
-                                                raw_message_dispatch::Column::OriginTxHash,
-                                            )),
-                                        )
-                                        .finally(
-                                            Expr::col((
-                                                Alias::new("raw_message_dispatch"),
-                                                raw_message_dispatch::Column::OriginTxHash,
-                                            )),
-                                        ),
-                                    )
-                                    .value(
-                                        raw_message_dispatch::Column::OriginBlockHash,
-                                        Expr::case(
-                                            Expr::col((
-                                                Alias::new("excluded"),
-                                                raw_message_dispatch::Column::OriginBlockHash,
-                                            ))
-                                            .ne(h256_to_bytes(&H256::zero())),
-                                            Expr::col((
-                                                Alias::new("excluded"),
-                                                raw_message_dispatch::Column::OriginBlockHash,
-                                            )),
-                                        )
-                                        .finally(
-                                            Expr::col((
-                                                Alias::new("raw_message_dispatch"),
-                                                raw_message_dispatch::Column::OriginBlockHash,
-                                            )),
-                                        ),
-                                    )
-                                    .value(
-                                        raw_message_dispatch::Column::OriginBlockHeight,
-                                        Expr::case(
-                                            Expr::col((
-                                                Alias::new("excluded"),
-                                                raw_message_dispatch::Column::OriginBlockHash,
-                                            ))
-                                            .ne(h256_to_bytes(&H256::zero())),
-                                            Expr::col((
-                                                Alias::new("excluded"),
-                                                raw_message_dispatch::Column::OriginBlockHeight,
-                                            )),
-                                        )
-                                        .finally(
-                                            Expr::col((
-                                                Alias::new("raw_message_dispatch"),
-                                                raw_message_dispatch::Column::OriginBlockHeight,
-                                            )),
-                                        ),
-                                    )
-                                    .to_owned(),
-                            )
-                            .exec(txn)
-                            .await?;
-                    }
-                    Ok(())
+        // A single INSERT is atomic; multiple chunks need one shared transaction.
+        if models.len() <= Self::STORE_RAW_MESSAGE_DISPATCH_CHUNK_SIZE {
+            raw_dispatch_insert_query(models).exec(&self.0).await?;
+        } else {
+            self.0
+                .transaction::<_, (), DbErr>(|txn| {
+                    Box::pin(async move {
+                        let mut models = models.into_iter();
+                        while !models.as_slice().is_empty() {
+                            let chunk = models
+                                .by_ref()
+                                .take(Self::STORE_RAW_MESSAGE_DISPATCH_CHUNK_SIZE)
+                                .collect();
+                            raw_dispatch_insert_query(chunk).exec(txn).await?;
+                        }
+                        Ok(())
+                    })
                 })
-            })
-            .await?;
+                .await?;
+        }
 
         let new_dispatch_count = self
             .raw_dispatch_count_since_id(origin_domain, origin_mailbox, latest_id_before)
@@ -321,6 +252,79 @@ fn raw_dispatch_to_candidate(raw: raw_message_dispatch::Model) -> Result<RawDisp
             log_index: U256::zero(),
         },
     })
+}
+
+fn raw_dispatch_insert_query(
+    models: Vec<raw_message_dispatch::ActiveModel>,
+) -> Insert<raw_message_dispatch::ActiveModel> {
+    Insert::many(models).on_conflict(
+        OnConflict::column(raw_message_dispatch::Column::MsgId)
+            .update_columns([
+                raw_message_dispatch::Column::TimeUpdated,
+                raw_message_dispatch::Column::DestinationDomain,
+                raw_message_dispatch::Column::Sender,
+                raw_message_dispatch::Column::Recipient,
+                raw_message_dispatch::Column::MsgBody,
+            ])
+            // Preserve resolved hashes across a later
+            // basic-meta fallback, while still updating
+            // the body and other fields on legacy rows.
+            .value(
+                raw_message_dispatch::Column::OriginTxHash,
+                Expr::case(
+                    Expr::col((
+                        Alias::new("excluded"),
+                        raw_message_dispatch::Column::OriginTxHash,
+                    ))
+                    .ne(h512_to_bytes(&H512::zero())),
+                    Expr::col((
+                        Alias::new("excluded"),
+                        raw_message_dispatch::Column::OriginTxHash,
+                    )),
+                )
+                .finally(Expr::col((
+                    Alias::new("raw_message_dispatch"),
+                    raw_message_dispatch::Column::OriginTxHash,
+                ))),
+            )
+            .value(
+                raw_message_dispatch::Column::OriginBlockHash,
+                Expr::case(
+                    Expr::col((
+                        Alias::new("excluded"),
+                        raw_message_dispatch::Column::OriginBlockHash,
+                    ))
+                    .ne(h256_to_bytes(&H256::zero())),
+                    Expr::col((
+                        Alias::new("excluded"),
+                        raw_message_dispatch::Column::OriginBlockHash,
+                    )),
+                )
+                .finally(Expr::col((
+                    Alias::new("raw_message_dispatch"),
+                    raw_message_dispatch::Column::OriginBlockHash,
+                ))),
+            )
+            .value(
+                raw_message_dispatch::Column::OriginBlockHeight,
+                Expr::case(
+                    Expr::col((
+                        Alias::new("excluded"),
+                        raw_message_dispatch::Column::OriginBlockHash,
+                    ))
+                    .ne(h256_to_bytes(&H256::zero())),
+                    Expr::col((
+                        Alias::new("excluded"),
+                        raw_message_dispatch::Column::OriginBlockHeight,
+                    )),
+                )
+                .finally(Expr::col((
+                    Alias::new("raw_message_dispatch"),
+                    raw_message_dispatch::Column::OriginBlockHeight,
+                ))),
+            )
+            .to_owned(),
+    )
 }
 
 #[cfg(test)]
