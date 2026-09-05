@@ -591,7 +591,13 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     )
     .optional()
     .describe(
-      'Scraper-proxy WebSocket URL used to shadow dispatch and Merkle streams.',
+      'Scraper-proxy WebSocket URL used for shared dispatch, Merkle, and gas-payment indexing.',
+    ),
+  websocketAuthorityEnabled: z
+    .boolean()
+    .optional()
+    .describe(
+      'Whether a healthy scraper-proxy stream may replace direct RPC indexing. Defaults to false.',
     ),
   relayApiEnabled: z
     .boolean()
@@ -631,6 +637,15 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
       'Relay API allowed CORS origins, comma-separated. Defaults to https://nexus.hyperlane.xyz.',
     ),
 }).superRefine((config, ctx) => {
+  if (config.websocketAuthorityEnabled && !config.websocketUrl) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['websocketUrl'],
+      message:
+        'websocketUrl is required when websocketAuthorityEnabled is true',
+    });
+  }
+
   // Mirror the Rust relayer gate: the current IGP event does not expose the
   // token address, so exact non-native `feeToken` enforcement is rejected.
   const { policies, parseError } = gasPaymentEnforcementPolicies(

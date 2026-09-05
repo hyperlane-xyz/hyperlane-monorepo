@@ -1,4 +1,7 @@
-use std::ops::Add;
+use std::{
+    ops::Add,
+    sync::{Arc, Mutex},
+};
 
 use async_trait::async_trait;
 use eyre::{bail, Result};
@@ -47,7 +50,7 @@ pub type DbResult<T> = std::result::Result<T, DbError>;
 
 /// DB handle for storing data tied to a specific Mailbox.
 #[derive(Debug, Clone)]
-pub struct HyperlaneRocksDB(HyperlaneDomain, TypedDB);
+pub struct HyperlaneRocksDB(HyperlaneDomain, TypedDB, Arc<Mutex<()>>, Arc<Mutex<()>>);
 
 impl std::ops::Deref for HyperlaneRocksDB {
     type Target = TypedDB;
@@ -72,7 +75,12 @@ impl AsRef<DB> for HyperlaneRocksDB {
 impl HyperlaneRocksDB {
     /// Instantiated new `HyperlaneRocksDB`
     pub fn new(domain: &HyperlaneDomain, db: DB) -> Self {
-        Self(domain.clone(), TypedDB::new(domain, db))
+        Self(
+            domain.clone(),
+            TypedDB::new(domain, db),
+            Arc::new(Mutex::new(())),
+            Arc::new(Mutex::new(())),
+        )
     }
 
     /// Get the domain this database is scoped to
@@ -94,6 +102,15 @@ impl HyperlaneRocksDB {
         if let Ok(Some(_)) = self.retrieve_message_id_by_nonce(&message.nonce) {
             trace!(hyp_message=?message, "Message already stored in db");
             self.try_update_max_seen_message_nonce(message.nonce)?;
+            if self
+                .retrieve_dispatched_block_number_by_nonce(&message.nonce)?
+                .is_none()
+            {
+                self.store_dispatched_block_number_by_nonce(
+                    &message.nonce,
+                    &dispatched_block_number,
+                )?;
+            }
             return Ok(false);
         }
         self.upsert_message(message, dispatched_block_number)?;
@@ -153,26 +170,79 @@ impl HyperlaneRocksDB {
         indexed_payment: Indexed<InterchainGasPayment>,
         log_meta: &LogMeta,
     ) -> DbResult<bool> {
+        let _guard = self
+            .2
+            .lock()
+            .map_err(|_| DbError::Other("Gas payment write lock poisoned".to_owned()))?;
         let payment = *(indexed_payment.inner());
-        let gas_processing_successful = self.process_gas_payment(payment, log_meta)?;
+        let gas_payment_sequence = if let Some(sequence) = indexed_payment.sequence {
+            let stored_payment = self.retrieve_gas_payment_by_sequence(&sequence)?;
+            let stored_block = self.retrieve_gas_payment_block_by_sequence(&sequence)?;
+            match (stored_payment, stored_block) {
+                (Some(stored_payment), Some(stored_block))
+                    if stored_payment == payment && stored_block == log_meta.block_number =>
+                {
+                    trace!(
+                        ?indexed_payment,
+                        ?log_meta,
+                        "Attempted to process an already-processed indexed gas payment"
+                    );
+                    return Ok(false);
+                }
+                (Some(stored_payment), None) if stored_payment == payment => {
+                    let mut batch = self.batch();
+                    batch.store_keyed_encodable(
+                        GAS_PAYMENT_BY_SEQUENCE,
+                        &sequence,
+                        indexed_payment.inner(),
+                    );
+                    batch.store_keyed_encodable(
+                        GAS_PAYMENT_BLOCK_BY_SEQUENCE,
+                        &sequence,
+                        &log_meta.block_number,
+                    );
+                    batch.commit()?;
+                    debug!(
+                        sequence,
+                        block_number = log_meta.block_number,
+                        "Repaired indexed gas payment block metadata"
+                    );
+                    return Ok(false);
+                }
+                (None, None) => {}
+                (Some(_), _) => {
+                    return Err(DbError::Other(format!(
+                        "Gas payment sequence {sequence} conflicts with stored payment"
+                    )));
+                }
+                (None, Some(_)) => {
+                    return Err(DbError::Other(format!(
+                        "Gas payment sequence {sequence} has block metadata without a payment"
+                    )));
+                }
+            }
+            Some(sequence)
+        } else {
+            None
+        };
 
-        // only store the payment and return early if there's no sequence
-        let Some(gas_payment_sequence) = indexed_payment.sequence else {
+        let gas_processing_successful = self.process_gas_payment_inner(payment, log_meta)?;
+        let Some(gas_payment_sequence) = gas_payment_sequence else {
             return Ok(gas_processing_successful);
         };
-        // otherwise store the indexing decorator as well
-        if let Ok(Some(_)) = self.retrieve_gas_payment_by_sequence(&gas_payment_sequence) {
-            trace!(
-                ?indexed_payment,
-                ?log_meta,
-                "Attempted to process an already-processed indexed gas payment"
-            );
-            // Return false to indicate the gas payment was already processed
-            return Ok(false);
-        }
 
-        self.store_gas_payment_by_sequence(&gas_payment_sequence, indexed_payment.inner())?;
-        self.store_gas_payment_block_by_sequence(&gas_payment_sequence, &log_meta.block_number)?;
+        let mut batch = self.batch();
+        batch.store_keyed_encodable(
+            GAS_PAYMENT_BY_SEQUENCE,
+            &gas_payment_sequence,
+            indexed_payment.inner(),
+        );
+        batch.store_keyed_encodable(
+            GAS_PAYMENT_BLOCK_BY_SEQUENCE,
+            &gas_payment_sequence,
+            &log_meta.block_number,
+        );
+        batch.commit()?;
 
         Ok(gas_processing_successful)
     }
@@ -181,6 +251,18 @@ impl HyperlaneRocksDB {
     /// processed, processes the gas payment and records it as processed.
     /// Returns whether the gas payment was processed for the first time.
     pub fn process_gas_payment(
+        &self,
+        payment: InterchainGasPayment,
+        log_meta: &LogMeta,
+    ) -> DbResult<bool> {
+        let _guard = self
+            .2
+            .lock()
+            .map_err(|_| DbError::Other("Gas payment write lock poisoned".to_owned()))?;
+        self.process_gas_payment_inner(payment, log_meta)
+    }
+
+    fn process_gas_payment_inner(
         &self,
         payment: InterchainGasPayment,
         log_meta: &LogMeta,
@@ -199,11 +281,21 @@ impl HyperlaneRocksDB {
             // Return false to indicate the gas payment was already processed
             return Ok(false);
         }
-        // Set the gas payment as processed
-        self.store_processed_by_gas_payment_meta(&payment_meta, &true)?;
-
-        // Update the total gas payment for the message to include the payment
-        self.update_gas_payment_by_gas_payment_key(payment)?;
+        let gas_payment_key = payment.into();
+        let existing_payment =
+            match self.retrieve_gas_payment_by_gas_payment_key(gas_payment_key)? {
+                Some(payment) => payment,
+                None => InterchainGasPayment::from_gas_payment_key(gas_payment_key),
+            };
+        let total = existing_payment.add(payment);
+        let mut batch = self.batch();
+        batch.store_keyed_encodable(GAS_PAYMENT_META_PROCESSED, &payment_meta, &true);
+        batch.store_keyed_encodable(
+            GAS_PAYMENT_FOR_MESSAGE_ID,
+            &gas_payment_key,
+            &InterchainGasPaymentData::from(total),
+        );
+        batch.commit()?;
 
         // Return true to indicate the gas payment was processed for the first time
         Ok(true)
@@ -215,11 +307,28 @@ impl HyperlaneRocksDB {
         insertion: &MerkleTreeInsertion,
         insertion_block_number: u64,
     ) -> DbResult<bool> {
-        if let Ok(Some(_)) = self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index()) {
-            debug!(insertion=?insertion, "Tree insertion already stored in db");
-            return Ok(false);
+        let _guard = self
+            .3
+            .lock()
+            .map_err(|_| DbError::Other("Merkle insertion write lock poisoned".to_owned()))?;
+        if let Some(existing) =
+            self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index())?
+        {
+            let reverse_index =
+                self.retrieve_merkle_leaf_index_by_message_id(&insertion.message_id())?;
+            let block_number =
+                self.retrieve_merkle_tree_insertion_block_number_by_leaf_index(&insertion.index())?;
+            if existing == *insertion
+                && reverse_index == Some(insertion.index())
+                && block_number == Some(insertion_block_number)
+            {
+                debug!(insertion=?insertion, "Tree insertion already stored in db");
+                return Ok(false);
+            }
+            self.store_tree_insertion_inner(insertion, insertion_block_number)?;
+            return Ok(existing != *insertion);
         }
-        self.store_tree_insertion(insertion, insertion_block_number)
+        self.store_tree_insertion_inner(insertion, insertion_block_number)
     }
 
     /// Store the merkle tree insertion event, and also store a mapping from message_id to leaf_index.
@@ -229,30 +338,42 @@ impl HyperlaneRocksDB {
         insertion: &MerkleTreeInsertion,
         insertion_block_number: u64,
     ) -> DbResult<bool> {
-        if let Some(existing) =
-            self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index())?
-        {
+        let _guard = self
+            .3
+            .lock()
+            .map_err(|_| DbError::Other("Merkle insertion write lock poisoned".to_owned()))?;
+        self.store_tree_insertion_inner(insertion, insertion_block_number)
+    }
+
+    fn store_tree_insertion_inner(
+        &self,
+        insertion: &MerkleTreeInsertion,
+        insertion_block_number: u64,
+    ) -> DbResult<bool> {
+        let existing = self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index())?;
+        let mut batch = self.batch();
+        if let Some(existing) = existing {
             if existing.message_id() != insertion.message_id() {
-                self.delete_merkle_leaf_index_by_message_id(&existing.message_id())?;
+                batch.delete_keyed(MERKLE_LEAF_INDEX_BY_MESSAGE_ID, &existing.message_id());
             }
         }
         // even if double insertions are ok, store the leaf by `leaf_index` (guaranteed to be unique)
         // rather than by `message_id` (not guaranteed to be recurring), so that leaves can be retrieved
         // based on insertion order.
-        self.store_merkle_tree_insertion_by_leaf_index(&insertion.index(), insertion)?;
-
-        self.store_merkle_leaf_index_by_message_id(&insertion.message_id(), &insertion.index())?;
-
-        self.store_merkle_tree_insertion_block_number_by_leaf_index(
+        batch.store_keyed_encodable(MERKLE_TREE_INSERTION, &insertion.index(), insertion);
+        batch.store_keyed_encodable(
+            MERKLE_LEAF_INDEX_BY_MESSAGE_ID,
+            &insertion.message_id(),
+            &insertion.index(),
+        );
+        batch.store_keyed_encodable(
+            MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX,
             &insertion.index(),
             &insertion_block_number,
-        )?;
+        );
+        batch.commit()?;
         // Return true to indicate the tree insertion was processed
         Ok(true)
-    }
-
-    fn delete_merkle_leaf_index_by_message_id(&self, message_id: &H256) -> DbResult<()> {
-        self.delete_encodable(MERKLE_LEAF_INDEX_BY_MESSAGE_ID, message_id.to_vec())
     }
 
     /// Processes the gas expenditure and store the total expenditure for the
@@ -260,22 +381,6 @@ impl HyperlaneRocksDB {
     pub fn process_gas_expenditure(&self, expenditure: InterchainGasExpenditure) -> DbResult<()> {
         // Update the total gas expenditure for the message to include the payment
         self.update_gas_expenditure_by_message_id(expenditure)
-    }
-
-    /// Update the total gas payment for a message to include gas_payment
-    fn update_gas_payment_by_gas_payment_key(&self, event: InterchainGasPayment) -> DbResult<()> {
-        let gas_payment_key = event.into();
-        let existing_payment =
-            match self.retrieve_gas_payment_by_gas_payment_key(gas_payment_key)? {
-                Some(payment) => payment,
-                None => InterchainGasPayment::from_gas_payment_key(gas_payment_key),
-            };
-        let total = existing_payment.add(event);
-
-        debug!(?event, new_total_gas_payment=?total, "Storing gas payment");
-        self.store_interchain_gas_payment_data_by_gas_payment_key(&gas_payment_key, &total.into())?;
-
-        Ok(())
     }
 
     /// Update the total gas spent for a message

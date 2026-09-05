@@ -1,4 +1,4 @@
-//! Shadow validation of relayer inputs streamed by scraper-proxy.
+//! Relayer inputs streamed by scraper-proxy with RPC parity and fallback.
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
@@ -10,26 +10,28 @@ use std::{
 };
 
 use eyre::{bail, Context, ContextCompat, Result};
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{stream, SinkExt, StreamExt};
 use hyperlane_base::{
+    broadcast::BroadcastMpscSender,
     db::{DbResult, HyperlaneDb, HyperlaneRocksDB},
     scraper_websocket::{
         EventMessage, GasPaymentCursor as GasPaymentSubscriptionCursor, SequenceCursor,
         ServerMessage, StreamCursor as SubscriptionCursor, StringOrNumber, SubscribeMessage,
         SubscribeStream, SubscribedCursor, SubscribedStream,
     },
+    settings::SequenceIndexer,
     CoreMetrics,
 };
 use hyperlane_core::{
     bytes_to_address, bytes_to_h512, Decode, Encode, HyperlaneMessage, HyperlaneProtocolError,
-    MerkleTreeInsertion, H256, H512, U256,
+    Indexed, InterchainGasPayment, LogMeta, MerkleTreeInsertion, H256, H512, U256,
 };
 use prometheus::{IntCounterVec, IntGaugeVec};
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
 use tokio::{
-    sync::{OwnedSemaphorePermit, Semaphore},
-    time::{sleep, timeout, Instant},
+    sync::{watch, Notify, OwnedSemaphorePermit, Semaphore},
+    time::{interval, sleep, timeout, Instant, MissedTickBehavior},
 };
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{info, warn};
@@ -37,10 +39,17 @@ use url::Url;
 
 const DISPATCH_EVENT_TYPE: &str = "dispatch";
 const GAS_PAYMENT_EVENT_TYPE: &str = "gas_payment";
-const GAS_PAYMENT_STREAM_CURSOR_VERSION: u32 = 2;
+const GAS_PAYMENT_STREAM_CURSOR_VERSION: u32 = 3;
 const MERKLE_EVENT_TYPE: &str = "merkle_tree_insertion";
 const READ_TIMEOUT: Duration = Duration::from_secs(75);
 const RETRY_DELAY: Duration = Duration::from_secs(5);
+const AUTHORITY_FRESHNESS_INTERVAL: Duration = Duration::from_secs(30);
+const AUTHORITY_FRESHNESS_TIMEOUT: Duration = Duration::from_secs(10);
+const AUTHORITY_FRESHNESS_CONCURRENCY: usize = 16;
+#[cfg(not(test))]
+const AUTHORITY_HANDOFF_TIMEOUT: Duration = Duration::from_secs(30);
+#[cfg(test)]
+const AUTHORITY_HANDOFF_TIMEOUT: Duration = Duration::from_millis(50);
 const PARITY_READ_CONCURRENCY: usize = 4;
 const PARITY_QUEUE_CAPACITY: usize = 256;
 #[cfg(not(test))]
@@ -57,8 +66,9 @@ const DUPLICATE_FINGERPRINT_WINDOW: usize = 1_024;
 const CROSS_STREAM_WINDOW: usize = 1_024;
 const DISPATCH_CURSOR_PREFIX: &[u8] = b"scraper_websocket_dispatch_cursor";
 const GAS_PAYMENT_CURSOR_V1_PREFIX: &[u8] = b"scraper_websocket_gas_payment_stream_cursor_v1";
-const GAS_PAYMENT_CURSOR_PREFIX: &[u8] = b"scraper_websocket_gas_payment_stream_cursor_v2";
-const GAS_PAYMENT_DEGRADED_PREFIX: &[u8] = b"scraper_websocket_gas_payment_degraded_v2";
+const GAS_PAYMENT_CURSOR_V2_PREFIX: &[u8] = b"scraper_websocket_gas_payment_stream_cursor_v2";
+const GAS_PAYMENT_CURSOR_PREFIX: &[u8] = b"scraper_websocket_gas_payment_stream_cursor_v3";
+const GAS_PAYMENT_DEGRADED_PREFIX: &[u8] = b"scraper_websocket_gas_payment_degraded_v3";
 const MERKLE_CURSOR_PREFIX: &[u8] = b"scraper_websocket_merkle_cursor";
 const CORRELATION_CURSOR_PREFIX: &[u8] = b"scraper_websocket_correlation_cursor";
 const PARITY_UNHEALTHY_PREFIX: &[u8] = b"scraper_websocket_parity_unhealthy";
@@ -114,6 +124,7 @@ impl ParityDatabase for HyperlaneRocksDB {
 
 #[derive(Clone)]
 pub(crate) struct ScraperSource {
+    broadcaster: Option<BroadcastMpscSender<H512>>,
     chain: String,
     cursor_db: HyperlaneRocksDB,
     domain: u32,
@@ -121,6 +132,7 @@ pub(crate) struct ScraperSource {
     mailbox: H256,
     merkle_tree_hook: H256,
     database: Arc<dyn ParityDatabase>,
+    freshness_indexer: Option<SequenceIndexer<HyperlaneMessage>>,
 }
 
 impl ScraperSource {
@@ -133,6 +145,7 @@ impl ScraperSource {
         database: HyperlaneRocksDB,
     ) -> Self {
         Self {
+            broadcaster: None,
             chain,
             cursor_db: database.clone(),
             domain,
@@ -140,7 +153,24 @@ impl ScraperSource {
             mailbox,
             merkle_tree_hook,
             database: Arc::new(database),
+            freshness_indexer: None,
         }
+    }
+
+    pub(crate) fn with_broadcaster(
+        mut self,
+        broadcaster: Option<BroadcastMpscSender<H512>>,
+    ) -> Self {
+        self.broadcaster = broadcaster;
+        self
+    }
+
+    pub(crate) fn with_freshness_indexer(
+        mut self,
+        indexer: SequenceIndexer<HyperlaneMessage>,
+    ) -> Self {
+        self.freshness_indexer = Some(indexer);
+        self
     }
 
     #[cfg(test)]
@@ -157,6 +187,7 @@ impl ScraperSource {
             hyperlane_base::db::test_utils::setup_db(tempdir.path().to_string_lossy().into_owned());
         std::mem::forget(tempdir);
         Self {
+            broadcaster: None,
             chain,
             cursor_db: HyperlaneRocksDB::new(
                 &hyperlane_core::HyperlaneDomain::new_test_domain("scraper-parity-cursor"),
@@ -167,6 +198,7 @@ impl ScraperSource {
             mailbox,
             merkle_tree_hook,
             database,
+            freshness_indexer: None,
         }
     }
 
@@ -241,6 +273,12 @@ impl ScraperSource {
             .context("Reading durable scraper gas payment cursor")
     }
 
+    fn gas_payment_v2_cursor(&self) -> Result<Option<DurableGasPaymentCursor>> {
+        self.cursor_db
+            .retrieve_value_by_key(GAS_PAYMENT_CURSOR_V2_PREFIX, &self.interchain_gas_paymaster)
+            .context("Reading v2 durable scraper gas payment cursor")
+    }
+
     fn gas_payment_v1_cursor(&self) -> Result<Option<LegacyDurableGasPaymentCursor>> {
         self.cursor_db
             .retrieve_value_by_key(GAS_PAYMENT_CURSOR_V1_PREFIX, &self.interchain_gas_paymaster)
@@ -256,6 +294,17 @@ impl ScraperSource {
                 cursor,
             )
             .context("Storing legacy durable scraper gas payment cursor")
+    }
+
+    #[cfg(test)]
+    fn store_gas_payment_v2_cursor(&self, cursor: &DurableGasPaymentCursor) -> Result<()> {
+        self.cursor_db
+            .store_value_by_key(
+                GAS_PAYMENT_CURSOR_V2_PREFIX,
+                &self.interchain_gas_paymaster,
+                cursor,
+            )
+            .context("Storing v2 durable scraper gas payment cursor")
     }
 
     fn store_gas_payment_cursor(&self, cursor: &DurableGasPaymentCursor) -> Result<()> {
@@ -296,6 +345,84 @@ impl ScraperSource {
                 &true,
             )
             .context("Storing durable scraper gas payment degradation")
+    }
+
+    fn store_sequenced_event(&self, input: &ParityInput) -> Result<Option<H512>> {
+        match input.compare(self.database.as_ref())? {
+            ParityResult::Match => {
+                if let ParityInput::MerkleTreeInsertion {
+                    block_number,
+                    insertion,
+                } = input
+                {
+                    self.cursor_db
+                        .process_tree_insertion(insertion, *block_number)?;
+                }
+                return Ok(None);
+            }
+            ParityResult::Conflict => bail!("Scraper event conflicts with local RPC data"),
+            ParityResult::Missing => {}
+        }
+        let notification = match input {
+            ParityInput::Dispatch {
+                block_number,
+                message,
+                transaction_id,
+            } => {
+                self.cursor_db.store_message(message, *block_number)?;
+                if HyperlaneDb::retrieve_dispatched_block_number_by_nonce(
+                    &self.cursor_db,
+                    &message.nonce,
+                )?
+                .is_none()
+                {
+                    self.cursor_db
+                        .store_dispatched_block_number_by_nonce(&message.nonce, block_number)?;
+                }
+                if HyperlaneDb::retrieve_dispatched_tx_hash_by_message_id(
+                    &self.cursor_db,
+                    &message.id(),
+                )?
+                .is_none()
+                {
+                    self.cursor_db
+                        .store_dispatched_tx_hash_by_message_id(&message.id(), transaction_id)?;
+                }
+                Some(*transaction_id)
+            }
+            ParityInput::MerkleTreeInsertion {
+                block_number,
+                insertion,
+            } => {
+                self.cursor_db
+                    .process_tree_insertion(insertion, *block_number)?;
+                if HyperlaneDb::retrieve_merkle_tree_insertion_block_number_by_leaf_index(
+                    &self.cursor_db,
+                    &insertion.index(),
+                )?
+                .is_none()
+                {
+                    self.cursor_db
+                        .store_merkle_tree_insertion_block_number_by_leaf_index(
+                            &insertion.index(),
+                            block_number,
+                        )?;
+                }
+                None
+            }
+        };
+        match input.compare(self.database.as_ref())? {
+            ParityResult::Match => Ok(notification),
+            ParityResult::Conflict => bail!("Stored scraper event conflicts with local data"),
+            ParityResult::Missing => bail!("Stored scraper event remains incomplete"),
+        }
+    }
+
+    fn store_gas_payment(&self, input: &GasPaymentInput) -> Result<()> {
+        self.cursor_db
+            .process_indexed_gas_payment(input.payment, &input.meta)
+            .context("Storing scraper gas payment")?;
+        Ok(())
     }
 }
 
@@ -512,7 +639,7 @@ impl CrossStreamState {
 
 #[derive(Debug)]
 struct ValidatedEvent {
-    gas_payment_cursor: Option<DurableGasPaymentCursor>,
+    gas_payment: Option<GasPaymentInput>,
     kind: EventKind,
     parity: Option<ParityInput>,
     sequence: Option<u32>,
@@ -609,6 +736,13 @@ enum ParityInput {
         block_number: u64,
         insertion: MerkleTreeInsertion,
     },
+}
+
+#[derive(Clone, Debug)]
+struct GasPaymentInput {
+    cursor: DurableGasPaymentCursor,
+    meta: LogMeta,
+    payment: Indexed<InterchainGasPayment>,
 }
 
 impl ParityInput {
@@ -767,6 +901,7 @@ struct StreamState {
     cursors: HashMap<(u32, EventKind), StreamCursor>,
     gas_payment_degraded: HashSet<u32>,
     gas_payment_v1_rows: HashMap<u32, LegacyDurableGasPaymentCursor>,
+    gas_payment_v2_rows: HashMap<u32, DurableGasPaymentCursor>,
     gas_payment_rows: HashMap<u32, DurableGasPaymentCursor>,
 }
 
@@ -855,6 +990,8 @@ impl StreamState {
             }
             if let Some(cursor) = source.gas_payment_cursor()? {
                 state.gas_payment_rows.insert(source.domain, cursor);
+            } else if let Some(cursor) = source.gas_payment_v2_cursor()? {
+                state.gas_payment_v2_rows.insert(source.domain, cursor);
             } else if let Some(cursor) = source.gas_payment_v1_cursor()? {
                 state.gas_payment_v1_rows.insert(source.domain, cursor);
             }
@@ -885,6 +1022,11 @@ impl StreamState {
         self.gas_payment_rows
             .get(&domain)
             .map(|cursor| cursor.stream_cursor)
+            .or_else(|| {
+                self.gas_payment_v2_rows
+                    .get(&domain)
+                    .map(|cursor| cursor.stream_cursor)
+            })
             .or_else(|| {
                 self.gas_payment_v1_rows
                     .get(&domain)
@@ -1117,7 +1259,7 @@ impl StreamState {
             }
         }
         Ok(ValidatedEvent {
-            gas_payment_cursor: None,
+            gas_payment: None,
             kind,
             parity: Some(parity),
             sequence: Some(sequence),
@@ -1167,24 +1309,52 @@ impl StreamState {
         if parse_address(&data.interchain_gas_paymaster)? != source.interchain_gas_paymaster {
             bail!("Gas payment event paymaster does not match configured paymaster");
         }
-        parse_h256(&data.msg_id, "gas payment message ID")?;
-        data.payment
-            .parse::<U256>()
-            .context("Invalid gas payment amount")?;
-        data.gas_amount
-            .parse::<U256>()
-            .context("Invalid gas payment gas amount")?;
-        data.log_index
-            .parse::<U256>()
-            .context("Invalid gas payment log index")?;
-        data.tx_id
-            .parse::<u64>()
-            .context("Invalid gas payment transaction row ID")?;
-        if let Some(sequence) = &data.sequence {
-            sequence
-                .parse::<u32>()
-                .context("Invalid gas payment sequence")?;
-        }
+        let message_id = parse_h256(&data.msg_id, "gas payment message ID")?;
+        let payment = U256::from_dec_str(&data.payment).context("Invalid gas payment amount")?;
+        let gas_amount =
+            U256::from_dec_str(&data.gas_amount).context("Invalid gas payment gas amount")?;
+        let log_index =
+            U256::from_dec_str(&data.log_index).context("Invalid gas payment log index")?;
+        let sequence = data
+            .sequence
+            .as_deref()
+            .map(|sequence| {
+                sequence
+                    .parse::<u32>()
+                    .context("Invalid gas payment sequence")
+            })
+            .transpose()?;
+        let (block_hash, block_number, transaction_id) = match (
+            data.tx_id.as_deref(),
+            data.origin_block_hash.as_deref(),
+            data.origin_block_height.as_deref(),
+            data.origin_tx_hash.as_deref(),
+        ) {
+            (Some(tx_id), Some(block_hash), Some(block_number), Some(transaction_id)) => {
+                tx_id
+                    .parse::<u64>()
+                    .context("Invalid gas payment transaction row ID")?;
+                (
+                    parse_h256(block_hash, "gas payment block hash")?,
+                    block_number
+                        .parse::<u64>()
+                        .context("Invalid gas payment block height")?,
+                    parse_h512(transaction_id)?,
+                )
+            }
+            (None, None, None, None) => {
+                let sequence = sequence.context(
+                    "Gas payment without transaction metadata omitted its native sequence",
+                )?;
+                if log_index != U256::from(sequence) {
+                    bail!("Gas payment fallback log index does not match its native sequence");
+                }
+                // Basic Sealevel RPC metadata retains the real slot, but the
+                // proxy's NULL transaction join cannot recover it. Keep RPC authoritative.
+                bail!("Gas payment without resolved transaction metadata omitted its canonical block height");
+            }
+            _ => bail!("Gas payment transaction metadata was only partially resolved"),
+        };
         if data.time_created.is_empty() {
             bail!("Gas payment event omitted creation time");
         }
@@ -1204,6 +1374,15 @@ impl StreamState {
                     cursor.fingerprint,
                     Some(cursor.legacy_max_stream_cursor),
                 )
+            })
+            .or_else(|| {
+                self.gas_payment_v2_rows.get(&event.domain).map(|cursor| {
+                    (
+                        cursor.stream_cursor,
+                        None,
+                        Some(cursor.legacy_max_stream_cursor),
+                    )
+                })
             })
             .or_else(|| {
                 self.gas_payment_v1_rows
@@ -1240,8 +1419,27 @@ impl StreamState {
             legacy_max_stream_cursor,
             stream_cursor,
         };
+        let indexed_payment = Indexed::new(InterchainGasPayment {
+            message_id,
+            destination: data.destination,
+            payment,
+            gas_amount,
+        });
         Ok(ValidatedEvent {
-            gas_payment_cursor: Some(cursor),
+            gas_payment: Some(GasPaymentInput {
+                cursor,
+                meta: LogMeta {
+                    address: source.interchain_gas_paymaster,
+                    block_number,
+                    block_hash,
+                    transaction_id,
+                    transaction_index: 0,
+                    log_index,
+                },
+                payment: sequence.map_or(indexed_payment, |sequence| {
+                    indexed_payment.with_sequence(sequence)
+                }),
+            }),
             kind: EventKind::GasPayment,
             parity: None,
             sequence: None,
@@ -1252,19 +1450,16 @@ impl StreamState {
     fn gas_payment_caught_up_cursor(
         &self,
         address: &str,
-        domain: u32,
+        source: &ScraperSource,
         legacy_max_stream_cursor: Option<&str>,
         row_id: Option<&str>,
         stream_cursor: Option<&str>,
         sequence: Option<&str>,
-        sources: &HashMap<u32, ScraperSource>,
     ) -> Result<DurableGasPaymentCursor> {
         if row_id.is_some() || sequence.is_some() {
             bail!("Unexpected scraper caught-up marker");
         }
-        let source = sources
-            .get(&domain)
-            .with_context(|| format!("Unexpected scraper caught-up domain {domain}"))?;
+        let domain = source.domain;
         if parse_address(address)? != source.interchain_gas_paymaster {
             bail!("Gas payment caught-up paymaster does not match configured paymaster");
         }
@@ -1288,6 +1483,22 @@ impl StreamState {
             }
             Some(previous) => Ok(*previous),
             None => {
+                if let Some(previous) = self.gas_payment_v2_rows.get(&domain) {
+                    if stream_cursor != previous.stream_cursor {
+                        bail!(
+                            "Gas payment caught-up stream cursor {stream_cursor} does not equal validated cursor {}",
+                            previous.stream_cursor
+                        )
+                    }
+                    if legacy_max_stream_cursor != previous.legacy_max_stream_cursor {
+                        bail!("Gas payment legacy cursor boundary changed")
+                    }
+                    return Ok(DurableGasPaymentCursor {
+                        fingerprint: None,
+                        legacy_max_stream_cursor,
+                        stream_cursor,
+                    });
+                }
                 let fingerprint = match self.gas_payment_v1_rows.get(&domain) {
                     Some(previous) if stream_cursor != previous.stream_cursor => {
                         bail!(
@@ -1318,6 +1529,7 @@ impl StreamState {
     {
         persist(&cursor)?;
         self.gas_payment_v1_rows.remove(&domain);
+        self.gas_payment_v2_rows.remove(&domain);
         self.gas_payment_rows.insert(domain, cursor);
         Ok(())
     }
@@ -1332,14 +1544,16 @@ impl StreamState {
         sequence: Option<&str>,
         sources: &HashMap<u32, ScraperSource>,
     ) -> Result<()> {
+        let source = sources
+            .get(&domain)
+            .with_context(|| format!("Unexpected scraper caught-up domain {domain}"))?;
         let cursor = self.gas_payment_caught_up_cursor(
             address,
-            domain,
+            source,
             Some("0"),
             row_id,
             stream_cursor,
             sequence,
-            sources,
         )?;
         self.gas_payment_rows.insert(domain, cursor);
         Ok(())
@@ -1354,8 +1568,10 @@ impl StreamState {
         let domain = event.domain;
         let validated = self.validate(event, sources)?;
         let cursor = validated
-            .gas_payment_cursor
-            .context("Validated gas payment has no cursor")?;
+            .gas_payment
+            .as_ref()
+            .context("Validated gas payment has no input")?
+            .cursor;
         self.persist_gas_payment_cursor(domain, cursor, |_| Ok(()))?;
         Ok(validated)
     }
@@ -1472,11 +1688,107 @@ struct CorrelationGate {
     sources: HashMap<u32, CorrelationGateSource>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct AuthorityCommand {
+    pub(crate) desired: bool,
+    pub(crate) generation: u64,
+}
+
+#[derive(Debug)]
+struct AuthorityHandoff {
+    expected: HashSet<u32>,
+    paused: parking_lot::Mutex<HashMap<u32, u64>>,
+    state_changed: Notify,
+}
+
+impl AuthorityHandoff {
+    fn new(expected: HashSet<u32>) -> Self {
+        Self {
+            expected,
+            paused: parking_lot::Mutex::new(HashMap::new()),
+            state_changed: Notify::new(),
+        }
+    }
+
+    fn mark_paused(&self, domain: u32, generation: u64) {
+        if self.expected.contains(&domain)
+            && self.paused.lock().insert(domain, generation) != Some(generation)
+        {
+            self.state_changed.notify_waiters();
+        }
+    }
+
+    fn mark_running(&self, domain: u32) {
+        if self.paused.lock().remove(&domain).is_some() {
+            self.state_changed.notify_waiters();
+        }
+    }
+
+    fn notify_state_changed(&self) {
+        self.state_changed.notify_waiters();
+    }
+
+    async fn wait_until_paused(
+        &self,
+        desired: &watch::Sender<AuthorityCommand>,
+        generation: u64,
+    ) -> bool {
+        loop {
+            let state_changed = self.state_changed.notified();
+            let command = *desired.borrow();
+            if !command.desired || command.generation != generation {
+                return false;
+            }
+            let all_paused = {
+                let paused = self.paused.lock();
+                self.expected
+                    .iter()
+                    .all(|domain| paused.get(domain) == Some(&generation))
+            };
+            if all_paused {
+                return true;
+            }
+            state_changed.await;
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct ScraperAuthorityReceiver {
+    desired: watch::Receiver<AuthorityCommand>,
+    handoff: Arc<AuthorityHandoff>,
+}
+
+impl ScraperAuthorityReceiver {
+    pub(crate) fn borrow_and_update(&mut self) -> AuthorityCommand {
+        *self.desired.borrow_and_update()
+    }
+
+    pub(crate) async fn changed(&mut self) -> Result<(), watch::error::RecvError> {
+        self.desired.changed().await
+    }
+
+    pub(crate) fn mark_paused(&self, domain: u32, generation: u64) {
+        self.handoff.mark_paused(domain, generation);
+    }
+
+    pub(crate) fn mark_running(&self, domain: u32) {
+        self.handoff.mark_running(domain);
+    }
+}
+
 /// One process-wide, read-only scraper stream monitor.
 pub(crate) struct ScraperWebSocketMonitor {
     active: IntGaugeVec,
+    authority: IntGaugeVec,
+    authority_active: AtomicBool,
+    authority_enabled: bool,
+    authority_handoff: Arc<AuthorityHandoff>,
+    authority_sender: watch::Sender<AuthorityCommand>,
     caught_up: IntGaugeVec,
     degraded: IntGaugeVec,
+    fresh: IntGaugeVec,
+    freshness_warned_at: Arc<parking_lot::Mutex<Option<Instant>>>,
     correlation_gate: parking_lot::Mutex<CorrelationGate>,
     events: IntCounterVec,
     parity: IntCounterVec,
@@ -1494,10 +1806,20 @@ pub(crate) struct ScraperWebSocketMonitor {
 }
 
 impl ScraperWebSocketMonitor {
+    #[cfg(test)]
     pub(crate) fn new(
         url: Url,
         sources: Vec<ScraperSource>,
         metrics: &CoreMetrics,
+    ) -> Result<Self> {
+        Self::new_with_authority(url, sources, metrics, false)
+    }
+
+    pub(crate) fn new_with_authority(
+        url: Url,
+        sources: Vec<ScraperSource>,
+        metrics: &CoreMetrics,
+        authority_enabled: bool,
     ) -> Result<Self> {
         let active = metrics.new_int_gauge(
             "relayer_scraper_websocket_active",
@@ -1509,6 +1831,11 @@ impl ScraperWebSocketMonitor {
             "Scraper-proxy shadow events validated by the relayer",
             &["chain", "event_type", "result"],
         )?;
+        let authority = metrics.new_int_gauge(
+            "relayer_scraper_websocket_authority",
+            "Whether scraper-proxy currently replaces direct RPC indexing",
+            &["chain"],
+        )?;
         let caught_up = metrics.new_int_gauge(
             "relayer_scraper_websocket_caught_up",
             "Whether scraper-proxy replay reached the durable cursor",
@@ -1518,6 +1845,11 @@ impl ScraperWebSocketMonitor {
             "relayer_scraper_websocket_degraded",
             "Whether a relayer scraper-proxy shadow stream requires operator repair",
             &["chain", "event_type"],
+        )?;
+        let fresh = metrics.new_int_gauge(
+            "relayer_scraper_websocket_fresh",
+            "Whether the durable scraper dispatch cursor matches the canonical finalized count",
+            &["chain"],
         )?;
         let parity = metrics.new_int_counter(
             "relayer_scraper_websocket_parity",
@@ -1538,10 +1870,17 @@ impl ScraperWebSocketMonitor {
             .into_iter()
             .map(|source| (source.domain, source))
             .collect::<HashMap<_, _>>();
+        let authority_handoff = Arc::new(AuthorityHandoff::new(sources.keys().copied().collect()));
+        let (authority_sender, _) = watch::channel(AuthorityCommand {
+            desired: false,
+            generation: 0,
+        });
         let mut parity_unhealthy = HashSet::new();
         let mut parity_queues = HashMap::new();
         for source in sources.values() {
             active.with_label_values(&[source.chain.as_str()]).set(0);
+            authority.with_label_values(&[source.chain.as_str()]).set(0);
+            fresh.with_label_values(&[source.chain.as_str()]).set(0);
             for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
                 caught_up
                     .with_label_values(&[source.chain.as_str(), kind.label()])
@@ -1569,8 +1908,15 @@ impl ScraperWebSocketMonitor {
         }
         Ok(Self {
             active,
+            authority,
+            authority_active: AtomicBool::new(false),
+            authority_enabled,
+            authority_handoff,
+            authority_sender,
             caught_up,
             degraded,
+            fresh,
+            freshness_warned_at: Arc::new(parking_lot::Mutex::new(None)),
             correlation_gate: parking_lot::Mutex::new(CorrelationGate::default()),
             events,
             parity,
@@ -1588,8 +1934,21 @@ impl ScraperWebSocketMonitor {
         })
     }
 
+    pub(crate) fn authority_receiver(&self) -> Option<ScraperAuthorityReceiver> {
+        self.authority_enabled.then(|| ScraperAuthorityReceiver {
+            desired: self.authority_sender.subscribe(),
+            handoff: self.authority_handoff.clone(),
+        })
+    }
+
     pub(crate) async fn run(self) {
         let monitor = Arc::new(self);
+        if monitor.authority_enabled {
+            let freshness_monitor = Arc::clone(&monitor);
+            tokio::spawn(async move {
+                freshness_monitor.run_authority_freshness().await;
+            });
+        }
         let mut generation = 0_u64;
         let mut state = loop {
             match StreamState::load_gas_payment(&monitor.sources) {
@@ -1620,6 +1979,7 @@ impl ScraperWebSocketMonitor {
             generation = next_generation;
             state.reset_sequenced(&plan);
             monitor.reset_correlation_gate(generation, &plan);
+            monitor.deactivate_authority();
             monitor.set_active(false);
             monitor.set_caught_up(false);
             let gas_payment_cursors = monitor.gas_payment_cursors(&state);
@@ -1635,6 +1995,7 @@ impl ScraperWebSocketMonitor {
             }
             monitor.set_active(false);
             monitor.set_caught_up(false);
+            monitor.deactivate_authority();
             sleep(RETRY_DELAY).await;
         }
     }
@@ -1805,15 +2166,16 @@ impl ScraperWebSocketMonitor {
         let event_type = kind.label();
         let labels = [chain.as_str(), event_type];
         self.parity_ready.with_label_values(&labels).set(0);
-        let database = source.database.clone();
         let mut terminal = None;
         for attempt in 1..=PARITY_RETRY_ATTEMPTS {
             if self.parity_read_disabled.load(Ordering::Acquire) {
                 terminal = Some("error");
                 break;
             }
-            let database = database.clone();
+            let source = source.clone();
+            let broadcaster = source.broadcaster.clone();
             let parity_input = parity_input.clone();
+            let authority_active = self.authority_active.load(Ordering::Acquire);
             let permit = match timeout(
                 PARITY_READ_TIMEOUT,
                 self.parity_read_permit.clone().acquire_owned(),
@@ -1833,24 +2195,39 @@ impl ScraperWebSocketMonitor {
                 terminal = Some("error");
                 break;
             }
-            let mut comparison = tokio::task::spawn_blocking(move || {
-                let _permit = permit;
-                parity_input.compare(database.as_ref())
-            });
+            let mut comparison =
+                tokio::task::spawn_blocking(move || -> Result<(ParityResult, Option<H512>)> {
+                    let _permit = permit;
+                    let comparison = parity_input.compare(source.database.as_ref())?;
+                    if authority_active && comparison == ParityResult::Missing {
+                        let notification = source.store_sequenced_event(&parity_input)?;
+                        return Ok((ParityResult::Match, notification));
+                    }
+                    Ok((comparison, None))
+                });
             match timeout(PARITY_READ_TIMEOUT, &mut comparison).await {
                 Err(_) => {
                     self.disable_parity_reads(&chain, event_type, "blocking read timed out");
                     terminal = Some("error");
                     break;
                 }
-                Ok(Ok(Ok(ParityResult::Missing))) if attempt < PARITY_RETRY_ATTEMPTS => {
+                Ok(Ok(Ok((ParityResult::Missing, _)))) if attempt < PARITY_RETRY_ATTEMPTS => {
                     sleep(PARITY_RETRY_DELAY).await;
                 }
-                Ok(Ok(Ok(ParityResult::Missing))) => {
+                Ok(Ok(Ok((ParityResult::Missing, _)))) => {
                     terminal = Some("expired");
                     break;
                 }
-                Ok(Ok(Ok(result))) => {
+                Ok(Ok(Ok((result, notification)))) => {
+                    if let (Some(broadcaster), Some(transaction_id)) =
+                        (broadcaster.as_ref(), notification)
+                    {
+                        if let Err(err) = broadcaster.send(transaction_id).await {
+                            if should_warn(&self.parity_warned_at) {
+                                warn!(%chain, event_type, ?err, "Notifying scraper-indexed dispatch failed");
+                            }
+                        }
+                    }
                     terminal = Some(result.label());
                     break;
                 }
@@ -1876,6 +2253,7 @@ impl ScraperWebSocketMonitor {
             .inc();
         if terminal != ParityResult::Match.label() {
             self.parity_unhealthy.lock().insert((domain, kind));
+            self.deactivate_authority();
             if should_warn(&self.parity_warned_at) {
                 warn!(%chain, event_type, result = terminal, "Scraper event did not reach matching local DB parity");
             }
@@ -1884,6 +2262,7 @@ impl ScraperWebSocketMonitor {
         pending.dec();
         if pending.get() == 0 && !self.parity_unhealthy.lock().contains(&(domain, kind)) {
             self.parity_ready.with_label_values(&labels).set(1);
+            self.maybe_activate_authority().await;
         }
         terminal
     }
@@ -1902,6 +2281,7 @@ impl ScraperWebSocketMonitor {
                     self.parity_unhealthy.lock().insert((source.domain, kind));
                 }
             }
+            self.deactivate_authority();
         }
     }
 
@@ -2251,16 +2631,19 @@ impl ScraperWebSocketMonitor {
                                         .await?;
                                         self.update_source_caught_up(
                                             state, plan, &caught_up, domain,
-                                        )?;
+                                        )
+                                        .await?;
                                     } else {
                                         let source = self.sources.get(&domain).context(
                                             "Validated scraper event source unexpectedly missing",
                                         )?;
+                                        let input = validated
+                                            .gas_payment
+                                            .context("Validated gas payment has no input")?;
+                                        source.store_gas_payment(&input)?;
                                         state.persist_gas_payment_cursor(
                                             domain,
-                                            validated
-                                                .gas_payment_cursor
-                                                .context("Validated gas payment has no cursor")?,
+                                            input.cursor,
                                             |cursor| source.store_gas_payment_cursor(cursor),
                                         )?;
                                     }
@@ -2279,6 +2662,7 @@ impl ScraperWebSocketMonitor {
                                         "Invalid gas payment source unexpectedly missing",
                                     )?;
                                     source.store_gas_payment_degraded()?;
+                                    self.deactivate_authority();
                                     if state.gas_payment_degraded.insert(domain) {
                                         self.set_source_caught_up(
                                             source,
@@ -2318,18 +2702,17 @@ impl ScraperWebSocketMonitor {
                                     self.record(domain, GAS_PAYMENT_EVENT_TYPE, "degraded");
                                     continue;
                                 }
+                                let source = self.sources.get(&domain).with_context(|| {
+                                    format!("Unexpected scraper caught-up domain {domain}")
+                                })?;
                                 let cursor = state.gas_payment_caught_up_cursor(
                                     &address,
-                                    domain,
+                                    source,
                                     legacy_max_stream_cursor.as_deref(),
                                     row_id.as_deref(),
                                     stream_cursor.as_deref(),
                                     sequence.as_deref(),
-                                    &self.sources,
                                 )?;
-                                let source = self.sources.get(&domain).with_context(|| {
-                                    format!("Unexpected scraper caught-up domain {domain}")
-                                })?;
                                 state.persist_gas_payment_cursor(domain, cursor, |cursor| {
                                     source.store_gas_payment_cursor(cursor)
                                 })?;
@@ -2338,6 +2721,7 @@ impl ScraperWebSocketMonitor {
                                 }
                                 self.set_source_caught_up(source, EventKind::GasPayment, true);
                                 self.record(domain, GAS_PAYMENT_EVENT_TYPE, "caught_up");
+                                self.maybe_activate_authority().await;
                                 continue;
                             }
                             if row_id.is_some() || stream_cursor.is_some() {
@@ -2402,13 +2786,15 @@ impl ScraperWebSocketMonitor {
                                 staged_parity,
                             )
                             .await?;
-                            self.update_source_caught_up(state, plan, &caught_up, domain)?;
+                            self.update_source_caught_up(state, plan, &caught_up, domain)
+                                .await?;
                         }
                         ServerMessage::Error { error } => {
                             if self.gas_payment_enabled.load(Ordering::Relaxed)
                                 && is_unsupported_row_cursor_error(&error)
                             {
                                 self.gas_payment_enabled.store(false, Ordering::Relaxed);
+                                self.deactivate_authority();
                                 for source in self.sources.values() {
                                     self.set_source_caught_up(source, EventKind::GasPayment, false);
                                     self.degraded
@@ -2476,6 +2862,265 @@ impl ScraperWebSocketMonitor {
         }
     }
 
+    fn deactivate_authority(&self) {
+        if self.authority_active.swap(false, Ordering::AcqRel) {
+            info!("Restoring direct RPC indexing fallback");
+        }
+        for source in self.sources.values() {
+            self.authority
+                .with_label_values(&[source.chain.as_str()])
+                .set(0);
+            self.fresh
+                .with_label_values(&[source.chain.as_str()])
+                .set(0);
+        }
+        self.authority_sender.send_if_modified(|current| {
+            if current.desired {
+                current.desired = false;
+                true
+            } else {
+                false
+            }
+        });
+        self.authority_handoff.notify_state_changed();
+    }
+
+    fn refresh_parity_ready(&self, source: &ScraperSource) {
+        for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+            let labels = [source.chain.as_str(), kind.label()];
+            if self.parity_pending.with_label_values(&labels).get() == 0
+                && !self
+                    .parity_unhealthy
+                    .lock()
+                    .contains(&(source.domain, kind))
+            {
+                self.parity_ready.with_label_values(&labels).set(1);
+            }
+        }
+    }
+
+    async fn maybe_activate_authority(&self) {
+        if self.authority_active.load(Ordering::Acquire)
+            || !self.base_authority_ready()
+            || !self
+                .sources
+                .values()
+                .all(|source| self.fresh.with_label_values(&[source.chain.as_str()]).get() == 1)
+        {
+            return;
+        }
+        self.authority_sender.send_if_modified(|current| {
+            if current.desired {
+                false
+            } else {
+                current.desired = true;
+                current.generation = current
+                    .generation
+                    .checked_add(1)
+                    .expect("Scraper authority generation exhausted");
+                true
+            }
+        });
+        let command = *self.authority_sender.borrow();
+        let handoff_complete = matches!(
+            timeout(
+                AUTHORITY_HANDOFF_TIMEOUT,
+                self.authority_handoff
+                    .wait_until_paused(&self.authority_sender, command.generation),
+            )
+            .await,
+            Ok(true)
+        );
+        if !handoff_complete
+            || *self.authority_sender.borrow() != command
+            || !self.base_authority_ready()
+            || !self
+                .sources
+                .values()
+                .all(|source| self.fresh.with_label_values(&[source.chain.as_str()]).get() == 1)
+        {
+            if !handoff_complete {
+                warn!(
+                    generation = command.generation,
+                    "RPC indexers did not acknowledge scraper authority handoff"
+                );
+            }
+            self.deactivate_authority();
+            return;
+        }
+        if self
+            .authority_active
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
+        {
+            for source in self.sources.values() {
+                self.authority
+                    .with_label_values(&[source.chain.as_str()])
+                    .set(1);
+            }
+            info!("Scraper-proxy indexing is authoritative; pausing direct RPC indexing");
+        }
+    }
+
+    fn base_authority_ready(&self) -> bool {
+        self.authority_enabled
+            && self.gas_payment_enabled.load(Ordering::Acquire)
+            && !self.sources.is_empty()
+            && self.sources.values().all(|source| {
+                self.active
+                    .with_label_values(&[source.chain.as_str()])
+                    .get()
+                    == 1
+                    && [
+                        EventKind::Dispatch,
+                        EventKind::GasPayment,
+                        EventKind::MerkleTreeInsertion,
+                    ]
+                    .into_iter()
+                    .all(|kind| {
+                        self.caught_up
+                            .with_label_values(&[source.chain.as_str(), kind.label()])
+                            .get()
+                            == 1
+                    })
+                    && self
+                        .degraded
+                        .with_label_values(&[source.chain.as_str(), GAS_PAYMENT_EVENT_TYPE])
+                        .get()
+                        == 0
+                    && [EventKind::Dispatch, EventKind::MerkleTreeInsertion]
+                        .into_iter()
+                        .all(|kind| {
+                            let labels = [source.chain.as_str(), kind.label()];
+                            self.parity_pending.with_label_values(&labels).get() == 0
+                                && self.parity_ready.with_label_values(&labels).get() == 1
+                        })
+            })
+    }
+
+    async fn run_authority_freshness(self: Arc<Self>) {
+        let mut ticker = interval(AUTHORITY_FRESHNESS_INTERVAL);
+        ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        loop {
+            ticker.tick().await;
+            self.refresh_authority_once().await;
+        }
+    }
+
+    async fn refresh_authority_once(&self) {
+        if !self.base_authority_ready() {
+            self.deactivate_authority();
+            return;
+        }
+
+        let results = stream::iter(self.sources.values().cloned())
+            .map(|source| async move {
+                let chain = source.chain.clone();
+                let indexer = source
+                    .freshness_indexer
+                    .clone()
+                    .context("Missing canonical dispatch freshness indexer")?;
+                let (canonical_count, _) = timeout(
+                    AUTHORITY_FRESHNESS_TIMEOUT,
+                    indexer.latest_sequence_count_and_tip(),
+                )
+                .await
+                .context("Canonical dispatch freshness probe timed out")??;
+                let cursor_source = source.clone();
+                let cursor_read = async {
+                    let permit = self
+                        .parity_read_permit
+                        .clone()
+                        .acquire_owned()
+                        .await
+                        .expect("parity semaphore is never closed");
+                    if self.parity_read_disabled.load(Ordering::Acquire) {
+                        bail!("Canonical scraper freshness reads are disabled");
+                    }
+                    tokio::task::spawn_blocking(move || -> Result<_> {
+                        let _permit = permit;
+                        Ok((
+                            cursor_source.cursor(EventKind::Dispatch)?,
+                            cursor_source.cursor(EventKind::MerkleTreeInsertion)?,
+                            cursor_source.correlation_cursor()?,
+                        ))
+                    })
+                    .await
+                    .context("Canonical scraper freshness cursor task failed")?
+                };
+                let (dispatch_cursor, merkle_cursor, correlation_cursor) =
+                    match timeout(PARITY_READ_TIMEOUT, cursor_read).await {
+                        Ok(result) => result?,
+                        Err(_) => {
+                            self.disable_parity_reads(
+                                &chain,
+                                DISPATCH_EVENT_TYPE,
+                                "canonical freshness cursor read timed out",
+                            );
+                            bail!("Canonical scraper freshness cursor read timed out");
+                        }
+                    };
+                Ok::<_, eyre::Report>((
+                    chain,
+                    canonical_cursors_are_fresh(
+                        canonical_count,
+                        dispatch_cursor,
+                        merkle_cursor,
+                        correlation_cursor,
+                    )?,
+                    canonical_count,
+                    dispatch_cursor,
+                    merkle_cursor,
+                    correlation_cursor,
+                ))
+            })
+            .buffer_unordered(AUTHORITY_FRESHNESS_CONCURRENCY)
+            .collect::<Vec<_>>()
+            .await;
+
+        let mut all_fresh = true;
+        for result in results {
+            match result {
+                Ok((
+                    chain,
+                    is_fresh,
+                    canonical_count,
+                    dispatch_cursor,
+                    merkle_cursor,
+                    correlation_cursor,
+                )) => {
+                    self.fresh
+                        .with_label_values(&[chain.as_str()])
+                        .set(i64::from(is_fresh));
+                    if !is_fresh {
+                        all_fresh = false;
+                        if should_warn(&self.freshness_warned_at) {
+                            warn!(
+                                %chain,
+                                ?canonical_count,
+                                ?dispatch_cursor,
+                                ?merkle_cursor,
+                                ?correlation_cursor,
+                                "Scraper sequenced cursors are not canonically fresh"
+                            );
+                        }
+                    }
+                }
+                Err(err) => {
+                    all_fresh = false;
+                    if should_warn(&self.freshness_warned_at) {
+                        warn!(?err, "Canonical scraper freshness probe failed");
+                    }
+                }
+            }
+        }
+        if all_fresh {
+            self.maybe_activate_authority().await;
+        } else {
+            self.deactivate_authority();
+        }
+    }
+
     fn set_caught_up(&self, caught_up: bool) {
         for source in self.sources.values() {
             for kind in [
@@ -2494,7 +3139,7 @@ impl ScraperWebSocketMonitor {
             .set(i64::from(caught_up));
     }
 
-    fn update_source_caught_up(
+    async fn update_source_caught_up(
         &self,
         state: &StreamState,
         plan: &SequencedReplayPlan,
@@ -2511,6 +3156,8 @@ impl ScraperWebSocketMonitor {
         for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
             self.set_source_caught_up(source, kind, true);
         }
+        self.refresh_parity_ready(source);
+        self.maybe_activate_authority().await;
         Ok(())
     }
 
@@ -2537,6 +3184,30 @@ fn should_warn(warned_at: &parking_lot::Mutex<Option<Instant>>) -> bool {
     }
     *warned_at = Some(now);
     true
+}
+
+fn canonical_cursors_are_fresh(
+    canonical_count: Option<u32>,
+    dispatch_cursor: Option<u32>,
+    merkle_cursor: Option<u32>,
+    correlation_cursor: Option<u32>,
+) -> Result<bool> {
+    let cursor_count = |cursor: Option<u32>, label: &str| {
+        cursor
+            .map(|cursor| {
+                cursor
+                    .checked_add(1)
+                    .with_context(|| format!("{label} cursor exhausted"))
+            })
+            .transpose()
+            .map(|count| count.unwrap_or(0))
+    };
+    let canonical_count = canonical_count.unwrap_or(0);
+    Ok(
+        cursor_count(dispatch_cursor, "Dispatch")? == canonical_count
+            && cursor_count(merkle_cursor, "Merkle")? == canonical_count
+            && correlation_cursor.unwrap_or(0) == canonical_count,
+    )
 }
 
 #[cfg(test)]
@@ -2936,10 +3607,13 @@ struct GasPaymentEventData {
     log_index: String,
     msg_id: String,
     origin: u32,
+    origin_block_hash: Option<String>,
+    origin_block_height: Option<String>,
+    origin_tx_hash: Option<String>,
     payment: String,
     sequence: Option<String>,
     time_created: String,
-    tx_id: String,
+    tx_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -3009,9 +3683,12 @@ fn event_label(event_type: &str) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::RangeInclusive;
+
     use super::*;
+    use async_trait::async_trait;
     use hyperlane_base::db::{test_utils, DB};
-    use hyperlane_core::HyperlaneDomain;
+    use hyperlane_core::{ChainResult, HyperlaneDomain, Indexer, SequenceAwareIndexer};
     use prometheus::Registry;
     use tokio::{net::TcpListener, sync::oneshot};
     use tokio_tungstenite::accept_async;
@@ -3020,6 +3697,30 @@ mod tests {
         _temp_dir: tempfile::TempDir,
         database: HyperlaneRocksDB,
         sources: HashMap<u32, ScraperSource>,
+    }
+
+    #[derive(Debug)]
+    struct FixedSequenceIndexer(u32);
+
+    #[async_trait]
+    impl Indexer<HyperlaneMessage> for FixedSequenceIndexer {
+        async fn fetch_logs_in_range(
+            &self,
+            _range: RangeInclusive<u32>,
+        ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+            unreachable!("freshness tests only query the sequence count")
+        }
+
+        async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+            unreachable!("freshness tests only query the sequence count")
+        }
+    }
+
+    #[async_trait]
+    impl SequenceAwareIndexer<HyperlaneMessage> for FixedSequenceIndexer {
+        async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+            Ok((Some(self.0), 0))
+        }
     }
 
     fn source(database: HyperlaneRocksDB) -> ScraperSource {
@@ -3091,6 +3792,611 @@ mod tests {
             &metrics,
         )
         .expect("create test monitor")
+    }
+
+    #[tokio::test]
+    async fn authority_waits_for_rpc_pause_restores_fallback_and_reactivates() {
+        let fixture = fixture();
+        let metrics = CoreMetrics::new("scraper-authority-test", 9090, Registry::new())
+            .expect("create test metrics");
+        let monitor = ScraperWebSocketMonitor::new_with_authority(
+            Url::parse("ws://localhost:1").expect("test URL"),
+            fixture.sources.into_values().collect(),
+            &metrics,
+            true,
+        )
+        .expect("create authority monitor");
+        let mut receiver = monitor.authority_receiver().expect("authority receiver");
+
+        monitor.set_active(true);
+        monitor.gas_payment_enabled.store(true, Ordering::Release);
+        for source in monitor.sources.values() {
+            for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+                monitor.set_source_caught_up(source, kind, true);
+            }
+            monitor.refresh_parity_ready(source);
+        }
+        monitor.maybe_activate_authority().await;
+        assert!(!receiver.borrow_and_update().desired);
+
+        for source in monitor.sources.values() {
+            monitor.set_source_caught_up(source, EventKind::GasPayment, true);
+            monitor
+                .fresh
+                .with_label_values(&[source.chain.as_str()])
+                .set(1);
+        }
+        let activation = monitor.maybe_activate_authority();
+        tokio::pin!(activation);
+        assert!(timeout(Duration::from_millis(10), &mut activation)
+            .await
+            .is_err());
+        let command = receiver.borrow_and_update();
+        assert!(command.desired);
+        assert!(!monitor.authority_active.load(Ordering::Acquire));
+        monitor.authority_handoff.mark_paused(5, command.generation);
+        activation.await;
+        assert!(monitor.authority_active.load(Ordering::Acquire));
+
+        monitor.deactivate_authority();
+        assert!(!receiver.borrow_and_update().desired);
+        monitor.authority_handoff.mark_running(5);
+
+        monitor.set_active(false);
+        monitor.set_caught_up(false);
+        monitor.set_active(true);
+        for source in monitor.sources.values() {
+            for kind in [
+                EventKind::Dispatch,
+                EventKind::GasPayment,
+                EventKind::MerkleTreeInsertion,
+            ] {
+                monitor.set_source_caught_up(source, kind, true);
+            }
+            monitor.refresh_parity_ready(source);
+            monitor
+                .fresh
+                .with_label_values(&[source.chain.as_str()])
+                .set(1);
+        }
+        let command = {
+            let activation = monitor.maybe_activate_authority();
+            tokio::pin!(activation);
+            assert!(timeout(Duration::from_millis(10), &mut activation)
+                .await
+                .is_err());
+            let command = receiver.borrow_and_update();
+            monitor.authority_handoff.mark_paused(5, command.generation);
+            activation.await;
+            command
+        };
+        assert!(command.desired);
+        assert!(monitor.authority_active.load(Ordering::Acquire));
+    }
+
+    #[tokio::test]
+    async fn authority_handoff_timeout_restores_rpc_fallback() {
+        let metrics = CoreMetrics::new("scraper-authority-timeout-test", 9090, Registry::new())
+            .expect("create test metrics");
+        let monitor = ScraperWebSocketMonitor::new_with_authority(
+            Url::parse("ws://localhost:1").expect("test URL"),
+            sources_for(&[5, 6]).into_values().collect(),
+            &metrics,
+            true,
+        )
+        .expect("create authority monitor");
+        let mut observer = monitor.authority_receiver().expect("authority observer");
+        let mut receiver = monitor.authority_receiver().expect("authority receiver");
+        let paused_then_resumed = tokio::spawn(async move {
+            receiver.changed().await.expect("pause command");
+            let command = receiver.borrow_and_update();
+            assert!(command.desired);
+            receiver.mark_paused(5, command.generation);
+            receiver.changed().await.expect("fallback command");
+            assert!(!receiver.borrow_and_update().desired);
+            receiver.mark_running(5);
+        });
+
+        monitor.set_active(true);
+        monitor.gas_payment_enabled.store(true, Ordering::Release);
+        for source in monitor.sources.values() {
+            for kind in [
+                EventKind::Dispatch,
+                EventKind::GasPayment,
+                EventKind::MerkleTreeInsertion,
+            ] {
+                monitor.set_source_caught_up(source, kind, true);
+            }
+            monitor.refresh_parity_ready(source);
+            monitor
+                .fresh
+                .with_label_values(&[source.chain.as_str()])
+                .set(1);
+        }
+
+        monitor.maybe_activate_authority().await;
+
+        assert!(!monitor.authority_active.load(Ordering::Acquire));
+        assert!(!observer.borrow_and_update().desired);
+        timeout(Duration::from_secs(1), paused_then_resumed)
+            .await
+            .expect("paused supervisor resumes after timeout")
+            .expect("supervisor simulation");
+        assert!(monitor.authority_handoff.paused.lock().is_empty());
+    }
+
+    #[test]
+    fn canonical_freshness_requires_complete_correlated_frontier() {
+        assert!(canonical_cursors_are_fresh(None, None, None, None).expect("empty chain is fresh"));
+        assert!(
+            canonical_cursors_are_fresh(Some(10), Some(9), Some(9), Some(10))
+                .expect("matching cursors are fresh")
+        );
+        assert!(
+            !canonical_cursors_are_fresh(Some(10), Some(9), Some(8), Some(10))
+                .expect("lagging Merkle cursor is stale")
+        );
+        assert!(
+            !canonical_cursors_are_fresh(Some(10), Some(9), Some(9), Some(9))
+                .expect("lagging correlation cursor is stale")
+        );
+        assert!(
+            !canonical_cursors_are_fresh(Some(11), Some(9), Some(9), Some(10))
+                .expect("lagging sequenced cursors are stale")
+        );
+        assert!(canonical_cursors_are_fresh(
+            Some(u32::MAX),
+            Some(u32::MAX),
+            Some(u32::MAX),
+            Some(u32::MAX),
+        )
+        .is_err());
+    }
+
+    #[tokio::test]
+    async fn canonical_freshness_restores_fallback_then_reacquires_after_pairing() {
+        let fixture = fixture();
+        let mut source = fixture.sources[&5].clone();
+        source
+            .store_cursor(EventKind::Dispatch, 9)
+            .expect("store dispatch cursor");
+        source
+            .store_cursor(EventKind::MerkleTreeInsertion, 8)
+            .expect("store lagging Merkle cursor");
+        source
+            .store_correlation_cursor(9)
+            .expect("store lagging correlation cursor");
+        source = source.with_freshness_indexer(Arc::new(FixedSequenceIndexer(10)));
+        let metrics = CoreMetrics::new("scraper-authority-frontier-test", 9090, Registry::new())
+            .expect("create test metrics");
+        let monitor = ScraperWebSocketMonitor::new_with_authority(
+            Url::parse("ws://localhost:1").expect("test URL"),
+            vec![source],
+            &metrics,
+            true,
+        )
+        .expect("create authority monitor");
+        let mut receiver = monitor.authority_receiver().expect("authority receiver");
+        monitor.set_active(true);
+        monitor.gas_payment_enabled.store(true, Ordering::Release);
+        for source in monitor.sources.values() {
+            for kind in [
+                EventKind::Dispatch,
+                EventKind::GasPayment,
+                EventKind::MerkleTreeInsertion,
+            ] {
+                monitor.set_source_caught_up(source, kind, true);
+            }
+            monitor.refresh_parity_ready(source);
+            monitor
+                .fresh
+                .with_label_values(&[source.chain.as_str()])
+                .set(1);
+        }
+        monitor.authority_active.store(true, Ordering::Release);
+
+        monitor.refresh_authority_once().await;
+        assert!(!monitor.authority_active.load(Ordering::Acquire));
+        assert!(!receiver.borrow_and_update().desired);
+        assert_eq!(monitor.fresh.with_label_values(&["test"]).get(), 0);
+
+        let source = &monitor.sources[&5];
+        source
+            .store_cursor(EventKind::MerkleTreeInsertion, 9)
+            .expect("advance Merkle cursor");
+        source
+            .store_correlation_cursor(10)
+            .expect("advance correlation cursor");
+        let refresh = monitor.refresh_authority_once();
+        tokio::pin!(refresh);
+        assert!(timeout(Duration::from_millis(10), &mut refresh)
+            .await
+            .is_err());
+        let command = receiver.borrow_and_update();
+        assert!(command.desired);
+        monitor.authority_handoff.mark_paused(5, command.generation);
+        refresh.await;
+
+        assert!(monitor.authority_active.load(Ordering::Acquire));
+        assert_eq!(monitor.fresh.with_label_values(&["test"]).get(), 1);
+    }
+
+    #[tokio::test]
+    async fn freshness_read_capacity_timeout_restores_fallback_and_stops_retries() {
+        let fixture = fixture();
+        let source = fixture.sources[&5]
+            .clone()
+            .with_freshness_indexer(Arc::new(FixedSequenceIndexer(10)));
+        let metrics = CoreMetrics::new("scraper-freshness-timeout-test", 9090, Registry::new())
+            .expect("create test metrics");
+        let monitor = ScraperWebSocketMonitor::new_with_authority(
+            Url::parse("ws://localhost:1").expect("test URL"),
+            vec![source],
+            &metrics,
+            true,
+        )
+        .expect("create authority monitor");
+        let mut receiver = monitor.authority_receiver().expect("authority receiver");
+        monitor.set_active(true);
+        monitor.gas_payment_enabled.store(true, Ordering::Release);
+        monitor.set_caught_up(true);
+        monitor.refresh_parity_ready(&monitor.sources[&5]);
+        monitor.fresh.with_label_values(&["test"]).set(1);
+        monitor.authority_active.store(true, Ordering::Release);
+        monitor
+            .authority_sender
+            .send_modify(|command| command.desired = true);
+
+        let permits = monitor
+            .parity_read_permit
+            .clone()
+            .acquire_many_owned(
+                PARITY_READ_CONCURRENCY
+                    .try_into()
+                    .expect("bounded concurrency"),
+            )
+            .await
+            .expect("reserve all read capacity");
+        timeout(Duration::from_secs(2), monitor.refresh_authority_once())
+            .await
+            .expect("freshness check must not wait indefinitely for local reads");
+        assert!(!monitor.authority_active.load(Ordering::Acquire));
+        assert!(!receiver.borrow_and_update().desired);
+        assert!(monitor.parity_read_disabled.load(Ordering::Acquire));
+        assert_eq!(monitor.fresh.with_label_values(&["test"]).get(), 0);
+        assert!(!monitor.base_authority_ready());
+
+        timeout(Duration::from_millis(50), monitor.refresh_authority_once())
+            .await
+            .expect("disabled freshness reads must not queue further work");
+        drop(permits);
+        assert_eq!(
+            monitor.parity_read_permit.available_permits(),
+            PARITY_READ_CONCURRENCY
+        );
+    }
+
+    #[tokio::test]
+    async fn authority_stores_missing_dispatch_before_advancing_parity() {
+        let fixture = fixture();
+        let database = fixture.database.clone();
+        let metrics = CoreMetrics::new("scraper-authority-store-test", 9090, Registry::new())
+            .expect("create test metrics");
+        let monitor = ScraperWebSocketMonitor::new_with_authority(
+            Url::parse("ws://localhost:1").expect("test URL"),
+            fixture.sources.into_values().collect(),
+            &metrics,
+            true,
+        )
+        .expect("create authority monitor");
+        monitor.authority_active.store(true, Ordering::Release);
+        let message = dispatch_message(7, b"payload");
+        let input = ParityInput::Dispatch {
+            block_number: 100,
+            message: message.clone(),
+            transaction_id: dispatch_transaction_id(),
+        };
+
+        assert_eq!(
+            monitor.observe_parity(5, EventKind::Dispatch, input).await,
+            ParityResult::Match.label()
+        );
+        assert_eq!(
+            database
+                .retrieve_message_by_nonce(7)
+                .expect("read stored message"),
+            Some(message.clone())
+        );
+        assert_eq!(
+            HyperlaneDb::retrieve_dispatched_tx_hash_by_message_id(&database, &message.id())
+                .expect("read stored transaction ID"),
+            Some(dispatch_transaction_id())
+        );
+    }
+
+    #[test]
+    fn repairs_partial_merkle_insertion_before_reporting_duplicate() {
+        let fixture = fixture();
+        let insertion = MerkleTreeInsertion::new(7, H256::from_low_u64_be(42));
+        fixture
+            .database
+            .store_merkle_tree_insertion_by_leaf_index(&7, &insertion)
+            .expect("store interrupted primary insertion");
+
+        assert!(!fixture
+            .database
+            .process_tree_insertion(&insertion, 100)
+            .expect("repair partial insertion"));
+        assert_eq!(
+            fixture
+                .database
+                .retrieve_merkle_leaf_index_by_message_id(&insertion.message_id())
+                .expect("read repaired reverse index"),
+            Some(7)
+        );
+        assert_eq!(
+            HyperlaneDb::retrieve_merkle_tree_insertion_block_number_by_leaf_index(
+                &fixture.database,
+                &7,
+            )
+            .expect("read repaired block number"),
+            Some(100)
+        );
+    }
+
+    #[test]
+    fn repairs_missing_merkle_reverse_index_on_parity_match() {
+        let fixture = fixture();
+        let insertion = MerkleTreeInsertion::new(7, H256::from_low_u64_be(42));
+        fixture
+            .database
+            .store_merkle_tree_insertion_by_leaf_index(&7, &insertion)
+            .expect("store interrupted primary insertion");
+        fixture
+            .database
+            .store_merkle_tree_insertion_block_number_by_leaf_index(&7, &100)
+            .expect("store interrupted insertion block");
+
+        assert_eq!(
+            fixture.sources[&5]
+                .store_sequenced_event(&ParityInput::MerkleTreeInsertion {
+                    block_number: 100,
+                    insertion,
+                })
+                .expect("repair matched scraper insertion"),
+            None
+        );
+        assert_eq!(
+            fixture
+                .database
+                .retrieve_merkle_leaf_index_by_message_id(&insertion.message_id())
+                .expect("read repaired reverse index"),
+            Some(7)
+        );
+    }
+
+    #[test]
+    fn serializes_conflicting_merkle_insertions_across_db_clones() {
+        let fixture = fixture();
+        let barrier = Arc::new(std::sync::Barrier::new(2));
+        let insertions = [
+            (MerkleTreeInsertion::new(7, H256::from_low_u64_be(41)), 100),
+            (MerkleTreeInsertion::new(7, H256::from_low_u64_be(42)), 101),
+        ];
+        std::thread::scope(|scope| {
+            for (insertion, block_number) in insertions {
+                let database = fixture.database.clone();
+                let barrier = barrier.clone();
+                scope.spawn(move || {
+                    barrier.wait();
+                    database
+                        .process_tree_insertion(&insertion, block_number)
+                        .expect("store concurrent Merkle insertion");
+                });
+            }
+        });
+
+        let stored =
+            HyperlaneDb::retrieve_merkle_tree_insertion_by_leaf_index(&fixture.database, &7)
+                .expect("read winning insertion")
+                .expect("winning insertion exists");
+        let (loser, expected_block) = if stored == insertions[0].0 {
+            (insertions[1].0, insertions[0].1)
+        } else {
+            assert_eq!(stored, insertions[1].0);
+            (insertions[0].0, insertions[1].1)
+        };
+        assert_eq!(
+            fixture
+                .database
+                .retrieve_merkle_leaf_index_by_message_id(&stored.message_id())
+                .expect("read winning reverse index"),
+            Some(7)
+        );
+        assert_eq!(
+            fixture
+                .database
+                .retrieve_merkle_leaf_index_by_message_id(&loser.message_id())
+                .expect("read losing reverse index"),
+            None
+        );
+        assert_eq!(
+            HyperlaneDb::retrieve_merkle_tree_insertion_block_number_by_leaf_index(
+                &fixture.database,
+                &7,
+            )
+            .expect("read winning block number"),
+            Some(expected_block)
+        );
+    }
+
+    #[test]
+    fn repairs_missing_indexed_gas_payment_block() {
+        let fixture = fixture();
+        let payment = InterchainGasPayment {
+            message_id: H256::from_low_u64_be(9),
+            destination: 10,
+            payment: U256::one(),
+            gas_amount: U256::one(),
+        };
+        let meta = LogMeta {
+            address: H256::from_low_u64_be(3),
+            block_number: 100,
+            block_hash: H256::from_low_u64_be(100),
+            transaction_id: H512::from_low_u64_be(1),
+            transaction_index: 0,
+            log_index: U256::from(7),
+        };
+        assert!(fixture
+            .database
+            .process_gas_payment(payment, &meta)
+            .expect("store aggregate before simulated interruption"));
+        fixture
+            .database
+            .store_gas_payment_by_sequence(&7, &payment)
+            .expect("store interrupted sequence payload");
+        assert_eq!(
+            fixture
+                .database
+                .retrieve_gas_payment_block_by_sequence(&7)
+                .expect("read missing block"),
+            None
+        );
+
+        assert!(!fixture
+            .database
+            .process_indexed_gas_payment(Indexed::new(payment).with_sequence(7), &meta)
+            .expect("repair indexed gas payment"));
+        assert_eq!(
+            fixture
+                .database
+                .retrieve_gas_payment_block_by_sequence(&7)
+                .expect("read repaired block"),
+            Some(100)
+        );
+    }
+
+    #[test]
+    fn rejects_conflicting_indexed_gas_payment_sequence() {
+        let fixture = fixture();
+        let stored_payment = InterchainGasPayment {
+            message_id: H256::from_low_u64_be(8),
+            destination: 10,
+            payment: U256::one(),
+            gas_amount: U256::one(),
+        };
+        let incoming_payment = InterchainGasPayment {
+            message_id: H256::from_low_u64_be(9),
+            ..stored_payment
+        };
+        let meta = LogMeta {
+            address: H256::from_low_u64_be(3),
+            block_number: 100,
+            block_hash: H256::from_low_u64_be(100),
+            transaction_id: H512::from_low_u64_be(1),
+            transaction_index: 0,
+            log_index: U256::from(7),
+        };
+        fixture
+            .database
+            .store_gas_payment_by_sequence(&7, &stored_payment)
+            .expect("store conflicting sequence payment");
+        fixture
+            .database
+            .store_gas_payment_block_by_sequence(&7, &100)
+            .expect("store conflicting sequence block");
+
+        assert!(fixture
+            .database
+            .process_indexed_gas_payment(Indexed::new(incoming_payment).with_sequence(7), &meta)
+            .expect_err("conflicting sequence must fail")
+            .to_string()
+            .contains("conflicts with stored payment"));
+        assert_eq!(
+            fixture
+                .database
+                .retrieve_gas_payment_by_gas_payment_key(incoming_payment.into())
+                .expect("read untouched incoming aggregate"),
+            None
+        );
+    }
+
+    #[test]
+    fn serializes_concurrent_gas_payment_aggregation_across_db_clones() {
+        const WRITERS: u32 = 16;
+        let fixture = fixture();
+        let barrier = Arc::new(std::sync::Barrier::new(WRITERS as usize));
+        let payment = InterchainGasPayment {
+            message_id: H256::from_low_u64_be(9),
+            destination: 10,
+            payment: U256::one(),
+            gas_amount: U256::one(),
+        };
+        std::thread::scope(|scope| {
+            for index in 0..WRITERS {
+                let database = fixture.database.clone();
+                let barrier = barrier.clone();
+                scope.spawn(move || {
+                    barrier.wait();
+                    database
+                        .process_indexed_gas_payment(
+                            Indexed::new(payment).with_sequence(index),
+                            &LogMeta {
+                                address: H256::from_low_u64_be(3),
+                                block_number: 100 + u64::from(index),
+                                block_hash: H256::from_low_u64_be(100 + u64::from(index)),
+                                transaction_id: H512::from_low_u64_be(1 + u64::from(index)),
+                                transaction_index: 0,
+                                log_index: U256::from(index),
+                            },
+                        )
+                        .expect("store concurrent gas payment");
+                });
+            }
+        });
+
+        let total = fixture
+            .database
+            .retrieve_gas_payment_by_gas_payment_key(payment.into())
+            .expect("read aggregate")
+            .expect("aggregate exists");
+        assert_eq!(total.payment, U256::from(WRITERS));
+        assert_eq!(total.gas_amount, U256::from(WRITERS));
+    }
+
+    #[test]
+    fn authority_stores_gas_payment_before_its_cursor() {
+        let fixture = fixture();
+        let source = fixture.sources.get(&5).expect("source");
+        let mut event = gas_payment_event(10);
+        event.data["sequence"] = serde_json::json!("7");
+        let mut state = StreamState::default();
+        state
+            .accept_gas_payment_caught_up(
+                &scraper_address(source.interchain_gas_paymaster),
+                5,
+                None,
+                Some("9"),
+                None,
+                &fixture.sources,
+            )
+            .expect("set gas payment baseline");
+        let input = state
+            .validate(event, &fixture.sources)
+            .expect("validate gas payment")
+            .gas_payment
+            .expect("gas payment input");
+
+        source.store_gas_payment(&input).expect("store gas payment");
+        assert!(source
+            .cursor_db
+            .retrieve_gas_payment_by_sequence(&7)
+            .expect("read gas payment")
+            .is_some());
+        assert_eq!(
+            source.gas_payment_cursor().expect("read stream cursor"),
+            None
+        );
     }
 
     fn event(
@@ -3186,6 +4492,9 @@ mod tests {
                 "log_index": "0",
                 "msg_id": format!("{:#x}", H256::from_low_u64_be(7)),
                 "origin": 5,
+                "origin_block_hash": format!("{:#x}", H256::from_low_u64_be(8)),
+                "origin_block_height": "100",
+                "origin_tx_hash": format!("{:#x}", H256::from_low_u64_be(9)),
                 "payment": "1000",
                 "sequence": null,
                 "time_created": "2026-08-30T00:00:00.000Z",
@@ -5859,12 +7168,11 @@ mod tests {
         assert!(state
             .gas_payment_caught_up_cursor(
                 &scraper_address(H256::from_low_u64_be(3)),
-                5,
+                sources.get(&5).expect("configured source"),
                 None,
                 None,
                 Some("21"),
                 None,
-                &sources,
             )
             .expect_err("caught-up boundary is required")
             .to_string()
@@ -5872,12 +7180,11 @@ mod tests {
         assert!(state
             .gas_payment_caught_up_cursor(
                 &scraper_address(H256::from_low_u64_be(3)),
-                5,
+                sources.get(&5).expect("configured source"),
                 Some("21"),
                 None,
                 Some("21"),
                 None,
-                &sources,
             )
             .expect_err("caught-up boundary must match events")
             .to_string()
@@ -5891,12 +7198,11 @@ mod tests {
         let cursor = state
             .gas_payment_caught_up_cursor(
                 &scraper_address(H256::from_low_u64_be(3)),
-                5,
+                monitor.sources.get(&5).expect("configured source"),
                 Some("20"),
                 None,
                 Some("20"),
                 None,
-                &monitor.sources,
             )
             .expect("valid fresh gas baseline");
 
@@ -5929,7 +7235,7 @@ mod tests {
         assert!(state
             .persist_gas_payment_cursor(
                 5,
-                accepted.gas_payment_cursor.expect("accepted event cursor"),
+                accepted.gas_payment.expect("accepted event input").cursor,
                 |_| bail!("store failed"),
             )
             .is_err());
@@ -5942,7 +7248,7 @@ mod tests {
         let duplicate = state
             .validate(gas_payment_event_with_boundary(10, 20), &monitor.sources)
             .expect("valid duplicate event");
-        let duplicate_cursor = duplicate.gas_payment_cursor.expect("duplicate cursor");
+        let duplicate_cursor = duplicate.gas_payment.expect("duplicate event input").cursor;
         assert!(duplicate_cursor.fingerprint.is_some());
         assert!(state
             .persist_gas_payment_cursor(5, duplicate_cursor, |_| bail!("store failed"),)
@@ -5987,6 +7293,151 @@ mod tests {
     }
 
     #[test]
+    fn unresolved_gas_metadata_preserves_rpc_indexing_in_both_arrival_orders() {
+        for rpc_first in [false, true] {
+            let fixture = fixture();
+            let source = &fixture.sources[&5];
+            let payment = Indexed::new(InterchainGasPayment {
+                message_id: H256::from_low_u64_be(7),
+                destination: 6,
+                payment: U256::from(1000),
+                gas_amount: U256::from(50000),
+            })
+            .with_sequence(0);
+            // Sealevel basic metadata retains the payment account's real slot
+            // even when transaction and block hashes could not be resolved.
+            let rpc_meta = LogMeta {
+                address: source.interchain_gas_paymaster,
+                block_number: 123_456,
+                block_hash: H256::zero(),
+                transaction_id: H512::zero(),
+                transaction_index: 0,
+                log_index: U256::zero(),
+            };
+            if rpc_first {
+                assert!(fixture
+                    .database
+                    .process_indexed_gas_payment(payment, &rpc_meta)
+                    .expect("RPC indexes the canonical slot first"));
+            }
+            let mut event = gas_payment_event(10);
+            for field in [
+                "tx_id",
+                "origin_tx_hash",
+                "origin_block_hash",
+                "origin_block_height",
+            ] {
+                event.data[field] = serde_json::Value::Null;
+            }
+            event.data["sequence"] = serde_json::json!("0");
+            let mut state = StreamState::default();
+            state
+                .accept_gas_payment_caught_up(
+                    &scraper_address(source.interchain_gas_paymaster),
+                    5,
+                    None,
+                    Some("9"),
+                    None,
+                    &fixture.sources,
+                )
+                .expect("gas payment baseline");
+            assert!(state
+                .validate(event, &fixture.sources)
+                .expect_err("unknown block height must not become authoritative metadata")
+                .to_string()
+                .contains("canonical block height"));
+            assert_eq!(state.gas_payment_rows[&5].stream_cursor, 9);
+            assert_eq!(
+                fixture
+                    .database
+                    .retrieve_gas_payment_block_by_sequence(&0)
+                    .expect("read untouched block metadata"),
+                rpc_first.then_some(rpc_meta.block_number),
+            );
+            assert_eq!(
+                fixture
+                    .database
+                    .process_indexed_gas_payment(payment, &rpc_meta)
+                    .expect("RPC indexing remains live after the shadow event"),
+                !rpc_first
+            );
+            assert_eq!(
+                fixture
+                    .database
+                    .retrieve_gas_payment_block_by_sequence(&0)
+                    .expect("read canonical slot"),
+                Some(rpc_meta.block_number),
+            );
+            let total = fixture
+                .database
+                .retrieve_gas_payment_by_gas_payment_key((*payment.inner()).into())
+                .expect("read aggregate")
+                .expect("aggregate exists");
+            assert_eq!(total.payment, U256::from(1000));
+            assert_eq!(total.gas_amount, U256::from(50000));
+        }
+    }
+
+    #[test]
+    fn resolved_gas_metadata_dedupes_rpc_in_both_arrival_orders() {
+        for rpc_first in [false, true] {
+            let fixture = fixture();
+            let source = &fixture.sources[&5];
+            let mut state = StreamState::default();
+            state
+                .accept_gas_payment_caught_up(
+                    &scraper_address(source.interchain_gas_paymaster),
+                    5,
+                    None,
+                    Some("9"),
+                    None,
+                    &fixture.sources,
+                )
+                .expect("gas payment baseline");
+            let mut event = gas_payment_event(10);
+            event.data["sequence"] = serde_json::json!("0");
+            let input = state
+                .validate(event, &fixture.sources)
+                .expect("resolved metadata remains supported")
+                .gas_payment
+                .expect("gas payment input");
+            let rpc_meta = LogMeta {
+                block_hash: H256::zero(),
+                transaction_id: H512::zero(),
+                ..input.meta.clone()
+            };
+            assert_eq!(rpc_meta.block_number, 100);
+            if rpc_first {
+                assert!(fixture
+                    .database
+                    .process_indexed_gas_payment(input.payment, &rpc_meta)
+                    .expect("RPC indexes first"));
+            }
+            source
+                .store_gas_payment(&input)
+                .expect("store resolved shadow payment");
+            assert!(!fixture
+                .database
+                .process_indexed_gas_payment(input.payment, &rpc_meta)
+                .expect("RPC deduplicates the same payment and canonical slot"));
+            let total = fixture
+                .database
+                .retrieve_gas_payment_by_gas_payment_key((*input.payment.inner()).into())
+                .expect("read aggregate")
+                .expect("aggregate exists");
+            assert_eq!(total.payment, U256::from(1000));
+            assert_eq!(total.gas_amount, U256::from(50000));
+            assert_eq!(
+                fixture
+                    .database
+                    .retrieve_gas_payment_block_by_sequence(&0)
+                    .expect("read canonical block"),
+                Some(100)
+            );
+        }
+    }
+
+    #[test]
     fn rejects_invalid_gas_payment_projection() {
         let mut wrong_paymaster = gas_payment_event(10);
         wrong_paymaster.data["interchain_gas_paymaster"] =
@@ -6001,9 +7452,21 @@ mod tests {
         unresolved.data["tx_id"] = serde_json::Value::Null;
         assert!(StreamState::default()
             .validate(unresolved, &sources())
-            .expect_err("unresolved payment must reject")
+            .expect_err("partial transaction metadata must reject")
             .to_string()
-            .contains("Invalid gas payment event payload"));
+            .contains("only partially resolved"));
+
+        let mut mismatched_fallback = gas_payment_event(10);
+        mismatched_fallback.data["tx_id"] = serde_json::Value::Null;
+        mismatched_fallback.data["origin_tx_hash"] = serde_json::Value::Null;
+        mismatched_fallback.data["origin_block_hash"] = serde_json::Value::Null;
+        mismatched_fallback.data["origin_block_height"] = serde_json::Value::Null;
+        mismatched_fallback.data["sequence"] = serde_json::json!("1");
+        assert!(StreamState::default()
+            .validate(mismatched_fallback, &sources())
+            .expect_err("fallback identity mismatch must reject")
+            .to_string()
+            .contains("log index does not match"));
     }
 
     #[test]
@@ -6355,7 +7818,7 @@ mod tests {
                         ],
                         "domains": [5, 9],
                         "eventType": "gas_payment",
-                        "streamCursorVersion": 2
+                        "streamCursorVersion": 3
                     }
                 ],
                 "type": "subscribe"
@@ -6412,6 +7875,53 @@ mod tests {
     }
 
     #[test]
+    fn migrates_v2_gas_cursor_without_reusing_payload_fingerprint_or_poison() {
+        let fixture = fixture();
+        let source = fixture.sources.get(&5).expect("source");
+        let legacy = DurableGasPaymentCursor {
+            fingerprint: Some(H256::from_low_u64_be(9)),
+            legacy_max_stream_cursor: 20,
+            stream_cursor: 10,
+        };
+        source
+            .store_gas_payment_v2_cursor(&legacy)
+            .expect("store v2 gas cursor");
+        source
+            .cursor_db
+            .store_value_by_key(
+                b"scraper_websocket_gas_payment_degraded_v2",
+                &source.interchain_gas_paymaster,
+                &true,
+            )
+            .expect("store v2 degradation marker");
+
+        let mut state =
+            StreamState::load_gas_payment(&fixture.sources).expect("load v2 gas cursor");
+        assert_eq!(state.gas_payment_v2_rows.get(&5), Some(&legacy));
+        assert_eq!(state.gas_payment_resume_cursor(5), Some(10));
+        assert!(!state.gas_payment_degraded.contains(&5));
+        let validated = state
+            .validate(gas_payment_event_with_boundary(10, 20), &fixture.sources)
+            .expect("v3 duplicate replaces the v2 payload fingerprint");
+        assert_eq!(validated.sequence_result, SequenceResult::Duplicate);
+        state
+            .persist_gas_payment_cursor(
+                5,
+                validated.gas_payment.expect("migrated v3 gas input").cursor,
+                |cursor| source.store_gas_payment_cursor(cursor),
+            )
+            .expect("persist v3 gas cursor");
+        assert!(!state.gas_payment_v2_rows.contains_key(&5));
+        assert_ne!(state.gas_payment_rows[&5].fingerprint, legacy.fingerprint);
+
+        let restarted =
+            StreamState::load_gas_payment(&fixture.sources).expect("reload migrated gas cursor");
+        assert!(!restarted.gas_payment_v2_rows.contains_key(&5));
+        assert_eq!(restarted.gas_payment_rows[&5], state.gas_payment_rows[&5]);
+        assert!(!restarted.gas_payment_degraded.contains(&5));
+    }
+
+    #[test]
     fn migrates_sparse_v1_gas_cursor_without_replaying_from_tip() {
         let fixture = fixture();
         let source = fixture.sources.get(&5).expect("source");
@@ -6443,12 +7953,10 @@ mod tests {
         state
             .persist_gas_payment_cursor(
                 5,
-                validated
-                    .gas_payment_cursor
-                    .expect("migrated v2 gas cursor"),
+                validated.gas_payment.expect("migrated v3 gas input").cursor,
                 |cursor| source.store_gas_payment_cursor(cursor),
             )
-            .expect("persist v2 gas cursor");
+            .expect("persist v3 gas cursor");
         assert!(!state.gas_payment_v1_rows.contains_key(&5));
         assert_eq!(state.gas_payment_rows[&5].stream_cursor, 20);
         assert_eq!(state.gas_payment_rows[&5].legacy_max_stream_cursor, 20);
@@ -6486,11 +7994,12 @@ mod tests {
             .persist_gas_payment_cursor(
                 5,
                 validated
-                    .gas_payment_cursor
-                    .expect("migrated dense v2 gas cursor"),
+                    .gas_payment
+                    .expect("migrated dense v3 gas input")
+                    .cursor,
                 |cursor| source.store_gas_payment_cursor(cursor),
             )
-            .expect("persist dense v2 gas cursor");
+            .expect("persist dense v3 gas cursor");
         assert_eq!(state.gas_payment_rows[&5].stream_cursor, 21);
     }
 
@@ -6516,7 +8025,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn v1_ready_rejects_unsolicited_gas_messages() {
+    async fn v2_ready_rejects_unsolicited_gas_messages() {
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind test server");
@@ -6537,7 +8046,7 @@ mod tests {
             let mut socket = accept_async(stream).await.expect("accept websocket");
             socket
                 .send(Message::Text(
-                    r#"{"streamCursorVersions":{"gas_payment":1},"type":"ready"}"#.to_owned(),
+                    r#"{"streamCursorVersions":{"gas_payment":2},"type":"ready"}"#.to_owned(),
                 ))
                 .await
                 .expect("send v1 ready");
@@ -6584,7 +8093,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn quarantines_invalid_gas_payment_without_stopping_other_streams() {
+    async fn quarantines_unresolved_gas_payment_without_stopping_other_streams() {
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind test server");
@@ -6637,10 +8146,25 @@ mod tests {
             release_rx.await.expect("release test server");
 
             let mut poison = gas_payment_event(10);
-            poison.data["interchain_gas_paymaster"] =
-                serde_json::json!(format!("{:#x}", H256::from_low_u64_be(4)));
+            for field in [
+                "tx_id",
+                "origin_tx_hash",
+                "origin_block_hash",
+                "origin_block_height",
+            ] {
+                poison.data[field] = serde_json::Value::Null;
+            }
+            poison.data["sequence"] = serde_json::json!("0");
             let message = dispatch_message(7, b"payload");
             let messages = [
+                serde_json::json!({
+                    "address": scraper_address(H256::from_low_u64_be(3)),
+                    "domain": 5,
+                    "eventType": GAS_PAYMENT_EVENT_TYPE,
+                    "legacyMaxStreamCursor": "0",
+                    "streamCursor": "9",
+                    "type": "caught_up",
+                }),
                 wire_event(poison),
                 wire_event(event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload"))),
                 wire_event(event(
@@ -6729,8 +8253,15 @@ mod tests {
             "{error}"
         );
         assert_eq!(state.gas_payment_degraded, HashSet::from([5]));
-        assert!(!state.gas_payment_rows.contains_key(&5));
+        assert_eq!(state.gas_payment_rows[&5].stream_cursor, 9);
         let source = monitor.sources.get(&5).expect("source");
+        assert_eq!(
+            source
+                .cursor_db
+                .retrieve_gas_payment_by_sequence(&0)
+                .expect("unresolved payment must not enter the authoritative index"),
+            None
+        );
         assert!(source
             .gas_payment_degraded()
             .expect("read durable degradation"));

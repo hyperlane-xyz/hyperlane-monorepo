@@ -148,6 +148,7 @@ fn generate_test_relayer_settings(
         max_retries: 1,
         tx_id_indexing_enabled: true,
         igp_indexing_enabled: true,
+        websocket_authority_enabled: false,
         websocket_url: None,
         relay_api_enabled: false,
         relay_api_port: None,

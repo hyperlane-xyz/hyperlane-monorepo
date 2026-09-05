@@ -92,6 +92,10 @@ describe('Agent configs', () => {
           expect(relayer.websocketUrl).to.equal(
             `ws://scraper-proxy.${environment}.svc.cluster.local:8383/agents`,
           );
+          expect(
+            relayer.websocketAuthorityEnabled,
+            `${environment}/${context} shared scraper authority`,
+          ).to.equal(true);
         });
       }
     });
