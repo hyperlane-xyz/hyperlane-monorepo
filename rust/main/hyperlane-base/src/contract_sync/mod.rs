@@ -10,7 +10,6 @@ use derive_new::new;
 use eyre::Result;
 use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
 use tokio::sync::{mpsc::Receiver as MpscReceiver, Mutex};
-use tokio::task::JoinHandle;
 use tokio::time::{interval, sleep, MissedTickBehavior};
 use tracing::{debug, info, instrument, trace, warn, Instrument};
 
@@ -36,18 +35,6 @@ use cursors::ForwardBackwardSequenceAwareSyncCursor;
 
 const SLEEP_DURATION: Duration = Duration::from_secs(5);
 const LIVENESS_UPDATE_INTERVAL: Duration = Duration::from_secs(30);
-
-struct ContractSyncTasks {
-    cursor: JoinHandle<()>,
-    tx_id: JoinHandle<()>,
-}
-
-impl Drop for ContractSyncTasks {
-    fn drop(&mut self) {
-        self.cursor.abort();
-        self.tx_id.abort();
-    }
-}
 
 #[derive(Debug, derive_new::new)]
 #[allow(dead_code)]
@@ -155,77 +142,53 @@ where
         // index the same event twice now. Which causes e2e to fail
         let shared_store = Arc::new(Mutex::new(self.store.clone()));
 
-        // transaction id task for fetching events via transaction id
-        let tx_id_task = match opts.tx_id_receiver {
-            Some(rx) => {
+        // Keep both indexing futures owned by this task. When the RPC supervisor
+        // aborts and joins it, no independently scheduled writer can survive the
+        // pause acknowledgement.
+        let tx_id_task = async {
+            if let Some(rx) = opts.tx_id_receiver {
                 let liveness_metric = self.metrics.liveness_metrics.with_label_values(&[
                     label,
                     chain_name,
                     "tx_id_task",
                 ]);
-                let domain_clone = self.domain.clone();
-                let indexer_clone = self.indexer.clone();
-                let store_clone = shared_store.clone();
-                let stored_logs_metric = stored_logs_metric.clone();
-                tokio::task::spawn(async move {
-                    Self::tx_id_indexer_task(
-                        domain_clone,
-                        indexer_clone,
-                        store_clone,
-                        rx,
-                        stored_logs_metric,
-                        liveness_metric,
-                    )
-                    .await;
-                })
+                Self::tx_id_indexer_task(
+                    self.domain.clone(),
+                    self.indexer.clone(),
+                    shared_store.clone(),
+                    rx,
+                    stored_logs_metric.clone(),
+                    liveness_metric,
+                )
+                .await;
             }
-            None => tokio::task::spawn(async {}),
         };
-
-        // cursor task for fetching events via range querying
-        let cursor_task = match opts.cursor {
-            Some(cursor) => {
+        let cursor_task = async {
+            if let Some(cursor) = opts.cursor {
                 let liveness_metric = self.metrics.liveness_metrics.with_label_values(&[
                     label,
                     chain_name,
                     "cursor_task",
                 ]);
-                let domain_clone = self.domain.clone();
-                let indexer_clone = self.indexer.clone();
-                let store_clone = shared_store.clone();
-                let broadcast_sender = self.broadcast_sender.clone();
-
-                let stored_logs_metric = stored_logs_metric.clone();
-
-                tokio::task::spawn(
-                    async {
-                        Self::cursor_indexer_task(
-                            domain_clone,
-                            indexer_clone,
-                            store_clone,
-                            cursor,
-                            broadcast_sender,
-                            stored_logs_metric,
-                            indexed_height_metric,
-                            liveness_metric,
-                        )
-                        .await
-                    }
-                    .instrument(tracing::info_span!(
-                        "spawn_cursor_indexer_task",
-                        domain = self.domain().name(),
-                        label
-                    )),
+                Self::cursor_indexer_task(
+                    self.domain.clone(),
+                    self.indexer.clone(),
+                    shared_store.clone(),
+                    cursor,
+                    self.broadcast_sender.clone(),
+                    stored_logs_metric.clone(),
+                    indexed_height_metric,
+                    liveness_metric,
                 )
+                .instrument(tracing::info_span!(
+                    "cursor_indexer_task",
+                    domain = self.domain().name(),
+                    label
+                ))
+                .await;
             }
-            None => tokio::task::spawn(async {}),
         };
-
-        let mut tasks = ContractSyncTasks {
-            cursor: cursor_task,
-            tx_id: tx_id_task,
-        };
-        let res = tokio::join!(&mut tasks.tx_id, &mut tasks.cursor);
+        let res = tokio::join!(tx_id_task, cursor_task);
 
         // we should never reach this because the 2 tasks should never end
         tracing::error!(chain = chain_name, label, ?res, "contract sync loop exit");
@@ -518,39 +481,65 @@ mod tests {
         }
     }
 
-    struct DropFlag(StdArc<AtomicBool>);
+    #[derive(Debug)]
+    struct PendingCursor(StdArc<AtomicBool>);
 
-    impl Drop for DropFlag {
+    impl Drop for PendingCursor {
         fn drop(&mut self) {
             self.0.store(true, Ordering::SeqCst);
         }
     }
 
+    #[async_trait]
+    impl ContractSyncCursor<HyperlaneMessage> for PendingCursor {
+        async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
+            pending().await
+        }
+
+        fn latest_queried_block(&self) -> u32 {
+            0
+        }
+
+        async fn update(
+            &mut self,
+            _logs: Vec<(Indexed<HyperlaneMessage>, LogMeta)>,
+            _range: RangeInclusive<u32>,
+        ) -> Result<()> {
+            Ok(())
+        }
+    }
+
     #[tokio::test]
-    async fn contract_sync_tasks_abort_children_on_drop() {
+    async fn cancelling_contract_sync_drops_indexers_before_returning() {
         let cursor_dropped = StdArc::new(AtomicBool::new(false));
-        let tx_id_dropped = StdArc::new(AtomicBool::new(false));
-        let cursor = tokio::spawn({
-            let cursor_dropped = cursor_dropped.clone();
-            async move {
-                let _flag = DropFlag(cursor_dropped);
-                pending::<()>().await;
-            }
-        });
-        let tx_id = tokio::spawn({
-            let tx_id_dropped = tx_id_dropped.clone();
-            async move {
-                let _flag = DropFlag(tx_id_dropped);
-                pending::<()>().await;
-            }
-        });
-        run_pending_tasks().await;
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+        let metrics =
+            crate::CoreMetrics::new("test", 0, prometheus::Registry::new()).expect("test metrics");
+        let sync = ContractSync::new(
+            test_domain(),
+            StoreResult {
+                stored: 0,
+                error: None,
+                calls: None,
+            },
+            MockIndexer::default(),
+            ContractSyncMetrics::new(&metrics),
+            false,
+        );
+        let mut future = Box::pin(sync.sync(
+            "messages",
+            SyncOptions {
+                cursor: Some(Box::new(PendingCursor(cursor_dropped.clone()))),
+                tx_id_receiver: Some(rx),
+            },
+        ));
+        assert!(futures::poll!(&mut future).is_pending());
+        drop(future);
 
-        drop(ContractSyncTasks { cursor, tx_id });
-        run_pending_tasks().await;
-
+        // No runtime yield: returning from the parent must already quiesce both
+        // children, not merely schedule their eventual cancellation.
         assert!(cursor_dropped.load(Ordering::SeqCst));
-        assert!(tx_id_dropped.load(Ordering::SeqCst));
+        assert!(tx.is_closed());
     }
 
     #[tokio::test]

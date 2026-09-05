@@ -1448,19 +1448,16 @@ impl StreamState {
     fn gas_payment_caught_up_cursor(
         &self,
         address: &str,
-        domain: u32,
+        source: &ScraperSource,
         legacy_max_stream_cursor: Option<&str>,
         row_id: Option<&str>,
         stream_cursor: Option<&str>,
         sequence: Option<&str>,
-        sources: &HashMap<u32, ScraperSource>,
     ) -> Result<DurableGasPaymentCursor> {
         if row_id.is_some() || sequence.is_some() {
             bail!("Unexpected scraper caught-up marker");
         }
-        let source = sources
-            .get(&domain)
-            .with_context(|| format!("Unexpected scraper caught-up domain {domain}"))?;
+        let domain = source.domain;
         if parse_address(address)? != source.interchain_gas_paymaster {
             bail!("Gas payment caught-up paymaster does not match configured paymaster");
         }
@@ -1545,14 +1542,16 @@ impl StreamState {
         sequence: Option<&str>,
         sources: &HashMap<u32, ScraperSource>,
     ) -> Result<()> {
+        let source = sources
+            .get(&domain)
+            .with_context(|| format!("Unexpected scraper caught-up domain {domain}"))?;
         let cursor = self.gas_payment_caught_up_cursor(
             address,
-            domain,
+            source,
             Some("0"),
             row_id,
             stream_cursor,
             sequence,
-            sources,
         )?;
         self.gas_payment_rows.insert(domain, cursor);
         Ok(())
@@ -2701,18 +2700,17 @@ impl ScraperWebSocketMonitor {
                                     self.record(domain, GAS_PAYMENT_EVENT_TYPE, "degraded");
                                     continue;
                                 }
+                                let source = self.sources.get(&domain).with_context(|| {
+                                    format!("Unexpected scraper caught-up domain {domain}")
+                                })?;
                                 let cursor = state.gas_payment_caught_up_cursor(
                                     &address,
-                                    domain,
+                                    source,
                                     legacy_max_stream_cursor.as_deref(),
                                     row_id.as_deref(),
                                     stream_cursor.as_deref(),
                                     sequence.as_deref(),
-                                    &self.sources,
                                 )?;
-                                let source = self.sources.get(&domain).with_context(|| {
-                                    format!("Unexpected scraper caught-up domain {domain}")
-                                })?;
                                 state.persist_gas_payment_cursor(domain, cursor, |cursor| {
                                     source.store_gas_payment_cursor(cursor)
                                 })?;
@@ -3027,8 +3025,18 @@ impl ScraperWebSocketMonitor {
                 .await
                 .context("Canonical dispatch freshness probe timed out")??;
                 let cursor_source = source.clone();
-                let (dispatch_cursor, merkle_cursor, correlation_cursor) =
+                let cursor_read = async {
+                    let permit = self
+                        .parity_read_permit
+                        .clone()
+                        .acquire_owned()
+                        .await
+                        .expect("parity semaphore is never closed");
+                    if self.parity_read_disabled.load(Ordering::Acquire) {
+                        bail!("Canonical scraper freshness reads are disabled");
+                    }
                     tokio::task::spawn_blocking(move || -> Result<_> {
+                        let _permit = permit;
                         Ok((
                             cursor_source.cursor(EventKind::Dispatch)?,
                             cursor_source.cursor(EventKind::MerkleTreeInsertion)?,
@@ -3036,7 +3044,20 @@ impl ScraperWebSocketMonitor {
                         ))
                     })
                     .await
-                    .context("Canonical scraper freshness cursor task failed")??;
+                    .context("Canonical scraper freshness cursor task failed")?
+                };
+                let (dispatch_cursor, merkle_cursor, correlation_cursor) =
+                    match timeout(PARITY_READ_TIMEOUT, cursor_read).await {
+                        Ok(result) => result?,
+                        Err(_) => {
+                            self.disable_parity_reads(
+                                &chain,
+                                DISPATCH_EVENT_TYPE,
+                                "canonical freshness cursor read timed out",
+                            );
+                            bail!("Canonical scraper freshness cursor read timed out");
+                        }
+                    };
                 Ok::<_, eyre::Report>((
                     chain,
                     canonical_cursors_are_fresh(
@@ -3996,6 +4017,61 @@ mod tests {
 
         assert!(monitor.authority_active.load(Ordering::Acquire));
         assert_eq!(monitor.fresh.with_label_values(&["test"]).get(), 1);
+    }
+
+    #[tokio::test]
+    async fn freshness_read_capacity_timeout_restores_fallback_and_stops_retries() {
+        let fixture = fixture();
+        let source = fixture.sources[&5]
+            .clone()
+            .with_freshness_indexer(Arc::new(FixedSequenceIndexer(10)));
+        let metrics = CoreMetrics::new("scraper-freshness-timeout-test", 9090, Registry::new())
+            .expect("create test metrics");
+        let monitor = ScraperWebSocketMonitor::new_with_authority(
+            Url::parse("ws://localhost:1").expect("test URL"),
+            vec![source],
+            &metrics,
+            true,
+        )
+        .expect("create authority monitor");
+        let mut receiver = monitor.authority_receiver().expect("authority receiver");
+        monitor.set_active(true);
+        monitor.gas_payment_enabled.store(true, Ordering::Release);
+        monitor.set_caught_up(true);
+        monitor.refresh_parity_ready(&monitor.sources[&5]);
+        monitor.fresh.with_label_values(&["test"]).set(1);
+        monitor.authority_active.store(true, Ordering::Release);
+        monitor
+            .authority_sender
+            .send_modify(|command| command.desired = true);
+
+        let permits = monitor
+            .parity_read_permit
+            .clone()
+            .acquire_many_owned(
+                PARITY_READ_CONCURRENCY
+                    .try_into()
+                    .expect("bounded concurrency"),
+            )
+            .await
+            .expect("reserve all read capacity");
+        timeout(Duration::from_secs(2), monitor.refresh_authority_once())
+            .await
+            .expect("freshness check must not wait indefinitely for local reads");
+        assert!(!monitor.authority_active.load(Ordering::Acquire));
+        assert!(!receiver.borrow_and_update().desired);
+        assert!(monitor.parity_read_disabled.load(Ordering::Acquire));
+        assert_eq!(monitor.fresh.with_label_values(&["test"]).get(), 0);
+        assert!(!monitor.base_authority_ready());
+
+        timeout(Duration::from_millis(50), monitor.refresh_authority_once())
+            .await
+            .expect("disabled freshness reads must not queue further work");
+        drop(permits);
+        assert_eq!(
+            monitor.parity_read_permit.available_permits(),
+            PARITY_READ_CONCURRENCY
+        );
     }
 
     #[tokio::test]
@@ -7090,12 +7166,11 @@ mod tests {
         assert!(state
             .gas_payment_caught_up_cursor(
                 &scraper_address(H256::from_low_u64_be(3)),
-                5,
+                sources.get(&5).expect("configured source"),
                 None,
                 None,
                 Some("21"),
                 None,
-                &sources,
             )
             .expect_err("caught-up boundary is required")
             .to_string()
@@ -7103,12 +7178,11 @@ mod tests {
         assert!(state
             .gas_payment_caught_up_cursor(
                 &scraper_address(H256::from_low_u64_be(3)),
-                5,
+                sources.get(&5).expect("configured source"),
                 Some("21"),
                 None,
                 Some("21"),
                 None,
-                &sources,
             )
             .expect_err("caught-up boundary must match events")
             .to_string()
@@ -7122,12 +7196,11 @@ mod tests {
         let cursor = state
             .gas_payment_caught_up_cursor(
                 &scraper_address(H256::from_low_u64_be(3)),
-                5,
+                monitor.sources.get(&5).expect("configured source"),
                 Some("20"),
                 None,
                 Some("20"),
                 None,
-                &monitor.sources,
             )
             .expect("valid fresh gas baseline");
 
