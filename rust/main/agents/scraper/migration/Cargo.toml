@@ -59,3 +59,11 @@ path = "bin/create_raw_dispatch_native_sequence_index.rs"
 
 [features]
 default = []
+
+[[bin]]
+name = "create-event-scope-indexes"
+path = "bin/create_event_scope_indexes.rs"
+
+[dev-dependencies]
+testcontainers.workspace = true
+testcontainers-modules.workspace = true
