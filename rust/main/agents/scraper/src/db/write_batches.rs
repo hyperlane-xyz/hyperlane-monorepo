@@ -134,7 +134,7 @@ async fn delivery_batches_bound_binds_and_preserve_small_fast_path() {
 
 #[tokio::test]
 async fn payment_prefetch_and_insert_statements_are_bounded_and_deduplicated() {
-    // 66,000 IDs exceed the old prefetch's 65,535 bind limit independently of INSERTs.
+    // 66,000 IDs exceed the old prefetch's 65,535 bind limit independently of INSERT statements.
     for count in [5_000_u32, 66_000] {
         let chunks = usize::try_from(count.div_ceil(5_000)).unwrap();
         let mut results = vec![result("max_id", 0)];
