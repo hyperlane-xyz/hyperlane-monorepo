@@ -10,7 +10,7 @@ use derive_new::new;
 use eyre::Result;
 use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
 use tokio::sync::{mpsc::Receiver as MpscReceiver, Mutex};
-use tokio::time::{interval, sleep, MissedTickBehavior};
+use tokio::time::{interval, sleep, Instant, MissedTickBehavior};
 use tracing::{debug, info, instrument, trace, warn, Instrument};
 
 use hyperlane_core::{
@@ -35,6 +35,74 @@ use cursors::ForwardBackwardSequenceAwareSyncCursor;
 
 const SLEEP_DURATION: Duration = Duration::from_secs(5);
 const LIVENESS_UPDATE_INTERVAL: Duration = Duration::from_secs(30);
+const MAX_FETCH_RETRY_BACKOFF: Duration = Duration::from_secs(5 * 60);
+
+#[derive(Debug, Default)]
+struct FetchRetryBackoff {
+    failed_range: Option<std::ops::RangeInclusive<u32>>,
+    consecutive_failures: u32,
+    retry_at: Option<Instant>,
+}
+
+impl FetchRetryBackoff {
+    fn ranges_overlap(
+        left: &std::ops::RangeInclusive<u32>,
+        right: &std::ops::RangeInclusive<u32>,
+    ) -> bool {
+        left.start() <= right.end() && right.start() <= left.end()
+    }
+
+    fn reset(&mut self) {
+        self.failed_range = None;
+        self.consecutive_failures = 0;
+        self.retry_at = None;
+    }
+
+    fn remaining_delay(&self, range: &std::ops::RangeInclusive<u32>) -> Option<Duration> {
+        if self
+            .failed_range
+            .as_ref()
+            .is_none_or(|failed| !Self::ranges_overlap(failed, range))
+        {
+            return None;
+        }
+        self.retry_at
+            .and_then(|retry_at| retry_at.checked_duration_since(Instant::now()))
+            .filter(|delay| !delay.is_zero())
+    }
+
+    fn record_success(&mut self, range: &std::ops::RangeInclusive<u32>) -> bool {
+        let recovered = self
+            .failed_range
+            .as_ref()
+            .is_some_and(|failed| Self::ranges_overlap(failed, range));
+        if recovered {
+            self.reset();
+        }
+        recovered
+    }
+
+    fn record_failure(&mut self, range: std::ops::RangeInclusive<u32>) -> Duration {
+        match self.failed_range.take() {
+            Some(failed) if Self::ranges_overlap(&failed, &range) => {
+                self.failed_range =
+                    Some((*failed.start()).min(*range.start())..=(*failed.end()).max(*range.end()));
+            }
+            _ => {
+                self.reset();
+                self.failed_range = Some(range);
+            }
+        }
+
+        self.consecutive_failures = self.consecutive_failures.saturating_add(1);
+        let exponent = self.consecutive_failures.saturating_sub(1).min(6);
+        let delay = SLEEP_DURATION
+            .saturating_mul(1_u32 << exponent)
+            .min(MAX_FETCH_RETRY_BACKOFF);
+        self.retry_at = Instant::now().checked_add(delay);
+        delay
+    }
+}
 
 #[derive(Debug, derive_new::new)]
 #[allow(dead_code)]
@@ -109,6 +177,14 @@ where
             .metrics
             .stored_events
             .with_label_values(&[label, chain_name]);
+        let fetch_retries_metric = self
+            .metrics
+            .fetch_retries
+            .with_label_values(&[label, chain_name]);
+        let fetch_backoff_metric = self
+            .metrics
+            .fetch_backoff_seconds
+            .with_label_values(&[label, chain_name]);
 
         // need to put this behind an Arc Mutex because we might
         // index the same event twice now. Which causes e2e to fail
@@ -167,6 +243,8 @@ where
                             stored_logs_metric,
                             indexed_height_metric,
                             liveness_metric,
+                            fetch_retries_metric,
+                            fetch_backoff_metric,
                         )
                         .await
                     }
@@ -263,7 +341,7 @@ where
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[instrument(fields(domain=domain.name()), skip(indexer, store, cursor, broadcast_sender, stored_logs_metric, indexed_height_metric, liveness_metric))]
+    #[instrument(fields(domain=domain.name()), skip(indexer, store, cursor, broadcast_sender, stored_logs_metric, indexed_height_metric, liveness_metric, fetch_retries_metric, fetch_backoff_metric))]
     async fn cursor_indexer_task(
         domain: HyperlaneDomain,
         indexer: I,
@@ -273,7 +351,10 @@ where
         stored_logs_metric: GenericCounter<AtomicU64>,
         indexed_height_metric: GenericGauge<AtomicI64>,
         liveness_metric: GenericGauge<AtomicI64>,
+        fetch_retries_metric: GenericCounter<AtomicU64>,
+        fetch_backoff_metric: GenericGauge<AtomicI64>,
     ) {
+        let mut fetch_backoff = FetchRetryBackoff::default();
         loop {
             Self::update_liveness_metric(&liveness_metric);
             indexed_height_metric.set(cursor.latest_queried_block() as i64);
@@ -301,11 +382,31 @@ where
             };
             trace!(?range, "Looking for events in index range");
 
+            if let Some(remaining_delay) = fetch_backoff.remaining_delay(&range) {
+                // Re-check the cursor at the normal polling interval so newly available
+                // forward work is not held behind a long backward-range backoff.
+                sleep(remaining_delay.min(SLEEP_DURATION)).await;
+                continue;
+            }
+
             let logs = match indexer.fetch_logs_in_range(range.clone()).await {
-                Ok(logs) => logs,
+                Ok(logs) => {
+                    if fetch_backoff.record_success(&range) {
+                        fetch_backoff_metric.set(0);
+                    }
+                    logs
+                }
                 Err(err) => {
-                    warn!(?err, ?range, "Error fetching logs in range");
-                    sleep(SLEEP_DURATION).await;
+                    let retry_delay = fetch_backoff.record_failure(range.clone());
+                    fetch_retries_metric.inc();
+                    fetch_backoff_metric.set(retry_delay.as_secs() as i64);
+                    warn!(
+                        ?err,
+                        ?range,
+                        ?retry_delay,
+                        consecutive_failures = fetch_backoff.consecutive_failures,
+                        "Error fetching logs in range"
+                    );
                     continue;
                 }
             };
@@ -384,6 +485,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::{
+        collections::VecDeque,
         ops::RangeInclusive,
         sync::{
             atomic::{AtomicUsize, Ordering},
@@ -457,6 +559,16 @@ mod tests {
 
     fn liveness_metric() -> IntGauge {
         IntGauge::new("test_liveness", "test liveness").expect("test gauge should be valid")
+    }
+
+    fn fetch_retries_metric() -> IntCounter {
+        IntCounter::new("test_fetch_retries", "test fetch retries")
+            .expect("test counter should be valid")
+    }
+
+    fn fetch_backoff_metric() -> IntGauge {
+        IntGauge::new("test_fetch_backoff", "test fetch backoff")
+            .expect("test gauge should be valid")
     }
 
     fn test_logs() -> Vec<(Indexed<HyperlaneMessage>, LogMeta)> {
@@ -563,6 +675,8 @@ mod tests {
                 stored_logs_metric(),
                 indexed_height_metric(),
                 liveness_metric(),
+                fetch_retries_metric(),
+                fetch_backoff_metric(),
             ),
         );
 
@@ -622,6 +736,236 @@ mod tests {
         drop(sender);
         task.await
             .expect("task should stop when its channel closes");
+    }
+
+    #[derive(Clone, Debug)]
+    struct FailingThenSuccessfulIndexer {
+        failures: usize,
+        calls: StdArc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl Indexer<HyperlaneMessage> for FailingThenSuccessfulIndexer {
+        async fn fetch_logs_in_range(
+            &self,
+            _range: RangeInclusive<u32>,
+        ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+            let call = self.calls.fetch_add(1, Ordering::SeqCst);
+            if call < self.failures {
+                Err(ChainCommunicationError::from_other_str(
+                    "mock range fetch failed",
+                ))
+            } else {
+                Ok(Vec::new())
+            }
+        }
+
+        async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+            Err(ChainCommunicationError::from_other_str(
+                "mock indexer does not fetch finalized blocks",
+            ))
+        }
+    }
+
+    #[derive(Debug)]
+    struct ScriptedCursor {
+        ranges: VecDeque<RangeInclusive<u32>>,
+        repeat_range: RangeInclusive<u32>,
+        updates: StdArc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl ContractSyncCursor<HyperlaneMessage> for ScriptedCursor {
+        async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
+            if self.updates.load(Ordering::SeqCst) > 0 {
+                return Ok((CursorAction::Sleep(Duration::from_secs(60)), Duration::ZERO));
+            }
+            let range = self
+                .ranges
+                .pop_front()
+                .unwrap_or_else(|| self.repeat_range.clone());
+            Ok((CursorAction::Query(range), Duration::ZERO))
+        }
+
+        fn latest_queried_block(&self) -> u32 {
+            0
+        }
+
+        async fn update(
+            &mut self,
+            _logs: Vec<(Indexed<HyperlaneMessage>, LogMeta)>,
+            _range: RangeInclusive<u32>,
+        ) -> Result<()> {
+            self.updates.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn repeated_fetch_errors_back_off_without_advancing_cursor() {
+        let calls = StdArc::new(AtomicUsize::new(0));
+        let updates = StdArc::new(AtomicUsize::new(0));
+        let retries = fetch_retries_metric();
+        let delay = fetch_backoff_metric();
+        let task = tokio::spawn(ContractSync::<
+            HyperlaneMessage,
+            StoreResult,
+            FailingThenSuccessfulIndexer,
+        >::cursor_indexer_task(
+            test_domain(),
+            FailingThenSuccessfulIndexer {
+                failures: 3,
+                calls: calls.clone(),
+            },
+            Arc::new(Mutex::new(StoreResult {
+                stored: 0,
+                error: None,
+                calls: None,
+            })),
+            Box::new(ScriptedCursor {
+                ranges: VecDeque::new(),
+                repeat_range: 7..=9,
+                updates: updates.clone(),
+            }),
+            None,
+            stored_logs_metric(),
+            indexed_height_metric(),
+            liveness_metric(),
+            retries.clone(),
+            delay.clone(),
+        ));
+
+        run_pending_tasks().await;
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(updates.load(Ordering::SeqCst), 0);
+        assert_eq!(retries.get(), 1);
+        assert_eq!(delay.get(), 5);
+
+        tokio::time::advance(Duration::from_secs(4)).await;
+        run_pending_tasks().await;
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        tokio::time::advance(Duration::from_secs(1)).await;
+        run_pending_tasks().await;
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert_eq!(updates.load(Ordering::SeqCst), 0);
+        assert_eq!(delay.get(), 10);
+
+        tokio::time::advance(Duration::from_secs(10)).await;
+        run_pending_tasks().await;
+        assert_eq!(calls.load(Ordering::SeqCst), 3);
+        assert_eq!(updates.load(Ordering::SeqCst), 0);
+        assert_eq!(delay.get(), 20);
+
+        tokio::time::advance(Duration::from_secs(20)).await;
+        run_pending_tasks().await;
+        assert_eq!(calls.load(Ordering::SeqCst), 4);
+        assert_eq!(updates.load(Ordering::SeqCst), 1);
+        assert_eq!(retries.get(), 3);
+        assert_eq!(delay.get(), 0);
+
+        task.abort();
+        let _ = task.await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn changed_range_bypasses_fetch_backoff() {
+        let calls = StdArc::new(AtomicUsize::new(0));
+        let updates = StdArc::new(AtomicUsize::new(0));
+        let retries = fetch_retries_metric();
+        let delay = fetch_backoff_metric();
+        let task = tokio::spawn(ContractSync::<
+            HyperlaneMessage,
+            StoreResult,
+            FailingThenSuccessfulIndexer,
+        >::cursor_indexer_task(
+            test_domain(),
+            FailingThenSuccessfulIndexer {
+                failures: 1,
+                calls: calls.clone(),
+            },
+            Arc::new(Mutex::new(StoreResult {
+                stored: 0,
+                error: None,
+                calls: None,
+            })),
+            Box::new(ScriptedCursor {
+                ranges: VecDeque::from([7..=9, 10..=12]),
+                repeat_range: 10..=12,
+                updates: updates.clone(),
+            }),
+            None,
+            stored_logs_metric(),
+            indexed_height_metric(),
+            liveness_metric(),
+            retries.clone(),
+            delay.clone(),
+        ));
+
+        run_pending_tasks().await;
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert_eq!(updates.load(Ordering::SeqCst), 1);
+        assert_eq!(retries.get(), 1);
+        assert_eq!(delay.get(), 5);
+
+        task.abort();
+        let _ = task.await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn fetch_backoff_is_exponential_and_bounded() {
+        let mut backoff = FetchRetryBackoff::default();
+        for expected in [5, 10, 20, 40, 80, 160, 300, 300] {
+            let delay = backoff.record_failure(7..=9);
+            assert_eq!(delay, Duration::from_secs(expected));
+            tokio::time::advance(delay).await;
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn unrelated_success_does_not_reset_failed_range_backoff() {
+        let failed_range = 7..=9;
+        let forward_range = 10..=12;
+        let mut backoff = FetchRetryBackoff::default();
+
+        assert_eq!(
+            backoff.record_failure(failed_range.clone()),
+            Duration::from_secs(5)
+        );
+        assert_eq!(backoff.remaining_delay(&forward_range), None);
+        assert!(!backoff.record_success(&forward_range));
+
+        tokio::time::advance(Duration::from_secs(5)).await;
+        assert_eq!(
+            backoff.record_failure(failed_range.clone()),
+            Duration::from_secs(10)
+        );
+        assert_eq!(backoff.remaining_delay(&forward_range), None);
+        assert!(!backoff.record_success(&forward_range));
+
+        tokio::time::advance(Duration::from_secs(10)).await;
+        assert_eq!(
+            backoff.record_failure(failed_range.clone()),
+            Duration::from_secs(20)
+        );
+        assert!(backoff.record_success(&failed_range));
+        assert_eq!(backoff.failed_range, None);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn moving_range_end_preserves_fetch_backoff() {
+        let mut backoff = FetchRetryBackoff::default();
+
+        assert_eq!(backoff.record_failure(7..=9), Duration::from_secs(5));
+        tokio::time::advance(Duration::from_secs(5)).await;
+        assert_eq!(backoff.record_failure(7..=12), Duration::from_secs(10));
+        assert_eq!(backoff.failed_range, Some(7..=12));
+
+        tokio::time::advance(Duration::from_secs(10)).await;
+        assert_eq!(backoff.record_failure(8..=15), Duration::from_secs(20));
+        assert_eq!(backoff.failed_range, Some(7..=15));
+        assert!(backoff.record_success(&(10..=20)));
+        assert_eq!(backoff.failed_range, None);
     }
 }
 
