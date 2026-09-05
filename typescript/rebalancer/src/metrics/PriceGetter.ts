@@ -9,6 +9,10 @@ import {
 
 export class PriceGetter extends CoinGeckoTokenPriceGetter {
   private readonly logger: Logger;
+  private readonly pendingPrices = new Map<
+    string,
+    Promise<number | undefined>
+  >();
 
   private constructor({
     chainMetadata,
@@ -67,8 +71,19 @@ export class PriceGetter extends CoinGeckoTokenPriceGetter {
   }
 
   async getCoingeckoPrice(coingeckoId: string): Promise<number | undefined> {
-    const prices = await this.getTokenPriceByIds([coingeckoId]);
-    if (!prices) return undefined;
-    return prices[0];
+    const pending = this.pendingPrices.get(coingeckoId);
+    if (pending) return pending;
+
+    // Multiple route tokens can share an ID. Share only the active lookup;
+    // the SDK remains responsible for cache freshness and failed-price handling.
+    const request = this.getTokenPriceByIds([coingeckoId]).then(
+      (prices) => prices?.[0],
+    );
+    this.pendingPrices.set(coingeckoId, request);
+    try {
+      return await request;
+    } finally {
+      this.pendingPrices.delete(coingeckoId);
+    }
   }
 }
