@@ -7,7 +7,6 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use eyre::Result;
-use itertools::Itertools;
 use prometheus::IntCounterVec;
 use tracing::{trace, warn};
 
@@ -110,7 +109,7 @@ impl HyperlaneDbStore {
             .map(|(txn_hash, block_id)| TxnWithBlockId { txn_hash, block_id });
         let txns_with_ids = self.ensure_txns(txn_hash_with_block_ids).await?;
 
-        Ok(txns_with_ids.map(move |TxnWithId { hash, id: txn_id }| TxnWithId { hash, id: txn_id }))
+        Ok(txns_with_ids)
     }
 
     /// Takes a list of transaction hashes and the block id the transaction is
@@ -344,13 +343,60 @@ struct TxnWithBlockId {
     block_id: i64,
 }
 
-fn as_chunks<T>(iter: impl Iterator<Item = T>, chunk_size: usize) -> impl Iterator<Item = Vec<T>> {
-    // the itertools chunks function uses refcell which cannot be used across an
-    // await so this stabilizes the result by putting it into a vec of vecs and
-    // using that for iteration.
-    iter.chunks(chunk_size)
-        .into_iter()
-        .map(|chunk| chunk.into_iter().collect())
-        .collect_vec()
-        .into_iter()
+fn as_chunks<T>(
+    mut iter: impl Iterator<Item = T>,
+    chunk_size: usize,
+) -> impl Iterator<Item = Vec<T>> {
+    assert!(chunk_size > 0, "chunk size must be positive");
+    // Own just the current chunk across await points. itertools::chunks keeps
+    // a RefCell borrowed by each chunk, which cannot be held across awaits.
+    std::iter::from_fn(move || {
+        let chunk: Vec<_> = iter.by_ref().take(chunk_size).collect();
+        (!chunk.is_empty()).then_some(chunk)
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+
+    use super::as_chunks;
+
+    #[test]
+    fn enrichment_chunks_only_consume_the_requested_batch() {
+        let consumed = Cell::new(0);
+        let input = (0..1_000).inspect(|_| consumed.set(consumed.get() + 1));
+        let mut chunks = as_chunks(input, 50);
+        assert_eq!(consumed.get(), 0);
+        assert_eq!(chunks.next(), Some((0..50).collect()));
+        assert_eq!(consumed.get(), 50);
+        assert_eq!(chunks.next(), Some((50..100).collect()));
+        assert_eq!(consumed.get(), 100);
+        drop(chunks);
+        assert_eq!(
+            consumed.get(),
+            100,
+            "dropping work must not consume later chunks"
+        );
+    }
+
+    #[test]
+    fn enrichment_chunks_preserve_order_and_partial_tail() {
+        assert_eq!(
+            as_chunks(0..5, 2).collect::<Vec<_>>(),
+            vec![vec![0, 1], vec![2, 3], vec![4]]
+        );
+        assert_eq!(
+            as_chunks(0..4, 2).collect::<Vec<_>>(),
+            vec![vec![0, 1], vec![2, 3]]
+        );
+        assert_eq!(as_chunks(0..1, 2).collect::<Vec<_>>(), vec![vec![0]]);
+        assert_eq!(as_chunks(0..0, 2).next(), None);
+    }
+
+    #[test]
+    #[should_panic(expected = "chunk size must be positive")]
+    fn enrichment_chunks_reject_zero_chunk_size() {
+        let _ = as_chunks(0..1, 0);
+    }
 }
