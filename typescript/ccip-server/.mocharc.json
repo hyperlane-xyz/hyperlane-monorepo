@@ -4,7 +4,8 @@
     "./tests/**/CallCommitmentsService.test.ts",
     "./tests/**/RateLimiting.test.ts",
     "./tests/**/cctpMessageMatcher.test.ts",
-    "./tests/**/CCTPService.test.ts"
+    "./tests/**/CCTPService.test.ts",
+    "./tests/**/AttestationPending.test.ts"
   ],
   "exit": true
 }
