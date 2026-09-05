@@ -151,29 +151,33 @@ impl ScraperDb {
             .map(|storable| h256_to_bytes(&storable.payment.message_id))
             .unique()
             .collect_vec();
-        let mut existing_payments = Vec::new();
+        let mut seen_fallback_payments = HashSet::new();
+        let mut existing_null_payments = HashSet::new();
         for message_ids in payment_msg_ids.chunks(Self::PAYMENT_STORE_CHUNK_SIZE) {
-            existing_payments.extend(
-                gas_payment::Entity::find()
-                    .filter(gas_payment::Column::Domain.eq(domain))
-                    .filter(
-                        gas_payment::Column::InterchainGasPaymaster
-                            .eq(interchain_gas_paymaster.clone()),
-                    )
-                    .filter(gas_payment::Column::MsgId.is_in(message_ids.iter().cloned()))
-                    .all(&txn)
-                    .await?,
-            );
+            let existing_payments = gas_payment::Entity::find()
+                .select_only()
+                .columns([
+                    gas_payment::Column::MsgId,
+                    gas_payment::Column::LogIndex,
+                    gas_payment::Column::TxId,
+                ])
+                .filter(gas_payment::Column::Domain.eq(domain))
+                .filter(
+                    gas_payment::Column::InterchainGasPaymaster
+                        .eq(interchain_gas_paymaster.clone()),
+                )
+                .filter(gas_payment::Column::MsgId.is_in(message_ids.iter().cloned()))
+                .into_tuple::<(Vec<u8>, i64, Option<i64>)>()
+                .all(&txn)
+                .await?;
+            for (msg_id, log_index, tx_id) in existing_payments {
+                let identity = (msg_id, log_index);
+                if tx_id.is_none() {
+                    existing_null_payments.insert(identity.clone());
+                }
+                seen_fallback_payments.insert(identity);
+            }
         }
-        let mut seen_fallback_payments: HashSet<(Vec<u8>, i64)> = existing_payments
-            .iter()
-            .map(|payment| (payment.msg_id.clone(), payment.log_index))
-            .collect();
-        let mut existing_null_payments: HashSet<(Vec<u8>, i64)> = existing_payments
-            .into_iter()
-            .filter(|payment| payment.tx_id.is_none())
-            .map(|payment| (payment.msg_id, payment.log_index))
-            .collect();
         let resolved_batch_payments: HashSet<(Vec<u8>, i64)> = payments
             .iter()
             .filter(|storable| storable.txn_id.is_some())

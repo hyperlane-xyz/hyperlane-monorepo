@@ -181,6 +181,9 @@ async fn payment_prefetch_and_insert_statements_are_bounded_and_deduplicated() {
             .filter(|statement| statement.sql.contains(" IN ("))
             .collect();
         assert_eq!(reads.len(), chunks);
+        assert!(reads.iter().all(|statement| statement.sql.starts_with(
+            "SELECT \"gas_payment\".\"msg_id\", \"gas_payment\".\"log_index\", \"gas_payment\".\"tx_id\" FROM"
+        )));
         assert!(reads
             .iter()
             .all(|statement| statement.values.as_ref().unwrap().0.len() <= 5_002));
