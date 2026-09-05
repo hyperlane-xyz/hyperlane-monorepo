@@ -4,13 +4,17 @@ import { pino } from 'pino';
 import Sinon from 'sinon';
 
 import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   DEFAULT_INTENT_TTL_MS,
   DEFAULT_MOVEMENT_STALENESS_MS,
   ExternalBridgeType,
 } from '../config/types.js';
-import type { ExplorerMessage } from '../utils/ExplorerClient.js';
+import {
+  ExplorerClient,
+  type ExplorerMessage,
+} from '../utils/ExplorerClient.js';
 
 import { ActionTracker, type ActionTrackerConfig } from './ActionTracker.js';
 import { InMemoryStore } from './store/InMemoryStore.js';
@@ -1522,6 +1526,66 @@ describe('ActionTracker', () => {
       mailboxStub.isDelivered.resolves(true);
 
       await tracker.syncRebalanceActions();
+
+      expect(mailboxStub.isDelivered.calledOnce).to.be.true;
+      const call = mailboxStub.isDelivered.firstCall;
+      expect(call.args[0]).to.equal('0xmsg1');
+
+      const updatedAction = await rebalanceActionStore.get('action-1');
+      expect(updatedAction?.status).to.equal('complete');
+    });
+
+    it('checks tracked delivery with the real Explorer client and no bridges', async () => {
+      const intent: RebalanceIntent = {
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      const action: RebalanceAction = {
+        id: 'action-1',
+        type: 'inventory_deposit',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        messageId: '0xmsg1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await rebalanceIntentStore.save(intent);
+      await rebalanceActionStore.save(action);
+
+      config.bridges = [];
+      const fetchStub = Sinon.stub(globalThis, 'fetch').rejects(
+        new Error('unexpected HTTP'),
+      );
+      tracker = new ActionTracker(
+        transferStore,
+        rebalanceIntentStore,
+        rebalanceActionStore,
+        new ExplorerClient(
+          'https://explorer.test',
+          () => ProtocolType.Ethereum,
+        ),
+        core,
+        config,
+        testLogger,
+      );
+      mailboxStub.isDelivered.resolves(true);
+
+      try {
+        await tracker.syncRebalanceActions();
+        expect(fetchStub.called).to.be.false;
+      } finally {
+        fetchStub.restore();
+      }
 
       expect(mailboxStub.isDelivered.calledOnce).to.be.true;
       const call = mailboxStub.isDelivered.firstCall;
