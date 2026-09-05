@@ -27,7 +27,9 @@ use hyperlane_core::{
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
 use crate::{
-    metrics::message_submission::{MessageSubmissionMetrics, MetadataBuildMetric},
+    metrics::message_submission::{
+        MessageSubmissionMetrics, MetadataBuildMetric, MetadataWaitObservation,
+    },
     msg::metadata::{MessageMetadataBuildParams, MetadataBuildError},
 };
 
@@ -155,6 +157,16 @@ pub struct PendingMessage {
     #[new(default)]
     #[serde(skip_serializing)]
     ica_reveal_attempts: u32,
+}
+
+impl Drop for PendingMessage {
+    fn drop(&mut self) {
+        self.ctx.metrics.finish_metadata_wait(
+            self.message.id(),
+            self.app_context.as_deref(),
+            false,
+        );
+    }
 }
 
 impl Debug for PendingMessage {
@@ -989,6 +1001,36 @@ impl PendingMessage {
         } else {
             warn!("Repreparing message: {}", reason.clone());
         }
+        self.reprepare_or_drop(reason)
+    }
+
+    fn on_metadata_wait(&mut self, observation: MetadataWaitObservation) -> PendingOperationResult {
+        let reason = ReprepareReason::AwaitingValidatorSignatures;
+        self.inc_attempts(Some(&reason));
+        self.submitted = false;
+        if observation.first_observation {
+            warn!(
+                wait_seconds = observation.elapsed.as_secs_f64(),
+                "Waiting for validator signatures"
+            );
+        } else {
+            debug!(
+                wait_seconds = observation.elapsed.as_secs_f64(),
+                "Still waiting for validator signatures"
+            );
+        }
+        let result = self.reprepare_or_drop(reason);
+        if Self::should_skip(self.num_retries, self.max_retries) {
+            self.ctx.metrics.finish_metadata_wait(
+                self.message.id(),
+                self.app_context.as_deref(),
+                false,
+            );
+        }
+        result
+    }
+
+    fn reprepare_or_drop(&self, reason: ReprepareReason) -> PendingOperationResult {
         // For fail-fast messages (relay API), drop immediately once the retry budget is
         // exceeded. Without this check, a small max_retries value (e.g. 3) would still
         // hit the fixed early-backoff arms (1 => 5s, 2 => 10s, ...) rather than dropping.
@@ -1023,6 +1065,16 @@ impl PendingMessage {
     /// re-attempt processing for this message again, even after the relayer
     /// restarts.
     fn record_message_process_success(&mut self) -> Result<()> {
+        if let Some(wait_duration) = self.ctx.metrics.finish_metadata_wait(
+            self.message.id(),
+            self.app_context.as_deref(),
+            true,
+        ) {
+            info!(
+                wait_seconds = wait_duration.as_secs_f64(),
+                "Validator signature wait recovered after message delivery"
+            );
+        }
         self.ctx
             .origin_db
             .store_processed_by_nonce(&self.message.nonce, &true)?;
@@ -1183,50 +1235,79 @@ impl PendingMessage {
 
         tracing::debug!(?self.message, ?metadata_res, "Metadata build result");
 
-        let metadata_res = metadata_res.map_err(|err| match &err {
-            MetadataBuildError::FailedToBuild(_) | MetadataBuildError::FastPathError(_) => {
-                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+        let metadata_res = match metadata_res {
+            Ok(metadata) => {
+                if let Some(wait_duration) = self.ctx.metrics.finish_metadata_wait(
+                    self.message.id(),
+                    self.app_context.as_deref(),
+                    true,
+                ) {
+                    info!(
+                        wait_seconds = wait_duration.as_secs_f64(),
+                        "Validator signatures became available"
+                    );
+                }
+                Ok(metadata)
             }
-            MetadataBuildError::CouldNotFetch => {
-                self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata)
+            Err(err) => {
+                if !matches!(err, MetadataBuildError::AwaitingValidatorSignatures) {
+                    self.ctx.metrics.finish_metadata_wait(
+                        self.message.id(),
+                        self.app_context.as_deref(),
+                        false,
+                    );
+                }
+                let reprepare = match &err {
+                    MetadataBuildError::FailedToBuild(_) | MetadataBuildError::FastPathError(_) => {
+                        self.on_reprepare(Some(&err), ReprepareReason::ErrorBuildingMetadata)
+                    }
+                    MetadataBuildError::CouldNotFetch => {
+                        self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata)
+                    }
+                    // If metadata building is refused, allow it to be retried later.
+                    MetadataBuildError::Refused(reason) => {
+                        warn!(?reason, "Metadata building refused");
+                        self.on_reprepare::<String>(None, ReprepareReason::MessageMetadataRefused)
+                    }
+                    // These errors cannot be recovered from, so we drop them.
+                    MetadataBuildError::UnsupportedModuleType(reason) => {
+                        warn!(?reason, "Unsupported module type");
+                        self.on_reprepare(Some(&err), ReprepareReason::ErrorBuildingMetadata)
+                    }
+                    MetadataBuildError::MaxIsmDepthExceeded(depth) => {
+                        warn!(depth, "Max ISM depth reached");
+                        self.on_reprepare(Some(&err), ReprepareReason::ErrorBuildingMetadata)
+                    }
+                    MetadataBuildError::MaxIsmCountReached(count) => {
+                        warn!(count, "Max ISM count reached");
+                        self.on_reprepare(Some(&err), ReprepareReason::ErrorBuildingMetadata)
+                    }
+                    MetadataBuildError::AggregationThresholdNotMet(threshold) => {
+                        warn!(threshold, "Aggregation threshold not met");
+                        self.on_reprepare(Some(&err), ReprepareReason::CouldNotFetchMetadata)
+                    }
+                    MetadataBuildError::MaxValidatorCountReached(count) => {
+                        warn!(count, "Max validator count reached");
+                        self.on_reprepare(Some(&err), ReprepareReason::ErrorBuildingMetadata)
+                    }
+                    MetadataBuildError::MerkleRootMismatch {
+                        root,
+                        canonical_root,
+                    } => {
+                        warn!(?root, ?canonical_root, "Merkle root mismatch");
+                        self.on_reprepare(Some(&err), ReprepareReason::ErrorBuildingMetadata)
+                    }
+                    MetadataBuildError::AwaitingValidatorSignatures => {
+                        let observation = self
+                            .ctx
+                            .metrics
+                            .record_metadata_wait(self.message.id(), self.app_context.as_deref());
+                        self.on_metadata_wait(observation)
+                    }
+                };
+                Err(reprepare)
             }
-            MetadataBuildError::AwaitingValidatorSignatures => {
-                self.on_reprepare::<String>(None, ReprepareReason::AwaitingValidatorSignatures)
-            }
-            // If the metadata building is refused, we still allow it to be retried later.
-            MetadataBuildError::Refused(reason) => {
-                warn!(?reason, "Metadata building refused");
-                self.on_reprepare::<String>(None, ReprepareReason::MessageMetadataRefused)
-            }
-            // These errors cannot be recovered from, so we drop them
-            MetadataBuildError::UnsupportedModuleType(reason) => {
-                warn!(?reason, "Unsupported module type");
-                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
-            }
-            MetadataBuildError::MaxIsmDepthExceeded(depth) => {
-                warn!(depth, "Max ISM depth reached");
-                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
-            }
-            MetadataBuildError::MaxIsmCountReached(count) => {
-                warn!(count, "Max ISM count reached");
-                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
-            }
-            MetadataBuildError::AggregationThresholdNotMet(threshold) => {
-                warn!(threshold, "Aggregation threshold not met");
-                self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
-            }
-            MetadataBuildError::MaxValidatorCountReached(count) => {
-                warn!(count, "Max validator count reached");
-                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
-            }
-            MetadataBuildError::MerkleRootMismatch {
-                root,
-                canonical_root,
-            } => {
-                warn!(?root, ?canonical_root, "Merkle root mismatch");
-                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
-            }
-        });
+        };
         let build_metadata_end = Instant::now();
 
         let metrics_params = MetadataBuildMetric {
@@ -1560,5 +1641,69 @@ mod test {
         let pending_message_debug = format!("{pending_message:?}");
         let expected = r#"PendingMessage { num_retries: 0, since_last_attempt_s: 0, next_attempt_after_s: 0, message_id: 0xaeafdd9f018e66a50d30bb141184d10e57bd956e839f70213c163eb41a3c0d87, status: FirstPrepareAttempt, app_context: Some("test-0") }"#;
         assert_eq!(pending_message_debug, expected);
+    }
+
+    #[test]
+    fn metadata_wait_ends_at_normal_message_retry_limit() {
+        let origin_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+        let destination_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+        let cache = OptionalCache::new(None);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db = DB::from_path(temp_dir.path()).unwrap();
+        let base_db = HyperlaneRocksDB::new(&origin_domain, db);
+        let message = HyperlaneMessage {
+            origin: KnownHyperlaneDomain::Arbitrum as u32,
+            destination: KnownHyperlaneDomain::Arbitrum as u32,
+            ..Default::default()
+        };
+        let message_id = message.id();
+        let app_context = "test-app";
+        let base_metadata_builder =
+            dummy_metadata_builder(&origin_domain, &destination_domain, &base_db, cache.clone());
+        let message_context =
+            dummy_message_context(Arc::new(base_metadata_builder), &base_db, cache);
+        let mut pending_message = PendingMessage::new(
+            message,
+            Arc::new(message_context),
+            PendingOperationStatus::FirstPrepareAttempt,
+            Some(app_context.to_owned()),
+            1,
+        );
+        let labels = [app_context, "ethereum", "arbitrum"];
+        let observation = pending_message
+            .ctx
+            .metrics
+            .record_metadata_wait(message_id, Some(app_context));
+
+        let result = pending_message.on_metadata_wait(observation);
+
+        assert!(matches!(result, PendingOperationResult::Reprepare(_)));
+        assert_eq!(
+            pending_message
+                .ctx
+                .metrics
+                .metadata_wait_active
+                .with_label_values(&labels)
+                .get(),
+            0
+        );
+        assert_eq!(
+            pending_message
+                .ctx
+                .metrics
+                .metadata_wait_oldest_timestamp_seconds
+                .with_label_values(&labels)
+                .get(),
+            0
+        );
+        assert_eq!(
+            pending_message
+                .ctx
+                .metrics
+                .metadata_wait_event_count
+                .with_label_values(&[app_context, "ethereum", "arbitrum", "ended"])
+                .get(),
+            1
+        );
     }
 }

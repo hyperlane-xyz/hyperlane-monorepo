@@ -54,7 +54,7 @@ pub struct MessageMetadataBuilder {
 ///                 MessageMetadataBuilder
 #[async_trait]
 impl MetadataBuilder for MessageMetadataBuilder {
-    #[instrument(err, skip(self, message, params), fields(destination_domain=self.base_builder().destination_domain().name()))]
+    #[instrument(skip(self, message, params), fields(destination_domain=self.base_builder().destination_domain().name()))]
     async fn build(
         &self,
         ism_address: H256,
@@ -151,6 +151,43 @@ pub async fn ism_and_module_type(
 
 /// Builds metadata for a message.
 pub async fn build_message_metadata(
+    message_builder: MessageMetadataBuilder,
+    ism_address: H256,
+    message: &HyperlaneMessage,
+    params: MessageMetadataBuildParams,
+    maybe_ism_and_module_type: Option<(Box<dyn InterchainSecurityModule>, ModuleType)>,
+) -> Result<IsmWithMetadataAndType, MetadataBuildError> {
+    let result = build_message_metadata_inner(
+        message_builder,
+        ism_address,
+        message,
+        params,
+        maybe_ism_and_module_type,
+    )
+    .await;
+    match &result {
+        Err(err @ MetadataBuildError::AwaitingValidatorSignatures) => {
+            tracing::debug!(
+                ?err,
+                ?ism_address,
+                message_id = ?message.id(),
+                "Metadata submodule is waiting for validator signatures"
+            );
+        }
+        Err(err) => {
+            tracing::warn!(
+                ?err,
+                ?ism_address,
+                message_id = ?message.id(),
+                "Metadata submodule build failed"
+            );
+        }
+        Ok(_) => {}
+    }
+    result
+}
+
+async fn build_message_metadata_inner(
     message_builder: MessageMetadataBuilder,
     ism_address: H256,
     message: &HyperlaneMessage,
