@@ -8,7 +8,7 @@ use hyperlane_core::{
 };
 
 use crate::db::StorableDelivery;
-use crate::store::storage::{txn_id_for_meta, HyperlaneDbStore, TxnWithId};
+use crate::store::storage::{txn_id_for_meta, HyperlaneDbStore};
 
 #[async_trait]
 impl HyperlaneLogStore<Delivery> for HyperlaneDbStore {
@@ -21,10 +21,9 @@ impl HyperlaneLogStore<Delivery> for HyperlaneDbStore {
         if deliveries.is_empty() {
             return Ok(0);
         }
-        let txns: HashMap<H512, TxnWithId> = self
+        let txns: HashMap<H512, i64> = self
             .ensure_blocks_and_txns(deliveries.iter().map(|r| &r.1))
             .await?
-            .map(|t| (t.hash, t))
             .collect();
         let storable = deliveries
             .iter()

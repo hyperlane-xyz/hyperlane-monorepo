@@ -24,10 +24,7 @@ use crate::db::{
     StorableTxn,
 };
 
-use super::{
-    storage::{txn_id_for_meta, TxnWithId},
-    HyperlaneDbStore,
-};
+use super::{storage::txn_id_for_meta, HyperlaneDbStore};
 
 /// Domain id seeded by the domain table migration (`sealeveltest1`).
 const TEST_DOMAIN_ID: u32 = 13375;
@@ -306,13 +303,7 @@ fn null_transaction_relation_requires_exact_fallback_sentinel() {
         block_hash: H256::from_low_u64_be(1),
         ..fallback
     };
-    let txns = HashMap::from([(
-        tx_hash,
-        TxnWithId {
-            hash: tx_hash,
-            id: 7,
-        },
-    )]);
+    let txns = HashMap::from([(tx_hash, 7)]);
     assert_eq!(txn_id_for_meta(&txns, &resolved), Some(Some(7)));
 }
 

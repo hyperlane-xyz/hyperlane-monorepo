@@ -27,10 +27,9 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneDbStore {
         if payments.is_empty() {
             return Ok(0);
         }
-        let txns: HashMap<H512, crate::store::storage::TxnWithId> = self
+        let txns: HashMap<H512, i64> = self
             .ensure_blocks_and_txns(payments.iter().map(|r| &r.1))
             .await?
-            .map(|t| (t.hash, t))
             .collect();
         let storable = payments
             .iter()

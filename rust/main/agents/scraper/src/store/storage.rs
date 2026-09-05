@@ -82,7 +82,7 @@ impl HyperlaneDbStore {
     pub(crate) async fn ensure_blocks_and_txns(
         &self,
         log_meta: impl Iterator<Item = &LogMeta>,
-    ) -> Result<impl Iterator<Item = TxnWithId>> {
+    ) -> Result<impl Iterator<Item = (H512, i64)>> {
         let block_id_by_txn_hash: HashMap<H512, BlockId> = log_meta
             .filter(|meta| !meta.transaction_id.is_zero() && !meta.block_hash.is_zero())
             .map(|meta| {
@@ -123,7 +123,7 @@ impl HyperlaneDbStore {
     async fn ensure_txns(
         &self,
         txns: impl Iterator<Item = TxnWithBlockId>,
-    ) -> Result<impl Iterator<Item = TxnWithId>> {
+    ) -> Result<impl Iterator<Item = (H512, i64)>> {
         // mapping of txn hash to (txn_id, block_id).
         let mut txns: HashMap<H512, (Option<i64>, i64)> = txns
             .map(|TxnWithBlockId { txn_hash, block_id }| (txn_hash, (None, block_id)))
@@ -183,8 +183,7 @@ impl HyperlaneDbStore {
 
         let ensured_txns = txns
             .into_iter()
-            .filter_map(|(hash, (txn_id, _))| txn_id.map(|id| (hash, id)))
-            .map(|(hash, id)| TxnWithId { hash, id });
+            .filter_map(|(hash, (txn_id, _))| txn_id.map(|id| (hash, id)));
 
         Ok(ensured_txns)
     }
@@ -299,12 +298,6 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct TxnWithId {
-    pub hash: H512,
-    pub id: i64,
-}
-
 /// Resolves the database transaction id for a log's meta.
 ///
 /// - `Some(Some(id))` when the transaction was ensured in the database.
@@ -314,14 +307,11 @@ pub(crate) struct TxnWithId {
 ///   a NULL transaction relation so it remains retrievable by sequence.
 /// - `None` when the transaction could not be fetched; the event is skipped
 ///   and retried later.
-pub(crate) fn txn_id_for_meta(
-    txns: &HashMap<H512, TxnWithId>,
-    meta: &LogMeta,
-) -> Option<Option<i64>> {
+pub(crate) fn txn_id_for_meta(txns: &HashMap<H512, i64>, meta: &LogMeta) -> Option<Option<i64>> {
     if meta.transaction_id.is_zero() && meta.block_hash.is_zero() {
         Some(None)
     } else {
-        txns.get(&meta.transaction_id).map(|txn| Some(txn.id))
+        txns.get(&meta.transaction_id).copied().map(Some)
     }
 }
 
