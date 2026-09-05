@@ -47,14 +47,19 @@ function collect(level: string, valueUSD: number | undefined) {
   return { registry, records };
 }
 
-describe('value-at-risk log volume', () => {
+describe('token balance log volume', () => {
   it('retains every metric while emitting only per-token observations at info', async () => {
     const info = collect('info', 12);
     const debug = collect('debug', 12);
-    expect(info.records).to.have.length(2);
+    expect(info.records).to.have.length(1);
     expect(debug.records).to.have.length(22);
     expect(info.records[0]).to.include('Wallet balance updated for token');
-    expect(info.records[1]).to.include('Wallet value updated for token');
+    const observation = JSON.parse(info.records[0]!);
+    expect(observation).to.include({ balance: 3, valueUSD: 12 });
+    expect(observation.labels).to.deep.equal(
+      JSON.parse(debug.records[1]!).labels,
+    );
+    expect(debug.records[1]).to.include('Wallet value updated for token');
     expect(
       debug.records.filter((record) => record.includes('Value at risk on ')),
     ).to.have.length(20);
@@ -73,7 +78,11 @@ describe('value-at-risk log volume', () => {
   it('preserves zero USD values and the balance-only path without a price', async () => {
     const zero = collect('info', 0);
     const missing = collect('info', undefined);
-    expect(zero.records).to.have.length(2);
+    expect(zero.records).to.have.length(1);
+    expect(JSON.parse(zero.records[0]!)).to.include({
+      balance: 3,
+      valueUSD: 0,
+    });
     const zeroValues = (
       await zero.registry
         .getSingleMetric('hyperlane_warp_route_value_at_risk')!
@@ -81,6 +90,7 @@ describe('value-at-risk log volume', () => {
     ).values;
     expect(zeroValues.every(({ value }) => value === 0)).to.equal(true);
     expect(missing.records).to.have.length(1);
+    expect(JSON.parse(missing.records[0]!)).not.to.have.property('valueUSD');
     const missingValues = (
       await missing.registry
         .getSingleMetric('hyperlane_warp_route_value_at_risk')!
