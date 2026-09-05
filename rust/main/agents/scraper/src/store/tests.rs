@@ -242,6 +242,32 @@ async fn payment_row_counts(store: &HyperlaneDbStore, sequence: u32) -> eyre::Re
     ))
 }
 
+async fn payment_row_and_stream_cursor(
+    store: &HyperlaneDbStore,
+    sequence: u32,
+) -> eyre::Result<(i64, i64)> {
+    let row = store
+        .db
+        .clone_connection()
+        .query_one(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            r#"
+            SELECT payment.id, cursor.stream_cursor
+            FROM gas_payment AS payment
+            INNER JOIN gas_payment_stream_cursor AS cursor
+              ON cursor.gas_payment_id = payment.id
+            WHERE payment.domain = $1 AND payment.sequence = $2
+            "#,
+            [
+                i32::try_from(TEST_DOMAIN_ID)?.into(),
+                i64::from(sequence).into(),
+            ],
+        ))
+        .await?
+        .expect("stored payment stream cursor");
+    Ok((row.try_get("", "id")?, row.try_get("", "stream_cursor")?))
+}
+
 async fn assert_retrievable_by_sequence(
     store: &HyperlaneDbStore,
     message: &HyperlaneMessage,
@@ -384,6 +410,7 @@ async fn test_fallback_events_persist_and_survive_restart() -> eyre::Result<()> 
         (1, 1),
         "fallback payment must have exactly one NULL-tx row"
     );
+    let fallback_payment_cursor = payment_row_and_stream_cursor(&store, SEQUENCE).await?;
 
     let stored = HyperlaneLogStore::<Delivery>::store_logs(
         &store,
@@ -602,6 +629,11 @@ async fn test_fallback_events_persist_and_survive_restart() -> eyre::Result<()> 
         payment_row_counts(&store, SEQUENCE).await?,
         (1, 0),
         "resolved payment must replace its NULL-tx fallback row"
+    );
+    assert_eq!(
+        payment_row_and_stream_cursor(&store, SEQUENCE).await?,
+        fallback_payment_cursor,
+        "transaction enrichment must preserve the fallback row and stream cursor"
     );
 
     // No `Migrator::down` teardown: the test data intentionally contains NULL

@@ -10,6 +10,16 @@ process.env.DATABASE_READ_REPLICA_URL ??=
   'postgresql://scraper-proxy-replica-test';
 process.env.DATABASE_QUERY_TIMEOUT_MS ??= '1000';
 
+const readyEventStreamSchema = {
+  cursor_exists: true,
+  cursor_readable: true,
+  cursor_trigger_exists: true,
+  head_exists: true,
+  head_readable: true,
+  legacy_boundary_exists: true,
+  range_index_exists: true,
+};
+
 void it('keeps replica health from gating primary live queries', async (context) => {
   const saturatedPools = new WeakSet<pg.Pool>();
   const debugLogs: unknown[] = [];
@@ -34,6 +44,9 @@ void it('keeps replica health from gating primary live queries', async (context)
     'query',
     function (this: pg.Pool, text: string) {
       queryUrls.set(text, this.options.connectionString);
+      if (text.includes('has_table_privilege')) {
+        return Promise.resolve({ rowCount: 1, rows: [readyEventStreamSchema] });
+      }
       if (text === 'SELECT pg_sleep(1)') {
         saturatedPools.add(this);
         return new Promise((resolve) => {
@@ -95,7 +108,7 @@ void it('keeps replica health from gating primary live queries', async (context)
   );
   assert.match(
     metrics,
-    /database_queries_total\{(?=[^}]*role="live_primary")(?=[^}]*outcome="success")[^}]*\} 1/,
+    /database_queries_total\{(?=[^}]*role="live_primary")(?=[^}]*outcome="success")[^}]*\} 2/,
   );
   assert.match(
     metrics,
@@ -117,4 +130,38 @@ void it('times out stalled replica connections', async (context) => {
   const duration = Date.now() - started;
   assert(duration >= 1_000);
   assert(duration < 3_000);
+});
+
+void it('validates the event stream schema and read grants before startup', async (context) => {
+  context.mock.method(pg.Pool.prototype, 'connect', () =>
+    Promise.resolve({ release() {} }),
+  );
+  context.mock.method(pg.Pool.prototype, 'query', (text: string) => {
+    assert.match(text, /has_table_privilege/);
+    return Promise.resolve({ rowCount: 1, rows: [readyEventStreamSchema] });
+  });
+  context.mock.method(pg.Pool.prototype, 'end', () => Promise.resolve());
+  const { DbService } = await import('./db.service.js');
+  const db = new DbService();
+  context.after(() => db.onModuleDestroy());
+
+  await db.onModuleInit();
+});
+
+void it('fails startup when the live user cannot read cursor state', async (context) => {
+  context.mock.method(pg.Pool.prototype, 'connect', () =>
+    Promise.resolve({ release() {} }),
+  );
+  context.mock.method(pg.Pool.prototype, 'query', () =>
+    Promise.resolve({
+      rowCount: 1,
+      rows: [{ ...readyEventStreamSchema, cursor_readable: false }],
+    }),
+  );
+  context.mock.method(pg.Pool.prototype, 'end', () => Promise.resolve());
+  const { DbService } = await import('./db.service.js');
+  const db = new DbService();
+  context.after(() => db.onModuleDestroy());
+
+  await assert.rejects(db.onModuleInit(), /cursor_readable/);
 });

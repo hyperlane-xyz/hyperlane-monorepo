@@ -12,6 +12,7 @@ import {
   isEventType,
   isSequencedEventType,
   parseInteger,
+  STREAM_CURSOR_VERSIONS,
 } from '../live/protocol.js';
 import { rawData } from '../live/websocket-data.js';
 
@@ -170,6 +171,14 @@ function run({ cursors, domains, events, url }: Options): void {
       return;
     }
     if (subscribed || !isReady(message)) return;
+    if (
+      events.includes('gas_payment') &&
+      !supportsGasPaymentStreamCursor(message)
+    ) {
+      console.error('Server does not advertise gas payment stream cursor v1');
+      socket.close(1000, 'Unsupported gas payment cursor protocol');
+      return;
+    }
     socket.send(
       JSON.stringify({
         streams: events.map((eventType) => {
@@ -184,6 +193,11 @@ function run({ cursors, domains, events, url }: Options): void {
             ...(positions.length ? { cursors: positions } : {}),
             ...(domains ? { domains } : {}),
             eventType,
+            ...(eventType === 'gas_payment'
+              ? {
+                  streamCursorVersion: STREAM_CURSOR_VERSIONS.gas_payment,
+                }
+              : {}),
           };
         }),
         type: 'subscribe',
@@ -203,12 +217,26 @@ function run({ cursors, domains, events, url }: Options): void {
   }
 }
 
-function isReady(value: unknown): value is { type: 'ready' } {
+function isReady(value: unknown): value is Record<string, unknown> & {
+  type: 'ready';
+} {
   return (
     !!value &&
     typeof value === 'object' &&
     'type' in value &&
     value.type === 'ready'
+  );
+}
+
+function supportsGasPaymentStreamCursor(
+  ready: Record<string, unknown>,
+): boolean {
+  const versions = ready.streamCursorVersions;
+  return (
+    !!versions &&
+    typeof versions === 'object' &&
+    'gas_payment' in versions &&
+    versions.gas_payment === STREAM_CURSOR_VERSIONS.gas_payment
   );
 }
 
