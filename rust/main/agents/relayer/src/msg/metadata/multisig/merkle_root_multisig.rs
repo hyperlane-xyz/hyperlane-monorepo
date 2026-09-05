@@ -22,8 +22,8 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         ModuleType::MerkleRootMultisig
     }
 
-    fn token_layout(&self) -> Vec<MetadataToken> {
-        vec![
+    fn token_layout(&self) -> &'static [MetadataToken] {
+        &[
             MetadataToken::CheckpointMerkleTreeHook,
             MetadataToken::MessageMerkleLeafIndex,
             MetadataToken::MessageId,
