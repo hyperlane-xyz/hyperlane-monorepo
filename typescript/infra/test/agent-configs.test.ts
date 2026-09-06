@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 
 import { AgentConfig } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../config/contexts.js';
@@ -14,12 +15,20 @@ import {
   hyperlaneContextAgentChainConfig as testnet4AgentChainConfig,
 } from '../config/environments/testnet4/agent.js';
 import { testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
+import { getChain } from '../config/registry.js';
 import { getAgentConfigJsonPath } from '../scripts/agent-utils.js';
 import {
+  AgentConfigHelper,
   AgentChainConfig,
+  RootAgentConfig,
   ensureAgentChainConfigIncludesAllChainNames,
 } from '../src/config/agent/agent.js';
+import { AgentHelmManager } from '../src/agents/index.js';
+import { RelayerConfigHelper } from '../src/config/agent/relayer.js';
+import { ScraperConfigHelper } from '../src/config/agent/scraper.js';
+import { ValidatorConfigHelper } from '../src/config/agent/validator.js';
 import { AgentEnvironment } from '../src/config/deploy-environment.js';
+import { AgentRole, Role } from '../src/roles.js';
 
 const environmentChainConfigs = {
   mainnet3: {
@@ -40,19 +49,100 @@ const environmentChainConfigs = {
   },
 };
 
+class TestAgentHelmManager extends AgentHelmManager {
+  readonly helmReleaseName = 'test';
+
+  constructor(
+    protected readonly config: AgentConfigHelper,
+    readonly role: AgentRole,
+  ) {
+    super();
+  }
+}
+
+function agentConfigHelper(
+  config: RootAgentConfig,
+  role: AgentRole,
+): AgentConfigHelper {
+  switch (role) {
+    case Role.Relayer:
+      return new RelayerConfigHelper(config);
+    case Role.Scraper:
+      return new ScraperConfigHelper(config);
+    case Role.Validator: {
+      const chain = config.contextChainNames[Role.Validator][0];
+      if (!chain) throw new Error('Validator context has no configured chain');
+      return new ValidatorConfigHelper(config, chain);
+    }
+  }
+}
+
 describe('Agent configs', () => {
-  it('enables fallback hedging for relayers and scrapers, not validators', () => {
+  it('renders fallback hedging only for EVM relayers and scrapers', async () => {
+    let sawEthereum = false;
+    let sawNonEthereum = false;
+
     for (const agentConfigs of [mainnet3Agents, testnet4Agents]) {
       for (const config of Object.values(agentConfigs)) {
-        for (const role of ['relayer', 'scraper'] as const) {
-          if (!config[role]) continue;
-          expect(config[role].fallbackHedgeDelayMillis).to.equal(250);
-          expect(config[role].fallbackHedgeTimeoutMillis).to.equal(30_000);
-        }
+        for (const role of [
+          Role.Relayer,
+          Role.Scraper,
+          Role.Validator,
+        ] as const) {
+          const roleDefined =
+            role === Role.Validator ? config.validators : config[role];
+          if (!roleDefined) continue;
 
-        expect(config.validators?.fallbackHedgeDelayMillis).to.equal(undefined);
-        expect(config.validators?.fallbackHedgeTimeoutMillis).to.equal(
-          undefined,
+          const manager = new TestAgentHelmManager(
+            agentConfigHelper(config, role),
+            role,
+          );
+          const values = await manager.helmValues();
+
+          for (const chain of values.hyperlane.chains) {
+            const isEthereum =
+              getChain(chain.name).protocol === ProtocolType.Ethereum;
+            sawEthereum ||= isEthereum;
+            sawNonEthereum ||= !isEthereum;
+
+            const shouldHedge = isEthereum && role !== Role.Validator;
+            expect(chain.fallbackHedgeDelayMillis).to.equal(
+              shouldHedge ? 250 : undefined,
+            );
+            expect(chain.fallbackHedgeTimeoutMillis).to.equal(
+              shouldHedge ? 30_000 : undefined,
+            );
+          }
+        }
+      }
+    }
+
+    expect(sawEthereum).to.equal(true);
+    expect(sawNonEthereum).to.equal(true);
+  });
+
+  it('rejects partial fallback hedge configuration', async () => {
+    const config = testnet4Agents[Contexts.Hyperlane];
+    for (const relayer of [
+      { ...config.relayer!, fallbackHedgeTimeoutMillis: undefined },
+      { ...config.relayer!, fallbackHedgeDelayMillis: undefined },
+    ]) {
+      const partialConfig = { ...config, relayer };
+      const manager = new TestAgentHelmManager(
+        new RelayerConfigHelper(partialConfig),
+        Role.Relayer,
+      );
+
+      let rejection: unknown;
+      try {
+        await manager.helmValues();
+      } catch (error) {
+        rejection = error;
+      }
+      expect(rejection).to.be.instanceOf(Error);
+      if (rejection instanceof Error) {
+        expect(rejection.message).to.equal(
+          'fallbackHedgeDelayMillis and fallbackHedgeTimeoutMillis must be configured together',
         );
       }
     }

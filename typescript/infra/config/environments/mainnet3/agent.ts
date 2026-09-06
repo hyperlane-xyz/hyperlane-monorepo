@@ -43,6 +43,7 @@ import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
 import { getDomainId, getWarpAddresses } from '../../registry.js';
+import { fallbackHedgeConfig } from '../utils.js';
 
 import { environment, ethereumChainNames } from './chains.js';
 import { blacklistedMessageIds } from './customBlacklist.js';
@@ -59,11 +60,6 @@ import {
   validatorChainConfig,
 } from './validators.js';
 import { WarpRouteIds } from './warp/warpIds.js';
-
-const fallbackHedgeConfig = {
-  fallbackHedgeDelayMillis: 250,
-  fallbackHedgeTimeoutMillis: 30_000,
-};
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
 // checked / enforced at runtime & in the CI pipeline.

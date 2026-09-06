@@ -23,6 +23,7 @@ import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 import { DockerImageRepos, testnetDockerTags } from '../../docker.js';
 import { getDomainId } from '../../registry.js';
+import { fallbackHedgeConfig } from '../utils.js';
 
 import { environment, ethereumChainNames } from './chains.js';
 import {
@@ -33,11 +34,6 @@ import {
   fastPathReorgPeriodOverrides,
   validatorChainConfig,
 } from './validators.js';
-
-const fallbackHedgeConfig = {
-  fallbackHedgeDelayMillis: 250,
-  fallbackHedgeTimeoutMillis: 30_000,
-};
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
 // checked / enforced at runtime & in the CI pipeline.
