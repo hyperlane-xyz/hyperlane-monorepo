@@ -267,54 +267,17 @@ impl ScraperDb {
         Ok(tx_id.flatten())
     }
 
-    async fn latest_dispatched_id(&self, domain: u32, origin_mailbox: Vec<u8>) -> Result<i64> {
-        let result = message::Entity::find()
-            .select_only()
-            .column_as(message::Column::Id.max(), "max_id")
-            .filter(message::Column::Origin.eq(domain))
-            .filter(message::Column::OriginMailbox.eq(origin_mailbox))
-            .into_tuple::<Option<i64>>()
-            .one(&self.0)
-            .await?;
-
-        Ok(result
-            // Top level Option indicates some kind of error
-            .ok_or_else(|| eyre::eyre!("Error getting latest dispatched id"))?
-            // Inner Option indicates whether there was any data in the filter -
-            // just default to 0 if there was no data
-            .unwrap_or(0))
-    }
-
-    async fn dispatch_count_since_id(
-        &self,
-        domain: u32,
-        origin_mailbox: Vec<u8>,
-        prev_id: i64,
-    ) -> Result<u64> {
-        Ok(message::Entity::find()
-            .filter(message::Column::Origin.eq(domain))
-            .filter(message::Column::OriginMailbox.eq(origin_mailbox))
-            .filter(message::Column::Id.gt(prev_id))
-            .count(&self.0)
-            .await?)
-    }
-
     /// Store messages from a mailbox into the database (or update an existing
-    /// one).
+    /// one). Return only this operation's inserted row count, excluding updates.
     #[instrument(skip_all)]
     pub async fn store_dispatched_messages(
         &self,
-        domain: u32,
+        _domain: u32,
         origin_mailbox: &H256,
         messages: impl Iterator<Item = StorableMessage<'_>>,
     ) -> Result<u64> {
         let origin_mailbox = address_to_bytes(origin_mailbox);
 
-        let latest_id_before = self
-            .latest_dispatched_id(domain, origin_mailbox.clone())
-            .await?;
-
-        // we have a race condition where a message may not have been scraped yet even
         let models = messages
             .map(|storable| message::ActiveModel {
                 id: NotSet,
@@ -345,12 +308,37 @@ impl ScraperDb {
         }
 
         // ensure all chunks are inserted or none at all
-        self.0
-            .transaction::<_, (), DbErr>(|txn| {
+        let new_dispatch_count = self
+            .0
+            .transaction::<_, u64, DbErr>(|txn| {
                 Box::pin(async move {
+                    let mut inserted_count = 0u64;
                     // insert messages in chunks, to not run into
                     // "Too many arguments" error
                     for chunk in models.chunks(Self::STORE_MESSAGE_CHUNK_SIZE) {
+                        // The live indexer and reconciler can write concurrently.
+                        // Count only rows inserted by this statement, never rows
+                        // another writer inserted between a MAX(id) and COUNT.
+                        let inserted = Insert::many(chunk.to_vec())
+                            .on_conflict(
+                                OnConflict::columns([
+                                    message::Column::Origin,
+                                    message::Column::OriginMailbox,
+                                    message::Column::Nonce,
+                                ])
+                                .do_nothing()
+                                .to_owned(),
+                            )
+                            .exec_without_returning(txn)
+                            .await?;
+                        inserted_count = inserted_count.checked_add(inserted).ok_or_else(|| {
+                            DbErr::Custom("Dispatch insertion count overflow".to_owned())
+                        })?;
+                        if inserted == chunk.len() as u64 {
+                            continue;
+                        }
+                        // Preserve enrichment/replay updates, without counting
+                        // those updates as newly inserted dispatches.
                         Insert::many(chunk.to_vec())
                             .on_conflict(
                                 OnConflict::columns([
@@ -384,13 +372,9 @@ impl ScraperDb {
                             .exec(txn)
                             .await?;
                     }
-                    Ok(())
+                    Ok(inserted_count)
                 })
             })
-            .await?;
-
-        let new_dispatch_count = self
-            .dispatch_count_since_id(domain, origin_mailbox, latest_id_before)
             .await?;
 
         debug!(
@@ -403,140 +387,73 @@ impl ScraperDb {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
-    use time::macros::*;
-
     use hyperlane_core::{HyperlaneMessage, LogMeta, H256};
-    use sea_orm::{Database, DatabaseBackend, DbErr, MockDatabase, RuntimeErr, Value};
-    use time::PrimitiveDateTime;
+    use sea_orm::{Database, DatabaseBackend, DbErr, MockDatabase, MockExecResult, RuntimeErr};
 
-    use crate::db::{generated::message, ScraperDb, StorableMessage};
+    use crate::db::{ScraperDb, StorableMessage};
 
-    /// Tests store_dispatched_messages() a transaction works
     #[tokio::test]
     async fn test_store_dispatched_messages_transaction() {
         const MESSAGE_AMOUNT: usize = 10000;
-
-        let query_results: Vec<Vec<_>> = (0..10000)
-            .map(|i| message::Model {
-                id: i as i64,
-                time_created: PrimitiveDateTime::new(date!(2019 - 01 - 01), time!(0:00)),
-                msg_id: vec![],
-                origin: 0,
-                destination: 0,
-                nonce: 0,
-                sender: vec![],
-                recipient: vec![],
-                msg_body: None,
-                origin_mailbox: vec![],
-                origin_tx_id: Some(0),
-            })
+        let results = (0..MESSAGE_AMOUNT)
             .collect::<Vec<_>>()
             .chunks(ScraperDb::STORE_MESSAGE_CHUNK_SIZE)
-            .map(|v| v.to_vec())
-            .collect();
-
-        let mock_result: BTreeMap<&str, _> = [
-            ("num_items", Into::<Value>::into(10000i64)),
-            ("last_insert_id", Into::<Value>::into(10000i64)),
-        ]
-        .into_iter()
-        .collect();
-        let mock_db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([[message::Model {
-                id: 0,
-                time_created: PrimitiveDateTime::new(date!(2019 - 01 - 01), time!(0:00)),
-                msg_id: vec![],
-                origin: 0,
-                destination: 0,
-                nonce: 0,
-                sender: vec![],
-                recipient: vec![],
-                msg_body: None,
-                origin_mailbox: vec![],
-                origin_tx_id: Some(0),
-            }]])
-            .append_query_results(query_results)
-            .append_query_results([[mock_result.clone()]])
-            .into_connection();
-        let scraper_db = ScraperDb::with_connection(mock_db);
-
-        let logs_meta: Vec<_> = (0..MESSAGE_AMOUNT).map(|_| LogMeta::default()).collect();
-        let messages: Vec<_> = (0..MESSAGE_AMOUNT)
-            .map(|i| StorableMessage {
-                msg: HyperlaneMessage::default(),
-                meta: &logs_meta[i],
-                txn_id: Some(i as i64),
-                id_override: None,
+            .map(|chunk| MockExecResult {
+                last_insert_id: 0,
+                rows_affected: chunk.len() as u64,
             })
-            .collect();
-        let res = scraper_db
-            .store_dispatched_messages(0, &H256::zero(), messages.into_iter())
-            .await;
-        assert!(res.is_ok());
+            .collect::<Vec<_>>();
+        let db = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results(results)
+            .into_connection();
+        let scraper_db = ScraperDb::with_connection(db);
+        let meta = LogMeta::default();
+        let messages = (0..MESSAGE_AMOUNT).map(|nonce| StorableMessage {
+            msg: HyperlaneMessage {
+                nonce: nonce as u32,
+                ..Default::default()
+            },
+            meta: &meta,
+            txn_id: None,
+            id_override: None,
+        });
+        assert_eq!(
+            scraper_db
+                .store_dispatched_messages(0, &H256::zero(), messages)
+                .await
+                .unwrap(),
+            MESSAGE_AMOUNT as u64
+        );
     }
 
-    /// Tests store_dispatched_messages() fails if one of the queries
-    /// within the transaction fails
     #[tokio::test]
     async fn test_store_dispatched_messages_fail() {
-        const MESSAGE_AMOUNT: usize = 5000;
-
-        let query_results: Vec<Vec<_>> = (0..MESSAGE_AMOUNT)
-            .map(|i| message::Model {
-                id: i as i64,
-                time_created: PrimitiveDateTime::new(date!(2019 - 01 - 01), time!(0:00)),
-                msg_id: vec![],
-                origin: 0,
-                destination: 0,
-                nonce: 0,
-                sender: vec![],
-                recipient: vec![],
-                msg_body: None,
-                origin_mailbox: vec![],
-                origin_tx_id: Some(0),
-            })
-            .collect::<Vec<_>>()
-            .chunks(ScraperDb::STORE_MESSAGE_CHUNK_SIZE)
-            .map(|v| v.to_vec())
-            .collect();
-
-        let mock_db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([[message::Model {
-                id: 0,
-                time_created: PrimitiveDateTime::new(date!(2019 - 01 - 01), time!(0:00)),
-                msg_id: vec![],
-                origin: 0,
-                destination: 0,
-                nonce: 0,
-                sender: vec![],
-                recipient: vec![],
-                msg_body: None,
-                origin_mailbox: vec![],
-                origin_tx_id: Some(0),
-            }]])
-            .append_query_results(query_results)
-            // fail halfway through the transaction
-            .append_query_errors([DbErr::Exec(RuntimeErr::Internal(
-                "Unknown error".to_string(),
+        let db = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult {
+                last_insert_id: 0,
+                rows_affected: ScraperDb::STORE_MESSAGE_CHUNK_SIZE as u64,
+            }])
+            .append_exec_errors([DbErr::Exec(RuntimeErr::Internal(
+                "injected insert failure".to_owned(),
             ))])
             .into_connection();
-        let scraper_db = ScraperDb::with_connection(mock_db);
-
-        let logs_meta: Vec<_> = (0..MESSAGE_AMOUNT).map(|_| LogMeta::default()).collect();
-        let messages: Vec<_> = (0..MESSAGE_AMOUNT)
-            .map(|i| StorableMessage {
-                msg: HyperlaneMessage::default(),
-                meta: &logs_meta[i],
-                txn_id: Some(i as i64),
-                id_override: None,
-            })
-            .collect();
-        let res = scraper_db
-            .store_dispatched_messages(0, &H256::zero(), messages.into_iter())
-            .await;
-        assert!(res.is_err());
+        let scraper_db = ScraperDb::with_connection(db);
+        let meta = LogMeta::default();
+        let messages = (0..5000).map(|nonce| StorableMessage {
+            msg: HyperlaneMessage {
+                nonce,
+                ..Default::default()
+            },
+            meta: &meta,
+            txn_id: None,
+            id_override: None,
+        });
+        assert!(scraper_db
+            .store_dispatched_messages(0, &H256::zero(), messages)
+            .await
+            .is_err());
+        let log = scraper_db.0.into_transaction_log();
+        assert!(format!("{log:?}").contains("ROLLBACK"));
     }
 
     /// Tests store_dispatched_messages() with a real postgres instance
