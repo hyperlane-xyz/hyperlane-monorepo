@@ -28,9 +28,12 @@ let originalRadixTestMetadata:
 let radixNodeInstance: StartedDockerComposeEnvironment;
 
 const TESTS_WITHOUT_RADIX_SETUP = new Set([
+  'warp-apply',
+  'warp-deploy',
   'warp-apply-starknet',
   'warp-deploy-starknet',
-  'warp-cc-evm-svm',
+  'warp-cc-evm-svm-1',
+  'warp-cc-evm-svm-2',
   'warp-send-evm-svm',
 ]);
 

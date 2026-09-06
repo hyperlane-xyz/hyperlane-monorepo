@@ -9,7 +9,11 @@ import {
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
-  FALLBACK_SIMULATION_PAYER,
+  TokenType,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
+} from '@hyperlane-xyz/sdk';
+import {
   SealevelSigner,
   SvmCrossCollateralTokenReader,
   createRpc,
@@ -22,12 +26,6 @@ import {
   runSolanaNode,
 } from '@hyperlane-xyz/sealevel-sdk/testing';
 import {
-  TokenFeeType,
-  TokenType,
-  type WarpCoreConfig,
-  type WarpRouteDeployConfig,
-} from '@hyperlane-xyz/sdk';
-import {
   ProtocolType,
   addressToBytes32,
   assert,
@@ -38,7 +36,6 @@ import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import { localTestRunCmdPrefix } from '../../commands/helpers.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
-import { deployToken } from '../../ethereum/commands/helpers.js';
 import {
   BURN_ADDRESS_BY_PROTOCOL,
   CORE_ADDRESSES_PATH_BY_PROTOCOL,
@@ -53,6 +50,7 @@ import {
   TEST_CHAIN_NAMES_BY_PROTOCOL,
   getWarpCoreConfigPath,
 } from '../../constants.js';
+import { deployToken } from '../../ethereum/commands/helpers.js';
 import { runEvmNode } from '../../nodes.js';
 import { expectCcRouterEnrolled } from '../../utils.js';
 
@@ -365,155 +363,6 @@ describe('hyperlane warp crossCollateral EVM+SVM e2e tests', function () {
       evmCCRoutersB,
       `EVM Route B should have EVM Route A enrolled as CC router on domain ${evmDomainId}`,
     ).to.include(evmRouterAHex32);
-  });
-
-  it('should deploy EVM collateral + SVM synthetic with RoutingFee tokenFee without error', async function () {
-    const evmOwner = new Wallet(EVM_KEY).address;
-    const svmOwner = svmSigner.getSignerAddress();
-    const DECIMALS = 9;
-    const SYMBOL = 'RTKN';
-
-    const evmToken = await deployToken(
-      EVM_KEY,
-      EVM_CHAIN,
-      DECIMALS,
-      SYMBOL,
-      'Routing Token',
-      REGISTRY_PATH,
-    );
-
-    const warpId = createWarpRouteConfigId(SYMBOL, `${EVM_CHAIN}-${SVM_CHAIN}`);
-    const warpDeployConfig: WarpRouteDeployConfig = {
-      [EVM_CHAIN]: {
-        type: TokenType.collateral,
-        token: evmToken.address,
-        mailbox: evmCoreAddresses.mailbox,
-        owner: evmOwner,
-        tokenFee: {
-          type: TokenFeeType.RoutingFee,
-          owner: evmOwner,
-          feeContracts: {
-            [SVM_CHAIN]: {
-              type: TokenFeeType.LinearFee,
-              bps: 50,
-            },
-          },
-        },
-      },
-      [SVM_CHAIN]: {
-        type: TokenType.synthetic,
-        mailbox: svmCoreAddresses.mailbox,
-        owner: svmOwner,
-        name: 'Routing Token',
-        symbol: SYMBOL,
-        decimals: DECIMALS,
-        metadataUri: 'https://test.example.com/rtkn-metadata.json',
-      },
-    };
-
-    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
-
-    // Before the fix, enrollCrossChainRouters would fail with a
-    // RoutingFeeInputConfigSchema validation error because the EVM reader
-    // returns empty feeContracts when no SVM routers are enrolled yet.
-    await warpCommands.deployRaw({
-      warpRouteId: warpId,
-      warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-      skipConfirmationPrompts: true,
-      extraArgs: [
-        `--key.${ProtocolType.Ethereum}`,
-        EVM_KEY,
-        `--key.${ProtocolType.Sealevel}`,
-        SVM_KEY,
-      ],
-    });
-
-    const warpCorePath = getWarpCoreConfigPath(SYMBOL, [EVM_CHAIN, SVM_CHAIN]);
-    const deployedConfig = await warpCommands.readConfig(
-      EVM_CHAIN,
-      warpCorePath,
-    );
-    expect(deployedConfig[EVM_CHAIN].tokenFee?.type).to.equal(
-      TokenFeeType.RoutingFee,
-    );
-  });
-
-  it('should deploy an EVM+SVM warp whose SVM owner is not the deployer and still enroll cross-chain routers', async function () {
-    const evmOwner = new Wallet(EVM_KEY).address;
-    // A non-deployer owner for the SVM side. The deploy runs with the deployer
-    // key and cross-chain router enrollment happens after create(), so the SVM
-    // warp must stay deployer-owned through enrollment and only be handed to
-    // this owner during it. If create() applied the configured owner up front,
-    // the deployer could no longer sign the enrollment and the deploy would
-    // fail.
-    const svmOwner = BURN_ADDRESS_BY_PROTOCOL[ProtocolType.Sealevel];
-    const DECIMALS = 9;
-    const SYMBOL = 'NDOWN';
-
-    const evmToken = await deployToken(
-      EVM_KEY,
-      EVM_CHAIN,
-      DECIMALS,
-      SYMBOL,
-      'Non-deployer Owner Token',
-      REGISTRY_PATH,
-    );
-
-    const warpId = createWarpRouteConfigId(SYMBOL, `${EVM_CHAIN}-${SVM_CHAIN}`);
-    const warpDeployConfig: WarpRouteDeployConfig = {
-      [EVM_CHAIN]: {
-        type: TokenType.collateral,
-        token: evmToken.address,
-        mailbox: evmCoreAddresses.mailbox,
-        owner: evmOwner,
-      },
-      [SVM_CHAIN]: {
-        type: TokenType.synthetic,
-        mailbox: svmCoreAddresses.mailbox,
-        owner: svmOwner,
-        name: 'Non-deployer Owner Token',
-        symbol: SYMBOL,
-        decimals: DECIMALS,
-        metadataUri: 'https://test.example.com/ndown-metadata.json',
-      },
-    };
-    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
-
-    // Deploy must succeed: enrollment is authorized by the deployer key because
-    // ownership is handed to svmOwner only during enrollment, not at create.
-    await warpCommands.deployRaw({
-      warpRouteId: warpId,
-      warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-      skipConfirmationPrompts: true,
-      extraArgs: [
-        `--key.${ProtocolType.Ethereum}`,
-        EVM_KEY,
-        `--key.${ProtocolType.Sealevel}`,
-        SVM_KEY,
-      ],
-    });
-
-    // Reading an SVM warp simulates an on-chain program-version query. When the
-    // owner can't pay (a governance/burn owner holds no SOL), the reader falls
-    // back to FALLBACK_SIMULATION_PAYER — funded on mainnet but not on a local
-    // validator, so fund it here so the read can simulate.
-    await airdropSol(svmRpc, FALLBACK_SIMULATION_PAYER, 1_000_000_000n);
-
-    const warpCorePath = getWarpCoreConfigPath(SYMBOL, [EVM_CHAIN, SVM_CHAIN]);
-    const deployedConfig = await warpCommands.readConfig(
-      SVM_CHAIN,
-      warpCorePath,
-    );
-    const svmConfig = deployedConfig[SVM_CHAIN];
-
-    // Ownership was handed to the configured (non-deployer) owner during
-    // enrollment — the on-chain state confirms the override worked end to end.
-    expect(svmConfig.owner).to.equal(svmOwner);
-    // The EVM router was enrolled on the SVM warp, i.e. the post-create
-    // enrollment ran successfully while the deployer still owned the warp.
-    expect(Object.keys(svmConfig.remoteRouters ?? {}).length).to.be.greaterThan(
-      0,
-    );
   });
 
   it('should deploy an EVM+SVM warp whose EVM owner is not the deployer and still enroll cross-chain routers', async function () {
