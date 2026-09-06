@@ -48,24 +48,6 @@ runs:
           pnpm run build
         fi
 
-    # pnpm's store does not cover the separate npm install of the packed CLI.
-    # Cache downloads, not the installed executable, so every job still tests
-    # a freshly packed and installed CLI from this checkout.
-    - name: Locate npm download cache
-      if: inputs.no-cache == 'false'
-      id: npm-cache-path
-      shell: bash
-      run: echo "path=$(npm config get cache)" >> "$GITHUB_OUTPUT"
-
-    - name: Cache packaged CLI dependencies
-      if: inputs.no-cache == 'false'
-      uses: actions/cache@v6
-      with:
-        path: ${{ steps.npm-cache-path.outputs.path }}
-        key: cli-npm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
-        restore-keys: |
-          cli-npm-${{ runner.os }}-${{ runner.arch }}-
-
     - name: Pack the CLI
       shell: bash
       id: pack-cli
@@ -73,4 +55,4 @@ runs:
 
     - name: Install the packaged CLI
       shell: bash
-      run: npm i -g --prefer-offline --no-audit --no-fund typescript/cli/hyperlane-xyz-cli-*.tgz
+      run: npm i -g typescript/cli/hyperlane-xyz-cli-*.tgz
