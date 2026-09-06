@@ -1,4 +1,4 @@
-use prometheus::IntGaugeVec;
+use prometheus::{IntCounterVec, IntGaugeVec};
 
 use crate::CoreMetrics;
 
@@ -27,6 +27,12 @@ pub struct CursorMetrics {
     /// - `event_type`: the event type the cursor is indexing. Could be anything implementing `Indexable`.
     /// - `chain`: Chain the cursor is collecting data from.
     pub cursor_max_sequence: IntGaugeVec,
+
+    /// Number of incomplete backward sequence ranges observed.
+    pub cursor_sequence_gap_retries: IntCounterVec,
+
+    /// Current delay before retrying an incomplete backward sequence range.
+    pub cursor_sequence_gap_backoff_seconds: IntGaugeVec,
 }
 
 impl CursorMetrics {
@@ -56,10 +62,28 @@ impl CursorMetrics {
             )
             .expect("failed to register cursor_max_sequence metric");
 
+        let cursor_sequence_gap_retries = metrics
+            .new_int_counter(
+                "cursor_sequence_gap_retries",
+                "Incomplete backward sequence ranges observed",
+                &["event_type", "chain"],
+            )
+            .expect("failed to register cursor_sequence_gap_retries metric");
+
+        let cursor_sequence_gap_backoff_seconds = metrics
+            .new_int_gauge(
+                "cursor_sequence_gap_backoff_seconds",
+                "Delay before retrying an incomplete backward sequence range",
+                &["event_type", "chain"],
+            )
+            .expect("failed to register cursor_sequence_gap_backoff_seconds metric");
+
         CursorMetrics {
             cursor_current_block,
             cursor_current_sequence,
             cursor_max_sequence,
+            cursor_sequence_gap_retries,
+            cursor_sequence_gap_backoff_seconds,
         }
     }
 }

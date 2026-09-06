@@ -259,6 +259,23 @@ mod tests {
                 &["event_type", "chain"],
             )
             .unwrap(),
+            cursor_sequence_gap_retries: prometheus::IntCounterVec::new(
+                prometheus::Opts::new("cursor_sequence_gap_retries", "Sequence gap retries")
+                    .namespace("mock")
+                    .subsystem("cursor"),
+                &["event_type", "chain"],
+            )
+            .unwrap(),
+            cursor_sequence_gap_backoff_seconds: prometheus::IntGaugeVec::new(
+                prometheus::Opts::new(
+                    "cursor_sequence_gap_backoff_seconds",
+                    "Sequence gap backoff",
+                )
+                .namespace("mock")
+                .subsystem("cursor"),
+                &["event_type", "chain"],
+            )
+            .unwrap(),
         }
     }
 
