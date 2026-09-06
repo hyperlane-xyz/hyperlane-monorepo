@@ -51,6 +51,8 @@ pub const MESSAGE_PROCESSOR_QUEUE_COUNT: usize = 3;
 /// one slot avoids a duplicate backlog while still decoupling task scheduling.
 pub const MESSAGE_PROCESSOR_INGRESS_CAPACITY: usize = 1;
 
+const CONFIRM_POLL_INTERVAL: Duration = Duration::from_millis(500);
+
 #[async_trait::async_trait]
 trait RecoveryWaiter: Send + Sync {
     async fn wait_for_recovery(&self);
@@ -774,13 +776,13 @@ async fn confirm_op(
 }
 
 #[instrument(skip_all, fields(%domain))]
-async fn confirm_classic_task(
+async fn confirm_classic_task<E: Entrypoint + Send + Sync + 'static>(
     domain: HyperlaneDomain,
     prepare_queue: OpQueue,
     mut confirm_queue: OpQueue,
     max_batch_size: u32,
     metrics: MessageProcessorMetrics,
-    entrypoint: Option<Arc<DispatcherEntrypoint>>,
+    entrypoint: Option<Arc<E>>,
     db: Arc<dyn HyperlaneDb>,
 ) {
     let recv_limit = max_batch_size as usize;
@@ -794,7 +796,7 @@ async fn confirm_classic_task(
             continue;
         }
 
-        let futures = batch.into_iter().map(|op| async {
+        let futures = batch.into_iter().map(|mut op| async {
             if op.is_ready() && domain.domain_protocol() == HyperlaneDomainProtocol::Sealevel {
                 if let Some(entrypoint) = &entrypoint {
                     if disposition::awaiting_transaction_finality(
@@ -804,6 +806,9 @@ async fn confirm_classic_task(
                     )
                     .await
                     {
+                        // Advance the queue deadline without counting a failed attempt.
+                        // Otherwise this expired operation can starve later confirmations.
+                        op.set_next_attempt_after(CONFIRM_POLL_INTERVAL);
                         return process_confirm_result(
                             op,
                             prepare_queue.clone(),
@@ -833,7 +838,7 @@ async fn confirm_classic_task(
         }) {
             // None of the operations are ready, so wait for a little bit
             // before checking again to prevent burning CPU
-            sleep(Duration::from_millis(500)).await;
+            sleep(CONFIRM_POLL_INTERVAL).await;
         }
     }
 }

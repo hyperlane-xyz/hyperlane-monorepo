@@ -1,3 +1,4 @@
+mod confirmation;
 pub(crate) mod tests_common;
 
 use std::sync::Arc;
