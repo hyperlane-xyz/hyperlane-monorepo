@@ -1,4 +1,4 @@
-use axum::{extract::State, routing, Json, Router};
+use axum::{extract::State, http::StatusCode, routing, Json, Router};
 use derive_new::new;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast::Sender, mpsc};
@@ -52,7 +52,7 @@ pub struct MessageRetryResponse {
 async fn handler(
     State(state): State<ServerState>,
     Json(payload): Json<MatchingList>,
-) -> Result<Json<MessageRetryResponse>, String> {
+) -> Result<Json<MessageRetryResponse>, (StatusCode, String)> {
     let uuid = uuid::Uuid::new_v4();
     let uuid_string = uuid.to_string();
 
@@ -74,7 +74,10 @@ async fn handler(
         .map_err(|err| {
             // Technically it's bad practice to print the error message to the user, but
             // this endpoint is for debugging purposes only.
-            format!("Failed to send retry request to the queue: {err}")
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to send retry request to the queue: {err}"),
+            )
         })?;
 
     let mut resp = MessageRetryResponse {
@@ -98,8 +101,9 @@ async fn handler(
     }
 
     if failed > 0 {
-        return Err(format!(
-            "Failed to persist manual retry for {failed} matching operations"
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to persist manual retry for {failed} matching operations"),
         ));
     }
 
@@ -206,6 +210,38 @@ mod tests {
         let resp_json: MessageRetryResponse = parse_body_to_json(response.into_body()).await;
         assert_eq!(resp_json.evaluated, 1);
         assert_eq!(resp_json.matched, 1);
+    }
+
+    #[tokio::test]
+    async fn test_persistence_failure_returns_internal_server_error() {
+        let TestServerSetup { app, retry_req_rx } = setup_test_server();
+        let mut retry_req_rx = retry_req_rx;
+
+        // spawn a task reporting that persisting the manual retry failed
+        tokio::task::spawn(async move {
+            if let Ok(req) = retry_req_rx.recv().await {
+                req.transmitter
+                    .send(MessageRetryQueueResponse {
+                        evaluated: 1,
+                        matched: 1,
+                        failed: 1,
+                    })
+                    .await
+                    .unwrap();
+            }
+        });
+
+        let body = json!([
+            {
+                "messageid": HyperlaneMessage::default().id()
+            }
+        ]);
+
+        // Send a POST request to the server
+        let response = send_retry_request(app, &body).await;
+
+        // Persistence failures must not return a 2xx response
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     #[tokio::test]
