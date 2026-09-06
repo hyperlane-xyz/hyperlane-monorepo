@@ -191,7 +191,7 @@ fn wait_for_program_ready(
         let response =
             client.get_account_with_commitment(program_id, CommitmentConfig::confirmed())?;
         if response.value.is_some_and(|account| account.executable) {
-            // A newly deployed program is not invokable in its deployment bank.
+            // A newly deployed program is not callable in its deployment bank.
             // Observe it in a later confirmed slot before simulating client calls.
             let first_slot = first_executable_slot.get_or_insert(response.context.slot);
             if response.context.slot > *first_slot {
