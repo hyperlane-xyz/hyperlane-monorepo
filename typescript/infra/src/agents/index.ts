@@ -8,7 +8,7 @@ import {
   RelayerConfig,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objOmitKeys } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, objOmitKeys } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
@@ -87,6 +87,18 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
 
   async helmValues(): Promise<HelmRootAgentValues> {
     const dockerImage = this.dockerImage;
+    const { fallbackHedgeDelayMillis, fallbackHedgeTimeoutMillis } =
+      this.config.agentRoleConfig;
+    const hasFallbackHedgeDelay = fallbackHedgeDelayMillis !== undefined;
+    const hasFallbackHedgeTimeout = fallbackHedgeTimeoutMillis !== undefined;
+    assert(
+      hasFallbackHedgeDelay === hasFallbackHedgeTimeout,
+      'fallbackHedgeDelayMillis and fallbackHedgeTimeoutMillis must be configured together',
+    );
+    const fallbackHedgeConfig = hasFallbackHedgeDelay
+      ? { fallbackHedgeDelayMillis, fallbackHedgeTimeoutMillis }
+      : undefined;
+
     return {
       image: {
         repository: dockerImage.repo,
@@ -134,6 +146,10 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
           return {
             name: chain,
             rpcConsensusType: this.rpcConsensusType(chain),
+            ...(metadata.protocol === ProtocolType.Ethereum &&
+            fallbackHedgeConfig
+              ? fallbackHedgeConfig
+              : {}),
             protocol: metadata.protocol,
             blocks: { reorgPeriod },
             maxBatchSize: batchConfig.maxBatchSize,

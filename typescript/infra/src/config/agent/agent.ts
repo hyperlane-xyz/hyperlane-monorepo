@@ -134,6 +134,8 @@ interface AgentRoleConfig {
 
   // Agent-specific
   rpcConsensusType: RpcConsensusType;
+  fallbackHedgeDelayMillis?: number;
+  fallbackHedgeTimeoutMillis?: number;
   index?: IndexingConfig;
 }
 

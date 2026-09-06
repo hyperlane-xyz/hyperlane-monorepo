@@ -14,6 +14,11 @@ export const DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS = [
   'https://offchain-lookup.services.hyperlane.xyz/callCommitments/getCallsFromRevealMessage',
 ];
 
+export const fallbackHedgeConfig = {
+  fallbackHedgeDelayMillis: 250,
+  fallbackHedgeTimeoutMillis: 30_000,
+};
+
 export type ValidatorKey = {
   identifier: string;
   address: string;
