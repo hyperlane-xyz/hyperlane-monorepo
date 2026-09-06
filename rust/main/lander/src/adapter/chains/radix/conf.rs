@@ -105,6 +105,7 @@ mod tests {
                 transaction_overrides: TransactionOverrides::default(),
                 op_submission_config: OpSubmissionConfig::default(),
                 consider_null_transaction_receipt: false,
+                fallback_hedge: None,
             }),
         );
 

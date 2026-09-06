@@ -223,6 +223,12 @@ export const ethereumTestChain: ChainMetadata = {
       name: 'Ethereum Explorer',
       url: 'https://eth.blockscout.com',
     },
+    {
+      apiUrl: 'https://api.routescan.io/v2/network/mainnet/evm/1/etherscan',
+      family: ExplorerFamily.Routescan,
+      name: 'Routescan Ethereum Explorer',
+      url: 'https://routescan.io',
+    },
   ],
   blocks: { confirmations: 3, estimateBlockTime: 12, reorgPeriod: 14 },
   chainId: 1,
@@ -238,10 +244,10 @@ export const ethereumTestChain: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
     { http: 'https://ethereum-rpc.publicnode.com' },
-    { http: 'https://eth.llamarpc.com' },
     { http: 'https://1rpc.io/eth' },
     { http: 'https://ethereum.blockpi.network/v1/rpc/public' },
     { http: 'https://eth.drpc.org' },
+    { http: 'https://gateway.tenderly.co/public/mainnet' },
   ],
 };
 

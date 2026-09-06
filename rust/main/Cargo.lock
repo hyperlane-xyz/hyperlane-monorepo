@@ -6501,6 +6501,7 @@ dependencies = [
  "k256 0.13.4",
  "num 0.4.3",
  "num-traits",
+ "prometheus",
  "reqwest 0.11.27",
  "reqwest-utils",
  "serde",

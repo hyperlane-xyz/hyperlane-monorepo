@@ -43,6 +43,7 @@ pub fn dummy_chain_conf(domain: &HyperlaneDomain) -> ChainConf {
             transaction_overrides: Default::default(),
             op_submission_config: Default::default(),
             consider_null_transaction_receipt: false,
+            fallback_hedge: None,
         }),
         metrics_conf: Default::default(),
         index: Default::default(),

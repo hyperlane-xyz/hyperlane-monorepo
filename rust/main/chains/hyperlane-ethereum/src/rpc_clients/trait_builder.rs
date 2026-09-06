@@ -163,7 +163,8 @@ pub trait BuildableWithProvider {
                 >::new(
                     fallback_provider,
                     conn.consider_null_transaction_receipt,
-                );
+                )
+                .with_hedging(conn.fallback_hedge, client_metrics.clone());
                 self.build(ethereum_fallback_provider, conn, locator, signer)
                     .await?
             }
