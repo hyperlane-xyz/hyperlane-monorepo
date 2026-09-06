@@ -1,6 +1,10 @@
 {
   "extends": ["//"],
   "tasks": {
+    "deps:hardhat": {
+      "cache": false,
+      "inputs": ["package.json"]
+    },
     "deps:soldeer": {
       "inputs": ["foundry.toml", "soldeer.lock"],
       "outputs": ["dependencies/**"]
@@ -10,7 +14,7 @@
     },
     "build": {
       "inputs": ["$TURBO_DEFAULT$", "!test/**"],
-      "dependsOn": ["deps:soldeer", "version:update"],
+      "dependsOn": ["deps:soldeer", "deps:hardhat", "version:update"],
       "outputs": [
         "artifacts/**",
         "cache/**",
@@ -22,7 +26,7 @@
     },
     "build:tron": {
       "inputs": ["$TURBO_DEFAULT$", "!test/**"],
-      "dependsOn": ["deps:soldeer", "version:update"]
+      "dependsOn": ["deps:soldeer", "deps:hardhat", "version:update"]
     }
   }
 }
