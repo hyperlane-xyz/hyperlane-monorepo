@@ -97,19 +97,61 @@ pub(crate) async fn operation_disposition_by_payload_status(
 ) -> OperationDisposition {
     use OperationDisposition::{PostSubmitFailure, PostSubmitSuccess, PreSubmit, Submit};
 
+    let Some(status) = operation_payload_status(entrypoint, db, op).await else {
+        return PreSubmit;
+    };
+
+    match status {
+        PayloadStatus::ReadyToSubmit
+        | PayloadStatus::InTransaction(TransactionStatus::PendingInclusion)
+        | PayloadStatus::InTransaction(TransactionStatus::Mempool) => Submit,
+        PayloadStatus::InTransaction(TransactionStatus::Included)
+        | PayloadStatus::InTransaction(TransactionStatus::Finalized) => PostSubmitSuccess,
+        PayloadStatus::Dropped(_)
+        | PayloadStatus::InTransaction(TransactionStatus::Dropped(_))
+        | PayloadStatus::Retry(_) => PostSubmitFailure,
+    }
+}
+
+/// Inclusion is not enough for SVM's finalized mailbox read. Keep checking the
+/// lander without incrementing message retries; still verify individual delivery
+/// after finality, since a transaction may contain a reverted batch member.
+/// Missing payloads (including external deliveries) and lookup errors retain the
+/// existing mailbox-confirmation path rather than blocking delivery indefinitely.
+pub(crate) async fn awaiting_transaction_finality(
+    entrypoint: Arc<dyn Entrypoint + Send + Sync>,
+    db: Arc<dyn HyperlaneDb>,
+    op: &QueueOperation,
+) -> bool {
+    matches!(
+        operation_payload_status(entrypoint, db, op).await,
+        Some(PayloadStatus::ReadyToSubmit)
+            | Some(PayloadStatus::InTransaction(
+                TransactionStatus::PendingInclusion
+                    | TransactionStatus::Mempool
+                    | TransactionStatus::Included
+            ))
+    )
+}
+
+async fn operation_payload_status(
+    entrypoint: Arc<dyn Entrypoint + Send + Sync>,
+    db: Arc<dyn HyperlaneDb>,
+    op: &QueueOperation,
+) -> Option<PayloadStatus> {
     let id = op.id();
 
     let payload_uuids = match db.retrieve_payload_uuids_by_message_id(&id) {
         Ok(uuids) => uuids,
         Err(e) => {
             warn!("Failed to retrieve payload uuids by message id: message_id={id:?}, error={e:?}");
-            return PreSubmit;
+            return None;
         }
     };
 
     let payload_uuids = match payload_uuids {
-        None => return PreSubmit,
-        Some(uuids) if uuids.is_empty() => return PreSubmit,
+        None => return None,
+        Some(uuids) if uuids.is_empty() => return None,
         Some(uuids) => uuids,
     };
 
@@ -119,25 +161,11 @@ pub(crate) async fn operation_disposition_by_payload_status(
         Ok(status) => status,
         Err(e) => {
             warn!("Failed to retrieve payload status by its uuid: message_id={id:?}, payload_uuid={payload_uuid:?}, error={e:?}");
-            return PreSubmit;
+            return None;
         }
     };
 
-    match status {
-        // In submission pipeline - keep in Submit queue
-        PayloadStatus::ReadyToSubmit => Submit,
-        PayloadStatus::InTransaction(TransactionStatus::PendingInclusion) => Submit,
-        PayloadStatus::InTransaction(TransactionStatus::Mempool) => Submit,
-
-        // Included in block - move to Confirm queue
-        PayloadStatus::InTransaction(TransactionStatus::Included) => PostSubmitSuccess,
-        PayloadStatus::InTransaction(TransactionStatus::Finalized) => PostSubmitSuccess,
-
-        // Failed or dropped - needs re-preparation
-        PayloadStatus::Dropped(_) => PostSubmitFailure,
-        PayloadStatus::InTransaction(TransactionStatus::Dropped(_)) => PostSubmitFailure,
-        PayloadStatus::Retry(_) => PostSubmitFailure,
-    }
+    Some(status)
 }
 
 #[cfg(test)]

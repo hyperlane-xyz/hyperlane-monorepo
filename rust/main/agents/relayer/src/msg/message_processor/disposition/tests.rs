@@ -13,7 +13,81 @@ use crate::msg::message_processor::tests::tests_common::{
     MockDispatcherEntrypoint, MockHyperlaneDb, MockQueueOperation,
 };
 
-use super::super::disposition::{operation_disposition_by_payload_status, OperationDisposition};
+use super::super::disposition::{
+    awaiting_transaction_finality, operation_disposition_by_payload_status, OperationDisposition,
+};
+
+#[tokio::test]
+async fn finality_gate_waits_only_for_active_transactions() {
+    use hyperlane_core::{
+        HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack,
+        HyperlaneDomainType, PendingOperationStatus,
+    };
+
+    for (status, waiting) in [
+        (TransactionStatus::PendingInclusion, true),
+        (TransactionStatus::Mempool, true),
+        (TransactionStatus::Included, true),
+        (TransactionStatus::Finalized, false),
+        (
+            TransactionStatus::Dropped(TransactionDropReason::FailedSimulation),
+            false,
+        ),
+    ] {
+        let message_id = H256::from_low_u64_be(14);
+        let payload_uuid = UniqueIdentifier::new(Uuid::new_v4());
+        let mut db = MockHyperlaneDb::new();
+        db.expect_retrieve_payload_uuids_by_message_id()
+            .times(2)
+            .returning(move |_| Ok(Some(vec![payload_uuid.clone()])));
+        let mut entrypoint = MockDispatcherEntrypoint::new();
+        let payload_status = PayloadStatus::InTransaction(status.clone());
+        entrypoint
+            .expect_payload_status()
+            .times(2)
+            .returning(move |_| Ok(payload_status.clone()));
+        let op: QueueOperation = Box::new(MockQueueOperation::new(
+            message_id,
+            PendingOperationStatus::ReadyToSubmit,
+            HyperlaneDomain::Unknown {
+                domain_id: 13375,
+                domain_name: "sealeveltest1".to_owned(),
+                domain_type: HyperlaneDomainType::LocalTestChain,
+                domain_protocol: HyperlaneDomainProtocol::Sealevel,
+                domain_technical_stack: HyperlaneDomainTechnicalStack::Other,
+            },
+        ));
+        let entrypoint: Arc<dyn Entrypoint + Send + Sync> = Arc::new(entrypoint);
+        let db: Arc<dyn HyperlaneDb> = Arc::new(db);
+        assert_eq!(
+            awaiting_transaction_finality(entrypoint.clone(), db.clone(), &op).await,
+            waiting
+        );
+        // Inclusion still advances submission, preserving the reveal callback.
+        let disposition = operation_disposition_by_payload_status(entrypoint, db, &op).await;
+        if matches!(
+            status,
+            TransactionStatus::Included | TransactionStatus::Finalized
+        ) {
+            assert!(matches!(
+                disposition,
+                OperationDisposition::PostSubmitSuccess
+            ));
+        }
+    }
+}
+
+#[tokio::test]
+async fn finality_gate_allows_external_delivery_confirmation() {
+    let mut db = MockHyperlaneDb::new();
+    db.expect_retrieve_payload_uuids_by_message_id()
+        .times(1)
+        .returning(|_| Ok(None));
+    let mut entrypoint = MockDispatcherEntrypoint::new();
+    entrypoint.expect_payload_status().times(0);
+    let op: QueueOperation = Box::new(MockQueueOperation::with_first_prepare(H256::zero()));
+    assert!(!awaiting_transaction_finality(Arc::new(entrypoint), Arc::new(db), &op).await);
+}
 
 #[tokio::test]
 async fn test_operation_disposition_by_payload_status_db_error() {
