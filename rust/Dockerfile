@@ -51,10 +51,13 @@ COPY rust/sealevel ../sealevel
 # Documentation: https://doc.rust-lang.org/cargo/commands/cargo-build.html
 # Note: --features aleo enables Aleo chain support (adds ~5min build time due to snarkvm)
 ARG TARGETARCH
+# Reuse idle caches across branches; allocate another cache when builds overlap.
+# sccache's disk LRU requires sole ownership, as does Cargo's target directory.
+# Keep the existing IDs so warm caches remain reusable (new concurrent slots start cold).
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
-    --mount=type=cache,id=agent-target-${TARGETARCH},target=/usr/src/rust/main/target,sharing=locked \
+    --mount=type=cache,target=$SCCACHE_DIR,sharing=private \
+    --mount=type=cache,id=agent-target-${TARGETARCH},target=/usr/src/rust/main/target,sharing=private \
     RUSTFLAGS="--cfg tokio_unstable -C link-arg=-fuse-ld=mold" \
     cargo build --locked --timings --release --features aleo --bin validator --bin relayer --bin scraper && \
     sccache --show-stats && \
