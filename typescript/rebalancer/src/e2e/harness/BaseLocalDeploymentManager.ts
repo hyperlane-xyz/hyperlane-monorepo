@@ -24,6 +24,8 @@ import {
   TEST_CHAIN_CONFIGS,
 } from '../fixtures/routes.js';
 
+import { createLocalProvider } from './LocalProvider.js';
+
 export interface LocalDeploymentContext<
   TDeployedAddresses extends {
     chains: Record<string, { mailbox: string; ism: string }>;
@@ -94,7 +96,7 @@ export abstract class BaseLocalDeploymentManager<
         );
         this.containers.set(config.name, container);
         const endpoint = `http://${container.getHost()}:${container.getMappedPort(8545)}`;
-        const provider = new providers.JsonRpcProvider(endpoint);
+        const provider = createLocalProvider(endpoint);
         providersByChain.set(config.name, provider);
 
         await provider.send('anvil_setBalance', [
