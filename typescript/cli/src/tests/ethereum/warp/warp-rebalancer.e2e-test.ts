@@ -33,6 +33,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { createLocalProvider } from '../localProvider.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import {
   createSnapshot,
@@ -818,9 +819,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     // Assign rebalancer role
-    const chain3Provider = new ethers.providers.JsonRpcProvider(
-      chain3Metadata.rpcUrls[0].http,
-    );
+    const chain3Provider = createLocalProvider(chain3Metadata.rpcUrls[0].http);
     const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
     const chain3CollateralContract = HypERC20Collateral__factory.connect(
       getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
@@ -898,9 +897,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     // Assign rebalancer role
-    const chain3Provider = new ethers.providers.JsonRpcProvider(
-      chain3Metadata.rpcUrls[0].http,
-    );
+    const chain3Provider = createLocalProvider(chain3Metadata.rpcUrls[0].http);
     const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
     const chain3CollateralContract = HypERC20Collateral__factory.connect(
       getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
@@ -920,9 +917,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if the sum of minAmount targets is more than sum of collaterals', async () => {
     // Assign rebalancer role
-    const chain3Provider = new ethers.providers.JsonRpcProvider(
-      chain3Metadata.rpcUrls[0].http,
-    );
+    const chain3Provider = createLocalProvider(chain3Metadata.rpcUrls[0].http);
     const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
     const chain3CollateralContract = HypERC20Collateral__factory.connect(
       getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
@@ -979,9 +974,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should skip rebalance if amount is below minimum threshold', async () => {
     // Assign rebalancer role
-    const chain3Provider = new ethers.providers.JsonRpcProvider(
-      chain3Metadata.rpcUrls[0].http,
-    );
+    const chain3Provider = createLocalProvider(chain3Metadata.rpcUrls[0].http);
     const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
     const chain3CollateralContract = HypERC20Collateral__factory.connect(
       getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
@@ -1067,8 +1060,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     // Assign rebalancer role
     // We need to assign to the contract who is able to send the rebalance transaction
-    const originProvider = new ethers.providers.JsonRpcProvider(originRpc);
-    const destProvider = new ethers.providers.JsonRpcProvider(destRpc);
+    const originProvider = createLocalProvider(originRpc);
+    const destProvider = createLocalProvider(destRpc);
     const originSigner = new Wallet(ANVIL_KEY, originProvider);
     const originContract = HypERC20Collateral__factory.connect(
       originContractAddress,
@@ -1315,8 +1308,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
       // Assign rebalancer role
       // We need to assign to the contract who is able to send the rebalance transaction
-      const originProvider = new ethers.providers.JsonRpcProvider(originRpc);
-      const destProvider = new ethers.providers.JsonRpcProvider(destRpc);
+      const originProvider = createLocalProvider(originRpc);
+      const destProvider = createLocalProvider(destRpc);
       const originSigner = new Wallet(ANVIL_KEY, originProvider);
       const originContract = HypERC20Collateral__factory.connect(
         originContractAddress,

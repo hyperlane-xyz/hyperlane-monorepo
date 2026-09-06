@@ -39,6 +39,7 @@ import {
 import { TronWallet } from '@hyperlane-xyz/tron-sdk';
 
 import { getContext } from '../../../context/context.js';
+import { configureLocalPolling } from '../localProvider.js';
 import {
   isFile,
   readYamlOrJson,
@@ -207,6 +208,13 @@ function setSignerForChain(
     assert(rpcUrls?.length, `No rpcUrls configured for chain ${chain}`);
     multiProvider.setSigner(chain, new TronWallet(key, rpcUrls[0].http));
   } else {
+    const provider = multiProvider.getProvider(chain);
+    if (provider instanceof ethers.providers.BaseProvider) {
+      configureLocalPolling(
+        provider,
+        rpcUrls.map(({ http }) => http),
+      );
+    }
     multiProvider.setSigner(chain, new ethers.Wallet(key));
   }
 }
