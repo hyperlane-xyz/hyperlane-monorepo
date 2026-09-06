@@ -163,7 +163,7 @@ Creates JSON files in `scenarios/` with various traffic patterns.
 pnpm test
 ```
 
-Tests automatically detect if Anvil is available. If not installed, integration tests are skipped.
+Tests run in two Mocha workers, with fresh Anvil containers and dynamic ports per test. Docker is required. Use `pnpm test -- --no-parallel` for serial debugging (including `.only`).
 
 ### 3. Select Rebalancers
 
@@ -255,23 +255,13 @@ Test the scenario generation logic without running simulations:
 
 Run full simulations on Anvil:
 
-| Test File                 | Purpose                                              |
-| ------------------------- | ---------------------------------------------------- |
-| `harness-setup.test.ts`   | Verifies multi-domain deployment and harness setup   |
-| `full-simulation.test.ts` | Runs predefined scenarios, saves results             |
-| `inflight-guard.test.ts`  | Demonstrates over-rebalancing without inflight guard |
+| Test File                   | Purpose                                          |
+| --------------------------- | ------------------------------------------------ |
+| `harness-setup.test.ts`     | Verifies deployment and harness setup            |
+| `full-simulation-1.test.ts` | Imbalance, balanced and random-traffic scenarios |
+| `full-simulation-2.test.ts` | Inflight-guard and blocked-transfer comparisons  |
 
-### Why `inflight-guard.test.ts` is Separate
-
-This test demonstrates a specific bug/limitation rather than testing a scenario type:
-
-**What it proves:** Without tracking pending (inflight) transfers, the rebalancer sends redundant transfers because each poll sees "stale" on-chain balances.
-
-**How it differs:**
-
-- Uses custom inline scenario with extreme timing (3s bridge delay vs 200ms polling)
-- Asserts on specific failure behavior (expects over-rebalancing)
-- Documents a bug that needs fixing, not a passing scenario
+The two simulation files retain both rebalancer implementations and all scenario timings, including the blocked-transfer timeout. Results use distinct scenario filenames.
 
 ## KPIs Collected
 
