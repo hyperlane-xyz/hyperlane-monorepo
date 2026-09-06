@@ -186,17 +186,23 @@ fn wait_for_program_ready(
     timeout: Duration,
 ) -> Result<(), ClientError> {
     let deadline = Instant::now() + timeout;
+    let mut first_executable_slot = None;
     loop {
-        if client
-            .get_account_with_commitment(program_id, CommitmentConfig::confirmed())?
-            .value
-            .is_some_and(|account| account.executable)
-        {
-            return Ok(());
+        let response =
+            client.get_account_with_commitment(program_id, CommitmentConfig::confirmed())?;
+        if response.value.is_some_and(|account| account.executable) {
+            // A newly deployed program is not invokable in its deployment bank.
+            // Observe it in a later confirmed slot before simulating client calls.
+            let first_slot = first_executable_slot.get_or_insert(response.context.slot);
+            if response.context.slot > *first_slot {
+                return Ok(());
+            }
+        } else {
+            first_executable_slot = None;
         }
         if Instant::now() >= deadline {
             return Err(ClientErrorKind::Custom(format!(
-                "Program {program_id} did not become executable at confirmed commitment"
+                "Program {program_id} did not become executable in a later confirmed slot"
             ))
             .into());
         }
@@ -270,12 +276,12 @@ mod tests {
     }
 
     #[test]
-    fn program_readiness_accepts_executable_account_immediately() {
+    fn program_readiness_rejects_deployment_bank_even_if_executable() {
         let client = RpcClient::new_mock_with_mocks(
             "succeeds",
             HashMap::from([(RpcRequest::GetAccountInfo, program_response(true))]),
         );
-        wait_for_program_ready(&client, &Pubkey::new_unique(), Duration::ZERO).unwrap();
+        assert!(wait_for_program_ready(&client, &Pubkey::new_unique(), Duration::ZERO).is_err());
     }
 
     #[test]
@@ -296,11 +302,15 @@ mod tests {
 
     #[test]
     fn program_readiness_waits_until_account_is_executable() {
+        let mut next_slot = program_response(true);
+        next_slot["context"]["slot"] = json!(11);
         let client = RpcClient::new_mock_with_mocks_map(
             "succeeds",
             [
                 (RpcRequest::GetAccountInfo, program_response(false)),
                 (RpcRequest::GetAccountInfo, program_response(true)),
+                (RpcRequest::GetAccountInfo, program_response(true)),
+                (RpcRequest::GetAccountInfo, next_slot),
             ]
             .into_iter()
             .collect(),
