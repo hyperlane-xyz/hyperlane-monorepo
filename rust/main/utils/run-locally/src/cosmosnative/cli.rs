@@ -1,4 +1,7 @@
-use std::{thread::sleep, time::Duration};
+use std::{
+    thread::sleep,
+    time::{Duration, Instant},
+};
 
 use crate::{
     log,
@@ -8,6 +11,34 @@ use crate::{
 
 const TX_MAX_RETRIES: u32 = 5;
 const TX_RETRY_DELAY: Duration = Duration::from_secs(3);
+
+fn transaction_confirmed(body: &str) -> bool {
+    let response: serde_json::Value =
+        serde_json::from_str(body).expect("Invalid transaction query response");
+    if let Some(error) = response.get("error") {
+        assert!(
+            error["data"]
+                .as_str()
+                .is_some_and(|data| data.contains("not found")),
+            "Transaction query failed: {error}"
+        );
+        return false;
+    }
+    let result = &response["result"];
+    assert!(
+        result["height"]
+            .as_str()
+            .and_then(|height| height.parse::<u64>().ok())
+            .is_some_and(|height| height > 0),
+        "Missing committed transaction height: {response}"
+    );
+    assert_eq!(
+        result["tx_result"]["code"].as_u64(),
+        Some(0),
+        "Transaction execution failed: {response}"
+    );
+    true
+}
 
 use super::{
     constants::{CHAIN_ID, DENOM, KEY_CHAIN_VALIDATOR},
@@ -139,11 +170,30 @@ impl SimApp {
     }
 
     /// Run a transaction program with retries, panicking if all attempts fail.
-    fn run_tx_with_retry(program: &Program) {
+    fn run_tx_with_retry(&self, program: &Program) {
         for attempt in 1..=TX_MAX_RETRIES {
-            let success = program.clone().run_to_success().join();
+            let (success, output) = program
+                .clone()
+                .arg("output", "json")
+                .arg("broadcast-mode", "sync")
+                .run_with_status_and_output()
+                .join();
             if success {
-                sleep(Duration::from_secs(2)); // wait for the block to be mined
+                let response: serde_json::Value = serde_json::from_str(&output.join("\n"))
+                    .expect("Invalid transaction broadcast response");
+                assert_eq!(
+                    response["code"].as_u64(),
+                    Some(0),
+                    "Transaction rejected: {response}"
+                );
+                let hash = response["txhash"]
+                    .as_str()
+                    .expect("Missing transaction hash");
+                assert!(
+                    hash.len() == 64 && hash.bytes().all(|b| b.is_ascii_hexdigit()),
+                    "Invalid transaction hash: {hash}"
+                );
+                self.wait_for_transaction(hash);
                 return;
             }
             if attempt < TX_MAX_RETRIES {
@@ -162,6 +212,32 @@ impl SimApp {
         );
     }
 
+    fn wait_for_transaction(&self, hash: &str) {
+        let url = format!("{}/tx", self.rpc_addr.replace("tcp://", "http://"));
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while Instant::now() < deadline {
+            let response = ureq::get(&url)
+                .query("hash", &format!("0x{hash}"))
+                .timeout(Duration::from_secs(2))
+                .call();
+            // CometBFT reports an unindexed transaction as a JSON-RPC error,
+            // including on HTTP 500. Never rebroadcast an accepted transaction.
+            match response {
+                Ok(response) | Err(ureq::Error::Status(_, response)) => {
+                    let body = response
+                        .into_string()
+                        .expect("Failed to read transaction response");
+                    if transaction_confirmed(&body) {
+                        return;
+                    }
+                }
+                Err(error) => log!("Waiting for transaction {}: {}", hash, error),
+            }
+            sleep(Duration::from_millis(100));
+        }
+        panic!("Transaction {hash} was not confirmed within 30s");
+    }
+
     fn tx<'a>(&self, args: Vec<&'a str>) {
         let mut program = Program::new(self.bin.clone()).cmd("tx");
         for arg in args {
@@ -174,9 +250,8 @@ impl SimApp {
             .arg("node", &self.rpc_addr)
             .arg("home", &self.home)
             .arg("keyring-backend", "test")
-            .flag("yes")
-            .filter_logs(|_| false);
-        Self::run_tx_with_retry(&program);
+            .flag("yes");
+        self.run_tx_with_retry(&program);
     }
 
     pub fn remote_transfer(
@@ -204,9 +279,8 @@ impl SimApp {
             .arg("home", &self.home)
             .arg("keyring-backend", "test")
             .arg("gas", "400000")
-            .flag("yes")
-            .filter_logs(|_| false);
-        Self::run_tx_with_retry(&transfer);
+            .flag("yes");
+        self.run_tx_with_retry(&transfer);
     }
 
     pub fn deploy_and_configure_contracts(
@@ -304,9 +378,8 @@ impl SimApp {
             .arg("node", &self.rpc_addr)
             .arg("home", &self.home)
             .arg("keyring-backend", "test")
-            .filter_logs(|_| false)
             .flag("yes");
-        Self::run_tx_with_retry(&mailbox_set);
+        self.run_tx_with_retry(&mailbox_set);
 
         // create warp route
         // expected address: 0x726f757465725f61707000000000000000000000000000010000000000000000
@@ -356,5 +429,48 @@ impl SimApp {
                 SYNTHETIC_TOKEN_ADDRESS.to_owned(),
             ],
         }
+    }
+}
+
+#[cfg(test)]
+mod confirmation_tests {
+    use super::transaction_confirmed;
+
+    #[test]
+    fn waits_for_indexing() {
+        assert!(!transaction_confirmed(
+            r#"{"error":{"data":"tx (ABC) not found"}}"#
+        ));
+    }
+
+    #[test]
+    fn accepts_committed_success() {
+        assert!(transaction_confirmed(
+            r#"{"result":{"height":"12","tx_result":{"code":0}}}"#
+        ));
+    }
+
+    #[test]
+    #[should_panic(expected = "Transaction execution failed")]
+    fn rejects_failed_execution() {
+        transaction_confirmed(r#"{"result":{"height":"12","tx_result":{"code":5}}}"#);
+    }
+
+    #[test]
+    #[should_panic(expected = "Missing committed transaction height")]
+    fn rejects_uncommitted_response() {
+        transaction_confirmed(r#"{"result":{"height":"0","tx_result":{"code":0}}}"#);
+    }
+
+    #[test]
+    #[should_panic(expected = "Transaction query failed")]
+    fn rejects_other_rpc_errors() {
+        transaction_confirmed(r#"{"error":{"data":"transaction indexing is disabled"}}"#);
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid transaction query response")]
+    fn rejects_malformed_json() {
+        transaction_confirmed("not JSON");
     }
 }

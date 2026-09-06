@@ -187,7 +187,8 @@ jobs:
           RUST_BACKTRACE: 'full'
 
       - name: agent tests (CosmosNative)
-        run: cargo test --locked --timings --package run-locally --bin run-locally --features 'cosmosnative test-utils' -- cosmosnative::test --nocapture
+        run: |
+          cargo test --locked --timings --package run-locally --bin run-locally --features 'cosmosnative test-utils' -- cosmosnative:: --nocapture
         if: ${{ matrix.e2e-type == 'cosmosnative' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
         working-directory: ./rust/main
         env:

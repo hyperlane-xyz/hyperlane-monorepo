@@ -242,26 +242,36 @@ fn run_locally() {
     let domain_start = 75898670u32;
     let node_count = 2; // right now this only works with two nodes.
 
-    let nodes = (0..node_count)
-        .map(|i| {
-            let node_dir = tempdir().unwrap().path().to_str().unwrap().to_string();
-            let mut node = SimApp::new(hypd.to_owned(), node_dir, i);
-            node.init();
-            let handle = node.start();
-            let contracts = node.deploy_and_configure_contracts(
-                &format!("{}", domain_start + i),
-                &format!("{}", domain_start + (i + 1) % node_count),
-            );
-            Deployment {
-                chain: node,
-                domain: domain_start + i,
-                metrics: metrics_port_start + i,
-                name: format!("cosmostestnative{}", i + 1),
-                contracts,
-                handle,
-            }
-        })
-        .collect::<Vec<Deployment>>();
+    let nodes = std::thread::scope(|scope| {
+        let hypd = &hypd;
+        let deployments = (0..node_count)
+            .map(|i| {
+                scope.spawn(move || {
+                    let node_dir = tempdir().unwrap().path().to_str().unwrap().to_string();
+                    let mut node = SimApp::new(hypd.to_owned(), node_dir, i);
+                    node.init();
+                    let handle = node.start();
+                    let contracts = node.deploy_and_configure_contracts(
+                        &format!("{}", domain_start + i),
+                        &format!("{}", domain_start + (i + 1) % node_count),
+                    );
+                    Deployment {
+                        chain: node,
+                        domain: domain_start + i,
+                        metrics: metrics_port_start + i,
+                        name: format!("cosmostestnative{}", i + 1),
+                        contracts,
+                        handle,
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+        // Keep domain ordering stable regardless of which deployment finishes first.
+        deployments
+            .into_iter()
+            .map(|deployment| deployment.join().expect("Cosmos node deployment failed"))
+            .collect::<Vec<Deployment>>()
+    });
 
     let node1 = &nodes[0];
     let node2 = &nodes[1];
