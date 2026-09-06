@@ -115,7 +115,7 @@ jobs:
         if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: 'v3-rust-e2e'
+          prefix-key: 'v4-rust-e2e-dev'
           shared-key: ${{ matrix.e2e-type }}
           cache-provider: 'github'
           save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
@@ -139,12 +139,22 @@ jobs:
       - name: pnpm-build
         if: (matrix.e2e-type == 'evm' || matrix.e2e-type == 'tron') && steps.check-conditions.outputs.skip-e2e != 'true'
         uses: ./.github/actions/pnpm-build-with-cache
+        with:
+          build-filter: ${{ matrix.e2e-type == 'evm' && '@hyperlane-xyz/infra...' || '@hyperlane-xyz/cli...' }}
 
       - name: Install system dependencies
         if: steps.check-conditions.outputs.skip-e2e != 'true'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -qq -y libudev-dev pkg-config protobuf-compiler
+
+      # cargo-build-sbf keeps its pinned toolchain outside Cargo's target cache.
+      - name: Cache SBF platform tools
+        if: matrix.e2e-type == 'sealevel' && steps.check-conditions.outputs.skip-e2e != 'true'
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/solana
+          key: sbf-platform-tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust/main/utils/run-locally/src/sealevel/solana.rs') }}
 
       - name: Install OpenSSL 1.1 for Solana toolchain
         if: matrix.e2e-type == 'sealevel' && steps.check-conditions.outputs.skip-e2e != 'true'
@@ -162,7 +172,7 @@ jobs:
 
       - name: agent tests (Tron)
         if: ${{ matrix.e2e-type == 'tron' && steps.check-conditions.outputs.skip-e2e != 'true' }}
-        run: cargo test --release --package run-locally --bin run-locally --features tron -- tron::test --nocapture
+        run: cargo test --locked --timings --package run-locally --bin run-locally --features 'tron test-utils memory-profiling' -- tron::test --nocapture
         working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
@@ -171,20 +181,20 @@ jobs:
 
       - name: agent tests (CosmWasm)
         if: ${{ matrix.e2e-type == 'cosmwasm' && steps.check-conditions.outputs.skip-e2e != 'true' }}
-        run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+        run: cargo test --locked --timings --package run-locally --bin run-locally --features 'cosmos test-utils' -- cosmos::test --nocapture
         working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
 
       - name: agent tests (CosmosNative)
-        run: cargo test --release --package run-locally --bin run-locally --features cosmosnative -- cosmosnative::test --nocapture
+        run: cargo test --locked --timings --package run-locally --bin run-locally --features 'cosmosnative test-utils' -- cosmosnative::test --nocapture
         if: ${{ matrix.e2e-type == 'cosmosnative' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
         working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
 
       - name: agent tests (Radix)
-        run: cargo test --release --package run-locally --bin run-locally --features radix -- radix::test --nocapture
+        run: cargo test --locked --timings --package run-locally --bin run-locally --features 'radix test-utils' -- radix::test --nocapture
         if: ${{ matrix.e2e-type == 'radix' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
         working-directory: ./rust/main
         env:
@@ -194,7 +204,7 @@ jobs:
 
       - name: agent tests (EVM)
         if: ${{ matrix.e2e-type == 'evm' && steps.check-conditions.outputs.skip-e2e != 'true' }}
-        run: cargo run --release --bin run-locally --features test-utils
+        run: cargo run --locked --timings --bin run-locally --features 'test-utils memory-profiling'
         working-directory: ./rust/main
         env:
           E2E_CI_MODE: 'true'
@@ -204,7 +214,7 @@ jobs:
 
       - name: agent tests (Sealevel)
         if: ${{ matrix.e2e-type == 'sealevel' && steps.check-conditions.outputs.skip-e2e != 'true' }}
-        run: cargo test --release --package run-locally --bin run-locally --features sealevel -- sealevel::test --nocapture
+        run: cargo test --locked --timings --package run-locally --bin run-locally --features 'sealevel test-utils' -- sealevel::test --nocapture
         working-directory: ./rust/main
         env:
           E2E_CI_MODE: 'true'
@@ -212,7 +222,7 @@ jobs:
           RUST_BACKTRACE: 'full'
 
       - name: agent tests (Starknet)
-        run: cargo test --release --package run-locally --bin run-locally --features starknet -- starknet::test --nocapture
+        run: cargo test --locked --timings --package run-locally --bin run-locally --features 'starknet test-utils' -- starknet::test --nocapture
         if: ${{ matrix.e2e-type == 'starknet' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
         working-directory: ./rust/main
         env:

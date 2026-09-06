@@ -254,10 +254,16 @@ fn run_locally() {
     if !config.is_ci_env {
         // test.yaml workflow installs dependencies
         pnpm_monorepo.clone().cmd("install").run().join();
-        // don't need to clean in the CI
-        pnpm_monorepo.clone().cmd("clean").run().join();
         // test.yaml workflow builds the monorepo
-        pnpm_monorepo.clone().cmd("build").run().join();
+        pnpm_monorepo
+            .clone()
+            .cmd("exec")
+            .cmd("turbo")
+            .cmd("run")
+            .cmd("build")
+            .arg("filter", "@hyperlane-xyz/cli...")
+            .run()
+            .join();
     }
 
     // Start TRE docker container

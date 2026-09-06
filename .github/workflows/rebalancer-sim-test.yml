@@ -38,6 +38,8 @@ jobs:
           persist-credentials: false
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
+        with:
+          build-filter: '@hyperlane-xyz/rebalancer-sim...'
 
       - name: Setup Foundry
         uses: ./.github/actions/setup-foundry

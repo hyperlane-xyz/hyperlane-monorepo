@@ -78,8 +78,8 @@ RUN pnpm install --frozen-lockfile
 # To update when changing solidity version in solidity/rootHardhatConfig.cts:
 #   1. Find the commit hash: curl -s "https://binaries.soliditylang.org/linux-amd64/list.json" | jq '.releases["X.Y.Z"]'
 #   2. Update SOLC_VERSION and SOLC_COMMIT below
-ARG SOLC_VERSION=0.8.22
-ARG SOLC_COMMIT=4fc1097e
+ARG SOLC_VERSION=0.8.33
+ARG SOLC_COMMIT=64118f21
 RUN SOLC_BINARY="solc-linux-amd64-v${SOLC_VERSION}+commit.${SOLC_COMMIT}" && \
     SOLC_LIST_URL="https://binaries.soliditylang.org/linux-amd64/list.json" && \
     SOLC_BIN_URL="https://binaries.soliditylang.org/linux-amd64/${SOLC_BINARY}" && \
@@ -120,7 +120,10 @@ COPY typescript/fee-quoting ./typescript/fee-quoting
 COPY typescript/scraper-proxy ./typescript/scraper-proxy
 
 # Bundle all services in a single turbo invocation
-RUN pnpm turbo run bundle \
+ARG TARGETARCH
+RUN --mount=type=cache,id=node-services-turbo-${TARGETARCH},target=/hyperlane-monorepo/.turbo/cache \
+    --mount=type=cache,target=/root/.tron/solc \
+    pnpm turbo run bundle \
     --filter=@hyperlane-xyz/rebalancer \
     --filter=@hyperlane-xyz/warp-monitor \
     --filter=@hyperlane-xyz/ccip-server \

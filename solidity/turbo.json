@@ -6,14 +6,18 @@
       "outputs": ["dependencies/**"]
     },
     "build": {
-      "dependsOn": ["deps:soldeer"],
+      "dependsOn": ["deps:soldeer", "version:update"],
       "outputs": [
         "artifacts/**",
         "cache/**",
         "core-utils/**",
         "dist/**",
+        "!dist/tron/**",
         "types/**"
       ]
+    },
+    "build:tron": {
+      "dependsOn": ["deps:soldeer", "version:update"]
     }
   }
 }

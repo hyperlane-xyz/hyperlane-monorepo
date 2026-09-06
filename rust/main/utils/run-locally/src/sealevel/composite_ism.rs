@@ -120,6 +120,17 @@ fn run_locally_composite_ism() {
 
     log!("Signed checkpoints in {}", solana_checkpoint_path.display());
 
+    // Compile agents alongside SBF setup in the separate Sealevel workspace.
+    log!("Building rust agents...");
+    let build_main = Program::new("cargo")
+        .cmd("build")
+        .working_dir(&workspace_path)
+        .arg("features", "test-utils")
+        .arg("bin", "relayer")
+        .arg("bin", "validator")
+        .filter_logs(|l| !l.contains("workspace-inheritance"))
+        .run();
+
     let solana_path_tempdir = tempdir().expect("Failed to create solana temp dir");
     let solana_cli_tools_path = install_solana_cli_tools(
         SOLANA_CONTRACTS_CLI_RELEASE_URL.to_owned(),
@@ -131,16 +142,6 @@ fn run_locally_composite_ism() {
 
     let hyperlane_solana_programs_path =
         build_solana_programs(solana_cli_tools_path.clone()).join();
-
-    log!("Building rust agents...");
-    let build_main = Program::new("cargo")
-        .cmd("build")
-        .working_dir(&workspace_path)
-        .arg("features", "test-utils")
-        .arg("bin", "relayer")
-        .arg("bin", "validator")
-        .filter_logs(|l| !l.contains("workspace-inheritance"))
-        .run();
 
     log!("Building hyperlane-sealevel-client...");
     let build_sealevel_client = Program::new("cargo")

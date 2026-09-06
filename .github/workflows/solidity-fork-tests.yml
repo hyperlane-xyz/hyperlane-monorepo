@@ -49,6 +49,8 @@ jobs:
 
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
+        with:
+          build-filter: '@hyperlane-xyz/core...'
 
       - name: Run Fork Tests
         working-directory: ./solidity

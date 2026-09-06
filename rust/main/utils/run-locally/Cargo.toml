@@ -54,6 +54,8 @@ anyhow = { workspace = true }
 vergen = { version = "8.3.2", features = ["build", "git", "gitcl"] }
 
 [features]
+test-utils = ["relayer/test-utils"]
+memory-profiling = ["relayer/memory-profiling"]
 cosmos = []
 starknet = []
 cosmosnative = []
