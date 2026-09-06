@@ -153,19 +153,21 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     /// If the cursor is fully synced, this returns None.
     /// Otherwise, it returns the next range to query, either by block or sequence depending on the mode.
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
+        // Skip any already indexed logs first, so a recovered gap clears its
+        // retry state even while a gap backoff is still active.
+        tokio::select! {
+            res = self.skip_indexed() => res?,
+            // return early to allow the forward cursor to also make progress
+            _ = sleep(MAX_BACKWARD_SYNC_BLOCKING_TIME) => { return Ok(None); }
+        }
+
+        // While a gap backoff is active, don't issue another range query.
         if self
             .sequence_gap_retry_at
             .is_some_and(|retry_at| Instant::now() < retry_at)
         {
             return Ok(None);
         }
-
-        // Skip any already indexed logs.
-        tokio::select! {
-            res = self.skip_indexed() => res?,
-            // return early to allow the forward cursor to also make progress
-            _ = sleep(MAX_BACKWARD_SYNC_BLOCKING_TIME) => { return Ok(None); }
-        };
 
         // If `self.current_indexing_snapshot` is None, we are synced and there are no more ranges to query.
         // Otherwise, we query the next range, searching for logs prior to and including the current indexing snapshot.
