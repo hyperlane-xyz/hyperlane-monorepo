@@ -237,8 +237,8 @@ export const ethereumTestChain: ChainMetadata = {
   },
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
+    { http: 'https://gateway.tenderly.co/public/mainnet' },
     { http: 'https://ethereum-rpc.publicnode.com' },
-    { http: 'https://eth.llamarpc.com' },
     { http: 'https://1rpc.io/eth' },
     { http: 'https://ethereum.blockpi.network/v1/rpc/public' },
     { http: 'https://eth.drpc.org' },
