@@ -28,16 +28,20 @@ runs:
       run: echo "cache_provider=${{ inputs.cache-provider }}" >> $GITHUB_ENV
 
     - name: Get pnpm store directory
-      id: pnpm-store
       shell: bash
-      run: echo "store_path=$(pnpm store path)" >> $GITHUB_OUTPUT
+      # Nested composite post steps lose sibling step outputs (actions/runner#2009).
+      # Persist the path in the job environment for both restore and save.
+      run: |
+        pnpm_store_path="$(pnpm store path)"
+        test -n "$pnpm_store_path"
+        echo "HYP_PNPM_STORE_PATH=$pnpm_store_path" >> "$GITHUB_ENV"
 
     - name: Cache (Buildjet)
       id: buildjet-cache
       if: env.cache_provider == 'buildjet'
       uses: buildjet/cache@v4
       with:
-        path: ${{ steps.pnpm-store.outputs.store_path }}
+        path: ${{ env.HYP_PNPM_STORE_PATH }}
         key: ${{ runner.os }}-pnpm-12-store-${{ hashFiles('**/pnpm-lock.yaml') }}
         restore-keys: |
           ${{ runner.os }}-pnpm-12-store-
@@ -47,7 +51,7 @@ runs:
       if: env.cache_provider == 'github'
       uses: actions/cache@v6
       with:
-        path: ${{ steps.pnpm-store.outputs.store_path }}
+        path: ${{ env.HYP_PNPM_STORE_PATH }}
         key: ${{ runner.os }}-pnpm-12-store-${{ hashFiles('**/pnpm-lock.yaml') }}
         restore-keys: |
           ${{ runner.os }}-pnpm-12-store-
