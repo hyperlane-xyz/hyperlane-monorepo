@@ -41,6 +41,23 @@ const environmentChainConfigs = {
 };
 
 describe('Agent configs', () => {
+  it('enables fallback hedging for relayers and scrapers, not validators', () => {
+    for (const agentConfigs of [mainnet3Agents, testnet4Agents]) {
+      for (const config of Object.values(agentConfigs)) {
+        for (const role of ['relayer', 'scraper'] as const) {
+          if (!config[role]) continue;
+          expect(config[role].fallbackHedgeDelayMillis).to.equal(250);
+          expect(config[role].fallbackHedgeTimeoutMillis).to.equal(30_000);
+        }
+
+        expect(config.validators?.fallbackHedgeDelayMillis).to.equal(undefined);
+        expect(config.validators?.fallbackHedgeTimeoutMillis).to.equal(
+          undefined,
+        );
+      }
+    }
+  });
+
   it('polls fastpath relayer indexes every two seconds', () => {
     expect(
       mainnet3Agents[Contexts.FastPath].relayer?.interval,

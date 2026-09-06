@@ -60,6 +60,11 @@ import {
 } from './validators.js';
 import { WarpRouteIds } from './warp/warpIds.js';
 
+const fallbackHedgeConfig = {
+  fallbackHedgeDelayMillis: 250,
+  fallbackHedgeTimeoutMillis: 30_000,
+};
+
 // The chains here must be consistent with the environment's supportedChainNames, which is
 // checked / enforced at runtime & in the CI pipeline.
 //
@@ -788,6 +793,7 @@ const hyperlane: RootAgentConfig = {
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
+    ...fallbackHedgeConfig,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayer,
@@ -832,6 +838,7 @@ const hyperlane: RootAgentConfig = {
   scraper: {
     scraperOnlyChains,
     rpcConsensusType: RpcConsensusType.Fallback,
+    ...fallbackHedgeConfig,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.scraper,
@@ -859,6 +866,7 @@ const releaseCandidate: RootAgentConfig = {
   rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
+    ...fallbackHedgeConfig,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayerRC,
@@ -1000,6 +1008,7 @@ const fastPath: RootAgentConfig = {
   rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
+    ...fallbackHedgeConfig,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayerFastPath,

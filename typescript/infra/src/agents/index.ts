@@ -134,6 +134,15 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
           return {
             name: chain,
             rpcConsensusType: this.rpcConsensusType(chain),
+            ...(metadata.protocol === ProtocolType.Ethereum &&
+            this.config.agentRoleConfig.fallbackHedgeDelayMillis !== undefined
+              ? {
+                  fallbackHedgeDelayMillis:
+                    this.config.agentRoleConfig.fallbackHedgeDelayMillis,
+                  fallbackHedgeTimeoutMillis:
+                    this.config.agentRoleConfig.fallbackHedgeTimeoutMillis,
+                }
+              : {}),
             protocol: metadata.protocol,
             blocks: { reorgPeriod },
             maxBatchSize: batchConfig.maxBatchSize,
