@@ -124,6 +124,7 @@ describe('hyperlane warp crossCollateral EVM+SVM e2e tests', function () {
       svmCore.deploy(SVM_KEY),
     ]);
 
+    // CAST: hyperlane core deploy writes the expected ChainAddresses structure.
     svmCoreAddresses = readYamlOrJson(
       CORE_ADDRESSES_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
     ) as ChainAddresses;

@@ -188,17 +188,20 @@ fn wait_for_program_ready(
     let deadline = Instant::now() + timeout;
     let mut first_executable_slot = None;
     loop {
-        let response =
-            client.get_account_with_commitment(program_id, CommitmentConfig::confirmed())?;
-        if response.value.is_some_and(|account| account.executable) {
-            // A newly deployed program is not callable in its deployment bank.
-            // Observe it in a later confirmed slot before simulating client calls.
-            let first_slot = first_executable_slot.get_or_insert(response.context.slot);
-            if response.context.slot > *first_slot {
-                return Ok(());
+        match client.get_account_with_commitment(program_id, CommitmentConfig::confirmed()) {
+            Ok(response) => {
+                if response.value.is_some_and(|account| account.executable) {
+                    // A newly deployed program is not callable in its deployment bank.
+                    // Observe it in a later confirmed slot before simulating client calls.
+                    let first_slot = first_executable_slot.get_or_insert(response.context.slot);
+                    if response.context.slot > *first_slot {
+                        return Ok(());
+                    }
+                } else {
+                    first_executable_slot = None;
+                }
             }
-        } else {
-            first_executable_slot = None;
+            Err(error) => eprintln!("Retrying readiness check for program {program_id}: {error}"),
         }
         if Instant::now() >= deadline {
             return Err(ClientErrorKind::Custom(format!(
@@ -319,8 +322,32 @@ mod tests {
     }
 
     #[test]
-    fn program_readiness_propagates_rpc_errors() {
+    fn program_readiness_retries_rpc_errors_until_ready() {
+        let mut next_slot = program_response(true);
+        next_slot["context"]["slot"] = json!(11);
+        let client = RpcClient::new_mock_with_mocks_map(
+            "succeeds",
+            [
+                (RpcRequest::GetAccountInfo, serde_json::Value::Null),
+                (RpcRequest::GetAccountInfo, program_response(true)),
+                (RpcRequest::GetAccountInfo, serde_json::Value::Null),
+                (RpcRequest::GetAccountInfo, next_slot),
+            ]
+            .into_iter()
+            .collect(),
+        );
+        wait_for_program_ready(&client, &Pubkey::new_unique(), Duration::from_secs(2)).unwrap();
+    }
+
+    #[test]
+    fn program_readiness_rpc_errors_reach_readiness_deadline() {
         let client = RpcClient::new_mock("fails");
-        assert!(wait_for_program_ready(&client, &Pubkey::new_unique(), Duration::ZERO).is_err());
+        let timeout = Duration::from_millis(200);
+        let start = Instant::now();
+        let error = wait_for_program_ready(&client, &Pubkey::new_unique(), timeout).unwrap_err();
+        assert!(start.elapsed() >= timeout);
+        assert!(error
+            .to_string()
+            .contains("did not become executable in a later confirmed slot"));
     }
 }

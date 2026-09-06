@@ -13,16 +13,13 @@ const overrides = new Map([
   ],
 ]);
 
+const ADDRESS_IS_CONTRACT = /Address\.isContract\(((?:[^()]*|\([^()]*\))*)\)/g;
+const INSTANCE_IS_CONTRACT = /([a-zA-Z_][a-zA-Z0-9_]*)\.isContract\(\)/g;
+
 export function patchIsContract(content: string): string {
   return content
-    .replace(
-      /Address\.isContract\(((?:[^()]*|\([^()]*\))*)\)/g,
-      '($1.code.length > 0)',
-    )
-    .replace(
-      /([a-zA-Z_][a-zA-Z0-9_]*)\.isContract\(\)/g,
-      '($1.code.length > 0)',
-    );
+    .replace(ADDRESS_IS_CONTRACT, '($1.code.length > 0)')
+    .replace(INSTANCE_IS_CONTRACT, '($1.code.length > 0)');
 }
 
 export async function readTronSource(

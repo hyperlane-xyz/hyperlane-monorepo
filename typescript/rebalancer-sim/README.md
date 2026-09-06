@@ -293,7 +293,7 @@ interface SimulationKPIs {
 
 ## Current Limitations
 
-1. **No Inflight Guard**: Neither rebalancer implementation tracks pending transfers, causing over-rebalancing when bridge delays are long relative to polling frequency. The `inflight-guard.test.ts` demonstrates this.
+1. **SimpleRebalancer lacks inflight tracking**: ProductionRebalancerRunner uses MockActionTracker to track pending transfers; SimpleRebalancer does not and can over-rebalance when bridge delays exceed the polling interval. `test/integration/full-simulation-2.test.ts` compares their behavior.
 
 2. **Single Anvil**: All "chains" run on one Anvil instance. Real cross-chain timing differences aren't simulated.
 

@@ -18,6 +18,13 @@ test('preserves legacy Tron transformations, including nested calls', () => {
   assert.equal(patchIsContract('uint256 value = 1;'), 'uint256 value = 1;');
 });
 
+test('reuses global patterns across sources without retaining match position', () => {
+  const source = 'Address.isContract(target) || recipient.isContract()';
+  const expected = '(target.code.length > 0) || (recipient.code.length > 0)';
+  assert.equal(patchIsContract(source), expected);
+  assert.equal(patchIsContract(source), expected);
+});
+
 test('reads overrides without mutating shared sources and sees override edits', async () => {
   const root = await mkdtemp(join(tmpdir(), 'tron-source-'));
   try {
