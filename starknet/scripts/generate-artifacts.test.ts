@@ -11,23 +11,39 @@ test('worker output matches serial artifact generation', async () => {
   try {
     const input = join(root, 'contracts_example.compiled_contract_class.json');
     await writeFile(input, JSON.stringify({ bytecode: ['0x1'], hints: [] }));
+    const sierraInput = join(root, 'contracts_example.contract_class.json');
+    await writeFile(
+      sierraInput,
+      JSON.stringify({
+        sierra_program: ['0x1'],
+        contract_class_version: '0.1.0',
+        entry_points_by_type: { EXTERNAL: [], L1_HANDLER: [], CONSTRUCTOR: [] },
+        abi: [],
+      }),
+    );
     const serial = new StarknetArtifactGenerator(
       root,
       join(root, 'serial/artifacts'),
     );
     await serial.createOutputDirectory();
     await serial.processArtifact(input);
+    await serial.processArtifact(sierraInput);
     const parallel = new StarknetArtifactGenerator(
       root,
       join(root, 'parallel/artifacts'),
     );
     assert.equal((await parallel.generate()).size, 1);
     for (const extension of ['js', 'd.ts']) {
-      const file = `contracts_example.compiled_contract_class.${extension}`;
-      assert.equal(
-        await readFile(join(root, 'serial/artifacts', file), 'utf8'),
-        await readFile(join(root, 'parallel/artifacts', file), 'utf8'),
-      );
+      for (const file of [
+        `artifacts/contracts_example.compiled_contract_class.${extension}`,
+        `artifacts/contracts_example.contract_class.${extension}`,
+        `runtime-artifacts/contracts_example.${extension}`,
+      ]) {
+        assert.equal(
+          await readFile(join(root, 'serial', file), 'utf8'),
+          await readFile(join(root, 'parallel', file), 'utf8'),
+        );
+      }
     }
   } finally {
     await rm(root, { recursive: true, force: true });

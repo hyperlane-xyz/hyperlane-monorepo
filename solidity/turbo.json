@@ -5,7 +5,11 @@
       "inputs": ["foundry.toml", "soldeer.lock"],
       "outputs": ["dependencies/**"]
     },
+    "version:update": {
+      "inputs": ["package.json", "bytecodeversion.sh"]
+    },
     "build": {
+      "inputs": ["$TURBO_DEFAULT$", "!test/**"],
       "dependsOn": ["deps:soldeer", "version:update"],
       "outputs": [
         "artifacts/**",
@@ -17,6 +21,7 @@
       ]
     },
     "build:tron": {
+      "inputs": ["$TURBO_DEFAULT$", "!test/**"],
       "dependsOn": ["deps:soldeer", "version:update"]
     }
   }

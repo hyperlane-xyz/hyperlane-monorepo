@@ -115,7 +115,7 @@ jobs:
         if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: 'v4-rust-e2e-dev'
+          prefix-key: 'v3-rust-e2e'
           shared-key: ${{ matrix.e2e-type }}
           cache-provider: 'github'
           save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}

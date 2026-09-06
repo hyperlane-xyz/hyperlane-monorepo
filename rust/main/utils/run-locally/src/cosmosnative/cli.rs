@@ -100,7 +100,7 @@ impl SimApp {
             .arg("address", &self.addr) // default is tcp://0.0.0.0:26658
             .arg("p2p.laddr", &self.p2p_addr) // default is tcp://0.0.0.0:26655
             .arg("rpc.laddr", &self.rpc_addr) // default is tcp://0.0.0.0:26657
-            .cmd("--grpc.enable=true") // enable grpc
+            .flag("grpc.enable=true") // enable grpc
             .flag("api.enable") // enable api
             .arg("api.address", &self.api_addr)
             .arg("grpc.address", &self.grpc_addr)

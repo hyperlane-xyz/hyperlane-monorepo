@@ -2,6 +2,7 @@
   "extends": ["//"],
   "tasks": {
     "build": {
+      "inputs": ["$TURBO_DEFAULT$", "!scripts/*.test.ts"],
       "outputs": ["dist/**", "release/**"]
     }
   }

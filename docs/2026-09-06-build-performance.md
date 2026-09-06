@@ -2,7 +2,7 @@
 
 ## Changes
 
-- Persist Cargo target artifacts alongside sccache in agent Docker builds; emit Cargo timings and cache statistics.
+- Persist Cargo target artifacts alongside sccache in agent Docker builds; use mold for linking, as Rust CI already does, and emit Cargo timings/cache statistics.
 - Persist Turbo task archives and the Tron compiler in monorepo and node-service Docker builds. Match the prefetched EVM compiler to Hardhat 0.8.33.
 - Apply Tron source overrides in Hardhat's read-file task, before dependency parsing and content hashing. Preserve the original Solidity source names and compiler settings.
 - Run EVM and Tron after shared dependency/version preparation, with disjoint generated-output ownership. Retain Tron compiler state and regenerate bindings from surviving artifacts so deletions cannot leave stale exports.
@@ -19,12 +19,16 @@ not projected CI savings. Build outputs were empty for the contract pair;
 dependencies/compiler downloads were already available. Turbo task caching was
 disabled for that comparison.
 
-| Workload                                              |                  Baseline |                             Changed |
-| ----------------------------------------------------- | ------------------------: | ----------------------------------: |
-| EVM + Tron, fresh compiler outputs                    |                   114.43s |                              68.63s |
-| Tron, retained compiler outputs with unchanged source | Always cleaned/recompiled |                               9.34s |
-| Starknet fetch + generation                           |                    36.45s | See generator-only comparison below |
-| Starknet generation, four workers                     |                         — |                              18.21s |
+| Workload                                              |                  Baseline | Changed |
+| ----------------------------------------------------- | ------------------------: | ------: |
+| EVM + Tron, fresh compiler outputs                    |                   102.25s |  73.88s |
+| Tron, retained compiler outputs with unchanged source | Always cleaned/recompiled |   8.81s |
+| Starknet generation only                              |                    35.68s |  18.60s |
+
+Single matched, isolated runs: 27.7% less wallclock for the contract pair and
+47.9% for Starknet generation. Downloads were warm; these are not cold-network
+or statistically repeated benchmarks. Test-only edits no longer invalidate
+contract build inputs; Solidity contracts under `contracts/test` remain inputs.
 
 The paired fresh builds produced identical EVM and Tron artifact trees,
 including compiler inputs, ABI, bytecode, metadata and TypeChain sources.

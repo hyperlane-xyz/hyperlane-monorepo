@@ -7,7 +7,7 @@
 # Base image containing all necessary build tools and dependencies
 FROM rust:1.88.0 AS base
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends musl-tools clang && \
+    apt-get install -y --no-install-recommends musl-tools clang mold && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     rustup target add x86_64-unknown-linux-musl && \
@@ -55,7 +55,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
     --mount=type=cache,id=agent-target-${TARGETARCH},target=/usr/src/rust/main/target,sharing=locked \
-    RUSTFLAGS="--cfg tokio_unstable" \
+    RUSTFLAGS="--cfg tokio_unstable -C link-arg=-fuse-ld=mold" \
     cargo build --locked --timings --release --features aleo --bin validator --bin relayer --bin scraper && \
     sccache --show-stats && \
     mkdir -p /release && \
