@@ -47,6 +47,7 @@ import {
 import {
   addressToBytes32,
   assert,
+  eqAddress,
   isNullish,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -138,6 +139,7 @@ export class WarpTokenWriter
   ): Promise<[DeployedWarpArtifact, TxReceipt[]]> {
     const { config } = artifact;
     const allReceipts: TxReceipt[] = [];
+    const signerAddress = this.signer.getSignerAddress();
     if (config.hook) {
       assert(
         config.mailbox,
@@ -177,12 +179,14 @@ export class WarpTokenWriter
       }
     }
 
-    // Deploy warp WITHOUT an ISM or fee. Both are attached post-warp, and NEW
-    // artifacts are deployed first once the router address is available.
+    // Keep the signer as the temporary owner while post-create configuration
+    // is attached. Protocol writers transfer ownership during create, which
+    // would otherwise prevent this signer from submitting the deferred update.
     const rawArtifact: ArtifactNew<RawWarpArtifactConfig> = {
       artifactState: ArtifactState.NEW,
       config: {
         ...config,
+        owner: signerAddress,
         interchainSecurityModule: undefined,
         hook: onChainHookArtifact,
         fee: undefined,
@@ -247,26 +251,31 @@ export class WarpTokenWriter
       }
     }
 
-    // Attach the ISM and fee to the warp via the regular update path.
-    if (onChainIsmArtifact || onChainFeeArtifact) {
-      const ismToAttach = onChainIsmArtifact
-        ? {
-            artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: onChainIsmArtifact.deployed.address },
-          }
-        : undefined;
-      const feeToAttach = onChainFeeArtifact
-        ? {
-            artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: onChainFeeArtifact.deployed.address },
-          }
-        : undefined;
-      const hookToAttach = onChainHookArtifact
-        ? {
-            artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: onChainHookArtifact.deployed.address },
-          }
-        : undefined;
+    const ismToAttach = onChainIsmArtifact
+      ? {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: onChainIsmArtifact.deployed.address },
+        }
+      : undefined;
+    const feeToAttach = onChainFeeArtifact
+      ? {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: onChainFeeArtifact.deployed.address },
+        }
+      : undefined;
+    const hookToAttach = onChainHookArtifact
+      ? {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: onChainHookArtifact.deployed.address },
+        }
+      : undefined;
+    // Attach deferred artifacts and transfer ownership through one regular
+    // update. Protocol writers must place their ownership transaction last.
+    if (
+      onChainIsmArtifact ||
+      onChainFeeArtifact ||
+      !eqAddress(signerAddress, config.owner)
+    ) {
       const attachTxs = await this.update({
         artifactState: ArtifactState.DEPLOYED,
         config: {
@@ -288,6 +297,7 @@ export class WarpTokenWriter
         artifactState: ArtifactState.DEPLOYED,
         config: {
           ...deployed.config,
+          owner: config.owner,
           interchainSecurityModule: onChainIsmArtifact,
           hook: onChainHookArtifact,
           fee: onChainFeeArtifact,

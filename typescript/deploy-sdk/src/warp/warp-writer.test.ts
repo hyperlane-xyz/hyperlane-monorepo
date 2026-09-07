@@ -1453,6 +1453,121 @@ describe('WarpTokenWriter', () => {
   });
 
   describe('create()', () => {
+    it('transfers ownership after create when no artifacts are deferred', async () => {
+      const signerAddress = '0x1111111111111111111111111111111111111111';
+      const finalOwner = '0x2222222222222222222222222222222222222222';
+      const transferOwnerTx = {
+        annotation: 'Transfer ownership',
+        to: TOKEN_ADDRESS,
+        data: '0x02',
+      };
+      const sendAndConfirmTransaction = Sinon.stub().resolves({});
+      Object.assign(mockSigner, {
+        getSignerAddress: () => signerAddress,
+        sendAndConfirmTransaction,
+      });
+
+      const rawConfig: CollateralWarpArtifactConfig = {
+        ...actualConfig,
+        owner: signerAddress,
+      };
+      const currentArtifact: DeployedWarpArtifact = {
+        ...baseDeployedArtifact,
+        config: rawConfig,
+      };
+      readStub.resolves(currentArtifact);
+
+      const mockWriter = {
+        read: Sinon.stub(),
+        create: Sinon.stub().resolves([currentArtifact, []]),
+        update: Sinon.stub().resolves([transferOwnerTx]),
+      } satisfies MockRawWarpWriter;
+      mockArtifactManager.createWriter.returns(mockWriter);
+
+      const [deployed] = await writer.create({
+        artifactState: ArtifactState.NEW,
+        config: { ...actualConfig, owner: finalOwner },
+      });
+
+      expect(mockWriter.create.firstCall.args[0].config.owner).to.equal(
+        signerAddress,
+      );
+      expect(mockWriter.update.firstCall.args[0].config.owner).to.equal(
+        finalOwner,
+      );
+      expect(sendAndConfirmTransaction.firstCall.args[0]).to.equal(
+        transferOwnerTx,
+      );
+      expect(deployed.config.owner).to.equal(finalOwner);
+    });
+
+    it('keeps signer ownership through ISM attachment and transfers it last', async () => {
+      const signerAddress = '0x1111111111111111111111111111111111111111';
+      const finalOwner = '0x2222222222222222222222222222222222222222';
+      const setIsmTx = {
+        annotation: 'Set ISM',
+        to: TOKEN_ADDRESS,
+        data: '0x01',
+      };
+      const transferOwnerTx = {
+        annotation: 'Transfer ownership',
+        to: TOKEN_ADDRESS,
+        data: '0x02',
+      };
+      const sendAndConfirmTransaction = Sinon.stub().resolves({});
+      Object.assign(mockSigner, {
+        getSignerAddress: () => signerAddress,
+        sendAndConfirmTransaction,
+      });
+
+      const rawConfig: CollateralWarpArtifactConfig = {
+        ...actualConfig,
+        owner: signerAddress,
+      };
+      const currentArtifact: DeployedWarpArtifact = {
+        ...baseDeployedArtifact,
+        config: rawConfig,
+      };
+      readStub.resolves(currentArtifact);
+
+      const mockWriter = {
+        read: Sinon.stub(),
+        create: Sinon.stub().resolves([currentArtifact, []]),
+        update: Sinon.stub().resolves([setIsmTx, transferOwnerTx]),
+      } satisfies MockRawWarpWriter;
+      mockArtifactManager.createWriter.returns(mockWriter);
+
+      const [deployed] = await writer.create({
+        artifactState: ArtifactState.NEW,
+        config: {
+          ...actualConfig,
+          owner: finalOwner,
+          interchainSecurityModule: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: ISM_ADDRESS },
+          },
+        },
+      });
+
+      expect(mockWriter.create.firstCall.args[0].config.owner).to.equal(
+        signerAddress,
+      );
+      expect(mockWriter.update.firstCall.args[0].config.owner).to.equal(
+        finalOwner,
+      );
+      expect(
+        mockWriter.update.firstCall.args[0].config.interchainSecurityModule,
+      ).to.deep.equal({
+        artifactState: ArtifactState.UNDERIVED,
+        deployed: { address: ISM_ADDRESS },
+      });
+      expect(sendAndConfirmTransaction.firstCall.args[0]).to.equal(setIsmTx);
+      expect(sendAndConfirmTransaction.secondCall.args[0]).to.equal(
+        transferOwnerTx,
+      );
+      expect(deployed.config.owner).to.equal(finalOwner);
+    });
+
     it('should create warp token without ISM', async () => {
       const mockWriter = {
         read: Sinon.stub(),
