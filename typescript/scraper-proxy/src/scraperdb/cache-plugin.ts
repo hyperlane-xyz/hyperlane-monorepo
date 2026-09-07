@@ -18,9 +18,13 @@ const MAX_ENTRIES = 1_000;
 const MAX_ENTRY_BYTES = 1_000_000;
 const MAX_TOTAL_BYTES = 16_000_000;
 type Entry = { body: string; bytes: number; expires: number };
+type CacheDocument = { query: string; usedVariables: ReadonlySet<string> };
 
 export function scraperDbCachePlugin(): ApolloServerPlugin {
   const cache = new Map<string, Entry>();
+  // Apollo reuses parsed documents. Weak keys retain metadata only while the
+  // document is reachable, independently of response TTL and cache eviction.
+  const documents = new WeakMap<DocumentNode, CacheDocument>();
   let cacheBytes = 0;
   const remove = (key: string): void => {
     const entry = cache.get(key);
@@ -40,9 +44,14 @@ export function scraperDbCachePlugin(): ApolloServerPlugin {
             context.request.variables,
           );
           if (!directive) return null;
+          let document = documents.get(context.document);
+          if (!document) {
+            document = prepareCacheDocument(context.document);
+            documents.set(context.document, document);
+          }
           key = cacheKey(
             context.operationName,
-            context.document,
+            document,
             context.request.variables ?? {},
           );
           if (directive.refresh) {
@@ -98,11 +107,7 @@ export function scraperDbCachePlugin(): ApolloServerPlugin {
   };
 }
 
-function cacheKey(
-  operation: string | null,
-  document: DocumentNode,
-  variables: Record<string, unknown>,
-): string {
+function prepareCacheDocument(document: DocumentNode): CacheDocument {
   const query = stripUnusedVariableDefinitions(
     print(
       visit(document, {
@@ -116,6 +121,14 @@ function cacheKey(
       usedVariables.add(name.value);
     },
   });
+  return { query, usedVariables };
+}
+
+function cacheKey(
+  operation: string | null,
+  { query, usedVariables }: CacheDocument,
+  variables: Record<string, unknown>,
+): string {
   const dataVariables = Object.fromEntries(
     Object.entries(variables).filter(([name]) => usedVariables.has(name)),
   );
