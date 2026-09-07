@@ -32,6 +32,8 @@ pub struct MockPendingOperation {
     destination_domain: HyperlaneDomain,
     retry_count: u32,
     #[serde(skip)]
+    reset_succeeds: bool,
+    #[serde(skip)]
     pub mailbox: Option<Arc<dyn Mailbox>>,
 }
 
@@ -46,6 +48,7 @@ impl MockPendingOperation {
             recipient_address: H256::random(),
             origin_domain_id: 0,
             retry_count: 0,
+            reset_succeeds: true,
             mailbox: None,
         }
     }
@@ -59,6 +62,7 @@ impl MockPendingOperation {
             destination_domain_id: message.destination,
             seconds_to_next_attempt: 0,
             retry_count: 0,
+            reset_succeeds: true,
             destination_domain: HyperlaneDomain::Unknown {
                 domain_id: message.destination,
                 domain_name: "test".to_string(),
@@ -106,6 +110,11 @@ impl MockPendingOperation {
         self.set_retries(retry_count);
         self
     }
+
+    pub fn with_failed_reset(mut self) -> Self {
+        self.reset_succeeds = false;
+        self
+    }
 }
 
 impl TryBatchAs<HyperlaneMessage> for MockPendingOperation {}
@@ -123,8 +132,12 @@ impl PendingOperation for MockPendingOperation {
 
     fn set_status(&mut self, _status: PendingOperationStatus) {}
 
-    fn reset_attempts(&mut self) {
+    fn reset_attempts(&mut self) -> bool {
+        if !self.reset_succeeds {
+            return false;
+        }
         self.seconds_to_next_attempt = 0;
+        true
     }
 
     fn sender_address(&self) -> &H256 {
@@ -277,6 +290,25 @@ fn generate_test_messages(
         })
         .collect();
     ops
+}
+
+#[test]
+fn failed_manual_retry_reset_is_reported_not_matched() {
+    let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Base.into();
+    let op = MockPendingOperation::new(60, destination_domain).with_failed_reset();
+    let id = op.id();
+    let mut queue = BinaryHeap::from([Reverse(Box::new(op) as QueueOperation)]);
+    let (transmitter, _receiver) = mpsc::channel(1);
+    let requests = [MessageRetryRequest {
+        uuid: "failed-reset".to_owned(),
+        pattern: MatchingList::with_message_id(id),
+        transmitter,
+    }];
+
+    let responses = OpQueue::reprioritize_matching(&mut queue, &requests);
+
+    assert_eq!(responses[0].matched, 0);
+    assert_eq!(responses[0].failed, 1);
 }
 
 #[tokio::test]

@@ -47,6 +47,18 @@ impl TypedDB {
             .collect()
     }
 
+    /// Atomically store encoded values under domain-prefixed keys.
+    pub(crate) fn store_batch(
+        &self,
+        entries: impl IntoIterator<Item = (Vec<u8>, Vec<u8>, Vec<u8>)>,
+    ) -> Result<()> {
+        self.db.store_batch(
+            entries
+                .into_iter()
+                .map(|(prefix, key, value)| (self.prefixed_key(&prefix, &key), value)),
+        )
+    }
+
     /// Store encodable value
     pub fn store_encodable<V: Encode>(
         &self,

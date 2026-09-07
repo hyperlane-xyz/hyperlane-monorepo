@@ -164,7 +164,8 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
 
     /// Reset the number of attempts this operation has made, causing it to be
     /// retried immediately.
-    fn reset_attempts(&mut self);
+    /// Reset attempts durably. Returns false when the reset could not be persisted.
+    fn reset_attempts(&mut self) -> bool;
 
     /// Set the number of times this operation has been retried.
     fn set_retries(&mut self, retries: u32);
