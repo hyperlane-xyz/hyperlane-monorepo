@@ -23,6 +23,9 @@ use super::builder::MerkleTreeBuilder;
 
 const PREFIX: &str = "db_loader::merkle_tree";
 
+/// Maximum consecutive leaves ingested under one prover write lock.
+const MAX_LEAVES_PER_TICK: usize = 32;
+
 /// Finds unprocessed merkle tree insertions and adds them to the prover sync
 #[derive(new)]
 pub struct MerkleTreeDbLoader {
@@ -57,48 +60,48 @@ impl DbLoaderExt for MerkleTreeDbLoader {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
-        if let Some(insertion) = self.next_unprocessed_leaf().await? {
-            // Feed the message to the prover sync
-
-            let begin = {
-                // drop the guard at the end of this block
-                let mut guard = self.prover_sync.write().await;
-                let begin = Instant::now();
-                guard.ingest_message_id(insertion.message_id())?;
-                begin
-            };
-
-            self.metrics
-                .merkle_tree_ingest_message_id_total_elapsed_micros
-                .inc_by(begin.elapsed().as_micros() as u64);
-            self.metrics.merkle_tree_ingest_message_ids_count.inc();
-
-            // Increase the leaf index to move on to the next leaf
-            self.leaf_index += 1;
-        } else {
-            tokio::time::sleep(Duration::from_secs(1)).await;
+        let mut insertions = Vec::with_capacity(MAX_LEAVES_PER_TICK);
+        while insertions.len() < MAX_LEAVES_PER_TICK {
+            let index = self.leaf_index + insertions.len() as u32;
+            let begin = Instant::now();
+            match self.retrieve_at(index).await? {
+                Some(insertion) => {
+                    self.update_metrics(&insertion, &begin);
+                    insertions.push(insertion);
+                }
+                None => break,
+            }
         }
+
+        if insertions.is_empty() {
+            trace!(leaf_index=?self.leaf_index, "No merkle tree insertion found in DB for leaf index, waiting for it to be indexed");
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            return Ok(());
+        }
+
+        let begin = {
+            let mut guard = self.prover_sync.write().await;
+            let begin = Instant::now();
+            for insertion in &insertions {
+                guard.ingest_message_id(insertion.message_id())?;
+                self.leaf_index += 1;
+            }
+            begin
+        };
+
+        self.metrics
+            .merkle_tree_ingest_message_id_total_elapsed_micros
+            .inc_by(begin.elapsed().as_micros() as u64);
+        self.metrics
+            .merkle_tree_ingest_message_ids_count
+            .inc_by(insertions.len() as u64);
         Ok(())
     }
 }
 
 impl MerkleTreeDbLoader {
-    async fn next_unprocessed_leaf(&self) -> Result<Option<MerkleTreeInsertion>> {
-        let begin = Instant::now();
-        let leaf = if let Some(insertion) = self.retrieve().await? {
-            self.update_metrics(&insertion, &begin);
-            Some(insertion)
-        } else {
-            trace!(leaf_index=?self.leaf_index,"No merkle tree insertion found in DB for leaf index, waiting for it to be indexed");
-            None
-        };
-
-        Ok(leaf)
-    }
-
-    async fn retrieve(&self) -> Result<Option<MerkleTreeInsertion>> {
+    async fn retrieve_at(&self, index: u32) -> Result<Option<MerkleTreeInsertion>> {
         let db = self.db.clone();
-        let index = self.leaf_index;
         let name = format!("{}::retrieval::{}::{}", PREFIX, self.domain(), index);
         let insertion = tokio::task::Builder::new()
             .name(&name)
@@ -148,5 +151,115 @@ impl MerkleTreeDbLoaderMetrics {
                 .merkle_tree_ingest_message_ids_count()
                 .with_label_values(&[origin.name()]),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use prometheus::Registry;
+
+    use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB, DB};
+    use hyperlane_base::CoreMetrics;
+    use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, MerkleTreeInsertion, H256};
+
+    use super::super::builder::MerkleTreeBuilder;
+    use super::*;
+    use crate::db_loader::DbLoaderExt;
+
+    fn test_loader(insertion_count: u32, port: u16) -> (tempfile::TempDir, MerkleTreeDbLoader) {
+        let dir = tempfile::tempdir().unwrap();
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let db = HyperlaneRocksDB::new(&domain, DB::from_path(dir.path()).unwrap());
+        for i in 0..insertion_count {
+            db.store_merkle_tree_insertion_by_leaf_index(
+                &i,
+                &MerkleTreeInsertion::new(i, H256::from_low_u64_be(i as u64)),
+            )
+            .unwrap();
+        }
+        let core_metrics = CoreMetrics::new("test-merkle-loader", port, Registry::new()).unwrap();
+        let loader = MerkleTreeDbLoader::new(
+            db,
+            MerkleTreeDbLoaderMetrics::new(&core_metrics, &domain),
+            Arc::new(RwLock::new(MerkleTreeBuilder::new())),
+        );
+        (dir, loader)
+    }
+
+    #[tokio::test]
+    async fn tick_drains_backlog_in_batches_preserving_order() {
+        let (_dir, mut loader) = test_loader((MAX_LEAVES_PER_TICK as u32) + 5, 49101);
+        loader.tick().await.unwrap();
+        assert_eq!(loader.leaf_index, MAX_LEAVES_PER_TICK as u32);
+        assert_eq!(
+            loader.prover_sync.read().await.count(),
+            MAX_LEAVES_PER_TICK as u32
+        );
+        loader.tick().await.unwrap();
+        assert_eq!(loader.leaf_index, (MAX_LEAVES_PER_TICK as u32) + 5);
+        let prover_sync = loader.prover_sync.read().await;
+        let insertion_count = (MAX_LEAVES_PER_TICK as u32) + 5;
+        assert_eq!(prover_sync.count(), insertion_count);
+        for index in 0..insertion_count {
+            assert_eq!(
+                prover_sync
+                    .get_proof(index, insertion_count - 1)
+                    .unwrap()
+                    .leaf,
+                H256::from_low_u64_be(index as u64)
+            );
+        }
+        drop(prover_sync);
+        assert_eq!(
+            loader.metrics.merkle_tree_retrieve_insertions_count.get(),
+            insertion_count as u64
+        );
+        assert_eq!(
+            loader.metrics.merkle_tree_ingest_message_ids_count.get(),
+            insertion_count as u64
+        );
+        assert_eq!(
+            loader.metrics.latest_tree_insertion_index_gauge.get(),
+            (insertion_count - 1) as i64
+        );
+    }
+
+    #[tokio::test]
+    async fn tick_on_gap_advances_only_past_present_leaves() {
+        let dir = tempfile::tempdir().unwrap();
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let db = HyperlaneRocksDB::new(&domain, DB::from_path(dir.path()).unwrap());
+        for i in [0u32, 1, 3] {
+            db.store_merkle_tree_insertion_by_leaf_index(
+                &i,
+                &MerkleTreeInsertion::new(i, H256::from_low_u64_be(i as u64)),
+            )
+            .unwrap();
+        }
+        let core_metrics =
+            CoreMetrics::new("test-merkle-loader-gap", 49102, Registry::new()).unwrap();
+        let mut loader = MerkleTreeDbLoader::new(
+            db.clone(),
+            MerkleTreeDbLoaderMetrics::new(&core_metrics, &domain),
+            Arc::new(RwLock::new(MerkleTreeBuilder::new())),
+        );
+        loader.tick().await.unwrap();
+        assert_eq!(loader.leaf_index, 2);
+        db.store_merkle_tree_insertion_by_leaf_index(
+            &2,
+            &MerkleTreeInsertion::new(2, H256::from_low_u64_be(2)),
+        )
+        .unwrap();
+        loader.tick().await.unwrap();
+        assert_eq!(loader.leaf_index, 4);
+        let prover_sync = loader.prover_sync.read().await;
+        assert_eq!(prover_sync.count(), 4);
+        for index in 0..4 {
+            assert_eq!(
+                prover_sync.get_proof(index, 3).unwrap().leaf,
+                H256::from_low_u64_be(index as u64)
+            );
+        }
+        let _ = dir;
     }
 }
