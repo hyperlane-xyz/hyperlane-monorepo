@@ -1,6 +1,7 @@
 pub mod composite_ism;
 pub mod sealevel_termination_invariants;
 pub mod solana;
+#[cfg(test)]
 pub mod warp_route_composite_ism;
 
 use std::{
