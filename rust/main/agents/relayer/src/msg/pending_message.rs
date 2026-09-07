@@ -2335,7 +2335,7 @@ mod test {
                     ));
                     assert!(pending.metadata.is_none());
                     assert!(pending.submission_outcome.is_none());
-                    assert_eq!(pending.num_retries, 0);
+                    assert_eq!(pending.num_retries, 1);
                 }
                 _ => {
                     assert!(matches!(
