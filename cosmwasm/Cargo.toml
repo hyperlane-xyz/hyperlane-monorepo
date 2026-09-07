@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "packages/mpt-verify",
+    "contracts/telepathy-light-client",
+    "contracts/ism-telepathy",
+]
+resolver = "2"

@@ -1,0 +1,15 @@
+[package]
+name = "mpt-verify"
+version = "0.1.0"
+edition = "2021"
+description = "Pure-Rust Ethereum Merkle Patricia Trie (MPT) and RLP proof verification for CosmWasm"
+license = "Apache-2.0"
+
+[dependencies]
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+rlp = "0.5.2"
+thiserror = "1.0.58"
+hex = "0.4.3"
+
+[dev-dependencies]
+hex-literal = "0.4.1"
