@@ -209,8 +209,7 @@ export const testStarknetChain: ChainMetadata = {
 
 // Address of the ENS DAO TimelockController contract on Ethereum mainnet,
 // used for integration tests that exercise the block explorer path.
-// Chosen because Base's Blockscout `getcontractcreation` endpoint has been
-// observed to hang in CI, while eth.blockscout.com is reliable.
+// Chosen because Routescan exposes both logs and contract creation data.
 export const KNOWN_ETHEREUM_TIMELOCK_CONTRACT =
   '0xFe89cc7aBB2C4183683ab71653C4cdc9B02D44b7';
 
@@ -218,10 +217,10 @@ export const KNOWN_ETHEREUM_TIMELOCK_CONTRACT =
 export const ethereumTestChain: ChainMetadata = {
   blockExplorers: [
     {
-      apiUrl: 'https://eth.blockscout.com/api',
-      family: ExplorerFamily.Blockscout,
+      apiUrl: 'https://api.routescan.io/v2/network/mainnet/evm/1/etherscan/api',
+      family: ExplorerFamily.Routescan,
       name: 'Ethereum Explorer',
-      url: 'https://eth.blockscout.com',
+      url: 'https://routescan.io',
     },
   ],
   blocks: { confirmations: 3, estimateBlockTime: 12, reorgPeriod: 14 },
