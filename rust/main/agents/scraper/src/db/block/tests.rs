@@ -158,3 +158,47 @@ async fn test_store_blocks_real_postgres() -> Result<(), DbErr> {
 
     Ok(())
 }
+
+/// Resolved sequence lookups execute exactly one statement each. Invalid SQL
+/// heights and database failures must remain errors rather than missing data.
+#[tokio::test]
+async fn sequence_block_lookups_use_one_query_and_propagate_errors() {
+    use sea_orm::{DatabaseBackend, MockDatabase, RuntimeErr, Value};
+    use std::collections::BTreeMap;
+
+    let rows = [0_i64, 42, i64::MAX, -1]
+        .map(|height| [BTreeMap::from([("height", Value::BigInt(Some(height)))])]);
+    let connection = MockDatabase::new(DatabaseBackend::Postgres)
+        .append_query_results(rows)
+        .append_query_errors([DbErr::Query(RuntimeErr::Internal("unavailable".to_owned()))])
+        .into_connection();
+    let db = ScraperDb::with_connection(connection);
+    let address = H256::from_low_u64_be(1);
+    assert_eq!(
+        db.retrieve_dispatched_block_number(1, &address, 7)
+            .await
+            .unwrap(),
+        Some(0)
+    );
+    assert_eq!(
+        db.retrieve_delivered_message_block_number(1, &address, 7)
+            .await
+            .unwrap(),
+        Some(42)
+    );
+    assert_eq!(
+        db.retrieve_payment_block_number(1, &address, 7)
+            .await
+            .unwrap(),
+        Some(u64::try_from(i64::MAX).unwrap())
+    );
+    assert!(db
+        .retrieve_dispatched_block_number(1, &address, 7)
+        .await
+        .is_err());
+    assert!(db
+        .retrieve_payment_block_number(1, &address, 7)
+        .await
+        .is_err());
+    assert_eq!(db.0.into_transaction_log().len(), 5);
+}
