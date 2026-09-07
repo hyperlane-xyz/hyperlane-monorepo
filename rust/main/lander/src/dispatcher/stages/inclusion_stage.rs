@@ -210,9 +210,9 @@ impl InclusionStage {
             .chunks(status_batch_size)
             .map(<[Transaction]>::to_vec)
             .collect::<Vec<_>>();
-        let status_reads = status_batches
-            .into_iter()
-            .map(|batch| read_transaction_status_batch(state, batch, FinalizedStatusRead::Query));
+        let status_reads = status_batches.into_iter().map(|batch| {
+            read_transaction_status_batch(state, batch, FinalizedStatusRead::Query, STAGE_NAME)
+        });
         let status_reads = buffer_ordered_bounded(status_reads, status_batch_concurrency);
         let status_reads = status_reads.flat_map(futures_util::stream::iter);
         futures_util::pin_mut!(status_reads);
