@@ -176,14 +176,14 @@ async fn idle_loader_does_not_reserve_shared_destination_capacity() {
         let (mut loader, mut receiver) =
             dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
         let sender = loader.send_channels[&destination.id()].clone();
-        sender.try_send(vec![]).unwrap();
+        sender.try_send(vec![]).expect("ingress should start empty");
 
         // Another origin shares this one-slot destination ingress. An idle
         // loader must not claim the slot when the processor drains it.
         let wait = loader.wait_for_work();
         tokio::pin!(wait);
         assert!(futures::poll!(&mut wait).is_pending());
-        receiver.try_recv().unwrap();
+        receiver.try_recv().expect("ingress should contain a batch");
         assert!(
             sender.try_send(vec![]).is_ok(),
             "idle loader reserved the slot needed by another origin"
@@ -1281,9 +1281,9 @@ async fn saturated_destination_does_not_block_another_destination() {
         })
         .await
         .expect("loader should poll after destination capacity becomes available");
-        loader.tick().await.unwrap();
+        loader.tick().await.expect("loader should resume admission");
         assert_eq!(
-            only_operation(receiver_a.try_recv().unwrap()).id(),
+            only_operation(receiver_a.try_recv().expect("message should be admitted")).id(),
             message_a.id()
         );
     })
