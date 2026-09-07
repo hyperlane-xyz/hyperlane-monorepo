@@ -177,7 +177,12 @@ impl FinalityStage {
                 .map(<[Transaction]>::to_vec)
                 .collect::<Vec<_>>();
             let status_reads = status_batches.into_iter().map(|batch| {
-                read_transaction_status_batch(state, batch, FinalizedStatusRead::TrustPersisted)
+                read_transaction_status_batch(
+                    state,
+                    batch,
+                    FinalizedStatusRead::TrustPersisted,
+                    STAGE_NAME,
+                )
             });
             buffer_ordered_bounded(status_reads, status_batch_concurrency)
                 .flat_map(futures_util::stream::iter)
@@ -260,6 +265,9 @@ impl FinalityStage {
         let tx_status = match &tx.status {
             TransactionStatus::Finalized => Ok(tx.status.clone()),
             _ => {
+                state
+                    .metrics
+                    .observe_status_read_batch(STAGE_NAME, 1, &state.domain);
                 call_until_success_or_nonretryable_error(
                     || state.adapter.tx_status(&tx),
                     "Querying transaction status",

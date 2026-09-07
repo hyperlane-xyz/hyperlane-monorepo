@@ -43,6 +43,7 @@ pub(super) async fn read_transaction_status_batch(
     state: &DispatcherState,
     snapshot_txs: Vec<Transaction>,
     finalized_status_read: FinalizedStatusRead,
+    stage: &str,
 ) -> Vec<(
     Transaction,
     Transaction,
@@ -67,6 +68,9 @@ pub(super) async fn read_transaction_status_batch(
             }
         })
         .collect::<Vec<_>>();
+    state
+        .metrics
+        .observe_status_read_batch(stage, query_txs.len(), &state.domain);
     let queried_statuses = state.adapter.tx_statuses(&query_txs).await;
     assert_eq!(
         queried_statuses.len(),
