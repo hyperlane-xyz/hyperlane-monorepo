@@ -417,48 +417,6 @@ export const kesselRunnerNetworks = [
   'optimismsepolia',
 ];
 
-// Relayer Neutron Testnet is not running at the moment, but we keep the config
-// If you would like to run it for testing purposes, you should configure it
-// only for chains you would like to run it.
-const neutron: RootAgentConfig = {
-  ...contextBase,
-  context: Contexts.Neutron,
-  contextChainNames: hyperlaneContextAgentChainNames,
-  rolesWithKeys: [Role.Relayer],
-  relayer: {
-    rpcConsensusType: RpcConsensusType.Fallback,
-    ...fallbackHedgeConfig,
-    docker: {
-      repo: DockerImageRepos.AGENT,
-      tag: testnetDockerTags.relayerRC,
-    },
-    blacklist: relayBlacklist,
-    gasPaymentEnforcement,
-    metricAppContextsGetter,
-    ismCacheConfigs,
-    processAltOverrides,
-    batch: {
-      batchSizeOverrides: {
-        starknetsepolia: 16,
-        paradexsepolia: 16,
-      },
-    },
-    cache: {
-      enabled: true,
-    },
-    resources: relayerResources,
-  },
-  validators: {
-    rpcConsensusType: RpcConsensusType.Fallback,
-    docker: {
-      repo: DockerImageRepos.AGENT,
-      tag: testnetDockerTags.validatorRC,
-    },
-    chains: validatorChainConfig(Contexts.ReleaseCandidate),
-    resources: validatorResources,
-  },
-};
-
 const fastPath: RootAgentConfig = {
   ...contextBase,
   context: Contexts.FastPath,
@@ -501,6 +459,5 @@ const fastPath: RootAgentConfig = {
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
-  [Contexts.Neutron]: neutron,
   [Contexts.FastPath]: fastPath,
 };

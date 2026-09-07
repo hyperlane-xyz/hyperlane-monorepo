@@ -28,7 +28,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
           [Contexts.FastPath]: [AW_FASTPAH_VALIDATOR],
         },
         'arbitrumsepolia',
@@ -41,7 +40,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
           [Contexts.FastPath]: [AW_FASTPAH_VALIDATOR],
         },
         'basesepolia',
@@ -54,7 +52,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
         },
         'fuji',
       ),
@@ -66,7 +63,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
         },
         'bsctestnet',
       ),
@@ -78,7 +74,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
           [Contexts.FastPath]: [AW_FASTPAH_VALIDATOR],
         },
         'sepolia',
@@ -91,7 +86,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
         },
         'optimismsepolia',
       ),
@@ -103,7 +97,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
         },
         'polygonamoy',
       ),
@@ -115,7 +108,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
         },
         'solanatestnet',
       ),
@@ -127,7 +119,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
         },
         'solanadevnet',
       ),
@@ -139,7 +130,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
         },
         'sonicsvmtestnet',
       ),
@@ -151,7 +141,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
         },
         'hyperliquidevmtestnet',
       ),
@@ -163,7 +152,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
         },
         'paradexsepolia',
       ),
@@ -175,7 +163,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
         },
         'starknetsepolia',
       ),
