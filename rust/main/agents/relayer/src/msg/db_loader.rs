@@ -28,6 +28,16 @@ use super::{
 use crate::{db_loader::DbLoaderExt, settings::matching_list::MatchingList};
 
 const LEGACY_MIGRATION_BATCH_SIZE: usize = 256;
+const DESTINATION_OUTCOME_STALE_REPAIR: &str = "stale_repair";
+const DESTINATION_OUTCOME_PROCESSED_CLEANUP: &str = "processed_cleanup";
+const DESTINATION_OUTCOME_TERMINAL_CLEANUP: &str = "terminal_cleanup";
+const DESTINATION_OUTCOME_ALREADY_LOADED: &str = "already_loaded";
+const DESTINATION_OUTCOME_NOT_WHITELISTED: &str = "not_whitelisted";
+const DESTINATION_OUTCOME_MESSAGE_BLACKLISTED: &str = "message_blacklisted";
+const DESTINATION_OUTCOME_ADDRESS_BLACKLISTED: &str = "address_blacklisted";
+const DESTINATION_OUTCOME_MISSING_CONTEXT: &str = "missing_context";
+const DESTINATION_OUTCOME_RETRY_INELIGIBLE: &str = "retry_ineligible";
+const DESTINATION_OUTCOME_QUEUED: &str = "queued";
 
 /// Finds unprocessed messages from an origin and submits them through a channel
 /// for to the appropriate destination.
@@ -792,6 +802,10 @@ impl MessageDbLoader {
         let Some(message) = message else {
             self.db
                 .delete_pending_message_index_by_nonce(destination, nonce)?;
+            self.metrics.record_destination_outcome(
+                destination_label.as_ref(),
+                DESTINATION_OUTCOME_STALE_REPAIR,
+            );
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         };
@@ -808,6 +822,10 @@ impl MessageDbLoader {
                 ])
                 .inc_by(2);
             self.db.reconcile_pending_message_index(&message)?;
+            self.metrics.record_destination_outcome(
+                destination_label.as_ref(),
+                DESTINATION_OUTCOME_STALE_REPAIR,
+            );
             if message.destination == destination {
                 return Ok(true);
             }
@@ -836,6 +854,10 @@ impl MessageDbLoader {
             .unwrap_or(false)
         {
             self.db.delete_pending_message_index(&message)?;
+            self.metrics.record_destination_outcome(
+                destination_label.as_ref(),
+                DESTINATION_OUTCOME_PROCESSED_CLEANUP,
+            );
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }
@@ -852,6 +874,10 @@ impl MessageDbLoader {
         if self.db.retrieve_terminally_dropped_message(&message.id())? {
             self.db
                 .delete_pending_message_index_by_nonce(destination, nonce)?;
+            self.metrics.record_destination_outcome(
+                destination_label.as_ref(),
+                DESTINATION_OUTCOME_TERMINAL_CLEANUP,
+            );
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }
@@ -863,6 +889,10 @@ impl MessageDbLoader {
                 .clone(),
             self.db.clone(),
         ) else {
+            self.metrics.record_destination_outcome(
+                destination_label.as_ref(),
+                DESTINATION_OUTCOME_ALREADY_LOADED,
+            );
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         };
@@ -870,17 +900,29 @@ impl MessageDbLoader {
         DirectionalNonceIterator::update_max_nonce_gauge(&message, &self.metrics);
         // Retain disqualified entries so restart or configuration changes reconsider them.
         if !self.message_whitelist.msg_matches(&message, true) {
+            self.metrics.record_destination_outcome(
+                destination_label.as_ref(),
+                DESTINATION_OUTCOME_NOT_WHITELISTED,
+            );
             debug!(?message, "Message not whitelisted, skipping");
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }
         if self.message_blacklist.msg_matches(&message, false) {
+            self.metrics.record_destination_outcome(
+                destination_label.as_ref(),
+                DESTINATION_OUTCOME_MESSAGE_BLACKLISTED,
+            );
             debug!(?message, "Message blacklisted, skipping");
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }
         if let Some(blacklisted_address) = self.address_blacklist.find_blacklisted_address(&message)
         {
+            self.metrics.record_destination_outcome(
+                destination_label.as_ref(),
+                DESTINATION_OUTCOME_ADDRESS_BLACKLISTED,
+            );
             debug!(
                 ?message,
                 blacklisted_address = hex::encode(blacklisted_address),
@@ -890,6 +932,10 @@ impl MessageDbLoader {
             return Ok(true);
         }
         let Some(destination_msg_ctx) = self.destination_ctxs.get(&destination) else {
+            self.metrics.record_destination_outcome(
+                destination_label.as_ref(),
+                DESTINATION_OUTCOME_MISSING_CONTEXT,
+            );
             debug!(
                 ?message,
                 "Message destined for unknown message context, skipping"
@@ -907,12 +953,20 @@ impl MessageDbLoader {
             app_context,
             self.max_retries,
         ) else {
+            self.metrics.record_destination_outcome(
+                destination_label.as_ref(),
+                DESTINATION_OUTCOME_RETRY_INELIGIBLE,
+            );
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         };
         pending_message.set_loaded_message_guard(loaded_message_guard);
         match sender.try_send(vec![Box::new(pending_message) as QueueOperation]) {
             Ok(()) => {
+                self.metrics.record_destination_outcome(
+                    destination_label.as_ref(),
+                    DESTINATION_OUTCOME_QUEUED,
+                );
                 self.destination_iterators[iterator_index].advance(direction, nonce);
                 Ok(true)
             }
@@ -929,6 +983,7 @@ impl MessageDbLoader {
 pub struct MessageDbLoaderMetricsShared {
     records_examined: IntCounterVec,
     logical_db_reads: IntCounterVec,
+    destination_outcomes: IntCounterVec,
     scan_duration_seconds: HistogramVec,
     ingress_depth: IntGaugeVec,
 }
@@ -946,6 +1001,11 @@ impl MessageDbLoaderMetricsShared {
                 "message_db_loader_logical_db_reads_total",
                 "Logical database reads performed by the message DB loader",
                 &["origin", "destination", "phase", "operation"],
+            )?,
+            destination_outcomes: metrics.new_int_counter(
+                "message_db_loader_destination_outcomes_total",
+                "Outcomes for destination-index records examined by the message DB loader",
+                &["origin", "destination", "outcome"],
             )?,
             scan_duration_seconds: metrics.new_histogram(
                 "message_db_loader_scan_duration_seconds",
@@ -974,6 +1034,7 @@ impl MessageDbLoaderMetricsShared {
             origin: origin.name().to_owned(),
             records_examined: self.records_examined.clone(),
             logical_db_reads: self.logical_db_reads.clone(),
+            destination_outcomes: self.destination_outcomes.clone(),
             scan_duration_seconds: self.scan_duration_seconds.clone(),
             ingress_depth: self.ingress_depth.clone(),
         }
@@ -986,11 +1047,18 @@ pub struct MessageDbLoaderMetrics {
     origin: String,
     records_examined: IntCounterVec,
     logical_db_reads: IntCounterVec,
+    destination_outcomes: IntCounterVec,
     scan_duration_seconds: HistogramVec,
     ingress_depth: IntGaugeVec,
 }
 
 impl MessageDbLoaderMetrics {
+    fn record_destination_outcome(&self, destination: &str, outcome: &str) {
+        self.destination_outcomes
+            .with_label_values(&[self.origin.as_str(), destination, outcome])
+            .inc();
+    }
+
     fn update_ingress_depths(
         &self,
         send_channels: &HashMap<u32, Sender<QueueOperationBatch>>,
