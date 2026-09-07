@@ -71,6 +71,15 @@ impl FetchRetryBackoff {
             .filter(|delay| !delay.is_zero())
     }
 
+    /// True when `range` overlaps the failed range and its backoff has expired,
+    /// so a retry may run immediately. Disjoint forward work is never eligible.
+    fn retry_eligible(&self, range: &std::ops::RangeInclusive<u32>) -> bool {
+        self.failed_range
+            .as_ref()
+            .is_some_and(|failed| Self::ranges_overlap(failed, range))
+            && self.remaining_delay(range).is_none()
+    }
+
     fn record_success(&mut self, range: &std::ops::RangeInclusive<u32>) -> bool {
         let recovered = self
             .failed_range
@@ -388,6 +397,13 @@ where
                 // forward work is not held behind a long backward-range backoff.
                 sleep(remaining_delay.min(SLEEP_DURATION)).await;
                 continue;
+            }
+
+            if fetch_backoff.retry_eligible(&range) {
+                // Backoff for this range has expired: clear the stale scheduled
+                // delay before the retry runs. Disjoint forward work leaves the
+                // gauge untouched.
+                fetch_backoff_metric.set(0);
             }
 
             let logs = match indexer.fetch_logs_in_range(range.clone()).await {
@@ -972,6 +988,113 @@ mod tests {
         assert_eq!(backoff.failed_range, Some(7..=15));
         assert!(backoff.record_success(&(10..=20)));
         assert_eq!(backoff.failed_range, None);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn expired_backoff_is_eligible_for_overlapping_range_only() {
+        let mut backoff = FetchRetryBackoff::default();
+        let failed_range = 7..=9;
+        let forward_range = 10..=12;
+
+        assert_eq!(
+            backoff.record_failure(failed_range.clone()),
+            Duration::from_secs(5)
+        );
+        assert!(!backoff.retry_eligible(&failed_range));
+        assert!(!backoff.retry_eligible(&forward_range));
+
+        tokio::time::advance(Duration::from_secs(5)).await;
+        assert!(backoff.retry_eligible(&failed_range));
+        assert!(backoff.retry_eligible(&(7..=12)));
+        assert!(!backoff.retry_eligible(&forward_range));
+    }
+
+    #[derive(Clone, Debug)]
+    struct FailOnceThenGatedIndexer {
+        calls: StdArc<AtomicUsize>,
+        release: StdArc<tokio::sync::Notify>,
+    }
+
+    #[async_trait]
+    impl Indexer<HyperlaneMessage> for FailOnceThenGatedIndexer {
+        async fn fetch_logs_in_range(
+            &self,
+            _range: RangeInclusive<u32>,
+        ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+            let call = self.calls.fetch_add(1, Ordering::SeqCst);
+            if call == 0 {
+                return Err(ChainCommunicationError::from_other_str(
+                    "mock range fetch failed",
+                ));
+            }
+            self.release.notified().await;
+            Ok(Vec::new())
+        }
+
+        async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+            Err(ChainCommunicationError::from_other_str(
+                "mock indexer does not fetch finalized blocks",
+            ))
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn expired_backoff_resets_gauge_before_retry_completes() {
+        let calls = StdArc::new(AtomicUsize::new(0));
+        let updates = StdArc::new(AtomicUsize::new(0));
+        let retries = fetch_retries_metric();
+        let delay = fetch_backoff_metric();
+        let release = StdArc::new(tokio::sync::Notify::new());
+        let task = tokio::spawn(ContractSync::<
+            HyperlaneMessage,
+            StoreResult,
+            FailOnceThenGatedIndexer,
+        >::cursor_indexer_task(
+            test_domain(),
+            FailOnceThenGatedIndexer {
+                calls: calls.clone(),
+                release: release.clone(),
+            },
+            Arc::new(Mutex::new(StoreResult {
+                stored: 0,
+                error: None,
+                calls: None,
+            })),
+            Box::new(ScriptedCursor {
+                ranges: VecDeque::new(),
+                repeat_range: 7..=9,
+                updates: updates.clone(),
+            }),
+            None,
+            stored_logs_metric(),
+            indexed_height_metric(),
+            liveness_metric(),
+            retries.clone(),
+            delay.clone(),
+        ));
+
+        run_pending_tasks().await;
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(updates.load(Ordering::SeqCst), 0);
+        assert_eq!(retries.get(), 1);
+        assert_eq!(delay.get(), 5);
+
+        // Expire the backoff; the retry starts but stays gated, so the gauge
+        // must already read zero before the retry completes.
+        tokio::time::advance(Duration::from_secs(5)).await;
+        run_pending_tasks().await;
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert_eq!(updates.load(Ordering::SeqCst), 0);
+        assert_eq!(delay.get(), 0);
+
+        release.notify_one();
+        run_pending_tasks().await;
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert_eq!(updates.load(Ordering::SeqCst), 1);
+        assert_eq!(delay.get(), 0);
+
+        task.abort();
+        let _ = task.await;
     }
 }
 
