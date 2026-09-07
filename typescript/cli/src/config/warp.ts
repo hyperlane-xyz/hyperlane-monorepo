@@ -8,7 +8,7 @@ import {
   type DeployableTokenType,
   type DeployedOwnableConfig,
   HypERC20Deployer,
-  type HypTokenRouterConfig,
+  type HypTokenRouterConfigMailboxOptional,
   type IsmConfig,
   IsmType,
   type MailboxClientConfig,
@@ -25,6 +25,7 @@ import {
 import {
   type Address,
   assert,
+  objFilter,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
@@ -104,12 +105,12 @@ const TYPE_CHOICES = Object.values(TokenType)
     description: TYPE_DESCRIPTIONS[type],
   }));
 
-export async function fillDefaults(
+export async function fillDefaults<T extends Partial<MailboxClientConfig>>(
   context: CommandContext,
-  config: ChainMap<Partial<MailboxClientConfig>>,
-): Promise<ChainMap<MailboxClientConfig>> {
+  config: ChainMap<T>,
+): Promise<ChainMap<T & MailboxClientConfig>> {
   return promiseObjAll(
-    objMap(config, async (chain, config): Promise<MailboxClientConfig> => {
+    objMap(config, async (chain, config): Promise<T & MailboxClientConfig> => {
       let mailbox = config.mailbox;
       if (!mailbox) {
         const addresses = await context.registry.getChainAddresses(chain);
@@ -137,23 +138,27 @@ export async function readWarpRouteDeployConfig({
   | {
       context: CommandContext;
       warpRouteId: string;
+      skipChains?: readonly string[];
     }
   | {
       context: CommandContext;
       filePath: string;
-    }): Promise<WarpRouteDeployConfigMailboxRequired> {
-  let config =
+      skipChains?: readonly string[];
+    }): Promise<{
+  config: WarpRouteDeployConfigMailboxRequired;
+  referenceConfig: WarpRouteDeployConfig;
+}> {
+  const config: WarpRouteDeployConfig | null | undefined =
     'filePath' in args
       ? readYamlOrJson(args.filePath)
       : await context.registry.getWarpDeployConfig(args.warpRouteId);
 
   assert(config, `No warp route deploy config found!`);
-
-  config = await fillDefaults(context, config as any);
-
-  config = objMap(
-    config as any,
-    (_chain, chainConfig: HypTokenRouterConfig) => {
+  const skippedChains = new Set(args.skipChains ?? context.skipChains ?? []);
+  const normalizedConfig = objMap(
+    config,
+    (_chain, rawChainConfig: HypTokenRouterConfigMailboxOptional) => {
+      const chainConfig = { ...rawChainConfig };
       if (chainConfig.destinationGas) {
         chainConfig.destinationGas = resolveRouterMapConfig(
           context.multiProvider,
@@ -183,8 +188,27 @@ export async function readWarpRouteDeployConfig({
     },
   );
 
-  //fillDefaults would have added a mailbox to the config if it was missing
-  return WarpRouteDeployConfigMailboxRequiredSchema.parse(config);
+  // Resolve defaults only for active legs. Skipped legs may be unavailable and
+  // must not require chain addresses or a signer merely to preserve their raw
+  // registry config.
+  const activeConfigWithoutDefaults = objFilter(
+    normalizedConfig,
+    (chain, _config): _config is HypTokenRouterConfigMailboxOptional =>
+      !skippedChains.has(chain),
+  );
+  assert(
+    Object.keys(activeConfigWithoutDefaults).length !== 0,
+    'Cannot skip every chain in the warp route',
+  );
+  const activeConfig = WarpRouteDeployConfigMailboxRequiredSchema.parse(
+    await fillDefaults(context, activeConfigWithoutDefaults),
+  );
+  const referenceConfig = WarpRouteDeployConfigSchema.parse({
+    ...normalizedConfig,
+    ...activeConfig,
+  });
+
+  return { config: activeConfig, referenceConfig };
 }
 
 export function isValidWarpRouteDeployConfig(config: unknown) {

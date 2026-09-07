@@ -418,6 +418,7 @@ export function completeHybridHookNodesFromIsm(
 export async function expandWarpDeployConfig(params: {
   multiProvider: MultiProvider;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  referenceWarpDeployConfig?: WarpRouteDeployConfig;
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
   validateScale?: boolean;
@@ -425,6 +426,7 @@ export async function expandWarpDeployConfig(params: {
   const {
     multiProvider,
     warpDeployConfig,
+    referenceWarpDeployConfig = warpDeployConfig,
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
     validateScale = true,
@@ -439,12 +441,15 @@ export async function expandWarpDeployConfig(params: {
   // If the token is on an EVM chain check if it is deployed as a proxy
   // to expand the proxy config too
   const isDeployedAsProxyByChain = await promiseObjAll(
-    objMap(deployedRoutersAddresses, async (chain, address) => {
+    objMap(warpDeployConfig, async (chain) => {
       if (!isEVMLike(multiProvider.getProtocol(chain))) {
         return false;
       }
 
-      return isProxy(multiProvider.getProvider(chain), address);
+      const deployedRouter = deployedRoutersAddresses[chain];
+      return deployedRouter
+        ? isProxy(multiProvider.getProvider(chain), deployedRouter)
+        : false;
     }),
   );
 
@@ -455,7 +460,7 @@ export async function expandWarpDeployConfig(params: {
           multiProvider,
           chain,
           deployedRoutersAddresses,
-          warpDeployConfig,
+          referenceWarpDeployConfig,
         );
 
       const chainConfig: WarpRouteDeployConfigMailboxRequired[string] &

@@ -72,6 +72,7 @@ import {
   HypTokenRouterVirtualConfig,
   OwnerStatus,
   TokenMetadata,
+  WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   assertTimelockConfigHasNoProxyAdminOwnerOverride,
   derivedHookAddress,
@@ -708,12 +709,16 @@ export function applyAcceptedInactiveOwnerStatus({
 export async function checkWarpRouteDeployConfig({
   multiProvider,
   warpCoreConfig,
+  referenceWarpCoreConfig = warpCoreConfig,
   warpDeployConfig,
+  referenceWarpDeployConfig = warpDeployConfig,
   acceptedInactiveOwners,
 }: {
   multiProvider: MultiProvider;
   warpCoreConfig: WarpCoreConfig;
+  referenceWarpCoreConfig?: WarpCoreConfig;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  referenceWarpDeployConfig?: WarpRouteDeployConfig;
   // Owners the caller has decided to accept in an Inactive on-chain state
   // (e.g. a nonce-less governance ICA on Tron/AltVM that a multisig controls).
   // The caller owns the decision — including deriving and verifying the ICA and
@@ -746,7 +751,7 @@ export async function checkWarpRouteDeployConfig({
     'Warp route check requires at least one EVM or supported altVM chain in the selected route config',
   );
   const deployedRoutersAddresses = objFilter(
-    getRouterAddressesFromWarpCoreConfig(warpCoreConfig),
+    getRouterAddressesFromWarpCoreConfig(referenceWarpCoreConfig),
     (chain, _address): _address is Address =>
       multiProvider.tryGetProtocol(chain) !== null,
   );
@@ -827,6 +832,7 @@ export async function checkWarpRouteDeployConfig({
   const expandedWarpDeployConfig = await expandWarpDeployConfig({
     multiProvider,
     warpDeployConfig: metadataSeededWarpDeployConfig,
+    referenceWarpDeployConfig,
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
     validateScale: false,

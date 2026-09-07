@@ -14,6 +14,7 @@ import type {
   MultiProtocolProvider,
   MultiProvider,
   WarpCoreConfig,
+  WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -57,8 +58,13 @@ export interface CommandContext extends Omit<
   supportedProtocols: ProtocolType[];
   skipConfirmation: boolean;
   warpCoreConfig?: WarpCoreConfig;
+  referenceWarpCoreConfig?: WarpCoreConfig;
   warpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
+  referenceWarpDeployConfig?: WarpRouteDeployConfig;
   resolvedWarpRouteId?: string;
+  skipChains?: string[];
+  chains?: string[];
+  apiKeys?: ChainMap<string>;
   altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
 }
 
