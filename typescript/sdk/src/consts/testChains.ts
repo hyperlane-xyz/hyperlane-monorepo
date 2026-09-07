@@ -237,6 +237,7 @@ export const ethereumTestChain: ChainMetadata = {
   },
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
+    { http: 'https://rpc.mevblocker.io' },
     { http: 'https://ethereum-rpc.publicnode.com' },
     { http: 'https://eth.llamarpc.com' },
     { http: 'https://1rpc.io/eth' },
