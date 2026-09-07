@@ -287,12 +287,17 @@ abstract contract AbstractWormholeHookIsm is
     /// @dev Clears Wormhole policy, the reverse index, and variant config
     /// before removing the router itself.
     function _unenrollRemoteRouter(uint32 domain) internal override {
-        _mustHaveRemoteRouter(domain);
+        bytes32 domainIsm = _mustHaveRemoteRouter(domain);
         RemoteRouterConfig memory config = remoteRouterConfigs[domain];
         delete hyperlaneDomainPlusOne[config.wormholeChainId];
         delete remoteRouterConfigs[domain];
         _AbstractWormholeHookIsm_onRemoteRouterUnenrolled(domain);
         Router._unenrollRemoteRouter(domain);
+        emit WormholeRemoteRouterUnenrolled(
+            domain,
+            domainIsm,
+            config.wormholeChainId
+        );
     }
 
     function _mustHaveRemoteRouterConfig(

@@ -463,6 +463,49 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
         _dispatchOnly();
     }
 
+    function test_unenroll_emitsRouteIdentity() public {
+        vm.expectEmit(true, true, false, true, address(originRouter));
+        emit IWormholeHookIsm.WormholeRemoteRouterUnenrolled(
+            DESTINATION,
+            address(destinationRouter).addressToBytes32(),
+            WH_DESTINATION
+        );
+
+        originRouter.unenrollRemoteRouter(DESTINATION);
+    }
+
+    function test_batchUnenroll_emitsEachRouteIdentity() public {
+        uint32 secondDomain = 3000;
+        uint16 secondWormholeChainId = 77;
+        address secondRemote = makeAddr("secondRouter");
+        bytes32 secondDomainIsm = secondRemote.addressToBytes32();
+        _enroll(
+            originRouter,
+            secondDomain,
+            secondRemote,
+            secondWormholeChainId
+        );
+
+        uint32[] memory domains = new uint32[](2);
+        domains[0] = DESTINATION;
+        domains[1] = secondDomain;
+
+        vm.expectEmit(true, true, false, true, address(originRouter));
+        emit IWormholeHookIsm.WormholeRemoteRouterUnenrolled(
+            DESTINATION,
+            address(destinationRouter).addressToBytes32(),
+            WH_DESTINATION
+        );
+        vm.expectEmit(true, true, false, true, address(originRouter));
+        emit IWormholeHookIsm.WormholeRemoteRouterUnenrolled(
+            secondDomain,
+            secondDomainIsm,
+            secondWormholeChainId
+        );
+
+        originRouter.unenrollRemoteRouters(domains);
+    }
+
     function test_unenroll_thenReenrollWithDifferentWormholeId() public {
         originRouter.unenrollRemoteRouter(DESTINATION);
         _enroll(originRouter, DESTINATION, address(destinationRouter), 77);

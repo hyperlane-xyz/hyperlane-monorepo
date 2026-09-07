@@ -30,6 +30,13 @@ interface IWormholeHookIsm {
         uint8 expectedConsistencyLevel
     );
 
+    /// @notice Emitted after a remote router and its policy are removed.
+    event WormholeRemoteRouterUnenrolled(
+        uint32 indexed domain,
+        bytes32 indexed domainIsm,
+        uint16 wormholeChainId
+    );
+
     /// @notice Correlates a Hyperlane message with its Wormhole publication.
     event WormholeMessagePublished(
         bytes32 indexed messageId,
