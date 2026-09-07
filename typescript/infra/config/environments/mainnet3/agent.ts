@@ -620,7 +620,7 @@ const relayerResources = {
 const fastPathRelayerResources = {
   requests: {
     cpu: '2000m',
-    memory: '3G',
+    memory: '4Gi',
   },
 };
 
