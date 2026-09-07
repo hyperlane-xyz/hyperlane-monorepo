@@ -4,7 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use reqwest::header::{HeaderValue, AUTHORIZATION};
+use reqwest::header::{HeaderValue, AUTHORIZATION, CONTENT_LENGTH};
 use reqwest::Client as ReqwestClient;
 use reqwest_utils::parse_custom_rpc_headers;
 use serde::de::DeserializeOwned;
@@ -194,8 +194,12 @@ impl JWTBaseHttpClient {
         let response = self
             .client
             .post(&self.auth_url)
+            // Provable requires Content-Length even for an empty JWT request.
+            .header(CONTENT_LENGTH, "0")
             .send()
             .await
+            .map_err(HyperlaneAleoError::from)?
+            .error_for_status()
             .map_err(HyperlaneAleoError::from)?;
         let result = response
             .headers()
@@ -329,7 +333,60 @@ mod tests {
     use serde_json::{json, Value};
     use url::Url;
 
-    use super::{append_network, append_path, BaseHttpClient, HttpClient};
+    use super::{append_network, append_path, BaseHttpClient, HttpClient, JWTBaseHttpClient};
+
+    fn auth_server(response: &'static [u8]) -> (JWTBaseHttpClient, thread::JoinHandle<String>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind auth server");
+        let address = listener.local_addr().expect("auth server address");
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept auth request");
+            stream
+                .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                .expect("set read timeout");
+            let mut request = Vec::new();
+            while !request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
+                let mut buffer = [0; 1024];
+                let length = stream.read(&mut buffer).expect("read auth request");
+                assert!(length > 0, "request ended before its headers");
+                request.extend_from_slice(&buffer[..length]);
+            }
+            stream.write_all(response).expect("respond to auth request");
+            String::from_utf8(request).expect("HTTP headers are UTF-8")
+        });
+        let mut url = Url::parse(&format!("http://{address}/prove")).expect("proving URL");
+        url.query_pairs_mut().append_pair(
+            "custom_rpc_header",
+            &format!("x-auth-url:http://{address}/jwt"),
+        );
+        (JWTBaseHttpClient::new(url, 0).expect("JWT client"), server)
+    }
+
+    #[tokio::test]
+    async fn jwt_request_sends_explicit_zero_content_length() {
+        let (client, server) = auth_server(
+            b"HTTP/1.1 201 Created\r\nAuthorization: Bearer test-token\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        );
+        let token = client.get_auth_token().await.expect("get JWT");
+        assert_eq!(token, "Bearer test-token");
+        let request = server.join().expect("auth server joined");
+        assert!(request.starts_with("POST /jwt HTTP/1.1\r\n"));
+        assert!(request
+            .to_ascii_lowercase()
+            .contains("\r\ncontent-length: 0\r\n"));
+    }
+
+    #[tokio::test]
+    async fn jwt_request_preserves_http_error_status() {
+        let (client, server) = auth_server(
+            b"HTTP/1.1 411 Length Required\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        );
+        let error = client.get_auth_token().await.expect_err("JWT should fail");
+        assert!(
+            error.to_string().contains("411"),
+            "HTTP status must be preserved: {error}"
+        );
+        server.join().expect("auth server joined");
+    }
 
     #[test]
     fn appends_and_encodes_path_segments() {
