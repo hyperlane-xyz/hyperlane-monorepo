@@ -4,17 +4,15 @@ import {
 } from '@hyperlane-xyz/http-registry-server';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { assert } from '@hyperlane-xyz/utils';
-import { z } from 'zod';
 
 import { getRegistry as getMainnet3Registry } from '../config/environments/mainnet3/chains.js';
 import { getRegistry as getTestnet4Registry } from '../config/environments/testnet4/chains.js';
 import { resetRegistry } from '../config/registry.js';
 import { assertEnvironment } from '../src/config/deploy-environment.js';
 import {
-  TURNKEY_ROLE_PROTOCOL,
   TURNKEY_SIGNER_PROTOCOLS,
-  TurnkeyRole,
   getTurnkeyRolesForProtocol,
+  signerConfigSchema,
 } from '../src/roles.js';
 import {
   TurnkeyTransactionSignerBackend,
@@ -46,21 +44,7 @@ async function main() {
   } = await args.argv;
 
   const environment = assertEnvironment(rawEnvironment);
-  const signer = z
-    .record(z.enum(TURNKEY_SIGNER_PROTOCOLS), z.nativeEnum(TurnkeyRole))
-    .superRefine((config, context) => {
-      for (const protocol of TURNKEY_SIGNER_PROTOCOLS) {
-        const role = config[protocol];
-        if (role && TURNKEY_ROLE_PROTOCOL[role] !== protocol) {
-          context.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [protocol],
-            message: `${role} is not a ${protocol} Turnkey role`,
-          });
-        }
-      }
-    })
-    .parse(rawSigner ?? {});
+  const signer = signerConfigSchema.parse(rawSigner ?? {});
 
   const environmentToRegistry: Record<string, () => Promise<IRegistry>> = {
     mainnet3: getMainnet3Registry,
