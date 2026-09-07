@@ -99,9 +99,6 @@ mod tests {
             .await?;
         // Seed the scope/FK chain so two deliveries share one scope.
         db.execute_unprepared(
-            "INSERT INTO domain (id, time_updated, name, native_token, is_test_net, is_deprecated) VALUES (1, now(), 'test', 'TEST', false, false)"
-        ).await?;
-        db.execute_unprepared(
             "INSERT INTO block (domain, hash, height, timestamp) VALUES (1, decode(repeat('02',32),'hex'), 1, now())"
         ).await?;
         db.execute_unprepared(
