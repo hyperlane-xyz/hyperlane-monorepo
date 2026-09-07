@@ -294,7 +294,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
           .int()
           .optional()
           .describe(
-            'The absolute starting block, or a negative offset from the current tip, from which to index events.',
+            'The absolute block or sequence to start indexing from. Negative values are offsets from the current tip in the selected index mode unit.',
           ),
         chunk: ZNzUint.optional().describe(
           'The number of blocks to index at a time.',
