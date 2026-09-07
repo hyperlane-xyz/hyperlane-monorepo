@@ -1,16 +1,17 @@
 # Configure a Hyperlane Validator
 # Replaces https://docs.hyperlane.xyz/docs/operate/validators/run-validators
-module "your_validator_name" {
+module "validator" {
   source = "./modules/validator"
 
-  validator_name    = "your-validator-name"
-  origin_chain_name = "originChainName"
+  validator_name    = var.validator_name
+  origin_chain_name = var.origin_chain_name
 
   aws_region               = var.aws_region
   validator_cluster_id     = aws_ecs_cluster.validator_cluster.id
   validator_subnet_id      = aws_subnet.validator_subnet.id
   validator_sg_id          = aws_security_group.validator_sg.id
   validator_nat_gateway_id = aws_nat_gateway.validator_nat_gateway.id
+  validator_task_disabled  = var.validator_task_disabled
 
   # Disabling the validator task allows you to set up all the required infrastructure
   # without running the actual validator yet. This is useful when setting up a validator for
