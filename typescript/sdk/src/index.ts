@@ -527,6 +527,17 @@ export {
   InterchainQueryConfig,
   InterchainQueryDeployer,
 } from './middleware/query/InterchainQueryDeployer.js';
+export {
+  HttpMethod as Web2HttpMethod,
+  MessageType as Web2MessageType,
+  Web2RequestParams,
+  Web2Request,
+  Web2Response,
+  Web2IsmMetadataConfig,
+  Web2KeeperConfig,
+  Web2Message,
+  Web2Keeper,
+} from './middleware/web2/index.js';
 export { isBlockExplorerHealthy } from './providers/explorerHealthTest.js';
 export {
   MultiProtocolProvider,
