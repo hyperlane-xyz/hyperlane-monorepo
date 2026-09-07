@@ -142,6 +142,26 @@ jobs:
         run: |
           sh -c "$(curl -sSfL https://release.anza.xyz/v3.0.14/install)"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+      # cargo-build-sbf keeps its pinned toolchain outside Cargo's target cache.
+      - name: Cache SBF platform tools
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/solana
+          key: sbf-platform-tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust/main/utils/run-locally/src/sealevel/solana.rs') }}
+      - name: Install SBF platform tools
+        run: |
+          for attempt in 1 2 3; do
+            if cargo build-sbf --install-only; then
+              exit 0
+            fi
+            if [[ "$attempt" == "3" ]]; then
+              echo "Failed to install SBF platform tools after $attempt attempts"
+              exit 1
+            fi
+            echo "SBF platform-tools download failed; retrying in $((attempt * 10)) seconds"
+            sleep $((attempt * 10))
+          done
+        working-directory: ./rust/sealevel
       - name: Run tests for main workspace
         run: cargo test --all-targets --features aleo,integration_test
         working-directory: ./rust/main
