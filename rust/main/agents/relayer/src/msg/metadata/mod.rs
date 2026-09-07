@@ -14,5 +14,7 @@ pub(crate) use base::{
     MetadataBuilder,
 };
 #[allow(unused_imports)]
-pub(crate) use base_builder::{BaseMetadataBuilder, BuildsBaseMetadata, IsmBuildMetricsParams};
+pub(crate) use base_builder::{
+    BaseMetadataBuilder, BuildsBaseMetadata, CheckpointSyncerPool, IsmBuildMetricsParams,
+};
 pub(crate) use message_builder::MessageMetadataBuilder;
