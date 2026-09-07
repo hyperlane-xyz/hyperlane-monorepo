@@ -211,6 +211,72 @@ describe('ExplorerClient', () => {
     });
   });
 
+  describe('getMessagesByOriginTransactions', () => {
+    it('encodes hex and base58 hashes and filters exact domain/hash pairs', async () => {
+      const getProtocol = Sinon.stub().returns(ProtocolType.Ethereum);
+      const client = new ExplorerClient('https://explorer.test', getProtocol);
+      const base58TxHash = '11111111111111111111111111111111';
+      const evmTxHash = `0x${'aa'.repeat(32)}`;
+      const row = {
+        msg_id: `\\x${'11'.repeat(32)}`,
+        origin_domain_id: 1399811149,
+        destination_domain_id: 1,
+        sender: '\\x01',
+        recipient: '\\x02',
+        origin_tx_hash: `\\x${'00'.repeat(32)}`,
+        origin_tx_sender: '\\x03',
+        origin_tx_recipient: '\\x04',
+        is_delivered: true,
+        message_body: '\\x05',
+        send_occurred_at: null,
+      };
+      fetchStub.resolves(
+        new Response(
+          JSON.stringify({
+            data: {
+              message_view: [
+                row,
+                {
+                  ...row,
+                  msg_id: `\\x${'22'.repeat(32)}`,
+                  origin_domain_id: 1,
+                  origin_tx_hash: `\\x${'aa'.repeat(32)}`,
+                },
+                {
+                  ...row,
+                  msg_id: `\\x${'33'.repeat(32)}`,
+                  origin_domain_id: 1,
+                },
+              ],
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+
+      const messages = await client.getMessagesByOriginTransactions(
+        {
+          transactions: [
+            { originDomain: 1399811149, txHash: base58TxHash },
+            { originDomain: 1, txHash: evmTxHash },
+          ],
+        },
+        testLogger,
+      );
+
+      const body = JSON.parse(fetchStub.firstCall.args[1].body);
+      expect(body.variables.originTxHashes).to.have.members([
+        `\\x${'00'.repeat(32)}`,
+        `\\x${'aa'.repeat(32)}`,
+      ]);
+      expect(body.query).not.to.include('is_delivered: {');
+      expect(messages.map(({ msg_id }) => msg_id)).to.deep.equal([
+        `0x${'11'.repeat(32)}`,
+        `0x${'22'.repeat(32)}`,
+      ]);
+    });
+  });
+
   describe('hasUndeliveredRebalance post-query validation', () => {
     it('validates non-EVM router addresses correctly in post-query filter', async () => {
       const solAddr = 'E5rVV8zXwtc4TKGypCJvSBaYbgxa4XaYg5MS6N9QGdeo';
