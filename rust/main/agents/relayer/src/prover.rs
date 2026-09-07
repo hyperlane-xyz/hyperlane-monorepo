@@ -7,7 +7,7 @@ use hyperlane_core::accumulator::{
     TREE_DEPTH,
 };
 use hyperlane_core::H256;
-use tracing::{error, instrument};
+use tracing::instrument;
 
 /// A depth-32 sparse Merkle tree capable of producing proofs for arbitrary
 /// elements.

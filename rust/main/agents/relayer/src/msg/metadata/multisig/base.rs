@@ -3,13 +3,12 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use derive_more::{AsRef, Deref};
 use derive_new::new;
-use ethers::abi::Token;
 
 use eyre::Result;
 use hyperlane_base::cache::FunctionCallCache;
 use hyperlane_base::settings::CheckpointSyncerBuildError;
 use hyperlane_base::MultisigCheckpointSyncer;
-use hyperlane_core::accumulator::merkle::Proof;
+use hyperlane_core::accumulator::{merkle::Proof, TREE_DEPTH};
 use hyperlane_core::{
     HyperlaneMessage, Metadata, ModuleType, MultisigIsm, MultisigSignedCheckpoint, H256,
 };
@@ -28,6 +27,56 @@ pub struct MultisigMetadata {
     merkle_leaf_index: u32,
     // optional because it's only used for MerkleRootMultisig
     proof: Option<Proof>,
+}
+
+impl MultisigMetadata {
+    fn format(&self, layout: &[MetadataToken]) -> Vec<u8> {
+        const SIGNATURE_LENGTH: usize = 65;
+        let size = layout.iter().fold(0usize, |size, token| {
+            size.saturating_add(match token {
+                MetadataToken::CheckpointMerkleRoot
+                | MetadataToken::CheckpointMerkleTreeHook
+                | MetadataToken::MessageId => H256::len_bytes(),
+                MetadataToken::MessageMerkleLeafIndex | MetadataToken::CheckpointIndex => {
+                    std::mem::size_of::<u32>()
+                }
+                MetadataToken::MerkleProof => TREE_DEPTH.saturating_mul(H256::len_bytes()),
+                MetadataToken::Signatures => self.signatures.len().saturating_mul(SIGNATURE_LENGTH),
+            })
+        });
+        let mut output = Vec::with_capacity(size);
+        for token in layout {
+            match token {
+                MetadataToken::CheckpointMerkleRoot => {
+                    output.extend_from_slice(self.checkpoint.root.as_bytes());
+                }
+                MetadataToken::MessageMerkleLeafIndex => {
+                    output.extend_from_slice(&self.merkle_leaf_index.to_be_bytes());
+                }
+                MetadataToken::CheckpointIndex => {
+                    output.extend_from_slice(&self.checkpoint.index.to_be_bytes());
+                }
+                MetadataToken::CheckpointMerkleTreeHook => {
+                    output.extend_from_slice(self.checkpoint.merkle_tree_hook_address.as_bytes());
+                }
+                MetadataToken::MessageId => {
+                    output.extend_from_slice(self.checkpoint.message_id.as_bytes());
+                }
+                MetadataToken::MerkleProof => {
+                    // ABI bytes32 values are already one word each: no offset, length or padding.
+                    for sibling in &self.proof.as_ref().expect("Metadata is missing proof").path {
+                        output.extend_from_slice(sibling.as_bytes());
+                    }
+                }
+                MetadataToken::Signatures => {
+                    for signature in &self.signatures {
+                        output.extend_from_slice(&<[u8; SIGNATURE_LENGTH]>::from(signature));
+                    }
+                }
+            }
+        }
+        output
+    }
 }
 
 #[derive(Debug, Display, PartialEq, Eq, Clone)]
@@ -55,48 +104,10 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>, MetadataBuildError>;
 
-    fn token_layout(&self) -> Vec<MetadataToken>;
+    fn token_layout(&self) -> &'static [MetadataToken];
 
     fn format_metadata(&self, metadata: MultisigMetadata) -> Result<Vec<u8>> {
-        let build_token = |token: &MetadataToken| -> Result<Vec<u8>> {
-            match token {
-                MetadataToken::CheckpointMerkleRoot => {
-                    Ok(metadata.checkpoint.root.to_fixed_bytes().into())
-                }
-                MetadataToken::MessageMerkleLeafIndex => {
-                    Ok(metadata.merkle_leaf_index.to_be_bytes().into())
-                }
-                MetadataToken::CheckpointIndex => {
-                    Ok(metadata.checkpoint.index.to_be_bytes().into())
-                }
-                MetadataToken::CheckpointMerkleTreeHook => Ok(metadata
-                    .checkpoint
-                    .merkle_tree_hook_address
-                    .to_fixed_bytes()
-                    .into()),
-                MetadataToken::MessageId => {
-                    Ok(metadata.checkpoint.message_id.to_fixed_bytes().into())
-                }
-                MetadataToken::MerkleProof => {
-                    let proof_tokens: Vec<Token> = metadata
-                        .proof
-                        .expect("Metadata is missing proof")
-                        .path
-                        .iter()
-                        .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
-                        .collect();
-                    Ok(ethers::abi::encode(&proof_tokens))
-                }
-                MetadataToken::Signatures => Ok(metadata
-                    .signatures
-                    .iter()
-                    .map(|x| x.to_vec())
-                    .collect::<Vec<_>>()
-                    .concat()),
-            }
-        };
-        let metas: Result<Vec<Vec<u8>>> = self.token_layout().iter().map(build_token).collect();
-        Ok(metas?.into_iter().flatten().collect())
+        Ok(metadata.format(self.token_layout()))
     }
 
     /// Returns the validators and threshold for the given multisig ISM.
@@ -308,4 +319,109 @@ pub(crate) async fn build_from_known_validators<T: MultisigIsmMetadataBuilder>(
         .base_builder()
         .update_ism_metric(ism_build_metrics_params);
     res
+}
+
+#[cfg(test)]
+mod tests {
+    use ethers::abi::{encode, Token};
+    use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Signature, U256};
+
+    use super::*;
+
+    // Retain the prior ABI-based encoder as an independent byte-layout oracle.
+    fn legacy_format(metadata: &MultisigMetadata, layout: &[MetadataToken]) -> Vec<u8> {
+        let fields: Vec<Vec<u8>> = layout
+            .iter()
+            .map(|token| match token {
+                MetadataToken::CheckpointMerkleRoot => metadata.checkpoint.root.as_bytes().to_vec(),
+                MetadataToken::CheckpointIndex => metadata.checkpoint.index.to_be_bytes().to_vec(),
+                MetadataToken::CheckpointMerkleTreeHook => metadata
+                    .checkpoint
+                    .merkle_tree_hook_address
+                    .as_bytes()
+                    .to_vec(),
+                MetadataToken::MessageId => metadata.checkpoint.message_id.as_bytes().to_vec(),
+                MetadataToken::MerkleProof => encode(
+                    &metadata
+                        .proof
+                        .expect("Merkle proof fixture")
+                        .path
+                        .iter()
+                        .map(|hash| Token::FixedBytes(hash.as_bytes().to_vec()))
+                        .collect::<Vec<_>>(),
+                ),
+                MetadataToken::MessageMerkleLeafIndex => {
+                    metadata.merkle_leaf_index.to_be_bytes().to_vec()
+                }
+                MetadataToken::Signatures => metadata
+                    .signatures
+                    .iter()
+                    .map(|signature| signature.to_vec())
+                    .collect::<Vec<_>>()
+                    .concat(),
+            })
+            .collect();
+        fields.into_iter().flatten().collect()
+    }
+
+    #[test]
+    fn packed_multisig_metadata_matches_legacy_abi_encoder() {
+        let message_id_layout = [
+            MetadataToken::CheckpointMerkleTreeHook,
+            MetadataToken::CheckpointMerkleRoot,
+            MetadataToken::CheckpointIndex,
+            MetadataToken::Signatures,
+        ];
+        let merkle_root_layout = [
+            MetadataToken::CheckpointMerkleTreeHook,
+            MetadataToken::MessageMerkleLeafIndex,
+            MetadataToken::MessageId,
+            MetadataToken::MerkleProof,
+            MetadataToken::CheckpointIndex,
+            MetadataToken::Signatures,
+        ];
+        for count in [0_u32, 1, 3, 50] {
+            for index in [0, 1, u32::MAX] {
+                for v in [0, 1, 27, 28, 255, 256, u64::MAX] {
+                    let mut metadata = MultisigMetadata::new(
+                        MultisigSignedCheckpoint {
+                            checkpoint: CheckpointWithMessageId {
+                                checkpoint: Checkpoint {
+                                    merkle_tree_hook_address: H256::repeat_byte(0x12),
+                                    mailbox_domain: 7,
+                                    root: H256::repeat_byte(0x34),
+                                    index,
+                                },
+                                message_id: H256::repeat_byte(0x56),
+                            },
+                            signatures: (0..count)
+                                .map(|i| Signature {
+                                    r: U256::from(i),
+                                    s: U256::max_value().saturating_sub(U256::from(i)),
+                                    v,
+                                })
+                                .collect(),
+                        },
+                        index.saturating_sub(1),
+                        None,
+                    );
+                    assert_eq!(
+                        metadata.format(&message_id_layout),
+                        legacy_format(&metadata, &message_id_layout)
+                    );
+                    metadata.proof = Some(Proof {
+                        leaf: H256::repeat_byte(0x78),
+                        index: 9,
+                        path: std::array::from_fn(|i| {
+                            H256::repeat_byte(u8::try_from(i).expect("proof depth fits u8"))
+                        }),
+                    });
+                    assert_eq!(
+                        metadata.format(&merkle_root_layout),
+                        legacy_format(&metadata, &merkle_root_layout)
+                    );
+                }
+            }
+        }
+    }
 }
