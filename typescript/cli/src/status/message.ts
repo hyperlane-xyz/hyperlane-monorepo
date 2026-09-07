@@ -44,6 +44,7 @@ export async function checkMessageStatus({
     coreAddresses,
     context.multiProvider,
   );
+  let relayCore = core;
 
   let dispatchedReceipt: TransactionReceipt;
 
@@ -92,6 +93,12 @@ export async function checkMessageStatus({
           strategyPath: context.strategyPath,
         },
         destinationChains,
+      );
+      // `core` was constructed before the destination chains were known, so
+      // rebuild the relaying view after lazy signer attachment.
+      relayCore = HyperlaneCore.fromAddressesMap(
+        coreAddresses,
+        context.multiProvider,
       );
     }
   }
@@ -146,9 +153,9 @@ export async function checkMessageStatus({
     }
 
     if (relayable.length > 0) {
-      const relayer = new HyperlaneRelayer({ core });
+      const relayer = new HyperlaneRelayer({ core: relayCore });
       for (const message of relayable) {
-        const hookAddress = await core.getSenderHookAddress(message);
+        const hookAddress = await relayCore.getSenderHookAddress(message);
         const merkleAddress = coreAddresses[origin].merkleTreeHook;
         stubMerkleTreeConfig(relayer, origin, hookAddress, merkleAddress);
       }
