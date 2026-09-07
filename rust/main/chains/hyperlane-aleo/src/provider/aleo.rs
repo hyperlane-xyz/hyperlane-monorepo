@@ -439,6 +439,16 @@ impl<C: AleoClient> AleoProvider<C> {
         V: TryInto<Value<N>>,
     {
         debug!("Creating ZK-Proof for: {}/{}", program_id, function_name);
+
+        // Check delegated prover availability before performing expensive local authorization.
+        // This keeps an auth or service outage from repeatedly consuming memory and CPU.
+        if let Some(client) = self.proving_service.as_ref() {
+            client.get_public_key().await.map_err(|error| {
+                warn!(%error, "Delegated proving preflight failed");
+                error
+            })?;
+        }
+
         // Prepare VM + Authorization for execution.
         let (authorization, program_id_parsed, function_name_parsed, private_key, mut rng) = self
             .prepare_authorization::<N, I, V>(program_id, function_name, input, vm)

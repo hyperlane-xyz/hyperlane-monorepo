@@ -198,7 +198,8 @@ impl JWTBaseHttpClient {
             .header(CONTENT_LENGTH, "0")
             .send()
             .await
-            .map_err(HyperlaneAleoError::from)?
+            .map_err(HyperlaneAleoError::from)?;
+        let response = response
             .error_for_status()
             .map_err(HyperlaneAleoError::from)?;
         let result = response
@@ -512,5 +513,21 @@ mod tests {
 
         assert_eq!(response, None);
         server.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn jwt_auth_sends_content_length_and_preserves_status_errors() {
+        let (client, server) = auth_server(
+            b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        );
+
+        let error = client.get_auth_token().await.expect_err("JWT should fail");
+
+        assert!(error.to_string().contains("429 Too Many Requests"));
+        assert!(server
+            .join()
+            .expect("auth server joined")
+            .to_ascii_lowercase()
+            .contains("\r\ncontent-length: 0\r\n"));
     }
 }
