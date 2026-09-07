@@ -410,6 +410,23 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
                 use_application_default,
             })
         }
+        Some("onchain") => {
+            let chain_name = syncer
+                .chain(&mut err)
+                .get_key("chainName")
+                .parse_string()
+                .end();
+            let contract_address = syncer
+                .chain(&mut err)
+                .get_key("contractAddress")
+                .parse_address_hash()
+                .end();
+            cfg_unwrap_all!(&syncer.cwp, err: [chain_name, contract_address]);
+            err.into_result(CheckpointSyncerConf::Onchain {
+                chain_name: chain_name.to_string(),
+                contract_address,
+            })
+        }
         Some(_) => Err(eyre!("Unknown checkpoint syncer type"))
             .into_config_result(|| (&syncer.cwp).add("type")),
         None => Err(err),
