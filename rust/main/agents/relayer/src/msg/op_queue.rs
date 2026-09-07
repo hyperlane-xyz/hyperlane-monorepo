@@ -4,7 +4,10 @@ use derive_new::new;
 use hyperlane_core::{PendingOperation, PendingOperationStatus, QueueOperation, ReprepareReason};
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{
-    sync::{broadcast::Receiver, Mutex, Notify},
+    sync::{
+        broadcast::{error::RecvError, Receiver},
+        Mutex, Notify,
+    },
     time::sleep_until,
 };
 use tracing::{instrument, trace};
@@ -123,20 +126,30 @@ impl OpQueue {
     pub async fn wait_for_ready(&mut self, deadline: Option<Instant>) {
         let notify = self.notify.clone();
         let retry_receiver = self.retry_receiver.clone();
-        let retry_request = async move { retry_receiver.lock().await.recv().await };
+        let retry_request = async move {
+            let result = {
+                let mut receiver = retry_receiver.lock().await;
+                receiver.recv().await
+            };
+            match result {
+                Ok(request) => Some(request),
+                Err(RecvError::Lagged(_)) => None,
+                Err(RecvError::Closed) => std::future::pending().await,
+            }
+        };
 
         let retry_request = match deadline {
             Some(deadline) => {
                 tokio::select! {
                     _ = notify.notified() => None,
                     _ = sleep_until(deadline.into()) => None,
-                    request = retry_request => request.ok(),
+                    request = retry_request => request,
                 }
             }
             None => {
                 tokio::select! {
                     _ = notify.notified() => None,
-                    request = retry_request => request.ok(),
+                    request = retry_request => request,
                 }
             }
         };

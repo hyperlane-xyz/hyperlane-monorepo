@@ -25,7 +25,9 @@ use crate::msg::db_loader::tests::DummyApplicationOperationVerifier;
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::pending_message::MessageContext;
 use crate::msg::QueueOperationBatch;
-use crate::relay_api::handlers::{RateLimiter, ServerState, TxHashCache};
+use crate::relay_api::handlers::{
+    RateLimiter, ServerState, TxHashCache, PROCESSOR_CAPACITY_TIMEOUT,
+};
 use crate::relay_api::metrics::RelayApiMetrics;
 use crate::settings::matching_list::MatchingList;
 use crate::test_utils::{
@@ -390,7 +392,7 @@ async fn test_saturated_processor_returns_503_without_partial_enqueue() {
     let status = send_relay(router.clone(), TX_HASH).await;
 
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
-    assert!(started.elapsed() < Duration::from_secs(1));
+    assert!(started.elapsed() < PROCESSOR_CAPACITY_TIMEOUT * 2);
     assert_eq!(rx.len(), 1, "failed request must not enqueue a batch");
     assert!(
         !cache.lock().contains("ethereum", TX_HASH),

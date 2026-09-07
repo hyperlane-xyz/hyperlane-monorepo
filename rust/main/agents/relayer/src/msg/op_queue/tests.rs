@@ -415,6 +415,47 @@ async fn ready_wait_wakes_for_manual_retry() {
 }
 
 #[tokio::test]
+async fn ready_wait_does_not_spin_when_retry_channel_closes() {
+    let broadcaster = sync::broadcast::Sender::new(10);
+    let mut waiting_queue = initialize_queue(&broadcaster);
+    let operation =
+        MockPendingOperation::new(60, KnownHyperlaneDomain::Base.into()).with_fixed_deadline();
+    waiting_queue
+        .queue
+        .lock()
+        .await
+        .push(Reverse(Box::new(operation) as QueueOperation));
+    let producer = waiting_queue.clone();
+    drop(broadcaster);
+
+    let waiter = tokio::spawn(async move {
+        let (batch, deadline) = waiting_queue.pop_many_ready(1).await;
+        assert!(batch.is_empty());
+        assert!(deadline.is_some_and(|deadline| deadline > Instant::now()));
+        waiting_queue.wait_for_ready(deadline).await;
+    });
+    tokio::task::yield_now().await;
+    assert!(
+        !waiter.is_finished(),
+        "closed retry channel must not bypass a future retry deadline"
+    );
+
+    producer
+        .push(
+            Box::new(MockPendingOperation::new(
+                0,
+                KnownHyperlaneDomain::Base.into(),
+            )),
+            Some(PendingOperationStatus::FirstPrepareAttempt),
+        )
+        .await;
+    tokio::time::timeout(Duration::from_secs(1), waiter)
+        .await
+        .expect("queue insertion must wake the wait")
+        .expect("wait task must not panic");
+}
+
+#[tokio::test]
 async fn capacity_wait_wakes_after_pop() {
     let broadcaster = sync::broadcast::Sender::new(10);
     let mut queue = initialize_queue(&broadcaster);

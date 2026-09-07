@@ -24,6 +24,8 @@ use crate::msg::{
 };
 use crate::relay_api::metrics::RelayApiMetrics;
 
+pub(super) const PROCESSOR_CAPACITY_TIMEOUT: Duration = Duration::from_millis(250);
+
 /// Bounded cache for tracking recently submitted tx hashes to prevent replay attacks
 pub enum TxHashCacheError {
     Duplicate,
@@ -833,7 +835,6 @@ async fn relay_work(
         });
     }
 
-    const PROCESSOR_CAPACITY_TIMEOUT: Duration = Duration::from_millis(250);
     let admission_started = Instant::now();
     let reserve_batches = async {
         let mut reserved_batches = Vec::with_capacity(batches.len());
