@@ -1,0 +1,17 @@
+[package]
+name = "cw-trie-verifier"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Merkle-Patricia Trie verification library for CosmWasm"
+
+[dependencies]
+cosmwasm-std = { workspace = true }
+sha3 = { workspace = true }
+hex = { workspace = true }
+rlp = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+cosmwasm-schema = { workspace = true }

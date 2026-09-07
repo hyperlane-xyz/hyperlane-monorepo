@@ -3,7 +3,8 @@
   "spec": [
     "./tests/**/CallCommitmentsService.test.ts",
     "./tests/**/RateLimiting.test.ts",
-    "./tests/**/cctpMessageMatcher.test.ts"
+    "./tests/**/cctpMessageMatcher.test.ts",
+    "./tests/**/TelepathyCosmWasmService.test.ts"
   ],
   "exit": true
 }

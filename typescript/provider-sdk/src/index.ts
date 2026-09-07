@@ -1,15 +1,15 @@
 export * as AltVM from './altvm.js';
-export { ChainMetadataForAltVM } from './chain.js';
+export type { ChainMetadataForAltVM } from './chain.js';
 export { coreConfigToArtifact, coreResultToDeployedAddresses } from './core.js';
-export { MinimumRequiredGasByAction, GasAction } from './mingas.js';
+export { type MinimumRequiredGasByAction, GasAction } from './mingas.js';
 export {
   ProtocolType,
-  ProtocolTypeValue,
+  type ProtocolTypeValue,
   ProtocolSmallestUnit,
 } from './protocolType.js';
 export {
-  SignerConfig,
-  ProtocolProvider,
+  type SignerConfig,
+  type ProtocolProvider,
   registerProtocol,
   getProtocolProvider,
   hasProtocol,
@@ -19,11 +19,11 @@ export {
   AltVMImpersonatedSubmitter,
   AltVMJsonRpcSubmitter,
   SubmitterType,
-  ITransactionSubmitter,
-  TransactionSubmitterConfig,
-  JsonRpcSubmitterConfig,
-  ImpersonatedAccountSubmitterConfig,
-  FileSubmitterConfig,
+  type ITransactionSubmitter,
+  type TransactionSubmitterConfig,
+  type JsonRpcSubmitterConfig,
+  type ImpersonatedAccountSubmitterConfig,
+  type FileSubmitterConfig,
 } from './submitter.js';
 export { MockProvider } from './test/AltVMMockProvider.js';
 export { MockSigner } from './test/AltVMMockSigner.js';
