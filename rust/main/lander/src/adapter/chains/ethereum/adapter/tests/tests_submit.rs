@@ -759,3 +759,64 @@ async fn build_and_store_transaction(
 
     tx_results[0].maybe_tx.clone().unwrap()
 }
+
+#[tokio::test]
+async fn failed_nonce_read_keeps_transaction_and_nonce_state_unchanged() {
+    let (payload_db, tx_db, nonce_db) = tmp_dbs();
+    let signer = Address::random();
+    let mut provider = MockEvmProvider::new();
+    provider
+        .expect_get_next_nonce_on_finalized_block()
+        .once()
+        .returning(|_, _| {
+            Err(ChainCommunicationError::CustomError(
+                "nonce read failure".to_owned(),
+            ))
+        });
+    // Gas reads may be polled before the nonce failure. They remain read-only;
+    // no send expectation means submitting before both reads finish would fail.
+    provider.expect_get_block().returning(|_| {
+        Ok(Some(ethers::types::Block {
+            number: Some(42.into()),
+            base_fee_per_gas: Some(100.into()),
+            gas_limit: 30_000_000.into(),
+            ..Default::default()
+        }))
+    });
+    provider.expect_fee_history().returning(|_, _, _| {
+        Ok(ethers::types::FeeHistory {
+            oldest_block: 0.into(),
+            reward: vec![vec![10.into()]],
+            base_fee_per_gas: vec![200_000.into()],
+            gas_used_ratio: vec![0.0],
+        })
+    });
+    let adapter = mock_ethereum_adapter(
+        provider,
+        payload_db.clone(),
+        tx_db,
+        nonce_db.clone(),
+        signer,
+        Duration::from_millis(100),
+        Duration::from_millis(100),
+    );
+    let mut tx = build_and_store_transaction(&adapter, &payload_db).await;
+    tx.payload_details[0].success_criteria = Some(vec![7; 4096]);
+    let before = tx.clone();
+    let error = adapter.submit(&mut tx).await.unwrap_err();
+    assert_eq!(
+        error.to_string(),
+        "Failed to update boundary nonces: Provider error"
+    );
+    assert_eq!(tx, before);
+    assert!(nonce_db
+        .retrieve_finalized_nonce_by_signer_address(&signer)
+        .await
+        .unwrap()
+        .is_none());
+    assert!(nonce_db
+        .retrieve_upper_nonce_by_signer_address(&signer)
+        .await
+        .unwrap()
+        .is_none());
+}

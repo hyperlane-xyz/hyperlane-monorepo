@@ -409,12 +409,11 @@ impl AdaptsChain for RadixAdapter {
             u64::from_le_bytes(b[0..8].try_into().expect("uuid is 16 bytes"))
         };
         let radix_tx = self.build_transaction(tx, intent_discriminator).await?;
-        self.provider
-            .send_transaction(radix_tx.raw.clone().to_vec())
-            .await?;
-
-        // once tx is built, we can figure out tx hash
+        // The hash is already available from the built transaction.
         let tx_hash = Self::extract_tx_hash(&radix_tx);
+        self.provider
+            .send_transaction(radix_tx.raw.to_vec())
+            .await?;
         if !tx.tx_hashes.contains(&tx_hash) {
             tx.tx_hashes.push(tx_hash);
         }
