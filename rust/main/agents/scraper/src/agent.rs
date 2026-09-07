@@ -10,7 +10,7 @@ use derive_more::AsRef;
 use futures::{future::try_join_all, FutureExt};
 use hyperlane_core::{
     rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, IndexMode, InterchainGasPayment, MerkleTreeInsertion, SameChainCcrSwap, H512,
+    HyperlaneMessage, IndexMode, InterchainGasPayment, MerkleTreeInsertion, SameChainCcrSwap,
 };
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{
@@ -21,9 +21,11 @@ use tokio::{
 use tracing::{info, info_span, instrument, trace, warn, Instrument};
 
 use hyperlane_base::{
-    broadcast::BroadcastMpscSender, metrics::AgentMetrics, settings::IndexSettings, AgentMetadata,
-    BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, ContractSyncMetrics, ContractSyncer,
-    CoreMetrics, HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
+    broadcast::{BroadcastMpscSender, IndexingNotification},
+    metrics::AgentMetrics,
+    settings::IndexSettings,
+    AgentMetadata, BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, ContractSyncMetrics,
+    ContractSyncer, CoreMetrics, HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
 
 use crate::{
@@ -302,7 +304,10 @@ impl Scraper {
                 self.contract_sync_metrics.clone(),
                 store.clone(),
                 index_settings.clone(),
-                BroadcastMpscSender::<H512>::map_get_receiver(maybe_broadcaster.as_ref()).await,
+                BroadcastMpscSender::<IndexingNotification>::map_get_receiver(
+                    maybe_broadcaster.as_ref(),
+                )
+                .await,
             )
             .await?;
         tasks.push(gas_payment_indexer);
@@ -419,7 +424,10 @@ impl Scraper {
         contract_sync_metrics: Arc<ContractSyncMetrics>,
         store: HyperlaneDbStore,
         index_settings: IndexSettings,
-    ) -> eyre::Result<(JoinHandle<()>, Option<BroadcastMpscSender<H512>>)> {
+    ) -> eyre::Result<(
+        JoinHandle<()>,
+        Option<BroadcastMpscSender<IndexingNotification>>,
+    )> {
         let label = "message_dispatch";
         let sync = self
             .as_ref()
@@ -614,7 +622,7 @@ impl Scraper {
         contract_sync_metrics: Arc<ContractSyncMetrics>,
         store: HyperlaneDbStore,
         index_settings: IndexSettings,
-        tx_id_receiver: Option<MpscReceiver<H512>>,
+        tx_id_receiver: Option<MpscReceiver<IndexingNotification>>,
     ) -> eyre::Result<JoinHandle<()>> {
         let label = "gas_payment";
         let sync = self

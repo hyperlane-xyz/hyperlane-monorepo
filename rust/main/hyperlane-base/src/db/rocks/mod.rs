@@ -118,6 +118,42 @@ impl DB {
         Ok(self.0.write(batch)?)
     }
 
+    /// Atomically store and delete multiple keys.
+    pub fn store_and_delete_batch(
+        &self,
+        entries: impl IntoIterator<Item = (Vec<u8>, Vec<u8>)>,
+        deletions: impl IntoIterator<Item = Vec<u8>>,
+    ) -> Result<()> {
+        let mut batch = WriteBatch::default();
+        for (key, value) in entries {
+            batch.put(key, value);
+        }
+        for key in deletions {
+            batch.delete(key);
+        }
+        Ok(self.0.write(batch)?)
+    }
+
+    pub(crate) fn retrieve_at_or_after(&self, key: &[u8]) -> Result<Option<(Vec<u8>, Vec<u8>)>> {
+        let mut iterator = self.0.raw_iterator();
+        iterator.seek(key);
+        iterator.status()?;
+        Ok(iterator
+            .key()
+            .zip(iterator.value())
+            .map(|(key, value)| (key.to_vec(), value.to_vec())))
+    }
+
+    pub(crate) fn retrieve_at_or_before(&self, key: &[u8]) -> Result<Option<(Vec<u8>, Vec<u8>)>> {
+        let mut iterator = self.0.raw_iterator();
+        iterator.seek_for_prev(key);
+        iterator.status()?;
+        Ok(iterator
+            .key()
+            .zip(iterator.value())
+            .map(|(key, value)| (key.to_vec(), value.to_vec())))
+    }
+
     /// Retrieve a value from the DB
     pub fn retrieve(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         Ok(self.0.get(key)?)

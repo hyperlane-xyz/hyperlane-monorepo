@@ -1,6 +1,7 @@
 #![allow(clippy::clone_on_ref_ptr)] // TODO: `rustc` 1.80.1 clippy issue
 
 use std::{
+    collections::HashSet,
     fmt::{Debug, Formatter},
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -9,6 +10,7 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
+use parking_lot::Mutex;
 use prometheus::IntGauge;
 use serde::{de::DeserializeOwned, Serialize};
 use tokio::sync::RwLock;
@@ -16,7 +18,7 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument
 
 use hyperlane_base::{
     cache::{FunctionCallCache, LocalCache, MeteredCache, OptionalCache},
-    db::{HyperlaneDb, PendingMessageRetryState},
+    db::{HyperlaneDb, HyperlaneRocksDB, PendingMessageRetryState},
 };
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
@@ -104,6 +106,40 @@ pub struct MessageContext {
     pub application_operation_verifier: Arc<dyn ApplicationOperationVerifier>,
 }
 
+/// Keeps an indexed message from being loaded again while its operation is alive.
+pub(super) struct LoadedMessageGuard {
+    message_id: H256,
+    loaded_messages: Arc<Mutex<HashSet<H256>>>,
+    db: HyperlaneRocksDB,
+}
+
+impl LoadedMessageGuard {
+    pub(super) fn try_acquire(
+        message_id: H256,
+        loaded_messages: Arc<Mutex<HashSet<H256>>>,
+        db: HyperlaneRocksDB,
+    ) -> Option<Self> {
+        if !loaded_messages.lock().insert(message_id) {
+            return None;
+        }
+        Some(Self {
+            message_id,
+            loaded_messages,
+            db,
+        })
+    }
+
+    fn mark_terminal(&self) -> hyperlane_base::db::DbResult<()> {
+        self.db.store_terminally_dropped_message(&self.message_id)
+    }
+}
+
+impl Drop for LoadedMessageGuard {
+    fn drop(&mut self) {
+        self.loaded_messages.lock().remove(&self.message_id);
+    }
+}
+
 /// A message that is pending processing and submission.
 #[derive(new, Serialize)]
 pub struct PendingMessage {
@@ -157,6 +193,25 @@ pub struct PendingMessage {
     #[new(default)]
     #[serde(skip_serializing)]
     ica_reveal_attempts: u32,
+    #[new(default)]
+    #[serde(skip_serializing)]
+    loaded_message_guard: Option<LoadedMessageGuard>,
+}
+
+impl PendingMessage {
+    pub(super) fn set_loaded_message_guard(&mut self, guard: LoadedMessageGuard) {
+        self.loaded_message_guard = Some(guard);
+    }
+
+    pub(super) fn terminal_drop(&mut self) -> PendingOperationResult {
+        if let Some(guard) = self.loaded_message_guard.as_ref() {
+            if let Err(err) = guard.mark_terminal() {
+                return self
+                    .on_reprepare(Some(err), ReprepareReason::ErrorPersistingTerminalMessage);
+            }
+        }
+        PendingOperationResult::Drop
+    }
 }
 
 impl Drop for PendingMessage {
@@ -317,7 +372,7 @@ impl PendingOperation for PendingMessage {
                 recipient=?self.message.recipient,
                 "Dropping message because recipient is not a contract"
             );
-            return PendingOperationResult::Drop;
+            return self.terminal_drop();
         }
 
         // Perform a preflight check to see if we can short circuit the gas
@@ -1127,7 +1182,7 @@ impl PendingMessage {
         result
     }
 
-    fn reprepare_or_drop(&self, reason: ReprepareReason) -> PendingOperationResult {
+    fn reprepare_or_drop(&mut self, reason: ReprepareReason) -> PendingOperationResult {
         // For fail-fast messages (relay API), drop immediately once the retry budget is
         // exceeded. Without this check, a small max_retries value (e.g. 3) would still
         // hit the fixed early-backoff arms (1 => 5s, 2 => 10s, ...) rather than dropping.
@@ -1139,7 +1194,7 @@ impl PendingMessage {
                 max_retries = self.max_retries,
                 "Relay API message exceeded max retries, dropping"
             );
-            return PendingOperationResult::Drop;
+            return self.terminal_drop();
         }
         PendingOperationResult::Reprepare(reason)
     }
@@ -1172,9 +1227,7 @@ impl PendingMessage {
                 "Validator signature wait recovered after message delivery"
             );
         }
-        self.ctx
-            .origin_db
-            .store_processed_by_nonce(&self.message.nonce, &true)?;
+        self.ctx.origin_db.store_message_processed(&self.message)?;
         self.ctx.metrics.update_nonce(&self.message);
         self.ctx.metrics.messages_processed.inc();
         Ok(())
@@ -2273,6 +2326,76 @@ mod test {
                 .with_label_values(&[app_context, "ethereum", "arbitrum", "ended"])
                 .get(),
             1
+        );
+    }
+
+    #[test]
+    fn process_success_finishes_metadata_wait_and_deletes_pending_index() {
+        let origin_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+        let destination_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let cache = OptionalCache::new(None);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db = DB::from_path(temp_dir.path()).unwrap();
+        let base_db = HyperlaneRocksDB::new(&origin_domain, db);
+        let message = HyperlaneMessage {
+            nonce: 7,
+            origin: origin_domain.id(),
+            destination: destination_domain.id(),
+            ..Default::default()
+        };
+        base_db
+            .store_message(&message, Default::default())
+            .expect("store pending message and index");
+        let app_context = "test-app";
+        let base_metadata_builder =
+            dummy_metadata_builder(&origin_domain, &destination_domain, &base_db, cache.clone());
+        let message_context =
+            dummy_message_context(Arc::new(base_metadata_builder), &base_db, cache);
+        let mut pending_message = PendingMessage::new(
+            message.clone(),
+            Arc::new(message_context),
+            PendingOperationStatus::FirstPrepareAttempt,
+            Some(app_context.to_owned()),
+            DEFAULT_MAX_MESSAGE_RETRIES,
+        );
+        pending_message
+            .ctx
+            .metrics
+            .record_metadata_wait(message.id(), Some(app_context));
+
+        pending_message
+            .record_message_process_success()
+            .expect("commit process success");
+
+        assert_eq!(
+            pending_message
+                .ctx
+                .metrics
+                .metadata_wait_active
+                .with_label_values(&[app_context, "ethereum", "arbitrum"])
+                .get(),
+            0
+        );
+        assert_eq!(
+            pending_message
+                .ctx
+                .metrics
+                .metadata_wait_event_count
+                .with_label_values(&[app_context, "ethereum", "arbitrum", "recovered"])
+                .get(),
+            1
+        );
+        assert_eq!(
+            base_db
+                .retrieve_pending_message_at_or_after(destination_domain.id(), message.nonce)
+                .expect("read pending index"),
+            None
+        );
+        assert_eq!(
+            base_db
+                .retrieve_processed_by_nonce(&message.nonce)
+                .expect("read processed marker"),
+            Some(true)
         );
     }
 }
