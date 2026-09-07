@@ -555,6 +555,91 @@ contract CrossCollateralRouter is
         });
     }
 
+    // ============ Exact-In (budget-based) Quoting & Transfer ============
+    // Inverse of the exact-out (`quoteTransferRemoteTo`/`transferRemoteTo`) flow.
+    // Given a `_maxSpend` budget in `token()`, resolve the largest deliverable
+    // `amount` such that `amount + fee(amount) <= _maxSpend`. Gas (quotes[0]) is
+    // denominated separately and is not part of the collateral budget.
+    // externalFee is 0 on CrossCollateralRouter, so `charge == amount + fee`.
+
+    /// @notice Exact-in quote to the primary enrolled router for `_destination`.
+    function quoteTransferRemoteFrom(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _maxSpend
+    ) external view returns (uint256 amount) {
+        bytes32 targetRouter = _mustHaveRemoteRouter(_destination);
+        return
+            quoteTransferRemoteFromTo(
+                _destination,
+                _recipient,
+                _maxSpend,
+                targetRouter
+            );
+    }
+
+    /// @inheritdoc ICrossCollateralFee
+    function quoteTransferRemoteFromTo(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _maxSpend,
+        bytes32 _targetRouter
+    ) public view override returns (uint256 amount) {
+        _requireAuthorizedRouter(_destination, _targetRouter);
+        address _feeRecipient = feeRecipient();
+        if (_feeRecipient == address(0)) return _maxSpend;
+        return
+            ICrossCollateralFee(_feeRecipient).quoteTransferRemoteFromTo(
+                _destination,
+                _recipient,
+                _maxSpend,
+                _targetRouter
+            );
+    }
+
+    /// @notice Exact-in transfer to the primary enrolled router for `_destination`.
+    function transferRemoteFrom(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _maxSpend,
+        uint256 _minAmountOut
+    ) external payable returns (bytes32 messageId) {
+        bytes32 targetRouter = _mustHaveRemoteRouter(_destination);
+        return
+            transferRemoteFromTo(
+                _destination,
+                _recipient,
+                _maxSpend,
+                _minAmountOut,
+                targetRouter
+            );
+    }
+
+    /**
+     * @notice Exact-in transfer: spend up to `_maxSpend` (amount + fee), deliver
+     *         the resolved amount to `_recipient` on `_targetRouter`.
+     * @param _minAmountOut Slippage guard — reverts if the resolved amount would
+     *        drop below this (e.g. the active quote curve changed between quote
+     *        and execution).
+     */
+    function transferRemoteFromTo(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _maxSpend,
+        uint256 _minAmountOut,
+        bytes32 _targetRouter
+    ) public payable returns (bytes32 messageId) {
+        uint256 amount = quoteTransferRemoteFromTo(
+            _destination,
+            _recipient,
+            _maxSpend,
+            _targetRouter
+        );
+        require(amount >= _minAmountOut, "CCR: amountOut below min");
+        return
+            transferRemoteTo(_destination, _recipient, amount, _targetRouter);
+    }
+
     /// @dev Target-router-aware gas quote helper. Avoids Router._mustHaveRemoteRouter().
     /// Caller must validate `_targetRouter` is authorized for `_destination`.
     function _quoteGasPaymentTo(
