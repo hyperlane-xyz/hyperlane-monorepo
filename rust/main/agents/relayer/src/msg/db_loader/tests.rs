@@ -193,17 +193,33 @@ async fn idle_loader_does_not_reserve_shared_destination_capacity() {
 }
 
 #[tokio::test]
-async fn indexed_backlog_drains_without_waiting_for_fallback_poll() {
+async fn indexed_backlog_drains_with_idle_origins_sharing_ingress() {
     test_utils::run_test_db(|db| async move {
         let origin = dummy_domain(0, "dummy_origin_domain");
         let destination = dummy_domain(1, "dummy_destination_domain");
-        let db = HyperlaneRocksDB::new(&origin, db);
+        let origin_db = HyperlaneRocksDB::new(&origin, db.clone());
         for nonce in 0..3 {
-            add_db_entry(&db, &dummy_hyperlane_message(&destination, nonce), 0);
+            add_db_entry(&origin_db, &dummy_hyperlane_message(&destination, nonce), 0);
         }
         let (mut loader, mut receiver) =
-            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+            dummy_message_loader(&origin, &destination, &origin_db, OptionalCache::new(None));
         finish_legacy_migration(&mut loader).await;
+        let sender = loader.send_channels[&destination.id()].clone();
+        sender.try_send(vec![]).expect("fill shared ingress");
+        let mut idle_loaders = Vec::new();
+        for id in 2..4 {
+            let idle_origin = dummy_domain(id, "idle_origin");
+            let idle_db = HyperlaneRocksDB::new(&idle_origin, db.clone());
+            let (mut idle, _) = dummy_message_loader(
+                &idle_origin,
+                &destination,
+                &idle_db,
+                OptionalCache::new(None),
+            );
+            idle.send_channels.insert(destination.id(), sender.clone());
+            finish_legacy_migration(&mut idle).await;
+            idle_loaders.push(idle);
+        }
         timeout(Duration::from_millis(750), async {
             tokio::select! {
                 _ = async {
@@ -211,7 +227,16 @@ async fn indexed_backlog_drains_without_waiting_for_fallback_poll() {
                         loader.tick().await.expect("loader tick should succeed");
                     }
                 } => {},
+                _ = futures::future::join_all(idle_loaders.iter_mut().map(|idle| async move {
+                    loop {
+                        idle.tick().await.expect("idle loader tick should succeed");
+                    }
+                })) => {},
                 _ = async {
+                    // Let all origin loops observe the full channel before
+                    // the processor releases its sole ingress slot.
+                    sleep(Duration::from_millis(20)).await;
+                    assert!(receiver.recv().await.expect("initial batch").is_empty());
                     let mut admitted = Vec::new();
                     for _ in 0..3 {
                         admitted.push(only_operation(receiver.recv().await.expect("ingress open")));
