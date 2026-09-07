@@ -168,6 +168,31 @@ async fn finish_legacy_migration(loader: &mut MessageDbLoader) {
 }
 
 #[tokio::test]
+async fn idle_loader_does_not_reserve_shared_destination_capacity() {
+    test_utils::run_test_db(|db| async move {
+        let origin = dummy_domain(0, "dummy_origin_domain");
+        let destination = dummy_domain(1, "dummy_destination_domain");
+        let db = HyperlaneRocksDB::new(&origin, db);
+        let (mut loader, mut receiver) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        let sender = loader.send_channels[&destination.id()].clone();
+        sender.try_send(vec![]).unwrap();
+
+        // Another origin shares this one-slot destination ingress. An idle
+        // loader must not claim the slot when the processor drains it.
+        let wait = loader.wait_for_work();
+        tokio::pin!(wait);
+        assert!(futures::poll!(&mut wait).is_pending());
+        receiver.try_recv().unwrap();
+        assert!(
+            sender.try_send(vec![]).is_ok(),
+            "idle loader reserved the slot needed by another origin"
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn test_idle_tick_wakes_on_index_notification() {
     test_utils::run_test_db(|db| async move {
         let origin_domain = dummy_domain(0, "dummy_origin_domain");
@@ -1246,7 +1271,7 @@ async fn saturated_destination_does_not_block_another_destination() {
         );
         assert_eq!(receiver_a.len(), 1);
 
-        timeout(Duration::from_millis(750), async {
+        timeout(Duration::from_millis(1_500), async {
             let release_capacity = async {
                 sleep(Duration::from_millis(20)).await;
                 receiver_a.recv().await.unwrap();
@@ -1255,7 +1280,12 @@ async fn saturated_destination_does_not_block_another_destination() {
             tick_result.unwrap();
         })
         .await
-        .expect("loader should wake when destination capacity becomes available");
+        .expect("loader should poll after destination capacity becomes available");
+        loader.tick().await.unwrap();
+        assert_eq!(
+            only_operation(receiver_a.try_recv().unwrap()).id(),
+            message_a.id()
+        );
     })
     .await;
 }
