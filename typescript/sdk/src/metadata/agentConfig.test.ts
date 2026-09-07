@@ -27,6 +27,28 @@ describe('ValidatorAgentConfigSchema maxSignConcurrency', () => {
   });
 });
 
+describe('AgentChainMetadataSchema index.from', () => {
+  it('accepts negative relative block offsets', () => {
+    const result = AgentChainMetadataSchema.safeParse({
+      name: 'legacy',
+      domainId: 1000,
+      chainId: 1000,
+      protocol: ProtocolType.Ethereum,
+      rpcUrls: [{ http: 'http://localhost:8545' }],
+      mailbox: '0x0000000000000000000000000000000000000001',
+      interchainGasPaymaster: '0x0000000000000000000000000000000000000002',
+      validatorAnnounce: '0x0000000000000000000000000000000000000003',
+      merkleTreeHook: '0x0000000000000000000000000000000000000004',
+      index: { from: -10_000 },
+    });
+
+    expect(result.success).to.be.true;
+    if (result.success) {
+      expect(result.data.index?.from).to.equal(-10_000);
+    }
+  });
+});
+
 describe('RelayerAgentConfigSchema feeToken gate', () => {
   const FEE_TOKEN = '0x0000000000000000000000000000000000000005';
 

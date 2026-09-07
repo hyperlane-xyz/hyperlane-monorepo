@@ -15,7 +15,7 @@ import {
   ChainMetadataSchemaObject,
   RpcUrlSchema,
 } from './chainMetadataTypes.js';
-import { ZHash, ZNzUint, ZUWei, ZUint } from './customZodTypes.js';
+import { ZHash, ZNzUint, ZUWei } from './customZodTypes.js';
 import {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
@@ -289,9 +289,13 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
     ),
     index: z
       .object({
-        from: ZUint.optional().describe(
-          'The starting block from which to index events.',
-        ),
+        from: z
+          .number()
+          .int()
+          .optional()
+          .describe(
+            'The absolute starting block, or a negative offset from the current tip, from which to index events.',
+          ),
         chunk: ZNzUint.optional().describe(
           'The number of blocks to index at a time.',
         ),
