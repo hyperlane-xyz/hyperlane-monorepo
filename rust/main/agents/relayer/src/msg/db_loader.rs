@@ -10,7 +10,6 @@ use async_trait::async_trait;
 use derive_new::new;
 use ethers::utils::hex;
 use eyre::Result;
-use futures_util::{stream::FuturesUnordered, StreamExt};
 use hyperlane_base::{
     broadcast::IndexingNotification,
     db::{HyperlaneDb, HyperlaneRocksDB},
@@ -599,25 +598,34 @@ impl MessageDbLoader {
         }
     }
 
-    /// Wake for new index work or destination capacity, retaining a polling fallback.
+    /// Wake for new index work, polling for destination capacity without reserving it.
     async fn wait_for_work(&mut self) {
         const FALLBACK_POLL_INTERVAL: Duration = Duration::from_secs(1);
+        const CAPACITY_POLL_INTERVAL: Duration = Duration::from_millis(50);
 
-        let mut capacity_waiters: FuturesUnordered<_> = self
+        // Origins share destination channels. Reserving capacity just to observe
+        // readiness lets idle loaders pass the sole slot between their queued
+        // reservations, starving loaders that have real work to try_send.
+        let blocked_senders: Vec<_> = self
             .send_channels
             .values()
             .filter(|sender| sender.capacity() == 0 && !sender.is_closed())
             .cloned()
-            .map(Sender::reserve_owned)
             .collect();
-        let capacity_wait = async {
-            if capacity_waiters.is_empty() {
-                std::future::pending::<()>().await
-            } else {
-                let _ = capacity_waiters.next().await;
+        let capacity_available = async {
+            if blocked_senders.is_empty() {
+                std::future::pending::<()>().await;
+            }
+            loop {
+                tokio::time::sleep(CAPACITY_POLL_INTERVAL).await;
+                if blocked_senders
+                    .iter()
+                    .any(|sender| sender.capacity() > 0 || sender.is_closed())
+                {
+                    break;
+                }
             }
         };
-
         let (disconnected, notification) = if let Some(receiver) = self.index_notifications.as_mut()
         {
             tokio::select! {
@@ -625,14 +633,15 @@ impl MessageDbLoader {
                     Some(notification) => (false, Some(notification)),
                     None => (true, None),
                 },
-                _ = capacity_wait => (false, None),
+                _ = capacity_available => (false, None),
                 _ = tokio::time::sleep(FALLBACK_POLL_INTERVAL) => (false, None),
             }
         } else {
             tokio::select! {
-                _ = capacity_wait => (false, None),
-                _ = tokio::time::sleep(FALLBACK_POLL_INTERVAL) => (false, None),
+                _ = capacity_available => {},
+                _ = tokio::time::sleep(FALLBACK_POLL_INTERVAL) => {},
             }
+            (false, None)
         };
 
         if disconnected {
