@@ -124,50 +124,14 @@ function collectFallbackIsms(node: IsmNode): Address[] {
   }
 }
 
-async function deriveFallbackIsmCandidateAddresses(
-  fallbackIsm: Address,
-  mailbox: Address,
-  originDomains: readonly number[],
-): Promise<AnnotatedAltAddress[]> {
-  const [vam, processAuthority, testStorage, ...domainPdas] = await Promise.all(
-    [
-      deriveCompositeIsmStoragePda(fallbackIsm),
-      deriveIsmProcessAuthorityPda(mailbox, fallbackIsm),
-      deriveTestIsmStoragePda(fallbackIsm),
-      ...originDomains.map((domain) =>
-        deriveCompositeIsmDomainPda(fallbackIsm, domain),
-      ),
-      ...originDomains.map((domain) =>
-        deriveMultisigIsmDomainDataPda(fallbackIsm, domain),
-      ),
-    ],
-  );
-  const [compositeDomains, multisigDomains] = [
-    domainPdas.slice(0, originDomains.length),
-    domainPdas.slice(originDomains.length),
-  ];
-
-  return [
-    annotate(fallbackIsm, 'ism.fallback.program'),
-    annotate(vam.address, 'ism.fallback.verify_account_metas'),
-    annotate(
-      processAuthority.address,
-      'ism.fallback.composite.process_authority',
-    ),
-    annotate(testStorage.address, 'ism.fallback.test_storage'),
-    ...compositeDomains.map((pda, index) =>
-      annotate(
-        pda.address,
-        `ism.fallback.composite.domain(domain=${originDomains[index]})`,
-      ),
-    ),
-    ...multisigDomains.map((pda, index) =>
-      annotate(
-        pda.address,
-        `ism.fallback.multisig_domain(domain=${originDomains[index]})`,
-      ),
-    ),
-  ];
+function collectCompositeFallbackIsms(
+  composite: CompositeIsmStorage,
+  domainIsms: readonly (IsmNode | null)[],
+): Address[] {
+  if (!composite.root) return [];
+  return [composite.root, ...domainIsms]
+    .filter((node): node is IsmNode => node !== null)
+    .flatMap(collectFallbackIsms);
 }
 
 /**
@@ -182,7 +146,24 @@ export async function deriveIsmProcessAltAddresses(args: {
   mailbox: Address;
   originDomains: readonly number[];
 }): Promise<AnnotatedAltAddress[]> {
+  return canonicalize(
+    await deriveIsmProcessAltAddressesRecursive(args, new Set()),
+  );
+}
+
+async function deriveIsmProcessAltAddressesRecursive(
+  args: {
+    rpc: SvmRpc;
+    ism: Address;
+    mailbox: Address;
+    originDomains: readonly number[];
+  },
+  visitedIsms: Set<Address>,
+): Promise<AnnotatedAltAddress[]> {
   const { rpc, ism, mailbox, originDomains } = args;
+  if (visitedIsms.has(ism)) return [];
+  visitedIsms.add(ism);
+
   const [composite, multisigAccessControl, testStorage] = await Promise.all([
     fetchCompositeIsmStorageAccount(rpc, ism),
     fetchMultisigIsmAccessControl(rpc, ism),
@@ -200,7 +181,7 @@ export async function deriveIsmProcessAltAddresses(args: {
         }),
       )
     : [];
-  return deriveIsmProcessAltAddressesFromState({
+  const addresses = await deriveIsmProcessAltAddressesFromState({
     ism,
     mailbox,
     originDomains,
@@ -209,6 +190,17 @@ export async function deriveIsmProcessAltAddresses(args: {
     isMultisig: multisigAccessControl !== null,
     isTest: testStorage !== null,
   });
+
+  if (!composite) return addresses;
+  const fallbackAddresses = await Promise.all(
+    collectCompositeFallbackIsms(composite, domainIsms).map((fallbackIsm) =>
+      deriveIsmProcessAltAddressesRecursive(
+        { rpc, ism: fallbackIsm, mailbox, originDomains },
+        visitedIsms,
+      ),
+    ),
+  );
+  return [...addresses, ...fallbackAddresses.flat()];
 }
 
 /** Pure derivation used after the supported ISM storage probes complete. */
@@ -251,17 +243,9 @@ export async function deriveIsmProcessAltAddressesFromState(args: {
       ),
     );
 
-    const fallbackIsms = [composite.root, ...domainIsms]
-      .filter((node): node is IsmNode => node !== null)
-      .flatMap(collectFallbackIsms);
+    const fallbackIsms = collectCompositeFallbackIsms(composite, domainIsms);
     for (const fallbackIsm of fallbackIsms) {
-      out.push(
-        ...(await deriveFallbackIsmCandidateAddresses(
-          fallbackIsm,
-          mailbox,
-          originDomains,
-        )),
-      );
+      out.push(annotate(fallbackIsm, 'ism.fallback.program'));
     }
   } else if (isMultisig) {
     const domainPdas = await Promise.all(
