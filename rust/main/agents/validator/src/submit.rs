@@ -11,9 +11,9 @@ use hyperlane_base::db::HyperlaneDb;
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, Checkpoint, CheckpointAtBlock,
-    CheckpointWithMessageId, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneSignerExt, IncrementalMerkleAtBlock,
+    accumulator::incremental::{IncrementalMerkle, MerkleTreeSnapshot},
+    Checkpoint, CheckpointAtBlock, CheckpointWithMessageId, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneSignerExt, IncrementalMerkleAtBlock,
 };
 use hyperlane_core::{
     ChainResult, HyperlaneSigner, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType,
@@ -95,9 +95,31 @@ impl ValidatorSubmitter {
     /// Submits signed checkpoints from index 0 until the target checkpoint (inclusive).
     /// Runs idly forever once the target checkpoint is reached to avoid exiting the task.
     pub(crate) async fn backfill_checkpoint_submitter(self, target_checkpoint: CheckpointAtBlock) {
-        let mut tree = IncrementalMerkle::default();
+        let mut tree = self
+            .restored_snapshot_tree(target_checkpoint.index)
+            .await
+            .unwrap_or_default();
         self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint)
             .await;
+
+        match MerkleTreeSnapshot::capture(&tree) {
+            Ok(snapshot) => {
+                if let Err(err) = self
+                    .checkpoint_syncer
+                    .write_merkle_snapshot(&snapshot)
+                    .await
+                {
+                    warn!(
+                        ?err,
+                        index = snapshot.index,
+                        "Failed to write merkle snapshot"
+                    );
+                }
+            }
+            Err(err) => {
+                warn!(?err, "Failed to capture merkle snapshot");
+            }
+        }
 
         info!(
             ?target_checkpoint,
@@ -403,6 +425,72 @@ impl ValidatorSubmitter {
                 index = checkpoint.index,
                 "Signed all queued checkpoints until index"
             );
+        }
+    }
+
+    /// Restores a snapshot after validating it against the signed checkpoint.
+    async fn restored_snapshot_tree(&self, target_index: u32) -> Option<IncrementalMerkle> {
+        let snapshot = match self.checkpoint_syncer.read_merkle_snapshot().await {
+            Ok(Some(snapshot)) => snapshot,
+            Ok(None) => return None,
+            Err(err) => {
+                warn!(?err, "Failed to read merkle snapshot, rebuilding tree");
+                return None;
+            }
+        };
+        if snapshot.index > target_index {
+            debug!(
+                snapshot_index = snapshot.index,
+                target_index, "Snapshot is ahead of target, rebuilding tree"
+            );
+            return None;
+        }
+        let tree = match snapshot.restore() {
+            Ok(tree) => tree,
+            Err(err) => {
+                warn!(?err, "Stored merkle snapshot is corrupt, rebuilding tree");
+                return None;
+            }
+        };
+        match self
+            .checkpoint_syncer
+            .fetch_checkpoint(snapshot.index)
+            .await
+        {
+            Ok(Some(existing)) => match existing.recover() {
+                Ok(signer)
+                    if signer == self.signer.eth_address()
+                        && existing.value.checkpoint == self.checkpoint(&tree) =>
+                {
+                    info!(
+                        snapshot_index = snapshot.index,
+                        "Restored merkle tree from validated snapshot"
+                    );
+                    Some(tree)
+                }
+                _ => {
+                    warn!(
+                        snapshot_index = snapshot.index,
+                        "Snapshot checkpoint mismatch, rebuilding tree"
+                    );
+                    None
+                }
+            },
+            Ok(None) => {
+                warn!(
+                    snapshot_index = snapshot.index,
+                    "Snapshot checkpoint missing, rebuilding tree"
+                );
+                None
+            }
+            Err(err) => {
+                warn!(
+                    ?err,
+                    snapshot_index = snapshot.index,
+                    "Snapshot checkpoint fetch failed, rebuilding tree"
+                );
+                None
+            }
         }
     }
 

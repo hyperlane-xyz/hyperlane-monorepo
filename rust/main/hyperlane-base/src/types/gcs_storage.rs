@@ -186,6 +186,8 @@ impl fmt::Debug for GcsStorageClient {
 
 #[async_trait]
 impl CheckpointSyncer for GcsStorageClient {
+    // Keep the trait's no-snapshot defaults: ya-gcp collects entire objects and
+    // cannot bound snapshot downloads before allocation. GCS uses cold replay.
     /// Read the highest index of this Syncer
     #[instrument(skip(self))]
     async fn latest_index(&self) -> Result<Option<u32>> {
@@ -382,6 +384,29 @@ async fn object_path_is_unprefixed_without_a_folder() {
         client.announcement_location(),
         "gs://test-bucket/gcsAnnouncementKey"
     );
+}
+
+#[tokio::test]
+async fn merkle_snapshot_uses_cold_replay_without_gcs_access() {
+    use hyperlane_core::accumulator::incremental::{IncrementalMerkle, MerkleTreeSnapshot};
+
+    // An invalid bucket makes any accidental object request fail immediately.
+    let client = GcsStorageClientBuilder::new(AuthFlow::NoAuth)
+        .build("", None)
+        .await
+        .expect("unauthenticated client");
+    let mut tree = IncrementalMerkle::default();
+    tree.ingest(hyperlane_core::H256::from_low_u64_be(1));
+    let snapshot = MerkleTreeSnapshot::capture(&tree).expect("snapshot");
+
+    assert_eq!(
+        client.read_merkle_snapshot().await.expect("no snapshot"),
+        None
+    );
+    client
+        .write_merkle_snapshot(&snapshot)
+        .await
+        .expect("no-op write");
 }
 
 #[tokio::test]
