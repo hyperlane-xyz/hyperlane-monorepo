@@ -1,4 +1,5 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
+import { z } from 'zod';
 
 export enum Role {
   Validator = 'validator',
@@ -90,3 +91,23 @@ export function getTurnkeyRolesForProtocol(
     (role) => TURNKEY_ROLE_PROTOCOL[role] === protocol,
   );
 }
+
+// CLI `--signer.<protocol>` overrides. Protocols are optional: deployments
+// without Turnkey signers pass none. Note z.record() with enum keys requires
+// every key under zod v4, so this must stay a partial record.
+export const signerConfigSchema = z
+  .partialRecord(z.enum(TURNKEY_SIGNER_PROTOCOLS), z.nativeEnum(TurnkeyRole))
+  .superRefine((config, context) => {
+    for (const protocol of TURNKEY_SIGNER_PROTOCOLS) {
+      const role = config[protocol];
+      if (role && TURNKEY_ROLE_PROTOCOL[role] !== protocol) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [protocol],
+          message: `${role} is not a ${protocol} Turnkey role`,
+        });
+      }
+    }
+  });
+
+export type SignerConfig = z.infer<typeof signerConfigSchema>;
