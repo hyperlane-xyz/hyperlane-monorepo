@@ -9,6 +9,11 @@ import {
   FeeParamsType,
   FeeType,
 } from '@hyperlane-xyz/provider-sdk/fee';
+import {
+  type CrossCollateralWarpArtifactConfig,
+  TokenType,
+  buildFeeReadContextFromWarpArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
 
 import { DEFAULT_ROUTER } from '../codecs/fee.js';
 import type { CompositeIsmStorage } from '../accounts/composite-ism.js';
@@ -275,6 +280,44 @@ describe('deriveIsmProcessAltAddressesFromState', () => {
         (await deriveCompositeIsmDomainPda(ISM, domain)).address,
       );
     }
+  });
+
+  it('includes cross-collateral-only origins in composite ISM accounts', async () => {
+    const config: CrossCollateralWarpArtifactConfig = {
+      type: TokenType.crossCollateral,
+      owner: 'owner',
+      mailbox: MAILBOX,
+      token: 'token',
+      remoteRouters: {
+        [ORIGINS[0]]: { address: 'remote-router' },
+      },
+      destinationGas: {},
+      crossCollateralRouters: {
+        [ORIGINS[0]]: new Set(['remote-router']),
+        [ORIGINS[1]]: new Set(['cross-collateral-router']),
+      },
+    };
+    const feeReadContext = buildFeeReadContextFromWarpArtifactConfig(config);
+    const originDomains = Object.keys(feeReadContext.knownRoutersPerDomain).map(
+      Number,
+    );
+    const result = await deriveIsmProcessAltAddressesFromState({
+      ism: ISM,
+      mailbox: MAILBOX,
+      originDomains,
+      composite: {
+        bumpSeed: 1,
+        owner: null,
+        root: { kind: 'routing' },
+      },
+      isMultisig: false,
+      isTest: false,
+    });
+
+    expect(originDomains).to.deep.equal(ORIGINS);
+    expect(addressesOf(result)).to.include(
+      (await deriveCompositeIsmDomainPda(ISM, ORIGINS[1])).address,
+    );
   });
 
   it('includes fallback accounts nested in a per-domain routing node', async () => {

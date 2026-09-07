@@ -13,7 +13,6 @@ import {
 } from '@hyperlane-xyz/provider-sdk/fee';
 import {
   type DeployedWarpAddress,
-  TokenType,
   type WarpArtifactConfig,
   buildFeeReadContextFromWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
@@ -656,6 +655,10 @@ export async function deriveWarpRouteCommonAltAddresses(args: {
     isNullish(ism) || isArtifactDeployed(ism) || isArtifactUnderived(ism),
     'Expected ISM artifact to be on-chain (DEPLOYED or UNDERIVED)',
   );
+  const feeReadContext = buildFeeReadContextFromWarpArtifactConfig(config);
+  const remoteDomains = Object.keys(feeReadContext.knownRoutersPerDomain).map(
+    Number,
+  );
 
   const feeAddresses = (async (): Promise<AnnotatedAltAddress[]> => {
     if (!fee) return [];
@@ -664,7 +667,7 @@ export async function deriveWarpRouteCommonAltAddresses(args: {
       feeProgram: parseAddress(fee.deployed.address),
       feeSalt: resolveFeeSalt(chainName),
       feeConfig: fee.config,
-      feeReadContext: buildFeeReadContextFromWarpArtifactConfig(config),
+      feeReadContext,
     });
     if (!feeBeneficiaryToken) {
       return [
@@ -688,19 +691,12 @@ export async function deriveWarpRouteCommonAltAddresses(args: {
 
     const igpProgram = parseAddress(hook.deployed.address);
     const igpAccount = await deriveIgpAccountPda(igpProgram, DEFAULT_IGP_SALT);
-    const enrolledDomains = new Set(Object.keys(config.remoteRouters));
-    if (config.type === TokenType.crossCollateral) {
-      for (const domain of Object.keys(config.crossCollateralRouters)) {
-        enrolledDomains.add(domain);
-      }
-    }
-
     return deriveIgpQuoteCascadeAltAddresses({
       igpProgram,
       igpAccount: igpAccount.address,
       feeTokenMint,
       sender: warpProgram,
-      enrolledDomains: [...enrolledDomains].map(Number),
+      enrolledDomains: remoteDomains,
     });
   })();
 
@@ -709,7 +705,7 @@ export async function deriveWarpRouteCommonAltAddresses(args: {
         rpc,
         ism: parseAddress(ism.deployed.address),
         mailbox: parseAddress(config.mailbox),
-        originDomains: Object.keys(config.remoteRouters).map(Number),
+        originDomains: remoteDomains,
       })
     : Promise.resolve([]);
 
