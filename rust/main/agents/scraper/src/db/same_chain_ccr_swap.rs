@@ -1,6 +1,6 @@
 use ethers::utils::keccak256;
 use eyre::Result;
-use sea_orm::{prelude::*, QueryOrder, QuerySelect};
+use sea_orm::{prelude::*, QueryOrder, QuerySelect, QueryTrait};
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -61,7 +61,7 @@ impl ScraperDb {
     ///   - Full re-index (DB wiped): blocks are always replayed in ascending
     ///     order, so swaps are seen in the same sequence and receive identical
     ///     nonces. Safe.
-    ///   - Partial re-index (rows already present): the `ccr_msg_already_stored`
+    ///   - Partial re-index (rows already present): the `ccr_pair_presence`
     ///     pre-check in `store_ccr_swaps_as_messages` skips already-stored swaps,
     ///     so existing nonces are never disturbed. Safe.
     ///   - Partial DB corruption (some rows deleted then re-indexed): deleted
@@ -90,23 +90,22 @@ impl ScraperDb {
         Ok(next)
     }
 
-    /// Returns true if a message with this `msg_id` is already stored.
-    /// Used to skip re-insertion when re-indexing a block range.
-    async fn ccr_msg_already_stored(&self, msg_id: H256) -> Result<bool> {
-        let count = message::Entity::find()
-            .filter(message::Column::MsgId.eq(h256_to_bytes(&msg_id)))
-            .count(&self.0)
-            .await?;
-        Ok(count > 0)
-    }
-
-    /// Returns true if a delivery row for this `msg_id` is already stored.
-    async fn ccr_delivery_already_stored(&self, msg_id: H256) -> Result<bool> {
-        let count = delivered_message::Entity::find()
+    /// None means no message; Some reports whether its delivery is also stored.
+    /// Both presence checks use one snapshot. Nonce allocation still assumes
+    /// the existing single writer per domain; this is not a cross-process lock.
+    async fn ccr_pair_presence(&self, msg_id: H256) -> Result<Option<bool>> {
+        let delivery = delivered_message::Entity::find()
+            .select_only()
+            .column(delivered_message::Column::Id)
             .filter(delivered_message::Column::MsgId.eq(h256_to_bytes(&msg_id)))
-            .count(&self.0)
-            .await?;
-        Ok(count > 0)
+            .into_query();
+        Ok(message::Entity::find()
+            .select_only()
+            .expr_as(Expr::exists(delivery), "delivery_stored")
+            .filter(message::Column::MsgId.eq(h256_to_bytes(&msg_id)))
+            .into_tuple::<bool>()
+            .one(&self.0)
+            .await?)
     }
 
     /// Store same-chain CCR swaps as synthetic Hyperlane messages so the
@@ -133,15 +132,15 @@ impl ScraperDb {
             let swap = storable.swap;
             let msg_id = synthetic_ccr_msg_id(storable.meta);
 
-            let msg_stored = self.ccr_msg_already_stored(msg_id).await?;
+            let presence = self.ccr_pair_presence(msg_id).await?;
             // Skip only when both rows are present. If the message was written
             // but the delivery was not (partial-commit on a prior retry), fall
             // through so the delivery upsert can complete the pair.
-            if msg_stored && self.ccr_delivery_already_stored(msg_id).await? {
+            if presence == Some(true) {
                 continue;
             }
 
-            if !msg_stored {
+            if presence.is_none() {
                 // Sequential nonce is non-deterministic across re-index runs, so
                 // guard insertion on msg_id rather than relying on ON CONFLICT.
                 let nonce = self.ccr_next_nonce(domain, &swap.source_router).await?;
@@ -260,3 +259,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "same_chain_ccr_swap/presence_tests.rs"]
+mod presence_tests;
