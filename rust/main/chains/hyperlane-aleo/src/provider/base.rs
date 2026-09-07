@@ -517,35 +517,17 @@ mod tests {
 
     #[tokio::test]
     async fn jwt_auth_sends_content_length_and_preserves_status_errors() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let address = listener.local_addr().unwrap();
-        let (request_tx, request_rx) = mpsc::channel();
-        let server = thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
-            let mut buffer = [0; 4096];
-            let length = stream.read(&mut buffer).unwrap();
-            request_tx
-                .send(String::from_utf8_lossy(&buffer[..length]).to_lowercase())
-                .unwrap();
-            stream
-                .write_all(
-                    b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
-                )
-                .unwrap();
-        });
-        let url = Url::parse(&format!(
-            "http://{address}/v2?custom_rpc_header=x-auth-url:http%3A%2F%2F{address}%2Fauth"
-        ))
-        .unwrap();
-        let client = JWTBaseHttpClient::new(url, 0).unwrap();
+        let (client, server) = auth_server(
+            b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        );
 
-        let error = client.get_auth_token().await.unwrap_err();
+        let error = client.get_auth_token().await.expect_err("JWT should fail");
 
         assert!(error.to_string().contains("429 Too Many Requests"));
-        assert!(request_rx
-            .recv()
-            .unwrap()
+        assert!(server
+            .join()
+            .expect("auth server joined")
+            .to_ascii_lowercase()
             .contains("\r\ncontent-length: 0\r\n"));
-        server.join().unwrap();
     }
 }
