@@ -187,27 +187,43 @@ impl HyperlaneRocksDB {
         };
         // Capture before validation so concurrent writes remain covered next time.
         let sequence = self.latest_sequence_number();
-        for source in [MESSAGE_ID, NONCE_PROCESSED] {
-            match self.has_unmarked_writes_since(checkpoint, source, PENDING_MESSAGE_BY_DESTINATION)
-            {
-                Ok(false) => continue,
-                Ok(true) => debug!(
-                    checkpoint,
-                    source, "Pending message index has legacy writes; repeating migration"
-                ),
-                Err(error) => debug!(
-                    ?error,
-                    checkpoint, "Pending message index WAL unavailable; repeating migration"
-                ),
+        let validation = (|| {
+            if checkpoint > sequence {
+                return Ok(true);
             }
-            self.store_and_delete_batch(
-                std::iter::empty(),
-                [(
-                    PENDING_MESSAGE_INDEX_MIGRATION_COMPLETE.as_bytes().to_vec(),
-                    false.to_vec(),
-                )],
-            )?;
-            return Ok(false);
+            for source in [MESSAGE_ID, NONCE_PROCESSED] {
+                if self.has_unmarked_writes_since(
+                    checkpoint,
+                    source,
+                    PENDING_MESSAGE_BY_DESTINATION,
+                )? {
+                    return Ok(true);
+                }
+            }
+            // Standalone cleanup can race a replacement or crash before repair.
+            // Only canonical upsert/processed batches prove that deletion is safe.
+            self.has_unmarked_deletions_since(
+                checkpoint,
+                PENDING_MESSAGE_BY_DESTINATION,
+                &[MESSAGE_ID.as_bytes(), NONCE_PROCESSED.as_bytes()],
+            )
+        })();
+        match validation {
+            Ok(false) => {}
+            result => {
+                debug!(
+                    ?result,
+                    checkpoint, "Pending message index cannot be certified; repeating migration"
+                );
+                self.store_and_delete_batch(
+                    std::iter::empty(),
+                    [(
+                        PENDING_MESSAGE_INDEX_MIGRATION_COMPLETE.as_bytes().to_vec(),
+                        false.to_vec(),
+                    )],
+                )?;
+                return Ok(false);
+            }
         }
         self.mark_pending_message_index_migration_complete(sequence)?;
         Ok(true)
@@ -531,6 +547,37 @@ mod pending_index_tests {
             recipient: H256::zero(),
             ..Default::default()
         }
+    }
+
+    #[tokio::test]
+    async fn migration_seal_rejects_standalone_cleanup_after_replacement() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            for cleanup_during_migration in [false, true] {
+                let original = message(2, 10);
+                db.upsert_message(&original, 1).expect("original");
+                let sequence = db.latest_sequence_number();
+                if !cleanup_during_migration {
+                    db.mark_pending_message_index_migration_complete(sequence)
+                        .expect("seal");
+                }
+                // A loader's old terminal/missing-row observation can precede
+                // an atomic replacement, then delete that replacement's entry.
+                let mut replacement = original.clone();
+                replacement.body = vec![1];
+                db.upsert_message(&replacement, 2).expect("replacement");
+                db.delete_pending_message_index_by_nonce(10, 2)
+                    .expect("stale cleanup");
+                if cleanup_during_migration {
+                    db.mark_pending_message_index_migration_complete(sequence)
+                        .expect("seal");
+                }
+                assert!(!db
+                    .pending_message_index_migration_complete()
+                    .expect("validate"));
+            }
+        })
+        .await;
     }
 
     #[tokio::test]

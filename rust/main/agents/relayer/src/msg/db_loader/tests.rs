@@ -1731,3 +1731,37 @@ async fn completed_migration_recovers_late_low_nonce_and_legacy_writes() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn standalone_cleanup_forces_restart_recovery_of_replacement() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let original = dummy_hyperlane_message(&destination, 0);
+        add_db_entry(&db, &original, 0);
+        let (mut loader, _) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        finish_legacy_migration(&mut loader).await;
+        drop(loader);
+        let mut replacement = original;
+        replacement.body = vec![1];
+        db.upsert_message(&replacement, 2)
+            .expect("atomic replacement");
+        db.delete_pending_message_index_by_nonce(destination.id(), 0)
+            .expect("stale cleanup");
+        let (mut restarted, mut receiver) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        assert!(restarted.migration_iterator.is_some());
+        finish_legacy_migration(&mut restarted).await;
+        restarted
+            .try_load_destination(0)
+            .await
+            .expect("load replacement");
+        assert_eq!(
+            only_operation(receiver.try_recv().expect("replacement")).id(),
+            replacement.id()
+        );
+    })
+    .await;
+}

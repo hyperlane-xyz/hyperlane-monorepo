@@ -191,6 +191,25 @@ impl TypedDB {
         )
     }
 
+    /// Detect domain-scoped deletions without an atomic source-state marker.
+    pub fn has_unmarked_deletions_since(
+        &self,
+        sequence: u64,
+        source_prefix: impl AsRef<[u8]>,
+        marker_prefixes: &[&[u8]],
+    ) -> Result<bool> {
+        let markers: Vec<_> = marker_prefixes
+            .iter()
+            .map(|prefix| self.prefixed_key(prefix, &[]))
+            .collect();
+        let markers: Vec<_> = markers.iter().map(Vec::as_slice).collect();
+        self.db.has_unmarked_deletions_since(
+            sequence,
+            &self.prefixed_key(source_prefix.as_ref(), &[]),
+            &markers,
+        )
+    }
+
     /// Start an atomic write batch scoped to this domain.
     pub fn batch(&self) -> TypedDbBatch {
         TypedDbBatch {

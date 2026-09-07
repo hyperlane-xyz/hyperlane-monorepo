@@ -85,25 +85,30 @@ pub struct DbBatch {
 
 struct PrefixWriteDetector<'a> {
     source_prefix: &'a [u8],
-    marker_prefix: &'a [u8],
+    marker_prefixes: &'a [&'a [u8]],
+    deletions_only: bool,
     source_written: bool,
     marker_written: bool,
 }
 
 impl PrefixWriteDetector<'_> {
-    fn record(&mut self, key: &[u8]) {
-        self.source_written |= key.starts_with(self.source_prefix);
-        self.marker_written |= key.starts_with(self.marker_prefix);
+    fn record(&mut self, key: &[u8], deletion: bool) {
+        self.source_written |=
+            (!self.deletions_only || deletion) && key.starts_with(self.source_prefix);
+        self.marker_written |= self
+            .marker_prefixes
+            .iter()
+            .any(|prefix| key.starts_with(prefix));
     }
 }
 
 impl WriteBatchIterator for PrefixWriteDetector<'_> {
     fn put(&mut self, key: &[u8], _value: &[u8]) {
-        self.record(key);
+        self.record(key, false);
     }
 
     fn delete(&mut self, key: &[u8]) {
-        self.record(key);
+        self.record(key, true);
     }
 }
 
@@ -255,6 +260,26 @@ impl DB {
         source_prefix: &[u8],
         marker_prefix: &[u8],
     ) -> Result<bool> {
+        self.has_unmarked_updates_since(sequence, source_prefix, &[marker_prefix], false)
+    }
+
+    /// Detect source deletions without any of the supplied atomic markers.
+    pub fn has_unmarked_deletions_since(
+        &self,
+        sequence: u64,
+        source_prefix: &[u8],
+        marker_prefixes: &[&[u8]],
+    ) -> Result<bool> {
+        self.has_unmarked_updates_since(sequence, source_prefix, marker_prefixes, true)
+    }
+
+    fn has_unmarked_updates_since(
+        &self,
+        sequence: u64,
+        source_prefix: &[u8],
+        marker_prefixes: &[&[u8]],
+        deletions_only: bool,
+    ) -> Result<bool> {
         let latest_sequence = self.0.latest_sequence_number();
         let mut expected_sequence = sequence
             .checked_add(1)
@@ -272,7 +297,8 @@ impl DB {
                 .ok_or_else(|| DbError::Other("RocksDB sequence number overflowed".to_string()))?;
             let mut detector = PrefixWriteDetector {
                 source_prefix,
-                marker_prefix,
+                marker_prefixes,
+                deletions_only,
                 source_written: false,
                 marker_written: false,
             };
