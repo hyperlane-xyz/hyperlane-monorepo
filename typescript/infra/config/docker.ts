@@ -57,7 +57,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   keyFunder: 'b0c3c5d-20260804-175736',
   warpMonitor: '744b3bb-20260521-215958',
   rebalancer: 'da26d9a-20260703-122943',
-  scraperProxy: '6176102-20260907-011707',
+  scraperProxy: '2b7731d-20260907-013323',
   feeQuoting: '12d899d-20260325-184337',
 };
 
