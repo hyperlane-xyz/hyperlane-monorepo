@@ -27,14 +27,20 @@ runs:
       shell: bash
       run: echo "cache_provider=${{ inputs.cache-provider }}" >> $GITHUB_ENV
 
-    - name: Get pnpm store directory
+    - name: Get pnpm cache metadata
       shell: bash
       # Nested composite post steps lose sibling step outputs (actions/runner#2009).
-      # Persist the path in the job environment for both restore and save.
+      # Persist metadata in the job environment for both restore and save.
+      # Computing the lockfile hash here also avoids re-evaluating a workspace-wide
+      # glob during post-job cleanup, after build artifacts have been generated.
+      env:
+        PNPM_LOCKFILE_HASH: ${{ hashFiles('pnpm-lock.yaml', 'typescript/warp-widget/examples/react-app/pnpm-lock.yaml') }}
       run: |
         pnpm_store_path="$(pnpm store path)"
         test -n "$pnpm_store_path"
+        test -n "$PNPM_LOCKFILE_HASH"
         echo "HYP_PNPM_STORE_PATH=$pnpm_store_path" >> "$GITHUB_ENV"
+        echo "HYP_PNPM_CACHE_KEY=${RUNNER_OS}-pnpm-12-store-${PNPM_LOCKFILE_HASH}" >> "$GITHUB_ENV"
 
     - name: Cache (Buildjet)
       id: buildjet-cache
@@ -42,7 +48,7 @@ runs:
       uses: buildjet/cache@v4
       with:
         path: ${{ env.HYP_PNPM_STORE_PATH }}
-        key: ${{ runner.os }}-pnpm-12-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        key: ${{ env.HYP_PNPM_CACHE_KEY }}
         restore-keys: |
           ${{ runner.os }}-pnpm-12-store-
 
@@ -52,6 +58,6 @@ runs:
       uses: actions/cache@v6
       with:
         path: ${{ env.HYP_PNPM_STORE_PATH }}
-        key: ${{ runner.os }}-pnpm-12-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        key: ${{ env.HYP_PNPM_CACHE_KEY }}
         restore-keys: |
           ${{ runner.os }}-pnpm-12-store-
