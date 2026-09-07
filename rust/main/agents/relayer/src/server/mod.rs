@@ -13,7 +13,7 @@ use lander::CommandEntrypoint;
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
-use crate::msg::op_queue::OperationPriorityQueue;
+use crate::msg::op_queue::OpQueue;
 use crate::msg::pending_message::MessageContext;
 
 use crate::server::environment_variable::EnvironmentVariableApi;
@@ -34,7 +34,7 @@ pub struct Server {
     #[new(default)]
     retry_transmitter: Option<Sender<operations::message_retry::MessageRetryRequest>>,
     #[new(default)]
-    op_queues: Option<HashMap<u32, OperationPriorityQueue>>,
+    op_queues: Option<HashMap<u32, OpQueue>>,
     #[new(default)]
     dbs: Option<HashMap<u32, HyperlaneRocksDB>>,
     #[new(default)]
@@ -57,7 +57,7 @@ impl Server {
         self
     }
 
-    pub fn with_message_queue(mut self, op_queues: HashMap<u32, OperationPriorityQueue>) -> Self {
+    pub fn with_message_queue(mut self, op_queues: HashMap<u32, OpQueue>) -> Self {
         self.op_queues = Some(op_queues);
         self
     }
@@ -106,8 +106,12 @@ impl Server {
             )
         }
         if let Some(op_queues) = self.op_queues {
-            router = router
-                .merge(operations::list_messages::ServerState::new(op_queues.clone()).router());
+            let priority_queues = op_queues
+                .iter()
+                .map(|(domain, queue)| (*domain, queue.queue.clone()))
+                .collect();
+            router =
+                router.merge(operations::list_messages::ServerState::new(priority_queues).router());
             if let Some(dbs) = self.dbs.as_ref() {
                 router = router.merge(
                     operations::reprocess_message::ServerState::new(

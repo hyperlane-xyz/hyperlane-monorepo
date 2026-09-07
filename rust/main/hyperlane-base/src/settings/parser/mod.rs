@@ -292,6 +292,12 @@ fn parse_chain(
         .get_opt_key("maxBatchSize")
         .parse_u32()
         .unwrap_or(1);
+    if max_batch_size == 0 {
+        err.push(
+            chain.cwp.clone(),
+            eyre!("`maxBatchSize` must be greater than zero"),
+        );
+    }
 
     let bypass_batch_simulation = chain
         .chain(&mut err)
@@ -779,5 +785,30 @@ mod test {
         let val: serde_json::Value = serde_json::from_str(json_str).unwrap();
         let value_parser = ValueParser::new(Default::default(), &val);
         parse_matching_list(value_parser).unwrap();
+    }
+
+    #[test]
+    fn rejects_zero_max_batch_size() {
+        let value = serde_json::json!({
+            "domainid": 1,
+            "name": "test",
+            "protocol": "ethereum",
+            "rpcurls": [{ "http": "http://localhost:8545" }],
+            "mailbox": "0x0000000000000000000000000000000000000001",
+            "interchaingaspaymaster": "0x0000000000000000000000000000000000000002",
+            "validatorannounce": "0x0000000000000000000000000000000000000003",
+            "merkletreehook": "0x0000000000000000000000000000000000000004",
+            "maxbatchsize": 0
+        });
+        let parser = ValueParser::new(Default::default(), &value);
+
+        let error = parse_chain(parser, "test", "fallback")
+            .expect_err("zero maxBatchSize must be rejected")
+            .to_string();
+
+        assert!(
+            error.contains("`maxBatchSize` must be greater than zero"),
+            "unexpected parser error: {error}"
+        );
     }
 }
