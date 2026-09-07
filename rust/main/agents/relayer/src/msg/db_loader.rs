@@ -47,8 +47,10 @@ pub struct MessageDbLoader {
     destination_ctxs: HashMap<u32, Arc<MessageContext>>,
     metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
     db: HyperlaneRocksDB,
-    // Reconcile every startup so a rollback binary cannot leave records unindexed.
+    // Reconcile until completion is durable and the retained WAL proves that
+    // subsequent writers maintained the destination index.
     migration_iterator: Option<LegacyMessageIterator>,
+    migration_start_sequence: u64,
     destination_iterators: Vec<DestinationIndexIterator>,
     next_destination: usize,
     destination_scan_pending: bool,
@@ -497,8 +499,21 @@ impl MessageDbLoader {
         metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
         max_retries: u32,
     ) -> Result<Self> {
-        let (migration_iterator, highest_seen_nonce) =
-            LegacyMessageIterator::new(Arc::new(db.clone()) as Arc<dyn HyperlaneDb>)?;
+        let migration_start_sequence = db.latest_sequence_number();
+        let migration_complete = {
+            let _timer = metrics
+                .scan_duration_seconds
+                .with_label_values(&[metrics.origin.as_str(), "all", "migration_validation"])
+                .start_timer();
+            db.pending_message_index_migration_complete()?
+        };
+        let (migration_iterator, highest_seen_nonce) = if migration_complete {
+            (None, db.retrieve_highest_seen_message_nonce()?)
+        } else {
+            let (iterator, highest_seen_nonce) =
+                LegacyMessageIterator::new(Arc::new(db.clone()) as Arc<dyn HyperlaneDb>)?;
+            (Some(iterator), highest_seen_nonce)
+        };
         let mut destinations: Vec<_> = send_channels.keys().copied().collect();
         destinations.sort_unstable();
         let destination_iterators = destinations
@@ -513,7 +528,8 @@ impl MessageDbLoader {
             send_channels,
             destination_ctxs,
             metric_app_contexts,
-            migration_iterator: Some(migration_iterator),
+            migration_iterator,
+            migration_start_sequence,
             db,
             destination_iterators,
             next_destination: 0,
@@ -695,6 +711,8 @@ impl MessageDbLoader {
             }
         }
         if iterator.migration_complete() {
+            self.db
+                .mark_pending_message_index_migration_complete(self.migration_start_sequence)?;
             self.migration_iterator = None;
         }
         Ok(())
