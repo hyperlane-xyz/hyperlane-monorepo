@@ -40,7 +40,6 @@ export const infrastructure: InfrastructureConfig = {
       'mainnet2-',
       'hyperlane-mainnet3-',
       'rc-mainnet3-',
-      'neutron-mainnet3-',
       'fastpath-mainnet3-',
       'mainnet3-',
     ],

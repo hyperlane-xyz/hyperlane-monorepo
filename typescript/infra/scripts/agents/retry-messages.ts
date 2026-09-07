@@ -215,10 +215,7 @@ async function main() {
         '$0 -e mainnet3 -s 0x1234... -r 0x5678...',
         'Retry messages from sender to recipient',
       ],
-      [
-        '$0 -e testnet4 -x neutron',
-        'Retry messages in testnet4 with neutron context',
-      ],
+      ['$0 -e testnet4 -x rc', 'Retry messages in testnet4 with rc context'],
     ]).argv;
 
   // Validate that at least one filter method is provided when using whitelist

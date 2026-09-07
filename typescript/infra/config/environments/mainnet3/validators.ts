@@ -67,7 +67,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
         },
         'celo',
       ),
@@ -79,7 +78,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
           [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
         'ethereum',
@@ -92,7 +90,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
         },
         'avalanche',
       ),
@@ -104,7 +101,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
         },
         'worldchain',
       ),
@@ -116,7 +112,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
         },
         'xlayer',
       ),
@@ -128,7 +123,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
           [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
         'polygon',
@@ -141,7 +135,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
           [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
         'bsc',
@@ -154,7 +147,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
           [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
         'arbitrum',
@@ -167,7 +159,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
         },
         'optimism',
       ),
@@ -179,7 +170,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
         },
         'gnosis',
       ),
@@ -191,7 +181,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
           [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
         'base',
@@ -204,7 +193,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
         },
         'bob',
       ),
@@ -216,7 +204,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
         },
         'fraxtal',
       ),
@@ -228,7 +215,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
         },
         'linea',
       ),
@@ -240,7 +226,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
         },
         'mantle',
       ),
@@ -252,7 +237,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
         },
         'sei',
       ),
@@ -264,7 +248,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [''],
-          [Contexts.Neutron]: [],
         },
         'solanamainnet',
       ),
@@ -276,7 +259,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [''],
-          [Contexts.Neutron]: [],
         },
         'eclipsemainnet',
       ),
@@ -288,7 +270,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
         },
         'taiko',
       ),
@@ -310,7 +291,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
         },
         'viction',
       ),
@@ -322,7 +302,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
         },
         'blast',
       ),
@@ -334,7 +313,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.Neutron]: [],
         },
         'mode',
       ),
@@ -346,7 +324,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [''],
-          [Contexts.Neutron]: [],
         },
         'lisk',
       ),
@@ -358,7 +335,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [''],
-          [Contexts.Neutron]: [],
         },
         'lukso',
       ),
@@ -370,7 +346,6 @@ export const validatorChainConfig = (
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [''],
-          [Contexts.Neutron]: [],
         },
         'metis',
       ),
@@ -881,8 +856,8 @@ export const validatorChainConfig = (
   };
 
   // Opt-in quorum RPC verification (ValidatorMultiRpcQuorumMerkleTreeHook) for
-  // every EVM chain's Hyperlane and FastPath validators. ReleaseCandidate/Neutron
-  // validator sets are unaffected.
+  // every EVM chain's Hyperlane and FastPath validators. The ReleaseCandidate
+  // validator set is unaffected.
   if (context !== Contexts.Hyperlane && context !== Contexts.FastPath) {
     return configs;
   }
