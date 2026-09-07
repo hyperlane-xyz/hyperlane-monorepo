@@ -181,7 +181,20 @@ fn run_locally() {
     // Ready to run...
     //
 
-    // Install Solana CLI tools once (both contract and network CLI use the same version)
+    // Compile agents alongside SBF setup in the separate Sealevel workspace.
+    log!("Building rust agents...");
+    let build_main = Program::new("cargo")
+        .cmd("build")
+        .working_dir(&workspace_path)
+        .arg("features", "test-utils")
+        .arg("bin", "relayer")
+        .arg("bin", "validator")
+        .arg("bin", "scraper")
+        .arg("bin", "init-db")
+        .filter_logs(|l| !l.contains("workspace-inheritance"))
+        .run();
+
+    // Install once: both contract compilation and the node use this version.
     let solana_path_tempdir = tempdir().expect("Failed to create solana temp dir");
     let solana_cli_tools_path = install_solana_cli_tools(
         SOLANA_CONTRACTS_CLI_RELEASE_URL.to_owned(),
@@ -193,19 +206,6 @@ fn run_locally() {
 
     let hyperlane_solana_programs_path =
         build_solana_programs(solana_cli_tools_path.clone()).join();
-
-    // Build agent binaries and sealevel-client in parallel (separate workspaces)
-    log!("Building rust...");
-    let build_main = Program::new("cargo")
-        .cmd("build")
-        .working_dir(&workspace_path)
-        .arg("features", "test-utils")
-        .arg("bin", "relayer")
-        .arg("bin", "validator")
-        .arg("bin", "scraper")
-        .arg("bin", "init-db")
-        .filter_logs(|l| !l.contains("workspace-inheritance"))
-        .run();
 
     log!("Building hyperlane-sealevel-client...");
     let build_sealevel_client = Program::new("cargo")

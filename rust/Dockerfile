@@ -7,7 +7,7 @@
 # Base image containing all necessary build tools and dependencies
 FROM rust:1.88.0 AS base
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends musl-tools clang && \
+    apt-get install -y --no-install-recommends musl-tools clang mold && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     rustup target add x86_64-unknown-linux-musl && \
@@ -50,11 +50,17 @@ COPY rust/sealevel ../sealevel
 # Build the release binaries with caching enabled
 # Documentation: https://doc.rust-lang.org/cargo/commands/cargo-build.html
 # Note: --features aleo enables Aleo chain support (adds ~5min build time due to snarkvm)
+ARG TARGETARCH
+# Reuse idle caches across branches; allocate another cache when builds overlap.
+# sccache's disk LRU requires sole ownership, as does Cargo's target directory.
+# Keep the existing IDs so warm caches remain reusable (new concurrent slots start cold).
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
-    RUSTFLAGS="--cfg tokio_unstable" \
-    cargo build --release --features aleo --bin validator --bin relayer --bin scraper && \
+    --mount=type=cache,target=$SCCACHE_DIR,sharing=private \
+    --mount=type=cache,id=agent-target-${TARGETARCH},target=/usr/src/rust/main/target,sharing=private \
+    RUSTFLAGS="--cfg tokio_unstable -C link-arg=-fuse-ld=mold" \
+    cargo build --locked --timings --release --features aleo --bin validator --bin relayer --bin scraper && \
+    sccache --show-stats && \
     mkdir -p /release && \
     cp target/release/validator /release && \
     cp target/release/relayer /release && \

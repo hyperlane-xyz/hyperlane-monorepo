@@ -130,6 +130,8 @@ export async function runScenarioWithRebalancers(
     if (file.initialImbalance) {
       const { ERC20Test__factory } = await import('@hyperlane-xyz/core');
       const provider = new ethers.providers.JsonRpcProvider(options.anvilRpc);
+      // Match the simulation engine's polling for sequential local mint receipts.
+      provider.pollingInterval = 100;
       const deployer = new ethers.Wallet(ANVIL_DEPLOYER_KEY, provider);
 
       for (const [chainName, extraAmount] of Object.entries(

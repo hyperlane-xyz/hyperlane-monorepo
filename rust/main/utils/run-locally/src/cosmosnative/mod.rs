@@ -242,26 +242,33 @@ fn run_locally() {
     let domain_start = 75898670u32;
     let node_count = 2; // right now this only works with two nodes.
 
-    let nodes = (0..node_count)
-        .map(|i| {
-            let node_dir = tempdir().unwrap().path().to_str().unwrap().to_string();
-            let mut node = SimApp::new(hypd.to_owned(), node_dir, i);
-            node.init();
-            let handle = node.start();
-            let contracts = node.deploy_and_configure_contracts(
-                &format!("{}", domain_start + i),
-                &format!("{}", domain_start + (i + 1) % node_count),
-            );
-            Deployment {
-                chain: node,
-                domain: domain_start + i,
-                metrics: metrics_port_start + i,
-                name: format!("cosmostestnative{}", i + 1),
-                contracts,
-                handle,
-            }
-        })
-        .collect::<Vec<Deployment>>();
+    let nodes = std::thread::scope(|scope| {
+        let hypd = &hypd;
+        let deployments = (0..node_count)
+            .map(|i| {
+                scope.spawn(move || {
+                    let node_dir = tempdir().unwrap().path().to_str().unwrap().to_string();
+                    let mut node = SimApp::new(hypd.to_owned(), node_dir, i);
+                    node.init();
+                    let handle = node.start();
+                    let contracts = node.deploy_and_configure_contracts(
+                        &format!("{}", domain_start + i),
+                        &format!("{}", domain_start + (i + 1) % node_count),
+                    );
+                    Deployment {
+                        chain: node,
+                        domain: domain_start + i,
+                        metrics: metrics_port_start + i,
+                        name: format!("cosmostestnative{}", i + 1),
+                        contracts,
+                        handle,
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+        // Keep domain ordering stable regardless of which deployment finishes first.
+        collect_deployments(deployments.into_iter().map(|deployment| deployment.join()))
+    });
 
     let node1 = &nodes[0];
     let node2 = &nodes[1];
@@ -469,6 +476,115 @@ fn termination_invariants_met(
 
     log!("Termination invariants have been meet");
     Ok(true)
+}
+
+fn collect_deployments(
+    deployments: impl Iterator<Item = std::thread::Result<Deployment>>,
+) -> Vec<Deployment> {
+    // Join every worker before propagating a panic, including later successes.
+    let mut results: Vec<_> = deployments.collect();
+    if results.iter().any(Result::is_err) {
+        for deployment in results.iter_mut().filter_map(|result| result.as_mut().ok()) {
+            stop_child(&mut deployment.handle.1);
+        }
+    }
+    results
+        .into_iter()
+        .map(|result| result.unwrap_or_else(|panic| std::panic::resume_unwind(panic)))
+        .collect()
+}
+
+#[cfg(test)]
+mod deployment_tests {
+    use super::*;
+    use nix::{
+        sys::{
+            signal::{kill, Signal},
+            wait::{waitpid, WaitPidFlag, WaitStatus},
+        },
+        unistd::Pid,
+    };
+
+    fn deployment(domain: u32) -> Deployment {
+        Deployment {
+            chain: SimApp::new(String::new(), String::new(), domain),
+            domain,
+            metrics: 0,
+            name: format!("test-{domain}"),
+            contracts: types::Contracts {
+                mailbox: String::new(),
+                igp: String::new(),
+                merkle_tree_hook: String::new(),
+                tokens: vec![],
+            },
+            handle: Program::new("sleep")
+                .cmd("30")
+                .spawn("deployment-test", None),
+        }
+    }
+
+    fn stopped_or_kill(pid: u32) -> bool {
+        let pid = Pid::from_raw(pid as i32);
+        let deadline = Instant::now() + Duration::from_secs(2);
+        loop {
+            match waitpid(pid, Some(WaitPidFlag::WNOHANG)).unwrap() {
+                WaitStatus::StillAlive if Instant::now() < deadline => {
+                    sleep(Duration::from_millis(10))
+                }
+                WaitStatus::StillAlive => {
+                    // Do not leak a process if the regression fails.
+                    kill(pid, Signal::SIGKILL).unwrap();
+                    waitpid(pid, None).unwrap();
+                    return false;
+                }
+                _ => return true,
+            }
+        }
+    }
+
+    #[test]
+    fn deployment_panic_stops_successes_before_and_after_failed_worker() {
+        for failed_index in 0..3 {
+            let first = deployment(2);
+            let last = deployment(1);
+            let pids = [first.handle.1.id(), last.handle.1.id()];
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                std::thread::scope(|scope| {
+                    let mut workers = vec![scope.spawn(|| first), scope.spawn(|| last)];
+                    workers.insert(
+                        failed_index,
+                        scope.spawn(|| panic!("deployment worker failed")),
+                    );
+                    collect_deployments(workers.into_iter().map(|worker| worker.join()))
+                })
+            }));
+            let stopped: Vec<_> = pids.into_iter().map(stopped_or_kill).collect();
+            assert!(
+                stopped.into_iter().all(|stopped| stopped),
+                "Deployment children were not stopped"
+            );
+            let panic = result.err().expect("Worker panic must propagate");
+            assert_eq!(
+                panic.downcast_ref::<&str>(),
+                Some(&"deployment worker failed")
+            );
+        }
+    }
+
+    #[test]
+    fn deployment_success_preserves_input_order() {
+        let mut deployments =
+            collect_deployments(vec![Ok(deployment(2)), Ok(deployment(1))].into_iter());
+        let domains: Vec<_> = deployments
+            .iter()
+            .map(|deployment| deployment.domain)
+            .collect();
+        for deployment in &mut deployments {
+            stop_child(&mut deployment.handle.1);
+            deployment.handle.1.wait().unwrap();
+        }
+        assert_eq!(domains, vec![2, 1]);
+    }
 }
 
 #[cfg(feature = "cosmosnative")]

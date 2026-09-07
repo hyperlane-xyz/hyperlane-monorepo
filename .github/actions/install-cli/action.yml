@@ -51,7 +51,16 @@ runs:
     - name: Pack the CLI
       shell: bash
       id: pack-cli
-      run: pnpm -C typescript/cli pack
+      env:
+        NO_CACHE: ${{ inputs.no-cache }}
+      run: |
+        if [ "$NO_CACHE" = 'false' ]; then
+          pnpm exec turbo run bundle --filter=@hyperlane-xyz/cli
+        else
+          pnpm -C typescript/cli bundle
+        fi
+        # Bundle above is content-addressed by Turbo. Do not run prepack again.
+        pnpm -C typescript/cli --config.ignore-scripts=true pack
 
     - name: Install the packaged CLI
       shell: bash

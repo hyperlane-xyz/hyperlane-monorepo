@@ -69,11 +69,12 @@
   ],
   "license": "Apache-2.0",
   "scripts": {
+    "deps:hardhat": "hardhat vars path",
     "deps:soldeer": "forge soldeer install --quiet || echo 'Warning: soldeer install failed, assuming dependencies are already present'",
     "build": "pnpm version:update && pnpm hardhat-esm compile && tsc && node fix-typechain-ethers.mjs ./dist/typechain/factories && ./exportBuildArtifact.sh",
     "build:zk": "pnpm hardhat-zk compile && tsc && node fix-typechain-ethers.mjs ./dist/typechain/factories && node generate-artifact-exports.mjs && ZKSYNC=true ./exportBuildArtifact.sh",
     "build:tron": "./build-tron.sh",
-    "test:tron": "FOUNDRY_PROFILE=tron forge test --match-contract 'Tron(Create2|SafeERC20)Test' -vvv && bash test/tron/check-SafeERC20-diff.sh",
+    "test:tron": "tsx --test test/tron/source.test.cts && FOUNDRY_PROFILE=tron forge test --match-contract 'Tron(Create2|SafeERC20)Test' -vvv && bash test/tron/check-SafeERC20-diff.sh",
     "prepack": "[ -d dist ] || (echo 'Error: dist/ not found. Run pnpm build first.' && exit 1)",
     "lint": "solhint contracts/**/*.sol",
     "clean": "pnpm hardhat-esm clean && pnpm hardhat-zk clean && rm -rf ./dist ./cache ./cache-zk ./cache-tron ./artifacts-tron ./out-tron ./forge-cache-tron ./types ./coverage ./out ./forge-cache ./fixtures",

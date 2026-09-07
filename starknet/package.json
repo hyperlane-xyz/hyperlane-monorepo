@@ -26,6 +26,7 @@
     }
   },
   "scripts": {
+    "test:ci": "tsx --test scripts/generate-artifacts.test.ts",
     "fetch-contracts": "./scripts/fetch-contracts-release.sh",
     "generate-artifacts": "tsx ./scripts/generate-artifacts.ts",
     "build": "tsc && pnpm fetch-contracts && pnpm generate-artifacts",

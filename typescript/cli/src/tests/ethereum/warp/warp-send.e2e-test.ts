@@ -1,4 +1,3 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
 import { expect } from 'chai';
 import { Wallet, ethers } from 'ethers';
 import { parseEther } from 'ethers/lib/utils.js';
@@ -23,6 +22,7 @@ import { type Address, randomInt } from '@hyperlane-xyz/utils';
 
 import { WarpSendLogs } from '../../../send/transfer.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { createLocalProvider } from '../localProvider.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import { deployToken } from '../commands/helpers.js';
 import {
@@ -60,8 +60,8 @@ describe('hyperlane warp send e2e tests', async function () {
     const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
     const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
 
-    const providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
-    const providerChain3 = new JsonRpcProvider(chain3Metadata.rpcUrls[0].http);
+    const providerChain2 = createLocalProvider(chain2Metadata.rpcUrls[0].http);
+    const providerChain3 = createLocalProvider(chain3Metadata.rpcUrls[0].http);
 
     walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
     walletChain3 = new Wallet(ANVIL_KEY).connect(providerChain3);

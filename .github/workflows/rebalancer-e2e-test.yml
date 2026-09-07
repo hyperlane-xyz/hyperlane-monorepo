@@ -63,6 +63,8 @@ jobs:
           persist-credentials: false
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
+        with:
+          build-filter: '@hyperlane-xyz/rebalancer...'
 
       - name: Run rebalancer E2E tests (serial)
         working-directory: typescript/rebalancer

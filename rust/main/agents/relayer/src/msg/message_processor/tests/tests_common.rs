@@ -1,5 +1,6 @@
 // Common test utilities for message processor tests
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -27,6 +28,12 @@ pub struct MockQueueOperation {
     pub id: H256,
     pub status: PendingOperationStatus,
     pub destination: HyperlaneDomain,
+    #[serde(skip)]
+    pub next_attempt: Option<Instant>,
+    pub retries: u32,
+    pub delivered: Option<bool>,
+    #[serde(skip)]
+    pub confirmations: Arc<AtomicUsize>,
 }
 
 impl MockQueueOperation {
@@ -35,6 +42,10 @@ impl MockQueueOperation {
             id,
             status,
             destination,
+            next_attempt: None,
+            retries: 0,
+            delivered: None,
+            confirmations: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -110,7 +121,15 @@ impl PendingOperation for MockQueueOperation {
         None
     }
     async fn confirm(&mut self) -> PendingOperationResult {
-        unimplemented!()
+        if !self.is_ready() {
+            return PendingOperationResult::NotReady;
+        }
+        self.confirmations.fetch_add(1, Ordering::SeqCst);
+        if self.delivered.expect("unexpected confirmation call") {
+            PendingOperationResult::Success
+        } else {
+            PendingOperationResult::Reprepare(ReprepareReason::RevertedOrReorged)
+        }
     }
     async fn set_operation_outcome(
         &mut self,
@@ -119,14 +138,18 @@ impl PendingOperation for MockQueueOperation {
     ) {
     }
     fn next_attempt_after(&self) -> Option<Instant> {
-        None
+        self.next_attempt
     }
-    fn set_next_attempt_after(&mut self, _delay: Duration) {}
+    fn set_next_attempt_after(&mut self, delay: Duration) {
+        self.next_attempt = Instant::now().checked_add(delay);
+    }
     fn reset_attempts(&mut self) {}
     #[cfg(any(test, feature = "test-utils"))]
-    fn set_retries(&mut self, _retries: u32) {}
+    fn set_retries(&mut self, retries: u32) {
+        self.retries = retries;
+    }
     fn get_retries(&self) -> u32 {
-        0
+        self.retries
     }
     async fn payload(&self) -> ChainResult<Vec<u8>> {
         unimplemented!()

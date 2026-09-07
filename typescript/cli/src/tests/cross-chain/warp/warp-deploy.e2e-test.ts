@@ -94,12 +94,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
   let evmNodeInstance: StartedTestContainer;
 
   before(async function () {
-    cosmosNodeInstance = await runCosmosNode(
-      TEST_CHAIN_METADATA_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
-    );
-    evmNodeInstance = await runEvmNode(
-      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
-    );
+    [cosmosNodeInstance, evmNodeInstance] = await Promise.all([
+      runCosmosNode(TEST_CHAIN_METADATA_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1),
+      runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2),
+    ]);
 
     const cosmosWallet = await createSignerWithPrivateKey(
       HYP_KEY_BY_PROTOCOL.cosmosnative,

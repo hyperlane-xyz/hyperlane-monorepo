@@ -51,6 +51,8 @@ pub const MESSAGE_PROCESSOR_QUEUE_COUNT: usize = 3;
 /// one slot avoids a duplicate backlog while still decoupling task scheduling.
 pub const MESSAGE_PROCESSOR_INGRESS_CAPACITY: usize = 1;
 
+const CONFIRM_POLL_INTERVAL: Duration = Duration::from_millis(500);
+
 #[async_trait::async_trait]
 trait RecoveryWaiter: Send + Sync {
     async fn wait_for_recovery(&self);
@@ -197,7 +199,7 @@ impl MessageProcessor {
             Some(entrypoint) => self.create_lander_submit_task(entrypoint.clone()),
         };
 
-        let confirm_task = self.create_classic_confirm_task();
+        let confirm_task = self.create_classic_confirm_task(entrypoint);
 
         let tasks = [
             self.create_receive_task(rx_prepare, recovery_waiter),
@@ -272,7 +274,10 @@ impl MessageProcessor {
             .expect("spawning tokio task from Builder is infallible")
     }
 
-    fn create_classic_confirm_task(&self) -> JoinHandle<()> {
+    fn create_classic_confirm_task(
+        &self,
+        entrypoint: Option<Arc<DispatcherEntrypoint>>,
+    ) -> JoinHandle<()> {
         let name = Self::task_name("confirm_classic::", &self.domain);
         tokio::task::Builder::new()
             .name(&name)
@@ -284,6 +289,8 @@ impl MessageProcessor {
                     self.confirm_queue.clone(),
                     self.max_batch_size,
                     self.metrics.clone(),
+                    entrypoint,
+                    self.db.clone(),
                 ),
             ))
             .expect("spawning tokio task from Builder is infallible")
@@ -769,12 +776,14 @@ async fn confirm_op(
 }
 
 #[instrument(skip_all, fields(%domain))]
-async fn confirm_classic_task(
+async fn confirm_classic_task<E: Entrypoint + Send + Sync + 'static>(
     domain: HyperlaneDomain,
     prepare_queue: OpQueue,
     mut confirm_queue: OpQueue,
     max_batch_size: u32,
     metrics: MessageProcessorMetrics,
+    entrypoint: Option<Arc<E>>,
+    db: Arc<dyn HyperlaneDb>,
 ) {
     let recv_limit = max_batch_size as usize;
     loop {
@@ -787,7 +796,30 @@ async fn confirm_classic_task(
             continue;
         }
 
-        let futures = batch.into_iter().map(|op| {
+        let futures = batch.into_iter().map(|mut op| async {
+            if op.is_ready() && domain.domain_protocol() == HyperlaneDomainProtocol::Sealevel {
+                if let Some(entrypoint) = &entrypoint {
+                    if disposition::awaiting_transaction_finality(
+                        entrypoint.clone(),
+                        db.clone(),
+                        &op,
+                    )
+                    .await
+                    {
+                        // Advance the queue deadline without counting a failed attempt.
+                        // Otherwise this expired operation can starve later confirmations.
+                        op.set_next_attempt_after(CONFIRM_POLL_INTERVAL);
+                        return process_confirm_result(
+                            op,
+                            prepare_queue.clone(),
+                            confirm_queue.clone(),
+                            metrics.clone(),
+                            PendingOperationResult::NotReady,
+                        )
+                        .await;
+                    }
+                }
+            }
             confirm_operation(
                 op,
                 domain.clone(),
@@ -795,6 +827,7 @@ async fn confirm_classic_task(
                 confirm_queue.clone(),
                 metrics.clone(),
             )
+            .await
         });
         let op_results = join_all(futures).await;
         if op_results.iter().all(|op_result| {
@@ -805,7 +838,7 @@ async fn confirm_classic_task(
         }) {
             // None of the operations are ready, so wait for a little bit
             // before checking again to prevent burning CPU
-            sleep(Duration::from_millis(500)).await;
+            sleep(CONFIRM_POLL_INTERVAL).await;
         }
     }
 }

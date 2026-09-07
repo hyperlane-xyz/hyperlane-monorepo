@@ -4,10 +4,7 @@ import { MultiProvider, revertToSnapshot, snapshot } from '@hyperlane-xyz/sdk';
 import { assert, retryAsync } from '@hyperlane-xyz/utils';
 
 import { ANVIL_TEST_PRIVATE_KEY, TEST_CHAINS } from '../fixtures/routes.js';
-
-function createFreshProvider(url: string): providers.JsonRpcProvider {
-  return new providers.JsonRpcProvider(url);
-}
+import { createLocalProvider } from './LocalProvider.js';
 
 /**
  * Revert all chains to their snapshots, take new snapshots, and refresh
@@ -35,7 +32,7 @@ export async function resetSnapshotsAndRefreshProviders({
 
   for (const [chain, oldProvider] of Array.from(localProviders.entries())) {
     const url = oldProvider.connection.url;
-    const freshProvider = createFreshProvider(url);
+    const freshProvider = createLocalProvider(url);
     localProviders.set(chain, freshProvider);
     multiProvider.setProvider(chain, freshProvider);
     multiProvider.setSigner(chain, signerWallet.connect(freshProvider));

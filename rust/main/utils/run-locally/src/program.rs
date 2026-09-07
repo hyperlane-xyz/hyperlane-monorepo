@@ -256,6 +256,14 @@ impl Program {
         MappingTaskHandle(self.run_full(false, false), |(success, _)| success)
     }
 
+    /// Capture stdout while preserving the process exit status.
+    #[allow(dead_code)]
+    pub fn run_with_status_and_output(self) -> impl TaskHandle<Output = (bool, Vec<String>)> {
+        MappingTaskHandle(self.run_full(false, true), |(success, output)| {
+            (success, output.expect("Command did not return output"))
+        })
+    }
+
     pub fn spawn(self, log_prefix: &'static str, logs_dir: Option<&Path>) -> AgentHandles {
         let mut command = self.create_command();
         let log_file = logs_dir.map(|logs_dir| {
@@ -335,8 +343,6 @@ impl Program {
         };
 
         let status = loop {
-            sleep(Duration::from_millis(500));
-
             if let Some(exit_status) = child.try_wait().expect("Failed to run command") {
                 break exit_status;
             } else if SHUTDOWN.load(Ordering::Relaxed) {
@@ -344,6 +350,8 @@ impl Program {
                 stop_child(&mut child);
                 break child.wait().expect("Failed to run command");
             }
+            // Observe short-lived commands promptly without busy-waiting.
+            sleep(Duration::from_millis(20));
         };
 
         running.store(false, Ordering::Relaxed);
@@ -399,5 +407,32 @@ fn prefix_log(
         } else {
             break;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn captures_stdout_and_failed_exit_status() {
+        let (success, output) = Program::new("sh")
+            .raw_arg("-c")
+            .raw_arg("printf 'first\\nlast\\n'; exit 7")
+            .run_with_status_and_output()
+            .join();
+        assert!(!success);
+        assert_eq!(output, ["first", "last"]);
+    }
+
+    #[test]
+    fn captures_stdout_and_successful_exit_status() {
+        let (success, output) = Program::new("sh")
+            .raw_arg("-c")
+            .raw_arg("printf 'complete\\n'")
+            .run_with_status_and_output()
+            .join();
+        assert!(success);
+        assert_eq!(output, ["complete"]);
     }
 }

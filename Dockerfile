@@ -76,8 +76,8 @@ COPY starknet ./starknet
 # To update when changing solidity version in solidity/rootHardhatConfig.cts:
 #   1. Find the commit hash: curl -s "https://binaries.soliditylang.org/linux-amd64/list.json" | jq '.releases["X.Y.Z"]'
 #   2. Update SOLC_VERSION and SOLC_COMMIT below
-ARG SOLC_VERSION=0.8.22
-ARG SOLC_COMMIT=4fc1097e
+ARG SOLC_VERSION=0.8.33
+ARG SOLC_COMMIT=64118f21
 RUN SOLC_BINARY="solc-linux-amd64-v${SOLC_VERSION}+commit.${SOLC_COMMIT}" && \
     SOLC_LIST_URL="https://binaries.soliditylang.org/linux-amd64/list.json" && \
     SOLC_BIN_URL="https://binaries.soliditylang.org/linux-amd64/${SOLC_BINARY}" && \
@@ -87,7 +87,10 @@ RUN SOLC_BINARY="solc-linux-amd64-v${SOLC_VERSION}+commit.${SOLC_COMMIT}" && \
     curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL "$SOLC_BIN_URL" -o "$CACHE_DIR/${SOLC_BINARY}" && \
     chmod +x "$CACHE_DIR/${SOLC_BINARY}"
 
-RUN pnpm build
+ARG TARGETARCH
+RUN --mount=type=cache,id=monorepo-turbo-${TARGETARCH},target=/hyperlane-monorepo/.turbo/cache \
+    --mount=type=cache,target=/root/.tron/solc \
+    pnpm build
 
 # Baked-in registry version
 # keep for back-compat until we update all usage of the monorepo image (e.g. key-funder)

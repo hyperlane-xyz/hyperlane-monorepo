@@ -1,4 +1,5 @@
 {
+  "fail-zero": true,
   "extensions": ["ts"],
   "file": ["src/tests/cross-chain/e2e-test.setup.ts"],
   "node-option": ["import=tsx/esm"]

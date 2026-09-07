@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
     thread::sleep,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use solana_client::{
@@ -21,6 +21,7 @@ use solana_sdk::{
 use crate::ECLIPSE_DOMAIN;
 
 const SOLANA_DOMAIN: u32 = 1399811149;
+const PROGRAM_READY_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub(crate) fn get_compute_unit_price_micro_lamports_for_id(domain: u32) -> u64 {
     get_compute_unit_price(domain == SOLANA_DOMAIN)
@@ -63,8 +64,9 @@ pub(crate) fn deploy_program(
     );
     let program_id = program_keypair.pubkey();
 
-    let client = RpcClient::new(url.to_string());
+    let client = RpcClient::new_with_timeout(url.to_string(), Duration::from_secs(5));
     if account_exists(&client, &program_keypair.pubkey())? {
+        wait_for_program_ready(&client, &program_id, PROGRAM_READY_TIMEOUT)?;
         println!("Program {} already deployed", program_keypair.pubkey());
         return Ok(program_id);
     }
@@ -104,7 +106,9 @@ pub(crate) fn deploy_program(
         )
         .is_ok()
         {
-            // Success!
+            // Check visibility at the same commitment used by subsequent client
+            // transactions. Do not redeploy an accepted transaction on timeout.
+            wait_for_program_ready(&client, &program_id, PROGRAM_READY_TIMEOUT)?;
             return Ok(program_id);
         }
 
@@ -165,12 +169,7 @@ fn attempt_program_deploy(
         command.extend(vec!["--with-compute-unit-price", &compute_unit_price_str]);
     }
 
-    // Success!
     if let Ok(true) = run_cmd(command.as_slice(), None, None) {
-        // TODO: use commitment level instead of just sleeping here?
-        println!("Sleeping for 5 seconds to fully allow program to be deployed");
-        sleep(Duration::from_secs(5));
-
         return Ok(());
     }
 
@@ -179,6 +178,39 @@ fn attempt_program_deploy(
         program_name
     ))
     .into())
+}
+
+fn wait_for_program_ready(
+    client: &RpcClient,
+    program_id: &Pubkey,
+    timeout: Duration,
+) -> Result<(), ClientError> {
+    let deadline = Instant::now() + timeout;
+    let mut first_executable_slot = None;
+    loop {
+        match client.get_account_with_commitment(program_id, CommitmentConfig::confirmed()) {
+            Ok(response) => {
+                if response.value.is_some_and(|account| account.executable) {
+                    // A newly deployed program is not callable in its deployment bank.
+                    // Observe it in a later confirmed slot before simulating client calls.
+                    let first_slot = first_executable_slot.get_or_insert(response.context.slot);
+                    if response.context.slot > *first_slot {
+                        return Ok(());
+                    }
+                } else {
+                    first_executable_slot = None;
+                }
+            }
+            Err(error) => eprintln!("Retrying readiness check for program {program_id}: {error}"),
+        }
+        if Instant::now() >= deadline {
+            return Err(ClientErrorKind::Custom(format!(
+                "Program {program_id} did not become executable in a later confirmed slot"
+            ))
+            .into());
+        }
+        sleep(Duration::from_millis(100));
+    }
 }
 
 pub(crate) fn create_new_directory(parent_dir: &Path, name: &str) -> PathBuf {
@@ -230,4 +262,92 @@ fn run_cmd(cmd: &[&str], wd: Option<&str>, env: Option<&HashMap<&str, &str>>) ->
     println!("Running command: {:?}", c);
     let status = c.status()?;
     Ok(status.success())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use solana_client::rpc_request::RpcRequest;
+
+    fn program_response(executable: bool) -> serde_json::Value {
+        json!({"context": {"slot": 10}, "value": {
+            "lamports": 1, "data": ["", "base64"],
+            "owner": Pubkey::default().to_string(),
+            "executable": executable, "rentEpoch": 0
+        }})
+    }
+
+    #[test]
+    fn program_readiness_rejects_deployment_bank_even_if_executable() {
+        let client = RpcClient::new_mock_with_mocks(
+            "succeeds",
+            HashMap::from([(RpcRequest::GetAccountInfo, program_response(true))]),
+        );
+        assert!(wait_for_program_ready(&client, &Pubkey::new_unique(), Duration::ZERO).is_err());
+    }
+
+    #[test]
+    fn program_readiness_rejects_missing_or_nonexecutable_accounts() {
+        for response in [
+            json!({"context": {"slot": 10}, "value": null}),
+            program_response(false),
+        ] {
+            let client = RpcClient::new_mock_with_mocks(
+                "succeeds",
+                HashMap::from([(RpcRequest::GetAccountInfo, response)]),
+            );
+            assert!(
+                wait_for_program_ready(&client, &Pubkey::new_unique(), Duration::ZERO).is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn program_readiness_waits_until_account_is_executable() {
+        let mut next_slot = program_response(true);
+        next_slot["context"]["slot"] = json!(11);
+        let client = RpcClient::new_mock_with_mocks_map(
+            "succeeds",
+            [
+                (RpcRequest::GetAccountInfo, program_response(false)),
+                (RpcRequest::GetAccountInfo, program_response(true)),
+                (RpcRequest::GetAccountInfo, program_response(true)),
+                (RpcRequest::GetAccountInfo, next_slot),
+            ]
+            .into_iter()
+            .collect(),
+        );
+        wait_for_program_ready(&client, &Pubkey::new_unique(), Duration::from_secs(2)).unwrap();
+    }
+
+    #[test]
+    fn program_readiness_retries_rpc_errors_until_ready() {
+        let mut next_slot = program_response(true);
+        next_slot["context"]["slot"] = json!(11);
+        let client = RpcClient::new_mock_with_mocks_map(
+            "succeeds",
+            [
+                (RpcRequest::GetAccountInfo, serde_json::Value::Null),
+                (RpcRequest::GetAccountInfo, program_response(true)),
+                (RpcRequest::GetAccountInfo, serde_json::Value::Null),
+                (RpcRequest::GetAccountInfo, next_slot),
+            ]
+            .into_iter()
+            .collect(),
+        );
+        wait_for_program_ready(&client, &Pubkey::new_unique(), Duration::from_secs(2)).unwrap();
+    }
+
+    #[test]
+    fn program_readiness_rpc_errors_reach_readiness_deadline() {
+        let client = RpcClient::new_mock("fails");
+        let timeout = Duration::from_millis(200);
+        let start = Instant::now();
+        let error = wait_for_program_ready(&client, &Pubkey::new_unique(), timeout).unwrap_err();
+        assert!(start.elapsed() >= timeout);
+        assert!(error
+            .to_string()
+            .contains("did not become executable in a later confirmed slot"));
+    }
 }

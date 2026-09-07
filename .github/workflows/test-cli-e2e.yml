@@ -50,7 +50,9 @@ jobs:
           - warp-net-flow
           - warp-apply-simple-updates
           - warp-apply-predicate-updates
-          - warp-apply-delayed-flow
+          - warp-apply-delayed-flow-1
+          - warp-apply-delayed-flow-2
+          - warp-apply-delayed-flow-3
           - warp-check-1
           - warp-send
     steps:
@@ -96,7 +98,9 @@ jobs:
           # ICA
           - ica-deploy
           # Warp Apply Commands
-          - warp-apply-delayed-flow
+          - warp-apply-delayed-flow-1
+          - warp-apply-delayed-flow-2
+          - warp-apply-delayed-flow-3
           - warp-apply-hook-updates
           - warp-apply-ism-updates
           - warp-apply-ownership-updates
@@ -405,7 +409,8 @@ jobs:
       matrix:
         test:
           - warp-apply
-          - warp-cc-evm-svm
+          - warp-cc-evm-svm-1
+          - warp-cc-evm-svm-2
           - warp-deploy
           - warp-send
           - warp-send-evm-svm

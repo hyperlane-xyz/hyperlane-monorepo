@@ -2,6 +2,11 @@
 
 # Cross-platform in-place sed
 sedi() {
+  # Turbo prepares the version before parallel builds. Standalone builds also
+  # call this script; leave shared inputs untouched when already up to date.
+  if [ "$(sed "$1" "$2")" = "$(cat "$2")" ]; then
+    return
+  fi
   if [ "$(uname)" = "Darwin" ]; then
     sed -i '' "$@"
   else

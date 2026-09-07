@@ -1,4 +1,6 @@
 import { promises as fs } from 'fs';
+import { availableParallelism } from 'node:os';
+import { Worker } from 'node:worker_threads';
 import { globby } from 'globby';
 import { basename, join } from 'path';
 import { hash, type CompiledContract } from 'starknet';
@@ -244,14 +246,8 @@ export class StarknetArtifactGenerator {
    * @notice Processes a single artifact file
    */
   async processArtifact(filePath: string) {
-    const contractType = this.getContractTypeFromPath(filePath);
-    const contractClass = this.getContractClassFromPath(filePath);
-
-    const baseFileName = basename(filePath);
-    const name = baseFileName
-      .replace('.json', '')
-      .replace(`.${ContractClass.SIERRA}`, '')
-      .replace(`.${ContractClass.CASM}`, '');
+    const { name, contractType, contractClass } =
+      this.describeArtifact(filePath);
 
     const artifact = await this.readArtifactFile(filePath);
 
@@ -292,6 +288,17 @@ export class StarknetArtifactGenerator {
     return { name, contractType, contractClass };
   }
 
+  private describeArtifact(filePath: string) {
+    return {
+      name: basename(filePath)
+        .replace('.json', '')
+        .replace(`.${ContractClass.SIERRA}`, '')
+        .replace(`.${ContractClass.CASM}`, ''),
+      contractType: this.getContractTypeFromPath(filePath),
+      contractClass: this.getContractClassFromPath(filePath),
+    };
+  }
+
   private _aggregateProcessingResults(
     processingResults: Array<{
       name: string;
@@ -325,8 +332,47 @@ export class StarknetArtifactGenerator {
       a.localeCompare(b),
     );
 
-    const processingResults = await Promise.all(
-      artifactFiles.map((file) => this.processArtifact(file)),
+    // Hashing is synchronous CPU work; Promise.all alone cannot parallelize it.
+    // Leave capacity for other Turbo tasks and bound concurrent artifact memory.
+    const workerCount = Math.min(
+      4,
+      availableParallelism(),
+      artifactFiles.length,
+    );
+    const workers = Array.from(
+      { length: workerCount },
+      (_, index) =>
+        new Worker(new URL('./artifact-worker.mjs', import.meta.url), {
+          workerData: {
+            compiledContractsDir: this.compiledContractsDir,
+            rootOutputDir: this.rootOutputDir,
+            files: artifactFiles.filter(
+              (_, fileIndex) => fileIndex % workerCount === index,
+            ),
+          },
+        }),
+    );
+    try {
+      await Promise.all(
+        workers.map(
+          (worker) =>
+            new Promise<void>((resolve, reject) => {
+              worker.once('error', reject);
+              worker.once('exit', (code) =>
+                code === 0
+                  ? resolve()
+                  : reject(
+                      new Error(`Artifact worker exited with code ${code}`),
+                    ),
+              );
+            }),
+        ),
+      );
+    } finally {
+      await Promise.all(workers.map((worker) => worker.terminate()));
+    }
+    const processingResults = artifactFiles.map((file) =>
+      this.describeArtifact(file),
     );
 
     const processedFilesMap =

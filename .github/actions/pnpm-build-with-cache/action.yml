@@ -23,8 +23,10 @@ runs:
     - name: Cache Hardhat compilers
       uses: actions/cache@v6
       with:
-        path: ~/.cache/hardhat-nodejs/compilers-v2
-        key: hardhat-compilers-${{ runner.os }}
+        path: |
+          ~/.cache/hardhat-nodejs/compilers-v2
+          ~/.tron/solc
+        key: contract-compilers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('solidity/rootHardhatConfig.cts', 'solidity/tron-hardhat.config.cts', 'solidity/plugins/hardhat-tron-solc.cts') }}
 
     # Always run install - pnpm needs to create symlinks from the cached store
     # The cache makes this much faster by restoring the pnpm store
