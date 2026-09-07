@@ -193,6 +193,41 @@ async fn idle_loader_does_not_reserve_shared_destination_capacity() {
 }
 
 #[tokio::test]
+async fn indexed_backlog_drains_without_waiting_for_fallback_poll() {
+    test_utils::run_test_db(|db| async move {
+        let origin = dummy_domain(0, "dummy_origin_domain");
+        let destination = dummy_domain(1, "dummy_destination_domain");
+        let db = HyperlaneRocksDB::new(&origin, db);
+        for nonce in 0..3 {
+            add_db_entry(&db, &dummy_hyperlane_message(&destination, nonce), 0);
+        }
+        let (mut loader, mut receiver) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        finish_legacy_migration(&mut loader).await;
+        timeout(Duration::from_millis(750), async {
+            tokio::select! {
+                _ = async {
+                    loop {
+                        loader.tick().await.expect("loader tick should succeed");
+                    }
+                } => {},
+                _ = async {
+                    let mut admitted = Vec::new();
+                    for _ in 0..3 {
+                        admitted.push(only_operation(receiver.recv().await.expect("ingress open")));
+                    }
+                    let ids: BTreeSet<_> = admitted.iter().map(|op| op.id()).collect();
+                    assert_eq!(ids.len(), 3, "each message must be admitted once");
+                } => {}
+            }
+        })
+        .await
+        .expect("indexed backlog should drain promptly without notifications");
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn test_idle_tick_wakes_on_index_notification() {
     test_utils::run_test_db(|db| async move {
         let origin_domain = dummy_domain(0, "dummy_origin_domain");
@@ -1271,7 +1306,7 @@ async fn saturated_destination_does_not_block_another_destination() {
         );
         assert_eq!(receiver_a.len(), 1);
 
-        timeout(Duration::from_millis(1_500), async {
+        timeout(Duration::from_millis(750), async {
             let release_capacity = async {
                 sleep(Duration::from_millis(20)).await;
                 receiver_a.recv().await.unwrap();
