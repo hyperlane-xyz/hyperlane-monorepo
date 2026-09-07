@@ -1,12 +1,15 @@
 use std::sync::Arc;
 
+use serde_json::{json, Value};
 use solana_client::{
+    client_error::ClientError,
     nonblocking::rpc_client::RpcClient,
     rpc_client::{GetConfirmedSignaturesForAddress2Config, SerializableTransaction},
     rpc_config::{
         RpcBlockConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig,
         RpcSimulateTransactionConfig, RpcTransactionConfig,
     },
+    rpc_request::RpcRequest,
     rpc_response::{
         Response, RpcConfirmedTransactionStatusWithSignature, RpcSimulateTransactionResult,
     },
@@ -35,6 +38,43 @@ use crate::tx_type::SealevelTxType;
 pub struct SealevelRpcClient(Arc<RpcClient>);
 
 impl SealevelRpcClient {
+    async fn get_signature_statuses_with_config(
+        &self,
+        signatures: &[Signature],
+        search_transaction_history: bool,
+    ) -> ChainResult<Response<Vec<Option<TransactionStatus>>>> {
+        let signatures = signatures
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
+        let params = if search_transaction_history {
+            json!([signatures, { "searchTransactionHistory": true }])
+        } else {
+            json!([signatures])
+        };
+        let mut response: Value = self
+            .0
+            .send(RpcRequest::GetSignatureStatuses, params)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+
+        // Some providers return an empty optional API version. Preserve valid
+        // versions while treating only the empty value as absent.
+        if let Some(api_version) = response.pointer_mut("/context/apiVersion") {
+            if api_version.as_str() == Some("") {
+                *api_version = Value::Null;
+            }
+        }
+
+        serde_json::from_value(response)
+            .map_err(|error| {
+                ClientError::new_with_request(error.into(), RpcRequest::GetSignatureStatuses)
+            })
+            .map_err(Box::new)
+            .map_err(HyperlaneSealevelError::ClientError)
+            .map_err(Into::into)
+    }
+
     /// constructor
     pub fn new(rpc_endpoint: String) -> Self {
         let rpc_client =
@@ -223,10 +263,8 @@ impl SealevelRpcClient {
         &self,
         signatures: &[Signature],
     ) -> ChainResult<Response<Vec<Option<TransactionStatus>>>> {
-        self.0
-            .get_signature_statuses(signatures)
+        self.get_signature_statuses_with_config(signatures, false)
             .await
-            .map_err(ChainCommunicationError::from_other)
     }
 
     /// Get signature statuses, including rooted transaction history.
@@ -234,10 +272,8 @@ impl SealevelRpcClient {
         &self,
         signatures: &[Signature],
     ) -> ChainResult<Response<Vec<Option<TransactionStatus>>>> {
-        self.0
-            .get_signature_statuses_with_history(signatures)
+        self.get_signature_statuses_with_config(signatures, true)
             .await
-            .map_err(ChainCommunicationError::from_other)
     }
 
     /// get slot
