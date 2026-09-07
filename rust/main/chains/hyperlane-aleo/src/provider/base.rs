@@ -198,8 +198,6 @@ impl JWTBaseHttpClient {
             .header(CONTENT_LENGTH, "0")
             .send()
             .await
-            .map_err(HyperlaneAleoError::from)?
-            .error_for_status()
             .map_err(HyperlaneAleoError::from)?;
         let response = response
             .error_for_status()
