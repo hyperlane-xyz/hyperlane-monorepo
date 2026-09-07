@@ -1,7 +1,7 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
-use std::{collections::HashMap, ops::Deref};
+use std::ops::Deref;
 
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
@@ -109,40 +109,32 @@ impl TransactionStatus {
     pub fn classify_tx_status_from_hash_statuses(
         statuses: Vec<Result<TransactionStatus, LanderError>>,
     ) -> TransactionStatus {
-        let mut status_counts = HashMap::<TransactionStatus, usize>::new();
+        let mut included = false;
+        let mut mempool = false;
+        let mut pending = false;
+        let mut dropped = false;
 
-        // count the occurrences of each successfully queried hash status
-        for status in statuses.iter().flatten() {
-            let entry = status_counts.entry(status.clone()).or_insert(0);
-            *entry = entry.saturating_add(1);
+        // Only category presence matters; counts and cloned drop reasons are unused.
+        for status in statuses.into_iter().flatten() {
+            match status {
+                TransactionStatus::Finalized => return TransactionStatus::Finalized,
+                TransactionStatus::Included => included = true,
+                TransactionStatus::Mempool => mempool = true,
+                TransactionStatus::PendingInclusion => pending = true,
+                TransactionStatus::Dropped(_) => dropped = true,
+            }
         }
 
-        let finalized_count = status_counts
-            .get(&TransactionStatus::Finalized)
-            .unwrap_or(&0);
-        let included_count = status_counts
-            .get(&TransactionStatus::Included)
-            .unwrap_or(&0);
-        let pending_count = status_counts
-            .get(&TransactionStatus::PendingInclusion)
-            .unwrap_or(&0);
-        let mempool_count = status_counts.get(&TransactionStatus::Mempool).unwrap_or(&0);
-        if *finalized_count > 0 {
-            return TransactionStatus::Finalized;
-        } else if *included_count > 0 {
-            return TransactionStatus::Included;
-        } else if *mempool_count > 0 {
-            return TransactionStatus::Mempool;
-        } else if *pending_count > 0 {
-            return TransactionStatus::PendingInclusion;
-        } else if !status_counts.is_empty() {
-            // if the hashmap is not empty, it must mean that the hashes were dropped,
-            // because the hashmap is populated only if the status query was successful
-            return TransactionStatus::Dropped(DropReason::DroppedByChain);
+        if included {
+            TransactionStatus::Included
+        } else if mempool {
+            TransactionStatus::Mempool
+        } else if pending || !dropped {
+            // Empty or entirely failed reads retain the existing pending fallback.
+            TransactionStatus::PendingInclusion
+        } else {
+            TransactionStatus::Dropped(DropReason::DroppedByChain)
         }
-
-        // otherwise, return `PendingInclusion`, assuming the rpc is down temporarily and returns errors
-        TransactionStatus::PendingInclusion
     }
 }
 
@@ -179,6 +171,94 @@ pub enum VmSpecificTxData {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn legacy_classify(statuses: Vec<Result<TransactionStatus, LanderError>>) -> TransactionStatus {
+        let mut status_counts = HashMap::<TransactionStatus, usize>::new();
+
+        // count the occurrences of each successfully queried hash status
+        for status in statuses.iter().flatten() {
+            let entry = status_counts.entry(status.clone()).or_insert(0);
+            *entry = entry.saturating_add(1);
+        }
+
+        let finalized_count = status_counts
+            .get(&TransactionStatus::Finalized)
+            .unwrap_or(&0);
+        let included_count = status_counts
+            .get(&TransactionStatus::Included)
+            .unwrap_or(&0);
+        let pending_count = status_counts
+            .get(&TransactionStatus::PendingInclusion)
+            .unwrap_or(&0);
+        let mempool_count = status_counts.get(&TransactionStatus::Mempool).unwrap_or(&0);
+        if *finalized_count > 0 {
+            return TransactionStatus::Finalized;
+        } else if *included_count > 0 {
+            return TransactionStatus::Included;
+        } else if *mempool_count > 0 {
+            return TransactionStatus::Mempool;
+        } else if *pending_count > 0 {
+            return TransactionStatus::PendingInclusion;
+        } else if !status_counts.is_empty() {
+            // if the hashmap is not empty, it must mean that the hashes were dropped,
+            // because the hashmap is populated only if the status query was successful
+            return TransactionStatus::Dropped(DropReason::DroppedByChain);
+        }
+
+        // otherwise, return `PendingInclusion`, assuming the rpc is down temporarily and returns errors
+        TransactionStatus::PendingInclusion
+    }
+
+    fn classification_input(category: usize) -> Result<TransactionStatus, LanderError> {
+        match category {
+            0 => Err(LanderError::NetworkError("unavailable".to_owned())),
+            1 => Ok(TransactionStatus::PendingInclusion),
+            2 => Ok(TransactionStatus::Mempool),
+            3 => Ok(TransactionStatus::Included),
+            4 => Ok(TransactionStatus::Finalized),
+            5 => Ok(TransactionStatus::Dropped(DropReason::DroppedByChain)),
+            6 => Ok(TransactionStatus::Dropped(DropReason::FailedSimulation)),
+            7 => Ok(TransactionStatus::Dropped(DropReason::Other(
+                "first reason".to_owned(),
+            ))),
+            _ => Ok(TransactionStatus::Dropped(DropReason::Other(
+                "second reason".to_owned(),
+            ))),
+        }
+    }
+
+    #[test]
+    fn classification_matches_legacy_for_all_small_category_sequences() {
+        for length in 0..=4 {
+            for mut sequence in 0..9usize.pow(length) {
+                let categories: Vec<_> = (0..length)
+                    .map(|_| {
+                        let category = sequence % 9;
+                        sequence /= 9;
+                        category
+                    })
+                    .collect();
+                let legacy = legacy_classify(
+                    categories
+                        .iter()
+                        .copied()
+                        .map(classification_input)
+                        .collect(),
+                );
+                let actual = TransactionStatus::classify_tx_status_from_hash_statuses(
+                    categories
+                        .iter()
+                        .copied()
+                        .map(classification_input)
+                        .collect(),
+                );
+                assert_eq!(actual, legacy, "categories: {categories:?}");
+            }
+        }
+    }
+
     #[test]
     fn test_transaction_status_classification_finalized() {
         use super::*;

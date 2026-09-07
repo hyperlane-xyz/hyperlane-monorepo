@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::{future::Future, time::Duration};
 
 use futures_util::{stream, Stream, StreamExt};
@@ -54,7 +55,6 @@ pub(super) async fn read_transaction_status_batch(
     for tx in &mut checked_txs {
         tx.last_status_check = Some(checked_at);
     }
-    let mut query_txs = Vec::new();
     let status_slots = checked_txs
         .iter()
         .map(|tx| {
@@ -63,11 +63,24 @@ pub(super) async fn read_transaction_status_batch(
             {
                 Some(Ok(TransactionStatus::Finalized))
             } else {
-                query_txs.push(tx.clone());
                 None
             }
         })
         .collect::<Vec<_>>();
+    // Most batches query every transaction. Borrow their checked copies; only
+    // mixed/finalized batches need a separate filtered, owned query buffer.
+    let query_txs: Cow<'_, [Transaction]> = if status_slots.iter().any(Option::is_some) {
+        Cow::Owned(
+            checked_txs
+                .iter()
+                .zip(&status_slots)
+                .filter(|(_, status)| status.is_none())
+                .map(|(tx, _)| tx.clone())
+                .collect(),
+        )
+    } else {
+        Cow::Borrowed(&checked_txs)
+    };
     state
         .metrics
         .observe_status_read_batch(stage, query_txs.len(), &state.domain);
@@ -289,3 +302,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod status_batch_tests;

@@ -52,10 +52,7 @@ impl BuildingStage {
         for tx_building_result in tx_building_results {
             // push payloads that failed to be processed (but didn't fail simulation)
             // to the back of the queue
-            if let Err(err) = self
-                .handle_tx_building_result(tx_building_result.clone())
-                .await
-            {
+            if let Err(err) = self.handle_tx_building_result(&tx_building_result).await {
                 error!(?err, payloads=?tx_building_result.payloads, "Error handling tx building result");
                 let full_payloads =
                     get_full_payloads_from_details(payloads, &tx_building_result.payloads);
@@ -74,7 +71,7 @@ impl BuildingStage {
     )]
     async fn handle_tx_building_result(
         &self,
-        tx_building_result: TxBuildingResult,
+        tx_building_result: &TxBuildingResult,
     ) -> eyre::Result<(), LanderError> {
         let TxBuildingResult { payloads, maybe_tx } = tx_building_result;
         let Some(tx) = maybe_tx else {
@@ -84,18 +81,18 @@ impl BuildingStage {
             );
             self.state
                 .update_status_for_payloads(
-                    &payloads,
+                    payloads,
                     PayloadStatus::Dropped(DropReason::FailedToBuildAsTransaction),
                 )
                 .await;
             return Ok(());
         };
         info!(?tx, "Transaction built successfully");
-        self.state.store_tx(&tx).await;
+        self.state.store_tx(tx).await;
         // Only send tx to inclusion stage after we stored it
         // This prevents TX from dropping in case the send operation fails
         call_until_success_or_nonretryable_error(
-            || self.send_tx_to_inclusion_stage(tx.clone()),
+            || self.send_tx_to_inclusion_stage(tx),
             "Sending transaction to inclusion stage",
             &self.state,
         )
@@ -103,7 +100,7 @@ impl BuildingStage {
         Ok(())
     }
 
-    async fn send_tx_to_inclusion_stage(&self, tx: Transaction) -> eyre::Result<(), LanderError> {
+    async fn send_tx_to_inclusion_stage(&self, tx: &Transaction) -> eyre::Result<(), LanderError> {
         if let Err(err) = self.inclusion_stage_sender.send(tx.clone()).await {
             return Err(LanderError::ChannelSendFailure(Box::new(err)));
         }
