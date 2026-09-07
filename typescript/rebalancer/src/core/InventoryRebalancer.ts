@@ -23,7 +23,7 @@ import {
   isEVMLike,
 } from '@hyperlane-xyz/utils';
 
-import type { ExternalBridgeType } from '../config/types.js';
+import { ExternalBridgeType } from '../config/types.js';
 import type {
   ExternalBridgeRegistry,
   IExternalBridge,
@@ -854,7 +854,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         costMultiplier: MIN_VIABLE_COST_MULTIPLIER.toString(),
         intentId: intent.id,
       },
-      'Inventory below cost-based threshold on destination, triggering LiFi movement',
+      'Inventory below cost-based threshold on destination, triggering external bridge movement',
     );
 
     // Get all available source chains with raw inventory
@@ -938,17 +938,39 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     for (const source of viableSources) {
       if (totalPlanned >= targetWithBuffer) break;
 
+      const sourceToken = this.getTokenForChain(source.chain);
+      const destinationToken = this.getTokenForChain(destination);
+      assert(sourceToken, `No token found for source chain: ${source.chain}`);
+      assert(
+        destinationToken,
+        `No token found for destination chain: ${destination}`,
+      );
+
       const remaining = targetWithBuffer - totalPlanned;
       const targetOutput =
         source.maxTargetOutput >= remaining
           ? remaining
           : source.maxTargetOutput;
+      const forwardInputCap =
+        route.externalBridge === ExternalBridgeType.Katana
+          ? denormalizeToLocal(
+              normalizeToCanonical(targetOutput, destinationToken),
+              sourceToken,
+            )
+          : source.maxSourceInput;
       const quoteMode: BridgeQuoteMode =
-        source.maxTargetOutput > remaining ? 'reverse' : 'forward';
+        route.externalBridge === ExternalBridgeType.Katana
+          ? 'forward'
+          : source.maxTargetOutput > remaining
+            ? 'reverse'
+            : 'forward';
 
       bridgePlans.push({
         chain: source.chain,
-        maxSourceInput: source.maxSourceInput,
+        maxSourceInput:
+          forwardInputCap < source.maxSourceInput
+            ? forwardInputCap
+            : source.maxSourceInput,
         targetOutput,
         quoteMode,
       });
@@ -1502,7 +1524,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         fromTokenAddress,
         toTokenAddress,
       },
-      'Resolved token addresses for LiFi bridge',
+      'Resolved token addresses for external bridge',
     );
 
     try {
@@ -1522,7 +1544,10 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           toAddress,
         });
 
-      let quoteModeUsed = quoteMode;
+      let quoteModeUsed =
+        externalBridgeType === ExternalBridgeType.Katana
+          ? 'forward'
+          : quoteMode;
       let quote = await quoteWithMode(quoteModeUsed);
 
       if (quoteModeUsed === 'reverse' && quote.fromAmount > maxSourceInput) {
@@ -1587,7 +1612,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           feeCosts: quote.feeCosts.toString(),
           intentId: intent.id,
         },
-        'Executing inventory movement via bridge quote',
+        'Executing inventory movement via external bridge quote',
       );
 
       this.logger.debug(
@@ -1601,7 +1626,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           gasCosts: quote.gasCosts.toString(),
           feeCosts: quote.feeCosts.toString(),
         },
-        'Received LiFi quote for inventory movement',
+        'Received external bridge quote for inventory movement',
       );
 
       // Build private keys map from all available inventory signers
@@ -1652,7 +1677,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           amountConsumed: inputRequired.toString(),
           totalConsumed: (currentConsumed + inputRequired).toString(),
         },
-        'Updated consumed inventory after LiFi bridge',
+        'Updated consumed inventory after external bridge',
       );
 
       return {

@@ -229,7 +229,10 @@ describe('InventoryRebalancer E2E', () => {
     inventoryRebalancer = new InventoryRebalancer(
       config,
       actionTracker as unknown as IActionTracker,
-      { lifi: bridge as unknown as IExternalBridge },
+      {
+        lifi: bridge as unknown as IExternalBridge,
+        katana: bridge as unknown as IExternalBridge,
+      },
       warpCore as unknown as WarpCore,
       multiProvider as unknown as MultiProvider,
       testLogger,
@@ -2807,6 +2810,59 @@ describe('InventoryRebalancer E2E', () => {
       expect(bridge.quote.callCount).to.equal(2);
       expect(bridge.quote.getCall(1).args[0].fromAmount).to.equal(rawBalance);
       expect(bridge.quote.getCall(1).args[0].toAmount).to.be.undefined;
+    });
+
+    it('forces forward quote mode for katana routes', async () => {
+      const amount = 1000n;
+      const rawBalance = 1100n;
+      const targetWithBuffer = 1050n;
+
+      const route = createTestRoute({
+        externalBridge: ExternalBridgeType.Katana,
+      });
+      createTestIntent({ amount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: rawBalance,
+      });
+
+      bridge.quote
+        .onFirstCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: rawBalance,
+            toAmount: targetWithBuffer + 1n,
+            toAmountMin: targetWithBuffer + 1n,
+          }),
+        )
+        .onSecondCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: targetWithBuffer,
+            toAmount: targetWithBuffer,
+            toAmountMin: targetWithBuffer,
+          }),
+        );
+
+      bridge.execute.resolves({
+        txHash: '0xKatanaForwardBridgeTxHash',
+        fromChain: 42161,
+        toChain: 1399811149,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(bridge.execute.calledOnce).to.be.true;
+      expect(bridge.quote.callCount).to.equal(2);
+      const katanaForwardCall = bridge.quote.getCall(1).args[0];
+      if (!katanaForwardCall?.fromAmount) {
+        throw new Error('Expected Katana forward execution quote');
+      }
+      expect(katanaForwardCall.fromAmount < rawBalance).to.be.true;
+      expect(katanaForwardCall.toAmount).to.be.undefined;
     });
 
     it('retries reverse quote as forward when exact-output exceeds source capacity', async () => {

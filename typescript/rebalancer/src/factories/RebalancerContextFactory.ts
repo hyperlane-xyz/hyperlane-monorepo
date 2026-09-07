@@ -20,6 +20,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
+import { KatanaBridge } from '../bridges/KatanaBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
@@ -647,6 +648,17 @@ export class RebalancerContextFactory {
           }
           break;
         }
+        case ExternalBridgeType.Katana: {
+          registry[ExternalBridgeType.Katana] = new KatanaBridge(
+            {
+              integrator: 'hyperlane',
+              defaultSlippage: externalBridges?.katana?.defaultSlippage,
+              chainMetadata: this.multiProvider.metadata,
+            },
+            this.logger,
+          );
+          break;
+        }
         default: {
           // Exhaustive check - TypeScript will error if new enum value added
           const _exhaustive: never = bridgeType;
@@ -702,6 +714,10 @@ export class RebalancerContextFactory {
     }
 
     return { rebalancers, externalBridgeRegistry, inventoryConfig };
+  }
+
+  public createExternalBridgeRegistry(): Partial<ExternalBridgeRegistry> {
+    return this.buildExternalBridgeRegistry();
   }
 
   /**
