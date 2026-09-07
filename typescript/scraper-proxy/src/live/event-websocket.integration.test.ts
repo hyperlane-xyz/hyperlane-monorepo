@@ -1096,6 +1096,35 @@ void it('does not report heartbeat cleanup as a send failure', async (context) =
   }
 });
 
+void it('rejects out-of-range heartbeat intervals without starting timers', async () => {
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  for (const heartbeatMs of [
+    0,
+    -1,
+    1.5,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    2_147_483_648,
+  ]) {
+    const invalidDb: EventDatabase = {
+      listen: async () => async () => undefined,
+      queryLive: db.queryLive,
+    };
+    const invalidHttp = createServer();
+    await new Promise<void>((resolve) =>
+      invalidHttp.listen(0, '127.0.0.1', resolve),
+    );
+    const invalidEvents = new EventWebSocketServer(invalidDb, {
+      heartbeatMs,
+    });
+    await assert.rejects(invalidEvents.start(invalidHttp), /heartbeatMs/);
+    await invalidEvents.stop();
+    await new Promise<void>((resolve, reject) =>
+      invalidHttp.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
+
 void it('bounds aggregate Explorer outbound buffering', async () => {
   const sockets = Array.from({ length: 4 }, () => new WebSocket(messagesUrl));
   const messages: Record<string, unknown>[][] = sockets.map(() => []);

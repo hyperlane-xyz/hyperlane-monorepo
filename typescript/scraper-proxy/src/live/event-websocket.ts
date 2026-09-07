@@ -41,6 +41,10 @@ const MESSAGE_PATH = '/messages';
 const EVENT_CHANNEL = 'scraper_event';
 const EXPLORER_CHANNEL = 'scraper_explorer_event';
 const HEARTBEAT_MS = 30_000;
+// Node's setInterval() warns and clamps to 1 for non-positive values and
+// overflows above a signed 32-bit integer, so heartbeat overrides must stay
+// in this range.
+const MAX_INTERVAL_MS = 2_147_483_647;
 const LISTENER_RETRY_MS = 1_000;
 const NOTIFICATION_BATCH_MS = 100;
 const NOTIFICATION_BATCH_SIZE = 1_000;
@@ -187,6 +191,17 @@ export class EventWebSocketServer {
   }
 
   async start(server: Server): Promise<void> {
+    const { heartbeatMs } = this.limits;
+    if (
+      typeof heartbeatMs !== 'number' ||
+      !Number.isInteger(heartbeatMs) ||
+      heartbeatMs < 1 ||
+      heartbeatMs > MAX_INTERVAL_MS
+    ) {
+      throw new Error(
+        `Invalid heartbeatMs ${String(heartbeatMs)}: must be an integer between 1 and ${MAX_INTERVAL_MS}`,
+      );
+    }
     await this.connectListener();
     this.agentServer = new WebSocketServer({
       maxPayload: 4_096,
@@ -202,10 +217,7 @@ export class EventWebSocketServer {
     this.explorerServer.on('connection', (socket, request) =>
       this.connectExplorer(socket, request),
     );
-    this.heartbeatTimer = setInterval(
-      () => this.heartbeat(),
-      this.limits.heartbeatMs,
-    );
+    this.heartbeatTimer = setInterval(() => this.heartbeat(), heartbeatMs);
     this.logger.log(
       `event websockets listening on ${AGENT_PATH}, ${MESSAGE_PATH} batchSize=${config.EVENT_STREAM_BATCH_SIZE} maxBufferedBytes=${this.limits.maxBufferedBytes} maxTotalBufferedBytes=${this.limits.maxTotalBufferedBytes}`,
     );
