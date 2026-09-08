@@ -2,9 +2,6 @@
   "bsctestnet": {
     "validators": ["0x3588e77a3a9bcaa92b2d9c6cd525697c6fdb2c76"]
   },
-  "fuji": {
-    "validators": ["0x3588e77a3a9bcaa92b2d9c6cd525697c6fdb2c76"]
-  },
   "sepolia": {
     "validators": ["0x3588e77a3a9bcaa92b2d9c6cd525697c6fdb2c76"]
   }

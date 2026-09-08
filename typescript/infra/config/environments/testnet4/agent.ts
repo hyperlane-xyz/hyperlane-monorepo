@@ -15,10 +15,7 @@ import {
   RootAgentConfig,
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
-import {
-  BaseRelayerConfig,
-  MetricAppContext,
-} from '../../../src/config/agent/relayer.js';
+import { BaseRelayerConfig } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts, RELEASE_CANDIDATE_INDEX_FROM } from '../../contexts.js';
 import { DockerImageRepos, testnetDockerTags } from '../../docker.js';
@@ -48,24 +45,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrumsepolia: true,
     basesepolia: true,
     bsctestnet: true,
-    celestiatestnet: false,
-    celosepolia: false, // disabled — deprecated dead testnet, no traffic (2026-07)
-    eclipsetestnet: false,
-    fuji: true,
     hyperliquidevmtestnet: true,
-    kyvetestnet: false,
-    modetestnet: false, // disabled — deprecated dead testnet, no traffic (2026-07)
     optimismsepolia: true,
-    paradexsepolia: false, // disabled — Paradex Sepolia testnet reset; sole RPC 503, block sync frozen at 921055 (~27d)
     polygonamoy: true,
-    radixtestnet: false,
     seismictestnet: true,
     sepolia: true,
     solanadevnet: true,
     solanatestnet: true,
     somniatestnet: true,
-    sonicsvmtestnet: false,
-    starknetsepolia: false,
     tronshasta: true,
   },
   [Role.Relayer]: {
@@ -73,24 +60,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrumsepolia: true,
     basesepolia: true,
     bsctestnet: true,
-    celestiatestnet: false,
-    celosepolia: false, // disabled — deprecated dead testnet, no traffic (2026-07)
-    eclipsetestnet: false,
-    fuji: true,
     hyperliquidevmtestnet: true,
-    kyvetestnet: false,
-    modetestnet: false, // disabled — deprecated dead testnet, no traffic (2026-07)
     optimismsepolia: true,
-    paradexsepolia: false, // disabled — Paradex Sepolia testnet reset; sole RPC 503, block sync frozen at 921055 (~27d)
     polygonamoy: true,
-    radixtestnet: false,
     seismictestnet: true,
     sepolia: true,
     solanadevnet: true,
     solanatestnet: true,
     somniatestnet: true,
-    sonicsvmtestnet: false,
-    starknetsepolia: false,
     tronshasta: true,
   },
   [Role.Scraper]: {
@@ -98,25 +75,15 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrumsepolia: true,
     basesepolia: true,
     bsctestnet: true,
-    celestiatestnet: false,
-    celosepolia: false, // disabled — deprecated dead testnet, no traffic (2026-07)
-    eclipsetestnet: false,
-    fuji: true,
     hyperliquidevmtestnet: true,
-    kyvetestnet: false,
-    modetestnet: false, // disabled — deprecated dead testnet, no traffic (2026-07)
     optimismsepolia: true,
-    paradexsepolia: false, // disabled — Paradex Sepolia testnet reset; sole RPC 503, block sync frozen at 921055 (~27d)
     polygonamoy: true,
-    radixtestnet: false,
     // disabled temporarily until timestamps change from ms to secs (soon)
     seismictestnet: false,
     sepolia: true,
     solanadevnet: true,
     solanatestnet: true,
     somniatestnet: true,
-    sonicsvmtestnet: false,
-    starknetsepolia: false,
     tronshasta: true,
   },
 };
@@ -140,18 +107,6 @@ const contextBase = {
 } as const;
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
-  {
-    type: GasPaymentEnforcementPolicyType.None,
-    matchingList: [
-      // Temporary workaround due to IGP not being implemented on starknet chain.
-      // starknetsepolia
-      { originDomain: getDomainId('starknetsepolia') },
-      { destinationDomain: getDomainId('starknetsepolia') },
-      // paradexsepolia
-      { originDomain: getDomainId('paradexsepolia') },
-      { destinationDomain: getDomainId('paradexsepolia') },
-    ],
-  },
   {
     type: GasPaymentEnforcementPolicyType.Minimum,
     payment: '1',
@@ -191,45 +146,6 @@ const scraperResources = {
   },
 };
 
-// Kessel is a load test, these are contracts involved in the load
-// test that we want to have certain relayers focus on or ignore.
-const kesselMatchingList: MatchingList = [
-  // classic kessel test recipient
-  {
-    recipientAddress: '0x492b3653A38e229482Bab2f7De4A094B18017246',
-  },
-  // kessel run spice route
-  {
-    destinationDomain: getDomainId('basesepolia'),
-    recipientAddress: '0x4Cd2d5deD9D1ef5013fddCDceBeaCB32DFb5ad47',
-  },
-  {
-    destinationDomain: getDomainId('bsctestnet'),
-    recipientAddress: '0x975B8Cf9501cBaD717812fcdE3b51a390AD77540',
-  },
-  {
-    destinationDomain: getDomainId('optimismsepolia'),
-    recipientAddress: '0x554B0724432Ef42CB4a2C12E756F6F022e37aD8F',
-  },
-  {
-    destinationDomain: getDomainId('arbitrumsepolia'),
-    recipientAddress: '0xdED2d823A5e4E82AfbBB68A3e9D947eE03EFbA9d',
-  },
-  {
-    destinationDomain: getDomainId('sepolia'),
-    recipientAddress: '0x51BB50884Ec21063DEC3DCA0B2d4aCeF2559E65a',
-  },
-];
-
-const kesselAppContext = 'kessel';
-
-const metricAppContextsGetter = (): MetricAppContext[] => [
-  {
-    name: kesselAppContext,
-    matchingList: kesselMatchingList,
-  },
-];
-
 const ismCacheConfigs: Array<IsmCacheConfig> = [
   {
     selector: {
@@ -241,24 +157,6 @@ const ismCacheConfigs: Array<IsmCacheConfig> = [
       ModuleType.AGGREGATION,
       ModuleType.MERKLE_ROOT_MULTISIG,
       ModuleType.MESSAGE_ID_MULTISIG,
-    ],
-    // SVM is explicitly not cached as the default ISM is a multisig ISM
-    // that routes internally.
-    chains: ethereumChainNames,
-    cachePolicy: IsmCachePolicy.IsmSpecific,
-  },
-  {
-    selector: {
-      type: IsmCacheSelectorType.AppContext,
-      context: kesselAppContext,
-    },
-    // Default ISM Routing ISMs change configs based off message content,
-    // so they are not specified here.
-    moduleTypes: [
-      ModuleType.AGGREGATION,
-      ModuleType.MERKLE_ROOT_MULTISIG,
-      ModuleType.MESSAGE_ID_MULTISIG,
-      ModuleType.ROUTING,
     ],
     // SVM is explicitly not cached as the default ISM is a multisig ISM
     // that routes internally.
@@ -282,10 +180,34 @@ const processAltOverrides: BaseRelayerConfig['processAltOverrides'] = {
   ],
 };
 
+const retiredLoadTestBlacklist: MatchingList = [
+  {
+    recipientAddress: '0x492b3653A38e229482Bab2f7De4A094B18017246',
+  },
+  {
+    destinationDomain: getDomainId('basesepolia'),
+    recipientAddress: '0x4Cd2d5deD9D1ef5013fddCDceBeaCB32DFb5ad47',
+  },
+  {
+    destinationDomain: getDomainId('bsctestnet'),
+    recipientAddress: '0x975B8Cf9501cBaD717812fcdE3b51a390AD77540',
+  },
+  {
+    destinationDomain: getDomainId('optimismsepolia'),
+    recipientAddress: '0x554B0724432Ef42CB4a2C12E756F6F022e37aD8F',
+  },
+  {
+    destinationDomain: getDomainId('arbitrumsepolia'),
+    recipientAddress: '0xdED2d823A5e4E82AfbBB68A3e9D947eE03EFbA9d',
+  },
+  {
+    destinationDomain: getDomainId('sepolia'),
+    recipientAddress: '0x51BB50884Ec21063DEC3DCA0B2d4aCeF2559E65a',
+  },
+];
+
 const relayBlacklist: BaseRelayerConfig['blacklist'] = [
-  // Ignore kessel runner test recipients.
-  // All 5 test recipients have the same address.
-  ...kesselMatchingList,
+  ...retiredLoadTestBlacklist,
   {
     // In an effort to reduce some giant retry queues that resulted
     // from spam txs to the old TestRecipient before we were charging for
@@ -322,15 +244,8 @@ const hyperlane: RootAgentConfig = {
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
-    metricAppContextsGetter,
     ismCacheConfigs,
     processAltOverrides,
-    batch: {
-      batchSizeOverrides: {
-        starknetsepolia: 16,
-        paradexsepolia: 16,
-      },
-    },
     cache: {
       enabled: true,
     },
@@ -378,15 +293,8 @@ const releaseCandidate: RootAgentConfig = {
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
-    metricAppContextsGetter,
     ismCacheConfigs,
     processAltOverrides,
-    batch: {
-      batchSizeOverrides: {
-        starknetsepolia: 16,
-        paradexsepolia: 16,
-      },
-    },
     cache: {
       enabled: true,
     },
@@ -409,14 +317,6 @@ const releaseCandidate: RootAgentConfig = {
     resources: validatorResources,
   },
 };
-
-export const kesselRunnerNetworks = [
-  'basesepolia',
-  'arbitrumsepolia',
-  'sepolia',
-  'bsctestnet',
-  'optimismsepolia',
-];
 
 const fastPath: RootAgentConfig = {
   ...contextBase,

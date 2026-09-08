@@ -27,11 +27,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       reorgPeriod: 5,
     },
   },
-  kyvetestnet: {
-    transactionOverrides: {
-      gasPrice: '2.0',
-    },
-  },
 };
 
 export const getRegistry = async (

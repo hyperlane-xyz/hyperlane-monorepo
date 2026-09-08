@@ -15,29 +15,8 @@ export const owners: ChainMap<OwnableConfig> = {
     ]),
   ),
   solanadevnet: { owner: SEALEVEL_DEPLOYER_ADDRESS },
-  eclipsetestnet: {
-    owner: 'n/a - SVM not supported here',
-  },
   solanatestnet: {
     owner: 'n/a - SVM not supported here',
-  },
-  sonicsvmtestnet: {
-    owner: 'n/a - SVM not supported here',
-  },
-  kyvetestnet: {
-    owner: 'n/a - CSDK not supported here',
-  },
-  starknetsepolia: {
-    owner: 'n/a - Starknet not supported here',
-  },
-  paradexsepolia: {
-    owner: 'n/a - Starknet not supported here',
-  },
-  celestiatestnet: {
-    owner: 'n/a - CSDK not supported here',
-  },
-  radixtestnet: {
-    owner: 'n/a - Radix not supported here',
   },
   aleotestnet: {
     owner: 'n/a - Aleo not supported here',

@@ -15,49 +15,17 @@
     "amount": "1.0",
     "decimals": 9
   },
-  "celestiatestnet": {
-    "amount": "0.001",
-    "decimals": 1
-  },
-  "celosepolia": {
-    "amount": "25.001",
-    "decimals": 9
-  },
-  "eclipsetestnet": {
-    "amount": "0.001",
-    "decimals": 9
-  },
-  "fuji": {
-    "amount": "0.000000002",
-    "decimals": 9
-  },
   "hyperliquidevmtestnet": {
     "amount": "0.1",
-    "decimals": 9
-  },
-  "kyvetestnet": {
-    "amount": "0.001",
-    "decimals": 1
-  },
-  "modetestnet": {
-    "amount": "0.001000252",
     "decimals": 9
   },
   "optimismsepolia": {
     "amount": "0.001000251",
     "decimals": 9
   },
-  "paradexsepolia": {
-    "amount": "0.01",
-    "decimals": 9
-  },
   "polygonamoy": {
     "amount": "56.551052651",
     "decimals": 9
-  },
-  "radixtestnet": {
-    "amount": "50.0",
-    "decimals": 6
   },
   "seismictestnet": {
     "amount": "1.2",
@@ -77,14 +45,6 @@
   },
   "somniatestnet": {
     "amount": "6.0",
-    "decimals": 9
-  },
-  "sonicsvmtestnet": {
-    "amount": "0.01",
-    "decimals": 1
-  },
-  "starknetsepolia": {
-    "amount": "0.01",
     "decimals": 9
   },
   "tronshasta": {
