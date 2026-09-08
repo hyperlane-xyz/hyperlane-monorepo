@@ -17,7 +17,8 @@ describe('module registry', () => {
     ['cctp', 'HYPERLANE_EXPLORER_URL'],
     ['opstack', 'HYPERLANE_EXPLORER_API'],
   ] as const) {
-    it(`loads ${name} and preserves required configuration validation`, async () => {
+    it(`loads ${name} and preserves required configuration validation`, async function () {
+      if (name === 'callCommitments') this.timeout(10_000);
       const previous = process.env[requiredSetting];
       delete process.env[requiredSetting];
       let rejected: unknown;

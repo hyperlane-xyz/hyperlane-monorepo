@@ -234,15 +234,13 @@ export class KeyFunder {
       key.desiredBalance,
       decimals,
     );
-    const fundingAmount = await this.calculateFundingAmount(
-      chain,
-      key.address,
-      desiredBalance,
-    );
-
     const currentBalance = await this.multiProvider
       .getProvider(chain)
       .getBalance(key.address);
+    const fundingAmount = this.calculateFundingAmount(
+      currentBalance,
+      desiredBalance,
+    );
 
     this.options.metrics?.recordWalletBalance(
       chain,
@@ -311,14 +309,10 @@ export class KeyFunder {
     );
   }
 
-  private async calculateFundingAmount(
-    chain: string,
-    address: string,
+  private calculateFundingAmount(
+    currentBalance: BigNumber,
     desiredBalance: BigNumber,
-  ): Promise<BigNumber> {
-    const currentBalance = await this.multiProvider
-      .getProvider(chain)
-      .getBalance(address);
+  ): BigNumber {
     if (currentBalance.gte(desiredBalance)) {
       return BigNumber.from(0);
     }
