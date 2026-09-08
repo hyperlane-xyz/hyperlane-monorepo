@@ -234,6 +234,7 @@ mod tests {
                         method,
                         status,
                         "primary",
+                        "unattributed",
                     ])
                     .get(),
                 1,
