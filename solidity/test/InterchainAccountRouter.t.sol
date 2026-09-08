@@ -361,6 +361,8 @@ contract InterchainAccountRouterTestBase is Test {
             return;
         }
 
+        vm.assume(_hasUniqueDomains(destinations));
+
         // act
         originIcaRouter.enrollRemoteRouterAndIsms(destinations, routers, isms);
 
@@ -371,6 +373,41 @@ contract InterchainAccountRouterTestBase is Test {
             assertEq(actualRouter, routers[i]);
             assertEq(actualIsm, isms[i]);
         }
+    }
+
+    function test_enrollRemoteRouterAndIsms_revertsDuplicateEnrolledDestination()
+        public
+    {
+        uint32[] memory destinations = new uint32[](2);
+        destinations[0] = destination;
+        destinations[1] = destination;
+
+        bytes32[] memory routers = new bytes32[](2);
+        routers[0] = bytes32(uint256(1));
+        routers[1] = bytes32(uint256(2));
+
+        bytes32[] memory isms = new bytes32[](2);
+        isms[0] = bytes32(uint256(3));
+        isms[1] = bytes32(uint256(4));
+
+        vm.expectRevert(
+            bytes("router and ISM defaults are immutable once set")
+        );
+        originIcaRouter.enrollRemoteRouterAndIsms(destinations, routers, isms);
+
+        assertEq(originIcaRouter.routers(destination), bytes32(0));
+        assertEq(originIcaRouter.isms(destination), bytes32(0));
+    }
+
+    function _hasUniqueDomains(
+        uint32[] calldata domains
+    ) internal pure returns (bool) {
+        for (uint256 i = 0; i < domains.length; i++) {
+            for (uint256 j = i + 1; j < domains.length; j++) {
+                if (domains[i] == domains[j]) return false;
+            }
+        }
+        return true;
     }
 
     function testFuzz_enrollRemoteRouterAndIsmImmutable(
