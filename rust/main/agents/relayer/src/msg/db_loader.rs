@@ -233,7 +233,7 @@ struct LegacyMessageIterator {
 impl LegacyMessageIterator {
     #[instrument(skip(db), ret)]
     fn new(db: Arc<dyn HyperlaneDb>) -> Result<(Self, Option<u32>)> {
-        let high_nonce = db.retrieve_highest_seen_message_nonce()?;
+        let high_nonce = db.retrieve_highest_message_nonce()?;
         let domain = db.domain().name().to_owned();
         let high_nonce_iter = DirectionalNonceIterator::new(
             // If the high nonce is None, we start from the beginning

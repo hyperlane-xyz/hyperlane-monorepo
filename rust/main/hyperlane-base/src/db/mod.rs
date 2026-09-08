@@ -20,6 +20,9 @@ pub trait HyperlaneDb: Send + Sync {
     /// Retrieve the nonce of the highest processed message we're aware of
     fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>>;
 
+    /// Retrieve the greatest nonce with a stored message ID.
+    fn retrieve_highest_message_nonce(&self) -> DbResult<Option<u32>>;
+
     /// Retrieve a message by its nonce
     fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>>;
 

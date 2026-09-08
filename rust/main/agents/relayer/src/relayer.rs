@@ -957,25 +957,47 @@ impl Relayer {
             async move {
                 let mut init_failed = false;
                 let mut message_db_loader = loop {
-                    match MessageDbLoader::new(
-                        database.clone(),
-                        message_whitelist.clone(),
-                        message_blacklist.clone(),
-                        address_blacklist.clone(),
-                        metrics.clone(),
-                        send_channels.clone(),
-                        destination_ctxs.clone(),
-                        metric_app_contexts.clone(),
-                        max_retries,
-                    ) {
-                        Ok(loader) => break loader,
-                        Err(err) => {
+                    let database = database.clone();
+                    let message_whitelist = message_whitelist.clone();
+                    let message_blacklist = message_blacklist.clone();
+                    let address_blacklist = address_blacklist.clone();
+                    let metrics = metrics.clone();
+                    let send_channels = send_channels.clone();
+                    let destination_ctxs = destination_ctxs.clone();
+                    let metric_app_contexts = metric_app_contexts.clone();
+                    let result = tokio::task::spawn_blocking(move || {
+                        MessageDbLoader::new(
+                            database,
+                            message_whitelist,
+                            message_blacklist,
+                            address_blacklist,
+                            metrics,
+                            send_channels,
+                            destination_ctxs,
+                            metric_app_contexts,
+                            max_retries,
+                        )
+                    })
+                    .await;
+                    match result {
+                        Ok(Ok(loader)) => break loader,
+                        Ok(Err(err)) => {
                             init_failed = true;
                             Self::record_critical_error(
                                 &origin_domain,
                                 &chain_metrics,
                                 &err,
                                 "Failed to run message db loader; retrying",
+                            );
+                            tokio::time::sleep(MESSAGE_DB_LOADER_INIT_RETRY_INTERVAL).await;
+                        }
+                        Err(err) => {
+                            init_failed = true;
+                            Self::record_critical_error(
+                                &origin_domain,
+                                &chain_metrics,
+                                &err,
+                                "Message db loader initialization task failed; retrying",
                             );
                             tokio::time::sleep(MESSAGE_DB_LOADER_INIT_RETRY_INTERVAL).await;
                         }

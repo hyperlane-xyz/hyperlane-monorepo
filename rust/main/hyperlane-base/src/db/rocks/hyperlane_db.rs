@@ -191,21 +191,13 @@ impl HyperlaneRocksDB {
             if checkpoint > sequence {
                 return Ok(true);
             }
-            for source in [MESSAGE_ID, NONCE_PROCESSED] {
-                if self.has_unmarked_writes_since(
-                    checkpoint,
-                    source,
-                    PENDING_MESSAGE_BY_DESTINATION,
-                )? {
-                    return Ok(true);
-                }
-            }
             // Standalone cleanup can race a replacement or crash before repair.
-            // Only canonical upsert/processed batches prove that deletion is safe.
-            self.has_unmarked_deletions_since(
+            // One WAL pass detects both legacy source writes and derived-index
+            // deletions not paired with a canonical upsert/processed batch.
+            self.has_unmarked_pending_index_updates_since(
                 checkpoint,
-                PENDING_MESSAGE_BY_DESTINATION,
                 &[MESSAGE_ID.as_bytes(), NONCE_PROCESSED.as_bytes()],
+                PENDING_MESSAGE_BY_DESTINATION.as_bytes(),
             )
         })();
         match validation {
@@ -353,6 +345,19 @@ impl HyperlaneRocksDB {
             None => Ok(None),
             Some(id) => self.retrieve_message_by_id(&id),
         }
+    }
+
+    /// Retrieve the greatest nonce represented by the canonical nonce-to-ID map.
+    pub fn retrieve_highest_message_nonce(&self) -> DbResult<Option<u32>> {
+        let Some((nonce, _)) =
+            self.retrieve_by_prefix_at_or_before::<H256>(MESSAGE_ID, u32::MAX.to_be_bytes())?
+        else {
+            return Ok(None);
+        };
+        let nonce: [u8; 4] = nonce.try_into().map_err(|nonce: Vec<u8>| {
+            DbError::Other(format!("Invalid message ID index key: {nonce:?}"))
+        })?;
+        Ok(Some(u32::from_be_bytes(nonce)))
     }
 
     /// Update the nonce of the highest processed message we're aware of
@@ -955,6 +960,10 @@ impl HyperlaneWatermarkedLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
 impl HyperlaneDb for HyperlaneRocksDB {
     fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>> {
         self.retrieve_highest_seen_message_nonce_number()
+    }
+
+    fn retrieve_highest_message_nonce(&self) -> DbResult<Option<u32>> {
+        self.retrieve_highest_message_nonce()
     }
 
     fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>> {

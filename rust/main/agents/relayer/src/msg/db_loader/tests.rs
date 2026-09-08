@@ -1362,7 +1362,7 @@ async fn legacy_iterator_stops_at_startup_watermark() {
         .expect_domain()
         .return_const(dummy_domain(0, "dummy_domain"));
     mock_db
-        .expect_retrieve_highest_seen_message_nonce()
+        .expect_retrieve_highest_message_nonce()
         .returning(|| Ok(Some(MOCK_HIGHEST_SEEN_NONCE)));
     mock_db
         .expect_retrieve_message_by_nonce()
@@ -1407,7 +1407,7 @@ async fn legacy_iterator_stops_at_startup_watermark() {
 fn startup_watermark_error_is_propagated() {
     let mut mock_db = MockDb::new();
     mock_db
-        .expect_retrieve_highest_seen_message_nonce()
+        .expect_retrieve_highest_message_nonce()
         .times(1)
         .returning(|| Err(DbError::Other("watermark read failed".to_owned())));
 
@@ -1644,6 +1644,41 @@ async fn benchmark_legacy_migration_restart() {
 }
 
 #[tokio::test]
+#[ignore = "multi-origin restart benchmark; run explicitly with --ignored --nocapture"]
+async fn benchmark_multi_origin_legacy_migration_restart() {
+    const ORIGIN_COUNT: u32 = 32;
+    const HISTORY_LEN: u32 = 1_024;
+
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    let raw_db = hyperlane_base::db::DB::from_path_with_rollback_wal(temp_dir.path()).unwrap();
+    let destination = dummy_domain(10_000, "migration_benchmark_destination");
+    let origins: Vec<_> = (0..ORIGIN_COUNT)
+        .map(|id| dummy_domain(id, &format!("migration_benchmark_origin_{id}")))
+        .collect();
+
+    for origin in &origins {
+        let db = HyperlaneRocksDB::new(origin, raw_db.clone());
+        for nonce in 0..HISTORY_LEN {
+            add_db_entry(&db, &dummy_hyperlane_message(&destination, nonce), 0);
+        }
+        let (mut loader, _) =
+            dummy_message_loader(origin, &destination, &db, OptionalCache::new(None));
+        finish_legacy_migration(&mut loader).await;
+    }
+
+    let started = Instant::now();
+    for origin in &origins {
+        let db = HyperlaneRocksDB::new(origin, raw_db.clone());
+        let (loader, _) = dummy_message_loader(origin, &destination, &db, OptionalCache::new(None));
+        assert!(loader.migration_iterator.is_none());
+    }
+    println!(
+        "legacy_migration_multi_origin_benchmark origins={ORIGIN_COUNT} history_per_origin={HISTORY_LEN} elapsed_seconds={:.6}",
+        started.elapsed().as_secs_f64()
+    );
+}
+
+#[tokio::test]
 async fn interrupted_migration_restarts_and_recovers_all_destinations() {
     test_utils::run_test_db(|raw_db| async move {
         let origin = dummy_domain(0, "origin");
@@ -1680,6 +1715,38 @@ async fn interrupted_migration_restarts_and_recovers_all_destinations() {
         assert!(db
             .pending_message_index_migration_complete()
             .expect("completed seal"));
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn migration_uses_highest_message_id_when_watermark_is_stale() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let low = dummy_hyperlane_message(&destination, 1);
+        let high = dummy_hyperlane_message(&destination, 2);
+        add_db_entry(&db, &low, 0);
+
+        // Reproduce the legacy non-atomic write ordering: the canonical
+        // nonce-to-ID map advances, but the high watermark and destination
+        // index do not.
+        db.store_message_by_id(&high.id(), &high).unwrap();
+        db.store_message_id_by_nonce(&high.nonce, &high.id())
+            .unwrap();
+        assert_eq!(db.retrieve_highest_seen_message_nonce().unwrap(), Some(1));
+
+        let (mut loader, _) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        finish_legacy_migration(&mut loader).await;
+
+        assert_eq!(
+            db.retrieve_pending_message_at_or_after(destination.id(), high.nonce)
+                .unwrap(),
+            Some((high.nonce, high.id()))
+        );
+        assert!(db.pending_message_index_migration_complete().unwrap());
     })
     .await;
 }

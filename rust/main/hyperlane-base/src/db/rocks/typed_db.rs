@@ -210,6 +210,25 @@ impl TypedDB {
         )
     }
 
+    /// Detect unmarked pending-index updates in a single domain-scoped WAL pass.
+    pub fn has_unmarked_pending_index_updates_since(
+        &self,
+        sequence: u64,
+        source_prefixes: &[&[u8]],
+        marker_prefix: &[u8],
+    ) -> Result<bool> {
+        let source_prefixes: Vec<_> = source_prefixes
+            .iter()
+            .map(|prefix| self.prefixed_key(prefix, &[]))
+            .collect();
+        let source_prefix_refs: Vec<_> = source_prefixes.iter().map(Vec::as_slice).collect();
+        self.db.has_unmarked_pending_index_updates_since(
+            sequence,
+            &source_prefix_refs,
+            &self.prefixed_key(marker_prefix, &[]),
+        )
+    }
+
     /// Start an atomic write batch scoped to this domain.
     pub fn batch(&self) -> TypedDbBatch {
         TypedDbBatch {

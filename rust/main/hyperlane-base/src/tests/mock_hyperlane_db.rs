@@ -24,6 +24,7 @@ mockall::mock! {
 
     impl HyperlaneDb for HyperlaneDb {
         fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>>;
+        fn retrieve_highest_message_nonce(&self) -> DbResult<Option<u32>>;
         fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>>;
         fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>>;
         fn domain(&self) -> &HyperlaneDomain;
