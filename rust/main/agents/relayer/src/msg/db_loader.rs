@@ -487,6 +487,7 @@ impl DbLoaderExt for MessageDbLoader {
 }
 
 impl MessageDbLoader {
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         db: HyperlaneRocksDB,
