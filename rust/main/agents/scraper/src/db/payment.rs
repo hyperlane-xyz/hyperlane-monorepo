@@ -190,7 +190,7 @@ impl ScraperDb {
             .collect();
 
         let mut models = Vec::with_capacity(payments.len());
-        let mut reconciled_payments_count = 0;
+        let mut reconciled_payments_count = 0_u64;
         for storable in payments {
             let identity = payment_identity(storable);
             if storable.txn_id.is_none() {
@@ -215,7 +215,7 @@ impl ScraperDb {
                     model.id = Unchanged(existing);
                     model.tx_id = Set(storable.txn_id);
                     model.update(&txn).await?;
-                    reconciled_payments_count += 1;
+                    reconciled_payments_count = reconciled_payments_count.saturating_add(1);
                     continue;
                 }
             }
@@ -278,7 +278,8 @@ impl ScraperDb {
                 .count(&txn)
                 .await?
         };
-        let stored_payments_count = inserted_payments_count + reconciled_payments_count;
+        let stored_payments_count =
+            inserted_payments_count.saturating_add(reconciled_payments_count);
         txn.commit().await?;
 
         debug!(
