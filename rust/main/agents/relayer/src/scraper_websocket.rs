@@ -2869,17 +2869,15 @@ impl ScraperWebSocketMonitor {
                         false
                     });
                     if !readiness_still_valid || !is_fresh {
-                        if !is_fresh {
-                            if should_warn(&self.freshness_warned_at) {
-                                warn!(
-                                    %chain,
-                                    ?dispatch_canonical_count,
-                                    ?merkle_canonical_count,
-                                    ?dispatch_cursor,
-                                    ?merkle_cursor,
-                                    "Scraper sequenced cursors are not canonically fresh"
-                                );
-                            }
+                        if !is_fresh && should_warn(&self.freshness_warned_at) {
+                            warn!(
+                                %chain,
+                                ?dispatch_canonical_count,
+                                ?merkle_canonical_count,
+                                ?dispatch_cursor,
+                                ?merkle_cursor,
+                                "Scraper sequenced cursors are not canonically fresh"
+                            );
                         }
                         self.deactivate_source_authority(domain);
                     } else {
