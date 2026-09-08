@@ -60,6 +60,9 @@ const PARITY_READ_TIMEOUT: Duration = Duration::from_millis(250);
 const PARITY_RETRY_DELAY: Duration = Duration::from_secs(1);
 #[cfg(test)]
 const PARITY_RETRY_DELAY: Duration = Duration::from_millis(10);
+#[cfg(not(test))]
+const PARITY_RETRY_ATTEMPTS: usize = 300;
+#[cfg(test)]
 const PARITY_RETRY_ATTEMPTS: usize = 60;
 const PARITY_WARN_INTERVAL: Duration = Duration::from_secs(60);
 const DUPLICATE_FINGERPRINT_WINDOW: usize = 1_024;
