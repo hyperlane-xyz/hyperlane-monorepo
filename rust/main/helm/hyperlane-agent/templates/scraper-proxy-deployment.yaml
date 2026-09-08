@@ -16,7 +16,9 @@ spec:
     metadata:
       annotations:
         checksum/scraper-proxy-external-secret: {{ include (print $.Template.BasePath "/scraper-proxy-external-secret.yaml") . | sha256sum }}
+        {{- if .Values.hyperlane.scraperProxy.tunnel.enabled }}
         checksum/scraper-proxy-cloudflared-external-secret: {{ include (print $.Template.BasePath "/scraper-proxy-cloudflared-external-secret.yaml") . | sha256sum }}
+        {{- end }}
       labels:
         {{- include "agent-common.labels" . | nindent 8 }}
         app.kubernetes.io/component: scraper-proxy
@@ -63,6 +65,7 @@ spec:
           periodSeconds: 10
         resources:
           {{- toYaml .Values.hyperlane.scraperProxy.resources | nindent 10 }}
+      {{- if .Values.hyperlane.scraperProxy.tunnel.enabled }}
       - name: cloudflared
         image: {{ .Values.hyperlane.scraperProxy.tunnel.image }}
         args: ["tunnel", "--no-autoupdate", "run"]
@@ -73,6 +76,7 @@ spec:
           requests:
             cpu: 50m
             memory: 64Mi
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

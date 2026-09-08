@@ -164,6 +164,7 @@ hyperlane:
     port: 8383
     replicas: 1
     tunnel:
+      enabled: true
       image: cloudflare/cloudflared:2026.8.2
     resources:
       requests:
