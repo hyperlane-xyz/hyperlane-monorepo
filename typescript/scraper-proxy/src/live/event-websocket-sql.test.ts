@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import {
-  gasPaymentColumns,
-  gasPaymentMetadataJoins,
-} from './event-websocket.js';
+// Importing the websocket module validates config; these tests never connect.
+process.env.DATABASE_URL ??= 'postgres://localhost/scraper_sql_test';
+const { gasPaymentColumns, gasPaymentMetadataJoins } =
+  await import('./event-websocket.js');
 
 void describe('gas payment SQL helpers', () => {
   void it('qualifies payment columns and aliases transaction and block metadata', () => {
