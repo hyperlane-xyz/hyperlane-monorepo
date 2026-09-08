@@ -115,20 +115,50 @@ impl From<Rocks> for DB {
 
 type Result<T> = std::result::Result<T, DbError>;
 
+// RocksDB keeps 1,000 archived info logs by default and does not roll the current
+// log by size. Agent databases live on persistent volumes, so routine restarts can
+// otherwise retain years of diagnostics alongside a comparatively small database.
+const ROCKSDB_INFO_LOG_FILE_COUNT: usize = 10;
+const ROCKSDB_INFO_LOG_FILE_SIZE: usize = 16 * 1024 * 1024;
+
 impl DB {
     /// Opens db at `db_path` and creates if missing
     #[tracing::instrument(err)]
     pub fn from_path(db_path: &Path) -> Result<DB> {
-        Self::from_path_with_options(db_path, false)
+        Self::from_path_with_options(
+            db_path,
+            false,
+            ROCKSDB_INFO_LOG_FILE_COUNT,
+            ROCKSDB_INFO_LOG_FILE_SIZE,
+        )
     }
 
     /// Opens a DB with archived WAL retained for rollback-derived index recovery.
     #[tracing::instrument(err)]
     pub fn from_path_with_rollback_wal(db_path: &Path) -> Result<DB> {
-        Self::from_path_with_options(db_path, true)
+        Self::from_path_with_options(
+            db_path,
+            true,
+            ROCKSDB_INFO_LOG_FILE_COUNT,
+            ROCKSDB_INFO_LOG_FILE_SIZE,
+        )
     }
 
-    fn from_path_with_options(db_path: &Path, retain_rollback_wal: bool) -> Result<DB> {
+    #[cfg(test)]
+    fn from_path_with_info_log_limits(
+        db_path: &Path,
+        info_log_file_count: usize,
+        info_log_file_size: usize,
+    ) -> Result<DB> {
+        Self::from_path_with_options(db_path, false, info_log_file_count, info_log_file_size)
+    }
+
+    fn from_path_with_options(
+        db_path: &Path,
+        retain_rollback_wal: bool,
+        info_log_file_count: usize,
+        info_log_file_size: usize,
+    ) -> Result<DB> {
         let path = {
             let mut path = db_path
                 .parent()
@@ -153,6 +183,8 @@ impl DB {
             opts.set_wal_ttl_seconds(ROLLBACK_WAL_RETENTION_SECONDS);
             opts.set_wal_size_limit_mb(ROLLBACK_WAL_SIZE_LIMIT_MB);
         }
+        opts.set_keep_log_file_num(info_log_file_count);
+        opts.set_max_log_file_size(info_log_file_size);
 
         let rocks = Rocks::open(&opts, &path).map_err(|e| DbError::OpeningError {
             source: Box::new(e),
@@ -331,7 +363,7 @@ mod tests {
 
     use rocksdb::{Options, WriteBatch, DB as Rocks};
 
-    use super::DB;
+    use super::{DB, ROCKSDB_INFO_LOG_FILE_COUNT};
 
     #[test]
     fn rejects_incomplete_wal_history() {
@@ -430,5 +462,60 @@ mod tests {
 
         assert!(!archive_path.join("000001.log").exists());
         assert!(archive_path.join("keep.txt").exists());
+    }
+
+    #[test]
+    fn bounds_info_logs() {
+        const TEST_INFO_LOG_FILE_SIZE: usize = 4 * 1024;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path().join("db");
+
+        let db = DB::from_path_with_info_log_limits(
+            &db_path,
+            ROCKSDB_INFO_LOG_FILE_COUNT,
+            TEST_INFO_LOG_FILE_SIZE,
+        )
+        .unwrap();
+        for iteration in 0_u64..128 {
+            db.store(&iteration.to_be_bytes(), &iteration.to_be_bytes())
+                .unwrap();
+            db.0.flush().unwrap();
+        }
+        assert_eq!(
+            db.retrieve(&127_u64.to_be_bytes()).unwrap(),
+            Some(127_u64.to_be_bytes().to_vec())
+        );
+        drop(db);
+
+        let info_logs = fs::read_dir(db_path)
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.file_name().to_string_lossy().starts_with("LOG"))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            info_logs.len(),
+            ROCKSDB_INFO_LOG_FILE_COUNT,
+            "expected enough rotations to exercise the {ROCKSDB_INFO_LOG_FILE_COUNT}-file retention limit"
+        );
+
+        let rotated_log_sizes = info_logs
+            .iter()
+            .filter(|entry| entry.file_name().to_string_lossy().starts_with("LOG.old."))
+            .map(|entry| entry.metadata().unwrap().len())
+            .collect::<Vec<_>>();
+        assert!(
+            !rotated_log_sizes.is_empty(),
+            "expected the {TEST_INFO_LOG_FILE_SIZE}-byte test limit to rotate the info log"
+        );
+        let test_info_log_file_size = u64::try_from(TEST_INFO_LOG_FILE_SIZE)
+            .expect("TEST_INFO_LOG_FILE_SIZE must fit in u64");
+        assert!(
+            rotated_log_sizes
+                .iter()
+                .all(|size| *size >= test_info_log_file_size),
+            "expected rotated logs to reach the configured {TEST_INFO_LOG_FILE_SIZE}-byte limit; sizes: {rotated_log_sizes:?}"
+        );
     }
 }

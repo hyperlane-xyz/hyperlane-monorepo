@@ -102,6 +102,26 @@ fn dummy_readiness() -> Arc<ValidatorReadiness> {
     Arc::new(ValidatorReadiness::default())
 }
 
+#[test]
+#[should_panic(expected = "maxSignConcurrency must be greater than zero")]
+fn validator_submitter_rejects_zero_sign_concurrency() {
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    ValidatorSubmitter::new(
+        Duration::from_secs(1),
+        ReorgPeriod::from_blocks(1),
+        Arc::new(MockMerkleTreeHook::new()),
+        Arc::new(MockMerkleTreeHook::new()),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(MockCheckpointSyncer::new()),
+        Arc::new(MockDb::new()),
+        dummy_metrics(),
+        0,
+        Arc::new(MockReorgReporter::new()),
+        dummy_readiness(),
+    );
+}
+
 fn submission_test_submitter(
     syncer: MockCheckpointSyncer,
     readiness: Arc<ValidatorReadiness>,
