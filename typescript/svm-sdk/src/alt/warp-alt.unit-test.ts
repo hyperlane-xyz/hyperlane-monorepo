@@ -103,6 +103,9 @@ function createAccountRpc(accounts: ReadonlyMap<Address, ReadonlyUint8Array>) {
       assert(typeof requestedAddress === 'string', 'Expected account address');
       const data = accounts.get(address(requestedAddress));
 
+      // CAST: RpcTransport is generic over every RPC method response, but this
+      // test transport rejects every method except getAccountInfo above and
+      // returns that method's exact response shape.
       return {
         id: 'test',
         jsonrpc: '2.0',
