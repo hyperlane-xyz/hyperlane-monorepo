@@ -156,7 +156,7 @@ pub struct Relayer {
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
     scraper_websocket_monitor: Option<ScraperWebSocketMonitor>,
-    scraper_websocket_authority: Option<ScraperAuthorityReceiver>,
+    scraper_websocket_authority: HashMap<u32, ScraperAuthorityReceiver>,
     /// Tokio console server
     pub tokio_console_server: Option<console_subscriber::Server>,
 
@@ -348,6 +348,7 @@ impl BaseAgent for Relayer {
                 )
                 .with_broadcaster(origin.message_sync.get_broadcaster())
                 .with_freshness_indexer(origin.message_sequence_indexer.clone())
+                .with_merkle_freshness_indexer(origin.merkle_sequence_indexer.clone())
             })
             .collect();
         let scraper_websocket_monitor = settings
@@ -361,9 +362,15 @@ impl BaseAgent for Relayer {
                 )
             })
             .transpose()?;
-        let scraper_websocket_authority = scraper_websocket_monitor
-            .as_ref()
-            .and_then(ScraperWebSocketMonitor::authority_receiver);
+        let scraper_websocket_authority = origins
+            .keys()
+            .filter_map(|domain| {
+                scraper_websocket_monitor
+                    .as_ref()
+                    .and_then(|monitor| monitor.authority_receiver(domain.id()))
+                    .map(|authority| (domain.id(), authority))
+            })
+            .collect();
 
         debug!(elapsed = ?start.elapsed(), event = "fully initialized", "Relayer startup duration measurement");
 
@@ -540,7 +547,10 @@ impl BaseAgent for Relayer {
             .expect("Creating message DB loader metrics is infallible");
         for (origin_domain, origin) in self.origins.iter() {
             let maybe_broadcaster = origin.message_sync.get_broadcaster();
-            let scraper_authority = self.scraper_websocket_authority.clone();
+            let scraper_authority = self
+                .scraper_websocket_authority
+                .get(&origin_domain.id())
+                .cloned();
             if let Some(authority) = scraper_authority.clone() {
                 tasks.push(self.run_rpc_sync_supervisor(
                     origin,

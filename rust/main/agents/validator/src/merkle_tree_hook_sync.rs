@@ -33,6 +33,9 @@ use hyperlane_core::{
 };
 
 const RETRY_DELAY: Duration = Duration::from_secs(5);
+// Rejected subscriptions usually require scraper history/configuration to change.
+// Keep RPC indexing active and periodically probe instead of hammering catch-up.
+const REJECTED_STREAM_RETRY_DELAY: Duration = Duration::from_secs(300);
 const RETRY_JITTER_MS: u32 = 5_000;
 const READ_TIMEOUT: Duration = Duration::from_secs(75);
 const PROGRESS_CHECK_INTERVAL: Duration = Duration::from_secs(30);
@@ -45,6 +48,22 @@ const NEXT_SEQUENCE_KEY: &str = "merkle_tree_hook_websocket_next_sequence_";
 // Bound crash recovery scans without writing the cursor for every replayed leaf.
 const NEXT_SEQUENCE_PERSIST_INTERVAL: u32 = 256;
 pub(crate) type MerkleTreeCursorState = Arc<Mutex<Option<u32>>>;
+
+#[derive(Debug, thiserror::Error)]
+#[error("Scraper-proxy rejected Merkle tree hook stream: {0}")]
+struct RejectedStream(String);
+
+fn stream_retry_delay(result: &Result<()>, retry_delay: Duration) -> Duration {
+    if result
+        .as_ref()
+        .err()
+        .is_some_and(|err| err.downcast_ref::<RejectedStream>().is_some())
+    {
+        REJECTED_STREAM_RETRY_DELAY.saturating_add(retry_delay)
+    } else {
+        retry_delay
+    }
+}
 
 pub(crate) fn merkle_tree_cursor_state() -> MerkleTreeCursorState {
     Arc::new(Mutex::new(None))
@@ -421,7 +440,7 @@ impl MerkleTreeHookWebSocketSync {
         // backed by a lagging scraper.
         let mut fallback = Some(start_fallback());
         loop {
-            match self
+            let result = self
                 .stream_with_timeout(
                     &mut next_sequence,
                     backfill_target,
@@ -429,8 +448,9 @@ impl MerkleTreeHookWebSocketSync {
                     timeouts,
                     &dependencies,
                 )
-                .await
-            {
+                .await;
+            let reconnect_delay = stream_retry_delay(&result, retry_delay);
+            match result {
                 Ok(()) => warn!(
                     domain = self.domain,
                     "Merkle tree hook WebSocket closed; reconnecting"
@@ -438,6 +458,7 @@ impl MerkleTreeHookWebSocketSync {
                 Err(err) => warn!(
                     ?err,
                     domain = self.domain,
+                    ?reconnect_delay,
                     "Merkle tree hook WebSocket failed; reconnecting"
                 ),
             }
@@ -449,7 +470,7 @@ impl MerkleTreeHookWebSocketSync {
                     "Switched Merkle tree hook indexing to RPC fallback"
                 );
             }
-            sleep(retry_delay).await;
+            sleep(reconnect_delay).await;
         }
     }
 
@@ -644,7 +665,7 @@ impl MerkleTreeHookWebSocketSync {
                         }
                     }
                     ServerMessage::Error { error } => {
-                        bail!("Scraper-proxy rejected Merkle tree hook stream: {error}")
+                        return Err(RejectedStream(error).into());
                     }
                     ServerMessage::Other => {}
                 },
@@ -1987,6 +2008,89 @@ mod tests {
         assert!(sync
             .validate_caught_up(&hook, 1, EVENT_TYPE, "-2", 0)
             .is_err());
+    }
+
+    #[test]
+    fn rejected_streams_use_slow_retry_but_transport_errors_do_not() {
+        let rejected =
+            Err(RejectedStream("Failed to catch up merkle_tree_insertion".into()).into());
+        assert_eq!(
+            stream_retry_delay(&rejected, RETRY_DELAY),
+            Duration::from_secs(305)
+        );
+        assert_eq!(
+            stream_retry_delay(&Err(eyre!("connection reset")), RETRY_DELAY),
+            RETRY_DELAY
+        );
+        assert_eq!(stream_retry_delay(&Ok(()), RETRY_DELAY), RETRY_DELAY);
+    }
+
+    #[tokio::test]
+    async fn rejected_catch_up_keeps_rpc_active_without_reconnect_churn() {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("test listener");
+        let (mut sync, _temp_dir) = test_sync();
+        sync.url = Url::parse(&format!(
+            "ws://{}",
+            listener.local_addr().expect("test listener address")
+        ))
+        .expect("test WebSocket URL");
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.expect("first connection");
+            let mut socket = accept_async(stream).await.expect("WebSocket");
+            socket
+                .send(Message::Text(r#"{"type":"ready"}"#.into()))
+                .await
+                .expect("send ready");
+            socket
+                .next()
+                .await
+                .expect("subscription")
+                .expect("read subscription");
+            socket
+                .send(Message::Text(
+                    r#"{"type":"error","error":"Failed to catch up merkle_tree_insertion"}"#.into(),
+                ))
+                .await
+                .expect("reject unavailable history");
+            // Normal reconnects use 1ms in this test. A history rejection must
+            // leave the fallback running instead of repeatedly resubscribing.
+            assert!(timeout(Duration::from_millis(100), listener.accept())
+                .await
+                .is_err());
+        });
+        let active = sync.fallback_active.clone();
+        let active_in_fallback = active.clone();
+        let websocket_active = sync.websocket_active.clone();
+        let task = tokio::spawn(async move {
+            sync.run_loop(
+                4,
+                4,
+                StreamTimeouts {
+                    read: Duration::from_secs(1),
+                    progress_check: Duration::from_secs(1),
+                    progress_grace: Duration::from_secs(1),
+                },
+                Duration::from_millis(1),
+                test_dependencies_with_count(Arc::new(AtomicUsize::new(4))),
+                move || {
+                    active_in_fallback.set(1);
+                    RpcFallback {
+                        handle: tokio::spawn(pending()),
+                        active: active_in_fallback.clone(),
+                    }
+                },
+            )
+            .await;
+        });
+        timeout(Duration::from_secs(5), server)
+            .await
+            .expect("server completed")
+            .expect("server assertions passed");
+        assert_eq!(active.get(), 1);
+        assert_eq!(websocket_active.get(), 0);
+        task.abort();
     }
 
     #[tokio::test]

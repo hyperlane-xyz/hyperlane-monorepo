@@ -241,6 +241,85 @@ void it('keeps agent capacity independent from Explorer capacity', async () => {
   );
 });
 
+void it('accepts fleet-sized agent subscriptions without raising the Explorer payload limit', async () => {
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  const payloadHttp = createServer();
+  const payloadEvents = new EventWebSocketServer(
+    {
+      ...db,
+      async listen() {
+        return async () => undefined;
+      },
+    },
+    {
+      maxAgentClients: 1,
+      maxBufferedBytes: 65_536,
+      maxExplorerClients: 1,
+      maxTotalBufferedBytes: 65_536,
+    },
+  );
+  await new Promise<void>((resolve) =>
+    payloadHttp.listen(0, '127.0.0.1', resolve),
+  );
+  const address = payloadHttp.address();
+  assert(address && typeof address !== 'string');
+  await payloadEvents.start(payloadHttp);
+
+  const payloadUrl = `ws://127.0.0.1:${address.port}`;
+  const agent = new WebSocket(`${payloadUrl}/agents`);
+  const agentMessages: Record<string, unknown>[] = [];
+  agent.on('message', (data) => agentMessages.push(parseRecord(rawData(data))));
+  const explorer = new WebSocket(`${payloadUrl}/messages`, {
+    headers: { 'cf-connecting-ip': '203.0.113.100' },
+  });
+  const explorerMessages: Record<string, unknown>[] = [];
+  explorer.on('message', (data) =>
+    explorerMessages.push(parseRecord(rawData(data))),
+  );
+
+  try {
+    await Promise.all([
+      waitFor(agentMessages, 'ready'),
+      waitFor(explorerMessages, 'ready'),
+    ]);
+    const subscription = JSON.stringify({
+      streams: [
+        {
+          cursors: Array.from({ length: 64 }, (_, domain) => ({
+            address: `0x${domain.toString(16).padStart(40, '0')}`,
+            afterSequence: '0',
+            domain,
+          })),
+          eventType: 'dispatch',
+        },
+      ],
+      type: 'subscribe',
+    });
+    assert(Buffer.byteLength(subscription) > 4_096);
+    agent.send(subscription);
+    await waitFor(agentMessages, 'subscribed');
+    assert.equal(agent.readyState, WebSocket.OPEN);
+
+    explorer.send('x'.repeat(4_097));
+    const code = await new Promise<number>((resolve) =>
+      explorer.once('close', resolve),
+    );
+    assert.equal(code, 1009);
+  } finally {
+    agent.close();
+    explorer.close();
+    await waitUntil(() =>
+      [agent, explorer].every(
+        ({ readyState }) => readyState === WebSocket.CLOSED,
+      ),
+    );
+    await payloadEvents.stop();
+    await new Promise<void>((resolve, reject) =>
+      payloadHttp.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
+
 void it('requires the Cloudflare client IP in production', async () => {
   const nodeEnv = process.env.NODE_ENV;
   process.env.NODE_ENV = 'production';

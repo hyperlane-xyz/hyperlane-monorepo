@@ -40,6 +40,7 @@ import {
 import { rawData } from './websocket-data.js';
 
 const AGENT_PATH = '/agents';
+const MAX_AGENT_MESSAGE_BYTES = 1_048_576;
 const MESSAGE_PATH = '/messages';
 const EVENT_CHANNEL = 'scraper_event';
 const EXPLORER_CHANNEL = 'scraper_explorer_event';
@@ -219,7 +220,10 @@ export class EventWebSocketServer {
     }
     await this.connectListener();
     this.agentServer = new WebSocketServer({
-      maxPayload: 4_096,
+      // Agent subscriptions carry one cursor per chain and stream, so the
+      // fleet-wide relayer payload is substantially larger than an Explorer
+      // client request. Keep it bounded independently from outbound buffers.
+      maxPayload: MAX_AGENT_MESSAGE_BYTES,
       noServer: true,
     });
     this.explorerServer = new WebSocketServer({

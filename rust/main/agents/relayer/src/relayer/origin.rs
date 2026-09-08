@@ -43,6 +43,7 @@ pub struct Origin {
     /// `tx_id_indexer_task` has stored it.
     pub igp_indexer: Option<Arc<dyn Indexer<InterchainGasPayment>>>,
     pub merkle_tree_hook_sync: MerkleTreeHookSync,
+    pub merkle_sequence_indexer: SequenceIndexer<MerkleTreeInsertion>,
 }
 
 impl std::fmt::Debug for Origin {
@@ -165,7 +166,7 @@ impl Factory for OriginFactory {
             (None, None)
         };
 
-        let merkle_tree_hook_sync = {
+        let (merkle_tree_hook_sync, merkle_sequence_indexer) = {
             let start_entity_init = Instant::now();
             let res = self
                 .init_merkle_tree_hook_sync(&domain, chain_conf, hyperlane_db.clone())
@@ -191,6 +192,7 @@ impl Factory for OriginFactory {
             interchain_gas_payment_sync,
             igp_indexer,
             merkle_tree_hook_sync,
+            merkle_sequence_indexer,
         };
         Ok(origin)
     }
@@ -335,7 +337,7 @@ impl OriginFactory {
         domain: &HyperlaneDomain,
         chain_conf: &ChainConf,
         db: Arc<HyperlaneRocksDB>,
-    ) -> Result<MerkleTreeHookSync, FactoryError> {
+    ) -> Result<(MerkleTreeHookSync, SequenceIndexer<MerkleTreeInsertion>), FactoryError> {
         match MerkleTreeInsertion::indexing_cursor(domain.domain_protocol()) {
             CursorType::SequenceAware => Self::build_sequenced_contract_sync(
                 domain,
@@ -347,7 +349,7 @@ impl OriginFactory {
                 false,
             )
             .await
-            .map(|(r, _)| r as Arc<dyn ContractSyncer<_>>)
+            .map(|(r, i)| (r as Arc<dyn ContractSyncer<_>>, i))
             .map_err(|err| FactoryError::MerkleTreeHookSync(domain.to_string(), err.to_string())),
             CursorType::RateLimited => Self::build_watermark_contract_sync(
                 domain,
@@ -359,7 +361,7 @@ impl OriginFactory {
                 false,
             )
             .await
-            .map(|(r, _)| r as Arc<dyn ContractSyncer<_>>)
+            .map(|(r, i)| (r as Arc<dyn ContractSyncer<_>>, i))
             .map_err(|err| FactoryError::MerkleTreeHookSync(domain.to_string(), err.to_string())),
         }
     }
