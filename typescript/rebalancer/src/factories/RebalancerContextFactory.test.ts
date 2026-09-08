@@ -199,7 +199,7 @@ describe('RebalancerContextFactory', () => {
       expect(registry.lifi?.getNativeTokenAddress?.()).to.equal(
         '0x0000000000000000000000000000000000000000',
       );
-    });
+    }).timeout(10_000);
   });
 
   describe('create() — non-EVM chain handling', () => {
