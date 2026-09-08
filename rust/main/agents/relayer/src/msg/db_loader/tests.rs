@@ -68,6 +68,21 @@ pub fn dummy_message_loader_metrics() -> MessageDbLoaderMetrics {
             &["origin", "destination", "phase", "operation"],
         )
         .unwrap(),
+        destination_outcomes: IntCounterVec::new(
+            prometheus::Opts::new("dummy_db_loader_destination_outcomes", "help string"),
+            &["origin", "destination", "outcome"],
+        )
+        .unwrap(),
+        destination_outcome_counters: HashMap::new(),
+        initial_destination_scan_complete: IntGaugeVec::new(
+            prometheus::Opts::new(
+                "dummy_db_loader_initial_destination_scan_complete",
+                "help string",
+            ),
+            &["origin", "destination"],
+        )
+        .unwrap(),
+        initial_destination_scan_complete_gauges: HashMap::new(),
         scan_duration_seconds: HistogramVec::new(
             prometheus::HistogramOpts::new("dummy_db_loader_scan_duration", "help string"),
             &["origin", "destination", "phase"],
@@ -833,6 +848,201 @@ async fn get_first_n_operations_from_db_loader(
     pending_messages
 }
 
+fn destination_outcome_count(
+    loader: &MessageDbLoader,
+    destination: &HyperlaneDomain,
+    outcome: &str,
+) -> u64 {
+    loader.metrics.destination_outcome_counters[&destination.id().to_string()][outcome].get()
+}
+
+fn point_destination_scan_at(loader: &mut MessageDbLoader, nonce: u32) {
+    let iterator = &mut loader.destination_iterators[0];
+    iterator.high_nonce = Some(nonce);
+    iterator.low_nonce = None;
+    iterator.next_direction = IndexDirection::High;
+    iterator.reconsider_nonces.clear();
+    iterator.low_range_reopen_pending = false;
+}
+
+#[tokio::test]
+async fn initial_destination_scan_waits_for_legacy_migration() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let message = dummy_hyperlane_message(&destination, 0);
+        add_db_entry(&db, &message, 0);
+        db.delete_pending_message_index(&message).unwrap();
+        let (mut loader, mut receiver) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        let scan_complete = loader.metrics.initial_destination_scan_complete_gauges
+            [&destination.id().to_string()]
+            .clone();
+
+        assert!(!loader.try_load_destination(0).await.unwrap());
+        assert_eq!(scan_complete.get(), 0);
+        finish_legacy_migration(&mut loader).await;
+        assert_eq!(scan_complete.get(), 0);
+        assert!(loader.try_load_destination(0).await.unwrap());
+        assert_eq!(
+            only_operation(receiver.try_recv().unwrap()).id(),
+            message.id()
+        );
+        assert_eq!(scan_complete.get(), 0);
+        assert!(!loader.try_load_destination(0).await.unwrap());
+        assert_eq!(scan_complete.get(), 1);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn destination_outcomes_attribute_loader_decisions_once() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let (mut loader, mut receiver) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        finish_legacy_migration(&mut loader).await;
+
+        let mut nonce = 0;
+        let stale = dummy_hyperlane_message(&destination, nonce);
+        db.store_pending_message_index(&stale).unwrap();
+        point_destination_scan_at(&mut loader, nonce);
+        assert!(loader.try_load_destination(0).await.unwrap());
+
+        nonce += 1;
+        let processed = dummy_hyperlane_message(&destination, nonce);
+        add_db_entry(&db, &processed, 0);
+        db.store_message_processed(&processed).unwrap();
+        db.store_pending_message_index(&processed).unwrap();
+        point_destination_scan_at(&mut loader, nonce);
+        assert!(loader.try_load_destination(0).await.unwrap());
+
+        nonce += 1;
+        let terminal = dummy_hyperlane_message(&destination, nonce);
+        add_db_entry(&db, &terminal, 0);
+        db.store_terminally_dropped_message(&terminal.id()).unwrap();
+        point_destination_scan_at(&mut loader, nonce);
+        assert!(loader.try_load_destination(0).await.unwrap());
+
+        nonce += 1;
+        let already_loaded = dummy_hyperlane_message(&destination, nonce);
+        add_db_entry(&db, &already_loaded, 0);
+        loader.destination_iterators[0]
+            .loaded_messages
+            .lock()
+            .insert(already_loaded.id());
+        point_destination_scan_at(&mut loader, nonce);
+        assert!(loader.try_load_destination(0).await.unwrap());
+        loader.destination_iterators[0]
+            .loaded_messages
+            .lock()
+            .remove(&already_loaded.id());
+        db.delete_pending_message_index(&already_loaded).unwrap();
+
+        nonce += 1;
+        let not_whitelisted = dummy_hyperlane_message(&destination, nonce);
+        add_db_entry(&db, &not_whitelisted, 0);
+        loader.message_whitelist = Arc::new(MatchingList::with_destination_domain(
+            destination.id().saturating_add(1),
+        ));
+        point_destination_scan_at(&mut loader, nonce);
+        assert!(loader.try_load_destination(0).await.unwrap());
+        loader.message_whitelist = Arc::new(MatchingList::default());
+        db.delete_pending_message_index(&not_whitelisted).unwrap();
+
+        nonce += 1;
+        let message_blacklisted = dummy_hyperlane_message(&destination, nonce);
+        add_db_entry(&db, &message_blacklisted, 0);
+        loader.message_blacklist =
+            Arc::new(MatchingList::with_destination_domain(destination.id()));
+        point_destination_scan_at(&mut loader, nonce);
+        assert!(loader.try_load_destination(0).await.unwrap());
+        loader.message_blacklist = Arc::new(MatchingList::default());
+        db.delete_pending_message_index(&message_blacklisted)
+            .unwrap();
+
+        nonce += 1;
+        let mut address_blacklisted = dummy_hyperlane_message(&destination, nonce);
+        address_blacklisted.body = b"blocked".to_vec();
+        add_db_entry(&db, &address_blacklisted, 0);
+        loader.address_blacklist = Arc::new(AddressBlacklist::new(vec![b"blocked".to_vec()]));
+        point_destination_scan_at(&mut loader, nonce);
+        assert!(loader.try_load_destination(0).await.unwrap());
+        loader.address_blacklist = Arc::new(AddressBlacklist::default());
+        db.delete_pending_message_index(&address_blacklisted)
+            .unwrap();
+
+        nonce += 1;
+        let missing_context = dummy_hyperlane_message(&destination, nonce);
+        add_db_entry(&db, &missing_context, 0);
+        let context = loader.destination_ctxs.remove(&destination.id()).unwrap();
+        point_destination_scan_at(&mut loader, nonce);
+        assert!(loader.try_load_destination(0).await.unwrap());
+        loader.destination_ctxs.insert(destination.id(), context);
+        db.delete_pending_message_index(&missing_context).unwrap();
+
+        nonce += 1;
+        let retry_ineligible = dummy_hyperlane_message(&destination, nonce);
+        add_db_entry(&db, &retry_ineligible, DEFAULT_MAX_MESSAGE_RETRIES);
+        point_destination_scan_at(&mut loader, nonce);
+        assert!(loader.try_load_destination(0).await.unwrap());
+        db.delete_pending_message_index(&retry_ineligible).unwrap();
+
+        nonce += 1;
+        let queued = dummy_hyperlane_message(&destination, nonce);
+        add_db_entry(&db, &queued, 0);
+        point_destination_scan_at(&mut loader, nonce);
+        assert!(loader.try_load_destination(0).await.unwrap());
+        assert_eq!(
+            only_operation(receiver.try_recv().unwrap()).id(),
+            queued.id()
+        );
+
+        for outcome in [
+            DESTINATION_OUTCOME_STALE_REPAIR,
+            DESTINATION_OUTCOME_PROCESSED_CLEANUP,
+            DESTINATION_OUTCOME_TERMINAL_CLEANUP,
+            DESTINATION_OUTCOME_ALREADY_LOADED,
+            DESTINATION_OUTCOME_NOT_WHITELISTED,
+            DESTINATION_OUTCOME_MESSAGE_BLACKLISTED,
+            DESTINATION_OUTCOME_ADDRESS_BLACKLISTED,
+            DESTINATION_OUTCOME_MISSING_CONTEXT,
+            DESTINATION_OUTCOME_RETRY_INELIGIBLE,
+            DESTINATION_OUTCOME_QUEUED,
+        ] {
+            assert_eq!(destination_outcome_count(&loader, &destination, outcome), 1);
+        }
+        assert_eq!(
+            loader
+                .metrics
+                .records_examined
+                .with_label_values(&[
+                    loader.metrics.origin.as_str(),
+                    destination.id().to_string().as_str(),
+                    "destination_index",
+                ])
+                .get(),
+            10,
+        );
+        assert_eq!(
+            loader.metrics.initial_destination_scan_complete_gauges[&destination.id().to_string()]
+                .get(),
+            0,
+        );
+        point_destination_scan_at(&mut loader, nonce + 1);
+        assert!(!loader.try_load_destination(0).await.unwrap());
+        assert_eq!(
+            loader.metrics.initial_destination_scan_complete_gauges[&destination.id().to_string()]
+                .get(),
+            1,
+        );
+    })
+    .await;
+}
+
 #[tokio::test]
 async fn test_full_pending_message_persistence_flow() {
     test_utils::run_test_db(|db| async move {
@@ -1188,6 +1398,7 @@ async fn processed_legacy_history_does_not_rescan_every_destination() {
         for destination_id in 2..=DESTINATION_COUNT {
             let (sender, receiver) = mpsc::channel::<QueueOperationBatch>(1);
             loader.send_channels.insert(destination_id, sender);
+            loader.metrics.bind_destinations(&[destination_id]);
             loader
                 .destination_iterators
                 .push(DestinationIndexIterator::new(
@@ -1218,9 +1429,16 @@ async fn processed_legacy_history_does_not_rescan_every_destination() {
             })
             .sum();
         assert!(
-            destination_index_reads <= u64::from(DESTINATION_COUNT).saturating_mul(2),
+            // Two initial range reads, then one high-range read to certify
+            // completion after migration seals. No scans between those points.
+            destination_index_reads <= u64::from(DESTINATION_COUNT).saturating_mul(3),
             "destination indexes were rescanned during legacy history migration"
         );
+        assert!(loader
+            .metrics
+            .initial_destination_scan_complete_gauges
+            .values()
+            .all(|gauge| gauge.get() == 1));
     })
     .await;
 }
@@ -1483,6 +1701,7 @@ async fn saturated_destination_does_not_block_legacy_migration_for_another_desti
         loader
             .send_channels
             .insert(destination_a.id(), sender_a.clone());
+        loader.metrics.bind_destinations(&[destination_a.id()]);
         loader.destination_iterators.insert(
             0,
             DestinationIndexIterator::new(destination_a.id(), Some(2)),
