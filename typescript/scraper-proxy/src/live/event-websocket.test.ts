@@ -125,7 +125,7 @@ void describe('event websocket protocol', () => {
               },
             ],
             eventType: 'gas_payment',
-            streamCursorVersion: 2,
+            streamCursorVersion: 3,
           },
         ],
         type: 'subscribe',
@@ -141,7 +141,7 @@ void describe('event websocket protocol', () => {
       9_007_199_254_740_993n,
     );
     assert.deepEqual(message.streams[0]?.domains, new Set([1]));
-    assert.equal(message.streams[0]?.streamCursorVersion, 2);
+    assert.equal(message.streams[0]?.streamCursorVersion, 3);
   });
 
   void it('accepts legacy non-cursored gas payment subscriptions', () => {
@@ -170,7 +170,7 @@ void describe('event websocket protocol', () => {
           },
         ],
         eventType: 'gas_payment',
-        streamCursorVersion: 2,
+        streamCursorVersion: 3,
       },
       {
         cursors: [
@@ -207,7 +207,7 @@ void describe('event websocket protocol', () => {
                     },
                   ],
                   eventType: 'gas_payment',
-                  streamCursorVersion: 2,
+                  streamCursorVersion: 3,
                 },
               ],
               type: 'subscribe',
@@ -218,7 +218,7 @@ void describe('event websocket protocol', () => {
     }
   });
 
-  void it('rejects boundary-less gas payment cursor v1', () => {
+  void it('rejects the previous gas payment wire version', () => {
     assert.throws(
       () =>
         parseClientMessage(
@@ -233,13 +233,13 @@ void describe('event websocket protocol', () => {
                   },
                 ],
                 eventType: 'gas_payment',
-                streamCursorVersion: 1,
+                streamCursorVersion: 2,
               },
             ],
             type: 'subscribe',
           }),
         ),
-      /requires streamCursorVersion 2/,
+      /requires streamCursorVersion 3/,
     );
   });
 

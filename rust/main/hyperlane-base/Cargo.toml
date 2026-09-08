@@ -30,6 +30,7 @@ futures-util.workspace = true
 itertools.workspace = true
 maplit.workspace = true
 mockall.workspace = true
+parking_lot.workspace = true
 paste.workspace = true
 prometheus.workspace = true
 rocksdb.workspace = true

@@ -242,6 +242,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     websocketUrl: scraperWebsocketUrl,
+    websocketAuthorityEnabled: false,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.relayer,
@@ -307,6 +308,7 @@ const releaseCandidate: RootAgentConfig = {
     ...fallbackHedgeConfig,
     index: { from: RELEASE_CANDIDATE_INDEX_FROM },
     websocketUrl: scraperWebsocketUrl,
+    websocketAuthorityEnabled: true,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.relayerRC,
@@ -352,6 +354,7 @@ const fastPath: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     websocketUrl: scraperWebsocketUrl,
+    websocketAuthorityEnabled: true,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.relayerFastPath,
