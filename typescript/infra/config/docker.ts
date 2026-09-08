@@ -30,6 +30,7 @@ interface AgentDockerTags {
 
 interface BaseDockerTags extends AgentDockerTags {
   keyFunder: string;
+  scraperProxy: string;
 }
 
 interface MainnetDockerTags extends BaseDockerTags {
@@ -37,7 +38,6 @@ interface MainnetDockerTags extends BaseDockerTags {
   validatorMonitor: string;
   warpMonitor: string;
   rebalancer: string;
-  scraperProxy: string;
   feeQuoting: string;
 }
 
@@ -72,4 +72,5 @@ export const testnetDockerTags: BaseDockerTags = {
   scraper: '337825e-20260907-130516',
   // standalone services
   keyFunder: '5dc6aa4-20260714-184449',
+  scraperProxy: 'b3619ad-20260901-171710',
 };

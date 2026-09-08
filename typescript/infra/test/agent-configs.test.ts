@@ -5,6 +5,7 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts, RELEASE_CANDIDATE_INDEX_FROM } from '../config/contexts.js';
+import { DockerImageRepos, testnetDockerTags } from '../config/docker.js';
 import {
   agents as mainnet3Agents,
   hyperlaneContextAgentChainConfig as mainnet3AgentChainConfig,
@@ -78,6 +79,27 @@ function agentConfigHelper(
 }
 
 describe('Agent configs', () => {
+  it('configures one shared testnet4 scraper proxy', () => {
+    const enabledProxies = Object.values(testnet4Agents).filter(
+      (config) => config.scraperProxy?.enabled,
+    );
+
+    expect(enabledProxies).to.have.length(1);
+    expect(enabledProxies[0].scraperProxy).to.deep.equal({
+      docker: {
+        repo: DockerImageRepos.NODE_SERVICES,
+        tag: testnetDockerTags.scraperProxy,
+      },
+      enabled: true,
+      port: 8383,
+      replicas: 1,
+      tunnel: { enabled: false },
+      resources: {
+        requests: { cpu: '500m', memory: '1Gi' },
+      },
+    });
+  });
+
   it('renders fallback hedging only for EVM relayers and scrapers', async () => {
     let sawEthereum = false;
     let sawNonEthereum = false;

@@ -6,7 +6,7 @@ export interface ScraperProxyConfig {
   port?: number;
   replicas?: number;
   resources?: KubernetesResources;
-  tunnel?: { image: string };
+  tunnel?: { enabled?: boolean; image?: string };
 }
 
 export type HelmScraperProxyValues = Omit<ScraperProxyConfig, 'docker'>;

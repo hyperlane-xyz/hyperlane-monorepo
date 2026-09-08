@@ -276,6 +276,19 @@ const hyperlane: RootAgentConfig = {
     },
     resources: scraperResources,
   },
+  scraperProxy: {
+    docker: {
+      repo: DockerImageRepos.NODE_SERVICES,
+      tag: testnetDockerTags.scraperProxy,
+    },
+    enabled: true,
+    port: 8383,
+    replicas: 1,
+    tunnel: { enabled: false },
+    resources: {
+      requests: { cpu: '500m', memory: '1Gi' },
+    },
+  },
 };
 
 const releaseCandidate: RootAgentConfig = {
