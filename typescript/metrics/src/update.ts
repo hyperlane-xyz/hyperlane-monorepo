@@ -63,6 +63,9 @@ export function updateTokenBalanceMetrics(
     {
       labels: metrics,
       balance: balanceInfo.balance,
+      ...(!isNullish(balanceInfo.valueUSD)
+        ? { valueUSD: balanceInfo.valueUSD }
+        : {}),
     },
     'Wallet balance updated for token',
   );
@@ -72,7 +75,7 @@ export function updateTokenBalanceMetrics(
     gauges.warpRouteCollateralValue
       .labels({ ...metrics })
       .set(balanceInfo.valueUSD);
-    logger.info(
+    logger.debug(
       {
         labels: metrics,
         valueUSD: balanceInfo.valueUSD,
@@ -93,7 +96,9 @@ export function updateTokenBalanceMetrics(
       gauges.warpRouteValueAtRisk
         .labels({ ...labels })
         .set(balanceInfo.valueUSD);
-      logger.info(
+      // The per-token value above already records this observation at info.
+      // Per-chain copies are derived metric detail and can dominate fleet logs.
+      logger.debug(
         {
           labels,
           valueUSD: balanceInfo.valueUSD,

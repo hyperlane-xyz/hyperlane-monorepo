@@ -163,28 +163,34 @@ export async function getXERC20Info(
   if (
     token.standard === TokenStandard.EvmHypXERC20 ||
     token.standard === TokenStandard.EvmHypVSXERC20 ||
-    token.standard == TokenStandard.TronHypVSXERC20 ||
-    token.standard == TokenStandard.TronHypXERC20
-  ) {
-    const adapter = token.getAdapter(
-      warpCore.multiProvider,
-    ) as EvmHypXERC20Adapter;
-    return {
-      limits: await getXERC20Limit(token, adapter),
-      xERC20Address: (await adapter.getXERC20()).address,
-    };
-  } else if (
+    token.standard === TokenStandard.TronHypVSXERC20 ||
+    token.standard === TokenStandard.TronHypXERC20 ||
     token.standard === TokenStandard.EvmHypXERC20Lockbox ||
     token.standard === TokenStandard.EvmHypVSXERC20Lockbox ||
     token.standard === TokenStandard.TronHypXERC20Lockbox ||
     token.standard === TokenStandard.TronHypVSXERC20Lockbox
   ) {
-    const adapter = token.getAdapter(
-      warpCore.multiProvider,
-    ) as EvmHypXERC20LockboxAdapter;
+    const adapter = token.getAdapter(warpCore.multiProvider) as
+      | EvmHypXERC20Adapter
+      | EvmHypXERC20LockboxAdapter;
+    // Resolve once for this observation; each adapter limit method would
+    // otherwise independently read the same wrapped-token address again.
+    const xerc20 = await adapter.getXERC20();
+    const bridgeAddress = adapter.contract.address;
+    const [mintCurrent, mintMax, burnCurrent, burnMax] = await Promise.all([
+      xerc20.mintingCurrentLimitOf(bridgeAddress),
+      xerc20.mintingMaxLimitOf(bridgeAddress),
+      xerc20.burningCurrentLimitOf(bridgeAddress),
+      xerc20.burningMaxLimitOf(bridgeAddress),
+    ]);
     return {
-      limits: await getXERC20Limit(token, adapter),
-      xERC20Address: (await adapter.getXERC20()).address,
+      limits: {
+        mint: formatBigInt(token, mintCurrent.toBigInt()),
+        mintMax: formatBigInt(token, mintMax.toBigInt()),
+        burn: formatBigInt(token, burnCurrent.toBigInt()),
+        burnMax: formatBigInt(token, burnMax.toBigInt()),
+      },
+      xERC20Address: xerc20.address,
     };
   }
 
@@ -349,20 +355,22 @@ export async function getExtraLockboxBalance(
  * @param multiProvider - The multi-protocol provider
  * @param warpToken - The warp token
  * @param lockBoxAddress - The lockbox contract address
+ * @param knownCollateralTokenAddress - Address from this observation's balance read
  * @returns The token name and address of the collateral
  */
 export async function getManagedLockBoxCollateralInfo(
   multiProvider: MultiProviderAdapter,
   warpToken: Token,
   lockBoxAddress: Address,
+  knownCollateralTokenAddress?: Address,
 ): Promise<{ tokenName: string; tokenAddress: Address }> {
-  const lockBoxInstance = getManagedLockBox(
-    multiProvider,
-    warpToken.chainName,
-    lockBoxAddress,
-  );
-
-  const collateralTokenAddress = await lockBoxInstance['ERC20']();
+  const collateralTokenAddress =
+    knownCollateralTokenAddress ??
+    (await getManagedLockBox(
+      multiProvider,
+      warpToken.chainName,
+      lockBoxAddress,
+    )['ERC20']());
   const collateralTokenAdapter = new EvmTokenAdapter(
     warpToken.chainName,
     multiProvider,
