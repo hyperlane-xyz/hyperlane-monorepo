@@ -1772,7 +1772,9 @@ mod tests {
                 .expect("subscription message")
                 .expect("read subscription message");
             socket
-                .send(Message::Text(r#"{"type":"subscribed"}"#.into()))
+                .send(Message::Text(
+                    r#"{"type":"subscribed","streams":[]}"#.into(),
+                ))
                 .await
                 .expect("send subscribed message");
             socket
@@ -1934,7 +1936,9 @@ mod tests {
                 .expect("subscription message")
                 .expect("read subscription message");
             socket
-                .send(Message::Text(r#"{"type":"subscribed"}"#.into()))
+                .send(Message::Text(
+                    r#"{"type":"subscribed","streams":[]}"#.into(),
+                ))
                 .await
                 .expect("send subscribed message");
             socket
@@ -2028,7 +2032,9 @@ mod tests {
                 .expect("subscription message")
                 .expect("read subscription message");
             socket
-                .send(Message::Text(r#"{"type":"subscribed"}"#.into()))
+                .send(Message::Text(
+                    r#"{"type":"subscribed","streams":[]}"#.into(),
+                ))
                 .await
                 .expect("send subscribed message");
             socket
@@ -2147,7 +2153,9 @@ mod tests {
                 .expect("subscription message")
                 .expect("read subscription message");
             socket
-                .send(Message::Text(r#"{"type":"subscribed"}"#.into()))
+                .send(Message::Text(
+                    r#"{"type":"subscribed","streams":[]}"#.into(),
+                ))
                 .await
                 .expect("send subscribed message");
             socket
@@ -2262,7 +2270,9 @@ mod tests {
                 .expect("subscription message")
                 .expect("read subscription message");
             socket
-                .send(Message::Text(r#"{"type":"subscribed"}"#.into()))
+                .send(Message::Text(
+                    r#"{"type":"subscribed","streams":[]}"#.into(),
+                ))
                 .await
                 .expect("send subscribed message");
             while calls_in_server.load(Ordering::SeqCst) == 0 {
@@ -2378,7 +2388,9 @@ mod tests {
                 .expect("subscription message")
                 .expect("read subscription message");
             socket
-                .send(Message::Text(r#"{"type":"subscribed"}"#.into()))
+                .send(Message::Text(
+                    r#"{"type":"subscribed","streams":[]}"#.into(),
+                ))
                 .await
                 .expect("send subscribed message");
             socket
