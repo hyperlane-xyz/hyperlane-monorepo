@@ -391,15 +391,11 @@ impl HyperlaneRocksDB {
 
     /// Retrieve the greatest nonce represented by the canonical nonce-to-ID map.
     pub fn retrieve_highest_message_nonce(&self) -> DbResult<Option<u32>> {
-        let Some((nonce, _)) =
-            self.retrieve_by_prefix_at_or_before::<H256>(MESSAGE_ID, u32::MAX.to_be_bytes())?
-        else {
-            return Ok(None);
-        };
-        let nonce: [u8; 4] = nonce.try_into().map_err(|nonce: Vec<u8>| {
-            DbError::Other(format!("Invalid message ID index key: {nonce:?}"))
-        })?;
-        Ok(Some(u32::from_be_bytes(nonce)))
+        // A message hash beginning with `id_` also matches MESSAGE_ID, but has
+        // a 29-byte suffix instead of a four-byte nonce. Filter before decoding.
+        Ok(self
+            .retrieve_last_key_by_prefix(MESSAGE_ID)?
+            .map(u32::from_be_bytes))
     }
 
     /// Update the nonce of the highest processed message we're aware of
@@ -586,6 +582,55 @@ mod pending_index_tests {
 
     use super::*;
     use crate::db::rocks::test_utils::run_test_db;
+
+    #[tokio::test]
+    async fn highest_message_nonce_ignores_overlapping_message_keys() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            assert_eq!(db.retrieve_highest_message_nonce().unwrap(), None);
+
+            // A valid row in the message table whose hash shares the nonce-map prefix.
+            let mut hash = [0xfe; 32];
+            hash[..3].copy_from_slice(b"id_");
+            let hash = H256::from(hash);
+            db.store_message_by_id(&hash, &message(7, 10)).unwrap();
+            assert_eq!(db.retrieve_highest_message_nonce().unwrap(), None);
+
+            // These sort below the overlapping row; the watermark must still be exact.
+            for nonce in [0, 256, 2] {
+                db.store_message_id_by_nonce(&nonce, &H256::zero()).unwrap();
+            }
+            assert_eq!(db.retrieve_highest_message_nonce().unwrap(), Some(256));
+            assert!(db.retrieve_message_by_id(&hash).unwrap().is_some());
+
+            db.store_message_id_by_nonce(&u32::MAX, &H256::zero())
+                .unwrap();
+            assert_eq!(db.retrieve_highest_message_nonce().unwrap(), Some(u32::MAX));
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn highest_message_nonce_filters_key_width_before_value_decode() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            let other = HyperlaneRocksDB::new(
+                &HyperlaneDomain::new_test_domain("other"),
+                AsRef::<DB>::as_ref(&db).clone(),
+            );
+            other
+                .store_message_id_by_nonce(&u32::MAX, &H256::zero())
+                .unwrap();
+            // Non-nonce keys may also have values that cannot decode as an H256.
+            for key in [vec![0xfe], vec![0xfe; 29]] {
+                db.store_encodable(MESSAGE_ID, key, &true).unwrap();
+            }
+            assert_eq!(db.retrieve_highest_message_nonce().unwrap(), None);
+            db.store_message_id_by_nonce(&0, &H256::zero()).unwrap();
+            assert_eq!(db.retrieve_highest_message_nonce().unwrap(), Some(0));
+        })
+        .await;
+    }
 
     fn message(nonce: u32, destination: u32) -> HyperlaneMessage {
         HyperlaneMessage {

@@ -291,6 +291,28 @@ impl DB {
             .map(|(key, value)| (key.to_vec(), value.to_vec())))
     }
 
+    /// Retrieve the greatest fixed-width key under a prefix, without decoding its value.
+    pub(crate) fn retrieve_last_key_by_prefix<const N: usize>(
+        &self,
+        prefix: &[u8],
+    ) -> Result<Option<[u8; N]>> {
+        let mut start = prefix.to_vec();
+        start.extend_from_slice(&[u8::MAX; N]);
+        let mut iterator = self.0.raw_iterator();
+        iterator.seek_for_prev(&start);
+        loop {
+            iterator.status()?;
+            let Some(suffix) = iterator.key().and_then(|key| key.strip_prefix(prefix)) else {
+                return Ok(None);
+            };
+            // Other tables can overlap this prefix through their binary keys.
+            if let Ok(key) = suffix.try_into() {
+                return Ok(Some(key));
+            }
+            iterator.prev();
+        }
+    }
+
     /// Retrieve a value from the DB
     pub fn retrieve(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         Ok(self.0.get(key)?)

@@ -92,6 +92,14 @@ impl TypedDB {
         self.retrieve_by_prefix_from(prefix.as_ref(), key.as_ref(), false)
     }
 
+    pub(crate) fn retrieve_last_key_by_prefix<const N: usize>(
+        &self,
+        prefix: impl AsRef<[u8]>,
+    ) -> Result<Option<[u8; N]>> {
+        self.db
+            .retrieve_last_key_by_prefix(&self.prefixed_key(prefix.as_ref(), &[]))
+    }
+
     fn retrieve_by_prefix_from<V: Decode>(
         &self,
         prefix: &[u8],
