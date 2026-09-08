@@ -72,7 +72,11 @@ const GAS_PAYMENT_CURSOR_V2_PREFIX: &[u8] = b"scraper_websocket_gas_payment_stre
 const GAS_PAYMENT_CURSOR_PREFIX: &[u8] = b"scraper_websocket_gas_payment_stream_cursor_v3";
 const GAS_PAYMENT_DEGRADED_PREFIX: &[u8] = b"scraper_websocket_gas_payment_degraded_v3";
 const MERKLE_CURSOR_PREFIX: &[u8] = b"scraper_websocket_merkle_cursor";
-const PARITY_UNHEALTHY_PREFIX: &[u8] = b"scraper_websocket_parity_unhealthy";
+// V1 poison keys are intentionally retained in RocksDB. V2 starts a clean
+// parity epoch after fixing the first deployment's known false failures.
+const PARITY_UNHEALTHY_PREFIX: &[u8] = b"scraper_websocket_parity_unhealthy_v2";
+#[cfg(test)]
+const PARITY_UNHEALTHY_V1_PREFIX: &[u8] = b"scraper_websocket_parity_unhealthy";
 
 #[cfg_attr(test, mockall::automock)]
 trait ParityDatabase: Send + Sync {
@@ -652,9 +656,14 @@ impl ParityInput {
                 let local_transaction_id = database
                     .retrieve_dispatched_tx_hash_by_message_id(&message.id())
                     .context("Reading RPC-indexed dispatch transaction ID")?;
+                // Sealevel's basic log metadata stores zero when the relayer's
+                // advanced transaction lookup is disabled. Keep requiring the
+                // entry, but only compare transaction IDs when one is known.
+                let transaction_id_conflicts = local_transaction_id
+                    .is_some_and(|local| local != H512::zero() && local != *transaction_id);
                 if local_message.as_ref().is_some_and(|local| local != message)
                     || local_block_number.is_some_and(|local| local != *block_number)
-                    || local_transaction_id.is_some_and(|local| local != *transaction_id)
+                    || transaction_id_conflicts
                 {
                     return Ok(ParityResult::Conflict);
                 }
@@ -4234,6 +4243,32 @@ mod tests {
             .expect("store dispatch transaction");
     }
 
+    fn dispatch_parity_result(local_transaction_id: Option<H512>) -> ParityResult {
+        let message = dispatch_message(7, b"payload");
+        let local_message = message.clone();
+        let mut database = MockParityDatabase::new();
+        database
+            .expect_retrieve_message_by_nonce()
+            .times(1)
+            .return_once(move |_| Ok(Some(local_message)));
+        database
+            .expect_retrieve_dispatched_block_number_by_nonce()
+            .times(1)
+            .return_once(|_| Ok(Some(100)));
+        database
+            .expect_retrieve_dispatched_tx_hash_by_message_id()
+            .times(1)
+            .return_once(move |_| Ok(local_transaction_id));
+
+        ParityInput::Dispatch {
+            block_number: 100,
+            message,
+            transaction_id: dispatch_transaction_id(),
+        }
+        .compare(&database)
+        .expect("compare dispatch parity")
+    }
+
     fn sequence(validated: ValidatedEvent) -> (EventKind, SequenceResult) {
         (validated.kind, validated.sequence_result)
     }
@@ -4991,6 +5026,27 @@ mod tests {
     }
 
     #[test]
+    fn dispatch_parity_accepts_unknown_local_transaction_id() {
+        assert_eq!(
+            dispatch_parity_result(Some(H512::zero())),
+            ParityResult::Match
+        );
+    }
+
+    #[test]
+    fn dispatch_parity_rejects_known_transaction_id_mismatch() {
+        assert_eq!(
+            dispatch_parity_result(Some(bytes_to_h512(&[7_u8; 32]))),
+            ParityResult::Conflict
+        );
+    }
+
+    #[test]
+    fn dispatch_parity_requires_local_transaction_id_entry() {
+        assert_eq!(dispatch_parity_result(None), ParityResult::Missing);
+    }
+
+    #[test]
     fn dispatch_parity_survives_database_restart() {
         let temp_dir = tempfile::tempdir().expect("temp DB directory");
         let message = dispatch_message(7, b"payload");
@@ -5654,6 +5710,13 @@ mod tests {
         assert!(source
             .parity_unhealthy(EventKind::Dispatch)
             .expect("health read"));
+        assert_eq!(
+            source
+                .cursor_db
+                .retrieve_value_by_key(PARITY_UNHEALTHY_PREFIX, &source.mailbox)
+                .expect("read v2 parity poison"),
+            Some(true)
+        );
 
         let metrics = CoreMetrics::new("scraper-parity-restart", 9090, Registry::new())
             .expect("create restart metrics");
@@ -5673,6 +5736,27 @@ mod tests {
                 .with_label_values(&["test", DISPATCH_EVENT_TYPE])
                 .get(),
             0
+        );
+    }
+
+    #[test]
+    fn retained_v1_parity_poison_does_not_poison_v2_epoch() {
+        let fixture = fixture();
+        let source = &fixture.sources[&5];
+        source
+            .cursor_db
+            .store_value_by_key(PARITY_UNHEALTHY_V1_PREFIX, &source.mailbox, &true)
+            .expect("store retained v1 parity poison");
+
+        assert!(!source
+            .parity_unhealthy(EventKind::Dispatch)
+            .expect("read clean v2 parity epoch"));
+        assert_eq!(
+            source
+                .cursor_db
+                .retrieve_value_by_key(PARITY_UNHEALTHY_V1_PREFIX, &source.mailbox)
+                .expect("read retained v1 parity poison"),
+            Some(true)
         );
     }
 
