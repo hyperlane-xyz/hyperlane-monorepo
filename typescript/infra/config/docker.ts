@@ -66,9 +66,9 @@ export const testnetDockerTags: BaseDockerTags = {
   relayer: 'be18813-20260908-054007',
   relayerRC: 'be18813-20260908-054007',
   relayerFastPath: 'be18813-20260908-054007',
-  validator: 'be18813-20260908-054007',
+  validator: 'cb7237c-20260908-141540',
   validatorRC: 'be18813-20260908-054007',
-  validatorFastPath: 'be18813-20260908-054007',
+  validatorFastPath: 'cb7237c-20260908-141540',
   scraper: 'be18813-20260908-054007',
   // standalone services
   keyFunder: '757150f-20260908-042619',
