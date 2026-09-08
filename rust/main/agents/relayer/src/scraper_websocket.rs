@@ -1498,6 +1498,13 @@ struct AuthorityHandoff {
     state_changed: Notify,
 }
 
+#[derive(Debug)]
+struct SourceAuthority {
+    active: Arc<AtomicBool>,
+    handoff: Arc<AuthorityHandoff>,
+    sender: watch::Sender<AuthorityCommand>,
+}
+
 impl AuthorityHandoff {
     fn new(expected: HashSet<u32>) -> Self {
         Self {
@@ -1591,12 +1598,16 @@ struct AuthorityRevocationHooks {
 pub(crate) struct ScraperWebSocketMonitor {
     active: IntGaugeVec,
     authority: IntGaugeVec,
-    authority_active: AtomicBool,
     authority_enabled: bool,
     #[cfg(test)]
     authority_revocation_hooks: parking_lot::Mutex<AuthorityRevocationHooks>,
+    #[cfg(test)]
+    authority_active: Arc<AtomicBool>,
+    #[cfg(test)]
     authority_handoff: Arc<AuthorityHandoff>,
+    #[cfg(test)]
     authority_sender: watch::Sender<AuthorityCommand>,
+    source_authorities: HashMap<u32, SourceAuthority>,
     caught_up: IntGaugeVec,
     degraded: IntGaugeVec,
     fresh: IntGaugeVec,
@@ -1681,11 +1692,30 @@ impl ScraperWebSocketMonitor {
             .into_iter()
             .map(|source| (source.domain, source))
             .collect::<HashMap<_, _>>();
-        let authority_handoff = Arc::new(AuthorityHandoff::new(sources.keys().copied().collect()));
-        let (authority_sender, _) = watch::channel(AuthorityCommand {
-            desired: false,
-            generation: 0,
-        });
+        let source_authorities = sources
+            .keys()
+            .copied()
+            .map(|domain| {
+                let handoff = Arc::new(AuthorityHandoff::new(HashSet::from([domain])));
+                let (sender, _) = watch::channel(AuthorityCommand {
+                    desired: false,
+                    generation: 0,
+                });
+                (
+                    domain,
+                    SourceAuthority {
+                        active: Arc::new(AtomicBool::new(false)),
+                        handoff,
+                        sender,
+                    },
+                )
+            })
+            .collect::<HashMap<_, _>>();
+        #[cfg(test)]
+        let test_authority = source_authorities
+            .values()
+            .next()
+            .expect("test scraper monitor requires a source");
         let mut parity_unhealthy = HashSet::new();
         let mut parity_queues = HashMap::new();
         for source in sources.values() {
@@ -1720,12 +1750,16 @@ impl ScraperWebSocketMonitor {
         Ok(Self {
             active,
             authority,
-            authority_active: AtomicBool::new(false),
             authority_enabled,
             #[cfg(test)]
             authority_revocation_hooks: parking_lot::Mutex::default(),
-            authority_handoff,
-            authority_sender,
+            #[cfg(test)]
+            authority_active: test_authority.active.clone(),
+            #[cfg(test)]
+            authority_handoff: test_authority.handoff.clone(),
+            #[cfg(test)]
+            authority_sender: test_authority.sender.clone(),
+            source_authorities,
             caught_up,
             degraded,
             fresh,
@@ -1746,10 +1780,16 @@ impl ScraperWebSocketMonitor {
         })
     }
 
-    pub(crate) fn authority_receiver(&self) -> Option<ScraperAuthorityReceiver> {
-        self.authority_enabled.then(|| ScraperAuthorityReceiver {
-            desired: self.authority_sender.subscribe(),
-            handoff: self.authority_handoff.clone(),
+    pub(crate) fn authority_receiver(&self, domain: u32) -> Option<ScraperAuthorityReceiver> {
+        self.authority_enabled.then(|| {
+            let authority = self
+                .source_authorities
+                .get(&domain)
+                .expect("authority receiver requested for unknown scraper source");
+            ScraperAuthorityReceiver {
+                desired: authority.sender.subscribe(),
+                handoff: authority.handoff.clone(),
+            }
         })
     }
 
@@ -1871,7 +1911,7 @@ impl ScraperWebSocketMonitor {
             let source = source.clone();
             let broadcaster = source.broadcaster.clone();
             let parity_input = parity_input.clone();
-            let authority_active = self.authority_active.load(Ordering::Acquire);
+            let authority_active = self.source_authority(domain).active.load(Ordering::Acquire);
             let permit = match timeout(
                 PARITY_READ_TIMEOUT,
                 self.parity_read_permit.clone().acquire_owned(),
@@ -1950,7 +1990,7 @@ impl ScraperWebSocketMonitor {
             .inc();
         if terminal != ParityResult::Match.label() {
             self.parity_unhealthy.lock().insert((domain, kind));
-            self.deactivate_authority();
+            self.deactivate_source_authority(domain);
             if should_warn(&self.parity_warned_at) {
                 warn!(%chain, event_type, result = terminal, "Scraper event did not reach matching local DB parity");
             }
@@ -1959,7 +1999,7 @@ impl ScraperWebSocketMonitor {
         pending.dec();
         if pending.get() == 0 && !self.parity_unhealthy.lock().contains(&(domain, kind)) {
             self.parity_ready.with_label_values(&labels).set(1);
-            self.maybe_activate_authority().await;
+            self.maybe_activate_source_authority(domain).await;
         }
         terminal
     }
@@ -2364,7 +2404,7 @@ impl ScraperWebSocketMonitor {
                                 }
                                 self.set_source_caught_up(source, EventKind::GasPayment, true);
                                 self.record(domain, GAS_PAYMENT_EVENT_TYPE, "caught_up");
-                                self.maybe_activate_authority().await;
+                                self.maybe_activate_source_authority(domain).await;
                                 continue;
                             }
                             if row_id.is_some() || stream_cursor.is_some() {
@@ -2503,7 +2543,7 @@ impl ScraperWebSocketMonitor {
         self.degraded
             .with_label_values(&[source.chain.as_str(), GAS_PAYMENT_EVENT_TYPE])
             .set(1);
-        self.deactivate_authority();
+        self.deactivate_source_authority(source.domain);
         Ok(newly_degraded)
     }
 
@@ -2525,27 +2565,35 @@ impl ScraperWebSocketMonitor {
         }
     }
 
-    fn publish_authority_revocation(&self, update: impl FnOnce(&mut AuthorityCommand) -> bool) {
-        #[cfg(test)]
-        self.wait_for_revocation_hook(true);
-        self.authority_sender.send_if_modified(update);
+    fn source_authority(&self, domain: u32) -> &SourceAuthority {
+        self.source_authorities
+            .get(&domain)
+            .expect("validated scraper source must have authority state")
     }
 
-    fn deactivate_authority(&self) {
+    fn deactivate_source_authority(&self, domain: u32) {
+        let source = self
+            .sources
+            .get(&domain)
+            .expect("validated scraper source must exist");
+        let authority = self.source_authority(domain);
         // Serialize the active flag and gauges with command publication. RPC must
         // not resume between clearing the flag and a concurrent activation.
-        self.publish_authority_revocation(|current| {
-            if self.authority_active.swap(false, Ordering::AcqRel) {
-                info!("Restoring direct RPC indexing fallback");
+        #[cfg(test)]
+        self.wait_for_revocation_hook(true);
+        authority.sender.send_if_modified(|current| {
+            if authority.active.swap(false, Ordering::AcqRel) {
+                info!(
+                    chain = source.chain,
+                    "Restoring direct RPC indexing fallback"
+                );
             }
-            for source in self.sources.values() {
-                self.authority
-                    .with_label_values(&[source.chain.as_str()])
-                    .set(0);
-                self.fresh
-                    .with_label_values(&[source.chain.as_str()])
-                    .set(0);
-            }
+            self.authority
+                .with_label_values(&[source.chain.as_str()])
+                .set(0);
+            self.fresh
+                .with_label_values(&[source.chain.as_str()])
+                .set(0);
             if current.desired {
                 current.desired = false;
                 true
@@ -2553,9 +2601,16 @@ impl ScraperWebSocketMonitor {
                 false
             }
         });
-        self.authority_handoff.notify_state_changed();
+        authority.handoff.notify_state_changed();
         #[cfg(test)]
         self.wait_for_revocation_hook(false);
+    }
+
+    fn deactivate_authority(&self) {
+        let domains = self.sources.keys().copied().collect::<Vec<_>>();
+        for domain in domains {
+            self.deactivate_source_authority(domain);
+        }
     }
 
     fn refresh_parity_ready(&self, source: &ScraperSource) {
@@ -2572,17 +2627,19 @@ impl ScraperWebSocketMonitor {
         }
     }
 
-    async fn maybe_activate_authority(&self) {
-        if self.authority_active.load(Ordering::Acquire)
-            || !self.base_authority_ready()
-            || !self
-                .sources
-                .values()
-                .all(|source| self.fresh.with_label_values(&[source.chain.as_str()]).get() == 1)
+    async fn maybe_activate_source_authority(&self, domain: u32) {
+        let source = self
+            .sources
+            .get(&domain)
+            .expect("validated scraper source must exist");
+        let authority = self.source_authority(domain);
+        if authority.active.load(Ordering::Acquire)
+            || !self.base_source_authority_ready(source)
+            || self.fresh.with_label_values(&[source.chain.as_str()]).get() != 1
         {
             return;
         }
-        self.authority_sender.send_if_modified(|current| {
+        authority.sender.send_if_modified(|current| {
             if current.desired {
                 false
             } else {
@@ -2594,88 +2651,102 @@ impl ScraperWebSocketMonitor {
                 true
             }
         });
-        let command = *self.authority_sender.borrow();
+        let command = *authority.sender.borrow();
         let handoff_complete = matches!(
             timeout(
                 AUTHORITY_HANDOFF_TIMEOUT,
-                self.authority_handoff
-                    .wait_until_paused(&self.authority_sender, command.generation),
+                authority
+                    .handoff
+                    .wait_until_paused(&authority.sender, command.generation),
             )
             .await,
             Ok(true)
         );
         if !handoff_complete
-            || *self.authority_sender.borrow() != command
-            || !self.base_authority_ready()
-            || !self
-                .sources
-                .values()
-                .all(|source| self.fresh.with_label_values(&[source.chain.as_str()]).get() == 1)
+            || *authority.sender.borrow() != command
+            || !self.base_source_authority_ready(source)
+            || self.fresh.with_label_values(&[source.chain.as_str()]).get() != 1
         {
             if !handoff_complete {
                 warn!(
+                    chain = source.chain,
                     generation = command.generation,
                     "RPC indexers did not acknowledge scraper authority handoff"
                 );
             }
-            self.deactivate_authority();
+            self.deactivate_source_authority(domain);
             return;
         }
-        self.authority_sender.send_if_modified(|current| {
+        authority.sender.send_if_modified(|current| {
             // Use the same watch write lock as revocation so neither the flag nor
             // its gauges can be activated after this command has been revoked.
             if *current == command
                 && current.desired
-                && self
-                    .authority_active
+                && authority
+                    .active
                     .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
                     .is_ok()
             {
-                for source in self.sources.values() {
-                    self.authority
-                        .with_label_values(&[source.chain.as_str()])
-                        .set(1);
-                }
-                info!("Scraper-proxy indexing is authoritative; pausing direct RPC indexing");
+                self.authority
+                    .with_label_values(&[source.chain.as_str()])
+                    .set(1);
+                info!(
+                    chain = source.chain,
+                    "Scraper-proxy indexing is authoritative; pausing direct RPC indexing"
+                );
             }
             false // Activation does not change the already acknowledged command.
         });
     }
 
-    fn base_authority_ready(&self) -> bool {
+    fn base_source_authority_ready(&self, source: &ScraperSource) -> bool {
         self.authority_enabled
             && self.gas_payment_enabled.load(Ordering::Acquire)
-            && !self.sources.is_empty()
-            && self.sources.values().all(|source| {
-                self.active
-                    .with_label_values(&[source.chain.as_str()])
+            && self
+                .active
+                .with_label_values(&[source.chain.as_str()])
+                .get()
+                == 1
+            && [
+                EventKind::Dispatch,
+                EventKind::GasPayment,
+                EventKind::MerkleTreeInsertion,
+            ]
+            .into_iter()
+            .all(|kind| {
+                self.caught_up
+                    .with_label_values(&[source.chain.as_str(), kind.label()])
                     .get()
                     == 1
-                    && [
-                        EventKind::Dispatch,
-                        EventKind::GasPayment,
-                        EventKind::MerkleTreeInsertion,
-                    ]
-                    .into_iter()
-                    .all(|kind| {
-                        self.caught_up
-                            .with_label_values(&[source.chain.as_str(), kind.label()])
-                            .get()
-                            == 1
-                    })
-                    && self
-                        .degraded
-                        .with_label_values(&[source.chain.as_str(), GAS_PAYMENT_EVENT_TYPE])
-                        .get()
-                        == 0
-                    && [EventKind::Dispatch, EventKind::MerkleTreeInsertion]
-                        .into_iter()
-                        .all(|kind| {
-                            let labels = [source.chain.as_str(), kind.label()];
-                            self.parity_pending.with_label_values(&labels).get() == 0
-                                && self.parity_ready.with_label_values(&labels).get() == 1
-                        })
             })
+            && self
+                .degraded
+                .with_label_values(&[source.chain.as_str(), GAS_PAYMENT_EVENT_TYPE])
+                .get()
+                == 0
+            && [EventKind::Dispatch, EventKind::MerkleTreeInsertion]
+                .into_iter()
+                .all(|kind| {
+                    let labels = [source.chain.as_str(), kind.label()];
+                    self.parity_pending.with_label_values(&labels).get() == 0
+                        && self.parity_ready.with_label_values(&labels).get() == 1
+                })
+    }
+
+    #[cfg(test)]
+    async fn maybe_activate_authority(&self) {
+        for domain in self.sources.keys().copied() {
+            self.maybe_activate_source_authority(domain).await;
+        }
+    }
+
+    #[cfg(test)]
+    fn base_authority_ready(&self) -> bool {
+        !self.sources.is_empty()
+            && self
+                .sources
+                .values()
+                .all(|source| self.base_source_authority_ready(source))
     }
 
     async fn run_authority_freshness(self: Arc<Self>) {
@@ -2688,106 +2759,117 @@ impl ScraperWebSocketMonitor {
     }
 
     async fn refresh_authority_once(&self) {
-        if !self.base_authority_ready() {
-            self.deactivate_authority();
-            return;
-        }
-
-        let results = stream::iter(self.sources.values().cloned())
+        let ready_sources = self
+            .sources
+            .values()
+            .filter_map(|source| {
+                let ready = self.base_source_authority_ready(source);
+                if !ready {
+                    self.deactivate_source_authority(source.domain);
+                }
+                ready.then(|| source.clone())
+            })
+            .collect::<Vec<_>>();
+        let results = stream::iter(ready_sources)
             .map(|source| async move {
+                let domain = source.domain;
                 let chain = source.chain.clone();
-                let indexer = source
-                    .freshness_indexer
-                    .clone()
-                    .context("Missing canonical dispatch freshness indexer")?;
-                let merkle_indexer = source
-                    .merkle_freshness_indexer
-                    .clone()
-                    .context("Missing canonical Merkle freshness indexer")?;
-                let (dispatch_canonical_count, _) = timeout(
-                    AUTHORITY_FRESHNESS_TIMEOUT,
-                    indexer.latest_sequence_count_and_tip(),
-                )
-                .await
-                .context("Canonical dispatch freshness probe timed out")??;
-                let (merkle_canonical_count, _) = timeout(
-                    AUTHORITY_FRESHNESS_TIMEOUT,
-                    merkle_indexer.latest_sequence_count_and_tip(),
-                )
-                .await
-                .context("Canonical Merkle freshness probe timed out")??;
-                let cursor_source = source.clone();
-                let cursor_read = async {
-                    let permit = self
-                        .parity_read_permit
+                let result = async {
+                    let indexer = source
+                        .freshness_indexer
                         .clone()
-                        .acquire_owned()
-                        .await
-                        .expect("parity semaphore is never closed");
-                    if self.parity_read_disabled.load(Ordering::Acquire) {
-                        bail!("Canonical scraper freshness reads are disabled");
-                    }
-                    tokio::task::spawn_blocking(move || -> Result<_> {
-                        let _permit = permit;
-                        Ok((
-                            cursor_source.cursor(EventKind::Dispatch)?,
-                            cursor_source.cursor(EventKind::MerkleTreeInsertion)?,
-                        ))
-                    })
+                        .context("Missing canonical dispatch freshness indexer")?;
+                    let merkle_indexer = source
+                        .merkle_freshness_indexer
+                        .clone()
+                        .context("Missing canonical Merkle freshness indexer")?;
+                    let (dispatch_canonical_count, _) = timeout(
+                        AUTHORITY_FRESHNESS_TIMEOUT,
+                        indexer.latest_sequence_count_and_tip(),
+                    )
                     .await
-                    .context("Canonical scraper freshness cursor task failed")?
-                };
-                let (dispatch_cursor, merkle_cursor) =
-                    match timeout(PARITY_READ_TIMEOUT, cursor_read).await {
-                        Ok(result) => result?,
-                        Err(_) => {
-                            self.disable_parity_reads(
-                                &chain,
-                                DISPATCH_EVENT_TYPE,
-                                "canonical freshness cursor read timed out",
-                            );
-                            bail!("Canonical scraper freshness cursor read timed out");
+                    .context("Canonical dispatch freshness probe timed out")??;
+                    let (merkle_canonical_count, _) = timeout(
+                        AUTHORITY_FRESHNESS_TIMEOUT,
+                        merkle_indexer.latest_sequence_count_and_tip(),
+                    )
+                    .await
+                    .context("Canonical Merkle freshness probe timed out")??;
+                    let cursor_source = source.clone();
+                    let cursor_read = async {
+                        let permit = self
+                            .parity_read_permit
+                            .clone()
+                            .acquire_owned()
+                            .await
+                            .expect("parity semaphore is never closed");
+                        if self.parity_read_disabled.load(Ordering::Acquire) {
+                            bail!("Canonical scraper freshness reads are disabled");
                         }
+                        tokio::task::spawn_blocking(move || -> Result<_> {
+                            let _permit = permit;
+                            Ok((
+                                cursor_source.cursor(EventKind::Dispatch)?,
+                                cursor_source.cursor(EventKind::MerkleTreeInsertion)?,
+                            ))
+                        })
+                        .await
+                        .context("Canonical scraper freshness cursor task failed")?
                     };
-                Ok::<_, eyre::Report>((
-                    chain,
-                    canonical_cursors_are_fresh(
+                    let (dispatch_cursor, merkle_cursor) =
+                        match timeout(PARITY_READ_TIMEOUT, cursor_read).await {
+                            Ok(result) => result?,
+                            Err(_) => {
+                                self.disable_parity_reads(
+                                    &chain,
+                                    DISPATCH_EVENT_TYPE,
+                                    "canonical freshness cursor read timed out",
+                                );
+                                bail!("Canonical scraper freshness cursor read timed out");
+                            }
+                        };
+                    Ok::<_, eyre::Report>((
+                        canonical_cursors_are_fresh(
+                            dispatch_canonical_count,
+                            dispatch_cursor,
+                            merkle_canonical_count,
+                            merkle_cursor,
+                        )?,
                         dispatch_canonical_count,
-                        dispatch_cursor,
                         merkle_canonical_count,
+                        dispatch_cursor,
                         merkle_cursor,
-                    )?,
-                    dispatch_canonical_count,
-                    merkle_canonical_count,
-                    dispatch_cursor,
-                    merkle_cursor,
-                ))
+                    ))
+                }
+                .await;
+                (domain, chain, result)
             })
             .buffer_unordered(AUTHORITY_FRESHNESS_CONCURRENCY)
             .collect::<Vec<_>>()
             .await;
 
-        let mut all_fresh = false;
-        self.authority_sender.send_if_modified(|_| {
-            if !self.base_authority_ready() {
-                return false;
-            }
-            all_fresh = true;
-            for result in results {
-                match result {
-                    Ok((
-                        chain,
-                        is_fresh,
-                        dispatch_canonical_count,
-                        merkle_canonical_count,
-                        dispatch_cursor,
-                        merkle_cursor,
-                    )) => {
-                        self.fresh
-                            .with_label_values(&[chain.as_str()])
-                            .set(i64::from(is_fresh));
+        for (domain, chain, result) in results {
+            match result {
+                Ok((
+                    is_fresh,
+                    dispatch_canonical_count,
+                    merkle_canonical_count,
+                    dispatch_cursor,
+                    merkle_cursor,
+                )) => {
+                    let source = &self.sources[&domain];
+                    let mut readiness_still_valid = false;
+                    self.source_authority(domain).sender.send_if_modified(|_| {
+                        if self.base_source_authority_ready(source) {
+                            readiness_still_valid = true;
+                            self.fresh
+                                .with_label_values(&[chain.as_str()])
+                                .set(i64::from(is_fresh));
+                        }
+                        false
+                    });
+                    if !readiness_still_valid || !is_fresh {
                         if !is_fresh {
-                            all_fresh = false;
                             if should_warn(&self.freshness_warned_at) {
                                 warn!(
                                     %chain,
@@ -2799,21 +2881,18 @@ impl ScraperWebSocketMonitor {
                                 );
                             }
                         }
-                    }
-                    Err(err) => {
-                        all_fresh = false;
-                        if should_warn(&self.freshness_warned_at) {
-                            warn!(?err, "Canonical scraper freshness probe failed");
-                        }
+                        self.deactivate_source_authority(domain);
+                    } else {
+                        self.maybe_activate_source_authority(domain).await;
                     }
                 }
+                Err(err) => {
+                    if should_warn(&self.freshness_warned_at) {
+                        warn!(%chain, ?err, "Canonical scraper freshness probe failed");
+                    }
+                    self.deactivate_source_authority(domain);
+                }
             }
-            false
-        });
-        if all_fresh {
-            self.maybe_activate_authority().await;
-        } else {
-            self.deactivate_authority();
         }
     }
 
@@ -2853,7 +2932,7 @@ impl ScraperWebSocketMonitor {
             self.set_source_caught_up(source, kind, true);
         }
         self.refresh_parity_ready(source);
-        self.maybe_activate_authority().await;
+        self.maybe_activate_source_authority(domain).await;
         Ok(())
     }
 
@@ -3383,7 +3462,7 @@ mod tests {
             true,
         )
         .expect("create authority monitor");
-        let mut receiver = monitor.authority_receiver().expect("authority receiver");
+        let mut receiver = monitor.authority_receiver(5).expect("authority receiver");
 
         monitor.set_active(true);
         monitor.gas_payment_enabled.store(true, Ordering::Release);
@@ -3508,22 +3587,12 @@ mod tests {
             .expect("create test metrics");
         let monitor = ScraperWebSocketMonitor::new_with_authority(
             Url::parse("ws://localhost:1").expect("test URL"),
-            sources_for(&[5, 6]).into_values().collect(),
+            sources_for(&[5]).into_values().collect(),
             &metrics,
             true,
         )
         .expect("create authority monitor");
-        let mut observer = monitor.authority_receiver().expect("authority observer");
-        let mut receiver = monitor.authority_receiver().expect("authority receiver");
-        let paused_then_resumed = tokio::spawn(async move {
-            receiver.changed().await.expect("pause command");
-            let command = receiver.borrow_and_update();
-            assert!(command.desired);
-            receiver.mark_paused(5, command.generation);
-            receiver.changed().await.expect("fallback command");
-            assert!(!receiver.borrow_and_update().desired);
-            receiver.mark_running(5);
-        });
+        let mut observer = monitor.authority_receiver(5).expect("authority observer");
 
         monitor.set_active(true);
         monitor.gas_payment_enabled.store(true, Ordering::Release);
@@ -3544,13 +3613,88 @@ mod tests {
 
         monitor.maybe_activate_authority().await;
 
-        assert!(!monitor.authority_active.load(Ordering::Acquire));
+        assert!(!monitor.source_authority(5).active.load(Ordering::Acquire));
         assert!(!observer.borrow_and_update().desired);
-        timeout(Duration::from_secs(1), paused_then_resumed)
+        assert!(monitor.source_authority(5).handoff.paused.lock().is_empty());
+    }
+
+    #[tokio::test]
+    async fn sources_activate_and_revoke_authority_independently() {
+        let metrics = CoreMetrics::new("scraper-authority-per-source-test", 9090, Registry::new())
+            .expect("create test metrics");
+        let monitor = ScraperWebSocketMonitor::new_with_authority(
+            Url::parse("ws://localhost:1").expect("test URL"),
+            sources_for(&[5, 6]).into_values().collect(),
+            &metrics,
+            true,
+        )
+        .expect("create authority monitor");
+        let mut source_5_receiver = monitor.authority_receiver(5).expect("source 5 receiver");
+        let mut source_6_receiver = monitor.authority_receiver(6).expect("source 6 receiver");
+
+        monitor.set_active(true);
+        monitor.gas_payment_enabled.store(true, Ordering::Release);
+        let source_5 = monitor.sources.get(&5).expect("source 5");
+        for kind in [
+            EventKind::Dispatch,
+            EventKind::GasPayment,
+            EventKind::MerkleTreeInsertion,
+        ] {
+            monitor.set_source_caught_up(source_5, kind, true);
+        }
+        monitor.refresh_parity_ready(source_5);
+        monitor
+            .fresh
+            .with_label_values(&[source_5.chain.as_str()])
+            .set(1);
+
+        let source_5_activation = monitor.maybe_activate_source_authority(5);
+        tokio::pin!(source_5_activation);
+        assert!(timeout(Duration::from_millis(10), &mut source_5_activation)
             .await
-            .expect("paused supervisor resumes after timeout")
-            .expect("supervisor simulation");
-        assert!(monitor.authority_handoff.paused.lock().is_empty());
+            .is_err());
+        let source_5_command = source_5_receiver.borrow_and_update();
+        assert!(source_5_command.desired);
+        assert!(!source_6_receiver.borrow_and_update().desired);
+
+        // An acknowledgement for another origin cannot complete this handoff.
+        source_5_receiver.mark_paused(6, source_5_command.generation);
+        assert!(timeout(Duration::from_millis(10), &mut source_5_activation)
+            .await
+            .is_err());
+        source_5_receiver.mark_paused(5, source_5_command.generation);
+        source_5_activation.await;
+        assert!(monitor.source_authority(5).active.load(Ordering::Acquire));
+        assert!(!monitor.source_authority(6).active.load(Ordering::Acquire));
+
+        let source_6 = monitor.sources.get(&6).expect("source 6");
+        for kind in [
+            EventKind::Dispatch,
+            EventKind::GasPayment,
+            EventKind::MerkleTreeInsertion,
+        ] {
+            monitor.set_source_caught_up(source_6, kind, true);
+        }
+        monitor.refresh_parity_ready(source_6);
+        monitor
+            .fresh
+            .with_label_values(&[source_6.chain.as_str()])
+            .set(1);
+        let source_6_activation = monitor.maybe_activate_source_authority(6);
+        tokio::pin!(source_6_activation);
+        assert!(timeout(Duration::from_millis(10), &mut source_6_activation)
+            .await
+            .is_err());
+        let source_6_command = source_6_receiver.borrow_and_update();
+        source_6_receiver.mark_paused(6, source_6_command.generation);
+        source_6_activation.await;
+        assert!(monitor.source_authority(6).active.load(Ordering::Acquire));
+
+        monitor.deactivate_source_authority(6);
+        assert!(monitor.source_authority(5).active.load(Ordering::Acquire));
+        assert!(source_5_receiver.borrow_and_update().desired);
+        assert!(!monitor.source_authority(6).active.load(Ordering::Acquire));
+        assert!(!source_6_receiver.borrow_and_update().desired);
     }
 
     #[test]
@@ -3650,7 +3794,7 @@ mod tests {
             true,
         )
         .expect("create authority monitor");
-        let mut receiver = monitor.authority_receiver().expect("authority receiver");
+        let mut receiver = monitor.authority_receiver(5).expect("authority receiver");
         monitor.set_active(true);
         monitor.gas_payment_enabled.store(true, Ordering::Release);
         for source in monitor.sources.values() {
@@ -3799,7 +3943,7 @@ mod tests {
             true,
         )
         .expect("create authority monitor");
-        let mut receiver = monitor.authority_receiver().expect("authority receiver");
+        let mut receiver = monitor.authority_receiver(5).expect("authority receiver");
         monitor.set_active(true);
         monitor.gas_payment_enabled.store(true, Ordering::Release);
         monitor.set_caught_up(true);
