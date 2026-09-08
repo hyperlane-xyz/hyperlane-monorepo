@@ -31,6 +31,10 @@ use crate::{
     },
 };
 
+// Localnet epochs can advance between the gateway status read and submission.
+// Keep E2E transactions valid across that boundary without changing production policy.
+const TRANSACTION_EPOCH_VALIDITY_RANGE: u64 = 10;
+
 impl Deref for RadixCli {
     type Target = RadixProvider;
 
@@ -108,7 +112,7 @@ impl RadixCli {
             notary_is_signatory: true,
             network_id: self.network.id,
             start_epoch_inclusive: Epoch::of(epoch),
-            end_epoch_exclusive: Epoch::of(epoch.saturating_add(2)), // ~5 minutes per epoch -> 10min timeout
+            end_epoch_exclusive: Epoch::of(epoch.saturating_add(TRANSACTION_EPOCH_VALIDITY_RANGE)),
             nonce: rand::random::<u32>(),
             tip_percentage: 0,
         });
