@@ -4083,7 +4083,7 @@ mod tests {
     #[tokio::test]
     async fn authority_stores_missing_dispatch_before_advancing_parity() {
         let mut fixture = fixture();
-        let broadcaster = BroadcastMpscSender::default();
+        let broadcaster = BroadcastMpscSender::new(1);
         let mut notifications = broadcaster.get_receiver().await;
         fixture
             .sources
