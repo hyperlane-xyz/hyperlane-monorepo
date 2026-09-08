@@ -180,7 +180,6 @@ impl DestinationIndexIterator {
         if reopened_low_range {
             return self.peek(db, metrics);
         }
-        metrics.mark_initial_destination_scan_complete(self.destination_label.as_ref());
         Ok(None)
     }
 
@@ -755,6 +754,7 @@ impl MessageDbLoader {
             self.db
                 .mark_pending_message_index_migration_complete(self.migration_start_sequence)?;
             self.migration_iterator = None;
+            self.destination_scan_pending = true;
         }
         Ok(())
     }
@@ -782,6 +782,10 @@ impl MessageDbLoader {
         let Some((direction, nonce, indexed_message_id)) =
             self.destination_iterators[iterator_index].peek(&self.db, &self.metrics)?
         else {
+            if self.migration_iterator.is_none() {
+                self.metrics
+                    .mark_initial_destination_scan_complete(destination_label.as_ref());
+            }
             return Ok(false);
         };
         self.metrics

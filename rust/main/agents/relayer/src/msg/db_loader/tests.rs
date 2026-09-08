@@ -866,6 +866,37 @@ fn point_destination_scan_at(loader: &mut MessageDbLoader, nonce: u32) {
 }
 
 #[tokio::test]
+async fn initial_destination_scan_waits_for_legacy_migration() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let message = dummy_hyperlane_message(&destination, 0);
+        add_db_entry(&db, &message, 0);
+        db.delete_pending_message_index(&message).unwrap();
+        let (mut loader, mut receiver) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        let scan_complete = loader.metrics.initial_destination_scan_complete_gauges
+            [&destination.id().to_string()]
+            .clone();
+
+        assert!(!loader.try_load_destination(0).await.unwrap());
+        assert_eq!(scan_complete.get(), 0);
+        finish_legacy_migration(&mut loader).await;
+        assert_eq!(scan_complete.get(), 0);
+        assert!(loader.try_load_destination(0).await.unwrap());
+        assert_eq!(
+            only_operation(receiver.try_recv().unwrap()).id(),
+            message.id()
+        );
+        assert_eq!(scan_complete.get(), 0);
+        assert!(!loader.try_load_destination(0).await.unwrap());
+        assert_eq!(scan_complete.get(), 1);
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn destination_outcomes_attribute_loader_decisions_once() {
     test_utils::run_test_db(|raw_db| async move {
         let origin = dummy_domain(0, "origin");
@@ -1398,9 +1429,16 @@ async fn processed_legacy_history_does_not_rescan_every_destination() {
             })
             .sum();
         assert!(
-            destination_index_reads <= u64::from(DESTINATION_COUNT).saturating_mul(2),
+            // Two initial range reads, then one high-range read to certify
+            // completion after migration seals. No scans between those points.
+            destination_index_reads <= u64::from(DESTINATION_COUNT).saturating_mul(3),
             "destination indexes were rescanned during legacy history migration"
         );
+        assert!(loader
+            .metrics
+            .initial_destination_scan_complete_gauges
+            .values()
+            .all(|gauge| gauge.get() == 1));
     })
     .await;
 }
