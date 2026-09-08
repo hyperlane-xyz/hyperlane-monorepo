@@ -3892,6 +3892,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-universal-router"
+version = "0.1.0"
+dependencies = [
+ "account-utils",
+ "borsh 1.6.0",
+ "getrandom 0.2.17",
+ "hyperlane-core",
+ "hyperlane-sealevel-igp",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-token-lib",
+ "num-derive",
+ "num-traits",
+ "serializable-account-meta",
+ "solana-program 3.0.0",
+ "solana-system-interface 2.0.0",
+ "spl-token",
+ "spl-token-2022",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "hyperlane-sealevel-validator-announce"
 version = "0.1.0"
 dependencies = [

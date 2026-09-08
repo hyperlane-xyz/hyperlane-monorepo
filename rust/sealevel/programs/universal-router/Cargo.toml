@@ -1,0 +1,47 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "hyperlane-sealevel-universal-router"
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+
+[features]
+no-entrypoint = []
+
+[dependencies]
+borsh.workspace = true
+getrandom = { workspace = true, features = ["custom"] }
+num-derive.workspace = true
+num-traits.workspace = true
+solana-program.workspace = true
+solana-system-interface.workspace = true
+spl-token.workspace = true
+spl-token-2022.workspace = true
+thiserror.workspace = true
+
+account-utils = { path = "../../libraries/account-utils" }
+hyperlane-core = { path = "../../../main/hyperlane-core" }
+hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
+hyperlane-sealevel-igp = { path = "../hyperlane-sealevel-igp", features = ["no-entrypoint"] }
+hyperlane-sealevel-mailbox = { path = "../mailbox", features = ["no-entrypoint"] }
+hyperlane-sealevel-token-lib = { path = "../../libraries/hyperlane-sealevel-token" }
+serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
+
+[profile.release.build-override]
+opt-level = 3
+incremental = false
+codegen-units = 1
