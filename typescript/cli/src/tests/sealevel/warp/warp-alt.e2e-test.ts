@@ -23,7 +23,7 @@ import {
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, addressToBytes32, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -119,7 +119,6 @@ describe('hyperlane warp alt CLI e2e tests (Sealevel)', function () {
                 type: 'rateLimited',
                 mailbox: mailboxAddress,
                 maxCapacity: '1000000',
-                recipient: addressToBytes32(ownerAddress),
               },
               {
                 type: 'fallbackRouting',
