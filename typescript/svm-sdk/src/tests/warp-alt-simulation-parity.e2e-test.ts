@@ -685,6 +685,7 @@ describe('SVM warp ALT simulation parity — cross-collateral', function () {
       (await deriveCompositeIsmDomainPda(compositeProgram, DOMAIN_CC_ONLY))
         .address,
       TEST_PROGRAM_IDS.testIsm,
+      (await deriveCompositeIsmStoragePda(TEST_PROGRAM_IDS.testIsm)).address,
       (await deriveTestIsmStoragePda(TEST_PROGRAM_IDS.testIsm)).address,
     ];
 

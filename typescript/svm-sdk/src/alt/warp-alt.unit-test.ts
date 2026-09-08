@@ -48,10 +48,12 @@ import {
   deriveMailboxOutboxPda,
   deriveCompositeIsmDomainPda,
   deriveCompositeIsmStoragePda,
+  deriveMultisigIsmAccessControlPda,
   deriveMultisigIsmDomainDataPda,
   deriveOverheadIgpAccountPda,
   deriveRouteDomainPda,
   deriveStandingQuotePda,
+  deriveTestIsmStoragePda,
 } from '../pda.js';
 
 import { SvmAddressLookupTableWriter } from './address-lookup-table.js';
@@ -283,6 +285,49 @@ describe('deriveIsmProcessAltAddresses', () => {
       );
     }
     expect(addresses).to.include(transitiveFallbackIsm);
+  });
+
+  it('includes the VAM sentinel for non-composite fallback ISMs', async () => {
+    const rootStorage = await deriveCompositeIsmStoragePda(ISM);
+    const fallbackCases = [
+      {
+        ism: FALLBACK_ISM,
+        marker: await deriveTestIsmStoragePda(FALLBACK_ISM),
+        data: new Uint8Array([1, 1]),
+      },
+      {
+        ism: IGP_PROGRAM,
+        marker: await deriveMultisigIsmAccessControlPda(IGP_PROGRAM),
+        data: new Uint8Array([1, 1, 0]),
+      },
+    ];
+
+    for (const fallback of fallbackCases) {
+      const rpc = createAccountRpc(
+        new Map([
+          [
+            rootStorage.address,
+            encodeCompositeIsmStorageAccount({
+              bumpSeed: 1,
+              owner: null,
+              root: { kind: 'fallbackRouting', fallbackIsm: fallback.ism },
+            }),
+          ],
+          [fallback.marker.address, fallback.data],
+        ]),
+      );
+
+      const result = await deriveIsmProcessAltAddresses({
+        rpc,
+        ism: ISM,
+        mailbox: MAILBOX,
+        originDomains: ORIGINS,
+      });
+
+      expect(addressesOf(result)).to.include(
+        (await deriveCompositeIsmStoragePda(fallback.ism)).address,
+      );
+    }
   });
 });
 

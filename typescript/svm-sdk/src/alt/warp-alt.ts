@@ -245,7 +245,11 @@ export async function deriveIsmProcessAltAddressesFromState(args: {
 
     const fallbackIsms = collectCompositeFallbackIsms(composite, domainIsms);
     for (const fallbackIsm of fallbackIsms) {
-      out.push(annotate(fallbackIsm, 'ism.fallback.program'));
+      const fallbackVam = await deriveCompositeIsmStoragePda(fallbackIsm);
+      out.push(
+        annotate(fallbackIsm, 'ism.fallback.program'),
+        annotate(fallbackVam.address, 'ism.fallback.verify_account_metas'),
+      );
     }
   } else if (isMultisig) {
     const domainPdas = await Promise.all(
