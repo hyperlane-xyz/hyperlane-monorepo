@@ -420,7 +420,11 @@ async fn bulk_events_replay_and_rollback_failed_tail_in_postgres() -> eyre::Resu
     assert_eq!(db.store_payments(DOMAIN, &address, &fallback).await?, 6_000);
     assert_eq!(db.store_payments(DOMAIN, &address, &fallback).await?, 0);
     assert_eq!(gas_payment::Entity::find().count(&db.0).await?, 6_000);
-    db.0.execute_unprepared("TRUNCATE gas_payment").await?;
+    // Reset the entire stream fixture, including its cursor foreign key and head.
+    db.0.execute_unprepared(
+        "TRUNCATE gas_payment, gas_payment_stream_cursor, gas_payment_stream_head",
+    )
+    .await?;
     db.store_payments(DOMAIN, &address, &fallback[..1]).await?;
     let tx_id = seed_transaction(&db, 0).await?;
     let resolved = payment_rows(&payments, &meta, Some(tx_id));
@@ -436,7 +440,7 @@ async fn bulk_events_replay_and_rollback_failed_tail_in_postgres() -> eyre::Resu
             .count(&db.0)
             .await?,
         1,
-        "failed tail must restore the deleted NULL fallback row"
+        "failed tail must restore the NULL fallback row"
     );
     db.0.execute_unprepared("ALTER TABLE gas_payment DROP CONSTRAINT reject_payment_tail")
         .await?;
