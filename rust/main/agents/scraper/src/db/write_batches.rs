@@ -182,7 +182,7 @@ async fn payment_prefetch_and_insert_statements_are_bounded_and_deduplicated() {
             .collect();
         assert_eq!(reads.len(), chunks);
         assert!(reads.iter().all(|statement| statement.sql.starts_with(
-            "SELECT \"gas_payment\".\"msg_id\", \"gas_payment\".\"log_index\", \"gas_payment\".\"tx_id\" FROM"
+            "SELECT \"gas_payment\".\"id\", \"gas_payment\".\"msg_id\", \"gas_payment\".\"log_index\", \"gas_payment\".\"tx_id\" FROM"
         )));
         assert!(reads
             .iter()
@@ -206,14 +206,15 @@ async fn payment_fallback_replays_skip_count_baseline() {
         let payments = payments(1);
         let meta = LogMeta::default();
         let existing = vec![BTreeMap::from([
+            ("0".to_owned(), Value::BigInt(Some(1))),
             (
-                "0".to_owned(),
+                "1".to_owned(),
                 Value::Bytes(Some(Box::new(hyperlane_core::h256_to_bytes(
                     &payments[0].message_id,
                 )))),
             ),
-            ("1".to_owned(), Value::BigInt(Some(0))),
-            ("2".to_owned(), Value::BigInt(existing_tx_id)),
+            ("2".to_owned(), Value::BigInt(Some(0))),
+            ("3".to_owned(), Value::BigInt(existing_tx_id)),
         ])];
         let db = ScraperDb::with_connection(
             MockDatabase::new(DatabaseBackend::Postgres)
@@ -667,39 +668,54 @@ async fn owned_raw_payloads_and_transaction_inputs_survive_storage() -> eyre::Re
 }
 
 #[tokio::test]
-async fn payment_fallback_deletes_use_bounded_tuple_keys() {
+async fn payment_fallback_updates_preserve_ids_and_bound_prefetch() {
     let payments = payments(6_000);
     let meta = LogMeta::default();
-    let mut results = Vec::new();
-    for chunk in payments.chunks(5_000) {
-        // MockDatabase reads tuples by sorted-key position, not SQL column name.
-        results.push(
-            chunk
-                .iter()
-                .map(|payment| {
-                    BTreeMap::from([
-                        (
-                            "0".to_owned(),
-                            Value::Bytes(Some(Box::new(hyperlane_core::h256_to_bytes(
-                                &payment.message_id,
-                            )))),
-                        ),
-                        ("1".to_owned(), Value::BigInt(Some(0))),
-                        ("2".to_owned(), Value::BigInt(None)),
-                    ])
-                })
-                .collect(),
-        );
-    }
-    results.push(result("max_id", 0));
-    results.extend([result("id", 1), result("id", 2), result("num_items", 6_000)]);
+    let results = payments.chunks(5_000).map(|chunk| {
+        chunk
+            .iter()
+            .map(|payment| {
+                BTreeMap::from([
+                    (
+                        "0".to_owned(),
+                        Value::BigInt(Some(payment.message_id.to_low_u64_be() as i64)),
+                    ),
+                    (
+                        "1".to_owned(),
+                        Value::Bytes(Some(Box::new(hyperlane_core::h256_to_bytes(
+                            &payment.message_id,
+                        )))),
+                    ),
+                    ("2".to_owned(), Value::BigInt(Some(0))),
+                    ("3".to_owned(), Value::BigInt(None)),
+                ])
+            })
+            .collect::<Vec<_>>()
+    });
+    let updated_rows = payments.iter().enumerate().map(|(id, payment)| {
+        vec![gas_payment::Model {
+            id: i64::try_from(id).unwrap(),
+            time_created: crate::date_time::now(),
+            domain: i32::try_from(DOMAIN).unwrap(),
+            msg_id: hyperlane_core::h256_to_bytes(&payment.message_id),
+            payment: crate::conversions::u256_to_decimal(payment.payment),
+            gas_amount: crate::conversions::u256_to_decimal(payment.gas_amount),
+            tx_id: Some(1),
+            log_index: 0,
+            origin: i32::try_from(DOMAIN).unwrap(),
+            destination: i32::try_from(payment.destination).unwrap(),
+            interchain_gas_paymaster: hyperlane_core::address_to_bytes(&H256::zero()),
+            sequence: Some(i64::try_from(id).unwrap()),
+        }]
+    });
     let db = ScraperDb::with_connection(
         MockDatabase::new(DatabaseBackend::Postgres)
-            .append_exec_results((0..3).map(|_| MockExecResult {
+            .append_exec_results([MockExecResult {
                 last_insert_id: 0,
                 rows_affected: 1,
-            }))
+            }])
             .append_query_results(results)
+            .append_query_results(updated_rows)
             .into_connection(),
     );
     assert_eq!(
@@ -715,22 +731,35 @@ async fn payment_fallback_deletes_use_bounded_tuple_keys() {
     let log = db.0.into_transaction_log();
     assert_eq!(log.len(), 1);
     let statements = log[0].statements();
-    assert_eq!(statements.len(), 11);
-    let deletes: Vec<_> = statements
+    assert_eq!(statements.first().unwrap().sql, "BEGIN");
+    assert_eq!(statements.last().unwrap().sql, "COMMIT");
+    let reads: Vec<_> = statements
         .iter()
-        .filter(|statement| statement.sql.starts_with("DELETE"))
+        .filter(|statement| statement.sql.contains(" IN ("))
         .collect();
-    assert_eq!(deletes.len(), 2);
-    assert_eq!(deletes[0].values.as_ref().unwrap().0.len(), 10_002);
-    assert_eq!(deletes[1].values.as_ref().unwrap().0.len(), 2_002);
-    for statement in deletes {
-        assert!(statement.sql.contains("\"tx_id\" IS NULL"));
-        assert!(statement.sql.contains("(\"msg_id\", \"log_index\") IN"));
+    assert_eq!(reads.len(), 2);
+    assert!(reads
+        .iter()
+        .all(|statement| statement.values.as_ref().unwrap().0.len() <= 5_002));
+    let updates: Vec<_> = statements
+        .iter()
+        .filter(|statement| statement.sql.starts_with("UPDATE"))
+        .collect();
+    assert_eq!(updates.len(), 6_000);
+    for (id, update) in updates.into_iter().enumerate() {
+        assert!(update.sql.contains("WHERE \"gas_payment\".\"id\" ="));
+        assert_eq!(
+            update.values.as_ref().unwrap().0.last(),
+            Some(&Value::BigInt(Some(i64::try_from(id).unwrap())))
+        );
     }
+    assert!(!statements.iter().any(
+        |statement| statement.sql.starts_with("DELETE") || statement.sql.starts_with("INSERT")
+    ));
 }
 
 #[tokio::test]
-async fn payment_fallback_deletes_preserve_neighbors_and_rollback_in_postgres() -> eyre::Result<()>
+async fn payment_fallback_updates_preserve_neighbors_and_rollback_in_postgres() -> eyre::Result<()>
 {
     let postgres = Postgres::default().start().await?;
     let port = postgres.get_host_port_ipv4(5432).await?;
