@@ -18,6 +18,7 @@ void describe('event websocket protocol', () => {
             cursors: [
               {
                 address: '0x0000000000000000000000000000000000000001',
+                allowReplay: true,
                 afterSequence: '9007199254740993',
                 domain: 1,
               },
@@ -42,6 +43,7 @@ void describe('event websocket protocol', () => {
       message.streams[0]?.cursors?.[0]?.address,
       '\\x0000000000000000000000000000000000000001',
     );
+    assert.equal(message.streams[0]?.cursors?.[0]?.allowReplay, true);
     assert.deepEqual(message.streams[0]?.domains, new Set([1, 42161]));
     assert.equal(message.streams[1]?.cursors, undefined);
   });

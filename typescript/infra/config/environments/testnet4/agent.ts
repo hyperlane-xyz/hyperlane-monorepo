@@ -106,6 +106,9 @@ const contextBase = {
   },
 } as const;
 
+const scraperWebsocketUrl =
+  'ws://scraper-proxy.testnet4.svc.cluster.local:8383/agents';
+
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.Minimum,
@@ -260,6 +263,7 @@ const hyperlane: RootAgentConfig = {
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
+    websocketUrl: scraperWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.validator,
@@ -282,6 +286,7 @@ const hyperlane: RootAgentConfig = {
       tag: testnetDockerTags.scraperProxy,
     },
     enabled: true,
+    maxAgentClients: 100,
     port: 8383,
     replicas: 1,
     tunnel: { enabled: false },
@@ -322,6 +327,7 @@ const releaseCandidate: RootAgentConfig = {
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
+    websocketUrl: scraperWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.validatorRC,
@@ -361,6 +367,7 @@ const fastPath: RootAgentConfig = {
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
+    websocketUrl: scraperWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.validatorFastPath,

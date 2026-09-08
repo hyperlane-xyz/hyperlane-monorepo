@@ -23,6 +23,7 @@ describe('ScraperProxyHelmManager', () => {
         tag: 'test',
       },
       enabled: true,
+      maxAgentClients: 200,
       port: 8383,
       replicas: 2,
     },
@@ -42,6 +43,7 @@ describe('ScraperProxyHelmManager', () => {
     expect(values.hyperlane.scraper).to.equal(undefined);
     expect(values.hyperlane.scraperProxy).to.deep.equal({
       enabled: true,
+      maxAgentClients: 200,
       port: 8383,
       replicas: 2,
     });

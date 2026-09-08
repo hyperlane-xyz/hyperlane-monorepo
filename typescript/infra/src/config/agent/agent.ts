@@ -87,6 +87,7 @@ export interface RootAgentConfig extends AgentContextConfig {
   relayer?: AgentRoleConfig & BaseRelayerConfig;
   validators?: AgentRoleConfig & {
     chains: ValidatorBaseChainConfigMap;
+    websocketUrl?: string;
   };
   scraper?: AgentRoleConfig & BaseScraperConfig;
   scraperProxy?: ScraperProxyConfig;
