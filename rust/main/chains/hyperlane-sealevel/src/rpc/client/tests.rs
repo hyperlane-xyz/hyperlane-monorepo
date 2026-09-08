@@ -46,7 +46,7 @@ async fn _test_get_block() {
 /// disabled. See ENG-4405.
 #[test]
 fn get_block_config_disables_rewards() {
-    let config = block_config(CommitmentConfig::finalized());
+    let config = block_config(CommitmentConfig::finalized(), 0);
 
     assert_eq!(config.rewards, Some(false));
     assert_eq!(config.max_supported_transaction_version, Some(0));
@@ -109,4 +109,79 @@ async fn signature_statuses_reject_nonempty_invalid_api_version() {
         .await;
 
     assert!(result.is_err());
+}
+
+#[test]
+fn v1_block_reads_use_json() {
+    let config = block_config(CommitmentConfig::finalized(), 1);
+    assert_eq!(config.max_supported_transaction_version, Some(1));
+    assert_eq!(
+        config.encoding,
+        Some(solana_transaction_status::UiTransactionEncoding::Json)
+    );
+}
+
+#[tokio::test]
+async fn reads_mixed_version_json_blocks() {
+    // The read path consumes JSON fields, never the v1 binary layout.
+    let legacy: serde_json::Value = serde_json::from_str(include_str!(
+        "../../log_meta_composer/dispatch_message_txn.json"
+    ))
+    .unwrap();
+    let mut v1 = legacy.clone();
+    v1["version"] = serde_json::json!(1);
+    v1["transaction"]["message"]["transactionConfig"] = serde_json::json!({
+        "computeUnitLimit": 200000,
+        "priorityFee": 50000,
+        "heapSize": null,
+        "loadedAccountsDataSizeLimit": null
+    });
+    let block = serde_json::json!({
+        "blockhash": "blockhash",
+        "previousBlockhash": "previous",
+        "parentSlot": 41,
+        "transactions": [legacy, v1],
+        "rewards": [],
+        "blockTime": 1729865514,
+        "blockHeight": 42
+    });
+    let client = SealevelRpcClient::from_rpc_client(Arc::new(RpcClient::new_mock_with_mocks(
+        "succeeds".to_owned(),
+        HashMap::from([(RpcRequest::GetBlock, block)]),
+    )))
+    .with_max_supported_transaction_version(1);
+    let result = client.get_block(42).await.unwrap();
+    let transactions = result.transactions.unwrap();
+    assert_eq!(transactions.len(), 2);
+    assert_eq!(
+        serde_json::to_value(&transactions[1]).unwrap()["version"],
+        1
+    );
+}
+
+#[tokio::test]
+async fn reads_v1_parsed_transaction_metadata() {
+    let mut tx: serde_json::Value = serde_json::from_str(include_str!(
+        "../../log_meta_composer/dispatch_message_txn.json"
+    ))
+    .unwrap();
+    tx["version"] = serde_json::json!(1);
+    let message = tx["transaction"]["message"].as_object_mut().unwrap();
+    let keys = message["accountKeys"].as_array().unwrap().iter().enumerate().map(|(index, key)| {
+        serde_json::json!({"pubkey": key, "signer": index == 0, "writable": true, "source": "transaction"})
+    }).collect::<Vec<_>>();
+    message.insert("accountKeys".into(), serde_json::json!(keys));
+    message.remove("header");
+    message.insert(
+        "transactionConfig".into(),
+        serde_json::json!({"computeUnitLimit": 200000, "priorityFee": 50000}),
+    );
+    let expected_fee = tx["meta"]["fee"].as_u64().unwrap();
+    let client = SealevelRpcClient::from_rpc_client(Arc::new(RpcClient::new_mock_with_mocks(
+        "succeeds".to_owned(),
+        HashMap::from([(RpcRequest::GetTransaction, tx)]),
+    )))
+    .with_max_supported_transaction_version(1);
+    let result = client.get_transaction(&Signature::default()).await.unwrap();
+    assert_eq!(result.transaction.meta.unwrap().fee, expected_fee);
 }

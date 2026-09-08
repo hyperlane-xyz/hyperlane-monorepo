@@ -338,6 +338,24 @@ fn build_sealevel_connection_conf(
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
 
+    let max_supported_transaction_version = chain
+        .chain(&mut local_err)
+        .get_opt_key("maxSupportedTransactionVersion")
+        .parse_u64()
+        .end()
+        .unwrap_or(0);
+    let max_supported_transaction_version = match max_supported_transaction_version {
+        0 => 0,
+        1 => 1,
+        _ => {
+            local_err.push(
+                (&chain.cwp).add("maxsupportedtransactionversion"),
+                eyre!("maxSupportedTransactionVersion must be 0 or 1"),
+            );
+            0
+        }
+    };
+
     let native_token = parse_native_token(chain, err, 9);
     let priority_fee_oracle = parse_sealevel_priority_fee_oracle_config(chain, &mut local_err);
     let transaction_submitter = parse_transaction_submitter_config(chain, &mut local_err);
@@ -358,6 +376,7 @@ fn build_sealevel_connection_conf(
         native_token,
         priority_fee_oracle,
         transaction_submitter,
+        max_supported_transaction_version,
         mailbox_process_alt,
         process_alt_overrides,
         ur_reveal,
@@ -941,6 +960,34 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    #[test]
+    fn sealevel_read_version_is_opt_in_and_validated() {
+        for (value, expected) in [
+            (json!({}), Some(0)),
+            (json!({"maxsupportedtransactionversion": 0}), Some(0)),
+            (json!({"maxsupportedtransactionversion": 1}), Some(1)),
+            (json!({"maxsupportedtransactionversion": 2}), None),
+            (json!({"maxsupportedtransactionversion": "bad"}), None),
+        ] {
+            let chain = ValueParser::new(ConfigPath::default(), &value);
+            let mut errors = ConfigParsingError::default();
+            let result = build_sealevel_connection_conf(
+                &[Url::parse("http://localhost:8899").unwrap()],
+                &chain,
+                &mut errors,
+                OpSubmissionConfig::default(),
+            );
+            let version = result.map(|conf| {
+                let ChainConnectionConf::Sealevel(conf) = conf else {
+                    panic!("expected sealevel")
+                };
+                conf.max_supported_transaction_version
+            });
+            assert_eq!(version, expected);
+            assert_eq!(errors.is_ok(), expected.is_some());
+        }
+    }
 
     fn parse_ethereum_hedge(value: serde_json::Value) -> (ChainConnectionConf, ConfigParsingError) {
         let chain = ValueParser::new(ConfigPath::default(), &value);

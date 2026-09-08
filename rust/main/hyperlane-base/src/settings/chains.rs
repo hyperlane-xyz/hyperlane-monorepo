@@ -1622,7 +1622,12 @@ fn build_sealevel_provider(
 
     let chain = middleware_metrics.chain.clone();
     let urls = conf.urls.clone();
-    let rpc_client = SealevelFallbackRpcClient::from_urls(chain, urls, client_metrics);
+    let rpc_client = SealevelFallbackRpcClient::from_urls(
+        chain,
+        urls,
+        client_metrics,
+        conf.max_supported_transaction_version,
+    );
     SealevelProvider::new(rpc_client, locator.domain.clone(), contract_addresses, conf)
 }
 

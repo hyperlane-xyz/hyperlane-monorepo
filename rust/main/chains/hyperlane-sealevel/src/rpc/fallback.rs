@@ -242,6 +242,7 @@ impl SealevelFallbackRpcClient {
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
         urls: Vec<Url>,
         metrics: PrometheusClientMetrics,
+        max_supported_transaction_version: u8,
     ) -> Self {
         let clients: Vec<_> = urls
             .into_iter()
@@ -249,6 +250,7 @@ impl SealevelFallbackRpcClient {
                 SealevelRpcClientBuilder::new(rpc_url)
                     .with_prometheus_metrics(metrics.clone(), chain.clone())
                     .build()
+                    .with_max_supported_transaction_version(max_supported_transaction_version)
             })
             .collect();
 

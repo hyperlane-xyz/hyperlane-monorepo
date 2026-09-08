@@ -177,6 +177,9 @@ export type AgentCosmosGasPrice = z.infer<
 >['gasPrice'];
 
 const AgentSealevelChainMetadataSchema = z.object({
+  maxSupportedTransactionVersion: z
+    .union([z.literal(0), z.literal(1)])
+    .optional(),
   priorityFeeOracle: z
     .union([
       z.object({

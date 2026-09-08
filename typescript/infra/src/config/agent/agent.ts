@@ -112,6 +112,7 @@ export interface AgentContextConfig extends AgentEnvConfig {
 }
 
 export interface SealevelAgentConfig {
+  maxSupportedTransactionVersionGetter?: (chain: ChainName) => 0 | 1;
   priorityFeeOracleConfigGetter?: (
     chain: ChainName,
   ) => AgentSealevelPriorityFeeOracle;

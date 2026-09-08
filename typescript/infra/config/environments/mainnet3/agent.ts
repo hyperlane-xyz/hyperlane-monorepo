@@ -397,6 +397,8 @@ const contextBase = {
     location: 'us-east1',
   },
   sealevel: {
+    maxSupportedTransactionVersionGetter: (chain: ChainName): 0 | 1 =>
+      chain === 'solanamainnet' ? 1 : 0,
     priorityFeeOracleConfigGetter: sealevelPriorityFeeOracleConfigGetter,
     transactionSubmitterConfigGetter: sealevelTransactionSubmitterConfigGetter,
     urRevealConfigGetter: sealevelUrRevealConfigGetter,

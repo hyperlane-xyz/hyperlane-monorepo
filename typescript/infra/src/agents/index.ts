@@ -156,6 +156,14 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
             fallbackHedgeConfig
               ? fallbackHedgeConfig
               : {}),
+            ...(metadata.protocol === ProtocolType.Sealevel
+              ? {
+                  maxSupportedTransactionVersion:
+                    this.config.rawConfig.sealevel?.maxSupportedTransactionVersionGetter?.(
+                      chain,
+                    ) ?? 0,
+                }
+              : {}),
             protocol: metadata.protocol,
             blocks: { reorgPeriod },
             maxBatchSize: batchConfig.maxBatchSize,
