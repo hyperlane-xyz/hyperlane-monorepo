@@ -1472,7 +1472,7 @@ mod tests {
                 },
                 domain: 1,
                 event_type: EVENT_TYPE.to_owned(),
-                sequence: sequence.to_string(),
+                sequence: Some(sequence.to_string()),
             };
             assert!(sync
                 .process_event(
