@@ -43,34 +43,34 @@ interface MainnetDockerTags extends BaseDockerTags {
 
 export const mainnetDockerTags: MainnetDockerTags = {
   // rust agents
-  relayer: '337825e-20260907-130516',
-  relayerRC: '337825e-20260907-130516',
-  relayerFastPath: '337825e-20260907-130516',
-  validator: '337825e-20260907-130516',
-  validatorRC: '337825e-20260907-130516',
-  validatorFastPath: '337825e-20260907-130516',
-  scraper: '337825e-20260907-130516',
+  relayer: '757150f-20260908-042606',
+  relayerRC: '757150f-20260908-042606',
+  relayerFastPath: '757150f-20260908-042606',
+  validator: '757150f-20260908-042606',
+  validatorRC: '757150f-20260908-042606',
+  validatorFastPath: '757150f-20260908-042606',
+  scraper: '757150f-20260908-042606',
   // monorepo services
   checkWarpDeploy: 'main',
   validatorMonitor: '2c47a33-20260724-134609',
   // standalone services
-  keyFunder: 'b0c3c5d-20260804-175736',
-  warpMonitor: '744b3bb-20260521-215958',
-  rebalancer: 'da26d9a-20260703-122943',
-  scraperProxy: 'b3619ad-20260901-171710',
+  keyFunder: '757150f-20260908-042619',
+  warpMonitor: '757150f-20260908-042619',
+  rebalancer: '757150f-20260908-042619',
+  scraperProxy: '757150f-20260908-042619',
   feeQuoting: '12d899d-20260325-184337',
 };
 
 export const testnetDockerTags: BaseDockerTags = {
   // rust agents
-  relayer: '337825e-20260907-130516',
-  relayerRC: '337825e-20260907-130516',
-  relayerFastPath: '337825e-20260907-130516',
-  validator: '337825e-20260907-130516',
-  validatorRC: '337825e-20260907-130516',
-  validatorFastPath: '337825e-20260907-130516',
-  scraper: '337825e-20260907-130516',
+  relayer: '757150f-20260908-042606',
+  relayerRC: '757150f-20260908-042606',
+  relayerFastPath: '757150f-20260908-042606',
+  validator: '757150f-20260908-042606',
+  validatorRC: '757150f-20260908-042606',
+  validatorFastPath: '757150f-20260908-042606',
+  scraper: '757150f-20260908-042606',
   // standalone services
-  keyFunder: '5dc6aa4-20260714-184449',
-  scraperProxy: 'b3619ad-20260901-171710',
+  keyFunder: '757150f-20260908-042619',
+  scraperProxy: '757150f-20260908-042619',
 };
