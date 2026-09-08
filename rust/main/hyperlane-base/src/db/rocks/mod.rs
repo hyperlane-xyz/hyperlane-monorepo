@@ -1,4 +1,12 @@
-use std::{fs, io::ErrorKind, path::Path, sync::Arc};
+use std::{
+    fs,
+    io::ErrorKind,
+    path::Path,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use super::error::DbError;
 use rocksdb::{Direction, IteratorMode, Options, WriteBatch, WriteBatchIterator, DB as Rocks};
@@ -310,8 +318,9 @@ impl DB {
         sequence: u64,
         source_prefixes: &[&[u8]],
         marker_prefix: &[u8],
+        cancellation: &AtomicBool,
     ) -> Result<bool> {
-        self.has_matching_updates_since(sequence, |batch| {
+        self.has_matching_updates_since(sequence, Some(cancellation), |batch| {
             let mut detector = PendingIndexWriteDetector {
                 source_prefixes,
                 marker_prefix,
@@ -332,7 +341,7 @@ impl DB {
         marker_prefixes: &[&[u8]],
         deletions_only: bool,
     ) -> Result<bool> {
-        self.has_matching_updates_since(sequence, |batch| {
+        self.has_matching_updates_since(sequence, None, |batch| {
             let mut detector = PrefixWriteDetector {
                 source_prefix,
                 marker_prefixes,
@@ -348,6 +357,7 @@ impl DB {
     fn has_matching_updates_since(
         &self,
         sequence: u64,
+        cancellation: Option<&AtomicBool>,
         mut matches: impl FnMut(&WriteBatch) -> bool,
     ) -> Result<bool> {
         let latest_sequence = self.0.latest_sequence_number();
@@ -356,6 +366,11 @@ impl DB {
             .ok_or_else(|| DbError::Other("RocksDB sequence number overflowed".to_string()))?;
 
         for update in self.0.get_updates_since(sequence)? {
+            if cancellation.is_some_and(|cancelled| cancelled.load(Ordering::Relaxed)) {
+                return Err(DbError::Other(
+                    "RocksDB WAL validation cancelled".to_string(),
+                ));
+            }
             let (batch_sequence, batch) = update?;
             if batch_sequence != expected_sequence {
                 return Err(DbError::Other(format!(

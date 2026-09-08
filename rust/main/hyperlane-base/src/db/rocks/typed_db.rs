@@ -1,3 +1,5 @@
+use std::sync::atomic::AtomicBool;
+
 use hyperlane_core::{Decode, Encode, HyperlaneDomain};
 
 use crate::db::{error::DbError, DbBatch, DB};
@@ -216,6 +218,7 @@ impl TypedDB {
         sequence: u64,
         source_prefixes: &[&[u8]],
         marker_prefix: &[u8],
+        cancellation: &AtomicBool,
     ) -> Result<bool> {
         let source_prefixes: Vec<_> = source_prefixes
             .iter()
@@ -226,6 +229,7 @@ impl TypedDB {
             sequence,
             &source_prefix_refs,
             &self.prefixed_key(marker_prefix, &[]),
+            cancellation,
         )
     }
 

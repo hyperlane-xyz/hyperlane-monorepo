@@ -1,4 +1,7 @@
-use std::ops::Add;
+use std::{
+    ops::Add,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use async_trait::async_trait;
 use eyre::{bail, Result};
@@ -180,6 +183,14 @@ impl HyperlaneRocksDB {
     /// Check that migration finished and subsequent writes maintained the index.
     /// Older binaries do not maintain this index; missing WAL also requires a rescan.
     pub fn pending_message_index_migration_complete(&self) -> DbResult<bool> {
+        self.pending_message_index_migration_complete_with_cancellation(&AtomicBool::new(false))
+    }
+
+    /// Check migration completion while allowing a blocking WAL scan to stop on shutdown.
+    pub fn pending_message_index_migration_complete_with_cancellation(
+        &self,
+        cancellation: &AtomicBool,
+    ) -> DbResult<bool> {
         let Some(checkpoint) =
             self.retrieve_value_by_key::<_, u64>(PENDING_MESSAGE_INDEX_MIGRATION_COMPLETE, &false)?
         else {
@@ -198,8 +209,14 @@ impl HyperlaneRocksDB {
                 checkpoint,
                 &[MESSAGE_ID.as_bytes(), NONCE_PROCESSED.as_bytes()],
                 PENDING_MESSAGE_BY_DESTINATION.as_bytes(),
+                cancellation,
             )
         })();
+        if cancellation.load(Ordering::Relaxed) {
+            return Err(DbError::Other(
+                "Pending message index migration validation cancelled".to_string(),
+            ));
+        }
         match validation {
             Ok(false) => {}
             result => {
@@ -538,6 +555,8 @@ impl HyperlaneRocksDB {
 
 #[cfg(test)]
 mod pending_index_tests {
+    use std::sync::atomic::AtomicBool;
+
     use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, H256};
 
     use super::*;
@@ -592,6 +611,22 @@ mod pending_index_tests {
             db.store_value_by_key(PENDING_MESSAGE_INDEX_MIGRATION_COMPLETE, &false, &true)
                 .expect("write malformed seal");
             assert!(db.pending_message_index_migration_complete().is_err());
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn cancelled_migration_validation_preserves_seal() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            db.mark_pending_message_index_migration_complete(db.latest_sequence_number())
+                .expect("seal");
+
+            let cancellation = AtomicBool::new(true);
+            assert!(db
+                .pending_message_index_migration_complete_with_cancellation(&cancellation)
+                .is_err());
+            assert!(db.pending_message_index_migration_complete().unwrap());
         })
         .await;
     }

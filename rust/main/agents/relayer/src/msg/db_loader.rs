@@ -2,7 +2,7 @@ use std::{
     cmp::max,
     collections::{BTreeSet, HashMap, HashSet},
     fmt::{Debug, Formatter},
-    sync::Arc,
+    sync::{atomic::AtomicBool, Arc},
     time::Duration,
 };
 
@@ -499,13 +499,40 @@ impl MessageDbLoader {
         metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
         max_retries: u32,
     ) -> Result<Self> {
+        Self::new_with_cancellation(
+            db,
+            message_whitelist,
+            message_blacklist,
+            address_blacklist,
+            metrics,
+            send_channels,
+            destination_ctxs,
+            metric_app_contexts,
+            max_retries,
+            &AtomicBool::new(false),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new_with_cancellation(
+        db: HyperlaneRocksDB,
+        message_whitelist: Arc<MatchingList>,
+        message_blacklist: Arc<MatchingList>,
+        address_blacklist: Arc<AddressBlacklist>,
+        metrics: MessageDbLoaderMetrics,
+        send_channels: HashMap<u32, Sender<QueueOperationBatch>>,
+        destination_ctxs: HashMap<u32, Arc<MessageContext>>,
+        metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
+        max_retries: u32,
+        cancellation: &AtomicBool,
+    ) -> Result<Self> {
         let migration_start_sequence = db.latest_sequence_number();
         let migration_complete = {
             let _timer = metrics
                 .scan_duration_seconds
                 .with_label_values(&[metrics.origin.as_str(), "all", "migration_validation"])
                 .start_timer();
-            db.pending_message_index_migration_complete()?
+            db.pending_message_index_migration_complete_with_cancellation(cancellation)?
         };
         let (migration_iterator, highest_seen_nonce) = if migration_complete {
             (None, db.retrieve_highest_seen_message_nonce()?)

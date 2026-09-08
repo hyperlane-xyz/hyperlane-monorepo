@@ -2,7 +2,10 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Formatter},
     hash::Hash,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::{Duration, Instant},
 };
 
@@ -75,6 +78,45 @@ const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 const MESSAGE_DB_LOADER_INIT_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 const ADVANCED_LOG_META: bool = false;
+
+struct CancelBlockingTaskOnDrop {
+    cancellation: Arc<AtomicBool>,
+    armed: bool,
+}
+
+impl CancelBlockingTaskOnDrop {
+    fn new(cancellation: Arc<AtomicBool>) -> Self {
+        Self {
+            cancellation,
+            armed: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for CancelBlockingTaskOnDrop {
+    fn drop(&mut self) {
+        if self.armed {
+            self.cancellation.store(true, Ordering::Relaxed);
+        }
+    }
+}
+
+async fn spawn_cancellable_blocking<F, T>(work: F) -> Result<T, tokio::task::JoinError>
+where
+    F: FnOnce(&AtomicBool) -> T + Send + 'static,
+    T: Send + 'static,
+{
+    let cancellation = Arc::new(AtomicBool::new(false));
+    let worker_cancellation = cancellation.clone();
+    let mut guard = CancelBlockingTaskOnDrop::new(cancellation);
+    let result = tokio::task::spawn_blocking(move || work(&worker_cancellation)).await;
+    guard.disarm();
+    result
+}
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 struct ContextKey {
@@ -965,8 +1007,8 @@ impl Relayer {
                     let send_channels = send_channels.clone();
                     let destination_ctxs = destination_ctxs.clone();
                     let metric_app_contexts = metric_app_contexts.clone();
-                    let result = tokio::task::spawn_blocking(move || {
-                        MessageDbLoader::new(
+                    let result = spawn_cancellable_blocking(move |cancellation| {
+                        MessageDbLoader::new_with_cancellation(
                             database,
                             message_whitelist,
                             message_blacklist,
@@ -976,6 +1018,7 @@ impl Relayer {
                             destination_ctxs,
                             metric_app_contexts,
                             max_retries,
+                            cancellation,
                         )
                     })
                     .await;
