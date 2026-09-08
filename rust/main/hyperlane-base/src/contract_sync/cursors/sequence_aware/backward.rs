@@ -1,7 +1,7 @@
 //! A sequence-aware cursor that syncs backwards until there are no earlier logs to index.
 
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
     fmt::Debug,
     ops::RangeInclusive,
     sync::Arc,
@@ -44,9 +44,9 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     pub lowest_block_height_or_sequence: i64,
     /// A store used to check which logs have already been indexed.
     store: Arc<dyn HyperlaneSequenceAwareIndexerStore<T>>,
-    /// The last backwards position stored durably. Also used to restore progress
-    /// after already-indexed higher sequences have been skipped.
-    persisted_progress: Option<BackwardCursorProgress>,
+    /// Durable backwards positions by missing sequence. Multiple checkpoints let
+    /// newer gaps advance without discarding unfinished older scans.
+    persisted_progress: BTreeMap<u32, u32>,
     /// A snapshot of the last log to be indexed, or if no indexing has occurred yet,
     /// the initial log to start indexing backward from.
     last_indexed_snapshot: LastIndexedSnapshot,
@@ -86,7 +86,7 @@ pub struct BackwardSequenceAwareSyncCursorParams<T> {
     pub latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
     pub lowest_block_height_or_sequence: i64,
     pub store: Arc<dyn HyperlaneSequenceAwareIndexerStore<T>>,
-    pub persisted_progress: Option<BackwardCursorProgress>,
+    pub persisted_progress: Vec<BackwardCursorProgress>,
     pub current_sequence_count: u32,
     pub start_block: u32,
     pub index_mode: IndexMode,
@@ -124,6 +124,10 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             index_mode,
             metrics_data,
         } = params;
+        let persisted_progress = persisted_progress
+            .into_iter()
+            .map(|progress| (progress.sequence, progress.block))
+            .collect();
 
         // If the current sequence count is 0, we haven't indexed anything yet.
         // Otherwise, consider the current sequence count as the last indexed snapshot,
@@ -202,20 +206,21 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     /// Applies durable empty-range progress once DB fast-forwarding reaches the
     /// sequence that was missing when the progress was stored.
     fn apply_persisted_progress(&mut self) {
-        let (Some(current), Some(persisted)) =
-            (&mut self.current_indexing_snapshot, self.persisted_progress)
-        else {
+        let Some(current) = &mut self.current_indexing_snapshot else {
+            return;
+        };
+        let Some(&persisted_block) = self.persisted_progress.get(&current.sequence) else {
             return;
         };
 
-        if current.sequence == persisted.sequence && persisted.block < current.at_block {
+        if persisted_block < current.at_block {
             debug!(
                 current_sequence = current.sequence,
                 current_block = current.at_block,
-                persisted_block = persisted.block,
+                persisted_block,
                 "Restoring backwards cursor progress"
             );
-            current.at_block = persisted.block;
+            current.at_block = persisted_block;
         }
     }
 
@@ -227,23 +232,22 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             sequence: current.sequence,
             block: current.at_block,
         };
-        let should_persist = match self.persisted_progress {
+        let should_persist = match self.persisted_progress.get(&progress.sequence) {
             None => true,
-            Some(persisted) if progress.sequence < persisted.sequence => true,
-            Some(persisted) if progress.sequence == persisted.sequence => {
-                progress.block < persisted.block
+            Some(&persisted_block) => {
+                progress.block < persisted_block
                     && (force
-                        || persisted.block.saturating_sub(progress.block)
+                        || persisted_block.saturating_sub(progress.block)
                             >= BACKWARD_CURSOR_PERSIST_BLOCK_INTERVAL)
             }
-            Some(_) => false,
         };
         if !should_persist {
             return Ok(());
         }
 
         self.store.store_backward_cursor(progress).await?;
-        self.persisted_progress = Some(progress);
+        self.persisted_progress
+            .insert(progress.sequence, progress.block);
         Ok(())
     }
 
@@ -256,7 +260,8 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             block: current.at_block,
         };
         self.store.reset_backward_cursor(progress).await?;
-        self.persisted_progress = Some(progress);
+        self.persisted_progress
+            .insert(progress.sequence, progress.block);
         Ok(())
     }
 
@@ -376,6 +381,15 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
                 .get_sequence_log_block_number(current_indexing_sequence)
                 .await?
             {
+                if self
+                    .persisted_progress
+                    .contains_key(&current_indexing_sequence)
+                {
+                    self.store
+                        .delete_backward_cursor(current_indexing_sequence)
+                        .await?;
+                    self.persisted_progress.remove(&current_indexing_sequence);
+                }
                 made_progress = true;
                 self.last_indexed_snapshot = LastIndexedSnapshot {
                     sequence: Some(current_indexing_sequence),
@@ -812,7 +826,7 @@ mod test {
             latest_sequence_querier,
             lowest_block_height_or_sequence,
             store: db,
-            persisted_progress: None,
+            persisted_progress: Vec::new(),
             current_sequence_count: INITIAL_SEQUENCE_COUNT,
             start_block: INITIAL_START_BLOCK,
             index_mode: mode,
@@ -895,25 +909,65 @@ mod test {
         #[tokio::test]
         async fn restores_and_checkpoints_empty_block_progress() {
             let mut cursor = get_cursor().await;
-            cursor.persisted_progress = Some(BackwardCursorProgress {
-                sequence: INITIAL_CURRENT_INDEXING_SNAPSHOT.sequence,
-                block: 850,
-            });
+            cursor
+                .persisted_progress
+                .insert(INITIAL_CURRENT_INDEXING_SNAPSHOT.sequence, 850);
 
             assert_eq!(cursor.get_next_range().await.unwrap(), Some(750..=850));
 
-            cursor.persisted_progress = None;
+            cursor.persisted_progress.clear();
             cursor
                 .update(Vec::new(), 750..=850)
                 .await
                 .expect("checkpoint empty range");
             assert_eq!(
-                cursor.persisted_progress,
-                Some(BackwardCursorProgress {
-                    sequence: INITIAL_CURRENT_INDEXING_SNAPSHOT.sequence,
-                    block: 749,
-                })
+                cursor
+                    .persisted_progress
+                    .get(&INITIAL_CURRENT_INDEXING_SNAPSHOT.sequence),
+                Some(&749)
             );
+        }
+
+        #[tokio::test]
+        async fn checkpoints_new_frontier_without_losing_older_progress() {
+            let mut cursor = get_cursor().await;
+            cursor.persisted_progress.insert(0, 50);
+
+            cursor
+                .update(Vec::new(), 900..=1000)
+                .await
+                .expect("checkpoint newer missing sequence");
+            assert_eq!(cursor.persisted_progress.get(&0), Some(&50));
+            assert_eq!(
+                cursor
+                    .persisted_progress
+                    .get(&INITIAL_CURRENT_INDEXING_SNAPSHOT.sequence),
+                Some(&899)
+            );
+
+            let persisted_progress = cursor
+                .persisted_progress
+                .iter()
+                .map(|(&sequence, &block)| BackwardCursorProgress { sequence, block })
+                .collect();
+            let params = BackwardSequenceAwareSyncCursorParams {
+                chunk_size: CHUNK_SIZE,
+                latest_sequence_querier: cursor.latest_sequence_querier.clone(),
+                lowest_block_height_or_sequence: LOWEST_BLOCK_HEIGHT,
+                store: cursor.store.clone(),
+                persisted_progress,
+                current_sequence_count: INITIAL_SEQUENCE_COUNT,
+                start_block: INITIAL_START_BLOCK,
+                index_mode: INDEX_MODE,
+                metrics_data: MetricsData {
+                    domain: HyperlaneDomain::new_test_domain("test"),
+                    metrics: Arc::new(mock_cursor_metrics()),
+                },
+            };
+            let mut restarted = BackwardSequenceAwareSyncCursor::new(params);
+
+            assert_eq!(restarted.get_next_range().await.unwrap(), Some(799..=899));
+            assert_eq!(restarted.persisted_progress.get(&0), Some(&50));
         }
 
         #[tracing_test::traced_test]
@@ -1189,7 +1243,7 @@ mod test {
                 latest_sequence_querier,
                 lowest_block_height_or_sequence: LOWEST_BLOCK_HEIGHT,
                 store: db,
-                persisted_progress: None,
+                persisted_progress: Vec::new(),
                 current_sequence_count: INITIAL_SEQUENCE_COUNT,
                 start_block: INITIAL_START_BLOCK,
                 index_mode: INDEX_MODE,
@@ -1339,7 +1393,7 @@ mod test {
                 latest_sequence_querier,
                 lowest_block_height_or_sequence: lowest_block_height,
                 store: db,
-                persisted_progress: None,
+                persisted_progress: Vec::new(),
                 current_sequence_count: 1,
                 start_block: 1000,
                 index_mode: INDEX_MODE,
@@ -1377,7 +1431,7 @@ mod test {
                 latest_sequence_querier,
                 lowest_block_height_or_sequence: lowest_block_height,
                 store: db,
-                persisted_progress: None,
+                persisted_progress: Vec::new(),
                 current_sequence_count: 1,
                 start_block: 1000, // Below lowest_block_height
                 index_mode: INDEX_MODE,
@@ -1415,7 +1469,7 @@ mod test {
                 latest_sequence_querier,
                 lowest_block_height_or_sequence: lowest_block_height,
                 store: db,
-                persisted_progress: None,
+                persisted_progress: Vec::new(),
                 current_sequence_count: 2,
                 start_block: 1001,
                 index_mode: INDEX_MODE,
@@ -2128,7 +2182,7 @@ mod test {
                 latest_sequence_querier,
                 lowest_block_height_or_sequence: lowest_sequence,
                 store: db,
-                persisted_progress: None,
+                persisted_progress: Vec::new(),
                 current_sequence_count: 1,
                 start_block: 1000,
                 index_mode: INDEX_MODE,
@@ -2166,7 +2220,7 @@ mod test {
                 latest_sequence_querier,
                 lowest_block_height_or_sequence: lowest_sequence,
                 store: db,
-                persisted_progress: None,
+                persisted_progress: Vec::new(),
                 current_sequence_count: 1, // sequence 0, below lowest
                 start_block: 1000,
                 index_mode: INDEX_MODE,
@@ -2204,7 +2258,7 @@ mod test {
                 latest_sequence_querier,
                 lowest_block_height_or_sequence: lowest_sequence,
                 store: db,
-                persisted_progress: None,
+                persisted_progress: Vec::new(),
                 current_sequence_count: 2, // sequences 0 and 1
                 start_block: 1000,
                 index_mode: INDEX_MODE,
@@ -2243,7 +2297,7 @@ mod test {
                 latest_sequence_querier,
                 lowest_block_height_or_sequence,
                 store: db,
-                persisted_progress: None,
+                persisted_progress: Vec::new(),
                 current_sequence_count: latest_sequence_count,
                 start_block: latest_tip,
                 index_mode: IndexMode::Block,
@@ -2322,7 +2376,7 @@ mod test {
                 latest_sequence_querier,
                 lowest_block_height_or_sequence,
                 store: db,
-                persisted_progress: None,
+                persisted_progress: Vec::new(),
                 current_sequence_count: latest_sequence_count,
                 start_block: latest_tip,
                 index_mode: IndexMode::Sequence,

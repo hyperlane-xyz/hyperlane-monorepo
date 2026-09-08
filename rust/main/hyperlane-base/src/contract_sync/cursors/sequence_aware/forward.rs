@@ -616,10 +616,10 @@ pub(crate) mod test {
         hyperlane_core::HyperlaneBackwardCursorStore<T>
         for MockHyperlaneSequenceAwareIndexerStore<T>
     {
-        async fn retrieve_backward_cursor(
+        async fn retrieve_backward_cursors(
             &self,
-        ) -> eyre::Result<Option<hyperlane_core::BackwardCursorProgress>> {
-            Ok(None)
+        ) -> eyre::Result<Vec<hyperlane_core::BackwardCursorProgress>> {
+            Ok(Vec::new())
         }
 
         async fn store_backward_cursor(
@@ -633,6 +633,10 @@ pub(crate) mod test {
             &self,
             _progress: hyperlane_core::BackwardCursorProgress,
         ) -> eyre::Result<()> {
+            Ok(())
+        }
+
+        async fn delete_backward_cursor(&self, _sequence: u32) -> eyre::Result<()> {
             Ok(())
         }
     }

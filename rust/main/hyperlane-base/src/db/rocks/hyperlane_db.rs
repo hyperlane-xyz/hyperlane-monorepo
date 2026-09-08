@@ -48,9 +48,9 @@ const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 const PAYLOAD_UUIDS_BY_MESSAGE_ID: &str = "payload_uuids_by_message_id_";
 const MESSAGE_DISPATCHED_TX_HASH_BY_MESSAGE_ID: &str = "message_dispatched_tx_hash_by_message_id_";
-const MESSAGE_BACKWARD_CURSOR: &str = "message_backward_cursor_v1";
-const GAS_PAYMENT_BACKWARD_CURSOR: &str = "gas_payment_backward_cursor_v1";
-const MERKLE_TREE_INSERTION_BACKWARD_CURSOR: &str = "merkle_tree_insertion_backward_cursor_v1";
+const MESSAGE_BACKWARD_CURSOR: &str = "message_backward_cursor_v2_";
+const GAS_PAYMENT_BACKWARD_CURSOR: &str = "gas_payment_backward_cursor_v2_";
+const MERKLE_TREE_INSERTION_BACKWARD_CURSOR: &str = "merkle_tree_insertion_backward_cursor_v2_";
 
 /// Rocks DB result type
 pub type DbResult<T> = std::result::Result<T, DbError>;
@@ -92,17 +92,23 @@ impl HyperlaneRocksDB {
 
     fn retrieve_backward_cursor_progress(
         &self,
-        key: &str,
-    ) -> Result<Option<BackwardCursorProgress>> {
-        Ok(self.retrieve_decodable("", key)?)
+        prefix: &str,
+    ) -> Result<Vec<BackwardCursorProgress>> {
+        Ok(self.retrieve_decodables_by_prefix(prefix)?)
     }
 
     fn store_backward_cursor_progress(
         &self,
-        key: &str,
+        prefix: &str,
         progress: BackwardCursorProgress,
     ) -> Result<()> {
-        Ok(self.store_encodable("", key, &progress)?)
+        Ok(self.store_keyed_encodable(prefix, &progress.sequence, &progress)?)
+    }
+
+    fn delete_backward_cursor_progress(&self, prefix: &str, sequence: u32) -> Result<()> {
+        let mut batch = self.1.batch();
+        batch.delete_keyed(prefix, &sequence);
+        Ok(batch.commit()?)
     }
 
     /// Store a raw committed message. If message already exists, then do nothing.
@@ -674,7 +680,7 @@ macro_rules! impl_backward_cursor_store {
     ($event:ty, $key:expr) => {
         #[async_trait]
         impl HyperlaneBackwardCursorStore<$event> for HyperlaneRocksDB {
-            async fn retrieve_backward_cursor(&self) -> Result<Option<BackwardCursorProgress>> {
+            async fn retrieve_backward_cursors(&self) -> Result<Vec<BackwardCursorProgress>> {
                 self.retrieve_backward_cursor_progress($key)
             }
 
@@ -684,6 +690,10 @@ macro_rules! impl_backward_cursor_store {
 
             async fn reset_backward_cursor(&self, progress: BackwardCursorProgress) -> Result<()> {
                 self.store_backward_cursor_progress($key, progress)
+            }
+
+            async fn delete_backward_cursor(&self, sequence: u32) -> Result<()> {
+                self.delete_backward_cursor_progress($key, sequence)
             }
         }
     };

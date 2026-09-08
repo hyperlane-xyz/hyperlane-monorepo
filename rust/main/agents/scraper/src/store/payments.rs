@@ -99,11 +99,11 @@ impl HyperlaneSequenceAwareIndexerStoreReader<InterchainGasPayment> for Hyperlan
 
 #[async_trait]
 impl hyperlane_core::HyperlaneBackwardCursorStore<InterchainGasPayment> for HyperlaneDbStore {
-    async fn retrieve_backward_cursor(
+    async fn retrieve_backward_cursors(
         &self,
-    ) -> Result<Option<hyperlane_core::BackwardCursorProgress>> {
+    ) -> Result<Vec<hyperlane_core::BackwardCursorProgress>> {
         self.db
-            .retrieve_backward_cursor(self.domain.id(), "gas_payment")
+            .retrieve_backward_cursors(self.domain.id(), "gas_payment")
             .await
     }
 
@@ -122,6 +122,12 @@ impl hyperlane_core::HyperlaneBackwardCursorStore<InterchainGasPayment> for Hype
     ) -> Result<()> {
         self.db
             .reset_backward_cursor(self.domain.id(), "gas_payment", progress)
+            .await
+    }
+
+    async fn delete_backward_cursor(&self, sequence: u32) -> Result<()> {
+        self.db
+            .delete_backward_cursor(self.domain.id(), "gas_payment", sequence)
             .await
     }
 }

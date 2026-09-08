@@ -141,6 +141,10 @@ mod test {
             sequence: 12,
             block: 34,
         };
+        let newer_message_progress = BackwardCursorProgress {
+            sequence: 90,
+            block: 123,
+        };
         let payment_progress = BackwardCursorProgress {
             sequence: 56,
             block: 78,
@@ -151,6 +155,12 @@ mod test {
             HyperlaneBackwardCursorStore::<HyperlaneMessage>::store_backward_cursor(
                 &store,
                 message_progress,
+            )
+            .await
+            .unwrap();
+            HyperlaneBackwardCursorStore::<HyperlaneMessage>::store_backward_cursor(
+                &store,
+                newer_message_progress,
             )
             .await
             .unwrap();
@@ -167,29 +177,43 @@ mod test {
 
         {
             let reopened = HyperlaneRocksDB::new(&domain, setup_db(db_path));
+            let message_cursors =
+                HyperlaneBackwardCursorStore::<HyperlaneMessage>::retrieve_backward_cursors(
+                    &reopened,
+                )
+                .await
+                .unwrap();
+            assert!(message_cursors.contains(&message_progress));
+            assert!(message_cursors.contains(&newer_message_progress));
             assert_eq!(
-                HyperlaneBackwardCursorStore::<HyperlaneMessage>::retrieve_backward_cursor(
+                HyperlaneBackwardCursorStore::<InterchainGasPayment>::retrieve_backward_cursors(
                     &reopened
                 )
                 .await
                 .unwrap(),
-                Some(message_progress)
+                vec![payment_progress]
             );
             assert_eq!(
-                HyperlaneBackwardCursorStore::<InterchainGasPayment>::retrieve_backward_cursor(
+                HyperlaneBackwardCursorStore::<MerkleTreeInsertion>::retrieve_backward_cursors(
                     &reopened
                 )
                 .await
                 .unwrap(),
-                Some(payment_progress)
+                Vec::new()
             );
+            HyperlaneBackwardCursorStore::<HyperlaneMessage>::delete_backward_cursor(
+                &reopened,
+                message_progress.sequence,
+            )
+            .await
+            .unwrap();
             assert_eq!(
-                HyperlaneBackwardCursorStore::<MerkleTreeInsertion>::retrieve_backward_cursor(
+                HyperlaneBackwardCursorStore::<HyperlaneMessage>::retrieve_backward_cursors(
                     &reopened
                 )
                 .await
                 .unwrap(),
-                None
+                vec![newer_message_progress]
             );
         }
         let _ = rocksdb::DB::destroy(&Options::default(), db_tmp_dir);

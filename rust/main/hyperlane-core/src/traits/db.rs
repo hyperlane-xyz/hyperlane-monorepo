@@ -73,14 +73,17 @@ impl Decode for BackwardCursorProgress {
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
 pub trait HyperlaneBackwardCursorStore<T>: Send + Sync + Debug {
-    /// Retrieves the last durable backwards cursor position.
-    async fn retrieve_backward_cursor(&self) -> Result<Option<BackwardCursorProgress>>;
+    /// Retrieves all durable backwards cursor positions.
+    async fn retrieve_backward_cursors(&self) -> Result<Vec<BackwardCursorProgress>>;
 
     /// Stores a durable backwards cursor position.
     async fn store_backward_cursor(&self, progress: BackwardCursorProgress) -> Result<()>;
 
     /// Resets progress to an earlier position after the cursor detects a gap.
     async fn reset_backward_cursor(&self, progress: BackwardCursorProgress) -> Result<()>;
+
+    /// Removes progress after the corresponding sequence has been indexed.
+    async fn delete_backward_cursor(&self, sequence: u32) -> Result<()>;
 }
 
 /// Extension of HyperlaneLogStore trait for sequence-aware indexer stores.

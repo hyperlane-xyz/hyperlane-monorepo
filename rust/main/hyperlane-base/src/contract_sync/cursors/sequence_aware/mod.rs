@@ -118,9 +118,9 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
         );
 
         let persisted_progress = if matches!(mode, IndexMode::Block) {
-            store.retrieve_backward_cursor().await?
+            store.retrieve_backward_cursors().await?
         } else {
-            None
+            Vec::new()
         };
         let params = BackwardSequenceAwareSyncCursorParams {
             chunk_size,
@@ -218,9 +218,10 @@ mod tests {
 
         #[async_trait::async_trait]
         impl<T: Indexable + Send + Sync> HyperlaneBackwardCursorStore<T> for Db<T> {
-            async fn retrieve_backward_cursor(&self) -> eyre::Result<Option<BackwardCursorProgress>>;
+            async fn retrieve_backward_cursors(&self) -> eyre::Result<Vec<BackwardCursorProgress>>;
             async fn store_backward_cursor(&self, progress: BackwardCursorProgress) -> eyre::Result<()>;
             async fn reset_backward_cursor(&self, progress: BackwardCursorProgress) -> eyre::Result<()>;
+            async fn delete_backward_cursor(&self, sequence: u32) -> eyre::Result<()>;
         }
     }
 
@@ -353,9 +354,9 @@ mod tests {
         let mut store = MockDb::new();
         store.expect_retrieve_by_sequence().returning(|_| Ok(None));
         store
-            .expect_retrieve_backward_cursor()
+            .expect_retrieve_backward_cursors()
             .once()
-            .return_once(move || Ok(Some(progress)));
+            .return_once(move || Ok(vec![progress]));
 
         let mut cursor = ForwardBackwardSequenceAwareSyncCursor::new(
             &domain,
