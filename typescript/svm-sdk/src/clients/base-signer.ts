@@ -11,6 +11,7 @@ import {
   type partiallySignTransactionMessageWithSigners,
   addSignersToTransactionMessage,
   assertIsSignature,
+  assertIsTransactionWithinSizeLimit,
   createKeyPairSignerFromBytes,
   createKeyPairSignerFromPrivateKeyBytes,
   getBase58Encoder,
@@ -79,6 +80,10 @@ export async function buildPrintableTransaction(
   feePayerAddress: Address,
   transaction: AnnotatedSvmTransaction,
 ): Promise<PrintableSvmTransaction> {
+  assert(
+    transaction.version !== 1,
+    'Offline/Squads serialization currently supports v0 only',
+  );
   const resolvedAlts = await resolveAddressLookupTables(
     rpc,
     transaction.addressLookupTables,
@@ -264,6 +269,8 @@ async function signAndSend(params: {
 
     let txMessage = buildTransactionMessage({
       instructions: tx.instructions,
+      version: tx.version,
+      priorityFeeMicroLamports: tx.priorityFeeMicroLamports,
       feePayer,
       recentBlockhash: latestBlockhash.blockhash,
       lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
@@ -279,6 +286,7 @@ async function signAndSend(params: {
     }
 
     const signedTx = await signMessage(txMessage);
+    assertIsTransactionWithinSizeLimit(signedTx);
     const signature = getSignatureFromTransaction(signedTx);
 
     try {
@@ -596,8 +604,9 @@ export async function fetchTransactionMeta(
   rpc: SvmRpc,
   logger: Logger,
   receipt: SvmReceipt,
-  maxRetries = 5,
+  options: { maxRetries?: number; maxSupportedTransactionVersion?: 0 | 1 } = {},
 ): Promise<SvmReceipt> {
+  const { maxRetries = 5, maxSupportedTransactionVersion = 0 } = options;
   assertIsSignature(receipt.signature);
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -605,7 +614,7 @@ export async function fetchTransactionMeta(
       const fullTx = await rpc
         .getTransaction(receipt.signature, {
           commitment: RPC_COMMITMENT_LEVEL,
-          maxSupportedTransactionVersion: 0,
+          maxSupportedTransactionVersion,
           encoding: 'jsonParsed',
         })
         .send();
@@ -705,6 +714,12 @@ export abstract class BaseSvmSigner
   async transactionToPrintableJson(
     transaction: AnnotatedSvmTransaction,
   ): Promise<PrintableSvmTransaction> {
+    assert(
+      (transaction.version ??
+        this.chainMetadata.sealevelTransactionVersion ??
+        0) === 0,
+      'Offline/Squads serialization currently supports v0 only',
+    );
     return buildPrintableTransaction(
       this.rpc,
       this.signer.address,
@@ -713,10 +728,20 @@ export abstract class BaseSvmSigner
   }
 
   async send(tx: SendableSvmTransaction): Promise<SvmReceipt> {
+    const version =
+      tx.version ?? this.chainMetadata.sealevelTransactionVersion ?? 0;
+    assert(
+      version <= (this.chainMetadata.maxSupportedTransactionVersion ?? 0),
+      'Transaction version exceeds this chain maxSupportedTransactionVersion',
+    );
+    assert(
+      version !== 1 || !tx.addressLookupTables?.length,
+      'v1 transactions do not support address lookup tables',
+    );
     return sendWithConfirmation({
       rpc: this.rpc,
       feePayer: this.signer,
-      tx,
+      tx: { ...tx, version },
       logger: this.logger,
       signMessage: this.signMessage,
       skipPreflight: this.skipPreflight,
@@ -734,7 +759,10 @@ export abstract class BaseSvmSigner
       : transaction;
 
     const receipt = await this.send(tx);
-    return fetchTransactionMeta(this.rpc, this.logger, receipt);
+    return fetchTransactionMeta(this.rpc, this.logger, receipt, {
+      maxSupportedTransactionVersion:
+        this.chainMetadata.maxSupportedTransactionVersion ?? 0,
+    });
   }
 
   async sendAndConfirmBatchTransactions(

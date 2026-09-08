@@ -13,10 +13,13 @@ import {
   getBase58Decoder,
   getCompiledTransactionMessageEncoder,
   getShortU16Encoder,
+  setTransactionMessageConfig,
   setTransactionMessageFeePayer,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
 } from '@solana/kit';
+
+import { assert } from '@hyperlane-xyz/utils';
 
 import type { SvmInstruction, SvmTransaction } from './types.js';
 import {
@@ -64,6 +67,7 @@ export function getComputeBudgetInstructions(
 }
 
 export function buildTransactionMessage(params: {
+  version?: 0 | 1;
   instructions: SvmInstruction[];
   feePayer: TransactionSigner;
   recentBlockhash: Blockhash;
@@ -88,6 +92,72 @@ export function buildTransactionMessage(params: {
     priorityFeeMicroLamports,
     addressLookupTables,
   } = params;
+
+  if (params.version === 1) {
+    assert(
+      !addressLookupTables || Object.keys(addressLookupTables).length === 0,
+      'v1 transactions do not support address lookup tables',
+    );
+    assert(
+      Number.isInteger(computeUnits) &&
+        computeUnits > 0 &&
+        computeUnits <= 1_400_000,
+      'computeUnits must be an integer between 1 and 1400000',
+    );
+    assert(
+      priorityFeeMicroLamports === undefined ||
+        (Number.isSafeInteger(priorityFeeMicroLamports) &&
+          priorityFeeMicroLamports >= 0),
+      'priorityFeeMicroLamports must be a nonnegative safe integer',
+    );
+    let price =
+      priorityFeeMicroLamports === undefined
+        ? undefined
+        : BigInt(priorityFeeMicroLamports);
+    // Legacy SDK adapters preserve SetComputeUnitPrice when converting instructions.
+    // V1 must move that price into its header, never send a ComputeBudget instruction.
+    const v1Instructions = instructions
+      .filter((ix) => {
+        if (ix.programAddress !== COMPUTE_BUDGET_PROGRAM_ID) return true;
+        assert(
+          ix.data?.length === 9 && ix.data[0] === 3,
+          'v1 only converts SetComputeUnitPrice; set computeUnits on the transaction',
+        );
+        assert(price === undefined, 'Duplicate priority fee configuration');
+        price = new DataView(Uint8Array.from(ix.data).buffer).getBigUint64(
+          1,
+          true,
+        );
+        return false;
+      })
+      .map((ix) => ({
+        ...ix,
+        accounts: ix.accounts?.map((account) => {
+          assert(
+            !('lookupTableAddress' in account),
+            'v1 instructions cannot reference lookup tables',
+          );
+          return account;
+        }),
+      }));
+    const message = setTransactionMessageConfig(
+      {
+        computeUnitLimit: computeUnits,
+        // V1 has no implicit loaded-account budget. Match the legacy runtime maximum.
+        loadedAccountsDataSizeLimit: 64 * 1024 * 1024,
+        priorityFeeLamports:
+          ((price ?? 0n) * BigInt(computeUnits) + 999_999n) / 1_000_000n,
+      },
+      createTransactionMessage({ version: 1 }),
+    );
+    return appendTransactionMessageInstructions(
+      v1Instructions,
+      setTransactionMessageLifetimeUsingBlockhash(
+        { blockhash: recentBlockhash, lastValidBlockHeight },
+        setTransactionMessageFeePayerSigner(feePayer, message),
+      ),
+    );
+  }
 
   const computeBudgetIxs = getComputeBudgetInstructions(
     computeUnits,

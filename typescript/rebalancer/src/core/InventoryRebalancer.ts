@@ -1279,7 +1279,9 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           this.warpCore.multiProvider.getSolanaWeb3Provider(origin);
         const receipt = await provider.getTransaction(txHash, {
           commitment: 'confirmed',
-          maxSupportedTransactionVersion: 0,
+          maxSupportedTransactionVersion:
+            this.warpCore.multiProvider.getChainMetadata(origin)
+              .maxSupportedTransactionVersion ?? 0,
         });
         if (!receipt) return undefined;
         return { type: ProviderType.SolanaWeb3, receipt };

@@ -19,6 +19,10 @@ export type SvmInstruction = Instruction;
 export type SvmRpc = Rpc<SolanaRpcApi>;
 
 export interface SvmTransaction {
+  /** Override the chain's default sending version. V1 requires chain opt-in. */
+  version?: 0 | 1;
+  /** Price per CU; v1 converts this to a total lamport fee, rounding up. */
+  priorityFeeMicroLamports?: number;
   /** Fee payer for the compiled transaction.
    *  Used to set the correct signer in the serialized transaction
    *  output (e.g. a Squads vault instead of the local keypair).

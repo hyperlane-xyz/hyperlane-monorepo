@@ -175,6 +175,16 @@ export type NativeToken = z.infer<typeof NativeTokenSchema>;
  * Specified as a Zod schema
  */
 export const ChainMetadataSchemaObject = z.object({
+  maxSupportedTransactionVersion: z
+    .union([z.literal(0), z.literal(1)])
+    .optional()
+    .describe('Highest supported SVM transaction version; defaults to 0.'),
+  sealevelTransactionVersion: z
+    .union([z.literal(0), z.literal(1)])
+    .optional()
+    .describe(
+      'Default Sealevel signer transaction version; defaults to 0. V1 requires maxSupportedTransactionVersion 1.',
+    ),
   availability: z
     .union([DisabledChainSchema, EnabledChainSchema])
     .optional()

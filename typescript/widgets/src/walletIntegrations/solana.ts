@@ -125,7 +125,9 @@ export function useSolanaTransactionFns(
         }
         const tx = await connection.getTransaction(signature, {
           commitment: 'confirmed',
-          maxSupportedTransactionVersion: 0,
+          maxSupportedTransactionVersion:
+            multiProvider.getChainMetadata(chainName)
+              .maxSupportedTransactionVersion ?? 0,
         });
         if (!tx) {
           throw new Error(`Transaction ${signature} confirmed but not found`);

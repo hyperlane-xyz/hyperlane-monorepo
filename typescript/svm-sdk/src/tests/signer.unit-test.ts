@@ -8,7 +8,10 @@ import {
   type TransactionSendingSigner,
   address,
   blockhash,
+  decompileTransactionMessage,
   getBase58Encoder,
+  getBase64Encoder,
+  getTransactionDecoder,
   getCompiledTransactionMessageDecoder,
   signature as toSignature,
 } from '@solana/kit';
@@ -116,11 +119,11 @@ const TEST_CHAIN_METADATA: ChainMetadataForAltVM = {
   rpcUrls: [{ http: 'http://localhost:8899' }],
 };
 
-async function createTestSigner(rpc: SvmRpc): Promise<SvmSigner> {
-  const signer = await SvmSigner.connectWithSigner(
-    TEST_CHAIN_METADATA,
-    TEST_PRIVATE_KEY,
-  );
+async function createTestSigner(
+  rpc: SvmRpc,
+  metadata: ChainMetadataForAltVM = TEST_CHAIN_METADATA,
+): Promise<SvmSigner> {
+  const signer = await SvmSigner.connectWithSigner(metadata, TEST_PRIVATE_KEY);
   signer['rpc'] = rpc;
   return signer;
 }
@@ -172,6 +175,95 @@ describe('SvmSigner', () => {
     ).to.be.rejectedWith(
       'SVM signer must implement transaction modifying or partial signing',
     );
+  });
+
+  describe('per-chain transaction versions', () => {
+    it('rejects v1 before any RPC request without explicit chain opt-in', async () => {
+      const getLatestBlockhash = sinon
+        .stub()
+        .throws(new Error('must not call RPC'));
+      const signer = await createTestSigner(
+        createMockRpc({ getLatestBlockhash }),
+      );
+      await expect(
+        signer.send({ instructions: [], version: 1 }),
+      ).to.be.rejectedWith('maxSupportedTransactionVersion');
+      expect(getLatestBlockhash.called).to.equal(false);
+    });
+
+    it('sends v1 wire bytes with header fees on an opted-in chain', async () => {
+      const sendTransaction = sinon.stub().callsFake((encoded: unknown) => {
+        expect(typeof encoded).to.equal('string');
+        if (typeof encoded !== 'string') throw new Error('expected base64');
+        const wire = getBase64Encoder().encode(encoded);
+        expect(wire[0]).to.equal(0x81);
+        const transaction = getTransactionDecoder().decode(wire);
+        const message = decompileTransactionMessage(
+          getCompiledTransactionMessageDecoder().decode(
+            transaction.messageBytes,
+          ),
+        );
+        expect(message.version).to.equal(1);
+        if (message.version !== 1) throw new Error('expected v1');
+        expect(message.config?.computeUnitLimit).to.equal(200001);
+        expect(message.config?.priorityFeeLamports).to.equal(1n);
+        expect(message.instructions).to.have.length(0);
+        return { send: async () => FAKE_SIGNATURE };
+      });
+      const signer = await createTestSigner(
+        createMockRpc({ sendTransaction }),
+        {
+          ...TEST_CHAIN_METADATA,
+          maxSupportedTransactionVersion: 1,
+          sealevelTransactionVersion: 1,
+        },
+      );
+      await signer.send({
+        instructions: [],
+        computeUnits: 200001,
+        priorityFeeMicroLamports: 1,
+      });
+      expect(sendTransaction.calledOnce).to.equal(true);
+    });
+
+    it('rejects ALT compression for v1 before RPC', async () => {
+      const signer = await createTestSigner(createMockRpc(), {
+        ...TEST_CHAIN_METADATA,
+        maxSupportedTransactionVersion: 1,
+      });
+      await expect(
+        signer.send({
+          instructions: [],
+          version: 1,
+          addressLookupTables: [address('11111111111111111111111111111111')],
+        }),
+      ).to.be.rejectedWith('lookup tables');
+    });
+
+    it('does not switch another SVM to v1 when read support is enabled', async () => {
+      const sendTransaction = sinon.stub().callsFake((encoded: unknown) => {
+        if (typeof encoded !== 'string') throw new Error('expected base64');
+        const transaction = getTransactionDecoder().decode(
+          getBase64Encoder().encode(encoded),
+        );
+        expect(
+          getCompiledTransactionMessageDecoder().decode(
+            transaction.messageBytes,
+          ).version,
+        ).to.equal(0);
+        return { send: async () => FAKE_SIGNATURE };
+      });
+      const signer = await createTestSigner(
+        createMockRpc({ sendTransaction }),
+        {
+          ...TEST_CHAIN_METADATA,
+          name: 'another-svm',
+          maxSupportedTransactionVersion: 1,
+        },
+      );
+      await signer.send({ instructions: [] });
+      expect(sendTransaction.calledOnce).to.equal(true);
+    });
   });
 
   // ---- Happy path ----

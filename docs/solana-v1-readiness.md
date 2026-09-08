@@ -28,3 +28,41 @@ References:
 
 - https://www.helius.dev/blog/agave-4-2-migration-checklist
 - https://solana.com/upgrades/agave-4-2-release-overview
+
+## TypeScript clients and sending
+
+Chain metadata accepts `maxSupportedTransactionVersion: 0 | 1` for receipt
+reads and `sealevelTransactionVersion: 0 | 1` for the Sealevel signer's default
+sending format. Both default to 0. Set the read capability to 1 independently
+for each SVM whose RPC supports it. Set the sending default to 1 only after the
+chain's v1 feature gate is active. A transaction's `version` overrides the
+sending default, but cannot exceed the configured capability.
+
+Example for a v1-enabled Solana environment:
+
+```yaml
+maxSupportedTransactionVersion: 1
+sealevelTransactionVersion: 1
+```
+
+Do not copy these settings to other SVMs based on Solana's activation date.
+Published registry metadata / consumer overrides must carry these fields;
+this PR does not publish registry changes or activate production sending.
+
+V1 sending sets compute and loaded-account budgets explicitly. Existing SDK
+adapter priority-price instructions are converted to total lamport header
+fees with upward rounding. Address lookup tables are rejected for v1; legacy
+and v0 transactions keep their existing formats. Offline/Squads serialization
+and fork replay remain v0/legacy-only and reject explicit v1 input.
+
+For local validation, start `solana-test-validator` from Agave 4.2+ on a free
+port, then run:
+
+```sh
+SVM_V1_RPC_URL=http://127.0.0.1:18899 pnpm -C typescript/svm-sdk test:v1:local
+```
+
+The test funds an ephemeral local signer, sends a v1 transfer batch, reads its
+receipt and block, rejects the same batch under v0's size limit, and confirms
+a small v0 transfer still works. The endpoint must be loopback. This is local
+validator evidence, not mainnet rollout evidence.

@@ -11,6 +11,10 @@ type ChainNameOrId = string | number;
  */
 export interface ChainMetadataForAltVM {
   name: string;
+  /** Highest transaction version supported by this SVM. Defaults to 0. */
+  maxSupportedTransactionVersion?: 0 | 1;
+  /** Default transaction version for the Sealevel signer. Defaults to 0. */
+  sealevelTransactionVersion?: 0 | 1;
   bech32Prefix?: string;
   protocol: ProtocolType;
   domainId: Domain;
