@@ -10,8 +10,11 @@ This change only enables JSON/JSON-parsed reads. The indexer consumes account
 keys, instructions and execution metadata; it does not decode raw transaction
 bytes or reconstruct v1 messages. Agave's additional `transactionConfig` JSON
 field is unused; fee accounting reads `meta.fee`. Tests exercise v1 JSON through
-the pinned client. Binary transaction decoding and v1 sending require separate
-SDK updates and validation.
+the pinned client, assert outgoing version/encoding parameters for default and
+opted-in chains, and pass mixed legacy/v0/v1 responses through dispatch and gas
+payment log metadata extraction. The v1 fixtures adapt existing transactions to
+Agave's JSON schema; they are not captured v1 executions. Binary transaction
+decoding and v1 sending require separate SDK updates and validation.
 
 Before rollout, validate a mixed legacy/v0/v1 block and a v1 dispatch/gas payment
 on a v1-enabled test validator, then verify the deployed agent image and chain
