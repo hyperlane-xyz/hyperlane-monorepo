@@ -7,6 +7,10 @@ const DEFAULT_AW_VALIDATOR: ValidatorConfig = {
   address: '0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03',
   alias: AW_VALIDATOR_ALIAS,
 };
+const DEFAULT_AW_TESTNET_VALIDATOR: ValidatorConfig = {
+  address: '0x3c659e0fe8d01b80d7828b421630085777346e7c',
+  alias: AW_VALIDATOR_ALIAS,
+};
 const DEFAULT_MERKLY_VALIDATOR: ValidatorConfig = {
   address: '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f',
   alias: 'Merkly',
@@ -86,12 +90,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
 
   aleotestnet: {
     threshold: 1,
-    validators: [
-      {
-        address: '0x3c659e0fe8d01b80d7828b421630085777346e7c',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
+    validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
   apechain: {
@@ -128,12 +127,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
 
   arbitrumsepolia: {
     threshold: 1,
-    validators: [
-      {
-        address: '0x09fabfbca0b8bf042e2a1161ee5010d147b0f603',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
+    validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
   arc: {
@@ -185,12 +179,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
 
   basesepolia: {
     threshold: 1,
-    validators: [
-      {
-        address: '0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
+    validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
   berachain: {
@@ -275,12 +264,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
 
   bsctestnet: {
     threshold: 1,
-    validators: [
-      {
-        address: '0x3c659e0fe8d01b80d7828b421630085777346e7c',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
+    validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
   carrchain: {
@@ -363,12 +347,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
 
   cotitestnet: {
     threshold: 1,
-    validators: [
-      {
-        address: '0x5c535dff16237a2cae97c97f9556404cd230c9c0',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
+    validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
   eclipsemainnet: {
@@ -565,12 +544,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
 
   hyperliquidevmtestnet: {
     threshold: 1,
-    validators: [
-      {
-        address: '0xea673a92a23ca319b9d85cc16b248645cd5158da',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
+    validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
   igra: {
@@ -932,12 +906,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
 
   optimismsepolia: {
     threshold: 1,
-    validators: [
-      {
-        address: '0x03efe4d0632ee15685d7e8f46dea0a874304aa29',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
+    validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
   paradex: {
@@ -968,12 +937,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
 
   plumetestnet: {
     threshold: 1,
-    validators: [
-      {
-        address: '0xe765a214849f3ecdf00793b97d00422f2d408ea6',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
+    validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
   polygon: {
@@ -990,12 +954,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
 
   polygonamoy: {
     threshold: 1,
-    validators: [
-      {
-        address: '0xf0290b06e446b320bd4e9c4a519420354d7ddccd',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
+    validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
   pulsechain: {
@@ -1049,32 +1008,17 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
 
   seismictestnet: {
     threshold: 1,
-    validators: [
-      {
-        address: '0xcfa3ec84fe69dde351760e9fdb667af912cb8368',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
+    validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
   sepolia: {
     threshold: 1,
-    validators: [
-      {
-        address: '0x3c659e0fe8d01b80d7828b421630085777346e7c',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
+    validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
   solanadevnet: {
     threshold: 1,
-    validators: [
-      {
-        address: '0x6424142536c9e40b61076571cba83a255835b799',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
+    validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
   solanamainnet: {
@@ -1102,12 +1046,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
 
   solanatestnet: {
     threshold: 1,
-    validators: [
-      {
-        address: '0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
+    validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
   solaxy: {
@@ -1134,12 +1073,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
 
   somniatestnet: {
     threshold: 1,
-    validators: [
-      {
-        address: '0xb3b27a27bfa94002d344e9cf5217a0e3502e018b',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
+    validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
   soneium: {
@@ -1298,12 +1232,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
 
   tronshasta: {
     threshold: 1,
-    validators: [
-      {
-        address: '0x189ea37efb3764ab638cbaecbe764a8e814e7583',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
+    validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
   unichain: {
@@ -1328,12 +1257,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
 
   unichaintestnet: {
     threshold: 1,
-    validators: [
-      {
-        address: '0x5e99961cf71918308c3b17ef21b5f515a4f86fe5',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
+    validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
   viction: {

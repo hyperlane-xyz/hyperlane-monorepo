@@ -202,6 +202,7 @@
     "cross-fetch": "^3.1.5",
     "ethers": "catalog:",
     "pino": "catalog:",
+    "seismic-viem": "3.0.1",
     "starknet": "catalog:",
     "viem": "catalog:",
     "zksync-ethers": "catalog:",
