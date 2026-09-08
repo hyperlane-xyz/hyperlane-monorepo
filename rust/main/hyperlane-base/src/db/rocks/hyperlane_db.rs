@@ -2,12 +2,13 @@ use std::{
     ops::Add,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
+        Arc,
     },
 };
 
 use async_trait::async_trait;
 use eyre::{bail, Result};
+use parking_lot::Mutex;
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
@@ -434,10 +435,7 @@ impl HyperlaneRocksDB {
         indexed_payment: Indexed<InterchainGasPayment>,
         log_meta: &LogMeta,
     ) -> DbResult<bool> {
-        let _guard = self
-            .2
-            .lock()
-            .map_err(|_| DbError::Other("Gas payment write lock poisoned".to_owned()))?;
+        let _guard = self.2.lock();
         let payment = *(indexed_payment.inner());
         let gas_payment_sequence = if let Some(sequence) = indexed_payment.sequence {
             let stored_payment = self.retrieve_gas_payment_by_sequence(&sequence)?;
@@ -519,10 +517,7 @@ impl HyperlaneRocksDB {
         payment: InterchainGasPayment,
         log_meta: &LogMeta,
     ) -> DbResult<bool> {
-        let _guard = self
-            .2
-            .lock()
-            .map_err(|_| DbError::Other("Gas payment write lock poisoned".to_owned()))?;
+        let _guard = self.2.lock();
         self.process_gas_payment_inner(payment, log_meta)
     }
 
@@ -571,10 +566,7 @@ impl HyperlaneRocksDB {
         insertion: &MerkleTreeInsertion,
         insertion_block_number: u64,
     ) -> DbResult<bool> {
-        let _guard = self
-            .3
-            .lock()
-            .map_err(|_| DbError::Other("Merkle insertion write lock poisoned".to_owned()))?;
+        let _guard = self.3.lock();
         if let Some(existing) =
             self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index())?
         {
@@ -602,10 +594,7 @@ impl HyperlaneRocksDB {
         insertion: &MerkleTreeInsertion,
         insertion_block_number: u64,
     ) -> DbResult<bool> {
-        let _guard = self
-            .3
-            .lock()
-            .map_err(|_| DbError::Other("Merkle insertion write lock poisoned".to_owned()))?;
+        let _guard = self.3.lock();
         self.store_tree_insertion_inner(insertion, insertion_block_number)
     }
 
