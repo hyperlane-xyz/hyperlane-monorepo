@@ -1252,19 +1252,16 @@ impl StreamState {
     fn gas_payment_caught_up_cursor(
         &self,
         address: &str,
-        domain: u32,
+        source: &ScraperSource,
         legacy_max_stream_cursor: Option<&str>,
         row_id: Option<&str>,
         stream_cursor: Option<&str>,
         sequence: Option<&str>,
-        sources: &HashMap<u32, ScraperSource>,
     ) -> Result<DurableGasPaymentCursor> {
         if row_id.is_some() || sequence.is_some() {
             bail!("Unexpected scraper caught-up marker");
         }
-        let source = sources
-            .get(&domain)
-            .with_context(|| format!("Unexpected scraper caught-up domain {domain}"))?;
+        let domain = source.domain;
         if parse_address(address)? != source.interchain_gas_paymaster {
             bail!("Gas payment caught-up paymaster does not match configured paymaster");
         }
@@ -1332,14 +1329,16 @@ impl StreamState {
         sequence: Option<&str>,
         sources: &HashMap<u32, ScraperSource>,
     ) -> Result<()> {
+        let source = sources
+            .get(&domain)
+            .with_context(|| format!("Unexpected scraper caught-up domain {domain}"))?;
         let cursor = self.gas_payment_caught_up_cursor(
             address,
-            domain,
+            source,
             Some("0"),
             row_id,
             stream_cursor,
             sequence,
-            sources,
         )?;
         self.gas_payment_rows.insert(domain, cursor);
         Ok(())
@@ -2318,18 +2317,17 @@ impl ScraperWebSocketMonitor {
                                     self.record(domain, GAS_PAYMENT_EVENT_TYPE, "degraded");
                                     continue;
                                 }
+                                let source = self.sources.get(&domain).with_context(|| {
+                                    format!("Unexpected scraper caught-up domain {domain}")
+                                })?;
                                 let cursor = state.gas_payment_caught_up_cursor(
                                     &address,
-                                    domain,
+                                    source,
                                     legacy_max_stream_cursor.as_deref(),
                                     row_id.as_deref(),
                                     stream_cursor.as_deref(),
                                     sequence.as_deref(),
-                                    &self.sources,
                                 )?;
-                                let source = self.sources.get(&domain).with_context(|| {
-                                    format!("Unexpected scraper caught-up domain {domain}")
-                                })?;
                                 state.persist_gas_payment_cursor(domain, cursor, |cursor| {
                                     source.store_gas_payment_cursor(cursor)
                                 })?;
@@ -5859,12 +5857,11 @@ mod tests {
         assert!(state
             .gas_payment_caught_up_cursor(
                 &scraper_address(H256::from_low_u64_be(3)),
-                5,
+                sources.get(&5).expect("test source"),
                 None,
                 None,
                 Some("21"),
                 None,
-                &sources,
             )
             .expect_err("caught-up boundary is required")
             .to_string()
@@ -5872,12 +5869,11 @@ mod tests {
         assert!(state
             .gas_payment_caught_up_cursor(
                 &scraper_address(H256::from_low_u64_be(3)),
-                5,
+                sources.get(&5).expect("test source"),
                 Some("21"),
                 None,
                 Some("21"),
                 None,
-                &sources,
             )
             .expect_err("caught-up boundary must match events")
             .to_string()
@@ -5891,12 +5887,11 @@ mod tests {
         let cursor = state
             .gas_payment_caught_up_cursor(
                 &scraper_address(H256::from_low_u64_be(3)),
-                5,
+                monitor.sources.get(&5).expect("test source"),
                 Some("20"),
                 None,
                 Some("20"),
                 None,
-                &monitor.sources,
             )
             .expect("valid fresh gas baseline");
 
