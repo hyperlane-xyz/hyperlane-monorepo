@@ -1496,6 +1496,9 @@ mod tests {
                 domain: 1,
                 event_type: EVENT_TYPE.to_owned(),
                 sequence: Some(sequence.to_string()),
+                legacy_max_stream_cursor: None,
+                row_id: None,
+                stream_cursor: None,
             };
             assert!(sync
                 .process_event(
