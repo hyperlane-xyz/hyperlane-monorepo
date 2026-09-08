@@ -1780,12 +1780,27 @@ impl ScraperAuthorityReceiver {
     }
 }
 
+#[cfg(test)]
+struct AuthorityRevocationHook {
+    entered: std::sync::mpsc::Sender<()>,
+    release: std::sync::mpsc::Receiver<()>,
+}
+
+#[cfg(test)]
+#[derive(Default)]
+struct AuthorityRevocationHooks {
+    before_publish: Option<AuthorityRevocationHook>,
+    after_publish: Option<AuthorityRevocationHook>,
+}
+
 /// One process-wide, read-only scraper stream monitor.
 pub(crate) struct ScraperWebSocketMonitor {
     active: IntGaugeVec,
     authority: IntGaugeVec,
     authority_active: AtomicBool,
     authority_enabled: bool,
+    #[cfg(test)]
+    authority_revocation_hooks: parking_lot::Mutex<AuthorityRevocationHooks>,
     authority_handoff: Arc<AuthorityHandoff>,
     authority_sender: watch::Sender<AuthorityCommand>,
     caught_up: IntGaugeVec,
@@ -1914,6 +1929,8 @@ impl ScraperWebSocketMonitor {
             authority,
             authority_active: AtomicBool::new(false),
             authority_enabled,
+            #[cfg(test)]
+            authority_revocation_hooks: parking_lot::Mutex::default(),
             authority_handoff,
             authority_sender,
             caught_up,
@@ -2665,28 +2682,13 @@ impl ScraperWebSocketMonitor {
                                     let source = self.sources.get(&domain).context(
                                         "Invalid gas payment source unexpectedly missing",
                                     )?;
-                                    source.store_gas_payment_degraded()?;
-                                    if state.gas_payment_degraded.insert(domain) {
-                                        self.set_source_caught_up(
-                                            source,
-                                            EventKind::GasPayment,
-                                            false,
-                                        );
-                                        self.degraded
-                                            .with_label_values(&[
-                                                source.chain.as_str(),
-                                                GAS_PAYMENT_EVENT_TYPE,
-                                            ])
-                                            .set(1);
+                                    if self.degrade_gas_payment(state, source)? {
                                         warn!(
                                             ?err,
                                             domain,
                                             "Relayer scraper-proxy gas payment shadow stream degraded"
                                         );
                                     }
-                                    // Invalidate readiness before revoking authority so a
-                                    // concurrent freshness result cannot reactivate it.
-                                    self.deactivate_authority();
                                 }
                             }
                         }
@@ -2868,10 +2870,47 @@ impl ScraperWebSocketMonitor {
         }
     }
 
+    fn degrade_gas_payment(&self, state: &mut StreamState, source: &ScraperSource) -> Result<bool> {
+        source.store_gas_payment_degraded()?;
+        let newly_degraded = state.gas_payment_degraded.insert(source.domain);
+        // Invalidate readiness before revoking authority so an in-flight
+        // freshness result cannot reactivate the degraded stream.
+        self.set_source_caught_up(source, EventKind::GasPayment, false);
+        self.degraded
+            .with_label_values(&[source.chain.as_str(), GAS_PAYMENT_EVENT_TYPE])
+            .set(1);
+        self.deactivate_authority();
+        Ok(newly_degraded)
+    }
+
+    #[cfg(test)]
+    fn wait_for_revocation_hook(&self, before_publish: bool) {
+        let hook = {
+            let mut hooks = self.authority_revocation_hooks.lock();
+            if before_publish {
+                hooks.before_publish.take()
+            } else {
+                hooks.after_publish.take()
+            }
+        };
+        if let Some(hook) = hook {
+            hook.entered.send(()).expect("signal revocation hook");
+            hook.release
+                .recv_timeout(Duration::from_secs(5))
+                .expect("release revocation hook");
+        }
+    }
+
+    fn publish_authority_revocation(&self, update: impl FnOnce(&mut AuthorityCommand) -> bool) {
+        #[cfg(test)]
+        self.wait_for_revocation_hook(true);
+        self.authority_sender.send_if_modified(update);
+    }
+
     fn deactivate_authority(&self) {
         // Serialize the active flag and gauges with command publication. RPC must
         // not resume between clearing the flag and a concurrent activation.
-        self.authority_sender.send_if_modified(|current| {
+        self.publish_authority_revocation(|current| {
             if self.authority_active.swap(false, Ordering::AcqRel) {
                 info!("Restoring direct RPC indexing fallback");
             }
@@ -2891,6 +2930,8 @@ impl ScraperWebSocketMonitor {
             }
         });
         self.authority_handoff.notify_state_changed();
+        #[cfg(test)]
+        self.wait_for_revocation_hook(false);
     }
 
     fn refresh_parity_ready(&self, source: &ScraperSource) {
@@ -3093,42 +3134,49 @@ impl ScraperWebSocketMonitor {
             .collect::<Vec<_>>()
             .await;
 
-        let mut all_fresh = true;
-        for result in results {
-            match result {
-                Ok((
-                    chain,
-                    is_fresh,
-                    canonical_count,
-                    dispatch_cursor,
-                    merkle_cursor,
-                    correlation_cursor,
-                )) => {
-                    self.fresh
-                        .with_label_values(&[chain.as_str()])
-                        .set(i64::from(is_fresh));
-                    if !is_fresh {
+        let mut all_fresh = false;
+        self.authority_sender.send_if_modified(|_| {
+            if !self.base_authority_ready() {
+                return false;
+            }
+            all_fresh = true;
+            for result in results {
+                match result {
+                    Ok((
+                        chain,
+                        is_fresh,
+                        canonical_count,
+                        dispatch_cursor,
+                        merkle_cursor,
+                        correlation_cursor,
+                    )) => {
+                        self.fresh
+                            .with_label_values(&[chain.as_str()])
+                            .set(i64::from(is_fresh));
+                        if !is_fresh {
+                            all_fresh = false;
+                            if should_warn(&self.freshness_warned_at) {
+                                warn!(
+                                    %chain,
+                                    ?canonical_count,
+                                    ?dispatch_cursor,
+                                    ?merkle_cursor,
+                                    ?correlation_cursor,
+                                    "Scraper sequenced cursors are not canonically fresh"
+                                );
+                            }
+                        }
+                    }
+                    Err(err) => {
                         all_fresh = false;
                         if should_warn(&self.freshness_warned_at) {
-                            warn!(
-                                %chain,
-                                ?canonical_count,
-                                ?dispatch_cursor,
-                                ?merkle_cursor,
-                                ?correlation_cursor,
-                                "Scraper sequenced cursors are not canonically fresh"
-                            );
+                            warn!(?err, "Canonical scraper freshness probe failed");
                         }
                     }
                 }
-                Err(err) => {
-                    all_fresh = false;
-                    if should_warn(&self.freshness_warned_at) {
-                        warn!(?err, "Canonical scraper freshness probe failed");
-                    }
-                }
             }
-        }
+            false
+        });
         if all_fresh {
             self.maybe_activate_authority().await;
         } else {
@@ -3910,33 +3958,29 @@ mod tests {
         authority.set(1);
         fresh.set(1);
 
-        // Pin the command while another thread attempts revocation. Previously
-        // revocation cleared the flag/gauges before obtaining this lock, allowing
-        // activation to restore them under the still-current pause command.
+        // Pause revocation exactly before command publication, avoiding any
+        // dependence on how quickly its thread is scheduled.
+        let (entered_tx, entered_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        monitor.authority_revocation_hooks.lock().before_publish = Some(AuthorityRevocationHook {
+            entered: entered_tx,
+            release: release_rx,
+        });
         let receiver = monitor.authority_sender.subscribe();
-        let command = receiver.borrow();
         std::thread::scope(|threads| {
-            let (started_tx, started_rx) = std::sync::mpsc::channel();
-            let (done_tx, done_rx) = std::sync::mpsc::channel();
-            let monitor = &monitor;
-            threads.spawn(move || {
-                started_tx.send(()).expect("signal revocation start");
-                monitor.deactivate_authority();
-                done_tx.send(()).expect("signal revocation completion");
-            });
-            started_rx.recv().expect("revocation thread started");
-            assert!(done_rx.recv_timeout(Duration::from_millis(100)).is_err());
-            let remained_active = monitor.authority_active.load(Ordering::Acquire);
-            let authority_before_unlock = authority.get();
-            let fresh_before_unlock = fresh.get();
-            // Release before asserting so a regression cannot deadlock thread join.
-            drop(command);
-            done_rx
+            threads.spawn(|| monitor.deactivate_authority());
+            entered_rx
                 .recv_timeout(Duration::from_secs(5))
-                .expect("revocation completed");
+                .expect("revocation reached publication");
+            let remained_active = monitor.authority_active.load(Ordering::Acquire);
+            let authority_before_publication = authority.get();
+            let fresh_before_publication = fresh.get();
+            let desired_before_publication = receiver.borrow().desired;
+            release_tx.send(()).expect("release revocation");
             assert!(remained_active);
-            assert_eq!(authority_before_unlock, 1);
-            assert_eq!(fresh_before_unlock, 1);
+            assert!(desired_before_publication);
+            assert_eq!(authority_before_publication, 1);
+            assert_eq!(fresh_before_publication, 1);
         });
         assert!(!receiver.borrow().desired);
         assert!(!monitor.authority_active.load(Ordering::Acquire));
@@ -4089,6 +4133,99 @@ mod tests {
 
         assert!(monitor.authority_active.load(Ordering::Acquire));
         assert_eq!(monitor.fresh.with_label_values(&["test"]).get(), 1);
+    }
+
+    #[tokio::test]
+    async fn gas_degradation_blocks_in_flight_freshness_reactivation() {
+        let fixture = fixture();
+        let source = fixture.sources[&5]
+            .clone()
+            .with_freshness_indexer(Arc::new(FixedSequenceIndexer(10)));
+        source
+            .store_cursor(EventKind::Dispatch, 9)
+            .expect("dispatch cursor");
+        source
+            .store_cursor(EventKind::MerkleTreeInsertion, 9)
+            .expect("Merkle cursor");
+        source
+            .store_correlation_cursor(10)
+            .expect("correlation cursor");
+        let metrics = CoreMetrics::new("scraper-gas-freshness-test", 9090, Registry::new())
+            .expect("test metrics");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new_with_authority(
+                Url::parse("ws://localhost:1").expect("test URL"),
+                vec![source],
+                &metrics,
+                true,
+            )
+            .expect("authority monitor"),
+        );
+        monitor.set_active(true);
+        monitor.gas_payment_enabled.store(true, Ordering::Release);
+        let source = &monitor.sources[&5];
+        for kind in [
+            EventKind::Dispatch,
+            EventKind::GasPayment,
+            EventKind::MerkleTreeInsertion,
+        ] {
+            monitor.set_source_caught_up(source, kind, true);
+        }
+        monitor.refresh_parity_ready(source);
+        monitor.fresh.with_label_values(&["test"]).set(1);
+        monitor.authority.with_label_values(&["test"]).set(1);
+        monitor.authority_active.store(true, Ordering::Release);
+        monitor
+            .authority_sender
+            .send_modify(|command| command.desired = true);
+
+        // Start a valid freshness probe, but hold its cursor read until gas
+        // degradation has published revocation and paused before returning.
+        let permits =
+            u32::try_from(monitor.parity_read_permit.available_permits()).expect("permit count");
+        let capacity = monitor
+            .parity_read_permit
+            .clone()
+            .acquire_many_owned(permits)
+            .await
+            .expect("cursor capacity");
+        let mut refresh = Box::pin(monitor.refresh_authority_once());
+        assert!(futures::poll!(&mut refresh).is_pending());
+        let (entered_tx, entered_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        monitor.authority_revocation_hooks.lock().after_publish = Some(AuthorityRevocationHook {
+            entered: entered_tx,
+            release: release_rx,
+        });
+        let worker_monitor = monitor.clone();
+        let worker = std::thread::spawn(move || {
+            let mut state = StreamState::default();
+            worker_monitor.degrade_gas_payment(&mut state, &worker_monitor.sources[&5])
+        });
+        entered_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("gas degradation revoked authority");
+        drop(capacity);
+        let refreshed = timeout(Duration::from_secs(2), &mut refresh).await.is_ok();
+        drop(refresh);
+        let active = monitor.authority_active.load(Ordering::Acquire);
+        let command = *monitor.authority_sender.borrow();
+        let fresh = monitor.fresh.with_label_values(&["test"]).get();
+        release_tx.send(()).expect("release gas degradation");
+        assert!(worker
+            .join()
+            .expect("degradation thread")
+            .expect("gas degradation"));
+        assert!(refreshed, "degraded stream must not request a new handoff");
+        assert!(!active);
+        assert!(!command.desired);
+        assert_eq!(
+            command.generation, 0,
+            "degraded stream must not request another handoff"
+        );
+        assert_eq!(fresh, 0);
+        assert_eq!(monitor.authority.with_label_values(&["test"]).get(), 0);
+        assert!(source.gas_payment_degraded().expect("durable degradation"));
     }
 
     #[tokio::test]
