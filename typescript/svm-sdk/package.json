@@ -53,7 +53,7 @@
     "@solana-program/address-lookup-table": "^0.11.0",
     "@solana-program/loader-v3": "^0.3.0",
     "@solana-program/system": "^0.12.0",
-    "@solana/errors": "^6.1.0",
+    "@solana/errors": "^8.2.0",
     "@solana/kit": "catalog:",
     "compare-versions": "catalog:",
     "zod": "catalog:"

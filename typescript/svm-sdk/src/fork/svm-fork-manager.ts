@@ -135,6 +135,10 @@ export async function buildForkReplayTransaction(
   const units = transaction.computeUnits ?? DEFAULT_COMPUTE_UNITS;
 
   const compiledMessage = compiledMessageDecoder.decode(decoded.messageBytes);
+  assert(
+    compiledMessage.version !== 1,
+    'v1 fork replay requires header-based compute budget support',
+  );
   const addressLookupTables = await resolveForkLookupTables(
     rpc,
     compiledMessage,
@@ -157,8 +161,8 @@ export async function buildForkReplayTransaction(
   // Only versioned (v0) messages reference lookup tables, so a defined ALT map
   // implies a non-legacy message; narrow so kit's compressor accepts it.
   assert(
-    withComputeBudget.version !== 'legacy',
-    'address-lookup tables require a versioned (non-legacy) transaction',
+    withComputeBudget.version === 0,
+    'address-lookup tables require a v0 transaction',
   );
   const recompressed = compressTransactionMessageUsingAddressLookupTables(
     withComputeBudget,
