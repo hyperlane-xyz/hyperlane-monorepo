@@ -751,6 +751,41 @@ async fn test_fallback_events_persist_and_survive_restart() -> eyre::Result<()> 
         "transaction enrichment must preserve the fallback row and stream cursor"
     );
 
+    // Legacy data may retain a NULL sibling beside a resolved payment.
+    // Replaying the resolved event must preserve both durable row identities.
+    let connection = store.db.clone_connection();
+    connection.execute(Statement::from_sql_and_values(
+        DatabaseBackend::Postgres,
+        "INSERT INTO gas_payment (domain, msg_id, payment, gas_amount, tx_id, log_index, origin, destination, interchain_gas_paymaster, sequence) SELECT domain, msg_id, payment, gas_amount, NULL, log_index, origin, destination, interchain_gas_paymaster, sequence FROM gas_payment WHERE id = $1",
+        [fallback_payment_cursor.0.into()],
+    )).await?;
+    let cursor_rows = || async {
+        connection.query_all(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT gas_payment_id, stream_cursor FROM gas_payment_stream_cursor WHERE domain = $1 ORDER BY stream_cursor",
+            [i32::try_from(TEST_DOMAIN_ID)?.into()],
+        )).await?.iter().map(|row| Ok((row.try_get::<i64>("", "gas_payment_id")?, row.try_get::<i64>("", "stream_cursor")?))).collect::<eyre::Result<Vec<_>>>()
+    };
+    let before = cursor_rows().await?;
+    assert_eq!(
+        store
+            .db
+            .store_payments(
+                TEST_DOMAIN_ID,
+                &igp,
+                &[StorablePayment {
+                    payment: &payment,
+                    sequence: Some(i64::from(SEQUENCE)),
+                    meta: &resolved_meta,
+                    txn_id: Some(transaction_db_id),
+                }]
+            )
+            .await?,
+        0
+    );
+    assert_eq!(payment_row_counts(&store, SEQUENCE).await?, (2, 1));
+    assert_eq!(cursor_rows().await?, before);
+
     // No `Migrator::down` teardown: the test data intentionally contains NULL
     // transaction relations, which `down` (SET NOT NULL) rejects, and the
     // container is disposable anyway.

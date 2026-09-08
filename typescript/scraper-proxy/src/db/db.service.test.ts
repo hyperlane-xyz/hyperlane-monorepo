@@ -165,3 +165,21 @@ void it('fails startup when the live user cannot read cursor state', async (cont
 
   await assert.rejects(db.onModuleInit(), /cursor_readable/);
 });
+
+for (const triggerMode of ['D', 'R']) {
+  void it(`rejects gas cursor trigger mode ${triggerMode} at startup`, async (context) => {
+    context.mock.method(pg.Pool.prototype, 'query', (text: string) => {
+      assert.match(text, /tgname = 'gas_payment_stream_cursor_assign'/);
+      assert.match(text, /tgenabled IN \('O', 'A'\)/);
+      return Promise.resolve({
+        rowCount: 1,
+        rows: [{ ...readyEventStreamSchema, cursor_trigger_exists: false }],
+      });
+    });
+    context.mock.method(pg.Pool.prototype, 'end', () => Promise.resolve());
+    const { DbService } = await import('./db.service.js');
+    const db = new DbService();
+    context.after(() => db.onModuleDestroy());
+    await assert.rejects(db.onModuleInit(), /cursor_trigger_exists/);
+  });
+}

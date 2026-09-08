@@ -145,9 +145,16 @@ mod tests {
     use tokio::time::{sleep, timeout};
 
     use super::*;
+    use crate::Migrator;
 
     const PAYMASTER: &str = "1111111111111111111111111111111111111111";
     const TEST_LOCK: i64 = 8_030_013;
+
+    fn payment_insert(paymaster: &str, log_index: u32) -> String {
+        format!(
+            "INSERT INTO gas_payment (domain, origin, destination, msg_id, payment, gas_amount, tx_id, log_index, interchain_gas_paymaster) VALUES (1, 1, 1, decode(repeat('11', 32), 'hex'), 1, 1, NULL, {log_index}, decode('{paymaster}', 'hex'))"
+        )
+    }
 
     #[tokio::test]
     async fn cursor_follows_commit_order_not_row_id_allocation() -> Result<(), DbErr> {
@@ -158,23 +165,15 @@ mod tests {
             .expect("postgres port");
         let url = format!("postgresql://postgres:postgres@127.0.0.1:{port}/postgres");
         let db = Database::connect(&url).await?;
-        db.execute_unprepared(
-            r#"
-            CREATE TABLE gas_payment (
-              id bigserial PRIMARY KEY,
-              domain bigint NOT NULL,
-              interchain_gas_paymaster bytea NOT NULL,
-              tx_id bigint,
-              hold_before_insert boolean NOT NULL DEFAULT false
-            );
-            CREATE INDEX gas_payment_domain_id_idx ON gas_payment(domain, id);
-            "#,
-        )
-        .await?;
-        db.execute_unprepared(&format!(
-            "INSERT INTO gas_payment (domain, interchain_gas_paymaster, tx_id) VALUES (1, decode('{PAYMASTER}', 'hex'), 10), (1, decode('{PAYMASTER}', 'hex'), NULL)"
-        ))
-        .await?;
+        let preceding_migrations = Migrator::migrations()
+            .iter()
+            .position(|migration| migration.name() == Migration.name())
+            .expect("cursor migration is registered");
+        Migrator::up(&db, Some(preceding_migrations as u32)).await?;
+        db.execute_unprepared(&payment_insert(PAYMASTER, 10))
+            .await?;
+        db.execute_unprepared(&payment_insert(PAYMASTER, 11))
+            .await?;
         let migration_tx = db.begin().await?;
         Migration.up(&SchemaManager::new(&migration_tx)).await?;
         let timeouts = migration_tx
@@ -214,7 +213,7 @@ mod tests {
             CREATE OR REPLACE FUNCTION hold_first_gas_payment()
             RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
-              IF NEW.hold_before_insert THEN
+              IF NEW.log_index = 1 THEN
                 PERFORM pg_advisory_xact_lock({TEST_LOCK});
               END IF;
               RETURN NEW;
@@ -240,9 +239,7 @@ mod tests {
         let first_db = Database::connect(&url).await?;
         let first = tokio::spawn(async move {
             first_db
-                .execute_unprepared(&format!(
-                    "INSERT INTO gas_payment (domain, interchain_gas_paymaster, tx_id, hold_before_insert) VALUES (1, decode('{PAYMASTER}', 'hex'), 1, true)"
-                ))
+                .execute_unprepared(&payment_insert(PAYMASTER, 1))
                 .await
         });
 
@@ -265,10 +262,7 @@ mod tests {
         .await
         .expect("first insert allocated its row ID")?;
 
-        db.execute_unprepared(&format!(
-            "INSERT INTO gas_payment (domain, interchain_gas_paymaster, tx_id) VALUES (1, decode('{PAYMASTER}', 'hex'), 2)"
-        ))
-        .await?;
+        db.execute_unprepared(&payment_insert(PAYMASTER, 2)).await?;
 
         gate.execute(Statement::from_sql_and_values(
             DbBackend::Postgres,
@@ -283,26 +277,20 @@ mod tests {
 
         let rollback_tx = db.begin().await?;
         rollback_tx
-            .execute_unprepared(&format!(
-                "INSERT INTO gas_payment (domain, interchain_gas_paymaster, tx_id) VALUES (1, decode('{PAYMASTER}', 'hex'), 3)"
-            ))
+            .execute_unprepared(&payment_insert(PAYMASTER, 3))
             .await?;
         rollback_tx.rollback().await?;
-        db.execute_unprepared(&format!(
-            "INSERT INTO gas_payment (domain, interchain_gas_paymaster, tx_id) VALUES (1, decode('{PAYMASTER}', 'hex'), 4)"
-        ))
-        .await?;
+        db.execute_unprepared(&payment_insert(PAYMASTER, 4)).await?;
 
         let held = db.begin().await?;
-        held.execute_unprepared(&format!(
-            "INSERT INTO gas_payment (domain, interchain_gas_paymaster, tx_id) VALUES (1, decode('{PAYMASTER}', 'hex'), 5)"
-        ))
-        .await?;
+        held.execute_unprepared(&payment_insert(PAYMASTER, 5))
+            .await?;
         timeout(
             Duration::from_secs(2),
-            db.execute_unprepared(
-                "INSERT INTO gas_payment (domain, interchain_gas_paymaster, tx_id) VALUES (1, decode('2222222222222222222222222222222222222222', 'hex'), NULL)",
-            ),
+            db.execute_unprepared(&payment_insert(
+                "2222222222222222222222222222222222222222",
+                0,
+            )),
         )
         .await
         .expect("an unrelated paymaster must not wait on the held stream head")?;
@@ -338,7 +326,10 @@ mod tests {
             .try_get::<i64>("", "stream_cursor")?;
         assert_eq!(unrelated, 1);
 
-        db.execute_unprepared("SET enable_seqscan = off").await?;
+        // Give the planner a realistic selective range without forcing index scans.
+        db.execute_unprepared(
+            "INSERT INTO gas_payment (domain, origin, destination, msg_id, payment, gas_amount, tx_id, log_index, interchain_gas_paymaster) SELECT 1, 1, 1, decode(repeat('33', 32), 'hex'), 1, 1, NULL, n, decode(repeat('33', 20), 'hex') FROM generate_series(100, 10100) AS n; ANALYZE gas_payment; ANALYZE gas_payment_stream_cursor;",
+        ).await?;
         let legacy_plan = db
             .query_all(Statement::from_string(
                 DbBackend::Postgres,
@@ -352,7 +343,8 @@ mod tests {
             .collect::<Result<Vec<_>, DbErr>>()?
             .join("\n");
         assert!(
-            legacy_plan.contains("gas_payment_domain_id_idx"),
+            (legacy_plan.contains("gas_payment_domain_id_idx")
+                || legacy_plan.contains("gas_payment_pkey")),
             "legacy replay must use the physical ID range index: {legacy_plan}"
         );
         let plan = db

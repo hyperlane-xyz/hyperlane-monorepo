@@ -23,6 +23,7 @@ tokio = { workspace = true, features = [
     "process",
     "macros",
     "parking_lot",
+    "time",
 ] }
 
 # bin-only deps

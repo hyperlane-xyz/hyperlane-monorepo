@@ -5,6 +5,7 @@ import {
   type OnModuleInit,
 } from '@nestjs/common';
 import { formatError } from '@hyperlane-xyz/utils/errors';
+import { assert } from '@hyperlane-xyz/utils/validation';
 import pg from 'pg';
 
 import { config } from '../config.js';
@@ -37,6 +38,7 @@ const EVENT_STREAM_SCHEMA_QUERY = `
       WHERE tgrelid = to_regclass('gas_payment')
         AND tgname = 'gas_payment_stream_cursor_assign'
         AND NOT tgisinternal
+        AND tgenabled IN ('O', 'A')
     ) AS cursor_trigger_exists,
     COALESCE(
       has_table_privilege(
@@ -227,13 +229,12 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
     const [schema] = await this.queryLive<EventStreamSchema>(
       EVENT_STREAM_SCHEMA_QUERY,
     );
-    if (!schema) throw new Error('Missing event stream schema result');
+    assert(schema, 'Missing event stream schema result');
     const invalid = EVENT_STREAM_SCHEMA_CHECKS.filter((name) => !schema[name]);
-    if (invalid.length) {
-      throw new Error(
-        `Event stream schema is not ready: ${invalid.join(', ')}`,
-      );
-    }
+    assert(
+      invalid.length === 0,
+      `Event stream schema is not ready: ${invalid.join(', ')}`,
+    );
   }
 
   private live(): pg.Pool {

@@ -151,6 +151,7 @@ impl ScraperDb {
             .collect_vec();
         let mut seen_fallback_payments = HashSet::new();
         let mut existing_null_payments = HashMap::new();
+        let mut existing_resolved_payments = HashSet::new();
         for message_ids in payment_msg_ids.chunks(Self::PAYMENT_STORE_CHUNK_SIZE) {
             let existing_payments = gas_payment::Entity::find()
                 .select_only()
@@ -169,6 +170,11 @@ impl ScraperDb {
                 .into_tuple::<(i64, Vec<u8>, i64, Option<i64>)>()
                 .all(&txn)
                 .await?;
+            existing_resolved_payments.extend(existing_payments.iter().filter_map(
+                |(_, msg_id, log_index, tx_id)| {
+                    tx_id.map(|tx_id| (msg_id.clone(), *log_index, tx_id))
+                },
+            ));
             for (id, msg_id, log_index, tx_id) in existing_payments {
                 let identity = (msg_id, log_index);
                 if tx_id.is_none() {
@@ -196,15 +202,22 @@ impl ScraperDb {
                     continue;
                 }
             } else if let Some(existing) = existing_null_payments.remove(&identity) {
-                // Preserve the row's durable stream identity while enriching
-                // its transaction relation. Deleting and reinserting here
-                // would leave a gap in the commit-ordered cursor stream.
-                let mut model = payment_model(domain, interchain_gas_paymaster.clone(), storable);
-                model.id = Unchanged(existing);
-                model.tx_id = Set(storable.txn_id);
-                model.update(&txn).await?;
-                reconciled_payments_count += 1;
-                continue;
+                // A legacy resolved sibling may already own this unique key.
+                // Keep its NULL sibling (and cursor) and upsert the resolved row.
+                if !storable.txn_id.is_some_and(|tx_id| {
+                    existing_resolved_payments.contains(&(identity.0.clone(), identity.1, tx_id))
+                }) {
+                    // Preserve the row's durable stream identity while enriching
+                    // its transaction relation. Deleting and reinserting here
+                    // would leave a gap in the commit-ordered cursor stream.
+                    let mut model =
+                        payment_model(domain, interchain_gas_paymaster.clone(), storable);
+                    model.id = Unchanged(existing);
+                    model.tx_id = Set(storable.txn_id);
+                    model.update(&txn).await?;
+                    reconciled_payments_count += 1;
+                    continue;
+                }
             }
 
             models.push(payment_model(

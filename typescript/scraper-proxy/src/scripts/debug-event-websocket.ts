@@ -175,7 +175,7 @@ function run({ cursors, domains, events, url }: Options): void {
       events.includes('gas_payment') &&
       !supportsGasPaymentStreamCursor(message)
     ) {
-      console.error('Server does not advertise gas payment stream cursor v1');
+      console.error('Server does not advertise gas payment stream cursor v2');
       socket.close(1000, 'Unsupported gas payment cursor protocol');
       return;
     }
