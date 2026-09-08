@@ -7,7 +7,7 @@ The default is `0`; mainnet3 agent configuration enables `1` only for
 `HYP_CHAINS_SOLANAMAINNET_MAXSUPPORTEDTRANSACTIONVERSION=1`.
 Other SVMs must be configured independently of Solana feature activation.
 
-This change only enables JSON/JSON-parsed reads. The indexer consumes account
+The Rust agent change only enables JSON/JSON-parsed reads. The indexer consumes account
 keys, instructions and execution metadata; it does not decode raw transaction
 bytes or reconstruct v1 messages. Agave's additional `transactionConfig` JSON
 field is unused; fee accounting reads `meta.fee`. Tests exercise v1 JSON through
@@ -16,7 +16,7 @@ opted-in chains, and pass mixed legacy/v0/v1 responses through dispatch and gas
 payment log metadata extraction. Generated agent configuration tests cover all
 three Solana clusters across configured roles and contexts, while asserting that
 other SVMs retain version `0`. The v1 fixtures adapt existing transactions to
-Agave's JSON schema; they are not captured v1 executions. Binary transaction
+Agave's JSON schema; they are not captured v1 executions. Rust binary transaction
 decoding and v1 sending require separate SDK updates and validation.
 
 Before rollout, validate a mixed legacy/v0/v1 block and a v1 dispatch/gas payment
@@ -53,7 +53,9 @@ V1 sending sets compute and loaded-account budgets explicitly. Existing SDK
 adapter priority-price instructions are converted to total lamport header
 fees with upward rounding. Address lookup tables are rejected for v1; legacy
 and v0 transactions keep their existing formats. Offline/Squads serialization
-and fork replay remain v0/legacy-only and reject explicit v1 input.
+and fork replay remain v0/legacy-only and reject explicit v1 input. Offline exports
+also reject `priorityFeeMicroLamports`; include a `SetComputeUnitPrice` instruction
+when configuring their priority fee.
 
 For local validation, start `solana-test-validator` from Agave 4.2+ on a free
 port, then run:

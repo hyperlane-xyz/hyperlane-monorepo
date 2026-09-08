@@ -84,6 +84,10 @@ export async function buildPrintableTransaction(
     transaction.version !== 1,
     'Offline/Squads serialization currently supports v0 only',
   );
+  assert(
+    transaction.priorityFeeMicroLamports === undefined,
+    'Offline/Squads serialization requires priority fees as SetComputeUnitPrice instructions',
+  );
   const resolvedAlts = await resolveAddressLookupTables(
     rpc,
     transaction.addressLookupTables,

@@ -26,6 +26,7 @@ import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 
 import { SvmSigner } from '../clients/signer.js';
+import { COMPUTE_BUDGET_PROGRAM_ID } from '../constants.js';
 import type { SvmRpc, SvmTransaction } from '../types.js';
 
 // ---------------------------------------------------------------------------
@@ -930,6 +931,67 @@ describe('SvmSigner', () => {
     const decoded = messageDecoder.decode(bytes);
     return decoded.staticAccounts[0];
   }
+
+  describe('transactionToPrintableJson — supported transaction settings', () => {
+    it('rejects an explicit priority fee instead of silently losing it', async () => {
+      const signer = await createTestSigner(createMockRpc());
+      await expect(
+        signer.transactionToPrintableJson({
+          instructions: [],
+          priorityFeeMicroLamports: 1,
+        }),
+      ).to.be.rejectedWith('requires priority fees as SetComputeUnitPrice');
+    });
+
+    it('preserves an embedded priority-price instruction in offline exports', async () => {
+      const signer = await createTestSigner(createMockRpc());
+      const data = new Uint8Array([3, 1, 0, 0, 0, 0, 0, 0, 0]);
+      const printable = await signer.transactionToPrintableJson({
+        instructions: [{ programAddress: COMPUTE_BUDGET_PROGRAM_ID, data }],
+      });
+      const message = decompileTransactionMessage(
+        getCompiledTransactionMessageDecoder().decode(
+          getBase58Encoder().encode(printable.message_base58),
+        ),
+      );
+      expect(message.instructions).to.have.length(1);
+      expect(message.instructions[0]?.programAddress).to.equal(
+        COMPUTE_BUDGET_PROGRAM_ID,
+      );
+      expect(message.instructions[0]?.data).to.deep.equal(data);
+    });
+
+    it('rejects explicit v1 and a chain default of v1', async () => {
+      const signer = await createTestSigner(createMockRpc());
+      await expect(
+        signer.transactionToPrintableJson({ instructions: [], version: 1 }),
+      ).to.be.rejectedWith('supports v0 only');
+      const v1Signer = await createTestSigner(createMockRpc(), {
+        ...TEST_CHAIN_METADATA,
+        maxSupportedTransactionVersion: 1,
+        sealevelTransactionVersion: 1,
+      });
+      await expect(
+        v1Signer.transactionToPrintableJson({ instructions: [] }),
+      ).to.be.rejectedWith('supports v0 only');
+    });
+
+    it('allows an explicit v0 override of a v1 chain default', async () => {
+      const signer = await createTestSigner(createMockRpc(), {
+        ...TEST_CHAIN_METADATA,
+        maxSupportedTransactionVersion: 1,
+        sealevelTransactionVersion: 1,
+      });
+      const printable = await signer.transactionToPrintableJson({
+        instructions: [],
+        version: 0,
+      });
+      const message = getCompiledTransactionMessageDecoder().decode(
+        getBase58Encoder().encode(printable.message_base58),
+      );
+      expect(message.version).to.equal(0);
+    });
+  });
 
   describe('transactionToPrintableJson — fee payer derivation', () => {
     it('uses explicit feePayer instead of local signer', async () => {
