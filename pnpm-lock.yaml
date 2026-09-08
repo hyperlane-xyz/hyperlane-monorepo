@@ -2681,14 +2681,14 @@ importers:
         specifier: ^1.7.1
         version: 1.8.0
       '@solana-program/address-lookup-table':
-        specifier: ^0.11.0
-        version: 0.11.0(@solana/kit@8.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))
+        specifier: ^0.14.1
+        version: 0.14.1(@solana/kit@8.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))
       '@solana-program/loader-v3':
-        specifier: ^0.3.0
-        version: 0.3.0(@solana/kit@8.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))
+        specifier: ^0.6.1
+        version: 0.6.1(@solana/kit@8.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))
       '@solana-program/system':
-        specifier: ^0.12.0
-        version: 0.12.2(@solana/kit@8.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))
+        specifier: ^0.14.1
+        version: 0.14.1(@solana/kit@8.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))
       '@solana/errors':
         specifier: ^8.2.0
         version: 8.2.0(@typescript/typescript6@6.0.2)
@@ -7930,25 +7930,25 @@ packages:
   '@solana-mobile/wallet-standard-mobile@0.6.0':
     resolution: {integrity: sha512-abytKDEpjo2kRm4y5IChDrhqDUpPznvQJEw4IgK0GjLjC39R0XPUGC5Q0qLWM2pmw/DAQP+63neRiJFG5r7NsQ==}
 
-  '@solana-program/address-lookup-table@0.11.0':
-    resolution: {integrity: sha512-loC6VTEhmhYSq2ElZrv+V9uHp/Te6A7rllLIArk9c3A5+5V7sRhVsxZvsPGcv/WMXLgqmXR+Vl7WF7QSV3tXNQ==}
+  '@solana-program/address-lookup-table@0.14.1':
+    resolution: {integrity: sha512-bYhSDq3lKB/kOIyx5jd91DwyDZH3GeBTpZaIO2YQC0ivFepPK4TWNwqFvdRfZ5wm5/70sp9Fs3lQeewUqVhXHA==}
     peerDependencies:
-      '@solana/kit': ^6.0
+      '@solana/kit': ^8.0.0
 
-  '@solana-program/loader-v3@0.3.0':
-    resolution: {integrity: sha512-xEMQ+JOTKCInROozoTmHJk+atFxYSuLQ+KevKxpib+2uZzXV/Z58LqF9nYLKQpZMi8sk06CUeSsa9N0Hdiha1g==}
+  '@solana-program/loader-v3@0.6.1':
+    resolution: {integrity: sha512-UdRqSVllXnMcVjybHA0/ZwcqgvijVuGqcsAxOjusveFM5HEFYxrgt3D01g/1rtsIX24IirV1y5NkfitI2I95Uw==}
     peerDependencies:
-      '@solana/kit': ^6.0.0
+      '@solana/kit': ^8.0.0
 
   '@solana-program/system@0.10.0':
     resolution: {integrity: sha512-Go+LOEZmqmNlfr+Gjy5ZWAdY5HbYzk2RBewD9QinEU/bBSzpFfzqDRT55JjFRBGJUvMgf3C2vfXEGT4i8DSI4g==}
     peerDependencies:
       '@solana/kit': ^5.0
 
-  '@solana-program/system@0.12.2':
-    resolution: {integrity: sha512-MaBeOxlvTruQhA7UYkOb3hVTEHPPagOtd+PvTm6a8rGgvEAP0kD4BbC37NceOaR4ABNqdaCmD5OMVRKgrE6KAg==}
+  '@solana-program/system@0.14.1':
+    resolution: {integrity: sha512-K6ZiIrAKoJAfcwfUdsoFvfSAxeRJaRrV7BPFTJvUVRS4m3zszN+nLcdaNMMe2F1/zTriZqC+xh+Kgw6ziGUqpQ==}
     peerDependencies:
-      '@solana/kit': ^6.4.0
+      '@solana/kit': ^8.0.0
 
   '@solana-program/token@0.9.0':
     resolution: {integrity: sha512-vnZxndd4ED4Fc56sw93cWZ2djEeeOFxtaPS8SPf5+a+JZjKA/EnKqzbE1y04FuMhIVrLERQ8uR8H2h72eZzlsA==}
@@ -25236,11 +25236,11 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@solana-program/address-lookup-table@0.11.0(@solana/kit@8.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))':
+  '@solana-program/address-lookup-table@0.14.1(@solana/kit@8.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))':
     dependencies:
       '@solana/kit': 8.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6)
 
-  '@solana-program/loader-v3@0.3.0(@solana/kit@8.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))':
+  '@solana-program/loader-v3@0.6.1(@solana/kit@8.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))':
     dependencies:
       '@solana/kit': 8.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6)
 
@@ -25248,7 +25248,7 @@ snapshots:
     dependencies:
       '@solana/kit': 5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@5.0.10)
 
-  '@solana-program/system@0.12.2(@solana/kit@8.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))':
+  '@solana-program/system@0.14.1(@solana/kit@8.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))':
     dependencies:
       '@solana/kit': 8.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6)
 

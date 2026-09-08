@@ -1,4 +1,5 @@
 ---
+"@hyperlane-xyz/cli": patch
 "@hyperlane-xyz/helloworld": patch
 "@hyperlane-xyz/rebalancer": patch
 "@hyperlane-xyz/sdk": patch
