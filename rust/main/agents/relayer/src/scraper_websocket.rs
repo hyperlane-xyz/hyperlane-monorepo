@@ -2867,18 +2867,20 @@ impl ScraperWebSocketMonitor {
     }
 
     fn deactivate_authority(&self) {
-        if self.authority_active.swap(false, Ordering::AcqRel) {
-            info!("Restoring direct RPC indexing fallback");
-        }
-        for source in self.sources.values() {
-            self.authority
-                .with_label_values(&[source.chain.as_str()])
-                .set(0);
-            self.fresh
-                .with_label_values(&[source.chain.as_str()])
-                .set(0);
-        }
+        // Serialize the active flag and gauges with command publication. RPC must
+        // not resume between clearing the flag and a concurrent activation.
         self.authority_sender.send_if_modified(|current| {
+            if self.authority_active.swap(false, Ordering::AcqRel) {
+                info!("Restoring direct RPC indexing fallback");
+            }
+            for source in self.sources.values() {
+                self.authority
+                    .with_label_values(&[source.chain.as_str()])
+                    .set(0);
+                self.fresh
+                    .with_label_values(&[source.chain.as_str()])
+                    .set(0);
+            }
             if current.desired {
                 current.desired = false;
                 true
@@ -2952,23 +2954,25 @@ impl ScraperWebSocketMonitor {
             self.deactivate_authority();
             return;
         }
-        if self
-            .authority_active
-            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-            .is_ok()
-        {
-            // The handoff may have been revoked between the readiness check and activation.
-            if *self.authority_sender.borrow() != command {
-                self.deactivate_authority();
-                return;
+        self.authority_sender.send_if_modified(|current| {
+            // Use the same watch write lock as revocation so neither the flag nor
+            // its gauges can be activated after this command has been revoked.
+            if *current == command
+                && current.desired
+                && self
+                    .authority_active
+                    .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                    .is_ok()
+            {
+                for source in self.sources.values() {
+                    self.authority
+                        .with_label_values(&[source.chain.as_str()])
+                        .set(1);
+                }
+                info!("Scraper-proxy indexing is authoritative; pausing direct RPC indexing");
             }
-            for source in self.sources.values() {
-                self.authority
-                    .with_label_values(&[source.chain.as_str()])
-                    .set(1);
-            }
-            info!("Scraper-proxy indexing is authoritative; pausing direct RPC indexing");
-        }
+            false // Activation does not change the already acknowledged command.
+        });
     }
 
     fn base_authority_ready(&self) -> bool {
@@ -3881,6 +3885,61 @@ mod tests {
         };
         assert!(command.desired);
         assert!(monitor.authority_active.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn authority_revocation_serializes_flag_and_gauges_with_command() {
+        let fixture = fixture();
+        let metrics = CoreMetrics::new("scraper-authority-revocation-test", 9090, Registry::new())
+            .expect("create test metrics");
+        let monitor = ScraperWebSocketMonitor::new_with_authority(
+            Url::parse("ws://localhost:1").expect("test URL"),
+            fixture.sources.into_values().collect(),
+            &metrics,
+            true,
+        )
+        .expect("create authority monitor");
+        monitor
+            .authority_sender
+            .send_modify(|command| command.desired = true);
+        monitor.authority_active.store(true, Ordering::Release);
+        let authority = monitor.authority.with_label_values(&["test"]);
+        let fresh = monitor.fresh.with_label_values(&["test"]);
+        authority.set(1);
+        fresh.set(1);
+
+        // Pin the command while another thread attempts revocation. Previously
+        // revocation cleared the flag/gauges before obtaining this lock, allowing
+        // activation to restore them under the still-current pause command.
+        let receiver = monitor.authority_sender.subscribe();
+        let command = receiver.borrow();
+        std::thread::scope(|threads| {
+            let (started_tx, started_rx) = std::sync::mpsc::channel();
+            let (done_tx, done_rx) = std::sync::mpsc::channel();
+            let monitor = &monitor;
+            threads.spawn(move || {
+                started_tx.send(()).expect("signal revocation start");
+                monitor.deactivate_authority();
+                done_tx.send(()).expect("signal revocation completion");
+            });
+            started_rx.recv().expect("revocation thread started");
+            assert!(done_rx.recv_timeout(Duration::from_millis(100)).is_err());
+            let remained_active = monitor.authority_active.load(Ordering::Acquire);
+            let authority_before_unlock = authority.get();
+            let fresh_before_unlock = fresh.get();
+            // Release before asserting so a regression cannot deadlock thread join.
+            drop(command);
+            done_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("revocation completed");
+            assert!(remained_active);
+            assert_eq!(authority_before_unlock, 1);
+            assert_eq!(fresh_before_unlock, 1);
+        });
+        assert!(!receiver.borrow().desired);
+        assert!(!monitor.authority_active.load(Ordering::Acquire));
+        assert_eq!(authority.get(), 0);
+        assert_eq!(fresh.get(), 0);
     }
 
     #[tokio::test]
