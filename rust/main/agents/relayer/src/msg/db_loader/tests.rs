@@ -1367,6 +1367,7 @@ async fn processed_legacy_history_does_not_rescan_every_destination() {
         for destination_id in 2..=DESTINATION_COUNT {
             let (sender, receiver) = mpsc::channel::<QueueOperationBatch>(1);
             loader.send_channels.insert(destination_id, sender);
+            loader.metrics.bind_destinations(&[destination_id]);
             loader
                 .destination_iterators
                 .push(DestinationIndexIterator::new(
@@ -1662,6 +1663,7 @@ async fn saturated_destination_does_not_block_legacy_migration_for_another_desti
         loader
             .send_channels
             .insert(destination_a.id(), sender_a.clone());
+        loader.metrics.bind_destinations(&[destination_a.id()]);
         loader.destination_iterators.insert(
             0,
             DestinationIndexIterator::new(destination_a.id(), Some(2)),
