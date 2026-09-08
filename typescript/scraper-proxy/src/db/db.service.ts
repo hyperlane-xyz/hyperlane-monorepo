@@ -5,6 +5,7 @@ import {
   type OnModuleInit,
 } from '@nestjs/common';
 import { formatError } from '@hyperlane-xyz/utils/errors';
+import { assert } from '@hyperlane-xyz/utils/validation';
 import pg from 'pg';
 
 import { config } from '../config.js';
@@ -21,6 +22,41 @@ const MIN_POOL_CLIENTS = 5;
 const MAX_POOL_CLIENTS = 10;
 const STATS_INTERVAL_MS = 60_000;
 const IDLE_TIMEOUT_MS = 300_000;
+const EVENT_STREAM_SCHEMA_QUERY = `
+  SELECT
+    to_regclass('gas_payment_stream_head') IS NOT NULL AS head_exists,
+    to_regclass('gas_payment_stream_cursor') IS NOT NULL AS cursor_exists,
+    to_regclass('gas_payment_stream_cursor_range_key') IS NOT NULL AS range_index_exists,
+    EXISTS (
+      SELECT 1 FROM pg_attribute
+      WHERE attrelid = to_regclass('gas_payment_stream_head')
+        AND attname = 'legacy_max_id'
+        AND NOT attisdropped
+    ) AS legacy_boundary_exists,
+    EXISTS (
+      SELECT 1 FROM pg_trigger
+      WHERE tgrelid = to_regclass('gas_payment')
+        AND tgname = 'gas_payment_stream_cursor_assign'
+        AND NOT tgisinternal
+        AND tgenabled IN ('O', 'A')
+    ) AS cursor_trigger_exists,
+    COALESCE(
+      has_table_privilege(
+        current_user,
+        to_regclass('gas_payment_stream_head'),
+        'SELECT'
+      ),
+      false
+    ) AS head_readable,
+    COALESCE(
+      has_table_privilege(
+        current_user,
+        to_regclass('gas_payment_stream_cursor'),
+        'SELECT'
+      ),
+      false
+    ) AS cursor_readable
+`;
 
 [1114, 1186].forEach((oid) =>
   pg.types.setTypeParser(oid, (value: string) => value),
@@ -35,6 +71,25 @@ type Stats = {
   totalMs: number;
 };
 
+type EventStreamSchema = {
+  cursor_exists: boolean;
+  cursor_readable: boolean;
+  cursor_trigger_exists: boolean;
+  head_exists: boolean;
+  head_readable: boolean;
+  legacy_boundary_exists: boolean;
+  range_index_exists: boolean;
+};
+const EVENT_STREAM_SCHEMA_CHECKS: readonly (keyof EventStreamSchema)[] = [
+  'cursor_exists',
+  'cursor_readable',
+  'cursor_trigger_exists',
+  'head_exists',
+  'head_readable',
+  'legacy_boundary_exists',
+  'range_index_exists',
+];
+
 @Injectable()
 export class DbService implements OnModuleDestroy, OnModuleInit {
   private readonly logger = new Logger(DbService.name);
@@ -46,6 +101,7 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
   private statsTimer?: NodeJS.Timeout;
 
   async onModuleInit(): Promise<void> {
+    await this.validateEventStreamSchema();
     if (config.DATABASE_READ_REPLICA_URL) {
       this.logger.log(
         'GraphQL db role=read-replica; connections open lazily so replica health cannot gate websocket startup',
@@ -167,6 +223,18 @@ export class DbService implements OnModuleDestroy, OnModuleInit {
       replicaUrl ? config.DATABASE_QUERY_TIMEOUT_MS : undefined,
     );
     return this.mainPool;
+  }
+
+  private async validateEventStreamSchema(): Promise<void> {
+    const [schema] = await this.queryLive<EventStreamSchema>(
+      EVENT_STREAM_SCHEMA_QUERY,
+    );
+    assert(schema, 'Missing event stream schema result');
+    const invalid = EVENT_STREAM_SCHEMA_CHECKS.filter((name) => !schema[name]);
+    assert(
+      invalid.length === 0,
+      `Event stream schema is not ready: ${invalid.join(', ')}`,
+    );
   }
 
   private live(): pg.Pool {

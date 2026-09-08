@@ -90,15 +90,15 @@ void describe('event websocket protocol', () => {
     );
   });
 
-  void it('rejects row ID cursors and cursors on unsequenced streams', () => {
+  void it('rejects stream-level row IDs and cursors on unsupported streams', () => {
     for (const stream of [
       { eventType: 'dispatch', afterId: '1' },
       {
-        eventType: 'gas_payment',
+        eventType: 'delivery',
         cursors: [
           {
             address: '0x0000000000000000000000000000000000000001',
-            afterSequence: '1',
+            afterId: '1',
             domain: 1,
           },
         ],
@@ -110,6 +110,137 @@ void describe('event websocket protocol', () => {
         ),
       );
     }
+  });
+
+  void it('parses negotiated per-domain gas payment stream cursors', () => {
+    const message = parseClientMessage(
+      JSON.stringify({
+        streams: [
+          {
+            cursors: [
+              {
+                address: '0x0000000000000000000000000000000000000001',
+                afterStreamCursor: '9007199254740993',
+                domain: 1,
+              },
+            ],
+            eventType: 'gas_payment',
+            streamCursorVersion: 2,
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+
+    assert.equal(message.type, 'subscribe');
+    if (message.type !== 'subscribe') return;
+    const [cursor] = message.streams[0]?.cursors ?? [];
+    assert.equal(cursor?.kind, 'gas_payment');
+    assert.equal(
+      cursor?.kind === 'gas_payment' && cursor.afterStreamCursor,
+      9_007_199_254_740_993n,
+    );
+    assert.deepEqual(message.streams[0]?.domains, new Set([1]));
+    assert.equal(message.streams[0]?.streamCursorVersion, 2);
+  });
+
+  void it('accepts legacy non-cursored gas payment subscriptions', () => {
+    const message = parseClientMessage(
+      JSON.stringify({
+        streams: [{ domains: [1], eventType: 'gas_payment' }],
+        type: 'subscribe',
+      }),
+    );
+
+    assert.equal(message.type, 'subscribe');
+    if (message.type !== 'subscribe') return;
+    assert.deepEqual(message.streams[0]?.domains, new Set([1]));
+    assert.equal(message.streams[0]?.streamCursorVersion, undefined);
+    assert.equal(message.streams[0]?.cursors, undefined);
+  });
+
+  void it('rejects physical row ID and unversioned gas cursors', () => {
+    for (const stream of [
+      {
+        cursors: [
+          {
+            address: '0x0000000000000000000000000000000000000001',
+            afterId: '1',
+            domain: 1,
+          },
+        ],
+        eventType: 'gas_payment',
+        streamCursorVersion: 2,
+      },
+      {
+        cursors: [
+          {
+            address: '0x0000000000000000000000000000000000000001',
+            afterStreamCursor: '1',
+            domain: 1,
+          },
+        ],
+        eventType: 'gas_payment',
+      },
+    ]) {
+      assert.throws(() =>
+        parseClientMessage(
+          JSON.stringify({ streams: [stream], type: 'subscribe' }),
+        ),
+      );
+    }
+  });
+
+  void it('rejects native sequence fields on gas payment cursors', () => {
+    for (const field of [{ afterSequence: '1' }, { allowReplay: true }]) {
+      assert.throws(
+        () =>
+          parseClientMessage(
+            JSON.stringify({
+              streams: [
+                {
+                  cursors: [
+                    {
+                      address: '0x0000000000000000000000000000000000000001',
+                      domain: 1,
+                      ...field,
+                    },
+                  ],
+                  eventType: 'gas_payment',
+                  streamCursorVersion: 2,
+                },
+              ],
+              type: 'subscribe',
+            }),
+          ),
+        /native sequence fields/,
+      );
+    }
+  });
+
+  void it('rejects boundary-less gas payment cursor v1', () => {
+    assert.throws(
+      () =>
+        parseClientMessage(
+          JSON.stringify({
+            streams: [
+              {
+                cursors: [
+                  {
+                    address: '0x0000000000000000000000000000000000000001',
+                    afterStreamCursor: '1',
+                    domain: 1,
+                  },
+                ],
+                eventType: 'gas_payment',
+                streamCursorVersion: 1,
+              },
+            ],
+            type: 'subscribe',
+          }),
+        ),
+      /requires streamCursorVersion 2/,
+    );
   });
 
   void it('requires explicit domains to match cursor domains', () => {

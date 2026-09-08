@@ -1,15 +1,15 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use eyre::{ensure, Result};
 use itertools::Itertools;
 use sea_orm::{
-    prelude::*, ActiveValue::*, ConnectionTrait, Insert, QuerySelect, QueryTrait, Statement,
-    TransactionTrait,
+    prelude::*, ActiveModelTrait, ActiveValue::*, ConnectionTrait, Insert, QuerySelect, QueryTrait,
+    Statement, TransactionTrait,
 };
 use tracing::{debug, instrument};
 
 use hyperlane_core::{address_to_bytes, h256_to_bytes, InterchainGasPayment, LogMeta, H256};
-use migration::{Expr, OnConflict};
+use migration::OnConflict;
 
 use crate::conversions::{decimal_to_u256, u256_to_decimal};
 use crate::date_time;
@@ -150,11 +150,13 @@ impl ScraperDb {
             .unique()
             .collect_vec();
         let mut seen_fallback_payments = HashSet::new();
-        let mut existing_null_payments = HashSet::new();
+        let mut existing_null_payments = HashMap::new();
+        let mut existing_resolved_payments = HashSet::new();
         for message_ids in payment_msg_ids.chunks(Self::PAYMENT_STORE_CHUNK_SIZE) {
             let existing_payments = gas_payment::Entity::find()
                 .select_only()
                 .columns([
+                    gas_payment::Column::Id,
                     gas_payment::Column::MsgId,
                     gas_payment::Column::LogIndex,
                     gas_payment::Column::TxId,
@@ -165,13 +167,18 @@ impl ScraperDb {
                         .eq(interchain_gas_paymaster.clone()),
                 )
                 .filter(gas_payment::Column::MsgId.is_in(message_ids.iter().cloned()))
-                .into_tuple::<(Vec<u8>, i64, Option<i64>)>()
+                .into_tuple::<(i64, Vec<u8>, i64, Option<i64>)>()
                 .all(&txn)
                 .await?;
-            for (msg_id, log_index, tx_id) in existing_payments {
+            existing_resolved_payments.extend(existing_payments.iter().filter_map(
+                |(_, msg_id, log_index, tx_id)| {
+                    tx_id.map(|tx_id| (msg_id.clone(), *log_index, tx_id))
+                },
+            ));
+            for (id, msg_id, log_index, tx_id) in existing_payments {
                 let identity = (msg_id, log_index);
                 if tx_id.is_none() {
-                    existing_null_payments.insert(identity.clone());
+                    existing_null_payments.insert(identity.clone(), id);
                 }
                 seen_fallback_payments.insert(identity);
             }
@@ -183,7 +190,7 @@ impl ScraperDb {
             .collect();
 
         let mut models = Vec::with_capacity(payments.len());
-        let mut fallback_replacements = Vec::new();
+        let mut reconciled_payments_count = 0_u64;
         for storable in payments {
             let identity = payment_identity(storable);
             if storable.txn_id.is_none() {
@@ -194,10 +201,23 @@ impl ScraperDb {
                 {
                     continue;
                 }
-            } else if existing_null_payments.remove(&identity) {
-                // Replace an earlier fallback row instead of keeping both
-                // variants and double-counting it.
-                fallback_replacements.push(identity);
+            } else if let Some(existing) = existing_null_payments.remove(&identity) {
+                // A legacy resolved sibling may already own this unique key.
+                // Keep its NULL sibling (and cursor) and upsert the resolved row.
+                if !storable.txn_id.is_some_and(|tx_id| {
+                    existing_resolved_payments.contains(&(identity.0.clone(), identity.1, tx_id))
+                }) {
+                    // Preserve the row's durable stream identity while enriching
+                    // its transaction relation. Deleting and reinserting here
+                    // would leave a gap in the commit-ordered cursor stream.
+                    let mut model =
+                        payment_model(domain, interchain_gas_paymaster.clone(), storable);
+                    model.id = Unchanged(existing);
+                    model.tx_id = Set(storable.txn_id);
+                    model.update(&txn).await?;
+                    reconciled_payments_count = reconciled_payments_count.saturating_add(1);
+                    continue;
+                }
             }
 
             models.push(payment_model(
@@ -209,7 +229,7 @@ impl ScraperDb {
 
         debug!(?models, "Writing gas payments to database");
 
-        let new_payments_count = if models.is_empty() {
+        let inserted_payments_count = if models.is_empty() {
             debug!("Wrote zero new gas payments to database");
             0
         } else {
@@ -222,32 +242,6 @@ impl ScraperDb {
                 .await?
                 .flatten()
                 .unwrap_or(0);
-
-            let mut fallback_replacements = fallback_replacements.into_iter();
-            while !fallback_replacements.as_slice().is_empty() {
-                // Two parameters per identity plus domain/IGP scope. Keep deletion
-                // inside the same transaction as the replacement inserts.
-                let identities: Vec<_> = fallback_replacements
-                    .by_ref()
-                    .take(Self::PAYMENT_STORE_CHUNK_SIZE)
-                    .collect();
-                gas_payment::Entity::delete_many()
-                    .filter(gas_payment::Column::Domain.eq(domain))
-                    .filter(
-                        gas_payment::Column::InterchainGasPaymaster
-                            .eq(interchain_gas_paymaster.clone()),
-                    )
-                    .filter(gas_payment::Column::TxId.is_null())
-                    .filter(
-                        Expr::tuple([
-                            Expr::col(gas_payment::Column::MsgId).into(),
-                            Expr::col(gas_payment::Column::LogIndex).into(),
-                        ])
-                        .in_tuples(identities),
-                    )
-                    .exec(&txn)
-                    .await?;
-            }
 
             let mut models = models.into_iter();
             while !models.as_slice().is_empty() {
@@ -284,13 +278,15 @@ impl ScraperDb {
                 .count(&txn)
                 .await?
         };
+        let stored_payments_count =
+            inserted_payments_count.saturating_add(reconciled_payments_count);
         txn.commit().await?;
 
         debug!(
-            payments = new_payments_count,
+            payments = stored_payments_count,
             "Wrote new gas payments to database"
         );
-        Ok(new_payments_count)
+        Ok(stored_payments_count)
     }
 }
 
