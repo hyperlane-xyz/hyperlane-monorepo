@@ -6,6 +6,8 @@ use sea_orm::{prelude::*, ActiveValue::*, Insert, Order, QueryOrder, QuerySelect
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
+use hyperlane_core::BackwardCursorProgress;
+
 use crate::{date_time, db::ScraperDb};
 
 use super::generated::cursor;
@@ -155,6 +157,101 @@ impl ScraperDb {
         default_height: u64,
     ) -> Result<BlockCursor> {
         BlockCursor::new(self.clone_connection(), domain, event_type, default_height).await
+    }
+
+    pub async fn retrieve_backward_cursors(
+        &self,
+        domain: u32,
+        event_type: &str,
+    ) -> Result<Vec<BackwardCursorProgress>> {
+        let event_type_prefix = format!("backward_{event_type}_");
+        cursor::Entity::find()
+            .filter(cursor::Column::Domain.eq(domain))
+            .filter(cursor::Column::EventType.starts_with(&event_type_prefix))
+            .all(&self.0)
+            .await?
+            .into_iter()
+            .map(|model| {
+                let sequence = model
+                    .event_type
+                    .strip_prefix(&event_type_prefix)
+                    .ok_or_else(|| eyre::eyre!("Invalid backwards cursor event type"))?
+                    .parse()?;
+                Ok(BackwardCursorProgress {
+                    sequence,
+                    block: model.height.try_into()?,
+                })
+            })
+            .collect()
+    }
+
+    pub async fn store_backward_cursor(
+        &self,
+        domain: u32,
+        event_type: &str,
+        progress: BackwardCursorProgress,
+    ) -> Result<()> {
+        let model = cursor::ActiveModel {
+            id: NotSet,
+            domain: Set(domain as i32),
+            time_created: Set(date_time::now()),
+            height: Set(progress.block.into()),
+            event_type: Set(format!("backward_{event_type}_{}", progress.sequence)),
+        };
+        Insert::one(model)
+            .on_conflict(
+                OnConflict::columns([cursor::Column::Domain, cursor::Column::EventType])
+                    .update_column(cursor::Column::TimeCreated)
+                    .value(
+                        cursor::Column::Height,
+                        Func::least([
+                            Expr::col((Alias::new("cursor"), cursor::Column::Height)).into(),
+                            Expr::col((Alias::new("excluded"), cursor::Column::Height)).into(),
+                        ]),
+                    )
+                    .to_owned(),
+            )
+            .exec(&self.0)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn reset_backward_cursor(
+        &self,
+        domain: u32,
+        event_type: &str,
+        progress: BackwardCursorProgress,
+    ) -> Result<()> {
+        let model = cursor::ActiveModel {
+            id: NotSet,
+            domain: Set(domain as i32),
+            time_created: Set(date_time::now()),
+            height: Set(progress.block.into()),
+            event_type: Set(format!("backward_{event_type}_{}", progress.sequence)),
+        };
+        Insert::one(model)
+            .on_conflict(
+                OnConflict::columns([cursor::Column::Domain, cursor::Column::EventType])
+                    .update_columns([cursor::Column::Height, cursor::Column::TimeCreated])
+                    .to_owned(),
+            )
+            .exec(&self.0)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn delete_backward_cursor(
+        &self,
+        domain: u32,
+        event_type: &str,
+        sequence: u32,
+    ) -> Result<()> {
+        cursor::Entity::delete_many()
+            .filter(cursor::Column::Domain.eq(domain))
+            .filter(cursor::Column::EventType.eq(format!("backward_{event_type}_{sequence}")))
+            .exec(&self.0)
+            .await?;
+        Ok(())
     }
 }
 

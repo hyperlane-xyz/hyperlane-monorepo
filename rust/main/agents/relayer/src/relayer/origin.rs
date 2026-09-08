@@ -10,9 +10,9 @@ use hyperlane_base::{
     SequencedDataContractSync, WatermarkContractSync, WatermarkLogStore,
 };
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, HyperlaneSequenceAwareIndexerStoreReader,
-    HyperlaneWatermarkedLogStore, Indexer, InterchainGasPayment, MerkleTreeInsertion,
-    ValidatorAnnounce,
+    HyperlaneBackwardCursorStore, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
+    HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, Indexer,
+    InterchainGasPayment, MerkleTreeInsertion, ValidatorAnnounce,
 };
 use tokio::sync::RwLock;
 
@@ -367,7 +367,10 @@ impl OriginFactory {
     where
         T: Indexable + Debug,
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
-        S: HyperlaneLogStore<T> + HyperlaneSequenceAwareIndexerStoreReader<T> + 'static,
+        S: HyperlaneLogStore<T>
+            + HyperlaneSequenceAwareIndexerStoreReader<T>
+            + HyperlaneBackwardCursorStore<T>
+            + 'static,
     {
         // Currently, all indexers are of the `SequenceIndexer` type
         let indexer =

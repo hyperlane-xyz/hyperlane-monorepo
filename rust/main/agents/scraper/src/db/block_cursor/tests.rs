@@ -136,3 +136,62 @@ async fn cursor_persistence_is_monotonic_scoped_and_survives_reopen_in_postgres(
     );
     Ok(())
 }
+
+#[tokio::test]
+async fn backward_cursors_are_durable_and_event_specific() -> Result<()> {
+    let postgres = Postgres::default().start().await?;
+    let port = postgres.get_host_port_ipv4(5432).await?;
+    let url = format!("postgresql://postgres:postgres@127.0.0.1:{port}/postgres");
+    let connection = Database::connect(&url).await?;
+    migration::Migrator::up(&connection, None).await?;
+
+    let db = ScraperDb::connect(&url).await?;
+    let message = BackwardCursorProgress {
+        sequence: u32::MAX,
+        block: 34,
+    };
+    let payment = BackwardCursorProgress {
+        sequence: 56,
+        block: u32::MAX,
+    };
+    db.store_backward_cursor(13375, "message", message).await?;
+    db.store_backward_cursor(13375, "gas_payment", payment)
+        .await?;
+    let updated_message = BackwardCursorProgress {
+        sequence: 12,
+        block: 34,
+    };
+    db.store_backward_cursor(13375, "message", updated_message)
+        .await?;
+    db.store_backward_cursor(13375, "message", message).await?;
+    let rewind = BackwardCursorProgress {
+        sequence: 12,
+        block: 500,
+    };
+    db.reset_backward_cursor(13375, "message", rewind).await?;
+
+    let reopened = ScraperDb::connect(&url).await?;
+    let message_cursors = reopened.retrieve_backward_cursors(13375, "message").await?;
+    assert!(message_cursors.contains(&rewind));
+    assert!(message_cursors.contains(&message));
+    assert_eq!(
+        reopened
+            .retrieve_backward_cursors(13375, "gas_payment")
+            .await?,
+        vec![payment]
+    );
+    assert_eq!(
+        reopened
+            .retrieve_backward_cursors(13375, "delivery")
+            .await?,
+        Vec::new()
+    );
+    reopened
+        .delete_backward_cursor(13375, "message", message.sequence)
+        .await?;
+    assert_eq!(
+        reopened.retrieve_backward_cursors(13375, "message").await?,
+        vec![rewind]
+    );
+    Ok(())
+}
