@@ -216,11 +216,12 @@ const AgentSealevelChainMetadataSchema = z.object({
         z.union([
           z.object({
             matchingList: MatchingListSchema,
-            addressLookupTable: z.string(),
+            addressLookupTables: z.array(z.string()).min(1),
           }),
           z.object({
             matchingList: MatchingListSchema,
-            addressLookupTables: z.array(z.string()).min(1),
+            addressLookupTable: z.string(),
+            addressLookupTables: z.never().optional(),
           }),
         ]),
       ),

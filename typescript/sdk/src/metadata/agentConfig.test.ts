@@ -364,6 +364,41 @@ describe('AgentChainMetadataSchema Sealevel process ALTs', () => {
       }).success,
     ).to.equal(false);
   });
+
+  it('prefers plural process ALT overrides when both keys are present', () => {
+    const result = AgentChainMetadataSchema.safeParse({
+      ...baseChainMetadata,
+      processAltOverrides: [
+        {
+          matchingList: [{}],
+          addressLookupTable: altA,
+          addressLookupTables: [altA, altB],
+        },
+      ],
+    });
+
+    expect(result.success).to.equal(true);
+    if (result.success) {
+      expect(result.data.processAltOverrides).to.deep.equal([
+        { matchingList: [{}], addressLookupTables: [altA, altB] },
+      ]);
+    }
+  });
+
+  it('rejects an empty plural override even when the singular key is present', () => {
+    expect(
+      AgentChainMetadataSchema.safeParse({
+        ...baseChainMetadata,
+        processAltOverrides: [
+          {
+            matchingList: [{}],
+            addressLookupTable: altA,
+            addressLookupTables: [],
+          },
+        ],
+      }).success,
+    ).to.equal(false);
+  });
 });
 
 describe('Agent config', () => {
