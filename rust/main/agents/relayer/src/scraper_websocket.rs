@@ -2666,7 +2666,6 @@ impl ScraperWebSocketMonitor {
                                         "Invalid gas payment source unexpectedly missing",
                                     )?;
                                     source.store_gas_payment_degraded()?;
-                                    self.deactivate_authority();
                                     if state.gas_payment_degraded.insert(domain) {
                                         self.set_source_caught_up(
                                             source,
@@ -2685,6 +2684,9 @@ impl ScraperWebSocketMonitor {
                                             "Relayer scraper-proxy gas payment shadow stream degraded"
                                         );
                                     }
+                                    // Invalidate readiness before revoking authority so a
+                                    // concurrent freshness result cannot reactivate it.
+                                    self.deactivate_authority();
                                 }
                             }
                         }
