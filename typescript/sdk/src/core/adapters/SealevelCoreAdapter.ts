@@ -197,6 +197,29 @@ export class SealevelCoreAdapter
    */
 
   /**
+   * Claims all lamports above the chain's current rent-exempt minimum from the
+   * outbox, including accrued protocol fees and excess rent deposits.
+   * The mailbox enforces that beneficiary matches its configured beneficiary.
+   */
+  createClaimProtocolFeesInstruction(
+    mailboxProgramId: PublicKey,
+    beneficiary: PublicKey,
+  ): TransactionInstruction {
+    return new TransactionInstruction({
+      programId: mailboxProgramId,
+      keys: [
+        {
+          pubkey: SealevelCoreAdapter.deriveMailboxOutboxPda(mailboxProgramId),
+          isSigner: false,
+          isWritable: true,
+        },
+        { pubkey: beneficiary, isSigner: false, isWritable: true },
+      ],
+      data: Buffer.from([SealevelMailboxInstructionType.CLAIM_PROTOCOL_FEES]),
+    });
+  }
+
+  /**
    * Create a SetDefaultIsm instruction
    * @param mailboxProgramId - The mailbox program ID
    * @param owner - The current owner who can set the ISM
