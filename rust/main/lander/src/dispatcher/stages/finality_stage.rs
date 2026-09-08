@@ -8,6 +8,7 @@ use std::{
 use derive_new::new;
 use eyre::{eyre, Result};
 use futures_util::{future::try_join_all, StreamExt};
+use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
 use tokio::{
     sync::{mpsc, Mutex},
     time::sleep,
@@ -276,7 +277,12 @@ impl FinalityStage {
                     .metrics
                     .observe_status_read_batch(STAGE_NAME, 1, &state.domain);
                 call_until_success_or_nonretryable_error(
-                    || state.adapter.tx_status(&tx),
+                    || {
+                        with_rpc_operation(
+                            RpcOperation::TransactionLifecycle,
+                            state.adapter.tx_status(&tx),
+                        )
+                    },
                     "Querying transaction status",
                     state,
                 )
@@ -308,7 +314,11 @@ impl FinalityStage {
                 // update tx status in db
                 update_tx_status(state, &mut tx, tx_status).await?;
                 Self::record_reverted_payloads(&mut tx, state).await?;
-                state.adapter.post_finalized().await?;
+                with_rpc_operation(
+                    RpcOperation::TransactionLifecycle,
+                    state.adapter.post_finalized(),
+                )
+                .await?;
                 state.notify_reprocess_txs_activity();
                 let tx_uuid = tx.uuid.clone();
                 info!(?tx_uuid, "Transaction is finalized");
@@ -339,7 +349,12 @@ impl FinalityStage {
         use PayloadStatus::Dropped;
 
         let reverted_payloads = call_until_success_or_nonretryable_error(
-            || state.adapter.reverted_payloads(tx),
+            || {
+                with_rpc_operation(
+                    RpcOperation::TransactionLifecycle,
+                    state.adapter.reverted_payloads(tx),
+                )
+            },
             "Checking reverted payloads",
             state,
         )

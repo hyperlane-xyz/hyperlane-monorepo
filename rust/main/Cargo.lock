@@ -6545,6 +6545,7 @@ dependencies = [
  "prometheus",
  "serde",
  "serde_json",
+ "tokio",
  "url",
 ]
 
@@ -7570,6 +7571,7 @@ dependencies = [
  "hyperlane-base",
  "hyperlane-core",
  "hyperlane-ethereum",
+ "hyperlane-metric",
  "hyperlane-radix",
  "hyperlane-sealevel",
  "hyperlane-tron",
