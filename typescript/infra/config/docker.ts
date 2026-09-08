@@ -43,13 +43,13 @@ interface MainnetDockerTags extends BaseDockerTags {
 
 export const mainnetDockerTags: MainnetDockerTags = {
   // rust agents
-  relayer: '038b3c3-20260908-184110',
-  relayerRC: '038b3c3-20260908-184110',
-  relayerFastPath: '038b3c3-20260908-184110',
-  validator: '038b3c3-20260908-184110',
-  validatorRC: '038b3c3-20260908-184110',
-  validatorFastPath: '038b3c3-20260908-184110',
-  scraper: '038b3c3-20260908-184110',
+  relayer: '97b9381-20260908-190838',
+  relayerRC: '97b9381-20260908-190838',
+  relayerFastPath: '97b9381-20260908-190838',
+  validator: '97b9381-20260908-190838',
+  validatorRC: '97b9381-20260908-190838',
+  validatorFastPath: '97b9381-20260908-190838',
+  scraper: '97b9381-20260908-190838',
   // monorepo services
   checkWarpDeploy: 'main',
   validatorMonitor: '2c47a33-20260724-134609',
@@ -63,13 +63,13 @@ export const mainnetDockerTags: MainnetDockerTags = {
 
 export const testnetDockerTags: BaseDockerTags = {
   // rust agents
-  relayer: '038b3c3-20260908-184110',
-  relayerRC: '038b3c3-20260908-184110',
-  relayerFastPath: '038b3c3-20260908-184110',
-  validator: '038b3c3-20260908-184110',
-  validatorRC: '038b3c3-20260908-184110',
-  validatorFastPath: '038b3c3-20260908-184110',
-  scraper: '038b3c3-20260908-184110',
+  relayer: '97b9381-20260908-190838',
+  relayerRC: '97b9381-20260908-190838',
+  relayerFastPath: '97b9381-20260908-190838',
+  validator: '97b9381-20260908-190838',
+  validatorRC: '97b9381-20260908-190838',
+  validatorFastPath: '97b9381-20260908-190838',
+  scraper: '97b9381-20260908-190838',
   // standalone services
   keyFunder: 'fc544bf-20260908-174702',
   scraperProxy: 'fc544bf-20260908-174702',
