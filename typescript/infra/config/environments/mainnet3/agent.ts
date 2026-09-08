@@ -40,7 +40,7 @@ import {
 } from '../../../src/config/agent/relayer.js';
 import { BaseScraperConfig } from '../../../src/config/agent/scraper.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
-import { Contexts } from '../../contexts.js';
+import { Contexts, RELEASE_CANDIDATE_INDEX_FROM } from '../../contexts.js';
 import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
 import { getDomainId, getWarpAddresses } from '../../registry.js';
 import { fallbackHedgeConfig } from '../utils.js';
@@ -863,6 +863,7 @@ const releaseCandidate: RootAgentConfig = {
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
+    index: { from: RELEASE_CANDIDATE_INDEX_FROM },
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayerRC,
