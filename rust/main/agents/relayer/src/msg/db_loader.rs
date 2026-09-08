@@ -2,7 +2,7 @@ use std::{
     cmp::max,
     collections::{BTreeSet, HashMap, HashSet},
     fmt::{Debug, Formatter},
-    sync::Arc,
+    sync::{atomic::AtomicBool, Arc},
     time::Duration,
 };
 
@@ -47,8 +47,10 @@ pub struct MessageDbLoader {
     destination_ctxs: HashMap<u32, Arc<MessageContext>>,
     metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
     db: HyperlaneRocksDB,
-    // Reconcile every startup so a rollback binary cannot leave records unindexed.
+    // Reconcile until completion is durable and the retained WAL proves that
+    // subsequent writers maintained the destination index.
     migration_iterator: Option<LegacyMessageIterator>,
+    migration_start_sequence: u64,
     destination_iterators: Vec<DestinationIndexIterator>,
     next_destination: usize,
     destination_scan_pending: bool,
@@ -231,7 +233,7 @@ struct LegacyMessageIterator {
 impl LegacyMessageIterator {
     #[instrument(skip(db), ret)]
     fn new(db: Arc<dyn HyperlaneDb>) -> Result<(Self, Option<u32>)> {
-        let high_nonce = db.retrieve_highest_seen_message_nonce()?;
+        let high_nonce = db.retrieve_highest_message_nonce()?;
         let domain = db.domain().name().to_owned();
         let high_nonce_iter = DirectionalNonceIterator::new(
             // If the high nonce is None, we start from the beginning
@@ -485,6 +487,7 @@ impl DbLoaderExt for MessageDbLoader {
 }
 
 impl MessageDbLoader {
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         db: HyperlaneRocksDB,
@@ -497,8 +500,48 @@ impl MessageDbLoader {
         metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
         max_retries: u32,
     ) -> Result<Self> {
-        let (migration_iterator, highest_seen_nonce) =
-            LegacyMessageIterator::new(Arc::new(db.clone()) as Arc<dyn HyperlaneDb>)?;
+        Self::new_with_cancellation(
+            db,
+            message_whitelist,
+            message_blacklist,
+            address_blacklist,
+            metrics,
+            send_channels,
+            destination_ctxs,
+            metric_app_contexts,
+            max_retries,
+            &AtomicBool::new(false),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new_with_cancellation(
+        db: HyperlaneRocksDB,
+        message_whitelist: Arc<MatchingList>,
+        message_blacklist: Arc<MatchingList>,
+        address_blacklist: Arc<AddressBlacklist>,
+        metrics: MessageDbLoaderMetrics,
+        send_channels: HashMap<u32, Sender<QueueOperationBatch>>,
+        destination_ctxs: HashMap<u32, Arc<MessageContext>>,
+        metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
+        max_retries: u32,
+        cancellation: &AtomicBool,
+    ) -> Result<Self> {
+        let migration_start_sequence = db.latest_sequence_number();
+        let migration_complete = {
+            let _timer = metrics
+                .scan_duration_seconds
+                .with_label_values(&[metrics.origin.as_str(), "all", "migration_validation"])
+                .start_timer();
+            db.pending_message_index_migration_complete_with_cancellation(cancellation)?
+        };
+        let (migration_iterator, highest_seen_nonce) = if migration_complete {
+            (None, db.retrieve_highest_seen_message_nonce()?)
+        } else {
+            let (iterator, highest_seen_nonce) =
+                LegacyMessageIterator::new(Arc::new(db.clone()) as Arc<dyn HyperlaneDb>)?;
+            (Some(iterator), highest_seen_nonce)
+        };
         let mut destinations: Vec<_> = send_channels.keys().copied().collect();
         destinations.sort_unstable();
         let destination_iterators = destinations
@@ -513,7 +556,8 @@ impl MessageDbLoader {
             send_channels,
             destination_ctxs,
             metric_app_contexts,
-            migration_iterator: Some(migration_iterator),
+            migration_iterator,
+            migration_start_sequence,
             db,
             destination_iterators,
             next_destination: 0,
@@ -695,6 +739,8 @@ impl MessageDbLoader {
             }
         }
         if iterator.migration_complete() {
+            self.db
+                .mark_pending_message_index_migration_complete(self.migration_start_sequence)?;
             self.migration_iterator = None;
         }
         Ok(())

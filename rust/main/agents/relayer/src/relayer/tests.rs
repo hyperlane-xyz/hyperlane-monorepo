@@ -1,6 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use std::time::Duration;
 
 use ethers::utils::hex;
@@ -26,7 +29,32 @@ use lander::DispatcherMetrics;
 
 use crate::settings::{matching_list::MatchingList, RelayerSettings};
 
-use super::Relayer;
+use super::{spawn_cancellable_blocking, Relayer};
+
+#[tokio::test]
+async fn cancelled_blocking_task_is_signalled_to_stop() {
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let stopped = Arc::new(AtomicBool::new(false));
+    let worker_stopped = stopped.clone();
+    let task = tokio::spawn(spawn_cancellable_blocking(move |cancellation| {
+        started_tx.send(()).expect("signal worker started");
+        while !cancellation.load(Ordering::Relaxed) {
+            std::thread::yield_now();
+        }
+        worker_stopped.store(true, Ordering::Relaxed);
+    }));
+
+    started_rx.await.expect("worker started");
+    task.abort();
+    assert!(task.await.expect_err("task is cancelled").is_cancelled());
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while !stopped.load(Ordering::Relaxed) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("blocking task observed cancellation");
+}
 
 fn generate_test_core_contract_addresses() -> CoreContractAddresses {
     CoreContractAddresses {

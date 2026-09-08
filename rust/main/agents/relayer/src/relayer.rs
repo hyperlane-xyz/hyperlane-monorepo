@@ -2,7 +2,10 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Formatter},
     hash::Hash,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::{Duration, Instant},
 };
 
@@ -75,6 +78,45 @@ const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 const MESSAGE_DB_LOADER_INIT_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 const ADVANCED_LOG_META: bool = false;
+
+struct CancelBlockingTaskOnDrop {
+    cancellation: Arc<AtomicBool>,
+    armed: bool,
+}
+
+impl CancelBlockingTaskOnDrop {
+    fn new(cancellation: Arc<AtomicBool>) -> Self {
+        Self {
+            cancellation,
+            armed: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for CancelBlockingTaskOnDrop {
+    fn drop(&mut self) {
+        if self.armed {
+            self.cancellation.store(true, Ordering::Relaxed);
+        }
+    }
+}
+
+async fn spawn_cancellable_blocking<F, T>(work: F) -> Result<T, tokio::task::JoinError>
+where
+    F: FnOnce(&AtomicBool) -> T + Send + 'static,
+    T: Send + 'static,
+{
+    let cancellation = Arc::new(AtomicBool::new(false));
+    let worker_cancellation = cancellation.clone();
+    let mut guard = CancelBlockingTaskOnDrop::new(cancellation);
+    let result = tokio::task::spawn_blocking(move || work(&worker_cancellation)).await;
+    guard.disarm();
+    result
+}
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 struct ContextKey {
@@ -957,25 +999,48 @@ impl Relayer {
             async move {
                 let mut init_failed = false;
                 let mut message_db_loader = loop {
-                    match MessageDbLoader::new(
-                        database.clone(),
-                        message_whitelist.clone(),
-                        message_blacklist.clone(),
-                        address_blacklist.clone(),
-                        metrics.clone(),
-                        send_channels.clone(),
-                        destination_ctxs.clone(),
-                        metric_app_contexts.clone(),
-                        max_retries,
-                    ) {
-                        Ok(loader) => break loader,
-                        Err(err) => {
+                    let database = database.clone();
+                    let message_whitelist = message_whitelist.clone();
+                    let message_blacklist = message_blacklist.clone();
+                    let address_blacklist = address_blacklist.clone();
+                    let metrics = metrics.clone();
+                    let send_channels = send_channels.clone();
+                    let destination_ctxs = destination_ctxs.clone();
+                    let metric_app_contexts = metric_app_contexts.clone();
+                    let result = spawn_cancellable_blocking(move |cancellation| {
+                        MessageDbLoader::new_with_cancellation(
+                            database,
+                            message_whitelist,
+                            message_blacklist,
+                            address_blacklist,
+                            metrics,
+                            send_channels,
+                            destination_ctxs,
+                            metric_app_contexts,
+                            max_retries,
+                            cancellation,
+                        )
+                    })
+                    .await;
+                    match result {
+                        Ok(Ok(loader)) => break loader,
+                        Ok(Err(err)) => {
                             init_failed = true;
                             Self::record_critical_error(
                                 &origin_domain,
                                 &chain_metrics,
                                 &err,
                                 "Failed to run message db loader; retrying",
+                            );
+                            tokio::time::sleep(MESSAGE_DB_LOADER_INIT_RETRY_INTERVAL).await;
+                        }
+                        Err(err) => {
+                            init_failed = true;
+                            Self::record_critical_error(
+                                &origin_domain,
+                                &chain_metrics,
+                                &err,
+                                "Message db loader initialization task failed; retrying",
                             );
                             tokio::time::sleep(MESSAGE_DB_LOADER_INIT_RETRY_INTERVAL).await;
                         }

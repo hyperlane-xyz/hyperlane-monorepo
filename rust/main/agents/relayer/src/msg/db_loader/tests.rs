@@ -1362,7 +1362,7 @@ async fn legacy_iterator_stops_at_startup_watermark() {
         .expect_domain()
         .return_const(dummy_domain(0, "dummy_domain"));
     mock_db
-        .expect_retrieve_highest_seen_message_nonce()
+        .expect_retrieve_highest_message_nonce()
         .returning(|| Ok(Some(MOCK_HIGHEST_SEEN_NONCE)));
     mock_db
         .expect_retrieve_message_by_nonce()
@@ -1407,7 +1407,7 @@ async fn legacy_iterator_stops_at_startup_watermark() {
 fn startup_watermark_error_is_propagated() {
     let mut mock_db = MockDb::new();
     mock_db
-        .expect_retrieve_highest_seen_message_nonce()
+        .expect_retrieve_highest_message_nonce()
         .times(1)
         .returning(|| Err(DbError::Other("watermark read failed".to_owned())));
 
@@ -1516,6 +1516,318 @@ async fn saturated_destination_does_not_block_legacy_migration_for_another_desti
         assert!(
             loader.destination_iterators[0].reconsider_nonces.is_empty(),
             "migration must not accumulate blocked nonces in memory"
+        );
+    })
+    .await;
+}
+
+fn loader_phase_counter(counter: &IntCounterVec, phase: &str) -> f64 {
+    prometheus::core::Collector::collect(counter)
+        .iter()
+        .flat_map(|family| family.get_metric())
+        .filter(|metric| {
+            metric
+                .get_label()
+                .iter()
+                .any(|label| label.name() == "phase" && label.value() == phase)
+        })
+        .map(|metric| metric.get_counter().as_ref().unwrap().value())
+        .sum()
+}
+
+// Measures migration separately from fixture creation, database reopening and
+// destination loading. OS filesystem caches remain warm across all runs.
+async fn measure_legacy_migration_restart(history_len: u32) -> (bool, f64) {
+    assert_eq!(history_len % 2, 0);
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    let origin = dummy_domain(0, "migration_benchmark_origin");
+    let destination = dummy_domain(1, "migration_benchmark_destination");
+    {
+        let db = HyperlaneRocksDB::new(
+            &origin,
+            hyperlane_base::db::DB::from_path_with_rollback_wal(temp_dir.path()).unwrap(),
+        );
+        for nonce in 0..history_len {
+            let message = dummy_hyperlane_message(&destination, nonce);
+            add_db_entry(&db, &message, 0);
+            if nonce % 2 == 0 {
+                db.store_message_processed(&message).unwrap();
+            } else {
+                // Exercise upgrade from rows without the destination index.
+                db.delete_pending_message_index(&message).unwrap();
+            }
+        }
+    }
+
+    let mut restart_started_complete = false;
+    let mut restart_reads = 0.0;
+    for phase in ["initial", "restart", "restart_after_writes"] {
+        let db = HyperlaneRocksDB::new(
+            &origin,
+            hyperlane_base::db::DB::from_path_with_rollback_wal(temp_dir.path()).unwrap(),
+        );
+        let metrics = dummy_message_loader_metrics();
+        let (sender, _receiver) = mpsc::channel::<QueueOperationBatch>(1);
+        let started = Instant::now();
+        let mut loader = MessageDbLoader::new(
+            db.clone(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            metrics,
+            HashMap::from([(destination.id(), sender)]),
+            HashMap::new(),
+            vec![].into(),
+            10,
+        )
+        .unwrap();
+        let started_complete = loader.migration_iterator.is_none();
+        finish_legacy_migration(&mut loader).await;
+        let elapsed = started.elapsed();
+        let reads = loader_phase_counter(&loader.metrics.logical_db_reads, "migration");
+        let records = loader_phase_counter(&loader.metrics.records_examined, "migration");
+        let destination_reads =
+            loader_phase_counter(&loader.metrics.logical_db_reads, "destination_index");
+        println!(
+            "legacy_migration_benchmark phase={phase} history={history_len} elapsed_seconds={:.6} migration_records={records} migration_logical_reads={reads} destination_logical_reads={destination_reads} started_complete={started_complete}",
+            elapsed.as_secs_f64(),
+        );
+        assert_eq!(destination_reads, 0.0);
+        if phase == "initial" {
+            assert_eq!(records, f64::from(history_len));
+            // Every present row reads message + processed; the unprocessed
+            // half additionally reads destination index + processed again.
+            assert_eq!(reads, f64::from(history_len) * 3.0);
+        } else if phase == "restart" {
+            restart_started_complete = started_complete;
+            restart_reads = reads;
+        } else {
+            assert!(started_complete);
+            assert_eq!(reads, 0.0);
+        }
+        drop(loader);
+        assert_eq!(
+            db.retrieve_pending_message_at_or_after(destination.id(), 0)
+                .unwrap()
+                .map(|(nonce, _)| nonce),
+            Some(1),
+        );
+        assert_eq!(
+            db.retrieve_pending_message_at_or_before(destination.id(), history_len - 1)
+                .unwrap()
+                .map(|(nonce, _)| nonce),
+            Some(history_len - 1),
+        );
+        if phase == "restart" {
+            // Include unrelated WAL history in the next startup's validation,
+            // without charging write generation to its measured duration.
+            for nonce in 0..history_len {
+                db.store_value_by_key("migration_benchmark_status_", &nonce, &nonce)
+                    .unwrap();
+            }
+        }
+    }
+    (restart_started_complete, restart_reads)
+}
+
+#[tokio::test]
+async fn completed_legacy_migration_restart_read_count() {
+    let (started_complete, reads) = measure_legacy_migration_restart(1_024).await;
+    assert!(started_complete);
+    assert_eq!(reads, 0.0);
+}
+
+#[tokio::test]
+#[ignore = "100k-row migration benchmark; run explicitly with --ignored --nocapture"]
+async fn benchmark_legacy_migration_restart() {
+    measure_legacy_migration_restart(100_000).await;
+}
+
+#[tokio::test]
+#[ignore = "multi-origin restart benchmark; run explicitly with --ignored --nocapture"]
+async fn benchmark_multi_origin_legacy_migration_restart() {
+    const ORIGIN_COUNT: u32 = 32;
+    const HISTORY_LEN: u32 = 1_024;
+
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    let raw_db = hyperlane_base::db::DB::from_path_with_rollback_wal(temp_dir.path()).unwrap();
+    let destination = dummy_domain(10_000, "migration_benchmark_destination");
+    let origins: Vec<_> = (0..ORIGIN_COUNT)
+        .map(|id| dummy_domain(id, &format!("migration_benchmark_origin_{id}")))
+        .collect();
+
+    for origin in &origins {
+        let db = HyperlaneRocksDB::new(origin, raw_db.clone());
+        for nonce in 0..HISTORY_LEN {
+            add_db_entry(&db, &dummy_hyperlane_message(&destination, nonce), 0);
+        }
+        let (mut loader, _) =
+            dummy_message_loader(origin, &destination, &db, OptionalCache::new(None));
+        finish_legacy_migration(&mut loader).await;
+    }
+
+    let started = Instant::now();
+    for origin in &origins {
+        let db = HyperlaneRocksDB::new(origin, raw_db.clone());
+        let (loader, _) = dummy_message_loader(origin, &destination, &db, OptionalCache::new(None));
+        assert!(loader.migration_iterator.is_none());
+    }
+    println!(
+        "legacy_migration_multi_origin_benchmark origins={ORIGIN_COUNT} history_per_origin={HISTORY_LEN} elapsed_seconds={:.6}",
+        started.elapsed().as_secs_f64()
+    );
+}
+
+#[tokio::test]
+async fn interrupted_migration_restarts_and_recovers_all_destinations() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let other = dummy_domain(2, "other");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let low = dummy_hyperlane_message(&other, 0);
+        let high = dummy_hyperlane_message(&destination, 2);
+        for message in [&low, &high] {
+            add_db_entry(&db, message, 0);
+            db.delete_pending_message_index(message)
+                .expect("legacy row");
+        }
+        let (mut loader, _) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        loader
+            .migrate_legacy_batch()
+            .await
+            .expect("migrate high row");
+        assert!(loader.migration_iterator.is_some());
+        assert!(!db
+            .pending_message_index_migration_complete()
+            .expect("read seal"));
+        drop(loader);
+        let (mut restarted, _) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        assert!(restarted.migration_iterator.is_some());
+        finish_legacy_migration(&mut restarted).await;
+        assert_eq!(
+            db.retrieve_pending_message_at_or_after(other.id(), 0)
+                .expect("other destination"),
+            Some((low.nonce, low.id())),
+        );
+        assert!(db
+            .pending_message_index_migration_complete()
+            .expect("completed seal"));
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn migration_uses_highest_message_id_when_watermark_is_stale() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let low = dummy_hyperlane_message(&destination, 1);
+        let high = dummy_hyperlane_message(&destination, 2);
+        add_db_entry(&db, &low, 0);
+
+        // Reproduce the legacy non-atomic write ordering: the canonical
+        // nonce-to-ID map advances, but the high watermark and destination
+        // index do not.
+        db.store_message_by_id(&high.id(), &high).unwrap();
+        db.store_message_id_by_nonce(&high.nonce, &high.id())
+            .unwrap();
+        assert_eq!(db.retrieve_highest_seen_message_nonce().unwrap(), Some(1));
+
+        let (mut loader, _) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        finish_legacy_migration(&mut loader).await;
+
+        assert_eq!(
+            db.retrieve_pending_message_at_or_after(destination.id(), high.nonce)
+                .unwrap(),
+            Some((high.nonce, high.id()))
+        );
+        assert!(db.pending_message_index_migration_complete().unwrap());
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn completed_migration_recovers_late_low_nonce_and_legacy_writes() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let high = dummy_hyperlane_message(&destination, 10);
+        add_db_entry(&db, &high, 0);
+        let (mut loader, _) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        finish_legacy_migration(&mut loader).await;
+        drop(loader);
+        let low = dummy_hyperlane_message(&destination, 1);
+        add_db_entry(&db, &low, 0);
+        let (mut restarted, mut receiver) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        assert!(restarted.migration_iterator.is_none());
+        let mut loaded = Vec::new();
+        for _ in 0..8 {
+            restarted
+                .try_load_destination(0)
+                .await
+                .expect("load indexed destination");
+            if let Ok(batch) = receiver.try_recv() {
+                loaded.push(only_operation(batch).id());
+            }
+        }
+        assert!(loaded.contains(&low.id()));
+        assert!(loaded.contains(&high.id()));
+        drop(restarted);
+        let legacy = dummy_hyperlane_message(&destination, 0);
+        db.store_message_by_id(&legacy.id(), &legacy)
+            .expect("legacy message");
+        db.store_message_id_by_nonce(&legacy.nonce, &legacy.id())
+            .expect("legacy nonce");
+        let (mut upgraded, _) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        assert!(upgraded.migration_iterator.is_some());
+        finish_legacy_migration(&mut upgraded).await;
+        assert_eq!(
+            db.retrieve_pending_message_at_or_after(destination.id(), 0)
+                .expect("recovered legacy row"),
+            Some((legacy.nonce, legacy.id())),
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn standalone_cleanup_forces_restart_recovery_of_replacement() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let original = dummy_hyperlane_message(&destination, 0);
+        add_db_entry(&db, &original, 0);
+        let (mut loader, _) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        finish_legacy_migration(&mut loader).await;
+        drop(loader);
+        let mut replacement = original;
+        replacement.body = vec![1];
+        db.upsert_message(&replacement, 2)
+            .expect("atomic replacement");
+        db.delete_pending_message_index_by_nonce(destination.id(), 0)
+            .expect("stale cleanup");
+        let (mut restarted, mut receiver) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        assert!(restarted.migration_iterator.is_some());
+        finish_legacy_migration(&mut restarted).await;
+        restarted
+            .try_load_destination(0)
+            .await
+            .expect("load replacement");
+        assert_eq!(
+            only_operation(receiver.try_recv().expect("replacement")).id(),
+            replacement.id()
         );
     })
     .await;

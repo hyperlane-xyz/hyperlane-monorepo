@@ -1,3 +1,5 @@
+use std::sync::atomic::AtomicBool;
+
 use hyperlane_core::{Decode, Encode, HyperlaneDomain};
 
 use crate::db::{error::DbError, DbBatch, DB};
@@ -188,6 +190,46 @@ impl TypedDB {
             sequence,
             &self.prefixed_key(source_prefix.as_ref(), &[]),
             &self.prefixed_key(marker_prefix.as_ref(), &[]),
+        )
+    }
+
+    /// Detect domain-scoped deletions without an atomic source-state marker.
+    pub fn has_unmarked_deletions_since(
+        &self,
+        sequence: u64,
+        source_prefix: impl AsRef<[u8]>,
+        marker_prefixes: &[&[u8]],
+    ) -> Result<bool> {
+        let markers: Vec<_> = marker_prefixes
+            .iter()
+            .map(|prefix| self.prefixed_key(prefix, &[]))
+            .collect();
+        let markers: Vec<_> = markers.iter().map(Vec::as_slice).collect();
+        self.db.has_unmarked_deletions_since(
+            sequence,
+            &self.prefixed_key(source_prefix.as_ref(), &[]),
+            &markers,
+        )
+    }
+
+    /// Detect unmarked pending-index updates in a single domain-scoped WAL pass.
+    pub fn has_unmarked_pending_index_updates_since(
+        &self,
+        sequence: u64,
+        source_prefixes: &[&[u8]],
+        marker_prefix: &[u8],
+        cancellation: &AtomicBool,
+    ) -> Result<bool> {
+        let source_prefixes: Vec<_> = source_prefixes
+            .iter()
+            .map(|prefix| self.prefixed_key(prefix, &[]))
+            .collect();
+        let source_prefix_refs: Vec<_> = source_prefixes.iter().map(Vec::as_slice).collect();
+        self.db.has_unmarked_pending_index_updates_since(
+            sequence,
+            &source_prefix_refs,
+            &self.prefixed_key(marker_prefix, &[]),
+            cancellation,
         )
     }
 

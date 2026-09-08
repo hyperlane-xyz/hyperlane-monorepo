@@ -1,4 +1,7 @@
-use std::ops::Add;
+use std::{
+    ops::Add,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use async_trait::async_trait;
 use eyre::{bail, Result};
@@ -40,6 +43,8 @@ const PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID: &str =
 const PENDING_MESSAGE_RETRY_STATE_FOR_MESSAGE_ID: &str =
     "pending_message_retry_state_for_message_id_v1_";
 const PENDING_MESSAGE_BY_DESTINATION: &str = "pending_message_by_destination_v1_";
+const PENDING_MESSAGE_INDEX_MIGRATION_COMPLETE: &str =
+    "pending_message_index_migration_complete_v1_";
 const TERMINALLY_DROPPED_MESSAGE_BY_ID: &str = "terminally_dropped_message_by_id_v1_";
 const MERKLE_TREE_INSERTION: &str = "merkle_tree_insertion_";
 const MERKLE_LEAF_INDEX_BY_MESSAGE_ID: &str = "merkle_leaf_index_by_message_id_";
@@ -200,6 +205,70 @@ impl HyperlaneRocksDB {
             .collect()
     }
 
+    /// Check that migration finished and subsequent writes maintained the index.
+    /// Older binaries do not maintain this index; missing WAL also requires a rescan.
+    pub fn pending_message_index_migration_complete(&self) -> DbResult<bool> {
+        self.pending_message_index_migration_complete_with_cancellation(&AtomicBool::new(false))
+    }
+
+    /// Check migration completion while allowing a blocking WAL scan to stop on shutdown.
+    pub fn pending_message_index_migration_complete_with_cancellation(
+        &self,
+        cancellation: &AtomicBool,
+    ) -> DbResult<bool> {
+        let Some(checkpoint) =
+            self.retrieve_value_by_key::<_, u64>(PENDING_MESSAGE_INDEX_MIGRATION_COMPLETE, &false)?
+        else {
+            return Ok(false);
+        };
+        // Capture before validation so concurrent writes remain covered next time.
+        let sequence = self.latest_sequence_number();
+        let validation = (|| {
+            if checkpoint > sequence {
+                return Ok(true);
+            }
+            // Standalone cleanup can race a replacement or crash before repair.
+            // One WAL pass detects both legacy source writes and derived-index
+            // deletions not paired with a canonical upsert/processed batch.
+            self.has_unmarked_pending_index_updates_since(
+                checkpoint,
+                &[MESSAGE_ID.as_bytes(), NONCE_PROCESSED.as_bytes()],
+                PENDING_MESSAGE_BY_DESTINATION.as_bytes(),
+                cancellation,
+            )
+        })();
+        if cancellation.load(Ordering::Relaxed) {
+            return Err(DbError::Other(
+                "Pending message index migration validation cancelled".to_string(),
+            ));
+        }
+        match validation {
+            Ok(false) => {}
+            result => {
+                debug!(
+                    ?result,
+                    checkpoint, "Pending message index cannot be certified; repeating migration"
+                );
+                self.store_and_delete_batch(
+                    std::iter::empty(),
+                    [(
+                        PENDING_MESSAGE_INDEX_MIGRATION_COMPLETE.as_bytes().to_vec(),
+                        false.to_vec(),
+                    )],
+                )?;
+                return Ok(false);
+            }
+        }
+        self.mark_pending_message_index_migration_complete(sequence)?;
+        Ok(true)
+    }
+
+    /// Seal a finished migration using the sequence captured before it started.
+    /// Keeping that conservative boundary also detects legacy writes during migration.
+    pub fn mark_pending_message_index_migration_complete(&self, sequence: u64) -> DbResult<()> {
+        self.store_value_by_key(PENDING_MESSAGE_INDEX_MIGRATION_COMPLETE, &false, &sequence)
+    }
+
     /// Add an unprocessed message to its destination range.
     pub fn store_pending_message_index(&self, message: &HyperlaneMessage) -> DbResult<()> {
         self.store_value_by_key(
@@ -318,6 +387,19 @@ impl HyperlaneRocksDB {
             None => Ok(None),
             Some(id) => self.retrieve_message_by_id(&id),
         }
+    }
+
+    /// Retrieve the greatest nonce represented by the canonical nonce-to-ID map.
+    pub fn retrieve_highest_message_nonce(&self) -> DbResult<Option<u32>> {
+        let Some((nonce, _)) =
+            self.retrieve_by_prefix_at_or_before::<H256>(MESSAGE_ID, u32::MAX.to_be_bytes())?
+        else {
+            return Ok(None);
+        };
+        let nonce: [u8; 4] = nonce.try_into().map_err(|nonce: Vec<u8>| {
+            DbError::Other(format!("Invalid message ID index key: {nonce:?}"))
+        })?;
+        Ok(Some(u32::from_be_bytes(nonce)))
     }
 
     /// Update the nonce of the highest processed message we're aware of
@@ -498,6 +580,8 @@ impl HyperlaneRocksDB {
 
 #[cfg(test)]
 mod pending_index_tests {
+    use std::sync::atomic::AtomicBool;
+
     use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, H256};
 
     use super::*;
@@ -512,6 +596,191 @@ mod pending_index_tests {
             recipient: H256::zero(),
             ..Default::default()
         }
+    }
+
+    #[tokio::test]
+    async fn migration_seal_rejects_standalone_cleanup_after_replacement() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            for cleanup_during_migration in [false, true] {
+                let original = message(2, 10);
+                db.upsert_message(&original, 1).expect("original");
+                let sequence = db.latest_sequence_number();
+                if !cleanup_during_migration {
+                    db.mark_pending_message_index_migration_complete(sequence)
+                        .expect("seal");
+                }
+                // A loader's old terminal/missing-row observation can precede
+                // an atomic replacement, then delete that replacement's entry.
+                let mut replacement = original.clone();
+                replacement.body = vec![1];
+                db.upsert_message(&replacement, 2).expect("replacement");
+                db.delete_pending_message_index_by_nonce(10, 2)
+                    .expect("stale cleanup");
+                if cleanup_during_migration {
+                    db.mark_pending_message_index_migration_complete(sequence)
+                        .expect("seal");
+                }
+                assert!(!db
+                    .pending_message_index_migration_complete()
+                    .expect("validate"));
+            }
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn migration_seal_decode_error_is_propagated() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            db.store_value_by_key(PENDING_MESSAGE_INDEX_MIGRATION_COMPLETE, &false, &true)
+                .expect("write malformed seal");
+            assert!(db.pending_message_index_migration_complete().is_err());
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn cancelled_migration_validation_preserves_seal() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            db.mark_pending_message_index_migration_complete(db.latest_sequence_number())
+                .expect("seal");
+
+            let cancellation = AtomicBool::new(true);
+            assert!(db
+                .pending_message_index_migration_complete_with_cancellation(&cancellation)
+                .is_err());
+            assert!(db.pending_message_index_migration_complete().unwrap());
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn migration_seal_accepts_atomic_writes_and_refreshes() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            assert!(!db.pending_message_index_migration_complete().unwrap());
+            db.mark_pending_message_index_migration_complete(db.latest_sequence_number())
+                .unwrap();
+            db.store_message(&message(100, 10), 1).unwrap();
+            db.store_message(&message(2, 10), 1).unwrap();
+            db.upsert_message(&message(2, 11), 2).unwrap();
+            db.store_message_processed(&message(2, 11)).unwrap();
+            db.store_dispatched_block_number_by_nonce(&100, &3).unwrap();
+            db.store_dispatched_tx_hash_by_message_id(&message(100, 10).id(), &H512::zero())
+                .unwrap();
+            let sequence = db.latest_sequence_number();
+            assert!(db.pending_message_index_migration_complete().unwrap());
+            assert_eq!(
+                db.retrieve_value_by_key::<_, u64>(
+                    PENDING_MESSAGE_INDEX_MIGRATION_COMPLETE,
+                    &false
+                )
+                .unwrap(),
+                Some(sequence)
+            );
+            assert!(db.pending_message_index_migration_complete().unwrap());
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn migration_seal_rejects_legacy_low_nonce_insert_and_replacement() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            db.store_message(&message(100, 10), 1).unwrap();
+            for legacy in [message(2, 10), message(2, 11)] {
+                db.mark_pending_message_index_migration_complete(db.latest_sequence_number())
+                    .unwrap();
+                // Reproduce the older writer's separate message and nonce-map writes.
+                db.store_message_by_id(&legacy.id(), &legacy).unwrap();
+                db.store_message_id_by_nonce(&legacy.nonce, &legacy.id())
+                    .unwrap();
+                assert_eq!(db.retrieve_highest_seen_message_nonce().unwrap(), Some(100));
+                assert!(!db.pending_message_index_migration_complete().unwrap());
+                assert!(db
+                    .retrieve_value_by_key::<_, u64>(
+                        PENDING_MESSAGE_INDEX_MIGRATION_COMPLETE,
+                        &false,
+                    )
+                    .unwrap()
+                    .is_none());
+                assert!(!db.pending_message_index_migration_complete().unwrap());
+            }
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn migration_seal_rejects_legacy_processed_reset() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            let message = message(2, 10);
+            db.store_message(&message, 1).unwrap();
+            db.store_message_processed(&message).unwrap();
+            db.mark_pending_message_index_migration_complete(db.latest_sequence_number())
+                .unwrap();
+            db.store_processed_by_nonce(&message.nonce, &false).unwrap();
+            assert!(!db.pending_message_index_migration_complete().unwrap());
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn migration_seal_keeps_writes_during_migration_visible() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            let sequence = db.latest_sequence_number();
+            db.store_message_id_by_nonce(&0, &message(0, 10).id())
+                .unwrap();
+            db.mark_pending_message_index_migration_complete(sequence)
+                .unwrap();
+            assert!(!db.pending_message_index_migration_complete().unwrap());
+        })
+        .await;
+    }
+
+    #[test]
+    fn migration_seal_survives_reopen_with_retained_wal() {
+        let dir = tempfile::tempdir().unwrap();
+        let domain = HyperlaneDomain::new_test_domain("origin");
+        {
+            let db = HyperlaneRocksDB::new(
+                &domain,
+                DB::from_path_with_rollback_wal(dir.path()).unwrap(),
+            );
+            db.store_message(&message(0, 10), 1).unwrap();
+            db.mark_pending_message_index_migration_complete(db.latest_sequence_number())
+                .unwrap();
+        }
+        let db = HyperlaneRocksDB::new(
+            &domain,
+            DB::from_path_with_rollback_wal(dir.path()).unwrap(),
+        );
+        assert!(db.pending_message_index_migration_complete().unwrap());
+    }
+
+    #[test]
+    fn migration_seal_rejects_missing_wal() {
+        let dir = tempfile::tempdir().unwrap();
+        let domain = HyperlaneDomain::new_test_domain("origin");
+        let mut options = rocksdb::Options::default();
+        options.create_if_missing(true);
+        {
+            let rocks = std::sync::Arc::new(rocksdb::DB::open(&options, dir.path()).unwrap());
+            let db = HyperlaneRocksDB::new(&domain, DB(rocks.clone()));
+            db.mark_pending_message_index_migration_complete(db.latest_sequence_number())
+                .unwrap();
+            db.store_message(&message(0, 10), 1).unwrap();
+            rocks.flush().unwrap();
+            db.store_message(&message(1, 10), 1).unwrap();
+        }
+        let db = HyperlaneRocksDB::new(
+            &domain,
+            rocksdb::DB::open(&options, dir.path()).unwrap().into(),
+        );
+        assert!(!db.pending_message_index_migration_complete().unwrap());
     }
 
     #[tokio::test]
@@ -778,6 +1047,10 @@ impl HyperlaneWatermarkedLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
 impl HyperlaneDb for HyperlaneRocksDB {
     fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>> {
         self.retrieve_highest_seen_message_nonce_number()
+    }
+
+    fn retrieve_highest_message_nonce(&self) -> DbResult<Option<u32>> {
+        self.retrieve_highest_message_nonce()
     }
 
     fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>> {

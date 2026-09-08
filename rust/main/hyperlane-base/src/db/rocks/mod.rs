@@ -1,4 +1,12 @@
-use std::{fs, io::ErrorKind, path::Path, sync::Arc};
+use std::{
+    fs,
+    io::ErrorKind,
+    path::Path,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use super::error::DbError;
 use rocksdb::{Direction, IteratorMode, Options, WriteBatch, WriteBatchIterator, DB as Rocks};
@@ -85,25 +93,61 @@ pub struct DbBatch {
 
 struct PrefixWriteDetector<'a> {
     source_prefix: &'a [u8],
-    marker_prefix: &'a [u8],
+    marker_prefixes: &'a [&'a [u8]],
+    deletions_only: bool,
     source_written: bool,
     marker_written: bool,
 }
 
+struct PendingIndexWriteDetector<'a> {
+    source_prefixes: &'a [&'a [u8]],
+    marker_prefix: &'a [u8],
+    source_written: bool,
+    marker_written: bool,
+    marker_deleted: bool,
+}
+
 impl PrefixWriteDetector<'_> {
-    fn record(&mut self, key: &[u8]) {
-        self.source_written |= key.starts_with(self.source_prefix);
-        self.marker_written |= key.starts_with(self.marker_prefix);
+    fn record(&mut self, key: &[u8], deletion: bool) {
+        self.source_written |=
+            (!self.deletions_only || deletion) && key.starts_with(self.source_prefix);
+        self.marker_written |= self
+            .marker_prefixes
+            .iter()
+            .any(|prefix| key.starts_with(prefix));
     }
 }
 
 impl WriteBatchIterator for PrefixWriteDetector<'_> {
     fn put(&mut self, key: &[u8], _value: &[u8]) {
-        self.record(key);
+        self.record(key, false);
     }
 
     fn delete(&mut self, key: &[u8]) {
-        self.record(key);
+        self.record(key, true);
+    }
+}
+
+impl PendingIndexWriteDetector<'_> {
+    fn record(&mut self, key: &[u8], deletion: bool) {
+        self.source_written |= self
+            .source_prefixes
+            .iter()
+            .any(|prefix| key.starts_with(prefix));
+        if key.starts_with(self.marker_prefix) {
+            self.marker_written = true;
+            self.marker_deleted |= deletion;
+        }
+    }
+}
+
+impl WriteBatchIterator for PendingIndexWriteDetector<'_> {
+    fn put(&mut self, key: &[u8], _value: &[u8]) {
+        self.record(key, false);
+    }
+
+    fn delete(&mut self, key: &[u8]) {
+        self.record(key, true);
     }
 }
 
@@ -287,12 +331,78 @@ impl DB {
         source_prefix: &[u8],
         marker_prefix: &[u8],
     ) -> Result<bool> {
+        self.has_unmarked_updates_since(sequence, source_prefix, &[marker_prefix], false)
+    }
+
+    /// Detect source deletions without any of the supplied atomic markers.
+    pub fn has_unmarked_deletions_since(
+        &self,
+        sequence: u64,
+        source_prefix: &[u8],
+        marker_prefixes: &[&[u8]],
+    ) -> Result<bool> {
+        self.has_unmarked_updates_since(sequence, source_prefix, marker_prefixes, true)
+    }
+
+    /// Detect legacy source writes or standalone derived-index deletions in one WAL pass.
+    pub fn has_unmarked_pending_index_updates_since(
+        &self,
+        sequence: u64,
+        source_prefixes: &[&[u8]],
+        marker_prefix: &[u8],
+        cancellation: &AtomicBool,
+    ) -> Result<bool> {
+        self.has_matching_updates_since(sequence, Some(cancellation), |batch| {
+            let mut detector = PendingIndexWriteDetector {
+                source_prefixes,
+                marker_prefix,
+                source_written: false,
+                marker_written: false,
+                marker_deleted: false,
+            };
+            batch.iterate(&mut detector);
+            (detector.source_written && !detector.marker_written)
+                || (detector.marker_deleted && !detector.source_written)
+        })
+    }
+
+    fn has_unmarked_updates_since(
+        &self,
+        sequence: u64,
+        source_prefix: &[u8],
+        marker_prefixes: &[&[u8]],
+        deletions_only: bool,
+    ) -> Result<bool> {
+        self.has_matching_updates_since(sequence, None, |batch| {
+            let mut detector = PrefixWriteDetector {
+                source_prefix,
+                marker_prefixes,
+                deletions_only,
+                source_written: false,
+                marker_written: false,
+            };
+            batch.iterate(&mut detector);
+            detector.source_written && !detector.marker_written
+        })
+    }
+
+    fn has_matching_updates_since(
+        &self,
+        sequence: u64,
+        cancellation: Option<&AtomicBool>,
+        mut matches: impl FnMut(&WriteBatch) -> bool,
+    ) -> Result<bool> {
         let latest_sequence = self.0.latest_sequence_number();
         let mut expected_sequence = sequence
             .checked_add(1)
             .ok_or_else(|| DbError::Other("RocksDB sequence number overflowed".to_string()))?;
 
         for update in self.0.get_updates_since(sequence)? {
+            if cancellation.is_some_and(|cancelled| cancelled.load(Ordering::Relaxed)) {
+                return Err(DbError::Other(
+                    "RocksDB WAL validation cancelled".to_string(),
+                ));
+            }
             let (batch_sequence, batch) = update?;
             if batch_sequence != expected_sequence {
                 return Err(DbError::Other(format!(
@@ -302,14 +412,7 @@ impl DB {
             expected_sequence = batch_sequence
                 .checked_add(batch.len() as u64)
                 .ok_or_else(|| DbError::Other("RocksDB sequence number overflowed".to_string()))?;
-            let mut detector = PrefixWriteDetector {
-                source_prefix,
-                marker_prefix,
-                source_written: false,
-                marker_written: false,
-            };
-            batch.iterate(&mut detector);
-            if detector.source_written && !detector.marker_written {
+            if matches(&batch) {
                 return Ok(true);
             }
         }
