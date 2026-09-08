@@ -16,6 +16,7 @@ import type { DerivedIsmConfig, IsmConfig } from './ism.js';
 import {
   DeployedIsmAddress,
   IsmArtifactConfig,
+  IsmType,
   ismConfigToArtifact,
 } from './ism.js';
 import { DeployedMailboxArtifact, MailboxArtifactConfig } from './mailbox.js';
@@ -152,13 +153,13 @@ export function coreResultToDeployedAddresses(result: {
   if (isArtifactDeployed(ismArtifact)) {
     const ismAddress = ismArtifact.deployed.address;
     switch (ismArtifact.config.type) {
-      case 'merkleRootMultisigIsm':
+      case IsmType.MERKLE_ROOT_MULTISIG:
         addresses.staticMerkleRootMultisigIsmFactory = ismAddress;
         break;
-      case 'messageIdMultisigIsm':
+      case IsmType.MESSAGE_ID_MULTISIG:
         addresses.staticMessageIdMultisigIsmFactory = ismAddress;
         break;
-      case 'domainRoutingIsm':
+      case IsmType.ROUTING:
         addresses.domainRoutingIsmFactory = ismAddress;
         break;
     }

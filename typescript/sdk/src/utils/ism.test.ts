@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { ethers } from 'ethers';
 
 import { test1, test2, test3 } from '../consts/testChains.js';
-import { IsmConfig, IsmType } from '../ism/types.js';
+import { CompositeIsmNodeType, IsmConfig, IsmType } from '../ism/types.js';
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
@@ -12,7 +12,10 @@ import {
   canonicalizeRemoteIsms,
   collectHybridIsmNodes,
   completeHybridIsmNodes,
+  ismTreeContainsCompositeRateLimited,
   ismTreeContainsHybridHookIsm,
+  ismTreeContainsMailboxDefaultOrHybrid,
+  ismTreeContainsRateLimited,
   prepareHybridIsmNodesForDeploy,
   resolveDelayedFlowRemoteIsms,
 } from './ism.js';
@@ -70,6 +73,73 @@ function aggregationOf(...modules: IsmConfig[]): IsmConfig {
     modules,
   };
 }
+
+describe('typed ISM tree traversal', () => {
+  it('finds EVM rate limiting through SDK containers only', () => {
+    const tree: IsmConfig = {
+      type: IsmType.AMOUNT_ROUTING,
+      threshold: 1,
+      lowerIsm: { type: IsmType.TEST_ISM },
+      upperIsm: aggregationOf({
+        type: IsmType.ROUTING,
+        owner: OWNER,
+        domains: {
+          test2: {
+            type: IsmType.RATE_LIMITED,
+            maxCapacity: '86400',
+            duration: 86400n,
+          },
+        },
+      }),
+    };
+
+    expect(ismTreeContainsRateLimited(tree)).to.be.true;
+    expect(ismTreeContainsCompositeRateLimited(tree)).to.be.false;
+  });
+
+  it('finds composite rate limiting through both container unions', () => {
+    const tree = aggregationOf({
+      type: IsmType.ROUTING,
+      owner: OWNER,
+      domains: {
+        test2: {
+          type: IsmType.COMPOSITE,
+          owner: OWNER,
+          root: {
+            type: CompositeIsmNodeType.AMOUNT_ROUTING,
+            threshold: '1',
+            lower: { type: CompositeIsmNodeType.TEST, accept: true },
+            upper: {
+              type: CompositeIsmNodeType.ROUTING,
+              domains: {
+                test3: {
+                  type: CompositeIsmNodeType.RATE_LIMITED,
+                  maxCapacity: '86400',
+                  mailbox: WARP_ROUTER,
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    expect(ismTreeContainsRateLimited(tree)).to.be.false;
+    expect(ismTreeContainsCompositeRateLimited(tree)).to.be.true;
+  });
+
+  it('finds mailbox-incompatible ISMs through SDK containers', () => {
+    const tree: IsmConfig = {
+      type: IsmType.ROUTING,
+      owner: OWNER,
+      domains: {
+        test2: aggregationOf({ type: IsmType.MAILBOX_DEFAULT }),
+      },
+    };
+
+    expect(ismTreeContainsMailboxDefaultOrHybrid(tree)).to.be.true;
+  });
+});
 
 describe('hybrid hook/ISM tree helpers', () => {
   describe('ismTreeContainsHybridHookIsm', () => {

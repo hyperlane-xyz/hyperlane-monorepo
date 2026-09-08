@@ -30,36 +30,47 @@ export type IsmModuleType = {
   addresses: IsmModuleAddresses;
 };
 
+export const IsmType = {
+  ROUTING: 'domainRoutingIsm',
+  MERKLE_ROOT_MULTISIG: 'merkleRootMultisigIsm',
+  MESSAGE_ID_MULTISIG: 'messageIdMultisigIsm',
+  TEST_ISM: 'testIsm',
+  COMPOSITE: 'compositeIsm',
+} as const;
+
+export type IsmType = (typeof IsmType)[keyof typeof IsmType];
+
 export interface IsmConfigs {
-  domainRoutingIsm: DomainRoutingIsmConfig;
-  merkleRootMultisigIsm: MultisigIsmConfig;
-  messageIdMultisigIsm: MultisigIsmConfig;
-  testIsm: TestIsmConfig;
-  compositeIsm: CompositeIsmConfig;
+  [IsmType.ROUTING]: DomainRoutingIsmConfig;
+  [IsmType.MERKLE_ROOT_MULTISIG]: MultisigIsmConfig;
+  [IsmType.MESSAGE_ID_MULTISIG]: MultisigIsmConfig;
+  [IsmType.TEST_ISM]: TestIsmConfig;
+  [IsmType.COMPOSITE]: CompositeIsmConfig;
 }
 
-export type IsmType = keyof IsmConfigs;
 export type IsmConfig = IsmConfigs[IsmType];
 export type DerivedIsmConfig = WithAddress<IsmConfig>;
 
 export const STATIC_ISM_TYPES: IsmType[] = [
-  'testIsm',
-  'merkleRootMultisigIsm',
-  'messageIdMultisigIsm',
+  IsmType.TEST_ISM,
+  IsmType.MERKLE_ROOT_MULTISIG,
+  IsmType.MESSAGE_ID_MULTISIG,
 ];
 
 export interface MultisigIsmConfig {
-  type: 'merkleRootMultisigIsm' | 'messageIdMultisigIsm';
+  type:
+    | typeof IsmType.MERKLE_ROOT_MULTISIG
+    | typeof IsmType.MESSAGE_ID_MULTISIG;
   validators: string[];
   threshold: number;
 }
 
 export interface TestIsmConfig {
-  type: 'testIsm';
+  type: typeof IsmType.TEST_ISM;
 }
 
 export interface DomainRoutingIsmConfig {
-  type: 'domainRoutingIsm';
+  type: typeof IsmType.ROUTING;
   owner: string;
   domains: Record<string, IsmConfig | string>;
 }
@@ -90,36 +101,43 @@ export const CompositeIsmNodeType = {
  * (config-file-only; diffed into per-domain instructions by the writer).
  */
 export type CompositeIsmNodeConfig =
-  | { type: 'trustedRelayer'; relayer: string }
-  | { type: 'multisigMessageId'; validators: string[]; threshold: number }
+  | { type: typeof CompositeIsmNodeType.TRUSTED_RELAYER; relayer: string }
   | {
-      type: 'aggregation';
+      type: typeof CompositeIsmNodeType.MULTISIG_MESSAGE_ID;
+      validators: string[];
+      threshold: number;
+    }
+  | {
+      type: typeof CompositeIsmNodeType.AGGREGATION;
       threshold: number;
       subIsms: CompositeIsmNodeConfig[];
     }
-  | { type: 'test'; accept: boolean }
-  | { type: 'pausable'; paused: boolean }
+  | { type: typeof CompositeIsmNodeType.TEST; accept: boolean }
+  | { type: typeof CompositeIsmNodeType.PAUSABLE; paused: boolean }
   | {
-      type: 'amountRouting';
+      type: typeof CompositeIsmNodeType.AMOUNT_ROUTING;
       threshold: string;
       lower: CompositeIsmNodeConfig;
       upper: CompositeIsmNodeConfig;
     }
   | {
-      type: 'rateLimited';
+      type: typeof CompositeIsmNodeType.RATE_LIMITED;
       maxCapacity: string;
       mailbox: string;
       recipient?: string;
     }
-  | { type: 'routing'; domains?: Record<string, CompositeIsmNodeConfig> }
   | {
-      type: 'fallbackRouting';
+      type: typeof CompositeIsmNodeType.ROUTING;
+      domains?: Record<string, CompositeIsmNodeConfig>;
+    }
+  | {
+      type: typeof CompositeIsmNodeType.FALLBACK_ROUTING;
       fallbackIsm: string;
       domains?: Record<string, CompositeIsmNodeConfig>;
     };
 
 export interface CompositeIsmConfig {
-  type: 'compositeIsm';
+  type: typeof IsmType.COMPOSITE;
   owner: string;
   root: CompositeIsmNodeConfig;
 }
@@ -136,11 +154,11 @@ export interface DeployedIsmAddress {
 }
 
 export interface IsmArtifactConfigs {
-  domainRoutingIsm: RoutingIsmArtifactConfig;
-  merkleRootMultisigIsm: MultisigIsmConfig;
-  messageIdMultisigIsm: MultisigIsmConfig;
-  testIsm: TestIsmConfig;
-  compositeIsm: CompositeIsmArtifactConfig;
+  [IsmType.ROUTING]: RoutingIsmArtifactConfig;
+  [IsmType.MERKLE_ROOT_MULTISIG]: MultisigIsmConfig;
+  [IsmType.MESSAGE_ID_MULTISIG]: MultisigIsmConfig;
+  [IsmType.TEST_ISM]: TestIsmConfig;
+  [IsmType.COMPOSITE]: CompositeIsmArtifactConfig;
 }
 
 /**
@@ -168,7 +186,7 @@ export type IIsmArtifactManager = IArtifactManager<
 >;
 
 export interface RoutingIsmArtifactConfig {
-  type: 'domainRoutingIsm';
+  type: typeof IsmType.ROUTING;
   owner: string;
   domains: Record<number, Artifact<IsmArtifactConfig, DeployedIsmAddress>>;
 }
@@ -183,49 +201,53 @@ export type RawRoutingIsmArtifactConfig =
  * (unlike domainRoutingIsm, whose domains wrap nested Artifact<> objects).
  */
 export type CompositeIsmNodeArtifactConfig =
-  | { type: 'trustedRelayer'; relayer: string }
-  | { type: 'multisigMessageId'; validators: string[]; threshold: number }
+  | { type: typeof CompositeIsmNodeType.TRUSTED_RELAYER; relayer: string }
   | {
-      type: 'aggregation';
+      type: typeof CompositeIsmNodeType.MULTISIG_MESSAGE_ID;
+      validators: string[];
+      threshold: number;
+    }
+  | {
+      type: typeof CompositeIsmNodeType.AGGREGATION;
       threshold: number;
       subIsms: CompositeIsmNodeArtifactConfig[];
     }
-  | { type: 'test'; accept: boolean }
-  | { type: 'pausable'; paused: boolean }
+  | { type: typeof CompositeIsmNodeType.TEST; accept: boolean }
+  | { type: typeof CompositeIsmNodeType.PAUSABLE; paused: boolean }
   | {
-      type: 'amountRouting';
+      type: typeof CompositeIsmNodeType.AMOUNT_ROUTING;
       threshold: string;
       lower: CompositeIsmNodeArtifactConfig;
       upper: CompositeIsmNodeArtifactConfig;
     }
   | {
-      type: 'rateLimited';
+      type: typeof CompositeIsmNodeType.RATE_LIMITED;
       maxCapacity: string;
       mailbox: string;
       recipient?: string;
     }
   | {
-      type: 'routing';
+      type: typeof CompositeIsmNodeType.ROUTING;
       domains?: Record<number, CompositeIsmNodeArtifactConfig>;
     }
   | {
-      type: 'fallbackRouting';
+      type: typeof CompositeIsmNodeType.FALLBACK_ROUTING;
       fallbackIsm: string;
       domains?: Record<number, CompositeIsmNodeArtifactConfig>;
     };
 
 export interface CompositeIsmArtifactConfig {
-  type: 'compositeIsm';
+  type: typeof IsmType.COMPOSITE;
   owner: string;
   root: CompositeIsmNodeArtifactConfig;
 }
 
 export interface RawIsmArtifactConfigs {
-  domainRoutingIsm: RawRoutingIsmArtifactConfig;
-  merkleRootMultisigIsm: MultisigIsmConfig;
-  messageIdMultisigIsm: MultisigIsmConfig;
-  testIsm: TestIsmConfig;
-  compositeIsm: CompositeIsmArtifactConfig;
+  [IsmType.ROUTING]: RawRoutingIsmArtifactConfig;
+  [IsmType.MERKLE_ROOT_MULTISIG]: MultisigIsmConfig;
+  [IsmType.MESSAGE_ID_MULTISIG]: MultisigIsmConfig;
+  [IsmType.TEST_ISM]: TestIsmConfig;
+  [IsmType.COMPOSITE]: CompositeIsmArtifactConfig;
 }
 
 /**
@@ -347,7 +369,7 @@ export function mergeIsmArtifacts(
   // Composite ISM's tree is diffed by SvmCompositeIsmWriter.update() itself
   // (it re-reads on-chain state directly) rather than via this generic
   // Artifact recursion, since sub-nodes aren't separate deployments.
-  if (expectedConfig.type === 'compositeIsm') {
+  if (expectedConfig.type === IsmType.COMPOSITE) {
     const deployedAddress = isArtifactDeployed(expectedArtifact)
       ? expectedArtifact.deployed
       : currentArtifact.deployed;
@@ -360,8 +382,8 @@ export function mergeIsmArtifacts(
   }
 
   assert(
-    currentConfig.type === 'domainRoutingIsm' &&
-      expectedConfig.type === 'domainRoutingIsm',
+    currentConfig.type === IsmType.ROUTING &&
+      expectedConfig.type === IsmType.ROUTING,
     'Expected both configs to be of type domainRoutingIsm',
   );
 
@@ -407,7 +429,7 @@ export function mergeIsmArtifacts(
   return {
     artifactState: ArtifactState.DEPLOYED,
     config: {
-      type: 'domainRoutingIsm',
+      type: IsmType.ROUTING,
       owner: expectedConfig.owner,
       domains: mergedDomains,
     },
@@ -420,15 +442,15 @@ export function altVMIsmTypeToProviderSdkType(
 ): IsmType {
   switch (altVMType) {
     case AltVMIsmType.TEST_ISM:
-      return 'testIsm';
+      return IsmType.TEST_ISM;
     case AltVMIsmType.MERKLE_ROOT_MULTISIG:
-      return 'merkleRootMultisigIsm';
+      return IsmType.MERKLE_ROOT_MULTISIG;
     case AltVMIsmType.MESSAGE_ID_MULTISIG:
-      return 'messageIdMultisigIsm';
+      return IsmType.MESSAGE_ID_MULTISIG;
     case AltVMIsmType.ROUTING:
-      return 'domainRoutingIsm';
+      return IsmType.ROUTING;
     case AltVMIsmType.COMPOSITE:
-      return 'compositeIsm';
+      return IsmType.COMPOSITE;
     default:
       throw new Error(
         `Unsupported ISM type: AltVM ISM type ${altVMType} is not supported by the provider sdk`,
@@ -531,6 +553,537 @@ function compositeIsmNodeConfigToArtifact(
   }
 }
 
+/**
+ * Walks every node of a composite ISM tree, including the nodes nested in
+ * `aggregation.subIsms`, `amountRouting.lower`/`upper`, and the per-domain
+ * overrides of `routing`/`fallbackRouting`.
+ */
+function someCompositeIsmNode(
+  node: CompositeIsmNodeArtifactConfig,
+  predicate: (node: CompositeIsmNodeArtifactConfig) => boolean,
+): boolean {
+  if (predicate(node)) return true;
+  switch (node.type) {
+    case CompositeIsmNodeType.AGGREGATION:
+      return node.subIsms.some((sub) => someCompositeIsmNode(sub, predicate));
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
+      return (
+        someCompositeIsmNode(node.lower, predicate) ||
+        someCompositeIsmNode(node.upper, predicate)
+      );
+    case CompositeIsmNodeType.ROUTING:
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
+      return node.domains
+        ? Object.values(node.domains).some((domainNode) =>
+            someCompositeIsmNode(domainNode, predicate),
+          )
+        : false;
+    case CompositeIsmNodeType.TRUSTED_RELAYER:
+    case CompositeIsmNodeType.MULTISIG_MESSAGE_ID:
+    case CompositeIsmNodeType.TEST:
+    case CompositeIsmNodeType.PAUSABLE:
+    case CompositeIsmNodeType.RATE_LIMITED:
+      return false;
+    default:
+      return assertNever(node, 'someCompositeIsmNode');
+  }
+}
+
+function assertCompositeIsmNodeSupportedAsMailboxDefault(
+  node: CompositeIsmNodeArtifactConfig,
+  context: string,
+): void {
+  switch (node.type) {
+    case CompositeIsmNodeType.AGGREGATION:
+      for (const subIsm of node.subIsms) {
+        assertCompositeIsmNodeSupportedAsMailboxDefault(subIsm, context);
+      }
+      return;
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
+      assertCompositeIsmNodeSupportedAsMailboxDefault(node.lower, context);
+      assertCompositeIsmNodeSupportedAsMailboxDefault(node.upper, context);
+      return;
+    case CompositeIsmNodeType.ROUTING:
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
+      if (!node.domains) return;
+      for (const domainIsm of Object.values(node.domains)) {
+        assertCompositeIsmNodeSupportedAsMailboxDefault(domainIsm, context);
+      }
+      return;
+    case CompositeIsmNodeType.RATE_LIMITED:
+      assert(
+        false,
+        `A compositeIsm 'rateLimited' node is only supported on a warp route, but one was configured for ${context}. Remove the rateLimited node.`,
+      );
+      return;
+    case CompositeIsmNodeType.TRUSTED_RELAYER:
+    case CompositeIsmNodeType.MULTISIG_MESSAGE_ID:
+    case CompositeIsmNodeType.TEST:
+    case CompositeIsmNodeType.PAUSABLE:
+      return;
+    default:
+      return assertNever(
+        node,
+        'assertCompositeIsmNodeSupportedAsMailboxDefault',
+      );
+  }
+}
+
+function assertIsmConfigSupportedAsMailboxDefault(
+  config: IsmArtifactConfig,
+  context: string,
+): void {
+  switch (config.type) {
+    case IsmType.ROUTING:
+      for (const domainIsm of Object.values(config.domains)) {
+        if (!isArtifactUnderived(domainIsm)) {
+          assertIsmConfigSupportedAsMailboxDefault(domainIsm.config, context);
+        }
+      }
+      return;
+    case IsmType.COMPOSITE:
+      assertCompositeIsmNodeSupportedAsMailboxDefault(config.root, context);
+      return;
+    case IsmType.MERKLE_ROOT_MULTISIG:
+    case IsmType.MESSAGE_ID_MULTISIG:
+    case IsmType.TEST_ISM:
+      return;
+    default:
+      return assertNever(config, 'assertIsmConfigSupportedAsMailboxDefault');
+  }
+}
+
+/**
+ * Validates every expanded ISM and composite node before using an artifact as
+ * a mailbox default ISM. UNDERIVED address references are intentionally opaque.
+ *
+ * A rate-limited node reads a transfer amount from a fixed offset of a warp
+ * TokenMessage body, so it cannot safely validate arbitrary mailbox traffic.
+ * Keep both recursive switches exhaustive so future ISM variants must declare
+ * their mailbox compatibility before compiling.
+ */
+export function assertIsmSupportedAsMailboxDefault(
+  artifact: Artifact<IsmArtifactConfig, DeployedIsmAddress>,
+  context: string,
+): void {
+  if (isArtifactUnderived(artifact)) return;
+  assertIsmConfigSupportedAsMailboxDefault(artifact.config, context);
+}
+
+function ismArtifactHasExplicitRateLimitedRecipient(
+  config: IsmArtifactConfig,
+): boolean {
+  switch (config.type) {
+    case IsmType.ROUTING:
+      return Object.values(config.domains).some(
+        (domainIsm) =>
+          isArtifactNew(domainIsm) &&
+          ismArtifactHasExplicitRateLimitedRecipient(domainIsm.config),
+      );
+    case IsmType.COMPOSITE:
+      return someCompositeIsmNode(
+        config.root,
+        (node) =>
+          node.type === CompositeIsmNodeType.RATE_LIMITED &&
+          !isNullish(node.recipient),
+      );
+    case IsmType.MERKLE_ROOT_MULTISIG:
+    case IsmType.MESSAGE_ID_MULTISIG:
+    case IsmType.TEST_ISM:
+      return false;
+    default:
+      return assertNever(config, 'ismArtifactHasExplicitRateLimitedRecipient');
+  }
+}
+
+/**
+ * Rejects hand-written `rateLimited.recipient` values in the ISM artifacts
+ * that a warp create will deploy. DEPLOYED descendants are references to
+ * existing ISMs, so they are validated against the router after it exists.
+ */
+export function assertRateLimitedIsmRecipientsUnset(
+  artifact: Artifact<IsmArtifactConfig, DeployedIsmAddress>,
+  context: string,
+): void {
+  if (!isArtifactNew(artifact)) return;
+  const hasRecipient = ismArtifactHasExplicitRateLimitedRecipient(
+    artifact.config,
+  );
+  assert(
+    !hasRecipient,
+    `compositeIsm rateLimited.recipient must not be set when deploying a new warp route for ${context}: it is resolved to the router address being deployed. Remove the recipient field.`,
+  );
+}
+
+const RECIPIENT_BYTES32_REGEX = /^0x[0-9a-fA-F]{64}$/;
+
+/**
+ * Validates and normalizes the protocol-independent address representation
+ * stored in a Hyperlane message recipient field. Protocol backends must encode
+ * native addresses before invoking contextual ISM resolution.
+ */
+function normalizeRecipientBytes32(address: string): string {
+  assert(
+    RECIPIENT_BYTES32_REGEX.test(address),
+    `Expected a 32-byte Hyperlane address, got ${address}`,
+  );
+  return address.toLowerCase();
+}
+
+export interface ContextualAddress {
+  readonly address: string;
+  readonly toBytes32: () => string;
+}
+
+function assertCompositeIsmNodeRecipientMatches(
+  node: CompositeIsmNodeArtifactConfig,
+  warpRouter: ContextualAddress,
+  context: string,
+): void {
+  switch (node.type) {
+    case CompositeIsmNodeType.AGGREGATION:
+      for (const subIsm of node.subIsms) {
+        assertCompositeIsmNodeRecipientMatches(subIsm, warpRouter, context);
+      }
+      return;
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
+      assertCompositeIsmNodeRecipientMatches(node.lower, warpRouter, context);
+      assertCompositeIsmNodeRecipientMatches(node.upper, warpRouter, context);
+      return;
+    case CompositeIsmNodeType.ROUTING:
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
+      if (!node.domains) return;
+      for (const domainIsm of Object.values(node.domains)) {
+        assertCompositeIsmNodeRecipientMatches(domainIsm, warpRouter, context);
+      }
+      return;
+    case CompositeIsmNodeType.RATE_LIMITED: {
+      const recipient = normalizeRecipientBytes32(warpRouter.toBytes32());
+      assert(
+        !isNullish(node.recipient),
+        `Deployed compositeIsm rateLimited.recipient is missing for ${context}.`,
+      );
+      assert(
+        normalizeRecipientBytes32(node.recipient) === recipient,
+        `Deployed compositeIsm rateLimited.recipient ${node.recipient} does not match the warp router it protects (${recipient}) for ${context}.`,
+      );
+      return;
+    }
+    case CompositeIsmNodeType.TRUSTED_RELAYER:
+    case CompositeIsmNodeType.MULTISIG_MESSAGE_ID:
+    case CompositeIsmNodeType.TEST:
+    case CompositeIsmNodeType.PAUSABLE:
+      return;
+    default:
+      return assertNever(node, 'assertCompositeIsmNodeRecipientMatches');
+  }
+}
+
+function assertIsmConfigRecipientsMatch(
+  config: IsmArtifactConfig,
+  warpRouter: ContextualAddress,
+  context: string,
+): void {
+  switch (config.type) {
+    case IsmType.ROUTING:
+      for (const domainIsm of Object.values(config.domains)) {
+        if (!isArtifactUnderived(domainIsm)) {
+          assertIsmConfigRecipientsMatch(domainIsm.config, warpRouter, context);
+        }
+      }
+      return;
+    case IsmType.COMPOSITE:
+      assertCompositeIsmNodeRecipientMatches(config.root, warpRouter, context);
+      return;
+    case IsmType.MERKLE_ROOT_MULTISIG:
+    case IsmType.MESSAGE_ID_MULTISIG:
+    case IsmType.TEST_ISM:
+      return;
+    default:
+      return assertNever(config, 'assertIsmConfigRecipientsMatch');
+  }
+}
+
+function assertNoNewIsmDescendants(
+  config: IsmArtifactConfig,
+  context: string,
+): void {
+  switch (config.type) {
+    case IsmType.ROUTING:
+      for (const [domainId, domainIsm] of Object.entries(config.domains)) {
+        assert(
+          !isArtifactNew(domainIsm),
+          `A DEPLOYED ISM used while creating ${context} cannot contain a NEW descendant for domain ${domainId}. Update the deployed ISM first, or configure the root ISM as NEW.`,
+        );
+        if (isArtifactDeployed(domainIsm)) {
+          assertNoNewIsmDescendants(domainIsm.config, context);
+        }
+      }
+      return;
+    case IsmType.COMPOSITE:
+    case IsmType.MERKLE_ROOT_MULTISIG:
+    case IsmType.MESSAGE_ID_MULTISIG:
+    case IsmType.TEST_ISM:
+      return;
+    default:
+      return assertNever(config, 'assertNoNewIsmDescendants');
+  }
+}
+
+function resolveCompositeIsmNodeRecipients(
+  node: CompositeIsmNodeArtifactConfig,
+  recipient: string,
+  context: string,
+): CompositeIsmNodeArtifactConfig {
+  switch (node.type) {
+    case CompositeIsmNodeType.TRUSTED_RELAYER:
+      return { type: node.type, relayer: node.relayer };
+    case CompositeIsmNodeType.MULTISIG_MESSAGE_ID:
+      return {
+        type: node.type,
+        validators: node.validators,
+        threshold: node.threshold,
+      };
+    case CompositeIsmNodeType.TEST:
+      return { type: node.type, accept: node.accept };
+    case CompositeIsmNodeType.PAUSABLE:
+      return { type: node.type, paused: node.paused };
+    case CompositeIsmNodeType.AGGREGATION:
+      return {
+        type: node.type,
+        threshold: node.threshold,
+        subIsms: node.subIsms.map((sub) =>
+          resolveCompositeIsmNodeRecipients(sub, recipient, context),
+        ),
+      };
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
+      return {
+        type: node.type,
+        threshold: node.threshold,
+        lower: resolveCompositeIsmNodeRecipients(
+          node.lower,
+          recipient,
+          context,
+        ),
+        upper: resolveCompositeIsmNodeRecipients(
+          node.upper,
+          recipient,
+          context,
+        ),
+      };
+    case CompositeIsmNodeType.RATE_LIMITED: {
+      if (!isNullish(node.recipient)) {
+        assert(
+          normalizeRecipientBytes32(node.recipient) === recipient,
+          `compositeIsm rateLimited.recipient ${node.recipient} does not match the warp router it protects (${recipient}) for ${context}. Remove the recipient field to have it resolved automatically.`,
+        );
+      }
+      return {
+        type: node.type,
+        maxCapacity: node.maxCapacity,
+        mailbox: node.mailbox,
+        recipient,
+      };
+    }
+    case CompositeIsmNodeType.ROUTING: {
+      const domains = resolveCompositeIsmDomainRecipients(
+        node.domains,
+        recipient,
+        context,
+      );
+      return {
+        type: node.type,
+        ...(domains ? { domains } : {}),
+      };
+    }
+    case CompositeIsmNodeType.FALLBACK_ROUTING: {
+      const domains = resolveCompositeIsmDomainRecipients(
+        node.domains,
+        recipient,
+        context,
+      );
+      return {
+        type: node.type,
+        fallbackIsm: node.fallbackIsm,
+        ...(domains ? { domains } : {}),
+      };
+    }
+    default:
+      return assertNever(node, 'resolveCompositeIsmNodeRecipients');
+  }
+}
+
+function resolveCompositeIsmDomainRecipients(
+  domains: Record<number, CompositeIsmNodeArtifactConfig> | undefined,
+  recipient: string,
+  context: string,
+): Record<number, CompositeIsmNodeArtifactConfig> | undefined {
+  if (!domains) return undefined;
+  const resolved: Record<number, CompositeIsmNodeArtifactConfig> = {};
+  for (const [domainIdStr, domainNode] of Object.entries(domains)) {
+    resolved[Number(domainIdStr)] = resolveCompositeIsmNodeRecipients(
+      domainNode,
+      recipient,
+      context,
+    );
+  }
+  return resolved;
+}
+
+function resolveIsmArtifactRecipients(
+  artifact: Artifact<IsmArtifactConfig, DeployedIsmAddress>,
+  warpRouter: ContextualAddress,
+  context: string,
+): Artifact<IsmArtifactConfig, DeployedIsmAddress> {
+  if (isArtifactUnderived(artifact)) return artifact;
+  return {
+    ...artifact,
+    config: resolveRateLimitedIsmRecipients(
+      artifact.config,
+      warpRouter,
+      context,
+    ),
+  };
+}
+
+function resolveNewIsmConfigRecipients(
+  config: IsmArtifactConfig,
+  warpRouter: ContextualAddress,
+  context: string,
+): IsmArtifactConfig {
+  if (config.type !== IsmType.ROUTING) {
+    return resolveRateLimitedIsmRecipients(config, warpRouter, context);
+  }
+
+  const domains: RoutingIsmArtifactConfig['domains'] = {};
+  for (const [domainId, domainIsm] of Object.entries(config.domains)) {
+    if (isArtifactUnderived(domainIsm)) {
+      domains[Number(domainId)] = domainIsm;
+    } else if (isArtifactDeployed(domainIsm)) {
+      assertIsmConfigRecipientsMatch(domainIsm.config, warpRouter, context);
+      domains[Number(domainId)] = domainIsm;
+    } else if (isArtifactNew(domainIsm)) {
+      domains[Number(domainId)] = {
+        ...domainIsm,
+        config: resolveNewIsmConfigRecipients(
+          domainIsm.config,
+          warpRouter,
+          context,
+        ),
+      };
+    } else {
+      domains[Number(domainId)] = assertNever(
+        domainIsm,
+        'resolveNewIsmConfigRecipients',
+      );
+    }
+  }
+  return { type: config.type, owner: config.owner, domains };
+}
+
+export const IsmArtifactResolutionOperation = {
+  CREATE: 'create',
+  UPDATE: 'update',
+} as const;
+
+export type IsmArtifactResolutionOperation =
+  (typeof IsmArtifactResolutionOperation)[keyof typeof IsmArtifactResolutionOperation];
+
+export interface IsmArtifactResolutionContext {
+  operation: IsmArtifactResolutionOperation;
+  warpRouter: ContextualAddress;
+  context: string;
+}
+
+/**
+ * Resolves an ISM artifact using its surrounding deployment context. Creating
+ * a parent artifact deploys only NEW descendants; DEPLOYED descendants are
+ * validated and preserved as references. Updating a DEPLOYED parent may update
+ * its expanded DEPLOYED descendants recursively.
+ */
+export function resolveIsmArtifact(
+  artifact: ArtifactNew<IsmArtifactConfig> | DeployedIsmArtifact,
+  resolutionContext: IsmArtifactResolutionContext,
+): ArtifactNew<IsmArtifactConfig> | DeployedIsmArtifact {
+  const { context, operation, warpRouter } = resolutionContext;
+  if (isArtifactNew(artifact)) {
+    return {
+      ...artifact,
+      config: resolveNewIsmConfigRecipients(
+        artifact.config,
+        warpRouter,
+        context,
+      ),
+    };
+  }
+  if (operation === IsmArtifactResolutionOperation.CREATE) {
+    assertNoNewIsmDescendants(artifact.config, context);
+    assertIsmConfigRecipientsMatch(artifact.config, warpRouter, context);
+    return artifact;
+  }
+  return {
+    ...artifact,
+    config: resolveRateLimitedIsmRecipients(
+      artifact.config,
+      warpRouter,
+      context,
+    ),
+  };
+}
+
+/**
+ * Fills in every unset `rateLimited.recipient` in a composite ISM tree with
+ * the warp router the ISM protects, and rejects any hand-written recipient
+ * that names a different address.
+ *
+ * The on-chain program requires a specific non-zero recipient
+ * (rust/sealevel/programs/ism/composite-ism/src/processor.rs) but a wrong one
+ * fails only at delivery time, indistinguishably from a rate-limit trip — so
+ * the value is derived here rather than left to the config author.
+ *
+ * Compound ISM artifacts are traversed recursively. UNDERIVED children are
+ * returned unchanged because an address-only artifact has no config to
+ * resolve. The exhaustive switch ensures future compound artifact types must
+ * declare their child traversal when they are added to IsmArtifactConfig.
+ */
+export function resolveRateLimitedIsmRecipients(
+  config: IsmArtifactConfig,
+  warpRouter: ContextualAddress,
+  context: string,
+): IsmArtifactConfig {
+  switch (config.type) {
+    case IsmType.ROUTING: {
+      const domains: RoutingIsmArtifactConfig['domains'] = {};
+      for (const [domainId, domainIsm] of Object.entries(config.domains)) {
+        domains[Number(domainId)] = resolveIsmArtifactRecipients(
+          domainIsm,
+          warpRouter,
+          context,
+        );
+      }
+      return { type: config.type, owner: config.owner, domains };
+    }
+    case IsmType.COMPOSITE: {
+      const recipient = normalizeRecipientBytes32(warpRouter.toBytes32());
+      return {
+        type: config.type,
+        owner: config.owner,
+        root: resolveCompositeIsmNodeRecipients(
+          config.root,
+          recipient,
+          context,
+        ),
+      };
+    }
+    case IsmType.MERKLE_ROOT_MULTISIG:
+    case IsmType.MESSAGE_ID_MULTISIG:
+    case IsmType.TEST_ISM:
+      return config;
+    default:
+      return assertNever(config, 'resolveRateLimitedIsmRecipients');
+  }
+}
+
 export function ismArtifactToDerivedConfig(
   artifact: DeployedIsmArtifact,
   chainLookup: ChainLookup,
@@ -539,7 +1092,7 @@ export function ismArtifactToDerivedConfig(
   const address = artifact.deployed.address;
 
   switch (config.type) {
-    case 'domainRoutingIsm': {
+    case IsmType.ROUTING: {
       // For routing ISMs, convert domain IDs back to chain names
       // and convert nested artifacts to IsmConfig or address strings
       const domains: Record<string, IsmConfig | string> = {};
@@ -571,31 +1124,31 @@ export function ismArtifactToDerivedConfig(
       }
 
       return {
-        type: 'domainRoutingIsm',
+        type: IsmType.ROUTING,
         owner: config.owner,
         domains,
         address,
       };
     }
 
-    case 'merkleRootMultisigIsm':
-    case 'messageIdMultisigIsm':
+    case IsmType.MERKLE_ROOT_MULTISIG:
+    case IsmType.MESSAGE_ID_MULTISIG:
       // Multisig ISMs have identical structure between Artifact and Config APIs
       return {
         ...config,
         address,
       };
 
-    case 'testIsm':
+    case IsmType.TEST_ISM:
       // Test ISMs have identical structure between Artifact and Config APIs
       return {
         ...config,
         address,
       };
 
-    case 'compositeIsm':
+    case IsmType.COMPOSITE:
       return {
-        type: 'compositeIsm',
+        type: IsmType.COMPOSITE,
         owner: config.owner,
         root: compositeIsmNodeArtifactToConfig(config.root, chainLookup),
         address,
@@ -643,7 +1196,7 @@ export function ismConfigToArtifact(
   chainLookup: ChainLookup,
 ): ArtifactNew<IsmArtifactConfig> {
   // Handle routing ISMs - need to convert chain names to domain IDs
-  if (config.type === 'domainRoutingIsm') {
+  if (config.type === IsmType.ROUTING) {
     const domains: Record<
       number,
       Artifact<IsmArtifactConfig, DeployedIsmAddress>
@@ -674,7 +1227,7 @@ export function ismConfigToArtifact(
     return {
       artifactState: ArtifactState.NEW,
       config: {
-        type: 'domainRoutingIsm',
+        type: IsmType.ROUTING,
         owner: config.owner,
         domains,
       },
@@ -682,11 +1235,11 @@ export function ismConfigToArtifact(
   }
 
   // Composite ISM - need to convert chain names to domain IDs throughout the tree
-  if (config.type === 'compositeIsm') {
+  if (config.type === IsmType.COMPOSITE) {
     return {
       artifactState: ArtifactState.NEW,
       config: {
-        type: 'compositeIsm',
+        type: IsmType.COMPOSITE,
         owner: config.owner,
         root: compositeIsmNodeConfigToArtifact(config.root, chainLookup),
       },

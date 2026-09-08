@@ -21,9 +21,11 @@ import {
   IRawHookArtifactManager,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import {
+  CompositeIsmNodeType,
   DeployedIsmArtifact,
   IRawIsmArtifactManager,
   IsmArtifactConfig,
+  IsmType,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   DeployedMailboxAddress,
@@ -93,7 +95,7 @@ describe('CoreWriter', () => {
   const mockIsm: DeployedIsmArtifact = {
     artifactState: ArtifactState.DEPLOYED,
     config: {
-      type: 'merkleRootMultisigIsm',
+      type: IsmType.MERKLE_ROOT_MULTISIG,
       validators: ['0xVALIDATOR1'],
       threshold: 1,
     },
@@ -918,6 +920,190 @@ describe('CoreWriter', () => {
     });
   });
 
+  describe('rateLimited default ISM rejection', () => {
+    // A rateLimited node meters an amount read from a fixed offset of the
+    // message body, which only holds for warp-route traffic — a mailbox
+    // default ISM sees every message.
+    const compositeIsmWithRateLimited: IsmArtifactConfig = {
+      type: IsmType.COMPOSITE,
+      owner: mockOwner,
+      root: {
+        type: CompositeIsmNodeType.AGGREGATION,
+        threshold: 1,
+        subIsms: [
+          { type: CompositeIsmNodeType.TEST, accept: true },
+          {
+            type: CompositeIsmNodeType.RATE_LIMITED,
+            maxCapacity: '86400',
+            mailbox: mockMailboxAddress,
+          },
+        ],
+      },
+    };
+
+    const routingIsmWithNestedRateLimited: IsmArtifactConfig = {
+      type: IsmType.ROUTING,
+      owner: mockOwner,
+      domains: {
+        [mockDomainId]: {
+          artifactState: ArtifactState.NEW,
+          config: compositeIsmWithRateLimited,
+        },
+      },
+    };
+
+    it('rejects it on create before anything is deployed', async () => {
+      // ARRANGE
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+        artifactState: ArtifactState.NEW,
+        config: {
+          owner: mockOwner,
+          defaultIsm: {
+            artifactState: ArtifactState.NEW,
+            config: compositeIsmWithRateLimited,
+          },
+          defaultHook: mockDefaultHook,
+          requiredHook: mockRequiredHook,
+        },
+      };
+
+      const ismCreateStub = sinon.stub();
+      Object.defineProperty(coreWriter, 'ismWriter', {
+        value: {
+          create: ismCreateStub,
+          update: sinon.stub(),
+          read: sinon.stub(),
+        },
+        writable: true,
+      });
+
+      // ACT & ASSERT
+      await expect(coreWriter.create(artifact)).to.be.rejectedWith(
+        /rateLimited/,
+      );
+      sinon.assert.notCalled(ismCreateStub);
+      sinon.assert.notCalled(createMailboxWriterStub);
+    });
+
+    it('rejects it when nested inside a routing artifact', async () => {
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+        artifactState: ArtifactState.NEW,
+        config: {
+          owner: mockOwner,
+          defaultIsm: {
+            artifactState: ArtifactState.NEW,
+            config: routingIsmWithNestedRateLimited,
+          },
+          defaultHook: mockDefaultHook,
+          requiredHook: mockRequiredHook,
+        },
+      };
+
+      const ismCreateStub = sinon.stub();
+      Object.defineProperty(coreWriter, 'ismWriter', {
+        value: {
+          create: ismCreateStub,
+          update: sinon.stub(),
+          read: sinon.stub(),
+        },
+        writable: true,
+      });
+
+      await expect(coreWriter.create(artifact)).to.be.rejectedWith(
+        /rateLimited/,
+      );
+      sinon.assert.notCalled(ismCreateStub);
+      sinon.assert.notCalled(createMailboxWriterStub);
+    });
+
+    it('rejects it on update before any transaction is built', async () => {
+      // ARRANGE
+      const readStub = sinon.stub(coreWriter, 'read');
+
+      const expectedArtifact: ArtifactDeployed<
+        MailboxArtifactConfig,
+        DeployedMailboxAddress
+      > = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          owner: mockOwner,
+          defaultIsm: {
+            artifactState: ArtifactState.NEW,
+            config: compositeIsmWithRateLimited,
+          },
+          defaultHook: mockDefaultHook,
+          requiredHook: mockRequiredHook,
+        },
+        deployed: { address: mockMailboxAddress, domainId: mockDomainId },
+      };
+
+      const ismCreateStub = sinon.stub();
+      const ismUpdateStub = sinon.stub();
+      Object.defineProperty(coreWriter, 'ismWriter', {
+        value: {
+          create: ismCreateStub,
+          update: ismUpdateStub,
+          read: sinon.stub(),
+        },
+        writable: true,
+      });
+
+      // ACT & ASSERT
+      await expect(coreWriter.update(expectedArtifact)).to.be.rejectedWith(
+        /rateLimited/,
+      );
+      sinon.assert.notCalled(readStub);
+      sinon.assert.notCalled(ismCreateStub);
+      sinon.assert.notCalled(ismUpdateStub);
+    });
+
+    it('accepts a composite default ISM without a rateLimited node', async () => {
+      // ARRANGE
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+        artifactState: ArtifactState.NEW,
+        config: {
+          owner: mockOwner,
+          defaultIsm: {
+            artifactState: ArtifactState.NEW,
+            config: {
+              type: IsmType.COMPOSITE,
+              owner: mockOwner,
+              root: { type: CompositeIsmNodeType.TEST, accept: true },
+            },
+          },
+          defaultHook: mockDefaultHook,
+          requiredHook: mockRequiredHook,
+        },
+      };
+
+      const ismCreateStub = sinon.stub().resolves([mockIsm, [mockReceipt]]);
+      Object.defineProperty(coreWriter, 'ismWriter', {
+        value: {
+          create: ismCreateStub,
+          update: sinon.stub(),
+          read: sinon.stub(),
+        },
+        writable: true,
+      });
+
+      const mockHookWriter = {
+        create: sinon.stub(),
+        update: sinon.stub().resolves([]),
+        read: sinon.stub(),
+      };
+      mockHookArtifactManager.createWriter = sinon
+        .stub()
+        .returns(mockHookWriter);
+
+      // ACT
+      const [result] = await coreWriter.create(artifact);
+
+      // ASSERT
+      expect(result.mailbox.deployed.address).to.equal(mockMailboxAddress);
+      sinon.assert.calledOnce(ismCreateStub);
+    });
+  });
+
   describe('update', () => {
     it('should handle ISM type change by deploying new ISM', async () => {
       // ARRANGE
@@ -937,7 +1123,7 @@ describe('CoreWriter', () => {
       const newIsm: DeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
-          type: 'messageIdMultisigIsm',
+          type: IsmType.MESSAGE_ID_MULTISIG,
           validators: ['0xVALIDATOR2'],
           threshold: 1,
         },
@@ -993,7 +1179,7 @@ describe('CoreWriter', () => {
       sinon.assert.calledOnce(ismCreateStub);
       const createArg = ismCreateStub.firstCall.args[0];
       expect(createArg.artifactState).to.equal(ArtifactState.NEW);
-      expect(createArg.config.type).to.equal('messageIdMultisigIsm');
+      expect(createArg.config.type).to.equal(IsmType.MESSAGE_ID_MULTISIG);
     });
 
     it('should handle UNDERIVED ISM by using address as-is', async () => {
@@ -1133,7 +1319,7 @@ describe('CoreWriter', () => {
       const newIsm: DeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
-          type: 'merkleRootMultisigIsm',
+          type: IsmType.MERKLE_ROOT_MULTISIG,
           validators: ['0xVALIDATOR1'],
           threshold: 1,
         },
@@ -1369,7 +1555,7 @@ describe('CoreWriter', () => {
       const newIsm: DeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
-          type: 'messageIdMultisigIsm',
+          type: IsmType.MESSAGE_ID_MULTISIG,
           validators: ['0xVALIDATOR2'],
           threshold: 1,
         },

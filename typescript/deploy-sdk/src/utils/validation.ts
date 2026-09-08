@@ -19,18 +19,18 @@ import { IsmConfig, IsmType } from '@hyperlane-xyz/provider-sdk/ism';
  * every call site instead of removing it.
  */
 const SUPPORTED_ISM_TYPES: ReadonlySet<string> = new Set<IsmType>([
-  'domainRoutingIsm',
-  'merkleRootMultisigIsm',
-  'messageIdMultisigIsm',
-  'testIsm',
-  'compositeIsm',
+  IsmType.ROUTING,
+  IsmType.MERKLE_ROOT_MULTISIG,
+  IsmType.MESSAGE_ID_MULTISIG,
+  IsmType.TEST_ISM,
+  IsmType.COMPOSITE,
 ]);
 
 /** ISM types restricted to a single Alt-VM protocol (Sealevel program, no cross-VM equivalent). */
 const PROTOCOL_SPECIFIC_ISM_TYPES: Readonly<
   Partial<Record<string, ProtocolType>>
 > = {
-  compositeIsm: ProtocolType.Sealevel,
+  [IsmType.COMPOSITE]: ProtocolType.Sealevel,
 };
 
 /**
@@ -107,7 +107,7 @@ export function validateIsmConfig(
   validateIsmType(config.type, chain, context, protocol);
 
   // Recursively validate nested ISMs in routing configs
-  if (config.type === 'domainRoutingIsm') {
+  if (config.type === IsmType.ROUTING) {
     for (const [domain, domainConfig] of Object.entries(config.domains)) {
       validateIsmConfig(
         domainConfig,

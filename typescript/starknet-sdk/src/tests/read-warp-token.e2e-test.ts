@@ -18,7 +18,7 @@ const STARKNET_MAINNET_METADATA: ChainMetadataForAltVM = {
     name: 'StarkNet Token',
     symbol: 'STRK',
   },
-  rpcUrls: [{ http: 'https://rpc.starknet.lava.build:443/' }],
+  rpcUrls: [{ http: 'https://starknet-rpc.publicnode.com' }],
 };
 
 const PARADEX_MAINNET_METADATA: ChainMetadataForAltVM = {

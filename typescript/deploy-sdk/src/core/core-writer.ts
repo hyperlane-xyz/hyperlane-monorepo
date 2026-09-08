@@ -25,6 +25,7 @@ import {
   DeployedIsmAddress,
   DeployedIsmArtifact,
   IsmArtifactConfig,
+  assertIsmSupportedAsMailboxDefault,
   mergeIsmArtifacts,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
@@ -129,6 +130,11 @@ export class CoreWriter extends CoreArtifactReader {
     const { config } = artifact;
     const allReceipts: TxReceipt[] = [];
     const chainName = this.chainMetadata.name;
+
+    assertIsmSupportedAsMailboxDefault(
+      config.defaultIsm,
+      `the default ISM of ${chainName}`,
+    );
 
     this.logger.info(`Starting core deployment on ${chainName}`);
 
@@ -285,6 +291,11 @@ export class CoreWriter extends CoreArtifactReader {
     const { config: expectedConfig, deployed } = expectedArtifact;
     const { address: mailboxAddress } = deployed;
     const updateTxs: AnnotatedTx[] = [];
+
+    assertIsmSupportedAsMailboxDefault(
+      expectedConfig.defaultIsm,
+      `the default ISM of ${this.chainMetadata.name}`,
+    );
 
     // Read actual state (fully expanded)
     const currentArtifact = await this.read(mailboxAddress);
