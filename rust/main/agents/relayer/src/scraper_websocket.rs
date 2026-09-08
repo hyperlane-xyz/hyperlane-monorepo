@@ -12,7 +12,7 @@ use std::{
 use eyre::{bail, Context, ContextCompat, Result};
 use futures_util::{stream, SinkExt, StreamExt};
 use hyperlane_base::{
-    broadcast::BroadcastMpscSender,
+    broadcast::{BroadcastMpscSender, IndexingNotification},
     db::{DbResult, HyperlaneDb, HyperlaneRocksDB},
     scraper_websocket::{
         EventMessage, GasPaymentCursor as GasPaymentSubscriptionCursor, SequenceCursor,
@@ -124,7 +124,7 @@ impl ParityDatabase for HyperlaneRocksDB {
 
 #[derive(Clone)]
 pub(crate) struct ScraperSource {
-    broadcaster: Option<BroadcastMpscSender<H512>>,
+    broadcaster: Option<BroadcastMpscSender<IndexingNotification>>,
     chain: String,
     cursor_db: HyperlaneRocksDB,
     domain: u32,
@@ -159,7 +159,7 @@ impl ScraperSource {
 
     pub(crate) fn with_broadcaster(
         mut self,
-        broadcaster: Option<BroadcastMpscSender<H512>>,
+        broadcaster: Option<BroadcastMpscSender<IndexingNotification>>,
     ) -> Self {
         self.broadcaster = broadcaster;
         self
@@ -347,7 +347,7 @@ impl ScraperSource {
             .context("Storing durable scraper gas payment degradation")
     }
 
-    fn store_sequenced_event(&self, input: &ParityInput) -> Result<Option<H512>> {
+    fn store_sequenced_event(&self, input: &ParityInput) -> Result<Option<IndexingNotification>> {
         match input.compare(self.database.as_ref())? {
             ParityResult::Match => {
                 if let ParityInput::MerkleTreeInsertion {
@@ -388,7 +388,10 @@ impl ScraperSource {
                     self.cursor_db
                         .store_dispatched_tx_hash_by_message_id(&message.id(), transaction_id)?;
                 }
-                Some(*transaction_id)
+                Some(IndexingNotification {
+                    tx_id: *transaction_id,
+                    sequences: vec![Some(message.nonce)],
+                })
             }
             ParityInput::MerkleTreeInsertion {
                 block_number,
@@ -2195,8 +2198,8 @@ impl ScraperWebSocketMonitor {
                 terminal = Some("error");
                 break;
             }
-            let mut comparison =
-                tokio::task::spawn_blocking(move || -> Result<(ParityResult, Option<H512>)> {
+            let mut comparison = tokio::task::spawn_blocking(
+                move || -> Result<(ParityResult, Option<IndexingNotification>)> {
                     let _permit = permit;
                     let comparison = parity_input.compare(source.database.as_ref())?;
                     if authority_active && comparison == ParityResult::Missing {
@@ -2204,7 +2207,8 @@ impl ScraperWebSocketMonitor {
                         return Ok((ParityResult::Match, notification));
                     }
                     Ok((comparison, None))
-                });
+                },
+            );
             match timeout(PARITY_READ_TIMEOUT, &mut comparison).await {
                 Err(_) => {
                     self.disable_parity_reads(&chain, event_type, "blocking read timed out");
@@ -2219,10 +2223,10 @@ impl ScraperWebSocketMonitor {
                     break;
                 }
                 Ok(Ok(Ok((result, notification)))) => {
-                    if let (Some(broadcaster), Some(transaction_id)) =
+                    if let (Some(broadcaster), Some(notification)) =
                         (broadcaster.as_ref(), notification)
                     {
-                        if let Err(err) = broadcaster.send(transaction_id).await {
+                        if let Err(err) = broadcaster.send(notification).await {
                             if should_warn(&self.parity_warned_at) {
                                 warn!(%chain, event_type, ?err, "Notifying scraper-indexed dispatch failed");
                             }
@@ -4078,7 +4082,14 @@ mod tests {
 
     #[tokio::test]
     async fn authority_stores_missing_dispatch_before_advancing_parity() {
-        let fixture = fixture();
+        let mut fixture = fixture();
+        let broadcaster = BroadcastMpscSender::default();
+        let mut notifications = broadcaster.get_receiver().await;
+        fixture
+            .sources
+            .get_mut(&5)
+            .expect("test source")
+            .broadcaster = Some(broadcaster);
         let database = fixture.database.clone();
         let metrics = CoreMetrics::new("scraper-authority-store-test", 9090, Registry::new())
             .expect("create test metrics");
@@ -4100,6 +4111,13 @@ mod tests {
         assert_eq!(
             monitor.observe_parity(5, EventKind::Dispatch, input).await,
             ParityResult::Match.label()
+        );
+        assert_eq!(
+            notifications.try_recv().expect("dispatch notification"),
+            IndexingNotification {
+                tx_id: dispatch_transaction_id(),
+                sequences: vec![Some(message.nonce)],
+            }
         );
         assert_eq!(
             database

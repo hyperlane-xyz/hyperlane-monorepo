@@ -830,7 +830,7 @@ impl Relayer {
         &self,
         origin: &Origin,
         mut authority: ScraperAuthorityReceiver,
-        broadcaster: Option<BroadcastMpscSender<H512>>,
+        broadcaster: Option<BroadcastMpscSender<IndexingNotification>>,
         task_monitor: TaskMonitor,
     ) -> JoinHandle<()> {
         let origin_domain = origin.domain.clone();
