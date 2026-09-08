@@ -17,7 +17,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, QueueOperation, H256};
 use parking_lot::Mutex;
-use prometheus::{HistogramVec, IntCounterVec, IntGauge, IntGaugeVec};
+use prometheus::{HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec};
 use tokio::sync::mpsc::{error::TryRecvError, error::TrySendError, Receiver, Sender};
 use tracing::{debug, instrument, trace};
 
@@ -180,6 +180,7 @@ impl DestinationIndexIterator {
         if reopened_low_range {
             return self.peek(db, metrics);
         }
+        metrics.mark_initial_destination_scan_complete(self.destination_label.as_ref());
         Ok(None)
     }
 
@@ -554,6 +555,8 @@ impl MessageDbLoader {
         };
         let mut destinations: Vec<_> = send_channels.keys().copied().collect();
         destinations.sort_unstable();
+        let mut metrics = metrics;
+        metrics.bind_destinations(&destinations);
         let destination_iterators = destinations
             .into_iter()
             .map(|destination| DestinationIndexIterator::new(destination, highest_seen_nonce))
@@ -984,6 +987,7 @@ pub struct MessageDbLoaderMetricsShared {
     records_examined: IntCounterVec,
     logical_db_reads: IntCounterVec,
     destination_outcomes: IntCounterVec,
+    initial_destination_scan_complete: IntGaugeVec,
     scan_duration_seconds: HistogramVec,
     ingress_depth: IntGaugeVec,
 }
@@ -1004,8 +1008,13 @@ impl MessageDbLoaderMetricsShared {
             )?,
             destination_outcomes: metrics.new_int_counter(
                 "message_db_loader_destination_outcomes_total",
-                "Outcomes for destination-index records examined by the message DB loader",
+                "Decision outcomes for destination-index records; compare initial composition only after the matching initial scan-complete gauge is 1",
                 &["origin", "destination", "outcome"],
+            )?,
+            initial_destination_scan_complete: metrics.new_int_gauge(
+                "message_db_loader_initial_destination_scan_complete",
+                "Whether the loader reached the end of both initial destination-index ranges; outcome ratios are incomplete while 0",
+                &["origin", "destination"],
             )?,
             scan_duration_seconds: metrics.new_histogram(
                 "message_db_loader_scan_duration_seconds",
@@ -1035,6 +1044,9 @@ impl MessageDbLoaderMetricsShared {
             records_examined: self.records_examined.clone(),
             logical_db_reads: self.logical_db_reads.clone(),
             destination_outcomes: self.destination_outcomes.clone(),
+            destination_outcome_counters: HashMap::new(),
+            initial_destination_scan_complete: self.initial_destination_scan_complete.clone(),
+            initial_destination_scan_complete_gauges: HashMap::new(),
             scan_duration_seconds: self.scan_duration_seconds.clone(),
             ingress_depth: self.ingress_depth.clone(),
         }
@@ -1048,15 +1060,52 @@ pub struct MessageDbLoaderMetrics {
     records_examined: IntCounterVec,
     logical_db_reads: IntCounterVec,
     destination_outcomes: IntCounterVec,
+    destination_outcome_counters: HashMap<String, HashMap<&'static str, IntCounter>>,
+    initial_destination_scan_complete: IntGaugeVec,
+    initial_destination_scan_complete_gauges: HashMap<String, IntGauge>,
     scan_duration_seconds: HistogramVec,
     ingress_depth: IntGaugeVec,
 }
 
 impl MessageDbLoaderMetrics {
-    fn record_destination_outcome(&self, destination: &str, outcome: &str) {
-        self.destination_outcomes
-            .with_label_values(&[self.origin.as_str(), destination, outcome])
-            .inc();
+    fn bind_destinations(&mut self, destinations: &[u32]) {
+        for destination in destinations {
+            let destination = destination.to_string();
+            let scan_complete = self
+                .initial_destination_scan_complete
+                .with_label_values(&[self.origin.as_str(), destination.as_str()]);
+            scan_complete.set(0);
+            self.initial_destination_scan_complete_gauges
+                .insert(destination, scan_complete);
+        }
+    }
+
+    fn record_destination_outcome(&mut self, destination: &str, outcome: &'static str) {
+        if let Some(counter) = self
+            .destination_outcome_counters
+            .get(destination)
+            .and_then(|counters| counters.get(outcome))
+        {
+            counter.inc();
+            return;
+        }
+        let counter = self.destination_outcomes.with_label_values(&[
+            self.origin.as_str(),
+            destination,
+            outcome,
+        ]);
+        counter.inc();
+        self.destination_outcome_counters
+            .entry(destination.to_owned())
+            .or_default()
+            .insert(outcome, counter);
+    }
+
+    fn mark_initial_destination_scan_complete(&self, destination: &str) {
+        self.initial_destination_scan_complete_gauges
+            .get(destination)
+            .expect("destination scan gauge is bound")
+            .set(1);
     }
 
     fn update_ingress_depths(

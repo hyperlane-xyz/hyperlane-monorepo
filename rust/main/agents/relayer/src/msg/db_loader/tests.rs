@@ -73,6 +73,16 @@ pub fn dummy_message_loader_metrics() -> MessageDbLoaderMetrics {
             &["origin", "destination", "outcome"],
         )
         .unwrap(),
+        destination_outcome_counters: HashMap::new(),
+        initial_destination_scan_complete: IntGaugeVec::new(
+            prometheus::Opts::new(
+                "dummy_db_loader_initial_destination_scan_complete",
+                "help string",
+            ),
+            &["origin", "destination"],
+        )
+        .unwrap(),
+        initial_destination_scan_complete_gauges: HashMap::new(),
         scan_duration_seconds: HistogramVec::new(
             prometheus::HistogramOpts::new("dummy_db_loader_scan_duration", "help string"),
             &["origin", "destination", "phase"],
@@ -843,15 +853,7 @@ fn destination_outcome_count(
     destination: &HyperlaneDomain,
     outcome: &str,
 ) -> u64 {
-    loader
-        .metrics
-        .destination_outcomes
-        .with_label_values(&[
-            loader.metrics.origin.as_str(),
-            destination.id().to_string().as_str(),
-            outcome,
-        ])
-        .get()
+    loader.metrics.destination_outcome_counters[&destination.id().to_string()][outcome].get()
 }
 
 fn point_destination_scan_at(loader: &mut MessageDbLoader, nonce: u32) {
@@ -993,6 +995,18 @@ async fn destination_outcomes_attribute_loader_decisions_once() {
                 ])
                 .get(),
             10,
+        );
+        assert_eq!(
+            loader.metrics.initial_destination_scan_complete_gauges[&destination.id().to_string()]
+                .get(),
+            0,
+        );
+        point_destination_scan_at(&mut loader, nonce + 1);
+        assert!(!loader.try_load_destination(0).await.unwrap());
+        assert_eq!(
+            loader.metrics.initial_destination_scan_complete_gauges[&destination.id().to_string()]
+                .get(),
+            1,
         );
     })
     .await;
