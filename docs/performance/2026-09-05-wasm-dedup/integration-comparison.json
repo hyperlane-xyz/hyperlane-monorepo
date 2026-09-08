@@ -1,0 +1,86 @@
+{
+  "integrationHead": "ac515c7cf027cf100916c7aa1876d6b4ffe29112",
+  "fixture": "Local macOS NCC bundles, not Linux image or compressed layers",
+  "resolvedFileCount": 108,
+  "allResolvedContentsIdentical": true,
+  "idempotent": true,
+  "newWasmSymlinks": {
+    "relayer/aleo_wasm1.wasm": "../rebalancer/aleo_wasm.wasm",
+    "relayer/aleo_wasm.wasm": "../rebalancer/aleo_wasm1.wasm"
+  },
+  "oldRegularBytes": 293115406,
+  "newRegularBytes": 251705314,
+  "avoidedRegularBytes": 41410092,
+  "serviceStackInputs": [
+    {
+      "service": "keyfunder",
+      "pr": 9466,
+      "sha": "c566d54e83cd122a5f4c34f3a44dd24a59bcfffa"
+    },
+    {
+      "service": "scraper-proxy",
+      "pr": 9467,
+      "sha": "a4c4943e9781f1722f65f9e3818ac1dc0968d332"
+    },
+    {
+      "service": "warp-monitor",
+      "pr": 9473,
+      "sha": "4a7b1677d72c9853e2e362b3da576a0635ded555"
+    },
+    {
+      "service": "rebalancer",
+      "pr": 9483,
+      "sha": "d8e5fcdf0001b415c61b81c2dbb3688e8c304cc1"
+    },
+    {
+      "service": "ccip-server",
+      "pr": 9486,
+      "sha": "bcd635d46f2afe21191df90b8e6cf65b830a1439"
+    }
+  ],
+  "unchangedServiceSources": {
+    "relayer": "58e16ce875e3e312ab7344810bb159a5540f253b",
+    "fee-quoting": "58e16ce875e3e312ab7344810bb159a5540f253b"
+  },
+  "packagingPR": {
+    "number": 9497,
+    "sha": "5cb6327949c9472c56d345c1afb3cc04cf821ecc"
+  },
+  "publishedDockerMatchesSnapshot": true,
+  "allExistingLinkTargetsUnchanged": true,
+  "buildTasks": {
+    "successful": 30,
+    "cached": 23,
+    "rebuiltServiceBundles": 7
+  },
+  "services": {
+    "rebalancer": {
+      "oldRegularBytes": 83863257,
+      "newRegularBytes": 83863257
+    },
+    "warp-monitor": {
+      "oldRegularBytes": 35483017,
+      "newRegularBytes": 35483017
+    },
+    "ccip-server": {
+      "oldRegularBytes": 29172454,
+      "newRegularBytes": 29172454
+    },
+    "keyfunder": {
+      "oldRegularBytes": 19853104,
+      "newRegularBytes": 19853104
+    },
+    "relayer": {
+      "oldRegularBytes": 65622255,
+      "newRegularBytes": 24212163
+    },
+    "fee-quoting": {
+      "oldRegularBytes": 51097993,
+      "newRegularBytes": 51097993
+    },
+    "scraper-proxy": {
+      "oldRegularBytes": 8023326,
+      "newRegularBytes": 8023326
+    }
+  }
+}
