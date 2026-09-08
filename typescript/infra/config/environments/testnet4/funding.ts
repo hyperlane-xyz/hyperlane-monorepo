@@ -33,28 +33,16 @@ export const keyFunderConfig: KeyFunderConfig<
     arbitrumsepolia: '0.1',
     basesepolia: '0.1',
     bsctestnet: '5',
-    celestiatestnet: '0',
-    celosepolia: '0.5',
-    // no funding for solana
-    eclipsetestnet: '0',
-    fuji: '5',
     hyperliquidevmtestnet: '0.1',
-    kyvetestnet: '0',
-    modetestnet: '0.05',
     optimismsepolia: '0.1',
-    paradexsepolia: '0',
     polygonamoy: '0.2',
-    radixtestnet: '0',
     seismictestnet: '0.1',
     sepolia: '5',
-    starknetsepolia: '0',
     somniatestnet: '10',
     // no funding for SVM chains
     solanadevnet: '0',
     // no funding for SVM chains
     solanatestnet: '0',
-    // no funding for SVM chains
-    sonicsvmtestnet: '0',
     // no funding for tron chains right now
     tronshasta: '0',
   },
@@ -65,16 +53,11 @@ export const keyFunderConfig: KeyFunderConfig<
     bsctestnet: '1',
     connextsepolia: '0.1',
     ecotestnet: '0.01',
-    paradexsepolia: '0', // paradexsepolia doesn't have IGP currently
-    // no funding for solana
-    eclipsetestnet: '0',
-    fuji: '1',
     optimismsepolia: '0.05',
     polygonamoy: '0.1',
     sepolia: '1',
     // no funding for solana
     solanatestnet: '0',
-    starknetsepolia: '0', // starknetsepolia doesn't have IGP currently
     superpositiontestnet: '0.1',
   },
 };

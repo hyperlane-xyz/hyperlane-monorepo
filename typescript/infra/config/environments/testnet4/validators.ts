@@ -45,17 +45,6 @@ export const validatorChainConfig = (
         'basesepolia',
       ),
     },
-    fuji: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('fuji'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-        },
-        'fuji',
-      ),
-    },
     bsctestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('bsctestnet'),
@@ -123,17 +112,6 @@ export const validatorChainConfig = (
         'solanadevnet',
       ),
     },
-    sonicsvmtestnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('sonicsvmtestnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [],
-        },
-        'sonicsvmtestnet',
-      ),
-    },
     hyperliquidevmtestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('hyperliquidevmtestnet'),
@@ -145,28 +123,6 @@ export const validatorChainConfig = (
         'hyperliquidevmtestnet',
       ),
     },
-    paradexsepolia: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('paradexsepolia'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [],
-        },
-        'paradexsepolia',
-      ),
-    },
-    starknetsepolia: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('starknetsepolia'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [],
-        },
-        'starknetsepolia',
-      ),
-    },
     somniatestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('somniatestnet'),
@@ -175,56 +131,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'somniatestnet',
-      ),
-    },
-    kyvetestnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('kyvetestnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'kyvetestnet',
-      ),
-    },
-    modetestnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('modetestnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'modetestnet',
-      ),
-    },
-    celestiatestnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('celestiatestnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'celestiatestnet',
-      ),
-    },
-    celosepolia: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('celosepolia'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'celosepolia',
-      ),
-    },
-    radixtestnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('radixtestnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'radixtestnet',
       ),
     },
     aleotestnet: {
