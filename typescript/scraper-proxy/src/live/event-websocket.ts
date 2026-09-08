@@ -1507,7 +1507,7 @@ function columns(stream: Stream, relation?: string): string {
     : stream.projection;
 }
 
-function gasPaymentColumns(stream: Stream): string {
+export function gasPaymentColumns(stream: Stream): string {
   return [
     columns(stream, 'event_row'),
     `${q(GAS_PAYMENT_TRANSACTION)}.${q('hash')} AS ${q('origin_tx_hash')}`,
@@ -1516,7 +1516,7 @@ function gasPaymentColumns(stream: Stream): string {
   ].join(', ');
 }
 
-function gasPaymentMetadataJoins(join = 'INNER JOIN'): string {
+export function gasPaymentMetadataJoins(join = 'INNER JOIN'): string {
   return ` ${join} ${q('transaction')} AS ${q(GAS_PAYMENT_TRANSACTION)} ON ${q(GAS_PAYMENT_TRANSACTION)}.${q('id')} = ${q('event_row')}.${q('tx_id')} ${join} ${q('block')} AS ${q(GAS_PAYMENT_BLOCK)} ON ${q(GAS_PAYMENT_BLOCK)}.${q('id')} = ${q(GAS_PAYMENT_TRANSACTION)}.${q('block_id')}`;
 }
 

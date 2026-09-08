@@ -2957,6 +2957,11 @@ impl ScraperWebSocketMonitor {
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .is_ok()
         {
+            // The handoff may have been revoked between the readiness check and activation.
+            if *self.authority_sender.borrow() != command {
+                self.deactivate_authority();
+                return;
+            }
             for source in self.sources.values() {
                 self.authority
                     .with_label_values(&[source.chain.as_str()])
