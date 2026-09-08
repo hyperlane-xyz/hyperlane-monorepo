@@ -1,10 +1,5 @@
 {
-  "alephzeroevmtestnet": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 1,
-    "validators": ["0x3c659e0fe8d01b80d7828b421630085777346e7c"]
-  },
-  "alfajores": {
+  "aleotestnet": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
     "validators": [
@@ -14,12 +9,16 @@
   "arbitrumsepolia": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
-    "validators": ["0x3c659e0fe8d01b80d7828b421630085777346e7c"]
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
   },
   "basesepolia": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
-    "validators": ["0x3c659e0fe8d01b80d7828b421630085777346e7c"]
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
   },
   "bsctestnet": {
     "type": "messageIdMultisigIsm",
@@ -28,52 +27,33 @@
       "0x3c659e0fe8d01b80d7828b421630085777346e7c"
     ]
   },
-  "connextsepolia": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 1,
-    "validators": ["0x3c659e0fe8d01b80d7828b421630085777346e7c"]
-  },
-  "eclipsetestnet": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 1,
-    "validators": ["0x3c659e0fe8d01b80d7828b421630085777346e7c"]
-  },
-  "ecotestnet": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 1,
-    "validators": ["0x3c659e0fe8d01b80d7828b421630085777346e7c"]
-  },
-  "formtestnet": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 1,
-    "validators": ["0x3c659e0fe8d01b80d7828b421630085777346e7c"]
-  },
-  "fuji": {
+  "hyperliquidevmtestnet": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
     "validators": [
       "0x3c659e0fe8d01b80d7828b421630085777346e7c"
     ]
   },
-  "inksepolia": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 1,
-    "validators": ["0x3c659e0fe8d01b80d7828b421630085777346e7c"]
-  },
-  "odysseytestnet": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 1,
-    "validators": ["0x3c659e0fe8d01b80d7828b421630085777346e7c"]
-  },
   "optimismsepolia": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
-    "validators": ["0x3c659e0fe8d01b80d7828b421630085777346e7c"]
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
   },
   "polygonamoy": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
-    "validators": ["0x3c659e0fe8d01b80d7828b421630085777346e7c"]
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
+  },
+  "seismictestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
   },
   "sepolia": {
     "type": "messageIdMultisigIsm",
@@ -82,29 +62,25 @@
       "0x3c659e0fe8d01b80d7828b421630085777346e7c"
     ]
   },
-  "soneiumtestnet": {
+  "solanadevnet": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
-    "validators": ["0x3c659e0fe8d01b80d7828b421630085777346e7c"]
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
   },
-  "sonicsvmtestnet": {
+  "somniatestnet": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
-    "validators": ["0x3c659e0fe8d01b80d7828b421630085777346e7c"]
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
   },
-  "suavetoliman": {
+  "tronshasta": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
-    "validators": ["0x3c659e0fe8d01b80d7828b421630085777346e7c"]
-  },
-  "superpositiontestnet": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 1,
-    "validators": ["0x3c659e0fe8d01b80d7828b421630085777346e7c"]
-  },
-  "unichaintestnet": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 1,
-    "validators": ["0x3c659e0fe8d01b80d7828b421630085777346e7c"]
+    "validators": [
+      "0x3c659e0fe8d01b80d7828b421630085777346e7c"
+    ]
   }
 }
