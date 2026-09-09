@@ -36,6 +36,9 @@ const RETRY_DELAY: Duration = Duration::from_secs(5);
 // Rejected subscriptions usually require scraper history/configuration to change.
 // Keep RPC indexing active and periodically probe instead of hammering catch-up.
 const REJECTED_STREAM_RETRY_DELAY: Duration = Duration::from_secs(300);
+// An insertion ahead of the reorg-adjusted RPC tip needs time to mature.
+// Keep RPC fallback active while reducing repeated reconnects for the same leaf.
+const AHEAD_OF_ELIGIBLE_RETRY_DELAY: Duration = Duration::from_secs(15);
 const RETRY_JITTER_MS: u32 = 5_000;
 const READ_TIMEOUT: Duration = Duration::from_secs(75);
 const PROGRESS_CHECK_INTERVAL: Duration = Duration::from_secs(30);
@@ -57,6 +60,10 @@ pub(crate) type MerkleTreeCursorState = Arc<Mutex<Option<u32>>>;
 #[error("Scraper-proxy rejected Merkle tree hook stream: {0}")]
 struct RejectedStream(String);
 
+#[derive(Debug, thiserror::Error)]
+#[error("Merkle tree insertion at leaf {0} is ahead of the eligible canonical RPC range")]
+struct AheadOfEligibleRange(u32);
+
 fn stream_retry_delay(result: &Result<()>, retry_delay: Duration) -> Duration {
     if result
         .as_ref()
@@ -64,6 +71,12 @@ fn stream_retry_delay(result: &Result<()>, retry_delay: Duration) -> Duration {
         .is_some_and(|err| err.downcast_ref::<RejectedStream>().is_some())
     {
         REJECTED_STREAM_RETRY_DELAY.saturating_add(retry_delay)
+    } else if result
+        .as_ref()
+        .err()
+        .is_some_and(|err| err.downcast_ref::<AheadOfEligibleRange>().is_some())
+    {
+        AHEAD_OF_ELIGIBLE_RETRY_DELAY.saturating_add(retry_delay)
     } else {
         retry_delay
     }
@@ -903,6 +916,7 @@ impl MerkleTreeHookWebSocketSync {
             IndexMode::Sequence => insertion.index(),
         };
 
+        let mut all_probes_ahead = true;
         for attempt in 0..=CANONICAL_FETCH_ATTEMPTS {
             if let Some(matches) = matches_canonical_insertion(
                 insertion,
@@ -932,6 +946,8 @@ impl MerkleTreeHookWebSocketSync {
             .await
             .context("Canonical Merkle tree insertion tip query timed out")?
             .context("Fetching canonical Merkle tree insertion tip")?;
+            // Unknown tips and eligible-but-missing logs retain the normal retry.
+            all_probes_ahead &= available_end.is_some_and(|end| end < query_position);
             let Some(query_end) = canonical_query_end(
                 query_position,
                 dependencies.canonical_chunk_size,
@@ -946,6 +962,9 @@ impl MerkleTreeHookWebSocketSync {
             .await
             .context("Canonical Merkle tree insertion query timed out")?
             .context("Fetching canonical Merkle tree insertion")?;
+        }
+        if all_probes_ahead {
+            return Err(AheadOfEligibleRange(insertion.index()).into());
         }
         bail!(
             "Canonical RPC data is not yet available for Merkle tree insertion at leaf {}",
@@ -1107,6 +1126,8 @@ fn parse_hex(value: &str) -> Result<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
+    use std::ops::RangeInclusive;
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -1114,10 +1135,14 @@ mod tests {
 
     use async_trait::async_trait;
     use futures_util::{future::pending, FutureExt, SinkExt, StreamExt};
-    use hyperlane_base::db::{HyperlaneDb, DB};
+    use hyperlane_base::{
+        db::{HyperlaneDb, DB},
+        ContractSyncMetrics, CoreMetrics,
+    };
     use hyperlane_core::{
-        ChainResult, CheckpointAtBlock, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-        HyperlaneProvider, IncrementalMerkleAtBlock,
+        ChainCommunicationError, ChainResult, CheckpointAtBlock, HyperlaneChain, HyperlaneContract,
+        HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, Indexer,
+        SequenceAwareIndexer,
     };
     use prometheus::IntGauge;
     use tempfile::TempDir;
@@ -1125,6 +1150,79 @@ mod tests {
     use tokio_tungstenite::{accept_async, tungstenite::Message};
 
     use super::*;
+
+    #[derive(Debug)]
+    struct CanonicalIndexer {
+        tips: Mutex<VecDeque<ChainResult<Option<u32>>>>,
+        logs: Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>,
+        probes: AtomicUsize,
+        fetches: AtomicUsize,
+    }
+
+    impl CanonicalIndexer {
+        fn new(
+            tips: impl IntoIterator<Item = Option<u32>>,
+            logs: Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>,
+        ) -> Arc<Self> {
+            Arc::new(Self {
+                tips: Mutex::new(tips.into_iter().map(Ok).collect()),
+                logs,
+                probes: AtomicUsize::new(0),
+                fetches: AtomicUsize::new(0),
+            })
+        }
+
+        fn next_tip(&self) -> ChainResult<Option<u32>> {
+            self.probes.fetch_add(1, Ordering::SeqCst);
+            self.tips
+                .lock()
+                .expect("tips lock")
+                .pop_front()
+                .expect("expected probe")
+        }
+    }
+
+    #[async_trait]
+    impl Indexer<MerkleTreeInsertion> for CanonicalIndexer {
+        async fn fetch_logs_in_range(
+            &self,
+            _range: RangeInclusive<u32>,
+        ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
+            self.fetches.fetch_add(1, Ordering::SeqCst);
+            Ok(self.logs.clone())
+        }
+
+        async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+            self.next_tip().map(|tip| tip.expect("block tip"))
+        }
+    }
+
+    #[async_trait]
+    impl SequenceAwareIndexer<MerkleTreeInsertion> for CanonicalIndexer {
+        async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+            self.next_tip().map(|tip| (tip.map(|index| index + 1), 12))
+        }
+    }
+
+    fn canonical_dependencies(
+        sync: &MerkleTreeHookWebSocketSync,
+        indexer: Arc<CanonicalIndexer>,
+        index_mode: IndexMode,
+    ) -> StreamDependencies {
+        let metrics =
+            CoreMetrics::new("test", 0, prometheus::Registry::new()).expect("test metrics");
+        StreamDependencies {
+            canonical_sync: Some(Arc::new(SequencedDataContractSync::new(
+                HyperlaneDomain::new_test_domain("canonical"),
+                Arc::new(sync.db.clone()),
+                indexer,
+                ContractSyncMetrics::new(&metrics),
+                false,
+            ))),
+            index_mode,
+            ..test_dependencies()
+        }
+    }
 
     #[derive(Debug)]
     struct CountHook {
@@ -1816,6 +1914,119 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn canonical_ahead_range_requires_three_explicit_probes() {
+        let (sync, _temp_dir) = test_sync();
+        let insertion = MerkleTreeInsertion::new(4, H256::from_low_u64_be(4));
+        for (mode, tip) in [(IndexMode::Block, 11), (IndexMode::Sequence, 3)] {
+            let indexer = CanonicalIndexer::new([Some(tip); 3], vec![]);
+            let dependencies = canonical_dependencies(&sync, indexer.clone(), mode);
+            let result = sync
+                .validate_canonical_insertion(&insertion, 12, &dependencies, &mut vec![])
+                .await;
+            assert!(result
+                .as_ref()
+                .expect_err("ahead")
+                .downcast_ref::<AheadOfEligibleRange>()
+                .is_some());
+            assert_eq!(indexer.probes.load(Ordering::SeqCst), 3);
+            assert_eq!(indexer.fetches.load(Ordering::SeqCst), 0);
+            let jitter = Duration::from_millis(1234);
+            assert_eq!(
+                stream_retry_delay(&result, RETRY_DELAY + jitter),
+                Duration::from_secs(20) + jitter
+            );
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn canonical_insertion_maturing_during_probes_is_accepted() {
+        let (sync, _temp_dir) = test_sync();
+        let insertion = MerkleTreeInsertion::new(4, H256::from_low_u64_be(4));
+        for tips in [vec![Some(11), Some(12)], vec![Some(11), Some(11), Some(12)]] {
+            let expected_probes = tips.len();
+            let indexer = CanonicalIndexer::new(
+                tips,
+                vec![(
+                    Indexed::from(insertion),
+                    LogMeta {
+                        block_number: 12,
+                        ..Default::default()
+                    },
+                )],
+            );
+            let dependencies = canonical_dependencies(&sync, indexer.clone(), IndexMode::Block);
+            let result = sync
+                .validate_canonical_insertion(&insertion, 12, &dependencies, &mut vec![])
+                .await;
+            result.as_ref().expect("mature insertion validated");
+            assert_eq!(stream_retry_delay(&result, RETRY_DELAY), RETRY_DELAY);
+            assert_eq!(indexer.probes.load(Ordering::SeqCst), expected_probes);
+            assert_eq!(indexer.fetches.load(Ordering::SeqCst), 1);
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn canonical_unknown_missing_conflicting_and_transport_errors_keep_normal_retry() {
+        let (sync, _temp_dir) = test_sync();
+        let insertion = MerkleTreeInsertion::new(4, H256::from_low_u64_be(4));
+        // Even one unknown or eligible tip disqualifies the longer retry.
+        for tips in [
+            vec![Some(3), None, Some(3)],
+            vec![Some(4); 3],
+            vec![Some(3), Some(4), Some(3)],
+        ] {
+            let indexer = CanonicalIndexer::new(tips, vec![]);
+            let dependencies = canonical_dependencies(&sync, indexer, IndexMode::Sequence);
+            let result = sync
+                .validate_canonical_insertion(&insertion, 12, &dependencies, &mut vec![])
+                .await;
+            assert!(result
+                .as_ref()
+                .expect_err("unavailable")
+                .to_string()
+                .contains("not yet available"));
+            assert_eq!(stream_retry_delay(&result, RETRY_DELAY), RETRY_DELAY);
+        }
+
+        let conflict = vec![(
+            Indexed::from(MerkleTreeInsertion::new(4, H256::from_low_u64_be(5))),
+            LogMeta {
+                block_number: 12,
+                ..Default::default()
+            },
+        )];
+        for cached in [false, true] {
+            let indexer = CanonicalIndexer::new([Some(12)], conflict.clone());
+            let dependencies = canonical_dependencies(&sync, indexer.clone(), IndexMode::Block);
+            let mut cache = if cached { conflict.clone() } else { vec![] };
+            let result = sync
+                .validate_canonical_insertion(&insertion, 12, &dependencies, &mut cache)
+                .await;
+            assert!(result
+                .as_ref()
+                .expect_err("conflict")
+                .to_string()
+                .contains("conflicted"));
+            assert_eq!(stream_retry_delay(&result, RETRY_DELAY), RETRY_DELAY);
+            assert_eq!(indexer.probes.load(Ordering::SeqCst), usize::from(!cached));
+        }
+
+        let indexer = CanonicalIndexer::new([Some(11); 2], vec![]);
+        indexer.tips.lock().expect("tips lock").push_back(Err(
+            ChainCommunicationError::from_other_str("connection reset"),
+        ));
+        let dependencies = canonical_dependencies(&sync, indexer.clone(), IndexMode::Block);
+        let result = sync
+            .validate_canonical_insertion(&insertion, 12, &dependencies, &mut vec![])
+            .await;
+        assert!(
+            format!("{:?}", result.as_ref().expect_err("transport")).contains("connection reset")
+        );
+        assert_eq!(stream_retry_delay(&result, RETRY_DELAY), RETRY_DELAY);
+        assert_eq!(indexer.probes.load(Ordering::SeqCst), 3);
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn live_stream_still_fails_when_lag_grows() {
         let grace = Duration::from_secs(10);
         let mut lag_started_at = None;
@@ -2027,6 +2238,85 @@ mod tests {
             RETRY_DELAY
         );
         assert_eq!(stream_retry_delay(&Ok(()), RETRY_DELAY), RETRY_DELAY);
+    }
+
+    #[tokio::test]
+    async fn ahead_of_eligible_range_keeps_rpc_active_during_retry() {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("test listener");
+        let (mut sync, _temp_dir) = test_sync();
+        sync.url = Url::parse(&format!(
+            "ws://{}",
+            listener.local_addr().expect("listener address")
+        ))
+        .expect("test URL");
+        let hook = format!("{:#x}", sync.merkle_tree_hook);
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.expect("first connection");
+            let mut socket = accept_async(stream).await.expect("WebSocket");
+            socket
+                .send(Message::Text(r#"{"type":"ready"}"#.into()))
+                .await
+                .expect("ready");
+            socket
+                .next()
+                .await
+                .expect("subscription")
+                .expect("read subscription");
+            socket
+                .send(Message::Text(
+                    r#"{"type":"subscribed","streams":[]}"#.into(),
+                ))
+                .await
+                .expect("subscribed");
+            socket.send(Message::Text(format!(
+                r#"{{"type":"event","data":{{"block_number":12,"domain":1,"leaf_index":0,"merkle_tree_hook":"{hook}","message_id":"{:#x}"}},"domain":1,"eventType":"merkle_tree_insertion","sequence":"0"}}"#,
+                H256::from_low_u64_be(4)
+            ))).await.expect("ahead event");
+            // Wait for canonical validation to close the stream before testing
+            // the retry interval; normal reconnects take only 1ms here.
+            let _closed = socket.next().await;
+            assert!(timeout(Duration::from_millis(100), listener.accept())
+                .await
+                .is_err());
+        });
+        let indexer = CanonicalIndexer::new([Some(11); 3], vec![]);
+        let dependencies = canonical_dependencies(&sync, indexer.clone(), IndexMode::Block);
+        let active = sync.fallback_active.clone();
+        let active_in_fallback = active.clone();
+        let websocket_active = sync.websocket_active.clone();
+        let db = sync.db.clone();
+        let task = tokio::spawn(async move {
+            sync.run_loop(
+                0,
+                0,
+                StreamTimeouts {
+                    read: Duration::from_secs(10),
+                    progress_check: Duration::from_secs(10),
+                    progress_grace: Duration::from_secs(10),
+                },
+                Duration::from_millis(1),
+                dependencies,
+                move || test_fallback(&active_in_fallback),
+            )
+            .await;
+        });
+        timeout(Duration::from_secs(10), server)
+            .await
+            .expect("server completed")
+            .expect("server assertions passed");
+        assert_eq!(indexer.probes.load(Ordering::SeqCst), 3);
+        assert_eq!(indexer.fetches.load(Ordering::SeqCst), 0);
+        assert_eq!(active.get(), 1);
+        assert_eq!(websocket_active.get(), 0);
+        assert_eq!(
+            db.retrieve_merkle_tree_insertion_by_leaf_index(&0)
+                .expect("stored insertion"),
+            None
+        );
+        task.abort();
+        let _cancelled = task.await;
     }
 
     #[tokio::test]
