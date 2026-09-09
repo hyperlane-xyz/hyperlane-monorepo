@@ -30,6 +30,13 @@ function priceInstruction(price: bigint) {
   return { programAddress: COMPUTE_BUDGET_PROGRAM_ID, data };
 }
 
+function limitInstruction(units: number) {
+  const data = new Uint8Array(5);
+  data[0] = 2;
+  new DataView(data.buffer).setUint32(1, units, true);
+  return { programAddress: COMPUTE_BUDGET_PROGRAM_ID, data };
+}
+
 describe('v1 transaction header', () => {
   it('preserves adapter priority fees with upward rounding and no budget instruction', async () => {
     const message = buildTransactionMessage({
@@ -44,6 +51,64 @@ describe('v1 transaction header', () => {
       64 * 1024 * 1024,
     );
     expect(message.instructions).to.have.length(0);
+  });
+
+  it('migrates an embedded compute limit and uses it for priority fee rounding', async () => {
+    const message = buildTransactionMessage({
+      ...(await params()),
+      computeUnits: undefined,
+      instructions: [limitInstruction(200001), priceInstruction(6n)],
+    });
+    if (message.version !== 1) throw new Error('expected v1');
+    expect(message.config?.computeUnitLimit).to.equal(200001);
+    expect(message.config?.priorityFeeLamports).to.equal(2n);
+    expect(message.instructions).to.have.length(0);
+  });
+
+  it('accepts an identical explicit limit and rejects conflicting or duplicate limits', async () => {
+    const common = await params();
+    const message = buildTransactionMessage({
+      ...common,
+      instructions: [limitInstruction(common.computeUnits)],
+    });
+    if (message.version !== 1) throw new Error('expected v1');
+    expect(message.config?.computeUnitLimit).to.equal(common.computeUnits);
+    expect(message.instructions).to.have.length(0);
+    expect(() =>
+      buildTransactionMessage({
+        ...common,
+        instructions: [limitInstruction(300000)],
+      }),
+    ).to.throw('Conflicting compute unit');
+    expect(() =>
+      buildTransactionMessage({
+        ...common,
+        computeUnits: undefined,
+        instructions: [limitInstruction(200001), limitInstruction(200001)],
+      }),
+    ).to.throw('Duplicate compute unit');
+  });
+
+  it('validates migrated limits and rejects malformed limit instructions', async () => {
+    const common = { ...(await params()), computeUnits: undefined };
+    for (const units of [0, 1400001, 0xffffffff]) {
+      expect(() =>
+        buildTransactionMessage({
+          ...common,
+          instructions: [limitInstruction(units)],
+        }),
+      ).to.throw('computeUnits');
+    }
+    for (const length of [1, 4, 6, 9]) {
+      const data = new Uint8Array(length);
+      data[0] = 2;
+      expect(() =>
+        buildTransactionMessage({
+          ...common,
+          instructions: [{ programAddress: COMPUTE_BUDGET_PROGRAM_ID, data }],
+        }),
+      ).to.throw('Unsupported v1 compute-budget instruction');
+    }
   });
 
   it('migrates legacy heap and loaded-data budgets for both versions', async () => {

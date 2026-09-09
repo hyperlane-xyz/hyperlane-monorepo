@@ -209,41 +209,50 @@ describe('SvmSigner', () => {
       expect(getLatestBlockhash.called).to.equal(false);
     });
 
-    it('sends v1 wire bytes with header fees on an opted-in chain', async () => {
-      const sendTransaction = sinon.stub().callsFake((encoded: unknown) => {
-        expect(typeof encoded).to.equal('string');
-        if (typeof encoded !== 'string') throw new Error('expected base64');
-        const wire = getBase64Encoder().encode(encoded);
-        expect(wire[0]).to.equal(0x81);
-        const transaction = getTransactionDecoder().decode(wire);
-        const message = decompileTransactionMessage(
-          getCompiledTransactionMessageDecoder().decode(
-            transaction.messageBytes,
-          ),
+    for (const embeddedLimit of [false, true]) {
+      it(`sends v1 header fees with ${embeddedLimit ? 'embedded' : 'explicit'} compute limits`, async () => {
+        const sendTransaction = sinon.stub().callsFake((encoded: unknown) => {
+          expect(typeof encoded).to.equal('string');
+          if (typeof encoded !== 'string') throw new Error('expected base64');
+          const wire = getBase64Encoder().encode(encoded);
+          const transaction = getTransactionDecoder().decode(wire);
+          expect(transaction.messageBytes[0]).to.equal(0x81);
+          const message = decompileTransactionMessage(
+            getCompiledTransactionMessageDecoder().decode(
+              transaction.messageBytes,
+            ),
+          );
+          expect(message.version).to.equal(1);
+          if (message.version !== 1) throw new Error('expected v1');
+          expect(message.config?.computeUnitLimit).to.equal(200001);
+          expect(message.config?.priorityFeeLamports).to.equal(1n);
+          expect(message.instructions).to.have.length(0);
+          return { send: async () => FAKE_SIGNATURE };
+        });
+        const signer = await createTestSigner(
+          createMockRpc({ sendTransaction }),
+          {
+            ...TEST_CHAIN_METADATA,
+            maxSupportedTransactionVersion: 1,
+            sealevelTransactionVersion: 1,
+            sealevelV1TransactionsEnabled: true,
+          },
         );
-        expect(message.version).to.equal(1);
-        if (message.version !== 1) throw new Error('expected v1');
-        expect(message.config?.computeUnitLimit).to.equal(200001);
-        expect(message.config?.priorityFeeLamports).to.equal(1n);
-        expect(message.instructions).to.have.length(0);
-        return { send: async () => FAKE_SIGNATURE };
+        await signer.send({
+          instructions: embeddedLimit
+            ? [
+                {
+                  programAddress: COMPUTE_BUDGET_PROGRAM_ID,
+                  data: new Uint8Array([2, 0x41, 0x0d, 0x03, 0x00]),
+                },
+              ]
+            : [],
+          computeUnits: embeddedLimit ? undefined : 200001,
+          priorityFeeMicroLamports: 1,
+        });
+        expect(sendTransaction.calledOnce).to.equal(true);
       });
-      const signer = await createTestSigner(
-        createMockRpc({ sendTransaction }),
-        {
-          ...TEST_CHAIN_METADATA,
-          maxSupportedTransactionVersion: 1,
-          sealevelTransactionVersion: 1,
-          sealevelV1TransactionsEnabled: true,
-        },
-      );
-      await signer.send({
-        instructions: [],
-        computeUnits: 200001,
-        priorityFeeMicroLamports: 1,
-      });
-      expect(sendTransaction.calledOnce).to.equal(true);
-    });
+    }
 
     it('rejects ALT compression for v1 before RPC', async () => {
       const signer = await createTestSigner(createMockRpc(), {
@@ -959,6 +968,18 @@ describe('SvmSigner', () => {
           priorityFeeMicroLamports: 1,
         }),
       ).to.be.rejectedWith('requires priority fees as SetComputeUnitPrice');
+    });
+
+    it('treats zero priority fees as absent in offline exports', async () => {
+      const signer = await createTestSigner(createMockRpc());
+      const absent = await signer.transactionToPrintableJson({
+        instructions: [],
+      });
+      const zero = await signer.transactionToPrintableJson({
+        instructions: [],
+        priorityFeeMicroLamports: 0,
+      });
+      expect(zero).to.deep.equal(absent);
     });
 
     it('preserves an embedded priority-price instruction in offline exports', async () => {

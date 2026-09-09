@@ -142,17 +142,12 @@ export function buildTransactionMessage(params: {
       'v1 transactions do not support address lookup tables',
     );
     assert(
-      Number.isInteger(computeUnits) &&
-        computeUnits > 0 &&
-        computeUnits <= 1_400_000,
-      'computeUnits must be an integer between 1 and 1400000',
-    );
-    assert(
       priorityFeeMicroLamports === undefined ||
         (Number.isSafeInteger(priorityFeeMicroLamports) &&
           priorityFeeMicroLamports >= 0),
       'priorityFeeMicroLamports must be a nonnegative safe integer',
     );
+    let instructionComputeUnits: number | undefined;
     let heapSize = params.heapSize;
     let loadedAccountsDataSizeLimit = params.loadedAccountsDataSizeLimit;
     let price =
@@ -164,7 +159,10 @@ export function buildTransactionMessage(params: {
     const v1Instructions = instructions
       .filter((ix) => {
         if (ix.programAddress !== COMPUTE_BUDGET_PROGRAM_ID) return true;
-        if (ix.data?.length === 5 && (ix.data[0] === 1 || ix.data[0] === 4)) {
+        if (
+          ix.data?.length === 5 &&
+          (ix.data[0] === 1 || ix.data[0] === 2 || ix.data[0] === 4)
+        ) {
           const value = new DataView(Uint8Array.from(ix.data).buffer).getUint32(
             1,
             true,
@@ -172,6 +170,17 @@ export function buildTransactionMessage(params: {
           if (ix.data[0] === 1) {
             assert(heapSize === undefined, 'Duplicate heap configuration');
             heapSize = value;
+          } else if (ix.data[0] === 2) {
+            assert(
+              instructionComputeUnits === undefined,
+              'Duplicate compute unit configuration',
+            );
+            assert(
+              params.computeUnits === undefined ||
+                params.computeUnits === value,
+              'Conflicting compute unit configuration',
+            );
+            instructionComputeUnits = value;
           } else {
             assert(
               loadedAccountsDataSizeLimit === undefined,
@@ -183,7 +192,7 @@ export function buildTransactionMessage(params: {
         }
         assert(
           ix.data?.length === 9 && ix.data[0] === 3,
-          'Unsupported v1 compute-budget instruction; set computeUnits on the transaction',
+          'Unsupported v1 compute-budget instruction',
         );
         assert(price === undefined, 'Duplicate priority fee configuration');
         price = new DataView(Uint8Array.from(ix.data).buffer).getBigUint64(
@@ -202,10 +211,17 @@ export function buildTransactionMessage(params: {
           return account;
         }),
       }));
+    const resolvedComputeUnits = instructionComputeUnits ?? computeUnits;
+    assert(
+      Number.isInteger(resolvedComputeUnits) &&
+        resolvedComputeUnits > 0 &&
+        resolvedComputeUnits <= 1_400_000,
+      'computeUnits must be an integer between 1 and 1400000',
+    );
     validateMemoryBudgets(heapSize, loadedAccountsDataSizeLimit);
     const message = setTransactionMessageConfig(
       {
-        computeUnitLimit: computeUnits,
+        computeUnitLimit: resolvedComputeUnits,
         // V1 has no implicit loaded-account budget. Match the legacy runtime maximum.
         loadedAccountsDataSizeLimit:
           loadedAccountsDataSizeLimit ?? 64 * 1024 * 1024,
@@ -213,7 +229,7 @@ export function buildTransactionMessage(params: {
         ...(price
           ? {
               priorityFeeLamports:
-                (price * BigInt(computeUnits) + 999_999n) / 1_000_000n,
+                (price * BigInt(resolvedComputeUnits) + 999_999n) / 1_000_000n,
             }
           : {}),
       },

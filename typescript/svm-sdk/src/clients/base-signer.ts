@@ -37,7 +37,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { fetchAddressLookupTableState } from '../accounts/address-lookup-table.js';
-import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 import {
   convertLegacySolanaTransaction,
   isLegacySolanaTransaction,
@@ -86,7 +85,8 @@ export async function buildPrintableTransaction(
     'Offline/Squads serialization currently supports v0 only',
   );
   assert(
-    transaction.priorityFeeMicroLamports === undefined,
+    transaction.priorityFeeMicroLamports === undefined ||
+      transaction.priorityFeeMicroLamports === 0,
     'Offline/Squads serialization requires priority fees as SetComputeUnitPrice instructions',
   );
   const resolvedAlts = await resolveAddressLookupTables(
@@ -288,7 +288,7 @@ async function signAndSend(params: {
       feePayer,
       recentBlockhash: latestBlockhash.blockhash,
       lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-      computeUnits: tx.computeUnits ?? DEFAULT_COMPUTE_UNITS,
+      computeUnits: tx.computeUnits,
       addressLookupTables: resolvedAlts,
     });
 

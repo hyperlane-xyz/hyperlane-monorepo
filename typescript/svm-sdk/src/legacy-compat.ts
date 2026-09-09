@@ -18,6 +18,8 @@ import { assert } from '@hyperlane-xyz/utils';
 import { COMPUTE_BUDGET_PROGRAM_ID } from './constants.js';
 import type { LegacyKeypair, SvmTransaction } from './types.js';
 
+const MIGRATED_COMPUTE_BUDGET_DISCRIMINATORS: readonly number[] = [1, 2, 4];
+
 // -- Structural interfaces for legacy @solana/web3.js types --
 // Defined here to avoid depending on @solana/web3.js.
 
@@ -82,7 +84,10 @@ export async function convertLegacySolanaTransaction(
     const isComputeBudget =
       ix.programId.toBase58() === COMPUTE_BUDGET_PROGRAM_ID;
 
-    if (isComputeBudget && [1, 2, 4].includes(ix.data[0])) {
+    if (
+      isComputeBudget &&
+      MIGRATED_COMPUTE_BUDGET_DISCRIMINATORS.includes(ix.data[0])
+    ) {
       assert(ix.data.length === 5, 'Invalid compute-budget instruction');
       const dataArr = Uint8Array.from(ix.data);
       const value = new DataView(dataArr.buffer).getUint32(1, true);
