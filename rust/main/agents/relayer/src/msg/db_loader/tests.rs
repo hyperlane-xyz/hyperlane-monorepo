@@ -60,17 +60,17 @@ pub fn dummy_message_loader_metrics() -> MessageDbLoaderMetrics {
         origin: "dummy_origin".to_owned(),
         records_examined: IntCounterVec::new(
             prometheus::Opts::new("dummy_db_loader_records_examined", "help string"),
-            &["origin", "destination", "phase"],
+            &["origin", "phase"],
         )
         .unwrap(),
         logical_db_reads: IntCounterVec::new(
             prometheus::Opts::new("dummy_db_loader_logical_reads", "help string"),
-            &["origin", "destination", "phase", "operation"],
+            &["origin", "phase", "operation"],
         )
         .unwrap(),
         destination_outcomes: IntCounterVec::new(
             prometheus::Opts::new("dummy_db_loader_destination_outcomes", "help string"),
-            &["origin", "destination", "outcome"],
+            &["origin", "outcome"],
         )
         .unwrap(),
         destination_outcome_counters: HashMap::new(),
@@ -79,13 +79,13 @@ pub fn dummy_message_loader_metrics() -> MessageDbLoaderMetrics {
                 "dummy_db_loader_initial_destination_scan_complete",
                 "help string",
             ),
-            &["origin", "destination"],
+            &["origin"],
         )
         .unwrap(),
-        initial_destination_scan_complete_gauges: HashMap::new(),
+        initial_destination_scans: HashMap::new(),
         scan_duration_seconds: HistogramVec::new(
             prometheus::HistogramOpts::new("dummy_db_loader_scan_duration", "help string"),
-            &["origin", "destination", "phase"],
+            &["origin", "phase"],
         )
         .unwrap(),
         ingress_depth: IntGaugeVec::new(
@@ -93,6 +93,58 @@ pub fn dummy_message_loader_metrics() -> MessageDbLoaderMetrics {
             &["destination"],
         )
         .unwrap(),
+    }
+}
+
+#[test]
+fn loader_metrics_aggregate_destinations_and_wait_for_all_initial_scans() {
+    let registry = prometheus::Registry::new();
+    let core = CoreMetrics::new("relayer", 9090, registry.clone()).unwrap();
+    let shared = MessageDbLoaderMetricsShared::new(&core).unwrap();
+    let mut metrics = shared.for_origin(&core, &dummy_domain(0, "origin"));
+    let complete = shared
+        .initial_destination_scan_complete
+        .with_label_values(&["origin"]);
+    metrics.bind_destinations(&[]);
+    assert_eq!(complete.get(), 1);
+    metrics.bind_destinations(&[1, 2]);
+    assert_eq!(complete.get(), 0);
+    metrics.mark_initial_destination_scan_complete("1");
+    metrics.mark_initial_destination_scan_complete("1");
+    assert_eq!(complete.get(), 0);
+    metrics.mark_initial_destination_scan_complete("2");
+    assert_eq!(complete.get(), 1);
+
+    metrics.record_destination_outcome(DESTINATION_OUTCOME_QUEUED);
+    metrics.record_destination_outcome(DESTINATION_OUTCOME_QUEUED);
+    assert_eq!(
+        metrics.destination_outcome_counters[DESTINATION_OUTCOME_QUEUED].get(),
+        2
+    );
+    metrics
+        .records_examined
+        .with_label_values(&["origin", "destination_index"])
+        .inc_by(2);
+    metrics
+        .logical_db_reads
+        .with_label_values(&["origin", "destination_index", "index"])
+        .inc_by(2);
+    metrics
+        .scan_duration_seconds
+        .with_label_values(&["origin", "destination_index"])
+        .observe(0.01);
+    let families: Vec<_> = registry
+        .gather()
+        .into_iter()
+        .filter(|family| family.name().contains("message_db_loader"))
+        .collect();
+    assert_eq!(families.len(), 5);
+    for family in families {
+        assert_eq!(family.get_metric().len(), 1, "{}", family.name());
+        assert!(family.get_metric()[0]
+            .get_label()
+            .iter()
+            .all(|label| label.name() != "destination"));
     }
 }
 
@@ -848,12 +900,8 @@ async fn get_first_n_operations_from_db_loader(
     pending_messages
 }
 
-fn destination_outcome_count(
-    loader: &MessageDbLoader,
-    destination: &HyperlaneDomain,
-    outcome: &str,
-) -> u64 {
-    loader.metrics.destination_outcome_counters[&destination.id().to_string()][outcome].get()
+fn destination_outcome_count(loader: &MessageDbLoader, outcome: &str) -> u64 {
+    loader.metrics.destination_outcome_counters[outcome].get()
 }
 
 fn point_destination_scan_at(loader: &mut MessageDbLoader, nonce: u32) {
@@ -876,9 +924,10 @@ async fn initial_destination_scan_waits_for_legacy_migration() {
         db.delete_pending_message_index(&message).unwrap();
         let (mut loader, mut receiver) =
             dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
-        let scan_complete = loader.metrics.initial_destination_scan_complete_gauges
-            [&destination.id().to_string()]
-            .clone();
+        let scan_complete = loader
+            .metrics
+            .initial_destination_scan_complete
+            .with_label_values(&[loader.metrics.origin.as_str()]);
 
         assert!(!loader.try_load_destination(0).await.unwrap());
         assert_eq!(scan_complete.get(), 0);
@@ -1013,29 +1062,31 @@ async fn destination_outcomes_attribute_loader_decisions_once() {
             DESTINATION_OUTCOME_RETRY_INELIGIBLE,
             DESTINATION_OUTCOME_QUEUED,
         ] {
-            assert_eq!(destination_outcome_count(&loader, &destination, outcome), 1);
+            assert_eq!(destination_outcome_count(&loader, outcome), 1);
         }
         assert_eq!(
             loader
                 .metrics
                 .records_examined
-                .with_label_values(&[
-                    loader.metrics.origin.as_str(),
-                    destination.id().to_string().as_str(),
-                    "destination_index",
-                ])
+                .with_label_values(&[loader.metrics.origin.as_str(), "destination_index"])
                 .get(),
             10,
         );
         assert_eq!(
-            loader.metrics.initial_destination_scan_complete_gauges[&destination.id().to_string()]
+            loader
+                .metrics
+                .initial_destination_scan_complete
+                .with_label_values(&[loader.metrics.origin.as_str()])
                 .get(),
             0,
         );
         point_destination_scan_at(&mut loader, nonce + 1);
         assert!(!loader.try_load_destination(0).await.unwrap());
         assert_eq!(
-            loader.metrics.initial_destination_scan_complete_gauges[&destination.id().to_string()]
+            loader
+                .metrics
+                .initial_destination_scan_complete
+                .with_label_values(&[loader.metrics.origin.as_str()])
                 .get(),
             1,
         );
@@ -1412,22 +1463,11 @@ async fn processed_legacy_history_does_not_rescan_every_destination() {
             loader.tick().await.unwrap();
         }
 
-        let destination_index_reads: u64 = loader
-            .destination_iterators
-            .iter()
-            .map(|iterator| {
-                loader
-                    .metrics
-                    .logical_db_reads
-                    .with_label_values(&[
-                        loader.metrics.origin.as_str(),
-                        iterator.destination_label.as_ref(),
-                        "destination_index",
-                        "index",
-                    ])
-                    .get()
-            })
-            .sum();
+        let destination_index_reads = loader
+            .metrics
+            .logical_db_reads
+            .with_label_values(&[loader.metrics.origin.as_str(), "destination_index", "index"])
+            .get();
         assert!(
             // Two initial range reads, then one high-range read to certify
             // completion after migration seals. No scans between those points.
@@ -1436,9 +1476,9 @@ async fn processed_legacy_history_does_not_rescan_every_destination() {
         );
         assert!(loader
             .metrics
-            .initial_destination_scan_complete_gauges
+            .initial_destination_scans
             .values()
-            .all(|gauge| gauge.get() == 1));
+            .all(|complete| *complete));
     })
     .await;
 }
