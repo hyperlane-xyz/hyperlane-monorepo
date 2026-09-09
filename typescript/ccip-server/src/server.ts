@@ -1,7 +1,7 @@
 import 'zod/compile';
 
 import cors from 'cors';
-import express from 'express';
+import express, { type Request, type Response } from 'express';
 import { pinoHttp } from 'pino-http';
 import { Registry } from 'prom-client';
 
@@ -11,7 +11,7 @@ import { createServiceLogger } from '@hyperlane-xyz/utils';
 import { getEnabledModules } from './config.js';
 import { moduleRegistry } from './moduleRegistry.js';
 import { HealthService } from './services/HealthService.js';
-import { configureTrustProxy } from './utils/http.js';
+import { configureTrustProxy, requestLogLevel } from './utils/http.js';
 import {
   PrometheusMetrics,
   UnhandledErrorReason,
@@ -35,7 +35,9 @@ async function startServer() {
   configureTrustProxy(app);
   app.use(cors());
   app.use(express.json({ limit: '10kb' }));
-  app.use(pinoHttp({ logger }));
+  app.use(
+    pinoHttp<Request, Response>({ logger, customLogLevel: requestLogLevel }),
+  );
 
   if (getEnabledModules().length === 0) {
     logger.warn(

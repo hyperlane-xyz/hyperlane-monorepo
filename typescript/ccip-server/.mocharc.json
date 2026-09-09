@@ -6,7 +6,8 @@
     "./tests/**/cctpMessageMatcher.test.ts",
     "./tests/**/CCTPService.test.ts",
     "./tests/**/AttestationPending.test.ts",
-    "./tests/**/moduleRegistry.test.ts"
+    "./tests/**/moduleRegistry.test.ts",
+    "./tests/**/RequestLogging.test.ts"
   ],
   "exit": true
 }
