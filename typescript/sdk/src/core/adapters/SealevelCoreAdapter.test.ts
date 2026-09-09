@@ -16,10 +16,7 @@ describe('SealevelCoreAdapter', () => {
       { mailbox: mailbox.toBase58() },
     );
 
-    const instruction = adapter.createClaimProtocolFeesInstruction(
-      mailbox,
-      beneficiary,
-    );
+    const instruction = adapter.createClaimProtocolFeesInstruction(beneficiary);
     const [outbox] = PublicKey.findProgramAddressSync(
       [Buffer.from('hyperlane'), Buffer.from('-'), Buffer.from('outbox')],
       mailbox,

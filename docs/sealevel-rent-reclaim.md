@@ -12,7 +12,10 @@ alone. The program retains the current minimum and validates the beneficiary.
 
 ## Build a claim
 
-- Mailbox: `SealevelCoreAdapter.createClaimProtocolFeesInstruction(mailboxProgramId, beneficiary)`
+- Kit: `buildClaimProtocolFeesInstruction(mailboxProgramId, beneficiary)` from
+  `@hyperlane-xyz/sealevel-sdk` returns an instruction for `SealevelSigner.send({ instructions: [claim] })`.
+  It supports the signer's v0 default and explicitly enabled v1 configuration.
+- Legacy SDK: `SealevelCoreAdapter.createClaimProtocolFeesInstruction(beneficiary)`
   builds an instruction for the derived outbox PDA. Supply the mailbox's configured
   protocol-fee beneficiary; another address is rejected on chain.
 - IGP: `SealevelIgpAdapter.populateClaimTx(beneficiary)` builds an unsigned transaction
@@ -39,3 +42,25 @@ SPL Token and Token-2022 accounts use their own `WithdrawExcessLamports` instruc
 and authority rules. Support depends on each SVM's deployed token programs, separately
 from transaction-v1 support. This SDK addition does not implement token-account
 reclamation or assume those instructions are available on every SVM.
+
+## If the rent minimum increases again
+
+A claim leaves the source at the current minimum. If the chain later restores a
+higher minimum, subsequent claims fail with `AccountNotRentExempt` until the
+account has enough lamports. Existing account data remains intact; accrued fees
+first replenish the shortfall and only the excess becomes claimable.
+
+1. Fetch the outbox or IGP account on the selected chain and note its data length
+   and lamport balance. Verify the program, PDA and configured beneficiary.
+2. Query `getMinimumBalanceForRentExemption(dataLength)` on that same chain.
+   The top-up is `max(0, minimum - balance)` lamports; recheck immediately before
+   sending because balances and rent settings can change.
+3. Transfer that amount with the system program from a funded wallet to the
+   source account. Keep transaction fees in the payer wallet. The top-up restores
+   rent backing; it is not a payment to the beneficiary.
+4. Confirm the transfer, fetch the balance and minimum again, then simulate the
+   claim. Claim only when there is excess worth the transaction fee. A claim at
+   exactly the minimum succeeds but transfers nothing.
+
+This procedure covers the mailbox outbox and IGP only. It does not authorize
+sweeping native warp collateral or topping up an unverified account.

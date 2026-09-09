@@ -202,9 +202,9 @@ export class SealevelCoreAdapter
    * The mailbox enforces that beneficiary matches its configured beneficiary.
    */
   createClaimProtocolFeesInstruction(
-    mailboxProgramId: PublicKey,
     beneficiary: PublicKey,
   ): TransactionInstruction {
+    const mailboxProgramId = new PublicKey(this.addresses.mailbox);
     return new TransactionInstruction({
       programId: mailboxProgramId,
       keys: [

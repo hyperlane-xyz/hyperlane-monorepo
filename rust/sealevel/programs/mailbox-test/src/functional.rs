@@ -527,6 +527,52 @@ async fn test_claim_protocol_fees_after_rent_reduction() {
             source_balance - minimum,
         );
     }
+    // Restoring a higher minimum blocks claims until rent backing is replenished.
+    ctx.set_sysvar(&original_rent);
+    let restored_minimum = original_rent.minimum_balance(before.data.len());
+    let caller = new_funded_keypair(&mut ctx.banks_client, &payer, 1_000_000).await;
+    let beneficiary_balance = ctx.banks_client.get_balance(beneficiary).await.unwrap();
+    assert_transaction_error(
+        process_instruction(
+            &mut ctx.banks_client,
+            claim(beneficiary),
+            &caller,
+            &[&caller],
+        )
+        .await,
+        TransactionError::InstructionError(0, InstructionError::AccountNotRentExempt),
+    );
+    let below_floor = ctx.banks_client.get_account(source).await.unwrap().unwrap();
+    assert_eq!(below_floor.data, before.data);
+    assert_eq!(
+        ctx.banks_client.get_balance(beneficiary).await.unwrap(),
+        beneficiary_balance
+    );
+    let top_up = restored_minimum - below_floor.lamports;
+    hyperlane_test_utils::transfer_lamports(
+        &mut ctx.banks_client,
+        &payer,
+        &source,
+        top_up + 123_456,
+    )
+    .await;
+    // A new caller avoids replaying the identical failed transaction.
+    let caller = new_funded_keypair(&mut ctx.banks_client, &payer, 1_000_000).await;
+    process_instruction(
+        &mut ctx.banks_client,
+        claim(beneficiary),
+        &caller,
+        &[&caller],
+    )
+    .await
+    .unwrap();
+    let restored = ctx.banks_client.get_account(source).await.unwrap().unwrap();
+    assert_eq!(restored.lamports, restored_minimum);
+    assert_eq!(restored.data, before.data);
+    assert_eq!(
+        ctx.banks_client.get_balance(beneficiary).await.unwrap() - beneficiary_balance,
+        123_456
+    );
 }
 
 #[tokio::test]
