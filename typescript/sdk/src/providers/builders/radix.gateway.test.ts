@@ -4,6 +4,7 @@ import sinon from 'sinon';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import type { ChainMetadata } from '../../metadata/chainMetadataTypes.js';
+import { ChainMetadataSchema } from '../../metadata/chainMetadataTypes.js';
 
 import { defaultRadixProviderBuilder as browserBuilder } from './radix.browser.js';
 import { defaultRadixProviderBuilder as nodeBuilder } from './radix.js';
@@ -35,7 +36,9 @@ describe('Radix gateway selection', () => {
             ? { gatewayUrls: [{ http: 'https://gateway.example' }] }
             : {}),
         };
-        const { provider } = builder(metadata);
+        const parsed = ChainMetadataSchema.parse(metadata);
+        expect(parsed.gatewayUrls).to.deep.equal(metadata.gatewayUrls);
+        const { provider } = builder(parsed);
         expect(await provider.isHealthy()).to.equal(true);
         expect(fetch.calledOnce).to.equal(true);
         expect(fetch.firstCall.args[0]).to.equal(
