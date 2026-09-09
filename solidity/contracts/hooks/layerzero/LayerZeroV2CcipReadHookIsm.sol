@@ -25,7 +25,7 @@ contract LayerZeroV2CcipReadHookIsm is
 
     // Standard Executors reject missing or zero-gas lzReceive options. One gas
     // keeps the pathway quotable while making callback execution impossible;
-    // this variant consumes the verified packet only through Endpoint.clear.
+    // this variant uses the Endpoint's committed verification state directly.
     bytes22 internal constant PULL_EXECUTOR_OPTIONS =
         hex"00030100110100000000000000000000000000000001";
     uint256 internal constant PACKET_MESSAGE_OFFSET = 113;
@@ -47,7 +47,7 @@ contract LayerZeroV2CcipReadHookIsm is
 
     // ============ Events ============
 
-    event LayerZeroPayloadConsumed(
+    event LayerZeroPayloadVerified(
         bytes32 indexed messageId,
         uint32 indexed originDomain,
         uint32 indexed srcEid,
@@ -132,12 +132,11 @@ contract LayerZeroV2CcipReadHookIsm is
 
     // ============ LayerZero Receiver Interface ============
 
-    /// @notice Rejects push delivery for the pull variant.
+    /// @notice Rejects push execution for the pull variant.
     /// @dev The shared base implements ILayerZeroReceiver because Endpoint V2
     /// needs allowInitializePath for first-packet verification. This variant
-    /// deliberately consumes authenticated packets only through
-    /// Mailbox.process -> verify -> Endpoint.clear, so callback delivery must
-    /// remain disabled.
+    /// deliberately uses committed payload hashes as verification proofs, so
+    /// callback execution must remain disabled.
     function lzReceive(
         LayerZeroOrigin calldata,
         bytes32,
@@ -173,8 +172,8 @@ contract LayerZeroV2CcipReadHookIsm is
             messageId
         );
 
-        _consumePacket(context);
-        emit LayerZeroPayloadConsumed(
+        _commitPacketVerification(context);
+        emit LayerZeroPayloadVerified(
             messageId,
             context.originDomain,
             context.sourceEid,
@@ -186,7 +185,7 @@ contract LayerZeroV2CcipReadHookIsm is
         return true;
     }
 
-    // ============ Packet Validation and Consumption ============
+    // ============ Packet Validation and Verification ============
 
     function _validatePacket(
         bytes calldata metadata,
@@ -239,16 +238,6 @@ contract LayerZeroV2CcipReadHookIsm is
         if (context.guid != expectedGuid) {
             revert WrongPacketGuid(context.guid, expectedGuid);
         }
-        if (
-            !endpoint.isValidReceiveLibrary(
-                address(this),
-                context.sourceEid,
-                context.receiveLibrary
-            )
-        ) {
-            revert InvalidReceiveLibrary(context.receiveLibrary);
-        }
-
         context.payloadHash = packet.payloadHash();
         context.header = packet.header();
     }
@@ -263,14 +252,24 @@ contract LayerZeroV2CcipReadHookIsm is
         }
     }
 
-    function _consumePacket(PacketContext memory context) internal {
+    function _commitPacketVerification(PacketContext memory context) internal {
         bytes32 currentPayloadHash = endpoint.inboundPayloadHash(
             address(this),
             context.sourceEid,
             context.sender,
             context.nonce
         );
+
         if (currentPayloadHash == bytes32(0)) {
+            if (
+                !endpoint.isValidReceiveLibrary(
+                    address(this),
+                    context.sourceEid,
+                    context.receiveLibrary
+                )
+            ) {
+                revert InvalidReceiveLibrary(context.receiveLibrary);
+            }
             IReceiveUlnE2(context.receiveLibrary).commitVerification(
                 context.header,
                 context.payloadHash
@@ -282,19 +281,13 @@ contract LayerZeroV2CcipReadHookIsm is
                 context.nonce
             );
         }
+
         if (currentPayloadHash != context.payloadHash) {
             revert ConflictingPayloadHash(
                 currentPayloadHash,
                 context.payloadHash
             );
         }
-
-        LayerZeroOrigin memory origin = LayerZeroOrigin({
-            srcEid: context.sourceEid,
-            sender: context.sender,
-            nonce: context.nonce
-        });
-        endpoint.clear(address(this), origin, context.guid, context.message);
     }
 
     // ============ Hyperlane CCIP-Read Interface ============
