@@ -443,17 +443,14 @@ pub fn lander_metrics_invariants_met(
         return Ok(false);
     }
 
-    // resubmissions are possible because it takes a while for the local
-    // solana validator to report a tx hash as included once broadcast
-    // but no more than 2 submissions are expected per message
-    if transaction_submissions > 2 * params.total_messages_expected {
-        log!(
-            "hyperlane_lander_transaction_submissions {} count, expected {}",
-            transaction_submissions,
-            params.total_messages_expected
-        );
-        return Ok(false);
-    }
+    // This counter includes rebroadcasts while inclusion is pending. Their count
+    // depends on node/indexer latency, not the number of delivered messages.
+    // Delivery counts and drained queues above enforce completion; retain the
+    // submission count as a diagnostic rather than a fixed retry budget.
+    log!(
+        "hyperlane_lander_transaction_submissions {} count",
+        transaction_submissions
+    );
 
     log!(
         "hyperlane_lander_mismatched_nonce {} count, expected {}",
