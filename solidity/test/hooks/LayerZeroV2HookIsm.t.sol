@@ -11,8 +11,11 @@ import {PacketV1Codec} from "@layerzerolabs/lz-evm-protocol-v2/contracts/message
 import {AbstractLayerZeroV2HookIsm} from "contracts/hooks/layerzero/AbstractLayerZeroV2HookIsm.sol";
 import {LayerZeroV2CallbackHookIsm} from "contracts/hooks/layerzero/LayerZeroV2CallbackHookIsm.sol";
 import {LayerZeroV2CcipReadHookIsm} from "contracts/hooks/layerzero/LayerZeroV2CcipReadHookIsm.sol";
+import {IInterchainSecurityModule} from "contracts/interfaces/IInterchainSecurityModule.sol";
 import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {ICcipReadIsm} from "contracts/interfaces/isms/ICcipReadIsm.sol";
+import {StaticAggregationIsmFactory} from "contracts/isms/aggregation/StaticAggregationIsmFactory.sol";
+import {DomainRoutingIsm} from "contracts/isms/routing/DomainRoutingIsm.sol";
 import {LayerZeroMessage} from "contracts/libs/LayerZeroMessage.sol";
 import {LayerZeroMetadata} from "contracts/libs/LayerZeroMetadata.sol";
 import {Message} from "contracts/libs/Message.sol";
@@ -1870,14 +1873,59 @@ contract LayerZeroV2CcipReadHookIsmTest is LayerZeroV2HookIsmTestBase {
         );
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2CcipReadHookIsm.UnauthorizedCaller.selector,
-                address(this)
+                LayerZeroV2CcipReadHookIsm.MessageNotBeingProcessed.selector,
+                Message.id(message)
             )
         );
         LayerZeroV2CcipReadHookIsm(address(destinationRouter)).verify(
             metadata,
             message
         );
+    }
+
+    function testPullVerifiesThroughAggregationIsm() public {
+        (bytes memory message, ) = _dispatch();
+        bytes memory layerZeroMetadata = abi.encode(
+            address(destinationUln),
+            originEndpoint.lastPacket()
+        );
+        TestIsm testIsm = new TestIsm();
+        address[] memory modules = new address[](2);
+        modules[0] = address(testIsm);
+        modules[1] = address(destinationRouter);
+        IInterchainSecurityModule aggregation = IInterchainSecurityModule(
+            new StaticAggregationIsmFactory().deploy(modules, 2)
+        );
+        recipient.setInterchainSecurityModule(address(aggregation));
+
+        bytes memory metadata = abi.encodePacked(
+            uint32(16),
+            uint32(16),
+            uint32(16),
+            uint32(16 + layerZeroMetadata.length),
+            layerZeroMetadata
+        );
+        destinationMailbox.process(metadata, message);
+
+        assertEq(recipient.lastData(), bytes("hyperlane over layerzero"));
+    }
+
+    function testPullVerifiesThroughRoutingIsm() public {
+        (bytes memory message, ) = _dispatch();
+        DomainRoutingIsm routing = new DomainRoutingIsm();
+        routing.initialize(address(this));
+        routing.set(
+            ORIGIN,
+            IInterchainSecurityModule(address(destinationRouter))
+        );
+        recipient.setInterchainSecurityModule(address(routing));
+
+        destinationMailbox.process(
+            abi.encode(address(destinationUln), originEndpoint.lastPacket()),
+            message
+        );
+
+        assertEq(recipient.lastData(), bytes("hyperlane over layerzero"));
     }
 
     function testPullRollbackWhenRecipientReverts() public {
