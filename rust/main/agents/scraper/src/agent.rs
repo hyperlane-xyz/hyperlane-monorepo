@@ -88,6 +88,8 @@ struct RawDispatchReconciliationMetrics {
     duration: HistogramVec,
     pending_retries: IntGaugeVec,
     retry_capacity_overflows: IntCounterVec,
+    page_results: IntCounterVec,
+    rows: IntCounterVec,
 }
 
 impl RawDispatchReconciliationMetrics {
@@ -121,11 +123,50 @@ impl RawDispatchReconciliationMetrics {
                 &["chain"],
             )
             .expect("failed to register raw dispatch reconciliation retry overflow metric");
+        let page_results = metrics
+            .new_int_counter(
+                "raw_message_dispatch_reconciliation_page_results",
+                "Completed raw dispatch reconciliation pages, including errors and panics",
+                &["chain", "kind", "result"],
+            )
+            .expect("failed to register raw dispatch reconciliation page result metric");
+        let rows = metrics
+            .new_int_counter(
+                "raw_message_dispatch_reconciliation_rows",
+                "Rows reported by successful reconciliation pages; stages overlap and exclude partial work from failed pages",
+                &["chain", "kind", "stage"],
+            )
+            .expect("failed to register raw dispatch reconciliation row metric");
         Self {
             operations,
             duration,
             pending_retries,
             retry_capacity_overflows,
+            page_results,
+            rows,
+        }
+    }
+
+    fn record_page(
+        &self,
+        chain: &str,
+        kind: &str,
+        result: Option<&RawDispatchReconciliationResult>,
+    ) {
+        self.page_results
+            .with_label_values(&[chain, kind, if result.is_some() { "ok" } else { "error" }])
+            .inc();
+        if let Some(result) = result {
+            for (stage, count) in [
+                ("candidate", result.candidate_count as u64),
+                ("attempted", result.attempted_count as u64),
+                ("skipped_backoff", result.skipped_backoff_count as u64),
+                ("stored", u64::from(result.stored_count)),
+            ] {
+                self.rows
+                    .with_label_values(&[chain, kind, stage])
+                    .inc_by(count);
+            }
         }
     }
 
@@ -800,6 +841,11 @@ impl Scraper {
                         .catch_unwind()
                         .await;
                         timer.observe_duration();
+                        reconciliation_metrics.record_page(
+                            &domain_name,
+                            RAW_DISPATCH_RETRY_PAGE_KIND,
+                            result.as_ref().ok().and_then(|page| page.as_ref().ok()),
+                        );
                         match result {
                             Ok(Ok(result)) => {
                                 stored_events_metric.inc_by(result.stored_count.into());
@@ -886,6 +932,11 @@ impl Scraper {
                         .catch_unwind()
                         .await;
                         timer.observe_duration();
+                        reconciliation_metrics.record_page(
+                            &domain_name,
+                            RAW_DISPATCH_DISCOVERY_PAGE_KIND,
+                            result.as_ref().ok().and_then(|page| page.as_ref().ok()),
+                        );
                         match result {
                             Ok(Ok(result)) => {
                                 stored_events_metric.inc_by(result.stored_count.into());
@@ -981,6 +1032,11 @@ impl Scraper {
                         .catch_unwind()
                         .await;
                         timer.observe_duration();
+                        reconciliation_metrics.record_page(
+                            &domain_name,
+                            RAW_DISPATCH_SWEEP_PAGE_KIND,
+                            result.as_ref().ok().and_then(|page| page.as_ref().ok()),
+                        );
                         match result {
                             Ok(Ok(result)) => {
                                 stored_events_metric.inc_by(result.stored_count.into());
@@ -1292,6 +1348,60 @@ mod test {
     use hyperlane_ethereum as h_eth;
 
     use super::*;
+
+    #[test]
+    fn reconciliation_page_metrics_distinguish_empty_success_and_failure() {
+        let core = CoreMetrics::new("scraper", 0, Registry::new()).expect("test registry");
+        let metrics = RawDispatchReconciliationMetrics::new(&core);
+        for kind in [
+            RAW_DISPATCH_RETRY_PAGE_KIND,
+            RAW_DISPATCH_DISCOVERY_PAGE_KIND,
+            RAW_DISPATCH_SWEEP_PAGE_KIND,
+        ] {
+            metrics.record_page(
+                "ethereum",
+                kind,
+                Some(&RawDispatchReconciliationResult {
+                    candidate_count: 5,
+                    attempted_count: 3,
+                    skipped_backoff_count: 2,
+                    stored_count: 1,
+                    ..Default::default()
+                }),
+            );
+            metrics.record_page("ethereum", kind, Some(&Default::default()));
+            // Failed pages can have partial work; do not fabricate row counts for them.
+            metrics.record_page("ethereum", kind, None);
+            assert_eq!(
+                metrics
+                    .page_results
+                    .with_label_values(&["ethereum", kind, "ok"])
+                    .get(),
+                2
+            );
+            assert_eq!(
+                metrics
+                    .page_results
+                    .with_label_values(&["ethereum", kind, "error"])
+                    .get(),
+                1
+            );
+            for (stage, expected) in [
+                ("candidate", 5),
+                ("attempted", 3),
+                ("skipped_backoff", 2),
+                ("stored", 1),
+            ] {
+                assert_eq!(
+                    metrics
+                        .rows
+                        .with_label_values(&["ethereum", kind, stage])
+                        .get(),
+                    expected
+                );
+            }
+        }
+    }
 
     async fn run_pending_tasks() {
         for _ in 0..10 {
