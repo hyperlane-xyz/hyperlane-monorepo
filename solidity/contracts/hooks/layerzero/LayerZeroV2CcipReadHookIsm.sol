@@ -2,7 +2,7 @@
 pragma solidity >=0.8.20;
 
 import {IReceiveUlnE2} from "@layerzerolabs/lz-evm-messagelib-v2/contracts/uln/interfaces/IReceiveUlnE2.sol";
-import {Origin as LayerZeroOrigin} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroEndpointV2.sol";
+import {ILayerZeroEndpointV2, Origin as LayerZeroOrigin} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroEndpointV2.sol";
 import {AddressCast} from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/AddressCast.sol";
 import {GUID} from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/GUID.sol";
 import {PacketV1Codec} from "@layerzerolabs/lz-evm-protocol-v2/contracts/messagelib/libs/PacketV1Codec.sol";
@@ -28,6 +28,7 @@ contract LayerZeroV2CcipReadHookIsm is
     // this variant uses the Endpoint's committed verification state directly.
     bytes22 internal constant PULL_EXECUTOR_OPTIONS =
         hex"00030100110100000000000000000000000000000001";
+    uint256 internal constant CLEAR_GAS_LIMIT = 100_000;
     uint256 internal constant PACKET_MESSAGE_OFFSET = 113;
     uint8 internal constant PACKET_VERSION = 1;
 
@@ -55,11 +56,17 @@ contract LayerZeroV2CcipReadHookIsm is
         uint64 nonce,
         address receiveLibrary
     );
+    event LayerZeroPayloadClearFailed(
+        bytes32 indexed messageId,
+        uint32 indexed originDomain,
+        uint32 indexed srcEid,
+        bytes32 guid,
+        uint64 nonce
+    );
 
     // ============ Errors ============
 
-    error PullLayerZeroCallbackUnsupported();
-    error UnauthorizedMailboxCaller(address caller);
+    error UnauthorizedCaller(address caller);
     error MessageNotBeingProcessed(bytes32 messageId);
     error WrongHyperlaneDestination(uint32 destination);
     error WrongPacketSourceEid(uint32 actual, uint32 expected);
@@ -72,6 +79,7 @@ contract LayerZeroV2CcipReadHookIsm is
     error ConflictingPayloadHash(bytes32 current, bytes32 expected);
     error InvalidLayerZeroPacketLength(uint256 length);
     error InvalidLayerZeroPacketVersion(uint8 version);
+    error MessageNotDelivered(bytes32 messageId);
 
     // ============ Constructor ============
 
@@ -132,19 +140,24 @@ contract LayerZeroV2CcipReadHookIsm is
 
     // ============ LayerZero Receiver Interface ============
 
-    /// @notice Rejects push execution for the pull variant.
-    /// @dev The shared base implements ILayerZeroReceiver because Endpoint V2
-    /// needs allowInitializePath for first-packet verification. This variant
-    /// deliberately uses committed payload hashes as verification proofs, so
-    /// callback execution must remain disabled.
+    /// @notice Allows Endpoint V2 to clear a packet only after its Hyperlane
+    /// message has been delivered.
+    /// @dev Endpoint V2 clears before this callback. Reverting here rolls that
+    /// clear back, so Executors cannot consume an undelivered authorization.
     function lzReceive(
         LayerZeroOrigin calldata,
         bytes32,
-        bytes calldata,
+        bytes calldata payload,
         address,
         bytes calldata
     ) external payable override {
-        revert PullLayerZeroCallbackUnsupported();
+        if (msg.sender != address(endpoint)) {
+            revert UnauthorizedCaller(msg.sender);
+        }
+        (, , bytes32 messageId) = LayerZeroMessage.decode(payload);
+        if (!mailbox.delivered(messageId)) {
+            revert MessageNotDelivered(messageId);
+        }
     }
 
     // ============ Hyperlane ISM Interface ============
@@ -155,7 +168,7 @@ contract LayerZeroV2CcipReadHookIsm is
     ) external override returns (bool) {
         bytes32 messageId = Message.id(message);
         if (msg.sender != address(mailbox)) {
-            revert UnauthorizedMailboxCaller(msg.sender);
+            revert UnauthorizedCaller(msg.sender);
         }
 
         if (!_isProcessing(messageId)) {
@@ -181,6 +194,7 @@ contract LayerZeroV2CcipReadHookIsm is
             context.nonce,
             context.receiveLibrary
         );
+        _tryClearPacket(context, messageId);
 
         return true;
     }
@@ -288,6 +302,38 @@ contract LayerZeroV2CcipReadHookIsm is
                 context.payloadHash
             );
         }
+    }
+
+    function _tryClearPacket(
+        PacketContext memory context,
+        bytes32 messageId
+    ) internal {
+        (bool cleared, ) = address(endpoint).call{gas: CLEAR_GAS_LIMIT}(
+            abi.encodeCall(
+                ILayerZeroEndpointV2.clear,
+                (address(this), _origin(context), context.guid, context.message)
+            )
+        );
+        if (!cleared) {
+            emit LayerZeroPayloadClearFailed(
+                messageId,
+                context.originDomain,
+                context.sourceEid,
+                context.guid,
+                context.nonce
+            );
+        }
+    }
+
+    function _origin(
+        PacketContext memory context
+    ) internal pure returns (LayerZeroOrigin memory) {
+        return
+            LayerZeroOrigin({
+                srcEid: context.sourceEid,
+                sender: context.sender,
+                nonce: context.nonce
+            });
     }
 
     // ============ Hyperlane CCIP-Read Interface ============
