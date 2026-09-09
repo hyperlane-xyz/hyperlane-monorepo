@@ -5,6 +5,7 @@ import {MessagingFee as LayerZeroMessagingFee, MessagingParams as LayerZeroMessa
 import {ILayerZeroReceiver} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroReceiver.sol";
 import {SetConfigParam as LayerZeroSetConfigParam} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/IMessageLibManager.sol";
 import {GUID} from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/GUID.sol";
+import {Errors} from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/Errors.sol";
 
 contract MockLayerZeroEndpointV2 {
     struct ReceiveLibraryTimeout {
@@ -29,6 +30,8 @@ contract MockLayerZeroEndpointV2 {
         public configs;
     mapping(address => mapping(uint32 => mapping(bytes32 => mapping(uint64 => bytes32))))
         public payloadHashes;
+    mapping(address => mapping(uint32 => mapping(bytes32 => uint64)))
+        public lazyInboundNonce;
     mapping(address => mapping(uint32 => mapping(bytes32 => uint64)))
         public outboundNonces;
 
@@ -124,6 +127,45 @@ contract MockLayerZeroEndpointV2 {
         bytes calldata message
     ) external {
         _authorize(oapp);
+        _clear(oapp, origin, guid, message);
+    }
+
+    function mockExecute(
+        address receiver,
+        LayerZeroOrigin calldata origin,
+        bytes32 guid,
+        bytes calldata message
+    ) external {
+        _clear(receiver, origin, guid, message);
+        ILayerZeroReceiver(receiver).lzReceive(
+            origin,
+            guid,
+            message,
+            msg.sender,
+            ""
+        );
+    }
+
+    function _clear(
+        address oapp,
+        LayerZeroOrigin calldata origin,
+        bytes32 guid,
+        bytes calldata message
+    ) internal {
+        uint64 currentNonce = lazyInboundNonce[oapp][origin.srcEid][
+            origin.sender
+        ];
+        if (origin.nonce > currentNonce) {
+            // Endpoint V2 only clears packets in nonce order, even when an OApp
+            // opts into unordered verification by returning zero from nextNonce.
+            for (uint64 i = currentNonce + 1; i <= origin.nonce; ++i) {
+                if (
+                    payloadHashes[oapp][origin.srcEid][origin.sender][i] ==
+                    bytes32(0)
+                ) revert Errors.LZ_InvalidNonce(i);
+            }
+            lazyInboundNonce[oapp][origin.srcEid][origin.sender] = origin.nonce;
+        }
         bytes32 expected = keccak256(abi.encodePacked(guid, message));
         bytes32 current = payloadHashes[oapp][origin.srcEid][origin.sender][
             origin.nonce
