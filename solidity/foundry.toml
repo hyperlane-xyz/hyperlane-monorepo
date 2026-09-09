@@ -21,16 +21,28 @@ fs_permissions = [
 ]
 ignored_warnings_from = ['lib', 'test', 'contracts/test']
 
-# Pin CrossCollateralRouter below the suite-wide optimizer_runs to keep its
-# runtime bytecode under the EIP-170 24576-byte limit. Mirrors the Hardhat
-# overrides entry in rootHardhatConfig.cts; keep the two in sync.
+# Pin large contracts below the suite-wide optimizer_runs to keep their runtime
+# bytecode under the EIP-170 24576-byte limit. Mirrors hardhat.config.cts; keep
+# the two files in sync.
 [[profile.default.additional_compiler_profiles]]
 name = "size-optimized"
 optimizer_runs = 3_599
 
+[[profile.default.additional_compiler_profiles]]
+name = "layerzero-size-optimized"
+optimizer_runs = 2_239
+
 [[profile.default.compilation_restrictions]]
 paths = "contracts/token/CrossCollateralRouter.sol"
 optimizer_runs = 3_599
+
+[[profile.default.compilation_restrictions]]
+paths = "contracts/hooks/layerzero/LayerZeroV2CcipReadHookIsm.sol"
+optimizer_runs = 2_239
+
+[[profile.default.compilation_restrictions]]
+paths = "test/hooks/LayerZeroV2HookIsm.t.sol"
+optimizer_runs = 2_239
 
 [profile.ci]
 verbosity = 4
@@ -42,8 +54,8 @@ bytecode_hash = "none"
 # Reduce optimizer runs for coverage to save memory (25k -> 200)
 optimizer_runs = 200
 # `forge coverage` drops ~half the contracts from the report when compilation is
-# split across profiles. Clear the CrossCollateralRouter size pin here: coverage
-# never deploys (EIP-170 is irrelevant) and needs a single uniform compilation.
+# split across profiles. Clear the size pins here: coverage never deploys
+# (EIP-170 is irrelevant) and needs a single uniform compilation.
 compilation_restrictions = []
 
 [profile.tron]
