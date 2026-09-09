@@ -39,7 +39,11 @@ const REJECTED_STREAM_RETRY_DELAY: Duration = Duration::from_secs(300);
 const RETRY_JITTER_MS: u32 = 5_000;
 const READ_TIMEOUT: Duration = Duration::from_secs(75);
 const PROGRESS_CHECK_INTERVAL: Duration = Duration::from_secs(30);
-const PROGRESS_GRACE_PERIOD: Duration = Duration::from_secs(75);
+// Must exceed the largest chain's scraper indexing delay (reorgPeriod * block time)
+// so the stream is not judged stale while the scraper is still confirming canonical
+// blocks. Ethereum's ~15-block, ~12s-block reorg window is ~180s; 5 minutes leaves
+// margin for replication lag and the probe interval, avoiding WebSocket/RPC flapping.
+const PROGRESS_GRACE_PERIOD: Duration = Duration::from_secs(300);
 const RPC_PROBE_TIMEOUT: Duration = Duration::from_secs(15);
 const CANONICAL_RETRY_DELAY: Duration = Duration::from_secs(1);
 const CANONICAL_FETCH_ATTEMPTS: usize = 3;
