@@ -209,11 +209,17 @@ describe('Agent configs', () => {
     Object.entries(agents).forEach(([context, config]) => {
       const { relayer, validators } = config;
       if (validators) {
-        it(`configures ${environment}/${context} validators for the shared scraper`, () => {
-          expect(validators.websocketUrl).to.equal(
-            `ws://scraper-proxy.${environment}.svc.cluster.local:8383/agents`,
-          );
-        });
+        if (context === Contexts.FastPath) {
+          it(`configures ${environment}/${context} validators for RPC-only indexing`, () => {
+            expect(validators.websocketUrl).to.be.undefined;
+          });
+        } else {
+          it(`configures ${environment}/${context} validators for the shared scraper`, () => {
+            expect(validators.websocketUrl).to.equal(
+              `ws://scraper-proxy.${environment}.svc.cluster.local:8383/agents`,
+            );
+          });
+        }
       }
 
       if (relayer) {
