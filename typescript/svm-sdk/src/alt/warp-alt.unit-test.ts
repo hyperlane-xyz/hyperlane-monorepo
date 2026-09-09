@@ -90,7 +90,10 @@ function isSortedAscending<T extends string>(items: T[]): boolean {
   return true;
 }
 
-function createAccountRpc(accounts: ReadonlyMap<Address, ReadonlyUint8Array>) {
+function createAccountRpc(
+  accounts: ReadonlyMap<Address, ReadonlyUint8Array>,
+  requestedAddresses: Address[] = [],
+) {
   return createSolanaRpcFromTransport(
     async <TResponse>({ payload }: Parameters<RpcTransport>[0]) => {
       assert(isJsonRpcPayload(payload), 'Expected a JSON-RPC payload');
@@ -101,6 +104,7 @@ function createAccountRpc(accounts: ReadonlyMap<Address, ReadonlyUint8Array>) {
       );
       const requestedAddress = payload.params[0];
       assert(typeof requestedAddress === 'string', 'Expected account address');
+      requestedAddresses.push(address(requestedAddress));
       const data = accounts.get(address(requestedAddress));
 
       // CAST: RpcTransport is generic over every RPC method response, but this
@@ -445,25 +449,38 @@ describe('deriveIsmProcessAltAddressesFromState', () => {
     );
   });
 
-  it('includes fallback accounts nested in a per-domain routing node', async () => {
-    const result = await deriveIsmProcessAltAddressesFromState({
+  it('derives every domain PDA with only three root probes', async () => {
+    const originDomains = Array.from({ length: 32 }, (_, i) => i + 1);
+    const storage = await deriveCompositeIsmStoragePda(ISM);
+    const composite: CompositeIsmStorage = {
+      bumpSeed: 1,
+      owner: null,
+      root: { kind: 'routing' },
+    };
+    const requests: Address[] = [];
+    const rpc = createAccountRpc(
+      new Map([[storage.address, encodeCompositeIsmStorageAccount(composite)]]),
+      requests,
+    );
+    const result = await deriveIsmProcessAltAddresses({
+      rpc,
       ism: ISM,
       mailbox: MAILBOX,
-      originDomains: ORIGINS,
-      composite: {
-        bumpSeed: 1,
-        owner: null,
-        root: { kind: 'routing' },
-      },
-      domainIsms: [
-        { kind: 'fallbackRouting', fallbackIsm: FALLBACK_ISM },
-        null,
-      ],
-      isMultisig: false,
-      isTest: false,
+      originDomains,
     });
-
-    expect(addressesOf(result)).to.include(FALLBACK_ISM);
+    expect(requests).to.have.lengthOf(3);
+    expect(new Set(requests)).to.deep.equal(
+      new Set([
+        storage.address,
+        (await deriveMultisigIsmAccessControlPda(ISM)).address,
+        (await deriveTestIsmStoragePda(ISM)).address,
+      ]),
+    );
+    for (const domain of originDomains) {
+      expect(addressesOf(result)).to.include(
+        (await deriveCompositeIsmDomainPda(ISM, domain)).address,
+      );
+    }
   });
 
   it('includes per-origin domain data for a standalone multisig', async () => {

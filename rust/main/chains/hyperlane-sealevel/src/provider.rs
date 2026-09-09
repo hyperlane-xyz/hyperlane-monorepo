@@ -23,7 +23,7 @@ use solana_transaction_status::{
     UiTransactionStatusMeta,
 };
 use solana_transaction_status::{TransactionStatus, UiReturnDataEncoding};
-use tokio::sync::RwLock;
+use tokio::sync::{OnceCell, RwLock};
 use tracing::warn;
 
 use hyperlane_core::{
@@ -47,6 +47,8 @@ use crate::{ConnectionConf, SealevelKeypair, SealevelTransactionFormat, Transact
 
 mod recipient;
 mod transaction;
+
+type AltAccountCell = Arc<OnceCell<Arc<AddressLookupTableAccount>>>;
 
 const COMPUTE_UNIT_MULTIPLIER_NUMERATOR: u32 = 11;
 const COMPUTE_UNIT_MULTIPLIER_DENOMINATOR: u32 = 10;
@@ -135,7 +137,7 @@ pub struct SealevelProvider {
     /// Lazily fetched ALT cache for transaction size reduction.
     /// Maps ALT address to fetched account data. ALTs are assumed static once fetched.
     /// Note: Keep the number of different ALTs small to avoid memory bloat.
-    alt_cache: Arc<RwLock<HashMap<Pubkey, Arc<AddressLookupTableAccount>>>>,
+    alt_cache: Arc<RwLock<HashMap<Pubkey, AltAccountCell>>>,
     /// Materialized ALT sets in compile order. This avoids cloning every ALT's
     /// account-address vector for every simulation and submission.
     alt_set_cache: Arc<RwLock<HashMap<NonEmptyAltAddresses, Arc<[AddressLookupTableAccount]>>>>,
@@ -475,28 +477,32 @@ impl SealevelProvider {
         &self,
         alt_address: Pubkey,
     ) -> ChainResult<Arc<AddressLookupTableAccount>> {
-        // Check cache first (read lock)
-        {
-            let cache = self.alt_cache.read().await;
-            if let Some(alt_account) = cache.get(&alt_address) {
-                return Ok(Arc::clone(alt_account));
-            }
-        }
-
-        // Not cached - fetch from chain and cache (write lock)
-        let alt_account = Arc::new(fetch_alt(&self.rpc_client, alt_address).await?);
-        tracing::info!(
-            domain = %self.domain,
-            alt_address = %alt_address,
-            num_accounts = alt_account.addresses.len(),
-            "Fetched and cached ALT"
-        );
-
-        let mut cache = self.alt_cache.write().await;
-        let cached = cache
-            .entry(alt_address)
-            .or_insert_with(|| Arc::clone(&alt_account));
-        Ok(Arc::clone(cached))
+        let cached = self.alt_cache.read().await.get(&alt_address).cloned();
+        let cell = match cached {
+            Some(cell) => cell,
+            None => self
+                .alt_cache
+                .write()
+                .await
+                .entry(alt_address)
+                .or_default()
+                .clone(),
+        };
+        // Share an in-flight fetch across bundles without holding the map lock
+        // over RPC. Failed or cancelled fetches leave the cell retryable.
+        let account = cell
+            .get_or_try_init(|| async {
+                let account = Arc::new(fetch_alt(&self.rpc_client, alt_address).await?);
+                tracing::info!(
+                    domain = %self.domain,
+                    alt_address = %alt_address,
+                    num_accounts = account.addresses.len(),
+                    "Fetched and cached ALT"
+                );
+                Ok::<_, ChainCommunicationError>(account)
+            })
+            .await?;
+        Ok(Arc::clone(account))
     }
 
     /// Get an rpc client
@@ -722,19 +728,16 @@ impl SealevelProvider {
         const MAX_VAM_ITERATIONS: usize = 10;
         let mut accounts = vec![AccountMeta::new(vam_pda, false)];
 
+        let instruction_data =
+            InterchainSecurityModuleInstruction::VerifyAccountMetas(VerifyInstruction {
+                metadata,
+                message,
+            })
+            .encode()
+            .map_err(ChainCommunicationError::from_other)?;
+
         for _ in 0..MAX_VAM_ITERATIONS {
-            let instruction =
-                InterchainSecurityModuleInstruction::VerifyAccountMetas(VerifyInstruction {
-                    metadata: metadata.clone(),
-                    message: message.clone(),
-                });
-            let ix = Instruction::new_with_bytes(
-                ism,
-                &instruction
-                    .encode()
-                    .map_err(ChainCommunicationError::from_other)?,
-                accounts.clone(),
-            );
+            let ix = Instruction::new_with_bytes(ism, &instruction_data, accounts.clone());
             let result: Vec<AccountMeta> = self
                 .simulate_instruction::<SimulationReturnData<Vec<SerializableAccountMeta>>>(
                     payer, ix,
@@ -766,16 +769,9 @@ impl SealevelProvider {
         pubkey: &Pubkey,
         instruction: Instruction,
     ) -> ChainResult<Option<T>> {
-        let commitment = CommitmentConfig::finalized();
-        let recent_blockhash = self
-            .rpc_client()
-            .get_latest_blockhash_with_commitment(commitment)
-            .await?;
-        let transaction = Transaction::new_unsigned(Message::new_with_blockhash(
-            &[instruction],
-            Some(pubkey),
-            &recent_blockhash,
-        ));
+        // Simulation already sets replace_recent_blockhash=true and disables
+        // signature verification, so fetching a blockhash adds an unused RPC.
+        let transaction = Transaction::new_unsigned(Message::new(&[instruction], Some(pubkey)));
         let simulation = self.rpc_client().simulate_transaction(&transaction).await?;
 
         if let Some(err) = simulation.err {
@@ -919,23 +915,68 @@ mod tests {
     use super::*;
     use crate::client::SealevelRpcClient;
 
-    #[derive(Clone)]
+    #[derive(Clone, Default)]
     struct RecordingRpcSender {
         calls: Arc<Mutex<Vec<(RpcRequest, Value)>>>,
         slot: u64,
+        accounts: Arc<Mutex<HashMap<Pubkey, Vec<u8>>>>,
+        simulation_accounts: Vec<AccountMeta>,
+        account_gate: Option<Arc<tokio::sync::Notify>>,
     }
 
     #[async_trait]
     impl RpcSender for RecordingRpcSender {
         async fn send(&self, request: RpcRequest, params: Value) -> ClientResult<Value> {
-            let response = match &request {
-                RpcRequest::GetSlot => json!(self.slot),
-                _ => Value::Null,
-            };
             self.calls
                 .lock()
                 .expect("recording sender mutex should not be poisoned")
-                .push((request, params));
+                .push((request.clone(), params.clone()));
+            // Ensure concurrent callers overlap while a fetch is in flight.
+            tokio::task::yield_now().await;
+            let response = match &request {
+                RpcRequest::GetSlot => json!(self.slot),
+                RpcRequest::GetVersion => json!({"solana-core": "3.0.0", "feature-set": 1}),
+                RpcRequest::GetAccountInfo => {
+                    if let Some(gate) = &self.account_gate {
+                        gate.notified().await;
+                    }
+                    let key: Pubkey = params[0]
+                        .as_str()
+                        .expect("test fixture should be valid")
+                        .parse()
+                        .expect("test fixture should be valid");
+                    let accounts = self.accounts.lock().expect("test fixture should be valid");
+                    let data = accounts.get(&key).expect("fixture account must exist");
+                    json!({"context": {"slot": self.slot}, "value": {
+                        "data": [base64::engine::general_purpose::STANDARD.encode(data), "base64"],
+                        "owner": solana_sdk_ids::address_lookup_table::id().to_string(),
+                        "lamports": 1, "executable": false, "rentEpoch": 0,
+                        "space": data.len(),
+                    }})
+                }
+                RpcRequest::SimulateTransaction => {
+                    let bytes = borsh::to_vec(&SimulationReturnData::new(
+                        self.simulation_accounts
+                            .iter()
+                            .cloned()
+                            .map(SerializableAccountMeta::from)
+                            .collect::<Vec<_>>(),
+                    ))
+                    .expect("test fixture should be valid");
+                    json!({"context": {"slot": self.slot}, "value": {
+                        "err": null, "logs": [], "unitsConsumed": 1,
+                        "returnData": {
+                            "programId": Pubkey::default().to_string(),
+                            "data": [base64::engine::general_purpose::STANDARD.encode(bytes), "base64"],
+                        },
+                    }})
+                }
+                _ => {
+                    return Err(
+                        std::io::Error::other(format!("unexpected RPC: {request:?}")).into(),
+                    )
+                }
+            };
             Ok(response)
         }
 
@@ -948,27 +989,226 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn chain_metrics_only_fetch_finalized_slot() {
-        let calls = Arc::new(Mutex::new(Vec::new()));
-        let sender = RecordingRpcSender {
-            calls: calls.clone(),
-            slot: 42,
-        };
+    fn recording_provider(sender: RecordingRpcSender) -> SealevelProvider {
         let rpc_client = RpcClient::new_sender(
             sender,
             RpcClientConfig::with_commitment(CommitmentConfig::processed()),
         );
         let client = SealevelRpcClient::from_rpc_client(Arc::new(rpc_client));
         let fallback_provider = FallbackProvider::new(vec![client]);
-        let provider = SealevelProvider {
+        SealevelProvider {
             rpc_client: SealevelFallbackRpcClient::new(fallback_provider),
             domain: HyperlaneDomain::Known(KnownHyperlaneDomain::SolanaMainnet),
             native_token: NativeToken::default(),
             recipient_provider: RecipientProvider::new(&[]),
             alt_cache: Arc::new(RwLock::new(HashMap::new())),
             alt_set_cache: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    fn alt_fixture(addresses: Vec<Pubkey>) -> Vec<u8> {
+        solana_address_lookup_table_interface::state::AddressLookupTable {
+            meta: solana_address_lookup_table_interface::state::LookupTableMeta::default(),
+            addresses: std::borrow::Cow::Owned(addresses),
+        }
+        .serialize_for_tests()
+        .expect("test fixture should be valid")
+    }
+
+    #[tokio::test]
+    async fn concurrent_alt_bundles_share_fetches_and_preserve_order() {
+        let core = Pubkey::new_unique();
+        let route = Pubkey::new_unique();
+        let core_accounts = vec![Pubkey::new_unique()];
+        let route_accounts = vec![Pubkey::new_unique(), Pubkey::new_unique()];
+        let sender = RecordingRpcSender::default();
+        sender
+            .accounts
+            .lock()
+            .expect("test fixture should be valid")
+            .extend([
+                (core, alt_fixture(core_accounts.clone())),
+                (route, alt_fixture(route_accounts.clone())),
+            ]);
+        let provider = recording_provider(sender.clone());
+        let forward = NonEmptyAltAddresses::try_from(vec![core, route])
+            .expect("test fixture should be valid");
+        let reverse = NonEmptyAltAddresses::try_from(vec![route, core])
+            .expect("test fixture should be valid");
+        let (a, b, c) = tokio::try_join!(
+            provider.get_or_fetch_alts(&forward),
+            provider.get_or_fetch_alts(&reverse),
+            provider.get_or_fetch_alts(&forward),
+        )
+        .expect("test fixture should be valid");
+        assert_eq!(
+            a.iter().map(|a| a.key).collect::<Vec<_>>(),
+            vec![core, route]
+        );
+        assert_eq!(
+            b.iter().map(|a| a.key).collect::<Vec<_>>(),
+            vec![route, core]
+        );
+        assert_eq!(a[0].addresses, core_accounts);
+        assert_eq!(a[1].addresses, route_accounts);
+        assert!(Arc::ptr_eq(&a, &c));
+        assert!(Arc::ptr_eq(
+            &a,
+            &provider
+                .get_or_fetch_alts(&forward)
+                .await
+                .expect("test fixture should be valid")
+        ));
+        let calls = sender.calls.lock().expect("test fixture should be valid");
+        assert_eq!(
+            calls
+                .iter()
+                .filter(|(r, _)| *r == RpcRequest::GetAccountInfo)
+                .count(),
+            2
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_alt_decode_can_be_retried() {
+        let key = Pubkey::new_unique();
+        let sender = RecordingRpcSender::default();
+        sender
+            .accounts
+            .lock()
+            .expect("test fixture should be valid")
+            .insert(key, vec![]);
+        let provider = recording_provider(sender.clone());
+        assert!(provider.get_or_fetch_alt(key).await.is_err());
+        let expected = vec![Pubkey::new_unique()];
+        sender
+            .accounts
+            .lock()
+            .expect("test fixture should be valid")
+            .insert(key, alt_fixture(expected.clone()));
+        assert_eq!(
+            provider
+                .get_or_fetch_alt(key)
+                .await
+                .expect("test fixture should be valid")
+                .addresses,
+            expected
+        );
+        assert_eq!(
+            sender
+                .calls
+                .lock()
+                .expect("test fixture should be valid")
+                .iter()
+                .filter(|(r, _)| *r == RpcRequest::GetAccountInfo)
+                .count(),
+            2
+        );
+    }
+
+    #[tokio::test]
+    async fn cancelled_alt_fetch_can_be_retried() {
+        let key = Pubkey::new_unique();
+        let gate = Arc::new(tokio::sync::Notify::new());
+        let sender = RecordingRpcSender {
+            account_gate: Some(gate.clone()),
+            ..Default::default()
         };
+        sender
+            .accounts
+            .lock()
+            .expect("test fixture should be valid")
+            .insert(key, alt_fixture(vec![]));
+        let provider = recording_provider(sender.clone());
+        let initial_provider = provider.clone();
+        let initial = tokio::spawn(async move { initial_provider.get_or_fetch_alt(key).await });
+        tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            while sender
+                .calls
+                .lock()
+                .expect("test fixture should be valid")
+                .is_empty()
+            {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("test fixture should be valid");
+        initial.abort();
+        assert!(initial
+            .await
+            .expect_err("cancelled task should fail")
+            .is_cancelled());
+        gate.notify_one();
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            provider.get_or_fetch_alt(key),
+        )
+        .await
+        .expect("test fixture should be valid")
+        .expect("test fixture should be valid");
+        assert_eq!(result.key, key);
+    }
+
+    #[tokio::test]
+    async fn vam_simulations_reuse_instruction_data_without_fetching_blockhashes() {
+        let payer = Pubkey::new_unique();
+        let ism = Pubkey::new_unique();
+        let (vam, _) = Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &ism);
+        // Same key, different writable flag: convergence must compare flags too.
+        let expected = vec![AccountMeta::new_readonly(vam, false)];
+        let sender = RecordingRpcSender {
+            simulation_accounts: expected.clone(),
+            ..Default::default()
+        };
+        let provider = recording_provider(sender.clone());
+        let metadata = vec![1, 2, 3];
+        let message = vec![4, 5, 6];
+        let encoded = InterchainSecurityModuleInstruction::VerifyAccountMetas(VerifyInstruction {
+            metadata: metadata.clone(),
+            message: message.clone(),
+        })
+        .encode()
+        .expect("test fixture should be valid");
+        assert_eq!(
+            provider
+                .get_ism_verify_account_metas(&payer, ism, metadata, message)
+                .await
+                .expect("test fixture should be valid"),
+            expected
+        );
+        let calls = sender.calls.lock().expect("test fixture should be valid");
+        assert!(!calls
+            .iter()
+            .any(|(r, _)| *r == RpcRequest::GetLatestBlockhash));
+        let simulations = calls
+            .iter()
+            .filter(|(r, _)| *r == RpcRequest::SimulateTransaction)
+            .map(|(_, p)| p)
+            .collect::<Vec<_>>();
+        assert_eq!(simulations.len(), 2);
+        for params in simulations {
+            assert_eq!(params[1]["replaceRecentBlockhash"], true);
+            assert_eq!(params[1]["sigVerify"], false);
+            let bytes = base64::engine::general_purpose::STANDARD
+                .decode(params[0].as_str().expect("test fixture should be valid"))
+                .expect("test fixture should be valid");
+            let tx: Transaction =
+                bincode::deserialize(&bytes).expect("test fixture should be valid");
+            assert_eq!(tx.message.recent_blockhash, Hash::default());
+            assert_eq!(tx.message.instructions[0].data, encoded);
+        }
+    }
+
+    #[tokio::test]
+    async fn chain_metrics_only_fetch_finalized_slot() {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let sender = RecordingRpcSender {
+            calls: calls.clone(),
+            slot: 42,
+            ..Default::default()
+        };
+        let provider = recording_provider(sender);
 
         let chain_info = provider
             .get_chain_metrics()
