@@ -1197,7 +1197,7 @@ contract LayerZeroV2CallbackHookIsmTest is LayerZeroV2HookIsmTestBase {
         );
     }
 
-    function testCallbackIsIdempotentAndRejectsConflictingOrigin() public {
+    function testCallbackIsIdempotent() public {
         (bytes memory message, bytes32 messageId) = _dispatch();
         bytes memory packet = originEndpoint.lastPacket();
         (uint64 packetNonce, bytes32 packetGuid, ) = this.decodeLayerZeroPacket(
@@ -1225,42 +1225,20 @@ contract LayerZeroV2CallbackHookIsmTest is LayerZeroV2HookIsmTestBase {
             packetGuid,
             payload
         );
-
-        _configure(
-            destinationRouter,
-            destinationEndpoint,
-            destinationUln,
-            SECOND_DESTINATION,
-            SECOND_DESTINATION_EID,
-            address(0xBEEF)
+        assertTrue(
+            LayerZeroV2CallbackHookIsm(address(destinationRouter))
+                .authorizations(ORIGIN, messageId)
         );
-        LayerZeroOrigin memory conflictingOrigin = LayerZeroOrigin({
-            srcEid: SECOND_DESTINATION_EID,
-            sender: address(0xBEEF).addressToBytes32(),
-            nonce: 7
-        });
-        bytes32 conflictingGuid = GUID.generate(
-            conflictingOrigin.nonce,
-            conflictingOrigin.srcEid,
-            address(0xBEEF),
-            DESTINATION_EID,
-            address(destinationRouter).addressToBytes32()
-        );
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                LayerZeroV2CallbackHookIsm
-                    .ConflictingLayerZeroAuthorization
-                    .selector,
-                messageId
+        assertTrue(
+            LayerZeroV2CallbackHookIsm(address(destinationRouter)).verify(
+                "",
+                message
             )
         );
-        destinationEndpoint.mockDeliver(
-            address(destinationRouter),
-            conflictingOrigin,
-            conflictingGuid,
-            LayerZeroMessage.encode(SECOND_DESTINATION, DESTINATION, messageId)
-        );
+    }
 
+    function testCallbackVerifyRejectsMetadataAndWrongDestination() public {
+        (bytes memory message, ) = _dispatch();
         vm.expectRevert(
             LayerZeroV2CallbackHookIsm.UnexpectedHyperlaneMetadata.selector
         );
@@ -1277,6 +1255,69 @@ contract LayerZeroV2CallbackHookIsmTest is LayerZeroV2HookIsmTestBase {
             LayerZeroV2CallbackHookIsm(address(destinationRouter)).verify(
                 "",
                 wrongDestination
+            )
+        );
+    }
+
+    function testCallbackAuthorizationIsNamespacedByOrigin() public {
+        (bytes memory message, bytes32 messageId) = _dispatch();
+        bytes memory packet = originEndpoint.lastPacket();
+        (uint64 packetNonce, bytes32 packetGuid, ) = this.decodeLayerZeroPacket(
+            packet
+        );
+
+        _configure(
+            destinationRouter,
+            destinationEndpoint,
+            destinationUln,
+            SECOND_DESTINATION,
+            SECOND_DESTINATION_EID,
+            address(0xBEEF)
+        );
+        LayerZeroOrigin memory attackerOrigin = LayerZeroOrigin({
+            srcEid: SECOND_DESTINATION_EID,
+            sender: address(0xBEEF).addressToBytes32(),
+            nonce: 1
+        });
+        bytes32 attackerGuid = GUID.generate(
+            attackerOrigin.nonce,
+            attackerOrigin.srcEid,
+            address(0xBEEF),
+            DESTINATION_EID,
+            address(destinationRouter).addressToBytes32()
+        );
+
+        // A compromised enrolled peer observes the victim message ID and
+        // authorizes it under its own origin before the real callback arrives.
+        destinationEndpoint.mockDeliver(
+            address(destinationRouter),
+            attackerOrigin,
+            attackerGuid,
+            LayerZeroMessage.encode(SECOND_DESTINATION, DESTINATION, messageId)
+        );
+        assertFalse(
+            LayerZeroV2CallbackHookIsm(address(destinationRouter)).verify(
+                "",
+                message
+            )
+        );
+
+        LayerZeroOrigin memory legitimateOrigin = LayerZeroOrigin({
+            srcEid: ORIGIN_EID,
+            sender: address(originRouter).addressToBytes32(),
+            nonce: packetNonce
+        });
+        destinationEndpoint.mockDeliver(
+            address(destinationRouter),
+            legitimateOrigin,
+            packetGuid,
+            LayerZeroMessage.encode(ORIGIN, DESTINATION, messageId)
+        );
+
+        assertTrue(
+            LayerZeroV2CallbackHookIsm(address(destinationRouter)).verify(
+                "",
+                message
             )
         );
     }

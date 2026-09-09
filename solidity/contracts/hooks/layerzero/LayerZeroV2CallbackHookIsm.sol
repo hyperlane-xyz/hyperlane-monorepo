@@ -25,16 +25,11 @@ contract LayerZeroV2CallbackHookIsm is
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.NULL);
 
-    // ============ Types ============
-
-    struct Authorization {
-        uint32 originDomain;
-        bool authorized;
-    }
-
     // ============ Storage ============
 
-    mapping(bytes32 messageId => Authorization authorization)
+    /// @dev The authenticated origin is part of the key so one enrolled peer
+    /// cannot block or satisfy authorization for another origin.
+    mapping(uint32 originDomain => mapping(bytes32 messageId => bool authorized))
         public authorizations;
     mapping(uint32 domain => uint128 gasLimit) public callbackGasLimits;
 
@@ -57,7 +52,6 @@ contract LayerZeroV2CallbackHookIsm is
     error WrongLayerZeroPayloadOrigin(uint32 actual, uint32 expected);
     error WrongLayerZeroPayloadDestination(uint32 actual, uint32 expected);
     error WrongLayerZeroGuid(bytes32 actual, bytes32 expected);
-    error ConflictingLayerZeroAuthorization(bytes32 messageId);
     error UnexpectedHyperlaneMetadata();
     error LayerZeroConfigLengthMismatch();
 
@@ -184,7 +178,7 @@ contract LayerZeroV2CallbackHookIsm is
         }
 
         _validateGuid(origin, guid);
-        _recordAuthorization(messageId, originDomain);
+        authorizations[originDomain][messageId] = true;
         emit LayerZeroAuthorizationReceived(
             messageId,
             originDomain,
@@ -192,23 +186,6 @@ contract LayerZeroV2CallbackHookIsm is
             guid,
             origin.nonce
         );
-    }
-
-    function _recordAuthorization(
-        bytes32 messageId,
-        uint32 originDomain
-    ) internal {
-        Authorization memory current = authorizations[messageId];
-        if (current.authorized) {
-            if (current.originDomain != originDomain) {
-                revert ConflictingLayerZeroAuthorization(messageId);
-            }
-            return;
-        }
-        authorizations[messageId] = Authorization({
-            originDomain: originDomain,
-            authorized: true
-        });
     }
 
     function _validateGuid(
@@ -233,10 +210,7 @@ contract LayerZeroV2CallbackHookIsm is
     ) external view override returns (bool) {
         if (metadata.length != 0) revert UnexpectedHyperlaneMetadata();
         if (message.destination() != localDomain) return false;
-        Authorization memory authorization = authorizations[message.id()];
-        return
-            authorization.authorized &&
-            authorization.originDomain == message.origin();
+        return authorizations[message.origin()][message.id()];
     }
 
     // ============ Variant Overrides ============
