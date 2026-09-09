@@ -1,4 +1,7 @@
-use std::sync::atomic::AtomicBool;
+use std::sync::{
+    atomic::{AtomicBool, AtomicU64},
+    Arc,
+};
 
 use hyperlane_core::{Decode, Encode, HyperlaneDomain};
 
@@ -185,6 +188,10 @@ impl TypedDB {
             .into_iter()
             .map(|value| V::read_from_slice(&value).map_err(Into::into))
             .collect()
+    }
+
+    pub(crate) fn watch_prefix(&self, prefix: &[u8]) -> Arc<AtomicU64> {
+        self.db.watch_prefix(self.prefixed_key(prefix, &[]))
     }
 
     /// Return the latest sequence number for the underlying RocksDB.

@@ -2,7 +2,10 @@ use std::{
     cmp::max,
     collections::{BTreeSet, HashMap, HashSet},
     fmt::{Debug, Formatter},
-    sync::{atomic::AtomicBool, Arc},
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc,
+    },
     time::Duration,
 };
 
@@ -64,6 +67,7 @@ pub struct MessageDbLoader {
     destination_iterators: Vec<DestinationIndexIterator>,
     next_destination: usize,
     destination_scan_pending: bool,
+    index_generation: Arc<AtomicU64>,
     max_retries: u32,
     index_notifications: Option<Receiver<IndexingNotification>>,
 }
@@ -80,6 +84,7 @@ struct DestinationIndexIterator {
     destination: u32,
     destination_label: Arc<str>,
     high_nonce: Option<u32>,
+    empty_high: Option<(u32, u64)>,
     low_nonce: Option<u32>,
     next_direction: IndexDirection,
     reconsider_nonces: BTreeSet<u32>,
@@ -93,6 +98,7 @@ impl DestinationIndexIterator {
             destination,
             destination_label: destination.to_string().into(),
             high_nonce: Some(highest_seen_nonce.unwrap_or_default()),
+            empty_high: None,
             low_nonce: highest_seen_nonce.and_then(|nonce| nonce.checked_sub(1)),
             next_direction: IndexDirection::High,
             reconsider_nonces: BTreeSet::new(),
@@ -105,6 +111,7 @@ impl DestinationIndexIterator {
         &mut self,
         db: &HyperlaneRocksDB,
         metrics: &MessageDbLoaderMetrics,
+        generation: u64,
     ) -> Result<Option<(IndexDirection, u32, H256)>> {
         if self.low_nonce.is_none() && self.low_range_reopen_pending {
             self.low_range_reopen_pending = false;
@@ -142,6 +149,11 @@ impl DestinationIndexIterator {
             let Some(nonce) = nonce else {
                 continue;
             };
+            // Only cache an empty query at this exact frontier. Mutation
+            // invalidation never changes cursor, notification or replay order.
+            if direction == IndexDirection::High && self.empty_high == Some((nonce, generation)) {
+                continue;
+            }
             metrics
                 .logical_db_reads
                 .with_label_values(&[metrics.origin.as_str(), "destination_index", "index"])
@@ -158,6 +170,9 @@ impl DestinationIndexIterator {
             if let Some((nonce, message_id)) = entry {
                 return Ok(Some((direction, nonce, message_id)));
             }
+            if direction == IndexDirection::High {
+                self.empty_high = Some((nonce, generation));
+            }
             if direction == IndexDirection::Low {
                 self.low_nonce = None;
                 if self.low_range_reopen_pending {
@@ -168,7 +183,7 @@ impl DestinationIndexIterator {
             }
         }
         if reopened_low_range {
-            return self.peek(db, metrics);
+            return self.peek(db, metrics, generation);
         }
         Ok(None)
     }
@@ -516,6 +531,7 @@ impl MessageDbLoader {
         max_retries: u32,
         cancellation: &AtomicBool,
     ) -> Result<Self> {
+        let index_generation = db.pending_message_index_generation();
         let migration_start_sequence = db.latest_sequence_number();
         let migration_complete = {
             let _timer = metrics
@@ -553,6 +569,7 @@ impl MessageDbLoader {
             destination_iterators,
             next_destination: 0,
             destination_scan_pending: true,
+            index_generation,
             max_retries,
             index_notifications: None,
         })
@@ -744,7 +761,11 @@ impl MessageDbLoader {
             return Ok(false);
         }
         let Some((direction, nonce, indexed_message_id)) =
-            self.destination_iterators[iterator_index].peek(&self.db, &self.metrics)?
+            self.destination_iterators[iterator_index].peek(
+                &self.db,
+                &self.metrics,
+                self.index_generation.load(Ordering::Acquire),
+            )?
         else {
             if self.migration_iterator.is_none() {
                 self.metrics

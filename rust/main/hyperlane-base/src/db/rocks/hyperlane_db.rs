@@ -1,7 +1,7 @@
 use std::{
     ops::Add,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc,
     },
 };
@@ -285,6 +285,14 @@ impl HyperlaneRocksDB {
     /// Keeping that conservative boundary also detects legacy writes during migration.
     pub fn mark_pending_message_index_migration_complete(&self, sequence: u64) -> DbResult<()> {
         self.store_value_by_key(PENDING_MESSAGE_INDEX_MIGRATION_COMPLETE, &false, &sequence)
+    }
+
+    /// Shared live invalidation for cached empty pending-index lookups. Raw and
+    /// typed writes through independently constructed handles also invalidate it.
+    /// A database reopen creates a fresh counter and must rebuild reader caches.
+    pub fn pending_message_index_generation(&self) -> Arc<AtomicU64> {
+        self.1
+            .watch_prefix(PENDING_MESSAGE_BY_DESTINATION.as_bytes())
     }
 
     /// Add an unprocessed message to its destination range.
@@ -689,6 +697,91 @@ mod pending_index_tests {
     use crate::db::rocks::test_utils::run_test_db;
 
     #[tokio::test]
+    #[ignore = "pending-index subscription write overhead benchmark"]
+    async fn benchmark_pending_generation_write_overhead() {
+        run_test_db(|raw_db| async move {
+            const WRITES: u32 = 10_000;
+            let value = vec![1; 256];
+            for watched in [false, true] {
+                if watched {
+                    for index in 0..74 {
+                        let domain = HyperlaneDomain::new_test_domain(&format!("writer_bench_{index}"));
+                        HyperlaneRocksDB::new(&domain, raw_db.clone()).pending_message_index_generation();
+                    }
+                }
+                for related in [false, true] {
+                    let prefix = if related { "writer_bench_0_pending_message_by_destination_v1_" } else { "unrelated_" };
+                    let started = std::time::Instant::now();
+                    for index in 0..WRITES {
+                        raw_db.store(format!("{prefix}{index}").as_bytes(), &value).unwrap();
+                    }
+                    println!("pending_index_write watched={watched} related={related} writes={WRITES} wall_seconds={:.6}", started.elapsed().as_secs_f64());
+                }
+            }
+        }).await;
+    }
+
+    #[tokio::test]
+    async fn pending_generation_covers_independent_handles_and_raw_write_forms() {
+        run_test_db(|raw_db| async move {
+            let origin = HyperlaneDomain::new_test_domain("origin");
+            let reader = HyperlaneRocksDB::new(&origin, raw_db.clone());
+            let writer = HyperlaneRocksDB::new(&origin, raw_db.clone());
+            let generation = reader.pending_message_index_generation();
+            assert!(Arc::ptr_eq(
+                &generation,
+                &writer.pending_message_index_generation()
+            ));
+            let other =
+                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("other"), raw_db.clone());
+            other.store_message(&message(0, 10), 1).unwrap();
+            writer
+                .store_value_by_key("unrelated_", &0u32, &1u32)
+                .unwrap();
+            assert_eq!(generation.load(Ordering::Acquire), 0);
+
+            writer.store_message(&message(0, 10), 1).unwrap();
+            assert_eq!(generation.load(Ordering::Acquire), 1);
+            writer.store_message_processed(&message(0, 10)).unwrap();
+            assert_eq!(generation.load(Ordering::Acquire), 2);
+            writer.store_pending_message_index(&message(0, 10)).unwrap();
+            assert_eq!(generation.load(Ordering::Acquire), 3);
+            writer.delete_pending_message_index_by_nonce(10, 0).unwrap();
+            assert_eq!(generation.load(Ordering::Acquire), 4);
+
+            let prefix = b"origin_pending_message_by_destination_v1_";
+            let key = [prefix.as_slice(), b"raw"].concat();
+            raw_db.store_batch([(key.clone(), vec![1])]).unwrap();
+            assert_eq!(generation.load(Ordering::Acquire), 5);
+            raw_db.delete(&key).unwrap();
+            assert_eq!(generation.load(Ordering::Acquire), 6);
+
+            // A range tombstone must not hide subsequent puts from mutation
+            // tracking (the RocksDB batch iterator only handles put/delete).
+            let mut batch = raw_db.batch();
+            batch.delete_range(b"unrelated_a", b"unrelated_z");
+            batch.store(&key, &[2]);
+            batch.commit().unwrap();
+            assert_eq!(generation.load(Ordering::Acquire), 7);
+            let mut batch = writer.batch();
+            batch.delete_prefix(PENDING_MESSAGE_BY_DESTINATION).unwrap();
+            batch.commit().unwrap();
+            assert_eq!(generation.load(Ordering::Acquire), 8);
+            assert_eq!(raw_db.retrieve(&key).unwrap(), None);
+
+            // Registration after a batch was assembled still observes commit.
+            let mut batch = raw_db.batch();
+            let late_key = b"late_pending_message_by_destination_v1_raw";
+            batch.store(late_key, &[1]);
+            let late = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("late"), raw_db);
+            let late_generation = late.pending_message_index_generation();
+            batch.commit().unwrap();
+            assert_eq!(late_generation.load(Ordering::Acquire), 1);
+        })
+        .await;
+    }
+
+    #[tokio::test]
     async fn highest_message_nonce_ignores_overlapping_message_keys() {
         run_test_db(|raw_db| async move {
             let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
@@ -919,7 +1012,7 @@ mod pending_index_tests {
         options.create_if_missing(true);
         {
             let rocks = std::sync::Arc::new(rocksdb::DB::open(&options, dir.path()).unwrap());
-            let db = HyperlaneRocksDB::new(&domain, DB(rocks.clone()));
+            let db = HyperlaneRocksDB::new(&domain, DB(rocks.clone(), Default::default()));
             db.mark_pending_message_index_migration_complete(db.latest_sequence_number())
                 .unwrap();
             db.store_message(&message(0, 10), 1).unwrap();
