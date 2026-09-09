@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 # The script:
 # - uses the desired version of the solana cli for building programs
 # - resets the solana cli to the desired version after building programs
@@ -9,7 +11,7 @@
 # The first argument is the type of program to build
 PROGRAM_TYPE="${1:-all}"
 
-SOLANA_CLI_VERSION_FOR_BUILDING_PROGRAMS="3.0.14"
+source "$(dirname "${BASH_SOURCE[0]}")/toolchain.env"
 
 # The paths to the programs
 CORE_PROGRAM_PATHS=("mailbox" "ism/multisig-ism-message-id" "ism/composite-ism" "ism/test-ism" "validator-announce" "hyperlane-sealevel-igp")
@@ -19,7 +21,7 @@ build_program () {
     PROGRAM_PATH=$1
     log "Building $PROGRAM_PATH"
     pushd $PROGRAM_PATH
-    cargo build-sbf
+    cargo build-sbf --tools-version "$SBF_TOOLS_VERSION" -- --locked
     popd
 }
 

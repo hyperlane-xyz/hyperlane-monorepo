@@ -535,7 +535,7 @@ jobs:
           fi
 
   svm-program-bytes:
-    runs-on: ubuntu-latest
+    runs-on: macos-15
     needs: [change-detection]
     if: needs.change-detection.outputs.has_svm == 'true'
     steps:
@@ -547,8 +547,25 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - uses: dtolnay/rust-toolchain@1.86.0
+
+      - name: Install Solana toolchain
+        run: |
+          source rust/sealevel/programs/toolchain.env
+          sh -c "$(curl -sSfL "https://release.anza.xyz/v${SOLANA_CLI_VERSION_FOR_BUILDING_PROGRAMS}/install")"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Check production source boundary
+        run: node --test typescript/svm-sdk/scripts/sealevel-source-hash.test.mjs
+
       - name: Check program-bytes.ts staleness
         run: node typescript/svm-sdk/scripts/check-program-bytes-hash.mjs
+
+      - name: Rebuild embedded programs
+        run: bash typescript/svm-sdk/scripts/build-program-bytes.sh
+
+      - name: Compare rebuilt ELF hashes with embedded bytes
+        run: node typescript/svm-sdk/scripts/check-program-elf.mjs
 
   env-tests:
     needs: [change-detection]

@@ -29,6 +29,7 @@ enum MailboxInstructionVariant {
   // OutboxGetRoot = 7,
   // GetOwner = 8,
   TransferOwnership = 9,
+  ClaimProtocolFees = 10,
 }
 
 export interface MailboxInitData {
@@ -135,5 +136,20 @@ export async function buildTransferMailboxOwnershipInstruction(
         option(newOwner, (addr) => ADDRESS_CODEC.encode(addr)),
       ),
     ),
+  );
+}
+
+/** Claims all outbox lamports above the executing chain's rent minimum.
+ * The beneficiary must match the mailbox configuration and need not sign.
+ */
+export async function buildClaimProtocolFeesInstruction(
+  programId: Address,
+  beneficiary: Address,
+): Promise<Instruction> {
+  const { address: outboxPda } = await deriveMailboxOutboxPda(programId);
+  return buildInstruction(
+    programId,
+    [writableAccount(outboxPda), writableAccount(beneficiary)],
+    u8(MailboxInstructionVariant.ClaimProtocolFees),
   );
 }

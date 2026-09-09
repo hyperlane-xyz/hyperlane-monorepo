@@ -431,6 +431,151 @@ async fn test_protocol_fee() {
 }
 
 #[tokio::test]
+// solana-rent 3.1 has no replacement constructor for changing the rental rate.
+#[allow(deprecated)]
+async fn test_claim_protocol_fees_after_rent_reduction() {
+    let program_id = mailbox_id();
+    let mut program_test = ProgramTest::new(
+        "hyperlane_sealevel_mailbox",
+        program_id,
+        processor!(hyperlane_sealevel_mailbox::processor::process_instruction),
+    );
+    program_test.add_program(
+        "hyperlane_sealevel_test_ism",
+        hyperlane_sealevel_test_ism::id(),
+        processor!(hyperlane_sealevel_test_ism::program::process_instruction),
+    );
+    let mut ctx = program_test.start_with_context().await;
+    let payer = ctx.payer.insecure_clone();
+    // ProgramTest changes the sysvar but retains its default bank rent collector.
+    // Start above that floor so both simulated reductions remain runtime-valid.
+    let mut original_rent = ctx.banks_client.get_sysvar::<Rent>().await.unwrap();
+    original_rent.lamports_per_byte_year *= 4;
+    ctx.set_sysvar(&original_rent);
+    let beneficiary = new_funded_keypair(&mut ctx.banks_client, &payer, 1_000_000)
+        .await
+        .pubkey();
+    let mailbox = initialize_mailbox(
+        &mut ctx.banks_client,
+        &program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        MAX_PROTOCOL_FEE,
+        ProtocolFee {
+            fee: PROTOCOL_FEE,
+            beneficiary,
+        },
+    )
+    .await
+    .unwrap();
+    let source = mailbox.outbox;
+    // Claims include accrued fees as well as newly available rent excess.
+    hyperlane_test_utils::transfer_lamports(&mut ctx.banks_client, &payer, &source, 123_456).await;
+    let claim = |destination| {
+        Instruction::new_with_borsh(
+            program_id,
+            &MailboxInstruction::ClaimProtocolFees,
+            vec![
+                AccountMeta::new(source, false),
+                AccountMeta::new(destination, false),
+            ],
+        )
+    };
+    // Model different SVM rent settings and a repeated claim without assuming
+    // the activation schedule or constants of any particular chain.
+    let before = ctx.banks_client.get_account(source).await.unwrap().unwrap();
+    for divisor in [2, 4, 4] {
+        let rent = Rent {
+            lamports_per_byte_year: original_rent.lamports_per_byte_year / divisor,
+            ..original_rent
+        };
+        ctx.set_sysvar(&rent);
+        let minimum = rent.minimum_balance(before.data.len());
+        let source_balance = ctx.banks_client.get_balance(source).await.unwrap();
+        let beneficiary_balance = ctx.banks_client.get_balance(beneficiary).await.unwrap();
+        // A distinct fee payer also makes repeated transactions distinct.
+        let caller = new_funded_keypair(&mut ctx.banks_client, &payer, 1_000_000).await;
+
+        assert_transaction_error(
+            process_instruction(
+                &mut ctx.banks_client,
+                claim(caller.pubkey()),
+                &caller,
+                &[&caller],
+            )
+            .await,
+            TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+        );
+        assert_eq!(
+            ctx.banks_client.get_balance(source).await.unwrap(),
+            source_balance
+        );
+        process_instruction(
+            &mut ctx.banks_client,
+            claim(beneficiary),
+            &caller,
+            &[&caller],
+        )
+        .await
+        .unwrap();
+
+        let after = ctx.banks_client.get_account(source).await.unwrap().unwrap();
+        assert_eq!(after.lamports, minimum);
+        assert_eq!(after.data, before.data);
+        assert_eq!(
+            ctx.banks_client.get_balance(beneficiary).await.unwrap() - beneficiary_balance,
+            source_balance - minimum,
+        );
+    }
+    // Restoring a higher minimum blocks claims until rent backing is replenished.
+    ctx.set_sysvar(&original_rent);
+    let restored_minimum = original_rent.minimum_balance(before.data.len());
+    let caller = new_funded_keypair(&mut ctx.banks_client, &payer, 1_000_000).await;
+    let beneficiary_balance = ctx.banks_client.get_balance(beneficiary).await.unwrap();
+    assert_transaction_error(
+        process_instruction(
+            &mut ctx.banks_client,
+            claim(beneficiary),
+            &caller,
+            &[&caller],
+        )
+        .await,
+        TransactionError::InstructionError(0, InstructionError::AccountNotRentExempt),
+    );
+    let below_floor = ctx.banks_client.get_account(source).await.unwrap().unwrap();
+    assert_eq!(below_floor.data, before.data);
+    assert_eq!(
+        ctx.banks_client.get_balance(beneficiary).await.unwrap(),
+        beneficiary_balance
+    );
+    let top_up = restored_minimum - below_floor.lamports;
+    hyperlane_test_utils::transfer_lamports(
+        &mut ctx.banks_client,
+        &payer,
+        &source,
+        top_up + 123_456,
+    )
+    .await;
+    // A new caller avoids replaying the identical failed transaction.
+    let caller = new_funded_keypair(&mut ctx.banks_client, &payer, 1_000_000).await;
+    process_instruction(
+        &mut ctx.banks_client,
+        claim(beneficiary),
+        &caller,
+        &[&caller],
+    )
+    .await
+    .unwrap();
+    let restored = ctx.banks_client.get_account(source).await.unwrap().unwrap();
+    assert_eq!(restored.lamports, restored_minimum);
+    assert_eq!(restored.data, before.data);
+    assert_eq!(
+        ctx.banks_client.get_balance(beneficiary).await.unwrap() - beneficiary_balance,
+        123_456
+    );
+}
+
+#[tokio::test]
 async fn test_setting_valid_protocol_fee_config_works() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;

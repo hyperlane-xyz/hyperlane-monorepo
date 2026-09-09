@@ -262,9 +262,10 @@ export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
   }
 
   /**
-   * Constructs a Transaction for .
+   * Claims all lamports above the chain's current rent-exempt minimum,
+   * including accrued gas payments and excess rent deposits.
    * @param {PublicKey} beneficiary - The IGP's configured beneficiary.
-   * @returns {Promise<TransactionInstruction>} The claim instruction.
+   * @returns {Promise<Transaction>} The unsigned claim transaction.
    */
   async populateClaimTx(beneficiary: PublicKey): Promise<Transaction> {
     const igpData = await this.getAccountInfo();

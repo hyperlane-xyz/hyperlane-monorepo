@@ -93,7 +93,10 @@ export {
 } from './simulation.js';
 export { getTransferOwnershipInstruction as getMultisigIsmTransferOwnershipInstruction } from './instructions/multisig-ism-message-id.js';
 export { getSetUpgradeAuthorityInstruction } from './instructions/loader.js';
-export { buildSetDefaultIsmInstruction } from './core/mailbox-tx.js';
+export {
+  buildClaimProtocolFeesInstruction,
+  buildSetDefaultIsmInstruction,
+} from './core/mailbox-tx.js';
 export { fetchMultisigIsmAccessControl } from './ism/ism-query.js';
 export { getProgramUpgradeAuthority } from './deploy/program-deployer.js';
 export {
