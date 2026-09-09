@@ -304,10 +304,17 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     solanamainnet: 0.35,
     ethereum: 0.12,
     arbitrum: 0.09,
-    optimism: 0.05,
-    base: 0.05,
+    // OP-stack L2 floors ($0.05 -> $0.10). These destinations pay an L1
+    // data-availability cost that is NOT in the L2 execution gasPrice, so only
+    // this floor covers it. That DA cost scales with L1 ETH gas (up materially
+    // vs the tokenPrices/gasPrices snapshot) and with validator-signature
+    // calldata size, which grew after the Aug-29 multisig change (#9371). At
+    // $0.05 the true cost (~$0.067 on the worst lane) exceeded the quote and
+    // these lanes ran below break-even; $0.10 restores the +50% target margin.
+    optimism: 0.1,
+    base: 0.1,
     polygon: 0.05,
-    unichain: 0.05,
+    unichain: 0.1,
     eclipsemainnet: 0.22,
   };
 
