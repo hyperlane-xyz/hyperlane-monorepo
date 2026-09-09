@@ -64,3 +64,29 @@ first replenish the shortfall and only the excess becomes claimable.
 
 This procedure covers the mailbox outbox and IGP only. It does not authorize
 sweeping native warp collateral or topping up an unverified account.
+
+## Embedded program verification
+
+The SDK's embedded programs are built on macOS arm64 with Agave 3.0.14 and
+platform-tools v1.51. Put that Agave release's `bin` directory on `PATH`, then run:
+
+```sh
+pnpm -C typescript/svm-sdk program:build
+pnpm -C typescript/svm-sdk program:generate
+node typescript/svm-sdk/scripts/check-program-elf.mjs
+```
+
+`program:build` copies Rust sources to `/tmp/hyperlane-sealevel-program-bytes`
+for a clean build and removes its temporary workspace afterward. Concurrent
+builds at that path are rejected. The fixed path matters: local dependencies
+outside the Sealevel workspace affect Rust crate identifiers and ELF ordering;
+remapping source filenames alone does not make builds reproducible across paths.
+The host is pinned because the distributed compiler includes host-specific
+standard-library strings. CI uses this same build and compares every ELF's SHA-256
+with the embedded bytes, independently of the source fingerprint.
+
+The fingerprint covers embedded program packages and their enabled local
+production dependencies, including `rust/main/hyperlane-core`, plus manifests,
+lockfile and build configuration. Separate host-test crates are excluded; inline
+unit tests in production `.rs` files remain conservatively included. Updating
+these build artifacts does not submit a program upgrade or reclaim any funds.

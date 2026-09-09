@@ -1,61 +1,120 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
 /* eslint-disable import/no-nodejs-modules */
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const SEALEVEL_ROOT = join(__dirname, '../../../rust/sealevel');
+import { PROGRAMS } from './programs.mjs';
 
-/** Directories to scan for .rs and Cargo.toml files. */
-const SCAN_DIRS = ['programs', 'libraries'];
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 
-/** Standalone files that affect compilation output. */
-const STANDALONE_FILES = [
-  'Cargo.toml',
-  'rust-toolchain',
-  '.cargo/config.toml',
-  'programs/build-programs.sh',
-];
-
-/**
- * Computes a deterministic SHA-256 hash of all Rust sealevel source files
- * that affect the compiled .so program binaries.
- *
- * Includes: all .rs files, all Cargo.toml files in programs/ and libraries/,
- * plus workspace-level config files (rust-toolchain, etc.).
- *
- * @returns {string} Hex-encoded SHA-256 digest.
+/** Production package closure; dev dependencies and disabled test-client features
+ * do not contribute host-test crates to the fingerprint. Inline unit tests in
+ * production source files remain conservatively included.
  */
-export function computeSealevelSourceHash() {
-  const files = [];
-
-  for (const dir of SCAN_DIRS) {
-    const fullDir = join(SEALEVEL_ROOT, dir);
-    const entries = readdirSync(fullDir, { recursive: true });
-    for (const entry of entries) {
-      const name = typeof entry === 'string' ? entry : entry.toString();
-      if (name.endsWith('.rs') || name.endsWith('Cargo.toml')) {
-        files.push(join(dir, name));
+export function productionSourceFiles() {
+  const packages = new Map();
+  for (const workspace of ['sealevel', 'main']) {
+    const metadata = JSON.parse(
+      execFileSync(
+        'cargo',
+        [
+          'metadata',
+          '--no-deps',
+          '--format-version',
+          '1',
+          '--manifest-path',
+          join(REPO_ROOT, 'rust', workspace, 'Cargo.toml'),
+        ],
+        { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 },
+      ),
+    );
+    for (const pkg of metadata.packages)
+      packages.set(dirname(pkg.manifest_path), pkg);
+  }
+  const binaries = new Set(
+    Object.values(PROGRAMS).map((file) => file.slice(0, -3)),
+  );
+  const pending = [...packages.values()]
+    .filter((pkg) =>
+      pkg.targets.some((target) =>
+        binaries.has(target.name.replaceAll('-', '_')),
+      ),
+    )
+    .map((pkg) => [pkg, ['default']]);
+  if (pending.length !== binaries.size)
+    throw new Error('Missing embedded program packages');
+  const featuresByPackage = new Map();
+  while (pending.length) {
+    const [pkg, requested] = pending.pop();
+    const enabled = featuresByPackage.get(pkg.manifest_path) ?? new Set();
+    if (
+      featuresByPackage.has(pkg.manifest_path) &&
+      requested.every((feature) => enabled.has(feature))
+    )
+      continue;
+    featuresByPackage.set(pkg.manifest_path, enabled);
+    const queue = [...requested];
+    while (queue.length) {
+      const feature = queue.pop();
+      if (enabled.has(feature)) continue;
+      enabled.add(feature);
+      queue.push(...(pkg.features[feature] ?? []));
+    }
+    for (const dep of pkg.dependencies) {
+      if (!dep.path || dep.kind === 'dev') continue;
+      const name = dep.rename ?? dep.name;
+      if (
+        dep.optional &&
+        !enabled.has(name) &&
+        !enabled.has(`dep:${name}`) &&
+        ![...enabled].some((feature) => feature.startsWith(`${name}/`))
+      )
+        continue;
+      const target = packages.get(dep.path);
+      if (!target)
+        throw new Error(`Missing local production dependency: ${dep.path}`);
+      const features = [
+        ...dep.features,
+        ...(dep.uses_default_features ? ['default'] : []),
+      ];
+      for (const feature of enabled) {
+        if (feature.startsWith(`${name}/`))
+          features.push(feature.slice(name.length + 1));
+        if (feature.startsWith(`${name}?/`))
+          features.push(feature.slice(name.length + 2));
       }
+      pending.push([target, features]);
     }
   }
-
-  for (const f of STANDALONE_FILES) {
-    files.push(f);
+  const files = new Set([
+    'rust/sealevel/Cargo.toml',
+    'rust/sealevel/Cargo.lock',
+    'rust/sealevel/rust-toolchain',
+    'rust/sealevel/.cargo/config.toml',
+    'rust/sealevel/programs/build-programs.sh',
+    'rust/main/Cargo.toml',
+    'typescript/svm-sdk/scripts/build-program-bytes.sh',
+  ]);
+  for (const manifest of featuresByPackage.keys()) {
+    files.add(relative(REPO_ROOT, manifest));
+    const sourceDir = join(dirname(manifest), 'src');
+    for (const entry of readdirSync(sourceDir, { recursive: true })) {
+      if (entry.endsWith('.rs'))
+        files.add(relative(REPO_ROOT, join(sourceDir, entry)));
+    }
   }
+  return [...files].sort();
+}
 
-  files.sort();
-
+export function computeSealevelSourceHash() {
   const hash = createHash('sha256');
-  for (const relPath of files) {
-    const contents = readFileSync(join(SEALEVEL_ROOT, relPath));
-    hash.update(relPath);
+  for (const path of productionSourceFiles()) {
+    hash.update(path);
     hash.update('\0');
-    hash.update(contents);
+    hash.update(readFileSync(join(REPO_ROOT, path)));
   }
-
   return hash.digest('hex');
 }

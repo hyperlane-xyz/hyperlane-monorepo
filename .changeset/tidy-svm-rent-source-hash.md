@@ -1,5 +1,5 @@
 ---
-'@hyperlane-xyz/svm-sdk': patch
+'@hyperlane-xyz/sealevel-sdk': patch
 ---
 
-Refreshed the embedded Sealevel source fingerprint after adding rent-reduction tests. The embedded program bytes were unchanged.
+Regenerated embedded programs from their production dependencies using a canonical build path and pinned compiler. Excluded host-test crates from source fingerprints and checked rebuilt ELF hashes in CI to detect stale binaries.
