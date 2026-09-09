@@ -343,8 +343,8 @@ mod tests {
 
     fn provider() -> CosmosProvider<ModuleQueryClient> {
         let conf = ConnectionConf::new(
-            vec![Url::parse("http://localhost:9090").unwrap()],
-            vec![Url::parse("http://localhost:26657").unwrap()],
+            vec![Url::parse("http://localhost:9090").expect("valid test fixture")],
+            vec![Url::parse("http://localhost:26657").expect("valid test fixture")],
             "celestia".to_owned(),
             "celestia".to_owned(),
             "utia".to_owned(),
@@ -359,7 +359,7 @@ mod tests {
             1.4,
             None,
         )
-        .unwrap();
+        .expect("valid test fixture");
         let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::CosmosTest99990);
         CosmosProvider::new(
             &conf,
@@ -368,7 +368,7 @@ mod tests {
             PrometheusClientMetrics::default(),
             None,
         )
-        .unwrap()
+        .expect("valid test fixture")
     }
 
     fn transaction(signers: Vec<SignerInfo>, payer: Option<AccountId>) -> Tx {
@@ -406,9 +406,10 @@ mod tests {
     async fn multisig_sender_and_nonce_preserves_fee_payer_selection() {
         let provider = provider();
         let fixtures: Vec<Fixture> =
-            serde_json::from_str(include_str!("../libs/account/celestia_multisig.json")).unwrap();
+            serde_json::from_str(include_str!("../libs/account/celestia_multisig.json"))
+                .expect("valid test fixture");
         for fixture in fixtures {
-            let sequence = fixture.sequence.parse().unwrap();
+            let sequence = fixture.sequence.parse().expect("valid test fixture");
             let key = LegacyAminoMultisig {
                 threshold: fixture.public_key.threshold,
                 public_keys: fixture.public_key.public_keys,
@@ -419,10 +420,11 @@ mod tests {
                 "celestia",
                 &hyperlane_core::AccountAddressType::Bitcoin,
             )
-            .unwrap();
-            let multisig_account: AccountId = fixture.address.parse().unwrap();
+            .expect("valid test fixture");
+            let multisig_account: AccountId = fixture.address.parse().expect("valid test fixture");
             // Round-trip through protobuf Any, as transaction decoding does.
-            let multisig = SignerPublicKey::try_from(cosmrs::Any::from(key)).unwrap();
+            let multisig =
+                SignerPublicKey::try_from(cosmrs::Any::from(key)).expect("valid test fixture");
             let signer = SignerInfo {
                 public_key: Some(multisig),
                 mode_info: cosmrs::tx::ModeInfo::Multi(cosmrs::tx::mode_info::Multi {
@@ -436,12 +438,12 @@ mod tests {
                 sequence,
             };
             let expected = CosmosAddress::from_account_id(multisig_account.clone())
-                .unwrap()
+                .expect("valid test fixture")
                 .digest();
             assert_eq!(
                 provider
                     .sender_and_nonce(&transaction(vec![signer.clone()], None))
-                    .unwrap(),
+                    .expect("valid test fixture"),
                 (expected, sequence)
             );
             // An explicit payer selects its own sequence, regardless of position.
@@ -449,16 +451,16 @@ mod tests {
             assert_eq!(
                 provider
                     .sender_and_nonce(&transaction(signers.clone(), Some(multisig_account)))
-                    .unwrap(),
+                    .expect("valid test fixture"),
                 (expected, sequence)
             );
             let single_expected = CosmosAddress::from_account_id(single_account.clone())
-                .unwrap()
+                .expect("valid test fixture")
                 .digest();
             assert_eq!(
                 provider
                     .sender_and_nonce(&transaction(signers, Some(single_account)))
-                    .unwrap(),
+                    .expect("valid test fixture"),
                 (single_expected, 42)
             );
         }

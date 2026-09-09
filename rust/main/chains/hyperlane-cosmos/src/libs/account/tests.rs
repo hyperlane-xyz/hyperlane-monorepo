@@ -95,13 +95,14 @@ fn test_celestia_multisig_accounts() {
     // reproduced with @cosmjs/amino 0.36.0 pubkeyToAddress and matched
     // the on-chain sender (and account public key for the last transaction).
     let fixtures: Vec<MultisigFixture> =
-        serde_json::from_str(include_str!("celestia_multisig.json")).unwrap();
+        serde_json::from_str(include_str!("celestia_multisig.json")).expect("valid test fixture");
     for fixture in fixtures {
         let key = cosmrs::crypto::LegacyAminoMultisig {
             threshold: fixture.public_key.threshold,
             public_keys: fixture.public_key.public_keys,
         };
-        let actual = CosmosAccountId::account_id_from_multisig(&key, "celestia").unwrap();
+        let actual = CosmosAccountId::account_id_from_multisig(&key, "celestia")
+            .expect("valid test fixture");
         assert_eq!(actual.as_ref(), fixture.address);
     }
 }
@@ -137,21 +138,21 @@ fn test_cosmjs_two_of_three_multisig_vector() {
                 PublicKey::from_json(&format!(
                     r#"{{"@type":"/cosmos.crypto.secp256k1.PubKey","key":"{key}"}}"#
                 ))
-                .unwrap()
+                .expect("valid test fixture")
             })
             .collect(),
     };
     let expected = "wasm1pzf2wlat97n7rykrk7e8g8nxste6hde0r8jqsy";
     assert_eq!(
         CosmosAccountId::account_id_from_multisig(&key, "wasm")
-            .unwrap()
+            .expect("valid test fixture")
             .as_ref(),
         expected
     );
     key.public_keys.reverse();
     assert_ne!(
         CosmosAccountId::account_id_from_multisig(&key, "wasm")
-            .unwrap()
+            .expect("valid test fixture")
             .as_ref(),
         expected
     );
@@ -163,12 +164,12 @@ fn test_multisig_ed25519_member() {
         threshold: 1,
         public_keys: vec![PublicKey::from_json(
             r#"{"@type":"/cosmos.crypto.ed25519.PubKey","key":"Eu5vWB/lVnOh6eE4Kggp4yB1oKpHY8lovFJuGFLnjJU="}"#
-        ).unwrap()],
+        ).expect("valid test fixture")],
     };
     // Independently generated with @cosmjs/amino 0.36.0 pubkeyToAddress.
     assert_eq!(
         CosmosAccountId::account_id_from_multisig(&key, "cosmos")
-            .unwrap()
+            .expect("valid test fixture")
             .as_ref(),
         "cosmos1mc6djfl6af94vfgxxy04n2zayrfc87l6jeq2f7"
     );
