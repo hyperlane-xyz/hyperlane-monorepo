@@ -291,6 +291,11 @@ export const ChainMetadataSchemaObject = z.object({
     .optional()
     .describe('The API key for the gnosis safe transaction service.'),
 
+  gatewayUrls: z
+    .array(RpcUrlSchema)
+    .describe('For Radix chains, a list of Gateway API URLs.')
+    .optional(),
+
   grpcUrls: z
     .array(RpcUrlSchema)
     .describe('For cosmos chains only, a list of gRPC API URLs')
