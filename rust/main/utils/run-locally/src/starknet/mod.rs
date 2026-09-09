@@ -14,7 +14,10 @@ use crate::metrics::agent_balance_sum;
 use crate::program::Program;
 use crate::starknet::types::{AgentConfigOut, ValidatorConfig};
 use crate::starknet::utils::{STARKNET_ACCOUNT, STARKNET_KEY};
-use crate::utils::{as_task, concat_path, start_postgres, stop_child, AgentHandles, TaskHandle};
+use crate::utils::{
+    as_task, concat_path, prepare_docker_image, start_postgres, stop_child, AgentHandles,
+    TaskHandle,
+};
 use crate::{fetch_metric, AGENT_BIN_PATH};
 
 use self::cli::StarknetCLI;
@@ -311,6 +314,9 @@ fn run_locally() {
     let metrics_port_start = 9090u32;
     let domain_start = 23448593u32;
     let node_count = 2;
+
+    // Prepare once before launching both nodes, outside their readiness deadline.
+    prepare_docker_image(&format!("{STARKNET_DEVNET_IMAGE}:{STARKNET_DEVNET_TAG}"));
 
     let nodes = (0..node_count)
         .map(|i| {
