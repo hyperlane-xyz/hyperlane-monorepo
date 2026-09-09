@@ -64,14 +64,15 @@ offline exports stay v0 even when the chain sending default is v1. Offline expor
 also reject `priorityFeeMicroLamports`; include a `SetComputeUnitPrice` instruction
 when configuring their priority fee.
 
-For local validation, start `solana-test-validator` from Agave 4.2+ on a free
-port, then run:
+For local validation, install the pinned Agave 4.2.0 binary and run:
 
 ```sh
-SVM_V1_RPC_URL=http://127.0.0.1:18899 pnpm -C typescript/svm-sdk test:v1:local
+AGAVE_TEST_VALIDATOR=/path/to/solana-test-validator pnpm -C typescript/svm-sdk test:v1:local
 ```
 
-The test funds an ephemeral local signer, sends a v1 transfer batch, reads its
-receipt and block, rejects the same batch under v0's size limit, and confirms
-a small v0 transfer still works. The endpoint must be loopback. This is local
-validator evidence, not mainnet rollout evidence.
+The suite starts and stops its own local validators on ports 18899/18900;
+leave those ports free. It tests v1 enabled and disabled, initializes a Hyperlane
+mailbox in a transaction with two signers, reads the v1 receipt/block, accepts
+exactly 4096 bytes, rejects 4097 bytes, and preserves v0 transfers. Ephemeral
+signers are funded only on these local validators. The pinned CI job runs the
+same suite. This is local validator evidence, not mainnet rollout evidence.
