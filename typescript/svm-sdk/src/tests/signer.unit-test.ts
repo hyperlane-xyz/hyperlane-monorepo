@@ -8,7 +8,10 @@ import {
   type TransactionSendingSigner,
   address,
   blockhash,
+  decompileTransactionMessage,
   getBase58Encoder,
+  getBase64Encoder,
+  getTransactionDecoder,
   getCompiledTransactionMessageDecoder,
   signature as toSignature,
 } from '@solana/kit';
@@ -23,6 +26,7 @@ import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 
 import { SvmSigner } from '../clients/signer.js';
+import { COMPUTE_BUDGET_PROGRAM_ID } from '../constants.js';
 import type { SvmRpc, SvmTransaction } from '../types.js';
 
 // ---------------------------------------------------------------------------
@@ -116,11 +120,11 @@ const TEST_CHAIN_METADATA: ChainMetadataForAltVM = {
   rpcUrls: [{ http: 'http://localhost:8899' }],
 };
 
-async function createTestSigner(rpc: SvmRpc): Promise<SvmSigner> {
-  const signer = await SvmSigner.connectWithSigner(
-    TEST_CHAIN_METADATA,
-    TEST_PRIVATE_KEY,
-  );
+async function createTestSigner(
+  rpc: SvmRpc,
+  metadata: ChainMetadataForAltVM = TEST_CHAIN_METADATA,
+): Promise<SvmSigner> {
+  const signer = await SvmSigner.connectWithSigner(metadata, TEST_PRIVATE_KEY);
   signer['rpc'] = rpc;
   return signer;
 }
@@ -172,6 +176,122 @@ describe('SvmSigner', () => {
     ).to.be.rejectedWith(
       'SVM signer must implement transaction modifying or partial signing',
     );
+  });
+
+  describe('per-chain transaction versions', () => {
+    it('rejects v1 before any RPC request without explicit chain opt-in', async () => {
+      const getLatestBlockhash = sinon
+        .stub()
+        .throws(new Error('must not call RPC'));
+      const signer = await createTestSigner(
+        createMockRpc({ getLatestBlockhash }),
+      );
+      await expect(
+        signer.send({ instructions: [], version: 1 }),
+      ).to.be.rejectedWith('maxSupportedTransactionVersion');
+      expect(getLatestBlockhash.called).to.equal(false);
+    });
+
+    it('rejects an explicit v1 send while only read support is enabled', async () => {
+      const getLatestBlockhash = sinon
+        .stub()
+        .throws(new Error('must not call RPC'));
+      const signer = await createTestSigner(
+        createMockRpc({ getLatestBlockhash }),
+        {
+          ...TEST_CHAIN_METADATA,
+          maxSupportedTransactionVersion: 1,
+        },
+      );
+      await expect(
+        signer.send({ instructions: [], version: 1 }),
+      ).to.be.rejectedWith('sealevelV1TransactionsEnabled');
+      expect(getLatestBlockhash.called).to.equal(false);
+    });
+
+    for (const embeddedLimit of [false, true]) {
+      it(`sends v1 header fees with ${embeddedLimit ? 'embedded' : 'explicit'} compute limits`, async () => {
+        const sendTransaction = sinon.stub().callsFake((encoded: unknown) => {
+          expect(typeof encoded).to.equal('string');
+          if (typeof encoded !== 'string') throw new Error('expected base64');
+          const wire = getBase64Encoder().encode(encoded);
+          const transaction = getTransactionDecoder().decode(wire);
+          expect(transaction.messageBytes[0]).to.equal(0x81);
+          const message = decompileTransactionMessage(
+            getCompiledTransactionMessageDecoder().decode(
+              transaction.messageBytes,
+            ),
+          );
+          expect(message.version).to.equal(1);
+          if (message.version !== 1) throw new Error('expected v1');
+          expect(message.config?.computeUnitLimit).to.equal(200001);
+          expect(message.config?.priorityFeeLamports).to.equal(1n);
+          expect(message.instructions).to.have.length(0);
+          return { send: async () => FAKE_SIGNATURE };
+        });
+        const signer = await createTestSigner(
+          createMockRpc({ sendTransaction }),
+          {
+            ...TEST_CHAIN_METADATA,
+            maxSupportedTransactionVersion: 1,
+            sealevelTransactionVersion: 1,
+            sealevelV1TransactionsEnabled: true,
+          },
+        );
+        await signer.send({
+          instructions: embeddedLimit
+            ? [
+                {
+                  programAddress: COMPUTE_BUDGET_PROGRAM_ID,
+                  data: new Uint8Array([2, 0x41, 0x0d, 0x03, 0x00]),
+                },
+              ]
+            : [],
+          computeUnits: embeddedLimit ? undefined : 200001,
+          priorityFeeMicroLamports: 1,
+        });
+        expect(sendTransaction.calledOnce).to.equal(true);
+      });
+    }
+
+    it('rejects ALT compression for v1 before RPC', async () => {
+      const signer = await createTestSigner(createMockRpc(), {
+        ...TEST_CHAIN_METADATA,
+        maxSupportedTransactionVersion: 1,
+      });
+      await expect(
+        signer.send({
+          instructions: [],
+          version: 1,
+          addressLookupTables: [address('11111111111111111111111111111111')],
+        }),
+      ).to.be.rejectedWith('lookup tables');
+    });
+
+    it('does not switch another SVM to v1 when read support is enabled', async () => {
+      const sendTransaction = sinon.stub().callsFake((encoded: unknown) => {
+        if (typeof encoded !== 'string') throw new Error('expected base64');
+        const transaction = getTransactionDecoder().decode(
+          getBase64Encoder().encode(encoded),
+        );
+        expect(
+          getCompiledTransactionMessageDecoder().decode(
+            transaction.messageBytes,
+          ).version,
+        ).to.equal(0);
+        return { send: async () => FAKE_SIGNATURE };
+      });
+      const signer = await createTestSigner(
+        createMockRpc({ sendTransaction }),
+        {
+          ...TEST_CHAIN_METADATA,
+          name: 'another-svm',
+          maxSupportedTransactionVersion: 1,
+        },
+      );
+      await signer.send({ instructions: [] });
+      expect(sendTransaction.calledOnce).to.equal(true);
+    });
   });
 
   // ---- Happy path ----
@@ -838,6 +958,84 @@ describe('SvmSigner', () => {
     const decoded = messageDecoder.decode(bytes);
     return decoded.staticAccounts[0];
   }
+
+  describe('transactionToPrintableJson — supported transaction settings', () => {
+    it('rejects an explicit priority fee instead of silently losing it', async () => {
+      const signer = await createTestSigner(createMockRpc());
+      await expect(
+        signer.transactionToPrintableJson({
+          instructions: [],
+          priorityFeeMicroLamports: 1,
+        }),
+      ).to.be.rejectedWith('requires priority fees as SetComputeUnitPrice');
+    });
+
+    it('treats zero priority fees as absent in offline exports', async () => {
+      const signer = await createTestSigner(createMockRpc());
+      const absent = await signer.transactionToPrintableJson({
+        instructions: [],
+      });
+      const zero = await signer.transactionToPrintableJson({
+        instructions: [],
+        priorityFeeMicroLamports: 0,
+      });
+      expect(zero).to.deep.equal(absent);
+    });
+
+    it('preserves an embedded priority-price instruction in offline exports', async () => {
+      const signer = await createTestSigner(createMockRpc());
+      const data = new Uint8Array([3, 1, 0, 0, 0, 0, 0, 0, 0]);
+      const printable = await signer.transactionToPrintableJson({
+        instructions: [{ programAddress: COMPUTE_BUDGET_PROGRAM_ID, data }],
+      });
+      const message = decompileTransactionMessage(
+        getCompiledTransactionMessageDecoder().decode(
+          getBase58Encoder().encode(printable.message_base58),
+        ),
+      );
+      expect(message.instructions).to.have.length(1);
+      expect(message.instructions[0]?.programAddress).to.equal(
+        COMPUTE_BUDGET_PROGRAM_ID,
+      );
+      expect(message.instructions[0]?.data).to.deep.equal(data);
+    });
+
+    it('rejects explicit v1 but preserves unstamped offline v0', async () => {
+      const signer = await createTestSigner(createMockRpc());
+      await expect(
+        signer.transactionToPrintableJson({ instructions: [], version: 1 }),
+      ).to.be.rejectedWith('supports v0 only');
+      const v1Signer = await createTestSigner(createMockRpc(), {
+        ...TEST_CHAIN_METADATA,
+        maxSupportedTransactionVersion: 1,
+        sealevelTransactionVersion: 1,
+      });
+      const printable = await v1Signer.transactionToPrintableJson({
+        instructions: [],
+      });
+      expect(
+        getCompiledTransactionMessageDecoder().decode(
+          getBase58Encoder().encode(printable.message_base58),
+        ).version,
+      ).to.equal(0);
+    });
+
+    it('allows an explicit v0 override of a v1 chain default', async () => {
+      const signer = await createTestSigner(createMockRpc(), {
+        ...TEST_CHAIN_METADATA,
+        maxSupportedTransactionVersion: 1,
+        sealevelTransactionVersion: 1,
+      });
+      const printable = await signer.transactionToPrintableJson({
+        instructions: [],
+        version: 0,
+      });
+      const message = getCompiledTransactionMessageDecoder().decode(
+        getBase58Encoder().encode(printable.message_base58),
+      );
+      expect(message.version).to.equal(0);
+    });
+  });
 
   describe('transactionToPrintableJson — fee payer derivation', () => {
     it('uses explicit feePayer instead of local signer', async () => {

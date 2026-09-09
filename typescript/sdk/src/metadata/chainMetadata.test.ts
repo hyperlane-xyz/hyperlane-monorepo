@@ -32,6 +32,44 @@ const blocks = {
 };
 
 describe('ChainMetadataSchema', () => {
+  it('validates independent v1 read and sending capabilities', () => {
+    const metadata = { ...minimalSchema, protocol: ProtocolType.Sealevel };
+    expect(
+      isValidChainMetadata({ ...metadata, maxSupportedTransactionVersion: 1 }),
+    ).to.equal(true);
+    expect(
+      isValidChainMetadata({ ...metadata, sealevelTransactionVersion: 1 }),
+    ).to.equal(false);
+    expect(
+      isValidChainMetadata({
+        ...metadata,
+        sealevelTransactionVersion: 1,
+        maxSupportedTransactionVersion: 0,
+      }),
+    ).to.equal(false);
+    expect(
+      isValidChainMetadata({
+        ...metadata,
+        sealevelV1TransactionsEnabled: true,
+      }),
+    ).to.equal(false);
+    expect(
+      isValidChainMetadata({
+        ...metadata,
+        sealevelV1TransactionsEnabled: true,
+        maxSupportedTransactionVersion: 1,
+      }),
+    ).to.equal(true);
+    expect(
+      isValidChainMetadata({
+        ...metadata,
+        sealevelV1TransactionsEnabled: true,
+        maxSupportedTransactionVersion: 1,
+        sealevelTransactionVersion: 1,
+      }),
+    ).to.equal(true);
+  });
+
   it('Accepts valid schemas', () => {
     expect(isValidChainMetadata(minimalSchema)).to.eq(true);
 

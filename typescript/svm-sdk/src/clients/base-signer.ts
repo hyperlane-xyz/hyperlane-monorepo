@@ -11,6 +11,7 @@ import {
   type partiallySignTransactionMessageWithSigners,
   addSignersToTransactionMessage,
   assertIsSignature,
+  assertIsTransactionWithinSizeLimit,
   createKeyPairSignerFromBytes,
   createKeyPairSignerFromPrivateKeyBytes,
   getBase58Encoder,
@@ -36,7 +37,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { fetchAddressLookupTableState } from '../accounts/address-lookup-table.js';
-import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 import {
   convertLegacySolanaTransaction,
   isLegacySolanaTransaction,
@@ -44,6 +44,7 @@ import {
 import { createRpc } from '../rpc.js';
 import {
   buildTransactionMessage,
+  getMemoryBudgetInstructions,
   serializeUnsignedTransaction,
 } from '../tx.js';
 import type {
@@ -79,19 +80,35 @@ export async function buildPrintableTransaction(
   feePayerAddress: Address,
   transaction: AnnotatedSvmTransaction,
 ): Promise<PrintableSvmTransaction> {
+  assert(
+    transaction.version !== 1,
+    'Offline/Squads serialization currently supports v0 only',
+  );
+  assert(
+    transaction.priorityFeeMicroLamports === undefined ||
+      transaction.priorityFeeMicroLamports === 0,
+    'Offline/Squads serialization requires priority fees as SetComputeUnitPrice instructions',
+  );
   const resolvedAlts = await resolveAddressLookupTables(
     rpc,
     transaction.addressLookupTables,
   );
+  const instructions = [
+    ...getMemoryBudgetInstructions(
+      transaction.heapSize,
+      transaction.loadedAccountsDataSizeLimit,
+    ),
+    ...transaction.instructions,
+  ];
   const { transactionBase58, messageBase58 } = serializeUnsignedTransaction(
-    transaction.instructions,
+    instructions,
     transaction.feePayer ?? feePayerAddress,
     resolvedAlts,
   );
 
   return {
     annotation: transaction.annotation,
-    instructions: transaction.instructions.map((ix) => ({
+    instructions: instructions.map((ix) => ({
       programAddress: ix.programAddress,
       accounts: ix.accounts,
       data: ix.data ? Buffer.from(ix.data).toString('hex') : undefined,
@@ -264,10 +281,14 @@ async function signAndSend(params: {
 
     let txMessage = buildTransactionMessage({
       instructions: tx.instructions,
+      version: tx.version,
+      heapSize: tx.heapSize,
+      loadedAccountsDataSizeLimit: tx.loadedAccountsDataSizeLimit,
+      priorityFeeMicroLamports: tx.priorityFeeMicroLamports,
       feePayer,
       recentBlockhash: latestBlockhash.blockhash,
       lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-      computeUnits: tx.computeUnits ?? DEFAULT_COMPUTE_UNITS,
+      computeUnits: tx.computeUnits,
       addressLookupTables: resolvedAlts,
     });
 
@@ -279,6 +300,7 @@ async function signAndSend(params: {
     }
 
     const signedTx = await signMessage(txMessage);
+    assertIsTransactionWithinSizeLimit(signedTx);
     const signature = getSignatureFromTransaction(signedTx);
 
     try {
@@ -596,8 +618,9 @@ export async function fetchTransactionMeta(
   rpc: SvmRpc,
   logger: Logger,
   receipt: SvmReceipt,
-  maxRetries = 5,
+  options: { maxRetries?: number; maxSupportedTransactionVersion?: 0 | 1 } = {},
 ): Promise<SvmReceipt> {
+  const { maxRetries = 5, maxSupportedTransactionVersion = 0 } = options;
   assertIsSignature(receipt.signature);
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -605,7 +628,7 @@ export async function fetchTransactionMeta(
       const fullTx = await rpc
         .getTransaction(receipt.signature, {
           commitment: RPC_COMMITMENT_LEVEL,
-          maxSupportedTransactionVersion: 0,
+          maxSupportedTransactionVersion,
           encoding: 'jsonParsed',
         })
         .send();
@@ -713,10 +736,25 @@ export abstract class BaseSvmSigner
   }
 
   async send(tx: SendableSvmTransaction): Promise<SvmReceipt> {
+    const version =
+      tx.version ?? this.chainMetadata.sealevelTransactionVersion ?? 0;
+    assert(
+      version <= (this.chainMetadata.maxSupportedTransactionVersion ?? 0),
+      'Transaction version exceeds this chain maxSupportedTransactionVersion',
+    );
+    assert(
+      version !== 1 || !tx.addressLookupTables?.length,
+      'v1 transactions do not support address lookup tables',
+    );
+    assert(
+      version !== 1 ||
+        this.chainMetadata.sealevelV1TransactionsEnabled === true,
+      'V1 sending requires sealevelV1TransactionsEnabled after feature activation',
+    );
     return sendWithConfirmation({
       rpc: this.rpc,
       feePayer: this.signer,
-      tx,
+      tx: { ...tx, version },
       logger: this.logger,
       signMessage: this.signMessage,
       skipPreflight: this.skipPreflight,
@@ -734,7 +772,10 @@ export abstract class BaseSvmSigner
       : transaction;
 
     const receipt = await this.send(tx);
-    return fetchTransactionMeta(this.rpc, this.logger, receipt);
+    return fetchTransactionMeta(this.rpc, this.logger, receipt, {
+      maxSupportedTransactionVersion:
+        this.chainMetadata.maxSupportedTransactionVersion ?? 0,
+    });
   }
 
   async sendAndConfirmBatchTransactions(

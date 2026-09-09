@@ -19,6 +19,10 @@ export type SvmInstruction = Instruction;
 export type SvmRpc = Rpc<SolanaRpcApi>;
 
 export interface SvmTransaction {
+  /** Override the chain's default sending version. V1 requires chain opt-in. */
+  version?: 0 | 1;
+  /** Price per CU; v1 converts this to a total lamport fee, rounding up. */
+  priorityFeeMicroLamports?: number;
   /** Fee payer for the compiled transaction.
    *  Used to set the correct signer in the serialized transaction
    *  output (e.g. a Squads vault instead of the local keypair).
@@ -26,6 +30,10 @@ export interface SvmTransaction {
   feePayer?: Address;
   instructions: SvmInstruction[];
   computeUnits?: number;
+  /** Requested heap frame in bytes (32-256 KiB, in 1 KiB increments). */
+  heapSize?: number;
+  /** Loaded account data budget in bytes; v1 defaults to the legacy 64 MiB maximum. */
+  loadedAccountsDataSizeLimit?: number;
   additionalSigners?: TransactionSigner[];
   /** Skip preflight simulation.
    *  Some transactions that include account creation might fail the simulation check.

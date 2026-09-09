@@ -42,6 +42,7 @@
     "test": "pnpm test:unit",
     "test:ci": "pnpm test:unit",
     "test:e2e": "./scripts/run-e2e-test.sh",
+    "test:v1:local": "mocha --require tsx --timeout 60000 src/tests/transaction-v1.integration-test.ts",
     "test:unit": "mocha --require tsx --timeout 10000 'src/**/*.unit-test.ts'"
   },
   "dependencies": {
