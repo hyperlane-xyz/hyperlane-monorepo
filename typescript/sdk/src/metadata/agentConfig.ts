@@ -639,6 +639,9 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       'Whether a healthy scraper-proxy stream may replace direct RPC indexing. Defaults to false.',
     ),
+  gasPaymentReceiptShadowChains: CommaSeparatedChainList.optional().describe(
+    'EVM relay origins to sample against canonical gas receipts, comma separated. Omit to disable. Does not change credits or indexing authority.',
+  ),
   relayApiEnabled: z
     .boolean()
     .optional()
@@ -684,6 +687,33 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
       message:
         'websocketUrl is required when websocketAuthorityEnabled is true',
     });
+  }
+
+  if (config.gasPaymentReceiptShadowChains) {
+    const relayOrigins = new Set(config.relayChains.split(','));
+    const selected = config.gasPaymentReceiptShadowChains.split(',');
+    if (!config.websocketUrl || config.igpIndexingEnabled === false) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['gasPaymentReceiptShadowChains'],
+        message:
+          'gasPaymentReceiptShadowChains requires websocketUrl and IGP indexing',
+      });
+    }
+    if (
+      selected.some(
+        (chain) =>
+          !relayOrigins.has(chain) ||
+          config.chains[chain]?.protocol !== ProtocolType.Ethereum,
+      )
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['gasPaymentReceiptShadowChains'],
+        message:
+          'gasPaymentReceiptShadowChains must contain EVM relay origins only',
+      });
+    }
   }
 
   // Mirror the Rust relayer gate: the current IGP event does not expose the

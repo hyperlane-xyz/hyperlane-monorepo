@@ -153,6 +153,66 @@ describe('RelayerAgentConfigSchema feeToken gate', () => {
     ).to.be.false;
   });
 
+  it('requires WebSocket and IGP indexing for opt-in receipt shadow checks', () => {
+    for (const [options, valid] of [
+      [{}, true],
+      [{ gasPaymentReceiptShadowChains: '' }, false],
+      [
+        {
+          gasPaymentReceiptShadowChains: 'missing',
+          websocketUrl: 'wss://scraper.example/ws/events',
+        },
+        false,
+      ],
+      [
+        {
+          gasPaymentReceiptShadowChains: 'legacy',
+          relayChains: 'other',
+          websocketUrl: 'wss://scraper.example/ws/events',
+        },
+        false,
+      ],
+      [
+        {
+          gasPaymentReceiptShadowChains: 'legacy',
+          chains: {
+            legacy: {
+              ...chainMetadata('legacy', 1000),
+              protocol: ProtocolType.Sealevel,
+            },
+          },
+          websocketUrl: 'wss://scraper.example/ws/events',
+        },
+        false,
+      ],
+      [{ gasPaymentReceiptShadowChains: 'legacy' }, false],
+      [
+        {
+          gasPaymentReceiptShadowChains: 'legacy',
+          websocketUrl: 'wss://scraper.example/ws/events',
+        },
+        true,
+      ],
+      [
+        {
+          gasPaymentReceiptShadowChains: 'legacy',
+          websocketUrl: 'wss://scraper.example/ws/events',
+          igpIndexingEnabled: false,
+        },
+        false,
+      ],
+    ] as const) {
+      expect(
+        RelayerAgentConfigSchema.safeParse(
+          config({
+            gasPaymentEnforcement: [{ type: 'onChainFeeQuoting' }],
+            ...options,
+          }),
+        ).success,
+      ).to.equal(valid);
+    }
+  });
+
   it('requires a WebSocket URL when scraper authority is enabled', () => {
     expect(
       RelayerAgentConfigSchema.safeParse(

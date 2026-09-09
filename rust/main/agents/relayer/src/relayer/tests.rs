@@ -178,6 +178,7 @@ fn generate_test_relayer_settings(
         tx_id_indexing_enabled: true,
         igp_indexing_enabled: true,
         websocket_authority_enabled: false,
+        gas_payment_receipt_shadow_chains: HashSet::new(),
         websocket_url: None,
         relay_api_enabled: false,
         relay_api_port: None,
