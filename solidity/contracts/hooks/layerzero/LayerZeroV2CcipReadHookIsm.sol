@@ -53,8 +53,7 @@ contract LayerZeroV2CcipReadHookIsm is
         uint32 indexed originDomain,
         uint32 indexed srcEid,
         bytes32 guid,
-        uint64 nonce,
-        address receiveLibrary
+        uint64 nonce
     );
     event LayerZeroPayloadClearFailed(
         bytes32 indexed messageId,
@@ -167,10 +166,6 @@ contract LayerZeroV2CcipReadHookIsm is
         bytes calldata message
     ) external override returns (bool) {
         bytes32 messageId = Message.id(message);
-        if (msg.sender != address(mailbox)) {
-            revert UnauthorizedCaller(msg.sender);
-        }
-
         if (!_isProcessing(messageId)) {
             revert MessageNotBeingProcessed(messageId);
         }
@@ -191,8 +186,7 @@ contract LayerZeroV2CcipReadHookIsm is
             context.originDomain,
             context.sourceEid,
             context.guid,
-            context.nonce,
-            context.receiveLibrary
+            context.nonce
         );
         _tryClearPacket(context, messageId);
 
