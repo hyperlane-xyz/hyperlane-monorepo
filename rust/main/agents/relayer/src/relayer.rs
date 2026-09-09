@@ -77,6 +77,7 @@ mod origin;
 
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
+const CURSOR_INSTANTIATION_RETRY_INTERVAL: Duration = Duration::from_secs(30);
 const MESSAGE_DB_LOADER_INIT_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 const ADVANCED_LOG_META: bool = false;
 
@@ -836,6 +837,43 @@ impl Relayer {
         .await
     }
 
+    /// Instantiates a cursor, retrying indefinitely until it succeeds.
+    ///
+    /// A failed instantiation (e.g. a transient origin RPC outage during cursor
+    /// (re)creation) sets the per-chain `critical_error` gauge, and a subsequent
+    /// success clears it. This keeps the gauge tracking live indexing health
+    /// instead of latching until the next process restart: once the origin RPC
+    /// is operational again the cursor instantiation succeeds and the gauge is
+    /// reset without operator intervention.
+    async fn instantiate_cursor_until_success<T: 'static>(
+        origin: &HyperlaneDomain,
+        contract_sync: Arc<dyn ContractSyncer<T>>,
+        index_settings: IndexSettings,
+        chain_metrics: &ChainMetrics,
+    ) -> Box<dyn ContractSyncCursor<T>> {
+        let mut errored = false;
+        loop {
+            match Self::instantiate_cursor_with_retries(
+                contract_sync.clone(),
+                index_settings.clone(),
+            )
+            .await
+            {
+                Ok(cursor) => {
+                    if errored {
+                        chain_metrics.set_critical_error(origin.name(), false);
+                    }
+                    return cursor;
+                }
+                Err(err) => {
+                    errored = true;
+                    Self::record_critical_error(origin, chain_metrics, &err, CURSOR_BUILDING_ERROR);
+                    tokio::time::sleep(CURSOR_INSTANTIATION_RETRY_INTERVAL).await;
+                }
+            }
+        }
+    }
+
     fn run_rpc_sync_supervisor(
         &self,
         origin: &Origin,
@@ -972,15 +1010,13 @@ impl Relayer {
         index_settings: IndexSettings,
         chain_metrics: ChainMetrics,
     ) {
-        let cursor_instantiation_result =
-            Self::instantiate_cursor_with_retries(contract_sync.clone(), index_settings).await;
-        let cursor = match cursor_instantiation_result {
-            Ok(cursor) => cursor,
-            Err(err) => {
-                Self::record_critical_error(origin, &chain_metrics, &err, CURSOR_BUILDING_ERROR);
-                return;
-            }
-        };
+        let cursor = Self::instantiate_cursor_until_success(
+            origin,
+            contract_sync.clone(),
+            index_settings,
+            &chain_metrics,
+        )
+        .await;
         let label = "dispatched_messages";
         contract_sync.clone().sync(label, cursor.into()).await;
         info!(chain = origin.name(), label, "contract sync task exit");
@@ -1032,18 +1068,13 @@ impl Relayer {
         chain_metrics: ChainMetrics,
         tx_id_receiver: Option<MpscReceiver<IndexingNotification>>,
     ) {
-        let cursor = match Self::instantiate_cursor_with_retries(
+        let cursor = Self::instantiate_cursor_until_success(
+            origin,
             contract_sync.clone(),
-            index_settings.clone(),
+            index_settings,
+            &chain_metrics,
         )
-        .await
-        {
-            Ok(cursor) => cursor,
-            Err(err) => {
-                Self::record_critical_error(origin, &chain_metrics, &err, CURSOR_BUILDING_ERROR);
-                return;
-            }
-        };
+        .await;
         let label = "gas_payments";
         contract_sync
             .clone()
@@ -1091,16 +1122,13 @@ impl Relayer {
         chain_metrics: ChainMetrics,
         tx_id_receiver: Option<MpscReceiver<IndexingNotification>>,
     ) {
-        let cursor_instantiation_result =
-            Self::instantiate_cursor_with_retries(contract_sync.clone(), index_settings.clone())
-                .await;
-        let cursor = match cursor_instantiation_result {
-            Ok(cursor) => cursor,
-            Err(err) => {
-                Self::record_critical_error(origin, &chain_metrics, &err, CURSOR_BUILDING_ERROR);
-                return;
-            }
-        };
+        let cursor = Self::instantiate_cursor_until_success(
+            origin,
+            contract_sync.clone(),
+            index_settings,
+            &chain_metrics,
+        )
+        .await;
         let label = "merkle_tree_hook";
         contract_sync
             .clone()
