@@ -97,6 +97,7 @@ impl SealevelAdapter {
             chain_info.clone(),
             urls.clone(),
             client_metrics.clone(),
+            connection_conf.max_supported_transaction_version,
         );
 
         let provider = SealevelProvider::new(

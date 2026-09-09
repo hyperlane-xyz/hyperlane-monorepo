@@ -27,6 +27,8 @@ pub struct ProcessAltOverride {
 pub struct ConnectionConf {
     /// A list of urls to connect to
     pub urls: Vec<Url>,
+    /// Highest transaction version accepted by JSON RPC reads (0 by default).
+    pub max_supported_transaction_version: u8,
     /// Operation batching configuration
     pub op_submission_config: OpSubmissionConfig,
     /// Native token and its denomination

@@ -73,6 +73,7 @@ mod tests {
             reorg_period: ReorgPeriod::None,
             addresses: Default::default(),
             connection: ChainConnectionConf::Sealevel(hyperlane_sealevel::ConnectionConf {
+                max_supported_transaction_version: 0,
                 urls: vec![],
                 op_submission_config: OpSubmissionConfig::default(),
                 native_token: Default::default(),

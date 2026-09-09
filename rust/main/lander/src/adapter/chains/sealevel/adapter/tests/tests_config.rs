@@ -27,6 +27,7 @@ fn test_configuration_fields() {
         reorg_period: expected_reorg_period.clone(),
         addresses: Default::default(),
         connection: ChainConnectionConf::Sealevel(hyperlane_sealevel::ConnectionConf {
+            max_supported_transaction_version: 0,
             urls: vec![],
             op_submission_config: OpSubmissionConfig {
                 batch_contract_address: None,

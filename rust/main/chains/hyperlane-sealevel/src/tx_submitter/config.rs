@@ -53,7 +53,12 @@ impl TransactionSubmitterConfig {
             TransactionSubmitterConfig::Rpc { urls } => {
                 let urls: Vec<_> = urls.iter().filter_map(|url| Url::parse(url).ok()).collect();
 
-                let rpc_client = SealevelFallbackRpcClient::from_urls(chain, urls, metrics);
+                let rpc_client = SealevelFallbackRpcClient::from_urls(
+                    chain,
+                    urls,
+                    metrics,
+                    conf.max_supported_transaction_version,
+                );
                 let provider = SealevelProvider::new(rpc_client, domain, &[], conf);
                 Arc::new(RpcTransactionSubmitter::new(Arc::new(provider)))
             }
@@ -70,7 +75,12 @@ impl TransactionSubmitterConfig {
 
                 let urls: Vec<_> = urls.iter().filter_map(|url| Url::parse(url).ok()).collect();
 
-                let rpc_client = SealevelFallbackRpcClient::from_urls(chain, urls, metrics);
+                let rpc_client = SealevelFallbackRpcClient::from_urls(
+                    chain,
+                    urls,
+                    metrics,
+                    conf.max_supported_transaction_version,
+                );
                 let submit_provider = SealevelProvider::new(rpc_client, domain, &[], conf);
                 Arc::new(JitoTransactionSubmitter::new(
                     provider.clone(),
