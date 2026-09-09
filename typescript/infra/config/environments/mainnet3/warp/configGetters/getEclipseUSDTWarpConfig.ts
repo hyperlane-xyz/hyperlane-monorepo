@@ -35,7 +35,6 @@ const chainTokenMetadata: Record<string, { name: string; symbol: string }> = {
   tron: { name: 'Tether USD', symbol: 'USDT' },
   bsc: { name: 'Tether USD', symbol: 'USDT' },
   arbitrum: { name: 'USD₮0', symbol: 'USD₮0' },
-  plasma: { name: 'USDT0', symbol: 'USDT0' },
   solanamainnet: { name: 'USDT', symbol: 'USDT' },
   eclipsemainnet: { name: 'USDT', symbol: 'USDT' },
 };
@@ -43,7 +42,6 @@ const chainTokenMetadata: Record<string, { name: string; symbol: string }> = {
 const chainDecimals: Record<string, number> = {
   ethereum: 6,
   tron: 6,
-  plasma: 6,
   arbitrum: 6,
   solanamainnet: 6,
   eclipsemainnet: 6,
@@ -53,32 +51,22 @@ const chainDecimals: Record<string, number> = {
 const feeBps: Record<string, Record<string, number>> = {
   ethereum: {
     arbitrum: 3.1,
-    plasma: 10.0,
     bsc: 15.0,
     tron: 15.0,
   },
   arbitrum: {
     ethereum: 6.4,
-    plasma: 10.0,
-    bsc: 15.0,
-    tron: 15.0,
-  },
-  plasma: {
-    ethereum: 10.0,
-    arbitrum: 10.0,
     bsc: 15.0,
     tron: 15.0,
   },
   bsc: {
     ethereum: 15.0,
     arbitrum: 15.0,
-    plasma: 15.0,
     tron: 15.0,
   },
   tron: {
     ethereum: 15.0,
     arbitrum: 15.0,
-    plasma: 15.0,
     bsc: 15.0,
   },
 };
@@ -93,7 +81,6 @@ export const evmDeploymentChains = [
   'ethereum',
   'bsc',
   'arbitrum',
-  'plasma',
   'tron',
 ] as const;
 
@@ -113,7 +100,6 @@ export type DeploymentChain = (typeof deploymentChains)[number];
 const rebalanceableCollateralChains = [
   'ethereum',
   'arbitrum',
-  'plasma',
   'tron',
 ] as const satisfies DeploymentChain[];
 
@@ -121,7 +107,6 @@ const productionOwnersByChain: Record<DeploymentChain, string> = {
   ethereum: awSafes.ethereum,
   bsc: '0x269Af9E53192AF49a22ff47e30b89dE1375AE1fd', // ICA
   arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45', // ICA,
-  plasma: awIcas.plasma,
   eclipsemainnet: chainOwners.eclipsemainnet.owner,
   solanamainnet: chainOwners.solanamainnet.owner,
   tron: awIcas.tron,
