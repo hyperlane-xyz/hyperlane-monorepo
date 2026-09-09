@@ -97,6 +97,48 @@ function agentConfigHelper(
 }
 
 describe('Agent configs', () => {
+  it('renders v1 reads for Solana clusters and preserves other SVM defaults', async () => {
+    const solanaChains = new Set([
+      'solanamainnet',
+      'solanadevnet',
+      'solanatestnet',
+    ]);
+    const seenSolanaChains = new Set<string>();
+    let sawOtherSvm = false;
+
+    for (const agentConfigs of [mainnet3Agents, testnet4Agents]) {
+      for (const config of Object.values(agentConfigs)) {
+        for (const role of [
+          Role.Relayer,
+          Role.Scraper,
+          Role.Validator,
+        ] as const) {
+          if (!(role === Role.Validator ? config.validators : config[role]))
+            continue;
+          const manager = new TestAgentHelmManager(
+            agentConfigHelper(config, role),
+            role,
+          );
+          const values = await manager.helmValues();
+          for (const chain of values.hyperlane.chains) {
+            const isSolana = solanaChains.has(chain.name);
+            const isSvm =
+              getChain(chain.name).protocol === ProtocolType.Sealevel;
+            expect(
+              chain.maxSupportedTransactionVersion,
+              `${config.runEnv}/${config.context}/${role}/${chain.name}`,
+            ).to.equal(isSolana ? 1 : isSvm ? 0 : undefined);
+            if (isSolana) seenSolanaChains.add(chain.name);
+            if (isSvm && !isSolana) sawOtherSvm = true;
+          }
+        }
+      }
+    }
+
+    expect([...seenSolanaChains]).to.have.members([...solanaChains]);
+    expect(sawOtherSvm).to.equal(true);
+  });
+
   it('configures one shared testnet4 scraper proxy', () => {
     const enabledProxies = Object.values(testnet4Agents).filter(
       (config) => config.scraperProxy?.enabled,

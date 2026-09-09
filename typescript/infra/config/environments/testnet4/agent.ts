@@ -1,4 +1,5 @@
 import {
+  ChainName,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
   IsmCacheConfig,
@@ -103,6 +104,10 @@ const contextBase = {
   gcp: {
     project: 'abacus-labs-dev',
     location: 'us-east1',
+  },
+  sealevel: {
+    maxSupportedTransactionVersionGetter: (chain: ChainName): 0 | 1 =>
+      chain === 'solanadevnet' || chain === 'solanatestnet' ? 1 : 0,
   },
 } as const;
 
