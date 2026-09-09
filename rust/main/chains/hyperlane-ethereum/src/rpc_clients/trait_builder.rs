@@ -401,7 +401,9 @@ where
 
 /// Builds a new HTTP provider with the given URL.
 fn build_http_provider(url: Url) -> ChainResult<Http> {
+    // Cache by the original URL so clients with different credentials stay isolated.
     let client = get_reqwest_client(&url)?;
+    let (_, url) = parse_custom_rpc_headers(&url).map_err(ChainCommunicationError::from_other)?;
     Ok(Http::new_with_client(url, client))
 }
 
@@ -443,9 +445,96 @@ mod tests {
     use ethers::signers::LocalWallet;
     use ethers::types::{transaction::eip2718::TypedTransaction, TransactionRequest, U256};
     use serde::{de::DeserializeOwned, Serialize};
+    use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+    use tokio::net::TcpListener;
 
     use super::*;
     use crate::tx::fill_tx_nonce;
+
+    #[tokio::test]
+    async fn test_http_provider_custom_headers_and_cached_credentials() {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test server");
+        let address = listener.local_addr().expect("read test server address");
+        let server = tokio::spawn(async move {
+            for expected_key in [Some("first"), Some("second"), Some("first"), None] {
+                let (stream, _) = listener.accept().await.expect("accept RPC request");
+                let mut stream = BufReader::new(stream);
+                let mut line = String::new();
+                stream
+                    .read_line(&mut line)
+                    .await
+                    .expect("read request line");
+                assert_eq!(line, "POST /rpc?keep=value HTTP/1.1\r\n");
+
+                let mut api_key = None;
+                let mut content_length = 0;
+                loop {
+                    line.clear();
+                    assert_ne!(
+                        stream
+                            .read_line(&mut line)
+                            .await
+                            .expect("read request header"),
+                        0
+                    );
+                    if line == "\r\n" {
+                        break;
+                    }
+                    let (name, value) = line.split_once(':').expect("parse request header");
+                    if name.eq_ignore_ascii_case("x-api-key") {
+                        api_key = Some(value.trim().to_owned());
+                    } else if name.eq_ignore_ascii_case("content-length") {
+                        content_length =
+                            value.trim().parse::<usize>().expect("parse content length");
+                    }
+                }
+                assert_eq!(api_key.as_deref(), expected_key);
+                let mut body = vec![0; content_length];
+                stream
+                    .read_exact(&mut body)
+                    .await
+                    .expect("read request body");
+                let request: serde_json::Value =
+                    serde_json::from_slice(&body).expect("decode RPC request");
+                assert_eq!(request["method"], "eth_chainId");
+                let response = serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": request["id"],
+                    "result": "0xf6a",
+                })
+                .to_string();
+                stream
+                    .write_all(
+                        format!(
+                            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                            response.len(),
+                            response
+                        )
+                        .as_bytes(),
+                    )
+                    .await
+                    .expect("write RPC response");
+            }
+        });
+
+        for key in [Some("first"), Some("second"), Some("first"), None] {
+            let mut url =
+                Url::parse(&format!("http://{address}/rpc?keep=value")).expect("parse test URL");
+            if let Some(key) = key {
+                url.query_pairs_mut()
+                    .append_pair("custom_rpc_header", &format!("X-Api-Key:{key}"));
+            }
+            let provider = build_http_provider(url).expect("build HTTP provider");
+            let chain_id: U256 = provider
+                .request("eth_chainId", ())
+                .await
+                .expect("query chain ID");
+            assert_eq!(chain_id, U256::from(3946));
+        }
+        server.await.expect("join test server");
+    }
 
     #[derive(Clone, Debug, Default)]
     struct CountingClient {
