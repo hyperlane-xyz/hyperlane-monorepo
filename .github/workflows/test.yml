@@ -551,7 +551,8 @@ jobs:
 
       - name: Install Solana toolchain
         run: |
-          sh -c "$(curl -sSfL https://release.anza.xyz/v3.0.14/install)"
+          source rust/sealevel/programs/toolchain.env
+          sh -c "$(curl -sSfL "https://release.anza.xyz/v${SOLANA_CLI_VERSION_FOR_BUILDING_PROGRAMS}/install")"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
       - name: Check production source boundary

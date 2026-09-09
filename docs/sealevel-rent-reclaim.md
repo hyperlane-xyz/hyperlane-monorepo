@@ -38,9 +38,11 @@ from inboxes, message accounts, other configuration PDAs, or warp collateral vau
 Native warp vault balances include bridge backing and must not be swept as excess
 rent. No balances are reclaimed automatically.
 
-SPL Token and Token-2022 accounts use their own `WithdrawExcessLamports` instruction
-and authority rules. Support depends on each SVM's deployed token programs, separately
-from transaction-v1 support. This SDK addition does not implement token-account
+Token-2022 supports `WithdrawExcessLamports`. The classic SPL Token program
+supports it only after the p-token rewrite under
+[SIMD-0266](https://github.com/solana-foundation/solana-improvement-documents/blob/main/proposals/0266-efficient-token-program.md).
+The instruction follows each program's authority rules. Availability depends on
+each SVM's deployed token programs, separately from transaction-v1 support. This SDK addition does not implement token-account
 reclamation or assume those instructions are available on every SVM.
 
 ## If the rent minimum increases again

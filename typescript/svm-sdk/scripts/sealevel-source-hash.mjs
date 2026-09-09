@@ -95,6 +95,7 @@ export function productionSourceFiles() {
     'rust/sealevel/rust-toolchain',
     'rust/sealevel/.cargo/config.toml',
     'rust/sealevel/programs/build-programs.sh',
+    'rust/sealevel/programs/toolchain.env',
     'rust/main/Cargo.toml',
     'typescript/svm-sdk/scripts/build-program-bytes.sh',
   ]);
