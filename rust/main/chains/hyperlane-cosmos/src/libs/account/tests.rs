@@ -75,3 +75,101 @@ fn decompressed_public_key() -> PublicKey {
     cometbft_pubkey_to_cosmrs_pubkey(&cometbft_key)
         .expect("Failed to deserialize cosmrs::PublicKey")
 }
+
+#[derive(serde::Deserialize)]
+struct MultisigFixture {
+    public_key: MultisigKeyFixture,
+    address: String,
+}
+
+#[derive(serde::Deserialize)]
+struct MultisigKeyFixture {
+    threshold: u32,
+    public_keys: Vec<PublicKey>,
+}
+
+#[test]
+fn test_celestia_multisig_accounts() {
+    // Successful Celestia transactions at heights 8537428, 8539315,
+    // 8544063, 8546716, 8546743. Expected addresses were independently
+    // reproduced with @cosmjs/amino 0.36.0 pubkeyToAddress and matched
+    // the on-chain sender (and account public key for the last transaction).
+    let fixtures: Vec<MultisigFixture> =
+        serde_json::from_str(include_str!("celestia_multisig.json")).unwrap();
+    for fixture in fixtures {
+        let key = cosmrs::crypto::LegacyAminoMultisig {
+            threshold: fixture.public_key.threshold,
+            public_keys: fixture.public_key.public_keys,
+        };
+        let actual = CosmosAccountId::account_id_from_multisig(&key, "celestia").unwrap();
+        assert_eq!(actual.as_ref(), fixture.address);
+    }
+}
+
+#[test]
+fn test_multisig_rejects_invalid_thresholds() {
+    for (threshold, public_keys) in [
+        (0, vec![compressed_public_key()]),
+        (1, vec![]),
+        (2, vec![compressed_public_key()]),
+    ] {
+        let key = cosmrs::crypto::LegacyAminoMultisig {
+            threshold,
+            public_keys,
+        };
+        assert!(CosmosAccountId::account_id_from_multisig(&key, "celestia").is_err());
+    }
+}
+
+#[test]
+fn test_cosmjs_two_of_three_multisig_vector() {
+    // https://github.com/cosmos/cosmjs/blob/v0.36.0/packages/amino/src/addresses.spec.ts
+    let keys = [
+        "A4y1mO5UEw00+OCBjneHqgYTmg4tACbK22YrVc8WhZpn",
+        "ApBvG9lRbIzTtSY5MiyAG/hyTB+l6HjA4yub1sC7iw9o",
+        "A8yTUZ1htobabw6M/5Qx41a0X5EGPtb4H3nd2JiFiADz",
+    ];
+    let mut key = cosmrs::crypto::LegacyAminoMultisig {
+        threshold: 2,
+        public_keys: keys
+            .into_iter()
+            .map(|key| {
+                PublicKey::from_json(&format!(
+                    r#"{{"@type":"/cosmos.crypto.secp256k1.PubKey","key":"{key}"}}"#
+                ))
+                .unwrap()
+            })
+            .collect(),
+    };
+    let expected = "wasm1pzf2wlat97n7rykrk7e8g8nxste6hde0r8jqsy";
+    assert_eq!(
+        CosmosAccountId::account_id_from_multisig(&key, "wasm")
+            .unwrap()
+            .as_ref(),
+        expected
+    );
+    key.public_keys.reverse();
+    assert_ne!(
+        CosmosAccountId::account_id_from_multisig(&key, "wasm")
+            .unwrap()
+            .as_ref(),
+        expected
+    );
+}
+
+#[test]
+fn test_multisig_ed25519_member() {
+    let key = cosmrs::crypto::LegacyAminoMultisig {
+        threshold: 1,
+        public_keys: vec![PublicKey::from_json(
+            r#"{"@type":"/cosmos.crypto.ed25519.PubKey","key":"Eu5vWB/lVnOh6eE4Kggp4yB1oKpHY8lovFJuGFLnjJU="}"#
+        ).unwrap()],
+    };
+    // Independently generated with @cosmjs/amino 0.36.0 pubkeyToAddress.
+    assert_eq!(
+        CosmosAccountId::account_id_from_multisig(&key, "cosmos")
+            .unwrap()
+            .as_ref(),
+        "cosmos1mc6djfl6af94vfgxxy04n2zayrfc87l6jeq2f7"
+    );
+}

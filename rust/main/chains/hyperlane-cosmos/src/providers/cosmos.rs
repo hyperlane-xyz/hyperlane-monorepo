@@ -1,6 +1,6 @@
 use cosmrs::{
     crypto::PublicKey,
-    tx::{SequenceNumber, SignerInfo},
+    tx::{SequenceNumber, SignerInfo, SignerPublicKey},
     AccountId, Coin, Tx,
 };
 use itertools::Itertools;
@@ -129,13 +129,17 @@ impl<QueryClient: BuildableQueryClient> CosmosProvider<QueryClient> {
         })?;
 
         let (key, account_address_type) = utils::normalize_public_key(signer_public_key)?;
-        let public_key = PublicKey::try_from(key)?;
-
-        let account_id = CosmosAccountId::account_id_from_pubkey(
-            public_key,
-            &self.conf.get_bech32_prefix(),
-            &account_address_type,
-        )?;
+        let prefix = self.conf.get_bech32_prefix();
+        let account_id = match key {
+            SignerPublicKey::LegacyAminoMultisig(key) => {
+                CosmosAccountId::account_id_from_multisig(&key, &prefix)?
+            }
+            key => CosmosAccountId::account_id_from_pubkey(
+                PublicKey::try_from(key)?,
+                &prefix,
+                &account_address_type,
+            )?,
+        };
 
         Ok((account_id, signer_info.sequence))
     }
@@ -322,5 +326,141 @@ impl<T: BuildableQueryClient> HyperlaneProvider for CosmosProvider<T> {
             block_height: height,
             min_gas_price: None,
         }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use cosmrs::{
+        crypto::LegacyAminoMultisig,
+        tx::{AuthInfo, Body, Fee},
+    };
+    use hyperlane_core::{config::OpSubmissionConfig, KnownHyperlaneDomain, NativeToken};
+    use url::Url;
+
+    use super::*;
+    use crate::{native::ModuleQueryClient, RawCosmosAmount};
+
+    fn provider() -> CosmosProvider<ModuleQueryClient> {
+        let conf = ConnectionConf::new(
+            vec![Url::parse("http://localhost:9090").unwrap()],
+            vec![Url::parse("http://localhost:26657").unwrap()],
+            "celestia".to_owned(),
+            "celestia".to_owned(),
+            "utia".to_owned(),
+            RawCosmosAmount::new("utia".to_owned(), "0".to_owned()),
+            32,
+            OpSubmissionConfig::default(),
+            NativeToken {
+                decimals: 6,
+                symbol: "TIA".to_owned(),
+                denom: "utia".to_owned(),
+            },
+            1.4,
+            None,
+        )
+        .unwrap();
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::CosmosTest99990);
+        CosmosProvider::new(
+            &conf,
+            &ContractLocator::new(&domain, H256::zero()),
+            None,
+            PrometheusClientMetrics::default(),
+            None,
+        )
+        .unwrap()
+    }
+
+    fn transaction(signers: Vec<SignerInfo>, payer: Option<AccountId>) -> Tx {
+        Tx {
+            body: Body::new(Vec::new(), "", 0_u8),
+            auth_info: AuthInfo {
+                signer_infos: signers,
+                fee: Fee {
+                    amount: Vec::new(),
+                    gas_limit: 0,
+                    payer,
+                    granter: None,
+                },
+            },
+            signatures: Vec::new(),
+        }
+    }
+
+    #[derive(serde::Deserialize)]
+    struct Fixture {
+        public_key: KeyFixture,
+        sequence: String,
+        address: String,
+        signer_bits: u8,
+        legacy_amino_json: bool,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct KeyFixture {
+        threshold: u32,
+        public_keys: Vec<PublicKey>,
+    }
+
+    #[tokio::test]
+    async fn multisig_sender_and_nonce_preserves_fee_payer_selection() {
+        let provider = provider();
+        let fixtures: Vec<Fixture> =
+            serde_json::from_str(include_str!("../libs/account/celestia_multisig.json")).unwrap();
+        for fixture in fixtures {
+            let sequence = fixture.sequence.parse().unwrap();
+            let key = LegacyAminoMultisig {
+                threshold: fixture.public_key.threshold,
+                public_keys: fixture.public_key.public_keys,
+            };
+            let single_key = key.public_keys[0];
+            let single_account = CosmosAccountId::account_id_from_pubkey(
+                single_key,
+                "celestia",
+                &hyperlane_core::AccountAddressType::Bitcoin,
+            )
+            .unwrap();
+            let multisig_account: AccountId = fixture.address.parse().unwrap();
+            // Round-trip through protobuf Any, as transaction decoding does.
+            let multisig = SignerPublicKey::try_from(cosmrs::Any::from(key)).unwrap();
+            let signer = SignerInfo {
+                public_key: Some(multisig),
+                mode_info: cosmrs::tx::ModeInfo::Multi(cosmrs::tx::mode_info::Multi {
+                    bitarray: cosmrs::crypto::CompactBitArray::new(2, vec![fixture.signer_bits]),
+                    mode_infos: vec![cosmrs::tx::ModeInfo::single(if fixture.legacy_amino_json {
+                        cosmrs::tx::SignMode::LegacyAminoJson
+                    } else {
+                        cosmrs::tx::SignMode::Direct
+                    })],
+                }),
+                sequence,
+            };
+            let expected = CosmosAddress::from_account_id(multisig_account.clone())
+                .unwrap()
+                .digest();
+            assert_eq!(
+                provider
+                    .sender_and_nonce(&transaction(vec![signer.clone()], None))
+                    .unwrap(),
+                (expected, sequence)
+            );
+            // An explicit payer selects its own sequence, regardless of position.
+            let signers = vec![SignerInfo::single_direct(Some(single_key), 42), signer];
+            assert_eq!(
+                provider
+                    .sender_and_nonce(&transaction(signers.clone(), Some(multisig_account)))
+                    .unwrap(),
+                (expected, sequence)
+            );
+            let single_expected = CosmosAddress::from_account_id(single_account.clone())
+                .unwrap()
+                .digest();
+            assert_eq!(
+                provider
+                    .sender_and_nonce(&transaction(signers, Some(single_account)))
+                    .unwrap(),
+                (single_expected, 42)
+            );
+        }
     }
 }
