@@ -95,9 +95,26 @@ subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS, async (_, __, runSuper) => {
 module.exports = {
     ...rootHardhatConfig,
     solidity: {
-        ...rootHardhatConfig.solidity,
-        // tron-solc latest is 0.8.24
-        version: "0.8.24",
+        compilers: [
+            {
+                ...rootHardhatConfig.solidity,
+                // tron-solc latest is 0.8.24
+                version: "0.8.24",
+            },
+        ],
+        overrides: {
+            "contracts/hooks/layerzero/LayerZeroV2CcipReadHookIsm.sol": {
+                ...rootHardhatConfig.solidity,
+                version: "0.8.24",
+                settings: {
+                    ...rootHardhatConfig.solidity.settings,
+                    optimizer: {
+                        ...rootHardhatConfig.solidity.settings.optimizer,
+                        runs: 200,
+                    },
+                },
+            },
+        },
     },
     paths: {
         sources: "./contracts",
