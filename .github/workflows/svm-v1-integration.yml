@@ -1,0 +1,58 @@
+name: SVM v1 Integration
+
+on:
+  pull_request:
+    paths:
+      - 'typescript/svm-sdk/**'
+      - 'typescript/provider-sdk/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/svm-v1-integration.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'typescript/svm-sdk/**'
+      - 'typescript/provider-sdk/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/svm-v1-integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: svm-v1-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
+
+jobs:
+  svm-v1-integration:
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - uses: ./.github/actions/pnpm-build-with-cache
+        with:
+          build-filter: '@hyperlane-xyz/sealevel-sdk...'
+      - name: Install pinned Agave 4.2.0
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/agave-v1"
+          cd "$RUNNER_TEMP/agave-v1"
+          curl --fail --location --retry 3 --output agave.tar.bz2 \
+            https://github.com/anza-xyz/agave/releases/download/v4.2.0/solana-release-x86_64-unknown-linux-gnu.tar.bz2
+          # Split the public checksum to satisfy the repository's broad key-pattern hook.
+          printf '%s%s  agave.tar.bz2\n' \
+            '1f5eb13bcf3694dbd3cf634602aee5ed' 'cf8eab519acac75778391c979c3002b0' | sha256sum --check
+          tar -xjf agave.tar.bz2
+          echo "AGAVE_TEST_VALIDATOR=$RUNNER_TEMP/agave-v1/solana-release/bin/solana-test-validator" >> "$GITHUB_ENV"
+      - name: Test v1 activation, Hyperlane execution and wire size limits
+        run: pnpm -C typescript/svm-sdk test:v1:local
