@@ -35,7 +35,8 @@ Chain metadata accepts `maxSupportedTransactionVersion: 0 | 1` for receipt
 reads and `sealevelTransactionVersion: 0 | 1` for the Sealevel signer's default
 sending format. Both default to 0. Set the read capability to 1 independently
 for each SVM whose RPC supports it. Set the sending default to 1 only after the
-chain's v1 feature gate is active. A transaction's `version` overrides the
+chain's v1 feature gate is active, and separately set `sealevelV1TransactionsEnabled: true`
+to authorize v1 submission. Read support alone never authorizes v1 sends. A transaction's `version` overrides the
 sending default, but cannot exceed the configured capability.
 
 Example for a v1-enabled Solana environment:
@@ -43,17 +44,23 @@ Example for a v1-enabled Solana environment:
 ```yaml
 maxSupportedTransactionVersion: 1
 sealevelTransactionVersion: 1
+sealevelV1TransactionsEnabled: true
 ```
 
 Do not copy these settings to other SVMs based on Solana's activation date.
 Published registry metadata / consumer overrides must carry these fields;
 this PR does not publish registry changes or activate production sending.
 
-V1 sending sets compute and loaded-account budgets explicitly. Existing SDK
+V1 sending sets compute and loaded-account budgets explicitly. Callers can set
+`heapSize` (bytes) and `loadedAccountsDataSizeLimit` (bytes); the latter defaults
+to the legacy 64 MiB maximum. For tighter scheduling, measure loaded data by
+simulation, add headroom, and round to 32 KiB pages. Legacy heap and loaded-data
+instructions migrate to these fields and remain instructions for v0. Existing SDK
 adapter priority-price instructions are converted to total lamport header
 fees with upward rounding. Address lookup tables are rejected for v1; legacy
 and v0 transactions keep their existing formats. Offline/Squads serialization
-and fork replay remain v0/legacy-only and reject explicit v1 input. Offline exports
+and fork replay remain v0/legacy-only and reject explicit v1 input. Unstamped
+offline exports stay v0 even when the chain sending default is v1. Offline exports
 also reject `priorityFeeMicroLamports`; include a `SetComputeUnitPrice` instruction
 when configuring their priority fee.
 

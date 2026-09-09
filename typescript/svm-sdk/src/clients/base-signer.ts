@@ -45,6 +45,7 @@ import {
 import { createRpc } from '../rpc.js';
 import {
   buildTransactionMessage,
+  getMemoryBudgetInstructions,
   serializeUnsignedTransaction,
 } from '../tx.js';
 import type {
@@ -92,15 +93,22 @@ export async function buildPrintableTransaction(
     rpc,
     transaction.addressLookupTables,
   );
+  const instructions = [
+    ...getMemoryBudgetInstructions(
+      transaction.heapSize,
+      transaction.loadedAccountsDataSizeLimit,
+    ),
+    ...transaction.instructions,
+  ];
   const { transactionBase58, messageBase58 } = serializeUnsignedTransaction(
-    transaction.instructions,
+    instructions,
     transaction.feePayer ?? feePayerAddress,
     resolvedAlts,
   );
 
   return {
     annotation: transaction.annotation,
-    instructions: transaction.instructions.map((ix) => ({
+    instructions: instructions.map((ix) => ({
       programAddress: ix.programAddress,
       accounts: ix.accounts,
       data: ix.data ? Buffer.from(ix.data).toString('hex') : undefined,
@@ -274,6 +282,8 @@ async function signAndSend(params: {
     let txMessage = buildTransactionMessage({
       instructions: tx.instructions,
       version: tx.version,
+      heapSize: tx.heapSize,
+      loadedAccountsDataSizeLimit: tx.loadedAccountsDataSizeLimit,
       priorityFeeMicroLamports: tx.priorityFeeMicroLamports,
       feePayer,
       recentBlockhash: latestBlockhash.blockhash,
@@ -718,12 +728,6 @@ export abstract class BaseSvmSigner
   async transactionToPrintableJson(
     transaction: AnnotatedSvmTransaction,
   ): Promise<PrintableSvmTransaction> {
-    assert(
-      (transaction.version ??
-        this.chainMetadata.sealevelTransactionVersion ??
-        0) === 0,
-      'Offline/Squads serialization currently supports v0 only',
-    );
     return buildPrintableTransaction(
       this.rpc,
       this.signer.address,
@@ -741,6 +745,11 @@ export abstract class BaseSvmSigner
     assert(
       version !== 1 || !tx.addressLookupTables?.length,
       'v1 transactions do not support address lookup tables',
+    );
+    assert(
+      version !== 1 ||
+        this.chainMetadata.sealevelV1TransactionsEnabled === true,
+      'V1 sending requires sealevelV1TransactionsEnabled after feature activation',
     );
     return sendWithConfirmation({
       rpc: this.rpc,

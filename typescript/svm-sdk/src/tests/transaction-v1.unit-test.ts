@@ -1,8 +1,16 @@
-import { blockhash, generateKeyPairSigner } from '@solana/kit';
+import {
+  address,
+  blockhash,
+  generateKeyPairSigner,
+  compileTransaction,
+  getTransactionEncoder,
+  assertIsTransactionWithinSizeLimit,
+} from '@solana/kit';
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
 import { COMPUTE_BUDGET_PROGRAM_ID } from '../constants.js';
+import { convertLegacySolanaTransaction } from '../legacy-compat.js';
 import { buildTransactionMessage } from '../tx.js';
 
 async function params() {
@@ -38,6 +46,71 @@ describe('v1 transaction header', () => {
     expect(message.instructions).to.have.length(0);
   });
 
+  it('migrates legacy heap and loaded-data budgets for both versions', async () => {
+    const budget = (discriminator: number, value: number) => {
+      const data = new Uint8Array(5);
+      data[0] = discriminator;
+      new DataView(data.buffer).setUint32(1, value, true);
+      return {
+        programId: { toBase58: () => COMPUTE_BUDGET_PROGRAM_ID },
+        keys: [],
+        data,
+      };
+    };
+    const converted = await convertLegacySolanaTransaction({
+      instructions: [budget(1, 256 * 1024), budget(4, 128 * 1024)],
+    });
+    expect(converted.instructions).to.have.length(0);
+    expect(converted.heapSize).to.equal(256 * 1024);
+    expect(converted.loadedAccountsDataSizeLimit).to.equal(128 * 1024);
+    const common = await params();
+    const v1 = buildTransactionMessage({
+      ...converted,
+      ...common,
+      addressLookupTables: undefined,
+    });
+    if (v1.version !== 1) throw new Error('expected v1');
+    expect(v1.config?.heapSize).to.equal(256 * 1024);
+    expect(v1.config?.loadedAccountsDataSizeLimit).to.equal(128 * 1024);
+    expect(v1.instructions).to.have.length(0);
+    const v0 = buildTransactionMessage({
+      ...converted,
+      ...common,
+      addressLookupTables: undefined,
+      version: 0,
+    });
+    expect(v0.instructions.map((ix) => ix.data?.[0])).to.deep.equal([2, 1, 4]);
+  });
+
+  it('omits a zero priority fee so an exact 4096-byte transaction fits', async () => {
+    const common = await params();
+    const encode = (dataSize: number, price?: number) =>
+      compileTransaction(
+        buildTransactionMessage({
+          ...common,
+          priorityFeeMicroLamports: price,
+          instructions: [
+            {
+              programAddress: address('11111111111111111111111111111111'),
+              data: new Uint8Array(dataSize),
+            },
+          ],
+        }),
+      );
+    const encoder = getTransactionEncoder();
+    const overhead = encoder.encode(encode(1000)).length - 1000;
+    const atLimit = encode(4096 - overhead);
+    expect(encoder.encode(atLimit)).to.have.length(4096);
+    expect(() => assertIsTransactionWithinSizeLimit(atLimit)).not.to.throw();
+    expect(encoder.encode(encode(4096 - overhead, 0))).to.have.length(4096);
+    expect(() =>
+      assertIsTransactionWithinSizeLimit(encode(4096 - overhead, 1)),
+    ).to.throw();
+    expect(() =>
+      assertIsTransactionWithinSizeLimit(encode(4097 - overhead)),
+    ).to.throw();
+  });
+
   it('rejects duplicate priority fee sources', async () => {
     const common = await params();
     expect(() =>
@@ -67,7 +140,7 @@ describe('v1 transaction header', () => {
           },
         ],
       }),
-    ).to.throw('v1 only converts SetComputeUnitPrice');
+    ).to.throw('Unsupported v1 compute-budget instruction');
   });
 
   it('rejects invalid header budgets', async () => {
@@ -76,6 +149,25 @@ describe('v1 transaction header', () => {
       expect(() =>
         buildTransactionMessage({ ...common, computeUnits, instructions: [] }),
       ).to.throw('computeUnits');
+    }
+    for (const heapSize of [0, 1024, 32769, 263168]) {
+      expect(() =>
+        buildTransactionMessage({ ...common, heapSize, instructions: [] }),
+      ).to.throw('heapSize');
+    }
+    for (const loadedAccountsDataSizeLimit of [
+      0,
+      -1,
+      1.5,
+      64 * 1024 * 1024 + 1,
+    ]) {
+      expect(() =>
+        buildTransactionMessage({
+          ...common,
+          loadedAccountsDataSizeLimit,
+          instructions: [],
+        }),
+      ).to.throw('loadedAccountsDataSizeLimit');
     }
     for (const priorityFeeMicroLamports of [
       -1,

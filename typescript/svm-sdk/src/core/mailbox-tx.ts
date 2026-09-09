@@ -58,7 +58,7 @@ function encodeMailboxInit(data: MailboxInitData): Uint8Array {
  * Builds a mailbox Init instruction.
  *
  * Account layout (from Rust init_instruction):
- *  0. [writable]        System program
+ *  0. [readonly]        System program
  *  1. [writable,signer] Payer
  *  2. [writable]        Inbox PDA
  *  3. [writable]        Outbox PDA
@@ -73,7 +73,7 @@ export async function buildInitMailboxInstruction(
   return buildInstruction(
     programId,
     [
-      writableAccount(SYSTEM_PROGRAM_ADDRESS),
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
       writableSigner(payer),
       writableAccount(inboxPda),
       writableAccount(outboxPda),

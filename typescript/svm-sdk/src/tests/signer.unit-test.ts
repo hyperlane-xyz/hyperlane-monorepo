@@ -192,6 +192,23 @@ describe('SvmSigner', () => {
       expect(getLatestBlockhash.called).to.equal(false);
     });
 
+    it('rejects an explicit v1 send while only read support is enabled', async () => {
+      const getLatestBlockhash = sinon
+        .stub()
+        .throws(new Error('must not call RPC'));
+      const signer = await createTestSigner(
+        createMockRpc({ getLatestBlockhash }),
+        {
+          ...TEST_CHAIN_METADATA,
+          maxSupportedTransactionVersion: 1,
+        },
+      );
+      await expect(
+        signer.send({ instructions: [], version: 1 }),
+      ).to.be.rejectedWith('sealevelV1TransactionsEnabled');
+      expect(getLatestBlockhash.called).to.equal(false);
+    });
+
     it('sends v1 wire bytes with header fees on an opted-in chain', async () => {
       const sendTransaction = sinon.stub().callsFake((encoded: unknown) => {
         expect(typeof encoded).to.equal('string');
@@ -217,6 +234,7 @@ describe('SvmSigner', () => {
           ...TEST_CHAIN_METADATA,
           maxSupportedTransactionVersion: 1,
           sealevelTransactionVersion: 1,
+          sealevelV1TransactionsEnabled: true,
         },
       );
       await signer.send({
@@ -961,7 +979,7 @@ describe('SvmSigner', () => {
       expect(message.instructions[0]?.data).to.deep.equal(data);
     });
 
-    it('rejects explicit v1 and a chain default of v1', async () => {
+    it('rejects explicit v1 but preserves unstamped offline v0', async () => {
       const signer = await createTestSigner(createMockRpc());
       await expect(
         signer.transactionToPrintableJson({ instructions: [], version: 1 }),
@@ -971,9 +989,14 @@ describe('SvmSigner', () => {
         maxSupportedTransactionVersion: 1,
         sealevelTransactionVersion: 1,
       });
-      await expect(
-        v1Signer.transactionToPrintableJson({ instructions: [] }),
-      ).to.be.rejectedWith('supports v0 only');
+      const printable = await v1Signer.transactionToPrintableJson({
+        instructions: [],
+      });
+      expect(
+        getCompiledTransactionMessageDecoder().decode(
+          getBase58Encoder().encode(printable.message_base58),
+        ).version,
+      ).to.equal(0);
     });
 
     it('allows an explicit v0 override of a v1 chain default', async () => {

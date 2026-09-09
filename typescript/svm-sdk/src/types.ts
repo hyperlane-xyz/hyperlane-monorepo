@@ -30,6 +30,10 @@ export interface SvmTransaction {
   feePayer?: Address;
   instructions: SvmInstruction[];
   computeUnits?: number;
+  /** Requested heap frame in bytes (32-256 KiB, in 1 KiB increments). */
+  heapSize?: number;
+  /** Loaded account data budget in bytes; v1 defaults to the legacy 64 MiB maximum. */
+  loadedAccountsDataSizeLimit?: number;
   additionalSigners?: TransactionSigner[];
   /** Skip preflight simulation.
    *  Some transactions that include account creation might fail the simulation check.

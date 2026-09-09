@@ -179,11 +179,17 @@ export const ChainMetadataSchemaObject = z.object({
     .union([z.literal(0), z.literal(1)])
     .optional()
     .describe('Highest supported SVM transaction version; defaults to 0.'),
+  sealevelV1TransactionsEnabled: z
+    .boolean()
+    .optional()
+    .describe(
+      'Enable v1 submission only after this SVM activates the feature; defaults to false.',
+    ),
   sealevelTransactionVersion: z
     .union([z.literal(0), z.literal(1)])
     .optional()
     .describe(
-      'Default Sealevel signer transaction version; defaults to 0. V1 requires maxSupportedTransactionVersion 1.',
+      'Default Sealevel signer transaction version; defaults to 0. V1 requires sealevelV1TransactionsEnabled and maxSupportedTransactionVersion 1.',
     ),
   availability: z
     .union([DisabledChainSchema, EnabledChainSchema])
@@ -380,6 +386,24 @@ export const ChainMetadataSchema = ChainMetadataSchemaExtensible.refine(
   },
   { message: 'Invalid Chain Id', path: ['chainId'] },
 )
+  .refine(
+    (metadata) =>
+      !metadata.sealevelV1TransactionsEnabled ||
+      metadata.maxSupportedTransactionVersion === 1,
+    {
+      message: 'V1 sending requires maxSupportedTransactionVersion 1',
+      path: ['maxSupportedTransactionVersion'],
+    },
+  )
+  .refine(
+    (metadata) =>
+      metadata.sealevelTransactionVersion !== 1 ||
+      metadata.sealevelV1TransactionsEnabled === true,
+    {
+      message: 'V1 default requires sealevelV1TransactionsEnabled',
+      path: ['sealevelTransactionVersion'],
+    },
+  )
   .refine(
     (metadata) => {
       if (typeof metadata.chainId === 'string' && !metadata.domainId)

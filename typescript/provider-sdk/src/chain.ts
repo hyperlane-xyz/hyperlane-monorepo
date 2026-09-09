@@ -15,6 +15,8 @@ export interface ChainMetadataForAltVM {
   maxSupportedTransactionVersion?: 0 | 1;
   /** Default transaction version for the Sealevel signer. Defaults to 0. */
   sealevelTransactionVersion?: 0 | 1;
+  /** Enable v1 submission only after this SVM activates the feature. */
+  sealevelV1TransactionsEnabled?: boolean;
   bech32Prefix?: string;
   protocol: ProtocolType;
   domainId: Domain;

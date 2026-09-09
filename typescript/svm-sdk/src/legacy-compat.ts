@@ -13,6 +13,8 @@ import type {
   TransactionSigner,
 } from '@solana/kit';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import { COMPUTE_BUDGET_PROGRAM_ID } from './constants.js';
 import type { LegacyKeypair, SvmTransaction } from './types.js';
 
@@ -35,8 +37,6 @@ interface LegacyTransactionInstruction {
 export interface LegacyTransaction {
   instructions: LegacyTransactionInstruction[];
 }
-
-const SET_COMPUTE_UNIT_LIMIT_DISCRIMINATOR = 2;
 
 function convertAccountMeta(meta: LegacyAccountMeta): KitAccountMeta {
   const address = castAddress(meta.pubkey.toBase58());
@@ -61,7 +61,8 @@ function convertInstruction(ix: LegacyTransactionInstruction): Instruction {
 /**
  * Converts a legacy @solana/web3.js Transaction to the SvmTransaction format
  * expected by SvmSigner. The SetComputeUnitLimit instruction is extracted into
- * `computeUnits` (the signer recreates it). All other instructions — including
+ * `computeUnits`; heap and loaded-data budgets are extracted too (v0 recreates
+ * their instructions, v1 uses header fields). Other instructions — including
  * SetComputeUnitPrice — are preserved as-is.
  *
  * @param legacyTx  Legacy Transaction returned by SDK adapters.
@@ -73,24 +74,34 @@ export async function convertLegacySolanaTransaction(
   extraSigners?: readonly LegacyKeypair[],
 ): Promise<SvmTransaction> {
   let computeUnits: number | undefined;
+  let heapSize: number | undefined;
+  let loadedAccountsDataSizeLimit: number | undefined;
   const instructions: Instruction[] = [];
 
   for (const ix of legacyTx.instructions) {
     const isComputeBudget =
       ix.programId.toBase58() === COMPUTE_BUDGET_PROGRAM_ID;
 
-    if (
-      isComputeBudget &&
-      ix.data[0] === SET_COMPUTE_UNIT_LIMIT_DISCRIMINATOR &&
-      ix.data.length >= 5
-    ) {
-      // Extract compute unit limit — SvmSigner recreates this instruction
-      // from the `computeUnits` field via buildTransactionMessage.
-      const dataArr = new Uint8Array(ix.data);
-      computeUnits = new DataView(dataArr.buffer, dataArr.byteOffset).getUint32(
-        1,
-        true,
-      );
+    if (isComputeBudget && [1, 2, 4].includes(ix.data[0])) {
+      assert(ix.data.length === 5, 'Invalid compute-budget instruction');
+      const dataArr = Uint8Array.from(ix.data);
+      const value = new DataView(dataArr.buffer).getUint32(1, true);
+      if (ix.data[0] === 1) {
+        assert(heapSize === undefined, 'Duplicate heap configuration');
+        heapSize = value;
+      } else if (ix.data[0] === 2) {
+        assert(
+          computeUnits === undefined,
+          'Duplicate compute unit configuration',
+        );
+        computeUnits = value;
+      } else {
+        assert(
+          loadedAccountsDataSizeLimit === undefined,
+          'Duplicate loaded-account configuration',
+        );
+        loadedAccountsDataSizeLimit = value;
+      }
       continue;
     }
 
@@ -108,6 +119,8 @@ export async function convertLegacySolanaTransaction(
   return {
     instructions,
     computeUnits,
+    heapSize,
+    loadedAccountsDataSizeLimit,
     additionalSigners,
   };
 }
