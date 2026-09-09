@@ -195,27 +195,28 @@ pub fn get_ts_infra_path() -> PathBuf {
 
 const POSTGRES_IMAGE: &str = "postgres:14";
 
-/// Start the test Postgres container after ensuring its image is available.
+/// Ensure a Docker image is available before starting readiness polling.
 ///
 /// `docker run` pulls a missing image in the foreground. If it is spawned and
 /// readiness polling starts immediately, a cold pull consumes the readiness
 /// timeout before the container exists. Pulling first keeps image acquisition
-/// separate from the bounded database startup check.
-pub fn start_postgres() -> AgentHandles {
+/// separate from the bounded startup check.
+pub fn prepare_docker_image(image: &str) {
     let image_available = Program::new("docker")
         .cmd("image")
         .cmd("inspect")
-        .cmd(POSTGRES_IMAGE)
+        .cmd(image)
         .run_to_success()
         .join();
     if !image_available {
-        log!("Pulling {}...", POSTGRES_IMAGE);
-        Program::new("docker")
-            .cmd("pull")
-            .cmd(POSTGRES_IMAGE)
-            .run()
-            .join();
+        log!("Pulling {}...", image);
+        Program::new("docker").cmd("pull").cmd(image).run().join();
     }
+}
+
+/// Start the test Postgres container after ensuring its image is available.
+pub fn start_postgres() -> AgentHandles {
+    prepare_docker_image(POSTGRES_IMAGE);
 
     Program::new("docker")
         .cmd("run")

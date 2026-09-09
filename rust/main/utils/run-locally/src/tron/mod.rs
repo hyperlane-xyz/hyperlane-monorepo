@@ -23,8 +23,8 @@ use crate::{
     program::Program,
     server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count},
     utils::{
-        concat_path, get_workspace_path, make_static, start_postgres, stop_child,
-        wait_for_postgres, AgentHandles, TaskHandle,
+        concat_path, get_workspace_path, make_static, prepare_docker_image, start_postgres,
+        stop_child, wait_for_postgres, AgentHandles, TaskHandle,
     },
     wait_for_condition, AGENT_BIN_PATH, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT,
     SCRAPER_METRICS_PORT,
@@ -265,6 +265,9 @@ fn run_locally() {
             .run()
             .join();
     }
+
+    // Keep image acquisition outside the node readiness deadline.
+    prepare_docker_image(TRE_IMAGE);
 
     // Start TRE docker container
     log!("Starting TRE docker container...");
