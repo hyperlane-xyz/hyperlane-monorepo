@@ -1,5 +1,9 @@
 //! Relayer inputs streamed by scraper-proxy with RPC parity and fallback.
 
+mod gas_payment_shadow;
+
+use gas_payment_shadow::{GasPaymentShadow, ReceiptVerifier};
+
 use std::{
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
     sync::{
@@ -139,6 +143,7 @@ pub(crate) struct ScraperSource {
     database: Arc<dyn ParityDatabase>,
     freshness_indexer: Option<SequenceIndexer<HyperlaneMessage>>,
     merkle_freshness_indexer: Option<SequenceIndexer<MerkleTreeInsertion>>,
+    gas_receipt_verifier: Option<ReceiptVerifier>,
 }
 
 impl ScraperSource {
@@ -161,7 +166,21 @@ impl ScraperSource {
             database: Arc::new(database),
             freshness_indexer: None,
             merkle_freshness_indexer: None,
+            gas_receipt_verifier: None,
         }
+    }
+
+    pub(crate) fn with_gas_receipt_verifier(
+        mut self,
+        indexer: Arc<dyn hyperlane_core::Indexer<InterchainGasPayment>>,
+        provider: Box<dyn hyperlane_core::HyperlaneProvider>,
+    ) -> Self {
+        self.gas_receipt_verifier = Some(ReceiptVerifier {
+            indexer,
+            provider: Arc::from(provider),
+            paymaster: self.interchain_gas_paymaster,
+        });
+        self
     }
 
     pub(crate) fn with_broadcaster(
@@ -215,6 +234,7 @@ impl ScraperSource {
             database,
             freshness_indexer: None,
             merkle_freshness_indexer: None,
+            gas_receipt_verifier: None,
         }
     }
 
@@ -1623,6 +1643,7 @@ pub(crate) struct ScraperWebSocketMonitor {
     parity_unhealthy: Arc<parking_lot::Mutex<std::collections::HashSet<(u32, EventKind)>>>,
     parity_warned_at: Arc<parking_lot::Mutex<Option<Instant>>>,
     gas_payment_enabled: AtomicBool,
+    gas_payment_shadow: Option<GasPaymentShadow>,
     sources: HashMap<u32, ScraperSource>,
     url: Url,
 }
@@ -1775,6 +1796,7 @@ impl ScraperWebSocketMonitor {
             parity_unhealthy: Arc::new(parking_lot::Mutex::new(parity_unhealthy)),
             parity_warned_at: Arc::new(parking_lot::Mutex::new(None)),
             gas_payment_enabled: AtomicBool::new(false),
+            gas_payment_shadow: None,
             sources,
             url,
         })
@@ -1793,8 +1815,33 @@ impl ScraperWebSocketMonitor {
         })
     }
 
-    pub(crate) async fn run(self) {
+    pub(crate) fn with_gas_payment_shadow(
+        mut self,
+        metrics: &CoreMetrics,
+        enabled: bool,
+    ) -> Result<Self> {
+        if enabled {
+            self.gas_payment_shadow = Some(GasPaymentShadow::new(&self.sources, metrics)?);
+        }
+        Ok(self)
+    }
+
+    pub(crate) async fn run(mut self) {
+        let worker = self
+            .gas_payment_shadow
+            .as_mut()
+            .and_then(|shadow| shadow.worker.take());
         let monitor = Arc::new(self);
+        if let Some(worker) = worker {
+            // Both futures are owned here: cancelling the monitor cancels receipt RPCs too.
+            tokio::join!(monitor.run_stream(), worker.run());
+        } else {
+            monitor.run_stream().await;
+        }
+    }
+
+    async fn run_stream(self: Arc<Self>) {
+        let monitor = self;
         if monitor.authority_enabled {
             let freshness_monitor = Arc::clone(&monitor);
             tokio::spawn(async move {
@@ -2342,6 +2389,9 @@ impl ScraperWebSocketMonitor {
                                             input.cursor,
                                             |cursor| source.store_gas_payment_cursor(cursor),
                                         )?;
+                                        if let Some(shadow) = &self.gas_payment_shadow {
+                                            shadow.enqueue(domain, input);
+                                        }
                                     }
                                 }
                                 Err(err) => {

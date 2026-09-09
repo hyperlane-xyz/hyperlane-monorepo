@@ -29,6 +29,8 @@ pub enum RpcOperation {
     RelayerMetadata,
     /// Relayer process simulation and transaction-cost estimation.
     RelayerEstimate,
+    /// Opt-in read-only relayer gas receipt shadow verification.
+    GasPaymentShadow,
     /// Nonce, submission, receipt, inclusion, and finality reads or writes.
     TransactionLifecycle,
 }
@@ -45,6 +47,7 @@ impl RpcOperation {
             Self::RelayerRecipient => "relayer_recipient",
             Self::RelayerMetadata => "relayer_metadata",
             Self::RelayerEstimate => "relayer_estimate",
+            Self::GasPaymentShadow => "gas_payment_shadow",
             Self::TransactionLifecycle => "transaction_lifecycle",
         }
     }

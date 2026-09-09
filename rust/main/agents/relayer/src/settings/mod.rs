@@ -77,6 +77,8 @@ pub struct RelayerSettings {
     pub websocket_url: Option<url::Url>,
     /// Whether a healthy scraper-proxy stream may replace direct RPC indexing.
     pub websocket_authority_enabled: bool,
+    /// EVM relay origins to sample against canonical gas receipts; empty disables shadow checks.
+    pub gas_payment_receipt_shadow_chains: HashSet<HyperlaneDomain>,
     /// Whether to enable the relay API endpoint (default: false)
     ///
     /// # Deployment requirement
@@ -433,6 +435,45 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             );
         }
 
+        let gas_payment_receipt_shadow_names = p
+            .chain(&mut err)
+            .get_opt_key("gasPaymentReceiptShadowChains")
+            .parse_string()
+            .end();
+        let gas_payment_receipt_shadow_chains = gas_payment_receipt_shadow_names
+            .into_iter()
+            .flat_map(|names| names.split(','))
+            .filter_map(|name| {
+                let domain = base
+                    .lookup_domain(name)
+                    .context(
+                        "Missing relay origin configuration in `gasPaymentReceiptShadowChains`",
+                    )
+                    .into_config_result(|| cwp.add("gas_payment_receipt_shadow_chains"))
+                    .take_config_err(&mut err)?;
+                if !relay_chains.contains(&domain)
+                    || domain.domain_protocol() != hyperlane_core::HyperlaneDomainProtocol::Ethereum
+                {
+                    err.push(
+                        cwp.clone(),
+                        eyre!(
+                            "`gasPaymentReceiptShadowChains` must contain EVM relay origins only"
+                        ),
+                    );
+                    return None;
+                }
+                Some(domain)
+            })
+            .collect();
+        if gas_payment_receipt_shadow_names.is_some()
+            && (websocket_url.is_none() || !igp_indexing_enabled)
+        {
+            err.push(
+                cwp.clone(),
+                eyre!("`gasPaymentReceiptShadowChains` requires `websocketUrl` and IGP indexing"),
+            );
+        }
+
         let relay_api_enabled = p
             .chain(&mut err)
             .get_opt_key("relayApiEnabled")
@@ -511,6 +552,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             igp_indexing_enabled,
             websocket_url,
             websocket_authority_enabled,
+            gas_payment_receipt_shadow_chains,
             relay_api_enabled,
             relay_api_port,
             relay_api_rate_limit_max_requests,
@@ -708,6 +750,52 @@ mod test {
             settings.websocket_url.expect("configured URL").as_str(),
             "wss://scraper.example/ws/events"
         );
+    }
+
+    #[test]
+    fn gas_receipt_shadow_selects_evm_relay_origins_and_requires_websocket_and_igp() {
+        let base = json!({"relaychains": "legacy,other", "chains": {"legacy": chain_config("legacy", 1000), "other": chain_config("other", 1001)}});
+        assert!(parse_settings(base.clone())
+            .unwrap()
+            .gas_payment_receipt_shadow_chains
+            .is_empty());
+        let mut selected = base;
+        selected["gaspaymentreceiptshadowchains"] = json!("legacy");
+        assert!(parse_settings(selected.clone())
+            .unwrap_err()
+            .to_string()
+            .contains("requires `websocketUrl` and IGP indexing"));
+        selected["websocketurl"] = json!("wss://scraper.example/ws/events");
+        let settings = parse_settings(selected.clone()).unwrap();
+        assert_eq!(settings.gas_payment_receipt_shadow_chains.len(), 1);
+        assert_eq!(
+            settings
+                .gas_payment_receipt_shadow_chains
+                .iter()
+                .next()
+                .unwrap()
+                .name(),
+            "legacy"
+        );
+        for name in ["missing", "", " legacy"] {
+            let mut invalid = selected.clone();
+            invalid["gaspaymentreceiptshadowchains"] = json!(name);
+            assert!(parse_settings(invalid).is_err());
+        }
+        let mut not_relayed = selected.clone();
+        not_relayed["relaychains"] = json!("other");
+        assert!(parse_settings(not_relayed).is_err());
+        let mut non_evm = selected.clone();
+        non_evm["chains"]["legacy"]["protocol"] = json!("sealevel");
+        assert!(parse_settings(non_evm)
+            .unwrap_err()
+            .to_string()
+            .contains("EVM relay origins only"));
+        selected["igpindexingenabled"] = json!(false);
+        assert!(parse_settings(selected)
+            .unwrap_err()
+            .to_string()
+            .contains("requires `websocketUrl` and IGP indexing"));
     }
 
     #[test]

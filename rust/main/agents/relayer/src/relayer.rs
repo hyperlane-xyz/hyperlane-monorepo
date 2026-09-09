@@ -338,7 +338,7 @@ impl BaseAgent for Relayer {
         let scraper_sources = origins
             .iter()
             .map(|(domain, origin)| {
-                ScraperSource::new(
+                let source = ScraperSource::new(
                     domain.name().to_owned(),
                     domain.id(),
                     origin.chain_conf.addresses.mailbox,
@@ -348,9 +348,21 @@ impl BaseAgent for Relayer {
                 )
                 .with_broadcaster(origin.message_sync.get_broadcaster())
                 .with_freshness_indexer(origin.message_sequence_indexer.clone())
-                .with_merkle_freshness_indexer(origin.merkle_sequence_indexer.clone())
+                .with_merkle_freshness_indexer(origin.merkle_sequence_indexer.clone());
+                if settings.gas_payment_receipt_shadow_chains.contains(domain) {
+                    let indexer = origin.igp_indexer.clone().ok_or_else(|| {
+                        eyre::eyre!(
+                            "Selected gas receipt shadow origin {} has no IGP indexer",
+                            domain.name()
+                        )
+                    })?;
+                    Ok(source
+                        .with_gas_receipt_verifier(indexer, origin.validator_announce.provider()))
+                } else {
+                    Ok(source)
+                }
             })
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
         let scraper_websocket_monitor = settings
             .websocket_url
             .map(|url| {
@@ -359,6 +371,10 @@ impl BaseAgent for Relayer {
                     scraper_sources,
                     &core_metrics,
                     settings.websocket_authority_enabled,
+                )?
+                .with_gas_payment_shadow(
+                    &core_metrics,
+                    !settings.gas_payment_receipt_shadow_chains.is_empty(),
                 )
             })
             .transpose()?;
