@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
 
 import {Origin as LayerZeroOrigin} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroEndpointV2.sol";
 import {SetConfigParam as LayerZeroSetConfigParam} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/IMessageLibManager.sol";
@@ -1327,7 +1328,7 @@ contract LayerZeroV2CallbackHookIsmTest is LayerZeroV2HookIsmTestBase {
 contract LayerZeroV2CcipReadHookIsmTest is LayerZeroV2HookIsmTestBase {
     using TypeCasts for address;
 
-    uint256 internal constant PROCESS_GAS_LIMIT = 200_000;
+    uint256 internal constant PROCESS_GAS_LIMIT = 350_000;
     string[] internal lookupUrls;
 
     function setUp() public override {
@@ -1408,6 +1409,29 @@ contract LayerZeroV2CcipReadHookIsmTest is LayerZeroV2HookIsmTestBase {
         );
     }
 
+    function _dispatchUnrelated()
+        internal
+        returns (bytes memory message, bytes memory packet)
+    {
+        TestRecipient unrelatedRecipient = new TestRecipient();
+        TestIsm unrelatedIsm = new TestIsm();
+        unrelatedRecipient.setInterchainSecurityModule(address(unrelatedIsm));
+        bytes memory body = bytes("unrelated message");
+        message = originMailbox.buildOutboundMessage(
+            DESTINATION,
+            address(unrelatedRecipient).addressToBytes32(),
+            body
+        );
+        originMailbox.dispatch{value: NATIVE_FEE}(
+            DESTINATION,
+            address(unrelatedRecipient).addressToBytes32(),
+            body,
+            "",
+            IPostDispatchHook(address(originRouter))
+        );
+        packet = originEndpoint.lastPacket();
+    }
+
     function _replaceDestinationReceiveLibrary(
         MockLayerZeroReceiveUln replacement
     ) internal {
@@ -1459,10 +1483,9 @@ contract LayerZeroV2CcipReadHookIsmTest is LayerZeroV2HookIsmTestBase {
         );
     }
 
-    function testPullCommitsVerificationAndProcessesAtomically() public {
+    function testPullCommitsClearsAndProcessesAtomically() public {
         (bytes memory message, ) = _dispatch();
         bytes memory packet = originEndpoint.lastPacket();
-        (, , bytes32 payloadHash) = this.decodeLayerZeroPacket(packet);
         bytes memory metadata = abi.encode(address(destinationUln), packet);
         destinationMailbox.process(metadata, message);
         assertEq(recipient.lastData(), bytes("hyperlane over layerzero"));
@@ -1473,7 +1496,7 @@ contract LayerZeroV2CcipReadHookIsmTest is LayerZeroV2HookIsmTestBase {
                 address(originRouter).addressToBytes32(),
                 1
             ),
-            payloadHash
+            bytes32(0)
         );
         assertEq(
             destinationEndpoint.lazyInboundNonce(
@@ -1481,7 +1504,7 @@ contract LayerZeroV2CcipReadHookIsmTest is LayerZeroV2HookIsmTestBase {
                 ORIGIN_EID,
                 address(originRouter).addressToBytes32()
             ),
-            0
+            1
         );
     }
 
@@ -1499,34 +1522,115 @@ contract LayerZeroV2CcipReadHookIsmTest is LayerZeroV2HookIsmTestBase {
         assertTrue(success, "single LayerZero message exceeded process gas");
     }
 
-    function testPullUnverifiedPredecessorDoesNotBlockLaterMessage() public {
-        TestRecipient unrelatedRecipient = new TestRecipient();
-        TestIsm unrelatedIsm = new TestIsm();
-        unrelatedRecipient.setInterchainSecurityModule(address(unrelatedIsm));
-        bytes memory unrelatedMessage = originMailbox.buildOutboundMessage(
-            DESTINATION,
-            address(unrelatedRecipient).addressToBytes32(),
-            bytes("unrelated message")
-        );
-        originMailbox.dispatch{value: NATIVE_FEE}(
-            DESTINATION,
-            address(unrelatedRecipient).addressToBytes32(),
-            bytes("unrelated message"),
-            "",
-            IPostDispatchHook(address(originRouter))
-        );
+    function testPullUnverifiedPredecessorEmitsClearFailureWithoutBlocking()
+        public
+    {
+        (bytes memory unrelatedMessage, ) = _dispatchUnrelated();
         destinationMailbox.process("", unrelatedMessage);
 
-        (bytes memory message, ) = _dispatch();
+        (bytes memory message, bytes32 messageId) = _dispatch();
         bytes memory packet = originEndpoint.lastPacket();
-        (uint64 packetNonce, , ) = this.decodeLayerZeroPacket(packet);
+        (uint64 packetNonce, bytes32 guid, bytes32 payloadHash) = this
+            .decodeLayerZeroPacket(packet);
         assertEq(packetNonce, 2);
 
+        vm.recordLogs();
         destinationMailbox.process(
             abi.encode(address(destinationUln), packet),
             message
         );
         assertEq(recipient.lastData(), bytes("hyperlane over layerzero"));
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 eventSignature = keccak256(
+            "LayerZeroPayloadClearFailed(bytes32,uint32,uint32,bytes32,uint64)"
+        );
+        bool foundFailure;
+        for (uint256 i = 0; i < logs.length; ++i) {
+            if (
+                logs[i].topics.length != 0 &&
+                logs[i].emitter == address(destinationRouter) &&
+                logs[i].topics[0] == eventSignature
+            ) {
+                foundFailure = true;
+                assertEq(logs[i].topics[1], messageId);
+                assertEq(logs[i].topics[2], bytes32(uint256(ORIGIN)));
+                assertEq(logs[i].topics[3], bytes32(uint256(ORIGIN_EID)));
+                (bytes32 emittedGuid, uint64 emittedNonce) = abi.decode(
+                    logs[i].data,
+                    (bytes32, uint64)
+                );
+                assertEq(emittedGuid, guid);
+                assertEq(emittedNonce, packetNonce);
+                break;
+            }
+        }
+        assertTrue(foundFailure, "missing clear failure event");
+        assertEq(
+            destinationEndpoint.inboundPayloadHash(
+                address(destinationRouter),
+                ORIGIN_EID,
+                address(originRouter).addressToBytes32(),
+                packetNonce
+            ),
+            payloadHash
+        );
+    }
+
+    function testPullEndpointExecutionRecoversFailedCleanupPermissionlessly()
+        public
+    {
+        (
+            bytes memory unrelatedMessage,
+            bytes memory predecessorPacket
+        ) = _dispatchUnrelated();
+        destinationMailbox.process("", unrelatedMessage);
+
+        (bytes memory message, bytes32 messageId) = _dispatch();
+        bytes memory packet = originEndpoint.lastPacket();
+        (uint64 nonce, bytes32 guid, ) = this.decodeLayerZeroPacket(packet);
+        bytes memory metadata = abi.encode(address(destinationUln), packet);
+        destinationMailbox.process(metadata, message);
+        _precommitPacket(predecessorPacket);
+
+        vm.prank(address(0xBEEF));
+        destinationEndpoint.mockExecute(
+            address(destinationRouter),
+            LayerZeroOrigin({
+                srcEid: ORIGIN_EID,
+                sender: address(originRouter).addressToBytes32(),
+                nonce: nonce
+            }),
+            guid,
+            LayerZeroMessage.encode(ORIGIN, DESTINATION, messageId)
+        );
+
+        assertEq(
+            destinationEndpoint.lazyInboundNonce(
+                address(destinationRouter),
+                ORIGIN_EID,
+                address(originRouter).addressToBytes32()
+            ),
+            2
+        );
+        assertNotEq(
+            destinationEndpoint.inboundPayloadHash(
+                address(destinationRouter),
+                ORIGIN_EID,
+                address(originRouter).addressToBytes32(),
+                1
+            ),
+            bytes32(0)
+        );
+        assertEq(
+            destinationEndpoint.inboundPayloadHash(
+                address(destinationRouter),
+                ORIGIN_EID,
+                address(originRouter).addressToBytes32(),
+                2
+            ),
+            bytes32(0)
+        );
     }
 
     function testPullMaximumSparseNonceFitsGasLimit() public {
@@ -1594,7 +1698,7 @@ contract LayerZeroV2CcipReadHookIsmTest is LayerZeroV2HookIsmTestBase {
     function testPullPrecommittedPacketSkipsUnavailableReceiveLibrary() public {
         (bytes memory message, ) = _dispatch();
         bytes memory packet = originEndpoint.lastPacket();
-        bytes32 payloadHash = _precommitPacket(packet);
+        _precommitPacket(packet);
         destinationUln.setReady(false);
 
         destinationMailbox.process(
@@ -1609,14 +1713,14 @@ contract LayerZeroV2CcipReadHookIsmTest is LayerZeroV2HookIsmTestBase {
                 address(originRouter).addressToBytes32(),
                 1
             ),
-            payloadHash
+            bytes32(0)
         );
     }
 
     function testPullPrecommittedPacketSurvivesReceiveLibraryRotation() public {
         (bytes memory message, ) = _dispatch();
         bytes memory packet = originEndpoint.lastPacket();
-        bytes32 payloadHash = _precommitPacket(packet);
+        _precommitPacket(packet);
         MockLayerZeroReceiveUln replacement = new MockLayerZeroReceiveUln(
             address(destinationEndpoint)
         );
@@ -1634,7 +1738,7 @@ contract LayerZeroV2CcipReadHookIsmTest is LayerZeroV2HookIsmTestBase {
                 address(originRouter).addressToBytes32(),
                 1
             ),
-            payloadHash
+            bytes32(0)
         );
     }
 
@@ -1706,9 +1810,12 @@ contract LayerZeroV2CcipReadHookIsmTest is LayerZeroV2HookIsmTestBase {
         );
     }
 
-    function testPullRejectsCallbackDelivery() public {
+    function testPullRejectsUnauthorizedCallback() public {
         vm.expectRevert(
-            LayerZeroV2CcipReadHookIsm.PullLayerZeroCallbackUnsupported.selector
+            abi.encodeWithSelector(
+                LayerZeroV2CcipReadHookIsm.UnauthorizedCaller.selector,
+                address(this)
+            )
         );
         LayerZeroV2CcipReadHookIsm(address(destinationRouter)).lzReceive(
             LayerZeroOrigin({srcEid: ORIGIN_EID, sender: bytes32(0), nonce: 1}),
@@ -1720,14 +1827,11 @@ contract LayerZeroV2CcipReadHookIsmTest is LayerZeroV2HookIsmTestBase {
     }
 
     function testPullEndpointExecutionCannotConsumeVerifiedPacket() public {
-        (bytes memory message, bytes32 messageId) = _dispatch();
+        (, bytes32 messageId) = _dispatch();
         bytes memory packet = originEndpoint.lastPacket();
         (uint64 nonce, bytes32 guid, bytes32 payloadHash) = this
             .decodeLayerZeroPacket(packet);
-        destinationMailbox.process(
-            abi.encode(address(destinationUln), packet),
-            message
-        );
+        _precommitPacket(packet);
 
         LayerZeroOrigin memory origin = LayerZeroOrigin({
             srcEid: ORIGIN_EID,
@@ -1735,7 +1839,10 @@ contract LayerZeroV2CcipReadHookIsmTest is LayerZeroV2HookIsmTestBase {
             nonce: nonce
         });
         vm.expectRevert(
-            LayerZeroV2CcipReadHookIsm.PullLayerZeroCallbackUnsupported.selector
+            abi.encodeWithSelector(
+                LayerZeroV2CcipReadHookIsm.MessageNotDelivered.selector,
+                messageId
+            )
         );
         destinationEndpoint.mockExecute(
             address(destinationRouter),
@@ -1763,7 +1870,7 @@ contract LayerZeroV2CcipReadHookIsmTest is LayerZeroV2HookIsmTestBase {
         );
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2CcipReadHookIsm.UnauthorizedMailboxCaller.selector,
+                LayerZeroV2CcipReadHookIsm.UnauthorizedCaller.selector,
                 address(this)
             )
         );
@@ -1776,7 +1883,6 @@ contract LayerZeroV2CcipReadHookIsmTest is LayerZeroV2HookIsmTestBase {
     function testPullRollbackWhenRecipientReverts() public {
         (bytes memory message, ) = _dispatch();
         bytes memory packet = originEndpoint.lastPacket();
-        (, , bytes32 payloadHash) = this.decodeLayerZeroPacket(packet);
         bytes memory metadata = abi.encode(address(destinationUln), packet);
         recipient.setInterchainSecurityModule(address(destinationRouter));
         vm.mockCallRevert(
@@ -1805,7 +1911,7 @@ contract LayerZeroV2CcipReadHookIsmTest is LayerZeroV2HookIsmTestBase {
                 address(originRouter).addressToBytes32(),
                 1
             ),
-            payloadHash
+            bytes32(0)
         );
     }
 
@@ -1834,6 +1940,15 @@ contract LayerZeroV2CcipReadHookIsmTest is LayerZeroV2HookIsmTestBase {
         vm.clearMockedCalls();
         destinationMailbox.process(metadata, message);
         assertEq(recipient.lastData(), bytes("hyperlane over layerzero"));
+        assertEq(
+            destinationEndpoint.inboundPayloadHash(
+                address(destinationRouter),
+                ORIGIN_EID,
+                address(originRouter).addressToBytes32(),
+                1
+            ),
+            bytes32(0)
+        );
     }
 
     function testPullRejectsPendingDvnsAndConflictingPayload() public {
