@@ -1,6 +1,8 @@
 # Reject packages published less than 7 days ago (supply chain protection)
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
+  # Transaction v1 decoding ahead of Solana mainnet activation.
+  - '@solana/web3.js@1.99.0'
   - '@hyperlane-xyz/*'
   - '@provablehq/*'
   - '@oxfmt/*'
@@ -85,8 +87,8 @@ catalog:
   cosmjs-types: ^0.9.0
 
   # Solana
-  '@solana/kit': ^6.1.0
-  '@solana/web3.js': ^1.98.4
+  '@solana/kit': ^8.2.0
+  '@solana/web3.js': ^1.99.0
   '@solana/spl-token': ^0.4.9
 
   # Radix

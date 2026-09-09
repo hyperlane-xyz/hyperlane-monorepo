@@ -6,6 +6,12 @@ import {
   type ReadonlyUint8Array,
   AccountRole,
   address,
+  blockhash,
+  compileTransaction,
+  createTransactionMessage,
+  getTransactionEncoder,
+  setTransactionMessageFeePayer,
+  setTransactionMessageLifetimeUsingBlockhash,
   decompileTransactionMessage,
   getBase58Decoder,
   getBase64Decoder,
@@ -148,6 +154,36 @@ describe('buildForkReplayTransaction', () => {
     [payloadInstruction()],
     FEE_PAYER,
   );
+
+  it('rejects a v1 wire transaction before replaying it with legacy compute instructions', async () => {
+    const message = setTransactionMessageLifetimeUsingBlockhash(
+      {
+        blockhash: blockhash('11111111111111111111111111111111'),
+        lastValidBlockHeight: 0n,
+      },
+      setTransactionMessageFeePayer(
+        FEE_PAYER,
+        createTransactionMessage({ version: 1 }),
+      ),
+    );
+    const wire = getTransactionEncoder().encode(compileTransaction(message));
+    const decoded = transactionDecoder.decode(wire);
+    expect(
+      compiledMessageDecoder.decode(decoded.messageBytes).version,
+    ).to.equal(1);
+    let failure: unknown;
+    try {
+      await buildForkReplayTransaction(rpc, {
+        transaction_base58: base58Decoder.decode(wire),
+      });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).to.be.instanceOf(Error);
+    expect(failure instanceof Error && failure.message).to.equal(
+      'v1 fork replay requires header-based compute budget support',
+    );
+  });
 
   it('prepends the requested compute budget when computeUnits is set', async () => {
     const requestedUnits = DEFAULT_COMPUTE_UNITS * 3;
