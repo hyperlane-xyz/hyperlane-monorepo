@@ -36,6 +36,12 @@ const TRON_EXCLUDED_PATTERNS = [
     "/contracts/CheckpointFraudProofs.sol",
 ];
 
+const TRON_WARP_PATTERNS = [
+    "/contracts/token/",
+    "/contracts/hooks/warp-route/",
+    "/contracts/isms/warp-route/",
+];
+
 // Test contracts kept for tron-sdk (TestStorage, ERC20Test, TestIsm, etc.)
 const TRON_TEST_ALLOWLIST = [
     "TestStorage.sol",
@@ -53,7 +59,17 @@ const TRON_MOCK_ALLOWLIST = [
 
 subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS, async (_, __, runSuper) => {
     const sourcePaths = await runSuper();
+    const buildTarget = process.env.TRON_BUILD_TARGET ?? "core";
+    if (buildTarget !== "core" && buildTarget !== "warp") {
+        throw new Error(`Invalid TRON_BUILD_TARGET: ${buildTarget}`);
+    }
     return sourcePaths.filter((sourcePath: string) => {
+        const isWarpContract = TRON_WARP_PATTERNS.some((pattern) =>
+            sourcePath.includes(pattern),
+        );
+        if (buildTarget === "warp") {
+            if (!isWarpContract) return false;
+        } else if (isWarpContract) return false;
         if (sourcePath.includes("/contracts/mock/")) {
             return TRON_MOCK_ALLOWLIST.some((f) => sourcePath.endsWith(f));
         }
@@ -79,9 +95,26 @@ subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS, async (_, __, runSuper) => {
 module.exports = {
     ...rootHardhatConfig,
     solidity: {
-        ...rootHardhatConfig.solidity,
-        // tron-solc latest is 0.8.24
-        version: "0.8.24",
+        compilers: [
+            {
+                ...rootHardhatConfig.solidity,
+                // tron-solc latest is 0.8.24
+                version: "0.8.24",
+            },
+        ],
+        overrides: {
+            "contracts/hooks/layerzero/LayerZeroV2CcipReadHookIsm.sol": {
+                ...rootHardhatConfig.solidity,
+                version: "0.8.24",
+                settings: {
+                    ...rootHardhatConfig.solidity.settings,
+                    optimizer: {
+                        ...rootHardhatConfig.solidity.settings.optimizer,
+                        runs: 200,
+                    },
+                },
+            },
+        },
     },
     paths: {
         sources: "./contracts",
