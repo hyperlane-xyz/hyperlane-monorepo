@@ -1,8 +1,13 @@
-//! Wire types shared by agents consuming scraper-proxy WebSocket streams.
+//! Shared scraper-proxy transport, freshness policy, and event wire types.
+
+mod client;
+mod session;
+pub use client::*;
+pub use session::{ScraperSession, SessionEvent};
 
 use std::collections::HashMap;
 
-use eyre::{Context, Result};
+use eyre::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
 /// A scraper-proxy stream subscription request.
@@ -14,6 +19,50 @@ pub struct SubscribeMessage<'a> {
     /// Protocol message type.
     #[serde(rename = "type")]
     pub message_type: &'a str,
+}
+
+impl SubscribeMessage<'_> {
+    /// Expected acknowledgement, excluding request-only replay options.
+    pub fn confirmation(&self) -> Vec<SubscribedStream> {
+        self.streams
+            .iter()
+            .map(|stream| SubscribedStream {
+                cursors: stream.cursors.as_ref().map(|cursors| {
+                    cursors
+                        .iter()
+                        .map(|cursor| match cursor {
+                            StreamCursor::Sequence(cursor) => SubscribedCursor {
+                                address: cursor.address.clone(),
+                                after_sequence: cursor.after_sequence.clone(),
+                                after_stream_cursor: None,
+                                domain: cursor.domain,
+                            },
+                            StreamCursor::GasPayment(cursor) => SubscribedCursor {
+                                address: cursor.address.clone(),
+                                after_sequence: None,
+                                after_stream_cursor: cursor.after_stream_cursor.clone(),
+                                domain: cursor.domain,
+                            },
+                        })
+                        .collect()
+                }),
+                domains: stream.domains.clone(),
+                event_type: stream.event_type.to_owned(),
+                stream_cursor_version: stream.stream_cursor_version,
+            })
+            .collect()
+    }
+}
+
+/// Reject acknowledgements that change the requested streams or replay cursors.
+pub fn validate_subscription(
+    expected: &[SubscribedStream],
+    actual: &[SubscribedStream],
+) -> Result<()> {
+    if actual != expected {
+        bail!("Scraper-proxy subscription confirmation does not match request");
+    }
+    Ok(())
 }
 
 /// One event stream within a subscription request.
@@ -197,6 +246,76 @@ impl StringOrNumber {
     }
 }
 
+/// Canonical wire projection for Merkle insertion streams consumed by both agents.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MerkleEventData {
+    /// Origin block containing the insertion.
+    pub block_number: StringOrNumber,
+    /// Hyperlane origin domain.
+    pub domain: u32,
+    /// Merkle leaf index, also the stream sequence.
+    pub leaf_index: StringOrNumber,
+    /// Configured Merkle hook address.
+    pub merkle_tree_hook: String,
+    /// Inserted message identifier.
+    pub message_id: String,
+}
+
+impl MerkleEventData {
+    /// Validate the wire projection against its subscription and stream sequence.
+    pub fn decode(
+        self,
+        domain: u32,
+        hook: hyperlane_core::H256,
+        sequence: u32,
+    ) -> Result<(hyperlane_core::MerkleTreeInsertion, u64)> {
+        use eyre::bail;
+        use hyperlane_core::{MerkleTreeInsertion, H256};
+        if self.domain != domain {
+            bail!("Merkle payload domain does not match event envelope");
+        }
+        if parse_address(&self.merkle_tree_hook)? != hook {
+            bail!("Merkle event hook does not match configured hook");
+        }
+        let leaf_index = self.leaf_index.as_u32("Merkle leaf index")?;
+        if leaf_index != sequence {
+            bail!("Merkle leaf index does not match stream sequence");
+        }
+        let bytes = parse_hex(&self.message_id)?;
+        if bytes.len() != 32 {
+            bail!("Invalid Merkle message ID length {}", bytes.len());
+        }
+        Ok((
+            MerkleTreeInsertion::new(leaf_index, H256::from_slice(&bytes)),
+            self.block_number.as_u64("Merkle block number")?,
+        ))
+    }
+}
+
+/// Format a contract address as echoed by scraper-proxy: unpad EVM addresses.
+pub fn format_address(address: hyperlane_core::H256) -> String {
+    let bytes = address.as_bytes();
+    if bytes[..12].iter().all(|byte| *byte == 0) {
+        format!("0x{}", hex::encode(&bytes[12..]))
+    } else {
+        format!("{address:#x}")
+    }
+}
+
+/// Decode an EVM or full-width scraper contract address.
+pub fn parse_address(value: &str) -> Result<hyperlane_core::H256> {
+    hyperlane_core::bytes_to_address(parse_hex(value)?).context("Invalid scraper event address")
+}
+
+fn parse_hex(value: &str) -> Result<Vec<u8>> {
+    let value = value
+        .strip_prefix("0x")
+        .or_else(|| value.strip_prefix("\\x"))
+        .unwrap_or(value);
+    hex::decode(value).context("Invalid hexadecimal WebSocket event field")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -204,6 +323,26 @@ mod tests {
     #[derive(Debug, Deserialize, PartialEq)]
     struct TestData {
         value: String,
+    }
+
+    #[test]
+    fn formats_contracts_like_scraper_proxy_acknowledgements() {
+        use hyperlane_core::H256;
+        let evm = H256::from_low_u64_be(1);
+        assert_eq!(
+            format_address(evm),
+            "0x0000000000000000000000000000000000000001"
+        );
+        let full_width = H256::repeat_byte(0xab);
+        assert_eq!(format_address(full_width), format!("{full_width:#x}"));
+        assert_eq!(
+            parse_address(&format_address(evm)).expect("EVM round trip"),
+            evm
+        );
+        assert_eq!(
+            parse_address(&format_address(full_width)).expect("full-width round trip"),
+            full_width
+        );
     }
 
     #[test]

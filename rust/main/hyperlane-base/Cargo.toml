@@ -28,6 +28,7 @@ fuels.workspace = true
 futures.workspace = true
 futures-util.workspace = true
 itertools.workspace = true
+hex.workspace = true
 maplit.workspace = true
 mockall.workspace = true
 parking_lot.workspace = true
@@ -43,6 +44,7 @@ tempfile = { workspace = true, optional = true }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tokio-metrics.workspace = true
+tokio-tungstenite.workspace = true
 tracing-error.workspace = true
 tracing-futures.workspace = true
 tracing-subscriber = { workspace = true, features = ["json", "ansi"] }

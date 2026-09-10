@@ -1,5 +1,7 @@
 //! Relayer inputs streamed by scraper-proxy with RPC parity and fallback.
 
+#[cfg(test)]
+use hyperlane_base::scraper_websocket::SubscribedStream;
 use std::{
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
     sync::{
@@ -10,14 +12,19 @@ use std::{
 };
 
 use eyre::{bail, Context, ContextCompat, Result};
-use futures_util::{stream, SinkExt, StreamExt};
+use futures_util::{
+    stream::{self, BoxStream},
+    StreamExt,
+};
 use hyperlane_base::{
     broadcast::{BroadcastMpscSender, IndexingNotification},
     db::{DbResult, HyperlaneDb, HyperlaneRocksDB},
     scraper_websocket::{
-        EventMessage, GasPaymentCursor as GasPaymentSubscriptionCursor, SequenceCursor,
-        ServerMessage, StreamCursor as SubscriptionCursor, StringOrNumber, SubscribeMessage,
-        SubscribeStream, SubscribedCursor, SubscribedStream,
+        format_address as scraper_address, reconnect_after, validate_cutover_freshness,
+        EventMessage, GasPaymentCursor as GasPaymentSubscriptionCursor, MerkleEventData,
+        RejectedStream, ScraperSession, SequenceCursor, ServerMessage, SessionEvent,
+        StreamCursor as SubscriptionCursor, StreamHealth, StreamTimeouts, StringOrNumber,
+        SubscribeMessage, SubscribeStream, SubscribedCursor, RETRY_DELAY, RPC_PROBE_TIMEOUT,
     },
     settings::SequenceIndexer,
     CoreMetrics,
@@ -31,9 +38,8 @@ use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
 use tokio::{
     sync::{watch, Notify, OwnedSemaphorePermit, Semaphore},
-    time::{interval, sleep, timeout, Instant, MissedTickBehavior},
+    time::{sleep, timeout, Instant},
 };
-use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{info, warn};
 use url::Url;
 
@@ -41,10 +47,6 @@ const DISPATCH_EVENT_TYPE: &str = "dispatch";
 const GAS_PAYMENT_EVENT_TYPE: &str = "gas_payment";
 const GAS_PAYMENT_STREAM_CURSOR_VERSION: u32 = 3;
 const MERKLE_EVENT_TYPE: &str = "merkle_tree_insertion";
-const READ_TIMEOUT: Duration = Duration::from_secs(75);
-const RETRY_DELAY: Duration = Duration::from_secs(5);
-const AUTHORITY_FRESHNESS_INTERVAL: Duration = Duration::from_secs(30);
-const AUTHORITY_FRESHNESS_TIMEOUT: Duration = Duration::from_secs(10);
 const AUTHORITY_FRESHNESS_CONCURRENCY: usize = 16;
 #[cfg(not(test))]
 const AUTHORITY_HANDOFF_TIMEOUT: Duration = Duration::from_secs(30);
@@ -1054,31 +1056,20 @@ impl StreamState {
             MERKLE_EVENT_TYPE => {
                 let data: MerkleEventData = serde_json::from_value(event.data)
                     .context("Invalid Merkle tree insertion payload")?;
-                if data.domain != event.domain {
-                    bail!("Merkle payload domain does not match event envelope");
-                }
-                let merkle_tree_hook = parse_address(&data.merkle_tree_hook)?;
-                if merkle_tree_hook != source.merkle_tree_hook {
-                    bail!("Merkle event hook does not match configured hook");
-                }
-                let leaf_index = data.leaf_index.as_u32("Merkle leaf index")?;
-                if leaf_index != sequence {
-                    bail!("Merkle leaf index does not match stream sequence");
-                }
-                let block_number = data.block_number.as_u64("Merkle block number")?;
+                let (insertion, block_number) =
+                    data.decode(event.domain, source.merkle_tree_hook, sequence)?;
                 let block_number_bytes = block_number.to_be_bytes();
-                let message_id = parse_h256(&data.message_id, "Merkle message ID")?;
                 (
                     EventKind::MerkleTreeInsertion,
                     event_fingerprint(&[
                         b"merkle_tree_insertion",
                         &block_number_bytes,
-                        merkle_tree_hook.as_ref(),
-                        message_id.as_ref(),
+                        source.merkle_tree_hook.as_ref(),
+                        insertion.message_id().as_ref(),
                     ]),
                     ParityInput::MerkleTreeInsertion {
                         block_number,
-                        insertion: MerkleTreeInsertion::new(leaf_index, message_id),
+                        insertion,
                     },
                 )
             }
@@ -1425,54 +1416,6 @@ impl StreamState {
     }
 }
 
-#[derive(Debug, Default)]
-struct HandshakeState {
-    confirmed: bool,
-    sent: bool,
-}
-
-impl HandshakeState {
-    fn ready(&mut self) -> Result<()> {
-        if self.sent {
-            bail!("Received duplicate scraper-proxy ready message");
-        }
-        self.sent = true;
-        Ok(())
-    }
-
-    fn subscribed(
-        &mut self,
-        streams: &[SubscribedStream],
-        sources: &HashMap<u32, ScraperSource>,
-        plan: &SequencedReplayPlan,
-        gas_payment_cursors: &[SubscribedCursor],
-        gas_payment_enabled: bool,
-    ) -> Result<()> {
-        if !self.sent {
-            bail!("Received subscribed before ready");
-        }
-        if self.confirmed {
-            bail!("Received duplicate scraper-proxy subscribed message");
-        }
-        validate_subscription(
-            streams,
-            sources,
-            plan,
-            gas_payment_cursors,
-            gas_payment_enabled,
-        )?;
-        self.confirmed = true;
-        Ok(())
-    }
-
-    fn event(&self) -> Result<()> {
-        if !self.confirmed {
-            bail!("Received scraper event before subscription confirmation");
-        }
-        Ok(())
-    }
-}
-
 struct ParityJob {
     input: ParityInput,
     queue_permit: OwnedSemaphorePermit,
@@ -1500,6 +1443,7 @@ struct AuthorityHandoff {
 
 #[derive(Debug)]
 struct SourceAuthority {
+    health: parking_lot::Mutex<[StreamHealth; 2]>,
     active: Arc<AtomicBool>,
     handoff: Arc<AuthorityHandoff>,
     sender: watch::Sender<AuthorityCommand>,
@@ -1593,6 +1537,12 @@ struct AuthorityRevocationHooks {
     before_publish: Option<AuthorityRevocationHook>,
     after_publish: Option<AuthorityRevocationHook>,
 }
+
+type FreshnessProbe = (
+    u32,
+    String,
+    Result<(bool, Option<u32>, Option<u32>, Option<u32>, Option<u32>)>,
+);
 
 /// One process-wide, read-only scraper stream monitor.
 pub(crate) struct ScraperWebSocketMonitor {
@@ -1704,6 +1654,9 @@ impl ScraperWebSocketMonitor {
                 (
                     domain,
                     SourceAuthority {
+                        health: parking_lot::Mutex::new(std::array::from_fn(|_| {
+                            StreamHealth::default()
+                        })),
                         active: Arc::new(AtomicBool::new(false)),
                         handoff,
                         sender,
@@ -1795,12 +1748,6 @@ impl ScraperWebSocketMonitor {
 
     pub(crate) async fn run(self) {
         let monitor = Arc::new(self);
-        if monitor.authority_enabled {
-            let freshness_monitor = Arc::clone(&monitor);
-            tokio::spawn(async move {
-                freshness_monitor.run_authority_freshness().await;
-            });
-        }
         let mut state = loop {
             match StreamState::load_gas_payment(&monitor.sources) {
                 Ok(state) => break state,
@@ -1828,20 +1775,13 @@ impl ScraperWebSocketMonitor {
             monitor.set_active(false);
             monitor.set_caught_up(false);
             let gas_payment_cursors = monitor.gas_payment_cursors(&state);
-            match monitor
+            let result = monitor
                 .stream(&mut state, &plan, &gas_payment_cursors)
-                .await
-            {
-                Ok(()) => warn!("Relayer scraper-proxy shadow stream closed; reconnecting"),
-                Err(err) => warn!(
-                    ?err,
-                    "Relayer scraper-proxy shadow stream failed; reconnecting"
-                ),
-            }
+                .await;
             monitor.set_active(false);
             monitor.set_caught_up(false);
             monitor.deactivate_authority();
-            sleep(RETRY_DELAY).await;
+            reconnect_after(result, RETRY_DELAY).await;
         }
     }
 
@@ -1999,7 +1939,7 @@ impl ScraperWebSocketMonitor {
         pending.dec();
         if pending.get() == 0 && !self.parity_unhealthy.lock().contains(&(domain, kind)) {
             self.parity_ready.with_label_values(&labels).set(1);
-            self.maybe_activate_source_authority(domain).await;
+            // The connection schedules cutover after events and progress probes.
         }
         terminal
     }
@@ -2028,18 +1968,24 @@ impl ScraperWebSocketMonitor {
         kind: EventKind,
         parity_input: ParityInput,
         sequence: u32,
-    ) -> bool {
+    ) -> Result<bool> {
         if self.parity_read_disabled.load(Ordering::Acquire) {
-            return false;
+            return Ok(false);
         }
-        let queue_permit = self
-            .parity_queue_permit
-            .clone()
-            .acquire_owned()
-            .await
-            .expect("parity queue semaphore is never closed");
+        // Admission runs between session polls. Waiting here would also stop
+        // freshness probes and disconnect detection for every origin.
+        let queue_permit = match self.parity_queue_permit.clone().try_acquire_owned() {
+            Ok(permit) => permit,
+            Err(tokio::sync::TryAcquireError::NoPermits) => {
+                self.deactivate_authority();
+                bail!("Scraper parity queue is full; restoring RPC fallback");
+            }
+            Err(tokio::sync::TryAcquireError::Closed) => {
+                unreachable!("parity queue semaphore is never closed")
+            }
+        };
         if self.parity_read_disabled.load(Ordering::Acquire) {
-            return false;
+            return Ok(false);
         }
         let queue = self
             .parity_queues
@@ -2066,7 +2012,7 @@ impl ScraperWebSocketMonitor {
                 monitor.drain_parity_queue(domain, kind, queue).await;
             });
         }
-        true
+        Ok(true)
     }
 
     #[cfg(test)]
@@ -2080,7 +2026,8 @@ impl ScraperWebSocketMonitor {
         self.note_parity_pending(domain, kind);
         let enqueued = self
             .enqueue_accounted_parity(domain, kind, parity_input, sequence)
-            .await;
+            .await
+            .expect("test parity admission");
         if !enqueued {
             self.cancel_parity_pending(domain, kind);
         }
@@ -2094,7 +2041,7 @@ impl ScraperWebSocketMonitor {
     ) -> Result<()> {
         if !self
             .enqueue_accounted_parity(domain, validated.kind, validated.parity, validated.sequence)
-            .await
+            .await?
         {
             self.cancel_parity_pending(domain, validated.kind);
         }
@@ -2233,264 +2180,234 @@ impl ScraperWebSocketMonitor {
         gas_payment_cursors: &[SubscribedCursor],
         staged_parity: &mut StagedParity,
     ) -> Result<()> {
-        let (mut socket, _) = timeout(READ_TIMEOUT, connect_async(self.url.as_str()))
-            .await
-            .context("Connecting to relayer scraper-proxy WebSocket timed out")?
-            .context("Connecting to relayer scraper-proxy WebSocket")?;
-        let mut handshake = HandshakeState::default();
+        let mut socket = ScraperSession::connect(&self.url, StreamTimeouts::default()).await?;
         let mut caught_up = HashMap::new();
         let mut gas_payment_caught_up = HashSet::new();
-        let read_deadline = sleep(READ_TIMEOUT);
-        tokio::pin!(read_deadline);
-
-        while let Some(message) = tokio::select! {
-            _ = &mut read_deadline => bail!("Relayer scraper-proxy WebSocket heartbeat timed out"),
-            message = socket.next() => message,
-        } {
-            let next_read_deadline = Instant::now()
-                .checked_add(READ_TIMEOUT)
-                .expect("read timeout cannot exceed Instant range");
-            read_deadline.as_mut().reset(next_read_deadline);
-            match message.context("Reading relayer scraper-proxy WebSocket message")? {
-                Message::Text(text) => {
-                    let message: ServerMessage<serde_json::Value> = serde_json::from_str(&text)
-                        .context("Parsing relayer scraper-proxy WebSocket message")?;
-                    match message {
-                        ServerMessage::Ready {
-                            stream_cursor_versions,
-                        } => {
-                            handshake.ready()?;
-                            let gas_payment_enabled = stream_cursor_versions
-                                .get(GAS_PAYMENT_EVENT_TYPE)
-                                == Some(&GAS_PAYMENT_STREAM_CURSOR_VERSION);
-                            self.gas_payment_enabled
-                                .store(gas_payment_enabled, Ordering::Relaxed);
-                            for source in self.sources.values() {
-                                self.set_source_caught_up(source, EventKind::GasPayment, false);
-                                self.degraded
-                                    .with_label_values(&[
-                                        source.chain.as_str(),
-                                        GAS_PAYMENT_EVENT_TYPE,
-                                    ])
-                                    .set(i64::from(
-                                        !gas_payment_enabled || source.gas_payment_degraded()?,
-                                    ));
-                            }
-                            socket
-                                .send(Message::Text(self.subscription(plan, gas_payment_cursors)?))
-                                .await
-                                .context("Subscribing to relayer scraper-proxy streams")?;
-                        }
-                        ServerMessage::Subscribed { streams } => {
-                            let gas_payment_enabled =
-                                self.gas_payment_enabled.load(Ordering::Relaxed);
-                            handshake.subscribed(
-                                &streams,
-                                &self.sources,
-                                plan,
-                                gas_payment_cursors,
-                                gas_payment_enabled,
-                            )?;
-                            self.set_active(true);
-                            info!("Relayer scraper-proxy shadow streams active");
-                        }
-                        ServerMessage::Event(event) => {
-                            handshake.event()?;
-                            let domain = event.domain;
-                            let is_gas_payment = event.event_type == GAS_PAYMENT_EVENT_TYPE;
-                            let event_type = event_label(&event.event_type);
-                            if is_gas_payment && !self.gas_payment_enabled.load(Ordering::Relaxed) {
-                                bail!(
-                                    "Received gas payment event without negotiated cursor support"
-                                );
-                            }
-                            if is_gas_payment && state.gas_payment_degraded.contains(&domain) {
-                                self.record(domain, GAS_PAYMENT_EVENT_TYPE, "degraded");
-                                continue;
-                            }
-                            match state.validate(event, &self.sources) {
-                                Ok(validated) => {
-                                    let result = match validated.sequence_result {
-                                        SequenceResult::Accepted => "accepted",
-                                        SequenceResult::Duplicate => "duplicate",
-                                    };
-                                    self.record(domain, validated.kind.label(), result);
-                                    if validated.parity.is_some() {
-                                        self.stage_parity(staged_parity, domain, validated)?;
-                                        self.flush_staged_parity(
-                                            state,
-                                            plan,
-                                            &caught_up,
-                                            domain,
-                                            staged_parity,
-                                        )
-                                        .await?;
-                                        self.update_source_caught_up(
-                                            state, plan, &caught_up, domain,
-                                        )
-                                        .await?;
-                                    } else {
-                                        let source = self.sources.get(&domain).context(
-                                            "Validated scraper event source unexpectedly missing",
-                                        )?;
-                                        let input = validated
-                                            .gas_payment
-                                            .context("Validated gas payment has no input")?;
-                                        source.store_gas_payment(&input)?;
-                                        state.persist_gas_payment_cursor(
-                                            domain,
-                                            input.cursor,
-                                            |cursor| source.store_gas_payment_cursor(cursor),
-                                        )?;
-                                    }
-                                }
-                                Err(err) => {
-                                    let result = if err.downcast_ref::<StreamGap>().is_some() {
-                                        "gap"
-                                    } else {
-                                        "invalid"
-                                    };
-                                    self.record(domain, event_type, result);
-                                    if !is_gas_payment || !self.sources.contains_key(&domain) {
-                                        return Err(err);
-                                    }
-                                    let source = self.sources.get(&domain).context(
-                                        "Invalid gas payment source unexpectedly missing",
-                                    )?;
-                                    if self.degrade_gas_payment(state, source)? {
-                                        warn!(
-                                            ?err,
-                                            domain,
-                                            "Relayer scraper-proxy gas payment shadow stream degraded"
-                                        );
-                                    }
-                                }
-                            }
-                        }
-                        ServerMessage::CaughtUp {
-                            address,
-                            domain,
-                            event_type,
-                            legacy_max_stream_cursor,
-                            row_id,
-                            stream_cursor,
-                            sequence,
-                        } => {
-                            handshake.event()?;
-                            if event_type == GAS_PAYMENT_EVENT_TYPE {
-                                if !self.gas_payment_enabled.load(Ordering::Relaxed) {
-                                    bail!("Received gas payment caught-up marker without negotiated cursor support");
-                                }
-                                if state.gas_payment_degraded.contains(&domain) {
-                                    self.record(domain, GAS_PAYMENT_EVENT_TYPE, "degraded");
-                                    continue;
-                                }
-                                let source = self.sources.get(&domain).with_context(|| {
-                                    format!("Unexpected scraper caught-up domain {domain}")
-                                })?;
-                                let cursor = state.gas_payment_caught_up_cursor(
-                                    &address,
-                                    source,
-                                    legacy_max_stream_cursor.as_deref(),
-                                    row_id.as_deref(),
-                                    stream_cursor.as_deref(),
-                                    sequence.as_deref(),
-                                )?;
-                                state.persist_gas_payment_cursor(domain, cursor, |cursor| {
-                                    source.store_gas_payment_cursor(cursor)
-                                })?;
-                                if !gas_payment_caught_up.insert(domain) {
-                                    bail!("Received duplicate scraper caught-up marker");
-                                }
-                                self.set_source_caught_up(source, EventKind::GasPayment, true);
-                                self.record(domain, GAS_PAYMENT_EVENT_TYPE, "caught_up");
-                                self.maybe_activate_source_authority(domain).await;
-                                continue;
-                            }
-                            if row_id.is_some() || stream_cursor.is_some() {
-                                bail!("Sequenced scraper caught-up marker included a row/stream cursor");
-                            }
-                            let kind = EventKind::from_label(&event_type)?;
-                            let source = self.sources.get(&domain).with_context(|| {
-                                format!("Unexpected scraper caught-up domain {domain}")
-                            })?;
-                            if parse_address(&address)? != source.address(kind) {
-                                bail!(
-                                    "Scraper caught-up address does not match configured contract"
-                                );
-                            }
-                            let sequence = sequence
-                                .as_deref()
-                                .context("Sequenced scraper caught-up marker omitted sequence")?
-                                .parse::<i64>()
-                                .context("Invalid scraper caught-up sequence")?;
-                            if sequence < -1 {
-                                bail!("Invalid negative scraper caught-up sequence {sequence}");
-                            }
-                            validate_caught_up_floor(plan, domain, kind, sequence)?;
-                            if plan.source(domain)?.floor(kind).is_none() {
-                                state.validate_fresh_baseline(domain, kind, sequence)?;
-                            }
-                            state.set_baseline(domain, kind, sequence)?;
-                            if caught_up.insert((domain, kind), sequence).is_some() {
-                                bail!("Received duplicate scraper caught-up marker");
-                            }
-                            if plan.source(domain)?.floor(kind).is_none()
-                                && sequence >= 0
-                                && self
-                                    .parity_pending
-                                    .with_label_values(&[source.chain.as_str(), kind.label()])
-                                    .get()
-                                    == 0
-                            {
-                                source.store_cursor(
-                                    kind,
-                                    sequence
-                                        .try_into()
-                                        .context("Scraper caught-up sequence exceeds u32")?,
-                                )?;
-                            }
-                            self.flush_staged_parity(
-                                state,
-                                plan,
-                                &caught_up,
-                                domain,
-                                staged_parity,
-                            )
-                            .await?;
-                            self.update_source_caught_up(state, plan, &caught_up, domain)
+        loop {
+            for source in self.sources.values() {
+                if !self
+                    .source_authority(source.domain)
+                    .active
+                    .load(Ordering::Acquire)
+                    && self.base_source_authority_ready(source)
+                    && self.fresh.with_label_values(&[source.chain.as_str()]).get() == 1
+                {
+                    let monitor = self.clone();
+                    let domain = source.domain;
+                    socket.start_cutover(domain, async move {
+                        monitor.maybe_activate_source_authority(domain).await;
+                    });
+                }
+            }
+            let Some(event) = socket
+                .next::<serde_json::Value>(self.authority_enabled, || self.freshness_probes())
+                .await?
+            else {
+                break;
+            };
+            let message = match event {
+                SessionEvent::Message(message) => message,
+                SessionEvent::Progress(probe) => {
+                    self.apply_freshness(probe);
+                    continue;
+                }
+                SessionEvent::Cutover { .. } => continue,
+            };
+            match message {
+                ServerMessage::Ready {
+                    stream_cursor_versions,
+                } => {
+                    let gas_payment_enabled = stream_cursor_versions.get(GAS_PAYMENT_EVENT_TYPE)
+                        == Some(&GAS_PAYMENT_STREAM_CURSOR_VERSION);
+                    self.gas_payment_enabled
+                        .store(gas_payment_enabled, Ordering::Relaxed);
+                    for source in self.sources.values() {
+                        self.set_source_caught_up(source, EventKind::GasPayment, false);
+                        self.degraded
+                            .with_label_values(&[source.chain.as_str(), GAS_PAYMENT_EVENT_TYPE])
+                            .set(i64::from(
+                                !gas_payment_enabled || source.gas_payment_degraded()?,
+                            ));
+                    }
+                    socket
+                        .subscribe(self.subscription(plan, gas_payment_cursors)?)
+                        .await?;
+                }
+                ServerMessage::Subscribed { .. } => {
+                    self.set_active(true);
+                    info!("Relayer scraper-proxy shadow streams active");
+                }
+                ServerMessage::Event(event) => {
+                    let domain = event.domain;
+                    let is_gas_payment = event.event_type == GAS_PAYMENT_EVENT_TYPE;
+                    let event_type = event_label(&event.event_type);
+                    if is_gas_payment && !self.gas_payment_enabled.load(Ordering::Relaxed) {
+                        bail!("Received gas payment event without negotiated cursor support");
+                    }
+                    if is_gas_payment && state.gas_payment_degraded.contains(&domain) {
+                        self.record(domain, GAS_PAYMENT_EVENT_TYPE, "degraded");
+                        continue;
+                    }
+                    match state.validate(event, &self.sources) {
+                        Ok(validated) => {
+                            let result = match validated.sequence_result {
+                                SequenceResult::Accepted => "accepted",
+                                SequenceResult::Duplicate => "duplicate",
+                            };
+                            self.record(domain, validated.kind.label(), result);
+                            if validated.parity.is_some() {
+                                self.stage_parity(staged_parity, domain, validated)?;
+                                self.flush_staged_parity(
+                                    state,
+                                    plan,
+                                    &caught_up,
+                                    domain,
+                                    staged_parity,
+                                )
                                 .await?;
-                        }
-                        ServerMessage::Error { error } => {
-                            if self.gas_payment_enabled.load(Ordering::Relaxed)
-                                && is_unsupported_row_cursor_error(&error)
-                            {
-                                self.gas_payment_enabled.store(false, Ordering::Relaxed);
-                                self.deactivate_authority();
-                                for source in self.sources.values() {
-                                    self.set_source_caught_up(source, EventKind::GasPayment, false);
-                                    self.degraded
-                                        .with_label_values(&[
-                                            source.chain.as_str(),
-                                            GAS_PAYMENT_EVENT_TYPE,
-                                        ])
-                                        .set(1);
-                                }
-                                bail!("Scraper-proxy lacks gas payment row cursor support; retrying sequenced streams only");
+                                self.update_source_caught_up(state, plan, &caught_up, domain)
+                                    .await?;
+                            } else {
+                                let source = self.sources.get(&domain).context(
+                                    "Validated scraper event source unexpectedly missing",
+                                )?;
+                                let input = validated
+                                    .gas_payment
+                                    .context("Validated gas payment has no input")?;
+                                source.store_gas_payment(&input)?;
+                                state.persist_gas_payment_cursor(
+                                    domain,
+                                    input.cursor,
+                                    |cursor| source.store_gas_payment_cursor(cursor),
+                                )?;
                             }
-                            bail!("Scraper-proxy rejected relayer shadow stream: {error}")
                         }
-                        ServerMessage::Other => {}
+                        Err(err) => {
+                            let result = if err.downcast_ref::<StreamGap>().is_some() {
+                                "gap"
+                            } else {
+                                "invalid"
+                            };
+                            self.record(domain, event_type, result);
+                            if !is_gas_payment || !self.sources.contains_key(&domain) {
+                                return Err(err);
+                            }
+                            let source = self
+                                .sources
+                                .get(&domain)
+                                .context("Invalid gas payment source unexpectedly missing")?;
+                            if self.degrade_gas_payment(state, source)? {
+                                warn!(
+                                    ?err,
+                                    domain,
+                                    "Relayer scraper-proxy gas payment shadow stream degraded"
+                                );
+                            }
+                        }
                     }
                 }
-                Message::Ping(payload) => socket
-                    .send(Message::Pong(payload))
-                    .await
-                    .context("Responding to relayer scraper-proxy heartbeat")?,
-                Message::Close(frame) => {
-                    bail!("Relayer scraper-proxy WebSocket closed: {frame:?}")
+                ServerMessage::CaughtUp {
+                    address,
+                    domain,
+                    event_type,
+                    legacy_max_stream_cursor,
+                    row_id,
+                    stream_cursor,
+                    sequence,
+                } => {
+                    if event_type == GAS_PAYMENT_EVENT_TYPE {
+                        if !self.gas_payment_enabled.load(Ordering::Relaxed) {
+                            bail!("Received gas payment caught-up marker without negotiated cursor support");
+                        }
+                        if state.gas_payment_degraded.contains(&domain) {
+                            self.record(domain, GAS_PAYMENT_EVENT_TYPE, "degraded");
+                            continue;
+                        }
+                        let source = self.sources.get(&domain).with_context(|| {
+                            format!("Unexpected scraper caught-up domain {domain}")
+                        })?;
+                        let cursor = state.gas_payment_caught_up_cursor(
+                            &address,
+                            source,
+                            legacy_max_stream_cursor.as_deref(),
+                            row_id.as_deref(),
+                            stream_cursor.as_deref(),
+                            sequence.as_deref(),
+                        )?;
+                        state.persist_gas_payment_cursor(domain, cursor, |cursor| {
+                            source.store_gas_payment_cursor(cursor)
+                        })?;
+                        if !gas_payment_caught_up.insert(domain) {
+                            bail!("Received duplicate scraper caught-up marker");
+                        }
+                        self.set_source_caught_up(source, EventKind::GasPayment, true);
+                        self.record(domain, GAS_PAYMENT_EVENT_TYPE, "caught_up");
+                        continue;
+                    }
+                    if row_id.is_some() || stream_cursor.is_some() {
+                        bail!("Sequenced scraper caught-up marker included a row/stream cursor");
+                    }
+                    let kind = EventKind::from_label(&event_type)?;
+                    let source = self
+                        .sources
+                        .get(&domain)
+                        .with_context(|| format!("Unexpected scraper caught-up domain {domain}"))?;
+                    if parse_address(&address)? != source.address(kind) {
+                        bail!("Scraper caught-up address does not match configured contract");
+                    }
+                    let sequence = sequence
+                        .as_deref()
+                        .context("Sequenced scraper caught-up marker omitted sequence")?
+                        .parse::<i64>()
+                        .context("Invalid scraper caught-up sequence")?;
+                    if sequence < -1 {
+                        bail!("Invalid negative scraper caught-up sequence {sequence}");
+                    }
+                    validate_caught_up_floor(plan, domain, kind, sequence)?;
+                    if plan.source(domain)?.floor(kind).is_none() {
+                        state.validate_fresh_baseline(domain, kind, sequence)?;
+                    }
+                    state.set_baseline(domain, kind, sequence)?;
+                    if caught_up.insert((domain, kind), sequence).is_some() {
+                        bail!("Received duplicate scraper caught-up marker");
+                    }
+                    if plan.source(domain)?.floor(kind).is_none()
+                        && sequence >= 0
+                        && self
+                            .parity_pending
+                            .with_label_values(&[source.chain.as_str(), kind.label()])
+                            .get()
+                            == 0
+                    {
+                        source.store_cursor(
+                            kind,
+                            sequence
+                                .try_into()
+                                .context("Scraper caught-up sequence exceeds u32")?,
+                        )?;
+                    }
+                    self.flush_staged_parity(state, plan, &caught_up, domain, staged_parity)
+                        .await?;
+                    self.update_source_caught_up(state, plan, &caught_up, domain)
+                        .await?;
                 }
-                Message::Binary(_) | Message::Pong(_) | Message::Frame(_) => {}
+                ServerMessage::Error { error } => {
+                    if self.gas_payment_enabled.load(Ordering::Relaxed)
+                        && is_unsupported_row_cursor_error(&error)
+                    {
+                        self.gas_payment_enabled.store(false, Ordering::Relaxed);
+                        self.deactivate_authority();
+                        for source in self.sources.values() {
+                            self.set_source_caught_up(source, EventKind::GasPayment, false);
+                            self.degraded
+                                .with_label_values(&[source.chain.as_str(), GAS_PAYMENT_EVENT_TYPE])
+                                .set(1);
+                        }
+                        bail!("Scraper-proxy lacks gas payment row cursor support; retrying sequenced streams only");
+                    }
+                    return Err(RejectedStream(error).into());
+                }
+                ServerMessage::Other => {}
             }
         }
         Ok(())
@@ -2500,7 +2417,7 @@ impl ScraperWebSocketMonitor {
         &self,
         plan: &SequencedReplayPlan,
         gas_payment_cursors: &[SubscribedCursor],
-    ) -> Result<String> {
+    ) -> Result<SubscribeMessage<'static>> {
         subscription(
             &self.sources,
             plan,
@@ -2582,6 +2499,11 @@ impl ScraperWebSocketMonitor {
         #[cfg(test)]
         self.wait_for_revocation_hook(true);
         authority.sender.send_if_modified(|current| {
+            authority
+                .health
+                .lock()
+                .iter_mut()
+                .for_each(StreamHealth::reset);
             if authority.active.swap(false, Ordering::AcqRel) {
                 info!(
                     chain = source.chain,
@@ -2749,16 +2671,7 @@ impl ScraperWebSocketMonitor {
                 .all(|source| self.base_source_authority_ready(source))
     }
 
-    async fn run_authority_freshness(self: Arc<Self>) {
-        let mut ticker = interval(AUTHORITY_FRESHNESS_INTERVAL);
-        ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
-        loop {
-            ticker.tick().await;
-            self.refresh_authority_once().await;
-        }
-    }
-
-    async fn refresh_authority_once(&self) {
+    fn freshness_probes(self: &Arc<Self>) -> BoxStream<'static, FreshnessProbe> {
         let ready_sources = self
             .sources
             .values()
@@ -2770,126 +2683,160 @@ impl ScraperWebSocketMonitor {
                 ready.then(|| source.clone())
             })
             .collect::<Vec<_>>();
-        let results = stream::iter(ready_sources)
-            .map(|source| async move {
-                let domain = source.domain;
-                let chain = source.chain.clone();
-                let result = async {
-                    let indexer = source
-                        .freshness_indexer
-                        .clone()
-                        .context("Missing canonical dispatch freshness indexer")?;
-                    let merkle_indexer = source
-                        .merkle_freshness_indexer
-                        .clone()
-                        .context("Missing canonical Merkle freshness indexer")?;
-                    let (dispatch_canonical_count, _) = timeout(
-                        AUTHORITY_FRESHNESS_TIMEOUT,
-                        indexer.latest_sequence_count_and_tip(),
-                    )
-                    .await
-                    .context("Canonical dispatch freshness probe timed out")??;
-                    let (merkle_canonical_count, _) = timeout(
-                        AUTHORITY_FRESHNESS_TIMEOUT,
-                        merkle_indexer.latest_sequence_count_and_tip(),
-                    )
-                    .await
-                    .context("Canonical Merkle freshness probe timed out")??;
-                    let cursor_source = source.clone();
-                    let cursor_read = async {
-                        let permit = self
-                            .parity_read_permit
+        let monitor = self.clone();
+        stream::iter(ready_sources)
+            .map(move |source| {
+                let monitor = monitor.clone();
+                async move {
+                    let domain = source.domain;
+                    let chain = source.chain.clone();
+                    let result = async {
+                        let indexer = source
+                            .freshness_indexer
                             .clone()
-                            .acquire_owned()
-                            .await
-                            .expect("parity semaphore is never closed");
-                        if self.parity_read_disabled.load(Ordering::Acquire) {
-                            bail!("Canonical scraper freshness reads are disabled");
-                        }
-                        tokio::task::spawn_blocking(move || -> Result<_> {
-                            let _permit = permit;
-                            Ok((
-                                cursor_source.cursor(EventKind::Dispatch)?,
-                                cursor_source.cursor(EventKind::MerkleTreeInsertion)?,
-                            ))
-                        })
-                        .await
-                        .context("Canonical scraper freshness cursor task failed")?
-                    };
-                    let (dispatch_cursor, merkle_cursor) =
-                        match timeout(PARITY_READ_TIMEOUT, cursor_read).await {
-                            Ok(result) => result?,
-                            Err(_) => {
-                                self.disable_parity_reads(
-                                    &chain,
-                                    DISPATCH_EVENT_TYPE,
-                                    "canonical freshness cursor read timed out",
-                                );
-                                bail!("Canonical scraper freshness cursor read timed out");
+                            .context("Missing canonical dispatch freshness indexer")?;
+                        let merkle_indexer = source
+                            .merkle_freshness_indexer
+                            .clone()
+                            .context("Missing canonical Merkle freshness indexer")?;
+                        let cursor_source = source.clone();
+                        let cursor_read = async {
+                            let permit = monitor
+                                .parity_read_permit
+                                .clone()
+                                .acquire_owned()
+                                .await
+                                .expect("parity semaphore is never closed");
+                            if monitor.parity_read_disabled.load(Ordering::Acquire) {
+                                bail!("Canonical scraper freshness reads are disabled");
                             }
+                            tokio::task::spawn_blocking(move || -> Result<_> {
+                                let _permit = permit;
+                                Ok((
+                                    cursor_source.cursor(EventKind::Dispatch)?,
+                                    cursor_source.cursor(EventKind::MerkleTreeInsertion)?,
+                                ))
+                            })
+                            .await
+                            .context("Canonical scraper freshness cursor task failed")?
                         };
-                    Ok::<_, eyre::Report>((
-                        canonical_cursors_are_fresh(
+                        let (dispatch_cursor, merkle_cursor) =
+                            match timeout(PARITY_READ_TIMEOUT, cursor_read).await {
+                                Ok(result) => result?,
+                                Err(_) => {
+                                    monitor.disable_parity_reads(
+                                        &chain,
+                                        DISPATCH_EVENT_TYPE,
+                                        "canonical freshness cursor read timed out",
+                                    );
+                                    bail!("Canonical scraper freshness cursor read timed out");
+                                }
+                            };
+                        // Snapshot durable cursors before RPC. Events may advance
+                        // during those calls; comparing newer cursors to older
+                        // counts would incorrectly classify progress as rollback.
+                        let (dispatch_canonical_count, _) =
+                            timeout(RPC_PROBE_TIMEOUT, indexer.latest_sequence_count_and_tip())
+                                .await
+                                .context("Canonical dispatch freshness probe timed out")??;
+                        let (merkle_canonical_count, _) = timeout(
+                            RPC_PROBE_TIMEOUT,
+                            merkle_indexer.latest_sequence_count_and_tip(),
+                        )
+                        .await
+                        .context("Canonical Merkle freshness probe timed out")??;
+                        Ok::<_, eyre::Report>((
+                            canonical_cursors_are_fresh(
+                                dispatch_canonical_count,
+                                dispatch_cursor,
+                                merkle_canonical_count,
+                                merkle_cursor,
+                            )?,
                             dispatch_canonical_count,
-                            dispatch_cursor,
                             merkle_canonical_count,
+                            dispatch_cursor,
                             merkle_cursor,
-                        )?,
-                        dispatch_canonical_count,
-                        merkle_canonical_count,
-                        dispatch_cursor,
-                        merkle_cursor,
-                    ))
+                        ))
+                    }
+                    .await;
+                    (domain, chain, result)
                 }
-                .await;
-                (domain, chain, result)
             })
             .buffer_unordered(AUTHORITY_FRESHNESS_CONCURRENCY)
-            .collect::<Vec<_>>()
-            .await;
+            .boxed()
+    }
 
-        for (domain, chain, result) in results {
-            match result {
-                Ok((
-                    is_fresh,
-                    dispatch_canonical_count,
-                    merkle_canonical_count,
-                    dispatch_cursor,
-                    merkle_cursor,
-                )) => {
-                    let source = &self.sources[&domain];
-                    let mut readiness_still_valid = false;
-                    self.source_authority(domain).sender.send_if_modified(|_| {
-                        if self.base_source_authority_ready(source) {
-                            readiness_still_valid = true;
-                            self.fresh
-                                .with_label_values(&[chain.as_str()])
-                                .set(i64::from(is_fresh));
+    #[cfg(test)]
+    async fn refresh_authority_once(self: &Arc<Self>) {
+        let mut probes = self.freshness_probes();
+        while let Some(probe) = probes.next().await {
+            let domain = probe.0;
+            self.apply_freshness(probe);
+            self.maybe_activate_source_authority(domain).await;
+        }
+    }
+
+    fn apply_freshness(&self, (domain, chain, result): FreshnessProbe) {
+        match result {
+            Ok((
+                is_fresh,
+                dispatch_canonical_count,
+                merkle_canonical_count,
+                dispatch_cursor,
+                merkle_cursor,
+            )) => {
+                let source = &self.sources[&domain];
+                let mut readiness_still_valid = false;
+                let mut within_grace = false;
+                let authority = self.source_authority(domain);
+                authority.sender.send_if_modified(|_| {
+                    if self.base_source_authority_ready(source) {
+                        readiness_still_valid = true;
+                        // Readiness gates remain strict. Once authoritative, tolerate
+                        // sustained canonical lag for the same grace period as validators.
+                        if authority.active.load(Ordering::Acquire) {
+                            let mut health = authority.health.lock();
+                            within_grace = [
+                                (dispatch_canonical_count, dispatch_cursor),
+                                (merkle_canonical_count, merkle_cursor),
+                            ]
+                            .into_iter()
+                            .zip(health.iter_mut())
+                            .all(|((count, cursor), health)| {
+                                let next =
+                                    cursor.map(|last| last.checked_add(1)).unwrap_or(Some(0));
+                                next.is_some_and(|next| {
+                                    health
+                                        .observe(count.unwrap_or(0), next, true)
+                                        .is_ok_and(|usable| usable)
+                                })
+                            });
                         }
-                        false
-                    });
-                    if !readiness_still_valid || !is_fresh {
-                        if !is_fresh && should_warn(&self.freshness_warned_at) {
-                            warn!(
-                                %chain,
-                                ?dispatch_canonical_count,
-                                ?merkle_canonical_count,
-                                ?dispatch_cursor,
-                                ?merkle_cursor,
-                                "Scraper sequenced cursors are not canonically fresh"
-                            );
-                        }
-                        self.deactivate_source_authority(domain);
-                    } else {
-                        self.maybe_activate_source_authority(domain).await;
+                        self.fresh
+                            .with_label_values(&[chain.as_str()])
+                            .set(i64::from(is_fresh));
                     }
-                }
-                Err(err) => {
-                    if should_warn(&self.freshness_warned_at) {
-                        warn!(%chain, ?err, "Canonical scraper freshness probe failed");
+                    false
+                });
+                if !readiness_still_valid || (!is_fresh && !within_grace) {
+                    if !is_fresh && should_warn(&self.freshness_warned_at) {
+                        warn!(
+                            %chain,
+                            ?dispatch_canonical_count,
+                            ?merkle_canonical_count,
+                            ?dispatch_cursor,
+                            ?merkle_cursor,
+                            "Scraper sequenced cursors are not canonically fresh"
+                        );
                     }
                     self.deactivate_source_authority(domain);
                 }
+            }
+            Err(err) => {
+                if should_warn(&self.freshness_warned_at) {
+                    warn!(%chain, ?err, "Canonical scraper freshness probe failed");
+                }
+                self.deactivate_source_authority(domain);
             }
         }
     }
@@ -2930,7 +2877,6 @@ impl ScraperWebSocketMonitor {
             self.set_source_caught_up(source, kind, true);
         }
         self.refresh_parity_ready(source);
-        self.maybe_activate_source_authority(domain).await;
         Ok(())
     }
 
@@ -2977,10 +2923,15 @@ fn canonical_cursors_are_fresh(
     };
     let dispatch_canonical_count = dispatch_canonical_count.unwrap_or(0);
     let merkle_canonical_count = merkle_canonical_count.unwrap_or(0);
-    Ok(
-        cursor_count(dispatch_cursor, "Dispatch")? == dispatch_canonical_count
-            && cursor_count(merkle_cursor, "Merkle")? == merkle_canonical_count,
-    )
+    let dispatch_fresh = validate_cutover_freshness(
+        dispatch_canonical_count,
+        cursor_count(dispatch_cursor, "Dispatch")?,
+    )?;
+    let merkle_fresh = validate_cutover_freshness(
+        merkle_canonical_count,
+        cursor_count(merkle_cursor, "Merkle")?,
+    )?;
+    Ok(dispatch_fresh && merkle_fresh)
 }
 
 fn subscription(
@@ -2988,7 +2939,7 @@ fn subscription(
     plan: &SequencedReplayPlan,
     gas_payment_cursors: &[SubscribedCursor],
     gas_payment_enabled: bool,
-) -> Result<String> {
+) -> Result<SubscribeMessage<'static>> {
     let mut sources = sources.values().collect::<Vec<_>>();
     sources.sort_unstable_by_key(|source| source.domain);
     let domains = sources
@@ -3043,11 +2994,10 @@ fn subscription(
             stream_cursor_version: Some(GAS_PAYMENT_STREAM_CURSOR_VERSION),
         });
     }
-    serde_json::to_string(&SubscribeMessage {
+    Ok(SubscribeMessage {
         streams,
         message_type: "subscribe",
     })
-    .context("Serializing relayer scraper-proxy subscription")
 }
 
 fn sequence_cursor(
@@ -3163,6 +3113,7 @@ fn source_caught_up(
     Ok(true)
 }
 
+#[cfg(test)]
 fn validate_subscription(
     streams: &[SubscribedStream],
     sources: &HashMap<u32, ScraperSource>,
@@ -3170,40 +3121,10 @@ fn validate_subscription(
     gas_payment_cursors: &[SubscribedCursor],
     gas_payment_enabled: bool,
 ) -> Result<()> {
-    let expected_streams = if gas_payment_enabled { 3 } else { 2 };
-    if streams.len() != expected_streams {
-        bail!("Scraper-proxy confirmed an unexpected number of streams");
-    }
-    let mut sources = sources.values().collect::<Vec<_>>();
-    sources.sort_unstable_by_key(|source| source.domain);
-    let domains = sources
-        .iter()
-        .map(|source| source.domain)
-        .collect::<Vec<_>>();
-    for (stream, kind) in streams
-        .iter()
-        .zip([EventKind::Dispatch, EventKind::MerkleTreeInsertion])
-    {
-        let expected_cursors = sequenced_subscription_cursors(sources.as_slice(), kind, plan)?;
-        if stream.event_type != kind.label()
-            || stream.cursors.as_deref() != Some(expected_cursors.as_slice())
-            || stream.domains.as_deref() != Some(domains.as_slice())
-            || stream.stream_cursor_version.is_some()
-        {
-            bail!("Scraper-proxy subscription confirmation does not match request");
-        }
-    }
-    if gas_payment_enabled {
-        let gas_payment = &streams[2];
-        if gas_payment.event_type != GAS_PAYMENT_EVENT_TYPE
-            || gas_payment.cursors.as_deref() != Some(gas_payment_cursors)
-            || gas_payment.domains.as_deref() != Some(domains.as_slice())
-            || gas_payment.stream_cursor_version != Some(GAS_PAYMENT_STREAM_CURSOR_VERSION)
-        {
-            bail!("Scraper-proxy subscription confirmation does not match request");
-        }
-    }
-    Ok(())
+    hyperlane_base::scraper_websocket::validate_subscription(
+        &subscription(sources, plan, gas_payment_cursors, gas_payment_enabled)?.confirmation(),
+        streams,
+    )
 }
 
 fn is_unsupported_row_cursor_error(error: &str) -> bool {
@@ -3249,27 +3170,8 @@ struct GasPaymentEventData {
     tx_id: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct MerkleEventData {
-    block_number: StringOrNumber,
-    domain: u32,
-    leaf_index: StringOrNumber,
-    merkle_tree_hook: String,
-    message_id: String,
-}
-
 fn parse_address(value: &str) -> Result<H256> {
     bytes_to_address(parse_hex(value)?).context("Invalid scraper event address")
-}
-
-fn scraper_address(address: H256) -> String {
-    let bytes = address.as_bytes();
-    if bytes[..12].iter().all(|byte| *byte == 0) {
-        format!("0x{}", hex::encode(&bytes[12..]))
-    } else {
-        format!("{address:#x}")
-    }
 }
 
 fn parse_h256(value: &str, field: &str) -> Result<H256> {
@@ -3320,11 +3222,12 @@ mod tests {
 
     use super::*;
     use async_trait::async_trait;
+    use futures_util::{SinkExt, StreamExt};
     use hyperlane_base::db::{test_utils, DB};
     use hyperlane_core::{ChainResult, HyperlaneDomain, Indexer, SequenceAwareIndexer};
     use prometheus::Registry;
     use tokio::{net::TcpListener, sync::oneshot};
-    use tokio_tungstenite::accept_async;
+    use tokio_tungstenite::{accept_async, tungstenite::Message};
 
     struct Fixture {
         _temp_dir: tempfile::TempDir,
@@ -3375,6 +3278,84 @@ mod tests {
         async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
             Ok((Some(self.0), 0))
         }
+    }
+
+    struct AdvancingSequenceIndexer(ScraperSource);
+
+    impl std::fmt::Debug for AdvancingSequenceIndexer {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str("AdvancingSequenceIndexer")
+        }
+    }
+
+    #[async_trait]
+    impl Indexer<HyperlaneMessage> for AdvancingSequenceIndexer {
+        async fn fetch_logs_in_range(
+            &self,
+            _range: RangeInclusive<u32>,
+        ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+            unreachable!("freshness test only queries counts")
+        }
+        async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+            unreachable!("freshness test only queries counts")
+        }
+    }
+
+    #[async_trait]
+    impl SequenceAwareIndexer<HyperlaneMessage> for AdvancingSequenceIndexer {
+        async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+            // A new event reaches the database after this RPC's count snapshot.
+            self.0
+                .store_cursor(EventKind::Dispatch, 10)
+                .expect("advance cursor during RPC");
+            Ok((Some(10), 0))
+        }
+    }
+
+    #[tokio::test]
+    async fn freshness_does_not_compare_new_cursors_to_older_rpc_counts() {
+        let fixture = fixture();
+        let source = fixture.sources[&5].clone();
+        source
+            .store_cursor(EventKind::Dispatch, 9)
+            .expect("dispatch cursor");
+        source
+            .store_cursor(EventKind::MerkleTreeInsertion, 9)
+            .expect("Merkle cursor");
+        let advancing = Arc::new(AdvancingSequenceIndexer(source.clone()));
+        let source = source
+            .with_freshness_indexer(advancing)
+            .with_merkle_freshness_indexer(Arc::new(FixedSequenceIndexer(10)));
+        let metrics =
+            CoreMetrics::new("scraper-snapshot-test", 9090, Registry::new()).expect("metrics");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new_with_authority(
+                Url::parse("ws://localhost:1").expect("URL"),
+                vec![source],
+                &metrics,
+                true,
+            )
+            .expect("monitor"),
+        );
+        monitor.set_active(true);
+        monitor.gas_payment_enabled.store(true, Ordering::Release);
+        let source = &monitor.sources[&5];
+        for kind in [
+            EventKind::Dispatch,
+            EventKind::GasPayment,
+            EventKind::MerkleTreeInsertion,
+        ] {
+            monitor.set_source_caught_up(source, kind, true);
+        }
+        monitor.refresh_parity_ready(source);
+        let (_, _, result) = monitor.freshness_probes().next().await.expect("probe");
+        let (fresh, _, _, dispatch_cursor, _) = result.expect("progress must not be rollback");
+        assert!(fresh);
+        assert_eq!(dispatch_cursor, Some(9));
+        assert_eq!(
+            source.cursor(EventKind::Dispatch).expect("current cursor"),
+            Some(10)
+        );
     }
 
     fn source(database: HyperlaneRocksDB) -> ScraperSource {
@@ -3761,7 +3742,7 @@ mod tests {
         )
         .expect("independent caught-up frontiers"));
 
-        let request: serde_json::Value = serde_json::from_str(
+        let request: serde_json::Value = serde_json::to_value(
             &subscription(&sources, &plan, &gas_payment_cursors(), true)
                 .expect("subscription should serialize"),
         )
@@ -3772,66 +3753,92 @@ mod tests {
 
     #[tokio::test]
     async fn canonical_freshness_restores_fallback_then_reacquires() {
-        let fixture = fixture();
-        let mut source = fixture.sources[&5].clone();
-        source
-            .store_cursor(EventKind::Dispatch, 9)
-            .expect("store dispatch cursor");
-        source
-            .store_cursor(EventKind::MerkleTreeInsertion, 8)
-            .expect("store lagging Merkle cursor");
-        source = source
-            .with_freshness_indexer(Arc::new(FixedSequenceIndexer(10)))
-            .with_merkle_freshness_indexer(Arc::new(FixedSequenceIndexer(10)));
-        let metrics = CoreMetrics::new("scraper-authority-frontier-test", 9090, Registry::new())
-            .expect("create test metrics");
-        let monitor = ScraperWebSocketMonitor::new_with_authority(
-            Url::parse("ws://localhost:1").expect("test URL"),
-            vec![source],
-            &metrics,
-            true,
-        )
-        .expect("create authority monitor");
-        let mut receiver = monitor.authority_receiver(5).expect("authority receiver");
-        monitor.set_active(true);
-        monitor.gas_payment_enabled.store(true, Ordering::Release);
-        for source in monitor.sources.values() {
-            for kind in [
-                EventKind::Dispatch,
-                EventKind::GasPayment,
-                EventKind::MerkleTreeInsertion,
-            ] {
-                monitor.set_source_caught_up(source, kind, true);
+        for (lag_index, lagging_kind) in [EventKind::Dispatch, EventKind::MerkleTreeInsertion]
+            .into_iter()
+            .enumerate()
+        {
+            let fixture = fixture();
+            let mut source = fixture.sources[&5].clone();
+            source
+                .store_cursor(
+                    EventKind::Dispatch,
+                    if lagging_kind == EventKind::Dispatch {
+                        8
+                    } else {
+                        9
+                    },
+                )
+                .expect("store dispatch cursor");
+            source
+                .store_cursor(
+                    EventKind::MerkleTreeInsertion,
+                    if lagging_kind == EventKind::MerkleTreeInsertion {
+                        8
+                    } else {
+                        9
+                    },
+                )
+                .expect("store lagging Merkle cursor");
+            source = source
+                .with_freshness_indexer(Arc::new(FixedSequenceIndexer(10)))
+                .with_merkle_freshness_indexer(Arc::new(FixedSequenceIndexer(10)));
+            let metrics =
+                CoreMetrics::new("scraper-authority-frontier-test", 9090, Registry::new())
+                    .expect("create test metrics");
+            let monitor = Arc::new(
+                ScraperWebSocketMonitor::new_with_authority(
+                    Url::parse("ws://localhost:1").expect("test URL"),
+                    vec![source],
+                    &metrics,
+                    true,
+                )
+                .expect("create authority monitor"),
+            );
+            let mut receiver = monitor.authority_receiver(5).expect("authority receiver");
+            monitor.set_active(true);
+            monitor.gas_payment_enabled.store(true, Ordering::Release);
+            for source in monitor.sources.values() {
+                for kind in [
+                    EventKind::Dispatch,
+                    EventKind::GasPayment,
+                    EventKind::MerkleTreeInsertion,
+                ] {
+                    monitor.set_source_caught_up(source, kind, true);
+                }
+                monitor.refresh_parity_ready(source);
+                monitor
+                    .fresh
+                    .with_label_values(&[source.chain.as_str()])
+                    .set(1);
             }
-            monitor.refresh_parity_ready(source);
-            monitor
-                .fresh
-                .with_label_values(&[source.chain.as_str()])
-                .set(1);
+            monitor.authority_active.store(true, Ordering::Release);
+
+            monitor.refresh_authority_once().await;
+            assert!(monitor.authority_active.load(Ordering::Acquire));
+            monitor.source_authority(5).health.lock()[lag_index] =
+                StreamHealth::new(Duration::ZERO);
+            monitor.refresh_authority_once().await;
+            assert!(!monitor.authority_active.load(Ordering::Acquire));
+            assert!(!receiver.borrow_and_update().desired);
+            assert_eq!(monitor.fresh.with_label_values(&["test"]).get(), 0);
+
+            let source = &monitor.sources[&5];
+            source
+                .store_cursor(lagging_kind, 9)
+                .expect("advance Merkle cursor");
+            let refresh = monitor.refresh_authority_once();
+            tokio::pin!(refresh);
+            assert!(timeout(Duration::from_millis(10), &mut refresh)
+                .await
+                .is_err());
+            let command = receiver.borrow_and_update();
+            assert!(command.desired);
+            monitor.authority_handoff.mark_paused(5, command.generation);
+            refresh.await;
+
+            assert!(monitor.authority_active.load(Ordering::Acquire));
+            assert_eq!(monitor.fresh.with_label_values(&["test"]).get(), 1);
         }
-        monitor.authority_active.store(true, Ordering::Release);
-
-        monitor.refresh_authority_once().await;
-        assert!(!monitor.authority_active.load(Ordering::Acquire));
-        assert!(!receiver.borrow_and_update().desired);
-        assert_eq!(monitor.fresh.with_label_values(&["test"]).get(), 0);
-
-        let source = &monitor.sources[&5];
-        source
-            .store_cursor(EventKind::MerkleTreeInsertion, 9)
-            .expect("advance Merkle cursor");
-        let refresh = monitor.refresh_authority_once();
-        tokio::pin!(refresh);
-        assert!(timeout(Duration::from_millis(10), &mut refresh)
-            .await
-            .is_err());
-        let command = receiver.borrow_and_update();
-        assert!(command.desired);
-        monitor.authority_handoff.mark_paused(5, command.generation);
-        refresh.await;
-
-        assert!(monitor.authority_active.load(Ordering::Acquire));
-        assert_eq!(monitor.fresh.with_label_values(&["test"]).get(), 1);
     }
 
     #[tokio::test]
@@ -3934,13 +3941,15 @@ mod tests {
             .with_merkle_freshness_indexer(Arc::new(FixedSequenceIndexer(10)));
         let metrics = CoreMetrics::new("scraper-freshness-timeout-test", 9090, Registry::new())
             .expect("create test metrics");
-        let monitor = ScraperWebSocketMonitor::new_with_authority(
-            Url::parse("ws://localhost:1").expect("test URL"),
-            vec![source],
-            &metrics,
-            true,
-        )
-        .expect("create authority monitor");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new_with_authority(
+                Url::parse("ws://localhost:1").expect("test URL"),
+                vec![source],
+                &metrics,
+                true,
+            )
+            .expect("create authority monitor"),
+        );
         let mut receiver = monitor.authority_receiver(5).expect("authority receiver");
         monitor.set_active(true);
         monitor.gas_payment_enabled.store(true, Ordering::Release);
@@ -4609,7 +4618,7 @@ mod tests {
             after_sequence: None,
             domain: 5,
         }];
-        let initial: serde_json::Value = serde_json::from_str(
+        let initial: serde_json::Value = serde_json::to_value(
             &subscription(sources, &initial_plan, &initial_gas, true)
                 .expect("initial subscription"),
         )
@@ -4626,7 +4635,7 @@ mod tests {
         let reconnect_plan = replay_plan(sources);
         state.reset_sequenced(&reconnect_plan);
         assert_eq!(state.gas_payment_rows[&5].stream_cursor, 41);
-        let reconnect: serde_json::Value = serde_json::from_str(
+        let reconnect: serde_json::Value = serde_json::to_value(
             &subscription(sources, &reconnect_plan, &initial_gas, true)
                 .expect("reconnect subscription"),
         )
@@ -5040,9 +5049,7 @@ mod tests {
             .store_cursor(EventKind::MerkleTreeInsertion, 90)
             .expect("store Merkle cursor");
         let plan = replay_plan(&sources);
-        let mut handshake = HandshakeState::default();
-        handshake.ready().expect("ready");
-        let request: serde_json::Value = serde_json::from_str(
+        let request: serde_json::Value = serde_json::to_value(
             &subscription(&sources, &plan, &gas_payment_cursors(), true)
                 .expect("subscription should serialize"),
         )
@@ -5057,12 +5064,8 @@ mod tests {
         assert_eq!(request["streams"][0]["cursors"][0]["afterSequence"], "99");
         assert_eq!(request["streams"][1]["cursors"][0]["afterSequence"], "89");
         let streams = subscribed_streams(&sources, &plan);
-        handshake
-            .subscribed(&streams, &sources, &plan, &gas_payment_cursors(), true)
+        validate_subscription(&streams, &sources, &plan, &gas_payment_cursors(), true)
             .expect("subscription confirmation uses captured plan");
-        handshake
-            .event()
-            .expect("caught-up accepted after confirmation");
         validate_caught_up_floor(&plan, 5, EventKind::MerkleTreeInsertion, 90)
             .expect("captured replay floor");
         assert!(validate_caught_up_floor(&plan, 5, EventKind::MerkleTreeInsertion, 89).is_err());
@@ -5502,6 +5505,117 @@ mod tests {
         })
         .await
         .expect("ordered worker persists the terminal cursor");
+    }
+
+    #[tokio::test]
+    async fn full_parity_queue_restores_other_origin_rpc_fallback() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind server");
+        let url =
+            Url::parse(&format!("ws://{}", listener.local_addr().expect("address"))).expect("URL");
+        let metrics = CoreMetrics::new("parity-backpressure", 0, Registry::new()).expect("metrics");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new_with_authority(
+                url,
+                sources_for(&[5, 9]).into_values().collect(),
+                &metrics,
+                true,
+            )
+            .expect("monitor"),
+        );
+        for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+            monitor.sources[&5]
+                .store_cursor(kind, 0)
+                .expect("replay floor");
+        }
+        // Origin 5 has no RPC-indexed messages. Its FIFO worker retries Missing
+        // while retaining a slot; the remaining jobs consume the global queue.
+        for sequence in 1..=u32::try_from(PARITY_QUEUE_CAPACITY).expect("capacity") {
+            let validated = StreamState::default()
+                .validate(
+                    event(
+                        DISPATCH_EVENT_TYPE,
+                        sequence,
+                        dispatch_data(sequence, b"payload"),
+                    ),
+                    &monitor.sources,
+                )
+                .expect("valid event");
+            assert!(
+                monitor
+                    .enqueue_parity(
+                        5,
+                        EventKind::Dispatch,
+                        validated.parity.expect("parity"),
+                        sequence,
+                    )
+                    .await
+            );
+        }
+        assert_eq!(monitor.parity_queue_permit.available_permits(), 0);
+        let mut receiver = monitor.authority_receiver(9).expect("authority receiver");
+        let server_monitor = monitor.clone();
+        let (finish_tx, finish_rx) = oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.expect("accept");
+            let mut socket = accept_async(stream).await.expect("websocket");
+            socket
+                .send(Message::Text(r#"{"type":"ready"}"#.to_owned()))
+                .await
+                .expect("ready");
+            let request = socket.next().await.expect("subscription").expect("read");
+            let request: serde_json::Value =
+                serde_json::from_str(request.to_text().expect("text")).expect("JSON");
+            socket
+                .send(Message::Text(
+                    serde_json::json!({
+                        "type": "subscribed", "streams": proxy_subscription_response(&request),
+                    })
+                    .to_string(),
+                ))
+                .await
+                .expect("subscribed");
+            // Model origin 9 having completed cutover, with RPC indexers paused.
+            let authority = server_monitor.source_authority(9);
+            authority
+                .sender
+                .send_modify(|command| command.desired = true);
+            authority.active.store(true, Ordering::Release);
+            authority
+                .handoff
+                .mark_paused(9, authority.sender.borrow().generation);
+            socket
+                .send(Message::Text(
+                    wire_event(event(DISPATCH_EVENT_TYPE, 0, dispatch_data(0, b"payload")))
+                        .to_string(),
+                ))
+                .await
+                .expect("event");
+            finish_rx.await.expect("finish");
+        });
+        let mut state = StreamState::default();
+        let err = timeout(Duration::from_millis(250), monitor.stream_once(&mut state))
+            .await
+            .expect("admission must not wait for Missing retries")
+            .expect_err("full queue ends session");
+        assert!(err.to_string().contains("parity queue is full"), "{err:?}");
+        assert!(!receiver.borrow_and_update().desired);
+        assert!(!monitor.source_authority(9).active.load(Ordering::Acquire));
+        assert!(!monitor.parity_read_disabled.load(Ordering::Acquire));
+        assert_eq!(
+            monitor.sources[&5]
+                .cursor(EventKind::Dispatch)
+                .expect("cursor"),
+            Some(0)
+        );
+        assert_eq!(
+            monitor
+                .parity_pending
+                .with_label_values(&["test-5", DISPATCH_EVENT_TYPE])
+                .get(),
+            i64::try_from(PARITY_QUEUE_CAPACITY).expect("capacity")
+        );
+        finish_tx.send(()).expect("finish server");
+        server.await.expect("server");
     }
 
     #[tokio::test]
@@ -6792,29 +6906,6 @@ mod tests {
     }
 
     #[test]
-    fn enforces_subscription_handshake_order() {
-        let mut handshake = HandshakeState::default();
-        let sources = sources();
-        let plan = replay_plan(&sources);
-        let streams = subscribed_streams(&sources, &plan);
-        let cursors = gas_payment_cursors();
-        assert!(handshake.event().is_err());
-        assert!(handshake
-            .subscribed(&streams, &sources, &plan, &cursors, true)
-            .is_err());
-        handshake.ready().expect("ready");
-        assert!(handshake.event().is_err());
-        handshake
-            .subscribed(&streams, &sources, &plan, &cursors, true)
-            .expect("subscribed");
-        handshake.event().expect("event after confirmation");
-        assert!(handshake
-            .subscribed(&streams, &sources, &plan, &cursors, true)
-            .is_err());
-        assert!(handshake.ready().is_err());
-    }
-
-    #[test]
     fn accepts_normalized_replay_cursor_confirmation() {
         let sources = sources();
         let source = sources.get(&5).expect("source");
@@ -6829,10 +6920,7 @@ mod tests {
             assert_eq!(cursor[0].address.len(), 42);
         }
 
-        let mut handshake = HandshakeState::default();
-        handshake.ready().expect("ready");
-        handshake
-            .subscribed(&streams, &sources, &plan, &gas_payment_cursors(), true)
+        validate_subscription(&streams, &sources, &plan, &gas_payment_cursors(), true)
             .expect("normalized replay cursor confirmation");
     }
 
@@ -6856,12 +6944,7 @@ mod tests {
                 .rev()
                 .collect(),
         ] {
-            let mut handshake = HandshakeState::default();
-            handshake.ready().expect("ready");
-            assert!(handshake
-                .subscribed(&streams, &sources, &plan, &cursors, true)
-                .is_err());
-            assert!(!handshake.confirmed);
+            assert!(validate_subscription(&streams, &sources, &plan, &cursors, true).is_err());
         }
     }
 
@@ -6883,7 +6966,7 @@ mod tests {
                 domain: 9,
             },
         ];
-        let message: serde_json::Value = serde_json::from_str(
+        let message: serde_json::Value = serde_json::to_value(
             &subscription(&sources, &plan, &gas_payment_cursors, true)
                 .expect("subscription should serialize"),
         )
@@ -7105,7 +7188,7 @@ mod tests {
     fn legacy_subscription_preserves_sequenced_streams() {
         let sources = sources();
         let plan = replay_plan(&sources);
-        let message: serde_json::Value = serde_json::from_str(
+        let message: serde_json::Value = serde_json::to_value(
             &subscription(&sources, &plan, &gas_payment_cursors(), false)
                 .expect("legacy subscription serialization"),
         )

@@ -1018,8 +1018,7 @@ const fastPath: RootAgentConfig = {
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
-    websocketUrl: scraperWebsocketUrl,
-    websocketAuthorityEnabled: true,
+    // Use RPC indexing until the scraper proxy supports fastpath streaming.
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayerFastPath,
