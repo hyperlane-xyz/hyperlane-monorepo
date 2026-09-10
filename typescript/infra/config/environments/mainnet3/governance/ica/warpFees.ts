@@ -85,5 +85,6 @@ export const warpFeesIcas: ChainMap<Address> = {
 
   // Sep 10, 2026
   // ----------------------------------------------------------
+  arc: '0xDE1d71FCccf8a67332B281ce57FcE22Cf786Ad8C',
   viction: '0xD0d988ee307376Cf545d8737dd448083C05bD8F3',
 };
