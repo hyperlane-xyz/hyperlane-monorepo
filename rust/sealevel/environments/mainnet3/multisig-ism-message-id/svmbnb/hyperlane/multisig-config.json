@@ -149,7 +149,6 @@
     "threshold": 4,
     "validators": [
       "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
-      "0xeb0c31e2f2671d724a2589d4a8eca91b97559148",
       "0x033e391e9fc57a7b5dd6c91b69be9a1ed11c4986",
       "0x4a2423ef982b186729e779b6e54b0e84efea7285",
       "0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3",
@@ -325,7 +324,6 @@
       "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
       "0x0d4c1394a255568ec0ecd11795b28d1bda183ca4",
       "0x1c3C3013B863Cf666499Da1A61949AE396E3Ab82",
-      "0x573e960e07ad74ea2c5f1e3c31b2055994b12797",
       "0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3",
       "0x25b3a88f7cfd3c9f7d7e32b295673a16a6ddbd91"
     ]
@@ -462,7 +460,6 @@
       "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
       "0x0d4c1394a255568ec0ecd11795b28d1bda183ca4",
       "0x3DA4ee2801Ec6CC5faD73DBb94B10A203ADb3d9e",
-      "0x4df6e8878992c300e7bfe98cac6bf7d3408b9cbf",
       "0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3",
       "0xf0da628f3fb71652d48260bad4691054045832ce",
       "0xead4141b6ea149901ce4f4b556953f66d04b1d0c"
@@ -512,7 +509,6 @@
     "threshold": 4,
     "validators": [
       "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
-      "0x01e3909133d20c05bbc94247769235d30101f748",
       "0xaba06266f47e3ef554d218b879bd86114a8dabd4",
       "0x05d91f80377ff5e9c6174025ffaf094c57a4766a",
       "0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3",
@@ -554,7 +550,6 @@
       "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
       "0x0d4c1394a255568ec0ecd11795b28d1bda183ca4",
       "0x65C140e3a05F33192384AffEF985696Fe3cDDE42",
-      "0x20eade18ea2af6dfd54d72b3b5366b40fcb47f4b",
       "0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3",
       "0x485a4f0009d9afbbf44521016f9b8cdd718e36ea"
     ]
@@ -585,7 +580,6 @@
       "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
       "0x0d4c1394a255568ec0ecd11795b28d1bda183ca4",
       "0xd8c1cCbfF28413CE6c6ebe11A3e29B0D8384eDbB",
-      "0x1b9e5f36c4bfdb0e3f0df525ef5c888a4459ef99",
       "0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3",
       "0xf9dfaa5c20ae1d84da4b2696b8dc80c919e48b12"
     ]
@@ -724,7 +718,6 @@
     "threshold": 4,
     "validators": [
       "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
-      "0x9f4fa50ce49815b0932428a0eb1988382cef4a97",
       "0x8d2f8ebd61d055d58768cf3b07cb2fb565d87716",
       "0x6c5f6ab7a369222e6691218ad981fe08a5def094",
       "0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3",
@@ -845,7 +838,6 @@
     "threshold": 4,
     "validators": [
       "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
-      "0xa2549be30fb852c210c2fe8e7639039dca779936",
       "0xbcbed4d11e946844162cd92c6d09d1cf146b4006",
       "0xa9d517776fe8beba7d67c21cac1e805bd609c08e",
       "0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3",
@@ -875,7 +867,6 @@
     "threshold": 4,
     "validators": [
       "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
-      "0x11e2a683e83617f186614071e422b857256a9aae",
       "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
       "0x761980c3debdc8ddb69a2713cf5126d4db900f0f",
       "0x5aed2fd5cc5f9749c455646c86b0db6126cafcbb",
