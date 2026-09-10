@@ -5,8 +5,6 @@ import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type CompositeIsmStorage,
   decodeCompositeIsmStorageAccount,
-  type DomainIsmStorage,
-  decodeDomainIsmStorageAccount,
 } from '../accounts/composite-ism.js';
 import {
   type AccessControlData,
@@ -25,7 +23,6 @@ import {
 import { decodeMultisigIsmMessageIdProgramInstruction } from '../instructions/multisig-ism-message-id.js';
 import {
   deriveCompositeIsmStoragePda,
-  deriveCompositeIsmDomainPda,
   deriveMultisigIsmAccessControlPda,
   deriveMultisigIsmDomainDataPda,
   deriveTestIsmStoragePda,
@@ -84,20 +81,6 @@ export async function fetchCompositeIsmStorageAccount(
     // handling of the same class of error.
     return null;
   }
-}
-
-export async function fetchCompositeIsmDomainStorageAccount(
-  rpc: Rpc<SolanaRpcApi>,
-  programId: Address,
-  domain: number,
-): Promise<DomainIsmStorage | null> {
-  const { address: domainPda } = await deriveCompositeIsmDomainPda(
-    programId,
-    domain,
-  );
-  const raw = await fetchAccountDataRaw(rpc, domainPda);
-  if (!raw || raw.length === 0) return null;
-  return decodeDomainIsmStorageAccount(raw);
 }
 
 export async function fetchMultisigIsmDomainData(

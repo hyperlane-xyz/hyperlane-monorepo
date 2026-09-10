@@ -35,7 +35,6 @@ import { resolveFeeSalt } from '../fee/types.js';
 import { DEFAULT_IGP_SALT } from '../hook/igp-hook.js';
 import {
   fetchCompositeIsmStorageAccount,
-  fetchCompositeIsmDomainStorageAccount,
   fetchMultisigIsmAccessControl,
   fetchTestIsmStorageAccount,
 } from '../ism/ism-query.js';
@@ -124,16 +123,6 @@ function collectFallbackIsms(node: IsmNode): Address[] {
   }
 }
 
-function collectCompositeFallbackIsms(
-  composite: CompositeIsmStorage,
-  domainIsms: readonly (IsmNode | null)[],
-): Address[] {
-  if (!composite.root) return [];
-  return [composite.root, ...domainIsms]
-    .filter((node): node is IsmNode => node !== null)
-    .flatMap(collectFallbackIsms);
-}
-
 /**
  * Derives static accounts used by destination Mailbox.process ISM verification.
  * Supported built-in ISMs are detected from their on-chain storage. Unknown
@@ -169,31 +158,21 @@ async function deriveIsmProcessAltAddressesRecursive(
     fetchMultisigIsmAccessControl(rpc, ism),
     fetchTestIsmStorageAccount(rpc, ism),
   ]);
-  const domainIsms = composite?.root
-    ? await Promise.all(
-        originDomains.map(async (domain) => {
-          const storage = await fetchCompositeIsmDomainStorageAccount(
-            rpc,
-            ism,
-            domain,
-          );
-          return storage?.ism ?? null;
-        }),
-      )
-    : [];
+  // Domain ISMs cannot contain fallbackRouting, even inside aggregation or
+  // amountRouting (composite-ism's validate_domain_ism enforces this). Their
+  // PDAs still belong in the ALT, but reading their contents adds no addresses.
   const addresses = await deriveIsmProcessAltAddressesFromState({
     ism,
     mailbox,
     originDomains,
     composite,
-    domainIsms,
     isMultisig: multisigAccessControl !== null,
     isTest: testStorage !== null,
   });
 
-  if (!composite) return addresses;
+  if (!composite?.root) return addresses;
   const fallbackAddresses = await Promise.all(
-    collectCompositeFallbackIsms(composite, domainIsms).map((fallbackIsm) =>
+    collectFallbackIsms(composite.root).map((fallbackIsm) =>
       deriveIsmProcessAltAddressesRecursive(
         { rpc, ism: fallbackIsm, mailbox, originDomains },
         visitedIsms,
@@ -209,19 +188,10 @@ export async function deriveIsmProcessAltAddressesFromState(args: {
   mailbox: Address;
   originDomains: readonly number[];
   composite: CompositeIsmStorage | null;
-  domainIsms?: readonly (IsmNode | null)[];
   isMultisig: boolean;
   isTest: boolean;
 }): Promise<AnnotatedAltAddress[]> {
-  const {
-    ism,
-    mailbox,
-    originDomains,
-    composite,
-    domainIsms = [],
-    isMultisig,
-    isTest,
-  } = args;
+  const { ism, mailbox, originDomains, composite, isMultisig, isTest } = args;
   const out = [annotate(ism, 'ism.program')];
 
   if (composite?.root) {
@@ -243,7 +213,7 @@ export async function deriveIsmProcessAltAddressesFromState(args: {
       ),
     );
 
-    const fallbackIsms = collectCompositeFallbackIsms(composite, domainIsms);
+    const fallbackIsms = collectFallbackIsms(composite.root);
     for (const fallbackIsm of fallbackIsms) {
       const fallbackVam = await deriveCompositeIsmStoragePda(fallbackIsm);
       out.push(
