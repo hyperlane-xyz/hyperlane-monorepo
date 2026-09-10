@@ -265,18 +265,25 @@ describe('Agent configs', () => {
       }
 
       if (relayer) {
-        it(`configures ${environment}/${context} relayers for the shared scraper`, () => {
-          expect(relayer.websocketUrl).to.equal(
-            `ws://scraper-proxy.${environment}.svc.cluster.local:8383/agents`,
-          );
-          expect(
-            relayer.websocketAuthorityEnabled,
-            `${environment}/${context} shared scraper authority`,
-          ).to.equal(
-            // Keep RPC authority until seismictestnet scraper coverage and freshness are fixed.
-            !(environment === 'testnet4' && context === Contexts.Hyperlane),
-          );
-        });
+        if (context === Contexts.FastPath) {
+          it(`configures ${environment}/${context} relayers for RPC-only indexing`, () => {
+            expect(relayer.websocketUrl).to.be.undefined;
+            expect(relayer.websocketAuthorityEnabled).to.be.undefined;
+          });
+        } else {
+          it(`configures ${environment}/${context} relayers for the shared scraper`, () => {
+            expect(relayer.websocketUrl).to.equal(
+              `ws://scraper-proxy.${environment}.svc.cluster.local:8383/agents`,
+            );
+            expect(
+              relayer.websocketAuthorityEnabled,
+              `${environment}/${context} shared scraper authority`,
+            ).to.equal(
+              // Keep RPC authority until seismictestnet scraper coverage and freshness are fixed.
+              !(environment === 'testnet4' && context === Contexts.Hyperlane),
+            );
+          });
+        }
       }
     });
   });
