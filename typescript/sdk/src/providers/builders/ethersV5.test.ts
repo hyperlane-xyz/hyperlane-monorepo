@@ -1,6 +1,7 @@
 import { expect } from 'chai';
+import { providers } from 'ethers';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { assert, ProtocolType } from '@hyperlane-xyz/utils';
 
 import type { ChainMetadata } from '../../metadata/chainMetadataTypes.js';
 
@@ -19,6 +20,14 @@ function metadata(urls: string[]): ChainMetadata {
   };
 }
 
+function pollingInterval(provider: providers.Provider): number {
+  assert(
+    provider instanceof providers.BaseProvider,
+    'Expected ethers BaseProvider',
+  );
+  return provider.pollingInterval;
+}
+
 describe('ethers v5 provider builder polling', () => {
   for (const [blockTime, expectedInterval] of [
     [0.25, 1000],
@@ -29,7 +38,7 @@ describe('ethers v5 provider builder polling', () => {
     it(`bounds remote polling for a ${blockTime}s block time`, () => {
       const config = metadata(['https://rpc.example.com']);
       config.blocks = { confirmations: 1, estimateBlockTime: blockTime };
-      expect(defaultProviderBuilder(config).pollingInterval).to.equal(
+      expect(pollingInterval(defaultProviderBuilder(config))).to.equal(
         expectedInterval,
       );
     });
@@ -41,13 +50,13 @@ describe('ethers v5 provider builder polling', () => {
       'https://rpc.example.com',
     ]);
     config.blocks = { confirmations: 1, estimateBlockTime: 0.25 };
-    expect(defaultProviderBuilder(config).pollingInterval).to.equal(1000);
+    expect(pollingInterval(defaultProviderBuilder(config))).to.equal(1000);
   });
 
   it('prioritizes loopback polling over the block-time estimate', () => {
     const config = metadata(['http://localhost:8545']);
     config.blocks = { confirmations: 1, estimateBlockTime: 13 };
-    expect(defaultProviderBuilder(config).pollingInterval).to.equal(100);
+    expect(pollingInterval(defaultProviderBuilder(config))).to.equal(100);
   });
 
   for (const urls of [
@@ -59,9 +68,11 @@ describe('ethers v5 provider builder polling', () => {
     it(`polls loopback RPCs quickly: ${urls.join(', ')}`, () => {
       // MultiProtocolProvider and MultiProvider use these respective builders.
       expect(
-        defaultEthersV5ProviderBuilder(metadata(urls)).provider.pollingInterval,
+        pollingInterval(
+          defaultEthersV5ProviderBuilder(metadata(urls)).provider,
+        ),
       ).to.equal(100);
-      expect(defaultProviderBuilder(metadata(urls)).pollingInterval).to.equal(
+      expect(pollingInterval(defaultProviderBuilder(metadata(urls)))).to.equal(
         100,
       );
     });
@@ -75,7 +86,9 @@ describe('ethers v5 provider builder polling', () => {
   ]) {
     it(`preserves default polling with remote RPCs: ${urls.join(', ')}`, () => {
       expect(
-        defaultEthersV5ProviderBuilder(metadata(urls)).provider.pollingInterval,
+        pollingInterval(
+          defaultEthersV5ProviderBuilder(metadata(urls)).provider,
+        ),
       ).to.equal(4000);
     });
   }
