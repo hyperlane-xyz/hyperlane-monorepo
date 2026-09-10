@@ -14,6 +14,11 @@ const DEFAULT_RETRY_OPTIONS: SmartProviderOptions = {
   baseRetryDelayMs: 250,
 };
 
+const LOCAL_POLLING_INTERVAL_MS = 100;
+const MIN_REMOTE_POLLING_INTERVAL_MS = 1000;
+const DEFAULT_POLLING_INTERVAL_MS = 4000;
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
 export const defaultEthersV5ProviderBuilder: ProviderBuilderFn<
   EthersV5Provider
 > = (metadata: ChainMetadata, retryOverride?: SmartProviderOptions) => {
@@ -23,6 +28,26 @@ export const defaultEthersV5ProviderBuilder: ProviderBuilderFn<
     undefined,
     retryOverride || DEFAULT_RETRY_OPTIONS,
   );
+  // Local dev chains mine immediately. Configure the shared builder so CLI
+  // subprocesses also avoid ethers' default four-second confirmation polling.
+  if (
+    metadata.rpcUrls.length > 0 &&
+    metadata.rpcUrls.every(({ http }) =>
+      LOOPBACK_HOSTS.has(new URL(http).hostname),
+    )
+  ) {
+    provider.pollingInterval = LOCAL_POLLING_INTERVAL_MS;
+  } else if (metadata.blocks?.estimateBlockTime) {
+    // Poll roughly once per block on fast chains, with a floor to bound RPC
+    // traffic and a ceiling that preserves ethers' latency on slower chains.
+    provider.pollingInterval = Math.min(
+      DEFAULT_POLLING_INTERVAL_MS,
+      Math.max(
+        MIN_REMOTE_POLLING_INTERVAL_MS,
+        Math.round(metadata.blocks.estimateBlockTime * 1000),
+      ),
+    );
+  }
   return { type: ProviderType.EthersV5, provider };
 };
 
