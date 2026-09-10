@@ -65,6 +65,9 @@ describe('ethers v5 provider builder polling', () => {
   for (const urls of [
     ['http://localhost:8545'],
     ['http://127.0.0.1:8596'],
+    ['http://127.0.0.2:8545'],
+    ['http://127.0.0.0:8545'],
+    ['http://127.255.255.255:8545'],
     ['http://[::1]:8545'],
     ['http://localhost:8545', 'http://127.0.0.1:8596'],
   ]) {
@@ -85,6 +88,10 @@ describe('ethers v5 provider builder polling', () => {
     ['https://rpc.example.com'],
     ['http://localhost:8545', 'https://rpc.example.com'],
     ['https://localhost.example.com'],
+    ['http://127.0.0.2.example.com:8545'],
+    ['http://126.255.255.255:8545'],
+    ['http://128.0.0.0:8545'],
+    ['http://127.0.0.2:8545', 'https://rpc.example.com'],
     ['http://192.168.1.1:8545'],
   ]) {
     it(`preserves default polling with remote RPCs: ${urls.join(', ')}`, () => {
