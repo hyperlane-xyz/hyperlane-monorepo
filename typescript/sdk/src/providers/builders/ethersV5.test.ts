@@ -30,7 +30,10 @@ function pollingInterval(provider: providers.Provider): number {
 
 describe('ethers v5 provider builder polling', () => {
   for (const [blockTime, expectedInterval] of [
-    [0.25, 1000],
+    [0.0001, 1],
+    [0.1, 100],
+    [0.25, 250],
+    [0.45, 450],
     [2, 2000],
     [13, 4000],
     [0, 4000],
@@ -50,7 +53,7 @@ describe('ethers v5 provider builder polling', () => {
       'https://rpc.example.com',
     ]);
     config.blocks = { confirmations: 1, estimateBlockTime: 0.25 };
-    expect(pollingInterval(defaultProviderBuilder(config))).to.equal(1000);
+    expect(pollingInterval(defaultProviderBuilder(config))).to.equal(250);
   });
 
   it('prioritizes loopback polling over the block-time estimate', () => {
