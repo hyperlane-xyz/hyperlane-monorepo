@@ -1,25 +1,15 @@
 import { type Address, address as parseAddress } from '@solana/kit';
 
-import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
-import {
-  type ArtifactDeployed,
-  isArtifactDeployed,
-} from '@hyperlane-xyz/provider-sdk/artifact';
+import { type ArtifactDeployed } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type CollateralWarpArtifactConfig,
   type DeployedWarpAddress,
-  buildFeeReadContextFromWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { assert, isNullish } from '@hyperlane-xyz/utils';
 
 import { fetchMintTokenProgram } from '../accounts/mint.js';
-import { resolveFeeSalt } from '../fee/types.js';
-import { DEFAULT_IGP_SALT } from '../hook/igp-hook.js';
 import {
-  deriveAssociatedTokenAddress,
   deriveEscrowPda,
   deriveHyperlaneTokenPda,
-  deriveIgpAccountPda,
   deriveMailboxDispatchAuthorityPda,
 } from '../pda.js';
 import type { SvmReceipt, SvmRpc } from '../types.js';
@@ -34,13 +24,12 @@ import {
   SvmTokenAltReaderBase,
   canonicalize,
   createWarpAltsImpl,
-  deriveFeeQuoteCascadeAltAddresses,
-  deriveIgpQuoteCascadeAltAddresses,
+  deriveWarpRouteCommonAltAddresses,
 } from './warp-alt.js';
 
 /**
  * Read-only ALT surface for a collateral SVM warp route. Owns the
- * `deriveWarpRouteAddresses` derivation; shared `read` / `check` /
+ * warp-route address derivation; shared `read` / `check` /
  * `computeExpectedAltAddresses` come from `SvmTokenAltReaderBase`.
  *
  * The token program (classic SPL vs Token-2022) is determined by
@@ -50,10 +39,10 @@ import {
 export class SvmCollateralTokenAltReader extends SvmTokenAltReaderBase<CollateralWarpArtifactConfig> {
   constructor(
     chainName: string,
-    protected readonly rpc: SvmRpc,
+    rpc: SvmRpc,
     altReader: SvmAddressLookupTableReader,
   ) {
-    super(chainName, altReader);
+    super(chainName, rpc, altReader);
   }
 
   async deriveWarpRouteAddresses(
@@ -83,61 +72,16 @@ export class SvmCollateralTokenAltReader extends SvmTokenAltReaderBase<Collatera
       { address: escrowPda.address, description: 'warp.escrow_pda' },
     ];
 
-    const fee = deployed.config.fee;
-    assert(
-      isNullish(fee) || isArtifactDeployed(fee),
-      'Expected fee artifact to be expanded (DEPLOYED) or not set',
-    );
-
-    if (fee) {
-      const cascade = await deriveFeeQuoteCascadeAltAddresses({
-        feeProgram: parseAddress(fee.deployed.address),
-        feeSalt: resolveFeeSalt(this.chainName),
-        feeConfig: fee.config,
-        feeReadContext: buildFeeReadContextFromWarpArtifactConfig(
-          deployed.config,
-        ),
-      });
-
-      // SPL fees pay to an ATA derived from the beneficiary owner +
-      // the warp's mint + the resolved token program — never the
-      // wallet directly (that's the native warp's shape).
-      const beneficiaryAta = await deriveAssociatedTokenAddress({
-        wallet: parseAddress(fee.config.beneficiary),
-        mint,
-        tokenProgram,
-      });
-      out.push(
-        { address: beneficiaryAta.address, description: 'fee.beneficiary_ata' },
-        ...cascade,
-      );
-    }
-
-    const hook = deployed.config.hook;
-    assert(
-      isNullish(hook) || isArtifactDeployed(hook),
-      'Expected hook artifact to be expanded (DEPLOYED) or not set',
-    );
-
-    if (hook?.config.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
-      const igpProgramId = parseAddress(hook.deployed.address);
-      const igpAccount = await deriveIgpAccountPda(
-        igpProgramId,
-        DEFAULT_IGP_SALT,
-      );
-      const enrolledDomains = Object.keys(deployed.config.remoteRouters).map(
-        Number,
-      );
-
-      const igpCascade = await deriveIgpQuoteCascadeAltAddresses({
-        igpProgram: igpProgramId,
-        igpAccount: igpAccount.address,
+    out.push(
+      ...(await deriveWarpRouteCommonAltAddresses({
+        chainName: this.chainName,
+        rpc: this.rpc,
+        config: deployed.config,
+        warpProgram: warpProgramId,
         feeTokenMint: mint,
-        sender: warpProgramId,
-        enrolledDomains,
-      });
-      out.push(...igpCascade);
-    }
+        feeBeneficiaryToken: { mint, tokenProgram },
+      })),
+    );
 
     return canonicalize(out);
   }

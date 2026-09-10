@@ -3,7 +3,7 @@ import { address, type Address, generateKeyPairSigner } from '@solana/kit';
 import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
 
-import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
+import { HookType, IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   ArtifactState,
@@ -17,6 +17,10 @@ import {
   type RoutingFeeArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/fee';
 import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
+import {
+  type CompositeIsmArtifactConfig,
+  CompositeIsmNodeType,
+} from '@hyperlane-xyz/provider-sdk/ism';
 import {
   type CrossCollateralWarpArtifactConfig,
   type DeployedWarpAddress,
@@ -45,11 +49,16 @@ import {
 } from '../instructions/token.js';
 import { WILDCARD_SENDER } from '../codecs/igp.js';
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
+import { SvmCompositeIsmWriter } from '../ism/composite-ism.js';
 import { SvmTestIsmWriter } from '../ism/test-ism.js';
 import {
   deriveAssociatedTokenAddress,
+  deriveCompositeIsmDomainPda,
+  deriveCompositeIsmStoragePda,
   deriveIgpAccountPda,
   deriveIgpStandingQuotePda,
+  deriveIsmProcessAuthorityPda,
+  deriveTestIsmStoragePda,
 } from '../pda.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
@@ -612,5 +621,79 @@ describe('SVM warp ALT simulation parity — cross-collateral', function () {
       true,
       `ALT missing IGP standing quote for CC-only domain ${DOMAIN_CC_ONLY} (sender=wildcard)`,
     );
+  });
+
+  it('covers composite ISM accounts for cross-collateral-only origin domains', async () => {
+    const compositeIsmConfig: CompositeIsmArtifactConfig = {
+      type: IsmType.COMPOSITE,
+      owner: signer.getSignerAddress(),
+      root: {
+        type: CompositeIsmNodeType.AGGREGATION,
+        threshold: 2,
+        subIsms: [
+          { type: CompositeIsmNodeType.PAUSABLE, paused: false },
+          {
+            type: CompositeIsmNodeType.FALLBACK_ROUTING,
+            fallbackIsm: TEST_PROGRAM_IDS.testIsm,
+          },
+        ],
+      },
+    };
+    const [compositeIsm] = await new SvmCompositeIsmWriter(
+      { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.compositeIsm } },
+      rpc,
+      signer,
+    ).create({
+      artifactState: ArtifactState.NEW,
+      config: compositeIsmConfig,
+    });
+    const expandedWarp: ArtifactDeployed<
+      CrossCollateralWarpArtifactConfig,
+      DeployedWarpAddress
+    > = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: {
+        type: TokenType.crossCollateral,
+        owner: signer.getSignerAddress(),
+        mailbox: mailboxAddress,
+        token: collateralMint,
+        remoteRouters: {
+          [DOMAIN_REMOTE]: { address: REMOTE_ROUTER_HEX },
+        },
+        destinationGas: { [DOMAIN_REMOTE]: REMOTE_GAS.toString() },
+        crossCollateralRouters: {
+          [DOMAIN_REMOTE]: new Set([REMOTE_ROUTER_HEX]),
+          [DOMAIN_CC_ONLY]: new Set([CC_ONLY_ROUTER_HEX]),
+        },
+        interchainSecurityModule: compositeIsm,
+      },
+      deployed: { address: warpProgramId },
+    };
+
+    const addresses = await createWarpAltReader(TEST_SVM_CHAIN_METADATA)
+      .createReader(TokenType.crossCollateral)
+      .deriveWarpRouteAddresses(expandedWarp);
+    const altSet = new Set(addresses.map((entry) => entry.address));
+    const compositeProgram = address(compositeIsm.deployed.address);
+    const expected = [
+      compositeProgram,
+      (await deriveCompositeIsmStoragePda(compositeProgram)).address,
+      (await deriveIsmProcessAuthorityPda(mailboxAddress, compositeProgram))
+        .address,
+      (await deriveCompositeIsmDomainPda(compositeProgram, DOMAIN_REMOTE))
+        .address,
+      (await deriveCompositeIsmDomainPda(compositeProgram, DOMAIN_CC_ONLY))
+        .address,
+      TEST_PROGRAM_IDS.testIsm,
+      (await deriveCompositeIsmStoragePda(TEST_PROGRAM_IDS.testIsm)).address,
+      (await deriveTestIsmStoragePda(TEST_PROGRAM_IDS.testIsm)).address,
+    ];
+
+    for (const expectedAddress of expected) {
+      expect(
+        altSet.has(expectedAddress),
+        `ALT missing composite ISM account ${expectedAddress}`,
+      ).to.be.true;
+    }
   });
 });
