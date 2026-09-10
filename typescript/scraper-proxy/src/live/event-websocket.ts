@@ -114,7 +114,7 @@ type Limits = {
   maxExplorerClients: number;
   maxTotalBufferedBytes: number;
 };
-type SerializedMessage = { bytes: number; text: string };
+type SerializedMessage = Buffer;
 export type EventDatabase = Pick<DbService, 'listen' | 'queryLive'>;
 
 function stream(
@@ -813,11 +813,24 @@ export class EventWebSocketServer {
   private publish(eventType: EventType, row: Row): void {
     const domain = rowDomain(row, STREAMS[eventType].domain);
     const key = rowCursorKey(eventType, domain, row);
+    let serialized: SerializedMessage | undefined;
     for (const [socket, client] of this.clients) {
       const subscription = client.subscriptions.get(eventType);
       if (!subscription || !matches(subscription, domain, key)) continue;
       if (!subscription.catchingUp) {
-        this.deliver(socket, eventType, subscription, row);
+        const message = this.eventForDelivery(
+          socket,
+          eventType,
+          subscription,
+          row,
+        );
+        if (!message) continue;
+        // Gas payment envelopes include each subscriber's legacy cursor boundary.
+        const payload =
+          eventType === 'gas_payment'
+            ? serialize(message)
+            : (serialized ??= serialize(message));
+        this.sendSerialized(socket, payload);
       } else if (
         !subscription.waiting &&
         subscription.pending.push(row) > MAX_PENDING_EVENTS
@@ -826,17 +839,6 @@ export class EventWebSocketServer {
         socket.close(1013, 'Event catch-up buffer exceeded');
       }
     }
-  }
-
-  private deliver(
-    socket: WebSocket,
-    eventType: EventType,
-    subscription: Subscription,
-    row: Row,
-  ): boolean {
-    const message = this.eventForDelivery(socket, eventType, subscription, row);
-    if (message === false) return false;
-    return message === undefined || this.send(socket, message);
   }
 
   private async deliverAndWait(
@@ -1237,7 +1239,10 @@ export class EventWebSocketServer {
     client: ExplorerClient,
     messages: SerializedMessage[],
   ): void {
-    const bytes = messages.reduce((total, message) => total + message.bytes, 0);
+    const bytes = messages.reduce(
+      (total, message) => total + message.length,
+      0,
+    );
     if (
       client.queue.length + messages.length > MAX_EXPLORER_PENDING_MESSAGES ||
       client.queuedBytes + bytes > MAX_EXPLORER_PENDING_BYTES
@@ -1260,7 +1265,7 @@ export class EventWebSocketServer {
       while (this.explorerClients.get(socket) === client) {
         const message = client.queue.shift();
         if (!message) return;
-        client.queuedBytes = Math.max(0, client.queuedBytes - message.bytes);
+        client.queuedBytes = Math.max(0, client.queuedBytes - message.length);
         if (!(await this.sendSerializedAndWait(socket, message))) return;
       }
     } finally {
@@ -1383,22 +1388,22 @@ export class EventWebSocketServer {
     )
       return false;
     if (
-      socket.bufferedAmount + message.bytes > this.limits.maxBufferedBytes ||
-      this.pendingBytes + message.bytes > this.limits.maxTotalBufferedBytes
+      socket.bufferedAmount + message.length > this.limits.maxBufferedBytes ||
+      this.pendingBytes + message.length > this.limits.maxTotalBufferedBytes
     ) {
       websocketSendFailures.inc({ reason: 'buffer_limit' });
       this.failSocket(socket, 'outbound buffer limit exceeded');
       return false;
     }
-    this.pendingBytes += message.bytes;
+    this.pendingBytes += message.length;
     try {
-      socket.send(message.text, (error) => {
-        this.pendingBytes = Math.max(0, this.pendingBytes - message.bytes);
+      socket.send(message, { binary: false }, (error) => {
+        this.pendingBytes = Math.max(0, this.pendingBytes - message.length);
         completed?.(!error);
         if (error) this.failSend(socket, error.message);
       });
     } catch (error) {
-      this.pendingBytes = Math.max(0, this.pendingBytes - message.bytes);
+      this.pendingBytes = Math.max(0, this.pendingBytes - message.length);
       completed?.(false);
       this.failSend(socket, formatError(error));
       return false;
@@ -1455,8 +1460,8 @@ export class EventWebSocketServer {
 }
 
 function serialize(message: Record<string, unknown>): SerializedMessage {
-  const text = JSON.stringify(message);
-  return { bytes: Buffer.byteLength(text), text };
+  // Explorer broadcasts share this payload; encode UTF-8 once for every recipient.
+  return Buffer.from(JSON.stringify(message));
 }
 
 function subscriptionResponse(request: StreamRequest): Record<string, unknown> {
