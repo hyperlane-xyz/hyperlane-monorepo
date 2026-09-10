@@ -1,4 +1,9 @@
-import { IsmType, MultiProvider, NullIsmConfig } from '@hyperlane-xyz/sdk';
+import {
+  IsmType,
+  MultiProvider,
+  NullIsmConfig,
+  WormholeIsmConfig,
+} from '@hyperlane-xyz/sdk';
 import { WithAddress, assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import type {
@@ -10,14 +15,19 @@ import type {
 export const NULL_METADATA = '0x';
 
 export type NullMetadata = {
-  type: NullIsmConfig['type'];
+  type: NullIsmConfig['type'] | typeof IsmType.WORMHOLE_EXECUTOR;
 };
+
+/** ISM configs whose metadata is always empty. */
+export type EmptyMetadataIsmConfig =
+  | NullIsmConfig
+  | (WormholeIsmConfig & { type: typeof IsmType.WORMHOLE_EXECUTOR });
 
 export class NullMetadataBuilder implements MetadataBuilder {
   constructor(protected multiProvider: MultiProvider) {}
 
   async build(
-    context: MetadataContext<WithAddress<NullIsmConfig>>,
+    context: MetadataContext<WithAddress<EmptyMetadataIsmConfig>>,
   ): Promise<NullMetadataBuildResult> {
     if (context.ism.type === IsmType.TRUSTED_RELAYER) {
       const destinationSigner = await this.multiProvider.getSignerAddress(
@@ -36,7 +46,7 @@ export class NullMetadataBuilder implements MetadataBuilder {
     };
   }
 
-  static decode(ism: NullIsmConfig): NullMetadata {
+  static decode(ism: EmptyMetadataIsmConfig): NullMetadata {
     return { ...ism };
   }
 }

@@ -81,8 +81,9 @@ import {
 import { EvmHookReader } from './EvmHookReader.js';
 import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
-  collapseMatchingHybridHookNodes,
-  resolveHybridHookNodesToAddress,
+  collapseMatchingCombinedHookIsmNodes,
+  isCombinedHookIsmHookNode,
+  resolveCombinedHookIsmNodesToAddress,
 } from './utils.js';
 import {
   AggregationHookConfig,
@@ -215,7 +216,7 @@ export class EvmHookModule extends HyperlaneModule<
 
   public async update(
     targetConfig: HookConfig,
-    opaqueHybridAddresses: Address[] = [],
+    opaqueCombinedHookIsmAddresses: Address[] = [],
   ): Promise<AnnotatedEV5Transaction[]> {
     // Nothing to do if its the default hook
     if (typeof targetConfig === 'string' && isZeroishAddress(targetConfig)) {
@@ -223,19 +224,26 @@ export class EvmHookModule extends HyperlaneModule<
     }
 
     // We need to normalize the current and target configs to compare.
-    let normalizedTargetConfig: HookConfig = normalizeConfig(
-      await this.reader.deriveHookConfig(targetConfig),
-    );
-    for (const address of opaqueHybridAddresses) {
-      normalizedTargetConfig = resolveHybridHookNodesToAddress(
+    const derivedTargetConfig =
+      await this.reader.deriveHookConfig(targetConfig);
+    let normalizedTargetConfig: HookConfig =
+      typeof targetConfig === 'string' &&
+      isCombinedHookIsmHookNode(derivedTargetConfig)
+        ? targetConfig
+        : normalizeConfig(derivedTargetConfig);
+    for (const address of opaqueCombinedHookIsmAddresses) {
+      normalizedTargetConfig = resolveCombinedHookIsmNodesToAddress(
         normalizedTargetConfig,
         address,
       );
     }
     normalizedTargetConfig = normalizeConfig(normalizedTargetConfig);
     let currentConfig: HookConfig = await this.read();
-    for (const address of opaqueHybridAddresses) {
-      currentConfig = collapseMatchingHybridHookNodes(currentConfig, address);
+    for (const address of opaqueCombinedHookIsmAddresses) {
+      currentConfig = collapseMatchingCombinedHookIsmNodes(
+        currentConfig,
+        address,
+      );
     }
     const normalizedCurrentConfig: HookConfig = normalizeConfig(currentConfig);
 

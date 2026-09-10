@@ -96,10 +96,7 @@ export function hyperlaneCoreInit(
 /**
  * Updates a Hyperlane core deployment on the specified chain using the provided config.
  */
-export async function hyperlaneCoreApply(
-  chain: string,
-  coreOutputPath: string,
-) {
+export function hyperlaneCoreApply(chain: string, coreOutputPath: string) {
   return $`${localTestRunCmdPrefix()} hyperlane core apply \
         --registry ${REGISTRY_PATH} \
         --config ${coreOutputPath} \

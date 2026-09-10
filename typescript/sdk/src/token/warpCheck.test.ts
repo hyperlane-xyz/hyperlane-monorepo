@@ -4,7 +4,7 @@ import sinon from 'sinon';
 import { zeroAddress } from 'viem';
 
 import { CrossCollateralRouter__factory } from '@hyperlane-xyz/core';
-import { ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
+import { ProtocolType, addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import {
   test1,
@@ -18,6 +18,12 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { TokenStandard } from './TokenStandard.js';
 import { TokenType } from './config.js';
+import { WormholeConsistencyType } from '../wormhole/consistency.js';
+import {
+  type DerivedWormholeHookIsmConfig,
+  type WormholeMeshConfig,
+  WormholeVariant,
+} from '../wormhole/types.js';
 import {
   type DerivedWarpRouteDeployConfig,
   HypTokenConfigSchema,
@@ -28,6 +34,7 @@ import {
   altVmScaleMismatch,
   applyAcceptedInactiveOwnerStatus,
   buildAltVmWarpRouteDiff,
+  buildWormholeRemoteRouterDiff,
   buildWarpRouteDiff,
   checkWarpRouteDeployConfig,
   derivedWarpConfigToCheckConfig,
@@ -1126,5 +1133,137 @@ describe('applyAcceptedInactiveOwnerStatus', () => {
     });
 
     expect(expanded[CHAIN].ownerStatus?.[OWNER_A]).to.equal(OwnerStatus.Active);
+  });
+});
+
+describe('buildWormholeRemoteRouterDiff', () => {
+  const CHAIN_A = test1.name;
+  const CHAIN_B = test2.name;
+  const ROUTER_A = '0x1111111111111111111111111111111111111111';
+  const ROUTER_B = '0x2222222222222222222222222222222222222222';
+  const CORE_A = '0x3333333333333333333333333333333333333333';
+  const CORE_B = '0x4444444444444444444444444444444444444444';
+  const QUOTER_ROUTER = '0x5555555555555555555555555555555555555555';
+  const QUOTER = '0x6666666666666666666666666666666666666666';
+
+  function mesh(): WormholeMeshConfig {
+    return {
+      [CHAIN_A]: {
+        type: WormholeVariant.Executor,
+        owner: OWNER,
+        mailbox: MAILBOX,
+        core: CORE_A,
+        wormholeChainId: 2,
+        consistencyLevel: { type: WormholeConsistencyType.Finalized },
+        executorQuoterRouter: QUOTER_ROUTER,
+        remoteRouters: {
+          [CHAIN_B]: {
+            router: ROUTER_B,
+            wormholeChainId: 30,
+            expectedConsistencyLevel: 202,
+            quoter: QUOTER,
+            callbackGasLimit: 300_000n,
+          },
+        },
+      },
+      [CHAIN_B]: {
+        type: WormholeVariant.Executor,
+        owner: OWNER,
+        mailbox: MAILBOX,
+        core: CORE_B,
+        wormholeChainId: 30,
+        consistencyLevel: { type: WormholeConsistencyType.Finalized },
+        executorQuoterRouter: QUOTER_ROUTER,
+        remoteRouters: {
+          [CHAIN_A]: {
+            router: ROUTER_A,
+            wormholeChainId: 2,
+            expectedConsistencyLevel: 202,
+            quoter: QUOTER,
+            callbackGasLimit: 300_000n,
+          },
+        },
+      },
+    };
+  }
+
+  function derived(
+    config: WormholeMeshConfig,
+  ): Record<string, DerivedWormholeHookIsmConfig> {
+    return Object.fromEntries(
+      Object.entries(config).map(([chain, chainConfig]) => {
+        assert(
+          chainConfig.wormholeChainId !== undefined,
+          `Missing Wormhole chain ID for ${chain}`,
+        );
+        return [
+          chain,
+          {
+            ...chainConfig,
+            wormholeChainId: chainConfig.wormholeChainId,
+            address: chain === CHAIN_A ? ROUTER_A : ROUTER_B,
+          },
+        ];
+      }),
+    );
+  }
+
+  it('accepts an exact remote-router trust mesh', () => {
+    const expected = mesh();
+    expect(
+      buildWormholeRemoteRouterDiff(derived(expected), expected),
+    ).to.deep.equal({});
+  });
+
+  it('reports remote router, Wormhole ID, consistency, and executor drift', () => {
+    const expected = mesh();
+    const actual = derived(mesh());
+    actual[CHAIN_A].remoteRouters[CHAIN_B] = {
+      router: ROUTER_A,
+      wormholeChainId: 31,
+      expectedConsistencyLevel: 201,
+      quoter: ROUTER_B,
+      callbackGasLimit: 1n,
+    };
+
+    const diff = buildWormholeRemoteRouterDiff(actual, expected);
+    expect(diff[CHAIN_A]).to.have.nested.property(
+      `wormholeRemoteRouters.${CHAIN_B}.router.actual`,
+      ROUTER_A.toLowerCase(),
+    );
+    expect(diff[CHAIN_A]).to.have.nested.property(
+      `wormholeRemoteRouters.${CHAIN_B}.wormholeChainId.actual`,
+      31,
+    );
+    expect(diff[CHAIN_A]).to.have.nested.property(
+      `wormholeRemoteRouters.${CHAIN_B}.expectedConsistencyLevel.actual`,
+      201,
+    );
+    expect(diff[CHAIN_A]).to.have.nested.property(
+      `wormholeRemoteRouters.${CHAIN_B}.callbackGasLimit.actual`,
+      '1',
+    );
+  });
+
+  it('reports unexpected enrolled domains', () => {
+    const expected = mesh();
+    const actual = derived(mesh());
+    actual[CHAIN_A].remoteRouters['999999'] = {
+      router: ROUTER_A,
+      wormholeChainId: 77,
+      expectedConsistencyLevel: 202,
+      quoter: QUOTER,
+      callbackGasLimit: 300_000n,
+    };
+
+    expect(buildWormholeRemoteRouterDiff(actual, expected)[CHAIN_A])
+      .to.have.nested.property('wormholeRemoteRouters.999999.actual')
+      .that.deep.equals({
+        router: ROUTER_A.toLowerCase(),
+        wormholeChainId: 77,
+        expectedConsistencyLevel: 202,
+        quoter: QUOTER.toLowerCase(),
+        callbackGasLimit: '300000',
+      });
   });
 });

@@ -57,6 +57,18 @@ import {
 } from '../utils/decimals.js';
 import { collectHybridIsmNodes } from '../utils/ism.js';
 import { WarpCoreConfig } from '../warp/types.js';
+import { EvmWormholeHookIsmModule } from '../wormhole/EvmWormholeHookIsmModule.js';
+import {
+  buildWormholeMeshConfig,
+  findWormholeHooks,
+  findWormholeIsms,
+  pairWormholeConfigs,
+} from '../wormhole/config.js';
+import {
+  DerivedWormholeHookIsmConfig,
+  WormholeMeshConfig,
+  WormholeRemoteRouterConfig,
+} from '../wormhole/types.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { TokenType, isSyntheticTokenType } from './config.js';
@@ -864,6 +876,21 @@ export async function checkWarpRouteDeployConfig({
     warpRouteConfig: evmExpandedWarpDeployConfig,
   });
 
+  const wormholeDiff = await deriveWormholeRemoteRouterDiff({
+    multiProvider,
+    onChainWarpConfig: expandedOnChainWarpConfig,
+    warpDeployConfig,
+  });
+  for (const [chain, chainDiff] of Object.entries(wormholeDiff)) {
+    if (!rawEvmDiff[chain]) {
+      rawEvmDiff[chain] = chainDiff;
+      continue;
+    }
+    assertObjectDiffMap(rawEvmDiff[chain], `Unexpected diff for ${chain}`);
+    assertObjectDiffMap(chainDiff, `Unexpected Wormhole diff for ${chain}`);
+    Object.assign(rawEvmDiff[chain], chainDiff);
+  }
+
   await addOwnerOverrideDiffs({
     multiProvider,
     diff: rawEvmDiff,
@@ -1102,6 +1129,92 @@ export function buildWarpRouteDiff({
     },
     {} as Record<string, ObjectDiff>, // CAST: reduce incrementally populates chain-keyed ObjectDiff entries
   );
+}
+
+function normalizeWormholeRemoteRouters(
+  remoteRouters: Record<string, WormholeRemoteRouterConfig>,
+) {
+  return Object.fromEntries(
+    Object.entries(remoteRouters).map(([chain, config]) => [
+      chain,
+      {
+        router: normalizeAddressEvm(config.router),
+        wormholeChainId: config.wormholeChainId,
+        expectedConsistencyLevel: config.expectedConsistencyLevel,
+        ...(config.quoter
+          ? { quoter: normalizeAddressEvm(config.quoter) }
+          : {}),
+        ...(config.callbackGasLimit !== undefined
+          ? { callbackGasLimit: config.callbackGasLimit.toString() }
+          : {}),
+      },
+    ]),
+  );
+}
+
+export function buildWormholeRemoteRouterDiff(
+  actual: Record<string, DerivedWormholeHookIsmConfig>,
+  expected: WormholeMeshConfig,
+): Record<string, ObjectDiff> {
+  const diff: Record<string, ObjectDiff> = {};
+  for (const [chain, expectedConfig] of Object.entries(expected)) {
+    const actualConfig = actual[chain];
+    if (!actualConfig) continue;
+    const result = diffObjMerge(
+      normalizeWormholeRemoteRouters(actualConfig.remoteRouters),
+      normalizeWormholeRemoteRouters(expectedConfig.remoteRouters),
+    );
+    if (result.isInvalid) {
+      diff[chain] = { wormholeRemoteRouters: result.mergedObject };
+    }
+  }
+  return diff;
+}
+
+async function deriveWormholeRemoteRouterDiff({
+  multiProvider,
+  onChainWarpConfig,
+  warpDeployConfig,
+}: {
+  multiProvider: MultiProvider;
+  onChainWarpConfig: DerivedWarpRouteDeployConfig;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+}): Promise<Record<string, ObjectDiff>> {
+  const pairs = pairWormholeConfigs(warpDeployConfig);
+  const chains = Object.keys(pairs);
+  if (chains.length === 0) return {};
+
+  const addresses: Record<string, Address> = {};
+  for (const chain of chains) {
+    const actual = onChainWarpConfig[chain];
+    if (!actual) return {};
+    const hooks = findWormholeHooks(actual.hook);
+    const isms = findWormholeIsms(actual.interchainSecurityModule);
+    if (hooks.length !== 1 || isms.length !== 1) return {};
+
+    const hookAddress =
+      'address' in hooks[0] && typeof hooks[0].address === 'string'
+        ? hooks[0].address
+        : undefined;
+    const ismAddress =
+      'address' in isms[0] && typeof isms[0].address === 'string'
+        ? isms[0].address
+        : undefined;
+    if (!hookAddress || !ismAddress || !eqAddress(hookAddress, ismAddress)) {
+      return {};
+    }
+    addresses[chain] = ismAddress;
+  }
+
+  const expected = EvmWormholeHookIsmModule.withDeployedRouters(
+    buildWormholeMeshConfig(warpDeployConfig, pairs),
+    addresses,
+  );
+  const actual = await EvmWormholeHookIsmModule.readMesh(
+    multiProvider,
+    addresses,
+  );
+  return buildWormholeRemoteRouterDiff(actual, expected);
 }
 
 async function addTimelockDiffs({
