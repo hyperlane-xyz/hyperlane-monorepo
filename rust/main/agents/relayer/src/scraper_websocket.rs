@@ -1968,18 +1968,24 @@ impl ScraperWebSocketMonitor {
         kind: EventKind,
         parity_input: ParityInput,
         sequence: u32,
-    ) -> bool {
+    ) -> Result<bool> {
         if self.parity_read_disabled.load(Ordering::Acquire) {
-            return false;
+            return Ok(false);
         }
-        let queue_permit = self
-            .parity_queue_permit
-            .clone()
-            .acquire_owned()
-            .await
-            .expect("parity queue semaphore is never closed");
+        // Admission runs between session polls. Waiting here would also stop
+        // freshness probes and disconnect detection for every origin.
+        let queue_permit = match self.parity_queue_permit.clone().try_acquire_owned() {
+            Ok(permit) => permit,
+            Err(tokio::sync::TryAcquireError::NoPermits) => {
+                self.deactivate_authority();
+                bail!("Scraper parity queue is full; restoring RPC fallback");
+            }
+            Err(tokio::sync::TryAcquireError::Closed) => {
+                unreachable!("parity queue semaphore is never closed")
+            }
+        };
         if self.parity_read_disabled.load(Ordering::Acquire) {
-            return false;
+            return Ok(false);
         }
         let queue = self
             .parity_queues
@@ -2006,7 +2012,7 @@ impl ScraperWebSocketMonitor {
                 monitor.drain_parity_queue(domain, kind, queue).await;
             });
         }
-        true
+        Ok(true)
     }
 
     #[cfg(test)]
@@ -2020,7 +2026,8 @@ impl ScraperWebSocketMonitor {
         self.note_parity_pending(domain, kind);
         let enqueued = self
             .enqueue_accounted_parity(domain, kind, parity_input, sequence)
-            .await;
+            .await
+            .expect("test parity admission");
         if !enqueued {
             self.cancel_parity_pending(domain, kind);
         }
@@ -2034,7 +2041,7 @@ impl ScraperWebSocketMonitor {
     ) -> Result<()> {
         if !self
             .enqueue_accounted_parity(domain, validated.kind, validated.parity, validated.sequence)
-            .await
+            .await?
         {
             self.cancel_parity_pending(domain, validated.kind);
         }
@@ -5498,6 +5505,117 @@ mod tests {
         })
         .await
         .expect("ordered worker persists the terminal cursor");
+    }
+
+    #[tokio::test]
+    async fn full_parity_queue_restores_other_origin_rpc_fallback() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind server");
+        let url =
+            Url::parse(&format!("ws://{}", listener.local_addr().expect("address"))).expect("URL");
+        let metrics = CoreMetrics::new("parity-backpressure", 0, Registry::new()).expect("metrics");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new_with_authority(
+                url,
+                sources_for(&[5, 9]).into_values().collect(),
+                &metrics,
+                true,
+            )
+            .expect("monitor"),
+        );
+        for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+            monitor.sources[&5]
+                .store_cursor(kind, 0)
+                .expect("replay floor");
+        }
+        // Origin 5 has no RPC-indexed messages. Its FIFO worker retries Missing
+        // while retaining a slot; the remaining jobs consume the global queue.
+        for sequence in 1..=u32::try_from(PARITY_QUEUE_CAPACITY).expect("capacity") {
+            let validated = StreamState::default()
+                .validate(
+                    event(
+                        DISPATCH_EVENT_TYPE,
+                        sequence,
+                        dispatch_data(sequence, b"payload"),
+                    ),
+                    &monitor.sources,
+                )
+                .expect("valid event");
+            assert!(
+                monitor
+                    .enqueue_parity(
+                        5,
+                        EventKind::Dispatch,
+                        validated.parity.expect("parity"),
+                        sequence,
+                    )
+                    .await
+            );
+        }
+        assert_eq!(monitor.parity_queue_permit.available_permits(), 0);
+        let mut receiver = monitor.authority_receiver(9).expect("authority receiver");
+        let server_monitor = monitor.clone();
+        let (finish_tx, finish_rx) = oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.expect("accept");
+            let mut socket = accept_async(stream).await.expect("websocket");
+            socket
+                .send(Message::Text(r#"{"type":"ready"}"#.to_owned()))
+                .await
+                .expect("ready");
+            let request = socket.next().await.expect("subscription").expect("read");
+            let request: serde_json::Value =
+                serde_json::from_str(request.to_text().expect("text")).expect("JSON");
+            socket
+                .send(Message::Text(
+                    serde_json::json!({
+                        "type": "subscribed", "streams": proxy_subscription_response(&request),
+                    })
+                    .to_string(),
+                ))
+                .await
+                .expect("subscribed");
+            // Model origin 9 having completed cutover, with RPC indexers paused.
+            let authority = server_monitor.source_authority(9);
+            authority
+                .sender
+                .send_modify(|command| command.desired = true);
+            authority.active.store(true, Ordering::Release);
+            authority
+                .handoff
+                .mark_paused(9, authority.sender.borrow().generation);
+            socket
+                .send(Message::Text(
+                    wire_event(event(DISPATCH_EVENT_TYPE, 0, dispatch_data(0, b"payload")))
+                        .to_string(),
+                ))
+                .await
+                .expect("event");
+            finish_rx.await.expect("finish");
+        });
+        let mut state = StreamState::default();
+        let err = timeout(Duration::from_millis(250), monitor.stream_once(&mut state))
+            .await
+            .expect("admission must not wait for Missing retries")
+            .expect_err("full queue ends session");
+        assert!(err.to_string().contains("parity queue is full"), "{err:?}");
+        assert!(!receiver.borrow_and_update().desired);
+        assert!(!monitor.source_authority(9).active.load(Ordering::Acquire));
+        assert!(!monitor.parity_read_disabled.load(Ordering::Acquire));
+        assert_eq!(
+            monitor.sources[&5]
+                .cursor(EventKind::Dispatch)
+                .expect("cursor"),
+            Some(0)
+        );
+        assert_eq!(
+            monitor
+                .parity_pending
+                .with_label_values(&["test-5", DISPATCH_EVENT_TYPE])
+                .get(),
+            i64::try_from(PARITY_QUEUE_CAPACITY).expect("capacity")
+        );
+        finish_tx.send(()).expect("finish server");
+        server.await.expect("server");
     }
 
     #[tokio::test]
