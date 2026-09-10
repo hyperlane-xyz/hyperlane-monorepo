@@ -625,3 +625,69 @@ async fn test_from_settings_and_run_bad_signer() {
             .is_ok()
     );
 }
+
+#[tokio::test]
+async fn gas_payment_rpc_fallback_stops_restarts_and_survives_monitor_exit() {
+    struct Running(Arc<AtomicBool>);
+    impl Drop for Running {
+        fn drop(&mut self) {
+            self.0.store(false, Ordering::SeqCst);
+        }
+    }
+    let (sender, receiver) = tokio::sync::watch::channel(false);
+    let running = Arc::new(AtomicBool::new(false));
+    let (started, mut starts) = tokio::sync::mpsc::unbounded_channel();
+    let observed = running.clone();
+    let task = tokio::spawn(super::run_gas_payment_fallback(Some(receiver), move || {
+        let running = observed.clone();
+        let started = started.clone();
+        async move {
+            assert!(
+                !running.swap(true, Ordering::SeqCst),
+                "RPC tasks must not overlap"
+            );
+            let _guard = Running(running);
+            started.send(()).expect("start notification");
+            std::future::pending::<()>().await;
+        }
+    }));
+    tokio::time::timeout(Duration::from_secs(1), starts.recv())
+        .await
+        .expect("startup RPC")
+        .expect("started");
+    sender.send(true).expect("connected");
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while running.load(Ordering::SeqCst) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("RPC cancelled on connection");
+    assert!(
+        tokio::time::timeout(Duration::from_millis(20), starts.recv())
+            .await
+            .is_err(),
+        "no parallel RPC while connected"
+    );
+    sender.send(false).expect("disconnected");
+    tokio::time::timeout(Duration::from_secs(1), starts.recv())
+        .await
+        .expect("outage RPC")
+        .expect("started");
+    sender.send(true).expect("reconnected");
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while running.load(Ordering::SeqCst) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("RPC paused again");
+    drop(sender);
+    tokio::time::timeout(Duration::from_secs(1), starts.recv())
+        .await
+        .expect("closed monitor RPC")
+        .expect("started");
+    task.abort();
+    let _ = task.await;
+    assert!(!running.load(Ordering::SeqCst));
+}

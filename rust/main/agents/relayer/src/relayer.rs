@@ -18,7 +18,7 @@ use tokio::{
     sync::{
         broadcast::Sender as BroadcastSender,
         mpsc::{self, Receiver as MpscReceiver, Sender},
-        RwLock,
+        watch, RwLock,
     },
     task::{JoinHandle, JoinSet},
 };
@@ -157,6 +157,7 @@ pub struct Relayer {
     runtime_metrics: RuntimeMetrics,
     scraper_websocket_monitor: Option<ScraperWebSocketMonitor>,
     scraper_websocket_authority: HashMap<u32, ScraperAuthorityReceiver>,
+    gas_payment_websocket_authority: Option<watch::Receiver<bool>>,
     /// Tokio console server
     pub tokio_console_server: Option<console_subscriber::Server>,
 
@@ -362,6 +363,9 @@ impl BaseAgent for Relayer {
                 )
             })
             .transpose()?;
+        let gas_payment_websocket_authority = scraper_websocket_monitor
+            .as_ref()
+            .and_then(ScraperWebSocketMonitor::gas_payment_authority_receiver);
         let scraper_websocket_authority = origins
             .keys()
             .filter_map(|domain| {
@@ -398,6 +402,7 @@ impl BaseAgent for Relayer {
             runtime_metrics,
             scraper_websocket_monitor,
             scraper_websocket_authority,
+            gas_payment_websocket_authority,
             tokio_console_server: Some(tokio_console_server),
             origins,
             destinations,
@@ -577,7 +582,7 @@ impl BaseAgent for Relayer {
             let interchain_gas_payment_sync = match self
                 .run_interchain_gas_payment_sync(
                     origin,
-                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
+                    maybe_broadcaster.clone(),
                     task_monitor.clone(),
                 )
                 .await
@@ -703,6 +708,45 @@ impl BaseAgent for Relayer {
 }
 
 type PrepQueue = HashMap<u32, OpQueue>;
+/// Gas RPC runs only while there is no confirmed scraper subscription.
+/// Dropping the RPC future on cutover cancels its indexing before waiting for
+/// the next outage. Recreating it rebuilds the cursor from durable RPC progress.
+async fn run_gas_payment_fallback<F: std::future::Future<Output = ()>>(
+    mut authority: Option<watch::Receiver<bool>>,
+    mut run_rpc: impl FnMut() -> F,
+) {
+    loop {
+        while let Some(receiver) = authority.as_mut() {
+            if !*receiver.borrow_and_update() {
+                break;
+            }
+            if receiver.changed().await.is_err() {
+                authority = None;
+            }
+        }
+        info!("Starting gas payment RPC indexing fallback");
+        tokio::select! {
+            biased;
+            changed = async { authority.as_mut().expect("guarded authority receiver").changed().await }, if authority.is_some() => {
+                if changed.is_err() {
+                    authority = None;
+                }
+                continue;
+            }
+            _ = run_rpc() => {
+                warn!("Gas payment RPC indexing exited; retrying");
+            }
+        }
+        // Retry failed RPC indexing, but react immediately if the socket returns.
+        tokio::select! {
+            _ = tokio::time::sleep(Duration::from_secs(5)) => {},
+            changed = async { authority.as_mut().expect("guarded authority receiver").changed().await }, if authority.is_some() => {
+                if changed.is_err() { authority = None; }
+            }
+        }
+    }
+}
+
 impl Relayer {
     async fn build_router(
         &self,
@@ -989,7 +1033,7 @@ impl Relayer {
     async fn run_interchain_gas_payment_sync(
         &self,
         origin: &Origin,
-        tx_id_receiver: Option<MpscReceiver<IndexingNotification>>,
+        broadcaster: Option<BroadcastMpscSender<IndexingNotification>>,
         task_monitor: TaskMonitor,
     ) -> eyre::Result<Option<JoinHandle<()>>> {
         let contract_sync = match origin.interchain_gas_payment_sync.as_ref() {
@@ -999,6 +1043,7 @@ impl Relayer {
             }
         };
         let chain_metrics = self.chain_metrics.clone();
+        let authority = self.gas_payment_websocket_authority.clone();
 
         let origin_domain = origin.domain.clone();
         let index_settings = origin.chain_conf.index_settings().clone();
@@ -1010,13 +1055,25 @@ impl Relayer {
             .spawn(TaskMonitor::instrument(
                 &task_monitor,
                 async move {
-                    Self::interchain_gas_payments_sync_task(
-                        &origin_domain,
-                        index_settings,
-                        contract_sync,
-                        chain_metrics,
-                        tx_id_receiver,
-                    )
+                    run_gas_payment_fallback(authority, || {
+                        let origin_domain = origin_domain.clone();
+                        let index_settings = index_settings.clone();
+                        let contract_sync = contract_sync.clone();
+                        let chain_metrics = chain_metrics.clone();
+                        let broadcaster = broadcaster.clone();
+                        async move {
+                            let tx_id_receiver =
+                                BroadcastMpscSender::map_get_receiver(broadcaster.as_ref()).await;
+                            Self::interchain_gas_payments_sync_task(
+                                &origin_domain,
+                                index_settings,
+                                contract_sync,
+                                chain_metrics,
+                                tx_id_receiver,
+                            )
+                            .await;
+                        }
+                    })
                     .await;
                 }
                 .instrument(info_span!("IgpSync")),

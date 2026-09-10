@@ -69,10 +69,8 @@ const PARITY_RETRY_ATTEMPTS: usize = 60;
 const PARITY_WARN_INTERVAL: Duration = Duration::from_secs(60);
 const DUPLICATE_FINGERPRINT_WINDOW: usize = 1_024;
 const DISPATCH_CURSOR_PREFIX: &[u8] = b"scraper_websocket_dispatch_cursor";
-const GAS_PAYMENT_CURSOR_V1_PREFIX: &[u8] = b"scraper_websocket_gas_payment_stream_cursor_v1";
-const GAS_PAYMENT_CURSOR_V2_PREFIX: &[u8] = b"scraper_websocket_gas_payment_stream_cursor_v2";
-const GAS_PAYMENT_CURSOR_PREFIX: &[u8] = b"scraper_websocket_gas_payment_stream_cursor_v3";
-const GAS_PAYMENT_DEGRADED_PREFIX: &[u8] = b"scraper_websocket_gas_payment_degraded_v3";
+// Start a fresh replay epoch; old shadow cursors may have skipped history.
+const GAS_PAYMENT_CURSOR_PREFIX: &[u8] = b"scraper_websocket_gas_payment_cursor";
 const MERKLE_CURSOR_PREFIX: &[u8] = b"scraper_websocket_merkle_cursor";
 // V1 poison keys are intentionally retained in RocksDB. V2 starts a clean
 // parity epoch after fixing the first deployment's known false failures.
@@ -262,40 +260,6 @@ impl ScraperSource {
             .context("Reading durable scraper gas payment cursor")
     }
 
-    fn gas_payment_v2_cursor(&self) -> Result<Option<DurableGasPaymentCursor>> {
-        self.cursor_db
-            .retrieve_value_by_key(GAS_PAYMENT_CURSOR_V2_PREFIX, &self.interchain_gas_paymaster)
-            .context("Reading v2 durable scraper gas payment cursor")
-    }
-
-    fn gas_payment_v1_cursor(&self) -> Result<Option<LegacyDurableGasPaymentCursor>> {
-        self.cursor_db
-            .retrieve_value_by_key(GAS_PAYMENT_CURSOR_V1_PREFIX, &self.interchain_gas_paymaster)
-            .context("Reading legacy durable scraper gas payment cursor")
-    }
-
-    #[cfg(test)]
-    fn store_gas_payment_v1_cursor(&self, cursor: &LegacyDurableGasPaymentCursor) -> Result<()> {
-        self.cursor_db
-            .store_value_by_key(
-                GAS_PAYMENT_CURSOR_V1_PREFIX,
-                &self.interchain_gas_paymaster,
-                cursor,
-            )
-            .context("Storing legacy durable scraper gas payment cursor")
-    }
-
-    #[cfg(test)]
-    fn store_gas_payment_v2_cursor(&self, cursor: &DurableGasPaymentCursor) -> Result<()> {
-        self.cursor_db
-            .store_value_by_key(
-                GAS_PAYMENT_CURSOR_V2_PREFIX,
-                &self.interchain_gas_paymaster,
-                cursor,
-            )
-            .context("Storing v2 durable scraper gas payment cursor")
-    }
-
     fn store_gas_payment_cursor(&self, cursor: &DurableGasPaymentCursor) -> Result<()> {
         if let Some(stored) = self.gas_payment_cursor()? {
             if stored.stream_cursor > cursor.stream_cursor {
@@ -317,23 +281,6 @@ impl ScraperSource {
                 cursor,
             )
             .context("Storing durable scraper gas payment cursor")
-    }
-
-    fn gas_payment_degraded(&self) -> Result<bool> {
-        Ok(self
-            .cursor_db
-            .retrieve_value_by_key(GAS_PAYMENT_DEGRADED_PREFIX, &self.interchain_gas_paymaster)?
-            .unwrap_or(false))
-    }
-
-    fn store_gas_payment_degraded(&self) -> Result<()> {
-        self.cursor_db
-            .store_value_by_key(
-                GAS_PAYMENT_DEGRADED_PREFIX,
-                &self.interchain_gas_paymaster,
-                &true,
-            )
-            .context("Storing durable scraper gas payment degradation")
     }
 
     fn store_sequenced_event(&self, input: &ParityInput) -> Result<Option<IndexingNotification>> {
@@ -798,46 +745,7 @@ struct StreamGap {
 #[derive(Debug, Default)]
 struct StreamState {
     cursors: HashMap<(u32, EventKind), StreamCursor>,
-    gas_payment_degraded: HashSet<u32>,
-    gas_payment_v1_rows: HashMap<u32, LegacyDurableGasPaymentCursor>,
-    gas_payment_v2_rows: HashMap<u32, DurableGasPaymentCursor>,
     gas_payment_rows: HashMap<u32, DurableGasPaymentCursor>,
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-struct LegacyDurableGasPaymentCursor {
-    fingerprint: Option<H256>,
-    stream_cursor: u64,
-}
-
-impl Encode for LegacyDurableGasPaymentCursor {
-    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
-    where
-        W: std::io::Write,
-    {
-        let mut written = self.fingerprint.is_some().write_to(writer)?;
-        if let Some(fingerprint) = self.fingerprint {
-            written = written.saturating_add(fingerprint.write_to(writer)?);
-        }
-        written = written.saturating_add(self.stream_cursor.write_to(writer)?);
-        Ok(written)
-    }
-}
-
-impl Decode for LegacyDurableGasPaymentCursor {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
-    where
-        R: std::io::Read,
-    {
-        let fingerprint = bool::read_from(reader)?
-            .then(|| H256::read_from(reader))
-            .transpose()?;
-        let stream_cursor = u64::read_from(reader)?;
-        Ok(Self {
-            fingerprint,
-            stream_cursor,
-        })
-    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -884,15 +792,8 @@ impl StreamState {
     fn load_gas_payment(sources: &HashMap<u32, ScraperSource>) -> Result<Self> {
         let mut state = Self::default();
         for source in sources.values() {
-            if source.gas_payment_degraded()? {
-                state.gas_payment_degraded.insert(source.domain);
-            }
             if let Some(cursor) = source.gas_payment_cursor()? {
                 state.gas_payment_rows.insert(source.domain, cursor);
-            } else if let Some(cursor) = source.gas_payment_v2_cursor()? {
-                state.gas_payment_v2_rows.insert(source.domain, cursor);
-            } else if let Some(cursor) = source.gas_payment_v1_cursor()? {
-                state.gas_payment_v1_rows.insert(source.domain, cursor);
             }
         }
         Ok(state)
@@ -912,20 +813,10 @@ impl StreamState {
         }
     }
 
-    fn gas_payment_resume_cursor(&self, domain: u32) -> Option<u64> {
+    fn gas_payment_resume_cursor(&self, domain: u32) -> u64 {
         self.gas_payment_rows
             .get(&domain)
-            .map(|cursor| cursor.stream_cursor)
-            .or_else(|| {
-                self.gas_payment_v2_rows
-                    .get(&domain)
-                    .map(|cursor| cursor.stream_cursor)
-            })
-            .or_else(|| {
-                self.gas_payment_v1_rows
-                    .get(&domain)
-                    .map(|cursor| cursor.stream_cursor)
-            })
+            .map_or(0, |cursor| cursor.stream_cursor)
     }
 
     fn set_baseline(&mut self, domain: u32, kind: EventKind, sequence: i64) -> Result<()> {
@@ -1214,21 +1105,7 @@ impl StreamState {
                     Some(cursor.legacy_max_stream_cursor),
                 )
             })
-            .or_else(|| {
-                self.gas_payment_v2_rows.get(&event.domain).map(|cursor| {
-                    (
-                        cursor.stream_cursor,
-                        None,
-                        Some(cursor.legacy_max_stream_cursor),
-                    )
-                })
-            })
-            .or_else(|| {
-                self.gas_payment_v1_rows
-                    .get(&event.domain)
-                    .map(|cursor| (cursor.stream_cursor, cursor.fingerprint, None))
-            })
-            .context("Gas payment event arrived before caught-up baseline")?;
+            .unwrap_or((0, None, None));
         if previous_legacy_max.is_some_and(|previous| legacy_max_stream_cursor != previous) {
             bail!("Gas payment legacy cursor boundary changed");
         }
@@ -1322,34 +1199,11 @@ impl StreamState {
             }
             Some(previous) => Ok(*previous),
             None => {
-                if let Some(previous) = self.gas_payment_v2_rows.get(&domain) {
-                    if stream_cursor != previous.stream_cursor {
-                        bail!(
-                            "Gas payment caught-up stream cursor {stream_cursor} does not equal validated cursor {}",
-                            previous.stream_cursor
-                        )
-                    }
-                    if legacy_max_stream_cursor != previous.legacy_max_stream_cursor {
-                        bail!("Gas payment legacy cursor boundary changed")
-                    }
-                    return Ok(DurableGasPaymentCursor {
-                        fingerprint: None,
-                        legacy_max_stream_cursor,
-                        stream_cursor,
-                    });
+                if stream_cursor != 0 {
+                    bail!("Gas payment caught-up marker skipped historical payments");
                 }
-                let fingerprint = match self.gas_payment_v1_rows.get(&domain) {
-                    Some(previous) if stream_cursor != previous.stream_cursor => {
-                        bail!(
-                            "Gas payment caught-up stream cursor {stream_cursor} does not equal validated cursor {}",
-                            previous.stream_cursor
-                        )
-                    }
-                    Some(previous) => previous.fingerprint,
-                    None => None,
-                };
                 Ok(DurableGasPaymentCursor {
-                    fingerprint,
+                    fingerprint: None,
                     legacy_max_stream_cursor,
                     stream_cursor,
                 })
@@ -1367,8 +1221,6 @@ impl StreamState {
         F: FnOnce(&DurableGasPaymentCursor) -> Result<()>,
     {
         persist(&cursor)?;
-        self.gas_payment_v1_rows.remove(&domain);
-        self.gas_payment_v2_rows.remove(&domain);
         self.gas_payment_rows.insert(domain, cursor);
         Ok(())
     }
@@ -1386,6 +1238,19 @@ impl StreamState {
         let source = sources
             .get(&domain)
             .with_context(|| format!("Unexpected scraper caught-up domain {domain}"))?;
+        // Seed the durable frontier represented by these legacy test fixtures.
+        if !self.gas_payment_rows.contains_key(&domain) && row_id.is_none() && sequence.is_none() {
+            if let Some(cursor) = stream_cursor.and_then(|value| value.parse().ok()) {
+                self.gas_payment_rows.insert(
+                    domain,
+                    DurableGasPaymentCursor {
+                        fingerprint: None,
+                        legacy_max_stream_cursor: 0,
+                        stream_cursor: cursor,
+                    },
+                );
+            }
+        }
         let cursor = self.gas_payment_caught_up_cursor(
             address,
             source,
@@ -1543,6 +1408,21 @@ type FreshnessProbe = (
     String,
     Result<(bool, Option<u32>, Option<u32>, Option<u32>, Option<u32>)>,
 );
+/// Restore gas RPC even if the connection task is cancelled or panics.
+struct GasPaymentConnectionGuard<'a>(&'a watch::Sender<bool>);
+
+impl Drop for GasPaymentConnectionGuard<'_> {
+    fn drop(&mut self) {
+        self.0.send_if_modified(|active| {
+            if *active {
+                *active = false;
+                true
+            } else {
+                false
+            }
+        });
+    }
+}
 
 /// One process-wide, read-only scraper stream monitor.
 pub(crate) struct ScraperWebSocketMonitor {
@@ -1573,6 +1453,7 @@ pub(crate) struct ScraperWebSocketMonitor {
     parity_unhealthy: Arc<parking_lot::Mutex<std::collections::HashSet<(u32, EventKind)>>>,
     parity_warned_at: Arc<parking_lot::Mutex<Option<Instant>>>,
     gas_payment_enabled: AtomicBool,
+    gas_payment_authority: watch::Sender<bool>,
     sources: HashMap<u32, ScraperSource>,
     url: Url,
 }
@@ -1698,7 +1579,7 @@ impl ScraperWebSocketMonitor {
                 .set(0);
             degraded
                 .with_label_values(&[source.chain.as_str(), GAS_PAYMENT_EVENT_TYPE])
-                .set(i64::from(source.gas_payment_degraded()?));
+                .set(0);
         }
         Ok(Self {
             active,
@@ -1728,9 +1609,15 @@ impl ScraperWebSocketMonitor {
             parity_unhealthy: Arc::new(parking_lot::Mutex::new(parity_unhealthy)),
             parity_warned_at: Arc::new(parking_lot::Mutex::new(None)),
             gas_payment_enabled: AtomicBool::new(false),
+            gas_payment_authority: watch::channel(false).0,
             sources,
             url,
         })
+    }
+
+    pub(crate) fn gas_payment_authority_receiver(&self) -> Option<watch::Receiver<bool>> {
+        self.authority_enabled
+            .then(|| self.gas_payment_authority.subscribe())
     }
 
     pub(crate) fn authority_receiver(&self, domain: u32) -> Option<ScraperAuthorityReceiver> {
@@ -2165,6 +2052,7 @@ impl ScraperWebSocketMonitor {
         plan: &SequencedReplayPlan,
         gas_payment_cursors: &[SubscribedCursor],
     ) -> Result<()> {
+        let _gas_payment_guard = GasPaymentConnectionGuard(&self.gas_payment_authority);
         let mut staged_parity = StagedParity::default();
         let result = self
             .stream_inner(state, plan, gas_payment_cursors, &mut staged_parity)
@@ -2225,9 +2113,7 @@ impl ScraperWebSocketMonitor {
                         self.set_source_caught_up(source, EventKind::GasPayment, false);
                         self.degraded
                             .with_label_values(&[source.chain.as_str(), GAS_PAYMENT_EVENT_TYPE])
-                            .set(i64::from(
-                                !gas_payment_enabled || source.gas_payment_degraded()?,
-                            ));
+                            .set(i64::from(!gas_payment_enabled));
                     }
                     socket
                         .subscribe(self.subscription(plan, gas_payment_cursors)?)
@@ -2243,10 +2129,6 @@ impl ScraperWebSocketMonitor {
                     let event_type = event_label(&event.event_type);
                     if is_gas_payment && !self.gas_payment_enabled.load(Ordering::Relaxed) {
                         bail!("Received gas payment event without negotiated cursor support");
-                    }
-                    if is_gas_payment && state.gas_payment_degraded.contains(&domain) {
-                        self.record(domain, GAS_PAYMENT_EVENT_TYPE, "degraded");
-                        continue;
                     }
                     match state.validate(event, &self.sources) {
                         Ok(validated) => {
@@ -2289,20 +2171,7 @@ impl ScraperWebSocketMonitor {
                                 "invalid"
                             };
                             self.record(domain, event_type, result);
-                            if !is_gas_payment || !self.sources.contains_key(&domain) {
-                                return Err(err);
-                            }
-                            let source = self
-                                .sources
-                                .get(&domain)
-                                .context("Invalid gas payment source unexpectedly missing")?;
-                            if self.degrade_gas_payment(state, source)? {
-                                warn!(
-                                    ?err,
-                                    domain,
-                                    "Relayer scraper-proxy gas payment shadow stream degraded"
-                                );
-                            }
+                            return Err(err);
                         }
                     }
                 }
@@ -2318,10 +2187,6 @@ impl ScraperWebSocketMonitor {
                     if event_type == GAS_PAYMENT_EVENT_TYPE {
                         if !self.gas_payment_enabled.load(Ordering::Relaxed) {
                             bail!("Received gas payment caught-up marker without negotiated cursor support");
-                        }
-                        if state.gas_payment_degraded.contains(&domain) {
-                            self.record(domain, GAS_PAYMENT_EVENT_TYPE, "degraded");
-                            continue;
                         }
                         let source = self.sources.get(&domain).with_context(|| {
                             format!("Unexpected scraper caught-up domain {domain}")
@@ -2433,9 +2298,9 @@ impl ScraperWebSocketMonitor {
             .into_iter()
             .map(|source| SubscribedCursor {
                 address: scraper_address(source.interchain_gas_paymaster),
-                after_stream_cursor: state
-                    .gas_payment_resume_cursor(source.domain)
-                    .map(|cursor| cursor.to_string()),
+                after_stream_cursor: Some(
+                    state.gas_payment_resume_cursor(source.domain).to_string(),
+                ),
                 after_sequence: None,
                 domain: source.domain,
             })
@@ -2443,25 +2308,25 @@ impl ScraperWebSocketMonitor {
     }
 
     fn set_active(&self, active: bool) {
+        // Gas payments trust a confirmed subscription. Sequenced freshness and
+        // parity gates must not restart their RPC indexer on a live connection.
+        self.gas_payment_authority.send_if_modified(|current| {
+            let desired = active
+                && self.authority_enabled
+                && self.gas_payment_enabled.load(Ordering::Acquire);
+            if *current == desired {
+                false
+            } else {
+                *current = desired;
+                true
+            }
+        });
         let value = i64::from(active);
         for source in self.sources.values() {
             self.active
                 .with_label_values(&[source.chain.as_str()])
                 .set(value);
         }
-    }
-
-    fn degrade_gas_payment(&self, state: &mut StreamState, source: &ScraperSource) -> Result<bool> {
-        source.store_gas_payment_degraded()?;
-        let newly_degraded = state.gas_payment_degraded.insert(source.domain);
-        // Invalidate readiness before revoking authority so an in-flight
-        // freshness result cannot reactivate the degraded stream.
-        self.set_source_caught_up(source, EventKind::GasPayment, false);
-        self.degraded
-            .with_label_values(&[source.chain.as_str(), GAS_PAYMENT_EVENT_TYPE])
-            .set(1);
-        self.deactivate_source_authority(source.domain);
-        Ok(newly_degraded)
     }
 
     #[cfg(test)]
@@ -3235,6 +3100,175 @@ mod tests {
         sources: HashMap<u32, ScraperSource>,
     }
 
+    #[tokio::test]
+    async fn trusted_gas_payment_wire_replay_closes_on_invalid_payment() {
+        let fixture = fixture();
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
+        let url =
+            Url::parse(&format!("ws://{}", listener.local_addr().expect("address"))).expect("URL");
+        let metrics = CoreMetrics::new("gas-wire", 9090, Registry::new()).expect("metrics");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new_with_authority(
+                url,
+                fixture.sources.values().cloned().collect(),
+                &metrics,
+                true,
+            )
+            .expect("monitor"),
+        );
+        let mut authority = monitor
+            .gas_payment_authority_receiver()
+            .expect("gas receiver");
+        let (release, released) = oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.expect("connection");
+            let mut socket = accept_async(stream).await.expect("WebSocket");
+            socket
+                .send(Message::Text(
+                    serde_json::json!({"type":"ready","streamCursorVersions":{"gas_payment":3}})
+                        .to_string(),
+                ))
+                .await
+                .expect("ready");
+            let request = socket.next().await.expect("request").expect("frame");
+            let request: serde_json::Value =
+                serde_json::from_str(request.to_text().expect("text")).expect("request JSON");
+            assert_eq!(
+                request["streams"][2]["cursors"][0]["afterStreamCursor"],
+                "0"
+            );
+            socket.send(Message::Text(serde_json::json!({"type":"subscribed","streams":proxy_subscription_response(&request)}).to_string())).await.expect("ack");
+            released.await.expect("release events");
+            socket
+                .send(Message::Text(wire_event(gas_payment_event(1)).to_string()))
+                .await
+                .expect("historical payment");
+            let mut invalid = gas_payment_event(2);
+            invalid.data["tx_id"] = serde_json::Value::Null;
+            socket
+                .send(Message::Text(wire_event(invalid).to_string()))
+                .await
+                .expect("invalid payment");
+            let _ = socket.next().await;
+        });
+        let task_monitor = monitor.clone();
+        let client = tokio::spawn(async move {
+            let mut state =
+                StreamState::load_gas_payment(&task_monitor.sources).expect("replay baseline");
+            task_monitor.stream_once(&mut state).await
+        });
+        timeout(Duration::from_secs(5), authority.changed())
+            .await
+            .expect("subscription timeout")
+            .expect("confirmed");
+        assert!(*authority.borrow());
+        assert!(
+            !monitor.base_authority_ready(),
+            "gas must not wait for sequenced readiness"
+        );
+        release.send(()).expect("release");
+        assert!(timeout(Duration::from_secs(5), client)
+            .await
+            .expect("stream timeout")
+            .expect("client task")
+            .is_err());
+        assert!(!*authority.borrow(), "broken stream restores RPC");
+        let source = &monitor.sources[&5];
+        assert_eq!(
+            source
+                .gas_payment_cursor()
+                .expect("cursor")
+                .expect("first payment persisted")
+                .stream_cursor,
+            1
+        );
+        timeout(Duration::from_secs(5), server)
+            .await
+            .expect("server timeout")
+            .expect("server task");
+    }
+
+    #[test]
+    fn gas_payment_authority_depends_only_on_the_usable_connection() {
+        let metrics = CoreMetrics::new("gas-authority", 9090, Registry::new()).expect("metrics");
+        let monitor = ScraperWebSocketMonitor::new_with_authority(
+            Url::parse("ws://localhost:1").expect("URL"),
+            sources().into_values().collect(),
+            &metrics,
+            true,
+        )
+        .expect("monitor");
+        let mut receiver = monitor
+            .gas_payment_authority_receiver()
+            .expect("gas receiver");
+        monitor.set_active(true);
+        assert!(!*receiver.borrow(), "unnegotiated gas stream keeps RPC");
+        monitor.gas_payment_enabled.store(true, Ordering::Release);
+        monitor.set_active(true);
+        assert!(
+            *receiver.borrow(),
+            "confirmation pauses gas RPC before caught-up/parity"
+        );
+        monitor.deactivate_source_authority(5);
+        assert!(
+            *receiver.borrow(),
+            "sequenced fallback must not restart gas RPC"
+        );
+        let guard = GasPaymentConnectionGuard(&monitor.gas_payment_authority);
+        drop(guard);
+        assert!(!*receiver.borrow(), "cancelled connection restores gas RPC");
+        monitor.set_active(true);
+        assert!(*receiver.borrow(), "reconnect pauses gas RPC again");
+        monitor.set_active(false);
+        assert!(!*receiver.borrow(), "disconnect restores gas RPC");
+        receiver.borrow_and_update();
+        drop(GasPaymentConnectionGuard(&monitor.gas_payment_authority));
+        assert!(
+            !receiver.has_changed().expect("receiver open"),
+            "failed reconnect must not restart an already-running RPC indexer"
+        );
+    }
+
+    #[test]
+    fn trusted_gas_payment_replays_history_and_persists_without_double_counting() {
+        let fixture = fixture();
+        let trusted = fixture.sources[&5].clone();
+        let sources = HashMap::from([(5, trusted.clone())]);
+        let mut state = StreamState::load_gas_payment(&sources).expect("load trusted cursor");
+        assert_eq!(state.gas_payment_resume_cursor(5), 0);
+        let validated = state
+            .validate(gas_payment_event(1), &sources)
+            .expect("first historical payment before caught-up");
+        let input = validated.gas_payment.expect("gas input");
+        // Model the RPC fallback having already ingested this same receipt.
+        trusted.store_gas_payment(&input).expect("RPC receipt");
+        trusted.store_gas_payment(&input).expect("WebSocket replay");
+        state
+            .persist_gas_payment_cursor(5, input.cursor, |cursor| {
+                trusted.store_gas_payment_cursor(cursor)
+            })
+            .expect("persist trusted cursor");
+        let total = fixture
+            .database
+            .retrieve_gas_payment_by_gas_payment_key((*input.payment.inner()).into())
+            .expect("payment total")
+            .expect("payment");
+        assert_eq!(total.payment, U256::from(1000));
+        let mut restarted = StreamState::load_gas_payment(&sources).expect("restart");
+        assert_eq!(restarted.gas_payment_resume_cursor(5), 1);
+        assert_eq!(
+            restarted
+                .validate(gas_payment_event(1), &sources)
+                .expect("duplicate replay")
+                .sequence_result,
+            SequenceResult::Duplicate
+        );
+        assert!(
+            restarted.validate(gas_payment_event(3), &sources).is_err(),
+            "a cursor gap must not silently skip payments"
+        );
+    }
+
     #[derive(Debug)]
     struct FixedSequenceIndexer(u32);
 
@@ -3842,7 +3876,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn gas_degradation_blocks_in_flight_freshness_reactivation() {
+    async fn disconnection_blocks_in_flight_freshness_reactivation() {
         let fixture = fixture();
         let source = fixture.sources[&5]
             .clone()
@@ -3884,7 +3918,7 @@ mod tests {
             .send_modify(|command| command.desired = true);
 
         // Start a valid freshness probe, but hold its cursor read until gas
-        // degradation has published revocation and paused before returning.
+        // disconnection has published revocation and paused before returning.
         let permits =
             u32::try_from(monitor.parity_read_permit.available_permits()).expect("permit count");
         let capacity = monitor
@@ -3903,33 +3937,32 @@ mod tests {
         });
         let worker_monitor = monitor.clone();
         let worker = std::thread::spawn(move || {
-            let mut state = StreamState::default();
-            worker_monitor.degrade_gas_payment(&mut state, &worker_monitor.sources[&5])
+            worker_monitor.set_active(false);
+            worker_monitor.deactivate_source_authority(5);
         });
         entered_rx
             .recv_timeout(Duration::from_secs(5))
-            .expect("gas degradation revoked authority");
+            .expect("gas disconnection revoked authority");
         drop(capacity);
         let refreshed = timeout(Duration::from_secs(2), &mut refresh).await.is_ok();
         drop(refresh);
         let active = monitor.authority_active.load(Ordering::Acquire);
         let command = *monitor.authority_sender.borrow();
         let fresh = monitor.fresh.with_label_values(&["test"]).get();
-        release_tx.send(()).expect("release gas degradation");
-        assert!(worker
-            .join()
-            .expect("degradation thread")
-            .expect("gas degradation"));
-        assert!(refreshed, "degraded stream must not request a new handoff");
+        release_tx.send(()).expect("release gas disconnection");
+        worker.join().expect("disconnection thread");
+        assert!(
+            refreshed,
+            "disconnected stream must not request a new handoff"
+        );
         assert!(!active);
         assert!(!command.desired);
         assert_eq!(
             command.generation, 0,
-            "degraded stream must not request another handoff"
+            "disconnected stream must not request another handoff"
         );
         assert_eq!(fresh, 0);
         assert_eq!(monitor.authority.with_label_values(&["test"]).get(), 0);
-        assert!(source.gas_payment_degraded().expect("durable degradation"));
     }
 
     #[tokio::test]
@@ -4581,13 +4614,11 @@ mod tests {
             (5, EventKind::Dispatch),
             StreamCursor::from_durable_sequence(99),
         );
-        state.gas_payment_degraded.insert(5);
         state.gas_payment_rows.insert(5, cursor);
 
         state.reset_sequenced(&plan);
 
         assert!(state.cursors.is_empty());
-        assert_eq!(state.gas_payment_degraded, HashSet::from([5]));
         assert_eq!(state.gas_payment_rows, HashMap::from([(5, cursor)]));
     }
 
@@ -6304,9 +6335,9 @@ mod tests {
         let mut state = StreamState::default();
         assert!(state
             .validate_and_commit_gas_payment(gas_payment_event(10), &fixture.sources)
-            .expect_err("gas payment before fresh baseline must reject")
-            .to_string()
-            .contains("before caught-up baseline"));
+            .expect_err("first mapped payment must not skip the replay frontier")
+            .downcast_ref::<StreamGap>()
+            .is_some());
         assert!(!state.gas_payment_rows.contains_key(&5));
         assert_eq!(
             source.gas_payment_cursor().expect("read durable cursor"),
@@ -6452,13 +6483,26 @@ mod tests {
     fn failed_fresh_gas_baseline_store_does_not_advance_resume() {
         let monitor = monitor(Arc::new(MockParityDatabase::new()));
         let mut state = StreamState::default();
+        assert!(
+            state
+                .gas_payment_caught_up_cursor(
+                    &scraper_address(H256::from_low_u64_be(3)),
+                    monitor.sources.get(&5).expect("source"),
+                    Some("20"),
+                    None,
+                    Some("20"),
+                    None,
+                )
+                .is_err(),
+            "a fresh subscription must replay history before accepting its tip"
+        );
         let cursor = state
             .gas_payment_caught_up_cursor(
                 &scraper_address(H256::from_low_u64_be(3)),
                 monitor.sources.get(&5).expect("test source"),
-                Some("20"),
+                Some("0"),
                 None,
-                Some("20"),
+                Some("0"),
                 None,
             )
             .expect("valid fresh gas baseline");
@@ -6471,7 +6515,7 @@ mod tests {
         assert!(!state.gas_payment_rows.contains_key(&5));
         assert_eq!(
             monitor.gas_payment_cursors(&state)[0].after_stream_cursor,
-            None
+            Some("0".to_owned())
         );
     }
 
@@ -7056,135 +7100,6 @@ mod tests {
     }
 
     #[test]
-    fn migrates_v2_gas_cursor_without_reusing_payload_fingerprint_or_poison() {
-        let fixture = fixture();
-        let source = fixture.sources.get(&5).expect("source");
-        let legacy = DurableGasPaymentCursor {
-            fingerprint: Some(H256::from_low_u64_be(9)),
-            legacy_max_stream_cursor: 20,
-            stream_cursor: 10,
-        };
-        source
-            .store_gas_payment_v2_cursor(&legacy)
-            .expect("store v2 gas cursor");
-        source
-            .cursor_db
-            .store_value_by_key(
-                b"scraper_websocket_gas_payment_degraded_v2",
-                &source.interchain_gas_paymaster,
-                &true,
-            )
-            .expect("store v2 degradation marker");
-
-        let mut state =
-            StreamState::load_gas_payment(&fixture.sources).expect("load v2 gas cursor");
-        assert_eq!(state.gas_payment_v2_rows.get(&5), Some(&legacy));
-        assert_eq!(state.gas_payment_resume_cursor(5), Some(10));
-        assert!(!state.gas_payment_degraded.contains(&5));
-        let validated = state
-            .validate(gas_payment_event_with_boundary(10, 20), &fixture.sources)
-            .expect("v3 duplicate replaces the v2 payload fingerprint");
-        assert_eq!(validated.sequence_result, SequenceResult::Duplicate);
-        state
-            .persist_gas_payment_cursor(
-                5,
-                validated.gas_payment.expect("migrated v3 gas input").cursor,
-                |cursor| source.store_gas_payment_cursor(cursor),
-            )
-            .expect("persist v3 gas cursor");
-        assert!(!state.gas_payment_v2_rows.contains_key(&5));
-        assert_ne!(state.gas_payment_rows[&5].fingerprint, legacy.fingerprint);
-
-        let restarted =
-            StreamState::load_gas_payment(&fixture.sources).expect("reload migrated gas cursor");
-        assert!(!restarted.gas_payment_v2_rows.contains_key(&5));
-        assert_eq!(restarted.gas_payment_rows[&5], state.gas_payment_rows[&5]);
-        assert!(!restarted.gas_payment_degraded.contains(&5));
-    }
-
-    #[test]
-    fn migrates_sparse_v1_gas_cursor_without_replaying_from_tip() {
-        let fixture = fixture();
-        let source = fixture.sources.get(&5).expect("source");
-        let legacy = LegacyDurableGasPaymentCursor {
-            fingerprint: Some(H256::from_low_u64_be(9)),
-            stream_cursor: 10,
-        };
-        source
-            .store_gas_payment_v1_cursor(&legacy)
-            .expect("store v1 gas cursor");
-        source
-            .cursor_db
-            .store_value_by_key(
-                b"scraper_websocket_gas_payment_degraded_v1",
-                &source.interchain_gas_paymaster,
-                &true,
-            )
-            .expect("store v1 degradation marker");
-
-        let mut state =
-            StreamState::load_gas_payment(&fixture.sources).expect("load v1 gas cursor");
-        assert_eq!(state.gas_payment_v1_rows.get(&5), Some(&legacy));
-        assert_eq!(state.gas_payment_resume_cursor(5), Some(10));
-        assert!(!state.gas_payment_degraded.contains(&5));
-        let validated = state
-            .validate(gas_payment_event_with_boundary(20, 20), &fixture.sources)
-            .expect("sparse v1 replay");
-        assert_eq!(validated.sequence_result, SequenceResult::Accepted);
-        state
-            .persist_gas_payment_cursor(
-                5,
-                validated.gas_payment.expect("migrated v3 gas input").cursor,
-                |cursor| source.store_gas_payment_cursor(cursor),
-            )
-            .expect("persist v3 gas cursor");
-        assert!(!state.gas_payment_v1_rows.contains_key(&5));
-        assert_eq!(state.gas_payment_rows[&5].stream_cursor, 20);
-        assert_eq!(state.gas_payment_rows[&5].legacy_max_stream_cursor, 20);
-
-        let restarted =
-            StreamState::load_gas_payment(&fixture.sources).expect("reload migrated gas cursor");
-        assert!(!restarted.gas_payment_v1_rows.contains_key(&5));
-        assert_eq!(restarted.gas_payment_rows[&5], state.gas_payment_rows[&5]);
-        assert!(!restarted.gas_payment_degraded.contains(&5));
-    }
-
-    #[test]
-    fn migrates_dense_v1_gas_cursor_contiguously() {
-        let fixture = fixture();
-        let source = fixture.sources.get(&5).expect("source");
-        source
-            .store_gas_payment_v1_cursor(&LegacyDurableGasPaymentCursor {
-                fingerprint: None,
-                stream_cursor: 20,
-            })
-            .expect("store dense v1 gas cursor");
-        let mut state =
-            StreamState::load_gas_payment(&fixture.sources).expect("load dense v1 gas cursor");
-
-        assert!(state
-            .validate(gas_payment_event_with_boundary(22, 20), &fixture.sources,)
-            .expect_err("dense v1 migration gap")
-            .downcast_ref::<StreamGap>()
-            .is_some());
-        let validated = state
-            .validate(gas_payment_event_with_boundary(21, 20), &fixture.sources)
-            .expect("contiguous dense v1 migration");
-        assert_eq!(validated.sequence_result, SequenceResult::Accepted);
-        state
-            .persist_gas_payment_cursor(
-                5,
-                validated
-                    .gas_payment
-                    .expect("migrated dense v3 gas input")
-                    .cursor,
-                |cursor| source.store_gas_payment_cursor(cursor),
-            )
-            .expect("persist dense v3 gas cursor");
-        assert_eq!(state.gas_payment_rows[&5].stream_cursor, 21);
-    }
-
-    #[test]
     fn legacy_subscription_preserves_sequenced_streams() {
         let sources = sources();
         let plan = replay_plan(&sources);
@@ -7271,225 +7186,5 @@ mod tests {
         assert!(format!("{err:?}").contains("without negotiated cursor support"));
         finish_tx.send(()).expect("finish server");
         server.await.expect("join server");
-    }
-
-    #[tokio::test]
-    async fn quarantines_unresolved_gas_payment_without_stopping_other_streams() {
-        let listener = TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("bind test server");
-        let url = Url::parse(&format!(
-            "ws://{}",
-            listener.local_addr().expect("test server address")
-        ))
-        .expect("test server URL");
-        let metrics = CoreMetrics::new("test", 0, Registry::new()).expect("test metrics");
-        let monitor = std::sync::Arc::new(
-            ScraperWebSocketMonitor::new(url, sources().into_values().collect(), &metrics)
-                .expect("test monitor"),
-        );
-        let (subscribed_tx, subscribed_rx) = oneshot::channel();
-        let (release_tx, release_rx) = oneshot::channel();
-        let (sent_tx, sent_rx) = oneshot::channel();
-        let (finish_tx, finish_rx) = oneshot::channel();
-        let server = tokio::spawn(async move {
-            let (stream, _) = listener.accept().await.expect("accept test client");
-            let mut socket = accept_async(stream).await.expect("accept websocket");
-            socket
-                .send(Message::Text(
-                    serde_json::json!({
-                        "streamCursorVersions": { "gas_payment": GAS_PAYMENT_STREAM_CURSOR_VERSION },
-                        "type": "ready"
-                    })
-                    .to_string(),
-                ))
-                .await
-                .expect("send ready");
-            let request = socket
-                .next()
-                .await
-                .expect("subscription message")
-                .expect("read subscription");
-            let request: serde_json::Value =
-                serde_json::from_str(request.to_text().expect("text subscription"))
-                    .expect("subscription JSON");
-            socket
-                .send(Message::Text(
-                    serde_json::json!({
-                        "streams": proxy_subscription_response(&request),
-                        "type": "subscribed",
-                    })
-                    .to_string(),
-                ))
-                .await
-                .expect("send subscribed");
-            subscribed_tx.send(()).expect("signal subscribed");
-            release_rx.await.expect("release test server");
-
-            let mut poison = gas_payment_event(10);
-            for field in [
-                "tx_id",
-                "origin_tx_hash",
-                "origin_block_hash",
-                "origin_block_height",
-            ] {
-                poison.data[field] = serde_json::Value::Null;
-            }
-            poison.data["sequence"] = serde_json::json!("0");
-            let message = dispatch_message(7, b"payload");
-            let messages = [
-                serde_json::json!({
-                    "address": scraper_address(H256::from_low_u64_be(3)),
-                    "domain": 5,
-                    "eventType": GAS_PAYMENT_EVENT_TYPE,
-                    "legacyMaxStreamCursor": "0",
-                    "streamCursor": "9",
-                    "type": "caught_up",
-                }),
-                wire_event(poison),
-                wire_event(event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload"))),
-                wire_event(event(
-                    MERKLE_EVENT_TYPE,
-                    7,
-                    merkle_data_for(7, H256::from_low_u64_be(2), message.id(), 100),
-                )),
-                wire_event(gas_payment_event(11)),
-                serde_json::json!({
-                    "address": scraper_address(H256::from_low_u64_be(3)),
-                    "domain": 5,
-                    "eventType": GAS_PAYMENT_EVENT_TYPE,
-                    "streamCursor": "11",
-                    "type": "caught_up",
-                }),
-            ];
-            for message in messages {
-                socket
-                    .send(Message::Text(message.to_string()))
-                    .await
-                    .expect("send test message");
-            }
-            sent_tx.send(()).expect("signal messages sent");
-            finish_rx.await.expect("finish test stream");
-            let mut unexpected_domain = gas_payment_event(12);
-            unexpected_domain.domain = 6;
-            socket
-                .send(Message::Text(wire_event(unexpected_domain).to_string()))
-                .await
-                .expect("send unexpected-domain event");
-        });
-
-        let stream_monitor = monitor.clone();
-        let stream = tokio::spawn(async move {
-            let mut state = StreamState::default();
-            let result = stream_monitor.stream_once(&mut state).await;
-            (result, state)
-        });
-        subscribed_rx.await.expect("subscription confirmation");
-        timeout(Duration::from_secs(5), async {
-            while monitor.active.with_label_values(&["test-5"]).get() != 1 {
-                tokio::task::yield_now().await;
-            }
-        })
-        .await
-        .expect("monitor should become active");
-        assert_eq!(
-            monitor
-                .caught_up
-                .with_label_values(&["test-5", GAS_PAYMENT_EVENT_TYPE])
-                .get(),
-            0
-        );
-
-        release_tx.send(()).expect("release test messages");
-        sent_rx.await.expect("test messages sent");
-        timeout(Duration::from_secs(5), async {
-            while monitor
-                .degraded
-                .with_label_values(&["test-5", GAS_PAYMENT_EVENT_TYPE])
-                .get()
-                != 1
-            {
-                tokio::task::yield_now().await;
-            }
-        })
-        .await
-        .expect("gas payment stream should report degradation");
-        assert_eq!(
-            monitor
-                .caught_up
-                .with_label_values(&["test-5", GAS_PAYMENT_EVENT_TYPE])
-                .get(),
-            0
-        );
-        finish_tx.send(()).expect("finish test stream");
-        let (result, state) = stream.await.expect("join monitor stream");
-        server.await.expect("join test server");
-
-        let error = format!(
-            "{:?}",
-            result.expect_err("unexpected domain should fail the stream")
-        );
-        assert!(
-            error.contains("Unexpected scraper event domain 6"),
-            "{error}"
-        );
-        assert_eq!(state.gas_payment_degraded, HashSet::from([5]));
-        assert_eq!(state.gas_payment_rows[&5].stream_cursor, 9);
-        let source = monitor.sources.get(&5).expect("source");
-        assert_eq!(
-            source
-                .cursor_db
-                .retrieve_gas_payment_by_sequence(&0)
-                .expect("unresolved payment must not enter the authoritative index"),
-            None
-        );
-        assert!(source
-            .gas_payment_degraded()
-            .expect("read durable degradation"));
-        let restarted_state =
-            StreamState::load_gas_payment(&monitor.sources).expect("restart state");
-        assert_eq!(restarted_state.gas_payment_degraded, HashSet::from([5]));
-        let restart_metrics =
-            CoreMetrics::new("scraper-gas-payment-restart", 9090, Registry::new())
-                .expect("restart metrics");
-        let restarted_monitor = ScraperWebSocketMonitor::new(
-            Url::parse("ws://localhost:1").expect("test URL"),
-            vec![source.clone()],
-            &restart_metrics,
-        )
-        .expect("restart monitor");
-        assert_eq!(
-            restarted_monitor
-                .degraded
-                .with_label_values(&["test-5", GAS_PAYMENT_EVENT_TYPE])
-                .get(),
-            1
-        );
-        assert_eq!(
-            restarted_monitor
-                .caught_up
-                .with_label_values(&["test-5", GAS_PAYMENT_EVENT_TYPE])
-                .get(),
-            0
-        );
-        assert_eq!(state.cursors[&(5, EventKind::Dispatch)].next_sequence, 8);
-        assert_eq!(
-            state.cursors[&(5, EventKind::MerkleTreeInsertion)].next_sequence,
-            8
-        );
-        assert_eq!(
-            monitor
-                .events
-                .with_label_values(&["test-5", GAS_PAYMENT_EVENT_TYPE, "invalid"])
-                .get(),
-            1
-        );
-        assert_eq!(
-            monitor
-                .caught_up
-                .with_label_values(&["test", GAS_PAYMENT_EVENT_TYPE])
-                .get(),
-            0
-        );
     }
 }
