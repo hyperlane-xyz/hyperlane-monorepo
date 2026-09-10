@@ -145,6 +145,8 @@ export const hookTypesToFilter: HookType[] = [
   HookType.DELAYED_FLOW_ROUTER,
   HookType.WORMHOLE_EXECUTOR,
   HookType.WORMHOLE_VAA,
+  HookType.LAYER_ZERO_V2_CALLBACK,
+  HookType.LAYER_ZERO_V2_CCIP_READ,
 ];
 export const DEFAULT_TOKEN_DECIMALS = 18;
 

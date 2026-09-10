@@ -37,6 +37,8 @@ import {
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { DispatchedMessage } from '../core/types.js';
+import { EvmLayerZeroV2HookIsmReader } from '../layerzero/EvmLayerZeroV2HookIsmReader.js';
+import { LayerZeroV2Variant } from '../layerzero/types.js';
 import { deriveDelayedFlowRemoteIsms } from '../ism/delayedFlow.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
@@ -63,6 +65,7 @@ import {
   IgpVersion,
   IgpHookConfig,
   MailboxDefaultHookConfig,
+  LayerZeroV2HookConfig,
   MerkleTreeHookConfig,
   NetFlowRateLimitedHookConfig,
   OFFCHAIN_QUOTED_IGP_VERSION,
@@ -240,6 +243,10 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           derivedHookConfig = await this.deriveWormholeHookConfig(address);
           this._cache.set(address, derivedHookConfig);
           break;
+        case OnchainHookType.LAYER_ZERO:
+          derivedHookConfig = await this.deriveLayerZeroV2HookConfig(address);
+          this._cache.set(address, derivedHookConfig);
+          break;
         case OnchainHookType.RATE_LIMITED: {
           // NetFlowRateLimitedHookIsm (a hook/ISM hybrid) also reports
           // hookType() == RATE_LIMITED and exposes maxCapacity()/DURATION()/
@@ -272,6 +279,31 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     }
 
     return derivedHookConfig;
+  }
+
+  async deriveLayerZeroV2HookConfig(
+    address: Address,
+  ): Promise<WithAddress<LayerZeroV2HookConfig>> {
+    const config = await new EvmLayerZeroV2HookIsmReader(
+      this.multiProvider,
+      this.chain,
+    ).deriveLayerZeroConfig(address);
+    if (config.type === LayerZeroV2Variant.Callback) {
+      return {
+        address,
+        type: HookType.LAYER_ZERO_V2_CALLBACK,
+        callbackGasLimits: Object.fromEntries(
+          Object.entries(config.remoteRouters).map(([chain, remote]) => [
+            chain,
+            BigInt(remote.callbackGasLimit ?? 0),
+          ]),
+        ),
+      };
+    }
+    return {
+      address,
+      type: HookType.LAYER_ZERO_V2_CCIP_READ,
+    };
   }
 
   /**
