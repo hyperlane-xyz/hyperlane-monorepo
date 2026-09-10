@@ -65,7 +65,10 @@ export interface RelayerBatchConfig {
 
 export type AddressLookupTableOverride = { matchingList: MatchingList } & (
   | { addressLookupTable: string; addressLookupTables?: never }
-  | { addressLookupTable?: never; addressLookupTables: string[] }
+  | {
+      addressLookupTable?: never;
+      addressLookupTables: [string, ...string[]];
+    }
 );
 
 /**
