@@ -3,7 +3,7 @@ warpRouteId: USDT/eclipsemainnet
 # Baseline image from the Eclipse configuration strand. Replace with the reviewed
 # runtime candidate and its digest before rollout.
 deployment:
-  imageTag: 3329eda-20260828-115558
+  imageTag: 66bb044-20260910-030014
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key-usdt-eclipse
 
 # Intent TTL is two weeks in memory; it does not survive restart. Source-started
