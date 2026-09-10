@@ -708,10 +708,10 @@ impl BaseAgent for Relayer {
 }
 
 type PrepQueue = HashMap<u32, OpQueue>;
-/// Gas RPC runs only while there is no confirmed scraper subscription.
+/// Gas RPC runs until the scraper subscription is usable, including replay recovery.
 /// Dropping the RPC future on cutover cancels its indexing before waiting for
 /// the next outage. Recreating it rebuilds the cursor from durable RPC progress.
-async fn run_gas_payment_fallback<F: std::future::Future<Output = ()>>(
+pub(super) async fn run_gas_payment_fallback<F: std::future::Future<Output = ()>>(
     mut authority: Option<watch::Receiver<bool>>,
     mut run_rpc: impl FnMut() -> F,
 ) {

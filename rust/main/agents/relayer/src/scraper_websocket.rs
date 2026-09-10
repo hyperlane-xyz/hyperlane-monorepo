@@ -1454,6 +1454,7 @@ pub(crate) struct ScraperWebSocketMonitor {
     parity_warned_at: Arc<parking_lot::Mutex<Option<Instant>>>,
     gas_payment_enabled: AtomicBool,
     gas_payment_authority: watch::Sender<bool>,
+    gas_payment_recovery_required: AtomicBool,
     sources: HashMap<u32, ScraperSource>,
     url: Url,
 }
@@ -1610,6 +1611,7 @@ impl ScraperWebSocketMonitor {
             parity_warned_at: Arc::new(parking_lot::Mutex::new(None)),
             gas_payment_enabled: AtomicBool::new(false),
             gas_payment_authority: watch::channel(false).0,
+            gas_payment_recovery_required: AtomicBool::new(false),
             sources,
             url,
         })
@@ -2058,6 +2060,12 @@ impl ScraperWebSocketMonitor {
             .stream_inner(state, plan, gas_payment_cursors, &mut staged_parity)
             .await;
         self.abandon_staged_parity(&mut staged_parity);
+        if result.is_err() {
+            // Preserve RPC work across retries of a row that cannot be persisted.
+            // An ACK alone does not demonstrate that replay has recovered.
+            self.gas_payment_recovery_required
+                .store(true, Ordering::Release);
+        }
         result
     }
 
@@ -2071,6 +2079,7 @@ impl ScraperWebSocketMonitor {
         let mut socket = ScraperSession::connect(&self.url, StreamTimeouts::default()).await?;
         let mut caught_up = HashMap::new();
         let mut gas_payment_caught_up = HashSet::new();
+        let mut subscribed = false;
         loop {
             for source in self.sources.values() {
                 if !self
@@ -2120,6 +2129,7 @@ impl ScraperWebSocketMonitor {
                         .await?;
                 }
                 ServerMessage::Subscribed { .. } => {
+                    subscribed = true;
                     self.set_active(true);
                     info!("Relayer scraper-proxy shadow streams active");
                 }
@@ -2207,6 +2217,11 @@ impl ScraperWebSocketMonitor {
                         }
                         self.set_source_caught_up(source, EventKind::GasPayment, true);
                         self.record(domain, GAS_PAYMENT_EVENT_TYPE, "caught_up");
+                        if subscribed && gas_payment_caught_up.len() == self.sources.len() {
+                            self.gas_payment_recovery_required
+                                .store(false, Ordering::Release);
+                            self.set_active(true);
+                        }
                         continue;
                     }
                     if row_id.is_some() || stream_cursor.is_some() {
@@ -2308,12 +2323,13 @@ impl ScraperWebSocketMonitor {
     }
 
     fn set_active(&self, active: bool) {
-        // Gas payments trust a confirmed subscription. Sequenced freshness and
-        // parity gates must not restart their RPC indexer on a live connection.
+        // After a failed stream, keep RPC recovery running until every origin
+        // validates its gas replay. Sequenced freshness/parity remain independent.
         self.gas_payment_authority.send_if_modified(|current| {
             let desired = active
                 && self.authority_enabled
-                && self.gas_payment_enabled.load(Ordering::Acquire);
+                && self.gas_payment_enabled.load(Ordering::Acquire)
+                && !self.gas_payment_recovery_required.load(Ordering::Acquire);
             if *current == desired {
                 false
             } else {
@@ -3186,6 +3202,166 @@ mod tests {
             .await
             .expect("server timeout")
             .expect("server task");
+    }
+
+    #[tokio::test]
+    async fn repeated_invalid_gas_replays_preserve_rpc_batch_until_recovery() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
+        let url =
+            Url::parse(&format!("ws://{}", listener.local_addr().expect("address"))).expect("URL");
+        let metrics = CoreMetrics::new("gas-recovery", 0, Registry::new()).expect("metrics");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new_with_authority(
+                url,
+                sources_for(&[5, 9]).into_values().collect(),
+                &metrics,
+                true,
+            )
+            .expect("monitor"),
+        );
+        let (ready, mut connections) = tokio::sync::mpsc::unbounded_channel();
+        let server =
+            tokio::spawn(async move {
+                for cycle in 0..4 {
+                    let (stream, _) = listener.accept().await.expect("connection");
+                    let mut socket = accept_async(stream).await.expect("WebSocket");
+                    socket
+                        .send(Message::Text(
+                            serde_json::json!({
+                                "type": "ready", "streamCursorVersions": {"gas_payment": 3},
+                            })
+                            .to_string(),
+                        ))
+                        .await
+                        .expect("ready");
+                    let request = socket.next().await.expect("request").expect("frame");
+                    let request: serde_json::Value =
+                        serde_json::from_str(request.to_text().expect("text")).expect("JSON");
+                    socket.send(Message::Text(serde_json::json!({
+                    "type": "subscribed", "streams": proxy_subscription_response(&request),
+                }).to_string())).await.expect("ACK");
+                    // A healthy peer's replay must not cancel global RPC recovery.
+                    socket
+                        .send(Message::Text(
+                            serde_json::json!({
+                                "type": "caught_up", "eventType": GAS_PAYMENT_EVENT_TYPE,
+                                "domain": 9, "address": scraper_address(H256::from_low_u64_be(3)),
+                                "streamCursor": "0", "legacyMaxStreamCursor": "0",
+                            })
+                            .to_string(),
+                        ))
+                        .await
+                        .expect("healthy peer caught up");
+                    let (release, released) = oneshot::channel();
+                    ready.send(release).expect("connection notification");
+                    released.await.expect("release row");
+                    let mut row = gas_payment_event(1);
+                    if cycle < 3 {
+                        row.data["tx_id"] = serde_json::Value::Null;
+                    }
+                    socket
+                        .send(Message::Text(wire_event(row).to_string()))
+                        .await
+                        .expect("replayed row");
+                    if cycle == 3 {
+                        socket.send(Message::Text(serde_json::json!({
+                        "type": "caught_up", "eventType": GAS_PAYMENT_EVENT_TYPE,
+                        "domain": 5, "address": scraper_address(H256::from_low_u64_be(3)),
+                        "streamCursor": "1", "legacyMaxStreamCursor": "0",
+                    }).to_string())).await.expect("recovered origin caught up");
+                    }
+                    let _ = socket.next().await;
+                }
+            });
+        let starts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let committed = Arc::new(AtomicBool::new(false));
+        let mut rpc_task = None;
+        let mut state = StreamState::load_gas_payment(&monitor.sources).expect("state");
+        for cycle in 0..4 {
+            if cycle > 0 {
+                sleep(RETRY_DELAY).await;
+            }
+            let task_monitor = monitor.clone();
+            let client = tokio::spawn(async move {
+                let result = task_monitor.stream_once(&mut state).await;
+                (result, state)
+            });
+            let release = timeout(Duration::from_secs(5), connections.recv())
+                .await
+                .expect("connection timeout")
+                .expect("connection");
+            timeout(Duration::from_secs(5), async {
+                while monitor
+                    .caught_up
+                    .with_label_values(&["test-9", GAS_PAYMENT_EVENT_TYPE])
+                    .get()
+                    != 1
+                {
+                    tokio::task::yield_now().await;
+                }
+            })
+            .await
+            .expect("healthy replay processed");
+            assert_eq!(
+                *monitor.gas_payment_authority.borrow(),
+                cycle == 0,
+                "ACK and healthy peer must not interrupt recovery"
+            );
+            release.send(()).expect("release row");
+            if cycle == 3 {
+                timeout(Duration::from_secs(5), async {
+                    while !*monitor.gas_payment_authority.borrow() {
+                        tokio::task::yield_now().await;
+                    }
+                })
+                .await
+                .expect("repaired replay reclaims authority");
+                assert!(
+                    committed.load(Ordering::Acquire),
+                    "slow RPC batch committed"
+                );
+                assert_eq!(starts.load(Ordering::Acquire), 1, "RPC was never restarted");
+                client.abort();
+                let _ = client.await;
+                break;
+            }
+            let (result, next_state) = timeout(Duration::from_secs(5), client)
+                .await
+                .expect("invalid row timeout")
+                .expect("client");
+            assert!(result.is_err());
+            state = next_state;
+            assert_eq!(
+                state.gas_payment_resume_cursor(5),
+                0,
+                "poison cursor retained"
+            );
+            if cycle == 0 {
+                let starts = starts.clone();
+                let committed = committed.clone();
+                rpc_task = Some(tokio::spawn(crate::relayer::run_gas_payment_fallback(
+                    monitor.gas_payment_authority_receiver(),
+                    move || {
+                        let starts = starts.clone();
+                        let committed = committed.clone();
+                        async move {
+                            starts.fetch_add(1, Ordering::AcqRel);
+                            // Model a Sealevel range that commits only after the scan.
+                            sleep(RETRY_DELAY * 2 + Duration::from_secs(1)).await;
+                            committed.store(true, Ordering::Release);
+                            std::future::pending::<()>().await;
+                        }
+                    },
+                )));
+            }
+        }
+        let rpc_task = rpc_task.expect("RPC task");
+        rpc_task.abort();
+        let _ = rpc_task.await;
+        timeout(Duration::from_secs(5), server)
+            .await
+            .expect("server timeout")
+            .expect("server");
     }
 
     #[test]
