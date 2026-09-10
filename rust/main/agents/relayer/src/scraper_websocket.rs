@@ -3142,7 +3142,8 @@ mod tests {
             socket
                 .send(Message::Text(
                     serde_json::json!({"type":"ready","streamCursorVersions":{"gas_payment":3}})
-                        .to_string(),
+                        .to_string()
+                        .into(),
                 ))
                 .await
                 .expect("ready");
@@ -3153,16 +3154,18 @@ mod tests {
                 request["streams"][2]["cursors"][0]["afterStreamCursor"],
                 "0"
             );
-            socket.send(Message::Text(serde_json::json!({"type":"subscribed","streams":proxy_subscription_response(&request)}).to_string())).await.expect("ack");
+            socket.send(Message::Text(serde_json::json!({"type":"subscribed","streams":proxy_subscription_response(&request)}).to_string().into())).await.expect("ack");
             released.await.expect("release events");
             socket
-                .send(Message::Text(wire_event(gas_payment_event(1)).to_string()))
+                .send(Message::Text(
+                    wire_event(gas_payment_event(1)).to_string().into(),
+                ))
                 .await
                 .expect("historical payment");
             let mut invalid = gas_payment_event(2);
             invalid.data["tx_id"] = serde_json::Value::Null;
             socket
-                .send(Message::Text(wire_event(invalid).to_string()))
+                .send(Message::Text(wire_event(invalid).to_string().into()))
                 .await
                 .expect("invalid payment");
             let _ = socket.next().await;
@@ -3230,7 +3233,8 @@ mod tests {
                             serde_json::json!({
                                 "type": "ready", "streamCursorVersions": {"gas_payment": 3},
                             })
-                            .to_string(),
+                            .to_string()
+                            .into(),
                         ))
                         .await
                         .expect("ready");
@@ -3239,7 +3243,7 @@ mod tests {
                         serde_json::from_str(request.to_text().expect("text")).expect("JSON");
                     socket.send(Message::Text(serde_json::json!({
                     "type": "subscribed", "streams": proxy_subscription_response(&request),
-                }).to_string())).await.expect("ACK");
+                }).to_string().into())).await.expect("ACK");
                     // A healthy peer's replay must not cancel global RPC recovery.
                     socket
                         .send(Message::Text(
@@ -3248,7 +3252,8 @@ mod tests {
                                 "domain": 9, "address": scraper_address(H256::from_low_u64_be(3)),
                                 "streamCursor": "0", "legacyMaxStreamCursor": "0",
                             })
-                            .to_string(),
+                            .to_string()
+                            .into(),
                         ))
                         .await
                         .expect("healthy peer caught up");
@@ -3260,7 +3265,7 @@ mod tests {
                         row.data["tx_id"] = serde_json::Value::Null;
                     }
                     socket
-                        .send(Message::Text(wire_event(row).to_string()))
+                        .send(Message::Text(wire_event(row).to_string().into()))
                         .await
                         .expect("replayed row");
                     if cycle == 3 {
@@ -3268,7 +3273,7 @@ mod tests {
                         "type": "caught_up", "eventType": GAS_PAYMENT_EVENT_TYPE,
                         "domain": 5, "address": scraper_address(H256::from_low_u64_be(3)),
                         "streamCursor": "1", "legacyMaxStreamCursor": "0",
-                    }).to_string())).await.expect("recovered origin caught up");
+                    }).to_string().into())).await.expect("recovered origin caught up");
                     }
                     let _ = socket.next().await;
                 }
@@ -5766,7 +5771,7 @@ mod tests {
             let (stream, _) = listener.accept().await.expect("accept");
             let mut socket = accept_async(stream).await.expect("websocket");
             socket
-                .send(Message::Text(r#"{"type":"ready"}"#.to_owned()))
+                .send(Message::Text(r#"{"type":"ready"}"#.to_owned().into()))
                 .await
                 .expect("ready");
             let request = socket.next().await.expect("subscription").expect("read");
@@ -5777,7 +5782,8 @@ mod tests {
                     serde_json::json!({
                         "type": "subscribed", "streams": proxy_subscription_response(&request),
                     })
-                    .to_string(),
+                    .to_string()
+                    .into(),
                 ))
                 .await
                 .expect("subscribed");
@@ -5793,7 +5799,8 @@ mod tests {
             socket
                 .send(Message::Text(
                     wire_event(event(DISPATCH_EVENT_TYPE, 0, dispatch_data(0, b"payload")))
-                        .to_string(),
+                        .to_string()
+                        .into(),
                 ))
                 .await
                 .expect("event");
@@ -7318,7 +7325,9 @@ mod tests {
             let mut socket = accept_async(stream).await.expect("accept websocket");
             socket
                 .send(Message::Text(
-                    r#"{"streamCursorVersions":{"gas_payment":2},"type":"ready"}"#.to_owned(),
+                    r#"{"streamCursorVersions":{"gas_payment":2},"type":"ready"}"#
+                        .to_owned()
+                        .into(),
                 ))
                 .await
                 .expect("send v1 ready");
@@ -7343,12 +7352,15 @@ mod tests {
                         "streams": proxy_subscription_response(&request),
                         "type": "subscribed",
                     })
-                    .to_string(),
+                    .to_string()
+                    .into(),
                 ))
                 .await
                 .expect("send subscribed");
             socket
-                .send(Message::Text(wire_event(gas_payment_event(1)).to_string()))
+                .send(Message::Text(
+                    wire_event(gas_payment_event(1)).to_string().into(),
+                ))
                 .await
                 .expect("send unsolicited gas event");
             finish_rx.await.expect("finish server");
