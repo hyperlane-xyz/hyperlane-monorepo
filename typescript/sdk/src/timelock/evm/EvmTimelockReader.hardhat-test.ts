@@ -4,12 +4,16 @@ import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { ethers } from 'ethers';
 import hre from 'hardhat';
+import sinon from 'sinon';
 
 import { TimelockController__factory } from '@hyperlane-xyz/core';
 import { assert, deepCopy, normalizeAddressEvm } from '@hyperlane-xyz/utils';
 
 import {
-  KNOWN_ETHEREUM_TIMELOCK_CONTRACT,
+  EXPLORER_API_URL,
+  explorerResponse,
+} from '../../block-explorer/testFixtures.js';
+import {
   TestChainName,
   ethereumTestChain,
   test1,
@@ -1025,17 +1029,108 @@ describe(EvmTimelockReader.name, () => {
 
   describe(`${EvmTimelockReader.name} (Block Explorer)`, () => {
     let reader: EvmTimelockReader;
-    let multiProvider: MultiProvider;
+    let sandbox: sinon.SinonSandbox;
+    let operationIds: string[];
+    let explorerFetch: sinon.SinonStub;
+    let rpcGetLogs: sinon.SinonStub;
 
     beforeEach(async () => {
+      sandbox = sinon.createSandbox();
+      const timelock = await deployTestTimelock();
+      operationIds = [];
+      for (let i = 0; i < 3; i++) {
+        const salt = ethers.utils.formatBytes32String(`explorer-${i}`);
+        const args = [
+          [executor.address],
+          [0],
+          ['0x'],
+          EMPTY_BYTES_32,
+          salt,
+        ] satisfies [string[], number[], string[], string, string];
+        await (
+          await timelock.connect(proposer).scheduleBatch(...args, 0)
+        ).wait();
+        operationIds.push(await timelock.hashOperationBatch(...args));
+        if (i === 0)
+          await (
+            await timelock.connect(proposer).cancel(operationIds[i])
+          ).wait();
+        if (i === 1)
+          await (await timelock.connect(executor).executeBatch(...args)).wait();
+      }
+
+      const explorerUrl = EXPLORER_API_URL;
       multiProvider = new MultiProvider({
-        ethereum: ethereumTestChain,
+        [TestChainName.test1]: {
+          ...test1,
+          blockExplorers: ethereumTestChain.blockExplorers
+            ?.slice(0, 1)
+            .map((explorer) => ({
+              ...explorer,
+              apiUrl: explorerUrl,
+              url: 'https://explorer.test',
+            })),
+        },
       });
+      multiProvider.setProvider(TestChainName.test1, providerChainTest1);
+      const fixtureLogs = await providerChainTest1.getLogs({
+        address: timelock.address,
+        fromBlock: timelock.deployTransaction.blockNumber,
+        toBlock: 'latest',
+      });
+      rpcGetLogs = sandbox
+        .stub(providerChainTest1, 'getLogs')
+        .rejects(new Error('Explorer tests must not fall back to RPC logs'));
+      // Exercise the explorer HTTP/decoding path using real local events.
+      // No public RPC or explorer is involved in this Hardhat suite.
+      explorerFetch = sandbox
+        .stub(globalThis, 'fetch')
+        .callsFake(async (input) => {
+          const url = new URL(
+            input instanceof Request ? input.url : input.toString(),
+          );
+          expect(url.origin + url.pathname).to.equal(explorerUrl);
+          let result: unknown;
+          if (url.searchParams.get('action') === 'getcontractcreation') {
+            result = [
+              {
+                contractAddress: timelock.address,
+                contractCreator: contractOwner.address,
+                txHash: timelock.deployTransaction.hash,
+                blockNumber: timelock.deployTransaction.blockNumber,
+              },
+            ];
+          } else {
+            expect(url.searchParams.get('action')).to.equal('getLogs');
+            expect(url.searchParams.get('address')).to.equal(timelock.address);
+            const topic = url.searchParams.get('topic0');
+            assert(topic, 'Expected an event topic');
+            const logs = fixtureLogs.filter(
+              (log) =>
+                log.topics[0] === topic &&
+                log.blockNumber >= Number(url.searchParams.get('fromBlock')) &&
+                log.blockNumber <= Number(url.searchParams.get('toBlock')),
+            );
+            result = logs.map((log) => ({
+              ...log,
+              blockNumber: ethers.utils.hexValue(log.blockNumber),
+              logIndex: ethers.utils.hexValue(log.logIndex),
+              transactionIndex: ethers.utils.hexValue(log.transactionIndex),
+            }));
+          }
+          return explorerResponse({ status: '1', message: 'OK', result });
+        });
       reader = EvmTimelockReader.fromConfig({
-        chain: ethereumTestChain.name,
-        timelockAddress: KNOWN_ETHEREUM_TIMELOCK_CONTRACT,
+        chain: TestChainName.test1,
+        timelockAddress,
         multiProvider,
       });
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+      expect(explorerFetch.called).to.be.true;
+      expect(rpcGetLogs.called).to.be.false;
     });
 
     describe(`${EvmTimelockReader.prototype.getScheduledOperations.name}`, () => {
@@ -1044,7 +1139,7 @@ describe(EvmTimelockReader.name, () => {
           await reader.getScheduledOperations();
 
         // Should find some scheduled transactions on this timelock
-        expect(Object.keys(scheduledTxs).length).to.be.greaterThan(0);
+        expect(Object.keys(scheduledTxs)).to.have.members(operationIds);
 
         // Validate structure of returned transactions
         for (const [txId, tx] of Object.entries(scheduledTxs)) {
@@ -1064,6 +1159,7 @@ describe(EvmTimelockReader.name, () => {
         const cancelledIds = await reader.getCancelledOperationIds();
 
         expect(cancelledIds).to.be.instanceOf(Set);
+        expect([...cancelledIds]).to.deep.equal([operationIds[0]]);
         for (const id of cancelledIds) {
           expect(ZBytes32String.safeParse(id).success).to.be.true;
         }
@@ -1075,7 +1171,7 @@ describe(EvmTimelockReader.name, () => {
         const executedIds = await reader.getExecutedOperationIds();
 
         // Should find some executed transactions on this timelock
-        expect(executedIds.size).to.be.greaterThan(0);
+        expect([...executedIds]).to.deep.equal([operationIds[1]]);
         for (const id of executedIds) {
           expect(ZBytes32String.safeParse(id).success).to.be.true;
         }
@@ -1085,6 +1181,7 @@ describe(EvmTimelockReader.name, () => {
     describe(`${EvmTimelockReader.prototype.getScheduledExecutableTransactions.name}`, () => {
       it('should retrieve scheduled executable transactions from block explorer API', async () => {
         const executableTxs = await reader.getScheduledExecutableTransactions();
+        expect(Object.keys(executableTxs)).to.deep.equal([operationIds[2]]);
 
         for (const [txId, executableTx] of Object.entries(executableTxs)) {
           expect(executableTx.id).to.equal(txId);
