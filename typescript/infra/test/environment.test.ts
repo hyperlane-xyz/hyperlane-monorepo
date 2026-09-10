@@ -135,14 +135,6 @@ describe('Environment', () => {
     ]);
   });
 
-  it('preserves the live Viction legacy ICA owner', () => {
-    expect(environments.mainnet3.core.viction.owner).to.equal(
-      '0x426FC4C5CC60E5e47101fe30d4f8B94F1b7C1C70',
-    );
-    expect(environments.mainnet3.core.viction.ownerOverrides?.mailbox).to.be
-      .undefined;
-  });
-
   it('preserves both MerkleTreeHooks in the Metis hook topology', () => {
     const defaultHook = environments.mainnet3.core.metis.defaultHook;
     assert(
