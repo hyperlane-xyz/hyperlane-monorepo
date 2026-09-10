@@ -92,5 +92,6 @@ export const awIcas: ChainMap<Address> = {
 
   // Sep 10, 2026
   // ----------------------------------------------------------
+  arc: '0x70905eBe9BA33Ab72ab2C51059B4048B835Ae744',
   viction: '0xacabBBa51DB75161274950aB57a466EAFB5F13B8',
 } as const;
