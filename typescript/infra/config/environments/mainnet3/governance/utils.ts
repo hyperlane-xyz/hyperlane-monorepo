@@ -196,6 +196,15 @@ export const WARP_FEES_TURNKEY_OWNER: Address =
   '0xe95C605096A1AD38BaC3E5210e145952Cbdc6998';
 
 /**
+ * Turnkey "EVM Warp Pauser" key, operated by Haggis. Used as the owner of the
+ * pausable and rate-limited ISMs guarding warp-route legs so an emergency
+ * pause() (and, once the Turnkey policy authorizes it, setRefillRate()) can be
+ * signed fast without waiting on per-chain governance.
+ */
+export const WARP_PAUSER_TURNKEY_OWNER: Address =
+  '0x60Cc386C85717CB51C2827A75e14826883dF5da4';
+
+/**
  * Get the owner address for warp fee contracts on a given chain.
  * - Ethereum: Uses Safe from warpFeesSafes
  * - Other chains: Uses ICA from warpFeesIcas
