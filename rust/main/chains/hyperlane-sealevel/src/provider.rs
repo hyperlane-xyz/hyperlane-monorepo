@@ -48,7 +48,8 @@ use crate::{ConnectionConf, SealevelKeypair, SealevelTransactionFormat, Transact
 mod recipient;
 mod transaction;
 
-type AltAccountCell = Arc<OnceCell<Arc<AddressLookupTableAccount>>>;
+type AltAccountCell =
+    Arc<OnceCell<Result<Arc<AddressLookupTableAccount>, Arc<ChainCommunicationError>>>>;
 
 const COMPUTE_UNIT_MULTIPLIER_NUMERATOR: u32 = 11;
 const COMPUTE_UNIT_MULTIPLIER_DENOMINATOR: u32 = 10;
@@ -488,21 +489,36 @@ impl SealevelProvider {
                 .or_default()
                 .clone(),
         };
-        // Share an in-flight fetch across bundles without holding the map lock
-        // over RPC. Failed or cancelled fetches leave the cell retryable.
-        let account = cell
-            .get_or_try_init(|| async {
-                let account = Arc::new(fetch_alt(&self.rpc_client, alt_address).await?);
+        // Store the whole result so current waiters share failures too, rather
+        // than retrying one at a time as get_or_try_init would. Cancellation
+        // still lets another waiter take over the unfinished initialization.
+        let result = cell
+            .get_or_init(|| async {
+                let account = Arc::new(
+                    fetch_alt(&self.rpc_client, alt_address)
+                        .await
+                        .map_err(Arc::new)?,
+                );
                 tracing::info!(
                     domain = %self.domain,
                     alt_address = %alt_address,
                     num_accounts = account.addresses.len(),
                     "Fetched and cached ALT"
                 );
-                Ok::<_, ChainCommunicationError>(account)
+                Ok(account)
             })
-            .await?;
-        Ok(Arc::clone(account))
+            .await;
+        if result.is_err() {
+            let mut cache = self.alt_cache.write().await;
+            // A delayed waiter must not evict a newer retry's cell.
+            if cache
+                .get(&alt_address)
+                .is_some_and(|cached| Arc::ptr_eq(cached, &cell))
+            {
+                cache.remove(&alt_address);
+            }
+        }
+        result.clone().map_err(ChainCommunicationError::from_other)
     }
 
     /// Get an rpc client
@@ -922,6 +938,7 @@ mod tests {
         accounts: Arc<Mutex<HashMap<Pubkey, Vec<u8>>>>,
         simulation_accounts: Vec<AccountMeta>,
         account_gate: Option<Arc<tokio::sync::Notify>>,
+        fail_accounts: Arc<std::sync::atomic::AtomicBool>,
     }
 
     #[async_trait]
@@ -930,7 +947,7 @@ mod tests {
             self.calls
                 .lock()
                 .expect("recording sender mutex should not be poisoned")
-                .push((request.clone(), params.clone()));
+                .push((request, params.clone()));
             // Ensure concurrent callers overlap while a fetch is in flight.
             tokio::task::yield_now().await;
             let response = match &request {
@@ -939,6 +956,9 @@ mod tests {
                 RpcRequest::GetAccountInfo => {
                     if let Some(gate) = &self.account_gate {
                         gate.notified().await;
+                    }
+                    if self.fail_accounts.load(std::sync::atomic::Ordering::SeqCst) {
+                        return Err(std::io::Error::other("ALT RPC unavailable").into());
                     }
                     let key: Pubkey = params[0]
                         .as_str()
@@ -1067,6 +1087,71 @@ mod tests {
                 .count(),
             2
         );
+    }
+
+    #[tokio::test]
+    async fn concurrent_alt_failures_share_one_attempt_and_later_calls_retry() {
+        for rpc_failure in [false, true] {
+            let key = Pubkey::new_unique();
+            let sender = RecordingRpcSender::default();
+            sender
+                .fail_accounts
+                .store(rpc_failure, std::sync::atomic::Ordering::SeqCst);
+            sender
+                .accounts
+                .lock()
+                .expect("fixture lock")
+                .insert(key, vec![]);
+            let provider = recording_provider(sender.clone());
+            let (a, b, c) = tokio::join!(
+                provider.get_or_fetch_alt(key),
+                provider.get_or_fetch_alt(key),
+                provider.get_or_fetch_alt(key),
+            );
+            let errors = [a, b, c].map(|r| r.expect_err("all waiters must fail").to_string());
+            assert_eq!(errors[0], errors[1]);
+            assert_eq!(errors[1], errors[2]);
+            // The fallback client retries transport errors four times per
+            // fetch_alt attempt. Decode failures happen after its one RPC.
+            let expected_calls = if rpc_failure { 4 } else { 1 };
+            assert_eq!(
+                sender
+                    .calls
+                    .lock()
+                    .expect("fixture lock")
+                    .iter()
+                    .filter(|(r, _)| *r == RpcRequest::GetAccountInfo)
+                    .count(),
+                expected_calls
+            );
+            assert!(provider.alt_cache.read().await.get(&key).is_none());
+            sender
+                .fail_accounts
+                .store(false, std::sync::atomic::Ordering::SeqCst);
+            sender
+                .accounts
+                .lock()
+                .expect("fixture lock")
+                .insert(key, alt_fixture(vec![]));
+            assert_eq!(
+                provider
+                    .get_or_fetch_alt(key)
+                    .await
+                    .expect("later batch should retry")
+                    .key,
+                key
+            );
+            assert_eq!(
+                sender
+                    .calls
+                    .lock()
+                    .expect("fixture lock")
+                    .iter()
+                    .filter(|(r, _)| *r == RpcRequest::GetAccountInfo)
+                    .count(),
+                if rpc_failure { 5 } else { 2 }
+            );
+        }
     }
 
     #[tokio::test]
