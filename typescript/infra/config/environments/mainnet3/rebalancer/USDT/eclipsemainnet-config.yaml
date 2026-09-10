@@ -111,9 +111,13 @@ strategy:
     plasma:
       executionType: inventory
       externalBridge: swapsxyz
+      # Deprecating the plasma leg: drain all collateral off plasma and never
+      # refill it. min=0 keeps plasma's full balance classified as surplus so the
+      # rebalancer sweeps it out; target=0 means plasma is never in deficit so no
+      # rebalance ever routes collateral back in.
       minAmount:
-        min: 10000
-        target: 15000
+        min: 0
+        target: 0
         type: absolute
       override:
         arbitrum:
