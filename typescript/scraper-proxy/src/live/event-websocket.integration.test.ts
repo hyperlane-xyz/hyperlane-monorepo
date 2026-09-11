@@ -21,7 +21,7 @@ const historyHook = '\\xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
 const pacedHook = '\\xffffffffffffffffffffffffffffffffffffffff';
 const gasPaymaster = '\\x1111111111111111111111111111111111111111';
 const msgId = `\\x${'01'.repeat(32)}`;
-const msgBody = 'x'.repeat(300);
+const msgBody = 'é🚀'.repeat(50);
 const rows = new Map([
   ['1', row(hookB)],
   ['2', row(hookA)],
@@ -626,6 +626,133 @@ void it('drains live events arriving while the pending buffer is sent', async (c
   assert.deepEqual(eventSequences(messages), ['0', '1', '2', '3']);
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
+});
+
+void it('checks each cursor before sharing a live agent frame', async () => {
+  const sockets = [new WebSocket(url), new WebSocket(url)];
+  const received = sockets.map((socket) => {
+    const messages: Record<string, unknown>[] = [];
+    socket.on('message', (data, isBinary) => {
+      assert.equal(isBinary, false);
+      messages.push(parseRecord(rawData(data)));
+    });
+    return messages;
+  });
+  try {
+    await Promise.all(received.map((messages) => waitFor(messages, 'ready')));
+    for (const [index, socket] of sockets.entries()) {
+      socket.send(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [
+            {
+              eventType: 'merkle_tree_insertion',
+              ...(index === 0
+                ? {}
+                : {
+                    cursors: [
+                      { address: hookA, afterSequence: '0', domain: 1 },
+                    ],
+                  }),
+            },
+          ],
+        }),
+      );
+    }
+    await Promise.all(
+      received.map((messages) => waitFor(messages, 'subscribed')),
+    );
+    await waitFor(received[1], 'caught_up');
+    rows.set('8100', row(hookA, 1));
+    notify('scraper_event', notification('8100'));
+    await Promise.all(
+      received.map((messages) =>
+        waitUntil(() => eventSequences(messages).length === 1),
+      ),
+    );
+    assert.deepEqual(eventSequences(received[0]), ['1']);
+    assert.deepEqual(eventSequences(received[1]), ['1']);
+    notify('scraper_event', notification('8100'));
+    await waitUntil(() => eventSequences(received[0]).length === 2);
+    assert.deepEqual(eventSequences(received[1]), ['1']);
+    rows.set('8101', row(hookA, 3));
+    const closed = new Promise<number>((resolve) =>
+      sockets[1].once('close', resolve),
+    );
+    notify('scraper_event', notification('8101'));
+    assert.equal(await closed, 1013);
+    await waitUntil(() => eventSequences(received[0]).length === 3);
+    assert.deepEqual(eventSequences(received[0]), ['1', '1', '3']);
+  } finally {
+    rows.delete('8100');
+    rows.delete('8101');
+    for (const socket of sockets) socket.terminate();
+    await waitUntil(() => events.metricsSnapshot().connections.agent === 0);
+  }
+});
+
+void it('keeps gas cursor boundaries specific to each subscriber', async () => {
+  gasPaymentRows.clear();
+  const payment = {
+    id: '14',
+    domain: 1,
+    interchain_gas_paymaster: gasPaymaster,
+  };
+  gasPaymentRows.set('14', payment);
+  const sockets = [new WebSocket(url), new WebSocket(url)];
+  const received = sockets.map((socket) => {
+    const messages: Record<string, unknown>[] = [];
+    socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+    return messages;
+  });
+  try {
+    await Promise.all(received.map((messages) => waitFor(messages, 'ready')));
+    for (const [index, socket] of sockets.entries()) {
+      socket.send(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [
+            {
+              eventType: 'gas_payment',
+              ...(index === 0
+                ? {}
+                : {
+                    streamCursorVersion: 3,
+                    cursors: [
+                      {
+                        address: gasPaymaster,
+                        afterStreamCursor: '14',
+                        domain: 1,
+                      },
+                    ],
+                  }),
+            },
+          ],
+        }),
+      );
+    }
+    await Promise.all(
+      received.map((messages) => waitFor(messages, 'subscribed')),
+    );
+    await waitFor(received[1], 'caught_up');
+    gasPaymentRows.set('30', {
+      ...payment,
+      id: '30',
+      scraper_stream_cursor: '15',
+    });
+    notify('scraper_event', gasPaymentNotification('30'));
+    const [legacy, cursored] = await Promise.all(
+      received.map((messages) => waitFor(messages, 'event')),
+    );
+    assert.equal(legacy.streamCursor, '15');
+    assert.equal(cursored.streamCursor, '15');
+    assert.equal(legacy.legacyMaxStreamCursor, undefined);
+    assert.equal(cursored.legacyMaxStreamCursor, '14');
+  } finally {
+    gasPaymentRows.clear();
+    for (const socket of sockets) socket.terminate();
+    await waitUntil(() => events.metricsSnapshot().connections.agent === 0);
+  }
 });
 
 void it('accepts a legacy non-cursored live gas payment subscription', async () => {
@@ -1821,6 +1948,69 @@ void it('releases a peer-closed Explorer queue immediately', async (context) => 
   for (const complete of completions.splice(0)) complete();
 });
 
+void it('broadcasts UTF-8 text with byte-accurate queue accounting', async (context) => {
+  const sockets = [new WebSocket(messagesUrl), new WebSocket(messagesUrl)];
+  const received = sockets.map((socket) => {
+    const messages: Record<string, unknown>[] = [];
+    socket.on('message', (data, isBinary) => {
+      assert.equal(isBinary, false);
+      messages.push(parseRecord(rawData(data)));
+    });
+    return messages;
+  });
+  await Promise.all(received.map((messages) => waitFor(messages, 'ready')));
+  const completions = delayServerSendCompletions(context);
+  const messageIds = ['06', '07'].map((byte) => `\\x${byte.repeat(32)}`);
+  const expected = messageIds.map((messageId) => ({
+    data: {
+      id: '42',
+      is_delivered: false,
+      msg_body: msgBody,
+      msg_id: messageId,
+      origin_domain_id: 1,
+    },
+    type: 'message_upsert',
+  }));
+  const firstText = JSON.stringify(expected[0]);
+  const firstBytes = Buffer.byteLength(firstText);
+  assert(firstBytes > firstText.length);
+
+  try {
+    for (const messageId of messageIds) {
+      notify(
+        'scraper_explorer_event',
+        JSON.stringify({ messageId: messageId.slice(2) }),
+      );
+    }
+    await waitUntil(() => completions.length === 2);
+    assert.equal(events.metricsSnapshot().outboundPendingBytes, 2 * firstBytes);
+    assert.equal(events.metricsSnapshot().explorerPendingMessages, 2);
+    assert.equal(
+      events.metricsSnapshot().explorerPendingBytes,
+      2 * Buffer.byteLength(JSON.stringify(expected[1])),
+    );
+    for (const complete of completions.splice(0)) complete();
+    await waitUntil(() => completions.length === 2);
+    for (const messages of received) {
+      await waitUntil(
+        () =>
+          messages.filter(({ type }) => type === 'message_upsert').length === 2,
+      );
+      assert.deepEqual(
+        messages.filter(({ type }) => type === 'message_upsert'),
+        expected,
+      );
+    }
+    for (const complete of completions.splice(0)) complete();
+    assert.equal(events.metricsSnapshot().outboundPendingBytes, 0);
+    assert.equal(events.metricsSnapshot().explorerPendingBytes, 0);
+  } finally {
+    for (const complete of completions.splice(0)) complete();
+    for (const socket of sockets) socket.terminate();
+    await waitUntil(() => events.metricsSnapshot().connections.messages === 0);
+  }
+});
+
 void it('reports an active send failure once', async (context) => {
   const socket = new WebSocket(messagesUrl);
   const messages: Record<string, unknown>[] = [];
@@ -2049,7 +2239,10 @@ function delayServerSendCompletions(
     ): void {
       const completion =
         typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
-      const message = typeof data === 'string' ? parseRecord(data) : undefined;
+      const message =
+        typeof data === 'string' || Buffer.isBuffer(data)
+          ? parseRecord(data.toString())
+          : undefined;
       const delay =
         completion &&
         (message?.type === 'event' ||
@@ -2088,7 +2281,10 @@ function delayFirstExplorerSocket(context: TestContext): Array<() => void> {
     ): void {
       const completion =
         typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
-      const message = typeof data === 'string' ? parseRecord(data) : undefined;
+      const message =
+        typeof data === 'string' || Buffer.isBuffer(data)
+          ? parseRecord(data.toString())
+          : undefined;
       if (
         !selectedDelayedSocket &&
         completion &&
