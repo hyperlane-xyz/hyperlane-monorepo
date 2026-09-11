@@ -23,9 +23,9 @@ import {
   EVENT_TYPES,
   type EventNotification,
   type EventType,
-  isDomain,
   isSequencedEventType,
   normalizeSequenceAddress,
+  parseDatabaseDomain,
   parseClientMessage,
   parseEventNotification,
   parseExplorerNotification,
@@ -162,6 +162,13 @@ const STREAMS: Record<EventType, Stream> = {
     'merkle_tree_hook',
     'leaf_index',
   ),
+};
+
+const EVENT_DOMAIN_COLUMNS: Record<EventType, readonly string[]> = {
+  delivery: ['domain'],
+  dispatch: ['origin_domain', 'destination_domain'],
+  gas_payment: ['domain', 'origin', 'destination'],
+  merkle_tree_insertion: ['domain'],
 };
 
 export class EventWebSocketServer {
@@ -903,7 +910,7 @@ export class EventWebSocketServer {
         subscription.sequences.set(sequenceCursorKey, sequence.value);
       }
     }
-    const data = eventType === 'gas_payment' ? withoutStreamCursor(row) : row;
+    const data = eventData(eventType, row);
     const rowId =
       eventType === 'gas_payment' ? parseId(row.id).toString() : undefined;
     const legacyMaxStreamCursor = streamCursor
@@ -947,7 +954,7 @@ export class EventWebSocketServer {
     return this.db.queryLive<Row>(
       `SELECT ${columns(stream)} FROM ${q(stream.table)} WHERE ${q(stream.domain)} = $1 AND ${q(sequence.address)} = $2::bytea AND ${q(sequence.value)} > $3::bigint AND ${q(sequence.value)} <= $4::bigint ORDER BY ${q(sequence.value)} ASC LIMIT $5`,
       [
-        cursor.domain,
+        storedDomain(cursor.domain),
         cursor.address,
         after.toString(),
         through.toString(),
@@ -964,7 +971,7 @@ export class EventWebSocketServer {
     const sequence = sequenceConfig(stream);
     const [row] = await this.db.queryLive<{ first: string; last: string }>(
       `SELECT COALESCE(MIN(${q(sequence.value)}), 0)::text AS first, COALESCE(MAX(${q(sequence.value)}), -1)::text AS last FROM ${q(stream.table)} WHERE ${q(stream.domain)} = $1 AND ${q(sequence.address)} = $2::bytea`,
-      [cursor.domain, cursor.address],
+      [storedDomain(cursor.domain), cursor.address],
     );
     return {
       first: parseSequence(row?.first ?? '0'),
@@ -981,7 +988,7 @@ export class EventWebSocketServer {
     return this.db.queryLive<Row>(
       `SELECT ${gasPaymentColumns(stream)}, ${q('event_row')}.${q('id')} AS ${q(STREAM_CURSOR_COLUMN)} FROM ${q(stream.table)} AS ${q('event_row')}${gasPaymentMetadataJoins('LEFT JOIN')} WHERE ${q('event_row')}.${q(stream.domain)} = $1 AND ${q('event_row')}.${q('interchain_gas_paymaster')} = $2::bytea AND ${q('event_row')}.${q('id')} > $3::bigint AND ${q('event_row')}.${q('id')} <= $4::bigint ORDER BY ${q('event_row')}.${q('id')} ASC LIMIT $5`,
       [
-        cursor.domain,
+        storedDomain(cursor.domain),
         cursor.address,
         after.toString(),
         through.toString(),
@@ -999,7 +1006,7 @@ export class EventWebSocketServer {
     return this.db.queryLive<Row>(
       `SELECT ${gasPaymentColumns(stream)}, ${q('event_cursor')}.${q('stream_cursor')} AS ${q(STREAM_CURSOR_COLUMN)} FROM ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} INNER JOIN ${q(stream.table)} AS ${q('event_row')} ON ${q('event_row')}.${q('id')} = ${q('event_cursor')}.${q('gas_payment_id')}${gasPaymentMetadataJoins('LEFT JOIN')} WHERE ${q('event_cursor')}.${q('domain')} = $1 AND ${q('event_cursor')}.${q('interchain_gas_paymaster')} = $2::bytea AND ${q('event_cursor')}.${q('stream_cursor')} > $3::bigint AND ${q('event_cursor')}.${q('stream_cursor')} <= $4::bigint ORDER BY ${q('event_cursor')}.${q('stream_cursor')} ASC LIMIT $5`,
       [
-        cursor.domain,
+        storedDomain(cursor.domain),
         cursor.address,
         after.toString(),
         through.toString(),
@@ -1016,7 +1023,7 @@ export class EventWebSocketServer {
       legacy_max_id: string;
     }>(
       `SELECT COALESCE(${q('legacy_max_id')}, 0)::text AS legacy_max_id, COALESCE(${q('last_cursor')}, 0)::text AS last_cursor FROM ${q(GAS_PAYMENT_STREAM_HEAD)} WHERE ${q('domain')} = $1 AND ${q('interchain_gas_paymaster')} = $2::bytea`,
-      [cursor.domain, cursor.address],
+      [storedDomain(cursor.domain), cursor.address],
     );
     return {
       lastCursor: parseId(row?.last_cursor ?? '0'),
@@ -1539,10 +1546,23 @@ function sequenceConfig(stream: Stream): NonNullable<Stream['sequence']> {
 }
 
 function rowDomain(row: Row, column: string): number {
-  const value = row[column];
-  const domain = typeof value === 'string' ? Number(value) : value;
-  if (!isDomain(domain)) throw new Error(`Invalid ${column} in event row`);
-  return domain;
+  return parseDatabaseDomain(row[column], `Invalid ${column} in event row`);
+}
+
+function eventData(eventType: EventType, row: Row): Row {
+  let data = eventType === 'gas_payment' ? withoutStreamCursor(row) : row;
+  for (const column of EVENT_DOMAIN_COLUMNS[eventType]) {
+    const domain = parseDatabaseDomain(
+      data[column],
+      `Invalid ${column} in event row`,
+    );
+    if (data[column] !== domain) data = { ...data, [column]: domain };
+  }
+  return data;
+}
+
+function storedDomain(domain: number): number {
+  return domain > 0x7fff_ffff ? domain - 0x1_0000_0000 : domain;
 }
 
 function rowSequence(
