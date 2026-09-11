@@ -1,3 +1,24 @@
+## [3.0.0] - 2026-09-11
+
+* chore(infra): deploy relayer WebSocket indexing (#9580)
+* feat(metrics): attribute RPC requests by operation (#9453)
+* feat(validator): quorum-verify safety-critical merkle tree reads (#9124)
+* feat(validators)!: migrate signing and checkpoint storage to GCP (#9160)
+* feat: support validator indexing over scraper WebSocket (#9324)
+* fix(validator): back off failed announcement retries (#9225)
+* fix(validator): expose checkpoint production readiness (#9416)
+* fix(validator): merge rpcUrls into additional quorum RPC vote (#9151)
+* fix(validator): raise WebSocket progress grace to 5min (#9597)
+* fix(validator): restrict quorum RPCs to merkle tree root reads only (#9177)
+* perf(rust): upgrade scraper websocket transport (#9613)
+* perf(validator): bound persistent log growth (#9322)
+* perf(validator): reduce checkpoint verification and backfill overhead (#9471)
+* perf(validator): restore merkle tree from snapshot, replay only tail (#9448)
+* perf(validator): wake checkpoint submitter on insertions (#9392)
+* perf: checkpoint validator WebSocket cursor writes (#9352)
+* refactor(agents): share scraper websocket protocol (#9391)
+* refactor: share scraper WebSocket handling across agents (#9610)
+
 ## [2.3.0] - 2026-07-20
 
 * feat(tron): migrate Tron agents from gRPC to HTTP API (#8370)

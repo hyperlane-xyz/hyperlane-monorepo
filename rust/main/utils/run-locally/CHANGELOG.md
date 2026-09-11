@@ -1,3 +1,10 @@
+## [3.0.0] - 2026-09-11
+
+* fix(ci): stabilize Tron test runtime (#9105)
+* fix(radix): widen e2e transaction epoch window (#9560)
+* fix: stabilize Rust E2E image startup and completion checks (#9605)
+* perf: speed up builds and e2e tests (#9529)
+
 ## [2.3.0] - 2026-07-20
 
 * fix(test): retry cosmos native e2e transactions to prevent flaky failures (#8354)

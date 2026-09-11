@@ -1,3 +1,23 @@
+## [3.0.0] - 2026-09-11
+
+* feat(agents): persist backward index progress (#9325)
+* feat(scraper): index merkle tree insertions (#9276)
+* feat(scraper-proxy): add durable gas payment cursors (#9393)
+* feat: add scraper DB GraphQL proxy (#9238)
+* fix(rust): heartbeat idle contract sync tasks (#9222)
+* fix(scraper)!: compact scraper cursor table (#9258)
+* fix(scraper): back off incomplete sequence ranges (#9165)
+* fix(scraper): bound and streamline event ingestion (#9476)
+* fix(scraper): inherit Ethereum reorg period (#9600)
+* fix(scraper): persist events with unresolvable log meta (#9284)
+* perf(scraper): add opt-in indexes for scoped event counts (#9491)
+* perf(scraper): back off raw dispatch reconciliation scans (#9226)
+* perf(scraper): reduce enrichment and sequence lookup work (#9468)
+* perf(scraper): retry known raw dispatches directly (#9449)
+* perf(scraper): short-circuit failed Sealevel IGP ranges (#9227)
+* perf(scraper): streamline CCR replay and cursor persistence (#9521)
+* perf: speed up builds and e2e tests (#9529)
+
 ## [2.3.0] - 2026-07-20
 
 * chore: jun 5 deprecations (21 chains) (#8860)

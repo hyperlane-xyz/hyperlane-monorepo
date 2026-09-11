@@ -1,3 +1,17 @@
+## [3.0.0] - 2026-09-11
+
+* feat(sealevel): recover stale pending_swap PDAs blocking universal-router reveals (#9113)
+* feat(sealevel): support multiple process ALTs (#9454)
+* fix(sealevel): configure v1 JSON reads per chain (#9577)
+* fix(sealevel): disable rewards in getBlock to avoid SerdeJson stalls (#9307)
+* fix(sealevel): fall back to basic log meta when advanced log meta is unresolvable (#9282)
+* fix(sealevel): refund pending_swap close rent to fee_payer_pda on universal-router recovery (#9114)
+* fix(sealevel): tolerate empty RPC API versions (#9547)
+* fix: harden monitoring and stale swap recovery (#9118)
+* perf(metrics): avoid redundant block detail reads (#9442)
+* perf(sealevel): omit transactions from block info reads (#9433)
+* perf(sealevel): reduce process ALT and account discovery overhead (#9604)
+
 ## [2.3.0] - 2026-07-20
 
 * feat(sealevel): sealevel igp and warp route offchain quoting + new isms (#8695)

@@ -1,3 +1,22 @@
+## [3.0.0] - 2026-09-11
+
+* feat(agents): expose Tokio blocking pool metrics (#9390)
+* feat(agents): persist backward index progress (#9325)
+* feat(metrics): attribute RPC requests by operation (#9453)
+* feat(validators)!: migrate signing and checkpoint storage to GCP (#9160)
+* feat: support validator indexing over scraper WebSocket (#9324)
+* fix(agents): contain Lander recovery side effects (#9451)
+* fix(agents): suppress OAuth token debug logs (#9567)
+* fix(rust): heartbeat idle contract sync tasks (#9222)
+* perf(agents): coalesce dynamic block-tip reads (#9164)
+* perf(core): reduce encoding and typed storage allocations (#9489)
+* perf(metrics): avoid redundant block detail reads (#9442)
+* perf(rust): back off repeated contract sync fetch errors (#9216)
+* perf(rust): upgrade scraper websocket transport (#9613)
+* perf(storage): reduce S3 checkpoint copies and initialization contention (#9472)
+* refactor(agents): share scraper websocket protocol (#9391)
+* refactor: share scraper WebSocket handling across agents (#9610)
+
 ## [2.3.0] - 2026-07-20
 
 * feat(tron): migrate Tron agents from gRPC to HTTP API (#8370)

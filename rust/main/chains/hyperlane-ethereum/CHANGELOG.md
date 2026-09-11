@@ -1,3 +1,16 @@
+## [3.0.0] - 2026-09-11
+
+* chore: remove august 2026 deprecated chains (#9248)
+* feat(validators)!: migrate signing and checkpoint storage to GCP (#9160)
+* fix(core): avoid HyperlaneMessage::from panics in indexer paths (#9181)
+* fix(ethereum): strip custom RPC header query parameters (#9599)
+* fix(rust): decode unsigned zkSync priority operations (#9224)
+* fix(rust): pin dynamic block tags before quorum voting (#9217)
+* fix: add timeout to FallbackProvider::call to unblock stalled providers (#9195)
+* perf(agents): coalesce dynamic block-tip reads (#9164)
+* perf(ethereum): hedge pinned fallback reads (#9395)
+* perf(metrics): avoid redundant block detail reads (#9442)
+
 ## [2.3.0] - 2026-07-20
 
 * feat(tron): migrate Tron agents from gRPC to HTTP API (#8370)
