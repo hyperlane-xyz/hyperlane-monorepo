@@ -52,6 +52,31 @@ library Message {
     }
 
     /**
+     * @notice Formats a message whose body is already in memory.
+     * @dev Mirrors formatMessage for callers that reconstruct dispatch quotes.
+     */
+    function formatMessageMemory(
+        uint8 _version,
+        uint32 _nonce,
+        uint32 _originDomain,
+        bytes32 _sender,
+        uint32 _destinationDomain,
+        bytes32 _recipient,
+        bytes memory _messageBody
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                _version,
+                _nonce,
+                _originDomain,
+                _sender,
+                _destinationDomain,
+                _recipient,
+                _messageBody
+            );
+    }
+
+    /**
      * @notice Returns the message ID.
      * @param _message ABI encoded Hyperlane message.
      * @return ID of `_message`

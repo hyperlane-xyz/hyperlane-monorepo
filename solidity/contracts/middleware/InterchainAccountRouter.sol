@@ -29,6 +29,7 @@ import {AbstractRoutingIsm} from "../isms/routing/AbstractRoutingIsm.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /*
  * @title A contract that allows accounts on chain A to call contracts via a
@@ -420,35 +421,6 @@ contract InterchainAccountRouter is
      * @param _ism The remote ISM address
      * @param _calls The sequence of calls to make
      * @param _hookMetadata The hook metadata to override with for the hook set by the owner
-     * @return The Hyperlane message ID
-     */
-    function callRemoteWithOverrides(
-        uint32 _destination,
-        bytes32 _router,
-        bytes32 _ism,
-        CallLib.Call[] calldata _calls,
-        bytes memory _hookMetadata
-    ) public payable override returns (bytes32) {
-        return
-            callRemoteWithOverrides(
-                _destination,
-                _router,
-                _ism,
-                _calls,
-                _hookMetadata,
-                InterchainAccountMessage.EMPTY_SALT
-            );
-    }
-
-    /**
-     * @notice Dispatches a sequence of remote calls to be made by an owner's
-     * interchain account on the destination domain
-     * @dev Recommend using CallLib.build to format the interchain calls
-     * @param _destination The remote domain of the chain to make calls on
-     * @param _router The remote router address
-     * @param _ism The remote ISM address
-     * @param _calls The sequence of calls to make
-     * @param _hookMetadata The hook metadata to override with for the hook set by the owner
      * @param _userSalt Salt provided by the user, allows control over account derivation.
      * @return The Hyperlane message ID
      */
@@ -459,7 +431,7 @@ contract InterchainAccountRouter is
         CallLib.Call[] calldata _calls,
         bytes memory _hookMetadata,
         bytes32 _userSalt
-    ) public payable returns (bytes32) {
+    ) public payable override returns (bytes32) {
         return
             callRemoteWithOverrides(
                 _destination,
@@ -544,6 +516,11 @@ contract InterchainAccountRouter is
         bytes32 _salt,
         bytes32 _commitment
     ) public payable returns (bytes32 _commitmentMsgId, bytes32 _revealMsgId) {
+        // Exclude this invocation's value from the baseline. The commitment
+        // hook may refund overpayment to this router to fund the reveal, but an
+        // unrelated pre-existing balance must never fund or block the reveal.
+        uint256 _balanceBefore = address(this).balance - msg.value;
+
         bytes memory _commitmentMsg = InterchainAccountMessage
             .encodeCommitment({
                 _owner: msg.sender.addressToBytes32(),
@@ -565,12 +542,7 @@ contract InterchainAccountRouter is
             _destination,
             _router,
             _commitmentMsg,
-            StandardHookMetadata.formatWithFeeToken(
-                0,
-                COMMIT_TX_GAS_USAGE,
-                address(this),
-                _hookMetadata.feeToken()
-            ),
+            _commitmentHookMetadata(_hookMetadata),
             _hook,
             msg.value
         );
@@ -579,14 +551,44 @@ contract InterchainAccountRouter is
             _ism: _ccipReadIsm,
             _commitment: _commitment
         });
+
+        // Forward only the net native value returned during this call's
+        // commitment dispatch.
+        uint256 _revealValue = address(this).balance - _balanceBefore;
         _revealMsgId = _dispatchMessageWithValue(
             _destination,
             _router,
             _revealMsg,
             _hookMetadata,
             _hook,
-            address(this).balance
+            _revealValue
         );
+
+        // Empty or short reveal metadata defaults hook refunds to this router.
+        // Return only this call's residual so it cannot become stranded or be
+        // swept by another caller; never touch the pre-existing baseline.
+        uint256 _residual = address(this).balance - _balanceBefore;
+        if (_residual != 0) {
+            Address.sendValue(payable(msg.sender), _residual);
+        }
+        assert(address(this).balance == _balanceBefore);
+    }
+
+    /**
+     * @dev Uses the fixed commitment gas limit and this router as refund
+     * recipient so the commitment's native refund can fund the reveal. The fee
+     * token is preserved so both dispatches use the same payment currency.
+     */
+    function _commitmentHookMetadata(
+        bytes memory _revealHookMetadata
+    ) internal view returns (bytes memory) {
+        return
+            StandardHookMetadata.formatWithFeeToken(
+                0,
+                COMMIT_TX_GAS_USAGE,
+                address(this),
+                _revealHookMetadata.feeToken()
+            );
     }
 
     function callRemoteCommitReveal(
