@@ -106,6 +106,8 @@ export enum StarknetContractName {
   MESSAGE_ID_MULTISIG_ISM = 'messageid_multisig_ism',
   MERKLE_ROOT_MULTISIG_ISM = 'merkleroot_multisig_ism',
   ROUTING_ISM = 'domain_routing_ism',
+  AGGREGATION_ISM = 'aggregation',
+  PAUSABLE_ISM = 'pausable_ism',
   NOOP_ISM = 'noop_ism',
   HOOK = 'hook',
   MERKLE_TREE_HOOK = 'merkle_tree_hook',

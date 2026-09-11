@@ -21,7 +21,7 @@ import {
   RoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { Logger, rootLogger } from '@hyperlane-xyz/utils';
+import { Logger, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { IsmReader } from './generic-ism.js';
 
@@ -146,6 +146,11 @@ export class RoutingIsmWriter implements ArtifactWriter<
 
       if (isArtifactDeployed(domainIsmConfig)) {
         const { artifactState, config, deployed } = domainIsmConfig;
+        assert(
+          config.type !== AltVM.IsmType.AGGREGATION &&
+            config.type !== AltVM.IsmType.PAUSABLE,
+          'Aggregation and pausable ISM artifacts currently support reading only',
+        );
 
         const domainIsmWriter = this.artifactManager.createWriter(
           domainIsmConfig.config.type,
@@ -211,6 +216,11 @@ export class RoutingIsmWriter implements ArtifactWriter<
     artifact: ArtifactNew<IsmArtifactConfig>,
   ): Promise<[DeployedIsmArtifact, TxReceipt[]]> {
     const { config, artifactState } = artifact;
+    assert(
+      config.type !== AltVM.IsmType.AGGREGATION &&
+        config.type !== AltVM.IsmType.PAUSABLE,
+      'Aggregation and pausable ISM artifacts currently support reading only',
+    );
     if (config.type === AltVM.IsmType.ROUTING) {
       return this.create({
         config,

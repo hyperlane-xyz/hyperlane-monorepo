@@ -1,6 +1,7 @@
 import { type RpcProvider } from 'starknet';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { getContractClassHash } from '@hyperlane-xyz/starknet-core/runtime';
 import { assert } from '@hyperlane-xyz/utils';
 
 import {
@@ -16,14 +17,7 @@ import {
 
 function parseIsmVariant(variant: string): AltVM.IsmType {
   const upper = variant.toUpperCase();
-  if (
-    upper.includes('TEST') ||
-    upper.includes('NOOP') ||
-    upper.includes('NULL') ||
-    upper.includes('UNUSED')
-  ) {
-    return AltVM.IsmType.TEST_ISM;
-  }
+  if (upper === 'AGGREGATION') return AltVM.IsmType.AGGREGATION;
   if (upper.includes('MERKLE_ROOT_MULTISIG')) {
     return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
   }
@@ -47,7 +41,27 @@ export async function getIsmType(
       provider,
     );
     const moduleType = await callContract(ism, 'module_type');
-    return parseIsmVariant(extractEnumVariant(moduleType));
+    const variant = extractEnumVariant(moduleType).toUpperCase();
+    if (variant === 'NULL') {
+      // NULL is shared by pausable and noop ISMs; it does not mean accept-all.
+      const pausable = getStarknetContract(
+        StarknetContractName.PAUSABLE_ISM,
+        ismAddress,
+        provider,
+      );
+      try {
+        await callContract(pausable, 'is_paused');
+        return AltVM.IsmType.PAUSABLE;
+      } catch (error) {
+        if (!isProbeMiss(error)) throw error;
+      }
+      const classHash = await provider.getClassHashAt(ismAddress);
+      return BigInt(classHash) ===
+        BigInt(getContractClassHash(StarknetContractName.NOOP_ISM))
+        ? AltVM.IsmType.TEST_ISM
+        : AltVM.IsmType.CUSTOM;
+    }
+    return parseIsmVariant(variant);
   } catch (error) {
     if (!isProbeMiss(error)) throw error;
     return AltVM.IsmType.CUSTOM;
@@ -143,4 +157,54 @@ export async function getRoutingIsmConfig(
 
 export function getNoopIsmConfig(ismAddress: string): { address: string } {
   return { address: normalizeStarknetAddressSafe(ismAddress) };
+}
+
+export async function getAggregationIsmConfig(
+  provider: RpcProvider,
+  ismAddress: string,
+): Promise<{
+  address: string;
+  modules: string[];
+  threshold: number;
+}> {
+  const ism = getStarknetContract(
+    StarknetContractName.AGGREGATION_ISM,
+    ismAddress,
+    provider,
+  );
+  const [modules, threshold] = await Promise.all([
+    callContract(ism, 'get_modules'),
+    callContract(ism, 'get_threshold'),
+  ]);
+  assert(Array.isArray(modules), 'Expected Starknet aggregation modules array');
+  return {
+    address: normalizeStarknetAddressSafe(ismAddress),
+    modules: modules.map(normalizeStarknetAddressSafe),
+    threshold: toNumber(threshold),
+  };
+}
+
+export async function getPausableIsmConfig(
+  provider: RpcProvider,
+  ismAddress: string,
+): Promise<{
+  address: string;
+  owner: string;
+  paused: boolean;
+}> {
+  const ism = getStarknetContract(
+    StarknetContractName.PAUSABLE_ISM,
+    ismAddress,
+    provider,
+  );
+  const [owner, paused] = await Promise.all([
+    callContract(ism, 'owner'),
+    callContract(ism, 'is_paused'),
+  ]);
+  assert(typeof paused === 'boolean', 'Expected Starknet paused boolean');
+  return {
+    address: normalizeStarknetAddressSafe(ismAddress),
+    owner: normalizeStarknetAddressSafe(owner),
+    paused,
+  };
 }
