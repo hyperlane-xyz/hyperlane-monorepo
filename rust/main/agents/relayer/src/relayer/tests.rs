@@ -27,6 +27,7 @@ use hyperlane_core::{
 use hyperlane_ethereum as h_eth;
 use lander::DispatcherMetrics;
 
+use crate::scraper_websocket::{AuthorityCommand, ScraperAuthorityReceiver};
 use crate::settings::{matching_list::MatchingList, RelayerSettings};
 
 use super::{spawn_cancellable_blocking, CriticalErrorSource, CriticalErrorTracker, Relayer};
@@ -191,6 +192,54 @@ fn scraper_handoff_retires_direct_rpc_critical_errors() {
     );
     critical_errors.clear_direct_rpc_sync_errors(&domain);
 
+    assert_eq!(metric.get(), 0);
+}
+
+#[tokio::test]
+async fn scraper_authority_during_rpc_retry_clears_direct_errors() {
+    let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+    let chain_metrics = generate_test_chain_metrics();
+    let critical_errors = generate_test_critical_error_tracker(&chain_metrics);
+    let metric = chain_metrics
+        .critical_error
+        .with_label_values(&[domain.name()]);
+    critical_errors.record(
+        &domain,
+        CriticalErrorSource::MessageSync,
+        &eyre!("message cursor failed"),
+        "message cursor failed",
+    );
+    critical_errors.record(
+        &domain,
+        CriticalErrorSource::GasPaymentSync,
+        &eyre!("gas cursor failed"),
+        "gas cursor failed",
+    );
+
+    let (sender, mut authority) = ScraperAuthorityReceiver::test_channel(domain.id());
+    let grant_authority = tokio::spawn(async move {
+        tokio::task::yield_now().await;
+        sender
+            .send(AuthorityCommand {
+                desired: true,
+                generation: 1,
+            })
+            .expect("grant scraper authority during RPC retry");
+    });
+    let mut authority_channel_open = true;
+    Relayer::wait_for_rpc_retry(
+        &mut authority,
+        &mut authority_channel_open,
+        &domain,
+        &critical_errors,
+        Duration::from_secs(60),
+    )
+    .await;
+    grant_authority.await.expect("authority grant task");
+
+    assert!(authority_channel_open);
+    assert_eq!(metric.get(), 1, "gas payment error remains active");
+    critical_errors.clear(&domain, CriticalErrorSource::GasPaymentSync);
     assert_eq!(metric.get(), 0);
 }
 

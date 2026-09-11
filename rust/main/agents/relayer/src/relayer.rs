@@ -950,6 +950,44 @@ impl Relayer {
         .await
     }
 
+    fn pause_direct_rpc_syncs(
+        authority: &ScraperAuthorityReceiver,
+        origin_domain: &HyperlaneDomain,
+        critical_errors: &CriticalErrorTracker,
+        command: crate::scraper_websocket::AuthorityCommand,
+    ) {
+        critical_errors.clear_direct_rpc_sync_errors(origin_domain);
+        authority.mark_paused(origin_domain.id(), command.generation);
+    }
+
+    async fn wait_for_rpc_retry(
+        authority: &mut ScraperAuthorityReceiver,
+        authority_channel_open: &mut bool,
+        origin_domain: &HyperlaneDomain,
+        critical_errors: &CriticalErrorTracker,
+        retry_interval: Duration,
+    ) {
+        tokio::select! {
+            _ = tokio::time::sleep(retry_interval) => {}
+            changed = authority.changed(), if *authority_channel_open => {
+                if changed.is_err() {
+                    *authority_channel_open = false;
+                    warn!(chain = origin_domain.name(), "Scraper authority channel closed while waiting to retry RPC indexing");
+                    return;
+                }
+                let command = authority.borrow_and_update();
+                if command.desired {
+                    Self::pause_direct_rpc_syncs(
+                        authority,
+                        origin_domain,
+                        critical_errors,
+                        command,
+                    );
+                }
+            }
+        }
+    }
+
     fn run_rpc_sync_supervisor(
         &self,
         origin: &Origin,
@@ -967,7 +1005,12 @@ impl Relayer {
             loop {
                 let mut command = authority.borrow_and_update();
                 while authority_channel_open && command.desired {
-                    authority.mark_paused(origin_domain.id(), command.generation);
+                    Self::pause_direct_rpc_syncs(
+                        &authority,
+                        &origin_domain,
+                        &critical_errors,
+                        command,
+                    );
                     if authority.changed().await.is_err() {
                         warn!(
                             chain = origin_domain.name(),
@@ -1038,14 +1081,25 @@ impl Relayer {
 
                 let command = authority.borrow_and_update();
                 if command.desired {
-                    critical_errors.clear_direct_rpc_sync_errors(&origin_domain);
-                    authority.mark_paused(origin_domain.id(), command.generation);
+                    Self::pause_direct_rpc_syncs(
+                        &authority,
+                        &origin_domain,
+                        &critical_errors,
+                        command,
+                    );
                     info!(
                         chain = origin_domain.name(),
                         "Paused direct RPC message and Merkle indexing after scraper cutover"
                     );
                 } else {
-                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    Self::wait_for_rpc_retry(
+                        &mut authority,
+                        &mut authority_channel_open,
+                        &origin_domain,
+                        &critical_errors,
+                        Duration::from_secs(5),
+                    )
+                    .await;
                 }
             }
         })

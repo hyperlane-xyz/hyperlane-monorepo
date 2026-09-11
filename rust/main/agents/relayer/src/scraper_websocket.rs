@@ -1373,6 +1373,16 @@ pub(crate) struct ScraperAuthorityReceiver {
 }
 
 impl ScraperAuthorityReceiver {
+    #[cfg(test)]
+    pub(crate) fn test_channel(domain: u32) -> (watch::Sender<AuthorityCommand>, Self) {
+        let (sender, desired) = watch::channel(AuthorityCommand {
+            desired: false,
+            generation: 0,
+        });
+        let handoff = Arc::new(AuthorityHandoff::new(HashSet::from([domain])));
+        (sender, Self { desired, handoff })
+    }
+
     pub(crate) fn borrow_and_update(&mut self) -> AuthorityCommand {
         *self.desired.borrow_and_update()
     }
