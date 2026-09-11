@@ -11,10 +11,7 @@ import { ProtocolType, isEmptyAddress } from '@hyperlane-xyz/utils';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 
-import {
-  ChainMetadataSchemaObject,
-  RpcUrlSchema,
-} from './chainMetadataTypes.js';
+import { ChainMetadataSchemaObject } from './chainMetadataTypes.js';
 import { ZHash, ZNzUint, ZUWei } from './customZodTypes.js';
 import {
   HyperlaneDeploymentArtifacts,
@@ -264,18 +261,6 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
       .optional()
       .describe(
         'Specify a comma separated list of custom RPC URLs to use for this chain. If not specified, the default RPC urls will be used.',
-      ),
-    additionalQuorumRpcUrls: z
-      .array(RpcUrlSchema)
-      .optional()
-      .describe(
-        'Validator only: statically configured, *additional* RPC URLs that vote together with rpcUrls (2/3 majority, combined) on safety-critical merkle tree hook reads. Overridden entirely by customAdditionalQuorumRpcUrls when set, same as rpcUrls/customRpcUrls. See customAdditionalQuorumRpcUrls for the full quorum semantics.',
-      ),
-    customAdditionalQuorumRpcUrls: z
-      .string()
-      .optional()
-      .describe(
-        'Validator only: comma separated list of *additional* RPC URLs that vote together with rpcUrls (2/3 majority, combined) on safety-critical merkle tree hook reads. Empty disables quorum verification. Intended for additional public RPCs only -- rpcUrls already votes in the same group, so there is no need to duplicate its (typically private) entries here.',
       ),
     rpcConsensusType: z
       .enum(RpcConsensusType)
@@ -803,6 +788,13 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       `Maximum number of checkpoints signed concurrently. Defaults to 50; maximum ${MAX_SIGN_CONCURRENCY}.`,
     ),
+  lightweight: z
+    .boolean()
+    .optional()
+    .describe(
+      'Uses trusted websocket indexing and verifies every state-read endpoint against local roots by message index. Signs through the lowest verified index. Disables RPC indexing fallback and halts on a root mismatch.',
+    ),
+  leightweigt: z.boolean().optional().describe('Alias for lightweight.'),
   websocketUrl: z
     .url()
     .refine((url) => /^wss?:\/\//i.test(url), {
@@ -810,8 +802,27 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
     })
     .optional()
     .describe(
-      'Preferred Merkle tree insertion source; local RPC indexing is used while unavailable.',
+      'Merkle tree insertion source for replay and live events. RPC indexing fallback is disabled in lightweight mode.',
     ),
+}).superRefine((config, ctx) => {
+  if (
+    config.lightweight !== undefined &&
+    config.leightweigt !== undefined &&
+    config.lightweight !== config.leightweigt
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['lightweight'],
+      message: 'lightweight and leightweigt must agree when both are set',
+    });
+  }
+  if ((config.lightweight ?? config.leightweigt) && !config.websocketUrl) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['websocketUrl'],
+      message: 'websocketUrl is required in lightweight mode',
+    });
+  }
 });
 
 export type ValidatorConfig = z.infer<typeof ValidatorAgentConfigSchema>;

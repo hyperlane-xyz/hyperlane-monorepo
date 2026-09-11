@@ -598,6 +598,24 @@ impl HyperlaneRocksDB {
         self.store_tree_insertion_inner(insertion, insertion_block_number)
     }
 
+    /// Store an unverified insertion only if its leaf index is absent. Returns the
+    /// existing insertion otherwise. Shares the RPC writer's lock so a concurrent
+    /// stream replay cannot overwrite a canonical insertion or its block metadata.
+    pub fn store_tree_insertion_if_absent(
+        &self,
+        insertion: &MerkleTreeInsertion,
+        insertion_block_number: u64,
+    ) -> DbResult<Option<MerkleTreeInsertion>> {
+        let _guard = self.3.lock();
+        if let Some(existing) =
+            self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index())?
+        {
+            return Ok(Some(existing));
+        }
+        self.store_tree_insertion_inner(insertion, insertion_block_number)?;
+        Ok(None)
+    }
+
     fn store_tree_insertion_inner(
         &self,
         insertion: &MerkleTreeInsertion,
