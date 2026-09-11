@@ -47,6 +47,7 @@ const db: EventDatabase = {
   },
   async queryLive<T>(sql, values = []) {
     if (sql.includes('"gas_payment_stream_head"')) {
+      databaseDomainFilters.push(values[0]);
       const durable = [...gasPaymentRows.entries()].filter(
         ([, payment]) =>
           payment.domain === values[0] &&
@@ -116,6 +117,7 @@ const db: EventDatabase = {
       sql.includes('ORDER BY "event_row"."id"') &&
       sql.includes('"gas_payment"')
     ) {
+      databaseDomainFilters.push(values[0]);
       const after = BigInt(String(values[2]));
       const through = BigInt(String(values[3]));
       return queryRows<T>(
@@ -140,6 +142,7 @@ const db: EventDatabase = {
       !sql.includes('notification_id') &&
       sql.includes('FROM "gas_payment_stream_cursor"')
     ) {
+      databaseDomainFilters.push(values[0]);
       if (omitMappedGasPaymentRows) return [];
       const after = BigInt(String(values[2]));
       const through = BigInt(String(values[3]));
@@ -398,6 +401,79 @@ void it('queries high domains using the legacy signed representation', async () 
   } finally {
     socket.close();
     await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    databaseDomainFilters.length = 0;
+  }
+});
+
+void it('queries high gas payment domains using the legacy signed representation', async () => {
+  const signedDomain = -846_819_108;
+  const unsignedDomain = 3_448_148_188;
+  gasPaymentRows.clear();
+  databaseDomainFilters.length = 0;
+  gasPaymentRows.set('10', {
+    ...gasPaymentRow('10', null),
+    destination: signedDomain,
+    domain: signedDomain,
+    origin: signedDomain,
+  });
+  gasPaymentRows.set('30', {
+    ...gasPaymentRow('30', null, '11'),
+    destination: signedDomain,
+    domain: signedDomain,
+    origin: signedDomain,
+  });
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [
+          {
+            cursors: [
+              {
+                address: gasPaymaster,
+                afterStreamCursor: '0',
+                domain: unsignedDomain,
+              },
+            ],
+            eventType: 'gas_payment',
+            streamCursorVersion: 3,
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'caught_up');
+
+    assert.deepEqual(databaseDomainFilters, [
+      signedDomain,
+      signedDomain,
+      signedDomain,
+    ]);
+    const events = messages.filter(({ type }) => type === 'event');
+    assert.equal(events.length, 2);
+    for (const event of events) {
+      assert.equal(event.domain, unsignedDomain);
+      assert.deepEqual(
+        {
+          destination: record(event.data).destination,
+          domain: record(event.data).domain,
+          origin: record(event.data).origin,
+        },
+        {
+          destination: unsignedDomain,
+          domain: unsignedDomain,
+          origin: unsignedDomain,
+        },
+      );
+    }
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    gasPaymentRows.clear();
     databaseDomainFilters.length = 0;
   }
 });

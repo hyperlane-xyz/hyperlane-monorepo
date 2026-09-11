@@ -130,7 +130,8 @@ export function isDomain(value: unknown): value is number {
 }
 
 export function parseDatabaseDomain(value: unknown, error: string): number {
-  const stored = typeof value === 'string' ? Number(value) : value;
+  const stored =
+    typeof value === 'string' && /^-?\d+$/.test(value) ? Number(value) : value;
   if (
     typeof stored !== 'number' ||
     !Number.isInteger(stored) ||

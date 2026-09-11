@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   parseClientMessage,
+  parseDatabaseDomain,
   parseEventNotification,
   parseExplorerNotification,
 } from './protocol.js';
@@ -362,6 +363,36 @@ void describe('event websocket protocol', () => {
         '{"eventType":"dispatch","id":"123","domain":-2147483649}',
       ),
     );
+  });
+
+  void it('normalizes only valid signed database domain encodings', () => {
+    for (const [stored, domain] of [
+      [-0x8000_0000, 0x8000_0000],
+      [-1, 0xffff_ffff],
+      [0, 0],
+      [0x7fff_ffff, 0x7fff_ffff],
+      [0x8000_0000, 0x8000_0000],
+      [0xffff_ffff, 0xffff_ffff],
+      ['-2147483648', 0x8000_0000],
+      ['4294967295', 0xffff_ffff],
+    ] as const) {
+      assert.equal(parseDatabaseDomain(stored, 'invalid domain'), domain);
+    }
+    for (const stored of [
+      -0x8000_0001,
+      0x1_0000_0000,
+      1.5,
+      '',
+      ' 1',
+      '0x1',
+      '1e3',
+      '1.5',
+    ]) {
+      assert.throws(
+        () => parseDatabaseDomain(stored, 'invalid domain'),
+        /invalid domain/,
+      );
+    }
   });
 
   void it('parses Explorer message notifications', () => {
