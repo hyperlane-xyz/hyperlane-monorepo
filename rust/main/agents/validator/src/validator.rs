@@ -28,7 +28,7 @@ use hyperlane_base::{
 use hyperlane_core::{
     rpc_clients::RPC_RETRY_SLEEP_DURATION, Announcement, ChainResult, CheckpointAtBlock,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt,
-    IncrementalMerkleAtBlock, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
+    IncrementalMerkleAtBlock, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
     ValidatorAnnounce, ValidatorAnnounceSubmission, H256, U256,
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
@@ -330,10 +330,8 @@ pub struct Validator {
     db: HyperlaneRocksDB,
     merkle_tree_hook_sync: MerkleTreeHookSync,
     checkpoint_wake: Option<Arc<Notify>>,
-    mailbox: Arc<dyn Mailbox>,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     readiness: Arc<ValidatorReadiness>,
-    validator_announce: Arc<dyn ValidatorAnnounce>,
     signer: SingletonSignerHandle,
     raw_signer: Signers,
     // temporary holder until `run` is called
@@ -471,7 +469,6 @@ impl BaseAgent for Validator {
         });
 
         let origin_chain_conf = core.settings.chain_setup(&settings.origin_chain)?.clone();
-        let mailbox = origin_chain_conf.build_mailbox(&metrics).await?;
         let (raw_merkle_tree_hook, lightweight_reader): (
             Arc<dyn MerkleTreeHook>,
             Option<Arc<LightweightCheckpointReader>>,
@@ -514,10 +511,6 @@ impl BaseAgent for Validator {
             Arc::clone(&readiness),
             "merkle_tree_hook",
         ));
-
-        let validator_announce = settings
-            .build_validator_announce(&settings.origin_chain, &metrics)
-            .await?;
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
         let cursor_state = settings
@@ -595,12 +588,10 @@ impl BaseAgent for Validator {
             origin_chain_conf,
             core,
             db: msg_db,
-            mailbox: mailbox.into(),
             merkle_tree_hook,
             readiness,
             merkle_tree_hook_sync,
             checkpoint_wake,
-            validator_announce: validator_announce.into(),
             signer,
             raw_signer,
             signer_instance: Some(Box::new(signer_instance)),
@@ -675,7 +666,9 @@ impl BaseAgent for Validator {
             }
         };
 
-        let task = metrics_updater.spawn();
+        // Checkpoint signing is off-chain. Announcement funding is checked on
+        // demand by announce_tokens_needed, so no periodic balance reads are needed.
+        let task = metrics_updater.without_wallet_balance().spawn();
         tasks.push(task);
 
         // report agent metadata
@@ -968,8 +961,8 @@ impl Validator {
         // Sign and post the validator announcement
         let announcement = Announcement {
             validator: address,
-            mailbox_address: self.mailbox.address(),
-            mailbox_domain: self.mailbox.domain().id(),
+            mailbox_address: self.origin_chain_conf.addresses.mailbox,
+            mailbox_domain: self.origin_chain.id(),
             storage_location: self.announcement_location()?, // Use formatted location for the signed announcement
         };
         let signed_announcement = self.signer.sign(announcement.clone()).await?;
@@ -990,12 +983,17 @@ impl Validator {
         // the main validator submit loop. This is to avoid a situation in
         // which the validator is signing checkpoints but has not announced
         // their locations, which makes them functionally unusable.
+        let validator_announce = self
+            .origin_chain_conf
+            .build_validator_announce_reader(&self.core.metrics)
+            .await?;
+        // Only a real submission needs a signer, gas oracle, or escalator.
+        let mut submission_contract: Option<Box<dyn ValidatorAnnounce>> = None;
         let validators: [H256; 1] = [address.into()];
         let mut retry_backoff = AnnouncementRetryBackoff::default();
         loop {
             info!("Checking for validator announcement");
-            if let Some(locations) = self
-                .validator_announce
+            if let Some(locations) = validator_announce
                 .get_announced_storage_locations(&validators)
                 .await?
                 .first()
@@ -1029,8 +1027,7 @@ impl Validator {
                     }
                     retry_backoff.record_funding_check(now);
 
-                    let balance_delta = self
-                        .validator_announce
+                    let balance_delta = validator_announce
                         .announce_tokens_needed(signed_announcement.clone(), chain_signer_h256)
                         .await;
                     if retry_backoff.observe_tokens_needed(balance_delta) {
@@ -1063,8 +1060,16 @@ impl Validator {
                             retry_backoff.record_failure(Instant::now(), delay);
                         } else {
                             info!(eth_validator_address=?announcement.validator, ?chain_signer_string, ?chain_signer_h256, "Attempting self announce");
-                            let result = self
-                                .validator_announce
+                            if submission_contract.is_none() {
+                                submission_contract = Some(
+                                    self.origin_chain_conf
+                                        .build_validator_announce(&self.core.metrics)
+                                        .await?,
+                                );
+                            }
+                            let result = submission_contract
+                                .as_ref()
+                                .expect("announcement submission client initialized")
                                 .announce_with_status(signed_announcement.clone())
                                 .await;
                             let submission_may_be_in_flight =

@@ -1007,6 +1007,25 @@ impl ChainConf {
         .context(ctx)
     }
 
+    /// Build an announcement reader without Ethereum transaction middleware.
+    pub async fn build_validator_announce_reader(
+        &self,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn ValidatorAnnounce>> {
+        if let ChainConnectionConf::Ethereum(conf) = &self.connection {
+            let locator = self.locator(self.addresses.validator_announce);
+            self.build_ethereum(
+                conf,
+                &locator,
+                metrics,
+                h_eth::ValidatorAnnounceReaderBuilder {},
+            )
+            .await
+        } else {
+            self.build_validator_announce(metrics).await
+        }
+    }
+
     /// Try to convert the chain settings into a ValidatorAnnounce
     pub async fn build_validator_announce(
         &self,

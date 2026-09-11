@@ -539,6 +539,7 @@ mod tests {
     #[derive(Clone, Debug, Default)]
     struct CountingClient {
         chain_id_requests: Arc<AtomicUsize>,
+        requests: Arc<StdMutex<Vec<String>>>,
     }
 
     #[async_trait]
@@ -550,6 +551,24 @@ mod tests {
             T: Debug + Serialize + Send + Sync,
             R: DeserializeOwned,
         {
+            self.requests
+                .lock()
+                .expect("request log")
+                .push(method.to_owned());
+            if method == "eth_call" {
+                let encoded = ethers::abi::encode(&[ethers::abi::Token::Array(vec![
+                    ethers::abi::Token::Array(vec![ethers::abi::Token::String(
+                        "test-location".to_owned(),
+                    )]),
+                ])]);
+                return serde_json::from_value(serde_json::json!(ethers::types::Bytes::from(
+                    encoded
+                )))
+                .map_err(|err| HttpClientError::SerdeJson {
+                    err,
+                    text: "announcement response".into(),
+                });
+            }
             let response = if method == "eth_chainId" {
                 self.chain_id_requests.fetch_add(1, Ordering::Relaxed);
                 r#""0x1""#
@@ -751,6 +770,38 @@ mod tests {
 
         assert_eq!(sender, Some(expected_sender));
         assert_eq!(client.chain_id_requests.load(Ordering::Relaxed), 0);
+        Ok(())
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn announcement_reader_does_not_start_background_rpc_polling(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let client = CountingClient::default();
+        let (domain, address) = test_locator();
+        let locator = ContractLocator {
+            domain: &domain,
+            address,
+        };
+        let reader = crate::ValidatorAnnounceReaderBuilder {}
+            .build(
+                client.clone(),
+                &ConnectionConf::default(),
+                &locator,
+                Some(test_signer()?),
+            )
+            .await?;
+        assert!(client.requests.lock().expect("requests").is_empty());
+        let locations = reader.get_announced_storage_locations(&[address]).await?;
+        assert_eq!(locations, vec![vec!["test-location".to_owned()]]);
+        for _ in 0..5 {
+            tokio::time::advance(Duration::from_secs(12)).await;
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(*client.requests.lock().expect("requests"), vec!["eth_call"]);
+        drop(reader);
+        tokio::time::advance(Duration::from_secs(60)).await;
+        tokio::task::yield_now().await;
+        assert_eq!(*client.requests.lock().expect("requests"), vec!["eth_call"]);
         Ok(())
     }
 
