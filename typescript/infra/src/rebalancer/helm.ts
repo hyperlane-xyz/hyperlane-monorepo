@@ -27,6 +27,14 @@ import {
 } from '../utils/helm.js';
 import { execCmdAndParseJson, getInfraPath } from '../utils/utils.js';
 
+// Dedicated per-warp-route swaps.xyz API key secrets so usage is attributable
+// per rebalancer on the swaps.xyz dashboard. Routes absent from this map fall
+// back to the shared `<runEnv>-swapsxyz-api-key` secret in the helm template.
+const SWAPSXYZ_API_KEY_SECRET_BY_WARP_ROUTE: Record<string, string> = {
+  'oUSDT/production': 'mainnet3-swapsxyz-api-key-ousdt',
+  'USDT/eclipsemainnet': 'mainnet3-swapsxyz-api-key-usdt-eclipse',
+};
+
 export class RebalancerHelmManager extends HelmManager {
   static helmReleasePrefix: string = 'hyperlane-rebalancer';
 
@@ -119,6 +127,8 @@ export class RebalancerHelmManager extends HelmManager {
         chains: this.rebalancerChains,
         inventorySignerProtocols: this.inventorySignerProtocols,
         externalBridgeProviders: this.externalBridgeProviders,
+        swapsxyzApiKeySecretName:
+          SWAPSXYZ_API_KEY_SECRET_BY_WARP_ROUTE[this.warpRouteId],
       },
     };
   }
