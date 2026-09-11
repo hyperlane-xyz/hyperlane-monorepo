@@ -1,6 +1,6 @@
 import { errors as EthersError } from 'ethers';
 
-import { getNestedJsonRpcError } from '../../providers/SmartProvider/SmartProvider.js';
+import { getJsonRpcErrorFrom } from '../../providers/SmartProvider/SmartProvider.js';
 
 type EthersCallException = {
   code?: unknown;
@@ -21,7 +21,7 @@ export function isDeterministicTimelockReadError(error: unknown): boolean {
 
   const hasRevertData = !!record.data && record.data !== '0x';
   const hasNestedError = !!record.error;
-  const jsonRpcErrorCode = getNestedJsonRpcError(error).code;
+  const jsonRpcErrorCode = getJsonRpcErrorFrom(error).code;
 
   return hasRevertData || jsonRpcErrorCode === 3 || !hasNestedError;
 }
