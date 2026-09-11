@@ -104,8 +104,19 @@ abstract contract AbstractMessageIdAuthHook is
         bytes calldata message
     ) internal virtual override {
         bytes32 id = message.id();
+        require(
+            _isLatestDispatched(id),
+            "AbstractMessageIdAuthHook: message not latest dispatched"
+        );
+        bytes32 lastProcessedMessageId = StorageSlot
+            .getBytes32Slot(LAST_PROCESSED_MESSAGE_ID_SLOT)
+            .value;
+        require(
+            id != lastProcessedMessageId,
+            "AbstractMessageIdAuthHook: message already processed"
+        );
+        StorageSlot.getBytes32Slot(LAST_PROCESSED_MESSAGE_ID_SLOT).value = id;
 
-        _validateAndConsumeMessageId(id);
         require(
             message.destination() == destinationDomain,
             "AbstractMessageIdAuthHook: invalid destination domain"
@@ -118,24 +129,6 @@ abstract contract AbstractMessageIdAuthHook is
         _sendMessageId(metadata, message);
 
         _refund(metadata, message, address(this).balance);
-    }
-
-    /// @dev Validates that the message is the Mailbox's latest dispatch and
-    /// records it as consumed before the external bridge interaction.
-    function _validateAndConsumeMessageId(bytes32 id) internal {
-        require(
-            _isLatestDispatched(id),
-            "AbstractMessageIdAuthHook: message not latest dispatched"
-        );
-        bytes32 lastProcessedMessageId = StorageSlot
-            .getBytes32Slot(LAST_PROCESSED_MESSAGE_ID_SLOT)
-            .value;
-        require(
-            id != lastProcessedMessageId,
-            "AbstractMessageIdAuthHook: message already processed"
-        );
-
-        StorageSlot.getBytes32Slot(LAST_PROCESSED_MESSAGE_ID_SLOT).value = id;
     }
 
     /**
