@@ -275,10 +275,14 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
   // By default, min cost is 20 cents
   let minUsdCost = 0.2;
 
-  // Reduced min for messages to/from katana
+  // Break-even floor for messages to/from katana. Katana is polygoncdk with no
+  // getL1Fee predeploy, so tollkeeper models its delivery cost from a flat DA
+  // overhead plus the ~$0.03 per-message RPC cost; the prior $0.01 floor sat
+  // below that, running both katana lanes below break-even. $0.06 clears the
+  // modeled cost (~$0.05 base->katana, ~$0.041 katana->base) with headroom.
   const katanaRoute = local === 'katana' || remote === 'katana';
   if (katanaRoute) {
-    minUsdCost = 0.01;
+    minUsdCost = 0.06;
   }
 
   // For all SVM chains, min cost is 0.50 USD to cover rent needs
