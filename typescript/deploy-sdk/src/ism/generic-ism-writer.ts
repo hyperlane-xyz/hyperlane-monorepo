@@ -16,6 +16,7 @@ import {
   IsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { IsmReader } from './generic-ism.js';
 import { RoutingIsmWriter } from './routing-ism.js';
@@ -90,6 +91,11 @@ export class IsmWriter
     artifact: ArtifactNew<IsmArtifactConfig>,
   ): Promise<[DeployedIsmArtifact, TxReceipt[]]> {
     const { artifactState, config } = artifact;
+    assert(
+      config.type !== AltVM.IsmType.AGGREGATION &&
+        config.type !== AltVM.IsmType.PAUSABLE,
+      'Aggregation and pausable ISM artifacts currently support reading only',
+    );
 
     // Routing ISMs are composite - use RoutingIsmWriter for nested deployments
     if (config.type === AltVM.IsmType.ROUTING) {
@@ -111,6 +117,11 @@ export class IsmWriter
    */
   async update(artifact: DeployedIsmArtifact): Promise<AnnotatedTx[]> {
     const { artifactState, config, deployed } = artifact;
+    assert(
+      config.type !== AltVM.IsmType.AGGREGATION &&
+        config.type !== AltVM.IsmType.PAUSABLE,
+      'Aggregation and pausable ISM artifacts currently support reading only',
+    );
 
     // Only routing ISMs are mutable - support domain updates and owner changes
     if (config.type === AltVM.IsmType.ROUTING) {

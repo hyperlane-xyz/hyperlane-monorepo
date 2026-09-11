@@ -22,6 +22,10 @@ import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
 import { getIsmType } from './ism-query.js';
 import {
+  StarknetAggregationIsmReader,
+  StarknetPausableIsmReader,
+} from './aggregation-ism-artifact-reader.js';
+import {
   StarknetRoutingIsmReader,
   StarknetRoutingIsmWriter,
 } from './domain-routing-ism-artifact-manager.js';
@@ -54,9 +58,10 @@ export class StarknetIsmArtifactManager implements IRawIsmArtifactManager {
 
   async readIsm(address: string): Promise<DeployedRawIsmArtifact> {
     const type = await getIsmType(this.provider.getRawProvider(), address);
-    if (type === AltVM.IsmType.CUSTOM) {
-      return this.createReader(AltVM.IsmType.TEST_ISM).read(address);
-    }
+    assert(
+      type !== AltVM.IsmType.CUSTOM,
+      `Unsupported Starknet ISM at ${address}; refusing to report it as testIsm`,
+    );
     const reader = this.createReader(altVMIsmTypeToProviderSdkType(type));
     return reader.read(address);
   }
@@ -70,6 +75,9 @@ export class StarknetIsmArtifactManager implements IRawIsmArtifactManager {
         DeployedIsmAddress
       >;
     }> = {
+      staticAggregationIsm: () =>
+        new StarknetAggregationIsmReader(this.provider),
+      pausableIsm: () => new StarknetPausableIsmReader(this.provider),
       testIsm: () => new StarknetTestIsmReader(this.provider),
       merkleRootMultisigIsm: () =>
         new StarknetMerkleRootMultisigIsmReader(this.provider),
