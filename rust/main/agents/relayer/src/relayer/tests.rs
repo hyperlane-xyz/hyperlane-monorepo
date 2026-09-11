@@ -29,7 +29,7 @@ use lander::DispatcherMetrics;
 
 use crate::settings::{matching_list::MatchingList, RelayerSettings};
 
-use super::{spawn_cancellable_blocking, Relayer};
+use super::{spawn_cancellable_blocking, CriticalErrorSource, CriticalErrorTracker, Relayer};
 
 #[tokio::test]
 async fn cancelled_blocking_task_is_signalled_to_stop() {
@@ -136,6 +136,64 @@ fn generate_test_chain_metrics() -> ChainMetrics {
     ChainMetrics::test_default()
 }
 
+fn generate_test_critical_error_tracker(chain_metrics: &ChainMetrics) -> CriticalErrorTracker {
+    CriticalErrorTracker::new(chain_metrics.clone())
+}
+
+#[test]
+fn direct_rpc_recovery_preserves_other_critical_errors() {
+    let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+    let chain_metrics = generate_test_chain_metrics();
+    let critical_errors = generate_test_critical_error_tracker(&chain_metrics);
+    let metric = chain_metrics
+        .critical_error
+        .with_label_values(&[domain.name()]);
+
+    critical_errors.record(
+        &domain,
+        CriticalErrorSource::MessageSync,
+        &eyre!("message cursor failed"),
+        "message cursor failed",
+    );
+    critical_errors.record(
+        &domain,
+        CriticalErrorSource::GasPaymentSync,
+        &eyre!("gas cursor failed"),
+        "gas cursor failed",
+    );
+    critical_errors.clear_direct_rpc_sync_errors(&domain);
+    assert_eq!(metric.get(), 1);
+
+    critical_errors.clear(&domain, CriticalErrorSource::GasPaymentSync);
+    assert_eq!(metric.get(), 0);
+}
+
+#[test]
+fn scraper_handoff_retires_direct_rpc_critical_errors() {
+    let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+    let chain_metrics = generate_test_chain_metrics();
+    let critical_errors = generate_test_critical_error_tracker(&chain_metrics);
+    let metric = chain_metrics
+        .critical_error
+        .with_label_values(&[domain.name()]);
+
+    critical_errors.record(
+        &domain,
+        CriticalErrorSource::MessageSync,
+        &eyre!("message cursor failed"),
+        "message cursor failed",
+    );
+    critical_errors.record(
+        &domain,
+        CriticalErrorSource::MerkleTreeHookSync,
+        &eyre!("merkle cursor failed"),
+        "merkle cursor failed",
+    );
+    critical_errors.clear_direct_rpc_sync_errors(&domain);
+
+    assert_eq!(metric.get(), 0);
+}
+
 /// Builds a test RelayerSetting
 fn generate_test_relayer_settings(
     db_path: &Path,
@@ -235,6 +293,7 @@ async fn test_failed_build_destinations() {
     let registry = Registry::new();
     let core_metrics = Arc::new(CoreMetrics::new("relayer", 4000, registry).unwrap());
     let chain_metrics = generate_test_chain_metrics();
+    let critical_errors = generate_test_critical_error_tracker(&chain_metrics);
 
     let db = DB::from_path(db_path).unwrap();
 
@@ -245,7 +304,7 @@ async fn test_failed_build_destinations() {
         &settings,
         db,
         core_metrics,
-        &chain_metrics,
+        &critical_errors,
         dispatcher_metrics,
     )
     .await;
@@ -313,10 +372,11 @@ async fn test_failed_build_origin() {
     let registry = Registry::new();
     let core_metrics = CoreMetrics::new("relayer", 4000, registry).unwrap();
     let chain_metrics = generate_test_chain_metrics();
+    let critical_errors = generate_test_critical_error_tracker(&chain_metrics);
 
     let db = DB::from_path(db_path).expect("Failed to initialize database");
     let origins =
-        Relayer::build_origins(&settings, db, Arc::new(core_metrics), &chain_metrics).await;
+        Relayer::build_origins(&settings, db, Arc::new(core_metrics), &critical_errors).await;
 
     assert_eq!(origins.len(), 1);
     assert!(origins.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)));
@@ -636,21 +696,27 @@ async fn gas_payment_rpc_fallback_stops_restarts_and_survives_monitor_exit() {
     }
     let (sender, receiver) = tokio::sync::watch::channel(false);
     let running = Arc::new(AtomicBool::new(false));
+    let authority_observed = Arc::new(AtomicBool::new(false));
     let (started, mut starts) = tokio::sync::mpsc::unbounded_channel();
     let observed = running.clone();
-    let task = tokio::spawn(super::run_gas_payment_fallback(Some(receiver), move || {
-        let running = observed.clone();
-        let started = started.clone();
-        async move {
-            assert!(
-                !running.swap(true, Ordering::SeqCst),
-                "RPC tasks must not overlap"
-            );
-            let _guard = Running(running);
-            started.send(()).expect("start notification");
-            std::future::pending::<()>().await;
-        }
-    }));
+    let observed_authority = authority_observed.clone();
+    let task = tokio::spawn(super::run_gas_payment_fallback(
+        Some(receiver),
+        move || observed_authority.store(true, Ordering::SeqCst),
+        move || {
+            let running = observed.clone();
+            let started = started.clone();
+            async move {
+                assert!(
+                    !running.swap(true, Ordering::SeqCst),
+                    "RPC tasks must not overlap"
+                );
+                let _guard = Running(running);
+                started.send(()).expect("start notification");
+                std::future::pending::<()>().await;
+            }
+        },
+    ));
     tokio::time::timeout(Duration::from_secs(1), starts.recv())
         .await
         .expect("startup RPC")
@@ -663,6 +729,7 @@ async fn gas_payment_rpc_fallback_stops_restarts_and_survives_monitor_exit() {
     })
     .await
     .expect("RPC cancelled on connection");
+    assert!(authority_observed.load(Ordering::SeqCst));
     assert!(
         tokio::time::timeout(Duration::from_millis(20), starts.recv())
             .await

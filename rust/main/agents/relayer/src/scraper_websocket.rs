@@ -3346,6 +3346,7 @@ mod tests {
                 let committed = committed.clone();
                 rpc_task = Some(tokio::spawn(crate::relayer::run_gas_payment_fallback(
                     monitor.gas_payment_authority_receiver(),
+                    || {},
                     move || {
                         let starts = starts.clone();
                         let committed = committed.clone();
