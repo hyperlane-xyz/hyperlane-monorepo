@@ -276,10 +276,12 @@ where
                 .await;
             }
         };
-        let res = with_rpc_operation(RpcOperation::ContractSync, async {
-            tokio::join!(tx_id_task, cursor_task)
-        })
-        .await;
+        let operation = match label {
+            "gas_payments" => RpcOperation::GasPaymentSync,
+            _ => RpcOperation::ContractSync,
+        };
+        let res =
+            with_rpc_operation(operation, async { tokio::join!(tx_id_task, cursor_task) }).await;
 
         // we should never reach this because the 2 tasks should never end
         tracing::error!(chain = chain_name, label, ?res, "contract sync loop exit");
@@ -682,6 +684,144 @@ mod tests {
         // children, not merely schedule their eventual cancellation.
         assert!(cursor_dropped.load(Ordering::SeqCst));
         assert!(tx.is_closed());
+    }
+
+    #[derive(Clone, Debug)]
+    struct AttributedIndexer {
+        operation: RpcOperation,
+        range_calls: StdArc<AtomicUsize>,
+        tx_calls: StdArc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl Indexer<HyperlaneMessage> for AttributedIndexer {
+        async fn fetch_logs_in_range(
+            &self,
+            _range: RangeInclusive<u32>,
+        ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+            tokio::task::yield_now().await;
+            assert_eq!(
+                hyperlane_metric::rpc_operation::current_rpc_operation(),
+                self.operation
+            );
+            if self.range_calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                return Err(ChainCommunicationError::from_other_str("retry range fetch"));
+            }
+            Ok(Vec::new())
+        }
+
+        async fn fetch_logs_by_tx_hash(
+            &self,
+            _tx_hash: H512,
+        ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+            tokio::task::yield_now().await;
+            assert_eq!(
+                hyperlane_metric::rpc_operation::current_rpc_operation(),
+                self.operation
+            );
+            self.tx_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(Vec::new())
+        }
+
+        async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+            assert_eq!(
+                hyperlane_metric::rpc_operation::current_rpc_operation(),
+                self.operation
+            );
+            Ok(9)
+        }
+    }
+
+    #[derive(Debug)]
+    struct AttributedCursor {
+        indexer: AttributedIndexer,
+        updated: bool,
+    }
+
+    #[async_trait]
+    impl ContractSyncCursor<HyperlaneMessage> for AttributedCursor {
+        async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
+            if self.updated {
+                return pending().await;
+            }
+            let tip = self.indexer.get_finalized_block_number().await?;
+            Ok((CursorAction::Query(7..=tip), Duration::ZERO))
+        }
+
+        fn latest_queried_block(&self) -> u32 {
+            0
+        }
+
+        async fn update(
+            &mut self,
+            _logs: Vec<(Indexed<HyperlaneMessage>, LogMeta)>,
+            _range: RangeInclusive<u32>,
+        ) -> Result<()> {
+            self.updated = true;
+            Ok(())
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn gas_rpc_attribution_covers_cursors_tx_ids_and_retries() {
+        for (label, operation) in [
+            ("gas_payments", RpcOperation::GasPaymentSync),
+            ("dispatched_messages", RpcOperation::ContractSync),
+            ("merkle_tree_hook", RpcOperation::ContractSync),
+            ("gas_payment", RpcOperation::ContractSync),
+            ("arbitrary_label", RpcOperation::ContractSync),
+        ] {
+            let indexer = AttributedIndexer {
+                operation,
+                range_calls: StdArc::new(AtomicUsize::new(0)),
+                tx_calls: StdArc::new(AtomicUsize::new(0)),
+            };
+            let metrics = crate::CoreMetrics::new("test", 0, prometheus::Registry::new())
+                .expect("test metrics");
+            let sync = ContractSync::new(
+                test_domain(),
+                StoreResult {
+                    stored: 0,
+                    error: None,
+                    calls: None,
+                },
+                indexer.clone(),
+                ContractSyncMetrics::new(&metrics),
+                false,
+            );
+            let (tx, rx) = tokio::sync::mpsc::channel(1);
+            tx.send(IndexingNotification {
+                tx_id: H512::zero(),
+                sequences: Vec::new(),
+            })
+            .await
+            .expect("enqueue transaction");
+            let mut task = Box::pin(sync.sync(
+                label,
+                SyncOptions::new(
+                    Some(Box::new(AttributedCursor {
+                        indexer: indexer.clone(),
+                        updated: false,
+                    })),
+                    Some(rx),
+                ),
+            ));
+            // Both RPC futures yield once before checking attribution.
+            assert!(futures::poll!(&mut task).is_pending());
+            assert!(futures::poll!(&mut task).is_pending());
+            assert_eq!(indexer.range_calls.load(Ordering::SeqCst), 1);
+            assert_eq!(indexer.tx_calls.load(Ordering::SeqCst), 1);
+
+            tokio::time::advance(SLEEP_DURATION).await;
+            assert!(futures::poll!(&mut task).is_pending());
+            assert!(futures::poll!(&mut task).is_pending());
+            assert_eq!(indexer.range_calls.load(Ordering::SeqCst), 2);
+            drop(task);
+            assert_eq!(
+                hyperlane_metric::rpc_operation::current_rpc_operation(),
+                RpcOperation::Unattributed
+            );
+        }
     }
 
     #[tokio::test]

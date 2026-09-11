@@ -38,6 +38,7 @@ use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
     HyperlaneDomain, HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion, U256,
 };
+use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
 use lander::{CommandEntrypoint, DispatcherMetrics};
 
 use crate::relay_api::{
@@ -1230,9 +1231,9 @@ impl Relayer {
         critical_errors: CriticalErrorTracker,
         tx_id_receiver: Option<MpscReceiver<IndexingNotification>>,
     ) {
-        let cursor = match Self::instantiate_cursor_with_retries(
-            contract_sync.clone(),
-            index_settings.clone(),
+        let cursor = match with_rpc_operation(
+            RpcOperation::GasPaymentSync,
+            Self::instantiate_cursor_with_retries(contract_sync.clone(), index_settings.clone()),
         )
         .await
         {
