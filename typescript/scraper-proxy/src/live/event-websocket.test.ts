@@ -346,9 +346,20 @@ void describe('event websocket protocol', () => {
       ),
       { domain: 42161, eventType: 'merkle_tree_insertion', id: 123n },
     );
+    assert.deepEqual(
+      parseEventNotification(
+        '{"eventType":"dispatch","id":"124","domain":-846819108}',
+      ),
+      { domain: 3448148188, eventType: 'dispatch', id: 124n },
+    );
     assert.throws(() =>
       parseEventNotification(
         '{"eventType":"unknown","id":"123","domain":42161}',
+      ),
+    );
+    assert.throws(() =>
+      parseEventNotification(
+        '{"eventType":"dispatch","id":"123","domain":-2147483649}',
       ),
     );
   });
