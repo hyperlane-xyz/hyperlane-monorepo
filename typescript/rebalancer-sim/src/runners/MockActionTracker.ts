@@ -70,6 +70,18 @@ export class MockActionTracker implements IActionTracker {
     );
   }
 
+  async getActionsForIntents(
+    intentIds: readonly string[],
+  ): Promise<Map<string, RebalanceAction[]>> {
+    const actionsByIntent = new Map(
+      intentIds.map((intentId) => [intentId, [] as RebalanceAction[]]),
+    );
+    for (const action of this.actions.values()) {
+      actionsByIntent.get(action.intentId)?.push(action);
+    }
+    return actionsByIntent;
+  }
+
   async getInflightInventoryMovements(_origin: Domain): Promise<bigint> {
     // No inventory movements in simulation
     return 0n;
