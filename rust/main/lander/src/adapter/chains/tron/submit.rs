@@ -15,17 +15,20 @@ fn classify_tron_error(err: ChainCommunicationError) -> LanderError {
     let err_str = err.to_string();
 
     // Check for retryable errors (temporary conditions)
+    //
+    // BANDWITH_ERROR is treated as retryable: Tron returns this when the fee
+    // payer cannot cover the transaction's bandwidth/energy cost. This is a
+    // transient funding/state condition (e.g. wallet drained, or the prior
+    // attempt's simulation over-estimated energy), and a later attempt may
+    // succeed once the wallet is funded or on-chain state changes.
     if err_str.contains("SERVER_BUSY")
         || err_str.contains("NOT_ENOUGH_EFFECTIVE_CONNECTION")
         || err_str.contains("NO_CONNECTION")
         || err_str.contains("BLOCK_UNSOLIDIFIED")
         || err_str.contains("OTHER_ERROR")
+        || err_str.contains("BANDWITH_ERROR")
     {
         return LanderError::TxSubmissionError(err_str);
-    }
-
-    if err_str.contains("BANDWITH_ERROR") {
-        return LanderError::TxGasCapReached;
     }
 
     if err_str.contains("DUP_TRANSACTION_ERROR") {
