@@ -1,3 +1,15 @@
+## [3.0.0] - 2026-09-11
+
+* feat(aleo): expose delegated prover phase metrics (#9541)
+* feat(metrics): attribute RPC requests by operation (#9453)
+* fix(aleo): avoid local proving fallback memory spike (#9422)
+* fix(aleo): avoid retrying terminal prover auth errors (#9459)
+* fix(aleo): coalesce concurrent JWT refreshes (#9458)
+* fix(aleo): contain delegated prover outages (#9456)
+* fix(aleo): encode mapping keys in RPC URLs (#9293)
+* fix(aleo): send content length when requesting proving JWT (#9540)
+* perf(metrics): avoid redundant block detail reads (#9442)
+
 ## [2.3.0] - 2026-07-20
 
 * feat: aleo ARC-20 v2 tokens + mainnet USDC/USDT/ETH/WBTC/SOL rollout (#8969)
