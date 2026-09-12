@@ -1011,6 +1011,8 @@ describe('EvmIsmModule', async () => {
       };
 
       const { ism, initialIsmAddress } = await createIsm(config);
+      const initialModuleAddresses =
+        await aggregationModuleAddresses(initialIsmAddress);
 
       const updatedConfig: AggregationIsmConfig = {
         ...config,
@@ -1027,7 +1029,15 @@ describe('EvmIsmModule', async () => {
       };
       testConfig = updatedConfig;
 
-      await expectTxsAndUpdate(ism, updatedConfig, 1);
+      const deriveSpy = sinon.spy(EvmIsmReader.prototype, 'deriveIsmConfig');
+      try {
+        await expectTxsAndUpdate(ism, updatedConfig, 1);
+        for (const moduleAddress of initialModuleAddresses) {
+          expect(deriveSpy.withArgs(moduleAddress).callCount).to.be.at.most(2);
+        }
+      } finally {
+        deriveSpy.restore();
+      }
 
       expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
         .true;
@@ -1295,6 +1305,7 @@ describe('EvmIsmModule', async () => {
       const rateLimitedConfig: RateLimitedIsmConfig = {
         type: IsmType.RATE_LIMITED,
         maxCapacity: '86400',
+        duration: 86400n,
         recipient,
         owner: signerAddress,
       };
