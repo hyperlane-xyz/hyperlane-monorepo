@@ -1,5 +1,36 @@
 # @hyperlane-xyz/metrics
 
+## 1.0.3
+
+### Patch Changes
+
+- a8d6bf0: Consolidated token balance and USD value into one INFO observation while retaining the separate value event at DEBUG, reducing repeated metric labels in monitor and rebalancer logs.
+- a8d6bf0: Reused the collateral address from the current managed-lockbox balance observation when reading token metadata, avoiding a duplicate contract lookup while retaining fresh metadata and standalone lookup behavior.
+- a8d6bf0: Resolved the xERC20 address once per limit observation instead of repeating the same read for each limit and label. Preserved fresh address and limit reads on every monitoring cycle.
+- a8d6bf0: Moved per-chain value-at-risk success logs to debug level to reduce repeated log serialization and ingestion in warp monitors and rebalancers. Retained per-token balance/value observations at info level and preserved all metric series.
+- Updated dependencies [e0d3394]
+- Updated dependencies [b83bac5]
+- Updated dependencies [9b9de8d]
+- Updated dependencies [d02c93e]
+- Updated dependencies [ee50f43]
+- Updated dependencies [12678bc]
+- Updated dependencies [0aeb76a]
+- Updated dependencies [9a59116]
+- Updated dependencies [d26e4c4]
+- Updated dependencies [8373a74]
+- Updated dependencies [2762075]
+- Updated dependencies [f9cf910]
+- Updated dependencies [6eaa8c6]
+- Updated dependencies [98ec7d5]
+- Updated dependencies [4c644c0]
+- Updated dependencies [d26e4c4]
+- Updated dependencies [692cdb4]
+- Updated dependencies [b83bac5]
+- Updated dependencies [67f3cd3]
+  - @hyperlane-xyz/sdk@44.1.0
+  - @hyperlane-xyz/core@12.1.1
+  - @hyperlane-xyz/utils@44.1.0
+
 ## 1.0.2
 
 ### Patch Changes

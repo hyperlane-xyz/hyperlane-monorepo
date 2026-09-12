@@ -1,5 +1,56 @@
 # @hyperlane-xyz/infra
 
+## 44.1.0
+
+### Minor Changes
+
+- e0d3394: Added an opt-in relayer cutover from direct RPC indexing to scraper-proxy streams with automatic RPC fallback.
+
+### Patch Changes
+
+- Updated dependencies [e0d3394]
+- Updated dependencies [b83bac5]
+- Updated dependencies [9b9de8d]
+- Updated dependencies [d02c93e]
+- Updated dependencies [a8d6bf0]
+- Updated dependencies [ee50f43]
+- Updated dependencies [12678bc]
+- Updated dependencies [c1576a3]
+- Updated dependencies [0aeb76a]
+- Updated dependencies [a8d6bf0]
+- Updated dependencies [9a59116]
+- Updated dependencies [a8d6bf0]
+- Updated dependencies [d26e4c4]
+- Updated dependencies [c1576a3]
+- Updated dependencies [8373a74]
+- Updated dependencies [a8d6bf0]
+- Updated dependencies [c1576a3]
+- Updated dependencies [2762075]
+- Updated dependencies [7e357be]
+- Updated dependencies [f9cf910]
+- Updated dependencies [6eaa8c6]
+- Updated dependencies [98ec7d5]
+- Updated dependencies [4c644c0]
+- Updated dependencies [4ad4577]
+- Updated dependencies [d26e4c4]
+- Updated dependencies [692cdb4]
+- Updated dependencies [c1576a3]
+- Updated dependencies [b83bac5]
+- Updated dependencies [b83bac5]
+- Updated dependencies [67f3cd3]
+  - @hyperlane-xyz/sdk@44.1.0
+  - @hyperlane-xyz/sealevel-sdk@44.1.0
+  - @hyperlane-xyz/metrics@1.0.3
+  - @hyperlane-xyz/provider-sdk@10.1.0
+  - @hyperlane-xyz/deploy-sdk@10.1.0
+  - @hyperlane-xyz/rebalancer@29.0.3
+  - @hyperlane-xyz/core@12.1.1
+  - @hyperlane-xyz/utils@44.1.0
+  - @hyperlane-xyz/http-registry-server@44.1.0
+  - @hyperlane-xyz/keyfunder@0.1.51
+  - @hyperlane-xyz/relayer@4.0.3
+  - @hyperlane-xyz/tron-sdk@25.0.3
+
 ## 44.0.2
 
 ### Patch Changes

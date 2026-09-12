@@ -1,5 +1,11 @@
 # @hyperlane-xyz/starknet-core
 
+## 44.1.0
+
+### Patch Changes
+
+- 0aeb76a: Reduced contract build times by compiling Tron without shared source mutations, retaining its incremental compiler cache, and parallelizing Starknet artifact generation. Generated contract artifacts were preserved.
+
 ## 44.0.2
 
 ## 44.0.1
