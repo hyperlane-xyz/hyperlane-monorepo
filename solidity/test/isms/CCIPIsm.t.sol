@@ -166,6 +166,29 @@ contract CCIPIsmTest is Test {
         );
     }
 
+    function testFork_postDispatch_RevertWhen_Replayed() public {
+        deployAll();
+
+        vm.selectFork(mainnetFork);
+        l1Mailbox.updateLatestDispatchedId(messageId);
+        uint256 quotedFee = ccipHookMainnet.quoteDispatch(
+            testMetadata,
+            encodedMessage
+        );
+        vm.deal(address(this), quotedFee * 2);
+
+        ccipHookMainnet.postDispatch{value: quotedFee}(
+            testMetadata,
+            encodedMessage
+        );
+
+        vm.expectRevert("AbstractMessageIdAuthHook: message already processed");
+        ccipHookMainnet.postDispatch{value: quotedFee}(
+            testMetadata,
+            encodedMessage
+        );
+    }
+
     function testFork_postDispatch_RevertWhen_NotEnoughValueSent() public {
         deployAll();
 
