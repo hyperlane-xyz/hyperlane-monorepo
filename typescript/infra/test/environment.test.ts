@@ -5,6 +5,7 @@ import {
   ChainTechnicalStack,
   CoreConfig,
   DomainRoutingIsmConfig,
+  HookType,
   IsmType,
 } from '@hyperlane-xyz/sdk';
 import { assert, objFilter } from '@hyperlane-xyz/utils';
@@ -107,4 +108,51 @@ describe('Environment', () => {
       });
     });
   }
+
+  it('recovers only the reviewed mainnet3 legacy hook trees', () => {
+    const recoveredChains = Object.entries(environments.mainnet3.core)
+      .filter(([, config]) => {
+        const defaultHook = config.defaultHook;
+        return (
+          typeof defaultHook !== 'string' &&
+          defaultHook.type === HookType.FALLBACK_ROUTING &&
+          defaultHook.address !== undefined
+        );
+      })
+      .map(([chain]) => chain)
+      .sort();
+
+    expect(recoveredChains).to.deep.equal([
+      'coti',
+      'electroneum',
+      'krown',
+      'metis',
+      'pulsechain',
+      'sei',
+      'sonic',
+      'taiko',
+      'viction',
+    ]);
+  });
+
+  it('preserves both MerkleTreeHooks in the Metis hook topology', () => {
+    const defaultHook = environments.mainnet3.core.metis.defaultHook;
+    assert(
+      typeof defaultHook !== 'string' &&
+        defaultHook.type === HookType.FALLBACK_ROUTING,
+      'Expected a recovered Metis fallback routing hook',
+    );
+    expect(defaultHook.fallback).to.equal(
+      '0x5F954cA945671e48466680eA815727948Ca340ef',
+    );
+    const aggregationHook = Object.values(defaultHook.domains)[0];
+    assert(
+      typeof aggregationHook !== 'string' &&
+        aggregationHook.type === HookType.AGGREGATION,
+      'Expected a recovered Metis aggregation hook',
+    );
+    expect(aggregationHook.hooks).to.include(
+      '0xF5da68b2577EF5C0A0D98aA2a58483a68C2f232a',
+    );
+  });
 });

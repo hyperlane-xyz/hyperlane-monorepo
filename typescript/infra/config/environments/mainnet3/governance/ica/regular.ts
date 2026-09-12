@@ -113,4 +113,9 @@ export const regularIcas: ChainMap<Address> = {
   // Aug 29, 2026
   // ----------------------------------------------------------
   nesachain: '0xb99A2F00E5F30931a8908ae3a27BD25D9a62d237',
+
+  // Sep 10, 2026
+  // ----------------------------------------------------------
+  arc: '0xb99A2F00E5F30931a8908ae3a27BD25D9a62d237',
+  viction: '0x057fd9cae3a84Be7222bE32E5d5e35f2730DE5b8',
 } as const;
