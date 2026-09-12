@@ -49,6 +49,10 @@ impl BuildableWithProvider for MerkleTreeHookBuilder {
     type Output = Box<dyn MerkleTreeHook>;
     const NEEDS_SIGNER: bool = false;
 
+    fn uses_dynamic_block_cache(&self) -> bool {
+        true
+    }
+
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
@@ -351,5 +355,116 @@ where
             return Some(n.as_u64());
         }
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use ethers::providers::{MockProvider, Provider};
+    use ethers_core::{
+        abi::{encode, Token},
+        types::{Bytes, U64},
+    };
+    use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClient;
+    use hyperlane_core::KnownHyperlaneDomain;
+
+    use super::*;
+
+    fn cached_provider(
+        endpoint: &str,
+    ) -> (
+        Provider<PrometheusJsonRpcClient<MockProvider>>,
+        MockProvider,
+    ) {
+        let mock = MockProvider::new();
+        let client = MerkleTreeHookBuilder {}.wrap_rpc_with_metrics(
+            mock.clone(),
+            endpoint.parse().expect("valid test endpoint"),
+            &None,
+            &None,
+        );
+        (Provider::new(client), mock)
+    }
+
+    #[tokio::test]
+    async fn hook_builder_reuses_tip_but_reads_same_count_replacement_root() {
+        let (provider, mock) = cached_provider("http://localhost/hook-root-replacement");
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let hook = EthereumMerkleTreeHook::new(
+            Arc::new(provider),
+            &ContractLocator {
+                domain: &domain,
+                address: H256::zero(),
+            },
+        );
+        let reorg_period = ReorgPeriod::from_blocks(5);
+        let roots = [H256::repeat_byte(1), H256::repeat_byte(2)];
+
+        for (iteration, root) in roots.into_iter().enumerate() {
+            mock.push::<Bytes, _>(Bytes::from(encode(&[Token::Uint(1_u64.into())])))
+                .expect("enqueue count");
+            if iteration == 0 {
+                // Mock responses are consumed in reverse insertion order.
+                mock.push(U64::from(100)).expect("enqueue tip");
+            }
+            assert_eq!(hook.count(&reorg_period).await.expect("read count"), 1);
+            mock.push::<Bytes, _>(Bytes::from(encode(&[
+                Token::FixedBytes(root.as_bytes().to_vec()),
+                Token::Uint(0_u64.into()),
+            ])))
+            .expect("enqueue checkpoint");
+            let checkpoint = hook
+                .latest_checkpoint(&reorg_period)
+                .await
+                .expect("read checkpoint");
+            assert_eq!(checkpoint.root, root);
+            assert_eq!(checkpoint.index, 0);
+            assert_eq!(checkpoint.block_height, Some(95));
+        }
+    }
+
+    #[tokio::test]
+    async fn hook_builder_keeps_concrete_endpoint_observations_independent() {
+        // Same hostname, distinct full URLs: never collapse quorum endpoints by host.
+        let (first, first_mock) = cached_provider("http://localhost/hook-quorum/first");
+        let (second, second_mock) = cached_provider("http://localhost/hook-quorum/second");
+        first_mock.push(U64::from(100)).expect("first endpoint tip");
+        second_mock
+            .push(U64::from(99))
+            .expect("second endpoint tip");
+
+        for _ in 0..2 {
+            assert_eq!(
+                first.get_block_number().await.expect("first tip"),
+                100.into()
+            );
+            assert_eq!(
+                second.get_block_number().await.expect("second tip"),
+                99.into()
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn hook_builder_refreshes_tip_after_production_cache_ttl() {
+        let (provider, mock) = cached_provider("http://localhost/hook-production-ttl");
+        mock.push(U64::from(100)).expect("initial tip");
+        assert_eq!(
+            provider.get_block_number().await.expect("initial tip"),
+            100.into()
+        );
+        assert_eq!(
+            provider.get_block_number().await.expect("cached tip"),
+            100.into()
+        );
+
+        tokio::time::sleep(Duration::from_millis(260)).await;
+        mock.push(U64::from(99)).expect("replacement tip");
+        assert_eq!(
+            provider.get_block_number().await.expect("fresh tip"),
+            99.into()
+        );
     }
 }
