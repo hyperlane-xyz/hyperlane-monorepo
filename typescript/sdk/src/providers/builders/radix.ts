@@ -17,6 +17,7 @@ export const defaultRadixProviderBuilder: ProviderBuilderFn<RadixProvider> = (
   const provider = new RadixSDKProvider({
     rpcUrls: rpcUrls.map((rpc) => rpc.http),
     networkId,
+    gatewayUrls: metadata.gatewayUrls?.map(({ http }) => http),
     chainMetadata: metadata,
   });
   return { provider, type: ProviderType.Radix };
