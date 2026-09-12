@@ -1,5 +1,49 @@
 # @hyperlane-xyz/rebalancer
 
+## 29.0.3
+
+### Patch Changes
+
+- 12678bc: Added opt-in Sealevel v1 sending and configurable receipt reads per chain. V1 transactions moved compute limits and priority fees into the header and enforced version-specific size limits, while other SVMs retained v0 defaults.
+
+  Separated v1 sending activation from RPC read support, preserved v0 offline governance, and carried caller-configured heap and loaded-data budgets across transaction versions.
+
+- c1576a3: Skipped Explorer rebalance-action discovery when no bridge addresses were configured, avoiding an empty-result HTTP query while retaining tracked-action delivery checks.
+- a8d6bf0: Reused the collateral address from the current managed-lockbox balance observation when reading token metadata, avoiding a duplicate contract lookup while retaining fresh metadata and standalone lookup behavior.
+- 9a59116: Updated Solana clients to versions with transaction v1 codecs while preserving existing transaction-version defaults.
+- c1576a3: Deferred LiFi SDK initialization until a configured external bridge was needed, reducing startup work for rebalancers without LiFi inventory execution.
+- c1576a3: Reused the transfer gas quote within native-token cost estimation, avoiding a duplicate quote request while preserving fee reservations and standalone estimation behavior.
+- c1576a3: Coalesced concurrent CoinGecko lookups for the same token ID, reducing duplicate metrics price requests while preserving cache expiry and retries after failures.
+- Updated dependencies [e0d3394]
+- Updated dependencies [b83bac5]
+- Updated dependencies [9b9de8d]
+- Updated dependencies [d02c93e]
+- Updated dependencies [a8d6bf0]
+- Updated dependencies [ee50f43]
+- Updated dependencies [12678bc]
+- Updated dependencies [0aeb76a]
+- Updated dependencies [a8d6bf0]
+- Updated dependencies [9a59116]
+- Updated dependencies [a8d6bf0]
+- Updated dependencies [d26e4c4]
+- Updated dependencies [8373a74]
+- Updated dependencies [a8d6bf0]
+- Updated dependencies [2762075]
+- Updated dependencies [f9cf910]
+- Updated dependencies [6eaa8c6]
+- Updated dependencies [98ec7d5]
+- Updated dependencies [4c644c0]
+- Updated dependencies [4ad4577]
+- Updated dependencies [d26e4c4]
+- Updated dependencies [692cdb4]
+- Updated dependencies [b83bac5]
+- Updated dependencies [67f3cd3]
+  - @hyperlane-xyz/sdk@44.1.0
+  - @hyperlane-xyz/metrics@1.0.3
+  - @hyperlane-xyz/provider-sdk@10.1.0
+  - @hyperlane-xyz/core@12.1.1
+  - @hyperlane-xyz/utils@44.1.0
+
 ## 29.0.2
 
 ### Patch Changes

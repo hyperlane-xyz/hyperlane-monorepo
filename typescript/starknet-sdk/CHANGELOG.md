@@ -1,5 +1,19 @@
 # @hyperlane-xyz/starknet-sdk
 
+## 30.0.3
+
+### Patch Changes
+
+- 4ad4577: Fixed Starknet core reads that mislabeled unsupported ISMs as test ISMs. Added read support for aggregation trees and pausable ISMs, preserved their nested configuration and pause state, and rejected unknown modules instead of reporting them as accept-all ISMs.
+- Updated dependencies [ee50f43]
+- Updated dependencies [12678bc]
+- Updated dependencies [0aeb76a]
+- Updated dependencies [9a59116]
+- Updated dependencies [4ad4577]
+  - @hyperlane-xyz/provider-sdk@10.1.0
+  - @hyperlane-xyz/starknet-core@44.1.0
+  - @hyperlane-xyz/utils@44.1.0
+
 ## 30.0.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 44.1.0
+
+### Patch Changes
+
+- 9a59116: Updated Solana clients to versions with transaction v1 codecs while preserving existing transaction-version defaults.
+
 ## 44.0.2
 
 ## 44.0.1

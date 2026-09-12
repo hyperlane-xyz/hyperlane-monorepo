@@ -1,5 +1,42 @@
 # @hyperlane-xyz/widgets
 
+## 44.1.0
+
+### Patch Changes
+
+- 12678bc: Added opt-in Sealevel v1 sending and configurable receipt reads per chain. V1 transactions moved compute limits and priority fees into the header and enforced version-specific size limits, while other SVMs retained v0 defaults.
+
+  Separated v1 sending activation from RPC read support, preserved v0 offline governance, and carried caller-configured heap and loaded-data budgets across transaction versions.
+
+- 9a59116: Updated Solana clients to versions with transaction v1 codecs while preserving existing transaction-version defaults.
+- 8a57f39: A Starknet paymaster provider factory was added for custom chains without paymaster metadata.
+- Updated dependencies [e0d3394]
+- Updated dependencies [b83bac5]
+- Updated dependencies [9b9de8d]
+- Updated dependencies [d02c93e]
+- Updated dependencies [ee50f43]
+- Updated dependencies [12678bc]
+- Updated dependencies [9a59116]
+- Updated dependencies [d26e4c4]
+- Updated dependencies [8373a74]
+- Updated dependencies [2762075]
+- Updated dependencies [f9cf910]
+- Updated dependencies [6eaa8c6]
+- Updated dependencies [98ec7d5]
+- Updated dependencies [4c644c0]
+- Updated dependencies [4ad4577]
+- Updated dependencies [d26e4c4]
+- Updated dependencies [692cdb4]
+- Updated dependencies [b83bac5]
+- Updated dependencies [67f3cd3]
+  - @hyperlane-xyz/sdk@44.1.0
+  - @hyperlane-xyz/provider-sdk@10.1.0
+  - @hyperlane-xyz/utils@44.1.0
+  - @hyperlane-xyz/aleo-sdk@44.1.0
+  - @hyperlane-xyz/cosmos-sdk@44.1.0
+  - @hyperlane-xyz/radix-sdk@44.1.0
+  - @hyperlane-xyz/tron-sdk@25.0.3
+
 ## 44.0.2
 
 ### Patch Changes

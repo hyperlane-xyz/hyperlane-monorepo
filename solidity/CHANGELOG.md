@@ -1,5 +1,11 @@
 # @hyperlane-xyz/core
 
+## 12.1.1
+
+### Patch Changes
+
+- 0aeb76a: Reduced contract build times by compiling Tron without shared source mutations, retaining its incremental compiler cache, and parallelizing Starknet artifact generation. Generated contract artifacts were preserved.
+
 ## 12.1.0
 
 ### Minor Changes
