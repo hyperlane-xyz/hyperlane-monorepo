@@ -24,15 +24,39 @@ import { getRawBalances } from '../utils/balanceUtils.js';
 
 import { InventoryRebalancer } from './InventoryRebalancer.js';
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export type TrackerSyncSource =
+  | 'transfers'
+  | 'rebalanceIntents'
+  | 'rebalanceActions'
+  | 'inventoryMovementActions';
+
+export interface TrackerSyncResult {
+  freshSources: TrackerSyncSource[];
+  staleSources: TrackerSyncSource[];
+}
+
+type TrackerSyncStep = {
+  source: TrackerSyncSource;
+  run: () => Promise<unknown>;
+};
+
 /**
  * Result of a rebalancing cycle.
- * executedCount/failedCount: Counts from movable_collateral execution ONLY
+ * Includes results from every configured execution type.
  */
 export interface CycleResult {
+  status: 'success' | 'partial' | 'failed';
   balances: Record<string, bigint>;
   proposedRoutes: StrategyRoute[];
+  executionResults: ExecutionResult[];
   executedCount: number;
   failedCount: number;
+  trackerSync: TrackerSyncResult;
+  errors: string[];
 }
 
 export interface RebalancerOrchestratorDeps {
@@ -85,7 +109,7 @@ export class RebalancerOrchestrator {
       );
     }
 
-    await this.syncActionTracker(event.confirmedBlockTags);
+    const trackerSync = await this.syncActionTracker(event.confirmedBlockTags);
 
     const rawBalances = getRawBalances(
       getStrategyChainNames(this.rebalancerConfig.strategyConfig),
@@ -103,6 +127,26 @@ export class RebalancerOrchestrator {
       'Router balances',
     );
 
+    const errors = trackerSync.staleSources.map(
+      (source) => `ActionTracker ${source} sync failed`,
+    );
+    if (errors.length > 0) {
+      this.logger.error(
+        { staleSources: trackerSync.staleSources },
+        'Skipping rebalancing because tracker state is stale',
+      );
+      return {
+        status: 'failed',
+        balances: rawBalances,
+        proposedRoutes: [],
+        executionResults: [],
+        executedCount: 0,
+        failedCount: 0,
+        trackerSync,
+        errors,
+      };
+    }
+
     // Get inflight context for strategy decision-making
     const inflightContext = await this.getInflightContext();
 
@@ -111,8 +155,7 @@ export class RebalancerOrchestrator {
       inflightContext,
     );
 
-    let executedCount = 0;
-    let failedCount = 0;
+    let executionResults: ExecutionResult[] = [];
 
     if (strategyRoutes.length > 0) {
       this.logger.info(
@@ -127,24 +170,48 @@ export class RebalancerOrchestrator {
       );
 
       const results = await this.executeWithTracking(strategyRoutes, event);
-      executedCount = results.executedCount;
-      failedCount = results.failedCount;
+      executionResults = results;
     } else {
       this.logger.info('No rebalancing needed');
     }
 
     const inventoryRebalancer = this.rebalancersByType.get('inventory');
     if (inventoryRebalancer && strategyRoutes.length === 0) {
-      await this.executeRoutes([], inventoryRebalancer, event);
+      try {
+        executionResults = await this.executeRoutes(
+          [],
+          inventoryRebalancer,
+          event,
+        );
+      } catch (error) {
+        errors.push(`Inventory continuation failed: ${errorMessage(error)}`);
+      }
     }
+
+    const executedCount = executionResults.filter(
+      (result) => result.success,
+    ).length;
+    const failedCount = executionResults.length - executedCount;
+    const status =
+      errors.length > 0
+        ? 'failed'
+        : failedCount === 0
+          ? 'success'
+          : executedCount === 0
+            ? 'failed'
+            : 'partial';
 
     this.logger.info('Polling cycle completed');
 
     return {
+      status,
       balances: rawBalances,
       proposedRoutes: strategyRoutes,
+      executionResults,
       executedCount,
       failedCount,
+      trackerSync,
+      errors,
     };
   }
 
@@ -153,28 +220,61 @@ export class RebalancerOrchestrator {
    */
   private async syncActionTracker(
     confirmedBlockTags?: ConfirmedBlockTags,
-  ): Promise<void> {
-    try {
-      await Promise.all([
-        this.actionTracker.syncTransfers(confirmedBlockTags),
-        this.actionTracker.syncRebalanceIntents(),
-        this.actionTracker.syncRebalanceActions(confirmedBlockTags),
-      ]);
+  ): Promise<TrackerSyncResult> {
+    const syncSteps: TrackerSyncStep[] = [
+      {
+        source: 'transfers',
+        run: () => this.actionTracker.syncTransfers(confirmedBlockTags),
+      },
+      {
+        source: 'rebalanceIntents',
+        run: () => this.actionTracker.syncRebalanceIntents(),
+      },
+      {
+        source: 'rebalanceActions',
+        run: () => this.actionTracker.syncRebalanceActions(confirmedBlockTags),
+      },
+    ];
+    const externalBridgeRegistry = this.externalBridgeRegistry;
+    if (externalBridgeRegistry) {
+      syncSteps.push({
+        source: 'inventoryMovementActions',
+        run: () =>
+          this.actionTracker.syncInventoryMovementActions(
+            externalBridgeRegistry,
+          ),
+      });
+    }
 
-      // Sync inventory movement actions via external bridge API
-      if (this.externalBridgeRegistry) {
-        await this.actionTracker.syncInventoryMovementActions(
-          this.externalBridgeRegistry,
+    const results = await Promise.allSettled(
+      syncSteps.map(({ run }) => Promise.resolve().then(run)),
+    );
+    const trackerSync: TrackerSyncResult = {
+      freshSources: [],
+      staleSources: [],
+    };
+
+    results.forEach((result, index) => {
+      const source = syncSteps[index].source;
+      if (result.status === 'fulfilled') {
+        trackerSync.freshSources.push(source);
+      } else {
+        trackerSync.staleSources.push(source);
+        this.logger.warn(
+          { source, error: errorMessage(result.reason) },
+          'ActionTracker sync source failed, using stale data',
         );
       }
+    });
 
+    try {
       await this.actionTracker.logStoreContents();
     } catch (error) {
-      this.logger.warn(
-        { error },
-        'ActionTracker sync failed, using stale data',
-      );
+      this.logger.warn({ error }, 'Failed to log ActionTracker store contents');
     }
+
+    this.logger.info(trackerSync, 'ActionTracker sync freshness');
+    return trackerSync;
   }
 
   /**
@@ -187,12 +287,11 @@ export class RebalancerOrchestrator {
   private async executeWithTracking(
     routes: StrategyRoute[],
     event: MonitorEvent,
-  ): Promise<{ executedCount: number; failedCount: number }> {
+  ): Promise<ExecutionResult[]> {
     const movableCollateral = routes.filter(isMovableCollateralRoute);
     const inventory = routes.filter(isInventoryRoute);
 
-    let executedCount = 0;
-    let failedCount = 0;
+    const executionResults: ExecutionResult[] = [];
 
     const movableCollateralRebalancer =
       this.rebalancersByType.get('movableCollateral');
@@ -202,16 +301,28 @@ export class RebalancerOrchestrator {
         movableCollateralRebalancer,
         event,
       );
-      executedCount = results.filter((r) => r.success).length;
-      failedCount = results.filter((r) => !r.success).length;
+      executionResults.push(...results);
+    } else if (movableCollateral.length > 0) {
+      executionResults.push(
+        ...this.missingRebalancerResults(
+          movableCollateral,
+          'movableCollateral',
+        ),
+      );
     }
 
     const inventoryRebalancer = this.rebalancersByType.get('inventory');
     if (inventory.length > 0 && inventoryRebalancer) {
-      await this.executeRoutes(inventory, inventoryRebalancer, event);
+      executionResults.push(
+        ...(await this.executeRoutes(inventory, inventoryRebalancer, event)),
+      );
+    } else if (inventory.length > 0) {
+      executionResults.push(
+        ...this.missingRebalancerResults(inventory, 'inventory'),
+      );
     }
 
-    return { executedCount, failedCount };
+    return executionResults;
   }
 
   private async executeRoutes(
@@ -259,7 +370,7 @@ export class RebalancerOrchestrator {
       }
 
       return results;
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (rebalancer.rebalancerType === 'movableCollateral') {
         this.metrics?.recordRebalancerFailure();
       }
@@ -267,7 +378,28 @@ export class RebalancerOrchestrator {
         { error, type: rebalancer.rebalancerType },
         'Error while executing routes',
       );
-      return [];
+      if (routes.length === 0) throw error;
+      const message = errorMessage(error);
+      return routes.map((route) => ({
+        route,
+        success: false,
+        error: message,
+        reason: 'executor_error',
+      }));
     }
+  }
+
+  private missingRebalancerResults(
+    routes: StrategyRoute[],
+    rebalancerType: RebalancerType,
+  ): ExecutionResult[] {
+    const error = `No ${rebalancerType} rebalancer configured`;
+    this.logger.error({ rebalancerType, count: routes.length }, error);
+    return routes.map((route) => ({
+      route,
+      success: false,
+      error,
+      reason: 'missing_rebalancer',
+    }));
   }
 }
