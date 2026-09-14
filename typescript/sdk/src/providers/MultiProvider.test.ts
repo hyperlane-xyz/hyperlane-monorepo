@@ -1,5 +1,12 @@
 import { expect } from 'chai';
-import { BigNumber, Contract, ContractFactory, Wallet } from 'ethers';
+import {
+  BigNumber,
+  Contract,
+  ContractFactory,
+  Wallet,
+  providers,
+} from 'ethers';
+import { TransactionSubmissionError } from '@hyperlane-xyz/utils';
 import type { ContractTransaction } from 'ethers';
 import {
   Provider as ZKSyncProvider,
@@ -27,6 +34,62 @@ import {
 import sinon from 'sinon';
 
 import { MultiProvider } from './MultiProvider.js';
+
+describe('MultiProvider submission boundaries', () => {
+  afterEach(() => sinon.restore());
+
+  for (const failPreparation of [true, false]) {
+    it(
+      failPreparation
+        ? 'proves preparation failed before broadcasting'
+        : 'records the signed hash before a lost broadcast response',
+      async () => {
+        const mp = new MultiProvider({ test1 });
+        const provider = new providers.StaticJsonRpcProvider(
+          'https://rpc.example.invalid',
+          test1.chainId,
+        );
+        const wallet = Wallet.createRandom().connect(provider);
+        mp.setProvider('test1', provider);
+        mp.setSigner('test1', wallet);
+        const populated = {
+          to: wallet.address,
+          value: BigNumber.from(1),
+          gasLimit: BigNumber.from(21000),
+          gasPrice: BigNumber.from(1),
+          nonce: 0,
+          chainId: Number(test1.chainId),
+        };
+        sinon.stub(mp, 'prepareTx').resolves(populated);
+        const populate = sinon.stub(wallet, 'populateTransaction');
+        if (failPreparation) populate.rejects(new Error('preparation failed'));
+        else populate.resolves(populated);
+        const send = sinon
+          .stub(provider, 'sendTransaction')
+          .rejects(new Error('broadcast response lost'));
+        let recordedHash: string | undefined;
+        try {
+          await mp.sendTransaction('test1', populated, {
+            onSubmissionAttempt: (hash) => {
+              recordedHash = hash;
+            },
+          });
+          expect.fail('Expected a submission error');
+        } catch (error) {
+          expect(error).to.be.instanceOf(TransactionSubmissionError);
+          if (!(error instanceof TransactionSubmissionError)) throw error;
+          expect(error.submissionState).to.equal(
+            failPreparation ? 'not_submitted' : 'unknown',
+          );
+          expect(error.txHash).to.equal(recordedHash);
+          if (!failPreparation)
+            expect(recordedHash).to.match(/^0x[0-9a-f]{64}$/);
+        }
+        expect(send.callCount).to.equal(failPreparation ? 0 : 1);
+      },
+    );
+  }
+});
 
 describe('MultiProvider Tron factory resolution', () => {
   const mp = new MultiProvider({});
