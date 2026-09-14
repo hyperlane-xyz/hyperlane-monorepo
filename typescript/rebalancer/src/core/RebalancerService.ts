@@ -297,6 +297,9 @@ export class RebalancerService {
     // Use destination-specific bridge override if configured, otherwise use default
     const bridge =
       originConfig.override?.[destination]?.bridge ?? originConfig.bridge;
+    const statusAdapter =
+      originConfig.override?.[destination]?.statusAdapter ??
+      originConfig.statusAdapter;
 
     try {
       const manualRoute: MovableCollateralRoute & { intentId: string } = {
@@ -305,6 +308,7 @@ export class RebalancerService {
         amount: normalizeConfiguredAmount(amount, originToken),
         executionType: 'movableCollateral',
         bridge,
+        statusAdapter,
         intentId: `manual-${Date.now()}`,
       };
       await this.rebalancer.rebalance([manualRoute]);

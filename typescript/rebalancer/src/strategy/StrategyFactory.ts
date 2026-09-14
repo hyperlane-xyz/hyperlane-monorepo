@@ -145,6 +145,7 @@ export class StrategyFactory {
           ...baseConfig,
           executionType: 'movableCollateral',
           bridge: config.bridge!, // Validated by config schema
+          statusAdapter: config.statusAdapter,
           override: config.override as ChainMap<
             Partial<MovableCollateralBridgeConfig>
           >,
