@@ -3,7 +3,10 @@ import { execFileSync } from 'child_process';
 import path from 'path';
 import { stringify } from 'yaml';
 
-import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
+import {
+  DEFAULT_GITHUB_REGISTRY,
+  GithubRegistry,
+} from '@hyperlane-xyz/registry';
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
@@ -97,10 +100,15 @@ export class RebalancerHelmManager extends HelmManager {
     this.deploymentConfig = readRebalancerConfig(
       path.join(getInfraPath(), localConfigPath),
     );
-    const warpCoreConfig = getWarpCoreConfig(this.warpRouteId);
+    // Resolve RPC-secret chains from the same registry revision as the runtime.
+    const registry = new GithubRegistry({
+      uri: `${DEFAULT_GITHUB_REGISTRY}/tree/${this.registryCommit}`,
+      logger: rootLogger,
+    });
+    const warpCoreConfig = await registry.getWarpRoute(this.warpRouteId);
     if (!warpCoreConfig) {
       throw new Error(
-        `Warp Route ID not found in registry: ${this.warpRouteId}`,
+        `Warp Route ID not found in registry at ${this.registryCommit}: ${this.warpRouteId}`,
       );
     }
 
