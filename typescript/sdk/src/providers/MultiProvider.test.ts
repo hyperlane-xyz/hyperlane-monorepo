@@ -33,6 +33,9 @@ import {
 } from '../metadata/chainMetadataTypes.js';
 import sinon from 'sinon';
 
+import { TronWallet } from '@hyperlane-xyz/tron-sdk/runtime';
+import { submitEvmLikeTransaction } from '../signers/evm/transaction.js';
+
 import { MultiProvider } from './MultiProvider.js';
 
 describe('MultiProvider submission boundaries', () => {
@@ -512,6 +515,53 @@ describe('MultiProvider', () => {
       const result2 = mp.tryGetSigner(TestChainName.test1);
       expect(connectArg).to.equal(newProvider);
       expect(result2!.provider).to.equal(newProvider);
+    });
+  });
+});
+
+describe('submitEvmLikeTransaction', () => {
+  afterEach(() => sinon.restore());
+
+  it('retains an ambiguous Tron broadcast identity even without caller observers', async () => {
+    const wallet = new TronWallet(
+      Wallet.createRandom().privateKey,
+      'https://node.example.com',
+    );
+    const txID = '42'.repeat(32);
+    const tx = { txID };
+    sinon
+      .stub(wallet, 'populateTransaction')
+      .resolves({ gasLimit: BigNumber.from(1), gasPrice: BigNumber.from(1) });
+    // Replace preparation/network dependencies while exercising the real helper and Tron send method.
+    const internals = wallet as unknown as {
+      txBuilder: { buildTransaction: () => Promise<typeof tx> };
+      makeUnique: (value: typeof tx) => Promise<typeof tx>;
+      tronWeb: {
+        trx: {
+          sign: () => Promise<typeof tx>;
+          sendRawTransaction: () => Promise<never>;
+        };
+      };
+    };
+    internals.txBuilder = { buildTransaction: async () => tx };
+    internals.makeUnique = async (value) => value;
+    const broadcast = sinon
+      .stub()
+      .rejects(new Error('broadcast response lost'));
+    internals.tronWeb = {
+      trx: { sign: async () => tx, sendRawTransaction: broadcast },
+    };
+    let caught: unknown;
+    try {
+      await submitEvmLikeTransaction(wallet, {});
+    } catch (error) {
+      caught = error;
+    }
+    expect(broadcast.calledOnce).to.equal(true);
+    expect(caught).to.be.instanceOf(TransactionSubmissionError);
+    expect(caught).to.include({
+      submissionState: 'unknown',
+      txHash: `0x${txID}`,
     });
   });
 });
