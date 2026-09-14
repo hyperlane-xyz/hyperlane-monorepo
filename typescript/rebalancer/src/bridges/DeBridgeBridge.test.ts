@@ -1,6 +1,15 @@
+import { createHash } from 'node:crypto';
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+} from '@solana/spl-token';
 import {
   Connection,
   Keypair,
+  PublicKey,
+  SystemProgram,
+  TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
 } from '@solana/web3.js';
@@ -14,13 +23,24 @@ import {
   TronJsonRpcProvider,
   TronWallet,
 } from '@hyperlane-xyz/tron-sdk/runtime';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  TransactionSubmissionError,
+  assert,
+} from '@hyperlane-xyz/utils';
 
 import type {
   BridgeQuote,
   BridgeQuoteParams,
 } from '../interfaces/IExternalBridge.js';
 import { DeBridgeBridge, type DeBridgeBridgeConfig } from './DeBridgeBridge.js';
+import {
+  DLN_EVM_SOURCE,
+  DLN_TRON_SOURCE,
+  DLN_SOLANA_SOURCE,
+  DLN_SOURCE_INTERFACE,
+  deBridgeAddressBytes,
+} from './deBridgeValidation.js';
 import {
   DEBRIDGE_SOLANA_CHAIN_ID,
   DEBRIDGE_TRON_CHAIN_ID,
@@ -40,7 +60,7 @@ const SOLANA_USDT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
 const ORDER_ID = `0x${'a'.repeat(64)}`;
 const OTHER_ORDER_ID = `0x${'b'.repeat(64)}`;
 const DESTINATION_TX_HASH = `0x${'c'.repeat(64)}`;
-const DLN_SOURCE = '0xE6f924E3C42350684aF70F798c3cA2533A4c5Bd0';
+const DLN_SOURCE = DLN_EVM_SOURCE;
 const SOURCE_AMOUNT = 1_000_000_000_000_000_000_000n;
 const DESTINATION_AMOUNT = 996_000_000n;
 const FIX_FEE = 5_000_000_000_000_000n;
@@ -119,13 +139,113 @@ function makeSolanaQuoteResponse(): DeBridgeQuoteResponse {
   };
 }
 
-function makeSerializedSolanaTransaction(payer: Keypair): string {
+function makeSolanaOrderInstruction(payer: Keypair): TransactionInstruction {
+  const vector = (value: Uint8Array) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32LE(value.length);
+    return Buffer.concat([length, value]);
+  };
+  const amount = Buffer.alloc(8);
+  amount.writeBigUInt64LE(1_000_000_000n);
+  const word = (value: bigint) =>
+    Buffer.from(
+      ethers.utils.arrayify(
+        ethers.utils.hexZeroPad(ethers.utils.hexlify(value), 32),
+      ),
+    );
+  const target = ethers.utils.arrayify(BSC_USDT);
+  const receiver = ethers.utils.arrayify(SIGNER_ADDRESS);
+  const accounts = Array.from(
+    { length: 12 },
+    () => Keypair.generate().publicKey,
+  );
+  accounts[0] = payer.publicKey;
+  accounts[2] = new PublicKey(SOLANA_USDT);
+  accounts[5] = getAssociatedTokenAddressSync(accounts[2], payer.publicKey);
+  accounts[9] = SystemProgram.programId;
+  accounts[10] = TOKEN_PROGRAM_ID;
+  accounts[11] = ASSOCIATED_TOKEN_PROGRAM_ID;
+  return new TransactionInstruction({
+    programId: DLN_SOLANA_SOURCE,
+    keys: accounts.map((pubkey, index) => ({
+      pubkey,
+      isSigner: index === 0,
+      isWritable: [0, 3, 5, 6, 7, 8].includes(index),
+    })),
+    data: Buffer.concat([
+      createHash('sha256')
+        .update('global:create_order')
+        .digest()
+        .subarray(0, 8),
+      amount,
+      word(56n),
+      vector(target),
+      word(996_000_000_000_000_000_000n),
+      vector(receiver),
+      Buffer.from([0]),
+      payer.publicKey.toBuffer(),
+      Buffer.from([1]),
+      payer.publicKey.toBuffer(),
+      vector(receiver),
+      Buffer.from([0, 0, 0]),
+    ]),
+  });
+}
+
+function makeSerializedSolanaTransaction(
+  payer: Keypair,
+  instructions = [makeSolanaOrderInstruction(payer)],
+): string {
   const message = new TransactionMessage({
     payerKey: payer.publicKey,
     recentBlockhash: '11111111111111111111111111111111',
-    instructions: [],
+    instructions,
   }).compileToV0Message();
   return `0x${Buffer.from(new VersionedTransaction(message).serialize()).toString('hex')}`;
+}
+
+function makeEvmOrderData(
+  params = BSC_TO_TRON_PARAMS,
+  amountOut = DESTINATION_AMOUNT,
+  overrides: Record<string, unknown> = {},
+): string {
+  assert(
+    params.toAddress && params.fromAmount,
+    'Test order requires input and recipient',
+  );
+  return DLN_SOURCE_INTERFACE.encodeFunctionData('createSaltedOrder', [
+    {
+      giveTokenAddress: deBridgeAddressBytes(
+        params.fromToken,
+        params.fromChain,
+      ),
+      giveAmount: params.fromAmount,
+      takeTokenAddress: deBridgeAddressBytes(params.toToken, params.toChain),
+      takeAmount: amountOut,
+      takeChainId: hyperlaneChainIdToDebridge(params.toChain),
+      receiverDst: deBridgeAddressBytes(params.toAddress, params.toChain),
+      givePatchAuthoritySrc: deBridgeAddressBytes(
+        params.fromAddress,
+        params.fromChain,
+      ),
+      orderAuthorityAddressDst: deBridgeAddressBytes(
+        params.toAddress,
+        params.toChain,
+      ),
+      allowedTakerDst: '0x',
+      externalCall: '0x',
+      allowedCancelBeneficiarySrc: deBridgeAddressBytes(
+        params.fromAddress,
+        params.fromChain,
+      ),
+      ...overrides,
+    },
+    123,
+    '0x',
+    0,
+    '0x',
+    '0x',
+  ]);
 }
 
 function makeQuoteResponse(
@@ -163,7 +283,7 @@ function makeCreateTxResponse(): DeBridgeCreateTxResponse {
     fixFee: FIX_FEE.toString(),
     tx: {
       to: DLN_SOURCE,
-      data: '0xb9303701',
+      data: makeEvmOrderData(),
       value: FIX_FEE.toString(),
     },
   };
@@ -419,6 +539,17 @@ describe('DeBridgeBridge.execute', function () {
 
   it('resets and sets an exact EVM allowance before direct API execution', async () => {
     sinon
+      .stub(
+        ethers.providers.StaticJsonRpcProvider.prototype,
+        'waitForTransaction',
+      )
+      .callsFake(async (hash) =>
+        makeTransactionResponse(
+          { to: DLN_SOURCE, data: '0x', value: ethers.constants.Zero },
+          hash,
+        ).wait(),
+      );
+    const fetchStub = sinon
       .stub(globalThis, 'fetch')
       .resolves(jsonResponse(makeCreateTxResponse()));
     sinon
@@ -449,6 +580,11 @@ describe('DeBridgeBridge.execute', function () {
       { [ProtocolType.Ethereum]: PRIVATE_KEY },
     );
 
+    const createUrl = new URL(String(fetchStub.firstCall.args[0]));
+    expect(createUrl.searchParams.get('srcAllowedCancelBeneficiary')).to.equal(
+      ethers.utils.computeAddress(PRIVATE_KEY),
+    );
+    expect(createUrl.searchParams.has('srcChainRefundAddress')).to.equal(false);
     expect(captured).to.have.length(3);
     const erc20 = new ethers.utils.Interface([
       'function approve(address,uint256) returns (bool)',
@@ -461,7 +597,7 @@ describe('DeBridgeBridge.execute', function () {
     expect(approval[1].toString()).to.equal(SOURCE_AMOUNT.toString());
     expect(captured[2]).to.deep.include({
       to: DLN_SOURCE,
-      data: '0xb9303701',
+      data: makeEvmOrderData(),
     });
     expect(captured[2].value.toString()).to.equal(FIX_FEE.toString());
     expect(result).to.deep.equal({
@@ -490,7 +626,7 @@ describe('DeBridgeBridge.execute', function () {
     const targetError = await getRejection(
       bridge.execute(quote, { [ProtocolType.Ethereum]: PRIVATE_KEY }),
     );
-    expect(targetError.message).to.include('cannot be the source token');
+    expect(targetError.message).to.include('not the documented DLN source');
   });
 
   it('constructs an exact TRC20 approval for Tron execution', async () => {
@@ -529,7 +665,11 @@ describe('DeBridgeBridge.execute', function () {
       jsonResponse({
         ...response,
         orderId: ORDER_ID,
-        tx: { to: DLN_SOURCE, data: '0xb9303701', value: '4000000' },
+        tx: {
+          to: DLN_TRON_SOURCE,
+          data: makeEvmOrderData(params, 996_000_000_000_000_000_000n),
+          value: '4000000',
+        },
       }),
     );
     sinon
@@ -564,8 +704,124 @@ describe('DeBridgeBridge.execute', function () {
       'function approve(address,uint256) returns (bool)',
     ]);
     const approval = erc20.decodeFunctionData('approve', approvalRequest.data);
-    expect(approval[0]).to.equal(DLN_SOURCE);
+    expect(approval[0]).to.equal(DLN_TRON_SOURCE);
     expect(approval[1].toString()).to.equal('1000000000');
+  });
+
+  for (const [field, value] of Object.entries({
+    giveTokenAddress: '0x1111111111111111111111111111111111111111',
+    giveAmount: SOURCE_AMOUNT + 1n,
+    takeTokenAddress: '0x1111111111111111111111111111111111111111',
+    takeAmount: 1n,
+    takeChainId: 1,
+    receiverDst: '0x1111111111111111111111111111111111111111',
+    givePatchAuthoritySrc: '0x1111111111111111111111111111111111111111',
+    orderAuthorityAddressDst: '0x1111111111111111111111111111111111111111',
+    allowedCancelBeneficiarySrc: '0x1111111111111111111111111111111111111111',
+    externalCall: '0xdeadbeef',
+  })) {
+    it(`rejects an altered DLN order ${field} before signing`, async () => {
+      const response = makeCreateTxResponse();
+      response.tx.data = makeEvmOrderData(
+        BSC_TO_TRON_PARAMS,
+        DESTINATION_AMOUNT,
+        { [field]: value },
+      );
+      sinon.stub(globalThis, 'fetch').resolves(jsonResponse(response));
+      const send = sinon.stub(ethers.Wallet.prototype, 'sendTransaction');
+      await getRejection(
+        new DeBridgeBridge(BRIDGE_CONFIG, logger).execute(
+          makeBridgeQuote(BSC_TO_TRON_PARAMS, makeQuoteResponse()),
+          { [ProtocolType.Ethereum]: PRIVATE_KEY },
+        ),
+      );
+      expect(send.called).to.equal(false);
+    });
+  }
+
+  it('rejects an unrelated-token drain even when quote metadata is valid', async () => {
+    const response = makeCreateTxResponse();
+    response.tx.to = '0x1111111111111111111111111111111111111111';
+    response.tx.data = new ethers.utils.Interface([
+      'function transfer(address,uint256)',
+    ]).encodeFunctionData('transfer', [SIGNER_ADDRESS, SOURCE_AMOUNT]);
+    sinon.stub(globalThis, 'fetch').resolves(jsonResponse(response));
+    const send = sinon.stub(ethers.Wallet.prototype, 'sendTransaction');
+    const error = await getRejection(
+      new DeBridgeBridge(BRIDGE_CONFIG, logger).execute(
+        makeBridgeQuote(BSC_TO_TRON_PARAMS, makeQuoteResponse()),
+        { [ProtocolType.Ethereum]: PRIVATE_KEY },
+      ),
+    );
+    expect(error.message).to.include('not the documented DLN source');
+    expect(send.called).to.equal(false);
+  });
+
+  it('rejects a Solana transfer appended to an otherwise valid DLN order', async () => {
+    const signer = Keypair.generate();
+    const data = makeSerializedSolanaTransaction(signer, [
+      makeSolanaOrderInstruction(signer),
+      SystemProgram.transfer({
+        fromPubkey: signer.publicKey,
+        toPubkey: Keypair.generate().publicKey,
+        lamports: 100_000,
+      }),
+    ]);
+    sinon.stub(globalThis, 'fetch').resolves(
+      jsonResponse({
+        ...makeSolanaQuoteResponse(),
+        orderId: ORDER_ID,
+        fixFee: '0',
+        tx: { data },
+      }),
+    );
+    const send = sinon.stub(Connection.prototype, 'sendTransaction');
+    const error = await getRejection(
+      new DeBridgeBridge(BRIDGE_CONFIG, logger).execute(
+        makeBridgeQuote(makeSolanaParams(signer), makeSolanaQuoteResponse()),
+        { [ProtocolType.Sealevel]: bs58.encode(signer.secretKey) },
+      ),
+    );
+    expect(error.message).to.include('unsupported program');
+    expect(send.called).to.equal(false);
+  });
+
+  it('records the Solana signature and order ID when the broadcast response is lost', async () => {
+    const signer = Keypair.generate();
+    sinon.stub(globalThis, 'fetch').resolves(
+      jsonResponse({
+        ...makeSolanaQuoteResponse(),
+        orderId: ORDER_ID,
+        fixFee: '0',
+        tx: { data: makeSerializedSolanaTransaction(signer) },
+      }),
+    );
+    sinon.stub(Connection.prototype, 'getLatestBlockhash').resolves({
+      blockhash: '11111111111111111111111111111111',
+      lastValidBlockHeight: 123,
+    });
+    const send = sinon
+      .stub(Connection.prototype, 'sendTransaction')
+      .rejects(new Error('lost broadcast response'));
+    const onTransferId = sinon.spy();
+    const onSubmissionAttempt = sinon.spy();
+    const error = await getRejection(
+      new DeBridgeBridge(BRIDGE_CONFIG, logger).execute(
+        makeBridgeQuote(makeSolanaParams(signer), makeSolanaQuoteResponse()),
+        { [ProtocolType.Sealevel]: bs58.encode(signer.secretKey) },
+        { onTransferId, onSubmissionAttempt },
+      ),
+    );
+    expect(error).to.be.instanceOf(TransactionSubmissionError);
+    assert(
+      error instanceof TransactionSubmissionError,
+      'Expected submission error',
+    );
+    expect(error.submissionState).to.equal('unknown');
+    expect(error.txHash).to.equal(onSubmissionAttempt.firstCall.args[0]);
+    expect(error.txHash).to.have.length.greaterThan(60);
+    expect(onTransferId.calledOnceWithExactly(ORDER_ID)).to.equal(true);
+    expect(onSubmissionAttempt.calledBefore(send)).to.equal(true);
   });
 
   it('rejects a Solana transaction signed by another payer', async () => {
@@ -591,7 +847,7 @@ describe('DeBridgeBridge.execute', function () {
     expect(error.message).to.include('signer does not match');
   });
 
-  it('signs, confirms, and returns the order ID for Solana', async () => {
+  it('returns the Solana broadcast identity without waiting for confirmation', async () => {
     const signer = Keypair.generate();
     const params = makeSolanaParams(signer);
     const response = makeSolanaQuoteResponse();
@@ -610,10 +866,9 @@ describe('DeBridgeBridge.execute', function () {
     const sendStub = sinon
       .stub(Connection.prototype, 'sendTransaction')
       .resolves('solana-signature');
-    sinon.stub(Connection.prototype, 'confirmTransaction').resolves({
-      context: { slot: 1 },
-      value: { err: null },
-    });
+    const confirmStub = sinon
+      .stub(Connection.prototype, 'confirmTransaction')
+      .rejects(new Error('receipt provider timeout'));
 
     const result = await new DeBridgeBridge(BRIDGE_CONFIG, logger).execute(
       makeBridgeQuote(params, response),
@@ -621,6 +876,7 @@ describe('DeBridgeBridge.execute', function () {
     );
 
     expect(sendStub.calledOnce).to.equal(true);
+    expect(confirmStub.called).to.equal(false);
     expect(result).to.deep.equal({
       txHash: 'solana-signature',
       fromChain: 1399811149,
