@@ -144,6 +144,18 @@ export interface WarpRouteCheckResult {
   violations: WarpRouteCheckViolation[];
 }
 
+/** Removes read-only LayerZero observations before desired-state comparison. */
+export function removeLayerZeroEffectiveConfigs(value: unknown): void {
+  if (Array.isArray(value)) {
+    value.forEach(removeLayerZeroEffectiveConfigs);
+    return;
+  }
+  if (!value || typeof value !== 'object') return;
+  if ('effectiveSendConfig' in value) delete value.effectiveSendConfig;
+  if ('effectiveReceiveConfig' in value) delete value.effectiveReceiveConfig;
+  Object.values(value).forEach(removeLayerZeroEffectiveConfigs);
+}
+
 type ScaleValidationWarpRouteConfig = WarpRouteDeployConfigMailboxRequired &
   Record<string, Partial<HypTokenRouterVirtualConfig>>;
 
@@ -1061,6 +1073,9 @@ export function buildWarpRouteDiff({
         };
         return acc;
       }
+
+      removeLayerZeroEffectiveConfigs(expectedDeployedConfig);
+      removeLayerZeroEffectiveConfigs(currentDeployedConfig);
 
       if (typeof expectedDeployedConfig.hook === 'string') {
         currentDeployedConfig.hook = derivedHookAddress(currentDeployedConfig);

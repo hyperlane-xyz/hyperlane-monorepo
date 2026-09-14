@@ -30,6 +30,12 @@ export enum UnhandledErrorReason {
   // CallCommitments errors
   CALL_COMMITMENTS_DATABASE_ERROR = 'call_commitments_database_error',
 
+  // LayerZero errors
+  LAYERZERO_ROUTE_NOT_CONFIGURED = 'layerzero_route_not_configured',
+  LAYERZERO_PACKET_NOT_FOUND = 'layerzero_packet_not_found',
+  LAYERZERO_PACKET_AMBIGUOUS = 'layerzero_packet_ambiguous',
+  LAYERZERO_RECEIVE_NOT_READY = 'layerzero_receive_not_ready',
+
   // Generic fallback
   UNKNOWN = 'unknown',
 }

@@ -7,12 +7,16 @@ import {
 } from 'zksync-ethers';
 
 import {
+  LayerZeroV2CallbackHookIsm__factory,
+  LayerZeroV2CcipReadHookIsm__factory,
   Mailbox__factory,
   ProxyAdmin__factory,
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
 import type { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
+  LayerZeroV2CallbackHookIsm__factory as TronLayerZeroV2CallbackHookIsm__factory,
+  LayerZeroV2CcipReadHookIsm__factory as TronLayerZeroV2CcipReadHookIsm__factory,
   Mailbox__factory as TronMailbox__factory,
   ProxyAdmin__factory as TronProxyAdmin__factory,
   TronContractFactory,
@@ -49,6 +53,21 @@ describe('MultiProvider Tron factory resolution', () => {
     expect(resolved.constructor.name).to.equal(TronContractFactory.name);
     expect(resolved.bytecode).to.equal(
       new TronTestRecipient__factory().bytecode,
+    );
+  });
+
+  it('resolves both LayerZero variants to tron factories', async () => {
+    const callback = await mp.resolveTronFactory(
+      new LayerZeroV2CallbackHookIsm__factory(),
+    );
+    const ccipRead = await mp.resolveTronFactory(
+      new LayerZeroV2CcipReadHookIsm__factory(),
+    );
+    expect(callback.bytecode).to.equal(
+      new TronLayerZeroV2CallbackHookIsm__factory().bytecode,
+    );
+    expect(ccipRead.bytecode).to.equal(
+      new TronLayerZeroV2CcipReadHookIsm__factory().bytecode,
     );
   });
 

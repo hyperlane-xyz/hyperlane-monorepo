@@ -41,6 +41,7 @@ import {
   expandedDeployConfigToAltVmCheckConfig,
   getScaleViolations,
   normalizeAltVmDestinationGas,
+  removeLayerZeroEffectiveConfigs,
 } from './warpCheck.js';
 
 const MAILBOX = '0x000000000000000000000000000000000000b001';
@@ -949,6 +950,36 @@ describe('buildWarpRouteDiff', () => {
     });
 
     expect(diff).to.deep.equal({});
+  });
+});
+
+describe('removeLayerZeroEffectiveConfigs', () => {
+  it('removes informational effective values but preserves desired overrides', () => {
+    const config = {
+      interchainSecurityModule: {
+        remoteRouters: {
+          remote: {
+            effectiveSendConfig: { executor: { maxMessageSize: 10_000 } },
+            effectiveReceiveConfig: { uln: { confirmations: 12 } },
+            sendConfig: { executor: { type: 'default' } },
+            receiveConfig: { uln: { type: 'default' } },
+          },
+        },
+      },
+    };
+
+    removeLayerZeroEffectiveConfigs(config);
+
+    expect(config).to.deep.equal({
+      interchainSecurityModule: {
+        remoteRouters: {
+          remote: {
+            sendConfig: { executor: { type: 'default' } },
+            receiveConfig: { uln: { type: 'default' } },
+          },
+        },
+      },
+    });
   });
 });
 

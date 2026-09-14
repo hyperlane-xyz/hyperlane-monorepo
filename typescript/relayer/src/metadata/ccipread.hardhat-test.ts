@@ -141,9 +141,15 @@ describe('Offchain Lookup ISM Integration', () => {
       OFFCHAIN_LOOKUP_SERVER_URL.replace('{data}', payload.data),
     );
 
-    // Should include sender, data, and signature
-    expect(payload).to.include.keys('sender', 'data', 'signature');
+    // Should include authentication and the exact origin receipt hint.
+    expect(payload).to.include.keys(
+      'sender',
+      'data',
+      'signature',
+      'origin_tx_hash',
+    );
     expect(payload.sender).to.equal(ccipReadIsm.address);
+    expect(payload.origin_tx_hash).to.equal(dispatchTx.transactionHash);
 
     const recovered = ethers.utils.verifyMessage(
       ethers.utils.arrayify(
