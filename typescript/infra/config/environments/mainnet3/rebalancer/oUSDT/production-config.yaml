@@ -1,7 +1,17 @@
 warpRouteId: oUSDT/production
 
-# In-progress actions are intentionally process-local. Keep them suppressed for
-# two weeks while the process is running; a restart clears the action tracker.
+# Baseline image until the reviewed runtime stack has landed and its candidate
+# has been built. Replace both image references before the production rollout.
+deployment:
+  imageTag: db28a86-20260826-203943
+  imageDigest: sha256:e23d1898a479d8f9b17b70d589a88ee71f5fbd147614a9381cd6bab99171e9ab
+  swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key-ousdt
+  registryCommit: 0b7518b88967309b0ca30827ec418852873bdc7e
+
+# Intent TTL is two weeks in memory; it does not survive restart. Source-started
+# or ambiguous submissions remain reserved for the process lifetime, including
+# after TTL expiry. Reconcile transactions before restarting; never infer that
+# an ambiguous source submission is safe to retry from elapsed time alone.
 intentTTL: 1209600
 
 inventorySigners:
@@ -49,8 +59,8 @@ strategy:
       executionType: inventory
       externalBridge: swapsxyz
       minAmount:
-        min: 750000
-        target: 760000
+        min: 640000
+        target: 650000
         type: absolute
       override:
         celo:
