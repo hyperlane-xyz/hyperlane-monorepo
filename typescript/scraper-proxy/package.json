@@ -18,9 +18,6 @@
   "types": "dist/main.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "benchmark:admission-load": "tsx src/scripts/benchmark-admission-load.ts",
-    "benchmark:graphql-engines": "tsx src/scripts/benchmark-graphql-engines.ts",
-    "benchmark:observed-load": "tsx src/scripts/benchmark-observed-load.ts",
     "bundle": "rm -rf ./bundle && ncc build ./dist/main.js -o bundle && mkdir -p bundle/graphql && cp src/graphql/scraperdb-schema.graphql bundle/graphql/ && node ../../scripts/ncc.post-bundle.mjs",
     "clean": "rm -rf ./dist",
     "debug:websocket": "tsx src/scripts/debug-event-websocket.ts",
@@ -45,7 +42,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@apollo/server": "catalog:",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/node": "catalog:",
     "@types/pg": "^8.16.0",

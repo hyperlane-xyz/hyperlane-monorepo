@@ -1,14 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { it } from 'node:test';
-
-import { ApolloServer } from '@apollo/server';
-
-import { normalizeGraphqlRequestBody } from './scraperdb/request-compatibility.js';
-import { buildResolvers } from './scraperdb/resolver-map.js';
-import { sanitizeScraperDbSchema } from './scraperdb/schema.js';
-import { ScraperDbService } from './scraperdb/scraperdb.service.js';
-import { scraperProxyValidationRule } from './scraperdb/validation.js';
 
 process.env.DATABASE_URL ??= 'postgresql://unused:unused@localhost/unused';
 
@@ -94,7 +85,7 @@ void it('preserves cached query and refresh semantics around Mercurius', async (
   }
 });
 
-void it('matches Apollo data across the production query surface', async () => {
+void it('serializes the production query surface consistently', async () => {
   const db = {
     async query<T extends Record<string, unknown>>(): Promise<T[]> {
       return [
@@ -111,53 +102,55 @@ void it('matches Apollo data across the production query surface', async () => {
       ] as unknown as T[];
     },
   };
-  const source = sanitizeScraperDbSchema(
-    readFileSync(
-      new URL('./graphql/scraperdb-schema.graphql', import.meta.url),
-      'utf8',
-    ),
-  );
-  const resolvers = buildResolvers(new ScraperDbService(db));
-  const apollo = new ApolloServer({
-    resolvers,
-    typeDefs: source,
-    validationRules: [scraperProxyValidationRule],
-  });
   const { createScraperProxyApp } = await import('./module.js');
   const app = await createScraperProxyApp(db, { jit: 1 });
   const operations = [
-    { query: '{ domain(limit: 1) { id name } }' },
     {
+      expected: { domain: [{ id: 1, name: 'ethereum' }] },
+      query: '{ domain(limit: 1) { id name } }',
+    },
+    {
+      expected: { domain_by_pk: { id: 1, name: 'ethereum' } },
       query:
         'query Domain($id: Int!, $unused: String) { domain_by_pk(id: $id) { id name } }',
       variables: { id: 1, unused: 'legacy-client-variable' },
     },
     {
+      expected: {
+        result: {
+          aggregate: { count: 1 },
+          nodes: [
+            {
+              delivery_latency: null,
+              delivery_occurred_at: '2026-09-14T12:00:00.000Z',
+              destination_tx_gas_used: '123.45',
+              id: 1,
+              msg_id: `0x${'11'.repeat(32)}`,
+              nonce: 42,
+            },
+          ],
+        },
+      },
       query:
         '{ result: message_view_aggregate(limit: 1) { aggregate { count } nodes { id msg_id nonce delivery_latency delivery_occurred_at destination_tx_gas_used } } }',
     },
-    { query: '{ raw_message_dispatch(limit: 1) { id } }' },
+    {
+      expected: { raw_message_dispatch: [{ id: 1 }] },
+      query: '{ raw_message_dispatch(limit: 1) { id } }',
+    },
   ];
   try {
     for (const operation of operations) {
-      normalizeGraphqlRequestBody(operation);
-      const expected = await apollo.executeOperation(operation);
-      assert.equal(expected.body.kind, 'single');
-      if (expected.body.kind !== 'single') continue;
-      await app.inject({ method: 'POST', payload: operation, url: '/graphql' });
       const actual = await app.inject({
         method: 'POST',
-        payload: operation,
+        payload: { query: operation.query, variables: operation.variables },
         url: '/graphql',
       });
       assert.equal(actual.statusCode, 200);
-      assert.equal(
-        JSON.stringify(actual.json().data),
-        JSON.stringify(expected.body.singleResult.data),
-      );
+      assert.deepEqual(actual.json().data, operation.expected);
     }
   } finally {
-    await Promise.all([apollo.stop(), app.close()]);
+    await app.close();
   }
 });
 
@@ -233,7 +226,7 @@ void it('rejects batch and oversized request bodies', async () => {
   }
 });
 
-void it('preserves Apollo CSRF protection for GET requests', async () => {
+void it('preserves the CSRF request contract', async () => {
   let queries = 0;
   const { createScraperProxyApp } = await import('./module.js');
   const app = await createScraperProxyApp({
@@ -309,7 +302,7 @@ void it('preserves Apollo CSRF protection for GET requests', async () => {
   }
 });
 
-void it('preserves Apollo parse, validation, and execution error codes', async () => {
+void it('preserves GraphQL parse, validation, and execution error codes', async () => {
   const { createScraperProxyApp } = await import('./module.js');
   const app = await createScraperProxyApp({
     async query<T extends Record<string, unknown>>(): Promise<T[]> {

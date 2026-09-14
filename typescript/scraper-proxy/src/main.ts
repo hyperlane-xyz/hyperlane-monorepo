@@ -1,17 +1,17 @@
 import 'zod/compile';
+import { rootLogger } from '@hyperlane-xyz/utils';
 import { formatError } from '@hyperlane-xyz/utils/errors';
 
 import { config } from './config.js';
 import { DbService } from './db/db.service.js';
 import { EventWebSocketServer } from './live/event-websocket.js';
-import { Logger } from './logger.js';
 import {
   setDatabaseMetricsProvider,
   setWebSocketMetricsProvider,
 } from './metrics.js';
 import { createScraperProxyApp } from './module.js';
 
-const logger = new Logger('Shutdown');
+const logger = rootLogger.child({ module: 'Shutdown' });
 
 async function bootstrap(): Promise<void> {
   const db = new DbService();

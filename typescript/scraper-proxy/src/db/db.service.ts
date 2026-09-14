@@ -1,9 +1,9 @@
+import { rootLogger, type Logger } from '@hyperlane-xyz/utils';
 import { formatError } from '@hyperlane-xyz/utils/errors';
 import { assert } from '@hyperlane-xyz/utils/validation';
 import pg from 'pg';
 
 import { config } from '../config.js';
-import { Logger } from '../logger.js';
 import {
   databaseQueries,
   DatabaseQueryRole,
@@ -86,7 +86,6 @@ const EVENT_STREAM_SCHEMA_CHECKS: readonly (keyof EventStreamSchema)[] = [
 ];
 
 export class DbService {
-  private readonly logger = new Logger(DbService.name);
   private readonly listeners = new Set<pg.Client>();
   private mainPool?: pg.Pool;
   private nextQueryId = 0;
@@ -94,10 +93,16 @@ export class DbService {
   private stats = newStats();
   private statsTimer?: NodeJS.Timeout;
 
+  constructor(
+    private readonly logger: Logger = rootLogger.child({
+      module: DbService.name,
+    }),
+  ) {}
+
   async onModuleInit(): Promise<void> {
     await this.validateEventStreamSchema();
     if (config.DATABASE_READ_REPLICA_URL) {
-      this.logger.log(
+      this.logger.info(
         'GraphQL db role=read-replica; connections open lazily so replica health cannot gate websocket startup',
       );
       this.statsTimer = setInterval(() => this.logStats(), STATS_INTERVAL_MS);
@@ -108,7 +113,7 @@ export class DbService {
       Array.from({ length: MIN_POOL_CLIENTS }, () => this.pool().connect()),
     );
     clients.forEach((client) => client.release());
-    this.logger.log(
+    this.logger.info(
       `warmed ${MIN_POOL_CLIENTS} GraphQL db connections role=primary in ${Date.now() - started}ms`,
     );
     this.statsTimer = setInterval(() => this.logStats(), STATS_INTERVAL_MS);
@@ -198,7 +203,7 @@ export class DbService {
       throw error;
     }
     this.listeners.add(client);
-    this.logger.log(`listening on ${channels.join(', ')}`);
+    this.logger.info(`listening on ${channels.join(', ')}`);
     return async () => {
       stopped = true;
       this.listeners.delete(client);
@@ -311,7 +316,7 @@ export class DbService {
   private logStats(): void {
     const { errors, maxMs, queries, rows, totalMs } = this.stats;
     this.stats = newStats();
-    this.logger.log(
+    this.logger.info(
       `db stats queries=${queries} errors=${errors} rows=${rows} avgMs=${queries ? Math.round(totalMs / queries) : 0} maxMs=${maxMs} poolTotal=${this.mainPool?.totalCount ?? 0} poolIdle=${this.mainPool?.idleCount ?? 0} poolWaiting=${this.mainPool?.waitingCount ?? 0}`,
     );
   }

@@ -3,8 +3,7 @@ import { Socket } from 'node:net';
 import { it } from 'node:test';
 
 import pg from 'pg';
-
-import { Logger } from '../logger.js';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 process.env.DATABASE_URL ??= 'postgresql://scraper-proxy-test';
 process.env.DATABASE_READ_REPLICA_URL ??=
@@ -29,13 +28,10 @@ void it('keeps replica health from gating primary live queries', async (context)
   let connectAttempts = 0;
   let releaseMain: (() => void) | undefined;
   let now = 0;
+  const logger = rootLogger.child({ module: 'DbServiceTest' });
   context.mock.method(Date, 'now', () => now);
-  context.mock.method(Logger.prototype, 'debug', (message) =>
-    debugLogs.push(message),
-  );
-  context.mock.method(Logger.prototype, 'warn', (message) =>
-    warnings.push(message),
-  );
+  context.mock.method(logger, 'debug', (message) => debugLogs.push(message));
+  context.mock.method(logger, 'warn', (message) => warnings.push(message));
   context.mock.method(pg.Pool.prototype, 'connect', () => {
     connectAttempts++;
     throw new Error('replica unavailable');
@@ -71,7 +67,7 @@ void it('keeps replica health from gating primary live queries', async (context)
     },
   );
   const { DbService } = await import('./db.service.js');
-  const db = new DbService();
+  const db = new DbService(logger);
   context.after(() => db.onModuleDestroy());
 
   await db.onModuleInit();
