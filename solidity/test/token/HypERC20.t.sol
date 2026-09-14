@@ -327,6 +327,35 @@ abstract contract HypTokenTest is Test {
     }
 }
 
+abstract contract TokenFeeUnsupportedTest is HypTokenTest {
+    using TypeCasts for address;
+
+    function testRemoteTransfer_withFee() public override {
+        _assertTokenFeeUnsupported(localToken, DESTINATION);
+    }
+
+    function _assertTokenFeeUnsupported(
+        TokenRouter _tokenRouter,
+        uint32 _destination
+    ) internal {
+        LinearFee configuredFee = new LinearFee(
+            _tokenRouter.token(),
+            1e18,
+            100e18,
+            address(this)
+        );
+        _tokenRouter.setFeeRecipient(address(configuredFee));
+
+        assertEq(_tokenRouter.feeRecipient(), address(0));
+        Quote[] memory quotes = _tokenRouter.quoteTransferRemote(
+            _destination,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+        assertEq(quotes[1].amount, TRANSFER_AMT);
+    }
+}
+
 contract HypERC20Test is HypTokenTest {
     using TypeCasts for address;
 
@@ -513,7 +542,7 @@ contract HypERC20CollateralTest is HypTokenTest {
     }
 }
 
-contract HypXERC20Test is HypTokenTest {
+contract HypXERC20Test is TokenFeeUnsupportedTest {
     using TypeCasts for address;
 
     HypXERC20 internal xerc20Collateral;
@@ -570,7 +599,7 @@ contract HypXERC20Test is HypTokenTest {
     }
 }
 
-contract HypXERC20LockboxTest is HypTokenTest {
+contract HypXERC20LockboxTest is TokenFeeUnsupportedTest {
     using TypeCasts for address;
 
     HypXERC20Lockbox internal xerc20Lockbox;
@@ -653,7 +682,7 @@ contract HypXERC20LockboxTest is HypTokenTest {
     }
 }
 
-contract HypFiatTokenTest is HypTokenTest {
+contract HypFiatTokenTest is TokenFeeUnsupportedTest {
     using TypeCasts for address;
 
     HypFiatToken internal fiatToken;

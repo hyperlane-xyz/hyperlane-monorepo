@@ -37,6 +37,14 @@ contract HypXERC20 is TokenRouter {
 
     /**
      * @inheritdoc TokenRouter
+     * @dev Token fees are not supported for xERC20 tokens. Configured fee recipients are ignored.
+     */
+    function feeRecipient() public view override returns (address) {
+        return address(0);
+    }
+
+    /**
+     * @inheritdoc TokenRouter
      * @dev Overrides to burn tokens on outbound transfer.
      */
     function _transferFromSender(uint256 _amountOrId) internal override {
