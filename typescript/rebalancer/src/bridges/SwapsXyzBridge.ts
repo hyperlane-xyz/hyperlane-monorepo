@@ -1,6 +1,11 @@
-import type { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
+import {
+  type ChainMap,
+  type ChainMetadata,
+  submitEvmLikeTransaction,
+} from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
+  TransactionSubmission,
   assert,
   ensure0x,
   isEVMLike,
@@ -10,7 +15,9 @@ import { BigNumber, Contract, Wallet, providers } from 'ethers';
 import type { Logger } from 'pino';
 
 import { ExternalBridgeType } from '../config/types.js';
+import { validateSwapsEvmPayload } from './swapsPayloadValidation.js';
 import type {
+  BridgeExecutionOptions,
   BridgeQuote,
   BridgeQuoteParams,
   BridgeTransferResult,
@@ -169,9 +176,12 @@ export class SwapsXyzBridge implements IExternalBridge {
   execute(
     quote: BridgeQuote,
     privateKeys: Partial<Record<ProtocolType, string>>,
+    options?: BridgeExecutionOptions,
   ): Promise<BridgeTransferResult> {
     const execution = this._executeLock.then(() =>
-      this.executeUnlocked(quote, privateKeys),
+      new TransactionSubmission(options).run(() =>
+        this.executeUnlocked(quote, privateKeys, options),
+      ),
     );
     this._executeLock = execution.then(
       () => undefined,
@@ -462,7 +472,9 @@ export class SwapsXyzBridge implements IExternalBridge {
   private async executeUnlocked(
     quote: BridgeQuote,
     privateKeys: Partial<Record<ProtocolType, string>>,
+    options?: BridgeExecutionOptions,
   ): Promise<BridgeTransferResult> {
+    this.validateQuoteParams(quote.requestParams);
     const { fromChain, toChain } = quote.requestParams;
     const metadata = this.chainMetadataByChainId.get(fromChain);
     assert(
@@ -496,6 +508,13 @@ export class SwapsXyzBridge implements IExternalBridge {
     );
     assert(isEvmTx(fresh.tx), 'SwapsXyzBridge.execute requires an EVM tx');
     this.validateActionResponse(fresh, quote, 'evm');
+    await validateSwapsEvmPayload(
+      { ...quote, id: fresh.txId, fromAmount: BigInt(fresh.amountIn.amount) },
+      fresh.tx,
+      this.getTokenDecimals.bind(this),
+      this.config.maxQuoteLossBps ??
+        this.getSlippageBps(quote.requestParams.slippage),
+    );
 
     if (fresh.requiresTokenApproval) {
       await approveErc20IfNeeded(
@@ -504,16 +523,24 @@ export class SwapsXyzBridge implements IExternalBridge {
         fresh.tx.to,
         BigInt((fresh.amountInMax ?? fresh.amountIn).amount),
         this.logger,
-        { contractFactory: this.config.erc20ContractFactory },
+        {
+          contractFactory: this.config.erc20ContractFactory,
+          onApproval: options?.onApproval,
+        },
       );
     }
 
-    const txResponse = await signer.sendTransaction({
-      to: fresh.tx.to,
-      data: fresh.tx.data,
-      value: fresh.tx.value ? BigNumber.from(fresh.tx.value) : undefined,
-    });
-    // Persistable tracking identity takes priority over waiting here: once a
+    await options?.onTransferId?.(fresh.txId);
+    const txResponse = await submitEvmLikeTransaction(
+      signer,
+      {
+        to: fresh.tx.to,
+        data: fresh.tx.data,
+        value: fresh.tx.value ? BigNumber.from(fresh.tx.value) : undefined,
+      },
+      options,
+    );
+    // Source-action tracking takes priority over waiting here: once a
     // source transaction is broadcast, receipt/status failures must not cause
     // the planner to send the same movement again.
     void this.registerIfRequired(fresh, txResponse.hash);
@@ -589,6 +616,11 @@ export class SwapsXyzBridge implements IExternalBridge {
     const freshFromAmount = BigInt(
       (response.amountInMax ?? response.amountIn).amount,
     );
+    const amountIn = BigInt(response.amountIn.amount);
+    assert(
+      amountIn > 0n && amountIn <= freshFromAmount,
+      'SwapsXyzBridge.execute amountIn must be positive and no greater than amountInMax',
+    );
     assert(
       freshFromAmount <= quote.fromAmount,
       `SwapsXyzBridge.execute fresh input ${freshFromAmount} exceeds accepted input cap ${quote.fromAmount}`,
@@ -638,6 +670,11 @@ export class SwapsXyzBridge implements IExternalBridge {
       assert(
         acceptedValue === 0n && freshValue === 0n,
         'SwapsXyzBridge.execute ERC20 routes must not send native value',
+      );
+    } else {
+      assert(
+        acceptedValue <= quote.fromAmount && freshValue <= quote.fromAmount,
+        'SwapsXyzBridge.execute native value exceeds accepted input cap',
       );
     }
   }
