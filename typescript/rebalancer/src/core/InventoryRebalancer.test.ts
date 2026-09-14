@@ -242,6 +242,43 @@ describe('InventoryRebalancer E2E', () => {
     });
   });
 
+  it('shares lockbox reads in a cycle and refreshes them in the next cycle', async () => {
+    const token = warpCore.tokens[0];
+    token.standard = TokenStandard.EvmHypXERC20Lockbox;
+    const wrappedAddress = Sinon.stub().resolves('0xWrapped');
+    token.getHypAdapter.returns({ getWrappedTokenAddress: wrappedAddress });
+    const resolve = () =>
+      inventoryRebalancer['resolveBridgeTokenAddress'](
+        token,
+        ExternalBridgeType.LiFi,
+      );
+    expect(await Promise.all([resolve(), resolve()])).to.deep.equal([
+      '0xWrapped',
+      '0xWrapped',
+    ]);
+    expect(wrappedAddress.callCount).to.equal(1);
+    await inventoryRebalancer.rebalance([]);
+    wrappedAddress.resolves('0xUpdated');
+    expect(await resolve()).to.equal('0xUpdated');
+    expect(wrappedAddress.callCount).to.equal(2);
+  });
+
+  it('does not retain failed lockbox reads in the cycle cache', async () => {
+    const token = warpCore.tokens[0];
+    token.standard = TokenStandard.EvmHypXERC20Lockbox;
+    const wrappedAddress = Sinon.stub().rejects(new Error('RPC unavailable'));
+    token.getHypAdapter.returns({ getWrappedTokenAddress: wrappedAddress });
+    const resolve = () =>
+      inventoryRebalancer['resolveBridgeTokenAddress'](
+        token,
+        ExternalBridgeType.LiFi,
+      );
+    await expect(resolve()).to.be.rejectedWith('RPC unavailable');
+    wrappedAddress.resolves('0xRecovered');
+    expect(await resolve()).to.equal('0xRecovered');
+    expect(wrappedAddress.callCount).to.equal(2);
+  });
+
   afterEach(() => {
     Sinon.restore();
   });
