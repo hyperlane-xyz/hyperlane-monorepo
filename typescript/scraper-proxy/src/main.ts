@@ -1,40 +1,51 @@
 import 'zod/compile';
-import 'reflect-metadata';
-
-import { Logger } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
 import { formatError } from '@hyperlane-xyz/utils/errors';
 
-import { AppModule } from './module.js';
 import { config } from './config.js';
 import { DbService } from './db/db.service.js';
 import { EventWebSocketServer } from './live/event-websocket.js';
+import { Logger } from './logger.js';
 import {
   setDatabaseMetricsProvider,
   setWebSocketMetricsProvider,
 } from './metrics.js';
+import { createScraperProxyApp } from './module.js';
 
 const logger = new Logger('Shutdown');
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
-  app.enableCors({
-    allowedHeaders: ['content-type', 'x-apollo-operation-name'],
-    credentials: false,
-    origin: true,
-  });
-  const db = app.get(DbService);
-  const eventWebSocketServer = new EventWebSocketServer(db);
-  setDatabaseMetricsProvider(() => db.metricsSnapshot());
-  setWebSocketMetricsProvider(() => eventWebSocketServer.metricsSnapshot());
-  const server = await app.listen(config.PORT);
-  await eventWebSocketServer.start(server);
+  const db = new DbService();
+  let app: Awaited<ReturnType<typeof createScraperProxyApp>> | undefined;
+  let eventWebSocketServer: EventWebSocketServer | undefined;
+  try {
+    await db.onModuleInit();
+    app = await createScraperProxyApp(db);
+    const createdEventWebSocketServer = new EventWebSocketServer(db);
+    eventWebSocketServer = createdEventWebSocketServer;
+    setDatabaseMetricsProvider(() => db.metricsSnapshot());
+    setWebSocketMetricsProvider(() =>
+      createdEventWebSocketServer.metricsSnapshot(),
+    );
+    await app.listen({ host: '0.0.0.0', port: config.PORT });
+    await createdEventWebSocketServer.start(app.server);
+  } catch (error) {
+    await cleanupAfterStartupFailure('websocket', () =>
+      eventWebSocketServer?.stop(),
+    );
+    await cleanupAfterStartupFailure('http', () => app?.close());
+    await cleanupAfterStartupFailure('database', () => db.onModuleDestroy());
+    throw error;
+  }
   let stopping = false;
   const stop = async (): Promise<void> => {
     try {
       await eventWebSocketServer.stop();
     } finally {
-      await app.close();
+      try {
+        await app.close();
+      } finally {
+        await db.onModuleDestroy();
+      }
     }
   };
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
@@ -46,6 +57,19 @@ async function bootstrap(): Promise<void> {
         process.exitCode = 1;
       });
     });
+  }
+}
+
+async function cleanupAfterStartupFailure(
+  component: string,
+  cleanup: () => Promise<unknown> | undefined,
+): Promise<void> {
+  try {
+    await cleanup();
+  } catch (error) {
+    logger.error(
+      `startup cleanup failed component=${component}: ${formatError(error)}`,
+    );
   }
 }
 

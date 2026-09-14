@@ -1,6 +1,3 @@
-import { Injectable } from '@nestjs/common';
-
-import { DbService } from '../db/db.service.js';
 import {
   buildByPk,
   buildCount,
@@ -11,14 +8,16 @@ import {
 import type { TableName } from './tables.js';
 
 type Row = Record<string, unknown>;
+export type ScraperDbDatabase = {
+  query<T extends Row>(text: string, values?: unknown[]): Promise<T[]>;
+};
 type AggregateResult = {
   aggregate: { args: SelectArgs; table: TableName };
   nodes: Row[];
 };
 
-@Injectable()
 export class ScraperDbService {
-  constructor(private readonly db: DbService) {}
+  constructor(private readonly db: ScraperDbDatabase) {}
 
   async select(table: TableName, args: SelectArgs): Promise<Row[]> {
     const query = buildSelect(table, args);
