@@ -1,3 +1,4 @@
+import { rejects } from 'assert';
 import { expect } from 'chai';
 import { execFileSync } from 'child_process';
 import fs from 'fs';
@@ -6,11 +7,10 @@ import path from 'path';
 import Sinon from 'sinon';
 import { parse, parseAllDocuments, stringify } from 'yaml';
 
-import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
+import { GithubRegistry } from '@hyperlane-xyz/registry';
 import { TokenStandard } from '@hyperlane-xyz/sdk';
 
 import { DockerImageRepos, mainnetDockerTags } from '../config/docker.js';
-import { resetRegistry, setRegistry } from '../config/registry.js';
 import { readRebalancerConfig } from '../src/rebalancer/config.js';
 import {
   RebalancerHelmManager,
@@ -60,7 +60,6 @@ describe('Rebalancer Helm deployment', () => {
   });
   afterEach(() => {
     Sinon.restore();
-    resetRegistry();
     fs.rmSync(directory, { recursive: true, force: true });
   });
 
@@ -235,8 +234,10 @@ describe('Rebalancer Helm deployment', () => {
 
   it('preflights and renders without monitor removal, upgrade or cluster queries', async () => {
     config();
-    const registry = new FileSystemRegistry({ uri: directory });
-    Sinon.stub(registry, 'getWarpRoute').returns({
+    const getWarpRoute = Sinon.stub(
+      GithubRegistry.prototype,
+      'getWarpRoute',
+    ).resolves({
       tokens: [
         {
           chainName: 'ethereum',
@@ -248,7 +249,6 @@ describe('Rebalancer Helm deployment', () => {
         },
       ],
     });
-    setRegistry(registry);
     const query = Sinon.stub(HelmManager, 'doesHelmReleaseExist').rejects(
       new Error('Unexpected cluster query'),
     );
@@ -267,8 +267,38 @@ describe('Rebalancer Helm deployment', () => {
     await manager.runPreflightChecks(
       path.relative(getInfraPath(), path.join(directory, 'config.yaml')),
     );
+    expect(getWarpRoute.calledOnceWithExactly(options.warpRouteId)).to.equal(
+      true,
+    );
+    expect(getWarpRoute.firstCall.thisValue.branch).to.equal(
+      options.registryCommit,
+    );
+    expect((await manager.helmValues()).hyperlane.chains).to.deep.equal([
+      'ethereum',
+    ]);
     expect(await manager.renderManifest()).to.include('kind: StatefulSet');
     expect(query.called).to.equal(false);
     expect(upgrade.called).to.equal(false);
+  });
+
+  it('rejects routes missing from the pinned registry', async () => {
+    config();
+    Sinon.stub(GithubRegistry.prototype, 'getWarpRoute').resolves(null);
+    const manager = new RebalancerHelmManager(
+      options.warpRouteId,
+      options.environment,
+      options.registryCommit,
+      '',
+      '',
+      true,
+    );
+    await rejects(
+      manager.runPreflightChecks(
+        path.relative(getInfraPath(), path.join(directory, 'config.yaml')),
+      ),
+      new Error(
+        `Warp Route ID not found in registry at ${options.registryCommit}: ${options.warpRouteId}`,
+      ),
+    );
   });
 });
