@@ -1,7 +1,15 @@
 warpRouteId: USDT/eclipsemainnet
 
-# In-progress actions are intentionally process-local. Keep them suppressed for
-# two weeks while the process is running; a restart clears the action tracker.
+# Baseline image from the Eclipse configuration strand. Replace with the reviewed
+# runtime candidate and its digest before rollout.
+deployment:
+  imageTag: 3329eda-20260828-115558
+  swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key-usdt-eclipse
+
+# Intent TTL is two weeks in memory; it does not survive restart. Source-started
+# or ambiguous submissions remain reserved for the process lifetime, including
+# after TTL expiry. Reconcile transactions before restarting; never infer that
+# an ambiguous source submission is safe to retry from elapsed time alone.
 intentTTL: 1209600
 
 inventorySigners:
