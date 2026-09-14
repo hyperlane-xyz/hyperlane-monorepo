@@ -12,6 +12,7 @@ import {
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
   HypTokenRouterConfigMailboxOptionalSchema,
+  assertFeeHookSupported,
   assertTokenFeeDeploySupported,
   assertTokenFeeUpgradeSupported,
   isCollateralTokenConfig,
@@ -25,6 +26,13 @@ const COLLATERAL_TYPES = [
 ];
 
 const NON_COLLATERAL_TYPES = [TokenType.synthetic, TokenType.syntheticUri];
+const FEE_HOOK_UNSUPPORTED_TYPES = [
+  TokenType.collateralFiat,
+  TokenType.collateralVault,
+  TokenType.collateralVaultRebase,
+  TokenType.XERC20,
+  TokenType.XERC20Lockbox,
+];
 
 describe('WarpRouteDeployConfigSchema refine', () => {
   let config: WarpRouteDeployConfig;
@@ -607,6 +615,63 @@ describe('WarpRouteDeployConfigSchema refine', () => {
 
       assert(parseResults.success, 'must be true');
       expect(parseResults.data.arbitrum.tokenFee?.owner).to.equal(SOME_ADDRESS);
+    });
+  });
+
+  describe('feeHook input schema', () => {
+    for (const type of FEE_HOOK_UNSUPPORTED_TYPES) {
+      it(`should reject feeHook for ${type} tokens and allow its removal`, () => {
+        const config = {
+          type,
+          token: SOME_ADDRESS,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+        };
+        const configuredFeeHook = {
+          ...config,
+          feeHook: SOME_ADDRESS,
+        };
+
+        expect(
+          HypTokenRouterConfigMailboxOptionalSchema.safeParse(configuredFeeHook)
+            .success,
+        ).to.be.false;
+        expect(() =>
+          assertFeeHookSupported(config, 'test', SOME_ADDRESS),
+        ).to.throw(
+          `${WarpRouteDeployConfigSchemaErrors.FEE_HOOK_UNSUPPORTED} ${config.type} on test`,
+        );
+        expect(
+          HypTokenRouterConfigMailboxOptionalSchema.safeParse({
+            ...config,
+            feeHook: ethers.constants.AddressZero,
+          }).success,
+        ).to.be.true;
+        expect(() =>
+          assertFeeHookSupported(
+            { ...config, feeHook: ethers.constants.AddressZero },
+            'test',
+            SOME_ADDRESS,
+          ),
+        ).not.to.throw();
+      });
+    }
+
+    it('should accept feeHook for syntheticRebase tokens', () => {
+      const config = {
+        type: TokenType.syntheticRebase,
+        name: 'Test Token',
+        symbol: 'TEST',
+        collateralChainName: 'ethereum',
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        feeHook: SOME_ADDRESS,
+      };
+
+      expect(
+        HypTokenRouterConfigMailboxOptionalSchema.safeParse(config).success,
+      ).to.be.true;
+      expect(() => assertFeeHookSupported(config, 'test')).not.to.throw();
     });
   });
 
