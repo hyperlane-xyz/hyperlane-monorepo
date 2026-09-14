@@ -23,7 +23,11 @@ import type {
 import type { DeployEnvironment } from '../config/deploy-environment.js';
 import { getAWValidatorsPath } from '../paths.js';
 import { Role } from '../roles.js';
-import { fetchGCPSecret, setGCPSecretUsingClient } from '../utils/gcloud.js';
+import {
+  fetchGCPSecret,
+  isGcpNotFoundError,
+  setGCPSecretUsingClient,
+} from '../utils/gcloud.js';
 import {
   execCmd,
   getInfraPath,
@@ -34,6 +38,11 @@ import {
 import { AgentAwsKey } from './aws/key.js';
 import { AgentGCPKey } from './gcp.js';
 import { AgentGcpKmsKey } from './gcp-kms/kms-key.js';
+import {
+  type KeyAsAddress,
+  isKeyAsAddressArray,
+  reconcilePersistedKeyAddresses,
+} from './key-addresses.js';
 import { CloudAgentKey } from './keys.js';
 
 export type LocalRoleAddresses = Record<
@@ -44,29 +53,6 @@ export const relayerAddresses: LocalRoleAddresses =
   localRelayerAddresses as LocalRoleAddresses;
 
 const logger = rootLogger.child({ module: 'infra:agents:key-utils' });
-
-export interface KeyAsAddress {
-  identifier: string;
-  address: string;
-}
-
-function isKeyAsAddressArray(value: unknown): value is KeyAsAddress[] {
-  return (
-    Array.isArray(value) &&
-    value.every(
-      (entry) =>
-        typeof entry === 'object' &&
-        entry !== null &&
-        typeof (entry as KeyAsAddress).identifier === 'string' &&
-        typeof (entry as KeyAsAddress).address === 'string',
-    )
-  );
-}
-
-function isSecretNotFoundError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /not[_\s]?found/i.test(message);
-}
 
 const CONFIG_DIRECTORY_PATH = join(getInfraPath(), 'config');
 
@@ -517,6 +503,10 @@ async function persistAddresses(
     agentConfig.runEnv,
     agentConfig.context,
     addresses,
+    // Validator-scoped and unscoped reconciliation both enumerate every key
+    // role. A non-validator deploy intentionally omits validator KMS keys, so
+    // only that partial path must preserve unreconciled secret entries.
+    deployedRoles !== undefined && !deployedRoles.includes(Role.Validator),
   );
   return;
 }
@@ -620,11 +610,11 @@ async function persistAddressesInGcp(
   environment: DeployEnvironment,
   context: Contexts,
   keys: KeyAsAddress[],
+  preserveExistingKeys: boolean,
 ) {
-  // Upsert by identifier into the existing secret rather than overwriting it.
-  // Key reconciliation may be scoped to a subset of roles (e.g. a relayer-only
-  // deploy), so a wholesale overwrite would drop addresses for the roles that
-  // were not reconciled this run.
+  // Partial role deployments upsert by identifier so they preserve addresses
+  // for roles that were not reconciled. Full reconciliation replaces the list
+  // so retired identifiers are removed.
   let existingKeys: KeyAsAddress[] = [];
   try {
     const existingSecret = await fetchGCPSecret(
@@ -641,7 +631,7 @@ async function persistAddressesInGcp(
     // failure (transient, permission, malformed) must abort: proceeding would
     // overwrite the secret with a reduced, role-scoped set and drop the
     // addresses of roles that were not reconciled this run.
-    if (!isSecretNotFoundError(error)) {
+    if (!isGcpNotFoundError(error)) {
       throw error;
     }
     logger.debug(
@@ -649,15 +639,13 @@ async function persistAddressesInGcp(
     );
   }
 
-  const mergedByIdentifier = new Map<string, KeyAsAddress>(
-    existingKeys.map((key) => [key.identifier, key]),
+  const nextKeys = reconcilePersistedKeyAddresses(
+    existingKeys,
+    keys,
+    preserveExistingKeys,
   );
-  for (const key of keys) {
-    mergedByIdentifier.set(key.identifier, key);
-  }
-  const mergedKeys = [...mergedByIdentifier.values()];
 
-  if (deepEquals(mergedKeys, existingKeys)) {
+  if (deepEquals(nextKeys, existingKeys)) {
     logger.debug(
       `Addresses already persisted to GCP for ${context} context in ${environment} environment`,
     );
@@ -669,7 +657,7 @@ async function persistAddressesInGcp(
   );
   await setGCPSecretUsingClient(
     addressesIdentifier(environment, context),
-    JSON.stringify(mergedKeys),
+    JSON.stringify(nextKeys),
     {
       environment,
       context,
