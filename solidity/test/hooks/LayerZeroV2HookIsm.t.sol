@@ -215,6 +215,8 @@ abstract contract LayerZeroV2HookIsmTestBase is Test {
     }
 
     function testHookTypeAndPathInitialization() public view {
+        assertEq(uint8(IPostDispatchHook.HookTypes.WORMHOLE), 18);
+        assertEq(uint8(IPostDispatchHook.HookTypes.LAYER_ZERO), 19);
         assertEq(
             originRouter.hookType(),
             uint8(IPostDispatchHook.HookTypes.LAYER_ZERO)
