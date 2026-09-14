@@ -1,7 +1,14 @@
 import { ethers } from 'ethers';
 import type { Logger } from 'pino';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { submitEvmLikeTransaction } from '@hyperlane-xyz/sdk';
+import {
+  TransactionSubmissionError,
+  type TransactionSubmissionState,
+  assert,
+} from '@hyperlane-xyz/utils';
+
+import type { BridgeExecutionOptions } from '../interfaces/IExternalBridge.js';
 
 import {
   DEFAULT_RECEIPT_TIMEOUT_MS,
@@ -24,7 +31,10 @@ export type Erc20ContractFactory = (
   signer: ethers.Signer,
 ) => ethers.Contract;
 
-export interface Erc20ApprovalOptions {
+export interface Erc20ApprovalOptions extends Pick<
+  BridgeExecutionOptions,
+  'onApproval'
+> {
   /**
    * Exact is required for dynamic, API-provided spenders. Infinite is reserved
    * for trusted, fixed contracts such as an OFT endpoint.
@@ -35,6 +45,83 @@ export interface Erc20ApprovalOptions {
 
 const defaultContractFactory: Erc20ContractFactory = (address, abi, signer) =>
   new ethers.Contract(address, abi, signer);
+
+export class Erc20ApprovalError extends TransactionSubmissionError {
+  constructor(
+    cause: unknown,
+    state: TransactionSubmissionState,
+    hash: string | undefined,
+    readonly token?: string,
+    readonly spender?: string,
+  ) {
+    super(cause, state, hash);
+    this.name = 'Erc20ApprovalError';
+  }
+}
+
+async function sendApproval(
+  contract: ethers.Contract,
+  spender: string,
+  amount: ethers.BigNumberish,
+  operation: string,
+  options: Pick<Erc20ApprovalOptions, 'onApproval'>,
+): Promise<void> {
+  let txHash: string | undefined;
+  try {
+    assert(
+      contract.provider && contract.signer,
+      'ERC20 approval signer requires a provider',
+    );
+    const request = await contract.populateTransaction.approve(spender, amount);
+    const observe = options.onApproval;
+    const tx = await submitEvmLikeTransaction(
+      contract.signer,
+      request,
+      observe
+        ? {
+            onSubmissionAttempt: (hash) =>
+              observe({ txHash: hash, token: contract.address, spender }),
+            onSubmitted: (hash) =>
+              observe({ txHash: hash, token: contract.address, spender }),
+          }
+        : undefined,
+    );
+    txHash = tx.hash;
+    await waitForReceiptWithTimeout(tx, {
+      txHash,
+      operation,
+      timeoutMs: DEFAULT_RECEIPT_TIMEOUT_MS,
+      role: 'approval',
+    });
+    await observe?.(undefined);
+  } catch (error) {
+    const state =
+      error instanceof TransactionSubmissionError
+        ? error.submissionState
+        : txHash
+          ? 'submitted'
+          : 'not_submitted';
+    throw new Erc20ApprovalError(
+      error,
+      state,
+      txHash ??
+        (error instanceof TransactionSubmissionError
+          ? error.txHash
+          : undefined),
+      contract.address,
+      spender,
+    );
+  }
+}
+
+async function revokeApproval(
+  contract: ethers.Contract,
+  spender: string,
+  operation: string,
+  options: Pick<Erc20ApprovalOptions, 'onApproval'>,
+): Promise<void> {
+  await sendApproval(contract, spender, 0, operation, options);
+}
 
 /** Set an ERC20 allowance to the exact requested target when it differs. */
 export async function approveErc20IfNeeded(
@@ -77,20 +164,19 @@ export async function approveErc20IfNeeded(
   );
 
   if (!currentAllowance.isZero()) {
-    const revokeTx = await writeContract.approve(spender, 0);
-    await waitForReceiptWithTimeout(revokeTx.wait(), {
-      txHash: revokeTx.hash,
-      operation: 'erc20 revoke approval',
-      timeoutMs: DEFAULT_RECEIPT_TIMEOUT_MS,
-      role: 'approval',
-    });
+    await revokeApproval(
+      writeContract,
+      spender,
+      'erc20 revoke approval',
+      options,
+    );
   }
 
-  const approveTx = await writeContract.approve(spender, targetAllowance);
-  await waitForReceiptWithTimeout(approveTx.wait(), {
-    txHash: approveTx.hash,
-    operation: 'erc20 approve',
-    timeoutMs: DEFAULT_RECEIPT_TIMEOUT_MS,
-    role: 'approval',
-  });
+  await sendApproval(
+    writeContract,
+    spender,
+    targetAllowance,
+    'erc20 approve',
+    options,
+  );
 }

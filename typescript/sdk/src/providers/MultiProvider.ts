@@ -19,6 +19,9 @@ import { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
+  TransactionSubmission,
+  TransactionSubmissionError,
+  type TransactionSubmissionOptions,
   addBufferToGasLimit,
   assert,
   pick,
@@ -27,6 +30,7 @@ import {
   timeout,
 } from '@hyperlane-xyz/utils';
 
+import { submitEvmLikeTransaction } from '../signers/evm/transaction.js';
 import { testChainMetadata, testChains } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import {
@@ -97,7 +101,9 @@ export interface MultiProviderOptions {
   minConfirmationTimeoutMs?: number;
 }
 
-export interface SendTransactionOptions {
+export interface SendTransactionOptions extends TransactionSubmissionOptions {
+  /** Re-signing with a new blockhash is unsafe while an earlier send is ambiguous. */
+  enableBlockhashResubmit?: boolean;
   /**
    * Number of confirmations to wait for, or a block tag like "finalized" or "safe".
    * If not provided, uses chain metadata's blocks.confirmations (default: 1).
@@ -725,6 +731,26 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     txProm: AnnotatedEV5Transaction | Promise<AnnotatedEV5Transaction>,
     options?: SendTransactionOptions,
   ): Promise<ContractReceipt> {
+    if (options?.onSubmissionAttempt || options?.onSubmitted) {
+      const submission = new TransactionSubmission(options);
+      return submission.run(async () => {
+        const { annotation, ...tx } = await txProm;
+        if (annotation) this.logger.info(annotation);
+        const txReq = await this.prepareTx(chainNameOrId, tx);
+        const signer = this.getSigner(chainNameOrId);
+        const response = await submitEvmLikeTransaction(signer, txReq, options);
+        // Tron owns its broadcast boundary; retain identity if confirmation fails.
+        try {
+          return await this.handleTx(chainNameOrId, response, options);
+        } catch (error) {
+          throw new TransactionSubmissionError(
+            error,
+            'submitted',
+            response.hash,
+          );
+        }
+      });
+    }
     const { annotation, ...tx } = await txProm;
     if (annotation) {
       this.logger.info(annotation);
