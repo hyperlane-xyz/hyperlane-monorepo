@@ -85,6 +85,42 @@ void it('preserves cached query and refresh semantics around Mercurius', async (
   }
 });
 
+void it('rejects malformed variables when the response cache is warm', async () => {
+  let queries = 0;
+  const { createScraperProxyApp } = await import('./module.js');
+  const app = await createScraperProxyApp({
+    async query<T extends Record<string, unknown>>(): Promise<T[]> {
+      queries++;
+      return [];
+    },
+  });
+  const query = 'query @cached(ttl: 30) { domain(limit: 1) { id } }';
+  const request = (variables: unknown) =>
+    app.inject({
+      method: 'POST',
+      payload: { query, variables },
+      url: '/graphql',
+    });
+  try {
+    const first = await request({});
+    const cached = await request({});
+    assert.equal(first.statusCode, 200);
+    assert.equal(cached.statusCode, 200);
+    assert.deepEqual(cached.json(), first.json());
+    assert.equal(queries, 1);
+
+    for (const malformed of ['{}', 1, true, []]) {
+      const response = await request(malformed);
+      assert.equal(response.statusCode, 400);
+      assert.match(response.body, /variables must be object,null/);
+      assert.equal(response.json().data, null);
+      assert.equal(queries, 1);
+    }
+  } finally {
+    await app.close();
+  }
+});
+
 void it('serializes the production query surface consistently', async () => {
   const db = {
     async query<T extends Record<string, unknown>>(): Promise<T[]> {

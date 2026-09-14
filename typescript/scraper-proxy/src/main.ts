@@ -26,8 +26,8 @@ async function bootstrap(): Promise<void> {
     setWebSocketMetricsProvider(() =>
       createdEventWebSocketServer.metricsSnapshot(),
     );
-    await app.listen({ host: '0.0.0.0', port: config.PORT });
     await createdEventWebSocketServer.start(app.server);
+    await app.listen({ host: '0.0.0.0', port: config.PORT });
   } catch (error) {
     await cleanupAfterStartupFailure('websocket', () =>
       eventWebSocketServer?.stop(),
