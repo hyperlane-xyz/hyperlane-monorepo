@@ -15,7 +15,7 @@ export async function submitEvmLikeTransaction(
   const submission = new TransactionSubmission(options);
   return submission.run(async () => {
     if (signer instanceof TronWallet)
-      return signer.sendTransaction(transaction, options);
+      return signer.sendTransaction(transaction, options ?? {});
     if (
       options &&
       signer instanceof Wallet &&
