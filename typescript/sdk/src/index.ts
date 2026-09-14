@@ -1171,3 +1171,4 @@ export {
 export { TurnkeyEvmSigner } from './signers/evm/turnkey.js';
 export { TurnkeySealevelSigner } from './signers/svm/turnkey.js';
 export { IMultiProtocolSigner } from './signers/types.js';
+export { submitEvmLikeTransaction } from './signers/evm/transaction.js';
