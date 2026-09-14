@@ -17,8 +17,8 @@ pnpm tsx scripts/rebalancer/deploy-rebalancer.ts -e mainnet3 \
   --warp-route-id oUSDT/production --monitor-only --render > /tmp/ousdt.yaml
 ```
 
-Rendering uses the local registry for route membership. Use a registry checkout
-containing the route. The rendered runtime registry stays pinned to
+Rendering resolves route membership and RPC-secret chains from the same registry
+commit used by the runtime:
 `0b7518b88967309b0ca30827ec418852873bdc7e`.
 
 Before replacement, archive Helm values/manifests, the live ExternalSecret,
