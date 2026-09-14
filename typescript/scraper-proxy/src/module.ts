@@ -130,11 +130,15 @@ export async function createScraperProxyApp(
     reply.raw.once('finish', complete);
   });
 
-  app.addHook('preValidation', async (request, reply) => {
+  app.addHook('preValidation', async (request) => {
     if (!isGraphqlRequest(request)) return;
+    normalizeGraphqlRequestBody(request.body);
+  });
+
+  app.addHook('preHandler', async (request, reply) => {
+    if (!isGraphqlRequest(request) || request.validationError) return;
     const state = requestStates.get(request);
     if (!state) return;
-    normalizeGraphqlRequestBody(request.body);
     const body =
       graphqlBody(request.body) ??
       (request.method === 'GET' ? graphqlBody(request.query) : undefined);
