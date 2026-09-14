@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import cors from '@fastify/cors';
 import { rootLogger } from '@hyperlane-xyz/utils';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
-import mercurius, { type MercuriusOptions } from 'mercurius';
+import mercurius from 'mercurius';
 
 import { config } from './config.js';
 import {
@@ -52,9 +52,6 @@ type Stats = {
 
 const logger = rootLogger.child({ module: 'GraphQL' });
 const MAX_REQUEST_BYTES = 100 * 1_024;
-const CSRF_HEADERS = ['x-apollo-operation-name', 'apollo-require-preflight'];
-const CSRF_ERROR_PREFIX =
-  'This operation has been blocked as a potential Cross-Site Request Forgery';
 const schemaPath = [
   join(import.meta.dirname, 'graphql/scraperdb-schema.graphql'),
   join(import.meta.dirname, '../src/graphql/scraperdb-schema.graphql'),
@@ -93,7 +90,6 @@ export async function createScraperProxyApp(
   const requestStates = new WeakMap<FastifyRequest, RequestState>();
 
   await app.register(cors, {
-    allowedHeaders: ['content-type', ...CSRF_HEADERS],
     credentials: false,
     origin: true,
   });
@@ -191,11 +187,7 @@ export async function createScraperProxyApp(
   await app.register(mercurius, {
     allowBatchedQueries: false,
     cache: 1_024,
-    csrfPrevention: {
-      allowedContentTypes: ['application/json', 'application/graphql'],
-      requiredHeaders: CSRF_HEADERS,
-    },
-    errorFormatter: compatibleErrorFormatter,
+    csrfPrevention: true,
     graphiql: false,
     ide: false,
     jit:
@@ -215,35 +207,6 @@ export async function createScraperProxyApp(
   });
 
   return app;
-}
-
-const compatibleErrorFormatter: NonNullable<
-  MercuriusOptions['errorFormatter']
-> = (execution, context) => {
-  const formatted = mercurius.defaultErrorFormatter(execution, context);
-  return {
-    statusCode: formatted.statusCode,
-    response: {
-      ...formatted.response,
-      errors: formatted.response.errors?.map((error) => {
-        if (error.extensions?.code) return error;
-        const code = graphqlErrorCode(formatted.statusCode, error.message);
-        return code
-          ? { ...error, extensions: { ...error.extensions, code } }
-          : error;
-      }),
-    },
-  };
-};
-
-function graphqlErrorCode(status: number, message: string): string | undefined {
-  if (message.startsWith(CSRF_ERROR_PREFIX)) return 'BAD_REQUEST';
-  if (status === 400) {
-    return message.startsWith('Syntax Error:')
-      ? 'GRAPHQL_PARSE_FAILED'
-      : 'GRAPHQL_VALIDATION_FAILED';
-  }
-  return status === 200 || status >= 500 ? 'INTERNAL_SERVER_ERROR' : undefined;
 }
 
 export function registerMetricsRoute(app: FastifyInstance): void {

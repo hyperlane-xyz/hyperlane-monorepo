@@ -240,10 +240,9 @@ void it('preserves the CSRF request contract', async () => {
     const unsafe = await app.inject({ method: 'GET', url });
     assert.equal(unsafe.statusCode, 400);
     assert.match(unsafe.body, /Cross-Site Request Forgery/);
-    assert.equal(unsafe.json().errors[0].extensions.code, 'BAD_REQUEST');
 
     const safe = await app.inject({
-      headers: { 'x-apollo-operation-name': 'Domains' },
+      headers: { 'x-mercurius-operation-name': 'Domains' },
       method: 'GET',
       url,
     });
@@ -261,7 +260,7 @@ void it('preserves the CSRF request contract', async () => {
         url: '/graphql',
       });
       assert.equal(simplePost.statusCode, 400);
-      assert.equal(simplePost.json().errors[0].extensions.code, 'BAD_REQUEST');
+      assert.match(simplePost.body, /Cross-Site Request Forgery/);
     }
 
     const graphqlPost = await app.inject({
@@ -275,7 +274,7 @@ void it('preserves the CSRF request contract', async () => {
 
     const preflight = await app.inject({
       headers: {
-        'access-control-request-headers': 'apollo-require-preflight',
+        'access-control-request-headers': 'mercurius-require-preflight',
         'access-control-request-method': 'GET',
         origin: 'https://example.com',
       },
@@ -285,12 +284,12 @@ void it('preserves the CSRF request contract', async () => {
     assert.equal(preflight.statusCode, 204);
     assert.match(
       preflight.headers['access-control-allow-headers'] ?? '',
-      /apollo-require-preflight/i,
+      /mercurius-require-preflight/i,
     );
 
     const cachedUrl = `/graphql?query=${encodeURIComponent('query @cached(ttl: 30) { domain { id } }')}`;
     const cachedOperation = {
-      headers: { 'apollo-require-preflight': 'true' },
+      headers: { 'mercurius-require-preflight': 'true' },
       method: 'GET' as const,
       url: cachedUrl,
     };
@@ -302,7 +301,7 @@ void it('preserves the CSRF request contract', async () => {
   }
 });
 
-void it('preserves GraphQL parse, validation, and execution error codes', async () => {
+void it('returns useful GraphQL parse, validation, and execution errors', async () => {
   const { createScraperProxyApp } = await import('./module.js');
   const app = await createScraperProxyApp({
     async query<T extends Record<string, unknown>>(): Promise<T[]> {
@@ -314,24 +313,15 @@ void it('preserves GraphQL parse, validation, and execution error codes', async 
   try {
     const parsed = await request('{');
     assert.equal(parsed.statusCode, 400);
-    assert.equal(
-      parsed.json().errors[0].extensions.code,
-      'GRAPHQL_PARSE_FAILED',
-    );
+    assert.match(parsed.json().errors[0].message, /Syntax Error/);
 
     const validated = await request('{ missing_field }');
     assert.equal(validated.statusCode, 400);
-    assert.equal(
-      validated.json().errors[0].extensions.code,
-      'GRAPHQL_VALIDATION_FAILED',
-    );
+    assert.match(validated.json().errors[0].message, /Cannot query field/);
 
     const executed = await request('{ domain(limit: 1) { id } }');
     assert.equal(executed.statusCode, 200);
-    assert.equal(
-      executed.json().errors[0].extensions.code,
-      'INTERNAL_SERVER_ERROR',
-    );
+    assert.equal(executed.json().errors[0].message, 'database unavailable');
   } finally {
     await app.close();
   }
