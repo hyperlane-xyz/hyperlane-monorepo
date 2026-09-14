@@ -2083,6 +2083,9 @@ importers:
       '@lifi/sdk':
         specifier: 'catalog:'
         version: 3.16.3(@solana/wallet-adapter-base@0.9.27(@solana/web3.js@1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@5.0.10)))(@solana/web3.js@1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@types/react@18.3.27)(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(immer@10.2.0)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))(utf-8-validate@5.0.10)(viem@2.55.19(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@5.0.10)(zod@4.5.4))(zod@4.5.4)
+      '@solana/spl-token':
+        specifier: 'catalog:'
+        version: 0.4.15(@solana/web3.js@1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@5.0.10)
       '@solana/web3.js':
         specifier: 'catalog:'
         version: 1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@5.0.10)
