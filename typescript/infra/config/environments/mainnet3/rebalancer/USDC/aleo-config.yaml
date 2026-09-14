@@ -1,5 +1,12 @@
 warpRouteId: USDC/aleo
 
+inventorySigners:
+  ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
+  sealevel: '4ZJoMHQPEMkeExtFQLbuh8nB21dxHj741dSo6oJ5BcMo'
+externalBridges:
+  lifi:
+    integrator: rebalancer
+
 strategy:
   rebalanceStrategy: weighted
   chains:
@@ -10,6 +17,11 @@ strategy:
       bridgeLockTime: 60
       bridgeMinAcceptedAmount: 3500
       bridge: '0xE086378F7f0afd5C3ff95E10B5e7806a0901b33f'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+          bridgeLockTime: 1800 # LiFi Solana hop, longer than EVM CCTP legs
 
     avalanche:
       weighted:
@@ -18,6 +30,11 @@ strategy:
       bridgeLockTime: 60
       bridgeMinAcceptedAmount: 3500
       bridge: '0xCB35d7730843F770625bE36A0E4228c17fDcBC09'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+          bridgeLockTime: 1800 # LiFi Solana hop, longer than EVM CCTP legs
 
     base:
       weighted:
@@ -26,14 +43,24 @@ strategy:
       bridgeLockTime: 60
       bridgeMinAcceptedAmount: 3500
       bridge: '0x31169ee5A8C0D680de74461d7B5394fFc7C3576B'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+          bridgeLockTime: 1800 # LiFi Solana hop, longer than EVM CCTP legs
 
     ethereum:
       weighted:
-        weight: 30
+        weight: 20
         tolerance: 5
       bridgeLockTime: 60
       bridgeMinAcceptedAmount: 3500
       bridge: '0x7A576Bb5291567cfDbB4585B1911CF7C9891ea07'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+          bridgeLockTime: 1800 # LiFi Solana hop, longer than EVM CCTP legs
 
     optimism:
       weighted:
@@ -42,6 +69,11 @@ strategy:
       bridgeLockTime: 60
       bridgeMinAcceptedAmount: 3500
       bridge: '0x4eFaacbf0D3d57b401Cb6B559e84b344448b0C30'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+          bridgeLockTime: 1800 # LiFi Solana hop, longer than EVM CCTP legs
 
     polygon:
       weighted:
@@ -50,3 +82,17 @@ strategy:
       bridgeLockTime: 60
       bridgeMinAcceptedAmount: 3500
       bridge: '0x07d89DE0F7E18c9bcAAE81F44aee9CA02EBeE872'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+          bridgeLockTime: 1800 # LiFi Solana hop, longer than EVM CCTP legs
+
+    solanamainnet:
+      weighted:
+        weight: 10
+        tolerance: 5
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridgeMinAcceptedAmount: 3500
+      executionType: inventory
+      externalBridge: lifi
