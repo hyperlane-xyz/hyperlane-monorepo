@@ -21,6 +21,7 @@ import {
   ensure0x,
   fromWei,
   isEVMLike,
+  retryAsync,
 } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
@@ -74,6 +75,10 @@ const GAS_COST_MULTIPLIER = 20n;
  * If gas exceeds this threshold, the bridge is not economically worthwhile.
  */
 const MAX_GAS_PERCENT_THRESHOLD = 10n;
+
+const MESSAGE_ID_EXTRACTION_ATTEMPTS = 5;
+// retryAsync uses exponential backoff: 2s, 4s, 8s, then 16s.
+const MESSAGE_ID_EXTRACTION_RETRY_BASE_DELAY_MS = 2_000;
 
 type BridgeCapacity = {
   maxSourceInput: bigint;
@@ -1135,21 +1140,22 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       }
     }
 
-    const messageId = transferTxHash
-      ? await this.extractDispatchedMessageId(origin, transferTxHash)
-      : undefined;
-
     assert(transferTxHash, 'No transfer transaction hash found');
 
+    const messageId = await this.extractDispatchedMessageId(
+      origin,
+      transferTxHash,
+    );
+
     if (!messageId) {
-      this.logger.warn(
+      this.logger.error(
         {
           origin,
           destination,
           txHash: transferTxHash,
           intentId: intent.id,
         },
-        'TransferRemote transaction sent but no messageId found in logs',
+        'TransferRemote transaction succeeded but its message ID could not be extracted',
       );
     }
 
@@ -1242,21 +1248,65 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     origin: ChainName,
     txHash: string,
   ): Promise<string | undefined> {
-    const receipt = await this.getTransactionReceipt(origin, txHash);
-    if (!receipt) return undefined;
+    let attempt = 0;
+    let receipt: TypedTransactionReceipt;
 
-    if (receipt.type === ProviderType.EthersV5) {
-      return HyperlaneCore.getDispatchedMessages(receipt.receipt)[0]?.id;
+    try {
+      receipt = await retryAsync(
+        async () => {
+          attempt += 1;
+          this.logger.debug(
+            {
+              origin,
+              txHash,
+              attempt,
+              attempts: MESSAGE_ID_EXTRACTION_ATTEMPTS,
+            },
+            'Extracting dispatched message ID from transaction receipt',
+          );
+
+          const candidate = await this.getTransactionReceipt(origin, txHash);
+          if (!candidate) {
+            throw new Error('Transaction receipt unavailable');
+          }
+          return candidate;
+        },
+        MESSAGE_ID_EXTRACTION_ATTEMPTS,
+        MESSAGE_ID_EXTRACTION_RETRY_BASE_DELAY_MS,
+      );
+    } catch (error) {
+      this.logger.debug(
+        {
+          origin,
+          txHash,
+          attempts: MESSAGE_ID_EXTRACTION_ATTEMPTS,
+          error,
+        },
+        'Transaction receipt remained unavailable for message ID extraction',
+      );
+      return undefined;
     }
 
-    if (receipt.type === ProviderType.SolanaWeb3) {
-      const logs = receipt.receipt.meta?.logMessages;
-      if (!logs) return undefined;
-      const parsed = SealevelCoreAdapter.parseMessageDispatchLogs(logs);
-      return parsed[0]?.messageId ? ensure0x(parsed[0].messageId) : undefined;
-    }
+    try {
+      if (receipt.type === ProviderType.EthersV5) {
+        return HyperlaneCore.getDispatchedMessages(receipt.receipt)[0]?.id;
+      }
 
-    return undefined;
+      if (receipt.type === ProviderType.SolanaWeb3) {
+        const logs = receipt.receipt.meta?.logMessages;
+        if (!logs) return undefined;
+        const parsed = SealevelCoreAdapter.parseMessageDispatchLogs(logs);
+        return parsed[0]?.messageId ? ensure0x(parsed[0].messageId) : undefined;
+      }
+
+      return undefined;
+    } catch (error) {
+      this.logger.debug(
+        { origin, txHash, error },
+        'Failed to parse dispatched message ID from transaction receipt',
+      );
+      return undefined;
+    }
   }
 
   private async getTransactionReceipt(
