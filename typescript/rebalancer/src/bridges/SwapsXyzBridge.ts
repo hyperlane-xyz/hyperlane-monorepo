@@ -17,10 +17,12 @@ import {
   PublicKey,
   type SimulatedTransactionAccountInfo,
   VersionedTransaction,
+  TransactionMessage,
 } from '@solana/web3.js';
 import {
   ProtocolType,
   TransactionSubmission,
+  bufferToBase58,
   assert,
   ensure0x,
   isEVMLike,
@@ -31,6 +33,7 @@ import type { Logger } from 'pino';
 
 import { ExternalBridgeType } from '../config/types.js';
 import { validateSwapsEvmPayload } from './swapsPayloadValidation.js';
+import { validateDeBridgeSolanaInstructions } from './deBridgeValidation.js';
 import type {
   BridgeExecutionOptions,
   BridgeQuote,
@@ -414,6 +417,16 @@ export class SwapsXyzBridge implements IExternalBridge {
   }
 
   private validateQuoteParams(params: BridgeQuoteParams): void {
+    if (
+      this.chainMetadataByChainId.get(params.fromChain)?.protocol ===
+      ProtocolType.Sealevel
+    ) {
+      assert(
+        params.fromToken !== NATIVE_TOKEN_ADDRESS &&
+          params.fromToken !== PublicKey.default.toBase58(),
+        'SwapsXyzBridge does not support native SOL inputs; use an SPL token',
+      );
+    }
     if (params.fromAmount !== undefined && params.toAmount !== undefined) {
       throw new Error(
         'Cannot specify both fromAmount and toAmount - provide exactly one',
@@ -615,7 +628,7 @@ export class SwapsXyzBridge implements IExternalBridge {
       `SwapsXyzBridge.execute: no RPC URL configured for chainId ${fromChain}`,
     );
     if (metadata.protocol === ProtocolType.Sealevel) {
-      return this.executeSolana(quote, privateKeys, rpcUrl);
+      return this.executeSolana(quote, privateKeys, rpcUrl, options);
     }
     const privateKey = privateKeys[ProtocolType.Ethereum];
     assert(
@@ -716,6 +729,7 @@ export class SwapsXyzBridge implements IExternalBridge {
     quote: BridgeQuote,
     privateKeys: Partial<Record<ProtocolType, string>>,
     rpcUrl: string,
+    options?: BridgeExecutionOptions,
   ): Promise<BridgeTransferResult> {
     const { fromChain, toChain } = quote.requestParams;
     const rawKey = privateKeys[ProtocolType.Sealevel];
@@ -780,9 +794,8 @@ export class SwapsXyzBridge implements IExternalBridge {
     );
     const { blockhash } = await connection.getLatestBlockhash('confirmed');
     transaction.message.recentBlockhash = blockhash;
-    transaction.sign([keypair]);
     const simulation = await connection.simulateTransaction(transaction, {
-      sigVerify: true,
+      sigVerify: false,
       commitment: 'confirmed',
       minContextSlot: preAccounts.context.slot,
       accounts: {
@@ -816,9 +829,23 @@ export class SwapsXyzBridge implements IExternalBridge {
       fee.value,
     );
 
-    const signature = await connection.sendRawTransaction(
-      transaction.serialize(),
-      { skipPreflight: false, maxRetries: 5 },
+    validateDeBridgeSolanaInstructions(
+      { ...quote, fromAmount: BigInt(fresh.amountIn.amount) },
+      keypair.publicKey,
+      TransactionMessage.decompile(transaction.message, {
+        addressLookupTableAccounts: addressLookupTables,
+      }).instructions,
+    );
+    await options?.onTransferId?.(fresh.txId);
+    transaction.sign([keypair]);
+    const signature = await new TransactionSubmission(options).submit(
+      () =>
+        connection.sendRawTransaction(transaction.serialize(), {
+          skipPreflight: false,
+          maxRetries: 5,
+        }),
+      (signature) => signature,
+      bufferToBase58(Buffer.from(transaction.signatures[0])),
     );
     void this.registerIfRequired(fresh, signature);
     return {
@@ -1054,7 +1081,14 @@ export class SwapsXyzBridge implements IExternalBridge {
 
       if (!pre) continue;
       const preToken = decodeTokenAccount(pre.owner, pre.data);
-      if (!preToken?.owner.equals(signer)) continue;
+      if (!preToken) continue;
+      const signerOwnsAccount = preToken.owner.equals(signer);
+      const signerControlsAccount =
+        signerOwnsAccount ||
+        (preToken.delegateOption === 1 && preToken.delegate.equals(signer)) ||
+        (preToken.closeAuthorityOption === 1 &&
+          preToken.closeAuthority.equals(signer));
+      if (!signerControlsAccount) continue;
       assert(
         post,
         `SwapsXyzBridge.execute Solana transaction closes signer token account ${address.toBase58()}`,
@@ -1066,7 +1100,10 @@ export class SwapsXyzBridge implements IExternalBridge {
         `SwapsXyzBridge.execute Solana transaction changes signer token account ${address.toBase58()} into a non-token account`,
       );
       assert(
-        postToken.mint.equals(preToken.mint) &&
+        post.owner === pre.owner.toBase58() &&
+          post.executable === pre.executable &&
+          post.lamports >= pre.lamports &&
+          postToken.mint.equals(preToken.mint) &&
           postToken.owner.equals(preToken.owner) &&
           postToken.delegateOption === preToken.delegateOption &&
           postToken.delegate.equals(preToken.delegate) &&
@@ -1096,7 +1133,7 @@ export class SwapsXyzBridge implements IExternalBridge {
         preToken.amount > postToken.amount
           ? preToken.amount - postToken.amount
           : 0n;
-      if (preToken.mint.equals(sourceMint)) {
+      if (signerOwnsAccount && preToken.mint.equals(sourceMint)) {
         sourceDebit += debit;
       } else {
         assert(
@@ -1118,6 +1155,10 @@ export class SwapsXyzBridge implements IExternalBridge {
       `SwapsXyzBridge.execute Solana native spend ${signerLamportDebit} exceeds maximum ${maxLamportDebit}`,
     );
 
+    assert(
+      sourceDebit <= quote.fromAmount,
+      'SwapsXyzBridge.execute Solana source-token debit exceeds accepted input cap',
+    );
     if (quote.requestParams.fromAmount !== undefined) {
       const expectedDebit = BigInt(response.amountIn.amount);
       assert(
