@@ -1,14 +1,18 @@
 import { checkbox, input } from '@inquirer/prompts';
 import path from 'path';
+import { pino } from 'pino';
 
 import {
   LogFormat,
   LogLevel,
+  assert,
   configureRootLogger,
   rootLogger,
+  setRootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../../src/config/deploy-environment.js';
+import { readRebalancerConfig } from '../../src/rebalancer/config.js';
 import {
   RebalancerHelmManager,
   getDeployedRebalancerWarpRouteIds,
@@ -16,6 +20,7 @@ import {
 import { REBALANCER_HELM_RELEASE_PREFIX } from '../../src/utils/consts.js';
 import { validateRegistryCommit } from '../../src/utils/git.js';
 import { HelmCommand } from '../../src/utils/helm.js';
+import { getInfraPath } from '../../src/utils/utils.js';
 import {
   assertCorrectKubeContext,
   filterOrphanedWarpRouteIds,
@@ -37,13 +42,32 @@ async function main() {
     environment,
     warpRouteId,
     metrics,
+    monitorOnly,
+    render,
     registryCommit: registryCommitArg,
     yes: skipConfirmation,
   } = await withYes(
-    withMetrics(withRegistryCommit(withWarpRouteId(getArgs()))),
+    withMetrics(withRegistryCommit(withWarpRouteId(getArgs())))
+      .option('monitor-only', {
+        type: 'boolean',
+        default: false,
+        describe:
+          'Poll balances without constructing executors or submitting transactions',
+      })
+      .option('render', {
+        type: 'boolean',
+        default: false,
+        describe:
+          'Render the manifest locally without changing cluster resources',
+      }),
   ).parse();
 
-  await assertCorrectKubeContext(getEnvironmentConfig(environment));
+  if (render) {
+    setRootLogger(pino({ level: 'info' }, process.stderr));
+    assert(warpRouteId, '--render requires --warp-route-id');
+  } else {
+    await assertCorrectKubeContext(getEnvironmentConfig(environment));
+  }
 
   let warpRouteIds: string[];
   if (warpRouteId) {
@@ -109,10 +133,22 @@ async function main() {
   const validatedCommits = new Set<string>();
 
   const deployRebalancer = async (warpRouteId: string) => {
+    const relativeConfigPath = path.join(
+      getRebalancerConfigPathPrefix(environment),
+      `${warpRouteId}-config.yaml`,
+    );
+    const { deployment } = readRebalancerConfig(
+      path.join(getInfraPath(), relativeConfigPath),
+    );
     let registryCommit: string;
-    if (registryCommitArg) {
-      registryCommit = registryCommitArg;
+    const configuredCommit = registryCommitArg ?? deployment.registryCommit;
+    if (configuredCommit) {
+      registryCommit = configuredCommit;
     } else {
+      assert(
+        !render,
+        '--render requires --registry-commit or deployment.registryCommit',
+      );
       const defaultRegistryCommit =
         await RebalancerHelmManager.getDeployedRegistryCommit(
           warpRouteId,
@@ -129,17 +165,10 @@ async function main() {
       }
     }
 
-    if (!validatedCommits.has(registryCommit)) {
+    if (!render && !validatedCommits.has(registryCommit)) {
       await validateRegistryCommit(registryCommit);
       validatedCommits.add(registryCommit);
     }
-
-    // Build path for config file - relative for local checks
-    const configFileName = `${warpRouteId}-config.yaml`;
-    const relativeConfigPath = path.join(
-      getRebalancerConfigPathPrefix(environment),
-      configFileName,
-    );
 
     const containerConfigPath = `/hyperlane-monorepo/typescript/infra/${relativeConfigPath}`;
 
@@ -151,11 +180,17 @@ async function main() {
       containerConfigPath,
       'weighted',
       metrics,
+      monitorOnly,
     );
 
     await helmManager.runPreflightChecks(relativeConfigPath);
 
-    await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade);
+    if (render) {
+      process.stdout.write(await helmManager.renderManifest());
+    } else {
+      await helmManager.prepareForDeployment();
+      await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade);
+    }
   };
 
   // TODO: Uninstall any stale rebalancer releases.
@@ -166,6 +201,7 @@ async function main() {
   }
 }
 
-main()
-  .then(() => rootLogger.info('Deploy successful!'))
-  .catch(rootLogger.error);
+main().catch((error) => {
+  rootLogger.error(error);
+  process.exitCode = 1;
+});

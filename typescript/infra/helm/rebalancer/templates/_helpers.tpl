@@ -67,7 +67,7 @@ The rebalancer container
 */ -}}
 {{- define "hyperlane.rebalancer.container" }}
 - name: rebalancer
-  image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+  image: {{ .Values.image.repository }}{{ if .Values.image.digest }}@{{ .Values.image.digest }}{{ else }}:{{ .Values.image.tag }}{{ end }}
   imagePullPolicy: IfNotPresent
   resources:
     requests:
@@ -109,7 +109,7 @@ The rebalancer container
   - name: WITH_METRICS
     value: "true"
   - name: MONITOR_ONLY
-    value: "false"
+    value: {{ .Values.hyperlane.monitorOnly | default false | quote }}
   envFrom:
   - secretRef:
       name: {{ include "hyperlane.fullname" . }}-secret
