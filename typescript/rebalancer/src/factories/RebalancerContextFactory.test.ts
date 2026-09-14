@@ -4,6 +4,7 @@ import Sinon from 'sinon';
 
 import { type IRegistry, RegistryType } from '@hyperlane-xyz/registry';
 import {
+  ChainStatus,
   MultiProtocolProvider,
   MultiProvider,
   TokenStandard,
@@ -112,7 +113,7 @@ function createMockMultiProvider(chains: ChainDef[]) {
     chains.map((c) => [c.name, c.protocol]),
   );
 
-  const multiProvider = Sinon.createStubInstance(MultiProvider);
+  const multiProvider = Sinon.stub(new MultiProvider({}));
   multiProvider.getProtocol.callsFake((chain) => {
     const protocol = protocolMap[String(chain)];
     assert(protocol, `No protocol in mock for chain ${chain}`);
@@ -189,6 +190,32 @@ describe('RebalancerContextFactory', () => {
       const factory = await factoryWithBridges();
       expect(await factory['buildExternalBridgeRegistry']()).to.deep.equal({});
     });
+
+    it('excludes disabled metadata with a duplicate bridge chain ID', async () => {
+      const factory = await factoryWithBridges({
+        lifi: { integrator: 'test-rebalancer' },
+      });
+      const ethereum = {
+        name: 'ethereum',
+        protocol: ProtocolType.Ethereum,
+        chainId: 1,
+        domainId: 1,
+        rpcUrls: [{ http: 'https://rpc.example.invalid' }],
+      };
+      Object.assign(factory['multiProvider'].metadata, {
+        ethereum,
+        deprecatedethereum: {
+          ...ethereum,
+          name: 'deprecatedethereum',
+          domainId: 2,
+          availability: { status: ChainStatus.Disabled },
+        },
+      });
+      const registry = await factory['buildExternalBridgeRegistry']();
+      expect(registry.lifi)
+        .to.have.nested.property('config.chainMetadata')
+        .that.deep.equals({ ethereum });
+    }).timeout(10_000);
 
     it('awaits the configured LiFi bridge before returning the registry', async () => {
       const factory = await factoryWithBridges({
