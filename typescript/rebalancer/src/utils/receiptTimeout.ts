@@ -1,4 +1,6 @@
-import { assert, timeout } from '@hyperlane-xyz/utils';
+import type { providers } from 'ethers';
+
+import { assert } from '@hyperlane-xyz/utils';
 
 /** Default deadline for waiting for a single on-chain transaction receipt. */
 export const DEFAULT_RECEIPT_TIMEOUT_MS = 5 * 60 * 1000;
@@ -38,24 +40,40 @@ export function isReceiptWaitTimeoutError(
   return error instanceof ReceiptWaitTimeoutError;
 }
 
-export async function waitForReceiptWithTimeout<T>(
-  receiptPromise: Promise<T>,
+/** Own the provider's bounded waiter so its transaction listener is removed on timeout. */
+export async function waitForReceiptWithTimeout(
+  waiter:
+    | Pick<providers.Provider, 'waitForTransaction'>
+    | Pick<providers.TransactionResponse, 'wait'>,
   options: ReceiptWaitTimeoutOptions,
-): Promise<T> {
+): Promise<providers.TransactionReceipt> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_RECEIPT_TIMEOUT_MS;
   assert(timeoutMs > 0, 'Receipt timeout must be positive');
-  const timeoutMarker = [
-    '__receipt_wait_timeout__',
-    options.role ?? 'primary',
-    options.operation,
-    options.txHash,
-    timeoutMs,
-  ].join(':');
-
   try {
-    return await timeout(receiptPromise, timeoutMs, timeoutMarker);
+    // ethers v5 implements wait(confirmations, timeout), although its public
+    // TransactionResponse type omits timeout. Use that bounded waiter to keep
+    // replacement detection. TronTransactionResponse implements the same form.
+    const receipt =
+      'wait' in waiter
+        ? await (
+            waiter.wait as (
+              confirmations: number,
+              timeout: number,
+            ) => Promise<providers.TransactionReceipt>
+          ).call(waiter, 1, timeoutMs)
+        : await waiter.waitForTransaction(options.txHash, 1, timeoutMs);
+    assert(
+      receipt.status === 1,
+      `${options.operation} transaction failed: ${options.txHash}`,
+    );
+    return receipt;
   } catch (error) {
-    if (error instanceof Error && error.message === timeoutMarker) {
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'TIMEOUT'
+    ) {
       throw new ReceiptWaitTimeoutError({ ...options, timeoutMs });
     }
     throw error;

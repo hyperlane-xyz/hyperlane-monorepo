@@ -1,7 +1,23 @@
 import type { Logger } from 'pino';
 
 import type { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  type TransactionSubmissionOptions,
+} from '@hyperlane-xyz/utils';
+
+export interface PendingApproval {
+  txHash?: string;
+  token?: string;
+  spender?: string;
+}
+
+export interface BridgeExecutionOptions extends TransactionSubmissionOptions {
+  /** Approval identity is separate from the bridge's source transaction. */
+  onApproval?: (approval: PendingApproval | undefined) => void | Promise<void>;
+  /** Provider identity is recorded before source submission whenever available. */
+  onTransferId?: (transferId: string) => void | Promise<void>;
+}
 
 import type { ExternalBridgeType } from '../config/types.js';
 
@@ -90,7 +106,7 @@ export interface IExternalBridge {
 
   /**
    * Execute a bridge transfer using a previously obtained quote.
-   * Callers must persist the returned identity and poll getStatus() before
+   * Callers must record the returned identity and poll getStatus() before
    * treating the cross-chain transfer as settled.
    * @param quote - Quote obtained from quote()
    * @param privateKeys - Private keys keyed by ProtocolType (e.g., { [ProtocolType.Ethereum]: '0x...' })
@@ -98,6 +114,7 @@ export interface IExternalBridge {
   execute(
     quote: BridgeQuote,
     privateKeys: Partial<Record<ProtocolType, string>>,
+    options?: BridgeExecutionOptions,
   ): Promise<BridgeTransferResult>;
 
   /**
