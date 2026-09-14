@@ -1,14 +1,12 @@
 import assert from 'node:assert/strict';
 import { it } from 'node:test';
 
-import { Module } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
+import Fastify from 'fastify';
 
 process.env.DATABASE_URL ??= 'postgresql://unused:unused@localhost/unused';
 
 void it('serves current usage and limits from /metrics', async () => {
   const {
-    MetricsController,
     metricsRegistry,
     setDatabaseMetricsProvider,
     setWebSocketMetricsProvider,
@@ -148,21 +146,18 @@ void it('serves current usage and limits from /metrics', async () => {
   );
   assert.match(output, /hyperlane_scraper_proxy_process_cpu/);
 
-  @Module({ controllers: [MetricsController] })
-  class MetricsTestModule {}
-  const app = await NestFactory.create(MetricsTestModule, { logger: false });
+  const { registerMetricsRoute } = await import('./module.js');
+  const app = Fastify({ logger: false });
+  registerMetricsRoute(app);
   try {
-    const server = await app.listen(0, '127.0.0.1');
-    const address = server.address();
-    assert(address && typeof address !== 'string');
-    const response = await fetch(`http://127.0.0.1:${address.port}/metrics`);
-    assert.equal(response.status, 200);
-    const contentType = response.headers.get('content-type');
+    const response = await app.inject({ method: 'GET', url: '/metrics' });
+    assert.equal(response.statusCode, 200);
+    const contentType = response.headers['content-type'];
     assert(contentType?.includes('text/plain'));
     assert(contentType.includes('version=0.0.4'));
     assert(contentType.includes('charset=utf-8'));
     assert.match(
-      await response.text(),
+      response.body,
       /hyperlane_scraper_proxy_websocket_connections\{route="messages"\} 4/,
     );
   } finally {

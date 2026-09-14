@@ -47,9 +47,12 @@ catalog:
   zod: ^4.5.4
 
   # HTTP
+  '@fastify/cors': ^11.3.0
   express-rate-limit: ^8.3.1
   '@as-integrations/express5': ^1.1.2
   '@apollo/server': ^5.5.0
+  fastify: ^5.12.3
+  mercurius: ^16.10.0
   '@nestjs/apollo': 13.2.3
   '@nestjs/common': 11.1.28
   '@nestjs/core': 11.1.28

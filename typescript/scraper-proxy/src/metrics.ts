@@ -1,4 +1,3 @@
-import { Controller, Get, Header } from '@nestjs/common';
 import {
   collectDefaultMetrics,
   Counter,
@@ -91,7 +90,7 @@ export const graphqlRequests = new Counter({
 });
 
 export const graphqlErrors = new Counter({
-  help: 'GraphQL errors returned by Apollo.',
+  help: 'GraphQL errors returned to clients.',
   name: `${PREFIX}graphql_errors_total`,
   registers: [metricsRegistry],
 });
@@ -450,12 +449,3 @@ snapshotGauge(
   'Maximum ws bufferedAmount allowed for one client.',
   (gauge, snapshot) => gauge.set(snapshot.limits.socketBufferedBytes),
 );
-
-@Controller('metrics')
-export class MetricsController {
-  @Get()
-  @Header('Content-Type', metricsRegistry.contentType)
-  getMetrics(): Promise<string> {
-    return metricsRegistry.metrics();
-  }
-}

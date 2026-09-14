@@ -1,14 +1,9 @@
-import {
-  Injectable,
-  Logger,
-  type OnModuleDestroy,
-  type OnModuleInit,
-} from '@nestjs/common';
 import { formatError } from '@hyperlane-xyz/utils/errors';
 import { assert } from '@hyperlane-xyz/utils/validation';
 import pg from 'pg';
 
 import { config } from '../config.js';
+import { Logger } from '../logger.js';
 import {
   databaseQueries,
   DatabaseQueryRole,
@@ -90,8 +85,7 @@ const EVENT_STREAM_SCHEMA_CHECKS: readonly (keyof EventStreamSchema)[] = [
   'range_index_exists',
 ];
 
-@Injectable()
-export class DbService implements OnModuleDestroy, OnModuleInit {
+export class DbService {
   private readonly logger = new Logger(DbService.name);
   private readonly listeners = new Set<pg.Client>();
   private mainPool?: pg.Pool;

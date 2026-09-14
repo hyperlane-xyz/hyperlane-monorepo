@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { Socket } from 'node:net';
 import { it } from 'node:test';
 
-import { Logger } from '@nestjs/common';
 import pg from 'pg';
+
+import { Logger } from '../logger.js';
 
 process.env.DATABASE_URL ??= 'postgresql://scraper-proxy-test';
 process.env.DATABASE_READ_REPLICA_URL ??=

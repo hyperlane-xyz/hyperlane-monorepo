@@ -2,12 +2,12 @@ import type { IncomingMessage, Server } from 'node:http';
 import { isIP } from 'node:net';
 import type { Duplex } from 'node:stream';
 
-import { Logger } from '@nestjs/common';
 import { formatError } from '@hyperlane-xyz/utils/errors';
 import { WebSocket, WebSocketServer } from 'ws';
 
 import { config } from '../config.js';
 import type { DbService } from '../db/db.service.js';
+import { Logger } from '../logger.js';
 import {
   type WebSocketMetricsSnapshot,
   websocketCatchUps,

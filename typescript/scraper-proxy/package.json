@@ -18,6 +18,9 @@
   "types": "dist/main.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "benchmark:admission-load": "tsx src/scripts/benchmark-admission-load.ts",
+    "benchmark:graphql-engines": "tsx src/scripts/benchmark-graphql-engines.ts",
+    "benchmark:observed-load": "tsx src/scripts/benchmark-observed-load.ts",
     "bundle": "rm -rf ./bundle && ncc build ./dist/main.js -o bundle && mkdir -p bundle/graphql && cp src/graphql/scraperdb-schema.graphql bundle/graphql/ && node ../../scripts/ncc.post-bundle.mjs",
     "clean": "rm -rf ./dist",
     "debug:websocket": "tsx src/scripts/debug-event-websocket.ts",
@@ -30,24 +33,19 @@
     "test:ci": "pnpm test"
   },
   "dependencies": {
-    "@apollo/server": "catalog:",
-    "@as-integrations/express5": "catalog:",
+    "@fastify/cors": "catalog:",
     "@hyperlane-xyz/utils": "workspace:^",
-    "@nestjs/apollo": "catalog:",
-    "@nestjs/common": "catalog:",
-    "@nestjs/core": "catalog:",
-    "@nestjs/graphql": "catalog:",
-    "@nestjs/platform-express": "catalog:",
     "dotenv-flow": "^4.1.0",
+    "fastify": "catalog:",
     "graphql": "catalog:",
+    "mercurius": "catalog:",
     "pg": "^8.17.2",
     "prom-client": "catalog:",
-    "reflect-metadata": "catalog:",
-    "rxjs": "catalog:",
     "ws": "^8.21.1",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@apollo/server": "catalog:",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/node": "catalog:",
     "@types/pg": "^8.16.0",
