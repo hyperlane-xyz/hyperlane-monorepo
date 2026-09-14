@@ -155,9 +155,6 @@ catalogs:
     '@google-cloud/pino-logging-gcp-config':
       specifier: ^1.3.5
       version: 1.3.5
-    '@hyperlane-xyz/registry':
-      specifier: 26.1.0
-      version: 26.1.0
     '@inquirer/prompts':
       specifier: 3.3.2
       version: 3.3.2
@@ -721,7 +718,7 @@ importers:
         specifier: workspace:*
         version: link:../metrics
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -834,7 +831,7 @@ importers:
         version: 0.32.4
       '@cosmjs/stargate':
         specifier: 'catalog:'
-        version: 0.32.4(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@5.0.10)
+        version: 0.32.4(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@ethersproject/abi':
         specifier: '*'
         version: 5.8.0
@@ -843,7 +840,7 @@ importers:
         version: 5.8.0
       '@ethersproject/providers':
         specifier: '*'
-        version: 5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+        version: 5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       '@hyperlane-xyz/aleo-sdk':
         specifier: workspace:*
         version: link:../aleo-sdk
@@ -872,7 +869,7 @@ importers:
         specifier: workspace:*
         version: link:../rebalancer
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/relayer':
         specifier: workspace:*
@@ -915,13 +912,13 @@ importers:
         version: 1.5.5
       '@solana/kit':
         specifier: 'catalog:'
-        version: 8.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@5.0.10)
+        version: 8.2.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6)
       '@solana/spl-token':
         specifier: 'catalog:'
-        version: 0.4.15(@solana/web3.js@1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@5.0.10)
+        version: 0.4.15(@solana/web3.js@1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6)
       '@solana/web3.js':
         specifier: 'catalog:'
-        version: 1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+        version: 1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       '@types/chai':
         specifier: 'catalog:'
         version: 4.3.20
@@ -966,7 +963,7 @@ importers:
         version: 5.6.2
       ethers:
         specifier: 'catalog:'
-        version: 5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+        version: 5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       execa:
         specifier: ^9.5.3
         version: 9.6.1
@@ -1005,7 +1002,7 @@ importers:
         version: '@typescript/typescript6@6.0.2'
       viem:
         specifier: 'catalog:'
-        version: 2.55.19(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@5.0.10)(zod@4.5.4)
+        version: 2.55.19(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(zod@4.5.4)
       yaml:
         specifier: 'catalog:'
         version: 2.4.5
@@ -1014,7 +1011,7 @@ importers:
         version: 17.7.3
       zksync-ethers:
         specifier: 'catalog:'
-        version: 5.11.2(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))
+        version: 5.11.2(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
       zod:
         specifier: 'catalog:'
         version: 4.5.4
@@ -1193,7 +1190,7 @@ importers:
         specifier: workspace:*
         version: link:../provider-sdk
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -1342,7 +1339,7 @@ importers:
         specifier: workspace:*
         version: link:../../solidity
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -1454,7 +1451,7 @@ importers:
         specifier: 'catalog:'
         version: 1.3.5(supports-color@8.1.1)
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -1599,7 +1596,7 @@ importers:
         specifier: workspace:*
         version: link:../rebalancer
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/relayer':
         specifier: workspace:*
@@ -1727,7 +1724,7 @@ importers:
         version: 2.2.3(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10))
       '@nomiclabs/hardhat-waffle':
         specifier: 'catalog:'
-        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@typescript/typescript6@6.0.2)(debug@4.4.3(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10))
+        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.8.0)(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@typescript/typescript6@6.0.2)(debug@4.4.3(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10))
       '@sqds/multisig':
         specifier: 2.1.4
         version: 2.1.4(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(supports-color@8.1.1)(utf-8-validate@5.0.10)
@@ -1813,7 +1810,7 @@ importers:
         specifier: workspace:*
         version: link:../metrics
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -2063,7 +2060,7 @@ importers:
         specifier: workspace:*
         version: link:../provider-sdk
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -2187,7 +2184,7 @@ importers:
         specifier: workspace:*
         version: link:../rebalancer
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -2257,7 +2254,7 @@ importers:
         specifier: workspace:*
         version: link:../metrics
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -2295,7 +2292,7 @@ importers:
         version: 2.2.3(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10))
       '@nomiclabs/hardhat-waffle':
         specifier: 'catalog:'
-        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@typescript/typescript6@6.0.2)(debug@4.4.3(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10))
+        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.8.0)(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@typescript/typescript6@6.0.2)(debug@4.4.3(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10))
       '@types/chai':
         specifier: 'catalog:'
         version: 4.3.20
@@ -2558,7 +2555,7 @@ importers:
         version: 2.2.3(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10))
       '@nomiclabs/hardhat-waffle':
         specifier: 'catalog:'
-        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@typescript/typescript6@6.0.2)(debug@4.4.3(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10))
+        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.8.0)(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@typescript/typescript6@6.0.2)(debug@4.4.3(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10))
       '@types/chai':
         specifier: 'catalog:'
         version: 4.3.20
@@ -2763,7 +2760,7 @@ importers:
         specifier: workspace:*
         version: link:../provider-sdk
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/utils':
         specifier: workspace:*
@@ -2923,7 +2920,7 @@ importers:
         specifier: workspace:*
         version: link:../metrics
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -3123,7 +3120,7 @@ importers:
         specifier: ^11.13.0
         version: 11.14.1(@emotion/react@11.14.0(@types/react@18.3.27)(react@18.3.1)(supports-color@8.1.1))(@types/react@18.3.27)(react@18.3.1)(supports-color@8.1.1)
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
@@ -20369,6 +20366,16 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
+  '@cosmjs/socket@0.32.4(bufferutil@4.1.0)(utf-8-validate@6.0.6)':
+    dependencies:
+      '@cosmjs/stream': 0.32.4
+      isomorphic-ws: 4.0.1(ws@7.5.13(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+      ws: 7.5.13(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      xstream: 11.14.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
   '@cosmjs/socket@0.36.2(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
     dependencies:
       '@cosmjs/stream': 0.36.2
@@ -20388,6 +20395,24 @@ snapshots:
       '@cosmjs/proto-signing': 0.32.4
       '@cosmjs/stream': 0.32.4
       '@cosmjs/tendermint-rpc': 0.32.4(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@5.0.10)
+      '@cosmjs/utils': 0.32.4
+      cosmjs-types: 0.9.0
+      xstream: 11.14.0
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@cosmjs/stargate@0.32.4(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)':
+    dependencies:
+      '@confio/ics23': 0.6.8
+      '@cosmjs/amino': 0.32.4
+      '@cosmjs/encoding': 0.32.4
+      '@cosmjs/math': 0.32.4
+      '@cosmjs/proto-signing': 0.32.4
+      '@cosmjs/stream': 0.32.4
+      '@cosmjs/tendermint-rpc': 0.32.4(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@cosmjs/utils': 0.32.4
       cosmjs-types: 0.9.0
       xstream: 11.14.0
@@ -20426,6 +20451,24 @@ snapshots:
       '@cosmjs/json-rpc': 0.32.4
       '@cosmjs/math': 0.32.4
       '@cosmjs/socket': 0.32.4(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@cosmjs/stream': 0.32.4
+      '@cosmjs/utils': 0.32.4
+      axios: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      readonly-date: 1.0.0
+      xstream: 11.14.0
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@cosmjs/tendermint-rpc@0.32.4(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)':
+    dependencies:
+      '@cosmjs/crypto': 0.32.4
+      '@cosmjs/encoding': 0.32.4
+      '@cosmjs/json-rpc': 0.32.4
+      '@cosmjs/math': 0.32.4
+      '@cosmjs/socket': 0.32.4(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       '@cosmjs/stream': 0.32.4
       '@cosmjs/utils': 0.32.4
       axios: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
@@ -23056,7 +23099,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@nomiclabs/hardhat-waffle@2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@typescript/typescript6@6.0.2)(debug@4.4.3(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10))':
+  '@nomiclabs/hardhat-waffle@2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.8.0)(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@typescript/typescript6@6.0.2)(debug@4.4.3(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(supports-color@8.1.1))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10))':
     dependencies:
       '@nomiclabs/hardhat-ethers': 2.2.3(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(hardhat@2.29.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@26.3.0)(@typescript/typescript6@6.0.2))(utf-8-validate@5.0.10))
       '@types/sinon-chai': 3.2.12
@@ -25373,6 +25416,18 @@ snapshots:
       - typescript
       - utf-8-validate
 
+  '@solana/buffer-layout-utils@0.3.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6)':
+    dependencies:
+      '@solana/buffer-layout': 4.0.1
+      '@solana/web3.js': 1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      bigint-buffer: 1.1.5(patch_hash=cd06d79b9cff13280e1a45a0f15abf67bc4ada4d7ad42bdfe120982ffa4340a2)
+      bignumber.js: 9.3.1
+    transitivePeerDependencies:
+      - bufferutil
+      - encoding
+      - typescript
+      - utf-8-validate
+
   '@solana/buffer-layout@4.0.1':
     dependencies:
       buffer: 6.0.3
@@ -26576,10 +26631,26 @@ snapshots:
       - fastestsmallesttextencoderdecoder
       - typescript
 
+  '@solana/spl-token-group@0.0.7(@solana/web3.js@1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)':
+    dependencies:
+      '@solana/codecs': 2.0.0-rc.1(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)
+      '@solana/web3.js': 1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+    transitivePeerDependencies:
+      - fastestsmallesttextencoderdecoder
+      - typescript
+
   '@solana/spl-token-metadata@0.1.6(@solana/web3.js@1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)':
     dependencies:
       '@solana/codecs': 2.0.0-rc.1(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)
       '@solana/web3.js': 1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+    transitivePeerDependencies:
+      - fastestsmallesttextencoderdecoder
+      - typescript
+
+  '@solana/spl-token-metadata@0.1.6(@solana/web3.js@1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)':
+    dependencies:
+      '@solana/codecs': 2.0.0-rc.1(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)
+      '@solana/web3.js': 1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     transitivePeerDependencies:
       - fastestsmallesttextencoderdecoder
       - typescript
@@ -26605,6 +26676,21 @@ snapshots:
       '@solana/spl-token-group': 0.0.7(@solana/web3.js@1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)
       '@solana/spl-token-metadata': 0.1.6(@solana/web3.js@1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)
       '@solana/web3.js': 1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      buffer: 6.0.3
+    transitivePeerDependencies:
+      - bufferutil
+      - encoding
+      - fastestsmallesttextencoderdecoder
+      - typescript
+      - utf-8-validate
+
+  '@solana/spl-token@0.4.15(@solana/web3.js@1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6)':
+    dependencies:
+      '@solana/buffer-layout': 4.0.1
+      '@solana/buffer-layout-utils': 0.3.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      '@solana/spl-token-group': 0.0.7(@solana/web3.js@1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)
+      '@solana/spl-token-metadata': 0.1.6(@solana/web3.js@1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)
+      '@solana/web3.js': 1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       buffer: 6.0.3
     transitivePeerDependencies:
       - bufferutil
@@ -26986,6 +27072,29 @@ snapshots:
       buffer: 6.0.3
       fast-stable-stringify: 1.0.0
       jayson: 4.3.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      node-fetch: 2.7.0(patch_hash=59af5fd5e6879432f6c8aaafe72ade0e018951d8576db2aedda3d59e5a7bc024)
+      rpc-websockets: 9.3.9
+      superstruct: 2.0.2
+    transitivePeerDependencies:
+      - bufferutil
+      - encoding
+      - typescript
+      - utf-8-validate
+
+  '@solana/web3.js@1.99.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6)':
+    dependencies:
+      '@babel/runtime': 7.29.7
+      '@noble/curves': 1.9.7
+      '@noble/hashes': 1.8.0
+      '@solana/buffer-layout': 4.0.1
+      '@solana/codecs-numbers': 5.5.1(@typescript/typescript6@6.0.2)
+      agentkeepalive: 4.6.0
+      bn.js: 5.2.5
+      borsh: 0.7.0
+      bs58: 4.0.1
+      buffer: 6.0.3
+      fast-stable-stringify: 1.0.0
+      jayson: 4.3.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       node-fetch: 2.7.0(patch_hash=59af5fd5e6879432f6c8aaafe72ade0e018951d8576db2aedda3d59e5a7bc024)
       rpc-websockets: 9.3.9
       superstruct: 2.0.2
@@ -34187,6 +34296,10 @@ snapshots:
     dependencies:
       ws: 7.5.13(bufferutil@4.1.0)(utf-8-validate@5.0.10)
 
+  isomorphic-ws@4.0.1(ws@7.5.13(bufferutil@4.1.0)(utf-8-validate@6.0.6)):
+    dependencies:
+      ws: 7.5.13(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+
   isows@1.0.6(ws@8.18.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)):
     dependencies:
       ws: 8.18.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -34268,6 +34381,24 @@ snapshots:
       stream-json: 1.9.1
       uuid: 8.3.2
       ws: 7.5.13(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  jayson@4.3.0(bufferutil@4.1.0)(utf-8-validate@6.0.6):
+    dependencies:
+      '@types/connect': 3.4.38
+      '@types/node': 12.20.55
+      '@types/ws': 7.4.7
+      commander: 2.20.3
+      delay: 5.0.0
+      es6-promisify: 5.0.0
+      eyes: 0.1.8
+      isomorphic-ws: 4.0.1(ws@7.5.13(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+      json-stringify-safe: 5.0.1
+      stream-json: 1.9.1
+      uuid: 8.3.2
+      ws: 7.5.13(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -38189,7 +38320,7 @@ snapshots:
       graphql: 16.14.2
       iterall: 1.3.0
       symbol-observable: 1.2.0
-      ws: 7.5.13(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      ws: 7.5.13(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -39672,6 +39803,11 @@ snapshots:
       bufferutil: 4.1.0
       utf-8-validate: 5.0.10
 
+  ws@7.5.13(bufferutil@4.1.0)(utf-8-validate@6.0.6):
+    optionalDependencies:
+      bufferutil: 4.1.0
+      utf-8-validate: 6.0.6
+
   ws@8.17.1(bufferutil@4.1.0)(utf-8-validate@5.0.10):
     optionalDependencies:
       bufferutil: 4.1.0
@@ -39858,6 +39994,10 @@ snapshots:
   zksync-ethers@5.11.2(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)):
     dependencies:
       ethers: 5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+
+  zksync-ethers@5.11.2(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)):
+    dependencies:
+      ethers: 5.8.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
 
   zod@3.22.3: {}
 
