@@ -1,20 +1,39 @@
-import { Connection, Keypair, VersionedTransaction } from '@solana/web3.js';
+import {
+  Connection,
+  Keypair,
+  TransactionMessage,
+  VersionedTransaction,
+} from '@solana/web3.js';
 import { ethers } from 'ethers';
 import type { Logger } from 'pino';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
+import {
+  type ChainMap,
+  type ChainMetadata,
+  submitEvmLikeTransaction,
+} from '@hyperlane-xyz/sdk';
 import { TronWallet } from '@hyperlane-xyz/tron-sdk/runtime';
-import { ProtocolType, addressToBytesTron, assert } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  TransactionSubmission,
+  addressToBytesTron,
+  assert,
+  bufferToBase58,
+} from '@hyperlane-xyz/utils';
 
 import type {
+  BridgeExecutionOptions,
   BridgeQuote,
   BridgeQuoteParams,
   BridgeTransferResult,
   BridgeTransferStatus,
   IExternalBridge,
 } from '../interfaces/IExternalBridge.js';
-import { waitForReceiptWithTimeout } from '../utils/receiptTimeout.js';
+import {
+  validateDeBridgeEvmTransaction,
+  validateDeBridgeSolanaInstructions,
+} from './deBridgeValidation.js';
 import { parseSolanaPrivateKey } from '../utils/solanaKeyParser.js';
 import { approveErc20IfNeeded } from './erc20Approve.js';
 import {
@@ -162,9 +181,20 @@ export class DeBridgeBridge implements IExternalBridge {
     };
   }
 
-  async execute(
+  execute(
     quote: BridgeQuote,
     privateKeys: Partial<Record<ProtocolType, string>>,
+    options?: BridgeExecutionOptions,
+  ): Promise<BridgeTransferResult> {
+    return new TransactionSubmission(options).run(() =>
+      this.executeOrder(quote, privateKeys, options),
+    );
+  }
+
+  private async executeOrder(
+    quote: BridgeQuote,
+    privateKeys: Partial<Record<ProtocolType, string>>,
+    options?: BridgeExecutionOptions,
   ): Promise<BridgeTransferResult> {
     assert(quote.tool === DEBRIDGE_TOOL, 'Quote was not created by deBridge');
     assert(quote.fromAmount > 0n, 'Quote fromAmount must be positive');
@@ -219,7 +249,7 @@ export class DeBridgeBridge implements IExternalBridge {
       dstChainTokenOutRecipient: recipientAddress,
       senderAddress,
       srcChainOrderAuthorityAddress: senderAddress,
-      srcChainRefundAddress: senderAddress,
+      srcAllowedCancelBeneficiary: senderAddress,
       dstChainOrderAuthorityAddress: recipientAddress,
       prependOperatingExpenses: 'false',
     });
@@ -252,9 +282,10 @@ export class DeBridgeBridge implements IExternalBridge {
           sourcePrivateKey,
           createTx,
           quote,
+          options,
         );
       case ProtocolType.Sealevel:
-        return this.executeSolana(sourcePrivateKey, createTx, quote);
+        return this.executeSolana(sourcePrivateKey, createTx, quote, options);
       default: {
         const exhaustiveProtocol: never = sourceProtocol;
         throw new Error(`Unsupported source protocol: ${exhaustiveProtocol}`);
@@ -322,6 +353,7 @@ export class DeBridgeBridge implements IExternalBridge {
     privateKey: string,
     createTx: DeBridgeCreateTxResponse,
     quote: BridgeQuote,
+    options?: BridgeExecutionOptions,
   ): Promise<BridgeTransferResult> {
     const { tx, fixFee, orderId } = createTx;
     assert(tx.to, 'deBridge create-tx response is missing tx.to');
@@ -355,17 +387,16 @@ export class DeBridgeBridge implements IExternalBridge {
       `deBridge transaction value ${tx.value} does not match expected ${expectedValue}`,
     );
 
+    validateDeBridgeEvmTransaction(quote, tx.to, tx.data);
+
     if (!isNativeToken) {
-      assert(
-        tokenAddress !== tx.to.toLowerCase(),
-        'deBridge transaction target cannot be the source token contract',
-      );
       await approveErc20IfNeeded(
         wallet,
         tokenAddress,
         tx.to,
         quote.fromAmount,
         this.logger,
+        { onApproval: options?.onApproval },
       );
     }
 
@@ -378,18 +409,15 @@ export class DeBridgeBridge implements IExternalBridge {
       },
       `Sending deBridge ${protocol} transaction`,
     );
-    const transaction = await wallet.sendTransaction({
-      to: tx.to,
-      data: tx.data,
-      value: ethers.BigNumber.from(tx.value),
-    });
-    const receipt = await waitForReceiptWithTimeout(transaction.wait(), {
-      txHash: transaction.hash,
-      operation: 'deBridge origin transaction',
-    });
-    assert(
-      receipt.status === 1,
-      `deBridge origin transaction failed: ${transaction.hash}`,
+    await options?.onTransferId?.(orderId);
+    const transaction = await submitEvmLikeTransaction(
+      wallet,
+      {
+        to: tx.to,
+        data: tx.data,
+        value: ethers.BigNumber.from(tx.value),
+      },
+      options,
     );
 
     return {
@@ -404,6 +432,7 @@ export class DeBridgeBridge implements IExternalBridge {
     privateKey: string,
     createTx: DeBridgeCreateTxResponse,
     quote: BridgeQuote,
+    options?: BridgeExecutionOptions,
   ): Promise<BridgeTransferResult> {
     const keypair = Keypair.fromSecretKey(parseSolanaPrivateKey(privateKey));
     const serialized = Buffer.from(createTx.tx.data.slice(2), 'hex');
@@ -420,19 +449,28 @@ export class DeBridgeBridge implements IExternalBridge {
     const connection = new Connection(
       this.getRpcUrl(quote.requestParams.fromChain),
     );
-    const { blockhash, lastValidBlockHeight } =
-      await connection.getLatestBlockhash();
+    const addressLookupTableAccounts = await Promise.all(
+      transaction.message.addressTableLookups.map(async (lookup) => {
+        const { value } = await connection.getAddressLookupTable(
+          lookup.accountKey,
+        );
+        assert(value, 'deBridge Solana address lookup table was not found');
+        return value;
+      }),
+    );
+    const { instructions } = TransactionMessage.decompile(transaction.message, {
+      addressLookupTableAccounts,
+    });
+    validateDeBridgeSolanaInstructions(quote, keypair.publicKey, instructions);
+    const { blockhash } = await connection.getLatestBlockhash();
     transaction.message.recentBlockhash = blockhash;
     transaction.sign([keypair]);
 
-    const signature = await connection.sendTransaction(transaction);
-    const confirmation = await connection.confirmTransaction(
-      { signature, blockhash, lastValidBlockHeight },
-      'confirmed',
-    );
-    assert(
-      confirmation.value.err === null,
-      `deBridge Solana transaction failed: ${JSON.stringify(confirmation.value.err)}`,
+    await options?.onTransferId?.(createTx.orderId);
+    const signature = await new TransactionSubmission(options).submit(
+      () => connection.sendTransaction(transaction),
+      (signature) => signature,
+      bufferToBase58(Buffer.from(transaction.signatures[0])),
     );
 
     return {
