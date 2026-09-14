@@ -104,8 +104,10 @@ async function main() {
     }
   }
 
-  const { validIds: validWarpRouteIds, orphanedIds } =
-    filterOrphanedWarpRouteIds(warpRouteIds);
+  // Explicit routes are validated against the selected registry revision in preflight.
+  const { validIds: validWarpRouteIds, orphanedIds } = warpRouteId
+    ? { validIds: warpRouteIds, orphanedIds: [] }
+    : filterOrphanedWarpRouteIds(warpRouteIds);
 
   if (orphanedIds.length > 0) {
     rootLogger.warn(
@@ -115,12 +117,6 @@ async function main() {
   }
 
   if (validWarpRouteIds.length === 0) {
-    if (warpRouteId && orphanedIds.includes(warpRouteId)) {
-      rootLogger.error(
-        `Warp route "${warpRouteId}" not found in registry. Verify the warp route ID is correct.`,
-      );
-      process.exit(1);
-    }
     rootLogger.info('No valid warp routes to deploy');
     process.exit(0);
   }
