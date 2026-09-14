@@ -1518,6 +1518,48 @@ describe('EvmWarpModule', async () => {
       expect(eqAddress(updatedConfig.feeHook, feeHookAddress)).to.be.true;
     });
 
+    it('rejects retaining a feeHook on unsupported token types before planning side effects', async () => {
+      const module = await EvmWarpModule.create({
+        chain,
+        config: {
+          ...baseConfig,
+          type: TokenType.collateral,
+          token: token.address,
+        },
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+      const readConfig = await module.read();
+
+      for (const type of [
+        TokenType.collateralFiat,
+        TokenType.collateralVault,
+        TokenType.collateralVaultRebase,
+        TokenType.XERC20,
+        TokenType.XERC20Lockbox,
+      ]) {
+        const actualConfig = {
+          ...readConfig,
+          type,
+          token: token.address,
+          feeHook: randomAddress(),
+        } satisfies DerivedTokenRouterConfig;
+        const expectedConfig: HypTokenRouterConfig = {
+          ...baseConfig,
+          type,
+          token: token.address,
+        };
+        const readStub = sinon.stub(module, 'read').resolves(actualConfig);
+        const nonceBefore = await signer.getTransactionCount();
+
+        await expect(module.update(expectedConfig)).to.be.rejectedWith(
+          `Fee hooks are not supported for token type ${type} on ${chain}`,
+        );
+        expect(await signer.getTransactionCount()).to.equal(nonceBefore);
+        readStub.restore();
+      }
+    });
+
     for (const tokenType of movableCollateralTypes) {
       it(`should add a new rebalancer on the deployed token if it is of type "${tokenType}"`, async () => {
         const initialRebalancer = randomAddress();

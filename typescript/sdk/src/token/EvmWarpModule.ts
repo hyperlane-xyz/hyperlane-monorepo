@@ -132,6 +132,7 @@ import {
   PredicateWrapperConfig,
   PredicateWrapperConfigSchema,
   VERSION_ERROR_MESSAGE,
+  assertFeeHookSupported,
   assertTokenFeeUpgradeSupported,
   contractVersionMatchesDependency,
   derivedHookAddress,
@@ -492,6 +493,11 @@ export class EvmWarpModule extends HyperlaneModule<
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
     // Validate before planning can deploy fee or implementation contracts.
+    assertFeeHookSupported(
+      expectedConfig,
+      this.chainName,
+      actualConfig.feeHook,
+    );
     assertTokenFeeUpgradeSupported(
       expectedConfig,
       actualConfig.contractVersion,

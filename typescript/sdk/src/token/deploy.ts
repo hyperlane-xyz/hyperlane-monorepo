@@ -79,6 +79,7 @@ import {
   PredicateWrapperConfig,
   OftTokenConfig,
   WarpRouteDeployConfig,
+  assertFeeHookSupported,
   assertTokenFeeDeploySupported,
   assertTimelockConfigHasNoProxyAdminOwnerOverride,
   isAtomicLocalRebalancingBridgeTokenConfig,
@@ -962,6 +963,7 @@ abstract class TokenDeployer<
     for (const [chain, config] of Object.entries(configMap)) {
       assertTimelockConfigHasNoProxyAdminOwnerOverride(config, chain);
       assertTokenFeeDeploySupported(config, chain);
+      assertFeeHookSupported(config, chain);
     }
 
     // Fail fast if any chain requires a predicate wrapper but lacks the factory.
