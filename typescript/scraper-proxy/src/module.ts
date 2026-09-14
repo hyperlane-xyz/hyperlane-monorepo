@@ -2,11 +2,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import cors from '@fastify/cors';
+import { rootLogger } from '@hyperlane-xyz/utils';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import mercurius, { type MercuriusOptions } from 'mercurius';
 
 import { config } from './config.js';
-import { Logger } from './logger.js';
 import {
   graphqlActiveRequestLimit,
   graphqlActiveRequests,
@@ -50,7 +50,7 @@ type Stats = {
   totalMs: number;
 };
 
-const logger = new Logger('GraphQL');
+const logger = rootLogger.child({ module: 'GraphQL' });
 const MAX_REQUEST_BYTES = 100 * 1_024;
 const CSRF_HEADERS = ['x-apollo-operation-name', 'apollo-require-preflight'];
 const CSRF_ERROR_PREFIX =
@@ -67,7 +67,7 @@ graphqlActiveRequestLimit.set(config.GRAPHQL_MAX_ACTIVE_REQUESTS);
 setInterval(() => {
   const current = stats;
   stats = newStats();
-  logger.log(
+  logger.info(
     `graphql stats requests=${current.requests} rejected=${current.rejected} errors=${current.errors} status4xx=${current.status4xx} status5xx=${current.status5xx} avgMs=${current.requests ? Math.round(current.totalMs / current.requests) : 0} maxMs=${current.maxMs}`,
   );
 }, 60_000).unref();
@@ -195,7 +195,7 @@ export async function createScraperProxyApp(
       allowedContentTypes: ['application/json', 'application/graphql'],
       requiredHeaders: CSRF_HEADERS,
     },
-    errorFormatter: apolloCompatibleErrorFormatter,
+    errorFormatter: compatibleErrorFormatter,
     graphiql: false,
     ide: false,
     jit:
@@ -217,7 +217,7 @@ export async function createScraperProxyApp(
   return app;
 }
 
-const apolloCompatibleErrorFormatter: NonNullable<
+const compatibleErrorFormatter: NonNullable<
   MercuriusOptions['errorFormatter']
 > = (execution, context) => {
   const formatted = mercurius.defaultErrorFormatter(execution, context);
@@ -227,7 +227,7 @@ const apolloCompatibleErrorFormatter: NonNullable<
       ...formatted.response,
       errors: formatted.response.errors?.map((error) => {
         if (error.extensions?.code) return error;
-        const code = apolloErrorCode(formatted.statusCode, error.message);
+        const code = graphqlErrorCode(formatted.statusCode, error.message);
         return code
           ? { ...error, extensions: { ...error.extensions, code } }
           : error;
@@ -236,7 +236,7 @@ const apolloCompatibleErrorFormatter: NonNullable<
   };
 };
 
-function apolloErrorCode(status: number, message: string): string | undefined {
+function graphqlErrorCode(status: number, message: string): string | undefined {
   if (message.startsWith(CSRF_ERROR_PREFIX)) return 'BAD_REQUEST';
   if (status === 400) {
     return message.startsWith('Syntax Error:')

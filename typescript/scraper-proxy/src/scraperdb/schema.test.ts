@@ -2,8 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { it } from 'node:test';
 
-import { ApolloServer } from '@apollo/server';
-import { buildSchema, parse, validate } from 'graphql';
+import { buildSchema, graphql, parse, validate } from 'graphql';
 
 import { sanitizeScraperDbSchema } from './schema.js';
 import { buildSelect, type SelectArgs } from './sql.js';
@@ -52,36 +51,28 @@ void it('reports introspection rejection directly', () => {
 });
 
 void it('accepts literal and variable null optional arguments', async () => {
-  const server = new ApolloServer({
-    resolvers: {
-      query_root: {
-        domain: (_parent: unknown, args: SelectArgs) => {
-          buildSelect('domain', args);
-          return [];
-        },
-      },
+  const rootValue = {
+    domain: (args: SelectArgs) => {
+      buildSelect('domain', args);
+      return [];
     },
-    typeDefs: sanitized,
-  });
-  const literal = await server.executeOperation({
-    query:
+  };
+  const literal = await graphql({
+    rootValue,
+    schema,
+    source:
       '{ domain(limit: null, offset: null, order_by: { id: null }) { id } }',
   });
-  const variable = await server.executeOperation({
-    query:
+  const variable = await graphql({
+    rootValue,
+    schema,
+    source:
       'query Nullable($limit: Int, $offset: Int, $order: domain_order_by!) { domain(limit: $limit, offset: $offset, order_by: [$order]) { id } }',
-    variables: { limit: null, offset: null, order: { id: null } },
+    variableValues: { limit: null, offset: null, order: { id: null } },
   });
 
-  assert.equal(literal.body.kind, 'single');
-  assert.equal(variable.body.kind, 'single');
-  if (literal.body.kind === 'single') {
-    assert.equal(literal.body.singleResult.errors, undefined);
-  }
-  if (variable.body.kind === 'single') {
-    assert.equal(variable.body.singleResult.errors, undefined);
-  }
-  await server.stop();
+  assert.equal(literal.errors, undefined);
+  assert.equal(variable.errors, undefined);
 });
 
 void it('accepts a cursor on message queries', () => {
@@ -102,27 +93,16 @@ void it('accepts a cursor on message queries', () => {
 });
 
 void it('rejects an empty message cursor through the resolver', async () => {
-  const server = new ApolloServer({
-    resolvers: {
-      query_root: {
-        message_view: (_parent: unknown, args: SelectArgs) => {
-          buildSelect('message_view', args);
-          return [];
-        },
+  const response = await graphql({
+    rootValue: {
+      message_view: (args: SelectArgs) => {
+        buildSelect('message_view', args);
+        return [];
       },
     },
-    typeDefs: sanitized,
-  });
-  const response = await server.executeOperation({
-    query: '{ message_view(cursor: [{initial_value: {}}]) { id } }',
+    schema,
+    source: '{ message_view(cursor: [{initial_value: {}}]) { id } }',
   });
 
-  assert.equal(response.body.kind, 'single');
-  if (response.body.kind === 'single') {
-    assert.match(
-      response.body.singleResult.errors?.[0]?.message ?? '',
-      /must contain one column/,
-    );
-  }
-  await server.stop();
+  assert.match(response.errors?.[0]?.message ?? '', /must contain one column/);
 });
