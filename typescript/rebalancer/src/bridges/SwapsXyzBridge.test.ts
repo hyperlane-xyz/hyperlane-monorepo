@@ -19,13 +19,14 @@ import {
 } from './SwapsXyzClient.js';
 import { SwapsXyzBridge, type SwapsXyzBridgeRoute } from './SwapsXyzBridge.js';
 import type { Erc20ContractFactory } from './erc20Approve.js';
+import { DLN_EVM_SOURCE, DLN_SOURCE_INTERFACE } from './deBridgeValidation.js';
 
 const logger = pino({ level: 'silent' });
 const TEST_WALLET = Wallet.createRandom();
 const TEST_PRIVATE_KEY = TEST_WALLET.privateKey;
 const FROM_TOKEN = '0x1111111111111111111111111111111111111111';
 const TO_TOKEN = '0x2222222222222222222222222222222222222222';
-const SPENDER = '0xfffffffffffffffffffffffffffffffffffffff1';
+const SPENDER = DLN_EVM_SOURCE;
 const SENDER = TEST_WALLET.address;
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
@@ -39,20 +40,45 @@ const ETHEREUM_METADATA: ChainMetadata = {
   nativeToken: { name: 'Ether', symbol: 'ETH', decimals: 18 },
 };
 
-const BASE_METADATA: ChainMetadata = {
-  chainId: 8453,
+const ARBITRUM_METADATA: ChainMetadata = {
+  chainId: 42161,
   protocol: ProtocolType.Ethereum,
-  name: 'base',
-  displayName: 'Base',
-  domainId: 8453,
-  rpcUrls: [{ http: 'https://base.example.invalid' }],
+  name: 'arbitrum',
+  displayName: 'Arbitrum',
+  domainId: 42161,
+  rpcUrls: [{ http: 'https://arbitrum.example.invalid' }],
   nativeToken: { name: 'Ether', symbol: 'ETH', decimals: 18 },
 };
 
 const CHAIN_METADATA: ChainMap<ChainMetadata> = {
   ethereum: ETHEREUM_METADATA,
-  base: BASE_METADATA,
+  arbitrum: ARBITRUM_METADATA,
 };
+
+function sourceOrderData(
+  _tron = false,
+  amount = 1_000_000n,
+  output = 995_000,
+): string {
+  return DLN_SOURCE_INTERFACE.encodeFunctionData('createOrder', [
+    {
+      giveTokenAddress: FROM_TOKEN,
+      giveAmount: amount,
+      takeTokenAddress: TO_TOKEN,
+      takeAmount: output,
+      takeChainId: 42161,
+      receiverDst: SENDER,
+      givePatchAuthoritySrc: SENDER,
+      orderAuthorityAddressDst: SENDER,
+      allowedTakerDst: '0x',
+      externalCall: '0x',
+      allowedCancelBeneficiarySrc: SENDER,
+    },
+    '0x',
+    0,
+    '0x',
+  ]);
+}
 
 function actionResponse(
   overrides: Partial<SwapsXyzActionResponse> = {},
@@ -60,7 +86,7 @@ function actionResponse(
   return {
     tx: {
       to: SPENDER,
-      data: '0xdeadbeef',
+      data: sourceOrderData(),
       value: '0',
       chainId: 1,
     },
@@ -73,13 +99,13 @@ function actionResponse(
       decimals: 6,
     },
     amountOut: {
-      chainId: 8453,
+      chainId: 42161,
       address: TO_TOKEN,
       amount: '995000',
       decimals: 6,
     },
     amountOutMin: {
-      chainId: 8453,
+      chainId: 42161,
       address: TO_TOKEN,
       amount: '990025',
       decimals: 6,
@@ -99,7 +125,7 @@ function quoteParams(
 ): BridgeQuoteParams {
   return {
     fromChain: 1,
-    toChain: 8453,
+    toChain: 42161,
     fromToken: FROM_TOKEN,
     toToken: TO_TOKEN,
     fromAmount: 1_000_000n,
@@ -134,7 +160,7 @@ function statusResponse(
     status,
     txId: 'tx-1',
     srcChainId: 1,
-    dstChainId: 8453,
+    dstChainId: 42161,
     srcTxHash: '0xsource',
     dstTxHash: '0xdestination',
     actionResponse: actionResponse(),
@@ -703,7 +729,7 @@ describe('SwapsXyzBridge.execute', () => {
     expect(result).to.deep.equal({
       txHash: '0xbridge',
       fromChain: 1,
-      toChain: 8453,
+      toChain: 42161,
       transferId: 'fresh-transfer-id',
     });
   });
@@ -713,6 +739,12 @@ describe('SwapsXyzBridge.execute', () => {
       requiresTokenApproval: true,
       amountIn: { amount: '100' },
       amountInMax: { amount: '150' },
+      tx: {
+        to: SPENDER,
+        data: sourceOrderData(false, 100n),
+        value: '0',
+        chainId: 1,
+      },
     });
     const harness = createExecuteHarness(fresh);
     const providerCallStub = sinon
@@ -752,11 +784,69 @@ describe('SwapsXyzBridge.execute', () => {
     }
     expect(approvalTo.toLowerCase()).to.equal(FROM_TOKEN);
     expect(utils.hexlify(approvalData).toLowerCase()).to.include(
-      SPENDER.slice(2),
+      SPENDER.slice(2).toLowerCase(),
     );
     expect(utils.hexlify(approvalData).toLowerCase()).to.include(
       utils.hexZeroPad(utils.hexlify(150), 32).slice(2),
     );
+  });
+
+  it('rejects agreeing API responses that target an unrelated asset before any approval or source send', async () => {
+    const malicious = actionResponse({
+      tx: {
+        to: TO_TOKEN,
+        data: new utils.Interface([
+          'function transfer(address,uint256)',
+        ]).encodeFunctionData('transfer', [SENDER, 1]),
+        value: '0',
+        chainId: 1,
+      },
+      requiresTokenApproval: true,
+    });
+    const accepted = bridgeQuote();
+    accepted.route.actionResponse = malicious;
+    const harness = createExecuteHarness(malicious);
+    const calls = sinon.stub(harness.provider, 'call');
+    const error = await captureError(
+      harness.bridge.execute(accepted, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      }),
+    );
+    expect(error.message).to.include('Unsupported swaps.xyz execution target');
+    expect(harness.sendTransactionStub.callCount).to.equal(0);
+    expect(calls.callCount).to.equal(0);
+  });
+
+  it('rejects a bridge order to the wrong recipient even when both API responses agree', async () => {
+    const args = DLN_SOURCE_INTERFACE.decodeFunctionData(
+      'createOrder',
+      sourceOrderData(),
+    );
+    const order = [...args.order];
+    order[5] = TO_TOKEN;
+    const malicious = actionResponse({
+      tx: {
+        to: SPENDER,
+        data: DLN_SOURCE_INTERFACE.encodeFunctionData('createOrder', [
+          order,
+          '0x',
+          0,
+          '0x',
+        ]),
+        value: '0',
+        chainId: 1,
+      },
+    });
+    const accepted = bridgeQuote();
+    accepted.route.actionResponse = malicious;
+    const harness = createExecuteHarness(malicious);
+    const error = await captureError(
+      harness.bridge.execute(accepted, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      }),
+    );
+    expect(error.message).to.include('recipient mismatch');
+    expect(harness.sendTransactionStub.callCount).to.equal(0);
   });
 
   it('does not call the token contract when approval is not required', async () => {
@@ -790,7 +880,7 @@ describe('SwapsXyzBridge.execute', () => {
       actionResponse({
         tx: {
           to: SPENDER,
-          data: '0xdeadbeef',
+          data: sourceOrderData(),
           value: '1',
           chainId: 1,
         },
@@ -805,6 +895,41 @@ describe('SwapsXyzBridge.execute', () => {
 
     expect(error.message).to.include('fresh native value');
     expect(harness.sendTransactionStub.callCount).to.equal(0);
+  });
+
+  it('rejects matching API native values above the accepted input cap', async () => {
+    const native = '0x0000000000000000000000000000000000000000';
+    const response = actionResponse({
+      amountIn: { address: native, amount: '1000000' },
+      tx: { to: SPENDER, data: '0xdeadbeef', value: '2000000', chainId: 1 },
+    });
+    const quote = bridgeQuote(quoteParams({ fromToken: native }));
+    quote.route.actionResponse = response;
+    const harness = createExecuteHarness(response);
+    const error = await captureError(
+      harness.bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      }),
+    );
+    expect(error.message).to.include('native value exceeds accepted input cap');
+    expect(harness.sendTransactionStub.called).to.equal(false);
+  });
+
+  it('rejects amountIn above amountInMax before approval or broadcast', async () => {
+    const harness = createExecuteHarness(
+      actionResponse({
+        amountIn: { amount: '2000000' },
+        amountInMax: { amount: '1000000' },
+        requiresTokenApproval: true,
+      }),
+    );
+    const error = await captureError(
+      harness.bridge.execute(bridgeQuote(), {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      }),
+    );
+    expect(error.message).to.include('no greater than amountInMax');
+    expect(harness.sendTransactionStub.called).to.equal(false);
   });
 
   it('rejects a direct EVM source-token approval', async () => {
@@ -873,12 +998,12 @@ describe('SwapsXyzBridge.execute', () => {
     expect(harness.sendTransactionStub.callCount).to.equal(0);
   });
 
-  it('allows refreshed calldata when target and selector are unchanged', async () => {
+  it('allows refreshed order calldata that preserves the accepted route and minimum', async () => {
     const harness = createExecuteHarness(
       actionResponse({
         tx: {
           to: SPENDER,
-          data: `0xdeadbeef${'00'.repeat(32)}`,
+          data: sourceOrderData(false, 1_000_000n, 994_000),
           value: '0',
           chainId: 1,
         },
@@ -956,7 +1081,7 @@ describe('SwapsXyzBridge.execute', () => {
       name: 'destination token',
       response: actionResponse({
         amountOut: {
-          chainId: 8453,
+          chainId: 42161,
           address: '0x4444444444444444444444444444444444444444',
           amount: '995000',
         },
@@ -984,7 +1109,7 @@ describe('SwapsXyzBridge.execute', () => {
     const harness = createExecuteHarness(
       actionResponse({
         amountOutMin: {
-          chainId: 8453,
+          chainId: 42161,
           address: TO_TOKEN,
           amount: '990024',
         },
@@ -1030,7 +1155,7 @@ describe('SwapsXyzBridge.execute', () => {
     const harness = createExecuteHarness(
       actionResponse({
         amountOutMin: {
-          chainId: 8453,
+          chainId: 42161,
           address: TO_TOKEN,
           amount: '990024',
         },
@@ -1066,8 +1191,8 @@ describe('SwapsXyzBridge.getStatus', () => {
     );
     const bridge = createBridge(client);
 
-    const success = await bridge.getStatus('0xsource', 1, 8453);
-    const completed = await bridge.getStatus('0xsource2', 1, 8453);
+    const success = await bridge.getStatus('0xsource', 1, 42161);
+    const completed = await bridge.getStatus('0xsource2', 1, 42161);
 
     expect(success).to.deep.equal({
       status: 'complete',
@@ -1098,7 +1223,7 @@ describe('SwapsXyzBridge.getStatus', () => {
     const result = await bridge.getStatus(
       '0xsource',
       1,
-      8453,
+      42161,
       'persisted-transfer-id',
     );
 
@@ -1124,7 +1249,7 @@ describe('SwapsXyzBridge.getStatus', () => {
       .stub(client, 'getStatus')
       .resolves(statusResponse('success', { srcChainId: 10 }));
 
-    const result = await createBridge(client).getStatus('0xsource', 1, 8453);
+    const result = await createBridge(client).getStatus('0xsource', 1, 42161);
 
     expect(result).to.deep.equal({ status: 'not_found' });
   });
@@ -1135,7 +1260,7 @@ describe('SwapsXyzBridge.getStatus', () => {
       .stub(client, 'getStatus')
       .resolves(statusResponse('success', { dstChainId: 10 }));
 
-    const result = await createBridge(client).getStatus('0xsource', 1, 8453);
+    const result = await createBridge(client).getStatus('0xsource', 1, 42161);
 
     expect(result).to.deep.equal({ status: 'not_found' });
   });
@@ -1150,7 +1275,7 @@ describe('SwapsXyzBridge.getStatus', () => {
       }),
     });
 
-    const result = await createBridge(client).getStatus('0xsource', 1, 8453);
+    const result = await createBridge(client).getStatus('0xsource', 1, 42161);
 
     expect(result.status).to.equal('complete');
   });
@@ -1173,7 +1298,7 @@ describe('SwapsXyzBridge.getStatus', () => {
       const client = createClient();
       sinon.stub(client, 'getStatus').resolves(statusResponse(testCase.raw));
 
-      const result = await createBridge(client).getStatus('0xsource', 1, 8453);
+      const result = await createBridge(client).getStatus('0xsource', 1, 42161);
 
       expect(result).to.deep.equal({
         status: 'failed',
@@ -1193,7 +1318,7 @@ describe('SwapsXyzBridge.getStatus', () => {
       const client = createClient();
       sinon.stub(client, 'getStatus').resolves(statusResponse(rawStatus));
 
-      const result = await createBridge(client).getStatus('0xsource', 1, 8453);
+      const result = await createBridge(client).getStatus('0xsource', 1, 42161);
 
       expect(result).to.deep.equal({
         status: 'pending',
@@ -1207,7 +1332,7 @@ describe('SwapsXyzBridge.getStatus', () => {
     sinon.stub(client, 'getStatus').rejects(new Error('network unavailable'));
 
     const error = await captureError(
-      createBridge(client).getStatus('0xsource', 1, 8453),
+      createBridge(client).getStatus('0xsource', 1, 42161),
     );
 
     expect(error.message).to.equal('network unavailable');
@@ -1219,7 +1344,7 @@ describe('SwapsXyzBridge.getStatus', () => {
       .stub(client, 'getStatus')
       .rejects(new SwapsXyzRequestError('missing', 404, 'Not Found'));
 
-    const result = await createBridge(client).getStatus('0xsource', 1, 8453);
+    const result = await createBridge(client).getStatus('0xsource', 1, 42161);
 
     expect(result).to.deep.equal({ status: 'not_found' });
   });
