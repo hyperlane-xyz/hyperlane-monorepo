@@ -33,6 +33,7 @@ interface IPostDispatchHook {
         CCTP,
         TIMELOCK_ROUTING,
         PREDICATE_ROUTER_WRAPPER,
+        WORMHOLE,
         LAYER_ZERO
     }
 
