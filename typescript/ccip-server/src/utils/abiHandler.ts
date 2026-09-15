@@ -1,11 +1,12 @@
 import type { Interface } from '@ethersproject/abi';
 import type { BaseContract } from 'ethers';
 import { ethers } from 'ethers';
-import type { Request, Response } from 'express';
+import type { FastifyReply } from 'fastify';
 import { z } from 'zod';
 
 import { offchainLookupRequestMessageHash } from '@hyperlane-xyz/sdk/ism/utils';
 
+import type { CcipRequest } from '../http.js';
 import { AttestationPendingError } from './errors.js';
 
 const RelayerSignatureBodySchema = z.compile(
@@ -15,9 +16,35 @@ const RelayerSignatureBodySchema = z.compile(
   }),
 );
 
+export interface AbiRequestBody {
+  data?: unknown;
+  sender?: unknown;
+  signature?: unknown;
+  origin_tx_hash?: unknown;
+}
+
+export interface AbiRoute {
+  Body: AbiRequestBody;
+  Params: { sender?: string; callData?: string };
+  Querystring: { callData?: string };
+}
+
+export const ABI_ROUTE_OPTIONS = {
+  schema: {
+    response: {
+      200: {
+        additionalProperties: false,
+        properties: { data: { type: 'string' } },
+        required: ['data'],
+        type: 'object',
+      },
+    },
+  },
+} as const;
+
 /**
- * Creates an Express handler that:
- * 1) reads `req.body.data`
+ * Creates a Fastify handler that:
+ * 1) reads `request.body.data`
  * 2) decodes it using the given Typechain contract factory & function name
  * 3) calls the provided service method with decoded args in order
  * 4) ABI-encodes the return value
@@ -44,26 +71,30 @@ export function createAbiHandler<
   } = {},
 ) {
   const iface = contractFactory.createInterface();
-  return async (req: Request, res: Response) => {
-    const handlerLogger = req.log;
+  return async (request: CcipRequest<AbiRoute>, reply: FastifyReply) => {
+    const handlerLogger = request.log;
     handlerLogger.setBindings({ function: functionName as string });
 
-    handlerLogger.info({ body: req.body }, 'Processing ABI handler request');
+    handlerLogger.info(
+      { body: request.body },
+      'Processing ABI handler request',
+    );
 
     try {
       const { skipResultEncoding = false, verifyRelayerSignatureUrl } = options;
       // request body fields
-      const body = req.body || {};
-      const sender = body.sender as string;
-      const signature = body.signature as string;
+      const body = request.body ?? {};
+      const sender = typeof body.sender === 'string' ? body.sender : '';
+      const signature =
+        typeof body.signature === 'string' ? body.signature : '';
       const data: string =
-        (body.data as string) ||
-        (req.params?.callData as string) ||
-        (req.query?.callData as string) ||
+        (typeof body.data === 'string' ? body.data : '') ||
+        request.params.callData ||
+        request.query.callData ||
         '';
       if (!data) {
         handlerLogger.warn({ body }, 'Missing callData in request');
-        return res.status(400).json({ error: 'Missing callData' });
+        return reply.code(400).send({ error: 'Missing callData' });
       }
 
       if (verifyRelayerSignatureUrl) {
@@ -73,7 +104,7 @@ export function createAbiHandler<
         });
         if (!parseResult.success) {
           handlerLogger.warn({ body }, 'Invalid sender or signature format');
-          return res.status(400).json({
+          return reply.code(400).send({
             error: 'Invalid sender or signature format',
             details: parseResult.error.issues,
           });
@@ -104,7 +135,7 @@ export function createAbiHandler<
       const finalArgs = [...args];
       // For methods that expect (message, relayer, logger), we need to insert relayer before logger
       if (relayer) finalArgs.push(relayer);
-      finalArgs.push(req.log); // Logger goes last
+      finalArgs.push(request.log); // Logger goes last
       const result = await serviceMethod(...finalArgs);
 
       handlerLogger.info(
@@ -114,30 +145,31 @@ export function createAbiHandler<
 
       if (skipResultEncoding) {
         handlerLogger.info({ reqBody: body }, 'Skipping result encoding');
-        return res.json({ data: result });
+        return reply.send({ data: result });
       }
       const encoded = iface.encodeFunctionResult(
         functionName,
         Array.isArray(result) ? result : [result],
       );
       handlerLogger.info({ reqBody: body, encoded }, 'Result encoded');
-      return res.json({ data: encoded });
-    } catch (err: any) {
-      if (err instanceof AttestationPendingError) {
+      return reply.send({ data: encoded });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (error instanceof AttestationPendingError) {
         // Expected polling state: keep the response contract and request metrics,
         // but avoid repeatedly serializing calldata and stacks at error level.
-        handlerLogger.debug({ error: err.message }, 'CCTP attestation pending');
+        handlerLogger.debug({ error: message }, 'CCTP attestation pending');
       } else {
         handlerLogger.error(
           {
-            reqBody: req.body,
-            error: err.message,
-            stack: err.stack,
+            reqBody: request.body,
+            error: message,
+            stack: error instanceof Error ? error.stack : undefined,
           },
           `Error in ABI handler ${functionName}`,
         );
       }
-      return res.status(500).json({ error: err.message });
+      return reply.code(500).send({ error: message });
     }
   };
 }
