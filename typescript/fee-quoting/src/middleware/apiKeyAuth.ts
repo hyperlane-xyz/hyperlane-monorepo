@@ -1,25 +1,21 @@
-import type { NextFunction, Request, Response } from 'express';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Logger } from 'pino';
 
 export function createApiKeyAuth(apiKeys: Set<string>, logger: Logger) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const header = req.headers.authorization;
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const header = request.headers.authorization;
     if (!header?.startsWith('Bearer ')) {
       logger.warn(
-        { path: req.path },
+        { path: request.routeOptions.url },
         'Missing or malformed Authorization header',
       );
-      res.status(401).json({ message: 'Unauthorized' });
-      return;
+      return reply.code(401).send({ message: 'Unauthorized' });
     }
 
     const key = header.slice(7);
     if (!apiKeys.has(key)) {
-      logger.warn({ path: req.path }, 'Invalid API key');
-      res.status(401).json({ message: 'Unauthorized' });
-      return;
+      logger.warn({ path: request.routeOptions.url }, 'Invalid API key');
+      return reply.code(401).send({ message: 'Unauthorized' });
     }
-
-    next();
   };
 }
