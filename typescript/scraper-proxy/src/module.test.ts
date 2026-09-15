@@ -163,7 +163,7 @@ void it('rejects malformed variables when the response cache is warm', async () 
 
 void it('serializes the production query surface consistently', async () => {
   const db = {
-    async query<T extends Record<string, unknown>>(): Promise<T[]> {
+    async query(): Promise<Record<string, unknown>[]> {
       return [
         {
           count: 1,
@@ -175,7 +175,7 @@ void it('serializes the production query surface consistently', async () => {
           name: 'ethereum',
           nonce: 42,
         },
-      ] as unknown as T[];
+      ];
     },
   };
   const { createScraperProxyApp } = await import('./module.js');
