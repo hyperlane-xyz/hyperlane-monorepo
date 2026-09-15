@@ -9,7 +9,8 @@
     "./tests/**/moduleRegistry.test.ts",
     "./tests/**/RequestLogging.test.ts",
     "./tests/**/LookupMetrics.test.ts",
-    "./tests/**/Shutdown.test.ts"
+    "./tests/**/Shutdown.test.ts",
+    "./tests/**/Database.test.ts"
   ],
   "exit": true
 }
