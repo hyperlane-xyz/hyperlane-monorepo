@@ -80,7 +80,7 @@ export function createCoreWriter(
  * conform to the standard pattern.
  */
 export class CoreWriter extends CoreArtifactReader {
-  protected readonly logger: Logger = rootLogger.child({
+  protected override readonly logger: Logger = rootLogger.child({
     module: CoreWriter.name,
   });
 

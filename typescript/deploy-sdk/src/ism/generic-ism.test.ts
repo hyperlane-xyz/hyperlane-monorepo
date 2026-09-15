@@ -123,7 +123,7 @@ describe('IsmReader aggregation', () => {
 
   it('propagates unsupported children instead of partially reporting a tree', async () => {
     const { reader, artifacts } = fixture();
-    delete artifacts.pausable;
+    delete artifacts['pausable'];
     const result = await reader
       .read('aggregation')
       .catch((error: unknown) => error);
