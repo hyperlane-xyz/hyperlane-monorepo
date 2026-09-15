@@ -41,7 +41,17 @@ export class TronProvider implements AltVM.IProvider {
 
   static async connect(metadata: ChainMetadataForAltVM): Promise<TronProvider> {
     const rpcUrls = (metadata.rpcUrls ?? []).map((rpc) => rpc.http);
-    return new TronProvider(rpcUrls, metadata);
+    const [rpcUrl, ...otherRpcUrls] = rpcUrls;
+    assert(rpcUrl, `got no rpcUrls`);
+
+    const { privateKey } = new TronWeb({
+      fullHost: rpcUrl,
+    }).createRandom();
+    return new TronProvider(
+      [rpcUrl, ...otherRpcUrls],
+      metadata,
+      strip0x(privateKey),
+    );
   }
 
   constructor(
