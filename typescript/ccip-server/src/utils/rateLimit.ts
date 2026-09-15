@@ -7,20 +7,36 @@ import {
   RateLimitedRoute,
 } from './prometheus.js';
 
+const RATE_LIMIT_MAX = 20;
+const RATE_LIMIT_WINDOW_SECONDS = 60;
+
 export async function registerRateLimiting(app: CcipApp): Promise<void> {
   await app.register(rateLimit, {
     enableDraftSpec: true,
     global: false,
     hook: 'preHandler',
-    max: 20,
-    timeWindow: 60 * 1_000,
+    max: RATE_LIMIT_MAX,
+    timeWindow: RATE_LIMIT_WINDOW_SECONDS * 1_000,
   });
 
-  app.setErrorHandler(async (error, _request, reply) => {
+  app.addHook('onSend', async (request, reply, payload) => {
+    if (
+      toRateLimitedRoute(request.routeOptions.url) !== RateLimitedRoute.Unknown
+    ) {
+      reply.header(
+        'ratelimit-policy',
+        `${RATE_LIMIT_MAX};w=${RATE_LIMIT_WINDOW_SECONDS}`,
+      );
+    }
+    return payload;
+  });
+
+  app.setErrorHandler(async (error, request, reply) => {
     if (error instanceof RateLimitExceededError) {
       return reply.code(429).send({ error: 'Too many requests' });
     }
-    return reply.send(error);
+    request.log.error({ err: error }, 'Unhandled request error');
+    return reply.code(500).send({ error: 'Internal server error' });
   });
 }
 
@@ -30,7 +46,7 @@ export function createRateLimitHook(
 ): ReturnType<CcipApp['rateLimit']> {
   return app.rateLimit({
     errorResponseBuilder: () => new RateLimitExceededError(),
-    keyGenerator: (request) => `${normalizeIP(request.ip, 64)}:${group}`,
+    keyGenerator: (request) => `${normalizeIP(request.ip, 56)}:${group}`,
     onExceeded: (request) => {
       PrometheusMetrics.logRateLimited(
         toRateLimitedMethod(request.method),

@@ -9,7 +9,7 @@ import { assert, isNullish } from '@hyperlane-xyz/utils';
 
 import type { CcipApp, CcipRequest } from '../../src/http.js';
 import { CallCommitmentsService } from '../../src/services/CallCommitmentsService.js';
-import { GCE_INGRESS_PROXY_CIDRS } from '../../src/utils/http.js';
+import { trustGceIngressProxy } from '../../src/utils/http.js';
 import { initializeMetrics } from '../../src/utils/prometheus.js';
 import { registerRateLimiting } from '../../src/utils/rateLimit.js';
 
@@ -55,7 +55,8 @@ function registerServiceWithNoopHandlers(app: CcipApp): void {
 async function startTestServer() {
   const app = Fastify({
     loggerInstance: pino({ level: 'silent' }),
-    trustProxy: GCE_INGRESS_PROXY_CIDRS,
+    requestTimeout: 300_000,
+    trustProxy: trustGceIngressProxy,
   });
   await registerRateLimiting(app);
   registerServiceWithNoopHandlers(app);
@@ -109,6 +110,7 @@ describe('Call commitments rate limiting', () => {
       );
       expect(firstResponse.status).to.equal(200);
       expect(await firstResponse.json()).to.deep.equal({ ip: clientOneIp });
+      expect(firstResponse.headers.get('ratelimit-policy')).to.equal('20;w=60');
 
       for (let i = 1; i < 20; i += 1) {
         expect((await request('POST', '/calls', clientOneIp)).status).to.equal(
@@ -125,6 +127,55 @@ describe('Call commitments rate limiting', () => {
       expect((await request('POST', '/calls', clientTwoIp)).status).to.equal(
         200,
       );
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('groups IPv6 clients by /56', async () => {
+    const { app, request } = await startTestServer();
+
+    try {
+      for (let i = 0; i < 20; i += 1) {
+        expect(
+          (await request('POST', '/calls', '2001:db8:1234:5600::1')).status,
+        ).to.equal(200);
+      }
+      expect(
+        (await request('POST', '/calls', '2001:db8:1234:56ff::1')).status,
+      ).to.equal(429);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('ignores forwarding headers from untrusted direct peers', async () => {
+    const app = Fastify({ trustProxy: trustGceIngressProxy });
+    app.get('/', async (request) => ({ ip: request.ip }));
+    try {
+      const response = await app.inject({
+        headers: { 'x-forwarded-for': `${clientOneIp}, ${loadBalancerIp}` },
+        method: 'GET',
+        remoteAddress: '203.0.113.10',
+        url: '/',
+      });
+      expect(response.json()).to.deep.equal({ ip: '203.0.113.10' });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('returns a generic response for unexpected errors', async () => {
+    const app = Fastify({ loggerInstance: pino({ level: 'silent' }) });
+    await registerRateLimiting(app);
+    app.get('/failure', async () => {
+      throw new Error('sensitive internal detail');
+    });
+    try {
+      const response = await app.inject({ method: 'GET', url: '/failure' });
+      expect(response.statusCode).to.equal(500);
+      expect(response.json()).to.deep.equal({ error: 'Internal server error' });
+      expect(response.body).not.to.include('sensitive internal detail');
     } finally {
       await app.close();
     }
