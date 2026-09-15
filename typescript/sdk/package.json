@@ -129,6 +129,18 @@
       "types": "./dist/quoted-calls/codec.d.ts",
       "default": "./dist/quoted-calls/codec.js"
     },
+    "./quoted-calls/EvmQuotedTransferProvider": {
+      "types": "./dist/quoted-calls/EvmQuotedTransferProvider.d.ts",
+      "default": "./dist/quoted-calls/EvmQuotedTransferProvider.js"
+    },
+    "./quoted-calls/QuotedTransferProvider": {
+      "types": "./dist/quoted-calls/QuotedTransferProvider.d.ts",
+      "default": "./dist/quoted-calls/QuotedTransferProvider.js"
+    },
+    "./quoted-calls/SealevelQuotedTransferProvider": {
+      "types": "./dist/quoted-calls/SealevelQuotedTransferProvider.d.ts",
+      "default": "./dist/quoted-calls/SealevelQuotedTransferProvider.js"
+    },
     "./quoted-calls/types": {
       "types": "./dist/quoted-calls/types.d.ts",
       "default": "./dist/quoted-calls/types.js"
