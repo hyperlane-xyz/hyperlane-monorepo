@@ -1,5 +1,45 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 10.1.0
+
+### Minor Changes
+
+- ee50f43: A composite ISM's `rateLimited.recipient` was resolved from its warp router instead of being hand-written. Tooling derived the value on both deploy and apply because a wrong recipient failed at delivery time indistinguishably from a rate-limit trip. Resolution covered expanded compound artifacts such as `domainRoutingIsm.domains` and composite nodes nested under `aggregation`, `amountRouting`, and `routing`/`fallbackRouting` domain overrides. Exhaustive artifact traversal was added so future compound artifact types must declare their nested ISMs before compiling.
+
+  `CompositeIsmConfigSchema` was changed to accept a `rateLimited` node without a `recipient` while continuing to reject an explicitly zero value. `WarpTokenWriter.create` was changed to reject any written-out recipient on a new composite ISM, since the router address only became available during deployment. `WarpTokenWriter.update` was changed to reject a recipient that differed from the router while accepting a matching value, preserving `warp read` → apply idempotency.
+
+  AltVM warp routes were created without an ISM, then the configured ISM was resolved and attached through the regular update path, matching the existing fee flow. The high-level SDK preserved declarative AltVM ISM configs for this artifact path instead of pre-deploying them. NEW ISMs were deployed after the router address became available; DEPLOYED and UNDERIVED roots were reused without deployment.
+
+  The generic warp writer retained signer ownership through deferred ISM and fee attachment, then transferred ownership to the configured owner as the final protocol-writer update. This kept direct Artifact API creation working when the configured owner differed from the signer.
+
+  Nested artifact states within a NEW parent were preserved independently: NEW descendants were resolved and deployed, DEPLOYED descendants were validated and retained as references, and UNDERIVED descendants remained opaque. DEPLOYED roots were reused unchanged during warp creation and rejected if their declarative config contained a NEW descendant that would otherwise be silently ignored.
+
+  A `rateLimited` node was rejected outright in a mailbox default ISM at two layers: `CoreConfigSchema` failed parsing, and `CoreWriter.create`/`CoreWriter.update` asserted before emitting a transaction. The SDK schema guard used one typed, exhaustive visitor across SDK ISM containers and composite-node containers, while retaining distinct predicates for EVM `rateLimitedIsm` and composite `rateLimited` nodes.
+
+  `assertValidCompositeIsmArtifact` in sealevel-sdk continued requiring a non-zero recipient as the last line of defence, and its message was updated to explain automatic warp-route resolution.
+
+  provider-sdk gained canonical `IsmType` discriminants plus contextual `resolveIsmArtifact`, `resolveRateLimitedIsmRecipients`, `assertRateLimitedIsmRecipientsUnset`, and `assertIsmSupportedAsMailboxDefault` from `@hyperlane-xyz/provider-sdk/ism`. Contextual address conversion used the shared protocol-detecting `addressToBytes32` utility, keeping provider-sdk free of Sealevel address assumptions.
+
+### Patch Changes
+
+- 4ad4577: Fixed Starknet core reads that mislabeled unsupported ISMs as test ISMs. Added read support for aggregation trees and pausable ISMs, preserved their nested configuration and pause state, and rejected unknown modules instead of reporting them as accept-all ISMs.
+- Updated dependencies [b83bac5]
+- Updated dependencies [ee50f43]
+- Updated dependencies [12678bc]
+- Updated dependencies [9a59116]
+- Updated dependencies [7e357be]
+- Updated dependencies [4c644c0]
+- Updated dependencies [4ad4577]
+- Updated dependencies [b83bac5]
+  - @hyperlane-xyz/sealevel-sdk@44.1.0
+  - @hyperlane-xyz/provider-sdk@10.1.0
+  - @hyperlane-xyz/utils@44.1.0
+  - @hyperlane-xyz/starknet-sdk@30.0.3
+  - @hyperlane-xyz/aleo-sdk@44.1.0
+  - @hyperlane-xyz/cosmos-sdk@44.1.0
+  - @hyperlane-xyz/radix-sdk@44.1.0
+  - @hyperlane-xyz/tron-sdk@25.0.3
+
 ## 10.0.2
 
 ### Patch Changes

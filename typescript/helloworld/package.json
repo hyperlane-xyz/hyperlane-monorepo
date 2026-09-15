@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/helloworld",
-  "version": "44.0.2",
+  "version": "44.1.0",
   "description": "A basic skeleton of an Hyperlane app",
   "keywords": [
     "HelloWorld",
