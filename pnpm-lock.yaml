@@ -1168,6 +1168,9 @@ importers:
 
   typescript/fee-quoting:
     dependencies:
+      '@fastify/cors':
+        specifier: 'catalog:'
+        version: 11.3.0
       '@google-cloud/pino-logging-gcp-config':
         specifier: 'catalog:'
         version: 1.3.5(supports-color@8.1.1)
@@ -1186,18 +1189,12 @@ importers:
       '@hyperlane-xyz/utils':
         specifier: workspace:*
         version: link:../utils
-      cors:
-        specifier: ^2.8.5
-        version: 2.8.6
-      express:
-        specifier: ^4.17.1
-        version: 4.22.2(supports-color@8.1.1)
+      fastify:
+        specifier: 'catalog:'
+        version: 5.12.3
       pino:
         specifier: 'catalog:'
         version: 8.21.0
-      pino-http:
-        specifier: ^8.6.1
-        version: 8.6.1
       prom-client:
         specifier: 'catalog:'
         version: 14.2.0
@@ -1217,12 +1214,6 @@ importers:
       '@types/chai':
         specifier: 'catalog:'
         version: 4.3.20
-      '@types/cors':
-        specifier: ^2
-        version: 2.8.19
-      '@types/express':
-        specifier: ^4.17.1
-        version: 4.17.25
       '@types/mocha':
         specifier: 'catalog:'
         version: 10.0.10

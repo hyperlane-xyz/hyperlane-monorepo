@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import express, { Express } from 'express';
+import Fastify from 'fastify';
 import { pino } from 'pino';
 import request from 'supertest';
 import { type Address, type Hex, hexToBytes, verifyTypedData } from 'viem';
@@ -26,9 +26,10 @@ import {
   SIGNED_QUOTE_TYPES,
   ZERO_ADDRESS,
 } from '../../src/constants.js';
+import type { FeeQuotingApp } from '../../src/http.js';
 import { createApiKeyAuth } from '../../src/middleware/apiKeyAuth.js';
 import { createErrorHandler } from '../../src/middleware/errorHandler.js';
-import { createQuoteV2Router } from '../../src/routes/quote.v2.js';
+import { registerQuoteV2Routes } from '../../src/routes/quote.v2.js';
 import { EvmQuoteService } from '../../src/services/evmQuoteService.js';
 import { QuoteService } from '../../src/services/quoteService.js';
 import { SvmQuoteService } from '../../src/services/svmQuoteService.js';
@@ -87,7 +88,11 @@ interface ContextOverrides {
   hasHookIgp?: boolean;
 }
 
-function createTestApp(opts: ContextOverrides = {}): Express {
+const testApps = new Set<FeeQuotingApp>();
+
+async function createTestApp(
+  opts: ContextOverrides = {},
+): Promise<FeeQuotingApp> {
   const {
     warpQuoteSigners = [TEST_SIGNER],
     igpQuoteSigners = [TEST_SIGNER],
@@ -152,19 +157,22 @@ function createTestApp(opts: ContextOverrides = {}): Express {
     logger,
   });
 
-  const app = express();
-  app.use(express.json());
-  app.use(
-    '/v2/quote',
-    createApiKeyAuth(new Set([TEST_API_KEY]), pino({ level: 'silent' })),
-    createQuoteV2Router(quoteService),
+  const app = Fastify({ loggerInstance: logger });
+  registerQuoteV2Routes(
+    app,
+    quoteService,
+    createApiKeyAuth(new Set([TEST_API_KEY]), logger),
   );
-  app.use(createErrorHandler(pino({ level: 'silent' })));
+  app.setErrorHandler(createErrorHandler(logger));
+  await app.ready();
+  testApps.add(app);
   return app;
 }
 
-function authed(app: Express, path: string) {
-  return request(app).get(path).set('Authorization', `Bearer ${TEST_API_KEY}`);
+function authed(app: FeeQuotingApp, path: string) {
+  return request(app.server)
+    .get(path)
+    .set('Authorization', `Bearer ${TEST_API_KEY}`);
 }
 
 // ============ Sealevel test app builder ============
@@ -186,7 +194,9 @@ function svmOffchainQuotedLeaf(signers: string[]): FeeArtifactConfig {
   };
 }
 
-function createSvmTestApp(opts: SvmContextOverrides = {}): Express {
+async function createSvmTestApp(
+  opts: SvmContextOverrides = {},
+): Promise<FeeQuotingApp> {
   const {
     warpQuoteSigners = [SVM_SIGNER_H160],
     igpSigners = [SVM_SIGNER_H160],
@@ -240,16 +250,22 @@ function createSvmTestApp(opts: SvmContextOverrides = {}): Express {
     logger,
   });
 
-  const app = express();
-  app.use(express.json());
-  app.use(
-    '/v2/quote',
-    createApiKeyAuth(new Set([TEST_API_KEY]), pino({ level: 'silent' })),
-    createQuoteV2Router(quoteService),
+  const app = Fastify({ loggerInstance: logger });
+  registerQuoteV2Routes(
+    app,
+    quoteService,
+    createApiKeyAuth(new Set([TEST_API_KEY]), logger),
   );
-  app.use(createErrorHandler(pino({ level: 'silent' })));
+  app.setErrorHandler(createErrorHandler(logger));
+  await app.ready();
+  testApps.add(app);
   return app;
 }
+
+afterEach(async () => {
+  await Promise.all([...testApps].map((app) => app.close()));
+  testApps.clear();
+});
 
 describe('v2 Quote Routes', () => {
   describe('auth', () => {
@@ -259,8 +275,8 @@ describe('v2 Quote Routes', () => {
     ];
     for (const { name, path } of endpoints) {
       it(`returns 401 without API key on ${name}`, async () => {
-        const app = createTestApp();
-        await request(app).get(path).expect(401);
+        const app = await createTestApp();
+        await request(app.server).get(path).expect(401);
       });
     }
   });
@@ -281,7 +297,7 @@ describe('v2 Quote Routes', () => {
 
     for (const c of cases) {
       it(`${c.name}: returns a quote signed by the configured key`, async () => {
-        const app = createTestApp();
+        const app = await createTestApp();
         const res = await authed(app, c.path).expect(200);
 
         const entry = res.body.quote as EthereumQuoteV2Entry;
@@ -355,7 +371,7 @@ describe('v2 Quote Routes', () => {
 
     for (const c of cases) {
       it(c.name, async () => {
-        const app = createTestApp(c.overrides);
+        const app = await createTestApp(c.overrides);
         const res = await authed(app, c.path).expect(404);
         expect(res.body.error).to.equal(NO_QUOTE_AVAILABLE_ERROR);
         expect(res.body.reason).to.equal(c.reason);
@@ -401,7 +417,7 @@ describe('v2 Quote Routes', () => {
 
     for (const c of cases) {
       it(c.name, async () => {
-        const app = createTestApp();
+        const app = await createTestApp();
         const res = await authed(app, c.path).expect(400);
         if (c.includesMessage) {
           expect(res.body.message).to.include(c.includesMessage);
@@ -440,7 +456,7 @@ describe('v2 Quote Routes', () => {
 
     for (const c of cases) {
       it(c.name, async () => {
-        const app = createSvmTestApp();
+        const app = await createSvmTestApp();
         const res = await authed(app, c.path).expect(200);
         const entry = res.body.quote as SealevelQuoteV2Entry;
         expect(entry.protocol).to.equal(ProtocolType.Sealevel);
@@ -508,7 +524,7 @@ describe('v2 Quote Routes', () => {
 
     for (const c of cases) {
       it(c.name, async () => {
-        const app = createSvmTestApp(c.overrides);
+        const app = await createSvmTestApp(c.overrides);
         const res = await authed(app, c.path).expect(404);
         expect(res.body.error).to.equal(NO_QUOTE_AVAILABLE_ERROR);
         expect(res.body.reason).to.equal(c.reason);

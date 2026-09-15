@@ -1,4 +1,4 @@
-import { NextFunction, Request, Response } from 'express';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import {
   Counter,
   Histogram,
@@ -37,23 +37,36 @@ export function createMetrics(register: Registry) {
     registers: [register],
   });
 
-  function middleware(req: Request, res: Response, next: NextFunction) {
+  const timers = new WeakMap<
+    FastifyRequest,
+    ReturnType<typeof httpRequestDuration.startTimer>
+  >();
+
+  async function onRequest(request: FastifyRequest) {
     const end = httpRequestDuration.startTimer({
-      method: req.method,
+      method: request.method,
     });
-
-    res.on('finish', () => {
-      const resolvedEndpoint = req.route?.path ?? 'unmatched';
-      end({ endpoint: resolvedEndpoint });
-      httpRequestsTotal.inc({
-        method: req.method,
-        endpoint: resolvedEndpoint,
-        status: String(res.statusCode),
-      });
-    });
-
-    next();
+    timers.set(request, end);
   }
 
-  return { middleware, quotesServed, register };
+  async function onResponse(request: FastifyRequest, reply: FastifyReply) {
+    const resolvedEndpoint = endpointLabel(request.routeOptions.url);
+    timers.get(request)?.({ endpoint: resolvedEndpoint });
+    timers.delete(request);
+    httpRequestsTotal.inc({
+      method: request.method,
+      endpoint: resolvedEndpoint,
+      status: String(reply.statusCode),
+    });
+  }
+
+  return { onRequest, onResponse, quotesServed, register };
+}
+
+function endpointLabel(routeUrl: string | undefined): string {
+  if (!routeUrl) return 'unmatched';
+  if (routeUrl.startsWith('/v2/quote/'))
+    return routeUrl.slice('/v2/quote'.length);
+  if (routeUrl.startsWith('/quote/')) return routeUrl.slice('/quote'.length);
+  return routeUrl;
 }
