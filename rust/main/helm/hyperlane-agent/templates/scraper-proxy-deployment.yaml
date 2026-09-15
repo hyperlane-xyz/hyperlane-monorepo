@@ -39,7 +39,7 @@ spec:
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
         - name: SERVICE_NAME
-          value: scraper-proxy-agents
+          value: scraper-proxy
         - name: WORKLOAD_ROLE
           value: agents
         - name: DATABASE_URL
