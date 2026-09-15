@@ -45,6 +45,12 @@ const REPROCESS_TXS_LIVENESS_RATE: Duration = Duration::from_secs(5);
 const MAX_REPROCESS_TXS_POLL_RATE: Duration = Duration::from_secs(5 * 60);
 const STATUS_READ_CONCURRENCY: usize = 16;
 
+#[derive(Debug)]
+enum SubmitOutcome {
+    Submitted(Transaction),
+    GasCapReached(Transaction),
+}
+
 pub struct InclusionStage {
     pub(crate) pool: InclusionStagePool,
     tx_receiver: mpsc::Receiver<Transaction>,
@@ -268,6 +274,7 @@ impl InclusionStage {
                     finality_stage_sender,
                     state,
                     pool,
+                    domain,
                 )
                 .await
                 {
@@ -453,6 +460,7 @@ impl InclusionStage {
         finality_stage_sender: &mpsc::Sender<Transaction>,
         state: &DispatcherState,
         pool: &InclusionStagePool,
+        domain: &str,
     ) -> Result<(), LanderError> {
         match tx_status {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
@@ -468,7 +476,7 @@ impl InclusionStage {
                     info!(?tx, "Transaction is not ready for resubmission");
                     return Ok(());
                 }
-                Self::process_pending_tx(tx, state, pool).await
+                Self::process_pending_tx(tx, state, pool, domain).await
             }
             TransactionStatus::Included | TransactionStatus::Finalized => {
                 update_tx_status(state, &mut tx, tx_status.clone()).await?;
@@ -498,6 +506,7 @@ impl InclusionStage {
         mut tx: Transaction,
         state: &DispatcherState,
         pool: &InclusionStagePool,
+        domain: &str,
     ) -> Result<(), LanderError> {
         info!(?tx, "Processing pending transaction");
 
@@ -512,7 +521,20 @@ impl InclusionStage {
         tx = Self::estimate_tx(&tx, state).await?;
 
         // Submitting transaction to the node
-        tx = Self::submit_tx(tx, state).await?;
+        tx = match Self::submit_tx(tx, state).await? {
+            SubmitOutcome::Submitted(tx) => tx,
+            SubmitOutcome::GasCapReached(mut tx) => {
+                warn!(
+                    ?tx,
+                    "Transaction reached the current gas cap; retaining it for a later retry"
+                );
+                Self::update_inclusion_stage_metric(state, domain, &LanderError::TxGasCapReached);
+                let status = tx.status.clone();
+                update_tx_status(state, &mut tx, status).await?;
+                pool.lock().await.insert(tx.uuid.clone(), tx);
+                return Ok(());
+            }
+        };
         info!(?tx, "Transaction submitted to node");
 
         state
@@ -534,7 +556,7 @@ impl InclusionStage {
     async fn submit_tx(
         tx: Transaction,
         state: &DispatcherState,
-    ) -> Result<Transaction, LanderError> {
+    ) -> Result<SubmitOutcome, LanderError> {
         // Submission retries retain tx fields (e.g. gas price) set by previous
         // attempts. The retry future borrows this local mutex until it completes.
         let tx_shared = Mutex::new(tx);
@@ -542,17 +564,18 @@ impl InclusionStage {
         // by the node.
         // at this point, not all VMs return information about whether the tx was reverted.
         // so dropping reverted payloads has to happen in the finality step
-        call_until_success_or_nonretryable_error(
+        let gas_cap_reached = call_until_success_or_nonretryable_error(
             || async {
                 let mut tx_guard = tx_shared.lock().await;
                 let submit_result = with_rpc_operation(RpcOperation::TransactionLifecycle, state.adapter.submit(&mut tx_guard)).await;
 
                 match submit_result {
-                    Ok(()) => Ok(()),
+                    Ok(()) => Ok(false),
                     Err(err) if matches!(err, LanderError::TxAlreadyExists) => {
                         warn!(tx=?tx_guard, ?err, "Transaction resubmission failed, will check the status of transaction before dropping it");
-                        Ok(())
+                        Ok(false)
                     }
+                    Err(LanderError::TxGasCapReached) => Ok(true),
                     Err(err) => Err(err),
                 }
             },
@@ -561,8 +584,12 @@ impl InclusionStage {
         )
         .await?;
         let submitted_tx = tx_shared.into_inner();
-        state.notify_reprocess_txs_activity();
-        Ok(submitted_tx)
+        if gas_cap_reached {
+            Ok(SubmitOutcome::GasCapReached(submitted_tx))
+        } else {
+            state.notify_reprocess_txs_activity();
+            Ok(SubmitOutcome::Submitted(submitted_tx))
+        }
     }
 
     async fn estimate_tx(
