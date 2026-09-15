@@ -43,14 +43,10 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
 
     denom = 'uhyp';
     const domainId = 1234;
-    const [rpc, ...otherRpcUrls] = cosmosSigner.getRpcUrls();
-    assert(rpc, 'At least one rpc is required');
+    const rpcUrls = cosmosSigner.getRpcUrls();
 
     // Setup: Create ISM and mailbox using artifact managers
-    const ismArtifactManager = new CosmosIsmArtifactManager([
-      rpc,
-      ...otherRpcUrls,
-    ]);
+    const ismArtifactManager = new CosmosIsmArtifactManager(rpcUrls);
     const ismWriter = ismArtifactManager.createWriter(
       AltVM.IsmType.TEST_ISM,
       cosmosSigner,
@@ -60,7 +56,7 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
     });
 
     const mailboxArtifactManager = new CosmosMailboxArtifactManager({
-      rpcUrls: [rpc, ...otherRpcUrls],
+      rpcUrls,
       domainId,
     });
     const mailboxWriter = mailboxArtifactManager.createWriter(
@@ -85,7 +81,7 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
 
     // Create hook artifact manager
     artifactManager = new CosmosHookArtifactManager({
-      rpcUrls: [rpc, ...otherRpcUrls],
+      rpcUrls,
       mailboxAddress,
       nativeTokenDenom: denom,
     });
@@ -115,7 +111,7 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
           expect(result.deployed.address).to.be.a('string').and.not.be.empty;
           expect(receipts).to.be.an('array').with.length.greaterThan(0);
           receipts.forEach((receipt) => {
-            expect(receipt.code).to.equal(0);
+            expect(receipt['code']).to.equal(0);
           });
         });
 
@@ -187,7 +183,7 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
       expect(igpHook.deployed.address).to.be.a('string').and.not.be.empty;
       expect(receipts.length).to.be.greaterThan(1); // Create + gas configs
       receipts.forEach((receipt) => {
-        expect(receipt.code).to.equal(0);
+        expect(receipt['code']).to.equal(0);
       });
 
       const reader = artifactManager.createReader(
@@ -200,10 +196,10 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
       );
       expect(readHook.config.owner).to.equal(baseConfig.owner);
       expect(readHook.config.overhead['1234']).to.equal(50000);
-      expect(readHook.config.oracleConfig['1234'].gasPrice).to.equal('100');
-      expect(readHook.config.oracleConfig['1234'].tokenExchangeRate).to.equal(
-        '1000000000000000000',
-      );
+      const oracleConfig = readHook.config.oracleConfig['1234'];
+      assert(oracleConfig, 'Expected oracle config for domain 1234');
+      expect(oracleConfig.gasPrice).to.equal('100');
+      expect(oracleConfig.tokenExchangeRate).to.equal('1000000000000000000');
     });
 
     it('should transfer ownership during creation when owner differs from deployer', async () => {
@@ -230,7 +226,7 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
       // Expecting: 1 create + 1 gas config + 1 ownership = 3 receipts
       expect(receipts.length).to.equal(3);
       receipts.forEach((receipt) => {
-        expect(receipt.code).to.equal(0);
+        expect(receipt['code']).to.equal(0);
       });
 
       // Verify ownership was transferred by reading back the state
@@ -264,7 +260,9 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
       const txs = await igpWriter.update(updatedConfig);
 
       expect(txs).to.be.an('array').with.length(1);
-      expect(txs[0].typeUrl).to.include('MsgSetIgpOwner');
+      const [tx] = txs;
+      assert(tx, 'Expected an IGP owner update transaction');
+      expect(tx['typeUrl']).to.include('MsgSetIgpOwner');
     });
 
     it('should add a new destination gas config', async () => {
@@ -295,7 +293,9 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
       const txs = await igpWriter.update(updatedConfig);
 
       expect(txs).to.be.an('array').with.length(1);
-      expect(txs[0].typeUrl).to.include('MsgSetDestinationGasConfig');
+      const [tx] = txs;
+      assert(tx, 'Expected a destination gas config update transaction');
+      expect(tx['typeUrl']).to.include('MsgSetDestinationGasConfig');
     });
 
     it('should update an existing destination gas config', async () => {
@@ -324,7 +324,9 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
       const txs = await igpWriter.update(updatedConfig);
 
       expect(txs).to.be.an('array').with.length(1);
-      expect(txs[0].typeUrl).to.include('MsgSetDestinationGasConfig');
+      const [tx] = txs;
+      assert(tx, 'Expected a destination gas config update transaction');
+      expect(tx['typeUrl']).to.include('MsgSetDestinationGasConfig');
     });
 
     it('should handle multiple updates at once', async () => {
@@ -364,14 +366,19 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
 
       // Verify we get the expected transactions (gas configs first, then owner)
       expect(txs).to.be.an('array').with.length(3);
-      expect(txs[0].typeUrl).to.include('MsgSetDestinationGasConfig');
-      expect(txs[1].typeUrl).to.include('MsgSetDestinationGasConfig');
-      expect(txs[2].typeUrl).to.include('MsgSetIgpOwner');
+      const [firstTx, secondTx, thirdTx] = txs;
+      assert(
+        firstTx && secondTx && thirdTx,
+        'Expected three update transactions',
+      );
+      expect(firstTx['typeUrl']).to.include('MsgSetDestinationGasConfig');
+      expect(secondTx['typeUrl']).to.include('MsgSetDestinationGasConfig');
+      expect(thirdTx['typeUrl']).to.include('MsgSetIgpOwner');
 
       // Execute the transactions to verify they work
       for (const tx of txs) {
         const receipt = await signer.sendAndConfirmTransaction(tx);
-        expect(receipt.code).to.equal(0);
+        expect(receipt['code']).to.equal(0);
       }
 
       // Verify the updates were applied by reading back the state
@@ -383,8 +390,12 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
       expect(readHook.config.owner).to.equal(newOwner);
       expect(readHook.config.overhead[DOMAIN_1]).to.equal(60000);
       expect(readHook.config.overhead[DOMAIN_2]).to.equal(70000);
-      expect(readHook.config.oracleConfig[DOMAIN_1].gasPrice).to.equal('200');
-      expect(readHook.config.oracleConfig[DOMAIN_2].gasPrice).to.equal('150');
+      const oracleConfig1 = readHook.config.oracleConfig[DOMAIN_1];
+      const oracleConfig2 = readHook.config.oracleConfig[DOMAIN_2];
+      assert(oracleConfig1, `Expected oracle config for domain ${DOMAIN_1}`);
+      assert(oracleConfig2, `Expected oracle config for domain ${DOMAIN_2}`);
+      expect(oracleConfig1.gasPrice).to.equal('200');
+      expect(oracleConfig2.gasPrice).to.equal('150');
     });
   });
 
@@ -437,10 +448,12 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
             cosmosSigner.getSignerAddress(),
           );
           expect(igpHook.config.overhead['1234']).to.equal(50000);
-          expect(igpHook.config.oracleConfig['1234'].gasPrice).to.equal('100');
-          expect(
-            igpHook.config.oracleConfig['1234'].tokenExchangeRate,
-          ).to.equal('1000000000000000000');
+          const oracleConfig = igpHook.config.oracleConfig['1234'];
+          assert(oracleConfig, 'Expected oracle config for domain 1234');
+          expect(oracleConfig.gasPrice).to.equal('100');
+          expect(oracleConfig.tokenExchangeRate).to.equal(
+            '1000000000000000000',
+          );
         },
       },
     ];
