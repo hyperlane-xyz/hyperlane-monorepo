@@ -1,5 +1,5 @@
 import cors from '@fastify/cors';
-import Fastify from 'fastify';
+import Fastify, { LogController, type FastifyRequest } from 'fastify';
 import type { Logger } from 'pino';
 import { Registry } from 'prom-client';
 import { type Address, hexToBytes, isAddress, isHex } from 'viem';
@@ -61,9 +61,9 @@ export class FeeQuotingServer {
     const register = new Registry();
     const metrics = createMetrics(register);
 
-    await this.app.register(cors);
     this.app.addHook('onRequest', metrics.onRequest);
     this.app.addHook('onResponse', metrics.onResponse);
+    await this.app.register(cors);
     this.app.setErrorHandler(createErrorHandler(this.logger));
 
     // Serve metrics on a separate port (cluster-internal only)
@@ -352,9 +352,29 @@ export class FeeQuotingServer {
   }
 }
 
-function createApp(logger: Logger) {
-  return Fastify({
+export function createApp(logger: Logger): FeeQuotingApp {
+  const app = Fastify({
     bodyLimit: 100 * 1_024,
+    logController: new LogController({ disableRequestLogging: true }),
     loggerInstance: logger,
+    requestTimeout: 300_000,
+    routerOptions: { caseSensitive: false, ignoreTrailingSlash: true },
   });
+  const requestErrors = new WeakMap<FastifyRequest, Error>();
+  app.addHook('onError', async (request, _reply, error) => {
+    requestErrors.set(request, error);
+  });
+  app.addHook('onResponse', async (request, reply) => {
+    const err = requestErrors.get(request);
+    requestErrors.delete(request);
+    const fields = {
+      err,
+      req: request,
+      res: reply,
+      responseTime: reply.elapsedTime,
+    };
+    if (err) request.log.error(fields, 'request errored');
+    else request.log.info(fields, 'request completed');
+  });
+  return app;
 }
