@@ -17,6 +17,10 @@ import { addressToBytesTron, assert } from '@hyperlane-xyz/utils';
 
 import type { BridgeQuote } from '../interfaces/IExternalBridge.js';
 import {
+  DLN_FORWARDER,
+  validateDeBridgeForwarder,
+} from './deBridgeForwarderValidation.js';
+import {
   DEBRIDGE_SOLANA_CHAIN_ID,
   DEBRIDGE_TRON_CHAIN_ID,
   hyperlaneChainIdToDebridge,
@@ -48,7 +52,7 @@ export function deBridgeAddressBytes(address: string, chainId: number): string {
   return utils.getAddress(address).toLowerCase();
 }
 
-/** Only direct DLN orders are supported. Router swaps and hooks require their own decoder. */
+/** Direct orders and explicitly decoded source-swap wrappers are supported. */
 export function validateDeBridgeEvmTransaction(
   quote: BridgeQuote,
   to: string,
@@ -63,16 +67,20 @@ export function validateDeBridgeEvmTransaction(
     [1, 56, 42161, DEBRIDGE_TRON_CHAIN_ID].includes(chain),
     'Unsupported DLN source chain',
   );
+  const wrapped = to.toLowerCase() === DLN_FORWARDER.toLowerCase();
   assert(
-    to.toLowerCase() === source.toLowerCase(),
+    wrapped || to.toLowerCase() === source.toLowerCase(),
     'deBridge transaction target is not the documented DLN source',
   );
-  const decoded = DLN_SOURCE_INTERFACE.parseTransaction({ data });
+  const input = wrapped
+    ? validateDeBridgeForwarder(quote, data, source)
+    : { data, token: fromToken, amount: quote.fromAmount };
+  const decoded = DLN_SOURCE_INTERFACE.parseTransaction({ data: input.data });
   assert(
     DLN_SOURCE_INTERFACE.encodeFunctionData(
       decoded.functionFragment,
       decoded.args,
-    ).toLowerCase() === data.toLowerCase(),
+    ).toLowerCase() === input.data.toLowerCase(),
     'deBridge order calldata is not canonical',
   );
   const order = decoded.args.order;
@@ -81,11 +89,11 @@ export function validateDeBridgeEvmTransaction(
   const recipient = deBridgeAddressBytes(toAddress, toChain);
   assert(
     order.giveTokenAddress.toLowerCase() ===
-      deBridgeAddressBytes(fromToken, fromChain).toLowerCase(),
+      deBridgeAddressBytes(input.token, fromChain).toLowerCase(),
     'deBridge order source token mismatch',
   );
   assert(
-    BigInt(order.giveAmount.toString()) === quote.fromAmount,
+    BigInt(order.giveAmount.toString()) === input.amount,
     'deBridge order source amount mismatch',
   );
   assert(
