@@ -16,6 +16,7 @@ void it('serves GraphQL through Mercurius with compatibility validation', async 
     { jit: 1 },
   );
   try {
+    assert.equal(app.server.requestTimeout, 300_000);
     const response = await app.inject({
       headers: { origin: 'https://example.com' },
       method: 'POST',
@@ -129,6 +130,32 @@ void it('rejects malformed variables when the response cache is warm', async () 
       assert.equal(response.json().data, null);
       assert.equal(queries, 1);
     }
+
+    const malformedGet = await app.inject({
+      headers: { 'mercurius-require-preflight': 'true' },
+      method: 'GET',
+      url: `/graphql?${new URLSearchParams({ query, variables: 'not-json' })}`,
+    });
+    assert.equal(malformedGet.statusCode, 400);
+    assert.equal(queries, 1);
+
+    const duplicateDirective = await request(undefined);
+    assert.equal(duplicateDirective.statusCode, 200);
+    assert.equal(queries, 1);
+    const duplicate = await app.inject({
+      method: 'POST',
+      payload: {
+        query:
+          'query @cached(ttl: 30) @cached(ttl: 30) { domain(limit: 1) { id } }',
+      },
+      url: '/graphql',
+    });
+    assert.equal(duplicate.statusCode, 400);
+    assert.match(
+      duplicate.json().errors[0].message,
+      /directive "@cached" can only be used once/i,
+    );
+    assert.equal(queries, 1);
   } finally {
     await app.close();
   }
@@ -270,6 +297,19 @@ void it('rejects batch and oversized request bodies', async () => {
       url: '/graphql',
     });
     assert.equal(oversized.statusCode, 413);
+
+    const excessiveTokens = await app.inject({
+      method: 'POST',
+      payload: {
+        query: `{ __typename } ${Array.from(
+          { length: 1_500 },
+          (_, index) => `fragment F${index} on query_root { __typename }`,
+        ).join(' ')}`,
+      },
+      url: '/graphql',
+    });
+    assert.equal(excessiveTokens.statusCode, 400);
+    assert.match(excessiveTokens.body, /more tha[nt] 10000 tokens/i);
   } finally {
     await app.close();
   }
@@ -290,13 +330,20 @@ void it('preserves the CSRF request contract', async () => {
     assert.equal(unsafe.statusCode, 400);
     assert.match(unsafe.body, /Cross-Site Request Forgery/);
 
-    const safe = await app.inject({
-      headers: { 'x-mercurius-operation-name': 'Domains' },
-      method: 'GET',
-      url,
-    });
-    assert.equal(safe.statusCode, 200);
-    assert.deepEqual(safe.json(), { data: { domain: [] } });
+    for (const header of [
+      'x-apollo-operation-name',
+      'apollo-require-preflight',
+      'x-mercurius-operation-name',
+      'mercurius-require-preflight',
+    ]) {
+      const safe = await app.inject({
+        headers: { [header]: 'Domains' },
+        method: 'GET',
+        url,
+      });
+      assert.equal(safe.statusCode, 200);
+      assert.deepEqual(safe.json(), { data: { domain: [] } });
+    }
 
     for (const contentType of [
       'text/plain',
@@ -344,7 +391,7 @@ void it('preserves the CSRF request contract', async () => {
     };
     await app.inject(cachedOperation);
     await app.inject(cachedOperation);
-    assert.equal(queries, 3);
+    assert.equal(queries, 6);
   } finally {
     await app.close();
   }

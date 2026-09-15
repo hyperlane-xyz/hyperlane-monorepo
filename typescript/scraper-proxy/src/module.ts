@@ -4,6 +4,13 @@ import { join } from 'node:path';
 import cors from '@fastify/cors';
 import { rootLogger } from '@hyperlane-xyz/utils';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
+import {
+  getOperationAST,
+  getVariableValues,
+  parse,
+  specifiedRules,
+  validate,
+} from 'graphql';
 import mercurius from 'mercurius';
 
 import { config } from './config.js';
@@ -27,7 +34,10 @@ import {
   ScraperDbService,
   type ScraperDbDatabase,
 } from './scraperdb/scraperdb.service.js';
-import { scraperProxyValidationRule } from './scraperdb/validation.js';
+import {
+  MAX_GRAPHQL_TOKENS,
+  scraperProxyValidationRule,
+} from './scraperdb/validation.js';
 
 type GraphqlBody = {
   operationName?: unknown;
@@ -84,7 +94,11 @@ export async function createScraperProxyApp(
   db: ScraperDbDatabase,
   options: ScraperProxyAppOptions = {},
 ): Promise<FastifyInstance> {
-  const app = Fastify({ bodyLimit: MAX_REQUEST_BYTES, logger: false });
+  const app = Fastify({
+    bodyLimit: MAX_REQUEST_BYTES,
+    logger: false,
+    requestTimeout: 300_000,
+  });
   let activeRequests = 0;
   const responseCache = new GraphqlResponseCache();
   const requestStates = new WeakMap<FastifyRequest, RequestState>();
@@ -144,11 +158,48 @@ export async function createScraperProxyApp(
     const body =
       graphqlBody(request.body) ??
       (request.method === 'GET' ? graphqlBody(request.query) : undefined);
-    if (!body || typeof body.query !== 'string') return;
-    const prepared = responseCache.prepareSource(
-      body.query,
-      typeof body.operationName === 'string' ? body.operationName : null,
-      variables(body.variables),
+    if (
+      !body ||
+      typeof body.query !== 'string' ||
+      !body.query.includes('cached')
+    )
+      return;
+    if (
+      body.operationName !== undefined &&
+      body.operationName !== null &&
+      typeof body.operationName !== 'string'
+    )
+      return;
+    const operationName =
+      typeof body.operationName === 'string' ? body.operationName : null;
+    const requestVariables = variables(body.variables);
+    if (!requestVariables) return;
+    let document;
+    try {
+      document = parse(body.query, { maxTokens: MAX_GRAPHQL_TOKENS });
+    } catch {
+      return;
+    }
+    if (
+      validate(app.graphql.schema, document, [
+        ...specifiedRules,
+        scraperProxyValidationRule,
+      ]).length
+    )
+      return;
+    const operation = getOperationAST(document, operationName);
+    if (!operation) return;
+    const variableValues = getVariableValues(
+      app.graphql.schema,
+      operation.variableDefinitions ?? [],
+      requestVariables,
+    );
+    if (variableValues.errors?.length) return;
+    const prepared = responseCache.prepare(
+      document,
+      operation,
+      operationName,
+      requestVariables,
     );
     if (!prepared) return;
     const cached = responseCache.read(prepared);
@@ -168,11 +219,13 @@ export async function createScraperProxyApp(
     const state = requestStates.get(request);
     if (!state || state.cacheHit) return payload;
     const body = serializedBody(payload);
-    const errors = graphqlErrorMessages(body);
+    const errors = graphqlErrorDetails(body);
     if (errors.length) {
       stats.errors += errors.length;
       graphqlErrors.inc(errors.length);
-      errors.forEach((message) => logger.warn(`error: ${message}`));
+      errors.forEach((error) =>
+        logger.warn({ graphqlError: error }, 'GraphQL request error'),
+      );
     }
     const prepared = state.preparedCache;
     if (!prepared) return payload;
@@ -193,7 +246,14 @@ export async function createScraperProxyApp(
   await app.register(mercurius, {
     allowBatchedQueries: false,
     cache: 1_024,
-    csrfPrevention: true,
+    csrfPrevention: {
+      requiredHeaders: [
+        'x-apollo-operation-name',
+        'apollo-require-preflight',
+        'x-mercurius-operation-name',
+        'mercurius-require-preflight',
+      ],
+    },
     graphiql: false,
     ide: false,
     jit:
@@ -205,6 +265,7 @@ export async function createScraperProxyApp(
             minCount: 3,
           }
         : options.jit,
+    graphql: { parseOptions: { maxTokens: MAX_GRAPHQL_TOKENS } },
     path: '/graphql',
     resolvers: buildResolvers(new ScraperDbService(db)),
     schema,
@@ -230,15 +291,16 @@ function graphqlBody(body: unknown): GraphqlBody | undefined {
   return isRecord(body) ? body : undefined;
 }
 
-function variables(value: unknown): Record<string, unknown> {
+function variables(value: unknown): Record<string, unknown> | undefined {
   if (typeof value === 'string') {
     try {
       value = JSON.parse(value);
     } catch {
-      return {};
+      return undefined;
     }
   }
-  return isRecord(value) ? value : {};
+  if (value === undefined || value === null) return {};
+  return isRecord(value) ? value : undefined;
 }
 
 function serializedBody(payload: unknown): string | undefined {
@@ -246,7 +308,13 @@ function serializedBody(payload: unknown): string | undefined {
   return Buffer.isBuffer(payload) ? payload.toString('utf8') : undefined;
 }
 
-function graphqlErrorMessages(body: string | undefined): string[] {
+type GraphqlErrorDetail = {
+  code?: unknown;
+  message: string;
+  path?: unknown;
+};
+
+function graphqlErrorDetails(body: string | undefined): GraphqlErrorDetail[] {
   if (!body) return [];
   let value: unknown;
   try {
@@ -257,11 +325,17 @@ function graphqlErrorMessages(body: string | undefined): string[] {
   if (!value || typeof value !== 'object' || !('errors' in value)) return [];
   const errors = value.errors;
   if (!Array.isArray(errors)) return [];
-  return errors.flatMap((error) =>
-    error && typeof error === 'object' && 'message' in error
-      ? [String(error.message)]
-      : [],
-  );
+  return errors.flatMap((error) => {
+    if (!isRecord(error) || !('message' in error)) return [];
+    const extensions = isRecord(error.extensions) ? error.extensions : {};
+    return [
+      {
+        code: extensions.code,
+        message: String(error.message),
+        path: error.path,
+      },
+    ];
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

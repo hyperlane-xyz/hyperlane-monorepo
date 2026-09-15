@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto';
 
 import { assert } from '@hyperlane-xyz/utils/validation';
 import {
-  getOperationAST,
   parse,
   print,
   visit,
@@ -16,8 +15,6 @@ import { stripUnusedVariableDefinitions } from './request-compatibility.js';
 const MAX_ENTRIES = 1_000;
 const MAX_ENTRY_BYTES = 1_000_000;
 const MAX_TOTAL_BYTES = 16_000_000;
-const MAX_DOCUMENTS = 1_024;
-const MAX_CACHED_DOCUMENT_LENGTH = 8_192;
 
 type Entry = { body: string; bytes: number; expires: number };
 type CacheDocument = { query: string; usedVariables: ReadonlySet<string> };
@@ -36,7 +33,6 @@ export type CachedGraphqlResponse = {
 export class GraphqlResponseCache {
   private readonly cache = new Map<string, Entry>();
   private readonly documents = new WeakMap<DocumentNode, CacheDocument>();
-  private readonly sources = new Map<string, DocumentNode>();
   private cacheBytes = 0;
 
   prepare(
@@ -57,38 +53,6 @@ export class GraphqlResponseCache {
       refresh: directive.refresh,
       ttl: directive.ttl,
     };
-  }
-
-  prepareSource(
-    query: string,
-    operationName: string | null,
-    variables: Record<string, unknown>,
-  ): PreparedCacheRequest | null {
-    // A directive name must contain this token. False positives only fall back
-    // to parsing; this avoids duplicate parsing for ordinary Mercurius queries.
-    if (!query.includes('cached')) return null;
-    let document = this.sources.get(query);
-    if (document) {
-      this.sources.delete(query);
-      this.sources.set(query, document);
-    } else {
-      try {
-        document = parse(query);
-      } catch {
-        return null;
-      }
-      if (query.length <= MAX_CACHED_DOCUMENT_LENGTH) {
-        this.sources.set(query, document);
-        if (this.sources.size > MAX_DOCUMENTS) {
-          const oldest = this.sources.keys().next().value;
-          if (oldest !== undefined) this.sources.delete(oldest);
-        }
-      }
-    }
-    const operation = getOperationAST(document, operationName);
-    return operation?.kind === 'OperationDefinition'
-      ? this.prepare(document, operation, operationName, variables)
-      : null;
   }
 
   read(request: PreparedCacheRequest): CachedGraphqlResponse | null {
