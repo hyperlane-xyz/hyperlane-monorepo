@@ -96,6 +96,7 @@ export async function createScraperProxyApp(
     bodyLimit: MAX_REQUEST_BYTES,
     logger: false,
     requestTimeout: 300_000,
+    routerOptions: { caseSensitive: false, ignoreTrailingSlash: true },
   });
   let activeRequests = 0;
   const responseCache = new GraphqlResponseCache();
