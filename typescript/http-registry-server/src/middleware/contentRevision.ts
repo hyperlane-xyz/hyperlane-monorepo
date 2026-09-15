@@ -15,23 +15,31 @@ export function registryContentRevision(): RequestHandler {
       return;
     }
 
-    const sendJson = res.json.bind(res);
-    res.json = (body: unknown) => {
-      const serialized = JSON.stringify(body);
-      const revision = createHash('sha256')
-        .update(serialized)
-        .digest('base64url');
+    const send = res.send.bind(res);
+    res.send = (body: unknown) => {
+      if (
+        res.statusCode < 200 ||
+        res.statusCode >= 300 ||
+        !res
+          .getHeader('Content-Type')
+          ?.toString()
+          .startsWith('application/json') ||
+        (typeof body !== 'string' && !Buffer.isBuffer(body))
+      ) {
+        return send(body);
+      }
+
+      // Express has already applied its JSON replacer, spacing, and escaping.
+      const revision = createHash('sha256').update(body).digest('base64url');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('ETag', `"sha256-${revision}"`);
       res.setHeader(REVISION_HEADER, revision);
-      return sendJson(body);
+      return send(body);
     };
     next();
   };
 }
 
 function excludedPath(path: string): boolean {
-  return (
-    path === '/health' || path === '/readiness' || path.startsWith('/signer')
-  );
+  return /^\/(?:health|readiness|signer)(?:\/|$)/i.test(path);
 }

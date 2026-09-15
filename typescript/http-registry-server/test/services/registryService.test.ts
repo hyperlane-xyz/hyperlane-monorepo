@@ -110,22 +110,27 @@ describe('RegistryService', () => {
       expect(getRegistryStub.calledOnce).to.be.true;
     });
 
-    it('should serve the last-known-good registry when refresh fails', async () => {
+    it('should share refresh failures and retry on the next read', async () => {
       clock = sinon.useFakeTimers(Date.now());
-      const loggerWarnStub = sinon.stub(mockLogger, 'warn');
       await registryService.initialize();
       getRegistryStub.resetHistory();
-      getRegistryStub.rejects(new Error('source unavailable'));
+      const failure = new Error('source unavailable');
+      getRegistryStub.rejects(failure);
       clock.tick(REFRESH_INTERVAL + 1);
 
-      const registry = await registryService.getCurrentRegistry();
+      const results = await Promise.allSettled([
+        registryService.getCurrentRegistry(),
+        registryService.getCurrentRegistry(),
+      ]);
 
-      expect(registry).to.equal(mockRegistry);
+      expect(results).to.deep.equal([
+        { status: 'rejected', reason: failure },
+        { status: 'rejected', reason: failure },
+      ]);
       expect(getRegistryStub.calledOnce).to.be.true;
-      expect(loggerWarnStub.calledOnce).to.be.true;
-      expect(loggerWarnStub.firstCall.args[1]).to.equal(
-        'Registry refresh failed; serving last-known-good registry',
-      );
+      getRegistryStub.resolves(mockRegistry);
+      expect(await registryService.getCurrentRegistry()).to.equal(mockRegistry);
+      expect(getRegistryStub.calledTwice).to.be.true;
     });
 
     it('should coalesce concurrent refreshes', async () => {
@@ -146,19 +151,6 @@ describe('RegistryService', () => {
 
       expect(await first).to.equal(mockRegistry);
       expect(await second).to.equal(mockRegistry);
-      expect(getRegistryStub.calledOnce).to.be.true;
-    });
-
-    it('should throttle retries after a failed refresh', async () => {
-      clock = sinon.useFakeTimers(Date.now());
-      await registryService.initialize();
-      getRegistryStub.resetHistory();
-      getRegistryStub.rejects(new Error('source unavailable'));
-      clock.tick(REFRESH_INTERVAL + 1);
-
-      await registryService.getCurrentRegistry();
-      await registryService.getCurrentRegistry();
-
       expect(getRegistryStub.calledOnce).to.be.true;
     });
   });
@@ -212,6 +204,39 @@ describe('RegistryService', () => {
         }),
         stop: sinon.stub(),
       };
+    });
+
+    it('preserves a watcher event received during a pending refresh', async () => {
+      const fsRegistry = {
+        ...mockRegistry,
+        type: RegistryType.FileSystem,
+        uri: '/test/registry',
+      } as IRegistry;
+      getRegistryStub.resolves(fsRegistry);
+      registryService = new RegistryService(
+        getRegistryStub,
+        REFRESH_INTERVAL,
+        mockLogger,
+        mockWatcher,
+      );
+      await registryService.initialize();
+      getRegistryStub.resetHistory();
+      let resolveRefresh: (registry: IRegistry) => void = () => {
+        throw new Error('Refresh resolver not initialized');
+      };
+      getRegistryStub.onFirstCall().returns(
+        new Promise<IRegistry>((resolve) => {
+          resolveRefresh = resolve;
+        }),
+      );
+      markDirtyCallback();
+      const pending = registryService.getCurrentRegistry();
+      markDirtyCallback();
+      resolveRefresh(fsRegistry);
+      await pending;
+      await registryService.getCurrentRegistry();
+      await registryService.getCurrentRegistry();
+      expect(getRegistryStub.calledTwice).to.be.true;
     });
 
     it('should trigger refresh when dirty', async () => {

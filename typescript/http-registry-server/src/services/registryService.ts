@@ -15,7 +15,6 @@ export class RegistryService {
   private dirtyGeneration = 0;
   private appliedDirtyGeneration = 0;
   private isWatcherActive = false;
-  private nextRefreshAttempt = 0;
   private refreshInFlight?: Promise<void>;
 
   constructor(
@@ -27,7 +26,7 @@ export class RegistryService {
 
   async initialize() {
     try {
-      await this.refresh(false);
+      await this.refresh();
     } catch (err: unknown) {
       this.logger.error({ err }, 'Registry initialization failed');
       throw err;
@@ -97,20 +96,18 @@ export class RegistryService {
     const now = Date.now();
     const shouldRefresh =
       !this.registry ||
-      ((this.dirtyGeneration > this.appliedDirtyGeneration ||
-        (!this.isWatcherActive &&
-          now - this.lastRefresh > this.refreshInterval)) &&
-        now >= this.nextRefreshAttempt);
+      this.dirtyGeneration > this.appliedDirtyGeneration ||
+      (!this.isWatcherActive && now - this.lastRefresh > this.refreshInterval);
 
     if (shouldRefresh) {
-      await this.refresh(true);
+      await this.refresh();
     }
 
     assert(this.registry, 'Could not fetch current registry');
     return this.registry;
   }
 
-  private async refresh(allowStale: boolean): Promise<void> {
+  private async refresh(): Promise<void> {
     if (this.refreshInFlight) return this.refreshInFlight;
 
     const dirtyGeneration = this.dirtyGeneration;
@@ -121,19 +118,9 @@ export class RegistryService {
         this.registry = registry;
         this.appliedDirtyGeneration = dirtyGeneration;
         this.lastRefresh = Date.now();
-        this.nextRefreshAttempt = 0;
       } catch (err: unknown) {
-        if (!allowStale || !this.registry) {
-          this.logger.error({ err }, 'Registry refresh failed');
-          throw err;
-        }
-        const staleAgeMs = Math.max(0, Date.now() - this.lastRefresh);
-        const retryMs = Math.min(this.refreshInterval, 5_000);
-        this.nextRefreshAttempt = Date.now() + retryMs;
-        this.logger.warn(
-          { err, retryMs, staleAgeMs },
-          'Registry refresh failed; serving last-known-good registry',
-        );
+        this.logger.error({ err }, 'Registry refresh failed');
+        throw err;
       }
     })();
     this.refreshInFlight = refresh;
