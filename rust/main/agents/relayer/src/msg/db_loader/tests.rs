@@ -1366,7 +1366,15 @@ async fn alternating_cursor_does_not_starve_low_backlog() {
         let metrics = dummy_message_loader_metrics();
         let mut directions = Vec::new();
         for new_high_nonce in 5..9 {
-            let (direction, nonce, _) = iterator.peek(&db, &metrics).unwrap().unwrap();
+            let (direction, nonce, _) = iterator
+                .peek(
+                    &db,
+                    &metrics,
+                    db.pending_message_index_generation()
+                        .load(Ordering::Acquire),
+                )
+                .unwrap()
+                .unwrap();
             directions.push(direction);
             iterator.advance(direction, nonce);
             add_db_entry(
@@ -2087,6 +2095,197 @@ async fn standalone_cleanup_forces_restart_recovery_of_replacement() {
         assert_eq!(
             only_operation(receiver.try_recv().expect("replacement")).id(),
             replacement.id()
+        );
+    })
+    .await;
+}
+
+async fn drain_benchmark_records(loader: &mut MessageDbLoader, uncached: bool) {
+    for _ in 0..10_000 {
+        if uncached {
+            for iterator in &mut loader.destination_iterators {
+                iterator.empty_high = None;
+            }
+        }
+        let before = loader_phase_counter(&loader.metrics.records_examined, "destination_index");
+        loader.tick().await.unwrap();
+        if loader_phase_counter(&loader.metrics.records_examined, "destination_index") == before {
+            return;
+        }
+    }
+    panic!("fixture did not finish scanning retained records");
+}
+
+#[tokio::test(start_paused = true)]
+#[ignore = "74x74 steady loader benchmark; run explicitly with --ignored --nocapture"]
+async fn benchmark_pending_index_idle_generation() {
+    const ORIGINS: u32 = 74;
+    const DESTINATIONS: u32 = 74;
+    const TICKS: u32 = 60;
+    for scenario in ["empty", "sparse", "all_populated", "unrelated_writes"] {
+        test_utils::run_test_db(|raw_db| async move {
+            let mut loaders = Vec::new();
+            let mut receivers = Vec::new();
+            for origin_id in 0..ORIGINS {
+                let origin = dummy_domain(origin_id, &format!("idle_bench_{origin_id}"));
+                let db = HyperlaneRocksDB::new(&origin, raw_db.clone());
+                let mut channels = HashMap::new();
+                for destination in 1000..1000 + DESTINATIONS {
+                    let (sender, receiver) = mpsc::channel(1);
+                    channels.insert(destination, sender);
+                    receivers.push(receiver);
+                    if scenario == "all_populated" || (scenario == "sparse" && destination == 1000) {
+                        db.store_message(&HyperlaneMessage { origin: origin_id, destination, nonce: destination, ..Default::default() }, 1).unwrap();
+                    }
+                }
+                let mut loader = MessageDbLoader::new(db, Default::default(), Default::default(), Default::default(),
+                    dummy_message_loader_metrics(), channels, HashMap::new(), vec![].into(), DEFAULT_MAX_MESSAGE_RETRIES).unwrap();
+                finish_legacy_migration(&mut loader).await;
+                drain_benchmark_records(&mut loader, false).await;
+                // Observe cleanup/repair mutations performed during initial scan.
+                loader.tick().await.unwrap();
+                drain_benchmark_records(&mut loader, false).await;
+                loaders.push(loader);
+            }
+            for force_baseline in [true, false] {
+                let before: f64 = loaders.iter().map(|l| loader_phase_counter(&l.metrics.logical_db_reads, "destination_index")).sum();
+                let started = Instant::now();
+                for tick in 0..TICKS {
+                    for loader in &mut loaders {
+                        if scenario == "unrelated_writes" {
+                            loader.db.store_value_by_key("gas_benchmark_", &tick, &tick).unwrap();
+                        }
+                        if force_baseline { for iterator in &mut loader.destination_iterators { iterator.empty_high = None; } }
+                        loader.tick().await.unwrap();
+                    }
+                }
+                let reads: f64 = loaders.iter().map(|l| loader_phase_counter(&l.metrics.logical_db_reads, "destination_index")).sum::<f64>() - before;
+                println!("pending_index_idle scenario={scenario} baseline={force_baseline} origins={ORIGINS} destinations={DESTINATIONS} ticks={TICKS} reads={reads} wall_seconds={:.6}", started.elapsed().as_secs_f64());
+                if force_baseline { assert_eq!(reads, f64::from(ORIGINS * DESTINATIONS * TICKS)); }
+                else { assert_eq!(reads, 0.0); }
+            }
+            drop(receivers);
+        }).await;
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn active_index_changes_do_not_rescan_retained_history() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let mut channels = HashMap::new();
+        let mut receivers = Vec::new();
+        for destination in [10, 20] {
+            let (sender, receiver) = mpsc::channel(1);
+            channels.insert(destination, sender);
+            receivers.push(receiver);
+        }
+        for nonce in 0..200 {
+            db.store_message(&HyperlaneMessage { origin: 0, destination: if nonce % 2 == 0 { 10 } else { 20 }, nonce, ..Default::default() }, 1).unwrap();
+        }
+        // Missing context retains every row after inspecting it once.
+        let mut loader = MessageDbLoader::new(db.clone(), Default::default(), Default::default(), Default::default(),
+            dummy_message_loader_metrics(), channels, HashMap::new(), vec![].into(), DEFAULT_MAX_MESSAGE_RETRIES).unwrap();
+        finish_legacy_migration(&mut loader).await;
+        drain_benchmark_records(&mut loader, false).await;
+        for baseline in [true, false] {
+            let high = if baseline { 200 } else { 201 };
+            let before = loader_phase_counter(&loader.metrics.records_examined, "destination_index");
+            let before_reads = loader_phase_counter(&loader.metrics.logical_db_reads, "destination_index");
+            db.store_message(&HyperlaneMessage { origin: 0, destination: 10, nonce: high, ..Default::default() }, 1).unwrap();
+            loader.apply_index_notification(IndexingNotification { tx_id: H512::zero(), sequences: vec![Some(high)] }).unwrap();
+
+            drain_benchmark_records(&mut loader, baseline).await;
+            let records = loader_phase_counter(&loader.metrics.records_examined, "destination_index") - before;
+            let reads = loader_phase_counter(&loader.metrics.logical_db_reads, "destination_index") - before_reads;
+            assert_eq!(records, 1.0, "a high insert must not rewalk retained low rows");
+            println!("pending_index_active operation=high_insert baseline={baseline} retained=200 records={records} reads={reads}");
+
+            let before = loader_phase_counter(&loader.metrics.records_examined, "destination_index");
+            let old = db.retrieve_message_by_nonce(if baseline { 0 } else { 2 }).unwrap().unwrap();
+            db.store_message_processed(&old).unwrap();
+            loader.destination_scan_pending = true;
+
+            drain_benchmark_records(&mut loader, baseline).await;
+            let records = loader_phase_counter(&loader.metrics.records_examined, "destination_index") - before;
+            assert_eq!(records, 0.0, "cleanup must not rewalk retained low rows");
+            println!("pending_index_active operation=cleanup baseline={baseline} retained=200 records={records}");
+        }
+        drop(receivers);
+    }).await;
+}
+
+#[tokio::test]
+async fn empty_high_cache_tracks_frontier_and_independent_index_writes() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db.clone());
+        let writer = HyperlaneRocksDB::new(&origin, raw_db);
+        let generation = db.pending_message_index_generation();
+        let metrics = dummy_message_loader_metrics();
+        let mut iterator = DestinationIndexIterator::new(destination.id(), Some(20));
+        iterator.low_nonce = None;
+        // A retained lower entry must not defeat an empty-frontier cache.
+        writer
+            .store_message(&dummy_hyperlane_message(&destination, 10), 1)
+            .unwrap();
+        assert!(iterator
+            .peek(&db, &metrics, generation.load(Ordering::Acquire))
+            .unwrap()
+            .is_none());
+        let before = loader_phase_counter(&metrics.logical_db_reads, "destination_index");
+        assert!(iterator
+            .peek(&db, &metrics, generation.load(Ordering::Acquire))
+            .unwrap()
+            .is_none());
+        assert_eq!(
+            loader_phase_counter(&metrics.logical_db_reads, "destination_index"),
+            before
+        );
+
+        writer
+            .store_message(&dummy_hyperlane_message(&destination, 20), 1)
+            .unwrap();
+        assert_eq!(
+            iterator
+                .peek(&db, &metrics, generation.load(Ordering::Acquire))
+                .unwrap()
+                .unwrap()
+                .1,
+            20
+        );
+        iterator.advance(IndexDirection::High, 20);
+        assert!(iterator
+            .peek(&db, &metrics, generation.load(Ordering::Acquire))
+            .unwrap()
+            .is_none());
+        let before = loader_phase_counter(&metrics.logical_db_reads, "destination_index");
+        iterator.high_nonce = Some(30);
+        assert!(iterator
+            .peek(&db, &metrics, generation.load(Ordering::Acquire))
+            .unwrap()
+            .is_none());
+        assert_eq!(
+            loader_phase_counter(&metrics.logical_db_reads, "destination_index"),
+            before + 1.0
+        );
+
+        // Clearing/repopulating the same-count index invalidates cached emptiness.
+        writer
+            .delete_pending_message_index_by_nonce(destination.id(), 20)
+            .unwrap();
+        writer
+            .store_message(&dummy_hyperlane_message(&destination, 30), 1)
+            .unwrap();
+        assert_eq!(
+            iterator
+                .peek(&db, &metrics, generation.load(Ordering::Acquire))
+                .unwrap()
+                .unwrap()
+                .1,
+            30
         );
     })
     .await;
