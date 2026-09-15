@@ -129,6 +129,7 @@ export async function createScraperProxyApp(
       const state = requestStates.get(request);
       if (!state || state.completed) return;
       state.completed = true;
+      if (state.preparedCache) responseCache.abandon(state.preparedCache);
       activeRequests--;
       graphqlActiveRequests.dec();
       recordRequest(
@@ -200,14 +201,15 @@ export async function createScraperProxyApp(
       requestVariables,
     );
     if (!prepared) return;
-    const cached = responseCache.read(prepared);
+    state.preparedCache = prepared;
+    const cached = await responseCache.acquire(prepared);
     if (!cached) {
-      state.preparedCache = prepared;
       return;
     }
     state.cacheHit = true;
     reply
-      .header('cache-control', cacheControlHeader(cached.ttl))
+      .code(cached.statusCode)
+      .header('cache-control', cached.cacheControl)
       .type('application/json');
     return reply.send(cached.body);
   });
@@ -227,15 +229,18 @@ export async function createScraperProxyApp(
     }
     const prepared = state.preparedCache;
     if (!prepared) return payload;
-    if (errors.length) {
-      reply.header('cache-control', 'no-store');
-      return payload;
-    }
-    reply.header(
-      'cache-control',
-      prepared.ttl === 0 ? 'no-store' : cacheControlHeader(prepared.ttl),
+    const cacheable =
+      !errors.length && reply.statusCode === 200 && Boolean(body);
+    const cacheControl =
+      !cacheable || prepared.ttl === 0
+        ? 'no-store'
+        : cacheControlHeader(prepared.ttl);
+    reply.header('cache-control', cacheControl);
+    responseCache.complete(
+      prepared,
+      body ? { body, cacheControl, statusCode: reply.statusCode } : null,
+      cacheable,
     );
-    if (prepared.ttl > 0 && body) responseCache.write(prepared, body);
     return payload;
   });
 

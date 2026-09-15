@@ -9,7 +9,12 @@ import {
   type OperationDefinitionNode,
 } from 'graphql';
 
-import { cacheDirective } from './cache-config.js';
+import {
+  graphqlCacheInflightLoads,
+  graphqlCacheLoadFailures,
+  graphqlCacheRequests,
+} from '../metrics.js';
+import { cacheControlHeader, cacheDirective } from './cache-config.js';
 import { stripUnusedVariableDefinitions } from './request-compatibility.js';
 
 const MAX_ENTRIES = 1_000;
@@ -30,10 +35,103 @@ export type CachedGraphqlResponse = {
   ttl: number;
 };
 
+export type SharedGraphqlResponse = {
+  body: string;
+  cacheControl: string;
+  statusCode: number;
+};
+
+type Flight = {
+  promise: Promise<SharedGraphqlResponse | null>;
+  refresh: boolean;
+  resolve: (response: SharedGraphqlResponse | null) => void;
+  settled: boolean;
+};
+
 export class GraphqlResponseCache {
   private readonly cache = new Map<string, Entry>();
   private readonly documents = new WeakMap<DocumentNode, CacheDocument>();
   private cacheBytes = 0;
+  private readonly flights = new Map<string, Flight>();
+  private readonly owners = new WeakMap<PreparedCacheRequest, Flight>();
+
+  constructor(private readonly maxInflightLoads = 1_000) {}
+
+  async acquire(
+    request: PreparedCacheRequest,
+  ): Promise<SharedGraphqlResponse | null> {
+    const cached = this.read(request);
+    if (cached) {
+      graphqlCacheRequests.inc({ outcome: 'hit' });
+      return {
+        body: cached.body,
+        cacheControl: cacheControlHeader(cached.ttl),
+        statusCode: 200,
+      };
+    }
+    const existing = this.flights.get(request.key);
+    if (existing && (!request.refresh || existing.refresh)) {
+      graphqlCacheRequests.inc({ outcome: 'coalesced' });
+      return existing.promise;
+    }
+    if (this.flights.size >= this.maxInflightLoads && !existing) {
+      graphqlCacheRequests.inc({ outcome: 'capacity_bypass' });
+      return null;
+    }
+    let resolve: Flight['resolve'] = () => undefined;
+    const promise = new Promise<SharedGraphqlResponse | null>(
+      (resolveFlight) => {
+        resolve = resolveFlight;
+      },
+    );
+    const flight = {
+      promise,
+      refresh: request.refresh,
+      resolve,
+      settled: false,
+    };
+    // A refresh replaces the old owner even at capacity. The old request still
+    // completes for its waiters, but cannot repopulate the refreshed key.
+    this.flights.set(request.key, flight);
+    this.owners.set(request, flight);
+    if (!existing) graphqlCacheInflightLoads.inc();
+    graphqlCacheRequests.inc({ outcome: 'miss' });
+    return null;
+  }
+
+  complete(
+    request: PreparedCacheRequest,
+    response: SharedGraphqlResponse | null,
+    cacheable: boolean,
+  ): void {
+    const flight = this.owners.get(request);
+    if (!flight || flight.settled) return;
+    if (!cacheable) graphqlCacheLoadFailures.inc();
+    if (response && cacheable && this.flights.get(request.key) === flight) {
+      this.write(request, response.body);
+    }
+    this.finish(request.key, flight, response);
+  }
+
+  abandon(request: PreparedCacheRequest): void {
+    const flight = this.owners.get(request);
+    if (!flight || flight.settled) return;
+    graphqlCacheLoadFailures.inc();
+    this.finish(request.key, flight, null);
+  }
+
+  private finish(
+    key: string,
+    flight: Flight,
+    response: SharedGraphqlResponse | null,
+  ): void {
+    flight.settled = true;
+    if (this.flights.get(key) === flight) {
+      this.flights.delete(key);
+      graphqlCacheInflightLoads.dec();
+    }
+    flight.resolve(response);
+  }
 
   prepare(
     document: DocumentNode,

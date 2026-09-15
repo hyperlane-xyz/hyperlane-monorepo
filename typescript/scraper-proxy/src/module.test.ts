@@ -3,6 +3,55 @@ import { it } from 'node:test';
 
 process.env.DATABASE_URL ??= 'postgresql://unused:unused@localhost/unused';
 
+void it('coalesces concurrent cached HTTP queries and propagates shared errors', async () => {
+  const { createScraperProxyApp } = await import('./module.js');
+  for (const fail of [false, true]) {
+    let calls = 0;
+    let release: (() => void) | undefined;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const app = await createScraperProxyApp({
+      async query<T extends Record<string, unknown>>(): Promise<T[]> {
+        calls++;
+        await blocked;
+        if (fail) throw new Error('database unavailable');
+        return [];
+      },
+    });
+    try {
+      const requests = Array.from({ length: 20 }, () =>
+        app.inject({
+          method: 'POST',
+          payload: {
+            query: 'query @cached(ttl: 30) { domain(limit: 1) { id } }',
+          },
+          url: '/graphql',
+        }),
+      );
+      // Let all requests reach the flight before releasing its database query.
+      for (let attempt = 0; attempt < 20; attempt++) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      assert.equal(calls, 1);
+      release?.();
+      const results = await Promise.all(requests);
+      assert(
+        results.every((result) => result.statusCode === results[0].statusCode),
+      );
+      assert(results.every((result) => result.body === results[0].body));
+      assert.equal(
+        results[0].headers['cache-control'],
+        fail ? 'no-store' : 'max-age=30, public',
+      );
+      assert.equal(calls, 1);
+    } finally {
+      release?.();
+      await app.close();
+    }
+  }
+});
+
 void it('serves GraphQL through Mercurius with compatibility validation', async () => {
   let queries = 0;
   const { createScraperProxyApp } = await import('./module.js');

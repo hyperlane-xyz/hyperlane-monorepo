@@ -102,6 +102,28 @@ export const graphqlRequestDuration = new Histogram({
   registers: [metricsRegistry],
 });
 
+export const graphqlCacheRequests = new Counter({
+  help: 'Opt-in GraphQL response-cache requests by outcome.',
+  labelNames: ['outcome'] as const,
+  name: `${PREFIX}graphql_cache_requests_total`,
+  registers: [metricsRegistry],
+});
+
+export const graphqlCacheLoadFailures = new Counter({
+  help: 'Failed opt-in GraphQL response-cache loads.',
+  name: `${PREFIX}graphql_cache_load_failures_total`,
+  registers: [metricsRegistry],
+});
+
+export const graphqlCacheInflightLoads = new Gauge({
+  help: 'Current opt-in GraphQL response-cache loads.',
+  name: `${PREFIX}graphql_cache_inflight_loads`,
+  registers: [metricsRegistry],
+});
+
+for (const outcome of ['capacity_bypass', 'coalesced', 'hit', 'miss'])
+  graphqlCacheRequests.inc({ outcome }, 0);
+
 export const databaseQueries = new Counter({
   help: 'Database queries by fixed workload role and outcome.',
   labelNames: ['role', 'outcome'] as const,
