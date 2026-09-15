@@ -60,6 +60,28 @@ void it('serves GraphQL through Mercurius with compatibility validation', async 
   }
 });
 
+void it('preserves case-insensitive and trailing-slash GraphQL routes', async () => {
+  const { createScraperProxyApp } = await import('./module.js');
+  const app = await createScraperProxyApp({
+    async query<T extends Record<string, unknown>>(): Promise<T[]> {
+      return [];
+    },
+  });
+  try {
+    for (const url of ['/graphql/', '/GraphQL']) {
+      const response = await app.inject({
+        method: 'POST',
+        payload: { query: '{ domain(limit: 1) { id } }' },
+        url,
+      });
+      assert.equal(response.statusCode, 200, url);
+      assert.deepEqual(response.json(), { data: { domain: [] } });
+    }
+  } finally {
+    await app.close();
+  }
+});
+
 void it('preserves cached query and refresh semantics around Mercurius', async () => {
   let queries = 0;
   const { createScraperProxyApp } = await import('./module.js');
