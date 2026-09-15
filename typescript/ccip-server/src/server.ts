@@ -16,8 +16,10 @@ import {
   PrometheusMetrics,
   UnhandledErrorReason,
   initializeMetrics,
+  registerLookupMetrics,
 } from './utils/prometheus.js';
 import { registerRateLimiting } from './utils/rateLimit.js';
+import { closeServers } from './utils/shutdown.js';
 
 async function startServer() {
   const VERSION = process.env.SERVICE_VERSION || 'dev';
@@ -51,16 +53,7 @@ async function startServer() {
     );
   }
 
-  app.addHook('onResponse', async (request, reply) => {
-    const path = request.raw.url?.split('?', 1)[0] ?? '';
-    const moduleName = enabledModules.find(
-      (name) => path === `/${name}` || path.startsWith(`/${name}/`),
-    );
-    if (moduleName) {
-      // TODO: add a success label to the metric, once we properly distinguish unhandled errors from handled errors
-      PrometheusMetrics.logLookupRequest(moduleName, reply.statusCode);
-    }
-  });
+  registerLookupMetrics(app, enabledModules);
 
   // Dynamically mount only modules listed in the ENABLED_MODULES env var
   for (const name of enabledModules) {
@@ -135,11 +128,15 @@ startServer()
     const shutdown = async () => {
       if (shuttingDown) return;
       shuttingDown = true;
-      await app.close();
-      metricsServer.close();
+      try {
+        await closeServers(app, metricsServer, logger);
+      } catch (error) {
+        logger.error({ error }, 'Server shutdown failed');
+        process.exitCode = 1;
+      }
     };
-    process.once('SIGTERM', shutdown);
-    process.once('SIGINT', shutdown);
+    process.once('SIGTERM', () => void shutdown());
+    process.once('SIGINT', () => void shutdown());
   })
   .catch((err) => {
     console.error('Server startup failed:', err); // Fallback to console if logger failed

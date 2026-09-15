@@ -7,7 +7,9 @@
     "./tests/**/CCTPService.test.ts",
     "./tests/**/AttestationPending.test.ts",
     "./tests/**/moduleRegistry.test.ts",
-    "./tests/**/RequestLogging.test.ts"
+    "./tests/**/RequestLogging.test.ts",
+    "./tests/**/LookupMetrics.test.ts",
+    "./tests/**/Shutdown.test.ts"
   ],
   "exit": true
 }
