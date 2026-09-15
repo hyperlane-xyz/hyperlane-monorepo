@@ -37,9 +37,13 @@ contract HypXERC20 is TokenRouter {
 
     /**
      * @inheritdoc TokenRouter
-     * @dev Token fees are not supported for xERC20 tokens. Configured fee recipients are ignored.
+     * @dev Token fees are not supported for xERC20 tokens. Transfers and quotes revert until a configured fee recipient is removed.
      */
     function feeRecipient() public view override returns (address) {
+        require(
+            super.feeRecipient() == address(0),
+            "TokenRouter: token fees unsupported"
+        );
         return address(0);
     }
 

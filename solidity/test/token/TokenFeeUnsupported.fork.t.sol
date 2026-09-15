@@ -60,6 +60,14 @@ abstract contract TokenFeeUnsupportedForkTest is Test {
             address(0xBEEF).addressToBytes32()
         );
 
+        vm.expectRevert("TokenRouter: token fees unsupported");
+        router.feeRecipient();
+        vm.expectRevert("TokenRouter: token fees unsupported");
+        router.quoteTransferRemote(DESTINATION, BOB.addressToBytes32(), amount);
+        vm.expectRevert("TokenRouter: token fees unsupported");
+        router.transferRemote(DESTINATION, BOB.addressToBytes32(), amount);
+
+        router.setFeeRecipient(address(0));
         assertEq(router.feeRecipient(), address(0));
         assertEq(
             router
@@ -93,7 +101,7 @@ contract HypERC4626CollateralTokenFeeUnsupportedForkTest is
         _setUpMailboxes();
     }
 
-    function testTokenFeeIsIgnored() public {
+    function testTokenFeeRequiresRemoval() public {
         IERC20 dai = IERC20(DAI);
         ERC4626 sDai = ERC4626(SDAI);
         HypERC4626Collateral router = new HypERC4626Collateral(
@@ -142,7 +150,7 @@ contract HypFiatTokenTokenFeeUnsupportedForkTest is
         _setUpMailboxes();
     }
 
-    function testTokenFeeIsIgnored() public {
+    function testTokenFeeRequiresRemoval() public {
         ICircleFiatToken usdc = ICircleFiatToken(USDC);
         HypFiatToken router = new HypFiatToken(
             USDC,
@@ -192,7 +200,7 @@ contract HypXERC20TokenFeeUnsupportedForkTest is TokenFeeUnsupportedForkTest {
         _setUpMailboxes();
     }
 
-    function testTokenFeeIsIgnored() public {
+    function testTokenFeeRequiresRemoval() public {
         IXERC20 ezEth = IXERC20(EZETH);
         HypXERC20 router = new HypXERC20(EZETH, 1, 1, address(localMailbox));
         LinearFee feeContract = _configureUnsupportedTokenFee(
@@ -244,7 +252,7 @@ contract HypXERC20LockboxTokenFeeUnsupportedForkTest is
         _setUpMailboxes();
     }
 
-    function testTokenFeeIsIgnored() public {
+    function testTokenFeeRequiresRemoval() public {
         IXERC20Lockbox lockbox = IXERC20Lockbox(LOCKBOX);
         IERC20 underlying = lockbox.ERC20();
         IXERC20 xerc20 = lockbox.XERC20();

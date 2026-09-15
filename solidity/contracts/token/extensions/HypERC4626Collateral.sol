@@ -134,9 +134,13 @@ contract HypERC4626Collateral is TokenRouter {
 
     /**
      * @inheritdoc TokenRouter
-     * @dev Token fees are not supported for ERC4626 collateral tokens. Configured fee recipients are ignored.
+     * @dev Token fees are not supported for ERC4626 collateral tokens. Transfers and quotes revert until a configured fee recipient is removed.
      */
     function feeRecipient() public view override returns (address) {
+        require(
+            super.feeRecipient() == address(0),
+            "TokenRouter: token fees unsupported"
+        );
         return address(0);
     }
 
