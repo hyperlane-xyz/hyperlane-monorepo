@@ -8,7 +8,7 @@ import { startMetricsServer } from '@hyperlane-xyz/metrics/dist/server.js';
 import { createServiceLogger } from '@hyperlane-xyz/utils';
 
 import { getEnabledModules } from './config.js';
-import { MAX_CCIP_PARAMETER_LENGTH } from './http.js';
+import { CCIP_ROUTER_OPTIONS } from './http.js';
 import { moduleRegistry } from './moduleRegistry.js';
 import { HealthService } from './services/HealthService.js';
 import { registerRequestLogging, trustGceIngressProxy } from './utils/http.js';
@@ -37,7 +37,7 @@ async function startServer() {
   const app = Fastify({
     bodyLimit: 10 * 1_024,
     logController: new LogController({ disableRequestLogging: true }),
-    routerOptions: { maxParamLength: MAX_CCIP_PARAMETER_LENGTH },
+    routerOptions: CCIP_ROUTER_OPTIONS,
     loggerInstance: logger,
     requestTimeout: 300_000,
     trustProxy: trustGceIngressProxy,

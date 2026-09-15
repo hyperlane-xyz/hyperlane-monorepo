@@ -10,6 +10,11 @@ import type {
 import type { Logger } from 'pino';
 
 export const MAX_CCIP_PARAMETER_LENGTH = 10 * 1_024;
+export const CCIP_ROUTER_OPTIONS = {
+  caseSensitive: false,
+  ignoreTrailingSlash: true,
+  maxParamLength: MAX_CCIP_PARAMETER_LENGTH,
+} as const;
 
 export type CcipApp = FastifyInstance<
   Server,
