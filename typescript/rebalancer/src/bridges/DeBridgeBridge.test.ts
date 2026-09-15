@@ -35,6 +35,13 @@ import type {
 } from '../interfaces/IExternalBridge.js';
 import { DeBridgeBridge, type DeBridgeBridgeConfig } from './DeBridgeBridge.js';
 import {
+  DLN_FORWARDER,
+  DLN_FORWARDER_INTERFACE,
+  ZERO_EX_BSC_SETTLER,
+  ZERO_EX_DEPLOYER,
+} from './deBridgeForwarderValidation.js';
+import { changeCall, withSignerSurplus } from './fixtures/deBridgeForwarder.js';
+import {
   DLN_EVM_SOURCE,
   DLN_TRON_SOURCE,
   DLN_SOLANA_SOURCE,
@@ -287,6 +294,24 @@ function makeCreateTxResponse(): DeBridgeCreateTxResponse {
       value: FIX_FEE.toString(),
     },
   };
+}
+
+function makeForwarderResponse(): DeBridgeCreateTxResponse {
+  const response = makeCreateTxResponse();
+  response.tx.to = DLN_FORWARDER;
+  response.tx.data = changeCall(
+    DLN_FORWARDER_INTERFACE,
+    withSignerSurplus(SIGNER_ADDRESS),
+    (args) => {
+      const next = [...args];
+      next[9] = makeEvmOrderData(BSC_TO_TRON_PARAMS, DESTINATION_AMOUNT, {
+        giveTokenAddress: args.srcTokenOut,
+        giveAmount: args.srcAmountOut,
+      });
+      return next;
+    },
+  );
+  return response;
 }
 
 function makeBridgeQuote(
@@ -584,7 +609,9 @@ describe('DeBridgeBridge.execute', function () {
     expect(createUrl.searchParams.get('srcAllowedCancelBeneficiary')).to.equal(
       ethers.utils.computeAddress(PRIVATE_KEY),
     );
-    expect(createUrl.searchParams.has('srcChainRefundAddress')).to.equal(false);
+    expect(createUrl.searchParams.get('srcChainRefundAddress')).to.equal(
+      SIGNER_ADDRESS,
+    );
     expect(captured).to.have.length(3);
     const erc20 = new ethers.utils.Interface([
       'function approve(address,uint256) returns (bool)',
@@ -606,6 +633,132 @@ describe('DeBridgeBridge.execute', function () {
       toChain: 728126428,
       transferId: ORDER_ID,
     });
+  });
+
+  it('approves only the source amount to the validated forwarder and submits the nested order', async () => {
+    const response = makeForwarderResponse();
+    sinon.stub(globalThis, 'fetch').resolves(jsonResponse(response));
+    sinon
+      .stub(ethers.providers.StaticJsonRpcProvider.prototype, 'getBlock')
+      .resolves({ timestamp: 0 } as ethers.providers.Block);
+    sinon
+      .stub(ethers.providers.StaticJsonRpcProvider.prototype, 'call')
+      .callsFake(async (tx) =>
+        (await tx.to) === ZERO_EX_DEPLOYER
+          ? ethers.utils.defaultAbiCoder.encode(
+              ['address'],
+              [ZERO_EX_BSC_SETTLER],
+            )
+          : ethers.utils.defaultAbiCoder.encode(['uint256'], [0]),
+      );
+    sinon
+      .stub(
+        ethers.providers.StaticJsonRpcProvider.prototype,
+        'waitForTransaction',
+      )
+      .callsFake(async (hash) =>
+        makeTransactionResponse(
+          { to: DLN_FORWARDER, data: '0x', value: ethers.constants.Zero },
+          hash,
+        ).wait(),
+      );
+    const captured: CapturedTransaction[] = [];
+    sinon
+      .stub(ethers.Wallet.prototype, 'sendTransaction')
+      .callsFake(async (request) => {
+        const tx = {
+          to: await request.to,
+          data: ethers.utils.hexlify((await request.data) ?? '0x'),
+          value: ethers.BigNumber.from((await request.value) ?? 0),
+        };
+        captured.push(tx);
+        return makeTransactionResponse(
+          tx,
+          ethers.utils.id(`forwarder transaction ${captured.length}`),
+        );
+      });
+    const result = await new DeBridgeBridge(BRIDGE_CONFIG, logger).execute(
+      makeBridgeQuote(BSC_TO_TRON_PARAMS, makeQuoteResponse()),
+      { [ProtocolType.Ethereum]: PRIVATE_KEY },
+    );
+    expect(captured).to.have.length(2);
+    const erc20 = new ethers.utils.Interface([
+      'function approve(address,uint256)',
+    ]);
+    const approval = erc20.decodeFunctionData('approve', captured[0].data);
+    expect(captured[0].to?.toLowerCase()).to.equal(BSC_USDT.toLowerCase());
+    expect(approval[0]).to.equal(DLN_FORWARDER);
+    expect(approval[1].toString()).to.equal(SOURCE_AMOUNT.toString());
+    expect(captured[1].to).to.equal(DLN_FORWARDER);
+    expect(captured[1].data).to.equal(response.tx.data);
+    expect(result.transferId).to.equal(ORDER_ID);
+  });
+
+  it('rejects malicious wrappers before allowance reads, approvals or source submission', async () => {
+    const response = makeForwarderResponse();
+    const original = response.tx.data;
+    const fetchStub = sinon.stub(globalThis, 'fetch');
+    const call = sinon.stub(
+      ethers.providers.StaticJsonRpcProvider.prototype,
+      'call',
+    );
+    const send = sinon.stub(ethers.Wallet.prototype, 'sendTransaction');
+    for (const index of [0, 1, 3, 7, 8]) {
+      response.tx.data = changeCall(
+        DLN_FORWARDER_INTERFACE,
+        original,
+        (args) => {
+          const next = [...args];
+          next[index] = index === 1 ? SOURCE_AMOUNT + 1n : SIGNER_ADDRESS;
+          return next;
+        },
+      );
+      // A different refund recipient is needed because the signer itself is valid.
+      if (index === 7)
+        response.tx.data = changeCall(
+          DLN_FORWARDER_INTERFACE,
+          original,
+          (args) => {
+            const next = [...args];
+            next[7] = ethers.utils.computeAddress(OTHER_PRIVATE_KEY);
+            return next;
+          },
+        );
+      fetchStub.resolves(jsonResponse(response));
+      await getRejection(
+        new DeBridgeBridge(BRIDGE_CONFIG, logger).execute(
+          makeBridgeQuote(BSC_TO_TRON_PARAMS, makeQuoteResponse()),
+          { [ProtocolType.Ethereum]: PRIVATE_KEY },
+        ),
+      );
+    }
+    expect(call.called).to.equal(false);
+    expect(send.called).to.equal(false);
+  });
+
+  it('rejects an expired wrapper before allowance or approval even when its registry is valid', async () => {
+    sinon
+      .stub(globalThis, 'fetch')
+      .resolves(jsonResponse(makeForwarderResponse()));
+    const call = sinon
+      .stub(ethers.providers.StaticJsonRpcProvider.prototype, 'call')
+      .resolves(
+        ethers.utils.defaultAbiCoder.encode(['address'], [ZERO_EX_BSC_SETTLER]),
+      );
+    sinon
+      .stub(ethers.providers.StaticJsonRpcProvider.prototype, 'getBlock')
+      .resolves({ timestamp: 2_000_000_000 } as ethers.providers.Block);
+    const send = sinon.stub(ethers.Wallet.prototype, 'sendTransaction');
+    const error = await getRejection(
+      new DeBridgeBridge(BRIDGE_CONFIG, logger).execute(
+        makeBridgeQuote(BSC_TO_TRON_PARAMS, makeQuoteResponse()),
+        { [ProtocolType.Ethereum]: PRIVATE_KEY },
+      ),
+    );
+    expect(error.message).to.include('deadline has expired');
+    expect(call.callCount).to.equal(1);
+    expect(await call.firstCall.args[0].to).to.equal(ZERO_EX_DEPLOYER);
+    expect(send.called).to.equal(false);
   });
 
   it('rejects value changes and direct calls to the source token', async () => {
