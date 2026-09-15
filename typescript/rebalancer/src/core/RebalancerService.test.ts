@@ -713,6 +713,7 @@ describe('RebalancerService', () => {
         recordRebalancerFailure,
         recordIntentCreated: Sinon.stub(),
         processToken: Sinon.stub().resolves(),
+        processTokens: Sinon.stub().resolves(),
       } as unknown as Metrics;
 
       let tokenInfoHandler: ((event: any) => Promise<void>) | undefined;
@@ -805,6 +806,7 @@ describe('RebalancerService', () => {
         recordRebalancerFailure,
         recordIntentCreated: Sinon.stub(),
         processToken: Sinon.stub().resolves(),
+        processTokens: Sinon.stub().resolves(),
       } as unknown as Metrics;
 
       let tokenInfoHandler: ((event: any) => Promise<void>) | undefined;
@@ -914,6 +916,7 @@ describe('RebalancerService', () => {
         recordRebalancerFailure,
         recordIntentCreated: Sinon.stub(),
         processToken: Sinon.stub().resolves(),
+        processTokens: Sinon.stub().resolves(),
       } as unknown as Metrics;
 
       let tokenInfoHandler: ((event: any) => Promise<void>) | undefined;
