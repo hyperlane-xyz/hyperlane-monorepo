@@ -5,11 +5,14 @@ process.env.DATABASE_URL ??= 'postgresql://unused:unused@localhost/unused';
 
 void it('keeps GraphQL off the agent app while retaining metrics and readiness', async () => {
   const { createScraperProxyApp } = await import('./module.js');
-  const app = await createScraperProxyApp({
-    async query<T extends Record<string, unknown>>(): Promise<T[]> {
-      throw new Error('agent app must not query the GraphQL database');
+  const app = await createScraperProxyApp(
+    {
+      async query<T extends Record<string, unknown>>(): Promise<T[]> {
+        throw new Error('agent app must not query the GraphQL database');
+      },
     },
-  }, { workloadRole: 'agents' });
+    { workloadRole: 'agents' },
+  );
   try {
     const graphql = await app.inject({
       method: 'POST',

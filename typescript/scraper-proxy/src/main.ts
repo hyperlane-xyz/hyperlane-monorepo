@@ -16,10 +16,14 @@ const logger = rootLogger.child({ module: 'Shutdown' });
 async function bootstrap(): Promise<void> {
   const db = new DbService();
   const app = await createScraperProxyApp(db);
-  const eventWebSocketServer = new EventWebSocketServer(db, {}, {
-    agents: config.WORKLOAD_ROLE !== 'public',
-    messages: config.WORKLOAD_ROLE !== 'agents',
-  });
+  const eventWebSocketServer = new EventWebSocketServer(
+    db,
+    {},
+    {
+      agents: config.WORKLOAD_ROLE !== 'public',
+      messages: config.WORKLOAD_ROLE !== 'agents',
+    },
+  );
   setDatabaseMetricsProvider(() => db.metricsSnapshot());
   setWebSocketMetricsProvider(() => eventWebSocketServer.metricsSnapshot());
   app.addHook('onReady', () => db.start());

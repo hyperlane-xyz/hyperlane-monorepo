@@ -103,7 +103,9 @@ export class DbService implements ScraperDbDatabase {
   async start(): Promise<void> {
     if (config.WORKLOAD_ROLE === 'agents') {
       await this.validateEventStreamSchema();
-      this.logger.info('agent workload role; GraphQL database pool is disabled');
+      this.logger.info(
+        'agent workload role; GraphQL database pool is disabled',
+      );
       this.statsTimer = setInterval(() => this.logStats(), STATS_INTERVAL_MS);
       return;
     }

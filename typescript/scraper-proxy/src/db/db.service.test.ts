@@ -20,32 +20,6 @@ const readyEventStreamSchema = {
   range_index_exists: true,
 };
 
-void it('initializes the agent role using only the primary live pool', async (context) => {
-  const { config } = await import('../config.js');
-  const previousRole = config.WORKLOAD_ROLE;
-  config.WORKLOAD_ROLE = 'agents';
-  context.after(() => { config.WORKLOAD_ROLE = previousRole; });
-  let schemaChecks = 0;
-  context.mock.method(pg.Pool.prototype, 'connect', () => {
-    throw new Error('must not warm GraphQL connections');
-  });
-  context.mock.method(pg.Pool.prototype, 'query', function (this: pg.Pool, sql: string) {
-    assert.equal(this.options.connectionString, config.DATABASE_URL);
-    assert.match(sql, /has_table_privilege/);
-    schemaChecks++;
-    return Promise.resolve({ rows: [readyEventStreamSchema] });
-  });
-  const { DbService } = await import('./db.service.js');
-  const db = new DbService();
-  try {
-    await db.onModuleInit();
-    assert.equal(schemaChecks, 1);
-    assert.equal(db.metricsSnapshot().pools.main.total, 0);
-  } finally {
-    await db.onModuleDestroy();
-  }
-});
-
 void it('keeps replica health from gating primary live queries', async (context) => {
   const saturatedPools = new WeakSet<pg.Pool>();
   const debugLogs: unknown[] = [];
@@ -206,3 +180,35 @@ for (const triggerMode of ['D', 'R']) {
     await assert.rejects(db.start(), /cursor_trigger_exists/);
   });
 }
+
+void it('initializes the agent role using only the primary live pool', async (context) => {
+  const { config } = await import('../config.js');
+  const previousRole = config.WORKLOAD_ROLE;
+  config.WORKLOAD_ROLE = 'agents';
+  context.after(() => {
+    config.WORKLOAD_ROLE = previousRole;
+  });
+  let schemaChecks = 0;
+  context.mock.method(pg.Pool.prototype, 'connect', () => {
+    throw new Error('must not warm GraphQL connections');
+  });
+  context.mock.method(
+    pg.Pool.prototype,
+    'query',
+    function (this: pg.Pool, sql: string) {
+      assert.equal(this.options.connectionString, config.DATABASE_URL);
+      assert.match(sql, /has_table_privilege/);
+      schemaChecks++;
+      return Promise.resolve({ rows: [readyEventStreamSchema] });
+    },
+  );
+  const { DbService } = await import('./db.service.js');
+  const db = new DbService();
+  try {
+    await db.start();
+    assert.equal(schemaChecks, 1);
+    assert.equal(db.metricsSnapshot().pools.main.total, 0);
+  } finally {
+    await db.close();
+  }
+});
