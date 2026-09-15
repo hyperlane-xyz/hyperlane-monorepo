@@ -1,3 +1,5 @@
+import { assert } from '@hyperlane-xyz/utils';
+
 import {
   buildByPk,
   buildCount,
@@ -50,6 +52,7 @@ export class ScraperDbService {
   ): Promise<number> {
     const query = buildCount(table, selectArgs, countArgs);
     const [row] = await this.db.query(query.sql, query.values);
-    return typeof row?.count === 'number' ? row.count : 0;
+    assert(typeof row?.count === 'number', 'Invalid database count result');
+    return row.count;
   }
 }

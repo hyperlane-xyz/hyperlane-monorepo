@@ -15,44 +15,26 @@ const logger = rootLogger.child({ module: 'Shutdown' });
 
 async function bootstrap(): Promise<void> {
   const db = new DbService();
-  let app: Awaited<ReturnType<typeof createScraperProxyApp>> | undefined;
-  let eventWebSocketServer: EventWebSocketServer | undefined;
+  const app = await createScraperProxyApp(db);
+  const eventWebSocketServer = new EventWebSocketServer(db);
+  setDatabaseMetricsProvider(() => db.metricsSnapshot());
+  setWebSocketMetricsProvider(() => eventWebSocketServer.metricsSnapshot());
+  app.addHook('onReady', () => db.start());
+  app.addHook('onReady', () => eventWebSocketServer.start(app.server));
+  app.addHook('preClose', () => eventWebSocketServer.stop());
+  app.addHook('onClose', () => db.close());
   try {
-    await db.onModuleInit();
-    app = await createScraperProxyApp(db);
-    const createdEventWebSocketServer = new EventWebSocketServer(db);
-    eventWebSocketServer = createdEventWebSocketServer;
-    setDatabaseMetricsProvider(() => db.metricsSnapshot());
-    setWebSocketMetricsProvider(() =>
-      createdEventWebSocketServer.metricsSnapshot(),
-    );
-    await createdEventWebSocketServer.start(app.server);
     await app.listen({ host: '0.0.0.0', port: config.PORT });
   } catch (error) {
-    await cleanupAfterStartupFailure('websocket', () =>
-      eventWebSocketServer?.stop(),
-    );
-    await cleanupAfterStartupFailure('http', () => app?.close());
-    await cleanupAfterStartupFailure('database', () => db.onModuleDestroy());
+    await cleanupAfterStartupFailure('application', () => app.close());
     throw error;
   }
   let stopping = false;
-  const stop = async (): Promise<void> => {
-    try {
-      await eventWebSocketServer.stop();
-    } finally {
-      try {
-        await app.close();
-      } finally {
-        await db.onModuleDestroy();
-      }
-    }
-  };
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.once(signal, () => {
       if (stopping) return;
       stopping = true;
-      void stop().catch((error: unknown) => {
+      void app.close().catch((error: unknown) => {
         logger.error(`shutdown failed: ${formatError(error)}`);
         process.exitCode = 1;
       });

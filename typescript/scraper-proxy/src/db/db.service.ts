@@ -100,7 +100,7 @@ export class DbService implements ScraperDbDatabase {
     }),
   ) {}
 
-  async onModuleInit(): Promise<void> {
+  async start(): Promise<void> {
     await this.validateEventStreamSchema();
     if (config.DATABASE_READ_REPLICA_URL) {
       this.logger.info(
@@ -120,7 +120,7 @@ export class DbService implements ScraperDbDatabase {
     this.statsTimer = setInterval(() => this.logStats(), STATS_INTERVAL_MS);
   }
 
-  async onModuleDestroy(): Promise<void> {
+  async close(): Promise<void> {
     if (this.statsTimer) clearInterval(this.statsTimer);
     const { livePool, mainPool } = this;
     const shutdowns = [
