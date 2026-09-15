@@ -23,12 +23,12 @@ import {NonCompliantERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {ERC4626Test} from "../../contracts/test/ERC4626/ERC4626Test.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
-import {HypTokenTest} from "./HypERC20.t.sol";
+import {TokenFeeUnsupportedTest} from "./HypERC20.t.sol";
 
 import {HypERC4626OwnerCollateral, HypERC4626Collateral} from "../../contracts/token/extensions/HypERC4626OwnerCollateral.sol";
 import "../../contracts/test/ERC4626/ERC4626Test.sol";
 
-contract HypERC4626OwnerCollateralTest is HypTokenTest {
+contract HypERC4626OwnerCollateralTest is TokenFeeUnsupportedTest {
     using TypeCasts for address;
 
     uint256 constant DUST_AMOUNT = 1e11;

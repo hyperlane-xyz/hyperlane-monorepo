@@ -59,6 +59,18 @@ contract HypERC4626 is HypERC20 {
 
     // ============ Public Functions ============
 
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Token fees are not supported for rebasing synthetic tokens. Transfers and quotes revert until a configured fee recipient is removed.
+     */
+    function feeRecipient() public view override returns (address) {
+        require(
+            super.feeRecipient() == address(0),
+            "TokenRouter: token fees unsupported"
+        );
+        return address(0);
+    }
+
     /// Override totalSupply to return the total assets instead of shares. This reflects the actual circulating supply in terms of assets, accounting for rebasing
     /// @inheritdoc ERC20Upgradeable
     function totalSupply() public view override returns (uint256) {
