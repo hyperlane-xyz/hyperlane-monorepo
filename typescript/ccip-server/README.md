@@ -6,7 +6,7 @@ A lightweight Fastify server for CCIP Read/Write commitments, using Zod validati
 
 ## Prerequisites
 
-- Node.js >=16
+- Node.js >=20
 - pnpm or npm
 - SQLite (for local development)
 - A GCP (or other) SQL database URL for production

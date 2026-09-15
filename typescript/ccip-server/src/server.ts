@@ -11,10 +11,7 @@ import { getEnabledModules } from './config.js';
 import { MAX_CCIP_PARAMETER_LENGTH } from './http.js';
 import { moduleRegistry } from './moduleRegistry.js';
 import { HealthService } from './services/HealthService.js';
-import {
-  GCE_INGRESS_PROXY_CIDRS,
-  registerRequestLogging,
-} from './utils/http.js';
+import { registerRequestLogging, trustGceIngressProxy } from './utils/http.js';
 import {
   PrometheusMetrics,
   UnhandledErrorReason,
@@ -40,7 +37,8 @@ async function startServer() {
     logController: new LogController({ disableRequestLogging: true }),
     routerOptions: { maxParamLength: MAX_CCIP_PARAMETER_LENGTH },
     loggerInstance: logger,
-    trustProxy: GCE_INGRESS_PROXY_CIDRS,
+    requestTimeout: 300_000,
+    trustProxy: trustGceIngressProxy,
   });
   await app.register(cors);
   registerRequestLogging(app);
