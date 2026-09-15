@@ -34,19 +34,14 @@ const WARP_DEPLOY_CUSTOM_ISM_SUN = 0n; // + custom ISM (config.interchainSecurit
 const WARP_DEPLOY_CUSTOM_HOOK_SUN = 0n; // + custom hook / IGP (config.hook object)
 
 export class TronProvider implements AltVM.IProvider {
-  protected readonly rpcUrls: string[];
+  protected readonly rpcUrls: [string, ...string[]];
   protected readonly chainMetadata: ChainMetadataForAltVM;
 
   protected readonly tronweb: TronWeb;
 
   static async connect(metadata: ChainMetadataForAltVM): Promise<TronProvider> {
     const rpcUrls = (metadata.rpcUrls ?? []).map((rpc) => rpc.http);
-    assert(rpcUrls.length > 0, `got no rpcUrls`);
-
-    const { privateKey } = new TronWeb({
-      fullHost: rpcUrls[0],
-    }).createRandom();
-    return new TronProvider(rpcUrls, metadata, strip0x(privateKey));
+    return new TronProvider(rpcUrls, metadata);
   }
 
   constructor(
@@ -54,17 +49,19 @@ export class TronProvider implements AltVM.IProvider {
     chainMetadata: ChainMetadataForAltVM,
     privateKey?: string,
   ) {
-    this.rpcUrls = rpcUrls;
+    const [rpcUrl, ...otherRpcUrls] = rpcUrls;
+    assert(rpcUrl, `got no rpcUrls`);
+    this.rpcUrls = [rpcUrl, ...otherRpcUrls];
     this.chainMetadata = chainMetadata;
 
     if (!privateKey) {
       privateKey = new TronWeb({
-        fullHost: rpcUrls[0],
+        fullHost: rpcUrl,
       }).createRandom().privateKey;
     }
 
     this.tronweb = new TronWeb({
-      fullHost: this.rpcUrls[0],
+      fullHost: rpcUrl,
       privateKey: strip0x(privateKey),
     });
   }
@@ -154,7 +151,7 @@ export class TronProvider implements AltVM.IProvider {
     return block.block_header.raw_data.number > 0;
   }
 
-  getRpcUrls(): string[] {
+  getRpcUrls(): [string, ...string[]] {
     return this.rpcUrls;
   }
 
@@ -189,7 +186,9 @@ export class TronProvider implements AltVM.IProvider {
   ): Promise<AltVM.ResEstimateTransactionFee> {
     const ENERGY_MULTIPLIER = 1.5;
 
-    const value = req.transaction.raw_data.contract[0].parameter.value;
+    const contract = req.transaction.raw_data.contract[0];
+    assert(contract, 'Transaction must contain a contract');
+    const value = contract.parameter.value;
     const contractAddress = value.contract_address;
     const issuerAddress = value.owner_address;
     const callValue = value.call_value || 0;
@@ -213,13 +212,12 @@ export class TronProvider implements AltVM.IProvider {
     }
 
     const energyPriceData = await this.tronweb.trx.getEnergyPrices();
-    const [_, energyPrice] = energyPriceData.split(',').at(-1)!.split(':');
+    const energyPrice = energyPriceData.split(',').at(-1)?.split(':')[1];
+    assert(energyPrice, 'Energy price response must contain a price');
 
     const bandwidthPriceData = await this.tronweb.trx.getBandwidthPrices();
-    const [__, bandwidthPrice] = bandwidthPriceData
-      .split(',')
-      .at(-1)!
-      .split(':');
+    const bandwidthPrice = bandwidthPriceData.split(',').at(-1)?.split(':')[1];
+    assert(bandwidthPrice, 'Bandwidth price response must contain a price');
 
     const txSize = BigInt(req.transaction.raw_data_hex.length / 2 + 134); // Signature + Result + Protobuf
 

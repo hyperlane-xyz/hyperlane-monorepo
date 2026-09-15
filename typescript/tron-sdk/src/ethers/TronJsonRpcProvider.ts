@@ -55,7 +55,7 @@ const JSON_RPC_REVERT_CODE = 3;
 const callExceptionLogger = new utils.Logger('tron-sdk');
 
 function nextInChain(node: Record<string, unknown>): unknown {
-  return node.error ?? node.cause;
+  return node['error'] ?? node['cause'];
 }
 
 /**
@@ -71,9 +71,9 @@ function isSyntheticCallExceptionWrapper(
   node: Record<string, unknown>,
 ): boolean {
   return (
-    node.code === utils.Logger.errors.CALL_EXCEPTION &&
-    typeof node.message === 'string' &&
-    node.message.includes('missing revert data in call exception')
+    node['code'] === utils.Logger.errors.CALL_EXCEPTION &&
+    typeof node['message'] === 'string' &&
+    node['message'].includes('missing revert data in call exception')
   );
 }
 
@@ -92,16 +92,21 @@ function isRevertError(error: unknown): boolean {
   let current: unknown = error;
   while (isRecord(current)) {
     if (!isSyntheticCallExceptionWrapper(current)) {
-      const messages = [current.message, current.reason, current.body].filter(
-        (value): value is string => typeof value === 'string',
-      );
+      const messages = [
+        current['message'],
+        current['reason'],
+        current['body'],
+      ].filter((value): value is string => typeof value === 'string');
       if (messages.some((value) => /revert/i.test(value))) {
         return true;
       }
-      if (current.code === JSON_RPC_REVERT_CODE) {
+      if (current['code'] === JSON_RPC_REVERT_CODE) {
         return true;
       }
-      if (typeof current.data === 'string' && current.data.startsWith('0x')) {
+      if (
+        typeof current['data'] === 'string' &&
+        current['data'].startsWith('0x')
+      ) {
         return true;
       }
     }
@@ -150,7 +155,7 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
    * Override network detection to handle Tron nodes that don't support eth_chainId.
    * Falls back to a default network if detection fails.
    */
-  async detectNetwork(): Promise<providers.Network> {
+  override async detectNetwork(): Promise<providers.Network> {
     try {
       return await super.detectNetwork();
     } catch {
@@ -164,7 +169,7 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
    * Wraps all RPC calls with retry logic to handle transient
    * errors like 503s from TronGrid rate limiting.
    */
-  async perform(method: string, params: any): Promise<any> {
+  override async perform(method: string, params: any): Promise<any> {
     const performWithRetry = () =>
       retryAsync(
         () => super.perform(method, params),
@@ -265,7 +270,7 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
    * Return a default gas limit since Tron uses feeLimit (not gasLimit) for execution,
    * and TronWallet.buildTransaction caps feeLimit at 1000 TRX anyway.
    */
-  async estimateGas(
+  override async estimateGas(
     _transaction: providers.TransactionRequest,
   ): Promise<BigNumber> {
     try {
@@ -283,7 +288,7 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
    * reports 0 here. Use {@link isAccountActive} to test whether an account
    * exists on-chain.
    */
-  async getTransactionCount(
+  override async getTransactionCount(
     _addressOrName: string,
     _blockTag?: providers.BlockTag,
   ): Promise<number> {
@@ -337,14 +342,14 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
   /**
    * Tron doesn't support ENS - return the name as-is.
    */
-  async resolveName(name: string): Promise<string> {
+  override async resolveName(name: string): Promise<string> {
     return name;
   }
 
   /**
    * Return legacy gas pricing only - Tron doesn't support EIP-1559.
    */
-  async getFeeData(): Promise<providers.FeeData> {
+  override async getFeeData(): Promise<providers.FeeData> {
     const gasPrice = await this.getGasPrice();
     return {
       gasPrice,
