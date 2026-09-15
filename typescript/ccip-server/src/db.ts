@@ -3,6 +3,10 @@ import pg from 'pg';
 
 import { PrismaClient } from './generated/prisma/client.js';
 
+export function createPrismaClient(pool: pg.Pool): PrismaClient {
+  const adapter = new PrismaPg(pool, { disposeExternalPool: true });
+  return new PrismaClient({ adapter });
+}
+
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-const adapter = new PrismaPg(pool, { disposeExternalPool: true });
-export const prisma = new PrismaClient({ adapter });
+export const prisma = createPrismaClient(pool);
