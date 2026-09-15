@@ -659,7 +659,6 @@ function assertCompositeIsmNodeSupportedAsMailboxDefault(
         false,
         `A compositeIsm 'rateLimited' node is only supported on a warp route, but one was configured for ${context}. Remove the rateLimited node.`,
       );
-      return;
     case CompositeIsmNodeType.TRUSTED_RELAYER:
     case CompositeIsmNodeType.MULTISIG_MESSAGE_ID:
     case CompositeIsmNodeType.TEST:
