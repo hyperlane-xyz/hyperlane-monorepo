@@ -5,6 +5,8 @@ type ScraperProxyTunnelConfig =
   | { enabled: true; image: string };
 
 export interface ScraperProxyConfig {
+  agentReplicas?: number;
+  agentResources?: KubernetesResources;
   docker: DockerConfig;
   enabled: boolean;
   maxAgentClients?: number;

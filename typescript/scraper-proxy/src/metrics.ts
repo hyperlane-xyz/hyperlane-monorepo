@@ -8,6 +8,10 @@ import {
 
 import type { EventType } from './live/protocol.js';
 
+export function isEventListenerReady(): boolean {
+  return websocketMetricsProvider?.().listenerReady ?? false;
+}
+
 const PREFIX = 'hyperlane_scraper_proxy_';
 
 export type WebSocketMetricsSnapshot = {

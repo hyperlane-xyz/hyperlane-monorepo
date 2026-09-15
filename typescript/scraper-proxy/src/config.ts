@@ -53,6 +53,7 @@ const ConfigSchema = z.object({
     .default(33_554_432),
   GRAPHQL_MAX_ACTIVE_REQUESTS: z.coerce.number().int().min(1).default(25),
   PORT: z.coerce.number().int().positive().default(8383),
+  WORKLOAD_ROLE: z.enum(['agents', 'combined', 'public']).default('combined'),
 });
 
 export const config = ConfigSchema.parse(process.env);

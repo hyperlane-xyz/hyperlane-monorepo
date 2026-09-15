@@ -463,12 +463,17 @@ export class ScraperProxyHelmManager extends HelmManager<HelmRootAgentValues> {
   }
 
   async restartDeployment(): Promise<void> {
-    await this.runCommand(
-      `kubectl rollout restart deployment/${this.helmReleaseName} -n ${this.namespace}`,
-    );
-    await this.runCommand(
-      `kubectl rollout status deployment/${this.helmReleaseName} -n ${this.namespace} --timeout=180s`,
-    );
+    for (const deployment of [
+      this.helmReleaseName,
+      `${this.helmReleaseName}-public`,
+    ]) {
+      await this.runCommand(
+        `kubectl rollout restart deployment/${deployment} -n ${this.namespace}`,
+      );
+      await this.runCommand(
+        `kubectl rollout status deployment/${deployment} -n ${this.namespace} --timeout=180s`,
+      );
+    }
   }
 
   protected async runCommand(command: string): Promise<void> {

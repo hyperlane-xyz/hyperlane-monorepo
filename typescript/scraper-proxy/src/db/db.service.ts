@@ -101,7 +101,15 @@ export class DbService implements ScraperDbDatabase {
   ) {}
 
   async start(): Promise<void> {
-    await this.validateEventStreamSchema();
+    if (config.WORKLOAD_ROLE === 'agents') {
+      await this.validateEventStreamSchema();
+      this.logger.info('agent workload role; GraphQL database pool is disabled');
+      this.statsTimer = setInterval(() => this.logStats(), STATS_INTERVAL_MS);
+      return;
+    }
+    if (config.WORKLOAD_ROLE === 'combined') {
+      await this.validateEventStreamSchema();
+    }
     if (config.DATABASE_READ_REPLICA_URL) {
       this.logger.info(
         'GraphQL db role=read-replica; connections open lazily so replica health cannot gate websocket startup',

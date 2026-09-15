@@ -19,4 +19,25 @@ spec:
   - name: websocket
     port: {{ .Values.hyperlane.scraperProxy.port }}
     targetPort: scraper-proxy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agent-common.fullname" . }}-public
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: {{ .Values.hyperlane.scraperProxy.port | quote }}
+    prometheus.io/scrape: 'true'
+  labels:
+    {{- include "agent-common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scraper-proxy-public
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "agent-common.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: scraper-proxy-public
+  ports:
+  - name: http
+    port: {{ .Values.hyperlane.scraperProxy.port }}
+    targetPort: scraper-proxy
 {{- end }}

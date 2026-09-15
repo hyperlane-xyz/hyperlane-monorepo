@@ -18,6 +18,10 @@ describe('ScraperProxyHelmManager', () => {
       [Role.Scraper]: [],
     },
     scraperProxy: {
+      agentReplicas: 3,
+      agentResources: {
+        requests: { cpu: '250m', memory: '512Mi' },
+      },
       docker: {
         repo: 'ghcr.io/hyperlane-xyz/hyperlane-node-services',
         tag: 'test',
@@ -42,6 +46,10 @@ describe('ScraperProxyHelmManager', () => {
     expect(values.hyperlane.chains).to.deep.equal([]);
     expect(values.hyperlane.scraper).to.equal(undefined);
     expect(values.hyperlane.scraperProxy).to.deep.equal({
+      agentReplicas: 3,
+      agentResources: {
+        requests: { cpu: '250m', memory: '512Mi' },
+      },
       enabled: true,
       maxAgentClients: 200,
       port: 8383,
@@ -65,6 +73,8 @@ describe('ScraperProxyHelmManager', () => {
     expect(manager.commands).to.deep.equal([
       'kubectl rollout restart deployment/scraper-proxy -n mainnet3',
       'kubectl rollout status deployment/scraper-proxy -n mainnet3 --timeout=180s',
+      'kubectl rollout restart deployment/scraper-proxy-public -n mainnet3',
+      'kubectl rollout status deployment/scraper-proxy-public -n mainnet3 --timeout=180s',
     ]);
   });
 });

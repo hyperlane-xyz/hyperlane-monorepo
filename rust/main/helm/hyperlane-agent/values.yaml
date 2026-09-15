@@ -161,6 +161,11 @@ hyperlane:
 
   scraperProxy:
     enabled: false
+    agentReplicas: 1
+    agentResources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
     maxAgentClients: 100
     port: 8383
     replicas: 1

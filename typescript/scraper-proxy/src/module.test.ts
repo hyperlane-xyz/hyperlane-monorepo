@@ -3,6 +3,27 @@ import { it } from 'node:test';
 
 process.env.DATABASE_URL ??= 'postgresql://unused:unused@localhost/unused';
 
+void it('keeps GraphQL off the agent app while retaining metrics and readiness', async () => {
+  const { createScraperProxyApp } = await import('./module.js');
+  const app = await createScraperProxyApp({
+    async query<T extends Record<string, unknown>>(): Promise<T[]> {
+      throw new Error('agent app must not query the GraphQL database');
+    },
+  }, { workloadRole: 'agents' });
+  try {
+    const graphql = await app.inject({
+      method: 'POST',
+      payload: { query: '{ domain { id } }' },
+      url: '/graphql',
+    });
+    assert.equal(graphql.statusCode, 404);
+    assert.equal((await app.inject('/metrics')).statusCode, 200);
+    assert.equal((await app.inject('/ready')).statusCode, 503);
+  } finally {
+    await app.close();
+  }
+});
+
 void it('coalesces concurrent cached HTTP queries and propagates shared errors', async () => {
   const { createScraperProxyApp } = await import('./module.js');
   for (const fail of [false, true]) {

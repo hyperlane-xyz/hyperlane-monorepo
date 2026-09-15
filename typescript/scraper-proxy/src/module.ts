@@ -20,6 +20,7 @@ import {
   graphqlErrors,
   graphqlRequestDuration,
   graphqlRequests,
+  isEventListenerReady,
   metricsRegistry,
 } from './metrics.js';
 import { cacheControlHeader } from './scraperdb/cache-config.js';
@@ -78,6 +79,7 @@ setInterval(() => {
 }, 60_000).unref();
 
 export type ScraperProxyAppOptions = {
+  workloadRole?: typeof config.WORKLOAD_ROLE;
   jit?:
     | number
     | {
@@ -105,6 +107,9 @@ export async function createScraperProxyApp(
     credentials: false,
     origin: true,
   });
+
+  registerMetricsRoute(app);
+  if ((options.workloadRole ?? config.WORKLOAD_ROLE) === 'agents') return app;
 
   app.addHook('onRequest', async (request, reply) => {
     if (!isGraphqlRequest(request)) return;
@@ -244,8 +249,6 @@ export async function createScraperProxyApp(
     return payload;
   });
 
-  registerMetricsRoute(app);
-
   await app.register(mercurius, {
     allowBatchedQueries: false,
     cache: 1_024,
@@ -280,6 +283,12 @@ export async function createScraperProxyApp(
 }
 
 export function registerMetricsRoute(app: FastifyInstance): void {
+  app.get('/ready', async (_request, reply) => {
+    if (!isEventListenerReady()) {
+      return reply.code(503).send('event listener unavailable');
+    }
+    return 'ready';
+  });
   app.get('/metrics', async (_request, reply) => {
     reply.type(metricsRegistry.contentType);
     return metricsRegistry.metrics();

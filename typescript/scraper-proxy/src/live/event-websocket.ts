@@ -201,6 +201,10 @@ export class EventWebSocketServer {
   constructor(
     private readonly db: EventDatabase,
     limits: Partial<Limits> = {},
+    private readonly routes: Readonly<{
+      agents: boolean;
+      messages: boolean;
+    }> = { agents: true, messages: true },
   ) {
     this.limits = {
       heartbeatMs: HEARTBEAT_MS,
@@ -228,26 +232,34 @@ export class EventWebSocketServer {
       );
     }
     await this.connectListener();
-    this.agentServer = new WebSocketServer({
-      // Agent subscriptions carry one cursor per chain and stream, so the
-      // fleet-wide relayer payload is substantially larger than an Explorer
-      // client request. Keep it bounded independently from outbound buffers.
-      maxPayload: MAX_AGENT_MESSAGE_BYTES,
-      noServer: true,
-    });
-    this.explorerServer = new WebSocketServer({
-      maxPayload: 4_096,
-      noServer: true,
-    });
+    if (this.routes.agents) {
+      this.agentServer = new WebSocketServer({
+        // Agent subscriptions carry one cursor per chain and stream, so the
+        // fleet-wide relayer payload is substantially larger than an Explorer
+        // client request. Keep it bounded independently from outbound buffers.
+        maxPayload: MAX_AGENT_MESSAGE_BYTES,
+        noServer: true,
+      });
+      this.agentServer.on('connection', (socket) => this.connectAgent(socket));
+    }
+    if (this.routes.messages) {
+      this.explorerServer = new WebSocketServer({
+        maxPayload: 4_096,
+        noServer: true,
+      });
+      this.explorerServer.on('connection', (socket, request) =>
+        this.connectExplorer(socket, request),
+      );
+    }
     this.httpServer = server;
     server.on('upgrade', this.handleUpgrade);
-    this.agentServer.on('connection', (socket) => this.connectAgent(socket));
-    this.explorerServer.on('connection', (socket, request) =>
-      this.connectExplorer(socket, request),
-    );
     this.heartbeatTimer = setInterval(() => this.heartbeat(), heartbeatMs);
+    const paths = [
+      this.routes.agents ? AGENT_PATH : undefined,
+      this.routes.messages ? MESSAGE_PATH : undefined,
+    ].filter(Boolean);
     this.logger.info(
-      `event websockets listening on ${AGENT_PATH}, ${MESSAGE_PATH} batchSize=${config.EVENT_STREAM_BATCH_SIZE} maxAgentClients=${this.limits.maxAgentClients} maxBufferedBytes=${this.limits.maxBufferedBytes} maxTotalBufferedBytes=${this.limits.maxTotalBufferedBytes}`,
+      `event websockets listening on ${paths.join(', ')} batchSize=${config.EVENT_STREAM_BATCH_SIZE} maxAgentClients=${this.limits.maxAgentClients} maxBufferedBytes=${this.limits.maxBufferedBytes} maxTotalBufferedBytes=${this.limits.maxTotalBufferedBytes}`,
     );
   }
 
@@ -341,14 +353,16 @@ export class EventWebSocketServer {
         ...this.explorerClientsByIp.values(),
       ),
       limits: {
-        agentConnections: this.limits.maxAgentClients,
+        agentConnections: this.routes.agents ? this.limits.maxAgentClients : 0,
         catchUpMs: this.limits.maxCatchUpMs,
         catchUpRows: this.limits.maxCatchUpRows,
         clientMessagesPerMinute: MAX_CLIENT_MESSAGES,
         concurrentCatchUps: this.limits.maxConcurrentCatchUps,
         explorerPendingBytes: MAX_EXPLORER_PENDING_BYTES,
         explorerPendingMessages: MAX_EXPLORER_PENDING_MESSAGES,
-        messageConnections: this.limits.maxExplorerClients,
+        messageConnections: this.routes.messages
+          ? this.limits.maxExplorerClients
+          : 0,
         messageConnectionsPerIp: MAX_EXPLORER_CLIENTS_PER_IP,
         notificationEvents: MAX_PENDING_NOTIFICATIONS,
         pendingEvents: MAX_PENDING_EVENTS,
@@ -1035,8 +1049,12 @@ export class EventWebSocketServer {
 
   private async connectListener(): Promise<void> {
     try {
+      const channels = [
+        this.routes.agents ? EVENT_CHANNEL : undefined,
+        this.routes.messages ? EXPLORER_CHANNEL : undefined,
+      ].filter((channel): channel is string => Boolean(channel));
       this.stopListening = await this.db.listen(
-        [EVENT_CHANNEL, EXPLORER_CHANNEL],
+        channels,
         (channel, payload) => this.queueNotification(channel, payload),
         (error) => this.listenerDisconnected(error),
       );

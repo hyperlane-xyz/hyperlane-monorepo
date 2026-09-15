@@ -2,23 +2,26 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "agent-common.fullname" . }}
+  name: {{ include "agent-common.fullname" . }}-public
   labels:
     {{- include "agent-common.labels" . | nindent 4 }}
-    app.kubernetes.io/component: scraper-proxy
+    app.kubernetes.io/component: scraper-proxy-public
 spec:
-  replicas: {{ .Values.hyperlane.scraperProxy.agentReplicas }}
+  replicas: {{ .Values.hyperlane.scraperProxy.replicas }}
   selector:
     matchLabels:
       {{- include "agent-common.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: scraper-proxy
+      app.kubernetes.io/component: scraper-proxy-public
   template:
     metadata:
       annotations:
         checksum/scraper-proxy-external-secret: {{ include (print $.Template.BasePath "/scraper-proxy-external-secret.yaml") . | sha256sum }}
+        {{- if .Values.hyperlane.scraperProxy.tunnel.enabled }}
+        checksum/scraper-proxy-cloudflared-external-secret: {{ include (print $.Template.BasePath "/scraper-proxy-cloudflared-external-secret.yaml") . | sha256sum }}
+        {{- end }}
       labels:
         {{- include "agent-common.labels" . | nindent 8 }}
-        app.kubernetes.io/component: scraper-proxy
+        app.kubernetes.io/component: scraper-proxy-public
         {{- with .Values.podCommonLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
@@ -39,16 +42,19 @@ spec:
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
         - name: SERVICE_NAME
-          value: scraper-proxy-agents
+          value: scraper-proxy-public
         - name: WORKLOAD_ROLE
-          value: agents
+          value: public
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
               name: {{ include "agent-common.fullname" . }}-secret
               key: DATABASE_URL
-        - name: EVENT_STREAM_MAX_AGENT_CLIENTS
-          value: {{ .Values.hyperlane.scraperProxy.maxAgentClients | quote }}
+        - name: DATABASE_READ_REPLICA_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "agent-common.fullname" . }}-secret
+              key: DATABASE_READ_REPLICA_URL
         - name: PORT
           value: {{ .Values.hyperlane.scraperProxy.port | quote }}
         ports:
@@ -61,7 +67,19 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 10
         resources:
-          {{- toYaml .Values.hyperlane.scraperProxy.agentResources | nindent 10 }}
+          {{- toYaml .Values.hyperlane.scraperProxy.resources | nindent 10 }}
+      {{- if .Values.hyperlane.scraperProxy.tunnel.enabled }}
+      - name: cloudflared
+        image: {{ .Values.hyperlane.scraperProxy.tunnel.image }}
+        args: ["tunnel", "--no-autoupdate", "run"]
+        envFrom:
+        - secretRef:
+            name: {{ include "agent-common.fullname" . }}-cloudflared-secret
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

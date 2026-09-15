@@ -18,6 +18,7 @@ void it('serves current usage and limits from /metrics', async () => {
       main: { idle: 3, limit: 10, total: 5, waiting: 2 },
     },
   }));
+  let listenerReady = true;
   setWebSocketMetricsProvider(() => ({
     catchUps: 2,
     connections: { agent: 3, messages: 4 },
@@ -42,7 +43,7 @@ void it('serves current usage and limits from /metrics', async () => {
       socketBufferedBytes: 1_024,
       totalPendingBytes: 4_096,
     },
-    listenerReady: true,
+    listenerReady,
     maxCatchUpDurationMs: 3_000,
     maxCatchUpRows: 500,
     maxClientBufferedBytes: 128,
@@ -150,6 +151,12 @@ void it('serves current usage and limits from /metrics', async () => {
   const app = Fastify({ logger: false });
   registerMetricsRoute(app);
   try {
+    listenerReady = false;
+    assert.equal((await app.inject('/ready')).statusCode, 503);
+    listenerReady = true;
+    const ready = await app.inject('/ready');
+    assert.equal(ready.statusCode, 200);
+    assert.equal(ready.body, 'ready');
     const response = await app.inject({ method: 'GET', url: '/metrics' });
     assert.equal(response.statusCode, 200);
     const contentType = response.headers['content-type'];
