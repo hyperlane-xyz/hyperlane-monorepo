@@ -356,6 +356,5 @@ function createApp(logger: Logger) {
   return Fastify({
     bodyLimit: 100 * 1_024,
     loggerInstance: logger,
-    trustProxy: true,
   });
 }
