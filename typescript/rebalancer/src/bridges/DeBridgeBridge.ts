@@ -31,6 +31,10 @@ import type {
   IExternalBridge,
 } from '../interfaces/IExternalBridge.js';
 import {
+  DLN_FORWARDER,
+  validateDeBridgeForwarderDeployment,
+} from './deBridgeForwarderValidation.js';
+import {
   validateDeBridgeEvmTransaction,
   validateDeBridgeSolanaInstructions,
 } from './deBridgeValidation.js';
@@ -249,6 +253,7 @@ export class DeBridgeBridge implements IExternalBridge {
       dstChainTokenOutRecipient: recipientAddress,
       senderAddress,
       srcChainOrderAuthorityAddress: senderAddress,
+      srcChainRefundAddress: senderAddress,
       srcAllowedCancelBeneficiary: senderAddress,
       dstChainOrderAuthorityAddress: recipientAddress,
       prependOperatingExpenses: 'false',
@@ -388,6 +393,9 @@ export class DeBridgeBridge implements IExternalBridge {
     );
 
     validateDeBridgeEvmTransaction(quote, tx.to, tx.data);
+    if (tx.to.toLowerCase() === DLN_FORWARDER.toLowerCase()) {
+      await validateDeBridgeForwarderDeployment(wallet.provider, tx.data);
+    }
 
     if (!isNativeToken) {
       await approveErc20IfNeeded(
