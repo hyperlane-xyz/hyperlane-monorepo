@@ -576,6 +576,7 @@
       "interchainGasPaymaster": "9SQVtTNsbipdMzumhzi6X8GwojiSMwBfqAhS7FgyTcqy",
       "isTestnet": true,
       "mailbox": "75HBBLae3ddeneJVrZeyrDfv6vb7SMC3aCpBucSXS5aR",
+      "maxSupportedTransactionVersion": 1,
       "merkleTreeHook": "75HBBLae3ddeneJVrZeyrDfv6vb7SMC3aCpBucSXS5aR",
       "name": "solanatestnet",
       "nativeToken": {
@@ -1646,6 +1647,7 @@
       "interchainGasPaymaster": "7QRetu6N7iBJEMe7Zd9Ur7toLqegxcHLQSFGQXb9aZLP",
       "interchainSecurityModule": "4Q1eZAovdqhihCCZyabX4u5rCJPq5R8YgyKVDCdjzTNV",
       "mailbox": "5yM5YrrzHCrp4ZPLKN9Y2eUAqEWsTbBqaorgbngQcR54",
+      "maxSupportedTransactionVersion": 1,
       "merkleTreeHook": "5yM5YrrzHCrp4ZPLKN9Y2eUAqEWsTbBqaorgbngQcR54",
       "validatorAnnounce": "7TfjfmTCuZVSq9mour8obQz2pXGNiEz29EqEEDnoexQ9",
       "gasCurrencyCoinGeckoId": "solana",

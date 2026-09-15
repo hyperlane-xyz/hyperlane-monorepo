@@ -1565,6 +1565,7 @@
       },
       "interchainGasPaymaster": "JAvHW21tYXE9dtdG83DReqU2b4LUexFuCbtJT5tF8X6M",
       "mailbox": "E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi",
+      "maxSupportedTransactionVersion": 1,
       "merkleTreeHook": "E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi",
       "name": "solanamainnet",
       "nativeToken": {

@@ -86,6 +86,15 @@ fn hyperlane_settings() -> Vec<Settings> {
         .collect()
 }
 
+fn bundled_config(file_name: &str) -> serde_json::Value {
+    let crate_root = env!("CARGO_MANIFEST_DIR");
+    let path = format!("{crate_root}/{AGENT_CONFIG_PATH_ROOT}/{file_name}");
+    let contents = read_to_string(&path)
+        .unwrap_or_else(|error| panic!("failed to read bundled config {path}: {error}"));
+    serde_json::from_str(&contents)
+        .unwrap_or_else(|error| panic!("failed to deserialize bundled config {path}: {error}"))
+}
+
 fn chain_name_domain_records() -> BTreeSet<ChainCoordinate> {
     hyperlane_settings()
         .iter()
@@ -112,5 +121,21 @@ fn agent_json_config_consistency_checks() {
             name
         );
         assert_eq!(name.parse::<KnownHyperlaneDomain>().unwrap() as u32, domain);
+    }
+}
+
+#[test]
+fn canonical_solana_configs_enable_v1_reads() {
+    let configs = [
+        (bundled_config("mainnet_config.json"), "solanamainnet"),
+        (bundled_config("testnet_config.json"), "solanatestnet"),
+        (bundled_config("testnet_config.json"), "solanadevnet"),
+    ];
+
+    for (config, name) in configs {
+        assert_eq!(
+            config["chains"][name]["maxSupportedTransactionVersion"], 1,
+            "{name} should accept Solana v1 JSON reads by default",
+        );
     }
 }
