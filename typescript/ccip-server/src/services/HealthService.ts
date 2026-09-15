@@ -1,4 +1,5 @@
 import { BaseService, ServiceConfig } from './BaseService.js';
+import type { CcipApp } from '../http.js';
 
 class HealthService extends BaseService {
   static async create(serviceName: string): Promise<HealthService> {
@@ -7,9 +8,11 @@ class HealthService extends BaseService {
 
   constructor(config: ServiceConfig) {
     super(config);
+  }
 
-    this.router.get('', (_, res) => {
-      res.status(200).send('OK');
+  registerRoutes(app: CcipApp, prefix: string): void {
+    app.get(prefix, async (_request, reply) => {
+      return reply.code(200).send('OK');
     });
   }
 }

@@ -27,11 +27,19 @@ function mockLogger() {
 }
 
 function mockRes() {
-  const json = sinon.stub();
-  const status = sinon.stub().returns({ json });
+  const send = sinon.stub();
+  const code = sinon.stub().returns({ send });
   const sendStatus = sinon.stub();
-  const set = sinon.stub();
-  return { status, json, sendStatus, set };
+  const header = sinon.stub();
+  return {
+    code,
+    header,
+    json: send,
+    send,
+    sendStatus,
+    set: header,
+    status: code,
+  };
 }
 
 const validAddress = '0x' + 'ab'.repeat(20);

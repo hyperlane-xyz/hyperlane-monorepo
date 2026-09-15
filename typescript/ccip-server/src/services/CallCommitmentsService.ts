@@ -1,7 +1,6 @@
 import type { Log } from '@ethersproject/providers';
 import { utils } from 'ethers';
-import { Request, Response, Router } from 'express';
-import rateLimit from 'express-rate-limit';
+import type { FastifyReply } from 'fastify';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
@@ -32,13 +31,18 @@ import {
 
 import { prisma } from '../db.js';
 import type { Prisma } from '../generated/prisma/client.js';
-import { createAbiHandler } from '../utils/abiHandler.js';
+import type { CcipApp, CcipRequest, CommitmentParams } from '../http.js';
+import {
+  ABI_ROUTE_OPTIONS,
+  type AbiRoute,
+  createAbiHandler,
+} from '../utils/abiHandler.js';
 import {
   PrometheusMetrics,
-  RateLimitedMethod,
   RateLimitedRoute,
   UnhandledErrorReason,
 } from '../utils/prometheus.js';
+import { createRateLimitHook } from '../utils/rateLimit.js';
 
 import {
   BaseService,
@@ -265,7 +269,6 @@ export class CallCommitmentsService extends BaseService {
     super(config);
     this.multiProvider = config.multiProvider;
     this.baseUrl = config.baseUrl;
-    this.registerRoutes(this.router, this.baseUrl);
   }
 
   static async create(serviceName: string): Promise<CallCommitmentsService> {
@@ -292,7 +295,7 @@ export class CallCommitmentsService extends BaseService {
     );
   }
 
-  public async handleCommitment(req: Request, res: Response) {
+  public async handleCommitment(req: CcipRequest, res: FastifyReply) {
     const logger = this.addLoggerServiceContext(req.log);
 
     logger.info('Received commitment creation request');
@@ -314,7 +317,7 @@ export class CallCommitmentsService extends BaseService {
         },
         'Invalid call data',
       );
-      return res.status(400).json({ error: 'Invalid call data' });
+      return res.code(400).send({ error: 'Invalid call data' });
     }
     logger.setBindings({ commitment });
 
@@ -344,7 +347,7 @@ export class CallCommitmentsService extends BaseService {
         },
         'Failed to derive ICA address',
       );
-      return res.status(400).json({
+      return res.code(400).send({
         error: `Failed to derive ICA address: ${errorMessage}`,
       });
     }
@@ -374,7 +377,7 @@ export class CallCommitmentsService extends BaseService {
         this.config.serviceName,
         UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
       );
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.code(500).send({ error: 'Internal server error' });
     }
 
     const requestedMetadata = {
@@ -394,8 +397,8 @@ export class CallCommitmentsService extends BaseService {
         'Commitment already exists with different metadata',
       );
       return res
-        .status(409)
-        .json({ error: 'Commitment already exists with different metadata' });
+        .code(409)
+        .send({ error: 'Commitment already exists with different metadata' });
     }
 
     logger.info(
@@ -406,7 +409,7 @@ export class CallCommitmentsService extends BaseService {
       },
       'Commitment processing completed successfully',
     );
-    return res.status(200).json({
+    return res.code(200).send({
       commitment,
       ica: storedMetadata.ica,
       originDomain: storedMetadata.originDomain,
@@ -480,12 +483,16 @@ export class CallCommitmentsService extends BaseService {
    * Validate and parse the request body against the Zod schema.
    * Returns parsed data or sends a 400 response and returns null.
    */
-  private parseCommitmentBody(body: any, res: Response, logger: Logger) {
+  private parseCommitmentBody(
+    body: unknown,
+    res: FastifyReply,
+    logger: Logger,
+  ) {
     const result = PostCallsSchema.safeParse(body);
     if (!result.success) {
       const errors = z.treeifyError(result.error);
       logger.warn({ errors }, 'Invalid request body received');
-      res.status(400).json({ errors });
+      res.code(400).send({ errors });
       return null;
     }
     return result.data;
@@ -658,20 +665,23 @@ export class CallCommitmentsService extends BaseService {
    * GET /calls/:commitment — returns existence and stored routing metadata.
    * Used by the router status service to detect call_lost without a time threshold.
    */
-  public async handleCheckCommitment(req: Request, res: Response) {
+  public async handleCheckCommitment(
+    req: CcipRequest<{ Params: CommitmentParams }>,
+    res: FastifyReply,
+  ) {
     const logger = this.addLoggerServiceContext(req.log);
     const { commitment } = req.params;
     assert(commitment, 'Route parameter :commitment must be present');
-    res.set('Cache-Control', 'no-store');
+    res.header('Cache-Control', 'no-store');
     try {
       const record = await prisma.commitment.findUnique({
         where: { commitment },
         select: commitmentMetadataSelect,
       });
-      if (record === null) return res.json({ exists: false });
+      if (record === null) return res.send({ exists: false });
 
       const metadata = CommitmentMetadataSchema.parse(record);
-      return res.json({
+      return res.send({
         exists: true,
         ica: metadata.ica,
         originDomain: metadata.originDomain,
@@ -690,7 +700,7 @@ export class CallCommitmentsService extends BaseService {
         this.config.serviceName,
         UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
       );
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.code(500).send({ error: 'Internal server error' });
     }
   }
 
@@ -747,13 +757,13 @@ export class CallCommitmentsService extends BaseService {
     }),
   );
 
-  public async handleCalldataPost(req: Request, res: Response) {
+  public async handleCalldataPost(req: CcipRequest, res: FastifyReply) {
     const logger = this.addLoggerServiceContext(req.log);
     const result = CallCommitmentsService.CalldataPostSchema.safeParse(
       req.body,
     );
     if (!result.success) {
-      return res.status(400).json({ errors: z.treeifyError(result.error) });
+      return res.code(400).send({ errors: z.treeifyError(result.error) });
     }
     const {
       commitment: requestedCommitment,
@@ -772,8 +782,8 @@ export class CallCommitmentsService extends BaseService {
       expectedCommitment.toLowerCase() !== requestedCommitment.toLowerCase()
     ) {
       return res
-        .status(400)
-        .json({ error: 'commitment does not match keccak256(salt || data)' });
+        .code(400)
+        .send({ error: 'commitment does not match keccak256(salt || data)' });
     }
     const commitment = expectedCommitment;
 
@@ -817,8 +827,8 @@ export class CallCommitmentsService extends BaseService {
           'Commitment already exists with different metadata',
         );
         return res
-          .status(409)
-          .json({ error: 'Commitment already exists with different metadata' });
+          .code(409)
+          .send({ error: 'Commitment already exists with different metadata' });
       }
 
       logger.error(
@@ -834,10 +844,10 @@ export class CallCommitmentsService extends BaseService {
         this.config.serviceName,
         UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
       );
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.code(500).send({ error: 'Internal server error' });
     }
 
-    return res.status(200).json({ commitment });
+    return res.code(200).send({ commitment });
   }
 
   private async storeCalldata(
@@ -911,7 +921,10 @@ export class CallCommitmentsService extends BaseService {
     );
   }
 
-  public async handleCalldataGet(req: Request, res: Response) {
+  public async handleCalldataGet(
+    req: CcipRequest<{ Params: CommitmentParams }>,
+    res: FastifyReply,
+  ) {
     const logger = this.addLoggerServiceContext(req.log);
     const { commitment } = req.params;
 
@@ -933,11 +946,11 @@ export class CallCommitmentsService extends BaseService {
         },
         'Database error fetching calldata',
       );
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.code(500).send({ error: 'Internal server error' });
     }
-    if (!record) return res.status(404).json({ error: 'Not found' });
+    if (!record) return res.code(404).send({ error: 'Not found' });
 
-    return res.status(200).json({
+    return res.code(200).send({
       originDomain: record.originDomain,
       data: record.data,
       salt: record.salt,
@@ -950,68 +963,44 @@ export class CallCommitmentsService extends BaseService {
     });
   }
 
-  /**
-   * Register routes onto an Express Router or app.
-   */
-  private registerRoutes(router: Router, baseUrl: string): void {
-    const toRateLimitedMethod = (method: string): RateLimitedMethod => {
-      if (method === RateLimitedMethod.GET) return RateLimitedMethod.GET;
-      if (method === RateLimitedMethod.POST) return RateLimitedMethod.POST;
-      return RateLimitedMethod.OTHER;
-    };
-    const toRateLimitedRoute = (route: string): RateLimitedRoute => {
-      return (
-        Object.values(RateLimitedRoute).find(
-          (knownRoute) => knownRoute === route,
-        ) ?? RateLimitedRoute.Unknown
-      );
-    };
-    const createRateLimit = () =>
-      rateLimit({
-        windowMs: 60 * 1000,
-        max: 20,
-        standardHeaders: true,
-        legacyHeaders: false,
-        handler: (req, res) => {
-          PrometheusMetrics.logRateLimited(
-            toRateLimitedMethod(req.method),
-            toRateLimitedRoute(req.route.path),
-          );
-          res.status(429).json({ error: 'Too many requests' });
-        },
-      });
-    const writeRateLimit = createRateLimit();
-    const readRateLimit = createRateLimit();
+  registerRoutes(app: CcipApp, prefix: string): void {
+    app.addHook('onClose', async () => {
+      await prisma.$disconnect();
+    });
 
-    router.post(
-      RateLimitedRoute.Calls,
+    const writeRateLimit = { preHandler: createRateLimitHook(app, 'write') };
+    const readRateLimit = { preHandler: createRateLimitHook(app, 'read') };
+
+    app.post(
+      `${prefix}${RateLimitedRoute.Calls}`,
       writeRateLimit,
       this.handleCommitment.bind(this),
     );
-    router.get(
-      RateLimitedRoute.CallsByCommitment,
+    app.get<{ Params: CommitmentParams }>(
+      `${prefix}${RateLimitedRoute.CallsByCommitment}`,
       readRateLimit,
       this.handleCheckCommitment.bind(this),
     );
-    router.post(
-      RateLimitedRoute.Calldata,
+    app.post(
+      `${prefix}${RateLimitedRoute.Calldata}`,
       writeRateLimit,
       this.handleCalldataPost.bind(this),
     );
-    router.get(
-      RateLimitedRoute.CalldataByCommitment,
+    app.get<{ Params: CommitmentParams }>(
+      `${prefix}${RateLimitedRoute.CalldataByCommitment}`,
       readRateLimit,
       this.handleCalldataGet.bind(this),
     );
-    router.post(
-      '/getCallsFromRevealMessage',
+    app.post<AbiRoute>(
+      `${prefix}/getCallsFromRevealMessage`,
+      ABI_ROUTE_OPTIONS,
       createAbiHandler(
         CommitmentReadIsmService__factory,
         'getCallsFromRevealMessage',
         this.handleFetchCommitment.bind(this),
         {
           skipResultEncoding: true,
-          verifyRelayerSignatureUrl: `${baseUrl}/getCallsFromRevealMessage`,
+          verifyRelayerSignatureUrl: `${this.baseUrl}/getCallsFromRevealMessage`,
         },
       ),
     );

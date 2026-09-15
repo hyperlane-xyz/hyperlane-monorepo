@@ -1,28 +1,49 @@
-import type { Express, Request, Response } from 'express';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { LevelWithSilent } from 'pino';
 
-// GCE ingress appends the client and load-balancer addresses to X-Forwarded-For.
-// Trust the direct proxy and the load-balancer address so Express selects the
-// client address instead of grouping every request under the load balancer.
-export const GCE_INGRESS_PROXY_HOPS = 2;
+import type { CcipApp } from '../http.js';
 
-export function configureTrustProxy(app: Express): void {
-  app.set('trust proxy', GCE_INGRESS_PROXY_HOPS);
+// GCE ingress appends proxy addresses to X-Forwarded-For. Trust only the GFE
+// source ranges and private/loopback hops between the load balancer and pod so
+// a directly connected client cannot spoof forwarding headers.
+export const GCE_INGRESS_PROXY_CIDRS = [
+  '35.191.0.0/16',
+  '130.211.0.0/22',
+  '10.0.0.0/8',
+  '172.16.0.0/12',
+  '192.168.0.0/16',
+  '127.0.0.0/8',
+  '::1/128',
+];
+
+export function registerRequestLogging(app: CcipApp): void {
+  const requestErrors = new WeakMap<object, Error>();
+  app.addHook('onError', async (request, _reply, error) => {
+    requestErrors.set(request, error);
+  });
+  app.addHook('onResponse', async (request, reply) => {
+    const level = requestLogLevel(request, reply, requestErrors.get(request));
+    requestErrors.delete(request);
+    if (level !== 'silent') {
+      request.log[level](
+        {
+          method: request.method,
+          statusCode: reply.statusCode,
+          url: request.raw.url,
+        },
+        'Request completed',
+      );
+    }
+  });
 }
 
 // Keep failed probes visible; successful probes dominate request completion logs.
 export function requestLogLevel(
-  req: Request,
-  res: Response,
+  request: FastifyRequest,
+  reply: FastifyReply,
   error?: Error,
 ): LevelWithSilent {
-  if (
-    req.originalUrl === '/health' &&
-    res.statusCode === 200 &&
-    res.writableEnded &&
-    !error &&
-    !res.err
-  ) {
+  if (request.raw.url === '/health' && reply.statusCode === 200 && !error) {
     return 'silent';
   }
   return 'info';
