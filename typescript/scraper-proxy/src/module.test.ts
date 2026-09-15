@@ -309,7 +309,11 @@ void it('rejects batch and oversized request bodies', async () => {
       url: '/graphql',
     });
     assert.equal(excessiveTokens.statusCode, 400);
-    assert.match(excessiveTokens.body, /more tha[nt] 10000 tokens/i);
+    assert.ok(
+      excessiveTokens.body.includes('more than 10000 tokens') ||
+        excessiveTokens.body.includes('more that 10000 tokens'),
+      excessiveTokens.body,
+    );
   } finally {
     await app.close();
   }
