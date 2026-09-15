@@ -2,15 +2,18 @@ import {
   ChainMap,
   ChainSubmissionStrategy,
   HypTokenRouterConfig,
+  IsmConfig,
+  IsmType,
   TokenType,
 } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { Address, assert } from '@hyperlane-xyz/utils';
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awProxyAdmins } from '../../governance/proxy-admin/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import {
   WARP_FEES_TURNKEY_OWNER,
+  WARP_PAUSER_TURNKEY_OWNER,
   getWarpFeeOwner,
 } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
@@ -35,7 +38,6 @@ const chainTokenMetadata: Record<string, { name: string; symbol: string }> = {
   tron: { name: 'Tether USD', symbol: 'USDT' },
   bsc: { name: 'Tether USD', symbol: 'USDT' },
   arbitrum: { name: 'USD₮0', symbol: 'USD₮0' },
-  plasma: { name: 'USDT0', symbol: 'USDT0' },
   solanamainnet: { name: 'USDT', symbol: 'USDT' },
   eclipsemainnet: { name: 'USDT', symbol: 'USDT' },
 };
@@ -43,7 +45,6 @@ const chainTokenMetadata: Record<string, { name: string; symbol: string }> = {
 const chainDecimals: Record<string, number> = {
   ethereum: 6,
   tron: 6,
-  plasma: 6,
   arbitrum: 6,
   solanamainnet: 6,
   eclipsemainnet: 6,
@@ -53,32 +54,22 @@ const chainDecimals: Record<string, number> = {
 const feeBps: Record<string, Record<string, number>> = {
   ethereum: {
     arbitrum: 3.1,
-    plasma: 10.0,
     bsc: 15.0,
     tron: 15.0,
   },
   arbitrum: {
     ethereum: 6.4,
-    plasma: 10.0,
-    bsc: 15.0,
-    tron: 15.0,
-  },
-  plasma: {
-    ethereum: 10.0,
-    arbitrum: 10.0,
     bsc: 15.0,
     tron: 15.0,
   },
   bsc: {
     ethereum: 15.0,
     arbitrum: 15.0,
-    plasma: 15.0,
     tron: 15.0,
   },
   tron: {
     ethereum: 15.0,
     arbitrum: 15.0,
-    plasma: 15.0,
     bsc: 15.0,
   },
 };
@@ -93,7 +84,6 @@ export const evmDeploymentChains = [
   'ethereum',
   'bsc',
   'arbitrum',
-  'plasma',
   'tron',
 ] as const;
 
@@ -113,7 +103,6 @@ export type DeploymentChain = (typeof deploymentChains)[number];
 const rebalanceableCollateralChains = [
   'ethereum',
   'arbitrum',
-  'plasma',
   'tron',
 ] as const satisfies DeploymentChain[];
 
@@ -121,7 +110,6 @@ const productionOwnersByChain: Record<DeploymentChain, string> = {
   ethereum: awSafes.ethereum,
   bsc: '0x269Af9E53192AF49a22ff47e30b89dE1375AE1fd', // ICA
   arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45', // ICA,
-  plasma: awIcas.plasma,
   eclipsemainnet: chainOwners.eclipsemainnet.owner,
   solanamainnet: chainOwners.solanamainnet.owner,
   tron: awIcas.tron,
@@ -143,9 +131,52 @@ export interface EclipseUSDTWarpConfigOptions {
   quoteSigners?: string[];
 }
 
+// Per-EVM-leg inbound cap of ~$50k/day. The rate-limited ISM meters the message
+// amount, which is encoded in MESSAGE_DECIMALS (6) for every leg — including the
+// 18-decimal bsc leg, whose amount is scaled down to the 6-decimal message
+// baseline before dispatch — so the same value applies uniformly.
+// 50_000 * 1e6 = 50_000_000_000, rounded down to the nearest multiple of the
+// 1-day (86400s) window as the RateLimitedIsm requires: 49_999_939_200.
+const EVM_ISM_DAILY_MAX_CAPACITY = '49999939200';
+
+// 1-day refill window (seconds), matching the RateLimitedIsm default DURATION.
+const EVM_ISM_RATE_LIMIT_DURATION_SECONDS = 86_400n;
+
+// Aggregation ISM guarding each EVM leg (n-of-n, fail-closed):
+// 1. rateLimitedIsm — bounds a single-day drain, owned by the fast Turnkey key.
+// 2. pausableIsm — emergency stop, owned by the fast Turnkey key.
+// 3. defaultFallbackRoutingIsm — the actual verifier; empty domains fall back to
+//    the mailbox default ISM (preserving current verification), owned by the
+//    leg's governance owner.
+const getEvmInterchainSecurityModule = (
+  fallbackRoutingOwner: Address,
+): IsmConfig => ({
+  type: IsmType.AGGREGATION,
+  threshold: 3,
+  modules: [
+    {
+      type: IsmType.RATE_LIMITED,
+      maxCapacity: EVM_ISM_DAILY_MAX_CAPACITY,
+      duration: EVM_ISM_RATE_LIMIT_DURATION_SECONDS,
+      owner: WARP_PAUSER_TURNKEY_OWNER,
+    },
+    {
+      type: IsmType.PAUSABLE,
+      owner: WARP_PAUSER_TURNKEY_OWNER,
+      paused: false,
+    },
+    {
+      type: IsmType.FALLBACK_ROUTING,
+      domains: {},
+      owner: fallbackRoutingOwner,
+    },
+  ],
+});
+
 const getBaseEvmConfig = (
   chain: DeploymentChain,
   proxyAdmins: ChainMap<{ address?: string; owner: string }>,
+  legOwner: Address,
   quoteSigners?: string[],
 ) => {
   const proxyAdmin = proxyAdmins[chain];
@@ -175,6 +206,7 @@ const getBaseEvmConfig = (
       undefined,
       chainQuoteSigners,
     ),
+    interchainSecurityModule: getEvmInterchainSecurityModule(legOwner),
     ...scaleDownConfig(decimals, MESSAGE_DECIMALS),
   };
 };
@@ -204,7 +236,15 @@ export const buildEclipseUSDTWarpConfig = async (
     );
     configs.push([
       chain,
-      { ...baseConfig, ...getBaseEvmConfig(chain, proxyAdmins, quoteSigners) },
+      {
+        ...baseConfig,
+        ...getBaseEvmConfig(
+          chain,
+          proxyAdmins,
+          ownersByChain[chain],
+          quoteSigners,
+        ),
+      },
     ]);
   }
 
@@ -216,7 +256,12 @@ export const buildEclipseUSDTWarpConfig = async (
     configs.push([
       chain,
       {
-        ...getBaseEvmConfig(chain, proxyAdmins, quoteSigners),
+        ...getBaseEvmConfig(
+          chain,
+          proxyAdmins,
+          ownersByChain[chain],
+          quoteSigners,
+        ),
         type: TokenType.collateral,
         token: usdtToken,
         owner: ownersByChain[chain],
