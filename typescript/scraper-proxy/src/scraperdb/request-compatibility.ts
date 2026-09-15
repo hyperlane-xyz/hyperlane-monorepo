@@ -1,5 +1,7 @@
 import { type DocumentNode, Kind, parse, print, visit } from 'graphql';
 
+import { MAX_GRAPHQL_TOKENS } from './validation.js';
+
 // Cache only pure query-text normalization, independently of response freshness.
 // At most 1 MiB of UTF-16 string content (excluding Map/object overhead).
 const MAX_NORMALIZED_QUERIES = 64;
@@ -29,7 +31,7 @@ export function stripUnusedVariableDefinitions(query: string): string {
   }
   let document: DocumentNode;
   try {
-    document = parse(query);
+    document = parse(query, { maxTokens: MAX_GRAPHQL_TOKENS });
   } catch {
     return query;
   }

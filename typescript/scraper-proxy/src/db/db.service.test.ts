@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { Socket } from 'node:net';
 import { it } from 'node:test';
 
-import { Logger } from '@nestjs/common';
 import pg from 'pg';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 process.env.DATABASE_URL ??= 'postgresql://scraper-proxy-test';
 process.env.DATABASE_READ_REPLICA_URL ??=
@@ -28,13 +28,10 @@ void it('keeps replica health from gating primary live queries', async (context)
   let connectAttempts = 0;
   let releaseMain: (() => void) | undefined;
   let now = 0;
+  const logger = rootLogger.child({ module: 'DbServiceTest' });
   context.mock.method(Date, 'now', () => now);
-  context.mock.method(Logger.prototype, 'debug', (message) =>
-    debugLogs.push(message),
-  );
-  context.mock.method(Logger.prototype, 'warn', (message) =>
-    warnings.push(message),
-  );
+  context.mock.method(logger, 'debug', (message) => debugLogs.push(message));
+  context.mock.method(logger, 'warn', (message) => warnings.push(message));
   context.mock.method(pg.Pool.prototype, 'connect', () => {
     connectAttempts++;
     throw new Error('replica unavailable');
@@ -70,10 +67,10 @@ void it('keeps replica health from gating primary live queries', async (context)
     },
   );
   const { DbService } = await import('./db.service.js');
-  const db = new DbService();
-  context.after(() => db.onModuleDestroy());
+  const db = new DbService(logger);
+  context.after(() => db.close());
 
-  await db.onModuleInit();
+  await db.start();
   assert.equal(connectAttempts, 0);
   const saturated = db.query('SELECT pg_sleep(1)');
   assert.deepEqual(await db.queryLive('SELECT 1'), [{ ready: 1 }]);
@@ -123,7 +120,7 @@ void it('times out stalled replica connections', async (context) => {
   });
   const { DbService } = await import('./db.service.js');
   const db = new DbService();
-  context.after(() => db.onModuleDestroy());
+  context.after(() => db.close());
 
   const started = Date.now();
   await assert.rejects(db.query('SELECT 1'), /connection timeout/i);
@@ -143,9 +140,9 @@ void it('validates the event stream schema and read grants before startup', asyn
   context.mock.method(pg.Pool.prototype, 'end', () => Promise.resolve());
   const { DbService } = await import('./db.service.js');
   const db = new DbService();
-  context.after(() => db.onModuleDestroy());
+  context.after(() => db.close());
 
-  await db.onModuleInit();
+  await db.start();
 });
 
 void it('fails startup when the live user cannot read cursor state', async (context) => {
@@ -161,9 +158,9 @@ void it('fails startup when the live user cannot read cursor state', async (cont
   context.mock.method(pg.Pool.prototype, 'end', () => Promise.resolve());
   const { DbService } = await import('./db.service.js');
   const db = new DbService();
-  context.after(() => db.onModuleDestroy());
+  context.after(() => db.close());
 
-  await assert.rejects(db.onModuleInit(), /cursor_readable/);
+  await assert.rejects(db.start(), /cursor_readable/);
 });
 
 for (const triggerMode of ['D', 'R']) {
@@ -179,7 +176,7 @@ for (const triggerMode of ['D', 'R']) {
     context.mock.method(pg.Pool.prototype, 'end', () => Promise.resolve());
     const { DbService } = await import('./db.service.js');
     const db = new DbService();
-    context.after(() => db.onModuleDestroy());
-    await assert.rejects(db.onModuleInit(), /cursor_trigger_exists/);
+    context.after(() => db.close());
+    await assert.rejects(db.start(), /cursor_trigger_exists/);
   });
 }

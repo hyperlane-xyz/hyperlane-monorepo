@@ -30,20 +30,14 @@
     "test:ci": "pnpm test"
   },
   "dependencies": {
-    "@apollo/server": "catalog:",
-    "@as-integrations/express5": "catalog:",
+    "@fastify/cors": "catalog:",
     "@hyperlane-xyz/utils": "workspace:^",
-    "@nestjs/apollo": "catalog:",
-    "@nestjs/common": "catalog:",
-    "@nestjs/core": "catalog:",
-    "@nestjs/graphql": "catalog:",
-    "@nestjs/platform-express": "catalog:",
     "dotenv-flow": "^4.1.0",
+    "fastify": "catalog:",
     "graphql": "catalog:",
+    "mercurius": "catalog:",
     "pg": "^8.17.2",
     "prom-client": "catalog:",
-    "reflect-metadata": "catalog:",
-    "rxjs": "catalog:",
     "ws": "^8.21.1",
     "zod": "catalog:"
   },

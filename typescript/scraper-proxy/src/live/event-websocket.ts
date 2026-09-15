@@ -2,7 +2,7 @@ import type { IncomingMessage, Server } from 'node:http';
 import { isIP } from 'node:net';
 import type { Duplex } from 'node:stream';
 
-import { Logger } from '@nestjs/common';
+import { rootLogger } from '@hyperlane-xyz/utils';
 import { formatError } from '@hyperlane-xyz/utils/errors';
 import { WebSocket, WebSocketServer } from 'ws';
 
@@ -172,7 +172,9 @@ const EVENT_DOMAIN_COLUMNS: Record<EventType, readonly string[]> = {
 };
 
 export class EventWebSocketServer {
-  private readonly logger = new Logger(EventWebSocketServer.name);
+  private readonly logger = rootLogger.child({
+    module: EventWebSocketServer.name,
+  });
   private readonly clients = new Map<WebSocket, Client>();
   private readonly terminatedSockets = new WeakSet<WebSocket>();
   private readonly explorerClients = new Map<WebSocket, ExplorerClient>();
@@ -244,7 +246,7 @@ export class EventWebSocketServer {
       this.connectExplorer(socket, request),
     );
     this.heartbeatTimer = setInterval(() => this.heartbeat(), heartbeatMs);
-    this.logger.log(
+    this.logger.info(
       `event websockets listening on ${AGENT_PATH}, ${MESSAGE_PATH} batchSize=${config.EVENT_STREAM_BATCH_SIZE} maxAgentClients=${this.limits.maxAgentClients} maxBufferedBytes=${this.limits.maxBufferedBytes} maxTotalBufferedBytes=${this.limits.maxTotalBufferedBytes}`,
     );
   }

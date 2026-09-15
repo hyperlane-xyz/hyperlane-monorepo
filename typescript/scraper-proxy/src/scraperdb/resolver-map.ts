@@ -1,14 +1,11 @@
 import { Kind, type GraphQLResolveInfo, type SelectionNode } from 'graphql';
-import type { ApolloDriverConfig } from '@nestjs/apollo';
 
 import { scalarResolvers } from './scalars.js';
 import { ScraperDbService } from './scraperdb.service.js';
 import type { CountArgs, SelectArgs } from './sql.js';
 import type { TableName } from './tables.js';
 
-export function buildResolvers(
-  db: ScraperDbService,
-): NonNullable<ApolloDriverConfig['resolvers']> {
+export function buildResolvers(db: ScraperDbService) {
   const select =
     (table: TableName) =>
     (
