@@ -11,6 +11,12 @@ You are enumerating every artifact contract in an existing warp route and resolv
 
 Different artifacts in the same warp route can be owned by different addresses. The router on arbitrum might be owned by an ICA derived from the AW ethereum Safe, while the warp-fee contracts on the same chain are owned by an ICA from the Foundation's warpFees Safe, while the ProxyAdmin might be owned by something else entirely. An update that changes a fee parameter needs to propose to the warpFees-Safe signers; an update that changes the router's ISM needs to propose to the AW-Safe signers. Without per-artifact owner enumeration, the update flow can't route tx batches correctly.
 
+## Run Log (mandatory)
+
+Open-or-create the run log at entry, then maintain it, per `/warp-run-log` (never assume a previous step created it). Use `warp-update-resolve-artifacts` as the skill name in each entry; don't report complete until the URL is surfaced.
+
+**Log at least:** skill entry (ticket ID + route ID), the per-artifact owner table, any owner the user classified manually, skill exit.
+
 ## Input
 
 - **Linear ticket ID** (required, e.g. `AW-123`) — namespaces the resolved artifact-context file.

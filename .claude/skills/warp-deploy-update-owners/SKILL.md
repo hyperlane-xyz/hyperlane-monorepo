@@ -9,7 +9,7 @@ You are transferring ownership of a newly deployed warp route and opening the re
 
 ## Run Log (mandatory)
 
-Maintain the durable, per-ticket run log per `/warp-run-log` — that skill owns the storage contract (Linear-document-by-title primary, single-writer discipline, local-file fallback), the machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-deploy-update-owners` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
+Open-or-create the run log at entry, then maintain it, per `/warp-run-log` (never assume a previous step created it) — that skill owns the storage contract, the machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-deploy-update-owners` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
 
 **Log at least:** (a) skill entry with the ticket ID + warp route ID, (b) every `[CONFIRM:]` gate — before and after the response, (c) every ICA deployed (chain + resolved address), (d) the `warp apply` ownership transfer per chain (target owner + tx hash), (e) the comprehensive `warp check` verdict, (f) the registry PR URL, (g) skill exit (success or bail-out). Log smooth steps too — success data grounds the retrospective as much as failure data.
 
@@ -130,6 +130,8 @@ Write the updated deploy.yaml back to the registry path. Show the user the diff 
 ### 10d: Build and Run Warp Apply
 
 First, start the HTTP registry per `/start-http-registry` **with `--writeMode`** (warp apply persists newly-deployed contract addresses back through the server). Note the port (typically `3333`) and the background task ID — needed to stop the server after this step.
+
+Apply the chain-metadata cushions per `/warp-chain-metadata-cushions` before running the apply, and honor its cleanup gate afterwards. The deploy's cushions were restored by its own cleanup gate, so they are not still in place here — and a confirmation-timeout mid-apply leaves ownership transferred on some chains and not others.
 
 Assemble the warp apply command. Use only the HTTP registry — started with `--writeMode` so it handles both private RPC reads and writes. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the canonical key-value expansion legend in `/warp-key-value-expansion`). Supply **one `--key.<protocol>` for every protocol in the route** — don't assume ethereum, and don't drop one: a missing protocol key silently leaves that protocol's ownership transfers unsigned (e.g. omitting `--key.tron` leaves the Tron router + fee contracts still owned by the deployer while the run reports success).
 
