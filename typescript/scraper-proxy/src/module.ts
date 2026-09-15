@@ -23,6 +23,7 @@ import {
   metricsRegistry,
 } from './metrics.js';
 import { cacheControlHeader } from './scraperdb/cache-config.js';
+import type { ScraperDbDatabase } from './scraperdb/database.js';
 import { normalizeGraphqlRequestBody } from './scraperdb/request-compatibility.js';
 import { buildResolvers } from './scraperdb/resolver-map.js';
 import {
@@ -30,10 +31,7 @@ import {
   type PreparedCacheRequest,
 } from './scraperdb/response-cache.js';
 import { sanitizeScraperDbSchema } from './scraperdb/schema.js';
-import {
-  ScraperDbService,
-  type ScraperDbDatabase,
-} from './scraperdb/scraperdb.service.js';
+import { ScraperDbService } from './scraperdb/scraperdb.service.js';
 import {
   MAX_GRAPHQL_TOKENS,
   scraperProxyValidationRule,

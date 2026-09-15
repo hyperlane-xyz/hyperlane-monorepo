@@ -4,6 +4,7 @@ import { assert } from '@hyperlane-xyz/utils/validation';
 import pg from 'pg';
 
 import { config } from '../config.js';
+import type { ScraperDbDatabase } from '../scraperdb/database.js';
 import {
   databaseQueries,
   DatabaseQueryRole,
@@ -85,7 +86,7 @@ const EVENT_STREAM_SCHEMA_CHECKS: readonly (keyof EventStreamSchema)[] = [
   'range_index_exists',
 ];
 
-export class DbService {
+export class DbService implements ScraperDbDatabase {
   private readonly listeners = new Set<pg.Client>();
   private mainPool?: pg.Pool;
   private nextQueryId = 0;
