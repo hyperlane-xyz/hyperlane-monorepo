@@ -9,7 +9,7 @@ import type { TableName } from './tables.js';
 
 type Row = Record<string, unknown>;
 export type ScraperDbDatabase = {
-  query<T extends Row>(text: string, values?: unknown[]): Promise<T[]>;
+  query(text: string, values?: unknown[]): Promise<Row[]>;
 };
 type AggregateResult = {
   aggregate: { args: SelectArgs; table: TableName };
@@ -21,7 +21,7 @@ export class ScraperDbService {
 
   async select(table: TableName, args: SelectArgs): Promise<Row[]> {
     const query = buildSelect(table, args);
-    return this.db.query<Row>(query.sql, query.values);
+    return this.db.query(query.sql, query.values);
   }
 
   async byPk(
@@ -30,7 +30,7 @@ export class ScraperDbService {
     columns?: string[],
   ): Promise<Row | null> {
     const query = buildByPk(table, id, columns);
-    const [row] = await this.db.query<Row>(query.sql, query.values);
+    const [row] = await this.db.query(query.sql, query.values);
     return row ?? null;
   }
 
@@ -42,7 +42,7 @@ export class ScraperDbService {
     const select = columns && buildSelect(table, { ...args, columns });
     return {
       aggregate: { args, table },
-      nodes: select ? await this.db.query<Row>(select.sql, select.values) : [],
+      nodes: select ? await this.db.query(select.sql, select.values) : [],
     };
   }
 
@@ -52,10 +52,7 @@ export class ScraperDbService {
     countArgs: CountArgs,
   ): Promise<number> {
     const query = buildCount(table, selectArgs, countArgs);
-    const [row] = await this.db.query<{ count: number }>(
-      query.sql,
-      query.values,
-    );
-    return row?.count ?? 0;
+    const [row] = await this.db.query(query.sql, query.values);
+    return typeof row?.count === 'number' ? row.count : 0;
   }
 }
