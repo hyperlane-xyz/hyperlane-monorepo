@@ -39,7 +39,12 @@ describe('request completion logging', () => {
         });
         expect(response.statusCode).to.equal(scenario.status);
         expect(lines).to.have.length(scenario.logged ? 1 : 0);
-        if (scenario.logged) expect(lines[0]).to.include('"level":30');
+        if (scenario.logged) {
+          expect(lines[0]).to.include('"level":30');
+          expect(lines[0]).to.match(/"responseTime":\d/);
+          if (scenario.error)
+            expect(lines[0]).to.include('"message":"probe failed"');
+        }
       } finally {
         await app.close();
       }
