@@ -2,7 +2,7 @@
 
 # CCIP-Server (OffchainLookup)
 
-A lightweight Express server for CCIP Read/Write commitments, using Zod validation and Prisma for persistence.
+A lightweight Fastify server for CCIP Read/Write commitments, using Zod validation and Prisma for persistence.
 
 ## Prerequisites
 

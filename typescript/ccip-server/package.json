@@ -28,6 +28,8 @@
     "@eth-optimism/sdk": "catalog:",
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*",
+    "@fastify/cors": "catalog:",
+    "@fastify/rate-limit": "catalog:",
     "@google-cloud/pino-logging-gcp-config": "catalog:",
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/metrics": "workspace:*",
@@ -36,14 +38,11 @@
     "@hyperlane-xyz/utils": "workspace:*",
     "@prisma/adapter-pg": "catalog:",
     "@prisma/client": "catalog:",
-    "cors": "^2.8.5",
     "dotenv-flow": "^4.1.0",
     "ethers": "catalog:",
-    "express": "^4.17.1",
-    "express-rate-limit": "catalog:",
+    "fastify": "catalog:",
     "pg": "^8.17.2",
     "pino": "catalog:",
-    "pino-http": "^8.6.1",
     "prisma": "catalog:",
     "prom-client": "catalog:",
     "zod": "catalog:"
@@ -51,12 +50,9 @@
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "catalog:",
-    "@types/cors": "^2",
-    "@types/express": "^4.17.1",
     "@types/mocha": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "^8.16.0",
-    "@types/pino-http": "^5.8.4",
     "@types/sinon": "catalog:",
     "@vercel/ncc": "catalog:",
     "chai": "catalog:",
@@ -68,7 +64,7 @@
     "typescript": "catalog:"
   },
   "engines": {
-    "node": ">=16"
+    "node": ">=20"
   },
   "moduleResolution": "nodenext",
   "typedocMain": "src/index.ts"
