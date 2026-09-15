@@ -65,7 +65,6 @@ describe('SVM ISM E2E Tests', function () {
         ) {
           console.log('Skipping: Test ISM binary incompatible with validator');
           this.skip();
-          return;
         }
         throw err;
       }

@@ -43,14 +43,15 @@ export const WARP_DEPLOY_CUSTOM_HOOK_LAMPORTS = 0n; // + custom hook / IGP (conf
 
 export class SvmProvider implements AltVM.IProvider<SvmTransaction> {
   protected rpc: SvmRpc;
-  protected rpcUrls: string[];
+  protected rpcUrls: [string, ...string[]];
   protected chainMetadata: ChainMetadataForAltVM;
 
   static async connect(metadata: ChainMetadataForAltVM): Promise<SvmProvider> {
     const rpcUrls = (metadata.rpcUrls ?? []).map((rpc) => rpc.http);
-    assert(rpcUrls.length > 0, 'At least one RPC URL is required');
-    const rpc = createRpc(rpcUrls[0]);
-    return new SvmProvider(rpc, rpcUrls, metadata);
+    const [rpcUrl, ...otherRpcUrls] = rpcUrls;
+    assert(rpcUrl, 'At least one RPC URL is required');
+    const rpc = createRpc(rpcUrl);
+    return new SvmProvider(rpc, [rpcUrl, ...otherRpcUrls], metadata);
   }
 
   constructor(
@@ -58,8 +59,10 @@ export class SvmProvider implements AltVM.IProvider<SvmTransaction> {
     rpcUrls: string[],
     chainMetadata: ChainMetadataForAltVM,
   ) {
+    const [rpcUrl, ...otherRpcUrls] = rpcUrls;
+    assert(rpcUrl, 'At least one RPC URL is required');
     this.rpc = rpc;
-    this.rpcUrls = rpcUrls;
+    this.rpcUrls = [rpcUrl, ...otherRpcUrls];
     this.chainMetadata = chainMetadata;
   }
 
@@ -91,7 +94,7 @@ export class SvmProvider implements AltVM.IProvider<SvmTransaction> {
     }
   }
 
-  getRpcUrls(): string[] {
+  getRpcUrls(): [string, ...string[]] {
     return this.rpcUrls;
   }
 

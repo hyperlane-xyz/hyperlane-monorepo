@@ -35,14 +35,14 @@ export function isSvmQuoteSignable(input: unknown): input is SvmQuoteSignable {
   if (typeof input !== 'object' || input === null) return false;
   const o = input as Record<string, unknown>;
   return (
-    typeof o.feeAccount === 'string' &&
-    typeof o.domainId === 'number' &&
-    o.context instanceof Uint8Array &&
-    o.data instanceof Uint8Array &&
-    typeof o.issuedAt === 'number' &&
-    typeof o.expiry === 'number' &&
-    o.scopedSalt instanceof Uint8Array &&
-    o.scopedSalt.length === SCOPED_SALT_LEN
+    typeof o['feeAccount'] === 'string' &&
+    typeof o['domainId'] === 'number' &&
+    o['context'] instanceof Uint8Array &&
+    o['data'] instanceof Uint8Array &&
+    typeof o['issuedAt'] === 'number' &&
+    typeof o['expiry'] === 'number' &&
+    o['scopedSalt'] instanceof Uint8Array &&
+    o['scopedSalt'].length === SCOPED_SALT_LEN
   );
 }
 
