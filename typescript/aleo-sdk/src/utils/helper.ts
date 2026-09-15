@@ -85,6 +85,8 @@ export function fromAleoAddress(aleoAddress: string): {
     };
   }
 
+  assert(programId, `address ${aleoAddress} has no program id`);
+
   return {
     programId,
     address,
@@ -142,12 +144,12 @@ export function stringToU128(str: string, littleEndian = false): bigint {
 
   let value = 0n;
   if (!littleEndian) {
-    for (let i = 0; i < 16; i++) {
-      value = (value << 8n) | BigInt(bytes[i]);
+    for (const byte of bytes) {
+      value = (value << 8n) | BigInt(byte);
     }
   } else {
-    for (let i = 15; i >= 0; i--) {
-      value = (value << 8n) | BigInt(bytes[i]);
+    for (const byte of Array.from(bytes).reverse()) {
+      value = (value << 8n) | BigInt(byte);
     }
   }
 
@@ -184,8 +186,8 @@ export function bytes32ToU128String(input: string): string {
 export function bytesLeToU128String(bytes: Uint8Array): string {
   assert(bytes.length <= 16, `bytesLeToU128String: expected at most 16 bytes`);
   let value = 0n;
-  for (let i = bytes.length - 1; i >= 0; i--) {
-    value = (value << 8n) | BigInt(bytes[i]);
+  for (const byte of Array.from(bytes).reverse()) {
+    value = (value << 8n) | BigInt(byte);
   }
   return `${value}u128`;
 }
@@ -203,8 +205,13 @@ export function u128PairToBytes32(u128PairStr: string): string {
     parts.length === 2,
     `u128PairToBytes32: expected exactly 2 comma-separated parts, got ${parts.length}: ${inner}`,
   );
-  const low = BigInt(parts[0]);
-  const high = BigInt(parts[1]);
+  const [lowPart, highPart] = parts;
+  assert(
+    lowPart !== undefined && highPart !== undefined,
+    `u128PairToBytes32: expected two defined parts`,
+  );
+  const low = BigInt(lowPart);
+  const high = BigInt(highPart);
   const u128Max = 2n ** 128n;
   assert(
     low >= 0n && low < u128Max,
