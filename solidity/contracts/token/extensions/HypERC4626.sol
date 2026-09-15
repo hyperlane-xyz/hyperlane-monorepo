@@ -61,9 +61,13 @@ contract HypERC4626 is HypERC20 {
 
     /**
      * @inheritdoc TokenRouter
-     * @dev Token fees are not supported for rebasing synthetic tokens. Configured fee recipients are ignored.
+     * @dev Token fees are not supported for rebasing synthetic tokens. Transfers and quotes revert until a configured fee recipient is removed.
      */
     function feeRecipient() public view override returns (address) {
+        require(
+            super.feeRecipient() == address(0),
+            "TokenRouter: token fees unsupported"
+        );
         return address(0);
     }
 

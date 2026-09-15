@@ -346,6 +346,22 @@ abstract contract TokenFeeUnsupportedTest is HypTokenTest {
         );
         _tokenRouter.setFeeRecipient(address(configuredFee));
 
+        vm.expectRevert("TokenRouter: token fees unsupported");
+        _tokenRouter.feeRecipient();
+        vm.expectRevert("TokenRouter: token fees unsupported");
+        _tokenRouter.quoteTransferRemote(
+            _destination,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+        vm.expectRevert("TokenRouter: token fees unsupported");
+        _tokenRouter.transferRemote(
+            _destination,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+
+        _tokenRouter.setFeeRecipient(address(0));
         assertEq(_tokenRouter.feeRecipient(), address(0));
         Quote[] memory quotes = _tokenRouter.quoteTransferRemote(
             _destination,
