@@ -8,6 +8,7 @@ import { assert, createServiceLogger, isObjEmpty } from '@hyperlane-xyz/utils';
 import packageJson from './package.json' with { type: 'json' };
 import { AppConstants, ServerConstants } from './src/constants/index.js';
 import { createErrorHandler } from './src/middleware/errorHandler.js';
+import { registryContentRevision } from './src/middleware/contentRevision.js';
 import { createSignerRouter } from './src/routes/signer.js';
 import { createChainRouter } from './src/routes/chain.js';
 import { createRootRouter } from './src/routes/root.js';
@@ -101,6 +102,7 @@ export class HttpServer {
       }
       registryJsonParser(req, res, next);
     });
+    this.app.use(registryContentRevision());
   }
 
   static async create(

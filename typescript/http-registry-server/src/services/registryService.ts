@@ -5,16 +5,18 @@ import {
   MergedRegistry,
   RegistryType,
 } from '@hyperlane-xyz/registry';
-import { LazyAsync, assert } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { IWatcher } from './watcherService.js';
 
 export class RegistryService {
   private registry: IRegistry | null = null;
   private lastRefresh: number = Date.now();
-  private isDirty = false;
+  private dirtyGeneration = 0;
+  private appliedDirtyGeneration = 0;
   private isWatcherActive = false;
-  private readonly registryRefresh = new LazyAsync(() => this.getRegistry());
+  private nextRefreshAttempt = 0;
+  private refreshInFlight?: Promise<void>;
 
   constructor(
     private readonly getRegistry: () => Promise<IRegistry>,
@@ -25,8 +27,7 @@ export class RegistryService {
 
   async initialize() {
     try {
-      this.registry = await this.registryRefresh.get();
-      this.lastRefresh = Date.now();
+      await this.refresh(false);
     } catch (err: unknown) {
       this.logger.error({ err }, 'Registry initialization failed');
       throw err;
@@ -89,32 +90,58 @@ export class RegistryService {
   }
 
   private markDirty() {
-    this.isDirty = true;
+    this.dirtyGeneration++;
   }
 
   async getCurrentRegistry(): Promise<IRegistry> {
     const now = Date.now();
     const shouldRefresh =
-      this.isDirty ||
-      (!this.isWatcherActive &&
-        now - this.lastRefresh > this.refreshInterval) ||
-      !this.registry;
+      !this.registry ||
+      ((this.dirtyGeneration > this.appliedDirtyGeneration ||
+        (!this.isWatcherActive &&
+          now - this.lastRefresh > this.refreshInterval)) &&
+        now >= this.nextRefreshAttempt);
 
     if (shouldRefresh) {
-      this.logger.info('Refreshing registry cache...');
-      this.registryRefresh.reset();
-      try {
-        this.registry = await this.registryRefresh.get();
-        this.isDirty = false;
-        this.lastRefresh = now;
-      } catch (err: unknown) {
-        this.logger.error({ err }, 'Registry refresh failed');
-        throw err;
-      }
+      await this.refresh(true);
     }
 
     assert(this.registry, 'Could not fetch current registry');
     return this.registry;
+  }
+
+  private async refresh(allowStale: boolean): Promise<void> {
+    if (this.refreshInFlight) return this.refreshInFlight;
+
+    const dirtyGeneration = this.dirtyGeneration;
+    const refresh = (async () => {
+      this.logger.info('Refreshing registry cache...');
+      try {
+        const registry = await this.getRegistry();
+        this.registry = registry;
+        this.appliedDirtyGeneration = dirtyGeneration;
+        this.lastRefresh = Date.now();
+        this.nextRefreshAttempt = 0;
+      } catch (err: unknown) {
+        if (!allowStale || !this.registry) {
+          this.logger.error({ err }, 'Registry refresh failed');
+          throw err;
+        }
+        const staleAgeMs = Math.max(0, Date.now() - this.lastRefresh);
+        const retryMs = Math.min(this.refreshInterval, 5_000);
+        this.nextRefreshAttempt = Date.now() + retryMs;
+        this.logger.warn(
+          { err, retryMs, staleAgeMs },
+          'Registry refresh failed; serving last-known-good registry',
+        );
+      }
+    })();
+    this.refreshInFlight = refresh;
+    try {
+      await refresh;
+    } finally {
+      if (this.refreshInFlight === refresh) this.refreshInFlight = undefined;
+    }
   }
 
   async withRegistry<T>(

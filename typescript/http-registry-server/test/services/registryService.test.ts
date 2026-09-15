@@ -109,6 +109,58 @@ describe('RegistryService', () => {
       expect(registry).to.equal(mockRegistry);
       expect(getRegistryStub.calledOnce).to.be.true;
     });
+
+    it('should serve the last-known-good registry when refresh fails', async () => {
+      clock = sinon.useFakeTimers(Date.now());
+      const loggerWarnStub = sinon.stub(mockLogger, 'warn');
+      await registryService.initialize();
+      getRegistryStub.resetHistory();
+      getRegistryStub.rejects(new Error('source unavailable'));
+      clock.tick(REFRESH_INTERVAL + 1);
+
+      const registry = await registryService.getCurrentRegistry();
+
+      expect(registry).to.equal(mockRegistry);
+      expect(getRegistryStub.calledOnce).to.be.true;
+      expect(loggerWarnStub.calledOnce).to.be.true;
+      expect(loggerWarnStub.firstCall.args[1]).to.equal(
+        'Registry refresh failed; serving last-known-good registry',
+      );
+    });
+
+    it('should coalesce concurrent refreshes', async () => {
+      clock = sinon.useFakeTimers(Date.now());
+      await registryService.initialize();
+      getRegistryStub.resetHistory();
+      clock.tick(REFRESH_INTERVAL + 1);
+      let resolveRefresh!: (registry: IRegistry) => void;
+      getRegistryStub.returns(
+        new Promise<IRegistry>((resolve) => {
+          resolveRefresh = resolve;
+        }),
+      );
+
+      const first = registryService.getCurrentRegistry();
+      const second = registryService.getCurrentRegistry();
+      resolveRefresh(mockRegistry);
+
+      expect(await first).to.equal(mockRegistry);
+      expect(await second).to.equal(mockRegistry);
+      expect(getRegistryStub.calledOnce).to.be.true;
+    });
+
+    it('should throttle retries after a failed refresh', async () => {
+      clock = sinon.useFakeTimers(Date.now());
+      await registryService.initialize();
+      getRegistryStub.resetHistory();
+      getRegistryStub.rejects(new Error('source unavailable'));
+      clock.tick(REFRESH_INTERVAL + 1);
+
+      await registryService.getCurrentRegistry();
+      await registryService.getCurrentRegistry();
+
+      expect(getRegistryStub.calledOnce).to.be.true;
+    });
   });
 
   describe('withRegistry', () => {

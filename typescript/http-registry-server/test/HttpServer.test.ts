@@ -106,6 +106,36 @@ async function bindPort(): Promise<{
 }
 
 describe('HttpServer.start', () => {
+  it('returns strong content revisions and honors conditional reads', async () => {
+    const httpServer = await HttpServer.create(
+      async () =>
+        new PartialRegistry({
+          chainMetadata: {},
+          chainAddresses: {},
+          warpRoutes: [],
+        }),
+    );
+    await httpServer.start('0');
+
+    try {
+      const first = await request(httpServer.app).get('/chains').expect(200);
+      const etag = first.headers.etag;
+      expect(etag).to.match(/^"sha256-[A-Za-z0-9_-]+"$/);
+      expect(first.headers['x-hyperlane-registry-content-revision']).to.equal(
+        etag.slice('"sha256-'.length, -1),
+      );
+      expect(first.headers['cache-control']).to.equal('no-cache');
+
+      const conditional = await request(httpServer.app)
+        .get('/chains')
+        .set('If-None-Match', etag)
+        .expect(304);
+      expect(conditional.text).to.equal('');
+    } finally {
+      await httpServer.stop();
+    }
+  });
+
   it('rejects when the target port is already in use', async () => {
     const blocker = await bindPort();
     const httpServer = await HttpServer.create(
