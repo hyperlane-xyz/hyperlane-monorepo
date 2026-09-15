@@ -1,6 +1,5 @@
 import {
   EVM,
-  KeypairWalletAdapter,
   Solana,
   type LiFiStep,
   type Route,
@@ -26,6 +25,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { arbitrum, base, mainnet, optimism } from 'viem/chains';
 
 import type {
+  BridgeExecutionOptions,
   BridgeQuote,
   BridgeQuoteParams,
   BridgeTransferResult,
@@ -34,6 +34,7 @@ import type {
   IExternalBridge,
 } from '../interfaces/IExternalBridge.js';
 import { parseSolanaPrivateKey } from '../utils/solanaKeyParser.js';
+import { LiFiSubmission } from './lifiSubmission.js';
 
 /**
  * LiFi API base URL for REST endpoints.
@@ -225,6 +226,8 @@ export class LiFiBridge implements IExternalBridge {
     key: string,
     fromChain: number,
     fromRpcUrl: string | undefined,
+    submission: LiFiSubmission,
+    quote: BridgeQuote<LiFiStep>,
   ): void {
     const providers: Parameters<typeof lifiConfig.setProviders>[0] = [];
     switch (protocol) {
@@ -234,19 +237,23 @@ export class LiFiBridge implements IExternalBridge {
         const walletClient = createWalletClient({
           account,
           chain,
-          transport: http(fromRpcUrl),
+          transport: submission.evmTransport(
+            http(fromRpcUrl),
+            fromChain,
+            quote.requestParams.fromToken,
+            quote.route.estimate.approvalAddress,
+            quote.fromAmount,
+          ),
         });
         providers.push(
           EVM({
             getWalletClient: async () => walletClient,
             switchChain: async (requiredChainId: number) => {
-              const switchRpcUrl = this.getRpcUrlForChainId(requiredChainId);
-              const requiredChain = getViemChain(requiredChainId, switchRpcUrl);
-              return createWalletClient({
-                account,
-                chain: requiredChain,
-                transport: http(switchRpcUrl),
-              });
+              assert(
+                requiredChainId === fromChain,
+                'LiFi cannot switch away from the source chain during execution',
+              );
+              return walletClient;
             },
           }),
         );
@@ -256,7 +263,7 @@ export class LiFiBridge implements IExternalBridge {
         const base58Key = toBase58SolanaKey(key);
         providers.push(
           Solana({
-            getWalletAdapter: async () => new KeypairWalletAdapter(base58Key),
+            getWalletAdapter: async () => submission.solanaWallet(base58Key),
           }),
         );
         break;
@@ -497,122 +504,107 @@ export class LiFiBridge implements IExternalBridge {
   async execute(
     quote: BridgeQuote<LiFiStep>,
     privateKeys: Partial<Record<ProtocolType, string>>,
+    options: BridgeExecutionOptions = {},
   ): Promise<BridgeTransferResult> {
-    this.initialize();
+    const submission = new LiFiSubmission(options);
+    return submission.run(async () => {
+      this.initialize();
 
-    // Convert quote to route for execution
-    const route = convertQuoteToRoute(quote.route);
+      // Convert quote to route for execution
+      const route = convertQuoteToRoute(quote.route);
 
-    this.validateRouteAgainstRequest(route, quote.requestParams);
+      this.validateRouteAgainstRequest(route, quote.requestParams);
 
-    const fromChain = route.fromChainId;
-    const toChain = route.toChainId;
-    const fromProtocol = this.getProtocolTypeForChainId(fromChain);
-    const sourceProtocol = fromProtocol ?? ProtocolType.Ethereum;
-    assert(
-      privateKeys[sourceProtocol],
-      `Missing private key for source chain protocol ${sourceProtocol}`,
-    );
-
-    this.logger.info(
-      {
-        quoteId: quote.id,
-        tool: quote.tool,
-        fromChain,
-        toChain,
-        fromAmount: quote.fromAmount.toString(),
-      },
-      'Executing LiFi bridge transfer',
-    );
-
-    const fromRpcUrl = this.getRpcUrlForChainId(fromChain);
-
-    let release!: () => void;
-    const acquired = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const prev = this._executeLock;
-    this._executeLock = acquired;
-    await prev;
-
-    let txHash: string | undefined;
-    let executedRoute!: RouteExtended;
-
-    try {
-      this.configureLiFiProvider(
-        sourceProtocol,
-        privateKeys[sourceProtocol]!,
-        fromChain,
-        fromRpcUrl,
+      const fromChain = route.fromChainId;
+      const toChain = route.toChainId;
+      const fromProtocol = this.getProtocolTypeForChainId(fromChain);
+      const sourceProtocol = fromProtocol ?? ProtocolType.Ethereum;
+      assert(
+        privateKeys[sourceProtocol],
+        `Missing private key for source chain protocol ${sourceProtocol}`,
       );
 
-      // Execute route with update callbacks
-      executedRoute = await executeRoute(route, {
-        // Update callback for route progress
-        updateRouteHook: (updatedRoute: RouteExtended) => {
-          this.logger.debug(
-            { step: updatedRoute.steps[0]?.id },
-            'Route step updated',
-          );
-
-          // Extract txHash from execution if available (RouteExtended has LiFiStepExtended with execution)
-          const execution = updatedRoute.steps[0]?.execution;
-          if (execution?.process) {
-            for (const process of execution.process) {
-              if (process.txHash) {
-                txHash = process.txHash;
-              }
-            }
-          }
+      this.logger.info(
+        {
+          quoteId: quote.id,
+          tool: quote.tool,
+          fromChain,
+          toChain,
+          fromAmount: quote.fromAmount.toString(),
         },
-        // Auto-accept rate updates for rebalancing
-        acceptExchangeRateUpdateHook: async () => true,
-      });
-    } finally {
-      release();
-    }
+        'Executing LiFi bridge transfer',
+      );
 
-    // Extract txHash from executed route if not captured in callbacks
-    if (!txHash) {
-      const execution = executedRoute.steps[0]?.execution;
-      if (execution?.process) {
-        for (const process of execution.process) {
-          if (process.txHash) {
-            txHash = process.txHash;
-            break;
-          }
+      const fromRpcUrl = this.getRpcUrlForChainId(fromChain);
+
+      let release!: () => void;
+      const acquired = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const prev = this._executeLock;
+      this._executeLock = acquired;
+      await prev;
+
+      let executedRoute!: RouteExtended;
+
+      try {
+        this.configureLiFiProvider(
+          sourceProtocol,
+          privateKeys[sourceProtocol]!,
+          fromChain,
+          fromRpcUrl,
+          submission,
+          quote,
+        );
+
+        // Execute route with update callbacks
+        executedRoute = await executeRoute(route, {
+          disableMessageSigning: true,
+          // Update callback for route progress
+          updateRouteHook: (updatedRoute: RouteExtended) => {
+            submission.observeRoute(updatedRoute);
+            this.logger.debug(
+              { step: updatedRoute.steps[0]?.id },
+              'Route step updated',
+            );
+          },
+          // A changed rate requires a new accepted quote before any source send.
+          acceptExchangeRateUpdateHook: async () => false,
+        });
+      } finally {
+        release();
+      }
+
+      const txHash = submission.txHash;
+      if (!txHash) {
+        throw new Error('No transaction hash found in executed route');
+      }
+
+      this.logger.info(
+        { txHash, quoteId: quote.id },
+        'LiFi bridge transaction executed',
+      );
+
+      // Extract transfer ID if available (some bridges provide this)
+      let transferId: string | undefined;
+      const processes = executedRoute.steps[0]?.execution?.process;
+      const txInfo = processes?.find((p) => p.txHash === txHash);
+      if (txInfo && 'lifiExplorerLink' in txInfo) {
+        // Extract transfer ID from explorer link if available
+        const link = (txInfo as { lifiExplorerLink?: string }).lifiExplorerLink;
+        const match = link?.match(/\/tx\/([^/]+)/);
+        if (match) {
+          transferId = match[1];
         }
       }
-    }
 
-    if (!txHash) {
-      throw new Error('No transaction hash found in executed route');
-    }
-
-    this.logger.info(
-      { txHash, quoteId: quote.id },
-      'LiFi bridge transaction executed',
-    );
-
-    // Extract transfer ID if available (some bridges provide this)
-    let transferId: string | undefined;
-    const processes = executedRoute.steps[0]?.execution?.process;
-    const txInfo = processes?.find((p) => p.txHash === txHash);
-    if (txInfo && 'lifiExplorerLink' in txInfo) {
-      // Extract transfer ID from explorer link if available
-      const link = (txInfo as { lifiExplorerLink?: string }).lifiExplorerLink;
-      const match = link?.match(/\/tx\/([^/]+)/);
-      if (match) {
-        transferId = match[1];
-      }
-    }
-
-    return {
-      txHash,
-      fromChain,
-      toChain,
-      transferId,
-    };
+      return {
+        txHash,
+        fromChain,
+        toChain,
+        transferId,
+      };
+    });
   }
 
   /**

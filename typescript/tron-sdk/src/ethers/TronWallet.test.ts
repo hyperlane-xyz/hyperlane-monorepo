@@ -1,10 +1,14 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { BigNumber, constants, utils } from 'ethers';
+import { BigNumber, constants, utils, Wallet } from 'ethers';
 
-import { strip0x } from '@hyperlane-xyz/utils';
+import { strip0x, TransactionSubmissionError } from '@hyperlane-xyz/utils';
 
-import { TronTransaction, TronTransactionBuilder } from './TronWallet.js';
+import {
+  TronTransaction,
+  TronTransactionBuilder,
+  TronWallet,
+} from './TronWallet.js';
 
 chai.use(chaiAsPromised);
 
@@ -294,6 +298,24 @@ describe('TronTransactionBuilder', () => {
     );
   });
 
+  it('bounds a single wait without changing the builder default', async () => {
+    const builder = makeBuilder(undefined, 5);
+    let confirmed = false;
+    injectTrx(builder, {
+      getUnconfirmedTransactionInfo: async () =>
+        confirmed
+          ? { id: TXID, blockNumber: 123, receipt: { result: 'SUCCESS' } }
+          : {},
+      getBlockByNumber: blockByNumber,
+    });
+    const response = buildResponse(builder);
+    await expect(response.wait(1, 15)).to.be.rejectedWith(
+      'not confirmed within 15ms',
+    );
+    confirmed = true;
+    expect((await response.wait(1)).status).to.equal(1);
+  });
+
   it('rejects with the txid once the confirmation timeout elapses', async () => {
     const timeoutMs = 40;
     const builder = makeBuilder(timeoutMs, 5);
@@ -307,5 +329,90 @@ describe('TronTransactionBuilder', () => {
         `Tron transaction ${TXID} not confirmed within ${timeoutMs}ms`,
       ),
     );
+  });
+});
+
+describe('TronWallet submission boundary', () => {
+  function makeWallet(failAt: 'sign' | 'broadcast') {
+    const wallet = new TronWallet(
+      Wallet.createRandom().privateKey,
+      'https://node.example.com',
+    );
+    const order: string[] = [];
+    const tx = makeTronTx(TXID);
+    wallet.populateTransaction = async () => ({
+      gasLimit: BigNumber.from(10),
+      gasPrice: BigNumber.from(1),
+    });
+    // Replace only network/signing dependencies; exercise the actual wallet send method.
+    const internals = wallet as unknown as {
+      txBuilder: { buildTransaction: () => Promise<TronTransaction> };
+      makeUnique: (transaction: TronTransaction) => Promise<TronTransaction>;
+      tronWeb: {
+        trx: {
+          sign: () => Promise<TronTransaction>;
+          sendRawTransaction: () => Promise<never>;
+        };
+      };
+    };
+    internals.txBuilder = { buildTransaction: async () => tx };
+    internals.makeUnique = async (transaction) => transaction;
+    internals.tronWeb = {
+      trx: {
+        sign: async () => {
+          order.push('sign');
+          if (failAt === 'sign') throw new Error('sign failed');
+          return tx;
+        },
+        sendRawTransaction: async () => {
+          order.push('broadcast');
+          throw new Error('response lost');
+        },
+      },
+    };
+    return { wallet, order };
+  }
+
+  it('retains the locally computed txID when the broadcast response is lost', async () => {
+    const { wallet, order } = makeWallet('broadcast');
+    let observedHash: string | undefined;
+    let caught: unknown;
+    try {
+      await wallet.sendTransaction(
+        {},
+        {
+          onSubmissionAttempt: (hash) => {
+            observedHash = hash;
+            order.push('attempt');
+          },
+          onSubmitted: (hash) => {
+            order.push('identity');
+            observedHash = hash;
+          },
+        },
+      );
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).to.be.instanceOf(TransactionSubmissionError);
+    expect(caught).to.include({
+      submissionState: 'unknown',
+      txHash: `0x${TXID}`,
+    });
+    expect(observedHash).to.equal(`0x${TXID}`);
+    expect(order).to.deep.equal(['sign', 'attempt', 'broadcast']);
+  });
+
+  it('proves a signing failure occurred before broadcast', async () => {
+    const { wallet, order } = makeWallet('sign');
+    let caught: unknown;
+    try {
+      await wallet.sendTransaction({}, {});
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).to.be.instanceOf(TransactionSubmissionError);
+    expect(caught).to.include({ submissionState: 'not_submitted' });
+    expect(order).to.deep.equal(['sign']);
   });
 });

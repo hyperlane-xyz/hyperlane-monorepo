@@ -4,6 +4,8 @@ import { TronWeb, Types } from 'tronweb';
 
 import {
   assert,
+  TransactionSubmission,
+  type TransactionSubmissionOptions,
   ensure0x,
   isNullish,
   retryAsync,
@@ -32,6 +34,11 @@ export type TronTransaction =
  * Extended transaction response that includes Tron-specific fields.
  */
 export interface TronTransactionResponse extends providers.TransactionResponse {
+  /** Wait using the Tron HTTP API, with an optional per-call deadline. */
+  wait(
+    confirmations?: number,
+    timeoutMs?: number,
+  ): Promise<providers.TransactionReceipt>;
   /** Raw TronWeb transaction object */
   tronTransaction: TronTransaction;
 }
@@ -116,26 +123,40 @@ export class TronWallet extends Wallet {
 
   async sendTransaction(
     transaction: providers.TransactionRequest,
+    options?: TransactionSubmissionOptions,
   ): Promise<TronTransactionResponse> {
-    // Populate transaction (estimates gas and gas price if not set)
-    const tx = await this.populateTransaction(transaction);
-    assert(tx.gasLimit, 'gasLimit is required');
-    assert(tx.gasPrice, 'gasPrice is required');
+    const submission = new TransactionSubmission(options);
+    const send = async () => {
+      // Populate transaction (estimates gas and gas price if not set)
+      const tx = await this.populateTransaction(transaction);
+      assert(tx.gasLimit, 'gasLimit is required');
+      assert(tx.gasPrice, 'gasPrice is required');
 
-    let tronTx = await this.txBuilder.buildTransaction(tx);
-    // Ensure unique txID by extending expiration with a counter.
-    // Tron has no nonces, so identical txs in the same block produce the same txID.
-    tronTx = await this.makeUnique(tronTx);
+      let tronTx = await this.txBuilder.buildTransaction(tx);
+      // Ensure unique txID by extending expiration with a counter.
+      // Tron has no nonces, so identical txs in the same block produce the same txID.
+      tronTx = await this.makeUnique(tronTx);
 
-    // Sign and broadcast
-    const signedTx = await this.tronWeb.trx.sign(tronTx);
-    const broadcastResult = await this.tronWeb.trx.sendRawTransaction(signedTx);
-    assert(
-      broadcastResult.result,
-      `Broadcast failed: ${broadcastResult.message}`,
-    );
+      // Sign and broadcast
+      const signedTx = await this.tronWeb.trx.sign(tronTx);
+      const broadcast = async () => {
+        const result = await this.tronWeb.trx.sendRawTransaction(signedTx);
+        assert(result.result, `Broadcast failed: ${result.message}`);
+        return result;
+      };
+      if (options) {
+        await submission.submit(
+          broadcast,
+          () => ensure0x(signedTx.txID),
+          ensure0x(signedTx.txID),
+        );
+      } else {
+        await broadcast();
+      }
 
-    return this.txBuilder.getTransactionResponse(tx, tronTx);
+      return this.txBuilder.getTransactionResponse(tx, tronTx);
+    };
+    return options ? submission.run(send) : send();
   }
 
   private async makeUnique(tronTx: TronTransaction): Promise<TronTransaction> {
@@ -221,12 +242,14 @@ export class TronTransactionBuilder extends TronWeb {
       tronTransaction: tronTx,
       wait: async (
         confirmations?: number,
+        timeoutMs?: number,
       ): Promise<providers.TransactionReceipt> => {
         const hash = txHash ? ensure0x(txHash) : originalTxHash;
         const receipt = await this.waitForTransactionReceipt(
           hash,
           confirmations,
           evmTx,
+          timeoutMs,
         );
         // CAST: ethers v5 types `TransactionResponse.wait` as returning a
         // non-null `TransactionReceipt`, yet its own runtime resolves `null`
@@ -243,6 +266,7 @@ export class TronTransactionBuilder extends TronWeb {
     txHash: string,
     confirmations = 1,
     evmTx: TransactionRequest,
+    timeoutMs = this.confirmationTimeoutMs,
   ): Promise<providers.TransactionReceipt | null> {
     const txid = strip0x(txHash);
 
@@ -266,9 +290,7 @@ export class TronTransactionBuilder extends TronWeb {
       return null;
     }
 
-    const deadline = isNullish(this.confirmationTimeoutMs)
-      ? undefined
-      : Date.now() + this.confirmationTimeoutMs;
+    const deadline = isNullish(timeoutMs) ? undefined : Date.now() + timeoutMs;
     while (isNullish(deadline) || Date.now() < deadline) {
       const info = await retryAsync(
         () => this.trx.getUnconfirmedTransactionInfo(txid),
@@ -294,8 +316,9 @@ export class TronTransactionBuilder extends TronWeb {
       }
       await sleep(this.confirmationPollMs);
     }
-    throw new Error(
-      `Tron transaction ${txid} not confirmed within ${this.confirmationTimeoutMs}ms`,
+    throw Object.assign(
+      new Error(`Tron transaction ${txid} not confirmed within ${timeoutMs}ms`),
+      { code: 'TIMEOUT' },
     );
   }
 
