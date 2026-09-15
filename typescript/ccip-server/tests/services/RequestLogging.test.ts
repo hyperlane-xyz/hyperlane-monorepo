@@ -2,12 +2,14 @@ import { expect } from 'chai';
 import Fastify, { LogController } from 'fastify';
 import { pino } from 'pino';
 
-import type { CcipApp } from '../../src/http.js';
+import { CCIP_ROUTER_OPTIONS, type CcipApp } from '../../src/http.js';
 import { registerRequestLogging } from '../../src/utils/http.js';
 
 describe('request completion logging', () => {
   for (const scenario of [
     { path: '/health', status: 200, logged: false },
+    { path: '/health/', status: 200, logged: true },
+    { path: '/Health', status: 200, logged: true },
     { path: '/health', status: 503, logged: true },
     { path: '/health', status: 500, error: true, logged: true },
     { path: '/health?detail=1', status: 200, logged: true },
@@ -19,6 +21,7 @@ describe('request completion logging', () => {
       const app: CcipApp = Fastify({
         logController: new LogController({ disableRequestLogging: true }),
         loggerInstance: logger,
+        routerOptions: CCIP_ROUTER_OPTIONS,
       });
       registerRequestLogging(app);
       app.setErrorHandler(async (_error, _request, reply) => {
