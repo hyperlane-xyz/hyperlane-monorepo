@@ -34,6 +34,19 @@ void it('serves GraphQL through Mercurius with compatibility validation', async 
     );
     assert.equal(queries, 1);
 
+    const getQuery = new URLSearchParams({
+      query: 'query Domains($unused: String) { domain(limit: 1) { id name } }',
+      variables: JSON.stringify({ unused: 'legacy-client-variable' }),
+    });
+    const getResponse = await app.inject({
+      headers: { 'mercurius-require-preflight': 'true' },
+      method: 'GET',
+      url: `/graphql?${getQuery}`,
+    });
+    assert.equal(getResponse.statusCode, 200);
+    assert.deepEqual(getResponse.json(), { data: { domain: [] } });
+    assert.equal(queries, 2);
+
     const introspection = await app.inject({
       method: 'POST',
       payload: { query: '{ __schema { queryType { name } } }' },

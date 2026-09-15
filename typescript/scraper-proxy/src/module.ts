@@ -132,7 +132,9 @@ export async function createScraperProxyApp(
 
   app.addHook('preValidation', async (request) => {
     if (!isGraphqlRequest(request)) return;
-    normalizeGraphqlRequestBody(request.body);
+    normalizeGraphqlRequestBody(
+      request.method === 'GET' ? request.query : request.body,
+    );
   });
 
   app.addHook('preHandler', async (request, reply) => {
