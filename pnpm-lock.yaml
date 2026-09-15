@@ -2053,9 +2053,6 @@ importers:
       ethers:
         specifier: 'catalog:'
         version: 5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      express:
-        specifier: ^5.1.0
-        version: 5.2.1(supports-color@8.1.1)
       pino:
         specifier: 'catalog:'
         version: 8.21.0
@@ -2093,9 +2090,6 @@ importers:
       '@types/chai-as-promised':
         specifier: 'catalog:'
         version: 8.0.2
-      '@types/express':
-        specifier: ^5.0.3
-        version: 5.0.6
       '@types/mocha':
         specifier: 'catalog:'
         version: 10.0.10
