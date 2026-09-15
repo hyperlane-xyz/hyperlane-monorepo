@@ -54,10 +54,13 @@ function getOracleConfigWithOverrides(origin: ChainName) {
     };
     // solaxy -> solanamainnet must quote above the ~0.00204 SOL ATA rent the
     // relayer fronts per delivery, otherwise it can be drained via ATA-rent
-    // reclaim. Quotes ~$0.45 (above rent + delivery gas).
+    // reclaim. SOLX (a thin-liquidity memecoin) fell far enough that the prior
+    // ~$0.45 exchange rate collapsed to ~$0.00005 and the leg was actively
+    // drained again. exchangeRate bumped ~20.5x to quote ~$1.00 — a deliberate
+    // buffer above breakeven so a further SOLX decline still covers rent.
     oracleConfig.solanamainnet = {
       gasPrice: '6',
-      tokenExchangeRate: '2784941063266778928',
+      tokenExchangeRate: '57200000000000000000000',
       tokenDecimals: 9,
     };
   }
