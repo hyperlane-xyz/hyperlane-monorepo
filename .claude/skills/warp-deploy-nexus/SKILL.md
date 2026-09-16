@@ -7,6 +7,12 @@ description: Add a new warp route to the Nexus UI whitelist. Checks out the nexu
 
 You are adding a warp route to the Nexus UI whitelist.
 
+## Run Log (mandatory)
+
+Open-or-create the run log at entry, then maintain it, per `/warp-run-log` (never assume a previous step created it). Use `warp-deploy-nexus` as the skill name in each entry; don't report complete until the URL is surfaced. Key it by the ticket ID when one was given, otherwise by the primary warp route ID.
+
+**Log at least:** skill entry (route IDs), the `[CONFIRM:]` gate before it is shown and after the user responds, the whitelist edit, the PR URL, skill exit.
+
 ## Input
 
 The user provides:
