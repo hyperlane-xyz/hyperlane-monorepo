@@ -128,6 +128,11 @@ export const chainTargetsCommandOption: Options = stringArrayOptionConfig({
   alias: 'c',
 });
 
+export const skipChainsCommandOption: Options = stringArrayOptionConfig({
+  description:
+    'Route chains to exclude from on-chain reads and writes in this operation',
+});
+
 export const outputFileCommandOption = (
   defaultPath?: string,
   demandOption = false,

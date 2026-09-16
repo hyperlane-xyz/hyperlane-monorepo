@@ -1333,7 +1333,7 @@ export type DelayedFlowEnrollmentTarget = {
  * instead of a silent pass.
  */
 function delayedFlowIsmNodes(
-  config: WarpRouteDeployConfigMailboxRequired[string],
+  config: WarpRouteDeployConfig[string],
 ): DelayedFlowRouterHookIsmConfig[] {
   if (typeof config.interchainSecurityModule !== 'object') return [];
   return collectHybridIsmNodes(config.interchainSecurityModule).filter(
@@ -1344,14 +1344,14 @@ function delayedFlowIsmNodes(
 
 /** True when a chain's warp config installs a DELAYED_FLOW_ROUTER instance. */
 function configInstallsDelayedFlowIsm(
-  config: WarpRouteDeployConfigMailboxRequired[string],
+  config: WarpRouteDeployConfig[string],
 ): boolean {
   return delayedFlowIsmNodes(config).length > 0;
 }
 
 /** The chains of a config whose ISM tree installs a DELAYED_FLOW_ROUTER. */
 function delayedFlowChains(
-  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+  warpDeployConfig: WarpRouteDeployConfig,
 ): ChainName[] {
   return Object.keys(warpDeployConfig).filter((chain) =>
     configInstallsDelayedFlowIsm(warpDeployConfig[chain]),
@@ -1361,7 +1361,7 @@ function delayedFlowChains(
 /** Domain id of every chain the route deploys, asserted resolvable. */
 function resolveRouteDomains(
   multiProvider: MultiProvider,
-  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+  warpDeployConfig: WarpRouteDeployConfig,
 ): Map<ChainName, number> {
   const routeDomains = new Map<ChainName, number>();
   for (const chain of Object.keys(warpDeployConfig)) {
@@ -1387,7 +1387,7 @@ function resolveRouteDomains(
 function configuredRemoteIsmDomains(
   multiProvider: MultiProvider,
   chain: ChainName,
-  config: WarpRouteDeployConfigMailboxRequired[string],
+  config: WarpRouteDeployConfig[string],
 ): Set<number> {
   const domains = new Set<number>();
   for (const node of delayedFlowIsmNodes(config)) {
@@ -1419,7 +1419,7 @@ function configuredRemoteIsmDomains(
  */
 function assertDelayedFlowRemoteRouterCoverage(
   multiProvider: MultiProvider,
-  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+  warpDeployConfig: WarpRouteDeployConfig,
   routeDomains: Map<ChainName, number>,
 ): void {
   const deployedDomains = new Set<number>(routeDomains.values());
@@ -1475,7 +1475,7 @@ function assertDelayedFlowRemoteRouterCoverage(
  * merely part-deployed.
  */
 function assertDelayedFlowLegCoverage(
-  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+  warpDeployConfig: WarpRouteDeployConfig,
 ): void {
   const chains = Object.keys(warpDeployConfig);
   const covered = delayedFlowChains(warpDeployConfig);
@@ -1514,7 +1514,7 @@ export function assertDelayedFlowRouteCoverage({
   warpDeployConfig,
 }: {
   multiProvider: MultiProvider;
-  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  warpDeployConfig: WarpRouteDeployConfig;
 }): void {
   assertDelayedFlowLegCoverage(warpDeployConfig);
   if (delayedFlowChains(warpDeployConfig).length === 0) return;
