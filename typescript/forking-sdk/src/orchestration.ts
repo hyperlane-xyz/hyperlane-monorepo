@@ -55,11 +55,17 @@ export async function buildForkedChainMetadata(args: {
   try {
     for (const [i, chain] of chains.entries()) {
       const factory = forkManagers.getForkManagerFactory(chain.protocol);
+      const port = ports[i];
+      const wsPort = ports[chains.length + i];
+      assert(
+        !isNullish(port) && !isNullish(wsPort),
+        `Missing allocated ports for chain ${chain.chainName}`,
+      );
       const manager = factory({
         chainName: chain.chainName,
         upstreamRpcUrl: chain.upstreamRpcUrl,
-        port: ports[i],
-        wsPort: ports[chains.length + i],
+        port,
+        wsPort,
       });
       started.push({ chainName: chain.chainName, manager });
 
