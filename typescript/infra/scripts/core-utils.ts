@@ -16,7 +16,6 @@ import {
   upgradeTimelocks,
 } from '../config/environments/mainnet3/owners.js';
 import { getEnvAddresses } from '../config/registry.js';
-import { legacyIcaChainRouters } from '../src/config/chain.js';
 import { DeployEnvironment } from '../src/config/deploy-environment.js';
 import { EnvironmentConfig } from '../src/config/environment.js';
 
@@ -50,17 +49,6 @@ export async function getHyperlaneCore(
   }
 
   const chainAddresses = getEnvAddresses(env);
-  // on mainnet3, we need to add the legacy ICA routers to the chain addresses
-  if (env === 'mainnet3') {
-    for (const [chain, legacyIcaRouters] of Object.entries(
-      legacyIcaChainRouters,
-    )) {
-      chainAddresses[chain] = {
-        ...chainAddresses[chain],
-        ...legacyIcaRouters,
-      };
-    }
-  }
   const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
   return { core, multiProvider, chainAddresses };
 }

@@ -86,6 +86,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //     confirmations: 5,
   //   },
   // },
+  // citrea: {
+  //   blocks: {
+  //     confirmations: 5,
+  //   },
+  // },
   // soneium: {
   //   blocks: {
   //     confirmations: 3,
