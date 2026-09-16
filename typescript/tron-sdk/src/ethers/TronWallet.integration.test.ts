@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import {
   TronNodeInfo,
   TronTestChainMetadata,
@@ -31,7 +33,9 @@ describe('TronWallet Integration Tests', function () {
     node = await runTronNode(TEST_CHAIN);
 
     const tronUrl = `http://127.0.0.1:${TEST_CHAIN.port}/jsonrpc`;
-    wallet = new TronWallet(node.privateKeys[0], tronUrl);
+    const privateKey = node.privateKeys[0];
+    assert(privateKey, 'TRE did not expose a funded private key');
+    wallet = new TronWallet(privateKey, tronUrl);
   });
 
   after(async () => {
