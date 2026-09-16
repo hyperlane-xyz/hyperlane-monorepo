@@ -1,11 +1,13 @@
 import type { Logger } from 'pino';
 
 import type { ConfirmedBlockTags } from '../../interfaces/IMonitor.js';
-import type {
-  ExplorerMessage,
-  IExplorerClient,
-  RebalanceActionQueryParams,
-  UserTransferQueryParams,
+import {
+  normalizeTransactionHash,
+  type ExplorerMessage,
+  type IExplorerClient,
+  type OriginTransactionQueryParams,
+  type RebalanceActionQueryParams,
+  type UserTransferQueryParams,
 } from '../../utils/ExplorerClient.js';
 
 import type { ForkIndexer } from './ForkIndexer.js';
@@ -60,6 +62,27 @@ export class MockExplorerClient implements IExplorerClient {
       return [...configActions, ...indexedActions];
     }
     return this.rebalanceActions.filter((msg) => !msg.is_delivered);
+  }
+
+  async getMessagesByOriginTransactions(
+    params: OriginTransactionQueryParams,
+    _logger?: Logger,
+  ): Promise<ExplorerMessage[]> {
+    if (this.forkIndexer && this.getBlockTags) {
+      await this.forkIndexer.sync(await this.getBlockTags());
+    }
+
+    const requested = new Set(
+      params.transactions.map(
+        (tx) => `${tx.originDomain}:${normalizeTransactionHash(tx.txHash)}`,
+      ),
+    );
+    const indexedActions = this.forkIndexer?.getRebalanceActions() ?? [];
+    return [...this.rebalanceActions, ...indexedActions].filter((msg) =>
+      requested.has(
+        `${msg.origin_domain_id}:${normalizeTransactionHash(msg.origin_tx_hash)}`,
+      ),
+    );
   }
 
   addUserTransfer(transfer: ExplorerMessage): void {
