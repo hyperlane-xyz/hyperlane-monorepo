@@ -1,22 +1,25 @@
 import 'zod/compile';
 
-import cors from 'cors';
-import express, { type Request, type Response } from 'express';
-import { pinoHttp } from 'pino-http';
+import cors from '@fastify/cors';
+import Fastify, { LogController } from 'fastify';
 import { Registry } from 'prom-client';
 
 import { startMetricsServer } from '@hyperlane-xyz/metrics/dist/server.js';
 import { createServiceLogger } from '@hyperlane-xyz/utils';
 
 import { getEnabledModules } from './config.js';
+import { CCIP_ROUTER_OPTIONS } from './http.js';
 import { moduleRegistry } from './moduleRegistry.js';
 import { HealthService } from './services/HealthService.js';
-import { configureTrustProxy, requestLogLevel } from './utils/http.js';
+import { registerRequestLogging, trustGceIngressProxy } from './utils/http.js';
 import {
   PrometheusMetrics,
   UnhandledErrorReason,
   initializeMetrics,
+  registerLookupMetrics,
 } from './utils/prometheus.js';
+import { registerRateLimiting } from './utils/rateLimit.js';
+import { closeServers } from './utils/shutdown.js';
 
 async function startServer() {
   const VERSION = process.env.SERVICE_VERSION || 'dev';
@@ -31,22 +34,29 @@ async function startServer() {
   const register = new Registry();
   initializeMetrics(register);
 
-  const app = express();
-  configureTrustProxy(app);
-  app.use(cors());
-  app.use(express.json({ limit: '10kb' }));
-  app.use(
-    pinoHttp<Request, Response>({ logger, customLogLevel: requestLogLevel }),
-  );
+  const app = Fastify({
+    bodyLimit: 10 * 1_024,
+    logController: new LogController({ disableRequestLogging: true }),
+    routerOptions: CCIP_ROUTER_OPTIONS,
+    loggerInstance: logger,
+    requestTimeout: 300_000,
+    trustProxy: trustGceIngressProxy,
+  });
+  await app.register(cors);
+  registerRequestLogging(app);
+  await registerRateLimiting(app);
 
-  if (getEnabledModules().length === 0) {
+  const enabledModules = getEnabledModules();
+  if (enabledModules.length === 0) {
     logger.warn(
       '⚠️  No modules enabled. Set ENABLED_MODULES environment variable to mount services.',
     );
   }
 
+  registerLookupMetrics(app, enabledModules);
+
   // Dynamically mount only modules listed in the ENABLED_MODULES env var
-  for (const name of getEnabledModules()) {
+  for (const name of enabledModules) {
     try {
       const ServiceClass = moduleRegistry[name];
       if (!ServiceClass) {
@@ -59,15 +69,7 @@ async function startServer() {
         continue;
       }
       const service = await ServiceClass.create(name);
-
-      app.use(`/${name}`, (req, res, next) => {
-        res.on('finish', () => {
-          // TODO: add a success label to the metric, once we properly distinguish unhandled errors from handled errors
-          PrometheusMetrics.logLookupRequest(name, res.statusCode);
-        });
-        next();
-      });
-      app.use(`/${name}`, service.router);
+      service.registerRoutes(app, `/${name}`);
 
       logger.info(
         {
@@ -94,32 +96,47 @@ async function startServer() {
 
   // Register Health Service
   const healthService = await HealthService.create('health');
-  app.use(`/health`, healthService.router);
+  healthService.registerRoutes(app, '/health');
 
   // Log and handle undefined endpoints
-  app.use((req, res) => {
-    req.log.info(
+  app.setNotFoundHandler(async (request, reply) => {
+    request.log.info(
       {
-        method: req.method,
-        url: req.originalUrl,
+        method: request.method,
+        url: request.raw.url,
       },
       'Undefined request',
     );
-    res.status(404).json({ error: 'Endpoint not found' });
+    return reply.code(404).send({ error: 'Endpoint not found' });
   });
 
   const port = parseInt(process.env.SERVER_PORT ?? '3000');
-  app.listen(port, () => logger.info(`Server listening on port ${port}`));
+  await app.listen({ host: '0.0.0.0', port });
+  logger.info(`Server listening on port ${port}`);
 
-  return { logger, register };
+  return { app, logger, register };
 }
 
 // Start the server and handle startup logging
 startServer()
-  .then(({ logger, register }) => {
+  .then(({ app, logger, register }) => {
     logger.info('Server startup completed');
-    startMetricsServer(register, logger);
+    const metricsServer = startMetricsServer(register, logger);
     logger.info('Prometheus metrics server started');
+
+    let shuttingDown = false;
+    const shutdown = async () => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      try {
+        await closeServers(app, metricsServer, logger);
+      } catch (error) {
+        logger.error({ error }, 'Server shutdown failed');
+        process.exitCode = 1;
+      }
+    };
+    process.once('SIGTERM', () => void shutdown());
+    process.once('SIGINT', () => void shutdown());
   })
   .catch((err) => {
     console.error('Server startup failed:', err); // Fallback to console if logger failed
@@ -127,10 +144,8 @@ startServer()
   });
 
 /*
- * TODO: if PRISMA throws an error the entire express application crashes.
- *  This is a temporary workaround to catch these kind of errors.
- *
- * Will add a global error handler middleware to handle these errors instead.
+ * TODO: keep the process-level guard while Prisma can reject outside a request
+ * lifecycle.
  * */
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err); // Fallback to console
