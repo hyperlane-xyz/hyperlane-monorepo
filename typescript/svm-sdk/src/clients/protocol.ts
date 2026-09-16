@@ -89,7 +89,7 @@ export class SvmProtocolProvider implements ProtocolProvider {
   createIsmArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
   ): IRawIsmArtifactManager {
-    const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
+    const rpc = createRpc(this.getRpcUrl(chainMetadata));
     return new SvmIsmArtifactManager(rpc);
   }
 
@@ -97,7 +97,7 @@ export class SvmProtocolProvider implements ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     context?: { mailbox?: string },
   ): IRawHookArtifactManager {
-    const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
+    const rpc = createRpc(this.getRpcUrl(chainMetadata));
     const mailbox = context?.mailbox
       ? parseAddress(context.mailbox)
       : undefined;
@@ -108,7 +108,7 @@ export class SvmProtocolProvider implements ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     _context?: { mailbox?: string },
   ): IRawWarpArtifactManager {
-    const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
+    const rpc = createRpc(this.getRpcUrl(chainMetadata));
     return new SvmWarpArtifactManager(rpc, {
       chainName: chainMetadata.name,
     });
@@ -117,14 +117,14 @@ export class SvmProtocolProvider implements ProtocolProvider {
   createMailboxArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
   ): IRawMailboxArtifactManager {
-    const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
+    const rpc = createRpc(this.getRpcUrl(chainMetadata));
     return new SvmMailboxArtifactManager(rpc, chainMetadata.domainId);
   }
 
   createValidatorAnnounceArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
   ): IRawValidatorAnnounceArtifactManager {
-    const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
+    const rpc = createRpc(this.getRpcUrl(chainMetadata));
     return new SvmValidatorAnnounceArtifactManager(rpc, chainMetadata.domainId);
   }
 
@@ -132,7 +132,7 @@ export class SvmProtocolProvider implements ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     context: FeeReadContext,
   ): IRawFeeArtifactManager | null {
-    const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
+    const rpc = createRpc(this.getRpcUrl(chainMetadata));
     return new SvmFeeArtifactManager(
       rpc,
       context,
@@ -156,11 +156,9 @@ export class SvmProtocolProvider implements ProtocolProvider {
     };
   }
 
-  private getRpcUrls(chainMetadata: ChainMetadataForAltVM): string[] {
-    assert(
-      chainMetadata.rpcUrls && chainMetadata.rpcUrls.length > 0,
-      'At least one RPC URL is required',
-    );
-    return chainMetadata.rpcUrls.map((r) => r.http);
+  private getRpcUrl(chainMetadata: ChainMetadataForAltVM): string {
+    const rpcUrl = chainMetadata.rpcUrls?.[0]?.http;
+    assert(rpcUrl, 'At least one RPC URL is required');
+    return rpcUrl;
   }
 }
