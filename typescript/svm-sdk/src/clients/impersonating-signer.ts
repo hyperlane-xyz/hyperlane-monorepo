@@ -44,11 +44,11 @@ export class SvmImpersonatingSigner
   };
   // Preflight simulation verifies signatures; the impersonated slots are
   // empty, so it would reject a transaction the fork itself accepts.
-  protected readonly skipPreflight = true;
+  protected override readonly skipPreflight = true;
 
   private constructor(
     rpc: SvmRpc,
-    rpcUrls: string[],
+    rpcUrls: [string, ...string[]],
     chainMetadata: ChainMetadataForAltVM,
     signer: TransactionSigner,
     private readonly userAddress: Address,

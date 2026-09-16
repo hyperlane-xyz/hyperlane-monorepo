@@ -114,6 +114,7 @@ describe('compositeIsm config <-> artifact conversion', () => {
       relayer: RELAYER,
     });
 
+    assert(routingNode, 'expected routing node');
     assert(
       routingNode.type === CompositeIsmNodeType.ROUTING,
       'expected routing',
@@ -123,6 +124,7 @@ describe('compositeIsm config <-> artifact conversion', () => {
       1399811149: { type: CompositeIsmNodeType.TEST, accept: true },
     });
 
+    assert(amountRoutingNode, 'expected amount routing node');
     assert(
       amountRoutingNode.type === CompositeIsmNodeType.AMOUNT_ROUTING,
       'expected amountRouting',
@@ -374,7 +376,9 @@ const nestingCases: NestingCase[] = [
         root.type === CompositeIsmNodeType.AGGREGATION,
         'expected aggregation',
       );
-      return root.subIsms[1];
+      const nested = root.subIsms[1];
+      assert(nested, 'expected nested aggregation ISM');
+      return nested;
     },
   },
   {
@@ -628,6 +632,7 @@ describe('compositeIsm rateLimited recipient resolution', () => {
       );
       assert(resolved.type === IsmType.ROUTING, 'expected domainRoutingIsm');
       const domainIsm = resolved.domains[RATE_LIMITED_DOMAIN_ID];
+      assert(domainIsm, `expected domain ${RATE_LIMITED_DOMAIN_ID}`);
       expect(Object.hasOwn(domainIsm, 'artifactState')).to.be.false;
     });
 
@@ -650,6 +655,7 @@ describe('compositeIsm rateLimited recipient resolution', () => {
       );
       assert(resolved.type === IsmType.ROUTING, 'expected domainRoutingIsm');
       const domainIsm = resolved.domains[RATE_LIMITED_DOMAIN_ID];
+      assert(domainIsm, `expected domain ${RATE_LIMITED_DOMAIN_ID}`);
       assert(isArtifactDeployed(domainIsm), 'expected a deployed domain ISM');
       expect(domainIsm.deployed.address).to.equal(PROGRAM_ADDRESS);
       assert(

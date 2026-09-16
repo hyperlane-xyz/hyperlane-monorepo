@@ -13,6 +13,7 @@ import { describe, it } from 'mocha';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { SvmImpersonatingSigner } from '../clients/impersonating-signer.js';
 import type { SvmRpc, SvmTransaction } from '../types.js';
@@ -53,8 +54,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function readSkipPreflight(options: unknown): boolean | undefined {
-  if (isRecord(options) && typeof options.skipPreflight === 'boolean') {
-    return options.skipPreflight;
+  if (isRecord(options) && typeof options['skipPreflight'] === 'boolean') {
+    return options['skipPreflight'];
   }
   return undefined;
 }
@@ -151,6 +152,7 @@ function decodeSignatureSlots(rawTxBase64: string): Uint8Array[] {
   const bytes = new Uint8Array(Buffer.from(rawTxBase64, 'base64'));
   // Signature count is a compact-u16; two required signers fit in one byte.
   const count = bytes[0];
+  assert(count !== undefined, 'wire transaction is missing signature count');
   const slots: Uint8Array[] = [];
   for (let i = 0; i < count; i++) {
     const start = 1 + i * 64;
@@ -184,12 +186,17 @@ describe('SvmImpersonatingSigner', () => {
 
     await signer.send(txRequiringSigners([IMPERSONATED_USER]));
 
-    const slots = decodeSignatureSlots(sent[0].rawTx);
+    const [sentTransaction] = sent;
+    assert(sentTransaction, 'expected one sent transaction');
+    const slots = decodeSignatureSlots(sentTransaction.rawTx);
     expect(slots).to.have.length(2);
+    const [feePayerSlot, impersonatedSlot] = slots;
+    assert(feePayerSlot, 'expected fee payer signature slot');
+    assert(impersonatedSlot, 'expected impersonated signature slot');
     // Slot 0 is the fee payer (always first) and must be signed.
-    expect(slots[0].some((b) => b !== 0)).to.equal(true);
+    expect(feePayerSlot.some((b) => b !== 0)).to.equal(true);
     // Slot 1 is the impersonated account and must be zero-filled.
-    expect(slots[1].every((b) => b === 0)).to.equal(true);
+    expect(impersonatedSlot.every((b) => b === 0)).to.equal(true);
   });
 
   it('submits with skipPreflight enabled', async () => {
@@ -201,7 +208,9 @@ describe('SvmImpersonatingSigner', () => {
 
     await signer.send(txRequiringSigners([IMPERSONATED_USER]));
 
-    expect(sent[0].skipPreflight).to.equal(true);
+    const [sentTransaction] = sent;
+    assert(sentTransaction, 'expected one sent transaction');
+    expect(sentTransaction.skipPreflight).to.equal(true);
   });
 
   it('allows an additional required signer that is signed at build time', async () => {
@@ -218,7 +227,9 @@ describe('SvmImpersonatingSigner', () => {
 
     expect(receipt.signature).to.be.a('string').with.length.greaterThan(0);
     expect(sent).to.have.length(1);
-    const slots = decodeSignatureSlots(sent[0].rawTx);
+    const [sentTransaction] = sent;
+    assert(sentTransaction, 'expected one sent transaction');
+    const slots = decodeSignatureSlots(sentTransaction.rawTx);
     expect(slots).to.have.length(3);
     // Fee payer and the ephemeral signer are filled; only the impersonated
     // account's slot is left empty.

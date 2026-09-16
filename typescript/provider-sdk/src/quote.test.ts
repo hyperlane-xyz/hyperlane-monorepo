@@ -1,5 +1,7 @@
 import { expect } from 'chai';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import {
   WARP_QUOTE_AMOUNT_WILDCARD,
   WARP_TARGET_ROUTER_NONE,
@@ -101,7 +103,9 @@ describe('enumerateWarpQuoteCandidates', () => {
         s.targetRouter === WARP_TARGET_ROUTER_NONE,
     );
     expect(wildcardDestRows).to.have.lengthOf(1);
-    expect(wildcardDestRows[0].recipient).to.equal(routerA);
+    const [wildcardDestRow] = wildcardDestRows;
+    assert(wildcardDestRow, 'expected a wildcard destination row');
+    expect(wildcardDestRow.recipient).to.equal(routerA);
   });
 
   it('enumerates a concrete-target-router CC scope under a wildcard destination', () => {

@@ -14,7 +14,7 @@ import {
 const SETUP_TIMEOUT_MS = 150_000;
 const TESTS_WITHOUT_VALIDATOR = new Set(['read-token', 'surfpool-offline']);
 const SKIP_VALIDATOR = TESTS_WITHOUT_VALIDATOR.has(
-  process.env.SVM_SDK_E2E_TEST ?? '',
+  process.env['SVM_SDK_E2E_TEST'] ?? '',
 );
 
 // Feature gates to deactivate per suite, so a suite can exercise the code
@@ -24,7 +24,7 @@ const FEATURE_DEACTIVATIONS: Record<string, string[]> = {
   'program-extend-upgrade': [EXTEND_PROGRAM_CHECKED_FEATURE],
 };
 const DEACTIVATE_FEATURES =
-  FEATURE_DEACTIVATIONS[process.env.SVM_SDK_E2E_TEST ?? ''] ?? [];
+  FEATURE_DEACTIVATIONS[process.env['SVM_SDK_E2E_TEST'] ?? ''] ?? [];
 
 const ALL_PRELOADED_PROGRAMS: Array<PreloadableProgram> = [
   'mailbox',
