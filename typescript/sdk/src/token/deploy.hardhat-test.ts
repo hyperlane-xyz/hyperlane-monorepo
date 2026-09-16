@@ -492,10 +492,10 @@ describe('TokenDeployer', async () => {
         '115792089237316195423570985008687907853269984665640564039457584007913129639935';
 
       beforeEach(async () => {
-        // @ts-expect-error - Test assigns varying token types to config
         config[chain] = {
           ...config[chain],
           type,
+          // @ts-expect-error - Test assigns varying token types to config
           token: token(),
           xERC20:
             type === TokenType.XERC20
@@ -870,10 +870,10 @@ describe('TokenDeployer', async () => {
       });
 
       beforeEach(async () => {
-        // @ts-expect-error - Test assigns varying token types to config
         config[chain] = {
           ...config[chain],
           type,
+          // @ts-expect-error - Test assigns varying token types to config
           token: token(),
         };
         const warpRoute = await deployer.deploy(config);
