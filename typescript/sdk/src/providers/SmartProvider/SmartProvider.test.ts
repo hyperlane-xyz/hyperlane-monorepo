@@ -17,6 +17,7 @@ import {
 } from './HyperlaneJsonRpcProvider.js';
 import {
   BlockchainError,
+  getJsonRpcErrorFrom,
   getSmartProviderErrorMessage,
   HyperlaneSmartProvider,
 } from './SmartProvider.js';
@@ -179,6 +180,50 @@ describe('SmartProvider', () => {
 
   beforeEach(() => {
     provider = new TestableSmartProvider([MockProvider.success('success')]);
+  });
+
+  describe('getJsonRpcErrorFrom', () => {
+    it('prefers a complete serialized response over an incomplete nested error', () => {
+      const error = Object.assign(new Error('processing response error'), {
+        error: { code: -32602 },
+        body: JSON.stringify({
+          error: { code: -32000, message: 'execution reverted' },
+        }),
+      });
+
+      expect(getJsonRpcErrorFrom(error)).to.deep.equal({
+        code: -32000,
+        message: 'execution reverted',
+      });
+    });
+
+    it('does not combine fields from different error layers', () => {
+      const error = Object.assign(new Error('state override not supported'), {
+        error: { code: -32602 },
+      });
+
+      expect(getJsonRpcErrorFrom(error)).to.deep.equal({
+        code: -32602,
+        message: undefined,
+      });
+    });
+
+    it('ignores an empty nested message in favor of a complete body error', () => {
+      const error = Object.assign(new Error('processing response error'), {
+        error: {
+          code: -32602,
+          message: '',
+          body: JSON.stringify({
+            error: { code: 3, message: 'execution reverted' },
+          }),
+        },
+      });
+
+      expect(getJsonRpcErrorFrom(error)).to.deep.equal({
+        code: 3,
+        message: 'execution reverted',
+      });
+    });
   });
 
   describe('explorer getLogs pagination', () => {

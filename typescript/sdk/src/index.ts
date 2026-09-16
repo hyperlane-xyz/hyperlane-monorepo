@@ -611,6 +611,12 @@ export {
 } from './providers/SmartProvider/ProviderMethods.js';
 export { HyperlaneSmartProvider } from './providers/SmartProvider/SmartProvider.js';
 export {
+  StateOverrideUnsupportedError,
+  type EvmTransactionFeeEstimateOptions,
+  type TransactionFeeEstimateParams,
+  type TransactionFeeEstimateTransactionOptions,
+} from './providers/transactionFeeEstimators.js';
+export {
   HyperlaneLogFilter,
   ProviderRetryOptions,
   SmartProviderOptions,

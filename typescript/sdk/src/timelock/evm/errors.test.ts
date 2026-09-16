@@ -20,6 +20,18 @@ describe('timelock EVM errors', () => {
       },
       true,
     ],
+    [
+      'outer body-encoded code 3',
+      {
+        error: {},
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          error: { code: 3, message: 'execution reverted' },
+        }),
+      },
+      true,
+    ],
     ['nested transient call exception', { error: { code: -32000 } }, false],
   ];
 
