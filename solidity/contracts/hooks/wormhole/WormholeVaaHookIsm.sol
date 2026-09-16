@@ -269,60 +269,68 @@ contract WormholeVaaHookIsm is
     /// @notice Enrolls a remote hook/ISM address, Wormhole chain ID, and
     /// expected VAA consistency level.
     function enrollRemoteRouter(
-        RemoteRouterEnrollment calldata enrollment
+        RemoteRouterEnrollment calldata newRemoteConfig
     ) external onlyOwner {
-        _enrollWormholeRemoteRouter(enrollment);
+        _enrollWormholeRemoteRouter(newRemoteConfig);
     }
 
     /// @notice Batch version of `enrollRemoteRouter`.
     function enrollRemoteRouters(
-        RemoteRouterEnrollment[] calldata enrollments
+        RemoteRouterEnrollment[] calldata newRemoteConfigs
     ) external onlyOwner {
-        for (uint256 i; i < enrollments.length; ++i) {
-            _enrollWormholeRemoteRouter(enrollments[i]);
+        for (uint256 i; i < newRemoteConfigs.length; ++i) {
+            _enrollWormholeRemoteRouter(newRemoteConfigs[i]);
         }
     }
 
     /// @dev Installs the remote hook/ISM address in `Router` together with its
     /// Wormhole chain ID and expected VAA consistency level.
     function _enrollWormholeRemoteRouter(
-        RemoteRouterEnrollment calldata enrollment
+        RemoteRouterEnrollment calldata newRemoteConfig
     ) internal {
-        uint32 domainId = enrollment.domainId;
-        bytes32 domainIsm = enrollment.domainIsm;
+        uint32 domainId = newRemoteConfig.domainId;
+        bytes32 domainIsm = newRemoteConfig.domainIsm;
 
         if (domainId == localDomain) revert InvalidRemoteDomain();
         // TypeCasts rejects non-canonical bytes32 values that do not fit address.
         if (domainIsm.bytes32ToAddress() == address(0)) {
             revert InvalidDomainIsm();
         }
-        if (enrollment.wormholeChainId == 0) revert InvalidWormholeChainId();
-        if (enrollment.wormholeChainId == wormholeChainId) {
+        if (newRemoteConfig.wormholeChainId == 0)
+            revert InvalidWormholeChainId();
+        if (newRemoteConfig.wormholeChainId == wormholeChainId) {
             revert InvalidRemoteWormholeChainId();
         }
 
-        WormholeChainEnrollment memory existing = wormholeChainEnrollments[
-            enrollment.wormholeChainId
-        ];
-        if (existing.enrolled && existing.hyperlaneDomainId != domainId) {
+        WormholeChainEnrollment
+            memory currentChainEnrollment = wormholeChainEnrollments[
+                newRemoteConfig.wormholeChainId
+            ];
+        if (
+            currentChainEnrollment.enrolled &&
+            currentChainEnrollment.hyperlaneDomainId != domainId
+        ) {
             revert WormholeChainIdAlreadyEnrolled();
         }
 
-        RemoteRouterConfig memory oldConfig = remoteRouterConfigs[domainId];
+        RemoteRouterConfig memory currentRemoteConfig = remoteRouterConfigs[
+            domainId
+        ];
         if (
             routers(domainId) != bytes32(0) &&
-            oldConfig.wormholeChainId != enrollment.wormholeChainId
+            currentRemoteConfig.wormholeChainId !=
+            newRemoteConfig.wormholeChainId
         ) {
             revert WormholeChainIdChangeRequiresUnenrollment();
         }
 
         Router._enrollRemoteRouter(domainId, domainIsm);
         remoteRouterConfigs[domainId] = RemoteRouterConfig({
-            wormholeChainId: enrollment.wormholeChainId,
-            expectedConsistencyLevel: enrollment.expectedConsistencyLevel
+            wormholeChainId: newRemoteConfig.wormholeChainId,
+            expectedConsistencyLevel: newRemoteConfig.expectedConsistencyLevel
         });
         wormholeChainEnrollments[
-            enrollment.wormholeChainId
+            newRemoteConfig.wormholeChainId
         ] = WormholeChainEnrollment({
             enrolled: true,
             hyperlaneDomainId: domainId
@@ -331,8 +339,8 @@ contract WormholeVaaHookIsm is
         emit WormholeRemoteRouterEnrolled(
             domainId,
             domainIsm,
-            enrollment.wormholeChainId,
-            enrollment.expectedConsistencyLevel
+            newRemoteConfig.wormholeChainId,
+            newRemoteConfig.expectedConsistencyLevel
         );
     }
 

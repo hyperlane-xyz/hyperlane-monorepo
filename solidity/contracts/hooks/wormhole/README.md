@@ -135,14 +135,12 @@ support and, for custom consistency, the official local CCL address.
 Custom consistency uses Wormhole's Custom Consistency Level (CCL) contract. The
 constructor receives:
 
-- `customConsistencyLevelContract`: the official local CCL deployment;
+- `customConsistencyLevelContract`: the local CCL contract address;
 - `baseConsistencyLevel`: the underlying standard EVM consistency level; and
 - `additionalBlocks`: the extra blocks to wait.
 
-Construction submits this policy to the CCL contract and reverts if `configure`
-reverts. It does not read the policy back, so deployment tooling must provide the
-canonical CCL contract for the chain. For a standard consistency level, all
-three custom fields must be zero.
+The deployer must verify that the supplied address is the official CCL contract
+for the source chain.
 
 The local consistency level and each remote route's expected consistency level
 are separate: the former controls VAAs emitted here, while the latter controls
