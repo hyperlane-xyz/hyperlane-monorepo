@@ -67,8 +67,8 @@ export class IsmWriter
   private readonly routingWriter: RoutingIsmWriter;
 
   constructor(
-    protected readonly artifactManager: IRawIsmArtifactManager,
-    protected readonly chainLookup: ChainLookup,
+    protected override readonly artifactManager: IRawIsmArtifactManager,
+    protected override readonly chainLookup: ChainLookup,
     protected readonly signer: ISigner<AnnotatedTx, TxReceipt>,
   ) {
     super(artifactManager, chainLookup);
