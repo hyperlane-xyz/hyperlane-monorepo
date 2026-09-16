@@ -7,8 +7,8 @@ library LayerZeroMetadata {
     error InvalidLayerZeroMetadata();
     error LayerZeroPacketTooLarge(uint256 length);
 
-    /// @dev Use with `using LayerZeroMetadata for bytes` as
-    /// `metadata.decode()`.
+    /// @dev Decodes canonical CCIP-read metadata containing a receive library
+    /// and an encoded LayerZero packet.
     function decode(
         bytes calldata metadata
     ) internal pure returns (address receiveLibrary, bytes calldata packet) {
