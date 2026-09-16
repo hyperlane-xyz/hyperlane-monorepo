@@ -7,12 +7,12 @@ contract MockLayerZeroReceiveUln {
     MockLayerZeroEndpointV2 public immutable endpoint;
     bool public ready = true;
 
-    constructor(address endpoint_) {
-        endpoint = MockLayerZeroEndpointV2(endpoint_);
+    constructor(address _endpointAddress) {
+        endpoint = MockLayerZeroEndpointV2(_endpointAddress);
     }
 
-    function setReady(bool ready_) external {
-        ready = ready_;
+    function setReady(bool _ready) external {
+        ready = _ready;
     }
 
     function commitVerification(
@@ -22,15 +22,24 @@ contract MockLayerZeroReceiveUln {
         require(ready, "DVNs pending");
         require(packetHeader.length == 81, "header");
         uint64 nonce;
-        uint32 srcEid;
+        uint32 sourceEndpointId;
         bytes32 sender;
         address receiver;
         assembly ("memory-safe") {
             nonce := shr(192, calldataload(add(packetHeader.offset, 1)))
-            srcEid := shr(224, calldataload(add(packetHeader.offset, 9)))
+            sourceEndpointId := shr(
+                224,
+                calldataload(add(packetHeader.offset, 9))
+            )
             sender := calldataload(add(packetHeader.offset, 13))
             receiver := calldataload(add(packetHeader.offset, 49))
         }
-        endpoint.mockVerify(receiver, srcEid, sender, nonce, payloadHash);
+        endpoint.mockVerify(
+            receiver,
+            sourceEndpointId,
+            sender,
+            nonce,
+            payloadHash
+        );
     }
 }

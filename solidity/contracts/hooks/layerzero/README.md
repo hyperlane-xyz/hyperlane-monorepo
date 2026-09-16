@@ -13,13 +13,51 @@ can share one deployment when they accept its owner, peer set, LayerZero
 libraries, DVN configuration, and operational blast radius. Separate
 deployments provide independent policy and ownership.
 
-| Contract | Destination authentication | Hyperlane ISM metadata |
-| --- | --- | --- |
-| [`LayerZeroV2CallbackHookIsm`](./LayerZeroV2CallbackHookIsm.sol) | Endpoint calls `lzReceive` before `Mailbox.process` and the contract stores an authorization | Empty |
-| [`LayerZeroV2CcipReadHookIsm`](./LayerZeroV2CcipReadHookIsm.sol) | `Mailbox.process` validates a packet and commits its DVN verification through the receive library | ABI encoding of `(address receiveLibrary, bytes encodedPacket)` |
+[`LayerZeroV2CcipReadHookIsm`](./LayerZeroV2CcipReadHookIsm.sol) verifies a
+LayerZero packet during `Mailbox.process`. Its ISM metadata ABI-encodes
+`(address receiveLibrary, bytes encodedPacket)`.
 
-[`AbstractLayerZeroV2HookIsm`](./AbstractLayerZeroV2HookIsm.sol) contains shared
-publication, fee, endpoint, and route configuration logic.
+The Hyperlane delivery transaction can commit a packet after the configured
+DVNs attest. Verification requires a CCIP-read packet service, but does not
+wait for LayerZero Executor delivery. The Hyperlane relayer cannot replace the
+DVNs' attestations.
+
+## LayerZero terms used here
+
+An [Endpoint V2](https://docs.layerzero.network/v2/developers/evm/protocol-contracts-overview)
+is LayerZero's on-chain entry point on each chain. An endpoint ID identifies a
+LayerZero chain; it is distinct from a Hyperlane domain ID. This hook/ISM is the
+LayerZero application (OApp) on both sides of a pathway.
+
+For a message from A to B:
+
+1. A's Endpoint uses the selected
+   [send library](https://docs.layerzero.network/v2/concepts/protocol/message-send-library)
+   to encode the packet, quote the fee, and assign work to the configured DVNs
+   and Executor. `sendConfig` holds that library's outbound Executor and DVN
+   settings for B's endpoint ID.
+2. DVNs submit packet attestations to B's selected
+   [receive library](https://docs.layerzero.network/v2/concepts/protocol/message-receive-library).
+   `receiveConfig` holds its inbound DVN and confirmation requirements for A's
+   endpoint ID. Once those requirements are met, anyone can call the receive
+   library's `commitVerification`; it records the packet's payload hash in B's
+   Endpoint.
+3. Normally an Executor later clears the packet and calls the receiving OApp.
+   Here, the Hyperlane relayer instead supplies the packet during
+   `Mailbox.process`. The ISM checks the exact packet and commits verification
+   if needed. Executor delivery is not required for Hyperlane processing.
+
+Selecting a library and setting its configuration are different Endpoint
+operations. A library address chooses the implementation for this OApp and
+remote endpoint ID; `setConfig` supplies that library's worker policy. Empty
+config arrays use the selected ULN302 libraries' defaults. The owner must check
+that the send policy on A and receive policy on B are compatible. See LayerZero's
+[pathway configuration guide](https://docs.layerzero.network/v2/get-started/create-lz-oapp/configuring-pathways).
+
+This pull verifier decodes Endpoint V2 PacketV1 data and calls
+`IReceiveUlnE2.commitVerification` for packets not already committed. Select
+compatible message libraries; Endpoint registration alone does not establish
+that a receive library supports this interface.
 
 ## Hyperlane integration
 
@@ -60,8 +98,8 @@ Hyperlane message ID
 ```
 
 The message ID commits to the complete packed Hyperlane message, including its
-nonce, sender, recipient, body, origin, and destination. Both variants require
-the exact enrolled LayerZero peer and EID for that origin.
+nonce, sender, recipient, body, origin, and destination. Verification requires
+the exact enrolled LayerZero peer and endpoint ID for that origin.
 
 For traffic from A to B, configure both sides:
 
@@ -83,51 +121,9 @@ hook was omitted from a dispatch, while the message remains the latest
 dispatch. Normal integrations should invoke the hook atomically during
 dispatch instead of depending on this timing-sensitive recovery path.
 
-## Callback variant
+## CCIP-read verification
 
-The callback variant asks the LayerZero Executor to call the destination
-Endpoint. The Endpoint authenticates and clears the packet, then calls
-`LayerZeroV2CallbackHookIsm.lzReceive`. The contract validates the Endpoint,
-source EID, peer, payload fields, GUID, and zero destination value before
-storing an authorization keyed by `(originDomain, messageId)`.
-
-```mermaid
-sequenceDiagram
-    participant App
-    participant OriginMailbox
-    participant OriginIsm as Origin Hook/ISM
-    participant LZ as LayerZero pathway
-    participant DestinationIsm as Destination Hook/ISM
-    participant DestinationMailbox
-    participant Recipient
-
-    App->>OriginMailbox: dispatch(message)
-    OriginMailbox->>OriginIsm: postDispatch(metadata, message)
-    OriginIsm->>LZ: Endpoint.send(payload, callback options)
-    LZ->>DestinationIsm: Endpoint.lzReceive(origin, guid, payload)
-    DestinationIsm->>DestinationIsm: store authorization[origin][messageId]
-    DestinationMailbox->>DestinationIsm: verify("", message)
-    DestinationIsm-->>DestinationMailbox: authorization exists
-    DestinationMailbox->>Recipient: handle(message)
-```
-
-The callback and Hyperlane delivery are independent transactions. Callback
-execution can happen before or after the Hyperlane relayer first attempts
-delivery. Until `lzReceive` succeeds, `verify` returns false. Once stored, an
-authorization is not consumed by verification; the Mailbox supplies final
-message replay protection.
-
-Duplicate authenticated callbacks are idempotent. They rewrite the same boolean
-and emit another `LayerZeroAuthorizationReceived` event. Unauthenticated callers
-cannot use `lzReceive` directly because only the immutable Endpoint is accepted.
-
-`callbackGasLimits[domain]` funds only the LayerZero callback. It does not fund
-`Mailbox.process` or the recipient's `handle` call. The configured value must be
-large enough for Endpoint delivery and the authorization write.
-
-## CCIP-read pull variant
-
-The pull variant obtains the exact encoded LayerZero packet through EIP-3668
+The ISM obtains the exact encoded LayerZero packet through EIP-3668
 CCIP-read. A compatible service implements
 `getLayerZeroPacket(bytes hyperlaneMessage)` and returns the ABI encoding of:
 
@@ -166,11 +162,12 @@ sequenceDiagram
 ```
 
 If the Endpoint already stores the exact payload hash, verification uses that
-committed state and does not depend on the metadata's receive-library address.
-This preserves packets committed before a receive-library rotation. A different
-stored hash reverts with `ConflictingPayloadHash`.
+committed state without checking whether the metadata's nonzero receive-library
+address is still valid. This preserves packets committed before a
+receive-library rotation. A different stored hash reverts with
+`ConflictingPayloadHash`.
 
-The pull variant sends a one-gas `lzReceive` option because standard LayerZero
+The hook sends a one-gas `lzReceive` option because standard LayerZero
 Executors reject missing and zero-gas receive options. Normal Executor callback
 delivery cannot complete with that budget. `lzReceive` additionally accepts a
 clear only after the corresponding Hyperlane message is delivered, allowing
@@ -179,10 +176,9 @@ undelivered authorization.
 
 ## Fees
 
-Both variants call `Endpoint.quote` immediately before sending and pay its
-reported native fee. That quote prices the configured LayerZero pathway. It can
-include work performed by the send library, DVNs, and Executor according to the
-pathway configuration.
+The hook calls `Endpoint.quote` immediately before sending and pays its
+reported native fee. The send library calculates that quote using the
+configured DVN and Executor fees.
 
 DVNs are independent verifiers that observe packets and submit attestations to
 the receive library. Their attestations are not produced by Hyperlane
@@ -193,11 +189,9 @@ Paying the fee does not let the sender choose a different DVN threshold or make
 an invalid packet pass verification; those rules come from the configured
 message libraries and DVN settings.
 
-The callback variant includes a usable Executor gas option, so its quote funds
-automatic destination callback delivery. The pull variant still includes the
-minimum one-gas Executor option required for a standard pathway to quote and
-send. It may therefore pay an Executor component even though Hyperlane delivery
-does not rely on successful Executor execution.
+The quote still includes the minimum one-gas Executor option required for a
+standard pathway to quote and send. It may therefore pay an Executor component
+even though Hyperlane delivery does not rely on successful Executor execution.
 
 These fees are separate from:
 
@@ -222,42 +216,51 @@ token for another child.
 ## Route and Endpoint configuration
 
 Construction fixes three values permanently: the Hyperlane Mailbox, LayerZero
-Endpoint, and local EID. Constructor checks confirm that the Endpoint has code,
-reports a nonzero EID, and uses the native currency fee model. These checks do
-not prove that the configured contracts and identifiers are canonical for the
-chain; the deployer must verify them.
+Endpoint, and local endpoint ID. Constructor checks confirm that the Endpoint
+has code, reports a nonzero endpoint ID, and uses the native currency fee model.
+These checks do not prove that the configured contracts and identifiers are
+canonical for the chain; the deployer must verify them.
 
 Rich enrollment configures a route atomically with:
 
 - Hyperlane remote domain;
 - exact remote Hook/ISM address;
-- LayerZero remote EID;
+- LayerZero remote endpoint ID;
 - explicit send and receive libraries;
-- send-library and receive-library configuration entries;
-- receive-library grace period and optional timeout; and
-- callback gas limit for the callback variant.
+- send-library and receive-library configuration entries.
 
-Enrollment rejects the local domain, zero/local EIDs, zero or noncanonical EVM
-peer encodings, and reuse of one EID by multiple Hyperlane domains. A route is
-accepted only when it uses explicit nondefault send and receive libraries and
-has its variant-specific configuration.
+Enrollment rejects the local domain, zero/local endpoint IDs, a zero peer, and
+reuse of one endpoint ID by multiple Hyperlane domains. Peers are arbitrary
+nonzero `bytes32` values, as LayerZero also supports non-EVM addresses. A route
+is accepted only after its send and receive libraries are selected explicitly
+for this OApp, rather than inheriting the Endpoint's mutable library defaults.
 
 The inherited basic `Router.enrollRemoteRouter` path is disabled because it
 cannot install the required LayerZero policy. Use the typed singular or batch
 functions on the concrete contract. Batch operations are atomic.
 
-`updateLayerZeroRemoteRouterConfig` can replace the peer, update configuration
-for the currently selected libraries, change the receive-library timeout, and
-change callback gas. It cannot change the route's EID or selected libraries.
-Use unenrollment followed by rich enrollment for an EID change. Rich enrollment
-can rotate libraries while retaining the EID.
+Calling rich enrollment for an existing domain replaces its route in one
+transaction. The contract sets the supplied peer, endpoint ID, libraries, and
+policy directly. It writes each supported config type, using the selected
+library's default for an omitted entry rather than retaining its old value.
+Custom entries support ULN302 Executor (send type 1) and DVN (type 2) settings.
+If the endpoint ID changes, the old Endpoint path is blocked and its reverse
+lookup removed. No old library config is reset during overwrite: it is inactive
+once deselected, and a later selection writes a complete policy. If any step
+fails, the old route remains unchanged. A config-only change uses this same
+overwrite operation without a between-transaction gap. Packets committed by
+the Endpoint remain verifiable if the peer and endpoint ID are unchanged.
+Uncommitted packets may no longer verify after a peer, endpoint ID, or
+receive-library change. Changing only the receive DVNs or confirmation count
+can also strand uncommitted packets: the receive library checks them against
+the current policy, even when its address is unchanged.
 
 Endpoint configuration is directional. A to B and B to A may use different
-libraries, DVNs, confirmation counts, Executors, and timeouts. A LayerZero EID
-is not an EVM chain ID or Hyperlane domain:
+libraries, DVNs, confirmation counts, and Executors. A LayerZero
+endpoint ID is not an EVM chain ID or Hyperlane domain:
 
 ```text
-EVM chain ID != Hyperlane domain != LayerZero EID
+EVM chain ID != Hyperlane domain != LayerZero endpoint ID
 ```
 
 Owner compromise is security-critical. The owner can replace trusted peers and
@@ -267,18 +270,21 @@ change the libraries and DVN policy used by the Endpoint for this OApp.
 
 Destination authentication checks bind together:
 
-1. the immutable destination Endpoint and local EID;
-2. the enrolled source EID and exact remote peer;
+1. the immutable destination Endpoint and local endpoint ID;
+2. the enrolled source endpoint ID and exact remote peer;
 3. the destination Hook/ISM address in the LayerZero packet;
 4. the LayerZero nonce and recomputed GUID;
 5. the versioned payload's Hyperlane origin and destination; and
 6. the full Hyperlane message ID.
 
+GUID validation hashes the complete 32-byte LayerZero sender, including any
+non-EVM address bytes.
+
 | Component | Security role |
 | --- | --- |
 | LayerZero Endpoint and selected message libraries | Commit and expose authenticated packet state according to the configured pathway |
 | Configured DVNs | Attest packets under the configured threshold and confirmation policy |
-| Hook/ISM owner | Select peers, EIDs, libraries, DVNs, confirmations, Executor policy, and callback gas |
+| Hook/ISM owner | Select peers, endpoint IDs, libraries, DVNs, confirmations, and Executor policy |
 | Hyperlane Mailbox | Supplies the canonical message and final replay protection |
 | Application configuration | Ensures this hook runs on dispatch and this ISM participates in delivery policy |
 | Executor, CCIP-read service, and Hyperlane relayer | Transport data and transactions; can delay or omit work but cannot satisfy packet checks with different data |
@@ -293,33 +299,25 @@ does, or enforce an equivalent application/ISM policy.
 
 Origin dispatch and LayerZero send are atomic when the Hook/ISM is in the hook
 tree. A failed quote, send, or refund reverts the Mailbox dispatch and the
-`sent` write. DVN attestation and destination processing occur asynchronously.
+`sentAuthorizations` write. DVN attestation and destination processing occur
+asynchronously.
 
 Route changes affect in-flight messages by stage:
 
-| Stage | Effect of unenrollment or peer replacement |
+| Stage | Effect of route or receive-policy changes |
 | --- | --- |
 | Before origin publication | Later sends require the new route |
-| Packet sent but not authenticated at destination | Destination checks use the current EID and peer; an old peer no longer authenticates |
-| Callback authorization already stored | The exact `(originDomain, messageId)` authorization remains valid |
-| Pull packet awaiting `Mailbox.process` | Verification uses current route identity; old peer or EID data is rejected |
+| Packet sent but not authenticated at destination | Destination checks use the current endpoint ID, peer, library, and DVN/confirmation policy; old packets may no longer authenticate |
+| Pull packet awaiting `Mailbox.process` | Verification uses current route identity; old peer or endpoint ID data is rejected |
 | Hyperlane message delivered | Mailbox replay protection remains final |
 
-Callback authorizations deliberately survive unenrollment, peer replacement,
-and later Endpoint policy changes. This permits retrying a message already
-authenticated under the previous policy. It also means route removal is not a
-retroactive revocation mechanism. During an emergency rotation, review stored
-`LayerZeroAuthorizationReceived` events and any pending Hyperlane messages.
-There is no per-authorization delete or expiry function.
-
-Unenrollment removes the peer, EID mappings, and callback gas configuration. It
-does not mutate LayerZero Endpoint library/config storage, because that state is
-keyed by the OApp and EID and can be reused if the route is enrolled again.
+Unenrollment removes the peer and endpoint ID mappings, blocks both Endpoint
+directions, and restores the selected libraries' configuration to defaults.
 
 ## Pull packet cleanup and LayerZero nonces
 
 LayerZero assigns a `uint64` nonce per source/destination OApp channel. The
-contracts opt out of application-level ordered execution by returning zero from
+contract opts out of application-level ordered execution by returning zero from
 `nextNonce`, but the Endpoint still records payload hashes and maintains a lazy
 inbound nonce.
 
@@ -329,9 +327,10 @@ After pull verification succeeds, the ISM calls `Endpoint.clear` with a fixed
 prevents an unbounded Endpoint scan across a long contiguous set of committed
 nonces from exhausting `Mailbox.process` gas.
 
-The contract never clears an undelivered Hyperlane message merely to advance a
-LayerZero nonce. An undelivered message may be blocked by another security
-module or application policy, and this ISM cannot safely decide to consume it.
+`verify` may clear the packet it just authenticated before Mailbox delivery.
+It never clears an earlier, undelivered packet merely to advance a LayerZero
+nonce. An undelivered message may be blocked by another security module or
+application policy, and this ISM cannot safely decide to consume it.
 
 Consequences:
 
@@ -354,12 +353,12 @@ and retry cleanup after confirming Mailbox delivery.
 | Mailbox `DispatchId` | Origin Mailbox emitted the Hyperlane message ID |
 | `LayerZeroAuthorizationSent` | Origin Hook/ISM paid the Endpoint and obtained a GUID and nonce |
 | LayerZero Endpoint `PacketSent` | Endpoint emitted the complete encoded packet |
-| `LayerZeroAuthorizationReceived` | Callback variant stored destination authorization |
-| `LayerZeroPayloadVerified` | Pull variant matched or committed the exact Endpoint payload hash |
+| `LayerZeroPayloadVerified` | ISM matched or committed the exact Endpoint payload hash |
 | `LayerZeroPayloadClearFailed` | Pull verification succeeded but bounded cleanup failed |
 | Mailbox `ProcessId` | ISM verification and recipient handling completed |
 | `LayerZeroRemoteRouterEnrolled` / `LayerZeroRemoteRouterUnenrolled` | Owner changed route identity |
-| library/config/callback-gas events | Owner changed Endpoint or variant policy |
+| `LayerZeroSendLibrarySet` / `LayerZeroReceiveLibrarySet` | Owner selected an Endpoint library |
+| Library `UlnConfigSet` / `ExecutorConfigSet` | Owner changed pathway worker configuration |
 
 `LayerZeroPayloadVerified` does not report the metadata-supplied receive
 library. When a payload hash was committed before processing, that library is
@@ -367,14 +366,12 @@ not consulted and is not authenticated event data.
 
 ## Operational constraints
 
-- The contracts target Ethereum-protocol chains and Tron with LayerZero V2
+- The contract targets Ethereum-protocol chains and Tron with LayerZero V2
   Endpoint support.
+- Non-EVM peers require a compatible remote Hook/ISM implementation.
 - Only native-fee Endpoints are supported.
-- The same variant should be used at both ends of a directional route for the
-  documented automated flow.
-- The callback variant requires empty Hyperlane ISM metadata.
-- The pull variant requires a CCIP-read-compatible relayer and packet service.
-- The contracts do not fund Hyperlane relaying; configure an IGP or other
+- The ISM requires a CCIP-read-compatible relayer and packet service.
+- The contract does not fund Hyperlane relaying; configure an IGP or other
   delivery mechanism separately when needed.
 - `Router.handle` is unsupported because LayerZero transports authorization,
   not application message bodies.

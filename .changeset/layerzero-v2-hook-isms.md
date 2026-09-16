@@ -2,4 +2,4 @@
 '@hyperlane-xyz/core': minor
 ---
 
-Added LayerZero V2 callback and CCIP-read combined hook/ISM contracts.
+Added a LayerZero V2 hook/ISM that authenticates Hyperlane messages with DVN-verified packets via CCIP-read.
