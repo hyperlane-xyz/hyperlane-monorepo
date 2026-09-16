@@ -177,11 +177,15 @@ export function warpArtifactTestSuite(
     // Verify
     const reader = ctx.artifactManager.createReader(type);
     const readToken = await reader.read(deployedToken.deployed.address);
+    const domain1Router = readToken.config.remoteRouters[DOMAIN_1];
+    const domain2Router = readToken.config.remoteRouters[DOMAIN_2];
+    assert(domain1Router, `Missing remote router for ${DOMAIN_1}`);
+    assert(domain2Router, `Missing remote router for ${DOMAIN_2}`);
 
-    expect(readToken.config.remoteRouters[DOMAIN_1].address).to.equal(
+    expect(domain1Router.address).to.equal(
       '0xe98b09dff7176053c651a4dc025af3e4f6a442415e9b85dd076ac0ff66b4b1ed',
     );
-    expect(readToken.config.remoteRouters[DOMAIN_2].address).to.equal(
+    expect(domain2Router.address).to.equal(
       '0x1aac830e4d71000c25149af643b5a18c7a907e2d36147d8b57c5847b03ea5528',
     );
     expect(readToken.config.destinationGas[DOMAIN_1]).to.equal('100000');
@@ -285,13 +289,10 @@ export function warpArtifactTestSuite(
 
     // Verify gas changed
     const readToken2 = await reader.read(deployedToken.deployed.address);
+    const domain1Router = readToken2.config.remoteRouters[DOMAIN_1];
+    assert(domain1Router, `Missing remote router for ${DOMAIN_1}`);
     expect(readToken2.config.destinationGas[DOMAIN_1]).to.equal('200000');
-    expect(
-      eqAddressAleo(
-        readToken2.config.remoteRouters[DOMAIN_1].address,
-        routerAddress,
-      ),
-    ).to.be.true;
+    expect(eqAddressAleo(domain1Router.address, routerAddress)).to.be.true;
   });
 
   it('should transfer ownership via update (ownership last)', async () => {
@@ -337,6 +338,7 @@ export function warpArtifactTestSuite(
 
     // Verify ownership transfer is the LAST transaction
     const lastTx = txs[txs.length - 1];
+    assert(lastTx, 'Expected at least one ownership update transaction');
     expect(lastTx.annotation).to.include('owner');
 
     // Execute all transactions
@@ -347,8 +349,10 @@ export function warpArtifactTestSuite(
     // Verify router enrollment, ISM, AND ownership transfer succeeded
     const reader = ctx.artifactManager.createReader(type);
     const readToken = await reader.read(deployedToken.deployed.address);
+    const domain1Router = readToken.config.remoteRouters[DOMAIN_1];
+    assert(domain1Router, `Missing remote router for ${DOMAIN_1}`);
 
-    expect(readToken.config.remoteRouters[DOMAIN_1].address).to.equal(
+    expect(domain1Router.address).to.equal(
       '0xc2c6885c3c9e16064d86ce46b7a1ac57888a1e60b2ce88d2504347d3418399c4',
     );
     expect(readToken.config.interchainSecurityModule?.deployed.address).to.be
