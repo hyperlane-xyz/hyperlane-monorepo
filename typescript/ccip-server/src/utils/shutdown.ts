@@ -37,7 +37,6 @@ export async function closeServers(
     logger.error('Hard shutdown deadline exceeded');
     forceExit(1);
   }, hardMs);
-  hardTimer.unref();
 
   const metricsClosed = new Promise<void>((resolve, reject) => {
     metricsServer.close((error) => (error ? reject(error) : resolve()));
